@@ -2,7 +2,7 @@
 
 本文件只保留当前仍需交付、补证或继续深入的工作。已经完成的里程碑压缩为结果摘要；历史 PR 拆分与设计记录见 [docs/roadmap-history.md](docs/roadmap-history.md)。
 
-图例：✅ 已完成 / 🚧 进行中或待补证 / 📋 计划中 / ⏸️ 暂停 / ➡️ 移交
+图例：✅ 已完成 / ✅（待验证）研发已完成、外部真机或连续运行验证待执行 / 🚧 进行中或待补证 / 📋 计划中 / ⏸️ 暂停 / ➡️ 移交
 
 ## 完成判定
 
@@ -23,17 +23,17 @@
 | 14 | SonnetDB Copilot | 🚧 | MCP、知识库、skills 和自研 `CopilotAgent` 已落地；Microsoft Agent Framework、本地 ONNX 执行和在线 provider-neutral 接线未完成，转入 M27。 |
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与测试已落地；会话以服务端持久化为准，不回退 `localStorage`。 |
 | 18 | SonnetDB for VS Code | ✅ | `0.4.1` 已发布；smoke、隔离 VSIX 安装和本地/Marketplace SHA256 对拍通过。 |
-| 19 | 生态适配底座 | 🚧 | #109~#124、#126/#126.1 实现完成；#125 四个默认容量档缺固定目标硬件报告。 |
-| 20 | 多模型 Parity | 🚧 | 套件、宿主 readiness 与失败路径结构化 summary 已实现；仍需完整 scheduled run 和 7 天 nightly 连续证据。 |
+| 19 | 生态适配底座 | ✅（待验证） | #109~#124、#126/#126.1 与 #125 runner、workflow、报告 verifier 已实现；四个默认容量档固定目标硬件报告待后续真机验证。 |
+| 20 | 多模型 Parity | ✅（待验证） | 套件、宿主 readiness、失败路径结构化 summary 和 nightly verifier 已实现；7 天 scheduled 连续证据待后续运行验证。 |
 | 21 | Document Store 单机能力 | ✅ | 常用单机 Document 子集已落地。 |
 | 22 | 上层应用/示例候选 | ⏸️ | 不作为 SonnetDB 内置里程碑；通用能力缺口再回收。 |
 | 23 | 搜索与向量引擎合并 | ✅ | DotSearch / DotVector 能力已收编。 |
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
-| 25 | Document 验收与发布治理 | 🚧 | parity 与文档完成；#174 仅有 1 万文档 quick 证据，百万/千万档未验证。 |
+| 25 | Document 验收与发布治理 | ✅（待验证） | parity、runner、schema v2 报告和发布 verifier 已实现；#174 百万/千万固定目标硬件档待后续真机验证。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
-| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位已校准；工具合同、运行时接线、双网客户端 Copilot、工业 Demo 和 eval 仍有实际缺口。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环（真实 provider 运行待验证），本地 ONNX 语义执行与双网客户端 Copilot 仍有研发缺口。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
-| 29 | 多模型统一管理工作台 | 🚧 | Web/Studio/VS Code 功能与合同已落地；Studio 安装包和宿主生命周期仍需实机验收。 |
+| 29 | 多模型统一管理工作台 | ✅（待验证） | Web/Studio/VS Code 功能、Studio 独立 bundle/MSI、宿主生命周期合同和自动化测试已落地；干净 Windows 安装、WebView2、升级/卸载保留及端口冲突仍待真机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
 | 31 | 时序聚合类型语义 | ✅ | selector / categorical aggregates 已落地。 |
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
@@ -52,7 +52,7 @@
 
 1. M41 P0/P2/P3 已完成本地实现、自动化门禁与 #381 收口报告；木垒同语料、固定硬件、7 天 mixed workload、真进程 crash/replay、部署 Native AOT 和生产 gate 作为现场观察项后置，仍不得用本机数字代替发布证据，也不得用增加 SQL permit、内存或索引数量代替根因修复。
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
-3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
+3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
@@ -63,7 +63,7 @@
 
 ### M19 — 生态容量证据
 
-#125 runner、workflow 和缩规模 quick 验证已经完成，但容量声明尚未闭环。固定规格目标硬件必须分别运行并归档：
+#125 runner、workflow、报告 verifier 和缩规模验证已经完成，研发切片可视为完成；容量发布证据仍需在固定规格目标硬件上分别运行并归档：
 
 - `high-cardinality`：默认 1,000,000 series。
 - `small-segments`：默认 10,000 segment。
@@ -79,14 +79,14 @@ Parity 场景、适配器和 compose 已存在，但“完成”还需要：
 - ✅ workflow 已改为宿主 readiness 探测；restore、build、stack 或 test 失败仍生成带稳定 `gap_reason`、commit SHA 和门禁分类的 schema v2 summary，并保留容器诊断。
 - ✅ 2026-08-25～27 的三个 scheduled run 已让 `light` / `full` 完整 compose 在 CI 中健康启动，并实际完成 parity、reliability、summary、artifact 和发布步骤，不再只是 `docker compose config` 证据。
 - ✅ 新增只读 nightly evidence verifier，逐次校验双 profile artifact、完整 schema v2 字段与计数不变量、run/commit 绑定，并将每个 summary suite 与 `raw/<runId>/report.json` 一一对账；证据窗口下限固定为 7 次，只能向上扩大。离线 fixture 固定不足 7 次、混入失败、缺字段/原因、计数或 raw 对账不一致与七次成功合同。
-- 🚧 scheduled workflow 连续 7 天成功率仍须不低于 95%。[2026-08-28 审计](docs/benchmarks/m20-parity-nightly-evidence.md)为 `NOT_READY`：最近七次只有 2026-08-25～27 三次有效，3/7（42.86%），8 月 21～24 的结构化失败不能计为通过。
+- ✅（待验证）scheduled workflow 连续 7 天成功率仍须不低于 95%。[2026-08-29 审计](docs/benchmarks/m20-parity-nightly-evidence.md)为 `NOT_READY`：最近七次只有 2026-08-25～28 四次有效，4/7（57.14%），8 月 22～24 的结构化失败不能计为通过；研发实现已完成，后续只需继续积累 scheduled 运行证据。
 - NATS、VictoriaMetrics 等第三方镜像的健康检查不得依赖镜像内不存在的 shell/wget；探活由宿主 workflow 或可用的原生命令完成。
 - 失败 run 必须保留容器日志、测试报告和 commit SHA，不能发布 `No summary was produced for this run.` 作为完成证据。
 
 ### M25 — Document 容量证据
 
 - ✅ MongoDB 参考 parity、Document 能力矩阵、迁移边界和 1 万文档 quick profile 已完成。
-- 🚧 在固定目标硬件运行 `million` 与 `ten-million` profile，归档写入、查询、rebuild、TTL、热/冷启动、crash recovery、backup/restore 和内存曲线。
+- ✅（待验证）在固定目标硬件运行 `million` 与 `ten-million` profile，归档写入、查询、rebuild、TTL、热/冷启动、crash recovery、backup/restore 和内存曲线；runner、报告 schema 和 verifier 已完成。
 - 没有对应 PASS 报告前，对外只声明“profile 可执行，规模未在目标硬件验证”；当前发布证据仅支持 1 万文档级完整治理闭环。
 
 ### M29 — Studio 实机验收
@@ -96,21 +96,21 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 - 在干净 Windows 环境安装 Studio 安装包，验证首次启动、升级/卸载和数据目录保留策略。
 - 验证托管 Server 的启动、停止、异常退出、宿主退出策略、端口冲突和日志/健康状态。
 
-上述功能性实机验收完成后，M29 转为 ✅。
+上述功能性实机验收属于后续现场验证；研发交付已完成，当前标记为 ✅（待验证），不得将本地 build/smoke 宣称为真机 PASS。
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；`LocalOnnxEmbeddingProvider.EmbedAsync` 尚未执行模型；在线 `/v1/copilot/chat` 只走 `ICopilotCloudGatewayClient`。在接线完成前，文档必须如实描述这些边界。
+目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 仍只校验/加载模型并在缺少 tokenizer/input profile 时显式回退 hash provider，尚未完成真实 ONNX 语义推理。文档和报告必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
 | #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
 | #183 MCP 合同 | 现有九个只读工具已发布机器可验证 input/output schema、v1 合同版本、稳定错误码与兼容文本，并以端到端测试冻结权限 annotation、既有 required 集合和字段类型；参数、返回、权限、错误与 extend-only 版本规则见 `docs/mcp-contract.md`，未扩大工具面。 | ✅ |
-| #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致。 | 📋 |
-| #185 Provider 接线 | 配置样例和模型分组已完成；仍需让在线 Chat 按配置走 `IChatProvider` 或云 Gateway，并实现可运行的本地 embedding/provider 路径。 | 🚧 |
+| #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致；新增可运行 sample、结构化状态和不可达 provider 的 `NOT_READY` 门禁。真实 broker/provider journey 后续验证。 | ✅（待验证） |
+| #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 当前为可观测的 hash fallback，仍需目标模型 tokenizer/input profile 与真实 ONNX 语义推理。 | 🚧 |
 | M14 纠偏 | 接入最新 Microsoft Agent Framework 并以测试证明，或继续明确标注“自研 orchestrator”；实现本地 ONNX 前不得宣称 bge-small-zh 已可用。 | 🚧 |
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
-| #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告。 | 📋 |
+| #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告；已冻结 `m27-copilot-eval-v1` verifier 和诚实的 `NOT_READY` fixture，真实 provider usage/质量门禁后续验证。 | ✅（待验证） |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
 | #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；保留服务端中继模式，首版只读。 | 📋 |
 

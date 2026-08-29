@@ -7,9 +7,19 @@
 
 ### Added
 
+- **M29 Studio 发布与宿主生命周期合同**：Windows 发布脚本现在生成独立 `sonnetdb-studio-<version>-win-x64.zip` 与 MSI，bundle 携带同版本 `server/` 托管 Server；Studio 默认数据目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不随安装目录升级/卸载删除。宿主启停串行化，记录 `.studio/managed-server.log`，异常退出包含退出码/stderr 尾部，健康超时会清理子进程；新增 Windows Studio host 合同测试和 CI TRX artifact。WebView2、干净机器安装、升级/卸载和端口冲突仍登记为待真机验证。
+
+- **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据。
+
+- **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件统一保持 `NOT_READY`，不能冒充百万/千万发布证据。
+
 - **M27 #183 MCP typed contract**：现有九个只读 MCP 工具现在通过 `tools/list` 发布真实业务 input/output JSON Schema，并在成功结果与三个 JSON resource 中携带 `contractVersion: "1.0"`；所有工具显式声明只读、非破坏、幂等与 closed-world annotation。失败继续以首个纯文本块兼容旧客户端，同时增加 source-generated JSON 错误块及稳定 `invalid_argument`、`invalid_sql`、`read_only_violation`、`measurement_not_found`、`skill_not_found`、`provider_unavailable`、`request_cancelled`、`operation_failed` code。新增端到端合同/权限/错误测试和 extend-only 兼容测试，并以 `docs/mcp-contract.md` 冻结参数、返回、权限、错误及 1.x 版本规则；未新增工具。
 
-- **M20 Parity nightly 证据验证器**：新增只读 PowerShell verifier，通过 GitHub Actions artifact 或同构离线 fixture 检查最近至少七次 scheduled run 的 `light` / `full` 双 profile、完整 schema v2 字段与计数不变量、run/commit 绑定，并将 summary suites 与 `raw/<runId>/report.json` 的实际场景数一一对账。`RequiredRunCount` 下限固定为 7，只能扩大窗口；默认 `NOT_READY` 会失败退出。离线合同覆盖当前“三次成功 + 四次失败”、不足七次、缺字段/`gap_reason`、计数或 raw 对账不一致和七次连续成功。2026-08-28 的真实 artifact 审计结果仍为 `NOT_READY`（3/7，42.86%），M20 未完成。
+- **M27 #184/#187 工业诊断样例与 Eval/成本合同**：新增可运行的 HTTP Line Protocol / 可选 MQTT 温度、电流、振动诊断 journey，输出异常设备、维修建议和三条引用的结构化报告；Copilot provider 未请求或不可用时明确记录 `NOT_READY`。新增覆盖异常设备、慢查询、schema、维修建议和审批的 `m27-copilot-eval-v1` fixture、PowerShell 7 verifier/回归测试，逐场景冻结 provider/model/tool/failure/token/cost 字段；脚本化 provider 不计为真实模型调用，不估算 token 成本。
+
+- **M27 #185 Provider 接线**：未绑定 sonnetdb.com Cloud Token 且 `Copilot:Chat` readiness 完整时，`/v1/copilot/chat` 与 stream 端点现在直接复用已注册的 `IChatProvider` 和本地 `CopilotAgent`，保留数据库只读权限、工具、会话持久化及 source-generated NDJSON/SSE 合同；Cloud Token 仍优先走云端 Runtime，本地 HTTP 分支拒绝未确认的 `read-write` 请求，缺少 `user` 消息时以稳定 `bad_request` 拒绝。本地 ONNX provider 在缺少明确 tokenizer/input profile 或 runtime 不可用时转为可观测的 384 维确定性 hash fallback，并在知识库状态暴露 `EmbeddingFallback`，不把 fallback 宣称为真实 ONNX 语义推理。
+
+- **M20 Parity nightly 证据验证器**：新增只读 PowerShell verifier，通过 GitHub Actions artifact 或同构离线 fixture 检查最近至少七次 scheduled run 的 `light` / `full` 双 profile、完整 schema v2 字段与计数不变量、run/commit 绑定，并将 summary suites 与 `raw/<runId>/report.json` 的实际场景数一一对账。`RequiredRunCount` 下限固定为 7，只能扩大窗口；默认 `NOT_READY` 会失败退出。离线合同覆盖当前“三次成功 + 四次失败”、不足七次、缺字段/`gap_reason`、计数或 raw 对账不一致和七次连续成功。2026-08-29 的真实 artifact 审计结果仍为 `NOT_READY`（4/7，57.14%），还需三次连续成功，M20 未完成。
 
 - **跨模型 generation 原子发布合同**：新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、查询 `DatabaseGenerationQueryLease`、generation-bound opaque cursor 与 lease-aware retired cleanup。发布会先校验并 checkpoint generation 独占的 KV、Document 及其全部 FullText 派生资源，再以内部 durable KV 条件批次一次写入 descriptor、resource ownership 和 active revision；不持久化或暴露 staging，也不要求上层建立第二提交日志。新增 A/B reopen、publish 前后故障注入、双 lease 并发清理、cursor continuation/stale/tamper、取消/异常释放、真实 Document+FullText 不混代、backup/restore、公共 API 与独立 NuGet package consumer 回归。该条目只表示 Core 公共合同和本仓证据完成；Couplet 仍需直接消费最新 SonnetDB 源码并通过 C1 联合 correctness/recovery 与 performance/capacity 门禁，`CG-005` 尚未关闭。
 

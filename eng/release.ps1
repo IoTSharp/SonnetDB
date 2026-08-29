@@ -61,11 +61,13 @@ function Publish-Binaries
     $publishRoot = Join-Path $OutputRoot "publish\$TargetRid"
     $cliPublishDir = Join-Path $publishRoot 'cli'
     $serverPublishDir = Join-Path $publishRoot 'server'
+    $studioPublishDir = Join-Path $publishRoot 'studio'
 
     Write-Section "Publishing native binaries for $TargetRid"
     Reset-Directory $publishRoot
     Ensure-Directory $cliPublishDir
     Ensure-Directory $serverPublishDir
+    Ensure-Directory $studioPublishDir
 
     $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Cli/SonnetDB.Cli.csproj') `
         -c $Configuration `
@@ -86,9 +88,23 @@ function Publish-Binaries
         /warnaserror
     Assert-LastExitCode "dotnet publish SonnetDB ($TargetRid)"
 
+    if ($TargetRid -eq 'win-x64')
+    {
+        $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Studio/SonnetDB.Studio.csproj') `
+            -c $Configuration `
+            -r $TargetRid `
+            --self-contained true `
+            -p:Version=$Version `
+            -p:BuildStudioUi=$($BuildAdminUi.IsPresent.ToString().ToLowerInvariant()) `
+            -o $studioPublishDir `
+            /warnaserror
+        Assert-LastExitCode "dotnet publish SonnetDB.Studio ($TargetRid)"
+    }
+
     return @{
         CliPublishDir = $cliPublishDir
         ServerPublishDir = $serverPublishDir
+        StudioPublishDir = $studioPublishDir
     }
 }
 
@@ -184,13 +200,51 @@ function New-ServerBundle
     }
 }
 
+function New-StudioBundle
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TargetRid,
+        [Parameter(Mandatory = $true)]
+        [string]$StudioPublishDir,
+        [Parameter(Mandatory = $true)]
+        [string]$ServerPublishDir
+    )
+
+    if ($TargetRid -ne 'win-x64')
+    {
+        return $null
+    }
+
+    $bundleName = "sonnetdb-studio-$Version-$TargetRid"
+    $bundleRoot = Join-Path $OutputRoot "staging\$TargetRid\$bundleName"
+    $bundleOutputDir = Join-Path $OutputRoot "bundles\$TargetRid"
+
+    Write-Section "Building Studio bundle for $TargetRid"
+    Reset-Directory $bundleRoot
+    Ensure-Directory $bundleOutputDir
+    Copy-DirectoryContent $StudioPublishDir $bundleRoot
+    Copy-Item -LiteralPath $LicensePath -Destination $bundleRoot -Force
+
+    $serverDir = Join-Path $bundleRoot 'server'
+    Copy-DirectoryContent $ServerPublishDir $serverDir
+    Write-StudioBundleReadme (Join-Path $bundleRoot 'README.md')
+
+    $archive = New-BundleArchive -BundleRoot $bundleRoot -BundleOutputDir $bundleOutputDir -BundleName $bundleName -TargetRid $TargetRid
+    return @{
+        BundleDirectory = $bundleRoot
+        ArchivePath = $archive
+    }
+}
+
 function New-Installers
 {
     param(
         [Parameter(Mandatory = $true)]
         [string]$TargetRid,
         [Parameter(Mandatory = $true)]
-        [string]$ServerBundleDir
+        [string]$ServerBundleDir,
+        [hashtable]$StudioBundle
     )
 
     $installerOutput = Join-Path $OutputRoot "installers\$TargetRid"
@@ -198,7 +252,14 @@ function New-Installers
 
     switch ($TargetRid)
     {
-        'win-x64' { New-MsiInstaller -ServerBundleDir $ServerBundleDir -InstallerOutputDir $installerOutput }
+        'win-x64' {
+            New-MsiInstaller -ServerBundleDir $ServerBundleDir -InstallerOutputDir $installerOutput
+            if ($null -eq $StudioBundle)
+            {
+                throw 'Studio bundle is required for Windows installer generation.'
+            }
+            New-StudioMsiInstaller -StudioBundleDir $StudioBundle['BundleDirectory'] -InstallerOutputDir $installerOutput
+        }
         'linux-x64' { New-LinuxInstallers -ServerBundleDir $ServerBundleDir -InstallerOutputDir $installerOutput }
         default { throw "Unsupported RID '$TargetRid' for installer generation." }
     }
@@ -480,6 +541,31 @@ __CLI__ sql --connection "Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Tok
     Set-Content -LiteralPath $Path -Encoding utf8 -Value $content
 }
 
+function Write-StudioBundleReadme
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $content = @'
+# SonnetDB Studio __VERSION__
+
+运行 `SonnetDB.Studio.exe` 打开桌面管理工作台。Studio 会把托管 Server 放在 `server/` 子目录中启动，默认数据库目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不写入安装目录。
+
+升级或卸载 Studio 不会删除上述用户数据目录。需要清理数据时请在 Studio 中选择其他目录，或由管理员明确删除该目录。
+
+可选参数：
+
+- `--data-root <path>`：覆盖托管 Server 数据目录。
+- `--managed-server-url <url>`：覆盖托管 Server 地址。
+- `--server-exe <path>`：使用外部 SonnetDB Server，不使用 bundle 内的 `server/SonnetDB.exe`。
+- `--keep-managed-server`：Studio 退出后保留由 Studio 启动的 Server。
+'@.Replace('__VERSION__', $Version)
+
+    Set-Content -LiteralPath $Path -Encoding utf8 -Value $content
+}
+
 function Set-BundleExecutableBits
 {
     param(
@@ -586,13 +672,48 @@ function New-MsiInstaller
     Write-Sha256File $msiPath
 }
 
+function New-StudioMsiInstaller
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StudioBundleDir,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallerOutputDir
+    )
+
+    if (-not (Get-Command wix -ErrorAction SilentlyContinue))
+    {
+        throw 'The `wix` command was not found. Install the WiX .NET tool before generating MSI packages.'
+    }
+
+    Write-Section 'Building Windows Studio MSI'
+    $wixWorkDir = Join-Path $InstallerOutputDir 'wix-studio'
+    Reset-Directory $wixWorkDir
+    $wxsPath = Join-Path $wixWorkDir 'SonnetDB.Studio.wxs'
+    $msiPath = Join-Path $InstallerOutputDir "sonnetdb-studio-$Version-win-x64.msi"
+
+    New-WixSourceFile `
+        -ServerBundleDir $StudioBundleDir `
+        -WxsPath $wxsPath `
+        -PackageName 'SonnetDB Studio' `
+        -InstallFolderName 'SonnetDB Studio' `
+        -UpgradeCode '{1DD46A1B-76ED-4C85-9A3B-A3A1A5B9C7BD}'
+
+    & wix build -arch x64 -o $msiPath $wxsPath
+    Assert-LastExitCode 'wix build Studio installer'
+    Write-Sha256File $msiPath
+}
+
 function New-WixSourceFile
 {
     param(
         [Parameter(Mandatory = $true)]
         [string]$ServerBundleDir,
         [Parameter(Mandatory = $true)]
-        [string]$WxsPath
+        [string]$WxsPath,
+        [string]$PackageName = 'SonnetDB Server',
+        [string]$InstallFolderName = 'SonnetDB Server',
+        [string]$UpgradeCode = '{7B5FA3D0-9660-4D0B-BB8B-1F293BF4F4A4}'
     )
 
     $bundleRoot = (Resolve-Path -LiteralPath $ServerBundleDir).Path
@@ -647,19 +768,19 @@ function New-WixSourceFile
     $componentIndex = 0
 
     $lines.Add('<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">')
-    $lines.Add("  <Package Name=""SonnetDB Server"" Manufacturer=""maikebing"" Version=""$msiVersion"" UpgradeCode=""{7B5FA3D0-9660-4D0B-BB8B-1F293BF4F4A4}"" Language=""1033"" Scope=""perMachine"">")
+    $lines.Add("  <Package Name=""$PackageName"" Manufacturer=""maikebing"" Version=""$msiVersion"" UpgradeCode=""$UpgradeCode"" Language=""1033"" Scope=""perMachine"">")
     $lines.Add('    <MajorUpgrade DowngradeErrorMessage="A newer version of SonnetDB Server is already installed." />')
     $lines.Add('    <Property Id="DATAROOT" Value="C:\ProgramData\SonnetDB\data" Secure="yes" />')
     $lines.Add('    <MediaTemplate EmbedCab="yes" />')
     $lines.Add('    <StandardDirectory Id="ProgramFiles64Folder">')
-    $lines.Add('      <Directory Id="INSTALLFOLDER" Name="SonnetDB Server">')
+    $lines.Add("      <Directory Id=""INSTALLFOLDER"" Name=""$InstallFolderName"">")
 
     Add-WixFileComponents -Lines $lines -ComponentRefs $componentRefs -FilesByDirectory $filesByDirectory -DirectoryRel '' -ComponentIndex ([ref]$componentIndex)
     Add-WixDirectories -Lines $lines -ComponentRefs $componentRefs -DirEntries $dirEntries -FilesByDirectory $filesByDirectory -ParentRel '' -IndentLevel 4 -ComponentIndex ([ref]$componentIndex)
 
     $lines.Add('      </Directory>')
     $lines.Add('    </StandardDirectory>')
-    $lines.Add('    <Feature Id="MainFeature" Title="SonnetDB Server" Level="1">')
+    $lines.Add("    <Feature Id=""MainFeature"" Title=""$PackageName"" Level=""1"">")
     foreach ($componentRef in $componentRefs)
     {
         $lines.Add($componentRef)
@@ -1128,10 +1249,11 @@ if ($ReleaseTasks -contains 'bundles' -or $ReleaseTasks -contains 'installers')
     $publishInfo = Publish-Binaries -TargetRid $Rid
     $sdkBundle = New-SdkBundle -TargetRid $Rid -CliPublishDir $publishInfo['CliPublishDir']
     $serverBundle = New-ServerBundle -TargetRid $Rid -CliPublishDir $publishInfo['CliPublishDir'] -ServerPublishDir $publishInfo['ServerPublishDir']
+    $studioBundle = New-StudioBundle -TargetRid $Rid -StudioPublishDir $publishInfo['StudioPublishDir'] -ServerPublishDir $publishInfo['ServerPublishDir']
 
     if ($ReleaseTasks -contains 'installers')
     {
-        New-Installers -TargetRid $Rid -ServerBundleDir $serverBundle['BundleDirectory']
+        New-Installers -TargetRid $Rid -ServerBundleDir $serverBundle['BundleDirectory'] -StudioBundle $studioBundle
     }
 }
 

@@ -18,4 +18,24 @@ dotnet run --project tests/SonnetDB.DocumentSoak/SonnetDB.DocumentSoak.csproj -c
 
 可用 `--documents N` 做自定义规模，`--work-root PATH --keep-data` 保留数据库、备份和恢复目录供取证。输出固定包含 `report.json` 和 `report.md`。运行失败时仍写报告，并以非零退出码结束。
 
+发布候选的固定硬件运行必须由操作员显式声明目标机并完成现场核对：
+
+```powershell
+dotnet run --project tests/SonnetDB.DocumentSoak/SonnetDB.DocumentSoak.csproj -c Release -- `
+  --profile million `
+  --target-hardware-id <inventory-id> `
+  --disk-model <model> `
+  --target-hardware-attested `
+  --output artifacts/document-soak/million
+```
+
+`report.json` 使用 schema v2，包含 commit SHA、数据卷容量和目标硬件合同。未提供认证参数时硬件状态保持 `NOT_READY`。归档前运行只读 verifier：
+
+```powershell
+pwsh -NoProfile -File tests/SonnetDB.DocumentSoak/scripts/verify-document-soak-evidence.ps1 `
+  -Report artifacts/document-soak/million/report.json
+```
+
+verifier 只会对完整 million/ten-million 报告返回 `PASS`；`quick`、缺失阶段、失败运行、无效 commit 或未认证固定目标机均返回 `NOT_READY`。开发机预检可加 `-AllowNotReady`，但不会改变报告状态。
+
 百万 / 千万档必须在专用磁盘和固定硬件上执行，报告需与 commit SHA、OS、.NET runtime、CPU 数及磁盘型号一起归档。不得把 quick profile 数字线性外推成容量承诺。

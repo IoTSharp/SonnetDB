@@ -119,6 +119,22 @@ jobs:
           --configuration Release
           --artifacts-path artifacts/studio-host
 
+      - name: Test Studio host contracts
+        run: >-
+          dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj
+          --configuration Release
+          --artifacts-path artifacts/studio-tests
+          --results-directory artifacts/test-results/studio
+          --logger "trx;LogFileName=studio-tests.trx"
+
+      - name: Upload Studio test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: studio-host-results
+          path: artifacts/test-results/studio
+          if-no-files-found: ignore
+
   vscode-consumer:
     name: VS Code HTTP consumer
     runs-on: ubuntu-latest

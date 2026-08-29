@@ -14,8 +14,9 @@ using SonnetDB.Storage.Format;
 namespace SonnetDB.Endpoints;
 
 /// <summary>
-/// Cloud-only Copilot chat endpoint. The local server only supplies database context,
-/// executes approved local tools, and relays tool results back to ai.sonnetdb.com.
+/// Copilot chat endpoint. A bound sonnetdb.com account uses the cloud runtime;
+/// when no cloud token is bound, a ready configured <see cref="IChatProvider"/>
+/// runs the same local agent and permission boundary.
 /// </summary>
 internal static class CopilotChatEndpointHandler
 {
@@ -28,15 +29,17 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotAgent localAgent,
+        CopilotReadiness copilotReadiness,
         CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry)
     {
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -45,6 +48,8 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotAgent localAgent,
+        CopilotReadiness copilotReadiness,
         CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry,
@@ -53,6 +58,19 @@ internal static class CopilotChatEndpointHandler
         var cfg = configStore.Get();
         if (!IsCloudBound(cfg))
         {
+            if (copilotReadiness.Evaluate().ChatReady)
+            {
+                await HandleLocalAsync(
+                    ctx,
+                    localAgent,
+                    stateStore,
+                    inFlightTracker,
+                    grantsStore,
+                    registry,
+                    sse).ConfigureAwait(false);
+                return;
+            }
+
             await WriteErrorAsync(
                 ctx,
                 StatusCodes.Status503ServiceUnavailable,
@@ -84,6 +102,13 @@ internal static class CopilotChatEndpointHandler
         if (messages.Count == 0)
         {
             await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 message 或 messages。")
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!messages.Any(static message => string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase)))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含至少一条 user message。")
                 .ConfigureAwait(false);
             return;
         }
@@ -256,6 +281,192 @@ internal static class CopilotChatEndpointHandler
             activity?.SetTag("copilot.tokens.output", outputTokens);
             activity?.SetTag("copilot.tool_calls", run.ToolCalls);
             activity?.SetStatus(run.Succeeded ? ActivityStatusCode.Ok : ActivityStatusCode.Error, run.ErrorMessage);
+        }
+
+        if (sse)
+        {
+            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted).ConfigureAwait(false);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task HandleLocalAsync(
+        HttpContext ctx,
+        CopilotAgent agent,
+        CopilotStateStore stateStore,
+        CopilotInFlightTracker inFlightTracker,
+        GrantsStore grantsStore,
+        TsdbRegistry registry,
+        bool sse)
+    {
+        var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.CopilotChatRequest).ConfigureAwait(false);
+        if (request is null)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体格式无效。").ConfigureAwait(false);
+            return;
+        }
+
+        var messages = NormalizeMessages(request);
+        if (messages.Count == 0)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 message 或 messages。").ConfigureAwait(false);
+            return;
+        }
+
+        if (!messages.Any(static message => string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase)))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含至少一条 user message。").ConfigureAwait(false);
+            return;
+        }
+
+        var visibleDatabases = DatabaseAccessEvaluator.GetVisibleDatabases(ctx, grantsStore, registry.ListDatabases());
+        var isServerAdmin = DatabaseAccessEvaluator.IsServerAdmin(ctx);
+        var provisioningIntent = CopilotProvisioning.TryExtractIntent(messages[^1].Content);
+        var selectedDb = string.IsNullOrWhiteSpace(request.Db) ? null : request.Db.Trim();
+        Tsdb? database = null;
+        var databaseName = selectedDb ?? provisioningIntent?.DatabaseName ?? string.Empty;
+        var databasePermission = DatabasePermission.None;
+
+        if (!string.IsNullOrWhiteSpace(selectedDb))
+        {
+            if (!TsdbRegistry.IsValidName(selectedDb))
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", $"非法数据库名 '{selectedDb}'。").ConfigureAwait(false);
+                return;
+            }
+
+            if (DatabaseAccessEvaluator.IsSystemDatabase(selectedDb))
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "system_database", $"数据库 '{selectedDb}' 是系统内置库，不可在 Copilot 对话中直接使用，请选择一个业务数据库。").ConfigureAwait(false);
+                return;
+            }
+
+            if (!registry.TryGet(selectedDb, out database))
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "db_not_found", $"数据库 '{selectedDb}' 不存在。").ConfigureAwait(false);
+                return;
+            }
+
+            databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grantsStore, selectedDb);
+            if (!DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Read))
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", $"当前凭据对数据库 '{selectedDb}' 没有 read 权限。").ConfigureAwait(false);
+                return;
+            }
+        }
+        else if (provisioningIntent is not null &&
+            visibleDatabases.Any(item => string.Equals(item, provisioningIntent.DatabaseName, StringComparison.OrdinalIgnoreCase)) &&
+            registry.TryGet(provisioningIntent.DatabaseName, out var existingDatabase))
+        {
+            database = existingDatabase;
+            databaseName = provisioningIntent.DatabaseName;
+            databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grantsStore, databaseName);
+        }
+
+        var allowWrite = string.Equals(request.Mode?.Trim(), "read-write", StringComparison.OrdinalIgnoreCase);
+        if (allowWrite)
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status409Conflict,
+                "local_write_confirmation_required",
+                "本地 IChatProvider 目前只开放只读 Agent；写入请求必须通过云端风险审查或显式确认流程。")
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var canUseControlPlane = allowWrite && isServerAdmin;
+        var canWrite = allowWrite && (canUseControlPlane || DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write));
+        var agentContext = new CopilotAgentContext(
+            databaseName,
+            database,
+            visibleDatabases,
+            CanWrite: canWrite,
+            ModelOverride: string.IsNullOrWhiteSpace(request.Model) ? null : request.Model.Trim(),
+            CanUseControlPlane: canUseControlPlane,
+            CanAdministerDatabase: DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Admin));
+        var conversationId = NormalizeConversationId(request.ConversationId) ?? $"sndb_{Guid.NewGuid():N}";
+        var owner = CopilotStateStore.ResolveOwner(ctx);
+        var latestUserMessage = messages.Last(static message => string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase));
+
+        try
+        {
+            stateStore.UpsertConversation(owner, conversationId, latestUserMessage.Content, databaseName);
+            stateStore.AppendMessage(owner, conversationId, "user", latestUserMessage.Content);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", exception.Message).ConfigureAwait(false);
+            return;
+        }
+
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        ctx.Response.ContentType = sse ? "text/event-stream; charset=utf-8" : "application/x-ndjson; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        ctx.Response.Headers.Append("X-Accel-Buffering", "no");
+
+        var startedAt = Stopwatch.GetTimestamp();
+        var finalAnswer = (string?)null;
+        IReadOnlyList<CopilotCitation>? citations = null;
+        var toolCalls = 0L;
+        var succeeded = false;
+        string? errorMessage = null;
+        using var inFlightLease = inFlightTracker.Enter();
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity("copilot.chat", ActivityKind.Server);
+        activity?.SetTag("copilot.mode", request.Mode ?? "read-only");
+        activity?.SetTag("copilot.provider", "configured");
+        activity?.SetTag("copilot.conversation_id", conversationId);
+
+        try
+        {
+            await foreach (var evt in agent.RunAsync(agentContext, messages, request.DocsK, request.SkillsK, ctx.RequestAborted).ConfigureAwait(false))
+            {
+                await WriteMappedEventAsync(ctx, evt, sse).ConfigureAwait(false);
+                if (string.Equals(evt.Type, "tool_call", StringComparison.OrdinalIgnoreCase))
+                    toolCalls++;
+                if (string.Equals(evt.Type, "final", StringComparison.OrdinalIgnoreCase))
+                {
+                    succeeded = true;
+                    finalAnswer = evt.Answer;
+                    citations = evt.Citations;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+            await WriteMappedEventAsync(ctx, new CopilotChatEvent("error", Message: exception.Message), sse).ConfigureAwait(false);
+            await WriteMappedEventAsync(ctx, new CopilotChatEvent("done", Message: "completed"), sse).ConfigureAwait(false);
+        }
+        finally
+        {
+            var duration = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            var inputTokens = EstimateTokens(messages.Select(static message => message.Content));
+            var outputTokens = EstimateTokens([finalAnswer ?? string.Empty]);
+            stateStore.RecordUsage(owner, new CopilotUsageRecord(
+                conversationId,
+                request.Model,
+                request.Mode ?? "read-only",
+                inputTokens,
+                outputTokens,
+                checked(inputTokens + outputTokens),
+                EstimatedTokens: true,
+                ToolCalls: toolCalls,
+                DurationMilliseconds: duration,
+                Succeeded: succeeded,
+                CreatedAtUtc: DateTimeOffset.UtcNow));
+            if (!string.IsNullOrWhiteSpace(finalAnswer))
+            {
+                stateStore.AppendMessage(owner, conversationId, "assistant", finalAnswer, citations, request.Model, inputTokens, outputTokens);
+            }
+
+            activity?.SetTag("copilot.model", request.Model ?? "configured-default");
+            activity?.SetTag("copilot.tool_calls", toolCalls);
+            activity?.SetStatus(succeeded ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
         }
 
         if (sse)

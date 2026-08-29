@@ -22,6 +22,8 @@ permalink: /benchmarks/document-store-capacity/
 
 运行方式见 [Document soak README](../../tests/SonnetDB.DocumentSoak/README.md)。GitHub 的 `Document Store Soak` workflow 支持手动触发和 artifact 归档；大档超过 hosted runner 时间/磁盘上限时必须转到固定规格专用长测机。
 
+报告 schema v2 会绑定 HEAD commit、数据卷容量/磁盘型号和目标硬件清单 ID。发布归档必须通过 `tests/SonnetDB.DocumentSoak/scripts/verify-document-soak-evidence.ps1`；该检查器拒绝 quick/缩规模、缺失治理阶段、失败运行、无效 commit、缺失磁盘规格和未认证固定目标硬件，并将不满足条件的结果标记为 `NOT_READY`。
+
 ## 当前实测基线
 
 2026-07-11 在 Windows 开发机、.NET 10.0.9、默认 `FlushWalToOsOnWrite=true` 下完成 `quick` profile，10,000 文档全部验收项 PASS。此结果用于验证 runner 与发布流程，不用于外推百万档：
@@ -42,6 +44,8 @@ permalink: /benchmarks/document-store-capacity/
 工作集从写入 1,000 条时约 47.8 MiB 增至 10,000 条热态约 91.9 MiB，完整恢复验收结束约 92.5 MiB。原始本地报告生成在 `artifacts/document-soak/quick-local/`，该目录属于运行产物，不纳入源码提交。
 
 ## 百万 / 千万档状态
+
+研发交付状态：`完成，待验证`。runner、schema v2 报告、目标硬件声明和只读 verifier 已完成；以下容量证据仍保持 `NOT_READY`，直到固定目标硬件实测归档。
 
 仓库已经提供两档真实数据量 profile，但本次开发机验收没有把 quick 结果伪装成百万/千万实测。按 quick profile 已观测到的冷启动与恢复成本，`million` / `ten-million` 必须在专用长测窗口执行，发布记录应附 artifact URL 和 commit SHA。没有对应 PASS 报告时，对外只能声明“profile 可执行，规模尚未在目标硬件验证”。
 

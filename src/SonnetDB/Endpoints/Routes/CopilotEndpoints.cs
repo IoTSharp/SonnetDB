@@ -42,6 +42,8 @@ internal static partial class SonnetDbEndpoints
             app.Services.GetRequiredService<ICopilotCloudGatewayClient>(),
             app.Services.GetRequiredService<CopilotLocalToolExecutor>(),
             app.Services.GetRequiredService<CopilotStateStore>(),
+            app.Services.GetRequiredService<CopilotAgent>(),
+            copilotReadiness,
             app.Services.GetRequiredService<CopilotInFlightTracker>(),
             grants,
             registry);
@@ -316,7 +318,12 @@ internal static partial class SonnetDbEndpoints
 
                 var embeddingProvider = app.Services.GetRequiredService<IEmbeddingProvider>();
                 var providerName = copilotOptions.Embedding.Provider ?? "builtin";
-                var fallback = embeddingProvider is BuiltinHashEmbeddingProvider builtin && builtin.IsFallback;
+                var fallback = embeddingProvider switch
+                {
+                    BuiltinHashEmbeddingProvider builtin => builtin.IsFallback,
+                    LocalOnnxEmbeddingProvider local => local.IsFallback,
+                    _ => false,
+                };
 
                 var docsRoots = copilotOptions.Docs.Roots
                     .Where(static root => !string.IsNullOrWhiteSpace(root))

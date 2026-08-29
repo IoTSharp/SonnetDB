@@ -56,7 +56,9 @@ http://127.0.0.1:5080
 - `SonnetDB.Cli.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`
+- `sonnetdb-studio-<version>-win-x64.zip`
 - `sonnetdb-<version>-win-x64.msi`
+- `sonnetdb-studio-<version>-win-x64.msi`
 - 对应 `.sha256`
 
 MSI 默认安装并启动 `SonnetDB` Windows 服务，数据目录默认为 `C:\ProgramData\SonnetDB\data`，并把安装目录加入系统 `PATH`，让 `sndb` 可在任意目录使用。安装时可覆盖：
@@ -64,6 +66,8 @@ MSI 默认安装并启动 `SonnetDB` Windows 服务，数据目录默认为 `C:\
 ```powershell
 msiexec /i sonnetdb-<version>-win-x64.msi DATAROOT="D:\sonnetdb-data"
 ```
+
+Windows 发布同时包含独立 Studio bundle/MSI。Studio 安装在 `%ProgramFiles%\SonnetDB Studio`，托管 Server 随 bundle 放在 `server\` 子目录；Studio bundle 自带 .NET runtime，默认数据目录为 `%LocalAppData%\SonnetDB\Studio\data`，位于安装目录之外，因此升级和卸载不会删除用户数据库。Studio MSI 当前只承诺文件安装与升级覆盖，WebView2 和干净机器首次启动/卸载保留策略需要 Windows 真机验收。
 
 ## 推荐阅读顺序
 

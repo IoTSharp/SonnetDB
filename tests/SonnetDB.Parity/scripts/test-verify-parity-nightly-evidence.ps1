@@ -95,6 +95,13 @@ try {
         Assert-Equal 2 $run.profiles.Count "Every run must validate light and full profiles."
     }
 
+    $manualFixture = Copy-Fixture $baseFixture
+    $manualFixture.runs[0].event = "workflow_dispatch"
+    $manual = Invoke-FixtureCase $manualFixture "manual-run" $testRoot $verifier
+    $manualRun = $manual.runs | Where-Object runId -eq "33071879124"
+    Assert-ContainsCode $manualRun.issues "run_event_not_scheduled" "Manual runs must not count as nightly evidence."
+    Assert-Equal "NOT_READY" $manual.status "A manual run in the evidence window must keep the gate NOT_READY."
+
     $defaultFailureRaised = $false
     try {
         & $verifier -FixturePath $fixturePath -OutputPath (Join-Path $testRoot "must-fail.json")

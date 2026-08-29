@@ -7,6 +7,12 @@ permalink: /releases/installers/
 
 ## Windows MSI
 
+### Studio MSI
+
+`sonnetdb-studio-<version>-win-x64.msi` 安装桌面管理工作台及同版本托管 Server。Studio bundle 自带 .NET runtime；默认安装目录为 `%ProgramFiles%\SonnetDB Studio`；Studio bundle 内的 Server 位于 `server\` 子目录。
+
+Studio 默认把数据库写入 `%LocalAppData%\SonnetDB\Studio\data`，该目录不属于 MSI 安装目录，升级或卸载不会自动删除。可通过 Studio 启动参数 `--data-root` 选择其他目录。安装包合同和宿主自动化测试已覆盖；WebView2 依赖、首次启动、升级/卸载保留和端口冲突仍需在干净 Windows 真机验收。
+
 默认安装目录通常为：
 
 ```text

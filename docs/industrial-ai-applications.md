@@ -117,6 +117,8 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 - 上层工业平台 + SonnetDB 的边缘数据底座组合；具体 IoTSharp 联合样例在 IoTSharp 仓库维护。
 - 私有化部署中的本地模型 / 云模型切换。
 
+当前可直接运行的工业诊断样例位于 `samples/SonnetDB.IndustrialDiagnostics`。它用 HTTP Line Protocol（或显式提供 broker 端口时的 MQTT）写入三类指标，查询 `pump-03` 联合异常，输出维修检查项与 C1/C2/C3 引用。样例报告把数据链路和 Copilot readiness 分开：没有真实 provider 时 `copilot.status=NOT_READY`，不会把脚本文本当成模型回答。
+
 ## 产品路线
 
 短期重点是合同和可发现性：

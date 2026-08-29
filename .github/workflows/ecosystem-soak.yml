@@ -45,6 +45,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Validate M19 evidence verifier contract
+        shell: pwsh
+        run: ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-report.ps1
+
       - name: Run ecosystem profile
         env:
           PROFILE: ${{ inputs.profile || 'quick' }}
@@ -54,6 +58,13 @@ jobs:
             -- \
             --profile "$PROFILE" \
             --output "artifacts/ecosystem-soak/$PROFILE"
+
+      - name: Verify M19 capacity evidence contract
+        if: ${{ inputs.profile == 'high-cardinality' || inputs.profile == 'small-segments' || inputs.profile == 'maintenance-chaos' || inputs.profile == 'many-measurements' }}
+        shell: pwsh
+        run: |
+          ./tests/SonnetDB.EcosystemSoak/scripts/verify-m19-capacity-report.ps1 `
+            -ReportPath "artifacts/ecosystem-soak/${{ inputs.profile }}/report.json"
 
       - name: Upload ecosystem evidence
         if: always()

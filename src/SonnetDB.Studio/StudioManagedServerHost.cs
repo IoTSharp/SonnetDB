@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Text;
 
 namespace SonnetDB.Studio;
 
@@ -12,8 +13,13 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     private readonly bool _keepRunningOnExit;
     private readonly HttpClient _http;
     private readonly object _sync = new();
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private Process? _process;
     private string? _lastError;
+    private string _lastDataRoot = string.Empty;
+    private string _lastUrl = "http://127.0.0.1:5080";
+    private string? _logPath;
+    private readonly StringBuilder _stderrTail = new();
 
     /// <summary>
     /// 创建本地托管 server 控制器。
@@ -40,63 +46,98 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     {
         dataRoot = NormalizePath(dataRoot);
         url = NormalizeUrl(url);
-
-        if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
-            return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false) with { Error = null };
-
-        lock (_sync)
-        {
-            if (_process is { HasExited: false })
-                return BuildStatus(dataRoot, url, healthy: false, error: null);
-        }
-
-        var target = ResolveLaunchTarget();
-        if (target is null)
-        {
-            _lastError = "SonnetDB Server executable was not found. Pass --server-exe to Studio or build src/SonnetDB first.";
-            return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
-        }
-
-        Directory.CreateDirectory(dataRoot);
-        var startInfo = CreateStartInfo(target, dataRoot, url);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var process = Process.Start(startInfo);
-            if (process is null)
+            lock (_sync)
             {
-                _lastError = "Failed to start SonnetDB Server process.";
-                return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+                _lastDataRoot = dataRoot;
+                _lastUrl = url;
             }
 
-            process.EnableRaisingEvents = true;
-            process.OutputDataReceived += (_, _) => { };
-            process.ErrorDataReceived += (_, _) => { };
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
+                return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false) with { Error = null };
 
             lock (_sync)
             {
-                _process = process;
-                _lastError = null;
+                if (_process is { HasExited: false })
+                    return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
             }
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            _lastError = ex.Message;
+
+            var target = ResolveLaunchTarget();
+            if (target is null)
+            {
+                SetError("SonnetDB Server executable was not found. Pass --server-exe to Studio or build src/SonnetDB first.");
+                return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+            }
+
+            Directory.CreateDirectory(dataRoot);
+            ConfigureLogPath(dataRoot);
+            var startInfo = CreateStartInfo(target, dataRoot, url);
+            try
+            {
+                var process = Process.Start(startInfo);
+                if (process is null)
+                {
+                    SetError("Failed to start SonnetDB Server process.");
+                    return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+                }
+
+                process.EnableRaisingEvents = true;
+                process.OutputDataReceived += (_, args) => AppendProcessLog("stdout", args.Data);
+                process.ErrorDataReceived += (_, args) => AppendProcessLog("stderr", args.Data);
+                process.Exited += (_, _) =>
+                {
+                    if (process.ExitCode != 0)
+                        SetError($"SonnetDB Server exited before becoming healthy (exit code {process.ExitCode}).");
+                };
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                lock (_sync)
+                {
+                    _process = process;
+                    _lastError = null;
+                    _stderrTail.Clear();
+                }
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                SetError(ex.Message);
+                return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+            }
+
+            for (var i = 0; i < 40; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
+                    return BuildStatus(dataRoot, url, healthy: true, error: null);
+
+                lock (_sync)
+                {
+                    if (_process is { HasExited: true })
+                    {
+                        SetError(_lastError ?? "SonnetDB Server exited before becoming healthy.");
+                        return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+                    }
+                }
+
+                await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+            }
+
+            SetError("SonnetDB Server process started, but /healthz did not become healthy in time.");
+            StopProcess();
             return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
         }
-
-        for (var i = 0; i < 40; i++)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
-                return BuildStatus(dataRoot, url, healthy: true, error: null);
-
-            await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+            StopProcess();
+            throw;
         }
-
-        _lastError = "SonnetDB Server process started, but /healthz did not become healthy in time.";
-        return BuildStatus(dataRoot, url, healthy: false, error: _lastError);
+        finally
+        {
+            _lifecycleGate.Release();
+        }
     }
 
     /// <summary>
@@ -110,32 +151,24 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
         string url,
         CancellationToken cancellationToken)
     {
-        Process? process;
-        lock (_sync)
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            process = _process;
-            _process = null;
+            dataRoot = NormalizePath(dataRoot);
+            url = NormalizeUrl(url);
+            lock (_sync)
+            {
+                if (dataRoot.Length > 0)
+                    _lastDataRoot = dataRoot;
+                _lastUrl = url;
+            }
+            StopProcess();
+            return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false);
         }
-
-        if (process is { HasExited: false })
+        finally
         {
-            try
-            {
-                process.CloseMainWindow();
-                if (!process.WaitForExit(1500))
-                    process.Kill(entireProcessTree: true);
-            }
-            catch (InvalidOperationException)
-            {
-                // 进程已退出，无需处理。
-            }
-            finally
-            {
-                process.Dispose();
-            }
+            _lifecycleGate.Release();
         }
-
-        return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -158,10 +191,26 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (!_keepRunningOnExit)
-            await StopAsync(string.Empty, "http://127.0.0.1:5080", CancellationToken.None).ConfigureAwait(false);
-
-        _http.Dispose();
+        try
+        {
+            if (!_keepRunningOnExit)
+            {
+                await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    StopProcess();
+                }
+                finally
+                {
+                    _lifecycleGate.Release();
+                }
+            }
+        }
+        finally
+        {
+            _http.Dispose();
+            _lifecycleGate.Dispose();
+        }
     }
 
     private ProcessStartInfo CreateStartInfo(StudioServerLaunchTarget target, string dataRoot, string url)
@@ -210,6 +259,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     {
         yield return Path.Combine(baseDir, "SonnetDB.exe");
         yield return Path.Combine(baseDir, "SonnetDB.dll");
+        yield return Path.Combine(baseDir, "server", "SonnetDB.exe");
+        yield return Path.Combine(baseDir, "server", "SonnetDB.dll");
         yield return Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "SonnetDB", "bin", "Debug", "net10.0", "SonnetDB.exe"));
         yield return Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "SonnetDB", "bin", "Release", "net10.0", "SonnetDB.exe"));
         yield return Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "SonnetDB", "SonnetDB.csproj"));
@@ -267,6 +318,101 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                 NormalizeUrl(url),
                 NormalizePath(dataRoot),
                 error);
+        }
+    }
+
+    private void StopProcess()
+    {
+        Process? process;
+        lock (_sync)
+        {
+            process = _process;
+            _process = null;
+        }
+
+        if (process is null)
+            return;
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.CloseMainWindow();
+                if (!process.WaitForExit(1500))
+                    process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // 进程在停止窗口内已退出。
+        }
+        finally
+        {
+            process.Dispose();
+        }
+    }
+
+    private void ConfigureLogPath(string dataRoot)
+    {
+        if (string.IsNullOrWhiteSpace(dataRoot))
+            return;
+
+        try
+        {
+            var logDirectory = Path.Combine(dataRoot, ".studio");
+            Directory.CreateDirectory(logDirectory);
+            _logPath = Path.Combine(logDirectory, "managed-server.log");
+            File.AppendAllText(_logPath, $"{DateTimeOffset.UtcNow:O} [studio] starting managed server{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+            _logPath = null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _logPath = null;
+        }
+    }
+
+    private void AppendProcessLog(string stream, string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return;
+
+        lock (_sync)
+        {
+            if (stream == "stderr")
+            {
+                if (_stderrTail.Length > 2048)
+                    _stderrTail.Clear();
+                _stderrTail.AppendLine(line);
+            }
+
+            if (_logPath is null)
+                return;
+
+            try
+            {
+                File.AppendAllText(_logPath, $"{DateTimeOffset.UtcNow:O} [{stream}] {line}{Environment.NewLine}");
+            }
+            catch (IOException)
+            {
+                _logPath = null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                _logPath = null;
+            }
+        }
+    }
+
+    private void SetError(string message)
+    {
+        lock (_sync)
+        {
+            _lastError = _stderrTail.Length == 0
+                ? message
+                : $"{message} stderr: {_stderrTail.ToString().Trim()}";
         }
     }
 

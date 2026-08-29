@@ -113,7 +113,7 @@ Ollama 提供 OpenAI-compatible `/v1` 入口。当前适配器要求非空 `ApiK
 }
 ```
 
-这些底层配置用于自托管 provider 组件和集成代码。当前 Web Copilot 对话仍由云端 Copilot Runtime 编排；仅修改 `Copilot:Chat` 不会把 CopilotDock 改成直连本地模型。需要完全本地的 Agent 时，应由外部 Agent 使用本地模型并通过 SonnetDB MCP 工具访问数据。
+这些底层配置用于自托管 provider 组件和集成代码。绑定云账号时 Web Copilot 对话仍由云端 Copilot Runtime 编排；未绑定云账号且 Chat readiness 完整时，服务端会按下文的本地接线直接使用 `IChatProvider`。CopilotDock 是否展示本地模式取决于宿主 UI 的配置发现；外部 Agent 仍应通过授权 MCP 工具访问 SonnetDB 数据。
 
 ## Embedding 配置
 
@@ -122,7 +122,7 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 | Provider | 配置重点 | 适用场景 |
 |---|---|---|
 | `builtin` | 无外部配置，固定 384 维 | 首次启动、离线兜底、功能验证 |
-| `local` | `LocalModelPath` | 预留的本地 ONNX 配置；当前执行尚未接通 |
+| `local` | `LocalModelPath` | 本地模型文件校验；未提供明确 tokenizer/input profile 时使用本地确定性 hash fallback |
 | `openai` | `Endpoint`、`ApiKey`、`Model` | OpenAI-compatible 云端或私有 embedding 服务 |
 
 ```json
@@ -138,7 +138,28 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 }
 ```
 
-> 当前 `LocalOnnxEmbeddingProvider.EmbedAsync` 会抛出 `NotSupportedException`。上面的配置只记录目标形态，在本地模型执行和回归测试完成前不得用于生产或宣称“数据不出域”。离线功能验证应使用 `builtin`；完整本地 Agent 可暂由外部本地模型通过授权 MCP 工具访问 SonnetDB。
+> `LocalOnnxEmbeddingProvider` 会加载并校验 `LocalModelPath`。由于 ONNX 文本模型的 tokenizer、输入名和 pooling 规则并不统一，当前配置未携带 model profile 时不会猜测输入；provider 会在本地自动回落到与 `builtin` 相同的 384 维确定性 hash 向量，并在知识库状态中标记 `EmbeddingFallback=true`。这条路径可用于离线功能验证，但不等价于真实语义模型，也不应宣称已完成 ONNX 推理质量验收。需要真实 ONNX 语义质量时，必须为目标模型补充 tokenizer/input profile 和回归样本。
+
+## 本地/在线 Chat 接线
+
+绑定 sonnetdb.com Cloud Token 时，`/v1/copilot/chat` 继续优先使用云端 Copilot Runtime（本地仅执行授权工具）。未绑定云账号且 `Copilot:Chat` readiness 完整时，同一个端点会直接使用已注册的 `IChatProvider`（当前为 OpenAI-compatible `/v1/chat/completions`），并复用本地 `CopilotAgent`、数据库只读权限、会话持久化和 NDJSON/SSE 事件合同：
+
+```json
+{
+  "SonnetDBServer": {
+    "Copilot": {
+      "Chat": {
+        "Provider": "openai",
+        "Endpoint": "http://127.0.0.1:11434/v1/",
+        "ApiKey": "ollama-local",
+        "Model": "qwen2.5:7b"
+      }
+    }
+  }
+}
+```
+
+Cloud Token 与本地 Chat 配置同时存在时，云端模式优先；本地 provider 不会绕过权限边界。当前本地 HTTP 分支拒绝 `read-write` 请求并返回 `local_write_confirmation_required`，写入仍需云端风险审查或另一个显式确认入口。未配置 Cloud Token 且 Chat readiness 不满足时，端点仍返回 `cloud_not_bound`，避免把“配置存在”误报为模型可用。
 
 切换 embedding 模型或向量维度后必须重建文档与技能索引。API Key 应通过环境变量、Secret Manager 或容器 secret 注入，不要提交到配置文件。
 

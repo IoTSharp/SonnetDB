@@ -118,6 +118,17 @@ jobs:
         shell: pwsh
         run: ./eng/release.ps1 -Tasks bundles,installers -Version '${{ needs.nuget.outputs.version }}' -Rid '${{ matrix.rid }}' -BuildAdminUi
 
+      - name: Verify Studio release artifacts
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $version = '${{ needs.nuget.outputs.version }}'
+          $bundle = "artifacts/release/bundles/win-x64/sonnetdb-studio-$version-win-x64.zip"
+          $installer = "artifacts/release/installers/win-x64/sonnetdb-studio-$version-win-x64.msi"
+          if (-not (Test-Path -LiteralPath $bundle)) { throw "Missing Studio bundle: $bundle" }
+          if (-not (Test-Path -LiteralPath $installer)) { throw "Missing Studio installer: $installer" }
+          Write-Host "Studio bundle and MSI verified: $version"
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:

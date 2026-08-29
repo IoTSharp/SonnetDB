@@ -43,6 +43,7 @@ internal static class Program
         }
 
         var report = new DocumentSoakReport(
+            2,
             options.Profile,
             options.DocumentCount,
             options.BatchSize,
@@ -57,7 +58,13 @@ internal static class Program
                 Environment.MachineName,
                 Environment.ProcessorCount,
                 GCSettings(),
-                GC.GetGCMemoryInfo().TotalAvailableMemoryBytes),
+                GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
+                GetGitCommit(),
+                GetVolumeEvidence(options.DataRoot, options.DiskModel)),
+            new TargetHardwareEvidence(
+                options.TargetHardwareAttested && options.TargetHardwareId is not null ? "PASS" : "NOT_READY",
+                options.TargetHardwareId,
+                options.TargetHardwareContract),
             phases,
             memory);
         await WriteReportAsync(report, options.OutputDirectory).ConfigureAwait(false);
@@ -287,6 +294,45 @@ internal static class Program
     private static string GCSettings()
         => $"server={System.Runtime.GCSettings.IsServerGC}; latency={System.Runtime.GCSettings.LatencyMode}";
 
+    private static string GetGitCommit()
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("git", "rev-parse HEAD")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is null)
+                return "unknown";
+            string output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            return process.ExitCode == 0 && output.Length == 40 ? output : "unknown";
+        }
+        catch (Exception)
+        {
+            return "unknown";
+        }
+    }
+
+    private static VolumeEvidence GetVolumeEvidence(string path, string? deviceModel)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(path));
+            if (string.IsNullOrWhiteSpace(root))
+                return new VolumeEvidence(deviceModel ?? "unknown", "unknown", 0, 0);
+            var drive = new DriveInfo(root);
+            return new VolumeEvidence(deviceModel ?? "unknown", drive.DriveFormat, drive.TotalSize, drive.AvailableFreeSpace);
+        }
+        catch (Exception)
+        {
+            return new VolumeEvidence(deviceModel ?? "unknown", "unknown", 0, 0);
+        }
+    }
+
     private static async Task WriteReportAsync(DocumentSoakReport report, string outputDirectory)
     {
         string jsonPath = Path.Combine(outputDirectory, "report.json");
@@ -296,10 +342,19 @@ internal static class Program
 
         var markdown = new StringBuilder();
         markdown.Append("# Document Store Capacity Profile\n\n")
+            .Append("- Schema: `").Append(report.SchemaVersion).Append("`\n")
             .Append("- Profile: `").Append(report.Profile).Append("`\n")
             .Append("- Documents: ").Append(report.DocumentCount.ToString("N0", CultureInfo.InvariantCulture)).Append("\n")
             .Append("- Started: ").Append(report.StartedAtUtc.ToString("O", CultureInfo.InvariantCulture)).Append("\n")
-            .Append("- Result: **").Append(report.Succeeded ? "PASS" : "FAIL").Append("**\n\n")
+            .Append("- Result: **").Append(report.Succeeded ? "PASS" : "FAIL").Append("**\n")
+            .Append("- Commit: `").Append(report.Environment.CommitSha).Append("`\n")
+            .Append("- Target hardware: **").Append(report.TargetHardware.Status).Append("**")
+            .Append(report.TargetHardware.TargetId is null ? "\n" : " (`" + report.TargetHardware.TargetId + "`)\n")
+            .Append("- Hardware contract: `").Append(report.TargetHardware.Contract).Append("`\n")
+            .Append("- Data volume: `").Append(report.Environment.DataVolume.FileSystem).Append("`, ")
+            .Append("device `").Append(report.Environment.DataVolume.DeviceModel).Append("`, ")
+            .Append(report.Environment.DataVolume.TotalBytes.ToString(CultureInfo.InvariantCulture)).Append(" bytes total, ")
+            .Append(report.Environment.DataVolume.AvailableBytes.ToString(CultureInfo.InvariantCulture)).Append(" bytes free\n\n")
             .Append("| Phase | Duration ms | Operations | Ops/s |\n|---|---:|---:|---:|\n");
         foreach (var phase in report.Phases)
         {
@@ -348,7 +403,11 @@ internal sealed record SoakOptions(
     string OutputDirectory,
     string WorkRoot,
     string DataRoot,
-    bool KeepData)
+    bool KeepData,
+    string? TargetHardwareId,
+    string TargetHardwareContract,
+    bool TargetHardwareAttested,
+    string? DiskModel)
 {
     public static SoakOptions Parse(string[] args)
     {
@@ -365,6 +424,9 @@ internal sealed record SoakOptions(
         string runId = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + profile;
         string output = Path.GetFullPath(Value(args, "--output") ?? Path.Combine("artifacts", "document-soak", runId));
         string work = Path.GetFullPath(Value(args, "--work-root") ?? Path.Combine(Path.GetTempPath(), "sonnetdb-document-soak-" + Guid.NewGuid().ToString("N")));
+        string? targetHardware = Value(args, "--target-hardware-id");
+        string targetContract = Value(args, "--target-hardware-contract") ?? "M25-#174-fixed-target-v1";
+        string? diskModel = Value(args, "--disk-model") ?? Environment.GetEnvironmentVariable("SONNETDB_DISK_MODEL");
         return new SoakOptions(
             profile,
             documentCount,
@@ -373,7 +435,11 @@ internal sealed record SoakOptions(
             output,
             work,
             Path.Combine(work, "database"),
-            args.Contains("--keep-data", StringComparer.Ordinal));
+            args.Contains("--keep-data", StringComparer.Ordinal),
+            string.IsNullOrWhiteSpace(targetHardware) ? null : targetHardware,
+            targetContract,
+            args.Contains("--target-hardware-attested", StringComparer.Ordinal),
+            string.IsNullOrWhiteSpace(diskModel) ? null : diskModel);
     }
 
     private static string? Value(string[] args, string name)
@@ -384,6 +450,7 @@ internal sealed record SoakOptions(
 }
 
 internal sealed record DocumentSoakReport(
+    int SchemaVersion,
     string Profile,
     int DocumentCount,
     int BatchSize,
@@ -392,6 +459,7 @@ internal sealed record DocumentSoakReport(
     bool Succeeded,
     string? Failure,
     SoakEnvironment Environment,
+    TargetHardwareEvidence TargetHardware,
     IReadOnlyList<SoakPhase> Phases,
     IReadOnlyList<MemorySample> MemorySamples);
 
@@ -402,7 +470,20 @@ internal sealed record SoakEnvironment(
     string MachineName,
     int ProcessorCount,
     string GarbageCollector,
-    long TotalAvailableMemoryBytes);
+    long TotalAvailableMemoryBytes,
+    string CommitSha,
+    VolumeEvidence DataVolume);
+
+internal sealed record VolumeEvidence(
+    string DeviceModel,
+    string FileSystem,
+    long TotalBytes,
+    long AvailableBytes);
+
+internal sealed record TargetHardwareEvidence(
+    string Status,
+    string? TargetId,
+    string Contract);
 
 internal sealed record SoakPhase(
     string Name,
@@ -422,6 +503,8 @@ internal sealed record MemorySample(
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 [JsonSerializable(typeof(DocumentSoakReport))]
 [JsonSerializable(typeof(SoakEnvironment))]
+[JsonSerializable(typeof(VolumeEvidence))]
+[JsonSerializable(typeof(TargetHardwareEvidence))]
 [JsonSerializable(typeof(SoakPhase))]
 [JsonSerializable(typeof(MemorySample))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

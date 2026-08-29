@@ -221,6 +221,23 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task LocalOnnxEmbeddingProvider_UsesDeterministicFallback_WhenInputProfileIsUnavailable()
+    {
+        var modelPath = CreateTempFile("placeholder-model.onnx", "not-a-real-onnx-model");
+        using var provider = new LocalOnnxEmbeddingProvider(new CopilotEmbeddingOptions
+        {
+            Provider = "local",
+            LocalModelPath = modelPath,
+        });
+
+        var embedding = await provider.EmbedAsync("offline local embedding");
+
+        Assert.Equal(BuiltinHashEmbeddingProvider.VectorDimension, embedding.Length);
+        Assert.True(provider.IsFallback);
+        Assert.False(string.IsNullOrWhiteSpace(provider.FallbackReason));
+    }
+
+    [Fact]
     public void DependencyInjection_ThrowsForUnsupportedEmbeddingProvider()
     {
         var services = new ServiceCollection();

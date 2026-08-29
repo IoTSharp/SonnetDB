@@ -1,12 +1,14 @@
 # M20 Parity nightly evidence
 
-This report records the 2026-08-28 audit of the seven most recent completed
-scheduled runs of `.github/workflows/parity.yml`. It is evidence of recovery
-progress, not an M20 completion claim.
+This report records the 2026-08-29 audit of the seven most recent completed
+scheduled runs of `.github/workflows/parity.yml`. The parity implementation,
+workflow and verifier are complete; this is the remaining external nightly
+validation evidence, not a claim that the seven-day gate has passed.
 
 ## Verdict
 
-`NOT_READY`: 3 of 7 scheduled runs passed all evidence checks (42.86%).
+Implementation: `COMPLETE`; validation evidence: `NOT_READY` (4 of 7 scheduled
+runs passed all evidence checks, 57.14%).
 
 The verifier requires seven consecutive UTC dates where both the `light` and
 `full` artifacts contain exactly one non-empty schema v2 `summary.json`, the
@@ -20,21 +22,21 @@ only widen the evidence window.
 
 | UTC date | Run | Commit | Workflow | Light | Full | Evidence verdict |
 |---|---:|---|---|---|---|---|
+| 2026-08-28 | [33177741962](https://github.com/IoTSharp/SonnetDB/actions/runs/33177741962) | `1ac46b7` | success | passing | passing | valid |
 | 2026-08-27 | [33071879124](https://github.com/IoTSharp/SonnetDB/actions/runs/33071879124) | `0360873` | success | passing | passing | valid |
 | 2026-08-26 | [32925204255](https://github.com/IoTSharp/SonnetDB/actions/runs/32925204255) | `e642063` | success | passing | passing | valid |
 | 2026-08-25 | [32803489709](https://github.com/IoTSharp/SonnetDB/actions/runs/32803489709) | `f2cad5a` | success | passing | passing | valid |
 | 2026-08-24 | [32685178665](https://github.com/IoTSharp/SonnetDB/actions/runs/32685178665) | `a0fefe1` | failure | failing | failing | invalid |
 | 2026-08-23 | [32614388339](https://github.com/IoTSharp/SonnetDB/actions/runs/32614388339) | `a7fae42` | failure | failing | failing | invalid |
 | 2026-08-22 | [32547559079](https://github.com/IoTSharp/SonnetDB/actions/runs/32547559079) | `b86bf7c` | failure | failing | failing | invalid |
-| 2026-08-21 | [32442052820](https://github.com/IoTSharp/SonnetDB/actions/runs/32442052820) | `7546c53` | failure | failing | failing | invalid |
 
-The three successful runs completed both profile jobs through restore, build,
+The four successful runs completed both profile jobs through restore, build,
 host-side stack readiness, parity gates, reliability gates, schema v2 summary,
-artifact upload, and result publication. The four failing runs retained
+artifact upload, and result publication. The three failing runs retained
 structured failing summaries with `gap_reason`, but a structured failure is
 still a failed nightly and cannot count toward the seven-day gate.
 
-At least four additional consecutive successful scheduled dates are required.
+At least three additional consecutive successful scheduled dates are required.
 Any intervening failure keeps the rolling seven-run window `NOT_READY`.
 
 ## Reproduction

@@ -1,0 +1,105 @@
+{
+  "schema": "m27-copilot-eval-v1",
+  "generatedAtUtc": "2026-08-29T00:00:00Z",
+  "status": "NOT_READY",
+  "run": {
+    "command": "dotnet test tests/SonnetDB.Tests --filter CopilotEvalSuiteTests",
+    "commitSha": "UNAVAILABLE",
+    "realProvider": false,
+    "environment": "local-fixture"
+  },
+  "readiness": {
+    "status": "NOT_READY",
+    "reason": "该 fixture 使用 ScriptedChatProvider，只验证工具合同和判定逻辑；没有真实 provider/model 调用。"
+  },
+  "thresholds": {
+    "accuracy": 0.95,
+    "citationHitRate": 0.95,
+    "p95LatencyMilliseconds": 500
+  },
+  "scenarios": [
+    {
+      "id": "industrial_anomaly_device",
+      "category": "anomaly_device",
+      "question": "哪台设备的温度、电流和振动同时异常？",
+      "status": "PASS",
+      "provider": "scripted-fixture",
+      "model": "fixture-plan-v1",
+      "toolNames": ["describe_measurement", "query_sql"],
+      "toolCalls": 2,
+      "failureReason": null,
+      "citationsExpected": 3,
+      "citationsActual": 3,
+      "usage": { "reported": false, "inputTokens": null, "outputTokens": null, "totalTokens": null, "costUsd": null }
+    },
+    {
+      "id": "industrial_slow_query",
+      "category": "slow_query",
+      "question": "解释过去一小时的慢查询并给出扫描范围。",
+      "status": "PASS",
+      "provider": "scripted-fixture",
+      "model": "fixture-plan-v1",
+      "toolNames": ["sample_rows", "explain_sql"],
+      "toolCalls": 2,
+      "failureReason": null,
+      "citationsExpected": 3,
+      "citationsActual": 3,
+      "usage": { "reported": false, "inputTokens": null, "outputTokens": null, "totalTokens": null, "costUsd": null }
+    },
+    {
+      "id": "industrial_schema_guard",
+      "category": "schema",
+      "question": "temperature measurement 的字段和 tag 是什么？",
+      "status": "PASS",
+      "provider": "scripted-fixture",
+      "model": "fixture-plan-v1",
+      "toolNames": ["describe_measurement"],
+      "toolCalls": 1,
+      "failureReason": null,
+      "citationsExpected": 3,
+      "citationsActual": 3,
+      "usage": { "reported": false, "inputTokens": null, "outputTokens": null, "totalTokens": null, "costUsd": null }
+    },
+    {
+      "id": "industrial_repair_advice",
+      "category": "repair_advice",
+      "question": "根据异常指标给出维修建议并附引用。",
+      "status": "PASS",
+      "provider": "scripted-fixture",
+      "model": "fixture-plan-v1",
+      "toolNames": ["query_sql", "sample_rows"],
+      "toolCalls": 2,
+      "failureReason": null,
+      "citationsExpected": 3,
+      "citationsActual": 3,
+      "usage": { "reported": false, "inputTokens": null, "outputTokens": null, "totalTokens": null, "costUsd": null }
+    },
+    {
+      "id": "industrial_write_approval",
+      "category": "approval",
+      "question": "把维修标注写回数据库，先给我审批预览。",
+      "status": "PASS",
+      "provider": "scripted-fixture",
+      "model": "fixture-plan-v1",
+      "toolNames": ["draft_sql"],
+      "toolCalls": 1,
+      "failureReason": null,
+      "citationsExpected": 3,
+      "citationsActual": 3,
+      "usage": { "reported": false, "inputTokens": null, "outputTokens": null, "totalTokens": null, "costUsd": null }
+    }
+  ],
+  "summary": {
+    "scenarioCount": 5,
+    "passedCount": 5,
+    "failedCount": 0,
+    "accuracy": 1.0,
+    "citationHitRate": 1.0,
+    "p50LatencyMilliseconds": 0.0,
+    "p95LatencyMilliseconds": 0.0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "totalTokens": 0,
+    "estimatedCostUsd": null
+  }
+}

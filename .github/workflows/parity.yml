@@ -316,29 +316,48 @@ jobs:
           mkdir -p parity-results/runs/${{ github.run_id }}
           cp -R parity-output/. parity-results/runs/${{ github.run_id }}/
 
+          # Only a full-profile summary is suitable for the published latest
+          # view. A light-only or missing artifact must remain explicitly
+          # NOT_READY instead of looking like release evidence.
           latest="$(find parity-output -path '*full*summary.md' | sort | head -n 1)"
-          if [[ -z "$latest" ]]; then
-            latest="$(find parity-output -name summary.md | sort | head -n 1)"
-          fi
           if [[ -n "$latest" ]]; then
             cp "$latest" parity-results/latest.md
           else
-            printf '# Parity Run\n\nNo summary was produced for this run.\n' > parity-results/latest.md
+            cat > parity-results/latest.md <<EOF
+          # SonnetDB Parity Run
+
+          **NOT_READY**: the full profile summary artifact was not produced for
+          scheduled run ${{ github.run_id }} at commit ${{ github.sha }}.
+          This run is retained for diagnostics and does not count as release
+          evidence.
+          EOF
           fi
 
           latest_json="$(find parity-output -path '*full*summary.json' | sort | head -n 1)"
-          if [[ -z "$latest_json" ]]; then
-            latest_json="$(find parity-output -name summary.json | sort | head -n 1)"
-          fi
           if [[ -n "$latest_json" ]]; then
             cp "$latest_json" parity-results/latest.json
+          else
+            cat > parity-results/latest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "status": "NOT_READY",
+            "repository": "${{ github.repository }}",
+            "source": "workflow-publish",
+            "runId": "${{ github.run_id }}",
+            "commitSha": "${{ github.sha }}",
+            "reason": "full_profile_summary_missing",
+            "message": "The full profile summary artifact was not produced; this run is not release evidence."
+          }
+          EOF
           fi
 
           cat > parity-results/README.md <<'EOF'
           # SonnetDB Parity Results
 
           This orphan branch is maintained by `.github/workflows/parity.yml`.
-          `latest.md` contains the newest nightly/manual parity summary.
+          `latest.md` and `latest.json` contain the newest full-profile summary.
+          If the full artifact is missing, they explicitly report `NOT_READY`;
+          such a run is retained for diagnostics and is not release evidence.
           EOF
 
       - name: Publish orphan branch

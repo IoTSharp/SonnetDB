@@ -61,7 +61,10 @@ internal static class Program
                 RuntimeInformation.ProcessArchitecture.ToString(),
                 Environment.MachineName,
                 Environment.ProcessorCount,
-                GC.GetGCMemoryInfo().TotalAvailableMemoryBytes),
+                GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
+                ResolveCommitSha(),
+                SoakDiskSnapshot.Capture(options.WorkRoot)),
+            SoakTargetHardware.Capture(),
             cycles,
             SoakReportSummary.Create(options, cycles));
         await WriteReportAsync(report, options.OutputDirectory).ConfigureAwait(false);
@@ -478,6 +481,40 @@ internal static class Program
         await File.WriteAllTextAsync(markdownPath, BuildMarkdown(report)).ConfigureAwait(false);
     }
 
+    private static string ResolveCommitSha()
+    {
+        string? configured = Environment.GetEnvironmentVariable("GITHUB_SHA");
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured.Trim();
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "rev-parse --verify HEAD",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is null)
+                return "UNAVAILABLE";
+
+            string output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            return process.ExitCode == 0 && output.Length > 0 ? output : "UNAVAILABLE";
+        }
+        catch (InvalidOperationException)
+        {
+            return "UNAVAILABLE";
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return "UNAVAILABLE";
+        }
+    }
+
     private static string BuildMarkdown(EcosystemSoakReport report)
     {
         var text = new StringBuilder();
@@ -488,6 +525,10 @@ internal static class Program
         text.AppendLine($"- Started UTC: `{report.StartedUtc:O}`");
         text.AppendLine($"- Finished UTC: `{report.FinishedUtc:O}`");
         text.AppendLine($"- Runtime: `{report.Environment.Framework}` on `{report.Environment.Os}`");
+        text.AppendLine($"- Commit: `{report.Environment.CommitSha}`");
+        text.AppendLine($"- Hardware: `{report.Environment.Architecture}`, `{report.Environment.ProcessorCount}` logical CPU, `{report.Environment.AvailableMemoryBytes}` bytes available memory");
+        text.AppendLine($"- Disk: `{report.Environment.Disk.Root}` ({report.Environment.Disk.FileSystem}), `{report.Environment.Disk.TotalBytes}` bytes total / `{report.Environment.Disk.AvailableBytes}` bytes available");
+        text.AppendLine($"- Target hardware evidence: `{report.TargetHardware.Status}` (id `{report.TargetHardware.Id}`, contract `{report.TargetHardware.Contract}`)");
         text.AppendLine($"- Shape: `{report.Options.Measurements}` measurements x `{report.Options.PointsPerMeasurement}` points, `{report.Options.Cycles}` cycle(s)");
         text.AppendLine($"- Peak working set: `{report.Summary.PeakWorkingSetBytes}` bytes");
         text.AppendLine($"- Peak managed memory: `{report.Summary.PeakManagedMemoryBytes}` bytes");
@@ -804,7 +845,39 @@ internal sealed record SoakEnvironment(
     string Architecture,
     string MachineName,
     int ProcessorCount,
-    long AvailableMemoryBytes);
+    long AvailableMemoryBytes,
+    string CommitSha,
+    SoakDiskSnapshot Disk);
+
+internal sealed record SoakDiskSnapshot(
+    string Root,
+    string FileSystem,
+    long TotalBytes,
+    long AvailableBytes)
+{
+    /// <summary>从工作目录所在卷读取总容量和可用空间快照。</summary>
+    public static SoakDiskSnapshot Capture(string path)
+    {
+        string root = Path.GetPathRoot(Path.GetFullPath(path)) ?? string.Empty;
+        try
+        {
+            var drive = new DriveInfo(root);
+            return new SoakDiskSnapshot(
+                root,
+                drive.DriveFormat,
+                drive.TotalSize,
+                drive.AvailableFreeSpace);
+        }
+        catch (IOException)
+        {
+            return new SoakDiskSnapshot(root, "UNAVAILABLE", -1, -1);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new SoakDiskSnapshot(root, "UNAVAILABLE", -1, -1);
+        }
+    }
+}
 
 internal sealed record SoakPhaseResult(
     string Name,
@@ -833,8 +906,27 @@ internal sealed record EcosystemSoakReport(
     string? Failure,
     SoakReportOptions Options,
     SoakEnvironment Environment,
+    SoakTargetHardware TargetHardware,
     IReadOnlyList<SoakCycleResult> Cycles,
     SoakReportSummary Summary);
+
+internal sealed record SoakTargetHardware(
+    string Status,
+    string Id,
+    string Contract)
+{
+    /// <summary>读取外部固定目标机声明；未显式声明时保持 NOT_READY。</summary>
+    public static SoakTargetHardware Capture()
+        => new(
+            Read("SONNETDB_M19_TARGET_HARDWARE_STATUS", "NOT_READY"),
+            Read("SONNETDB_M19_TARGET_HARDWARE_ID", "UNDECLARED"),
+            Read("SONNETDB_M19_TARGET_HARDWARE_CONTRACT", "M19-#125-frozen-target-v1"));
+
+    private static string Read(string name, string fallback)
+        => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name))
+            ? fallback
+            : Environment.GetEnvironmentVariable(name)!.Trim();
+}
 
 internal sealed record SoakIntegritySummary(
     string Scope,
@@ -1036,6 +1128,7 @@ internal sealed class PhaseResourceMonitor : IDisposable
 [JsonSerializable(typeof(EcosystemSoakReport))]
 [JsonSerializable(typeof(SoakReportOptions))]
 [JsonSerializable(typeof(SoakEnvironment))]
+[JsonSerializable(typeof(SoakTargetHardware))]
 [JsonSerializable(typeof(SoakCycleResult))]
 [JsonSerializable(typeof(SoakPhaseResult))]
 [JsonSerializable(typeof(SoakIntegritySummary))]

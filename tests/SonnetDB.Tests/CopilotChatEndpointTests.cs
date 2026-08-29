@@ -89,6 +89,79 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CopilotChat_UsesConfiguredChatProvider_WhenCloudIsNotBound()
+    {
+        var dataRoot = CreateTempDirectory("sndb-copilot-local-data-");
+        var options = new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string> { [AdminToken] = ServerRoles.Admin },
+        };
+        options.Copilot.Chat.Provider = "openai";
+        options.Copilot.Chat.Endpoint = "http://127.0.0.1:19090/v1/";
+        options.Copilot.Chat.ApiKey = "local-test-key";
+        options.Copilot.Chat.Model = "local-test-model";
+        options.Copilot.Embedding.Provider = "builtin";
+        options.Copilot.Docs.AutoIngestOnStartup = false;
+        options.Copilot.Skills.AutoIngestOnStartup = false;
+        var provider = new QueueChatProvider(
+            "{\"tools\":[]}",
+            "local provider answer");
+
+        var app = TestServerHost.Build(options, services => services.AddSingleton<IChatProvider>(provider));
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            using var client = new HttpClient { BaseAddress = new Uri(addresses.Addresses.First()) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+
+            using var systemOnlyResponse = await client.PostAsync(
+                "/v1/copilot/chat",
+                JsonContent.Create(
+                    new CopilotChatRequest(
+                        DatabaseName,
+                        Message: null,
+                        Messages: [new AiMessage("system", "仅系统消息")]),
+                    ServerJsonContext.Default.CopilotChatRequest));
+            Assert.Equal(HttpStatusCode.BadRequest, systemOnlyResponse.StatusCode);
+            Assert.Contains("user message", await systemOnlyResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+            await CreateDatabaseAsync(client, DatabaseName);
+
+            using var response = await client.PostAsync(
+                "/v1/copilot/chat",
+                JsonContent.Create(
+                    new CopilotChatRequest(DatabaseName, "请直接回答本地 provider 测试", DocsK: 0, SkillsK: 0),
+                    ServerJsonContext.Default.CopilotChatRequest));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var events = await ReadNdjsonEventsAsync(response);
+            Assert.Equal("local provider answer", Assert.Single(events, static evt => evt.Type == "final").Answer);
+            Assert.Equal(2, provider.CallCount);
+
+            using var writeResponse = await client.PostAsync(
+                "/v1/copilot/chat",
+                JsonContent.Create(
+                    new CopilotChatRequest(DatabaseName, "请写入数据", Mode: "read-write"),
+                    ServerJsonContext.Default.CopilotChatRequest));
+            Assert.Equal(HttpStatusCode.Conflict, writeResponse.StatusCode);
+            Assert.Contains("local_write_confirmation_required", await writeResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            Assert.Equal(2, provider.CallCount);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteDirectory(dataRoot);
+        }
+    }
+
+    [Fact]
     public async Task CopilotChat_WhenCloudTokenExpired_ReturnsCloudTokenExpired()
     {
         SaveCloudConfig(expiresAtUtc: DateTimeOffset.UtcNow.AddMinutes(-1));
@@ -597,6 +670,23 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         }
 
         return events;
+    }
+
+    private sealed class QueueChatProvider(params string[] responses) : IChatProvider
+    {
+        private readonly Queue<string> _responses = new(responses);
+
+        public int CallCount { get; private set; }
+
+        public ValueTask<string> CompleteAsync(
+            IReadOnlyList<AiMessage> messages,
+            string? modelOverride = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            return ValueTask.FromResult(_responses.Count > 0 ? _responses.Dequeue() : string.Empty);
+        }
     }
 
     private sealed class FakeCloudGatewayClient : ICopilotCloudGatewayClient

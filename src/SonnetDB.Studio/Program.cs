@@ -95,7 +95,7 @@ internal sealed record StudioHostOptions(
     {
         var explicitServerUrl = ReadOption(args, "--server-url");
         var managedServerUrl = ReadOption(args, "--managed-server-url") ?? DefaultServerUrl;
-        var serverUrl = explicitServerUrl ?? managedServerUrl;
+        var serverUrl = (explicitServerUrl ?? managedServerUrl).Trim().TrimEnd('/');
         var route = ReadOption(args, "--route") ?? "/admin/app/studio";
         var width = ReadIntOption(args, "--width") ?? 1440;
         var height = ReadIntOption(args, "--height") ?? 920;

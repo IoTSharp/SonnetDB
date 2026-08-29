@@ -34,6 +34,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Validate evidence verifier contract
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/SonnetDB.DocumentSoak/scripts/test-verify-document-soak-evidence.ps1
+
       - name: Run Document Store profile
         run: |
           dotnet run --project tests/SonnetDB.DocumentSoak/SonnetDB.DocumentSoak.csproj \
@@ -41,6 +45,15 @@ jobs:
             -- \
             --profile "${{ inputs.profile }}" \
             --output "artifacts/document-soak/${{ inputs.profile }}"
+
+      - name: Audit capacity evidence contract
+        if: always()
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/SonnetDB.DocumentSoak/scripts/verify-document-soak-evidence.ps1 `
+            -Report "artifacts/document-soak/${{ inputs.profile }}/report.json" `
+            -Output "artifacts/document-soak/${{ inputs.profile }}/verification.json" `
+            -AllowNotReady
 
       - name: Upload capacity evidence
         if: always()
