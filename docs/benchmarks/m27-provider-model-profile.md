@@ -21,7 +21,7 @@ provider 使用可观测的 384 维确定性 hash fallback，并不是 ONNX 语�
 | Copilot `IEmbeddingProvider` 抽象与 builtin fallback | `PASS` | 离线首次启动路径可运行，但 hash 向量不等价于语义模型。 |
 | 本地 ONNX model profile 合同 | `PASS` | 已显式描述 tokenizer、输入 tensor、输出、pooling、归一化和维度；无效配置会稳定失败或进入可观测 fallback。 |
 | 合成 tiny ONNX 合同测试 | `PASS` | `LocalOnnxEmbeddingProviderTests` 43/43 通过；仅证明 tiny ONNX/tokenizer 绑定和数值语义，不代表目标模型质量。 |
-| 真实模型 evidence artifact runner/consistency verifier | `PASS（增量）` | `m27-local-onnx-evidence-v1` 已记录输入哈希、来源/license、逐查询样本、Recall@K、延迟、内存和 clean commit，并从原始样本重算摘要；这里只表示工具合同通过。 |
+| 真实模型 evidence artifact runner/consistency verifier | `PASS（增量）` | `m27-local-onnx-evidence-v2` 已记录输入哈希、来源/license、环境名、线程请求、逐查询样本、Recall@K、延迟、内存和 clean commit，并从原始样本重算摘要；blank/CJK/超长/mask/batch/错误模型边界也进入原始报告。当前 batch 与线程证据不可得，因此这里只表示 fail-closed 工具合同通过。 |
 | Native AOT 发布 | `NOT_READY` | 显式 `win-x64` 发布被现有 `IoTSharp.CoAP.NET` 子模块的 `SYSLIB1100`/`SYSLIB1101` 阻断；本次 M27 未修改该范围外模块。 |
 | 目标模型真实推理 | `NOT_READY` | 需要实际模型文件、tokenizer 和可追溯配置。 |
 | 语义质量、延迟和内存报告 | `NOT_READY` | 未取得真实数据集和目标环境报告前不得宣称通过。 |
@@ -40,9 +40,14 @@ ONNX 证据。
 
 当前 verifier 是报告内部一致性检查，不是签名、防篡改或重新执行 ONNX 推理的
 验证器。它会对照当前文件重算输入哈希，并从 corpus、候选和逐查询样本重算
-Recall 与延迟摘要；它不会证明同步改写后的整组 artifact 未被篡改，也尚未覆盖
-线程配置、空白/错误模型、batch/mask 等完整边界。即使单次 runner 状态为 `PASS`，
-在下述真实模型证据门禁全部归档前，#185 仍保持 `NOT_READY`。
+Recall 与延迟摘要；v2 还要求 environment label、intra/inter-op 线程请求回放一致，
+并校验 blank、CJK、超长、attention-mask/padding、batch 和 malformed-model 六类边界。
+当前 `LocalOnnxEmbeddingProvider` 只提供单文本 `EmbedAsync`，没有真实 batch API，
+也没有可应用和读取的 ONNX Runtime 线程配置接口；runner 因此把 batch 记录为
+`NOT_SUPPORTED`、线程 applied/effective 记录为不可用，并稳定保持 `NOT_READY`。
+伪造 batch `PASS`、线程已应用/有效值、缺边界、旧 v1 schema、未显式传入
+`--target-model-evidence` 或未实际加载指定模型都会被 verifier 拒绝。即使后续 runner
+能够形成 `PASS`，在下述真实模型证据门禁全部归档前，#185 仍保持 `NOT_READY`。
 
 ### 本地合同运行记录（2026-08-29）
 

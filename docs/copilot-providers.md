@@ -267,6 +267,16 @@ BrowserDirect 只接受 `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` 指定的 
 TTL 不超过两小时；与数据库 token 同值、缺配置、缺 token、过期或登出时均 fail closed，
 不会静默回退到 ServerRelay。StudioNative 在 transport 和凭据边界完成前仍稳定拒绝。
 
+BrowserDirect 本地工具出域还必须把
+`VITE_COPILOT_BROWSER_DIRECT_ALLOW_DATA_EGRESS` 精确设为 `true`，并在
+`VITE_COPILOT_BROWSER_DIRECT_ALLOWED_TOOLS` 中列出允许的工具名；空 allowlist 拒绝全部工具。
+客户端从当前请求的数据库派生固定 `/mcp/{db}`，数据库 Bearer 只发送到该本地端点，
+public-client token 只发送到已批准公网 origin。每次会话执行 MCP `initialize`、`tools/list`
+和 `tools/call`，只接受完整声明 read-only、non-destructive、idempotent、closed-world 的工具，
+并校验参数/结果 schema 和 typed contract v1。`VITE_COPILOT_BROWSER_DIRECT_MAX_RESULT_BYTES`
+可收紧单次出域结果，默认 64 KiB；单轮最多 8 次工具 loop。generic MCP error、typed tool error、
+未知/未批准工具、schema/版本不匹配或超预算都在发送公网 continuation 前失败。
+
 统一状态机为每次运行维护 `runId`、严格递增 `sequence`、opaque `cursor` 和
 `toolCallId`。只有 transport 提供稳定 `toolCallId` 时，完全相同的重复工具调用/结果才可幂等；
 同 ID 的参数冲突、工具名错配、乱序、空 `final`、缺失 readiness、未知模式和未注册 transport
@@ -280,9 +290,13 @@ ServerRelay 会先生成稳定 `error` 再结束为 `done`，不会把截断响�
 卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会清除，并从服务端重新同步会话。
 SQL 工具页签和最终回答中的 SQL 只在完整 `done` 验证后提交。SSE 解码覆盖 LF、CRLF、
 bare CR、跨行结束符分片、多行 data 与严格 JSON。
-BrowserDirect 当前只提供显式配置和内存 token 的集成边界，尚无可信 Device Flow/PKCE
-获取入口，也未接入本地 MCP tool-call loop。Studio Native、外部 OAuth/BYOK、分片续流和
-服务器无公网出口的真实双网 journey 仍保持未完成。
+BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳定 `tool_call` 收口，
+本地成功结果只作为结构化、不可信数据发送到构造时已批准的固定公网 endpoint；下一段首事件
+必须逐字回显对应 `tool_result`，否则 fail closed。同 `toolCallId` 同规范化参数复用单次运行内
+缓存结果而不二次执行，同 ID 冲突在再次执行前拒绝；重复回放也计入 8 次 loop 上限。
+当前尚无可信 Device Flow/PKCE 获取入口，也没有已部署公网 continuation、CSP/CORS 或真实
+双网联调证据。Studio Native、外部 OAuth/BYOK、跨刷新续流和服务器无公网出口的真实 journey
+仍保持未完成。
 
 切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
 docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境
