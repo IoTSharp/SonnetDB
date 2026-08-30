@@ -20,6 +20,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     private GraphExpansionCursorSource? _activeExpansion;
     private bool _emitStart;
     private readonly TraversalPath _startPath;
+    private long _expandedEdges;
     private bool _ended;
     private bool _disposed;
 
@@ -95,7 +96,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                     null,
                     new GraphCursorOptions
                     {
-                        PageSize = _options.PageSize,
+                        PageSize = GetExpansionPageSize(),
                         MaxPageBytes = _options.MaxPageBytes,
                         MaxResults = _options.MaxFrontier,
                     });
@@ -103,8 +104,6 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             }
 
             IReadOnlyList<GraphExpansion> expansions = _activeExpansion.ReadNextPage(cancellationToken);
-            if (_diagnostics is not null)
-                _diagnostics.ExpansionCount = checked(_diagnostics.ExpansionCount + expansions.Count);
             if (expansions.Count == 0)
             {
                 _activeExpansion.Dispose();
@@ -115,6 +114,14 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             var children = new List<TraversalPath>(expansions.Count);
             foreach (GraphExpansion expansion in expansions)
             {
+                _expandedEdges = checked(_expandedEdges + 1);
+                if (_expandedEdges > _options.MaxExpandedEdges)
+                {
+                    throw new GraphTraversalLimitExceededException(
+                        $"Graph traversal 扩展边数超过上限 {_options.MaxExpandedEdges}。");
+                }
+                if (_diagnostics is not null)
+                    _diagnostics.ExpansionCount = checked(_diagnostics.ExpansionCount + 1);
                 TraversalPath child = _activePath.Extend(expansion.NeighborId, expansion.Edge.Id);
                 if (!IsAllowed(child))
                     continue;
@@ -151,6 +158,14 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     }
 
     private TraversalPath _activePath = null!;
+
+    private int GetExpansionPageSize()
+    {
+        long remaining = _options.MaxExpandedEdges - _expandedEdges;
+        if (remaining >= _options.PageSize)
+            return _options.PageSize;
+        return checked((int)remaining + 1);
+    }
 
     private void AddPending(TraversalPath path)
     {

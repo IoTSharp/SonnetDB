@@ -413,7 +413,8 @@ public sealed class GraphEndpointTests : IAsyncLifetime
                 Direction = GraphDirection.Both,
                 MaxDepth = 1,
                 MaxFrontier = 8,
-                MaxPaths = 2,
+                MaxPaths = 8,
+                MaxExpandedEdges = 1,
             }));
         Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
         Assert.Equal("graph_budget_exceeded", error.Error);

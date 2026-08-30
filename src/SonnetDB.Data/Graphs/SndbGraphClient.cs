@@ -586,6 +586,7 @@ public sealed class SndbGraphClient : IDisposable
                     MaxDepth = request.MaxDepth,
                     MaxFrontier = request.MaxFrontier,
                     MaxPaths = request.MaxPaths,
+                    MaxExpandedEdges = request.MaxExpandedEdges,
                 },
                 cancellationToken);
         }
@@ -1741,6 +1742,7 @@ public sealed class SndbGraphClient : IDisposable
             || !Enum.IsDefined(request.PathUniqueness) || request.EdgeLabelId is <= 0 || request.MinDepth < 0
             || request.MaxDepth is < 0 or > 64 || request.MinDepth > request.MaxDepth
             || request.MaxFrontier is <= 0 or > 10_000 || request.MaxPaths is <= 0 or > 10_000
+            || request.MaxExpandedEdges is <= 0 or > 10_000_000
             || request.PageSize is <= 0 or > 1_000
             || (request.Kind != GraphTraversalKind.Paths && request.MinDepth != 0))
             throw new ArgumentException("Graph traversal 的起点、模式、方向、深度或执行预算无效。", nameof(request));
@@ -1750,7 +1752,8 @@ public sealed class SndbGraphClient : IDisposable
     {
         if (request.StartId <= 0 || request.TargetId <= 0 || !Enum.IsDefined(request.Direction)
             || request.EdgeLabelId is <= 0 || request.MaxDepth is < 0 or > 64
-            || request.MaxFrontier is <= 0 or > 10_000 || request.MaxPaths is <= 0 or > 10_000)
+            || request.MaxFrontier is <= 0 or > 10_000 || request.MaxPaths is <= 0 or > 10_000
+            || request.MaxExpandedEdges is <= 0 or > 10_000_000)
             throw new ArgumentException("Shortest path 的端点、方向、深度或执行预算无效。", nameof(request));
     }
 
@@ -1779,6 +1782,7 @@ public sealed class SndbGraphClient : IDisposable
             MaxDepth = request.MaxDepth,
             MaxFrontier = request.MaxFrontier,
             MaxPaths = request.MaxPaths,
+            MaxExpandedEdges = request.MaxExpandedEdges,
             PathUniqueness = request.PathUniqueness,
             PageSize = request.PageSize,
         };

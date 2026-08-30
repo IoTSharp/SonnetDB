@@ -282,6 +282,9 @@ public sealed record GraphTraversalRequest
     /// <summary>路径结果上限。</summary>
     public int MaxPaths { get; init; } = 10_000;
 
+    /// <summary>遍历期间允许检查的邻接边总数。</summary>
+    public long MaxExpandedEdges { get; init; } = 10_000_000;
+
     /// <summary>路径去重策略。</summary>
     public GraphPathUniqueness PathUniqueness { get; init; } = GraphPathUniqueness.Vertex;
 
@@ -312,6 +315,9 @@ public sealed record GraphShortestPathRequest
 
     /// <summary>确认可达性前允许检查的路径上限。</summary>
     public int MaxPaths { get; init; } = 10_000;
+
+    /// <summary>确认可达性前允许检查的邻接边总数。</summary>
+    public long MaxExpandedEdges { get; init; } = 10_000_000;
 }
 
 /// <summary>HTTP/SDK 图路径 DTO。</summary>

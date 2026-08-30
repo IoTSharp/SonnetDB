@@ -313,6 +313,43 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
     }
 
     [Fact]
+    public void Traversal_MaxExpandedEdges_StopsBeforeScanningPastBudget()
+    {
+        GraphStore store = _manager.Create("expanded-edge-budget");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (int id = 1; id <= 3; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        transaction.UpsertEdge(new GraphElementId(10), 0, new GraphElementId(1), new GraphElementId(2), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(11), 0, new GraphElementId(1), new GraphElementId(3), new LabelId(2), []);
+        transaction.Commit();
+
+        using GraphReadSession read = store.BeginRead();
+        GraphTraversalOptions options = new()
+        {
+            MaxDepth = 1,
+            MaxFrontier = 8,
+            MaxPaths = 8,
+            MaxExpandedEdges = 2,
+            PageSize = 128,
+            PathUniqueness = GraphPathUniqueness.Edge,
+        };
+        Assert.Equal(2, ReadAll(read.Paths(new GraphElementId(1), 1, 1, options: options)).Length);
+
+        using GraphCursor<GraphPath> limited = read.Paths(
+            new GraphElementId(1),
+            1,
+            1,
+            options: options with { MaxExpandedEdges = 1 });
+        GraphTraversalLimitExceededException error = Assert.Throws<GraphTraversalLimitExceededException>(
+            () => limited.ReadNextPage());
+        Assert.Contains("1", error.Message, StringComparison.Ordinal);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => read.Bfs(
+            new GraphElementId(1),
+            options: options with { MaxExpandedEdges = 0 }));
+    }
+
+    [Fact]
     public void Traversal_SmallPagesTerminalFrontierAndUniqueness_DoNotLosePaths()
     {
         GraphStore store = _manager.Create("paged-paths");

@@ -27,6 +27,9 @@ public sealed record GraphTraversalOptions
     /// <summary>允许生成的最大路径数。</summary>
     public int MaxPaths { get; init; } = 10_000;
 
+    /// <summary>遍历期间允许检查的邻接边总数。</summary>
+    public long MaxExpandedEdges { get; init; } = 10_000_000;
+
     /// <summary>路径内元素去重策略。</summary>
     public GraphPathUniqueness PathUniqueness { get; init; } = GraphPathUniqueness.Vertex;
 
@@ -41,6 +44,7 @@ public sealed record GraphTraversalOptions
         ArgumentOutOfRangeException.ThrowIfNegative(MaxDepth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxFrontier);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxPaths);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxExpandedEdges);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PageSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxPageBytes);
         if (!Enum.IsDefined(PathUniqueness))
