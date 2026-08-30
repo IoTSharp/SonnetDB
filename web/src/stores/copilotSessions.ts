@@ -94,6 +94,14 @@ export const useCopilotSessionsStore = defineStore('copilotSessions', () => {
     }
   }
 
+  async function reloadMessages(api: AxiosInstance, id: string): Promise<void> {
+    const session = sessions.value.find((item) => item.id === id);
+    if (!session) return;
+    session.messages = await listCopilotMessages(api, id);
+    session.messageCount = session.messages.length;
+    session.messagesLoaded = true;
+  }
+
   async function rename(api: AxiosInstance, id: string, title: string): Promise<void> {
     const session = sessions.value.find((item) => item.id === id);
     if (!session) return;
@@ -150,6 +158,7 @@ export const useCopilotSessionsStore = defineStore('copilotSessions', () => {
     refresh,
     create,
     switchTo,
+    reloadMessages,
     rename,
     remove,
     clearAll,

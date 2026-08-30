@@ -260,6 +260,128 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CopilotChatStream_WhenCloudOmitsOutcome_ReturnsErrorBeforeDone()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("start", message: "cloud-start"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat/stream",
+            JsonContent.Create(
+                new CopilotChatRequest(DatabaseName, "分析 cpu"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadSseEventsAsync(response);
+        Assert.Equal(["start", "error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal(
+            "云端 Copilot 未返回 final/error 终态或本地工具调用，无法确认运行结果。",
+            events[1].Message);
+    }
+
+    [Fact]
+    public async Task CopilotChatStream_WhenCloudOmitsDone_RejectsTruncatedFinal()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(CloudEvent("final", answer: "不完整的答案"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat/stream",
+            JsonContent.Create(
+                new CopilotChatRequest(DatabaseName, "分析 cpu"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadSseEventsAsync(response);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal("云端 Copilot 响应缺少 done 事件，无法确认响应完整性。", events[0].Message);
+        Assert.DoesNotContain(events, static evt => evt.Type == "final");
+    }
+
+    [Fact]
+    public async Task CopilotChat_WhenCloudSendsToolAfterFinal_RejectsWithoutSideEffect()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "已完成"),
+            ToolRequiredEvent(
+                "execute_sql",
+                """{"sql":"CREATE MEASUREMENT late_side_effect (value FIELD FLOAT)"}""",
+                requestId: "req-late-tool",
+                toolCallId: "tool-late"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "创建 late_side_effect",
+                    Mode: "read-write",
+                    ConversationId: "session-late-tool"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal(
+            "云端 Copilot 在 final/error 终态后返回了额外事件，已拒绝该响应。",
+            events[0].Message);
+        Assert.Empty(_cloud.ToolResults);
+        var measurements = await ExecuteSqlBodyAsync(client, DatabaseName, "SHOW MEASUREMENTS");
+        Assert.DoesNotContain("late_side_effect", measurements, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WhenCloudSendsMultipleOutcomes_RejectsBoth()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "first"),
+            CloudEvent("error", message: "second"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(DatabaseName, "分析 cpu"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal("云端 Copilot 返回了多个 final/error 终态，已拒绝该响应。", events[0].Message);
+        Assert.DoesNotContain(events, static evt => evt.Type == "final");
+    }
+
+    [Fact]
+    public async Task CopilotChat_WhenCloudSendsEmptyFinal_RejectsOutcome()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "   "),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(DatabaseName, "分析 cpu"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal("云端 Copilot 返回了空 final answer，已拒绝该响应。", events[0].Message);
+    }
+
+    [Fact]
     public async Task CopilotChat_PersistsConversationAndMetrics_ForCrossDeviceSync()
     {
         SaveCloudConfig();
@@ -325,6 +447,156 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         var json = await otherDevice.GetStringAsync("/v1/copilot/conversations");
         var response = JsonSerializer.Deserialize(json, ServerJsonContext.Default.CopilotConversationListResponse);
         Assert.Empty(response!.Conversations);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WhenCloudReplaysToolCallInSameRound_ReusesResultInEventOrder()
+    {
+        const string arguments =
+            """{"sql":"CREATE MEASUREMENT replay_same_round (value FIELD FLOAT)"}""";
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            ToolRequiredEvent(
+                "execute_sql",
+                arguments,
+                requestId: "req-replay-same-round-1",
+                toolCallId: "tool-replay-same-round"),
+            ToolRequiredEvent(
+                "execute_sql",
+                arguments,
+                requestId: "req-replay-same-round-2",
+                toolCallId: "tool-replay-same-round"),
+            CloudEvent("done", message: "waiting for tool result"));
+        _cloud.EnqueueChat(
+            CloudEvent("final", answer: "已创建 replay_same_round。"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "创建 replay_same_round",
+                    Mode: "read-write",
+                    ConversationId: "session-replay-same-round"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(
+            ["tool_call", "tool_result", "tool_call", "tool_result", "final", "done"],
+            events.Select(static evt => evt.Type));
+        var emittedResults = events.Where(static evt => evt.Type == "tool_result").ToArray();
+        Assert.Equal(2, emittedResults.Length);
+        Assert.Equal(emittedResults[0].ToolResult, emittedResults[1].ToolResult);
+
+        Assert.Equal(2, _cloud.ToolResults.Count);
+        Assert.Equal(
+            ["req-replay-same-round-1", "req-replay-same-round-2"],
+            _cloud.ToolResults.Select(static result => result.RequestId));
+        Assert.All(_cloud.ToolResults, static result => Assert.True(result.Result?.Ok));
+        var measurements = await ExecuteSqlBodyAsync(client, DatabaseName, "SHOW MEASUREMENTS");
+        Assert.Contains("replay_same_round", measurements, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(
+        "query_sql",
+        """{"sql":"CREATE MEASUREMENT replay_conflict_initial (value FIELD FLOAT)"}""")]
+    [InlineData(
+        "execute_sql",
+        """{"sql":"CREATE MEASUREMENT replay_conflict_alternate (value FIELD FLOAT)"}""")]
+    public async Task CopilotChat_WhenToolCallIdConflictsInSameRound_RejectsBeforeSideEffect(
+        string conflictingToolName,
+        string conflictingArguments)
+    {
+        const string initialArguments =
+            """{"sql":"CREATE MEASUREMENT replay_conflict_initial (value FIELD FLOAT)"}""";
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            ToolRequiredEvent(
+                "execute_sql",
+                initialArguments,
+                requestId: "req-conflict-1",
+                toolCallId: "tool-conflict"),
+            ToolRequiredEvent(
+                conflictingToolName,
+                conflictingArguments,
+                requestId: "req-conflict-2",
+                toolCallId: "tool-conflict"),
+            CloudEvent("done", message: "waiting for tool result"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "执行冲突的云端工具调用",
+                    Mode: "read-write",
+                    ConversationId: "session-tool-conflict"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal(
+            "云端 Copilot 对同一 toolCallId 返回了冲突的工具名称或参数，已拒绝该响应。",
+            events[0].Message);
+        Assert.Empty(_cloud.ToolResults);
+
+        var measurements = await ExecuteSqlBodyAsync(client, DatabaseName, "SHOW MEASUREMENTS");
+        Assert.DoesNotContain("replay_conflict_initial", measurements, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("replay_conflict_alternate", measurements, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WhenCloudReplaysToolCallAcrossRounds_ReusesCachedResult()
+    {
+        const string arguments =
+            """{"sql":"CREATE MEASUREMENT replay_across_rounds (value FIELD FLOAT)"}""";
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            ToolRequiredEvent(
+                "execute_sql",
+                arguments,
+                requestId: "req-replay-round-1",
+                toolCallId: "tool-replay-across-rounds"),
+            CloudEvent("done", message: "waiting for tool result"));
+        _cloud.EnqueueChat(
+            ToolRequiredEvent(
+                "execute_sql",
+                """{ "sql" : "CREATE MEASUREMENT replay_across_rounds (value FIELD FLOAT)" }""",
+                requestId: "req-replay-round-2",
+                toolCallId: "tool-replay-across-rounds"),
+            CloudEvent("done", message: "waiting for tool result"));
+        _cloud.EnqueueChat(
+            CloudEvent("final", answer: "已创建 replay_across_rounds。"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "创建 replay_across_rounds",
+                    Mode: "read-write",
+                    ConversationId: "session-replay-across-rounds"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        Assert.Equal(
+            ["tool_call", "tool_result", "tool_call", "tool_result", "final", "done"],
+            events.Select(static evt => evt.Type));
+        Assert.Equal(3, _cloud.ChatRequests.Count);
+        Assert.Equal(2, _cloud.ToolResults.Count);
+        Assert.All(_cloud.ToolResults, static result => Assert.True(result.Result?.Ok));
+        Assert.Equal(
+            _cloud.ToolResults[0].Result?.Content?.GetRawText(),
+            _cloud.ToolResults[1].Result?.Content?.GetRawText());
     }
 
     [Fact]

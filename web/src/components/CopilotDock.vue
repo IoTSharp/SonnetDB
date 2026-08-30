@@ -260,7 +260,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { marked, Renderer, type Tokens } from 'marked';
 import {
@@ -833,6 +833,7 @@ async function reloadCopilotState(): Promise<void> {
 }
 
 function close(): void {
+  cancelActiveRequest();
   visible.value = false;
   fullscreen.value = false;
 }
@@ -1290,6 +1291,7 @@ async function send(): Promise<void> {
 
   const ac = new AbortController();
   abort.value = ac;
+  const ownsRun = () => abort.value === ac;
 
   // M6: 构造请求载荷 = [可选 system 上下文] + 会话历史
   const ctxMsg = buildContextMessage();
@@ -1298,13 +1300,16 @@ async function send(): Promise<void> {
     : [...requestSession.messages];
 
   const stepLog: string[] = [];
+  const pendingSqlEvents: CopilotChatEvent[] = [];
   let finalAnswer = '';
   let finalCitations: CopilotCitation[] = [];
+  let responseCommitted = false;
   copilotToolTabs.clear();
   copilotSqlSeen.clear();
   activeRequestDb.value = requestDb;
   try {
-    for await (const event of streamCopilotChat(
+    for await (const runtimeEvent of streamCopilotChat(
+      auth.api,
       auth.state.token,
       {
         ...(requestDb ? { db: requestDb } : {}),
@@ -1315,14 +1320,15 @@ async function send(): Promise<void> {
         ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
       },
       ac.signal,
+      import.meta.env.VITE_COPILOT_RUNTIME_MODE,
     )) {
-      if (ac.signal.aborted) break;
-      syncCopilotSqlEvent(event);
+      const event = runtimeEvent.event;
+      if (ac.signal.aborted || !ownsRun()) break;
+      pendingSqlEvents.push(event);
       if (event.type === 'final' && event.answer) {
         finalAnswer = event.answer;
         finalCitations = visibleCitationsForContent(event.answer, event.citations);
         streamCitations.value = finalCitations;
-        syncFinalAnswerSql(event.answer);
         streamBuffer.value = event.answer;
       } else if (event.type === 'error') {
         errorMsg.value = event.message ?? 'Copilot 请求失败';
@@ -1333,6 +1339,9 @@ async function send(): Promise<void> {
       }
       await scrollToBottom();
     }
+    if (ac.signal.aborted || !ownsRun()) return;
+    for (const event of pendingSqlEvents) syncCopilotSqlEvent(event);
+    if (finalAnswer) syncFinalAnswerSql(finalAnswer);
     if (finalAnswer) {
       sessions.appendMessage(sessionId, requestDb, {
         role: 'assistant',
@@ -1344,25 +1353,45 @@ async function send(): Promise<void> {
       if (isProvisioningRequest) {
         void reloadDbs();
       }
+      responseCommitted = true;
     }
   } catch (e: unknown) {
-    if (!ac.signal.aborted) {
+    if (!ac.signal.aborted && ownsRun()) {
       errorMsg.value = e instanceof Error ? e.message : String(e);
     }
   } finally {
-    running.value = false;
-    abort.value = null;
-    activeRequestDb.value = '';
-    await scrollToBottom();
+    if (ownsRun() && !responseCommitted) {
+      streamBuffer.value = '';
+      streamCitations.value = [];
+      try {
+        await sessions.reloadMessages(auth.api, sessionId);
+      } catch {
+        // 服务端会话暂不可读时不保留未确认的临时回答。
+      }
+    }
+    if (ownsRun()) {
+      running.value = false;
+      abort.value = null;
+      activeRequestDb.value = '';
+      await scrollToBottom();
+    }
   }
 }
 
+function cancelActiveRequest(): void {
+  const controller = abort.value;
+  if (controller && !controller.signal.aborted) controller.abort();
+  streamBuffer.value = '';
+  streamCitations.value = [];
+}
+
 function stop(): void {
-  abort.value?.abort();
+  cancelActiveRequest();
 }
 
 // === 会话历史（M5）===
 async function onNewSession(): Promise<void> {
+  cancelActiveRequest();
   await sessions.create(auth.api, effectiveDb.value);
   streamBuffer.value = '';
   streamCitations.value = [];
@@ -1370,6 +1399,7 @@ async function onNewSession(): Promise<void> {
 }
 
 async function onSwitchSession(id: string): Promise<void> {
+  cancelActiveRequest();
   await sessions.switchTo(auth.api, id);
   streamBuffer.value = '';
   streamCitations.value = [];
@@ -1384,6 +1414,7 @@ async function onSwitchSession(id: string): Promise<void> {
 }
 
 async function onRemoveSession(id: string): Promise<void> {
+  cancelActiveRequest();
   await sessions.remove(auth.api, id);
   streamBuffer.value = '';
   streamCitations.value = [];
@@ -1391,6 +1422,7 @@ async function onRemoveSession(id: string): Promise<void> {
 }
 
 async function onClearAll(): Promise<void> {
+  cancelActiveRequest();
   await sessions.clearAll(auth.api);
   streamBuffer.value = '';
   streamCitations.value = [];
@@ -1458,11 +1490,19 @@ watch(() => auth.isAuthenticated, (val) => {
     void reloadDbs();
     void reloadCopilotState();
     void loadModels();
+  } else if (!val) {
+    cancelActiveRequest();
   }
 });
 
 onMounted(() => {
   // 不主动 open，只在用户点击 FAB 时才请求接口，避免未启用 Copilot 时报 409。
+});
+
+onBeforeUnmount(() => {
+  cancelActiveRequest();
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
 });
 </script>
 

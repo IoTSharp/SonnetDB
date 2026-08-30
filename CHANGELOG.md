@@ -7,6 +7,8 @@
 
 ### Added
 
+- **M27 #340 双网客户端 Copilot runtime 首切片**：Web Copilot 新增显式 `ServerRelay` / `BrowserDirect` / `StudioNative` / `Disabled` 模式和统一 transport/事件状态机；每次运行先校验独立的本地/公网 readiness，再以 `runId`、严格 `sequence`、opaque `cursor` 和 `toolCallId` 处理事件顺序、稳定 ID 下的重复调用、工具名绑定、结果后禁止 retry、冲突与取消，并要求唯一的 `final` 或 `error` outcome、且 `final.answer` 非空，随后才能以 `done` 完成。ServerRelay readiness/POST 固定当前 SonnetDB 端点、使用 `credentials: omit` 并以 `redirect: error` 拒绝消息/Token 经 3xx 外送；SSE 严格解析 LF/CRLF/bare CR、跨分片和多行 data。服务端在输出事件或执行工具前拒绝缺 `done`、双 outcome、空 final、终态后事件和同轮 tool/outcome，避免终态后写副作用；并在单次运行内按稳定 `toolCallId` 缓存工具名、参数与本地结果，精确回放只重发缓存结果，同 ID 名称/参数冲突则在整轮预检阶段拒绝，保持事件顺序且不重复执行。Dock 在停止、关闭、切换/删除会话、登出和卸载时取消请求，清除未完成回答并从服务端重同步会话；SQL 页签只在完整 `done` 后提交。legacy SSE 只在当前流内按工具名 FIFO 合成 call ID，不能证明 provider 重放去重或跨刷新幂等；BrowserDirect、StudioNative、外部 AI 凭据、稳定服务端 call ID/cursor 续流和真实双网验收仍未实现。
+
 - **跨模型 generation 选择性清理合同**：`Tsdb.Generations` 新增 extend-only cleanup options overload，按 durable `PublishedAtUtc` 的 inclusive UTC cutoff 只清理已到期 retired generation，并把 lease-deferred 与 retention-deferred revisions 分开返回；既有 overload 继续立即处理全部 eligible retired generations。取消只在每个 candidate 开始前生效，candidate 一旦开始会完成物理资源与 catalog 删除，避免取消造成半清理；新增 mixed-age/reopen、UTC cutoff、lease、并发 publish、取消边界和独立 NuGet consumer 回归，未修改持久化格式。
 
 - **M29 Studio 发布与宿主生命周期合同**：Windows 发布脚本现在生成独立 `sonnetdb-studio-<version>-win-x64.zip` 与 MSI，bundle 携带同版本 `server/` 托管 Server；Studio 默认数据目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不随安装目录升级/卸载删除。宿主启停串行化，记录 `.studio/managed-server.log`，异常退出包含退出码/stderr 尾部，健康超时会清理子进程；新增 Windows Studio host 合同测试和 CI TRX artifact。WebView2、干净机器安装、升级/卸载和端口冲突仍登记为待真机验证。

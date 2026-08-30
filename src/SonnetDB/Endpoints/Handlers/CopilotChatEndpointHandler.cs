@@ -22,6 +22,24 @@ internal static class CopilotChatEndpointHandler
 {
     private const int MaxCloudToolRounds = 4;
     private const int DefaultToolMaxRows = 100;
+    private const string CloudOutcomeMissingMessage =
+        "云端 Copilot 未返回 final/error 终态或本地工具调用，无法确认运行结果。";
+    private const string CloudDoneMissingMessage =
+        "云端 Copilot 响应缺少 done 事件，无法确认响应完整性。";
+    private const string CloudEventAfterOutcomeMessage =
+        "云端 Copilot 在 final/error 终态后返回了额外事件，已拒绝该响应。";
+    private const string CloudOutcomeConflictMessage =
+        "云端 Copilot 返回了多个 final/error 终态，已拒绝该响应。";
+    private const string CloudEventAfterDoneMessage =
+        "云端 Copilot 在 done 事件后返回了额外事件，已拒绝该响应。";
+    private const string CloudToolOutcomeConflictMessage =
+        "云端 Copilot 在同一轮同时返回工具调用和 final/error 终态，已拒绝该响应。";
+    private const string CloudFinalEmptyMessage =
+        "云端 Copilot 返回了空 final answer，已拒绝该响应。";
+    private const string CloudToolCallIdMissingMessage =
+        "云端 Copilot 工具调用缺少稳定的 toolCallId，已拒绝该响应。";
+    private const string CloudToolCallConflictMessage =
+        "云端 Copilot 对同一 toolCallId 返回了冲突的工具名称或参数，已拒绝该响应。";
 
     public static void Map(
         WebApplication app,
@@ -486,15 +504,16 @@ internal static class CopilotChatEndpointHandler
         bool sse)
     {
         var summary = new CopilotRunSummary();
-        var finalSeen = false;
+        var outcomeSeen = false;
         var doneSeen = false;
-        var countedToolCalls = new HashSet<string>(StringComparer.Ordinal);
+        var toolCallCache = new Dictionary<string, CachedCloudToolCall>(StringComparer.Ordinal);
 
         for (var round = 0; round < MaxCloudToolRounds; round++)
         {
             var response = await cloudClient.ChatAsync(options, cloudRequest, ctx.RequestAborted)
                 .ConfigureAwait(false);
             summary.CaptureUsage(response.Events);
+            ValidateCloudRoundEvents(response.Events, toolCallCache);
             var handledToolCall = false;
 
             foreach (var cloudEvent in response.Events)
@@ -505,8 +524,7 @@ internal static class CopilotChatEndpointHandler
                     "tool_result_required",
                     StringComparison.OrdinalIgnoreCase);
                 if (string.Equals(cloudEvent.Type, "done", StringComparison.OrdinalIgnoreCase) &&
-                    handledToolCall &&
-                    !finalSeen)
+                    !outcomeSeen)
                 {
                     continue;
                 }
@@ -517,10 +535,16 @@ internal static class CopilotChatEndpointHandler
                     await WriteMappedEventAsync(ctx, mapped, sse).ConfigureAwait(false);
                     if (string.Equals(mapped.Type, "final", StringComparison.OrdinalIgnoreCase))
                     {
-                        finalSeen = true;
+                        outcomeSeen = true;
                         summary.Succeeded = true;
                         summary.FinalAnswer = mapped.Answer;
                         summary.Citations = mapped.Citations;
+                    }
+
+                    if (string.Equals(mapped.Type, "error", StringComparison.OrdinalIgnoreCase))
+                    {
+                        outcomeSeen = true;
+                        summary.ErrorMessage = mapped.Message;
                     }
 
                     if (string.Equals(mapped.Type, "done", StringComparison.OrdinalIgnoreCase))
@@ -539,15 +563,26 @@ internal static class CopilotChatEndpointHandler
                     }
 
                     handledToolCall = true;
-                    var toolCallId = cloudEvent.Tool.ToolCallId ?? cloudEvent.Tool.Name;
-                    if (countedToolCalls.Add(toolCallId))
+                    var toolCallId = GetRequiredToolCallId(cloudEvent.Tool);
+                    CopilotLocalToolResult localResult;
+                    if (toolCallCache.TryGetValue(toolCallId, out var cachedToolCall))
                     {
+                        localResult = cachedToolCall.Result;
+                    }
+                    else
+                    {
+                        localResult = cloudEvent.Tool.RequiresConfirmation
+                            ? CreateConfirmationRequiredResult(cloudEvent.Tool)
+                            : ExecuteLocalTool(toolExecutor, localContext, cloudEvent.Tool);
+                        toolCallCache.Add(
+                            toolCallId,
+                            new CachedCloudToolCall(
+                                cloudEvent.Tool.Name,
+                                cloudEvent.Tool.Arguments.Clone(),
+                                localResult));
                         summary.ToolCalls++;
                         CopilotDiagnostics.ToolCalls.Add(1, new TagList { { "tool.name", cloudEvent.Tool.Name } });
                     }
-                    var localResult = cloudEvent.Tool.RequiresConfirmation
-                        ? CreateConfirmationRequiredResult(cloudEvent.Tool)
-                        : ExecuteLocalTool(toolExecutor, localContext, cloudEvent.Tool);
                     var toolResultEvent = CreateLocalToolResultEvent(cloudEvent, localResult);
                     await WriteMappedEventAsync(ctx, toolResultEvent, sse).ConfigureAwait(false);
 
@@ -561,19 +596,20 @@ internal static class CopilotChatEndpointHandler
                 }
             }
 
-            if (finalSeen)
+            if (outcomeSeen)
             {
                 if (!doneSeen)
-                {
-                    await WriteMappedEventAsync(ctx, new CopilotChatEvent("done", Message: "completed"), sse)
-                        .ConfigureAwait(false);
-                }
-
+                    throw new InvalidOperationException(CloudDoneMissingMessage);
                 return summary;
             }
 
             if (!handledToolCall)
             {
+                summary.ErrorMessage = CloudOutcomeMissingMessage;
+                await WriteMappedEventAsync(
+                    ctx,
+                    new CopilotChatEvent("error", Message: CloudOutcomeMissingMessage),
+                    sse).ConfigureAwait(false);
                 await WriteMappedEventAsync(
                     ctx,
                     new CopilotChatEvent("done", Message: "completed"),
@@ -591,6 +627,108 @@ internal static class CopilotChatEndpointHandler
         summary.ErrorMessage = "云端 Copilot 工具循环超过最大轮次。";
         return summary;
     }
+
+    private static void ValidateCloudRoundEvents(
+        IReadOnlyList<CopilotCloudRuntimeEvent> events,
+        IReadOnlyDictionary<string, CachedCloudToolCall> cachedToolCalls)
+    {
+        var outcomeSeen = false;
+        var doneSeen = false;
+        var toolRequestSeen = false;
+        var roundToolCalls = new Dictionary<string, CloudToolCallIdentity>(StringComparer.Ordinal);
+
+        foreach (var cloudEvent in events)
+        {
+            var isDone = string.Equals(cloudEvent.Type, "done", StringComparison.OrdinalIgnoreCase);
+            var isOutcome = string.Equals(cloudEvent.Type, "final", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(cloudEvent.Type, "error", StringComparison.OrdinalIgnoreCase);
+            var isToolRequest = (string.Equals(cloudEvent.Type, "tool_call", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(cloudEvent.Type, "tool_result_required", StringComparison.OrdinalIgnoreCase)) &&
+                cloudEvent.Tool is not null;
+
+            if (doneSeen)
+                throw new InvalidOperationException(CloudEventAfterDoneMessage);
+
+            if (outcomeSeen)
+            {
+                if (isDone)
+                {
+                    doneSeen = true;
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    isOutcome ? CloudOutcomeConflictMessage : CloudEventAfterOutcomeMessage);
+            }
+
+            if (isDone)
+            {
+                doneSeen = true;
+                continue;
+            }
+
+            if (isOutcome)
+            {
+                if (toolRequestSeen)
+                    throw new InvalidOperationException(CloudToolOutcomeConflictMessage);
+                if (string.Equals(cloudEvent.Type, "final", StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(cloudEvent.Answer))
+                {
+                    throw new InvalidOperationException(CloudFinalEmptyMessage);
+                }
+                outcomeSeen = true;
+                continue;
+            }
+
+            if (isToolRequest)
+            {
+                ValidateCloudToolCall(cloudEvent.Tool!, cachedToolCalls, roundToolCalls);
+                toolRequestSeen = true;
+            }
+        }
+
+        if (events.Count > 0 && !doneSeen)
+            throw new InvalidOperationException(CloudDoneMissingMessage);
+    }
+
+    private static void ValidateCloudToolCall(
+        CopilotCloudToolCallEvent tool,
+        IReadOnlyDictionary<string, CachedCloudToolCall> cachedToolCalls,
+        IDictionary<string, CloudToolCallIdentity> roundToolCalls)
+    {
+        var toolCallId = GetRequiredToolCallId(tool);
+        if (cachedToolCalls.TryGetValue(toolCallId, out var cachedToolCall))
+        {
+            if (!HasSameToolIdentity(cachedToolCall.Name, cachedToolCall.Arguments, tool))
+                throw new InvalidOperationException(CloudToolCallConflictMessage);
+            return;
+        }
+
+        if (roundToolCalls.TryGetValue(toolCallId, out var roundToolCall))
+        {
+            if (!HasSameToolIdentity(roundToolCall.Name, roundToolCall.Arguments, tool))
+                throw new InvalidOperationException(CloudToolCallConflictMessage);
+            return;
+        }
+
+        roundToolCalls.Add(
+            toolCallId,
+            new CloudToolCallIdentity(tool.Name, tool.Arguments.Clone()));
+    }
+
+    private static string GetRequiredToolCallId(CopilotCloudToolCallEvent tool)
+    {
+        if (string.IsNullOrWhiteSpace(tool.ToolCallId))
+            throw new InvalidOperationException(CloudToolCallIdMissingMessage);
+        return tool.ToolCallId;
+    }
+
+    private static bool HasSameToolIdentity(
+        string toolName,
+        JsonElement arguments,
+        CopilotCloudToolCallEvent tool)
+        => string.Equals(toolName, tool.Name, StringComparison.Ordinal) &&
+            JsonElement.DeepEquals(arguments, tool.Arguments);
 
     /// <summary>
     /// 执行云端请求的本地工具，并生成与内置 Agent 一致的工具子 span。
@@ -1026,6 +1164,13 @@ internal static class CopilotChatEndpointHandler
             _ => column.DataType.ToString().ToLowerInvariant()
         };
     }
+
+    private readonly record struct CloudToolCallIdentity(string Name, JsonElement Arguments);
+
+    private sealed record CachedCloudToolCall(
+        string Name,
+        JsonElement Arguments,
+        CopilotLocalToolResult Result);
 
     private sealed class CopilotRunSummary
     {

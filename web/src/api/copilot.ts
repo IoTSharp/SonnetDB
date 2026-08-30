@@ -1,4 +1,12 @@
 import type { AxiosInstance } from 'axios';
+import {
+  CopilotRuntime,
+  CopilotRuntimeContractError,
+  resolveCopilotRuntimeMode,
+  type CopilotRuntimeReadiness,
+  type CopilotTransport,
+  type CopilotTransportEvent,
+} from '@/copilot/runtime';
 
 export interface CopilotMessage {
   role: string;
@@ -184,6 +192,8 @@ export interface CopilotChatEvent {
   toolNames?: string[];
   citations?: CopilotCitation[];
   attempt?: number;
+  /** 未来 transport 可直接提供；legacy ServerRelay 的合成值只用于当前流内 FIFO 配对。 */
+  toolCallId?: string;
 }
 
 export interface CopilotChatRequest {
@@ -286,67 +296,350 @@ export async function fetchCopilotMetrics(api: AxiosInstance, windowMinutes = 60
   return response.data;
 }
 
+export interface ServerRelayCopilotTransportOptions {
+  fetchImpl?: typeof fetch;
+  locationHref?: string;
+}
+
+/** Existing same-origin relay adapted to the common M27 #340 runtime contract. */
+export class ServerRelayCopilotTransport
+implements CopilotTransport<CopilotChatRequest, CopilotChatEvent> {
+  readonly mode = 'ServerRelay' as const;
+
+  private readonly fetchImpl: typeof fetch;
+  private readonly endpoint: string;
+  private readonly readinessEndpoint: string;
+
+  constructor(
+    api: AxiosInstance,
+    private readonly token: string,
+    options: ServerRelayCopilotTransportOptions = {},
+  ) {
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    const locationHref = options.locationHref ?? currentLocationHref();
+    this.endpoint = resolveCopilotServerRelayEndpoint(api, locationHref);
+    this.readinessEndpoint = resolveCurrentSonnetDbEndpoint(api, '/healthz', locationHref);
+  }
+
+  async probeReadiness(signal: AbortSignal): Promise<CopilotRuntimeReadiness> {
+    const publicReadiness = { status: 'not-required' as const };
+    if (!this.token.trim()) {
+      return {
+        local: { status: 'unavailable', reason: '登录状态已失效，请重新登录后再试。' },
+        public: publicReadiness,
+      };
+    }
+
+    try {
+      const response = await this.fetchImpl(this.readinessEndpoint, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal,
+        credentials: 'omit',
+        redirect: 'error',
+      });
+      const payload = response.ok ? await response.json() as { status?: unknown } : null;
+      if (response.ok && payload?.status === 'ok') {
+        return { local: { status: 'ready' }, public: publicReadiness };
+      }
+      return {
+        local: {
+          status: 'unavailable',
+          reason: `SonnetDB 本地端点 readiness 失败（HTTP ${response.status}）。`,
+        },
+        public: publicReadiness,
+      };
+    } catch (error) {
+      rethrowIfAborted(signal, error);
+      return {
+        local: { status: 'unavailable', reason: '无法连接当前 SonnetDB 本地端点。' },
+        public: publicReadiness,
+      };
+    }
+  }
+
+  async *stream(
+    runId: string,
+    request: CopilotChatRequest,
+    signal: AbortSignal,
+  ): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.endpoint, {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.token}`,
+        },
+        body: JSON.stringify(request),
+        signal,
+        credentials: 'omit',
+        redirect: 'error',
+      });
+    } catch (error) {
+      rethrowIfAborted(signal, error);
+      throw new Error('无法连接 Copilot 服务，请确认 SonnetDB 服务仍在运行并稍后重试。');
+    }
+
+    if (!response.ok) {
+      throw new Error(await readCopilotHttpError(response, 'Copilot 请求'));
+    }
+
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+    if (!contentType.startsWith('text/event-stream')) {
+      throw new CopilotRuntimeContractError(
+        'server_relay_content_type_invalid',
+        `Copilot ServerRelay 返回了无效 Content-Type：${contentType || '(missing)'}。`,
+      );
+    }
+
+    const calls = new ServerRelayToolCallIds(runId);
+    let sequence = 0;
+    for await (const event of readServerRelayEvents(response, signal)) {
+      sequence += 1;
+      yield {
+        runId,
+        sequence,
+        cursor: `${runId}:${sequence}`,
+        toolCallId: calls.resolve(event),
+        event,
+      };
+    }
+  }
+}
+
+/**
+ * Run Copilot through exactly one configured transport. Missing/unknown modes and
+ * readiness failures are rejected; there is no probe-driven fallback.
+ */
 export async function* streamCopilotChat(
+  api: AxiosInstance,
   token: string,
   request: CopilotChatRequest,
   signal?: AbortSignal,
-): AsyncGenerator<CopilotChatEvent, void, unknown> {
-  let resp: Response;
+  configuredMode?: unknown,
+): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
+  const mode = resolveCopilotRuntimeMode(configuredMode);
+  const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = mode === 'ServerRelay'
+    ? [new ServerRelayCopilotTransport(api, token)]
+    : [];
+  const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(mode, transports);
+  yield* runtime.run(request, { signal });
+}
+
+/** Resolve the relay endpoint solely from the active SonnetDB API client. */
+export function resolveCopilotServerRelayEndpoint(api: AxiosInstance, locationHref: string): string {
+  return resolveCurrentSonnetDbEndpoint(api, '/v1/copilot/chat/stream', locationHref);
+}
+
+function resolveCurrentSonnetDbEndpoint(
+  api: AxiosInstance,
+  path: string,
+  locationHref: string,
+): string {
+  let endpoint: URL;
   try {
-    resp = await fetch('/v1/copilot/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(request),
-      signal,
-    });
-  } catch (e) {
-    if (signal?.aborted) throw e;
-    throw new Error('无法连接 Copilot 服务，请确认 SonnetDB 服务仍在运行并稍后重试。');
+    endpoint = new URL(api.getUri({ url: path }), locationHref);
+  } catch {
+    throw new CopilotRuntimeContractError(
+      'server_relay_endpoint_invalid',
+      '当前 SonnetDB 连接无法解析 Copilot ServerRelay 地址。',
+    );
   }
 
-  if (!resp.ok) {
-    throw new Error(await readCopilotHttpError(resp, 'Copilot 请求'));
+  if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:')
+    || endpoint.username
+    || endpoint.password
+    || endpoint.search
+    || endpoint.hash) {
+    throw new CopilotRuntimeContractError(
+      'server_relay_endpoint_invalid',
+      'Copilot ServerRelay 只允许当前 SonnetDB 连接上的 HTTP(S) 固定端点。',
+    );
+  }
+  return endpoint.href;
+}
+
+class ServerRelayToolCallIds {
+  // Legacy SSE has no stable call ID. These IDs pair one in-flight stream only;
+  // they cannot identify a replayed/duplicated provider call across events or runs.
+  private readonly pendingByTool = new Map<string, string[]>();
+  private readonly lastByTool = new Map<string, string>();
+  private nextId = 0;
+
+  constructor(private readonly runId: string) {}
+
+  resolve(event: CopilotChatEvent): string | undefined {
+    const type = event.type;
+    if (type !== 'tool_call' && type !== 'tool_retry' && type !== 'tool_result') return undefined;
+
+    const toolName = event.toolName?.trim() ?? '';
+    const explicit = event.toolCallId?.trim();
+    if (type === 'tool_call') {
+      const id = explicit || `${this.runId}:tool:${++this.nextId}`;
+      const pending = this.pendingByTool.get(toolName) ?? [];
+      pending.push(id);
+      this.pendingByTool.set(toolName, pending);
+      this.lastByTool.set(toolName, id);
+      return id;
+    }
+
+    if (explicit) {
+      if (type === 'tool_result') this.removePending(toolName, explicit);
+      return explicit;
+    }
+    if (type === 'tool_retry') return this.lastByTool.get(toolName);
+
+    const pending = this.pendingByTool.get(toolName);
+    const id = pending?.shift();
+    if (pending?.length === 0) this.pendingByTool.delete(toolName);
+    return id ?? this.lastByTool.get(toolName);
   }
 
-  const reader = resp.body?.getReader();
-  if (!reader) throw new Error('无法读取 Copilot 响应流');
+  private removePending(toolName: string, toolCallId: string): void {
+    const pending = this.pendingByTool.get(toolName);
+    if (!pending) return;
+    const index = pending.indexOf(toolCallId);
+    if (index >= 0) pending.splice(index, 1);
+    if (pending.length === 0) this.pendingByTool.delete(toolName);
+  }
+}
+
+interface SseDecodeState {
+  dataLines: string[];
+}
+
+async function* readServerRelayEvents(
+  response: Response,
+  signal: AbortSignal,
+): AsyncGenerator<CopilotChatEvent, void, unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new CopilotRuntimeContractError(
+      'server_relay_stream_missing',
+      '无法读取 Copilot ServerRelay 响应流。',
+    );
+  }
 
   const decoder = new TextDecoder();
+  const state: SseDecodeState = { dataLines: [] };
   let buffer = '';
-
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice('data: '.length);
-        if (!data || data === '[DONE]') {
-          if (data === '[DONE]') return;
-          continue;
-        }
-
-        try {
-          const event = JSON.parse(data) as CopilotChatEvent;
-          if (event.type === 'error' && event.message) {
-            yield { ...event, message: toUserFacingCopilotError(event.message) };
-          } else {
-            yield event;
-          }
-        } catch {
-          // 忽略无法解析的中间行
-        }
+      let boundary = findSseLineBoundary(buffer, false);
+      while (boundary !== null) {
+        const line = buffer.slice(0, boundary.lineEnd);
+        buffer = buffer.slice(boundary.nextOffset);
+        const data = consumeSseLine(state, line);
+        if (data === '[DONE]') return;
+        if (data !== null) yield parseServerRelayEvent(data);
+        boundary = findSseLineBoundary(buffer, false);
       }
     }
+
+    buffer += decoder.decode();
+    let boundary = findSseLineBoundary(buffer, true);
+    while (boundary !== null) {
+      const line = buffer.slice(0, boundary.lineEnd);
+      buffer = buffer.slice(boundary.nextOffset);
+      const data = consumeSseLine(state, line);
+      if (data === '[DONE]') return;
+      if (data !== null) yield parseServerRelayEvent(data);
+      boundary = findSseLineBoundary(buffer, true);
+    }
+    if (buffer.length > 0) {
+      const data = consumeSseLine(state, buffer);
+      if (data === '[DONE]') return;
+      if (data !== null) yield parseServerRelayEvent(data);
+    }
+    const trailing = consumeSseLine(state, '');
+    if (trailing !== null && trailing !== '[DONE]') yield parseServerRelayEvent(trailing);
+  } catch (error) {
+    rethrowIfAborted(signal, error);
+    throw error;
   } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // The fetch signal may already have closed the stream.
+    }
     reader.releaseLock();
   }
+}
+
+interface SseLineBoundary {
+  lineEnd: number;
+  nextOffset: number;
+}
+
+function findSseLineBoundary(value: string, endOfStream: boolean): SseLineBoundary | null {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 0x0a) return { lineEnd: index, nextOffset: index + 1 };
+    if (code !== 0x0d) continue;
+    if (index + 1 < value.length) {
+      return {
+        lineEnd: index,
+        nextOffset: value.charCodeAt(index + 1) === 0x0a ? index + 2 : index + 1,
+      };
+    }
+    if (endOfStream) return { lineEnd: index, nextOffset: index + 1 };
+    return null;
+  }
+  return null;
+}
+
+function consumeSseLine(state: SseDecodeState, line: string): string | null {
+  if (line === '') {
+    if (state.dataLines.length === 0) return null;
+    const data = state.dataLines.join('\n');
+    state.dataLines = [];
+    return data;
+  }
+  if (line.startsWith(':')) return null;
+  if (!line.startsWith('data:')) return null;
+
+  const value = line.slice('data:'.length);
+  state.dataLines.push(value.startsWith(' ') ? value.slice(1) : value);
+  return null;
+}
+
+function parseServerRelayEvent(data: string): CopilotChatEvent {
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch {
+    throw new CopilotRuntimeContractError(
+      'server_relay_event_invalid',
+      'Copilot ServerRelay 返回了无法解析的流事件。',
+    );
+  }
+
+  if (!isRecord(value) || typeof value.type !== 'string' || !value.type.trim()) {
+    throw new CopilotRuntimeContractError(
+      'server_relay_event_invalid',
+      'Copilot ServerRelay 返回了缺少 type 的流事件。',
+    );
+  }
+
+  const event = value as unknown as CopilotChatEvent;
+  return event.type === 'error' && event.message
+    ? { ...event, message: toUserFacingCopilotError(event.message) }
+    : event;
+}
+
+function currentLocationHref(): string {
+  if (typeof window !== 'undefined') return window.location.href;
+  return 'http://127.0.0.1/';
+}
+
+function rethrowIfAborted(signal: AbortSignal, error: unknown): void {
+  if (!signal.aborted) return;
+  if (signal.reason !== undefined) throw signal.reason;
+  throw error;
 }

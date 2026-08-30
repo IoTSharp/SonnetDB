@@ -112,7 +112,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告；已冻结 `m27-copilot-eval-v1` verifier 和诚实的 `NOT_READY` fixture，真实 provider usage/质量门禁后续验证。 | ✅（待验证） |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
-| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；保留服务端中继模式，首版只读。 | 📋 |
+| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；Web 统一 runtime 与 ServerRelay 适配首切片已落地，BrowserDirect/StudioNative 和真实双网流程仍未接入。 | 🚧 |
 
 ### #340 — 双网客户端 Copilot
 
@@ -131,7 +131,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 | 阶段 | 交付 |
 |---|---|
-| Client runtime 合同 | 抽取统一 Copilot transport 和事件状态机，保留现有 server relay；加入独立的本地/公网 readiness、run id、tool call id、sequence/cursor、幂等和取消合同。会话、消息和 usage 仍回写 SonnetDB 服务端持久化，客户端只同步状态，不回退 `localStorage` 作为权威来源。 |
+| Client runtime 合同 | 抽取统一 Copilot transport 和事件状态机，保留现有 server relay；加入独立的本地/公网 readiness、run id、tool call id、sequence/cursor、幂等和取消合同。Web 首切片已实现显式四模式、统一状态机、拒绝重定向/截断/终态后事件的 fail-closed 门禁，以及关闭/切会话/卸载取消和服务端会话重同步；legacy ServerRelay 因服务端尚无 stable ID，只提供当前流内按工具名 FIFO 配对，不构成重复调用幂等证据。BrowserDirect/StudioNative transport、服务端 stable call ID/cursor 续流仍待实现。会话、消息和 usage 继续回写 SonnetDB 服务端持久化，客户端只同步状态，不回退 `localStorage` 作为权威来源。 |
 | 本地工具会话 | 基于当前 HTTP 身份和数据库 grant 返回 permission-filtered capability/context；每次工具调用在服务端重新授权并强制限制行数、返回字节、执行时间、并发和总出域预算。 |
 | Browser Direct | 外部服务支持 CORS preflight、Bearer public-client OAuth（Device Flow 或 PKCE）及 `fetch` POST 流式 NDJSON/SSE；access token 默认只驻留内存，页面使用 HTTPS 和受限 CSP `connect-src`。 |
 | Studio Native | 由固定目标、非通用代理的 native broker 访问公网并使用系统凭据库保存 refresh token/BYOK；接入前收紧 Bridge origin、握手和 token 传递，不能把 bridge token 放入 URL 或浏览器存储。 |
