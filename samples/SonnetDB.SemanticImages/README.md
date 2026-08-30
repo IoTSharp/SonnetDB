@@ -6,7 +6,7 @@
 - 显式开启 Bucket 异步摄取与 WebP 缩略图，默认值仍保持关闭；
 - 上传图片并等待持久化任务完成；
 - 执行无过滤文搜图，观察 `usearch` 或当前平台的 managed HNSW；
-- 执行 metadata 过滤文搜图，观察 `exact-filtered` 与候选统计；
+- 执行 metadata 过滤文搜图，观察 `prefiltered-ann`、精确补偿/回退与候选统计；
 - 执行图搜图和 similar-by-id。
 
 未指定图片目录或目录为空时，程序会生成叉车、泵组和输送线三张确定性 PNG。生产评估应通过 `--images` 指向真实现场图片集。

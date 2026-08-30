@@ -62,6 +62,36 @@ public sealed class DocumentIndexConsistencyTests : IDisposable
     }
 
     [Fact]
+    public void EnsureIndexes_WithMissingBatch_AddsAllAndIsIdempotent()
+    {
+        using var db = Open();
+        db.Documents.Create(DocumentCollectionSchema.Create("docs"));
+        var store = db.Documents.Open("docs");
+        store.Insert("d1", """{"site":"north","metadata":{"owner":"ops"}}""");
+        store.Insert("d2", """{"site":"south","metadata":{"owner":"dev"}}""");
+        DocumentPathIndexDefinition[] definitions =
+        [
+            new("idx_site", "$.site", IsSparse: true),
+            new("idx_metadata", "$.metadata", IsSparse: true, Kind: DocumentIndexKind.Wildcard),
+        ];
+
+        db.Documents.EnsureIndexes("docs", definitions);
+        db.Documents.EnsureIndexes("docs", definitions);
+
+        Assert.Equal(2, store.Schema.Indexes.Count);
+        Assert.True(store.VerifyIndexConsistency().IsConsistent);
+        var query = DocumentQueryPlanner.Execute(
+            store,
+            store.Schema,
+            new DocumentQuery(Filter: new DocumentFieldFilter(
+                DocumentFieldRef.JsonPath("$.metadata.owner"),
+                DocumentFilterOperator.Equal,
+                "ops")));
+        Assert.Equal("document_wildcard_index", query.AccessPath);
+        Assert.Equal("d1", Assert.Single(query.Items).Id);
+    }
+
+    [Fact]
     public void BatchInsertAndDelete_KeepIndexConsistent()
     {
         using var db = Open();

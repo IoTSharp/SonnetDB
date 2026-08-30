@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -10,6 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data.ObjectStorage;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
@@ -140,7 +142,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SemanticSearch_FilteredSearch_UsesExactScanAndMatchesAllMetadata()
+    public async Task SemanticSearch_FilteredSearch_UsesPrefilteredAnnAndMatchesAllMetadata()
     {
         using var client = CreateClient();
         await CreateSemanticBucketAsync(client, "north-images");
@@ -207,9 +209,9 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, textSearch.StatusCode);
         var textResult = await textSearch.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
         Assert.NotNull(textResult);
-        Assert.Equal("exact-filtered", textResult!.Backend);
-        Assert.Equal("exact-filtered", textResult.SearchMode);
-        Assert.Equal(9, textResult.CandidateCount);
+        Assert.Equal("managed", textResult!.Backend);
+        Assert.Equal("prefiltered-ann", textResult.SearchMode);
+        Assert.Equal(1, textResult.CandidateCount);
         Assert.Equal(1, textResult.FilteredCandidateCount);
         var textHit = Assert.Single(textResult.Hits);
         Assert.Equal("north-images", textHit.SourceBucket);
@@ -227,7 +229,22 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, imageSearch.StatusCode);
         var imageResult = await imageSearch.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
         Assert.Equal("fleet/target.png", Assert.Single(imageResult!.Hits).SourceKey);
-        Assert.Equal("exact-filtered", imageResult.SearchMode);
+        Assert.Equal("prefiltered-ann", imageResult.SearchMode);
+
+        var prefixOnlySearch = await client.PostAsJsonAsync(
+            "/v1/db/images/images/search/text",
+            new ImageTextSearchRequest("red", TopK: 1)
+            {
+                Explain = true,
+                Filter = new ImageSearchFilter(SourceKeyPrefix: "fleet/target"),
+            },
+            ServerJsonContext.Default.ImageTextSearchRequest);
+        var prefixOnlyResult = await prefixOnlySearch.Content.ReadFromJsonAsync(
+            ServerJsonContext.Default.ImageSearchResponse);
+        Assert.Equal("exact-filtered", prefixOnlyResult!.Backend);
+        Assert.Equal("exact-filtered-fallback", prefixOnlyResult.SearchMode);
+        Assert.Equal(9, prefixOnlyResult.CandidateCount);
+        Assert.Equal(1, prefixOnlyResult.FilteredCandidateCount);
 
         var noMatchRequest = textRequest with
         {
@@ -286,6 +303,168 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         var updatedTagResult = await updatedTagSearch.Content.ReadFromJsonAsync(
             ServerJsonContext.Default.ImageSearchResponse);
         Assert.Equal("fleet/target.png", Assert.Single(updatedTagResult!.Hits).SourceKey);
+
+        var peerPut = await PutBucketImageAsync(
+            client,
+            "north-images",
+            "fleet/peer.png",
+            [1, 3, 4],
+            metadata: new Dictionary<string, string>
+            {
+                ["owner"] = "ops",
+                ["region"] = "north",
+            },
+            tags: new Dictionary<string, string>
+            {
+                ["class"] = "truck",
+                ["lane"] = "2",
+            });
+        Assert.Equal(HttpStatusCode.OK, peerPut.StatusCode);
+        _ = await WaitForProcessingAsync(client, "north-images", "fleet/peer.png", "completed");
+
+        var similarSearch = await client.PostAsJsonAsync(
+            $"/v1/db/images/images/{Uri.EscapeDataString(textHit.Id)}/similar",
+            new SimilarImageSearchRequest(TopK: 1)
+            {
+                Explain = true,
+                Filter = updatedTagRequest.Filter,
+            },
+            ServerJsonContext.Default.SimilarImageSearchRequest);
+        var similarResult = await similarSearch.Content.ReadFromJsonAsync(
+            ServerJsonContext.Default.ImageSearchResponse);
+        Assert.Equal("prefiltered-ann", similarResult!.SearchMode);
+        Assert.Equal(2, similarResult.CandidateCount);
+        Assert.Equal(1, similarResult.FilteredCandidateCount);
+        Assert.Equal("fleet/peer.png", Assert.Single(similarResult.Hits).SourceKey);
+        Assert.DoesNotContain(similarResult.Hits, hit => hit.Id == textHit.Id);
+    }
+
+    [Fact]
+    public async Task SemanticSearch_HighCardinalityIndexedFilter_UsesPagedExactFallbackAndObservesCancellation()
+    {
+        const int documentCount = 4097;
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var semanticImages = _app.Services.GetRequiredService<SemanticImageSearchService>();
+        _ = await semanticImages.SearchTextAsync(
+            "images",
+            tsdb,
+            "red",
+            topK: 1,
+            minScore: null,
+            filter: null,
+            explain: false,
+            CancellationToken.None);
+
+        DocumentCollectionSchema schema = Assert.Single(
+            tsdb.Documents.Catalog.Snapshot(),
+            static candidate => candidate.Name.StartsWith("__semantic_images_", StringComparison.Ordinal));
+        DocumentCollectionStore store = tsdb.Documents.Open(schema.Name);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        IEnumerable<DocumentWriteRequest> Documents()
+        {
+            for (int i = 0; i < documentCount; i++)
+            {
+                string id = $"paged-{i:D5}";
+                var document = new SemanticImageDocument(
+                    id,
+                    $"paged/{i:D5}.png",
+                    $"{i:D5}.png",
+                    "image/png",
+                    SizeBytes: 1,
+                    Sha256: new string('a', 64),
+                    SourceUri: null,
+                    Profile: "fake-siglip2-test",
+                    Dimensions: 3,
+                    Embedding: [1f],
+                    now,
+                    now,
+                    ObjectBucket: "paged-images",
+                    Metadata: new Dictionary<string, string> { ["owner"] = "ops" });
+                yield return new DocumentWriteRequest(
+                    id,
+                    JsonSerializer.Serialize(document, ServerJsonContext.Default.SemanticImageDocument));
+            }
+        }
+
+        DocumentWriteResult write = store.InsertMany(Documents());
+        Assert.Equal(documentCount, write.Inserted);
+
+        var filter = new ImageSearchFilter(
+            Metadata: new Dictionary<string, string> { ["owner"] = "ops" });
+        ImageSearchResponse result = await semanticImages.SearchTextAsync(
+            "images",
+            tsdb,
+            "red",
+            topK: 1,
+            minScore: null,
+            filter,
+            explain: true,
+            CancellationToken.None);
+
+        Assert.Equal("exact-filtered", result.Backend);
+        Assert.Equal("exact-filtered-fallback", result.SearchMode);
+        Assert.Equal(documentCount, result.CandidateCount);
+        Assert.Empty(result.Hits);
+
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => semanticImages.SearchTextAsync(
+            "images",
+            tsdb,
+            "red",
+            topK: 1,
+            minScore: null,
+            filter,
+            explain: false,
+            canceled.Token));
+    }
+
+    [Fact]
+    public async Task SemanticSearch_ExistingCollectionWithoutFilterIndexes_RebuildsOnSearch()
+    {
+        using var client = CreateClient();
+        const string bucket = "legacy-filter-images";
+        await CreateSemanticBucketAsync(client, bucket);
+
+        var put = await PutBucketImageAsync(
+            client,
+            bucket,
+            "camera.png",
+            CreatePng(16, 16, new Rgb24(220, 20, 20)),
+            metadata: new Dictionary<string, string> { ["owner"] = "ops" });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        _ = await WaitForProcessingAsync(client, bucket, "camera.png", "completed");
+
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var existing = Assert.Single(
+            tsdb.Documents.Catalog.Snapshot(),
+            static schema => schema.Name.StartsWith("__semantic_images_", StringComparison.Ordinal));
+        Assert.Equal(3, existing.Indexes.Count);
+        foreach (var index in existing.Indexes)
+            Assert.True(tsdb.Documents.DropIndex(existing.Name, index.Name));
+        Assert.Empty(tsdb.Documents.Catalog.TryGet(existing.Name)!.Indexes);
+
+        var search = await client.PostAsJsonAsync(
+            "/v1/db/images/images/search/text",
+            new ImageTextSearchRequest("red", TopK: 1)
+            {
+                Explain = true,
+                Filter = new ImageSearchFilter(
+                    Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
+            },
+            ServerJsonContext.Default.ImageTextSearchRequest);
+
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+        var result = await search.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
+        Assert.Equal("prefiltered-ann", result!.SearchMode);
+        Assert.Equal("camera.png", Assert.Single(result.Hits).SourceKey);
+
+        var upgraded = tsdb.Documents.Catalog.TryGet(existing.Name);
+        Assert.NotNull(upgraded);
+        Assert.Equal(3, upgraded!.Indexes.Count);
+        Assert.Contains(upgraded.Indexes, static index => index.Path == "$.objectBucket");
+        Assert.Contains(upgraded.Indexes, static index => index.Path == "$.metadata");
+        Assert.Contains(upgraded.Indexes, static index => index.Path == "$.tags");
     }
 
     [Fact]
@@ -601,6 +780,59 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             Assert.Equal(HttpStatusCode.OK, afterRecreate.StatusCode);
             var afterRecreateResult = await afterRecreate.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
             Assert.Equal("fresh", Assert.Single(afterRecreateResult!.Hits).Id);
+        }
+        finally
+        {
+            if (app is not null)
+            {
+                await app.StopAsync();
+                await app.DisposeAsync();
+            }
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task SemanticSearch_StrictUsearchFilteredSearch_FailsClosed()
+    {
+        if (!USearchSemanticIndexRegistry.IsSupportedPlatform)
+            return;
+
+        string root = Path.Combine(Path.GetTempPath(), "sonnetdb-usearch-filter-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        WebApplication? app = null;
+        try
+        {
+            ServerOptions options = CreateOptions(root, "usearch");
+            options.SemanticSearch.FallbackToManaged = false;
+            app = TestServerHost.Build(options, services =>
+                services.AddSingleton<IMultimodalEmbeddingProvider>(new FakeMultimodalEmbeddingProvider()));
+            await app.StartAsync();
+            string baseUrl = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!
+                .Addresses.First();
+            using var client = CreateClient(baseUrl, AdminToken);
+            var create = await client.PostAsJsonAsync(
+                "/v1/db",
+                new CreateDatabaseRequest("strictusearch"),
+                ServerJsonContext.Default.CreateDatabaseRequest);
+            Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+            var search = await client.PostAsJsonAsync(
+                "/v1/db/strictusearch/images/search/text",
+                new ImageTextSearchRequest("red", TopK: 1)
+                {
+                    Explain = true,
+                    Filter = new ImageSearchFilter(
+                        Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
+                },
+                ServerJsonContext.Default.ImageTextSearchRequest);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, search.StatusCode);
+            var error = await search.Content.ReadFromJsonAsync(ServerJsonContext.Default.ErrorResponse);
+            Assert.Equal("semantic_provider_unavailable", error!.Error);
+            Assert.Contains("不支持带过滤的向量检索", error.Message, StringComparison.Ordinal);
+            Assert.Contains("已禁用 managed 回退", error.Message, StringComparison.Ordinal);
         }
         finally
         {

@@ -387,6 +387,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(ImageDeleteResponse))]
 [JsonSerializable(typeof(List<ImageSearchHit>))]
 [JsonSerializable(typeof(SemanticImageDocument))]
+[JsonSerializable(typeof(SemanticImageFilterCandidate))]
 [JsonSerializable(typeof(SemanticObjectProcessingJob))]
 [JsonSerializable(typeof(ObjectProcessingStatusResponse))]
 [JsonSerializable(typeof(List<AiMessage>))]

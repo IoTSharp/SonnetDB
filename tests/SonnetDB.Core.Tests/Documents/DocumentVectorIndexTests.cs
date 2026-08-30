@@ -151,6 +151,49 @@ public sealed class DocumentVectorIndexTests : IDisposable
         Assert.Equal(0.0, hits[0].Distance, 5);
     }
 
+    [Fact]
+    public void Store_FilteredSearch_CompensatesSmallSetAndSignalsLargeFallback()
+    {
+        using var db = Open();
+        var store = CreateVectorCollection(db, dim: 3);
+        for (int i = 0; i < 20; i++)
+            store.Insert($"near-{i}", Doc("near", 1f, i * 0.001f, 0f));
+        for (int i = 0; i < 20; i++)
+            store.Insert($"allowed-{i}", Doc("allowed", -1f, i * 0.001f, 0f));
+
+        var index = store.Schema.VectorIndexes.Single();
+        IReadOnlySet<string> smallAllowed = Enumerable.Range(0, 3)
+            .Select(static i => $"allowed-{i}")
+            .ToHashSet(StringComparer.Ordinal);
+        var compensated = store.SearchVectorFiltered(
+            index,
+            [1f, 0f, 0f],
+            2,
+            smallAllowed,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 3);
+
+        Assert.Equal(2, compensated.Hits.Count);
+        Assert.True(compensated.ExactCompensated);
+        Assert.False(compensated.RequiresExactFallback);
+        Assert.All(compensated.Hits, hit => Assert.Contains(hit.Id, smallAllowed));
+
+        IReadOnlySet<string> largeAllowed = Enumerable.Range(0, 20)
+            .Select(static i => $"allowed-{i}")
+            .ToHashSet(StringComparer.Ordinal);
+        var fallback = store.SearchVectorFiltered(
+            index,
+            [1f, 0f, 0f],
+            2,
+            largeAllowed,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 3);
+
+        Assert.False(fallback.ExactCompensated);
+        Assert.True(fallback.RequiresExactFallback);
+        Assert.All(fallback.Hits, hit => Assert.Contains(hit.Id, largeAllowed));
+    }
+
     // ---- crash / reopen: bulk-build graph from persisted vectors ----
 
     [Fact]

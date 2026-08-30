@@ -15,6 +15,7 @@ public sealed partial class DocumentCollectionStore : IDisposable
     private static readonly byte[] _derivedIndexRepairKey = [(byte)'m', (byte)'r'];
     private const int MaxIndexEntriesPerDocument = 4096;
     private const int MaxIndexTraversalDepth = 64;
+    private const int IndexReadPageSize = 256;
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private readonly Func<DocumentFullTextIndex, DocumentFullTextIndexStore> _fullTextIndexFactory;
@@ -887,22 +888,32 @@ public sealed partial class DocumentCollectionStore : IDisposable
             foreach (var parts in partSets)
             {
                 byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, parts);
-                byte[]? afterKey = string.IsNullOrEmpty(afterId)
+                byte[]? continuationKey = string.IsNullOrEmpty(afterId)
                     ? null
                     : DocumentIndexCodec.EncodeIndexEntryKey(index, parts, afterId);
-                var entries = afterKey is null
-                    ? _keyspace.ScanPrefix(prefix, take - rows.Count)
-                    : _keyspace.ScanPrefixAfter(prefix, afterKey, take - rows.Count);
-                foreach (var entry in entries)
+                while (rows.Count < take)
                 {
-                    string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
-                    if (!seen.Add(id))
-                        continue;
+                    int pageSize = Math.Min(IndexReadPageSize, take - rows.Count);
+                    var entries = continuationKey is null
+                        ? _keyspace.ScanPrefix(prefix, pageSize)
+                        : _keyspace.ScanPrefixAfter(prefix, continuationKey, pageSize);
+                    if (entries.Count == 0)
+                        break;
+                    continuationKey = entries[^1].Key.ToArray();
+                    foreach (var entry in entries)
+                    {
+                        string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                        if (!seen.Add(id))
+                            continue;
 
-                    var row = GetLocked(id);
-                    if (row is not null)
-                        rows.Add(row);
-                    if (rows.Count >= take)
+                        var row = GetLocked(id);
+                        if (row is not null)
+                            rows.Add(row);
+                        if (rows.Count >= take)
+                            break;
+                    }
+
+                    if (entries.Count < pageSize)
                         break;
                 }
 
@@ -957,6 +968,15 @@ public sealed partial class DocumentCollectionStore : IDisposable
         DocumentPathIndex index,
         string path,
         object? value)
+        => GetByWildcardIndexAfter(index, path, value, afterId: null, limit: null);
+
+    /// <summary>按 wildcard 索引从指定文档 ID 之后继续读取候选文档。</summary>
+    internal IReadOnlyList<DocumentRow> GetByWildcardIndexAfter(
+        DocumentPathIndex index,
+        string path,
+        object? value,
+        string? afterId,
+        int? limit)
     {
         ArgumentNullException.ThrowIfNull(index);
         if (index.Kind != DocumentIndexKind.Wildcard)
@@ -971,16 +991,35 @@ public sealed partial class DocumentCollectionStore : IDisposable
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
-            var entries = _keyspace.ScanPrefix(DocumentIndexCodec.EncodeIndexPrefix(index, parts), int.MaxValue);
-            var rows = new List<DocumentRow>(entries.Count);
+            byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, parts);
+            byte[]? continuationKey = string.IsNullOrEmpty(afterId)
+                ? null
+                : DocumentIndexCodec.EncodeIndexEntryKey(index, parts, afterId);
+            int take = limit ?? int.MaxValue;
+            var rows = new List<DocumentRow>(Math.Min(take, IndexReadPageSize));
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var entry in entries)
+            while (rows.Count < take)
             {
-                string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
-                if (!seen.Add(id))
-                    continue;
-                if (GetLocked(id) is { } row)
-                    rows.Add(row);
+                int pageSize = Math.Min(IndexReadPageSize, take - rows.Count);
+                var entries = continuationKey is null
+                    ? _keyspace.ScanPrefix(prefix, pageSize)
+                    : _keyspace.ScanPrefixAfter(prefix, continuationKey, pageSize);
+                if (entries.Count == 0)
+                    break;
+                continuationKey = entries[^1].Key.ToArray();
+                foreach (var entry in entries)
+                {
+                    string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                    if (!seen.Add(id))
+                        continue;
+                    if (GetLocked(id) is { } row)
+                        rows.Add(row);
+                    if (rows.Count >= take)
+                        break;
+                }
+
+                if (entries.Count < pageSize)
+                    break;
             }
 
             return rows;
@@ -1126,6 +1165,32 @@ public sealed partial class DocumentCollectionStore : IDisposable
             PurgeExpiredDocumentsLocked();
             var store = OpenVectorStoreLocked(index, rebuildIfMissing: true);
             return store is null ? [] : store.Search(queryVector, k);
+        }
+    }
+
+    internal DocumentVectorFilteredSearchResult SearchVectorFiltered(
+        DocumentVectorIndex index,
+        float[] queryVector,
+        int k,
+        IReadOnlySet<string> allowedIds,
+        int maxAnnCandidates,
+        int exactCompensationLimit)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(queryVector);
+        ArgumentNullException.ThrowIfNull(allowedIds);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var store = OpenVectorStoreLocked(index, rebuildIfMissing: true);
+            return store is null
+                ? DocumentVectorFilteredSearchResult.Empty
+                : store.SearchFiltered(
+                    queryVector,
+                    k,
+                    allowedIds,
+                    maxAnnCandidates,
+                    exactCompensationLimit);
         }
     }
 

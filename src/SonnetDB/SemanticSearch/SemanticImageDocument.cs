@@ -22,3 +22,14 @@ internal sealed record SemanticImageDocument(
     string? ThumbnailKey = null,
     Dictionary<string, string>? Metadata = null,
     Dictionary<string, string>? Tags = null);
+
+/// <summary>
+/// 过滤 ANN 候选的轻量投影；不读取原始对象字段或 embedding。
+/// </summary>
+internal sealed record SemanticImageFilterCandidate(
+    string? Profile,
+    string? ObjectKey = null,
+    string? ContentType = null,
+    string? ObjectBucket = null,
+    Dictionary<string, string>? Metadata = null,
+    Dictionary<string, string>? Tags = null);

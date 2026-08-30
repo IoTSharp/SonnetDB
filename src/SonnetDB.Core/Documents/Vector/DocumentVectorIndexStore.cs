@@ -154,6 +154,49 @@ public sealed class DocumentVectorIndexStore : IDisposable
         }
     }
 
+    internal DocumentVectorFilteredSearchResult SearchFiltered(
+        float[] query,
+        int k,
+        IReadOnlySet<string> allowedIds,
+        int maxAnnCandidates,
+        int exactCompensationLimit)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(allowedIds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAnnCandidates);
+        ArgumentOutOfRangeException.ThrowIfNegative(exactCompensationLimit);
+        if (k <= 0 || query.Length != _definition.Dimensions || allowedIds.Count == 0)
+            return DocumentVectorFilteredSearchResult.Empty;
+
+        lock (_sync)
+        {
+            long count = _graph.Count;
+            if (count == 0)
+                return DocumentVectorFilteredSearchResult.Empty;
+
+            int take = (int)Math.Min(k, count);
+            var buffer = new (string Key, float Score)[take];
+            int written = _graph.SearchFiltered(
+                query,
+                take,
+                allowedIds,
+                maxAnnCandidates,
+                exactCompensationLimit,
+                buffer,
+                out int annCandidateCount,
+                out bool exactCompensated,
+                out bool requiresExactFallback);
+            var hits = new List<(string Id, double Distance)>(written);
+            for (int i = 0; i < written; i++)
+                hits.Add((buffer[i].Key, buffer[i].Score));
+            return new DocumentVectorFilteredSearchResult(
+                hits,
+                annCandidateCount,
+                exactCompensated,
+                requiresExactFallback);
+        }
+    }
+
     /// <summary>
     /// 关闭底层 KV keyspace 与 HNSW 图。
     /// </summary>
@@ -242,4 +285,14 @@ public sealed class DocumentVectorIndexStore : IDisposable
             KnnMetric.InnerProduct => Metric.InnerProduct,
             _ => Metric.Cosine,
         };
+}
+
+internal sealed record DocumentVectorFilteredSearchResult(
+    IReadOnlyList<(string Id, double Distance)> Hits,
+    int AnnCandidateCount,
+    bool ExactCompensated,
+    bool RequiresExactFallback)
+{
+    public static DocumentVectorFilteredSearchResult Empty { get; }
+        = new([], 0, ExactCompensated: false, RequiresExactFallback: false);
 }

@@ -8,7 +8,7 @@ description: "配置 SigLIP2 ONNX，并通过 SonnetDB REST API 执行文搜图�
 
 SonnetDB Server 可以使用 SigLIP2 把文本和图片编码到同一个向量空间，并通过 REST API 提供文搜图和图搜图。该能力默认关闭，模型文件由部署者提供；Server 不会在启动或请求期间自动下载模型。
 
-当前实现已经包含可恢复异步摄取、缩略图、metadata/tag 过滤、similar-by-id、explain、生命周期清理、管理界面和工业图片样例。过滤条件当前使用完整精确余弦扫描保证召回，不是预过滤 ANN；通用内容 chunk/segment、调用审计、质量评测和容量报告仍是后续工作。
+当前实现已经包含可恢复异步摄取、缩略图、metadata/tag 过滤、similar-by-id、explain、生命周期清理、管理界面和工业图片样例。可索引的 source bucket、metadata 和 tag 条件使用 managed HNSW 预过滤 ANN，并保留精确补偿/回退；通用内容 chunk/segment、调用审计、质量评测和容量报告仍是后续工作。
 
 ## 组件与持久化
 
@@ -23,7 +23,7 @@ SonnetDB Server 可以使用 SigLIP2 把文本和图片编码到同一个向量�
 | 缩略图 | ImageSharp 生成 WebP，Lanczos3 等比缩放，保存在内部 Bucket `sonnetdb-semantic-thumbnails` |
 | 默认 ANN | `auto`：受支持 RID 使用 USearch，否则使用 SonnetDB 纯托管 HNSW |
 
-USearch 是可丢弃、可从 Document 向量重建的内存加速层，不是第二份权威数据。即使 USearch 加载失败，图片与向量仍完整保留，搜索可回退到 managed HNSW。
+USearch 是可丢弃、可从 Document 向量重建的内存加速层，不是第二份权威数据。即使 USearch 加载失败，图片与向量仍完整保留，搜索可回退到 managed HNSW。当前过滤 ANN 只由 managed HNSW 实现；`Backend=usearch` 且 `FallbackToManaged=false` 时，带过滤的查询返回 503，而不是静默切换后端。
 
 ## 模型文件
 
@@ -214,7 +214,18 @@ tag.vehicleType=truck
 explain=true
 ```
 
-没有过滤条件时继续使用 USearch 或 managed HNSW。存在有效过滤条件时使用 `exact-filtered` 完整扫描，先匹配当前 profile 和对象属性，再计算精确余弦距离，避免 ANN 候选截断漏掉满足过滤条件的结果。`explain=true` 时响应额外返回 `searchMode`、`candidateCount` 和 `filteredCandidateCount`；默认不返回这些字段。
+没有过滤条件时继续使用 USearch 或 managed HNSW。带 `sourceBucket`、`metadata` 或 `tags` 时，Document path/wildcard index 选择最小候选入口并按 256 行分页读取，每页和每行都观察请求取消；managed HNSW 可穿过未允许节点保持图连通，但只把允许 ID 放入结果。ANN 候选不足时，允许集合不超过 4096 项会在向量索引内做精确补偿；更大的集合不再整体保留候选 ID/文档，而是沿同一索引分页计算 exact top-K。HNSW 派生图缺少任一允许 ID 时也会要求精确回退。只包含 `sourceKeyPrefix` 或 `contentType` 时没有可用的 path prefilter，会分页执行完整精确回退；它们与可索引条件组合时仍会作为 residual filter 复核候选。
+
+`explain=true` 时响应额外返回 `searchMode`、`candidateCount` 和 `filteredCandidateCount`；默认不返回这些字段。实际路径对应关系如下：
+
+| `backend` | `searchMode` | 含义 |
+| --- | --- | --- |
+| `usearch` / `managed` | `ann` | 无过滤 ANN |
+| `managed` | `prefiltered-ann` | Document 预过滤后由 managed HNSW 返回足量结果 |
+| `managed` | `prefiltered-ann-exact-compensation` | 小候选集在 ANN 不足后完成索引内精确补偿 |
+| `exact-filtered` | `exact-filtered-fallback` | 不可索引过滤或大候选 ANN 不足后的精确回退 |
+
+显式 `Backend=usearch` 且允许 managed fallback，或 `Backend=auto` 时，过滤查询会如实返回 `backend=managed`；显式 `usearch` 且关闭 fallback 时返回 `semantic_provider_unavailable` 503。
 
 ### 按已摄取图片查相似图片
 

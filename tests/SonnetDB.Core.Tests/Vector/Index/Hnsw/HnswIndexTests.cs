@@ -85,6 +85,147 @@ public sealed class HnswIndexTests
         Assert.Equal(2, buf[0].Item1);
     }
 
+    [Fact]
+    public void SearchFiltered_DisallowedNodesRemainTraversableButNeverEnterResults()
+    {
+        using var index = new HnswIndex<int>(
+            1,
+            Metric.L2,
+            DeterministicOptions(m: 4, efC: 64, efS: 2));
+        for (int i = 0; i < 100; i++)
+            index.Add(i, [i]);
+
+        IReadOnlySet<int> allowed = new HashSet<int> { 90, 91 };
+        var buffer = new (int Key, float Score)[2];
+        int written = index.SearchFiltered(
+            [0f],
+            2,
+            allowed,
+            maxAnnCandidates: 100,
+            exactCompensationLimit: 0,
+            buffer,
+            out int annCandidateCount,
+            out bool exactCompensated,
+            out bool requiresExactFallback);
+
+        Assert.Equal(2, written);
+        Assert.True(annCandidateCount > allowed.Count);
+        Assert.False(exactCompensated);
+        Assert.False(requiresExactFallback);
+        Assert.Equal([90, 91], buffer.Select(static hit => hit.Key).ToArray());
+    }
+
+    [Fact]
+    public void SearchFiltered_SparseAllowedSet_CompensatesWithinLimitOrRequiresFallback()
+    {
+        using var index = new HnswIndex<int>(
+            1,
+            Metric.L2,
+            DeterministicOptions(m: 4, efC: 64, efS: 2));
+        for (int i = 0; i < 200; i++)
+            index.Add(i, [i]);
+
+        IReadOnlySet<int> smallAllowed = new HashSet<int> { 190, 191, 192 };
+        var compensatedBuffer = new (int Key, float Score)[2];
+        int compensatedWritten = index.SearchFiltered(
+            [0f],
+            2,
+            smallAllowed,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 3,
+            compensatedBuffer,
+            out _,
+            out bool exactCompensated,
+            out bool compensatedRequiresFallback);
+
+        Assert.Equal(2, compensatedWritten);
+        Assert.True(exactCompensated);
+        Assert.False(compensatedRequiresFallback);
+        Assert.Equal([190, 191], compensatedBuffer.Select(static hit => hit.Key).ToArray());
+
+        IReadOnlySet<int> largeAllowed = Enumerable.Range(100, 100).ToHashSet();
+        var fallbackBuffer = new (int Key, float Score)[2];
+        int fallbackWritten = index.SearchFiltered(
+            [0f],
+            2,
+            largeAllowed,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 10,
+            fallbackBuffer,
+            out _,
+            out bool fallbackCompensated,
+            out bool requiresExactFallback);
+
+        Assert.True(fallbackWritten < 2);
+        Assert.False(fallbackCompensated);
+        Assert.True(requiresExactFallback);
+        Assert.All(fallbackBuffer[..fallbackWritten].ToArray(), hit => Assert.Contains(hit.Key, largeAllowed));
+    }
+
+    [Fact]
+    public void SearchFiltered_AllowedKeyMissingFromGraph_RequiresExactFallback()
+    {
+        using var index = new HnswIndex<int>(
+            1,
+            Metric.L2,
+            DeterministicOptions(m: 4, efC: 64, efS: 2));
+        index.Add(1, [0f]);
+        index.Add(3, [3f]);
+
+        // Simulate a metadata candidate set that is ahead of the derived vector graph.
+        IReadOnlySet<int> partiallyMissing = new HashSet<int> { 1, 2 };
+        var partialBuffer = new (int Key, float Score)[2];
+        int partialWritten = index.SearchFiltered(
+            [0f],
+            2,
+            partiallyMissing,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 2,
+            partialBuffer,
+            out _,
+            out bool partialCompensated,
+            out bool partialRequiresFallback);
+
+        Assert.Equal(1, partialWritten);
+        Assert.Equal(1, partialBuffer[0].Key);
+        Assert.False(partialCompensated);
+        Assert.True(partialRequiresFallback);
+
+        IReadOnlySet<int> filledDespiteMissing = new HashSet<int> { 1, 2, 3 };
+        var filledBuffer = new (int Key, float Score)[2];
+        int filledWritten = index.SearchFiltered(
+            [0f],
+            2,
+            filledDespiteMissing,
+            maxAnnCandidates: 2,
+            exactCompensationLimit: 3,
+            filledBuffer,
+            out _,
+            out bool filledCompensated,
+            out bool filledRequiresFallback);
+
+        Assert.Equal(2, filledWritten);
+        Assert.False(filledCompensated);
+        Assert.True(filledRequiresFallback);
+
+        IReadOnlySet<int> entirelyMissing = new HashSet<int> { 2 };
+        var missingBuffer = new (int Key, float Score)[1];
+        int missingWritten = index.SearchFiltered(
+            [0f],
+            1,
+            entirelyMissing,
+            maxAnnCandidates: 1,
+            exactCompensationLimit: 1,
+            missingBuffer,
+            out _,
+            out bool missingCompensated,
+            out bool missingRequiresFallback);
+
+        Assert.Equal(0, missingWritten);
+        Assert.False(missingCompensated);
+        Assert.True(missingRequiresFallback);
+    }
+
     [Theory]
     [InlineData(Metric.L2)]
     [InlineData(Metric.Cosine)]

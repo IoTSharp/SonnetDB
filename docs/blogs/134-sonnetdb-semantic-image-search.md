@@ -334,11 +334,11 @@ tag.vehicleType=truck
 explain=true
 ```
 
-没有过滤条件时，查询使用 USearch 或 managed HNSW。存在有效过滤条件时，当前实现使用 `exact-filtered` 完整精确余弦扫描：先过滤 profile 和对象属性，再计算距离。这样不会因为 ANN 候选截断而漏掉符合业务条件的结果。
+没有过滤条件时，查询使用 USearch 或 managed HNSW。带 source bucket、metadata 或 tag 条件时，Document path/wildcard index 先产生候选 ID，再由 managed HNSW 只接纳允许的结果；ANN 不足时，小候选集合做精确补偿，大候选集合转为精确回退。只有 Key Prefix/Content-Type 等不可索引条件时直接精确回退，因此不会因 ANN 候选截断漏掉符合业务条件的结果。显式要求 USearch 且关闭 managed fallback 时，过滤查询返回 503，不会静默切换后端。
 
 设置 `explain=true` 后，响应会额外返回：
 
-- `searchMode`：例如 `ann` 或 `exact-filtered`；
+- `searchMode`：例如 `ann`、`prefiltered-ann`、`prefiltered-ann-exact-compensation` 或 `exact-filtered-fallback`；
 - `candidateCount`：检索产生的候选数量；
 - `filteredCandidateCount`：通过 profile 和属性过滤后的候选数量。
 
@@ -432,7 +432,7 @@ ONNX Runtime 1.27.1 则提供 Windows x64/ARM64、Linux x64/ARM64 和 macOS ARM6
 
 这版已经完成从对象写入到语义检索、缩略图和生命周期清理的闭环，但还有几个边界需要如实说明：
 
-- 带过滤条件的查询当前使用精确扫描，还没有实现预过滤 ANN 优化；
+- 过滤 ANN 当前仅由 managed HNSW 实现，USearch filtered API、可配置候选预算和固定硬件 recall/延迟/容量证据仍待完成；
 - Server 不负责自动下载或更新模型；
 - 更换模型或预处理策略时需要创建新的 embedding profile；
 - 真实图片检索质量、容量上限和目标硬件 P95 延迟仍需要专项报告；

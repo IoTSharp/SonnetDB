@@ -22,6 +22,12 @@ internal sealed class SemanticImageSearchService : IDisposable
 {
     private const string ObjectBucket = "sonnetdb-semantic-images";
     private const string VectorIndexName = "embedding";
+    private const string SourceBucketIndexName = "semantic_source_bucket";
+    private const string MetadataIndexName = "semantic_metadata";
+    private const string TagsIndexName = "semantic_tags";
+    private const int FilteredAnnCandidateLimit = 512;
+    private const int FilteredExactCompensationLimit = 4096;
+    private const int FilteredCandidatePageSize = 256;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _databaseGates = new(StringComparer.Ordinal);
     private readonly SemanticSearchOptions _options;
     private readonly IMultimodalEmbeddingProvider _provider;
@@ -571,9 +577,16 @@ internal sealed class SemanticImageSearchService : IDisposable
 
         if (HasFilter(filter))
         {
-            return SearchFilteredExact(
+            if (NormalizeBackend(_options.Backend) == "usearch" && !_options.FallbackToManaged)
+            {
+                throw new InvalidOperationException(
+                    "USearch 后端当前不支持带过滤的向量检索，且已禁用 managed 回退。");
+            }
+
+            return SearchFiltered(
                 database,
                 store,
+                vectorIndex,
                 queryKind,
                 query,
                 topK,
@@ -646,6 +659,119 @@ internal sealed class SemanticImageSearchService : IDisposable
         };
     }
 
+    private ImageSearchResponse SearchFiltered(
+        string database,
+        DocumentCollectionStore store,
+        DocumentVectorIndex vectorIndex,
+        string queryKind,
+        float[] query,
+        int topK,
+        double? minScore,
+        ImageSearchFilter filter,
+        bool explain,
+        string? excludedId,
+        CancellationToken cancellationToken)
+    {
+        FilteredCandidateSelection? selection = TryResolveIndexedCandidates(
+            store,
+            filter,
+            excludedId,
+            cancellationToken);
+        if (selection is null)
+        {
+            return SearchFilteredExact(
+                database,
+                store,
+                queryKind,
+                query,
+                topK,
+                minScore,
+                filter,
+                explain,
+                excludedId,
+                cancellationToken,
+                candidateIds: null,
+                candidateCount: null,
+                searchMode: "exact-filtered-fallback");
+        }
+
+        if (selection.AllowedIds is null)
+        {
+            return SearchFilteredExact(
+                database,
+                store,
+                queryKind,
+                query,
+                topK,
+                minScore,
+                filter,
+                explain,
+                excludedId,
+                cancellationToken,
+                candidateIds: null,
+                selection.CandidateCount,
+                "exact-filtered-fallback",
+                selection.Driver);
+        }
+
+        IReadOnlySet<string> allowedIds = selection.AllowedIds;
+        var filtered = store.SearchVectorFiltered(
+            vectorIndex,
+            query,
+            topK,
+            allowedIds,
+            FilteredAnnCandidateLimit,
+            FilteredExactCompensationLimit);
+        if (filtered.RequiresExactFallback)
+        {
+            return SearchFilteredExact(
+                database,
+                store,
+                queryKind,
+                query,
+                topK,
+                minScore,
+                filter,
+                explain,
+                excludedId,
+                cancellationToken,
+                allowedIds,
+                selection.CandidateCount,
+                "exact-filtered-fallback",
+                indexedDriver: null);
+        }
+
+        var hits = new List<ImageSearchHit>(topK);
+        foreach (var candidate in filtered.Hits)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SemanticImageDocument? document = ReadDocument(store.Get(candidate.Id));
+            if (document is null
+                || !string.Equals(document.Profile, _provider.Info.Profile, StringComparison.Ordinal)
+                || string.Equals(document.Id, excludedId, StringComparison.Ordinal)
+                || !MatchesFilter(document, filter))
+            {
+                continue;
+            }
+
+            double score = Math.Clamp(1d - candidate.Distance, -1d, 1d);
+            if (minScore is not null && score < minScore.Value)
+                continue;
+            hits.Add(ToHit(database, document, score, candidate.Distance));
+        }
+
+        return new ImageSearchResponse(queryKind, _provider.Info.Profile, "managed", hits)
+        {
+            SearchMode = explain
+                ? filtered.ExactCompensated
+                    ? "prefiltered-ann-exact-compensation"
+                    : "prefiltered-ann"
+                : null,
+            CandidateCount = explain ? selection.CandidateCount : null,
+            FilteredCandidateCount = explain ? selection.AllowedIds.Count : null,
+        };
+    }
+
     private ImageSearchResponse SearchFilteredExact(
         string database,
         DocumentCollectionStore store,
@@ -656,14 +782,23 @@ internal sealed class SemanticImageSearchService : IDisposable
         ImageSearchFilter filter,
         bool explain,
         string? excludedId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlySet<string>? candidateIds,
+        int? candidateCount,
+        string searchMode,
+        IndexedFilterDriver? indexedDriver = null)
     {
-        IReadOnlyList<DocumentRow> rows = store.Scan();
         var matches = new PriorityQueue<(SemanticImageDocument Document, double Distance), double>(topK);
+        int scannedCandidateCount = 0;
         int filteredCandidateCount = 0;
-        foreach (var row in rows)
+        foreach (var row in EnumerateExactCandidateRows(
+                     store,
+                     candidateIds,
+                     indexedDriver,
+                     cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            scannedCandidateCount++;
             var document = ReadDocument(row);
             if (document is null
                 || !string.Equals(document.Profile, _provider.Info.Profile, StringComparison.Ordinal)
@@ -717,10 +852,233 @@ internal sealed class SemanticImageSearchService : IDisposable
 
         return new ImageSearchResponse(queryKind, _provider.Info.Profile, "exact-filtered", hits)
         {
-            SearchMode = explain ? "exact-filtered" : null,
-            CandidateCount = explain ? rows.Count : null,
+            SearchMode = explain ? searchMode : null,
+            CandidateCount = explain ? candidateCount ?? scannedCandidateCount : null,
             FilteredCandidateCount = explain ? filteredCandidateCount : null,
         };
+    }
+
+    private FilteredCandidateSelection? TryResolveIndexedCandidates(
+        DocumentCollectionStore store,
+        ImageSearchFilter filter,
+        string? excludedId,
+        CancellationToken cancellationToken)
+    {
+        DocumentFilter? indexedFilter = BuildIndexedFilter(filter);
+        if (indexedFilter is null)
+            return null;
+        IndexedFilterDriver? driver = TrySelectIndexedFilterDriver(store, filter);
+        if (driver is null)
+            return null;
+
+        var allowedIds = new HashSet<string>(StringComparer.Ordinal);
+        bool exceededCompensationLimit = false;
+        int candidateCount = 0;
+        foreach (DocumentRow row in EnumerateIndexedDriverRows(store, driver, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!DocumentQueryPlanner.MatchesValidated(indexedFilter, row))
+                continue;
+
+            candidateCount++;
+            SemanticImageFilterCandidate? candidate = JsonSerializer.Deserialize(
+                row.Json,
+                ServerJsonContext.Default.SemanticImageFilterCandidate);
+            if (candidate is null
+                || !string.Equals(candidate.Profile, _provider.Info.Profile, StringComparison.Ordinal)
+                || string.Equals(row.Id, excludedId, StringComparison.Ordinal)
+                || !MatchesFilter(candidate, filter))
+            {
+                continue;
+            }
+
+            if (exceededCompensationLimit)
+                continue;
+            allowedIds.Add(row.Id);
+            if (allowedIds.Count > FilteredExactCompensationLimit)
+            {
+                allowedIds.Clear();
+                exceededCompensationLimit = true;
+            }
+        }
+
+        return new FilteredCandidateSelection(
+            candidateCount,
+            exceededCompensationLimit ? null : allowedIds,
+            driver);
+    }
+
+    private static IndexedFilterDriver? TrySelectIndexedFilterDriver(
+        DocumentCollectionStore store,
+        ImageSearchFilter filter)
+    {
+        var drivers = new List<IndexedFilterDriver>();
+        if (!string.IsNullOrWhiteSpace(filter.SourceBucket)
+            && store.Schema.TryGetIndex(SourceBucketIndexName) is { } sourceBucketIndex)
+        {
+            string value = filter.SourceBucket.Trim();
+            drivers.Add(new IndexedFilterDriver(
+                sourceBucketIndex,
+                Path: null,
+                value,
+                store.CountByIndex(sourceBucketIndex, [value])));
+        }
+
+        AddMapDrivers(store, drivers, MetadataIndexName, "$.metadata", filter.Metadata);
+        AddMapDrivers(store, drivers, TagsIndexName, "$.tags", filter.Tags);
+        return drivers
+            .OrderBy(static driver => driver.CandidateCount)
+            .ThenBy(static driver => driver.Index.Name, StringComparer.Ordinal)
+            .ThenBy(static driver => driver.Path, StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
+
+    private static void AddMapDrivers(
+        DocumentCollectionStore store,
+        List<IndexedFilterDriver> drivers,
+        string indexName,
+        string rootPath,
+        IReadOnlyDictionary<string, string>? values)
+    {
+        if (values is null || store.Schema.TryGetIndex(indexName) is not { } index)
+            return;
+
+        foreach (var pair in values.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (string.IsNullOrEmpty(pair.Key))
+                continue;
+            string path = BuildMapFilterPath(rootPath, pair.Key);
+            drivers.Add(new IndexedFilterDriver(
+                index,
+                path,
+                pair.Value,
+                store.CountByWildcardIndex(index, path, pair.Value)));
+        }
+    }
+
+    private static IEnumerable<DocumentRow> EnumerateExactCandidateRows(
+        DocumentCollectionStore store,
+        IReadOnlySet<string>? candidateIds,
+        IndexedFilterDriver? indexedDriver,
+        CancellationToken cancellationToken)
+    {
+        if (candidateIds is not null)
+        {
+            foreach (string id in candidateIds)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (store.Get(id) is { } row)
+                    yield return row;
+            }
+            yield break;
+        }
+
+        if (indexedDriver is not null)
+        {
+            foreach (DocumentRow row in EnumerateIndexedDriverRows(store, indexedDriver, cancellationToken))
+                yield return row;
+            yield break;
+        }
+
+        string? afterId = null;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<DocumentRow> page = store.ScanAfter(afterId, FilteredCandidatePageSize);
+            if (page.Count == 0)
+                yield break;
+            foreach (DocumentRow row in page)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
+
+            afterId = page[^1].Id;
+            if (page.Count < FilteredCandidatePageSize)
+                yield break;
+        }
+    }
+
+    private static IEnumerable<DocumentRow> EnumerateIndexedDriverRows(
+        DocumentCollectionStore store,
+        IndexedFilterDriver driver,
+        CancellationToken cancellationToken)
+    {
+        string? afterId = null;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<DocumentRow> page = driver.Path is null
+                ? store.GetByIndexAfter(
+                    driver.Index,
+                    driver.Value,
+                    afterId,
+                    FilteredCandidatePageSize)
+                : store.GetByWildcardIndexAfter(
+                    driver.Index,
+                    driver.Path,
+                    driver.Value,
+                    afterId,
+                    FilteredCandidatePageSize);
+            if (page.Count == 0)
+                yield break;
+            foreach (DocumentRow row in page)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
+
+            afterId = page[^1].Id;
+            if (page.Count < FilteredCandidatePageSize)
+                yield break;
+        }
+    }
+
+    private static DocumentFilter? BuildIndexedFilter(ImageSearchFilter filter)
+    {
+        var filters = new List<DocumentFilter>();
+        if (!string.IsNullOrWhiteSpace(filter.SourceBucket))
+        {
+            filters.Add(new DocumentFieldFilter(
+                DocumentFieldRef.JsonPath("$.objectBucket"),
+                DocumentFilterOperator.Equal,
+                filter.SourceBucket.Trim()));
+        }
+
+        AddMapFilters(filters, "$.metadata", filter.Metadata);
+        AddMapFilters(filters, "$.tags", filter.Tags);
+        return filters.Count switch
+        {
+            0 => null,
+            1 => filters[0],
+            _ => new DocumentAndFilter(filters),
+        };
+    }
+
+    private static void AddMapFilters(
+        List<DocumentFilter> filters,
+        string rootPath,
+        IReadOnlyDictionary<string, string>? values)
+    {
+        if (values is null)
+            return;
+
+        foreach (var pair in values)
+        {
+            if (string.IsNullOrEmpty(pair.Key))
+                continue;
+            string path = BuildMapFilterPath(rootPath, pair.Key);
+            filters.Add(new DocumentFieldFilter(
+                DocumentFieldRef.JsonPath(path),
+                DocumentFilterOperator.Equal,
+                pair.Value));
+        }
+    }
+
+    private static string BuildMapFilterPath(string rootPath, string key)
+    {
+        string escapedKey = key.Replace("'", "''", StringComparison.Ordinal);
+        return JsonPath.Parse($"{rootPath}['{escapedKey}']").Text;
     }
 
     private DocumentCollectionStore EnsureCollection(Tsdb tsdb)
@@ -733,6 +1091,7 @@ internal sealed class SemanticImageSearchService : IDisposable
             {
                 tsdb.Documents.Create(DocumentCollectionSchema.Create(
                     collectionName,
+                    indexes: FilterIndexDefinitions(),
                     vectorIndexes:
                     [
                         new DocumentVectorIndexDefinition(
@@ -751,6 +1110,9 @@ internal sealed class SemanticImageSearchService : IDisposable
 
         if (schema is null)
             throw new InvalidOperationException("无法创建语义图片集合。");
+        EnsureFilterIndexes(tsdb.Documents, collectionName);
+        schema = tsdb.Documents.Catalog.TryGet(collectionName)
+            ?? throw new InvalidOperationException("无法读取语义图片集合。");
         var index = schema.TryGetVectorIndex(VectorIndexName)
             ?? throw new InvalidOperationException("既有语义图片集合缺少 embedding 向量索引。");
         if (index.Dimensions != _provider.Info.Dimensions)
@@ -760,6 +1122,25 @@ internal sealed class SemanticImageSearchService : IDisposable
         }
         return tsdb.Documents.Open(collectionName);
     }
+
+    private static IReadOnlyList<DocumentPathIndexDefinition> FilterIndexDefinitions()
+        =>
+        [
+            new DocumentPathIndexDefinition(SourceBucketIndexName, "$.objectBucket", IsSparse: true),
+            new DocumentPathIndexDefinition(
+                MetadataIndexName,
+                "$.metadata",
+                IsSparse: true,
+                Kind: DocumentIndexKind.Wildcard),
+            new DocumentPathIndexDefinition(
+                TagsIndexName,
+                "$.tags",
+                IsSparse: true,
+                Kind: DocumentIndexKind.Wildcard),
+        ];
+
+    private static void EnsureFilterIndexes(DocumentCollectionManager manager, string collectionName)
+        => manager.EnsureIndexes(collectionName, FilterIndexDefinitions());
 
     private void UpdateUSearch(string database, DocumentCollectionStore store, string id, float[] embedding)
     {
@@ -900,8 +1281,32 @@ internal sealed class SemanticImageSearchService : IDisposable
                 || filter.Tags is { Count: > 0 });
 
     private static bool MatchesFilter(SemanticImageDocument document, ImageSearchFilter filter)
+        => MatchesFilter(
+            document.ObjectBucket,
+            document.ObjectKey,
+            document.ContentType,
+            document.Metadata,
+            document.Tags,
+            filter);
+
+    private static bool MatchesFilter(SemanticImageFilterCandidate candidate, ImageSearchFilter filter)
+        => MatchesFilter(
+            candidate.ObjectBucket,
+            candidate.ObjectKey,
+            candidate.ContentType,
+            candidate.Metadata,
+            candidate.Tags,
+            filter);
+
+    private static bool MatchesFilter(
+        string? objectBucket,
+        string? objectKey,
+        string? contentType,
+        IReadOnlyDictionary<string, string>? metadata,
+        IReadOnlyDictionary<string, string>? tags,
+        ImageSearchFilter filter)
     {
-        string? sourceBucket = ExternalSourceBucket(document);
+        string? sourceBucket = ExternalSourceBucket(objectBucket);
         if (!string.IsNullOrWhiteSpace(filter.SourceBucket)
             && !string.Equals(sourceBucket, filter.SourceBucket.Trim(), StringComparison.Ordinal))
         {
@@ -910,19 +1315,20 @@ internal sealed class SemanticImageSearchService : IDisposable
 
         if (!string.IsNullOrWhiteSpace(filter.SourceKeyPrefix)
             && (sourceBucket is null
-                || !document.ObjectKey.StartsWith(filter.SourceKeyPrefix.Trim(), StringComparison.Ordinal)))
+                || objectKey is null
+                || !objectKey.StartsWith(filter.SourceKeyPrefix.Trim(), StringComparison.Ordinal)))
         {
             return false;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.ContentType)
-            && !string.Equals(document.ContentType, filter.ContentType.Trim(), StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(contentType, filter.ContentType.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        return MatchesMap(document.Metadata, filter.Metadata)
-            && MatchesMap(document.Tags, filter.Tags);
+        return MatchesMap(metadata, filter.Metadata)
+            && MatchesMap(tags, filter.Tags);
     }
 
     private static bool MatchesMap(
@@ -997,9 +1403,12 @@ internal sealed class SemanticImageSearchService : IDisposable
         };
 
     private static string? ExternalSourceBucket(SemanticImageDocument document)
-        => string.Equals(document.ObjectBucket, ObjectBucket, StringComparison.Ordinal)
+        => ExternalSourceBucket(document.ObjectBucket);
+
+    private static string? ExternalSourceBucket(string? objectBucket)
+        => string.Equals(objectBucket, ObjectBucket, StringComparison.Ordinal)
             ? null
-            : document.ObjectBucket;
+            : objectBucket;
 
     private static string? ThumbnailUrl(string database, SemanticImageDocument document)
         => document.ThumbnailKey is null
@@ -1014,4 +1423,15 @@ internal sealed class SemanticImageSearchService : IDisposable
             && string.Equals(document.ObjectVersionId, source.VersionId, StringComparison.Ordinal);
 
     private readonly record struct StoredObjectIdentity(string Bucket, string Key, string VersionId);
+
+    private sealed record FilteredCandidateSelection(
+        int CandidateCount,
+        IReadOnlySet<string>? AllowedIds,
+        IndexedFilterDriver Driver);
+
+    private sealed record IndexedFilterDriver(
+        DocumentPathIndex Index,
+        string? Path,
+        object? Value,
+        int CandidateCount);
 }

@@ -126,6 +126,47 @@ public sealed class DocumentCollectionManager : IDisposable
             }
     }
 
+    internal void EnsureIndexes(
+        string collectionName,
+        IReadOnlyList<DocumentPathIndexDefinition> definitions)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentNullException.ThrowIfNull(definitions);
+        foreach (DocumentPathIndexDefinition definition in definitions)
+            ArgumentNullException.ThrowIfNull(definition);
+
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                var updated = current;
+                foreach (DocumentPathIndexDefinition definition in definitions)
+                {
+                    if (updated.TryGetIndex(definition.Name) is null)
+                        updated = updated.WithIndex(definition);
+                }
+
+                if (ReferenceEquals(updated, current))
+                    return;
+
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+            }
+    }
+
     /// <summary>
     /// 为已有文档集合创建全文索引并持久化 schema。
     /// </summary>

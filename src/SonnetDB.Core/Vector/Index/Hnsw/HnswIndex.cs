@@ -408,6 +408,136 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
         }
     }
 
+    internal int SearchFiltered(
+        ReadOnlySpan<float> query,
+        int topK,
+        IReadOnlySet<TKey> allowedKeys,
+        int maxAnnCandidates,
+        int exactCompensationLimit,
+        Span<(TKey Key, float Score)> results,
+        out int annCandidateCount,
+        out bool exactCompensated,
+        out bool requiresExactFallback)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(topK);
+        ArgumentNullException.ThrowIfNull(allowedKeys);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAnnCandidates);
+        ArgumentOutOfRangeException.ThrowIfNegative(exactCompensationLimit);
+        EnsureDimension(query.Length);
+        if (results.Length < topK)
+        {
+            throw new ArgumentException(
+                $"results 缓冲区过小：需要 >= {topK}，实际 {results.Length}。",
+                nameof(results));
+        }
+        ThrowIfDisposed();
+
+        annCandidateCount = 0;
+        exactCompensated = false;
+        requiresExactFallback = false;
+
+        _lock.EnterReadLock();
+        try
+        {
+            if (allowedKeys.Count == 0)
+                return 0;
+
+            if (_entryPoint < 0)
+            {
+                requiresExactFallback = true;
+                return 0;
+            }
+
+            var allowedRows = new HashSet<int>();
+            bool hasMissingAllowedKey = false;
+            foreach (TKey key in allowedKeys)
+            {
+                if (_keyToRow.TryGetValue(key, out int row) && !_tombstones.Contains(row))
+                    allowedRows.Add(row);
+                else
+                    hasMissingAllowedKey = true;
+            }
+
+            if (allowedRows.Count == 0)
+            {
+                requiresExactFallback = hasMissingAllowedKey;
+                return 0;
+            }
+
+            int targetK = Math.Min(topK, allowedKeys.Count);
+            int entryPoint = _entryPoint;
+            if (_entryLevel > 0)
+                entryPoint = GreedyDescend(query, entryPoint, _entryLevel, 0);
+
+            int total = _keys.Count;
+            int maxEf = Math.Min(total, Math.Max(topK, maxAnnCandidates));
+            int ef = Math.Min(maxEf, Math.Max(_options.EfSearch, topK));
+            int[] entry = [entryPoint];
+            var working = new List<(int Id, float Dist)>(ef);
+            int written;
+            while (true)
+            {
+                SearchLayerMulti(query, entry, ef, 0, working);
+                working.Sort(static (left, right) => left.Dist.CompareTo(right.Dist));
+                annCandidateCount = working.Count;
+
+                written = 0;
+                for (int i = 0; i < working.Count && written < targetK; i++)
+                {
+                    int row = working[i].Id;
+                    if (!allowedRows.Contains(row) || _tombstones.Contains(row))
+                        continue;
+
+                    results[written++] = (
+                        _keys[row],
+                        Distance.Compute(query, Vec(row), _metric));
+                }
+
+                if (written >= targetK || ef >= maxEf)
+                    break;
+                ef = (int)Math.Min((long)ef * 2, maxEf);
+            }
+
+            // Missing allowed keys mean the graph cannot prove the filtered top-K,
+            // even when the rows it does contain fill the requested result count.
+            if (hasMissingAllowedKey)
+            {
+                requiresExactFallback = true;
+                return written;
+            }
+
+            if (written >= targetK)
+                return written;
+
+            if (allowedRows.Count > exactCompensationLimit)
+            {
+                requiresExactFallback = true;
+                return written;
+            }
+
+            var exact = new List<(int Id, float Dist)>(allowedRows.Count);
+            foreach (int row in allowedRows)
+                exact.Add((row, InternalDist(query, Vec(row))));
+            exact.Sort(static (left, right) => left.Dist.CompareTo(right.Dist));
+
+            written = Math.Min(targetK, exact.Count);
+            for (int i = 0; i < written; i++)
+            {
+                int row = exact[i].Id;
+                results[i] = (
+                    _keys[row],
+                    Distance.Compute(query, Vec(row), _metric));
+            }
+
+            exactCompensated = true;
+            return written;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
