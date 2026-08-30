@@ -131,7 +131,9 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
     "Copilot": {
       "Embedding": {
         "Provider": "local",
-        "LocalModelPath": "./models/bge-small-zh-v1.5-int8.onnx"
+        "LocalModelPath": "./models/bge-small-zh-v1.5-int8.onnx",
+        "IntraOpThreads": 4,
+        "InterOpThreads": 1
       }
     }
   }
@@ -199,6 +201,13 @@ padding 上限（1..32768）；provider 使用 tokenizer 的有界 max-token ove
 `cls` 取首个未屏蔽行（左填充时不是固定行 0），`auto` 对 pooled 输出直接采用该
 向量。`Normalize=true` 时对最终向量执行 L2 归一化。
 
+`EmbedBatchAsync` 会把同批文本编码为一个 `[batch, sequence]` 输入并只执行一次
+ONNX Runtime `Run`；结果按输入顺序逐行执行 pooling 与归一化。动态 batch 模型接受
+任意非空批次，固定 batch 模型要求请求数量严格匹配模型元数据。`IntraOpThreads=0`
+使用运行时默认的单算子线程数；`InterOpThreads=0` 使用 sequential execution mode，
+正数会写入 SessionOptions 并启用 parallel execution mode。provider 的 execution state
+只表示 session 是否初始化以及请求值是否已应用，不代表目标硬件性能通过。
+
 `SendAttentionMask`、`SendTokenTypeIds` 和 `SendPositionIds` 均为三态：`null`
 按稳定的常用名称自动绑定，`true` 要求相应 tensor 存在且类型/形状正确，`false`
 明确禁用；如果图仍声明被禁用的 tensor，还必须同时列入 `IgnoredInputNames`。没有绑定或列入 `IgnoredInputNames` 的其它输入会使 profile 合同失败，
@@ -265,7 +274,10 @@ BrowserDirect 只接受 `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` 指定的 
 且其 origin 必须位于 `VITE_COPILOT_BROWSER_DIRECT_APPROVED_ORIGINS`；公网 readiness 与
 流式 POST 只携带独立的 public-client token。该 token 仅驻留内存，必须具有未来过期时间且
 TTL 不超过两小时；与数据库 token 同值、缺配置、缺 token、过期或登出时均 fail closed，
-不会静默回退到 ServerRelay。StudioNative 在 transport 和凭据边界完成前仍稳定拒绝。
+不会静默回退到 ServerRelay。Studio bridge 已把 endpoint/token 从 URL、query 和浏览器
+storage 移除，改由 NativeWebHost request/event 仅注入当前 WebView 内存；loopback HTTP
+还要求配置的 Studio origin 与 header token，并拒绝 query token。该前置不构成
+StudioNative transport 或系统凭据库，相关模式在 AI broker 和凭据边界完成前仍稳定拒绝。
 
 BrowserDirect 本地工具出域还必须把
 `VITE_COPILOT_BROWSER_DIRECT_ALLOW_DATA_EGRESS` 精确设为 `true`，并在
@@ -295,8 +307,8 @@ BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳�
 必须逐字回显对应 `tool_result`，否则 fail closed。同 `toolCallId` 同规范化参数复用单次运行内
 缓存结果而不二次执行，同 ID 冲突在再次执行前拒绝；重复回放也计入 8 次 loop 上限。
 当前尚无可信 Device Flow/PKCE 获取入口，也没有已部署公网 continuation、CSP/CORS 或真实
-双网联调证据。Studio Native、外部 OAuth/BYOK、跨刷新续流和服务器无公网出口的真实 journey
-仍保持未完成。
+双网联调证据。Studio bridge 的内存握手/origin/header-token 安全前置已经完成，但 Studio Native
+AI broker、系统凭据库、外部 OAuth/BYOK、跨刷新续流和服务器无公网出口的真实 journey 仍保持未完成。
 
 切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
 docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境

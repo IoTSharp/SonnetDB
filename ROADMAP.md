@@ -100,19 +100,19 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 已在显式 `ModelProfile` 下执行 tokenizer、输入绑定、输出形状、pooling 和归一化，并在缺少 profile、资源或运行时不可用时显式回退 hash provider；真实目标模型语义质量、性能和现场证据仍未完成。#185 的合同字段、tiny fixture 测试和真实模型证据门禁见 [provider model profile 证据专页](docs/benchmarks/m27-provider-model-profile.md)。文档和报告必须如实描述这些边界。
+目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 已在显式 `ModelProfile` 下执行 tokenizer、批量输入绑定、逐行 pooling/归一化和可配置 ONNX Runtime 线程模式，并在缺少 profile、资源或运行时不可用时显式回退 hash provider；真实目标模型语义质量、性能和现场证据仍未完成。#185 的合同字段、tiny fixture 测试和真实模型证据门禁见 [provider model profile 证据专页](docs/benchmarks/m27-provider-model-profile.md)。文档和报告必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
 | #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
 | #183 MCP 合同 | 现有九个只读工具已发布机器可验证 input/output schema、v1 合同版本、稳定错误码与兼容文本，并以端到端测试冻结权限 annotation、既有 required 集合和字段类型；参数、返回、权限、错误与 extend-only 版本规则见 `docs/mcp-contract.md`，未扩大工具面。 | ✅ |
 | #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致；新增可运行 sample、结构化状态和不可达 provider 的 `NOT_READY` 门禁。真实 broker/provider journey 后续验证。 | ✅（待验证） |
-| #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 已完成显式 profile 的 tokenizer/input/pooling 执行合同、tiny fixture 测试及 `m27-local-onnx-evidence-v2` runner/verifier。v2 记录环境与线程请求，并覆盖 blank、CJK、超长、attention-mask/padding、batch 和 malformed-model 边界；当前 provider 没有真实 batch API，也不能应用/观测 ONNX 线程设置，因此 runner 必然保持 `NOT_READY`，尚未提供目标模型/tokenizer/corpus 与固定环境真实报告；profile 字段和验收门禁见 [证据专页](docs/benchmarks/m27-provider-model-profile.md)。 | 🚧 |
+| #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 已完成显式 profile 的 tokenizer/input/pooling 执行合同、单次 ONNX `Run` 的 `[batch, sequence]` 批处理、逐行 pooling/归一化、`IntraOpThreads` / `InterOpThreads` SessionOptions 接线、tiny fixture 测试及 `m27-local-onnx-evidence-v2` runner/verifier。v2 现在真实执行 batch 并记录 session initialized/applied/effective thread state；缺少目标模型/tokenizer/corpus、固定环境质量/性能报告时仍稳定保持 `NOT_READY`，不得把 tiny fixture 或本机 Native AOT 发布包装为真实模型证据；profile 字段和验收门禁见 [证据专页](docs/benchmarks/m27-provider-model-profile.md)。 | 🚧 |
 | M14 纠偏 | 接入最新 Microsoft Agent Framework 并以测试证明，或继续明确标注“自研 orchestrator”；在真实目标模型 profile、质量和可追溯报告归档前，不得宣称 bge-small-zh 已可用。 | 🚧 |
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告；已冻结 `m27-copilot-eval-v1` verifier 和诚实的 `NOT_READY` fixture，真实 provider usage/质量门禁后续验证。 | ✅（待验证） |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
-| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；Web 统一 runtime、ServerRelay、BrowserDirect 公网 transport 与本地 typed MCP tool-call loop 已落地。可信 OAuth token 获取、已部署公网 continuation/CSP/CORS、StudioNative 和真实双网流程仍未接入。 | 🚧 |
+| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；Web 统一 runtime、ServerRelay、BrowserDirect 公网 transport 与本地 typed MCP tool-call loop 已落地。Studio bridge 已完成 origin/header-token 收紧和 NativeWebHost 内存握手前置，但还不是 AI broker；可信 OAuth token 获取、已部署公网 continuation/CSP/CORS、StudioNative transport/系统凭据库和真实双网流程仍未接入。 | 🚧 |
 
 ### #340 — 双网客户端 Copilot
 
@@ -131,10 +131,10 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 | 阶段 | 交付 |
 |---|---|
-| Client runtime 合同 | 抽取统一 Copilot transport 和事件状态机，保留现有 server relay；加入独立的本地/公网 readiness、run id、tool call id、sequence/cursor、幂等和取消合同。Web 已实现显式四模式、统一状态机、拒绝重定向/截断/终态后事件的 fail-closed 门禁，以及关闭/切会话/卸载取消和服务端会话重同步；BrowserDirect 已从显式 HTTPS 公网 URL 与批准 origin 注册到真实聊天入口，公网 token 仅驻留内存并执行两小时 TTL、数据库 token 隔离、过期/登出清除及不回退门禁。单次 BrowserDirect 运行按稳定 `toolCallId` 和规范化参数缓存本地结果，同 ID 同参只回放缓存，同 ID 冲突在再次执行前拒绝，重复回放也计入有界 loop 预算。legacy ServerRelay 因服务端尚无 stable ID，只提供当前流内按工具名 FIFO 配对，不构成重复调用幂等证据。可信 OAuth token 获取、StudioNative transport、服务端 stable call ID/cursor 续流仍待实现。会话、消息和 usage 继续回写 SonnetDB 服务端持久化，客户端只同步状态，不回退 `localStorage` 作为权威来源。 |
+| Client runtime 合同 | 抽取统一 Copilot transport 和事件状态机，保留现有 server relay；加入独立的本地/公网 readiness、run id、tool call id、sequence/cursor、幂等和取消合同。Web 已实现显式四模式、统一状态机、拒绝重定向/截断/终态后事件的 fail-closed 门禁，以及关闭/切会话/卸载取消和服务端会话重同步；BrowserDirect 已从显式 HTTPS 公网 URL 与批准 origin 注册到真实聊天入口，公网 token 仅驻留内存并执行两小时 TTL、数据库 token 隔离、过期/登出清除及不回退门禁。单次 BrowserDirect 运行按稳定 `toolCallId` 和规范化参数缓存本地结果，同 ID 同参只回放缓存，同 ID 冲突在再次执行前拒绝，重复回放也计入有界 loop 预算。legacy ServerRelay 因服务端尚无 stable ID，只提供当前流内按工具名 FIFO 配对，不构成重复调用幂等证据。Studio bridge 启动配置已改为 NativeWebHost request/event 内存握手，旧 URL/query/storage 凭据会清理；这只关闭 transport 接入前的宿主安全前置。可信 OAuth token 获取、StudioNative transport、服务端 stable call ID/cursor 续流仍待实现。会话、消息和 usage 继续回写 SonnetDB 服务端持久化，客户端只同步状态，不回退 `localStorage` 作为权威来源。 |
 | 本地工具会话 | Web BrowserDirect 已基于当前数据库 Bearer 与固定 `/mcp/{db}` 执行 `initialize` / `tools/list` / `tools/call`，要求工具同时声明 read-only、non-destructive、idempotent、closed-world，校验 input/output schema 和 typed contract v1；generic error、typed error、未知/未批准工具、结果超过 64 KiB 或单轮超过 8 次均在向公网 continuation 前 fail closed。数据库 grant、SQL AST、系统库和结果行数仍由服务端每次调用重新约束；公网出域还必须显式开启并配置 allowlist。 |
 | Browser Direct | 已接入显式 HTTPS 公网 URL、approved origins、独立公网 readiness、`fetch` 分段流式入口与本地 typed MCP loop；access token 仅驻留内存、最长两小时，并与数据库 token 隔离。每次 continuation 只发送到构造时批准的公网 endpoint，且下一段首事件必须逐字回显对应 `tool_result`。可信 Device Flow/PKCE 获取、已部署公网 continuation 合同、CSP/CORS 部署和真实公网服务联调仍待完成。 |
-| Studio Native | 由固定目标、非通用代理的 native broker 访问公网并使用系统凭据库保存 refresh token/BYOK；接入前收紧 Bridge origin、握手和 token 传递，不能把 bridge token 放入 URL 或浏览器存储。 |
+| Studio Native | 由固定目标、非通用代理的 native broker 访问公网并使用系统凭据库保存 refresh token/BYOK。bridge 安全前置已完成：仅接受配置的 Studio origin、header token 和 CORS preflight，拒绝 query token；endpoint/token 通过 NativeWebHost request/event 只进入当前 WebView 内存，并清理旧 URL/storage 残留。AI broker、系统凭据库、外部 provider transport 和真实双网流程仍未实现。 |
 | 治理与写入 | 第一阶段只开放只读 MCP。写工具后续消费 M29 的 staged approval，并增加由服务端签发、绑定 user/database/run/tool-call/规范化参数哈希/expiry 的一次性 confirmation challenge；模型或浏览器的 `confirmed=true` 不构成授权。 |
 | 审计与评测 | 记录模式、provider/model、数据库、工具、规范化参数或 SQL hash、行数、字节数、脱敏策略、审批和失败原因，默认不记录原始结果；纳入 M27 eval 与成本报告。 |
 
