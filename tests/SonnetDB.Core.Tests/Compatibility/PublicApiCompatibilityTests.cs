@@ -1,4 +1,6 @@
+using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.FullText;
 using SonnetDB.Generations;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
@@ -10,6 +12,32 @@ namespace SonnetDB.Core.Tests.Compatibility;
 
 public sealed class PublicApiCompatibilityTests
 {
+    [Fact]
+    public void DocumentFullTextFilteredSearch_ExtendOnlyPublicContract_IsConsumable()
+    {
+        Assert.NotNull(typeof(DocumentCollectionStore).GetMethod(
+            nameof(DocumentCollectionStore.SearchFullTextFiltered),
+            [
+                typeof(DocumentFullTextIndex),
+                typeof(string),
+                typeof(string),
+                typeof(int),
+                typeof(IReadOnlySet<string>),
+                typeof(long),
+                typeof(CancellationToken),
+            ]));
+        Assert.Equal(
+            typeof(IReadOnlyList<DocumentFullTextSearchHit>),
+            typeof(DocumentFullTextFilteredSearchResult)
+                .GetProperty(nameof(DocumentFullTextFilteredSearchResult.Hits))!
+                .PropertyType);
+        Assert.Equal(
+            typeof(bool),
+            typeof(DocumentFullTextFilteredSearchResult)
+                .GetProperty(nameof(DocumentFullTextFilteredSearchResult.PostingBudgetExceeded))!
+                .PropertyType);
+    }
+
     [Fact]
     public void DatabaseGeneration_ExtendOnlyPublicContract_IsConsumable()
     {

@@ -223,6 +223,71 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
     }
 
+    internal PersistentFullTextFilteredSearchResult SearchFiltered(
+        Query.Query query,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        long maxPostingVisits,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(allowedDocumentIds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPostingVisits);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (topK <= 0 || allowedDocumentIds.Count == 0)
+        {
+            return new PersistentFullTextFilteredSearchResult([], 0, false);
+        }
+
+        lock (_lock)
+        {
+            var state = new FilteredSearchState(
+                allowedDocumentIds,
+                maxPostingVisits,
+                cancellationToken);
+            Dictionary<string, double> scores = new(StringComparer.Ordinal);
+            try
+            {
+                Score(query, scores, state);
+            }
+            catch (FullTextPostingBudgetExceededException)
+            {
+                return new PersistentFullTextFilteredSearchResult(
+                    [],
+                    state.PostingVisits,
+                    true);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            List<SearchHit> hits = new(scores.Count);
+            foreach (KeyValuePair<string, double> kv in scores)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_liveDocuments.ContainsKey(kv.Key))
+                {
+                    hits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
+                }
+            }
+
+            hits.Sort(static (a, b) =>
+            {
+                int scoreCompare = b.Score.CompareTo(a.Score);
+                return scoreCompare != 0
+                    ? scoreCompare
+                    : string.CompareOrdinal(a.DocumentId.Value, b.DocumentId.Value);
+            });
+            if (hits.Count > topK)
+            {
+                hits.RemoveRange(topK, hits.Count - topK);
+            }
+
+            return new PersistentFullTextFilteredSearchResult(
+                hits,
+                state.PostingVisits,
+                false);
+        }
+    }
+
     /// <summary>
     /// 枚举指定字段下至少仍被一篇可见文档引用的 term，用于实现 fuzzy / wildcard term 展开。
     /// 返回按写入代次缓存的去重快照；仅存在于已全部 tombstone posting 中的历史 term 不会返回。
@@ -492,34 +557,41 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         return data;
     }
 
-    private void Score(Query.Query query, Dictionary<string, double> scores)
+    private void Score(
+        Query.Query query,
+        Dictionary<string, double> scores,
+        FilteredSearchState? filteredSearch = null)
     {
+        filteredSearch?.ThrowIfCancellationRequested();
         switch (query)
         {
             case Query.TermQuery term:
-                ScoreTerm(term, scores);
+                ScoreTerm(term, scores, filteredSearch);
                 break;
             case Query.PhraseQuery phrase:
-                ScorePhrase(phrase, scores);
+                ScorePhrase(phrase, scores, filteredSearch);
                 break;
             case Query.NearQuery near:
-                ScoreNear(near, scores);
+                ScoreNear(near, scores, filteredSearch);
                 break;
             case Query.OrQuery or:
                 foreach (Query.Query clause in or.Clauses)
                 {
-                    Score(clause, scores);
+                    Score(clause, scores, filteredSearch);
                 }
                 break;
             case Query.AndQuery and:
-                ScoreAnd(and, scores);
+                ScoreAnd(and, scores, filteredSearch);
                 break;
             default:
                 throw new NotSupportedException($"Unsupported query node: {query.GetType().Name}");
         }
     }
 
-    private void ScoreTerm(Query.TermQuery term, Dictionary<string, double> scores)
+    private void ScoreTerm(
+        Query.TermQuery term,
+        Dictionary<string, double> scores,
+        FilteredSearchState? filteredSearch)
     {
         int liveDocumentCount = _liveDocuments.Count;
         if (liveDocumentCount == 0)
@@ -546,6 +618,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             int livePostings = 0;
             foreach (int localId in postings.Keys)
             {
+                filteredSearch?.VisitPosting();
                 if (!tombstones.Contains(localId))
                 {
                     livePostings++;
@@ -574,7 +647,13 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
             foreach (KeyValuePair<int, int> posting in postings)
             {
+                filteredSearch?.VisitPosting();
                 if (tombstones.Contains(posting.Key) || !segment.Documents.TryGetValue(posting.Key, out DocumentId documentId))
+                {
+                    continue;
+                }
+
+                if (filteredSearch is not null && !filteredSearch.AllowedDocumentIds.Contains(documentId.Value))
                 {
                     continue;
                 }
@@ -587,22 +666,33 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
     }
 
-    private void ScorePhrase(Query.PhraseQuery phrase, Dictionary<string, double> scores)
+    private void ScorePhrase(
+        Query.PhraseQuery phrase,
+        Dictionary<string, double> scores,
+        FilteredSearchState? filteredSearch)
     {
         if (phrase.Terms.Count == 1)
         {
-            ScoreTerm(new Query.TermQuery(phrase.Field, phrase.Terms[0]), scores);
+            ScoreTerm(new Query.TermQuery(phrase.Field, phrase.Terms[0]), scores, filteredSearch);
             return;
         }
 
-        ScorePositional(phrase.Field, phrase.Terms, scores, PositionMatcher.CountPhraseMatches);
+        ScorePositional(
+            phrase.Field,
+            phrase.Terms,
+            scores,
+            PositionMatcher.CountPhraseMatches,
+            filteredSearch);
     }
 
-    private void ScoreNear(Query.NearQuery near, Dictionary<string, double> scores)
+    private void ScoreNear(
+        Query.NearQuery near,
+        Dictionary<string, double> scores,
+        FilteredSearchState? filteredSearch)
     {
         if (near.Terms.Count == 1)
         {
-            ScoreTerm(new Query.TermQuery(near.Field, near.Terms[0]), scores);
+            ScoreTerm(new Query.TermQuery(near.Field, near.Terms[0]), scores, filteredSearch);
             return;
         }
 
@@ -610,14 +700,16 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             near.Field,
             near.Terms,
             scores,
-            lists => PositionMatcher.CountNearMatches(lists, near.MaxDistance, near.InOrder));
+            lists => PositionMatcher.CountNearMatches(lists, near.MaxDistance, near.InOrder),
+            filteredSearch);
     }
 
     private void ScorePositional(
         string field,
         IReadOnlyList<string> terms,
         Dictionary<string, double> scores,
-        Func<List<int>[], int> matchCounter)
+        Func<List<int>[], int> matchCounter,
+        FilteredSearchState? filteredSearch)
     {
         int liveDocumentCount = _liveDocuments.Count;
         if (liveDocumentCount == 0)
@@ -632,6 +724,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         Dictionary<string, (int Count, int Length)> matches = new(StringComparer.Ordinal);
+        int documentFrequency = 0;
         foreach (SegmentReader segment in _segments.Values)
         {
             Dictionary<int, List<int>>[] postings = new Dictionary<int, List<int>>[terms.Count];
@@ -654,6 +747,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             HashSet<int> tombstones = _tombstones[segment.Id];
             foreach (int localId in postings[0].Keys)
             {
+                filteredSearch?.VisitPosting();
                 if (tombstones.Contains(localId) || !segment.Documents.TryGetValue(localId, out DocumentId documentId))
                 {
                     continue;
@@ -680,6 +774,13 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 int count = matchCounter(lists);
                 if (count > 0)
                 {
+                    documentFrequency++;
+                    if (filteredSearch is not null
+                        && !filteredSearch.AllowedDocumentIds.Contains(documentId.Value))
+                    {
+                        continue;
+                    }
+
                     int length = lengths.TryGetValue(localId, out int len) ? len : 0;
                     matches[documentId.Value] = (count, length);
                 }
@@ -692,7 +793,6 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         double averageLength = (double)stats.TotalLength / stats.DocumentCount;
-        int documentFrequency = matches.Count;
         double weight = _bm25f.GetWeight(field);
         foreach (KeyValuePair<string, (int Count, int Length)> match in matches)
         {
@@ -701,7 +801,10 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
     }
 
-    private void ScoreAnd(Query.AndQuery and, Dictionary<string, double> scores)
+    private void ScoreAnd(
+        Query.AndQuery and,
+        Dictionary<string, double> scores,
+        FilteredSearchState? filteredSearch)
     {
         if (and.Clauses.Count == 0)
         {
@@ -709,12 +812,12 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         Dictionary<string, double> first = new(StringComparer.Ordinal);
-        Score(and.Clauses[0], first);
+        Score(and.Clauses[0], first, filteredSearch);
 
         for (int i = 1; i < and.Clauses.Count; i++)
         {
             Dictionary<string, double> next = new(StringComparer.Ordinal);
-            Score(and.Clauses[i], next);
+            Score(and.Clauses[i], next, filteredSearch);
 
             Dictionary<string, double> merged = new(StringComparer.Ordinal);
             foreach (KeyValuePair<string, double> kv in first)
@@ -916,9 +1019,49 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         long Generation,
         IReadOnlyCollection<string> Terms);
 
+    private sealed class FilteredSearchState
+    {
+        private readonly CancellationToken _cancellationToken;
+        private readonly long _maxPostingVisits;
+
+        public FilteredSearchState(
+            IReadOnlySet<string> allowedDocumentIds,
+            long maxPostingVisits,
+            CancellationToken cancellationToken)
+        {
+            AllowedDocumentIds = allowedDocumentIds;
+            _maxPostingVisits = maxPostingVisits;
+            _cancellationToken = cancellationToken;
+        }
+
+        public IReadOnlySet<string> AllowedDocumentIds { get; }
+
+        public long PostingVisits { get; private set; }
+
+        public void ThrowIfCancellationRequested()
+            => _cancellationToken.ThrowIfCancellationRequested();
+
+        public void VisitPosting()
+        {
+            ThrowIfCancellationRequested();
+            PostingVisits++;
+            if (PostingVisits > _maxPostingVisits)
+            {
+                throw new FullTextPostingBudgetExceededException();
+            }
+        }
+    }
+
+    private sealed class FullTextPostingBudgetExceededException : Exception;
+
     private sealed class MutableFieldStats
     {
         public int DocumentCount;
         public long TotalLength;
     }
 }
+
+internal sealed record PersistentFullTextFilteredSearchResult(
+    IReadOnlyList<SearchHit> Hits,
+    long PostingVisits,
+    bool PostingBudgetExceeded);

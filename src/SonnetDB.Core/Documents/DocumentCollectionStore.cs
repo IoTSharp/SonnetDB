@@ -1102,6 +1102,44 @@ public sealed partial class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 在 allowed document ID 集内执行精确全文检索，并以 posting 检查预算保证有界执行。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    /// <param name="allowedDocumentIds">允许参与计分和返回的文档 ID 集。</param>
+    /// <param name="maxPostingVisits">最多检查的 posting 次数；耗尽时不返回部分结果。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>过滤候选数、实际 posting 检查数、预算状态与稳定排序命中。</returns>
+    public DocumentFullTextFilteredSearchResult SearchFullTextFiltered(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        long maxPostingVisits,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(allowedDocumentIds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPostingVisits);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            DocumentFullTextIndexStore store = OpenFullTextStoreLocked(index, rebuildIfMissing: true);
+            return store.SearchFiltered(
+                field,
+                queryText,
+                topK,
+                allowedDocumentIds,
+                maxPostingVisits,
+                cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// 返回指定全文索引当前可见文档数。
     /// </summary>
     /// <param name="index">全文索引声明。</param>

@@ -182,6 +182,56 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
+    internal DocumentFullTextFilteredSearchResult SearchFiltered(
+        string field,
+        string queryText,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        long maxPostingVisits,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(field);
+        ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
+        ArgumentNullException.ThrowIfNull(allowedDocumentIds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPostingVisits);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (topK <= 0 || allowedDocumentIds.Count == 0)
+        {
+            return new DocumentFullTextFilteredSearchResult(
+                [],
+                allowedDocumentIds.Count,
+                0,
+                false);
+        }
+
+        lock (_sync)
+        {
+            SonnetDB.FullText.Query.Query query = BuildQuery(
+                field,
+                queryText,
+                FullTextSearchMode.Exact,
+                FullTextQueryKind.All);
+            PersistentFullTextFilteredSearchResult search = _index.SearchFiltered(
+                query,
+                topK,
+                allowedDocumentIds,
+                maxPostingVisits,
+                cancellationToken);
+            var hits = new DocumentFullTextSearchHit[search.Hits.Count];
+            for (int i = 0; i < search.Hits.Count; i++)
+            {
+                SearchHit hit = search.Hits[i];
+                hits[i] = new DocumentFullTextSearchHit(hit.DocumentId.Value, hit.Score);
+            }
+
+            return new DocumentFullTextFilteredSearchResult(
+                hits,
+                allowedDocumentIds.Count,
+                search.PostingVisits,
+                search.PostingBudgetExceeded);
+        }
+    }
+
     /// <summary>
     /// 重建索引目录。
     /// </summary>
@@ -496,3 +546,16 @@ public readonly record struct DocumentFullTextSearchHit(string DocumentId, doubl
     public string FormatScore()
         => Score.ToString("G17", CultureInfo.InvariantCulture);
 }
+
+/// <summary>
+/// allowed document ID 集约束下的全文检索结果。
+/// </summary>
+/// <param name="Hits">按 BM25 分数降序、文档 ID 升序稳定排列的命中。</param>
+/// <param name="FilterCandidateCount">调用方提交给全文索引的 allowed document ID 数量。</param>
+/// <param name="PostingVisits">全文索引实际检查的 posting 次数；同一文档可能因多词查询被检查多次。</param>
+/// <param name="PostingBudgetExceeded">是否因 posting 检查预算耗尽而拒绝返回不完整结果。</param>
+public sealed record DocumentFullTextFilteredSearchResult(
+    IReadOnlyList<DocumentFullTextSearchHit> Hits,
+    int FilterCandidateCount,
+    long PostingVisits,
+    bool PostingBudgetExceeded);
