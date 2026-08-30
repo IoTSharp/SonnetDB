@@ -169,7 +169,7 @@ test('runtime fails closed for unknown and unavailable configured modes', async 
     undefined,
     'BrowserDirect',
   )))
-    .rejects.toMatchObject({ code: 'runtime_transport_unavailable' });
+    .rejects.toMatchObject({ code: 'browser_direct_configuration_missing' });
   await expect(collect(streamCopilotChat(
     fakeApi('https://unused.example.test'),
     'token',

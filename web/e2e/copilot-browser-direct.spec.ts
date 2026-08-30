@@ -1,18 +1,185 @@
 import { expect, test } from '@playwright/test';
 import type { AxiosInstance } from 'axios';
+import { createPinia, setActivePinia } from 'pinia';
 import {
   BrowserDirectContractVersion,
   BrowserDirectCopilotTransport,
   resolveApprovedPublicBaseUrl,
 } from '../src/copilot/browserDirect';
+import {
+  clearBrowserDirectAccessToken,
+  setBrowserDirectAccessToken,
+} from '../src/copilot/browserDirectEntry';
 import { CopilotRuntime, type CopilotTransportEvent } from '../src/copilot/runtime';
-import type { CopilotChatEvent, CopilotChatRequest } from '../src/api/copilot';
+import {
+  streamCopilotChat,
+  type CopilotChatEvent,
+  type CopilotChatRequest,
+} from '../src/api/copilot';
+import { useAuthStore } from '../src/stores/auth';
 
 const Request: CopilotChatRequest = {
   db: 'factory',
   messages: [{ role: 'user', content: '描述 cpu' }],
   mode: 'read-only',
 };
+
+test.afterEach(() => {
+  clearBrowserDirectAccessToken();
+});
+
+test('Web Copilot entry registers BrowserDirect with only the in-memory public token', async () => {
+  setBrowserDirectAccessToken('public-access-token', new Date(Date.now() + 60_000).toISOString());
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    requests.push({ url, init });
+    if (url.startsWith('https://db.internal')) return Response.json({ status: 'ok' });
+    if (url.endsWith('/readiness')) return publicJsonResponse({ status: 'ready' });
+
+    const body = JSON.parse(String(init?.body)) as { runId: string };
+    const events: Array<CopilotTransportEvent<CopilotChatEvent>> = [
+      { runId: body.runId, sequence: 1, cursor: 'cursor-1', event: { type: 'final', answer: 'ready' } },
+      { runId: body.runId, sequence: 2, cursor: 'cursor-2', event: { type: 'done' } },
+    ];
+    return fragmentedResponse(
+      `${events.map((item) => JSON.stringify(item)).join('\n')}\n`,
+      'application/x-ndjson',
+      [13],
+      true,
+    );
+  };
+
+  const received = await collect(streamCopilotChat(
+    fakeApi('https://db.internal'),
+    'database-token',
+    Request,
+    undefined,
+    'BrowserDirect',
+    {
+      publicBaseUrl: 'https://ai.example.com/runtime',
+      approvedPublicOrigins: ['https://ai.example.com'],
+      locationHref: 'https://studio.local/app',
+      fetchImpl,
+    },
+  ));
+
+  expect(received.map((item) => item.event.type)).toEqual(['final', 'done']);
+  expect(requests.map((item) => item.url)).toEqual([
+    'https://db.internal/healthz',
+    'https://ai.example.com/runtime/v1/copilot/readiness',
+    'https://ai.example.com/runtime/v1/copilot/chat/stream',
+  ]);
+  expect(new Headers(requests[0].init?.headers).has('Authorization')).toBe(false);
+  for (const publicRequest of requests.slice(1)) {
+    expect(new Headers(publicRequest.init?.headers).get('Authorization')).toBe('Bearer public-access-token');
+    expect(JSON.stringify(publicRequest)).not.toContain('database-token');
+  }
+});
+
+test('Web Copilot entry rejects database-token reuse before any public request', async () => {
+  setBrowserDirectAccessToken('database-token', futureExpiry());
+  const requests: string[] = [];
+
+  await expect(collect(streamCopilotChat(
+    fakeApi('https://db.internal'),
+    'database-token',
+    Request,
+    undefined,
+    'BrowserDirect',
+    {
+      publicBaseUrl: 'https://ai.example.com',
+      approvedPublicOrigins: ['https://ai.example.com'],
+      locationHref: 'https://studio.local/app',
+      fetchImpl: async (input) => {
+        requests.push(String(input));
+        return Response.json({ status: 'ok' });
+      },
+    },
+  ))).rejects.toMatchObject({ code: 'browser_direct_token_boundary_violation' });
+
+  expect(requests).toEqual(['https://db.internal/healthz']);
+});
+
+test('Web Copilot entry fails closed for an expired in-memory public token', async () => {
+  expect(() => setBrowserDirectAccessToken(
+    'expired-public-token',
+    new Date(Date.now() - 1_000).toISOString(),
+  )).toThrow(/已过期/u);
+  const requests: string[] = [];
+
+  await expect(collect(streamCopilotChat(
+    fakeApi('https://db.internal'),
+    'database-token',
+    Request,
+    undefined,
+    'BrowserDirect',
+    {
+      publicBaseUrl: 'https://ai.example.com',
+      approvedPublicOrigins: ['https://ai.example.com'],
+      locationHref: 'https://studio.local/app',
+      fetchImpl: async (input) => {
+        requests.push(String(input));
+        return Response.json({ status: 'ok' });
+      },
+    },
+  ))).rejects.toMatchObject({ code: 'runtime_public_unavailable' });
+
+  expect(requests).toEqual(['https://db.internal/healthz']);
+});
+
+test('database logout clears the in-memory BrowserDirect public token', async () => {
+  const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    },
+  });
+
+  try {
+    setBrowserDirectAccessToken('public-access-token', futureExpiry());
+    setActivePinia(createPinia());
+    useAuthStore().logout();
+    const requests: string[] = [];
+
+    await expect(collect(streamCopilotChat(
+      fakeApi('https://db.internal'),
+      'database-token',
+      Request,
+      undefined,
+      'BrowserDirect',
+      {
+        publicBaseUrl: 'https://ai.example.com',
+        approvedPublicOrigins: ['https://ai.example.com'],
+        locationHref: 'https://studio.local/app',
+        fetchImpl: async (input) => {
+          requests.push(String(input));
+          return Response.json({ status: 'ok' });
+        },
+      },
+    ))).rejects.toMatchObject({ code: 'runtime_public_unavailable' });
+
+    expect(requests).toEqual(['https://db.internal/healthz']);
+  } finally {
+    if (previousLocalStorage) {
+      Object.defineProperty(globalThis, 'localStorage', previousLocalStorage);
+    } else {
+      Reflect.deleteProperty(globalThis, 'localStorage');
+    }
+  }
+});
+
+test('default BrowserDirect credential rejects missing or excessive expiry', () => {
+  expect(() => Reflect.apply(setBrowserDirectAccessToken, undefined, ['public-access-token']))
+    .toThrow(/过期时间/u);
+  expect(() => setBrowserDirectAccessToken(
+    'public-access-token',
+    new Date(Date.now() + (3 * 60 * 60 * 1000)).toISOString(),
+  )).toThrow(/不能超过 2 小时/u);
+});
 
 test('BrowserDirect keeps local and public readiness credentials isolated', async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -207,6 +374,10 @@ function createTransport(fetchImpl: typeof fetch) {
       fetchImpl,
     },
   );
+}
+
+function futureExpiry(): string {
+  return new Date(Date.now() + 60_000).toISOString();
 }
 
 function fakeApi(baseUrl: string): AxiosInstance {

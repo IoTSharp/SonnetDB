@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, markRaw, shallowRef } from 'vue';
 import type { AxiosInstance } from 'axios';
 import { createApiClient, loadAuth, persistAuth, type AuthState } from '@/api/client';
+import { clearBrowserDirectAccessToken } from '@/copilot/browserDirectEntry';
 
 export const useAuthStore = defineStore('auth', () => {
   // 注意：state 必须用 shallowRef，否则 Pinia 会把 ref 内容做 reactive 代理；
@@ -18,6 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperuser = computed(() => state.value?.isSuperuser ?? false);
 
   function apply(nextState: AuthState | null): void {
+    if (nextState === null) clearBrowserDirectAccessToken();
     state.value = nextState;
     persistAuth(nextState);
   }

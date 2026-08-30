@@ -7,6 +7,10 @@ import {
   type CopilotTransport,
   type CopilotTransportEvent,
 } from '@/copilot/runtime';
+import {
+  createConfiguredBrowserDirectTransport,
+  type BrowserDirectRuntimeRegistrationOptions,
+} from '@/copilot/browserDirectEntry';
 
 export interface CopilotMessage {
   role: string;
@@ -419,11 +423,15 @@ export async function* streamCopilotChat(
   request: CopilotChatRequest,
   signal?: AbortSignal,
   configuredMode?: unknown,
+  browserDirectOptions?: BrowserDirectRuntimeRegistrationOptions,
 ): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
   const mode = resolveCopilotRuntimeMode(configuredMode);
-  const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = mode === 'ServerRelay'
-    ? [new ServerRelayCopilotTransport(api, token)]
-    : [];
+  const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = [];
+  if (mode === 'ServerRelay') {
+    transports.push(new ServerRelayCopilotTransport(api, token));
+  } else if (mode === 'BrowserDirect') {
+    transports.push(createConfiguredBrowserDirectTransport(api, token, browserDirectOptions));
+  }
   const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(mode, transports);
   yield* runtime.run(request, { signal });
 }
