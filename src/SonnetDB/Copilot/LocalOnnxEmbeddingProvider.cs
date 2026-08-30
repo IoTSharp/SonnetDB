@@ -24,12 +24,16 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     private readonly string? _modelPath;
     private readonly string? _tokenizerPath;
     private readonly CopilotEmbeddingModelProfile? _profile;
+    private readonly int _intraOpThreads;
+    private readonly int _interOpThreads;
     private InferenceSession? _session;
     private ExecutionPlan? _executionPlan;
     private Tokenizer? _tokenizer;
     private BuiltinHashEmbeddingProvider? _fallbackProvider;
     private string? _fallbackReason;
     private readonly string? _configurationError;
+    private LocalOnnxExecutionState _executionState;
+    private long _inferenceRunCount;
     private volatile bool _disposed;
 
     /// <summary>
@@ -40,6 +44,9 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         _profile = options.ModelProfile?.CreateSnapshot();
+        _intraOpThreads = options.IntraOpThreads;
+        _interOpThreads = options.InterOpThreads;
+        _executionState = LocalOnnxExecutionState.NotInitialized(_intraOpThreads, _interOpThreads);
         // Resolve relative resources once so a later host/plugin call that changes
         // the process current directory cannot silently switch the model contract.
         _modelPath = SnapshotPath(options.LocalModelPath);
@@ -81,6 +88,13 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     public CopilotEmbeddingModelProfile? ModelProfile => _profile?.CreateSnapshot();
 
     /// <summary>
+    /// 当前 ONNX session 的线程与执行模式状态。
+    /// </summary>
+    public LocalOnnxExecutionState ExecutionState => Volatile.Read(ref _executionState);
+
+    internal long InferenceRunCount => Interlocked.Read(ref _inferenceRunCount);
+
+    /// <summary>
     /// 为文本生成 embedding。
     /// </summary>
     /// <param name="text">待编码的非空文本。</param>
@@ -88,10 +102,29 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     /// <returns>按 profile 约定生成的 embedding 向量。</returns>
     public async ValueTask<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        IReadOnlyList<float[]> embeddings = await EmbedBatchAsync([text], cancellationToken).ConfigureAwait(false);
+        return embeddings[0];
+    }
 
-        if (string.IsNullOrWhiteSpace(text))
-            throw new ArgumentException("Embedding input cannot be empty.", nameof(text));
+    /// <summary>
+    /// 使用一次 ONNX Runtime <c>Run</c> 为一批文本生成 embedding。
+    /// </summary>
+    /// <param name="texts">待编码的非空文本集合。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>与输入顺序一致的 embedding 向量。</returns>
+    public async ValueTask<IReadOnlyList<float[]>> EmbedBatchAsync(
+        IReadOnlyList<string> texts,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(texts);
+        if (texts.Count == 0)
+            throw new ArgumentException("Embedding batch cannot be empty.", nameof(texts));
+        for (var index = 0; index < texts.Count; index++)
+        {
+            if (string.IsNullOrWhiteSpace(texts[index]))
+                throw new ArgumentException($"Embedding input at index {index} cannot be empty.", nameof(texts));
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -100,10 +133,10 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
 
         var fallback = Volatile.Read(ref _fallbackProvider);
         if (fallback is not null)
-            return await fallback.EmbedAsync(text, cancellationToken).ConfigureAwait(false);
+            return await EmbedFallbackBatchAsync(fallback, texts, cancellationToken).ConfigureAwait(false);
 
         BuiltinHashEmbeddingProvider? runtimeFallback = null;
-        float[]? embedding = null;
+        IReadOnlyList<float[]>? embeddings = null;
 
         // Keep plan construction, tokenizer encoding, input preparation and execution
         // under the same lifecycle lock. A runtime failure can dispose the native
@@ -119,9 +152,9 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
                 {
                     var plan = EnsureExecutionPlan();
                     var tokenizer = EnsureTokenizer();
-                    var prepared = PrepareInputs(tokenizer, plan, text, cancellationToken);
+                    var prepared = PrepareInputs(tokenizer, plan, texts, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
-                    embedding = RunInference(plan, prepared, cancellationToken);
+                    embeddings = RunInference(plan, prepared, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                 }
                 catch (OperationCanceledException)
@@ -152,9 +185,9 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         }
 
         if (runtimeFallback is not null)
-            return await runtimeFallback.EmbedAsync(text, cancellationToken).ConfigureAwait(false);
+            return await EmbedFallbackBatchAsync(runtimeFallback, texts, cancellationToken).ConfigureAwait(false);
 
-        return embedding ?? throw new InvalidOperationException("Local ONNX embedding execution did not produce a result.");
+        return embeddings ?? throw new InvalidOperationException("Local ONNX embedding execution did not produce a result.");
     }
 
     /// <summary>
@@ -173,11 +206,17 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             _executionPlan = null;
             _tokenizer = null;
             _fallbackProvider = null;
+            _executionState = LocalOnnxExecutionState.NotInitialized(_intraOpThreads, _interOpThreads);
         }
     }
 
     private string? ValidateInitialConfiguration()
     {
+        if (_intraOpThreads < 0)
+            return "Local ONNX IntraOpThreads must be non-negative.";
+        if (_interOpThreads < 0)
+            return "Local ONNX InterOpThreads must be non-negative.";
+
         if (_profile is null)
             return "Local ONNX model profile is not configured.";
 
@@ -252,6 +291,7 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             _session = null;
             _executionPlan = null;
             _tokenizer = null;
+            _executionState = LocalOnnxExecutionState.NotInitialized(_intraOpThreads, _interOpThreads);
             _fallbackProvider ??= new BuiltinHashEmbeddingProvider(
                 new CopilotEmbeddingOptions { Provider = "local" });
             return _fallbackProvider;
@@ -278,6 +318,11 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
                 EnableCpuMemArena = true,
                 EnableMemoryPattern = true,
+                IntraOpNumThreads = _intraOpThreads,
+                InterOpNumThreads = _interOpThreads,
+                ExecutionMode = _interOpThreads > 0
+                    ? Microsoft.ML.OnnxRuntime.ExecutionMode.ORT_PARALLEL
+                    : Microsoft.ML.OnnxRuntime.ExecutionMode.ORT_SEQUENTIAL,
             };
 
             var session = new InferenceSession(modelPath, sessionOptions);
@@ -285,6 +330,7 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             {
                 _executionPlan = BuildExecutionPlan(session, _profile);
                 _session = session;
+                _executionState = LocalOnnxExecutionState.Initialized(_intraOpThreads, _interOpThreads);
                 return session;
             }
             catch
@@ -429,13 +475,13 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
                 || (tokenTypeIds is not null && string.Equals(positionIds.Name, tokenTypeIds.Name, StringComparison.OrdinalIgnoreCase))))
             throw new InvalidDataException("ONNX position ids input must have a distinct tensor name.");
 
-        var sequenceLength = ValidateAndResolveSequenceLength(inputIds.Metadata, profile);
+        var (fixedBatchSize, sequenceLength) = ValidateAndResolveInputShape(inputIds.Metadata, profile);
         if (attentionMask is not null)
-            ValidateSequenceShape(attentionMask.Metadata, sequenceLength, "attention mask");
+            ValidateSequenceShape(attentionMask.Metadata, fixedBatchSize, sequenceLength, "attention mask");
         if (tokenTypeIds is not null)
-            ValidateSequenceShape(tokenTypeIds.Metadata, sequenceLength, "token type ids");
+            ValidateSequenceShape(tokenTypeIds.Metadata, fixedBatchSize, sequenceLength, "token type ids");
         if (positionIds is not null)
-            ValidateSequenceShape(positionIds.Metadata, sequenceLength, "position ids");
+            ValidateSequenceShape(positionIds.Metadata, fixedBatchSize, sequenceLength, "position ids");
 
         var outputName = ResolveOutputName(session.OutputMetadata, profile.OutputName);
         if (!session.OutputMetadata.TryGetValue(outputName, out var outputMetadata))
@@ -451,6 +497,7 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             attentionMask,
             tokenTypeIds,
             positionIds,
+            fixedBatchSize,
             sequenceLength,
             outputName,
             outputKind,
@@ -593,10 +640,13 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         return new InputBinding(name, kind, metadata);
     }
 
-    private static int ValidateAndResolveSequenceLength(NodeMetadata metadata, CopilotEmbeddingModelProfile profile)
+    private static (int FixedBatchSize, int SequenceLength) ValidateAndResolveInputShape(
+        NodeMetadata metadata,
+        CopilotEmbeddingModelProfile profile)
     {
-        ValidateSequenceShape(metadata, expectedSequenceLength: null, "input ids");
+        ValidateSequenceShape(metadata, expectedBatchSize: 0, expectedSequenceLength: null, "input ids");
         var dimensions = metadata.Dimensions;
+        var fixedBatchSize = dimensions[0] > 0 ? dimensions[0] : 0;
         var fixedSequenceLength = dimensions[1] > 0 ? dimensions[1] : 0;
         if (fixedSequenceLength > 0 && profile.MaxTokens != fixedSequenceLength)
         {
@@ -604,17 +654,26 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
                 $"ONNX input ids sequence dimension is fixed at {fixedSequenceLength}, but profile MaxTokens is {profile.MaxTokens}; fixed-shape models require an exact match.");
         }
 
-        return fixedSequenceLength > 0 ? fixedSequenceLength : profile.MaxTokens;
+        return (fixedBatchSize, fixedSequenceLength > 0 ? fixedSequenceLength : profile.MaxTokens);
     }
 
-    private static void ValidateSequenceShape(NodeMetadata metadata, int? expectedSequenceLength, string description)
+    private static void ValidateSequenceShape(
+        NodeMetadata metadata,
+        int expectedBatchSize,
+        int? expectedSequenceLength,
+        string description)
     {
         if (!metadata.IsTensor || metadata.Dimensions is null || metadata.Dimensions.Length != 2)
             throw new InvalidDataException($"ONNX {description} input must have rank 2 [batch, sequence].");
 
         var batch = metadata.Dimensions[0];
-        if (batch == 0 || batch < -1 || batch > 1)
-            throw new InvalidDataException($"ONNX {description} input batch dimension must be 1 or dynamic.");
+        if (batch == 0 || batch < -1)
+            throw new InvalidDataException($"ONNX {description} input has an invalid batch dimension {batch}.");
+        if (expectedBatchSize > 0 && batch > 0 && batch != expectedBatchSize)
+        {
+            throw new InvalidDataException(
+                $"ONNX {description} batch dimension is {batch}, expected {expectedBatchSize}.");
+        }
 
         var sequence = metadata.Dimensions[1];
         if (sequence == 0 || sequence < -1)
@@ -632,8 +691,6 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             throw new InvalidDataException($"ONNX output '{outputName}' must have rank 1, 2 or 3.");
 
         var dimensions = metadata.Dimensions;
-        if (dimensions.Length == 3 && (dimensions[0] == 0 || dimensions[0] < -1 || dimensions[0] > 1))
-            throw new InvalidDataException($"ONNX output '{outputName}' batch dimension must be 1 or dynamic.");
         for (var i = 0; i < dimensions.Length; i++)
         {
             if (dimensions[i] == 0 || dimensions[i] < -1)
@@ -712,63 +769,78 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     private PreparedInputs PrepareInputs(
         Tokenizer tokenizer,
         ExecutionPlan plan,
-        string text,
+        IReadOnlyList<string> texts,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var ids = EncodeTokenIds(tokenizer, text, _profile!, plan.SequenceLength);
-        var tokenCount = ids.Count;
-        if (tokenCount <= 0 || tokenCount > plan.SequenceLength)
-            throw new InvalidDataException($"Tokenizer returned {tokenCount} token(s), outside the configured sequence length {plan.SequenceLength}.");
+        if (plan.FixedBatchSize > 0 && texts.Count != plan.FixedBatchSize)
+        {
+            throw new InvalidDataException(
+                $"ONNX input batch dimension is fixed at {plan.FixedBatchSize}, but the request contains {texts.Count} text(s).");
+        }
 
         var padTokenId = ResolvePaddingTokenId(tokenizer, _profile!);
         if (!TryNormalizePaddingSide(_profile!.PaddingSide, out var paddingSide))
             throw new InvalidDataException($"Unsupported local ONNX padding side '{_profile.PaddingSide}'.");
 
-        var inputIds = new int[plan.SequenceLength];
-        var attention = new int[plan.SequenceLength];
-        var poolingMask = new bool[plan.SequenceLength];
-        var positionIds = plan.PositionIds is null ? null : new int[plan.SequenceLength];
-        var contentOffset = paddingSide == PaddingSide.Left
-            ? plan.SequenceLength - tokenCount
-            : 0;
-
+        var elementCount = checked(texts.Count * plan.SequenceLength);
+        var inputIds = new int[elementCount];
+        var attention = new int[elementCount];
+        var poolingMasks = new bool[texts.Count][];
+        var positionIds = plan.PositionIds is null ? null : new int[elementCount];
         Array.Fill(inputIds, padTokenId);
 
-        for (var i = 0; i < tokenCount; i++)
+        for (var batchIndex = 0; batchIndex < texts.Count; batchIndex++)
         {
-            var slot = contentOffset + i;
-            inputIds[slot] = ids[i];
-            attention[slot] = 1;
-            poolingMask[slot] = true;
-            if (positionIds is not null)
-                positionIds[slot] = i;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<int> ids = EncodeTokenIds(tokenizer, texts[batchIndex], _profile!, plan.SequenceLength);
+            var tokenCount = ids.Count;
+            if (tokenCount <= 0 || tokenCount > plan.SequenceLength)
+                throw new InvalidDataException($"Tokenizer returned {tokenCount} token(s), outside the configured sequence length {plan.SequenceLength}.");
 
-        if (_profile!.ExcludeSpecialTokensFromPooling && plan.Pooling != PoolingMode.Cls)
-        {
-            var specialCount = GetLeadingSpecialTokenCount(tokenizer, _profile);
-            if (specialCount > 0)
-                for (var i = 0; i < Math.Min(specialCount, tokenCount); i++)
-                    poolingMask[contentOffset + i] = false;
+            var poolingMask = new bool[plan.SequenceLength];
+            poolingMasks[batchIndex] = poolingMask;
+            var batchOffset = checked(batchIndex * plan.SequenceLength);
+            var contentOffset = paddingSide == PaddingSide.Left
+                ? plan.SequenceLength - tokenCount
+                : 0;
 
-            var trailingSpecialCount = GetTrailingSpecialTokenCount(tokenizer, _profile);
-            for (var i = 0; i < trailingSpecialCount && i < tokenCount; i++)
-                poolingMask[contentOffset + tokenCount - 1 - i] = false;
+            for (var tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++)
+            {
+                var row = contentOffset + tokenIndex;
+                var slot = batchOffset + row;
+                inputIds[slot] = ids[tokenIndex];
+                attention[slot] = 1;
+                poolingMask[row] = true;
+                if (positionIds is not null)
+                    positionIds[slot] = tokenIndex;
+            }
+
+            if (_profile!.ExcludeSpecialTokensFromPooling && plan.Pooling != PoolingMode.Cls)
+            {
+                var specialCount = GetLeadingSpecialTokenCount(tokenizer, _profile);
+                if (specialCount > 0)
+                    for (var index = 0; index < Math.Min(specialCount, tokenCount); index++)
+                        poolingMask[contentOffset + index] = false;
+
+                var trailingSpecialCount = GetTrailingSpecialTokenCount(tokenizer, _profile);
+                for (var index = 0; index < trailingSpecialCount && index < tokenCount; index++)
+                    poolingMask[contentOffset + tokenCount - 1 - index] = false;
+            }
         }
 
         var inputs = new List<NamedOnnxValue>(capacity: 4)
         {
-            CreateIntegerTensor(plan.InputIds, inputIds),
+            CreateIntegerTensor(plan.InputIds, inputIds, texts.Count, plan.SequenceLength),
         };
         if (plan.AttentionMask is not null)
-            inputs.Add(CreateIntegerTensor(plan.AttentionMask, attention));
+            inputs.Add(CreateIntegerTensor(plan.AttentionMask, attention, texts.Count, plan.SequenceLength));
         if (plan.TokenTypeIds is not null)
-            inputs.Add(CreateIntegerTensor(plan.TokenTypeIds, new int[plan.SequenceLength]));
+            inputs.Add(CreateIntegerTensor(plan.TokenTypeIds, new int[elementCount], texts.Count, plan.SequenceLength));
         if (plan.PositionIds is not null)
-            inputs.Add(CreateIntegerTensor(plan.PositionIds, positionIds!));
+            inputs.Add(CreateIntegerTensor(plan.PositionIds, positionIds!, texts.Count, plan.SequenceLength));
 
-        return new PreparedInputs(inputs, poolingMask);
+        return new PreparedInputs(inputs, poolingMasks);
     }
 
     private static IReadOnlyList<int> EncodeTokenIds(
@@ -874,7 +946,7 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             ? 1
             : 0;
 
-    private float[] RunInference(
+    private IReadOnlyList<float[]> RunInference(
         ExecutionPlan plan,
         PreparedInputs prepared,
         CancellationToken cancellationToken)
@@ -889,21 +961,22 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             var session = _session ?? throw new InvalidOperationException("Local ONNX session is not initialized.");
             try
             {
+                Interlocked.Increment(ref _inferenceRunCount);
                 using var outputs = session.Run(prepared.Inputs, [plan.OutputName]);
                 var output = outputs.FirstOrDefault(value => string.Equals(value.Name, plan.OutputName, StringComparison.Ordinal))
                     ?? throw new InvalidDataException($"ONNX inference result is missing output tensor '{plan.OutputName}'.");
 
                 return plan.OutputKind switch
                 {
-                    TensorKind.Float32 => PoolAndNormalize(
+                    TensorKind.Float32 => PoolAndNormalizeBatch(
                         output.AsTensor<float>().Dimensions.ToArray(),
                         output.AsEnumerable<float>().ToArray(),
-                        prepared.PoolingMask,
+                        prepared.PoolingMasks,
                         plan),
-                    TensorKind.Float64 => PoolAndNormalize(
+                    TensorKind.Float64 => PoolAndNormalizeBatch(
                         output.AsTensor<double>().Dimensions.ToArray(),
                         output.AsEnumerable<double>().Select(static value => (float)value).ToArray(),
-                        prepared.PoolingMask,
+                        prepared.PoolingMasks,
                         plan),
                     _ => throw new InvalidDataException($"Unsupported ONNX output type for '{plan.OutputName}'."),
                 };
@@ -921,10 +994,10 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         }
     }
 
-    private float[] PoolAndNormalize(
+    private IReadOnlyList<float[]> PoolAndNormalizeBatch(
         int[] shape,
         float[] values,
-        bool[] poolingMask,
+        bool[][] poolingMasks,
         ExecutionPlan plan)
     {
         if (shape.Length is < 1 or > 3)
@@ -932,98 +1005,117 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         if (shape.Any(static dimension => dimension <= 0))
             throw new InvalidDataException($"ONNX output '{plan.OutputName}' contains a non-positive runtime dimension.");
 
-        var (isSequence, sequenceLength, dimensions, offset) = ResolveOutputLayout(shape, plan.OutputName);
-        var expectedValues = checked(isSequence ? sequenceLength * dimensions : dimensions);
+        var (isSequence, sequenceLength, dimensions) = ResolveOutputLayout(
+            shape,
+            poolingMasks.Length,
+            plan.OutputName);
+        var expectedValues = checked(
+            poolingMasks.Length * (isSequence ? sequenceLength : 1) * dimensions);
         if (values.Length != expectedValues)
             throw new InvalidDataException(
                 $"ONNX output '{plan.OutputName}' shape contains {expectedValues} values, actual count is {values.Length}.");
-        if (isSequence && sequenceLength != poolingMask.Length)
+        if (isSequence && poolingMasks.Any(mask => mask.Length != sequenceLength))
             throw new InvalidDataException(
-                $"ONNX output '{plan.OutputName}' sequence length is {sequenceLength}, expected {poolingMask.Length} to match the input sequence.");
+                $"ONNX output '{plan.OutputName}' sequence length is {sequenceLength}, expected {plan.SequenceLength} to match the input sequence.");
         if (dimensions != _profile!.Dimensions)
             throw new InvalidDataException(
                 $"ONNX output dimension is {dimensions}, profile requires {_profile.Dimensions}.");
 
-        float[] result;
-        if (!isSequence)
+        var results = new float[poolingMasks.Length][];
+        for (var batchIndex = 0; batchIndex < poolingMasks.Length; batchIndex++)
         {
-            result = new float[dimensions];
-            Array.Copy(values, offset, result, 0, dimensions);
-        }
-        else if (plan.Pooling == PoolingMode.Cls)
-        {
-            var firstIncludedRow = Array.FindIndex(poolingMask, static included => included);
-            if (firstIncludedRow < 0 || firstIncludedRow >= sequenceLength)
-                throw new InvalidDataException("ONNX CLS pooling received an empty attention mask.");
-            result = values.AsSpan(checked(offset + firstIncludedRow * dimensions), dimensions).ToArray();
-        }
-        else
-        {
-            // Auto and mean pooling use the same safe sequence rule: follow the
-            // attention mask so padded rows never contribute to the denominator. A
-            // pooled [H]/[1,H] output is handled above and is never pooled again.
-            result = new float[dimensions];
-            var included = 0;
-            for (var row = 0; row < sequenceLength; row++)
+            bool[] poolingMask = poolingMasks[batchIndex];
+            var batchOffset = checked(batchIndex * (isSequence ? sequenceLength : 1) * dimensions);
+            float[] result;
+            if (!isSequence)
             {
-                if (row >= poolingMask.Length || !poolingMask[row])
-                    continue;
-                var rowOffset = checked(offset + row * dimensions);
+                result = values.AsSpan(batchOffset, dimensions).ToArray();
+            }
+            else if (plan.Pooling == PoolingMode.Cls)
+            {
+                var firstIncludedRow = Array.FindIndex(poolingMask, static included => included);
+                if (firstIncludedRow < 0 || firstIncludedRow >= sequenceLength)
+                    throw new InvalidDataException("ONNX CLS pooling received an empty attention mask.");
+                result = values.AsSpan(
+                    checked(batchOffset + firstIncludedRow * dimensions),
+                    dimensions).ToArray();
+            }
+            else
+            {
+                // Auto and mean pooling follow each input's mask independently so
+                // padding from one batch row cannot affect another row's denominator.
+                result = new float[dimensions];
+                var included = 0;
+                for (var row = 0; row < sequenceLength; row++)
+                {
+                    if (!poolingMask[row])
+                        continue;
+                    var rowOffset = checked(batchOffset + row * dimensions);
+                    for (var column = 0; column < dimensions; column++)
+                        result[column] += values[rowOffset + column];
+                    included++;
+                }
+
+                if (included == 0)
+                    throw new InvalidDataException("ONNX mean pooling received an empty attention mask.");
+                var reciprocal = 1f / included;
                 for (var column = 0; column < dimensions; column++)
-                    result[column] += values[rowOffset + column];
-                included++;
+                    result[column] *= reciprocal;
             }
 
-            if (included == 0)
-                throw new InvalidDataException("ONNX mean pooling received an empty attention mask.");
-            var reciprocal = 1f / included;
-            for (var column = 0; column < dimensions; column++)
-                result[column] *= reciprocal;
+            ValidateAndNormalize(result);
+            results[batchIndex] = result;
         }
 
-        for (var i = 0; i < result.Length; i++)
+        return results;
+    }
+
+    private void ValidateAndNormalize(float[] result)
+    {
+        for (var index = 0; index < result.Length; index++)
         {
-            if (float.IsNaN(result[i]) || float.IsInfinity(result[i]))
+            if (float.IsNaN(result[index]) || float.IsInfinity(result[index]))
                 throw new InvalidDataException("ONNX embedding contains NaN or infinity.");
         }
 
-        if (_profile.Normalize)
+        if (!_profile!.Normalize)
+            return;
+
+        double sumSquares = 0;
+        for (var index = 0; index < result.Length; index++)
+            sumSquares += (double)result[index] * result[index];
+        if (sumSquares <= 0d || double.IsNaN(sumSquares) || double.IsInfinity(sumSquares))
+            throw new InvalidDataException("ONNX embedding is a zero or invalid vector.");
+
+        var norm = Math.Sqrt(sumSquares);
+        if (!(norm > 0d) || double.IsNaN(norm) || double.IsInfinity(norm))
+            throw new InvalidDataException("ONNX embedding has an invalid L2 norm.");
+
+        for (var index = 0; index < result.Length; index++)
         {
-            double sumSquares = 0;
-            for (var i = 0; i < result.Length; i++)
-                sumSquares += (double)result[i] * result[i];
-            if (sumSquares <= 0d || double.IsNaN(sumSquares) || double.IsInfinity(sumSquares))
-                throw new InvalidDataException("ONNX embedding is a zero or invalid vector.");
-
-            var norm = Math.Sqrt(sumSquares);
-            if (!(norm > 0d) || double.IsNaN(norm) || double.IsInfinity(norm))
-                throw new InvalidDataException("ONNX embedding has an invalid L2 norm.");
-
-            for (var i = 0; i < result.Length; i++)
-            {
-                // Divide in double precision before converting back to float. A
-                // very small non-zero vector can make a float reciprocal overflow;
-                // direct division keeps the normalized value finite and bounded.
-                result[i] = (float)(result[i] / norm);
-                if (float.IsNaN(result[i]) || float.IsInfinity(result[i]))
-                    throw new InvalidDataException("ONNX normalized embedding contains NaN or infinity.");
-            }
+            result[index] = (float)(result[index] / norm);
+            if (float.IsNaN(result[index]) || float.IsInfinity(result[index]))
+                throw new InvalidDataException("ONNX normalized embedding contains NaN or infinity.");
         }
-
-        return result;
     }
 
-    private static (bool IsSequence, int SequenceLength, int Dimensions, int Offset) ResolveOutputLayout(
+    private static (bool IsSequence, int SequenceLength, int Dimensions) ResolveOutputLayout(
         int[] shape,
+        int batchSize,
         string outputName)
     {
         return shape.Length switch
         {
-            1 => (false, 1, shape[0], 0),
-            2 when shape[0] == 1 => (false, 1, shape[1], 0),
-            2 => (true, shape[0], shape[1], 0),
-            3 when shape[0] == 1 => (true, shape[1], shape[2], 0),
-            3 => throw new InvalidDataException($"ONNX output '{outputName}' has unsupported batch dimension {shape[0]}.'"),
+            1 when batchSize == 1 => (false, 1, shape[0]),
+            1 => throw new InvalidDataException(
+                $"ONNX output '{outputName}' omitted the batch dimension for a batch of {batchSize}."),
+            2 when shape[0] == batchSize => (false, 1, shape[1]),
+            2 when batchSize == 1 => (true, shape[0], shape[1]),
+            2 => throw new InvalidDataException(
+                $"ONNX output '{outputName}' batch dimension is {shape[0]}, expected {batchSize}."),
+            3 when shape[0] == batchSize => (true, shape[1], shape[2]),
+            3 => throw new InvalidDataException(
+                $"ONNX output '{outputName}' batch dimension is {shape[0]}, expected {batchSize}."),
             _ => throw new InvalidDataException($"ONNX output '{outputName}' must have rank 1, 2 or 3."),
         };
     }
@@ -1163,6 +1255,21 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     private static string ResolveBertSpecialToken(string? configured, string fallback)
         => string.IsNullOrWhiteSpace(configured) ? fallback : configured;
 
+    private static async ValueTask<IReadOnlyList<float[]>> EmbedFallbackBatchAsync(
+        BuiltinHashEmbeddingProvider fallback,
+        IReadOnlyList<string> texts,
+        CancellationToken cancellationToken)
+    {
+        var embeddings = new float[texts.Count][];
+        for (var index = 0; index < texts.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            embeddings[index] = await fallback.EmbedAsync(texts[index], cancellationToken).ConfigureAwait(false);
+        }
+
+        return embeddings;
+    }
+
     private static bool IsRuntimeFallbackException(Exception exception)
     {
         if (exception is OutOfMemoryException or StackOverflowException or AccessViolationException)
@@ -1219,24 +1326,110 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         InputBinding? AttentionMask,
         InputBinding? TokenTypeIds,
         InputBinding? PositionIds,
+        int FixedBatchSize,
         int SequenceLength,
         string OutputName,
         TensorKind OutputKind,
         PoolingMode Pooling);
 
-    private sealed record PreparedInputs(List<NamedOnnxValue> Inputs, bool[] PoolingMask);
+    private sealed record PreparedInputs(List<NamedOnnxValue> Inputs, bool[][] PoolingMasks);
 
-    private static NamedOnnxValue CreateIntegerTensor(InputBinding binding, int[] values)
+    private static NamedOnnxValue CreateIntegerTensor(
+        InputBinding binding,
+        int[] values,
+        int batchSize,
+        int sequenceLength)
     {
         return binding.Kind switch
         {
             TensorKind.Int64 => NamedOnnxValue.CreateFromTensor(
                 binding.Name,
-                new DenseTensor<long>(values.Select(static value => (long)value).ToArray(), [1, values.Length])),
+                new DenseTensor<long>(
+                    values.Select(static value => (long)value).ToArray(),
+                    [batchSize, sequenceLength])),
             TensorKind.Int32 => NamedOnnxValue.CreateFromTensor(
                 binding.Name,
-                new DenseTensor<int>(values, [1, values.Length])),
+                new DenseTensor<int>(values, [batchSize, sequenceLength])),
             _ => throw new InvalidDataException($"ONNX input '{binding.Name}' is not an integer tensor."),
         };
     }
+}
+
+/// <summary>
+/// 描述本地 ONNX provider 当前实际创建的 session 执行配置。
+/// </summary>
+public sealed class LocalOnnxExecutionState
+{
+    private LocalOnnxExecutionState(
+        bool sessionInitialized,
+        bool appliedToSession,
+        int requestedIntraOpThreads,
+        int requestedInterOpThreads,
+        int? effectiveIntraOpThreads,
+        int? effectiveInterOpThreads,
+        string executionMode)
+    {
+        SessionInitialized = sessionInitialized;
+        AppliedToSession = appliedToSession;
+        RequestedIntraOpThreads = requestedIntraOpThreads;
+        RequestedInterOpThreads = requestedInterOpThreads;
+        EffectiveIntraOpThreads = effectiveIntraOpThreads;
+        EffectiveInterOpThreads = effectiveInterOpThreads;
+        ExecutionMode = executionMode;
+    }
+
+    /// <summary>
+    /// 是否已成功创建并保留 ONNX Runtime session。
+    /// </summary>
+    public bool SessionInitialized { get; }
+
+    /// <summary>
+    /// 是否已使用请求值创建 session options；session 未创建或已 fallback 时为 <see langword="false"/>。
+    /// </summary>
+    public bool AppliedToSession { get; }
+
+    /// <summary>
+    /// 请求的算子内线程数；<c>0</c> 表示运行时默认值。
+    /// </summary>
+    public int RequestedIntraOpThreads { get; }
+
+    /// <summary>
+    /// 请求的算子间线程数；<c>0</c> 表示顺序执行。
+    /// </summary>
+    public int RequestedInterOpThreads { get; }
+
+    /// <summary>
+    /// 显式应用的算子内线程数；运行时默认值无法读取时为 <see langword="null"/>。
+    /// </summary>
+    public int? EffectiveIntraOpThreads { get; }
+
+    /// <summary>
+    /// 显式应用的算子间线程数；顺序模式下为 <see langword="null"/>。
+    /// </summary>
+    public int? EffectiveInterOpThreads { get; }
+
+    /// <summary>
+    /// 实际 session 执行模式：<c>parallel</c>、<c>sequential</c> 或 <c>not-initialized</c>。
+    /// </summary>
+    public string ExecutionMode { get; }
+
+    internal static LocalOnnxExecutionState NotInitialized(int intraOpThreads, int interOpThreads)
+        => new(
+            sessionInitialized: false,
+            appliedToSession: false,
+            intraOpThreads,
+            interOpThreads,
+            effectiveIntraOpThreads: null,
+            effectiveInterOpThreads: null,
+            executionMode: "not-initialized");
+
+    internal static LocalOnnxExecutionState Initialized(int intraOpThreads, int interOpThreads)
+        => new(
+            sessionInitialized: true,
+            appliedToSession: true,
+            intraOpThreads,
+            interOpThreads,
+            effectiveIntraOpThreads: intraOpThreads > 0 ? intraOpThreads : null,
+            effectiveInterOpThreads: interOpThreads > 0 ? interOpThreads : null,
+            executionMode: interOpThreads > 0 ? "parallel" : "sequential");
 }

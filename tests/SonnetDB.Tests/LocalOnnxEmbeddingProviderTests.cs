@@ -424,6 +424,23 @@ public sealed class LocalOnnxEmbeddingProviderTests
     }
 
     [Fact]
+    public async Task EmbedBatchAsync_WithMalformedOnnxModel_ReturnsObservableFallbackBatch()
+    {
+        using var fixture = TinyOnnxFixture.Create();
+        File.WriteAllBytes(fixture.ModelPath, [0]);
+        using var provider = new LocalOnnxEmbeddingProvider(
+            CreateOptions(fixture, pooling: "mean", maxTokens: 6, dimensions: 2));
+
+        IReadOnlyList<float[]> embeddings = await provider.EmbedBatchAsync(["hello", "world"]);
+
+        Assert.True(provider.IsFallback);
+        Assert.False(provider.ExecutionState.SessionInitialized);
+        Assert.Equal(2, embeddings.Count);
+        Assert.All(embeddings, static embedding =>
+            Assert.Equal(BuiltinHashEmbeddingProvider.VectorDimension, embedding.Length));
+    }
+
+    [Fact]
     public async Task EmbedAsync_AutoPooling_UsesMeanForSequenceOutput()
     {
         using var fixture = TinyOnnxFixture.Create();
@@ -688,6 +705,125 @@ public sealed class LocalOnnxEmbeddingProviderTests
     }
 
     [Fact]
+    public async Task EmbedBatchAsync_WithDynamicBatch_PoolsEachInputIndependently()
+    {
+        using var fixture = TinyOnnxFixture.Create();
+        using var provider = new LocalOnnxEmbeddingProvider(
+            CreateOptions(fixture, pooling: "mean", maxTokens: 6));
+
+        IReadOnlyList<float[]> embeddings = await provider.EmbedBatchAsync(
+            ["hello", "hello world"]);
+
+        Assert.Equal(2, embeddings.Count);
+        Assert.Equal(1, provider.InferenceRunCount);
+        Assert.InRange(embeddings[0][0], 2.999f, 3.001f);
+        Assert.InRange(embeddings[1][0], 3.499f, 3.501f);
+        Assert.False(provider.IsFallback, provider.FallbackReason ?? "unexpected fallback");
+    }
+
+    [Fact]
+    public async Task EmbedBatchAsync_WithNormalization_NormalizesEveryVector()
+    {
+        using var fixture = TinyOnnxFixture.Create(outputDimensions: 2);
+        using var provider = new LocalOnnxEmbeddingProvider(
+            CreateOptions(fixture, pooling: "mean", maxTokens: 6, dimensions: 2, normalize: true));
+
+        IReadOnlyList<float[]> embeddings = await provider.EmbedBatchAsync(
+            ["hello", "hello world"]);
+
+        Assert.All(embeddings, embedding =>
+        {
+            Assert.Equal(2, embedding.Length);
+            double norm = Math.Sqrt(embedding.Sum(static value => value * value));
+            Assert.InRange(norm, 0.9999d, 1.0001d);
+        });
+    }
+
+    [Fact]
+    public async Task EmbedBatchAsync_WithPooledOutput_ReturnsEveryBatchRow()
+    {
+        using var fixture = TinyOnnxFixture.Create(fixedSequenceLength: 1, pooledOutput: true);
+        CopilotEmbeddingOptions options = CreateOptions(fixture, pooling: "auto", maxTokens: 1);
+        options.ModelProfile!.AddSpecialTokens = false;
+        using var provider = new LocalOnnxEmbeddingProvider(options);
+
+        IReadOnlyList<float[]> embeddings = await provider.EmbedBatchAsync(["hello", "world"]);
+
+        Assert.Equal(2, embeddings.Count);
+        Assert.InRange(embeddings[0][0], 3.999f, 4.001f);
+        Assert.InRange(embeddings[1][0], 4.999f, 5.001f);
+    }
+
+    [Fact]
+    public async Task EmbedBatchAsync_WithFixedBatch_RequiresExactInputCount()
+    {
+        using var fixture = TinyOnnxFixture.Create(fixedBatchSize: 2);
+        using var provider = new LocalOnnxEmbeddingProvider(
+            CreateOptions(fixture, pooling: "mean", maxTokens: 6));
+
+        IReadOnlyList<float[]> embeddings = await provider.EmbedBatchAsync(["hello", "world"]);
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.EmbedAsync("hello").AsTask());
+
+        Assert.Equal(2, embeddings.Count);
+        Assert.Contains("fixed at 2", exception.Message, StringComparison.Ordinal);
+        Assert.False(provider.IsFallback);
+    }
+
+    [Fact]
+    public async Task EmbedBatchAsync_WithInvalidItem_RejectsBeforeSessionCreation()
+    {
+        using var fixture = TinyOnnxFixture.Create();
+        using var provider = new LocalOnnxEmbeddingProvider(
+            CreateOptions(fixture, pooling: "mean", maxTokens: 6));
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => provider.EmbedBatchAsync(["hello", " "]).AsTask());
+
+        Assert.Contains("index 1", exception.Message, StringComparison.Ordinal);
+        Assert.False(provider.ExecutionState.SessionInitialized);
+    }
+
+    [Fact]
+    public async Task EmbedAsync_WithExplicitThreadCounts_ReportsAppliedSessionState()
+    {
+        using var fixture = TinyOnnxFixture.Create();
+        CopilotEmbeddingOptions options = CreateOptions(fixture, pooling: "mean", maxTokens: 6);
+        options.IntraOpThreads = 2;
+        options.InterOpThreads = 1;
+        using var provider = new LocalOnnxEmbeddingProvider(options);
+
+        Assert.False(provider.ExecutionState.SessionInitialized);
+
+        _ = await provider.EmbedAsync("hello");
+
+        LocalOnnxExecutionState state = provider.ExecutionState;
+        Assert.True(state.SessionInitialized);
+        Assert.True(state.AppliedToSession);
+        Assert.Equal(2, state.RequestedIntraOpThreads);
+        Assert.Equal(1, state.RequestedInterOpThreads);
+        Assert.Equal(2, state.EffectiveIntraOpThreads);
+        Assert.Equal(1, state.EffectiveInterOpThreads);
+        Assert.Equal("parallel", state.ExecutionMode);
+    }
+
+    [Fact]
+    public async Task EmbedAsync_WithNegativeThreadCount_RejectsConfigurationWithoutFallback()
+    {
+        using var fixture = TinyOnnxFixture.Create();
+        CopilotEmbeddingOptions options = CreateOptions(fixture, pooling: "mean", maxTokens: 6);
+        options.IntraOpThreads = -1;
+        using var provider = new LocalOnnxEmbeddingProvider(options);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.EmbedAsync("hello").AsTask());
+
+        Assert.Contains("IntraOpThreads", exception.Message, StringComparison.Ordinal);
+        Assert.False(provider.IsFallback);
+        Assert.False(provider.ExecutionState.SessionInitialized);
+    }
+
+    [Fact]
     public void ConfigurationBinding_BindsNestedModelProfileWithoutReflectionAtRuntime()
     {
         var values = new Dictionary<string, string?>(StringComparer.Ordinal)
@@ -706,6 +842,8 @@ public sealed class LocalOnnxEmbeddingProviderTests
             ["ModelProfile:Dimensions"] = "384",
             ["ModelProfile:AddSpecialTokens"] = "false",
             ["ModelProfile:PadTokenId"] = "99",
+            ["IntraOpThreads"] = "2",
+            ["InterOpThreads"] = "1",
         };
 
         IConfiguration configuration = new ConfigurationBuilder()
@@ -728,6 +866,8 @@ public sealed class LocalOnnxEmbeddingProviderTests
         Assert.Equal(384, options.ModelProfile.Dimensions);
         Assert.False(options.ModelProfile.AddSpecialTokens);
         Assert.Equal(99, options.ModelProfile.PadTokenId);
+        Assert.Equal(2, options.IntraOpThreads);
+        Assert.Equal(1, options.InterOpThreads);
     }
 
     [Fact]
@@ -847,6 +987,7 @@ public sealed class LocalOnnxEmbeddingProviderTests
             string outputName = "embedding",
             string? tokenTypeIdsName = null,
             int? fixedSequenceLength = null,
+            int? fixedBatchSize = null,
             bool pooledOutput = false,
             bool includeAttentionMask = true,
             string? positionIdsName = null,
@@ -868,6 +1009,7 @@ public sealed class LocalOnnxEmbeddingProviderTests
                 outputName,
                 tokenTypeIdsName,
                 fixedSequenceLength,
+                fixedBatchSize,
                 pooledOutput,
                 includeAttentionMask,
                 positionIdsName,
@@ -904,6 +1046,7 @@ public sealed class LocalOnnxEmbeddingProviderTests
                 outputName: "embedding",
                 tokenTypeIdsName: null,
                 fixedSequenceLength: fixedSequenceLength,
+                fixedBatchSize: null,
                 pooledOutput: false,
                 includeAttentionMask: includeAttentionMask,
                 positionIdsName: null,
@@ -950,6 +1093,7 @@ public sealed class LocalOnnxEmbeddingProviderTests
             string outputName,
             string? tokenTypeIdsName,
             int? fixedSequenceLength,
+            int? fixedBatchSize,
             bool pooledOutput,
             bool includeAttentionMask,
             string? positionIdsName,
@@ -969,14 +1113,16 @@ public sealed class LocalOnnxEmbeddingProviderTests
                 [1],
                 int64Values: [flattenSequenceOutput ? 2 : 1]);
             string sequenceDimension = fixedSequenceLength?.ToString() ?? "sequence";
-            byte[] idsInput = ValueInfo(inputName, elementType, sequenceDimension);
-            byte[] maskInput = ValueInfo(attentionMaskName, elementType, sequenceDimension);
+            string batchDimension = fixedBatchSize?.ToString() ?? "batch";
+            byte[] idsInput = ValueInfo(inputName, elementType, batchDimension, sequenceDimension);
+            byte[] maskInput = ValueInfo(attentionMaskName, elementType, batchDimension, sequenceDimension);
             byte[] outputInfo = pooledOutput || flattenSequenceOutput
                 ? ValueInfoPooled(
                     outputName,
                     FloatType,
+                    batchDimension,
                     flattenSequenceOutput ? fixedSequenceLength!.Value : outputDimensions)
-                : ValueInfo(outputName, FloatType, sequenceDimension, outputDimensions);
+                : ValueInfo(outputName, FloatType, batchDimension, sequenceDimension, outputDimensions);
 
             var nodes = new List<byte[]>
             {
@@ -1110,9 +1256,9 @@ public sealed class LocalOnnxEmbeddingProviderTests
                 if (includeAttentionMask)
                     FieldMessage(writer, 11, maskInput);
                 if (tokenTypeIdsName is not null)
-                    FieldMessage(writer, 11, ValueInfo(tokenTypeIdsName, elementType, sequenceDimension));
+                    FieldMessage(writer, 11, ValueInfo(tokenTypeIdsName, elementType, batchDimension, sequenceDimension));
                 if (positionIdsName is not null)
-                    FieldMessage(writer, 11, ValueInfo(positionIdsName, elementType, sequenceDimension));
+                    FieldMessage(writer, 11, ValueInfo(positionIdsName, elementType, batchDimension, sequenceDimension));
                 FieldMessage(writer, 12, outputInfo);
             });
 
@@ -1134,10 +1280,13 @@ public sealed class LocalOnnxEmbeddingProviderTests
         private static byte[] ValueInfo(
             string name,
             int elementType,
+            string batchDimension,
             string sequenceDimension,
             int? lastDimension = null)
         {
-            byte[] firstDimension = Dimension(1);
+            byte[] firstDimension = int.TryParse(batchDimension, out var fixedBatch)
+                ? Dimension(fixedBatch)
+                : Dimension(batchDimension);
             byte[] sequence = int.TryParse(sequenceDimension, out var fixedLength)
                 ? Dimension(fixedLength)
                 : Dimension(sequenceDimension);
@@ -1161,11 +1310,20 @@ public sealed class LocalOnnxEmbeddingProviderTests
             });
         }
 
-        private static byte[] ValueInfoPooled(string name, int elementType, int dimensions)
+        private static byte[] ValueInfoPooled(
+            string name,
+            int elementType,
+            string batchDimension,
+            int dimensions)
         {
             byte[] shape = Message(writer =>
             {
-                FieldMessage(writer, 1, Dimension(1));
+                FieldMessage(
+                    writer,
+                    1,
+                    int.TryParse(batchDimension, out var fixedBatch)
+                        ? Dimension(fixedBatch)
+                        : Dimension(batchDimension));
                 FieldMessage(writer, 1, Dimension(dimensions));
             });
             byte[] tensorType = Message(writer =>

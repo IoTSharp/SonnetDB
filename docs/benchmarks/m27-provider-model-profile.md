@@ -10,9 +10,9 @@ permalink: /benchmarks/m27-provider-model-profile/
 ## 当前结论
 
 本页冻结 M27 #185 的本地文本 embedding 合同和证据门禁。审计基线为
-`510efbf8`，并记录该基线之上的本次研发改动。首次 `EmbedAsync` 会在 profile
+`5ded3c69`，并记录该基线之上的本次研发改动。首次 `EmbedAsync` / `EmbedBatchAsync` 会在 profile
 完整且模型/ tokenizer/ tensor 元数据一致时创建 ONNX Runtime session，执行
-tokenizer、输入绑定、pooling 和归一化；缺少明确 profile、资源或运行时不可用时，
+tokenizer、`[batch, sequence]` 输入绑定、逐行 pooling 和归一化；缺少明确 profile、资源或运行时不可用时，
 provider 使用可观测的 384 维确定性 hash fallback，并不是 ONNX 语义推理。因此
 本项在真实目标模型证据归档之前保持：
 
@@ -20,9 +20,9 @@ provider 使用可观测的 384 维确定性 hash fallback，并不是 ONNX 语�
 | --- | --- | --- |
 | Copilot `IEmbeddingProvider` 抽象与 builtin fallback | `PASS` | 离线首次启动路径可运行，但 hash 向量不等价于语义模型。 |
 | 本地 ONNX model profile 合同 | `PASS` | 已显式描述 tokenizer、输入 tensor、输出、pooling、归一化和维度；无效配置会稳定失败或进入可观测 fallback。 |
-| 合成 tiny ONNX 合同测试 | `PASS` | `LocalOnnxEmbeddingProviderTests` 43/43 通过；仅证明 tiny ONNX/tokenizer 绑定和数值语义，不代表目标模型质量。 |
-| 真实模型 evidence artifact runner/consistency verifier | `PASS（增量）` | `m27-local-onnx-evidence-v2` 已记录输入哈希、来源/license、环境名、线程请求、逐查询样本、Recall@K、延迟、内存和 clean commit，并从原始样本重算摘要；blank/CJK/超长/mask/batch/错误模型边界也进入原始报告。当前 batch 与线程证据不可得，因此这里只表示 fail-closed 工具合同通过。 |
-| Native AOT 发布 | `NOT_READY` | 显式 `win-x64` 发布被现有 `IoTSharp.CoAP.NET` 子模块的 `SYSLIB1100`/`SYSLIB1101` 阻断；本次 M27 未修改该范围外模块。 |
+| 合成 tiny ONNX 合同测试 | `PASS` | `LocalOnnxEmbeddingProviderTests` 51/51 通过；覆盖动态/固定 batch、单次 Run、逐行 pooling/归一化和线程状态，仅证明 tiny ONNX/tokenizer 绑定和数值语义，不代表目标模型质量。 |
+| 真实模型 evidence artifact runner/consistency verifier | `PASS（增量）` | `m27-local-onnx-evidence-v2` 已记录输入哈希、来源/license、环境名、线程请求/应用状态、逐查询样本、Recall@K、延迟、内存和 clean commit，并从原始样本重算摘要；blank/CJK/超长/mask/真实 batch/错误模型边界也进入原始报告。无目标模型资产时 batch/session 状态仍不会伪装为发布证据。 |
+| Native AOT 发布 | `PASS（本机）` | Windows x64 / SDK 10.0.400 使用项目专用 `SonnetDbPublishAot=true` 完成发布，0 个未处置 IL/AOT warning；这只证明当前构建兼容性，不是固定硬件或真实模型证据。 |
 | 目标模型真实推理 | `NOT_READY` | 需要实际模型文件、tokenizer 和可追溯配置。 |
 | 语义质量、延迟和内存报告 | `NOT_READY` | 未取得真实数据集和目标环境报告前不得宣称通过。 |
 
@@ -42,23 +42,23 @@ ONNX 证据。
 验证器。它会对照当前文件重算输入哈希，并从 corpus、候选和逐查询样本重算
 Recall 与延迟摘要；v2 还要求 environment label、intra/inter-op 线程请求回放一致，
 并校验 blank、CJK、超长、attention-mask/padding、batch 和 malformed-model 六类边界。
-当前 `LocalOnnxEmbeddingProvider` 只提供单文本 `EmbedAsync`，没有真实 batch API，
-也没有可应用和读取的 ONNX Runtime 线程配置接口；runner 因此把 batch 记录为
-`NOT_SUPPORTED`、线程 applied/effective 记录为不可用，并稳定保持 `NOT_READY`。
-伪造 batch `PASS`、线程已应用/有效值、缺边界、旧 v1 schema、未显式传入
+当前 `LocalOnnxEmbeddingProvider` 的 `EmbedBatchAsync` 会对同批文本构造一个二维输入，
+以一次 ONNX Runtime `Run` 完成推理并逐行 pooling/归一化；固定 batch 模型要求请求数量
+与模型维度一致。`IntraOpThreads` / `InterOpThreads` 会写入 `SessionOptions`，后者为正时
+启用 parallel execution mode，否则保持 sequential。runner 通过 run count 增量核对真实
+batch，并从 provider execution state 记录 session initialized/applied/effective 值。
+伪造 batch `PASS`、线程状态与 session 不一致、缺边界、旧 v1 schema、未显式传入
 `--target-model-evidence` 或未实际加载指定模型都会被 verifier 拒绝。即使后续 runner
 能够形成 `PASS`，在下述真实模型证据门禁全部归档前，#185 仍保持 `NOT_READY`。
 
-### 本地合同运行记录（2026-08-29）
+### 本地合同运行记录（2026-08-30）
 
-在 Windows x64、.NET SDK 10.0.400 / runtime 10.0.11、ONNX Runtime 1.27.1 下，provider
-定向筛选为 `43/43 PASS`；将知识状态端点测试一并筛选时为 `44/44 PASS`，embedding
-preview 错误合同另行筛选为 `2/2 PASS`。测试项目 Release 构建和
-`SonnetDB.Tests` Release 全量筛选为 `642/642 PASS`、0 skipped（最终重跑）。显式
-`PublishAot=true; SelfContained=true; UseAppHost=true` 的 `win-x64` 发布退出码为 1，
-被现有 `extensions/IoTSharp.CoAP.NET/CoAP.NET/Server/Hosting/CoapServiceCollectionExtensions.cs:314`
-的 `SYSLIB1100`（`ICoapConfig` 无公共构造函数）和 `SYSLIB1101`（`Default` 属性不受支持）阻断；
-因此本页不记录 Native AOT PASS。上述本地数字只验证仓库内的合成 fixture、配置绑定和状态合同，
+在 Windows x64、.NET SDK 10.0.400、ONNX Runtime 1.27.1 下，provider 定向筛选为
+`51/51 PASS`，`SonnetDB.Tests` Release / win-x64 全量为 `662/662 PASS`、0 skipped；
+evidence runner/verifier 定向为 `12/12 PASS`，`SonnetDB.Benchmarks.Tests` 全量为
+`23/23 PASS`。项目专用 `SonnetDbPublishAot=true` 的 `win-x64` 发布退出码为 0，
+完成 native code generation 且未产生 IL/AOT warning。上述本地数字只验证仓库内的
+合成 fixture、配置绑定、状态合同和当前构建兼容性，
 不包含目标模型 SHA、语义质量、延迟/内存、固定硬件或连续 nightly 证据；这些门禁继续保持
 `NOT_READY`。
 
@@ -183,6 +183,8 @@ token 维度求平均。`LowerCase` 是 `LowerCaseBeforeTokenization` 的兼容�
 5. 缺失文件/运行时资源的可观测 fallback，以及错误名称、类型/形状不匹配和无效 profile
    合同的稳定 fail-closed；
 6. 有界 tokenizer、取消、Dispose、重复调用和线程并发下 session 的资源释放。
+7. 动态/固定 batch 输入以单次 ONNX `Run` 返回稳定顺序，逐行 mask pooling/归一化互不串扰；
+   intra/inter-op 线程请求与 sequential/parallel execution state 可观测且与 SessionOptions 一致。
 
 这些 fixture 只证明 provider 执行合同，不证明任何特定模型的中文/多语言语义
 质量、召回率或生产性能。测试通过后仍必须保留 `realModelEvidence=NOT_READY`，
@@ -226,16 +228,16 @@ token 维度求平均。`LowerCase` 是 `LowerCaseBeforeTokenization` 的兼容�
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release -r win-x64 --no-build --no-restore --nologo --filter "FullyQualifiedName~LocalOnnxEmbeddingProviderTests|FullyQualifiedName~CopilotKnowledgeStatusEndpointTests"'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release -r win-x64 --no-build --no-restore --nologo --filter "FullyQualifiedName~ManagementEmbeddingPreviewErrorTests"'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release -r win-x64 --no-build --no-restore --nologo'
-& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r win-x64 -p:SonnetDbPublishAot=true -p:PublishAot=true -p:SelfContained=true -p:UseAppHost=true --no-restore --nologo'
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet restore src/SonnetDB/SonnetDB.csproj -r win-x64 -p:SonnetDbPublishAot=true --nologo'
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r win-x64 -p:SonnetDbPublishAot=true -p:SelfContained=true -p:UseAppHost=true --no-restore --nologo'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet run --project tests/SonnetDB.Benchmarks -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path> --model-source <source> --model-version <version> --model-license <license> --output <dir>'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet run --project tests/SonnetDB.Benchmarks -c Release -- --m27-verify-local-onnx <report> --require-ready'
 ```
 
-本轮观察结果依次为构建 `0 warning / 0 error`、ONNX/状态定向 `44/44 PASS`、
-preview 错误合同 `2/2 PASS`、全量 `642/642 PASS`（0 skipped）；Native AOT publish
-`NOT_READY`（退出码 1，见上面的 CoAP `SYSLIB1100`/`SYSLIB1101` 阻断）。
-evidence runner/verifier 的定向测试为 `4/4 PASS`，`SonnetDB.Benchmarks.Tests` 全量为
-`15/15 PASS`。本轮未提供真实模型、tokenizer、corpus 或目标环境报告，因此未运行
+本轮观察结果为 provider 定向 `51/51 PASS`、Server 全量 `662/662 PASS`、
+evidence runner/verifier 定向 `12/12 PASS`、`SonnetDB.Benchmarks.Tests` 全量
+`23/23 PASS`（均 0 skipped）；Native AOT publish 退出码为 0，0 个未处置 IL/AOT warning。
+本轮未提供真实模型、tokenizer、corpus 或目标环境报告，因此未运行
 `--m27-local-onnx-evidence` 生成发布证据，真实模型门禁继续为 `NOT_READY`。
 
 Windows 上显式指定 `win-x64` 是为了让测试宿主选择匹配的 ONNX Runtime 原生资产；

@@ -80,6 +80,16 @@ public sealed class CopilotEmbeddingOptions
     }
 
     /// <summary>
+    /// ONNX Runtime 单个算子内部并行线程数；<c>0</c> 使用运行时默认值。
+    /// </summary>
+    public int IntraOpThreads { get; set; }
+
+    /// <summary>
+    /// ONNX Runtime 算子之间并行线程数；<c>0</c> 使用顺序执行模式，正数启用并行执行模式。
+    /// </summary>
+    public int InterOpThreads { get; set; }
+
+    /// <summary>
     /// OpenAI-compatible 服务端点。
     /// </summary>
     public string? Endpoint { get; set; }

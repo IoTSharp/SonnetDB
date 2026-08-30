@@ -41,7 +41,7 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
         Assert.Null(report.Environment.Threads.EffectiveInterOpThreads);
         Assert.Equal(6, report.BoundarySamples.Length);
         Assert.Contains(report.BoundarySamples, static sample => sample is
-            { Scenario: "batch-input", Status: "NOT_SUPPORTED" });
+            { Scenario: "batch-input", Status: "NOT_RUN" });
         Assert.Empty(report.RawSamples);
         Assert.Contains(report.Failures, static failure => failure.Contains("model", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("--model", report.ReplayArguments);
@@ -196,7 +196,7 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
 
         Assert.Equal("INVALID", verification.Status);
         Assert.Contains(verification.Findings, static finding => finding.Contains(
-            "cannot claim real batch evidence",
+            "Batch-input PASS lacks",
             StringComparison.Ordinal));
     }
 

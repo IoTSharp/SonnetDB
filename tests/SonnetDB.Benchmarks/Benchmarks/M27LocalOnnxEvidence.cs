@@ -90,6 +90,7 @@ internal static class M27LocalOnnxEvidenceRunner
         bool providerFallback = false;
         bool targetModelLoaded = false;
         string? fallbackReason = null;
+        LocalOnnxExecutionState? executionState = null;
         string? profileSha256 = profile is null ? null : HashProfile(profile);
 
         if (failures.Count == 0 && profile is not null && corpus is not null)
@@ -99,6 +100,8 @@ internal static class M27LocalOnnxEvidenceRunner
                 Provider = "local",
                 LocalModelPath = model.Path,
                 ModelProfile = profile,
+                IntraOpThreads = options.IntraOpThreads,
+                InterOpThreads = options.InterOpThreads,
             });
             providerConfigured = provider.IsConfigured;
             boundarySamples.Add(await RunBlankInputBoundaryAsync(provider, cancellationToken).ConfigureAwait(false));
@@ -131,15 +134,25 @@ internal static class M27LocalOnnxEvidenceRunner
                     corpus.Queries[0].Text,
                     memory,
                     cancellationToken).ConfigureAwait(false));
+                boundarySamples.Add(await RunBatchBoundaryAsync(
+                    provider,
+                    [corpus.Documents[0].Text, corpus.Queries[0].Text],
+                    profile.Dimensions,
+                    memory,
+                    cancellationToken).ConfigureAwait(false));
 
                 var documentVectors = new Dictionary<string, float[]>(StringComparer.Ordinal);
-                foreach (M27LocalOnnxCorpusDocument document in corpus.Documents)
+                string[] documentTexts = corpus.Documents.Select(static document => document.Text).ToArray();
+                IReadOnlyList<float[]> embeddedDocuments = await EmbedBatchAndSampleAsync(
+                    provider,
+                    documentTexts,
+                    memory,
+                    cancellationToken).ConfigureAwait(false);
+                if (provider.IsFallback)
+                    throw new M27LocalOnnxNotReadyException(provider.FallbackReason ?? "Provider entered hash fallback while embedding corpus documents.");
+                for (var index = 0; index < corpus.Documents.Length; index++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    float[] vector = await EmbedAndSampleAsync(provider, document.Text, memory, cancellationToken).ConfigureAwait(false);
-                    if (provider.IsFallback)
-                        throw new M27LocalOnnxNotReadyException(provider.FallbackReason ?? "Provider entered hash fallback while embedding corpus documents.");
-                    documentVectors.Add(document.Id, vector);
+                    documentVectors.Add(corpus.Documents[index].Id, embeddedDocuments[index]);
                 }
 
                 foreach (M27LocalOnnxCorpusQuery query in corpus.Queries)
@@ -171,17 +184,8 @@ internal static class M27LocalOnnxEvidenceRunner
             providerConfigured = provider.IsConfigured;
             providerFallback = provider.IsFallback;
             fallbackReason = provider.FallbackReason;
+            executionState = provider.ExecutionState;
         }
-
-        boundarySamples.Add(new M27LocalOnnxBoundarySample(
-            "batch-input",
-            "NOT_SUPPORTED",
-            "A real batched tensor/API execution must return one vector per input.",
-            "LocalOnnxEmbeddingProvider exposes only single-text EmbedAsync; concurrent calls are not batch evidence.",
-            0,
-            0,
-            null,
-            "No real batch API was executed."));
         if (profile is not null && tokenizer.Exists)
         {
             boundarySamples.Add(await RunMalformedModelBoundaryAsync(
@@ -199,12 +203,8 @@ internal static class M27LocalOnnxEvidenceRunner
             failures.Add("Run was not explicitly declared as target-model evidence.");
         if (!targetModelLoaded)
             failures.Add("The specified target model was not successfully loaded and executed.");
-        if (options.IntraOpThreads != 0 || options.InterOpThreads != 0)
-        {
-            failures.Add(
-                "Requested ONNX thread counts are evidence declarations only; LocalOnnxEmbeddingProvider does not apply explicit thread counts.");
-        }
-        failures.Add("Effective ONNX Runtime intra/inter-op thread counts are not observable from LocalOnnxEmbeddingProvider.");
+        if (executionState is null || !executionState.AppliedToSession)
+            failures.Add("Requested ONNX thread settings were not applied to a successfully initialized target-model session.");
         foreach (M27LocalOnnxBoundarySample boundary in boundarySamples.Where(static sample => sample.Status != "PASS"))
             failures.Add($"Boundary '{boundary.Scenario}' is {boundary.Status}: {boundary.Detail}");
         M27LocalOnnxEvidenceSummary measuredSummary = Summarize(samples, failures.Count);
@@ -265,7 +265,7 @@ internal static class M27LocalOnnxEvidenceRunner
             fallbackReason,
             targetModelLoaded,
             options.TargetModelEvidence,
-            CaptureEnvironment(memory, options),
+            CaptureEnvironment(memory, options, executionState),
             boundarySamples.ToArray(),
             samples.ToArray(),
             failures.ToArray(),
@@ -399,6 +399,22 @@ internal static class M27LocalOnnxEvidenceRunner
         }
     }
 
+    private static async ValueTask<IReadOnlyList<float[]>> EmbedBatchAndSampleAsync(
+        LocalOnnxEmbeddingProvider provider,
+        IReadOnlyList<string> texts,
+        MemorySampler memory,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await provider.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            memory.Sample();
+        }
+    }
+
     private static async Task<M27LocalOnnxBoundarySample> RunBlankInputBoundaryAsync(
         LocalOnnxEmbeddingProvider provider,
         CancellationToken cancellationToken)
@@ -475,6 +491,69 @@ internal static class M27LocalOnnxEvidenceRunner
                 "The specified ONNX model must produce a non-fallback embedding.",
                 "rejected",
                 text.Length,
+                0,
+                null,
+                exception.Message);
+        }
+    }
+
+    private static async Task<M27LocalOnnxBoundarySample> RunBatchBoundaryAsync(
+        LocalOnnxEmbeddingProvider provider,
+        IReadOnlyList<string> texts,
+        int expectedDimensions,
+        MemorySampler memory,
+        CancellationToken cancellationToken)
+    {
+        int characterCount = texts.Sum(static text => text.Length);
+        long runCountBefore = provider.InferenceRunCount;
+        try
+        {
+            IReadOnlyList<float[]> vectors = await EmbedBatchAndSampleAsync(
+                provider,
+                texts,
+                memory,
+                cancellationToken).ConfigureAwait(false);
+            if (provider.IsFallback)
+            {
+                return new M27LocalOnnxBoundarySample(
+                    "batch-input",
+                    "FAILED",
+                    "One ONNX Run must return one target-model vector per input.",
+                    "hash-fallback",
+                    characterCount,
+                    0,
+                    null,
+                    provider.FallbackReason ?? "Provider entered hash fallback.");
+            }
+
+            long runCountDelta = provider.InferenceRunCount - runCountBefore;
+            bool valid = runCountDelta == 1
+                && vectors.Count == texts.Count
+                && vectors.All(vector => vector.Length == expectedDimensions);
+            return new M27LocalOnnxBoundarySample(
+                "batch-input",
+                valid ? "PASS" : "FAILED",
+                "One ONNX Run must return one target-model vector per input.",
+                valid ? "batched-embedding" : "invalid-batch-shape",
+                characterCount,
+                valid ? expectedDimensions : 0,
+                valid ? HashVectors(vectors) : null,
+                valid
+                    ? $"A single batched provider call returned {vectors.Count} target-model vectors with one InferenceSession.Run."
+                    : $"Batch used {runCountDelta} Run call(s), returned {vectors.Count} vector(s) for {texts.Count} input(s), or a vector dimension differed from {expectedDimensions}.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException)
+        {
+            return new M27LocalOnnxBoundarySample(
+                "batch-input",
+                "FAILED",
+                "One ONNX Run must return one target-model vector per input.",
+                "rejected",
+                characterCount,
                 0,
                 null,
                 exception.Message);
@@ -643,6 +722,12 @@ internal static class M27LocalOnnxEvidenceRunner
         return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     }
 
+    private static string HashVectors(IReadOnlyList<float[]> vectors)
+    {
+        string digestManifest = string.Join(':', vectors.Select(HashVector));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(digestManifest))).ToLowerInvariant();
+    }
+
     private static double Cosine(float[] left, float[] right)
     {
         if (left.Length != right.Length)
@@ -789,7 +874,8 @@ internal static class M27LocalOnnxEvidenceRunner
 
     private static M27LocalOnnxEnvironmentEvidence CaptureEnvironment(
         MemorySampler memory,
-        M27LocalOnnxEvidenceRunOptions options)
+        M27LocalOnnxEvidenceRunOptions options,
+        LocalOnnxExecutionState? executionState)
     {
         string onnxVersion = typeof(LocalOnnxEmbeddingProvider).Assembly
             .GetReferencedAssemblies()
@@ -811,10 +897,10 @@ internal static class M27LocalOnnxEvidenceRunner
             new M27LocalOnnxThreadEvidence(
                 options.IntraOpThreads,
                 options.InterOpThreads,
-                false,
-                null,
-                null,
-                "runtime-default-unobservable",
+                executionState?.AppliedToSession ?? false,
+                executionState?.EffectiveIntraOpThreads,
+                executionState?.EffectiveInterOpThreads,
+                executionState?.ExecutionMode ?? "not-initialized",
                 Environment.GetEnvironmentVariable("OMP_NUM_THREADS"),
                 minimumWorkerThreads,
                 minimumCompletionPortThreads,
@@ -1151,14 +1237,34 @@ internal static class M27LocalOnnxEvidenceVerifier
         M27LocalOnnxThreadEvidence threads = environment.Threads;
         if (threads.RequestedIntraOpThreads < 0 || threads.RequestedInterOpThreads < 0)
             invalid.Add("Requested ONNX thread counts cannot be negative.");
-        if (threads.AppliedToSession
-            || threads.EffectiveIntraOpThreads is not null
-            || threads.EffectiveInterOpThreads is not null)
+        if (!threads.AppliedToSession)
         {
-            invalid.Add("v2 runner cannot claim applied/effective ONNX thread counts because the provider does not expose them.");
+            if (threads.EffectiveIntraOpThreads is not null
+                || threads.EffectiveInterOpThreads is not null
+                || !string.Equals(threads.ExecutionMode, "not-initialized", StringComparison.Ordinal))
+            {
+                invalid.Add("Thread evidence cannot claim applied/effective settings without an initialized ONNX session.");
+            }
+            notReady.Add("ONNX Runtime thread settings were not applied to an initialized target-model session.");
         }
-        if (!string.Equals(threads.ExecutionMode, "runtime-default-unobservable", StringComparison.Ordinal))
-            invalid.Add("v2 runner thread execution mode must remain runtime-default-unobservable.");
+        else
+        {
+            if (!report.ProviderConfigured || report.ProviderFallback || !report.TargetModelLoaded)
+                invalid.Add("Thread evidence cannot claim applied/effective settings when the target provider session was not loaded.");
+            int? expectedIntraOp = threads.RequestedIntraOpThreads > 0
+                ? threads.RequestedIntraOpThreads
+                : null;
+            int? expectedInterOp = threads.RequestedInterOpThreads > 0
+                ? threads.RequestedInterOpThreads
+                : null;
+            string expectedMode = threads.RequestedInterOpThreads > 0 ? "parallel" : "sequential";
+            if (threads.EffectiveIntraOpThreads != expectedIntraOp
+                || threads.EffectiveInterOpThreads != expectedInterOp
+                || !string.Equals(threads.ExecutionMode, expectedMode, StringComparison.Ordinal))
+            {
+                invalid.Add("Applied ONNX thread evidence does not match the requested SessionOptions values and execution mode.");
+            }
+        }
         if (threads.ManagedMinimumWorkerThreads <= 0
             || threads.ManagedMinimumCompletionPortThreads <= 0
             || threads.ManagedMaximumWorkerThreads < threads.ManagedMinimumWorkerThreads
@@ -1166,8 +1272,6 @@ internal static class M27LocalOnnxEvidenceVerifier
         {
             invalid.Add("Managed thread-pool evidence is invalid.");
         }
-        notReady.Add("Effective ONNX Runtime intra/inter-op thread counts were not applied or observed.");
-
         if (!HasReplayOption(report.ReplayArguments, "--environment", environment.Name)
             || !HasReplayOption(
                 report.ReplayArguments,
@@ -1221,10 +1325,14 @@ internal static class M27LocalOnnxEvidenceVerifier
 
         if (samples.TryGetValue("batch-input", out M27LocalOnnxBoundarySample? batch))
         {
-            if (batch.Status != "NOT_SUPPORTED"
-                || !string.Equals(batch.ObservedOutcome, "LocalOnnxEmbeddingProvider exposes only single-text EmbedAsync; concurrent calls are not batch evidence.", StringComparison.Ordinal))
+            if (batch.Status == "PASS"
+                && (batch.ObservedOutcome != "batched-embedding"
+                    || report.Profile is null
+                    || batch.VectorDimension != report.Profile.Dimensions
+                    || batch.InputCharacterCount <= 0
+                    || !M27LocalOnnxEvidenceRunner.IsSha256(batch.VectorSha256)))
             {
-                invalid.Add("v2 runner cannot claim real batch evidence for the single-input provider API.");
+                invalid.Add("Batch-input PASS lacks a real batched target-model result digest.");
             }
         }
         if (samples.TryGetValue("blank-input", out M27LocalOnnxBoundarySample? blank)
