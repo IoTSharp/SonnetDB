@@ -44,7 +44,7 @@
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
-| 40 | 原生属性图数据库 | 🚧 | Phase 0 已完成；修复与发布步骤 1~5 的正确性、strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` DML 与 property-aware planner 已关闭，Phase 1 仍缺 #352 正式准入证据；下一步推进步骤 6 的性能加固。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT 与 7 天生产证据均保持 `NOT_RUN`。 |
+| 40 | 原生属性图数据库 | 🚧 | Phase 0 已完成；修复与发布步骤 1~5 已关闭。步骤 6 继续加固：Expand/traversal/weighted-path 已按剩余预算读取且最多增加一条 probe，避免预算外邻接解码；generation 新增 exact-revision lease，供 orderly reopen 的分页链固定 retired revision。Phase 1 仍缺 #352 正式准入证据；固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT journey 与 7 天生产证据均保持 `NOT_RUN`。 |
 | 41 | 关系查询规划与执行性能加固 | ✅ | #368~#380（含流式算子、covering/index-only、KV/Table 快照、持久统计、成本/JOIN 优化、阻塞算子 spill、受控并行与运行时反馈）及 #381 本地收口合同已完成；固定硬件、木垒生产同语料、7 天 mixed workload 与现场发布观察明确后置，不据本地报告宣称生产 SLO。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
@@ -57,7 +57,7 @@
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享架构/关系 snapshot、SQL 与 property-aware planner 已关闭，下一步处理性能、恢复和产品 parity；所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -301,7 +301,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 |---|---|---|---|---|
 | 仓库/路线基线 | 独立仓库、ADR、MCP 合同语义、golden journeys、SLO 与 C0-C4 路线 | 无 | 把相同 workload/SLO 输入 M40 #341 | ✅ 已建立；不表示 C0 或图能力完成 |
 | C0 基础与合同 | 可运行骨架、schema/capability handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结合同与证据 | 📋 |
-| C1 增量代码索引 | 工作区/Git、语言适配、Document/FullText、基础只读 MCP | `Tsdb.Generations` public contract 已可从最新 SonnetDB 源码联调 | Couplet 切换到最新源码，并使 revision/crash/cursor/cleanup/capacity gate 全部 PASS | 🚧 Core generation 合同与本仓回归已通过；Couplet `CG-005` 联合门禁未运行 |
+| C1 增量代码索引 | 工作区/Git、语言适配、Document/FullText、基础只读 MCP | `Tsdb.Generations` public contract 已可从最新 SonnetDB 源码联调 | Couplet 切换到最新源码，并使 revision/crash/cursor/cleanup/capacity gate 全部 PASS | 🚧 Core exact-revision lease 与 Couplet orderly store reopen cursor/watcher 本地回归已通过；跨进程 cursor、双客户端、固定硬件和长稳未运行，`CG-005` 保持 verifying |
 | C2 原生图代码智能 | 关系、路径、影响与测试选择 | #347~#351 目标 public API 可联调 | #352 与 Couplet C2 两个 gate 同时 PASS | 📋（Preview 发布受联合门禁约束） |
 | C3 混合检索与 context pack | 本地 embedding、shared FullText/Vector/Graph typed plan 和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 与 Couplet C3 gate 同时 PASS | 📋（Beta 发布受联合门禁约束） |
 | C4 生产与 Agent 体验 | 长稳、恢复、安全、分发和 Codex/Claude Code 验收 | M40 修复顺序步骤 1~7 全部通过后取证 | #367 与 Couplet C4 生产门禁同时 PASS | 📋（1.0 发布受联合门禁约束） |
@@ -313,7 +313,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN、跨模型 SQL 组合与 M35/M36 Hybrid Search 候选合同复用。 | ✅ #353~#359 功能与本地自动化门禁已完成；外部语义/容量和联合发布证据仍 `NOT_RUN` |
 | Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 🚧 #360~#366 已有功能切片，#367 strict evaluator 已完成；性能/恢复加固及正式发布证据未完成 |
 
-2026-08-25 的 Couplet C1 审计确认，#343 只固定单个 KV keyspace 内的 read snapshot/range cursor，#346 只固定已知模型（尤其 Graph）的 checkpoint、backup 与 crash/invariant；两者都没有一个覆盖 KV、Document、FullText 的 active generation 指针、跨分页 query lease、generation-bound cursor 或 lease-aware retired cleanup，因此“#343/#346 已完成”不能关闭 `CG-005`。本次新增通用、extend-only 的 `Tsdb.Generations`：发布前 checkpoint 并校验独占资源，内部 KV 条件批次原子发布 descriptor/ownership/active revision，查询租约固定 revision，清理等待全部租约释放；A/B reopen、publish 前后 fault、真实 Document+FullText、backup/restore、public API、package consumer 和 Core 回归均已通过。Couplet C1/`CG-005` 仍保持未完成，下一步必须由 Couplet 直接引用最新 SonnetDB 源码完成产品接线、双客户端与固定语料联合门禁。
+2026-08-25 的 Couplet C1 审计确认，#343 只固定单个 KV keyspace 内的 read snapshot/range cursor，#346 只固定已知模型（尤其 Graph）的 checkpoint、backup 与 crash/invariant；两者都没有一个覆盖 KV、Document、FullText 的 active generation 指针、跨分页 query lease、generation-bound cursor 或 lease-aware retired cleanup，因此“#343/#346 已完成”不能关闭 `CG-005`。本次新增通用、extend-only 的 `Tsdb.Generations`：发布前 checkpoint 并校验独占资源，内部 KV 条件批次原子发布 descriptor/ownership/active revision，查询租约固定 revision，清理等待全部租约释放；A/B reopen、publish 前后 fault、真实 Document+FullText、backup/restore、public API、package consumer 和 Core 回归均已通过。2026-08-31 又增加 `Acquire(stream, revision)` 的原子 exact-revision lease；Couplet 已用它完成持久 cursor 的 orderly store reopen 和本地 watcher/revision provenance 回归。该结果不包含真实进程重启/跨进程 cursor、双客户端、固定硬件或长稳，C1/`CG-005` 仍未关闭。
 
 ### M40 修复与发布执行顺序（2026-08-23 复盘）
 
@@ -326,8 +326,8 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | 3 | ✅ **Phase 1 合同（#348/#351）已补齐**：Expand 以 `GraphVertexPredicate` 落实目标 label/property 等值过滤；HTTP/SDK 扩展同构字段，带过滤请求不修改 Frame v1 而走 HTTP 流。Importer 同时执行 10,000 元素、8 MiB batch 和默认 1 MiB CSV 单行预算，完整输入校验后才发布批次。 | 1,000 度邻接跨页过滤、分页分配上界、按 UTF-8 字节分批、后续超长 CSV 无部分发布、未知长度 HTTP 413、嵌入式与 Frame 配置 typed SDK 回归通过；稳定错误为 `GraphImportLimitExceededException` / `graph_import_budget_exceeded`。#352 证据仍未运行。 |
 | 4 | ✅ **Phase 2 共享架构（#353/#355/#359，依赖 M41 #373/#374）已关闭**：原生 API、原生 SQL 和关系映射消费共享 logical plan/pull operators；关系 scan/filter/project/JOIN/Top-N 改为逐批消费，完整等值 covering index 可不解码基表行；关系图在一次捕获窗口固定全部映射表快照。 | Graph SQL 不再整游标物化或逐 match 创建 binding dictionary；原生与映射图回归通过，`EXPLAIN [ANALYZE]` 报告 `paged_cursor`、`fixed_slots`、阻塞内存行为、`statement_snapshot` 及各表实际 sequence。 |
 | 5 | ✅ **SQL 与 planner（#354/#358）已关闭**：冻结 `graph_sql_v1`，明确全部 label/非空 property 自动等值索引而不增加无物理差异的命名 DDL；实现属性 INSERT、显式 version UPSERT、部分 UPDATE、DELETE 与 `ANALYZE GRAPH`；原生 value cardinality 可选择 property anchor。 | `EXPLAIN [ANALYZE]` 报告实际 `native_property_index_seek`、索引、统计 sequence/freshness、anchor/expand 顺序和 fallback；高选择性右端属性驱动 incoming 计划，SQL mutation 全部复用单个 `GraphTransaction`，版本冲突整句不发布。合同见 `docs/m40-graph-354-358-sql-planner.md`。 |
-| 6 | **性能加固（#348/#349/#358/#361~#363）**：已落地 parent-linked path（延迟数组物化）和 file-backed offline vector 的有界 little-endian page cache/批量 flush；邻接、weighted-path 和 spill 的固定 workload 证据继续独立采集。 | 固定 workload 同时满足 latency、allocation、Gen2、pause、working set 和 spill I/O 阈值；不以提高预算、关闭耐久或减少能力换取数字。实现回归已通过，固定硬件 gate 仍待运行。 |
-| 7 | **恢复与产品闭环（#346/#359/#361/#366）**：Server 与 embedded SDK 已统一 `applying` 审计恢复和 torn NDJSON tail 规则，#367 quick 已加入真实子进程 kill/reopen；Server/SDK/CLI/Studio parity 的固定发布证据继续独立采集。 | 审计与维护在进程终止后具有确定终态或可恢复状态，损坏尾部不会被静默接受；Core、远程入口和管理面的结果、权限、错误及审计一致。实现回归已通过，7 天/每日 kill matrix 仍待运行。 |
+| 6 | **性能加固（#348/#349/#358/#361~#363）**：已落地 parent-linked path（延迟数组物化）、file-backed offline vector 的有界 little-endian page cache/批量 flush，以及 Expand/traversal/weighted-path 按剩余 edge/result 预算读取、最多一条 probe；预算截断后不再解码后续邻接。邻接、weighted-path 和 spill 的固定 workload 证据继续独立采集。 | 固定 workload 同时满足 latency、allocation、Gen2、pause、working set 和 spill I/O 阈值；不以提高预算、关闭耐久或减少能力换取数字。Graph 定向 142/142、相关 generation/API 167/167 与 Core Release 3882/3882 已通过；固定硬件 gate 仍待运行。 |
+| 7 | **恢复与产品闭环（#346/#359/#361/#366）**：Server 与 embedded SDK 已统一 `applying` 审计恢复和 torn NDJSON tail 规则，#367 quick 已加入真实子进程 kill/reopen；generation exact-revision acquire 与 cleanup 使用同一生命周期锁序，已清理/资源已删除的 revision 稳定返回 `generation_revision_unavailable`。Server/SDK/CLI/Studio parity 的固定发布证据继续独立采集。 | 审计与维护在进程终止后具有确定终态或可恢复状态，损坏尾部不会被静默接受；Core、远程入口和管理面的结果、权限、错误及审计一致。orderly reopen 小型回归已通过，真实跨进程 cursor、7 天/每日 kill matrix 仍待运行。 |
 | 8 | **最后采集发布证据（#352/#367 + Couplet C2~C4）**：依次运行 Neo4j/PostgreSQL 语义对拍、LDBC/Graphalytics、固定硬件 1m vertex/10m edge、Native AOT journey、Couplet 联合门禁和 7 天 8+1 mixed workload。 | correctness/recovery 与 performance/capacity 双 gate、Couplet C2~C4 对应 gate 全部 PASS，报告含原始样本、commit、硬件、命令、退出码和 access path；任一失败即保持 M40 🚧。 |
 
 准入规则：步骤 1~5 已完成；步骤 6~7 未完成前可以运行用于设计决策的 microbenchmark/quick，但不得启动或累计 #352/#367 固定硬件、外部对拍和 168 小时发布证据。只有步骤 1~7 的阻塞项全部关闭后，步骤 8 才可开始；在两个生产 gate 与 Couplet 联合门禁全部通过前，不得宣称 Production，也不得把正式定位改为九模型。

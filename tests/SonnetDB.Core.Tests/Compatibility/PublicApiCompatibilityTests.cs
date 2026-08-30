@@ -65,6 +65,9 @@ public sealed class PublicApiCompatibilityTests
             nameof(DatabaseGenerationManager.AcquireActive),
             [typeof(string)]));
         Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
+            nameof(DatabaseGenerationManager.Acquire),
+            [typeof(string), typeof(long)]));
+        Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
             nameof(DatabaseGenerationManager.CleanupRetired),
             [typeof(string), typeof(CancellationToken)]));
         Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(

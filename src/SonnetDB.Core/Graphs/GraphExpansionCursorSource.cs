@@ -5,6 +5,7 @@ namespace SonnetDB.Graphs;
 
 internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpansion>
 {
+    private const int InitialPageCapacity = 256;
     private readonly KvReadSnapshot _snapshot;
     private readonly GraphElementId _anchorId;
     private readonly GraphDirection _direction;
@@ -13,7 +14,9 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
     private readonly GraphCursorOptions _options;
     private KvRangeCursor? _cursor;
     private IReadOnlyList<KvEntry>? _pendingEntries;
+    private ReadOnlyMemory<byte> _afterKey;
     private int _pendingEntryIndex;
+    private int _returned;
     private GraphDirection _currentDirection;
     private bool _ended;
     private bool _disposed;
@@ -46,14 +49,17 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
 
     public IReadOnlyList<GraphExpansion> ReadNextPage(CancellationToken cancellationToken)
     {
-        var result = new List<GraphExpansion>(_options.PageSize);
-        while (result.Count < _options.PageSize && !_ended)
+        int remaining = _options.MaxResults - _returned;
+        if (remaining <= 0 || _ended)
+            return Array.Empty<GraphExpansion>();
+        int pageLimit = Math.Min(_options.PageSize, remaining);
+        var result = new List<GraphExpansion>(Math.Min(pageLimit, InitialPageCapacity));
+        while (result.Count < pageLimit && !_ended)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            KvRangeCursor cursor = _cursor
-                ?? throw new InvalidOperationException("Graph expansion cursor 状态无效。");
             if (_pendingEntries is null || _pendingEntryIndex >= _pendingEntries.Count)
             {
+                KvRangeCursor cursor = EnsureCursorPageSize();
                 IReadOnlyList<KvEntry> entries = cursor.ReadNextPage(cancellationToken);
                 if (entries.Count == 0)
                 {
@@ -69,6 +75,7 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
             KvEntry entry = _pendingEntries[_pendingEntryIndex++];
             if (_pendingEntryIndex >= _pendingEntries.Count)
             {
+                _afterKey = entry.Key;
                 _pendingEntries = null;
                 _pendingEntryIndex = 0;
             }
@@ -116,6 +123,9 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
                 neighborId,
                 _currentDirection,
                 edge));
+            _returned = checked(_returned + 1);
+            if (_returned >= _options.MaxResults)
+                End();
         }
 
         return result;
@@ -130,11 +140,12 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
         _snapshot.Dispose();
         _cursor = null;
         _pendingEntries = null;
+        _afterKey = default;
         _pendingEntryIndex = 0;
         _ended = true;
     }
 
-    private void OpenCursor(GraphDirection direction)
+    private void OpenCursor(GraphDirection direction, ReadOnlyMemory<byte> afterKey = default)
     {
         _cursor?.Dispose();
         byte[] prefix = direction == GraphDirection.Outgoing
@@ -147,13 +158,31 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
         _cursor = _snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = prefix,
-            PageSize = _options.PageSize,
+            AfterKey = afterKey,
+            PageSize = GetCursorPageSize(),
             MaxPageBytes = _options.MaxPageBytes,
         });
         _pendingEntries = null;
         _pendingEntryIndex = 0;
+        _afterKey = afterKey;
         _currentDirection = direction;
     }
+
+    private KvRangeCursor EnsureCursorPageSize()
+    {
+        KvRangeCursor cursor = _cursor
+            ?? throw new InvalidOperationException("Graph expansion cursor 状态无效。");
+        int pageSize = GetCursorPageSize();
+        if (cursor.PageSize > pageSize)
+        {
+            OpenCursor(_currentDirection, _afterKey);
+            cursor = _cursor!;
+        }
+        return cursor;
+    }
+
+    private int GetCursorPageSize()
+        => Math.Min(_options.PageSize, Math.Max(1, _options.MaxResults - _returned));
 
     private bool TryAdvanceDirection()
     {
@@ -163,9 +192,17 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
             return true;
         }
 
+        End();
+        return false;
+    }
+
+    private void End()
+    {
         _ended = true;
         _cursor?.Dispose();
         _cursor = null;
-        return false;
+        _pendingEntries = null;
+        _pendingEntryIndex = 0;
+        _afterKey = default;
     }
 }

@@ -98,7 +98,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                     {
                         PageSize = GetExpansionPageSize(),
                         MaxPageBytes = _options.MaxPageBytes,
-                        MaxResults = _options.MaxFrontier,
+                        MaxResults = GetExpansionResultLimit(),
                     });
                 _activePath = currentPath;
             }
@@ -165,6 +165,14 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         if (remaining >= _options.PageSize)
             return _options.PageSize;
         return checked((int)remaining + 1);
+    }
+
+    private int GetExpansionResultLimit()
+    {
+        long remaining = _options.MaxExpandedEdges - _expandedEdges;
+        return remaining >= int.MaxValue
+            ? int.MaxValue
+            : checked((int)remaining + 1);
     }
 
     private void AddPending(TraversalPath path)

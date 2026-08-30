@@ -156,6 +156,7 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
                 []);
         }
         transaction.Commit();
+        Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeEdgeRecord(new GraphElementId(11_001))));
 
         using GraphReadSession read = store.BeginRead();
         using GraphCursor<GraphExpansion> cursor = read.Expand(
@@ -190,6 +191,35 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
         Assert.Equal(Enumerable.Range(1, 10).Select(static value => (long)value * 100), neighborIds);
         Assert.True(allocatedBytes < 32L * 1024 * 1024, $"filtered expand allocated {allocatedBytes} bytes");
         Assert.True(cursor.IsExhausted);
+    }
+
+    [Fact]
+    public void Expand_MaxResults_DoesNotDecodeTruncatedAdjacency()
+    {
+        GraphStore store = _manager.Create("bounded-expand-decode");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (long id = 1; id <= 4; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        transaction.UpsertEdge(new GraphElementId(10), 0, new GraphElementId(1), new GraphElementId(2), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(11), 0, new GraphElementId(1), new GraphElementId(3), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(12), 0, new GraphElementId(1), new GraphElementId(4), new LabelId(2), []);
+        transaction.Commit();
+        Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeEdgeRecord(new GraphElementId(12))));
+
+        using GraphReadSession read = store.BeginRead();
+        using GraphCursor<GraphExpansion> cursor = read.Expand(
+            new GraphElementId(1),
+            options: new GraphCursorOptions
+            {
+                PageSize = 256,
+                MaxResults = 2,
+            });
+
+        IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage();
+
+        Assert.Equal([2L, 3L], page.Select(static item => item.NeighborId.Value));
+        Assert.True(cursor.IsExhausted);
+        Assert.Empty(cursor.ReadNextPage());
     }
 
     [Fact]
@@ -347,6 +377,81 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => read.Bfs(
             new GraphElementId(1),
             options: options with { MaxExpandedEdges = 0 }));
+    }
+
+    [Fact]
+    public void Traversal_ExpansionBudgetAtPageBoundary_DoesNotDecodePastSingleProbe()
+    {
+        GraphStore store = _manager.Create("expanded-edge-page-boundary");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (long id = 1; id <= 5; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        for (long id = 0; id < 4; id++)
+        {
+            transaction.UpsertEdge(
+                new GraphElementId(20 + id),
+                0,
+                new GraphElementId(1),
+                new GraphElementId(2 + id),
+                new LabelId(2),
+                []);
+        }
+        transaction.Commit();
+        Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeEdgeRecord(new GraphElementId(23))));
+
+        using GraphReadSession read = store.BeginRead();
+        using GraphCursor<GraphPath> cursor = read.Paths(
+            new GraphElementId(1),
+            1,
+            1,
+            options: new GraphTraversalOptions
+            {
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 8,
+                MaxExpandedEdges = 2,
+                PageSize = 2,
+                PathUniqueness = GraphPathUniqueness.Edge,
+            });
+
+        Assert.Equal(2, cursor.ReadNextPage().Count);
+        Assert.Throws<GraphTraversalLimitExceededException>(() => cursor.ReadNextPage());
+    }
+
+    [Fact]
+    public void Traversal_BothSelfLoopBudgetProbe_DoesNotDecodeFollowingCorruption()
+    {
+        GraphStore store = _manager.Create("both-self-loop-budget-probe");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (long id = 1; id <= 5; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        transaction.UpsertEdge(new GraphElementId(10), 0, new GraphElementId(1), new GraphElementId(1), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(11), 0, new GraphElementId(1), new GraphElementId(5), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(12), 0, new GraphElementId(2), new GraphElementId(1), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(13), 0, new GraphElementId(3), new GraphElementId(1), new LabelId(2), []);
+        transaction.Commit();
+        Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeEdgeRecord(new GraphElementId(13))));
+
+        using GraphReadSession read = store.BeginRead();
+        using GraphCursor<GraphPath> cursor = read.Paths(
+            new GraphElementId(1),
+            1,
+            1,
+            GraphDirection.Both,
+            options: new GraphTraversalOptions
+            {
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 8,
+                MaxExpandedEdges = 2,
+                PageSize = 2,
+                PathUniqueness = GraphPathUniqueness.Edge,
+            });
+
+        Assert.Equal([10L, 11L], cursor.ReadNextPage()
+            .Select(static path => path.EdgeIds[0].Value)
+            .ToArray());
+        Assert.Throws<GraphTraversalLimitExceededException>(() => cursor.ReadNextPage());
     }
 
     [Fact]

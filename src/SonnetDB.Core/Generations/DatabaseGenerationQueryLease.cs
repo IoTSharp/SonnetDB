@@ -1,7 +1,7 @@
 namespace SonnetDB.Generations;
 
 /// <summary>
-/// 在一次查询及其全部分页期间固定 active generation 的进程内租约。
+/// 在一次查询及其全部分页期间固定 generation 的进程内租约。
 /// </summary>
 /// <remarks>
 /// 调用方必须在查询、取消或异常结束时释放租约。租约存活期间，对应 retired generation 不会被清理。

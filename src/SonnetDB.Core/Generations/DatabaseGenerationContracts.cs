@@ -180,6 +180,9 @@ public static class DatabaseGenerationErrorCodes
     /// <summary>发布时观察到的 active revision 与调用方预期不一致。</summary>
     public const string RevisionConflict = "generation_revision_conflict";
 
+    /// <summary>指定 generation revision 不存在或已经清理。</summary>
+    public const string RevisionUnavailable = "generation_revision_unavailable";
+
     /// <summary>generation 身份或受管资源与现有 catalog 冲突。</summary>
     public const string ResourceConflict = "generation_resource_conflict";
 

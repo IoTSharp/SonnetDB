@@ -189,6 +189,51 @@ public sealed class DatabaseGenerationManager
     }
 
     /// <summary>
+    /// 租用指定 stream 中仍受 catalog 管理的 generation revision。
+    /// </summary>
+    /// <param name="stream">generation stream 名称。</param>
+    /// <param name="revision">要固定的正数 generation revision。</param>
+    /// <returns>固定指定 revision 与资源描述的查询租约。</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="revision"/> 不是正数。</exception>
+    /// <exception cref="DatabaseGenerationException">指定 revision 不存在或已经清理。</exception>
+    /// <remarks>
+    /// 获取租约与 retired generation 清理使用同一原子生命周期边界。方法返回后，该 revision
+    /// 在租约释放前不会被清理；若清理先完成，则本方法稳定失败且不会暴露已删除资源。
+    /// </remarks>
+    public DatabaseGenerationQueryLease Acquire(string stream, long revision)
+    {
+        ValidateText(stream, nameof(stream));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
+        lock (_schemaSync)
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                if (!_generations.TryGetValue(stream, out SortedDictionary<long, PersistedGeneration>? generations)
+                    || !generations.TryGetValue(revision, out PersistedGeneration? persisted))
+                {
+                    throw RevisionUnavailable(stream, revision);
+                }
+
+                try
+                {
+                    ValidateResourcesExist(persisted.Generation);
+                }
+                catch (DatabaseGenerationException exception)
+                    when (exception.Code == DatabaseGenerationErrorCodes.ResourceInvalid)
+                {
+                    throw RevisionUnavailable(stream, revision, exception);
+                }
+
+                var key = new LeaseKey(stream, revision);
+                _leaseCounts.TryGetValue(key, out int count);
+                _leaseCounts[key] = checked(count + 1);
+                return new DatabaseGenerationQueryLease(this, persisted.Generation);
+            }
+        }
+    }
+
+    /// <summary>
     /// 枚举指定 stream 仍受 catalog 管理的 generation，按 revision 升序返回。
     /// </summary>
     /// <param name="stream">generation stream 名称。</param>
@@ -285,6 +330,7 @@ public sealed class DatabaseGenerationManager
                     // Once a candidate starts, finish its physical and catalog deletion before
                     // observing cancellation again at the next candidate boundary.
                     DeletePhysicalResources(candidate.Generation);
+                    AfterCleanupResourcesTestHook?.Invoke(candidate.Generation);
                     DeleteCatalogRecord(candidate);
                     generations.Remove(candidate.Generation.Revision);
                     removed.Add(candidate.Generation.Revision);
@@ -302,6 +348,8 @@ public sealed class DatabaseGenerationManager
     internal Action<DatabaseGeneration>? AfterPublishTestHook { get; set; }
 
     internal Action<DatabaseGeneration>? BeforeCleanupTestHook { get; set; }
+
+    internal Action<DatabaseGeneration>? AfterCleanupResourcesTestHook { get; set; }
 
     internal long CheckpointCatalog()
     {
@@ -717,6 +765,20 @@ public sealed class DatabaseGenerationManager
         => new(
             DatabaseGenerationErrorCodes.RevisionConflict,
             $"generation stream '{stream}' 预期 active revision {expected}，实际为 {observed}。");
+
+    private static DatabaseGenerationException RevisionUnavailable(
+        string stream,
+        long revision,
+        Exception? innerException = null)
+    {
+        string message = $"generation stream '{stream}' 的 revision {revision} 不存在、已清理或资源不可用。";
+        return innerException is null
+            ? new DatabaseGenerationException(DatabaseGenerationErrorCodes.RevisionUnavailable, message)
+            : new DatabaseGenerationException(
+                DatabaseGenerationErrorCodes.RevisionUnavailable,
+                message,
+                innerException);
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 

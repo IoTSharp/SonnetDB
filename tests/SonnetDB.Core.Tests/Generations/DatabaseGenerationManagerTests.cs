@@ -206,6 +206,118 @@ public sealed class DatabaseGenerationManagerTests : IDisposable
     }
 
     [Fact]
+    public void Acquire_RetiredRevisionAfterReopen_DefersCleanupUntilLeaseReleased()
+    {
+        using (var db = Open())
+        {
+            Publish(db, "a", "alpha", expectedRevision: 0);
+            Publish(db, "b", "bravo", expectedRevision: 1);
+        }
+
+        using var reopened = Open();
+        DatabaseGenerationQueryLease lease = reopened.Generations.Acquire("workspace", 1);
+        Assert.Equal(1, lease.Generation.Revision);
+        Assert.Equal("generation-a", lease.Generation.GenerationId);
+
+        DatabaseGenerationCleanupResult retained = reopened.Generations.CleanupRetired("workspace");
+        Assert.Empty(retained.RemovedRevisions);
+        Assert.Equal([1L], retained.DeferredRevisions);
+
+        lease.Dispose();
+        DatabaseGenerationCleanupResult released = reopened.Generations.CleanupRetired("workspace");
+        Assert.Equal([1L], released.RemovedRevisions);
+        Assert.Empty(released.DeferredRevisions);
+        AssertGenerationQuery(reopened, "b", "bravo", expectedRevision: 2);
+    }
+
+    [Fact]
+    public async Task Acquire_CleanupWinsRace_FailsWithStableUnavailableCode()
+    {
+        using var db = Open();
+        Publish(db, "a", "alpha", expectedRevision: 0);
+        Publish(db, "b", "bravo", expectedRevision: 1);
+        using var cleanupEntered = new ManualResetEventSlim();
+        using var releaseCleanup = new ManualResetEventSlim();
+        using var acquireStarted = new ManualResetEventSlim();
+        db.Generations.BeforeCleanupTestHook = generation =>
+        {
+            Assert.Equal(1, generation.Revision);
+            cleanupEntered.Set();
+            Assert.True(releaseCleanup.Wait(TimeSpan.FromSeconds(10)));
+        };
+
+        Task<DatabaseGenerationCleanupResult> cleanup = Task.Run(() =>
+            db.Generations.CleanupRetired("workspace"));
+        Task<DatabaseGenerationQueryLease>? acquire = null;
+        try
+        {
+            Assert.True(cleanupEntered.Wait(TimeSpan.FromSeconds(10)));
+            acquire = Task.Run(() =>
+            {
+                acquireStarted.Set();
+                return db.Generations.Acquire("workspace", 1);
+            });
+            Assert.True(acquireStarted.Wait(TimeSpan.FromSeconds(10)));
+        }
+        finally
+        {
+            releaseCleanup.Set();
+        }
+
+        DatabaseGenerationCleanupResult result = await cleanup;
+        DatabaseGenerationException exception = await Assert.ThrowsAsync<DatabaseGenerationException>(
+            async () => await acquire!);
+        db.Generations.BeforeCleanupTestHook = null;
+
+        Assert.Equal([1L], result.RemovedRevisions);
+        Assert.Equal(DatabaseGenerationErrorCodes.RevisionUnavailable, exception.Code);
+        Assert.DoesNotContain("kv_a", db.Keyspaces.List());
+        Assert.Null(db.Documents.Catalog.TryGet("docs_a"));
+    }
+
+    [Fact]
+    public void Acquire_MissingRevision_UsesStableUnavailableCode()
+    {
+        using var db = Open();
+        Publish(db, "a", "alpha", expectedRevision: 0);
+
+        DatabaseGenerationException exception = Assert.Throws<DatabaseGenerationException>(() =>
+            db.Generations.Acquire("workspace", 2));
+
+        Assert.Equal(DatabaseGenerationErrorCodes.RevisionUnavailable, exception.Code);
+        Assert.Throws<ArgumentOutOfRangeException>(() => db.Generations.Acquire("workspace", 0));
+    }
+
+    [Fact]
+    public void Acquire_PhysicalCleanupCompletedBeforeCatalogFailure_FailsUnavailableAfterReopen()
+    {
+        using (var db = Open())
+        {
+            Publish(db, "a", "alpha", expectedRevision: 0);
+            Publish(db, "b", "bravo", expectedRevision: 1);
+            db.Generations.AfterCleanupResourcesTestHook = generation =>
+            {
+                Assert.Equal(1, generation.Revision);
+                throw new IOException("after physical cleanup fault injection");
+            };
+
+            Assert.Throws<IOException>(() => db.Generations.CleanupRetired("workspace"));
+            DatabaseGenerationException unavailable = Assert.Throws<DatabaseGenerationException>(() =>
+                db.Generations.Acquire("workspace", 1));
+            Assert.Equal(DatabaseGenerationErrorCodes.RevisionUnavailable, unavailable.Code);
+        }
+
+        using var reopened = Open();
+        DatabaseGenerationException reopenedUnavailable = Assert.Throws<DatabaseGenerationException>(() =>
+            reopened.Generations.Acquire("workspace", 1));
+        Assert.Equal(DatabaseGenerationErrorCodes.RevisionUnavailable, reopenedUnavailable.Code);
+
+        DatabaseGenerationCleanupResult cleanup = reopened.Generations.CleanupRetired("workspace");
+        Assert.Equal([1L], cleanup.RemovedRevisions);
+        AssertGenerationQuery(reopened, "b", "bravo", expectedRevision: 2);
+    }
+
+    [Fact]
     public void CleanupRetired_CancellationAndFailure_LeaveEligibleGenerationRetryable()
     {
         using var db = Open();

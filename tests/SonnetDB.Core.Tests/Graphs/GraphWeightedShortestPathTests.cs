@@ -1,4 +1,5 @@
 using SonnetDB.Graphs;
+using SonnetDB.Graphs.Storage;
 using SonnetDB.Kv;
 
 namespace SonnetDB.Core.Tests.Graphs;
@@ -178,6 +179,59 @@ public sealed class GraphWeightedShortestPathTests : IDisposable
                 ],
                 GraphWeightedShortestPathOptions.ForProperty(1),
                 new GraphAlgorithmBatchOptions { MaxQueries = 1, MaxResults = 1 }));
+    }
+
+    [Theory]
+    [InlineData(GraphWeightedShortestPathAlgorithm.Dijkstra)]
+    [InlineData(GraphWeightedShortestPathAlgorithm.AStar)]
+    [InlineData(GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra)]
+    public void WeightedShortestPath_ExpansionBudget_DoesNotDecodePastSingleProbe(
+        GraphWeightedShortestPathAlgorithm algorithm)
+    {
+        GraphStore store = CreateStore("bounded-probe-" + algorithm);
+        CreateVertices(store, 1, 2, 3, 4);
+        AddEdge(store, 10, 1, 2, GraphPropertyValue.FromInt64(1));
+        AddEdge(store, 11, 1, 3, GraphPropertyValue.FromInt64(1));
+        AddEdge(store, 12, 1, 4, GraphPropertyValue.FromInt64(1));
+        Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeEdgeRecord(new GraphElementId(12))));
+        using GraphReadSession read = store.BeginRead();
+
+        GraphWeightedShortestPathOptions options = GraphWeightedShortestPathOptions.ForProperty(1) with
+        {
+            Algorithm = algorithm,
+            MaxExpandedEdges = 1,
+            PageSize = 256,
+        };
+
+        Assert.Throws<GraphWeightedPathLimitExceededException>(() => read.WeightedShortestPath(
+            new GraphElementId(1),
+            new GraphElementId(3),
+            options));
+    }
+
+    [Theory]
+    [InlineData(GraphWeightedShortestPathAlgorithm.Dijkstra)]
+    [InlineData(GraphWeightedShortestPathAlgorithm.AStar)]
+    [InlineData(GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra)]
+    public void WeightedShortestPath_ExpansionBudgetExactlyConsumedWithoutProbe_ReturnsUnreachable(
+        GraphWeightedShortestPathAlgorithm algorithm)
+    {
+        GraphStore store = CreateStore("exact-budget-" + algorithm);
+        CreateVertices(store, 1, 2, 3);
+        AddEdge(store, 10, 1, 2, GraphPropertyValue.FromInt64(1));
+        using GraphReadSession read = store.BeginRead();
+
+        GraphWeightedPath? result = read.WeightedShortestPath(
+            new GraphElementId(1),
+            new GraphElementId(3),
+            GraphWeightedShortestPathOptions.ForProperty(1) with
+            {
+                Algorithm = algorithm,
+                MaxExpandedEdges = 1,
+                PageSize = 256,
+            });
+
+        Assert.Null(result);
     }
 
     [Fact]

@@ -7,6 +7,8 @@
 
 ### Added
 
+- **M40 步骤 6/7 图预算与 exact-revision lease 加固**：Graph Expand、BFS/DFS traversal 与 Dijkstra/A*/双向 Dijkstra 按剩余 result/expanded-edge 预算缩小底层邻接页，最多额外读取一条用于区分“预算刚好耗尽”与“仍有邻接”的 probe；达到上限后不再解码后续 edge record，并覆盖 Both/self-loop/page boundary/后续损坏记录。`Tsdb.Generations` 新增 extend-only `Acquire(stream, revision)`，与 retired cleanup 共用生命周期锁序；租约返回后 revision 在释放前不可清理，清理先完成或物理资源已不可用时稳定返回 `generation_revision_unavailable`。Graph 142/142、相关 generation/API 167/167、Core Release 3882/3882 及 win-x64 Native AOT 已通过；固定硬件、外部数据库/LDBC/Graphalytics、生产 Native AOT journey 和 7 天证据仍为 `NOT_RUN`。
+
 - **M27 #340 ServerRelay 单进程续流合同**：`/v1/copilot/chat` 与 stream 端点以 extend-only、source-generated 字段发布稳定 `runId`、`sequence`、`cursor` 和 `toolCallId`；有界内存 journal 按认证 owner、database 与请求 fingerprint 绑定 active/replay/tombstone，已知 cursor 只重放未确认 tail，不再次调用 provider 或工具。等价 JSON 参数和结果的稳定 tool-call replay 复用既有本地结果；active 重复、错名/错参、stale retry/result、结果冲突、未完成工具后的 final 和终态后事件均 fail closed。绝对 TTL、请求断开、日志容量和异常路径统一保留 `error/done` 终态，linked cancellation 贯穿云端调用、本地 Agent 和 SQL 工具；断线不启动后台 continuation。Web ServerRelay 已发送 runtime run ID、消费服务端 envelope，并拒绝缺稳定字段的旧 SSE。该能力只覆盖同一 Server 进程；页面刷新后的中段恢复、进程重启、多实例共享和 durable replay 未实现。
 
 - **M27 #185 本地 ONNX batch 与线程接线**：`IEmbeddingProvider` 新增带兼容默认实现的批量入口；`LocalOnnxEmbeddingProvider` 对动态或固定 batch 构造 `[batch, sequence]` 输入，以一次 ONNX Runtime `Run` 完成推理并逐行执行 mask-aware pooling 与 L2 归一化。`Copilot:Embedding:IntraOpThreads` / `InterOpThreads` 现在真实应用到 `SessionOptions` 并公开 initialized/applied/effective execution state；evidence v2 runner 真实执行 batch、核对单次 run 增量并记录线程模式。tiny fixture、错误模型、取消和 fallback 回归已补齐；真实目标模型、语料、固定硬件质量/性能报告仍为 `NOT_READY`。

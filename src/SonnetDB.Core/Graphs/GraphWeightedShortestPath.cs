@@ -422,12 +422,7 @@ public static class GraphWeightedShortestPathExtensions
                 entry.VertexId,
                 options.Direction,
                 options.EdgeLabelId,
-                new GraphCursorOptions
-                {
-                    PageSize = options.PageSize,
-                    MaxPageBytes = options.MaxPageBytes,
-                    MaxResults = int.MaxValue,
-                });
+                CreateExpansionCursorOptions(options, expandedEdges));
             while (true)
             {
                 IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage(cancellationToken);
@@ -562,12 +557,7 @@ public static class GraphWeightedShortestPathExtensions
                 current.VertexId,
                 direction,
                 options.EdgeLabelId,
-                new GraphCursorOptions
-                {
-                    PageSize = options.PageSize,
-                    MaxPageBytes = options.MaxPageBytes,
-                    MaxResults = int.MaxValue,
-                });
+                CreateExpansionCursorOptions(options, expandedEdges));
             while (true)
             {
                 IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage(cancellationToken);
@@ -753,6 +743,23 @@ public static class GraphWeightedShortestPathExtensions
             throw new GraphWeightOverflowException(
                 $"顶点 {vertexId} 的 A* 启发式必须是有限且非负数值。");
         return value;
+    }
+
+    private static GraphCursorOptions CreateExpansionCursorOptions(
+        GraphWeightedShortestPathOptions options,
+        long expandedEdges)
+    {
+        long remaining = options.MaxExpandedEdges - expandedEdges;
+        // 额外一条只用于证明仍有未检查邻接；算法循环会在消费其权重前抛出预算异常。
+        int probeLimit = remaining >= int.MaxValue
+            ? int.MaxValue
+            : checked((int)remaining + 1);
+        return new GraphCursorOptions
+        {
+            PageSize = Math.Min(options.PageSize, probeLimit),
+            MaxPageBytes = options.MaxPageBytes,
+            MaxResults = probeLimit,
+        };
     }
 
     private static double AddWeight(double left, double right, GraphElementId edgeId)
