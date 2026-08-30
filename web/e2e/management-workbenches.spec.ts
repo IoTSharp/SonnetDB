@@ -657,8 +657,21 @@ test('SQL workspace opens slow query and Top-N diagnostics', async ({ page }) =>
 
 test('Studio bridge exposes native server controls and disk connection library', async ({ page }) => {
   await mockStudioBridge(page);
-  const bridgeUrl = encodeURIComponent('http://127.0.0.1:54980/studio-bridge');
-  await page.goto(`/admin/app/sql?studioBridgeUrl=${bridgeUrl}&studioBridgeToken=studio-e2e-token`);
+  const manifestRequest = page.waitForRequest((request) => request.url().endsWith('/studio-bridge/manifest'));
+  await page.goto('/admin/app/sql');
+
+  expect((await manifestRequest).headers()['x-sonnetdb-studio-bridge-token']).toBe('studio-e2e-token');
+  expect(page.url()).not.toContain('studioBridge');
+  const browserStorage = await page.evaluate(() => ({
+    cookie: document.cookie,
+    local: Object.entries(localStorage),
+    session: Object.entries(sessionStorage),
+  }));
+  const storageKeys = [...browserStorage.local, ...browserStorage.session].map(([key]) => key);
+  expect(storageKeys).not.toContain('sndb.studio.bridge.url');
+  expect(storageKeys).not.toContain('sndb.studio.bridge.token');
+  expect(JSON.stringify(browserStorage)).not.toContain('studio-e2e-token');
+  expect(JSON.stringify(browserStorage)).not.toContain('http://127.0.0.1:54980/studio-bridge');
 
   const nativeControls = page.locator('.native-bridge-controls');
   await expect(nativeControls).toBeVisible();
@@ -684,8 +697,7 @@ test('Studio bridge exposes native server controls and disk connection library',
 
 test('Studio desktop menu actions drive the shared SQL workbench', async ({ page }) => {
   await mockStudioBridge(page);
-  const bridgeUrl = encodeURIComponent('http://127.0.0.1:54980/studio-bridge');
-  await page.goto(`/admin/app/sql?studioBridgeUrl=${bridgeUrl}&studioBridgeToken=studio-e2e-token`);
+  await page.goto('/admin/app/sql');
 
   const tabs = page.getByRole('tab');
   const initialTabCount = await tabs.count();
@@ -909,6 +921,26 @@ async function mockManagementContracts(page: Page): Promise<void> {
 }
 
 async function mockStudioBridge(page: Page): Promise<void> {
+  await page.addInitScript(({ endpointUrl, token }) => {
+    const bootstrap = Object.freeze({ endpointUrl, token });
+    sessionStorage.setItem('sndb.studio.bridge.url', endpointUrl);
+    sessionStorage.setItem('sndb.studio.bridge.token', 'legacy-session-token');
+    localStorage.setItem('sndb.studio.bridge.token', 'legacy-local-token');
+    Object.defineProperty(globalThis, 'nativeWeb', {
+      configurable: true,
+      value: Object.freeze({
+        invoke: async (handler: string) => {
+          if (handler !== 'studio.bridge.bootstrap.request') throw new Error(`Unexpected native handler: ${handler}`);
+          window.dispatchEvent(new CustomEvent('nativeWeb:studio.bridge.bootstrap', { detail: bootstrap }));
+          return null;
+        },
+      }),
+    });
+  }, {
+    endpointUrl: 'http://127.0.0.1:54980/studio-bridge',
+    token: 'studio-e2e-token',
+  });
+
   await page.route('http://127.0.0.1:54980/studio-bridge/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const status = { isRunning: true, startedByStudio: true, healthy: true, processId: 260, url: 'http://127.0.0.1:5080', dataRoot: 'C:\\SonnetDB\\Studio\\data', error: null };

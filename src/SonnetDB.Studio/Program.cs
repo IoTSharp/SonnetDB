@@ -25,7 +25,10 @@ internal static class Program
             }
         }
 
-        var studioUrl = BuildStudioUrl(options.ServerUrl, options.Route, bridge?.EndpointUrl, bridge?.Token);
+        var studioUrl = BuildStudioUrl(options.ServerUrl, options.Route);
+        var bridgeBootstrap = bridge is null
+            ? null
+            : new StudioBridgeBootstrap(bridge.EndpointUrl, bridge.Token);
 
         var app = NativeWebApp.CreateBuilder(args)
             .Configure(nativeOptions =>
@@ -39,13 +42,13 @@ internal static class Program
             })
             .UseAdapter(new NativeWebView2AdapterFactory())
             .UseRuntime(new Win32Runtime())
-            .UseDesktopApp(new StudioDesktopApp("SonnetDB Studio"))
+            .UseDesktopApp(new StudioDesktopApp("SonnetDB Studio", bridgeBootstrap))
             .Build();
 
         await app.RunAsync().ConfigureAwait(false);
     }
 
-    private static string BuildStudioUrl(string serverUrl, string route, string? bridgeUrl, string? bridgeToken)
+    internal static string BuildStudioUrl(string serverUrl, string route)
     {
         var normalizedServer = string.IsNullOrWhiteSpace(serverUrl)
             ? DefaultServerUrl
@@ -57,17 +60,7 @@ internal static class Program
         if (!normalizedRoute.StartsWith('/'))
             normalizedRoute = "/" + normalizedRoute;
 
-        var url = normalizedServer + normalizedRoute;
-        if (string.IsNullOrWhiteSpace(bridgeUrl) || string.IsNullOrWhiteSpace(bridgeToken))
-            return url;
-
-        var separator = url.Contains('?') ? "&" : "?";
-        return url
-            + separator
-            + "studioBridgeUrl="
-            + Uri.EscapeDataString(bridgeUrl)
-            + "&studioBridgeToken="
-            + Uri.EscapeDataString(bridgeToken);
+        return normalizedServer + normalizedRoute;
     }
 }
 

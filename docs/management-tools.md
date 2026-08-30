@@ -150,7 +150,7 @@ npm run test:host
 
 | 范围 | 已实现证据 | 收口结论 |
 | --- | --- | --- |
-| #258 bridge 鉴权与 manifest | `StudioBridgeHost.cs`、`StudioBridgeContracts.cs` | 已实现 loopback + token、capability manifest 和状态 API |
+| #258 bridge 鉴权与 manifest | `StudioBridgeHost.cs`、`StudioBridgeContracts.cs`、`StudioDesktopApp.cs` | 已实现 loopback + capability manifest 和状态 API；请求仅接受配置的 Studio origin 与 header token，启动配置通过 NativeWebHost 内存握手注入，URL/query/browser storage 不再承载凭据 |
 | #258 文件与连接库 | `StudioFileDialogService.cs`、`StudioConnectionLibrary.cs`、`studioNativeBridge.ts` | 文本/二进制打开保存、目录选择、关系与对象导入导出、备份/恢复目录和磁盘连接库均已接线 |
 | #258 托管本地 Server | `StudioManagedServerHost.cs`、`Program.cs` | 已实现进程启停、data root、健康检查与退出策略 |
 | #258 原生菜单 | `StudioDesktopActions.cs`、`StudioNativeMenu.cs` | manifest 与 Win32 菜单共用动作目录；窗口命令经 NativeWebHost JS bridge 回到共享工作台流程 |

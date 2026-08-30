@@ -1,7 +1,14 @@
-const BridgeUrlQueryKey = 'studioBridgeUrl';
-const BridgeTokenQueryKey = 'studioBridgeToken';
-const BridgeUrlStorageKey = 'sndb.studio.bridge.url';
-const BridgeTokenStorageKey = 'sndb.studio.bridge.token';
+const BridgeBootstrapRequestHandler = 'studio.bridge.bootstrap.request';
+const BridgeBootstrapEvent = 'nativeWeb:studio.bridge.bootstrap';
+const LegacyBridgeStorageKeys = [
+  'sndb.studio.bridge.url',
+  'sndb.studio.bridge.token',
+] as const;
+const LegacyBridgeQueryKeys = ['studioBridgeUrl', 'studioBridgeToken'] as const;
+
+interface NativeWebApi {
+  invoke(handler: string, data?: unknown): Promise<unknown>;
+}
 
 export interface StudioBridgeManifest {
   mode: string;
@@ -124,7 +131,7 @@ let cachedClient: StudioNativeBridgeClient | null | undefined;
 export async function getStudioNativeBridge(): Promise<StudioNativeBridgeClient | null> {
   if (cachedClient !== undefined) return cachedClient;
 
-  const config = readBridgeConfig();
+  const config = await readBridgeConfig();
   if (!config) {
     cachedClient = null;
     return null;
@@ -296,23 +303,75 @@ function parseDesktopAction(value: unknown): StudioDesktopActionMessage | null {
   return typeof id === 'string' ? { id: id as StudioDesktopActionId } : null;
 }
 
-function readBridgeConfig(): { baseUrl: string; token: string } | null {
+async function readBridgeConfig(): Promise<{ baseUrl: string; token: string } | null> {
   if (typeof window === 'undefined') return null;
+  purgeLegacyBridgeCredentials();
 
-  const url = new URL(window.location.href);
-  const urlBridge = url.searchParams.get(BridgeUrlQueryKey);
-  const urlToken = url.searchParams.get(BridgeTokenQueryKey);
-  if (urlBridge && urlToken) {
-    sessionStorage.setItem(BridgeUrlStorageKey, urlBridge.replace(/\/+$/u, ''));
-    sessionStorage.setItem(BridgeTokenStorageKey, urlToken);
-    url.searchParams.delete(BridgeUrlQueryKey);
-    url.searchParams.delete(BridgeTokenQueryKey);
-    window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+  const nativeWeb = (window as Window & { nativeWeb?: NativeWebApi }).nativeWeb;
+  if (!nativeWeb) return null;
+
+  let timeout = 0;
+  let listener: ((event: Event) => void) | null = null;
+  try {
+    const bootstrap = new Promise<unknown>((resolve, reject) => {
+      listener = (event: Event) => resolve((event as CustomEvent<unknown>).detail);
+      window.addEventListener(BridgeBootstrapEvent, listener, { once: true });
+      timeout = window.setTimeout(
+        () => reject(new Error('Studio bridge bootstrap timed out.')),
+        3000,
+      );
+    });
+    const [, value] = await Promise.all([
+      nativeWeb.invoke(BridgeBootstrapRequestHandler, null),
+      bootstrap,
+    ]);
+    if (!value || typeof value !== 'object') return null;
+
+    const endpointUrl = 'endpointUrl' in value ? (value as { endpointUrl?: unknown }).endpointUrl : null;
+    const token = 'token' in value ? (value as { token?: unknown }).token : null;
+    if (typeof endpointUrl !== 'string' || typeof token !== 'string' || !token) return null;
+
+    const endpoint = new URL(endpointUrl);
+    if (
+      endpoint.protocol !== 'http:'
+      || !isLoopbackHost(endpoint.hostname)
+      || endpoint.username
+      || endpoint.password
+      || endpoint.search
+      || endpoint.hash
+    ) return null;
+    return { baseUrl: endpoint.href.replace(/\/+$/u, ''), token };
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+    if (listener) window.removeEventListener(BridgeBootstrapEvent, listener);
+  }
+}
+
+function purgeLegacyBridgeCredentials(): void {
+  for (const key of LegacyBridgeStorageKeys) {
+    try {
+      window.sessionStorage.removeItem(key);
+      window.localStorage.removeItem(key);
+    } catch {
+      // Storage may be disabled; the bridge never depends on it.
+    }
   }
 
-  const baseUrl = sessionStorage.getItem(BridgeUrlStorageKey);
-  const token = sessionStorage.getItem(BridgeTokenStorageKey);
-  return baseUrl && token ? { baseUrl, token } : null;
+  try {
+    const url = new URL(window.location.href);
+    const hasLegacyQuery = LegacyBridgeQueryKeys.some((key) => url.searchParams.has(key));
+    if (!hasLegacyQuery) return;
+    for (const key of LegacyBridgeQueryKeys) url.searchParams.delete(key);
+    window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // The bridge never depends on URL query state.
+  }
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === '[::1]' || hostname === 'localhost';
 }
 
 function placeholderManifest(): StudioBridgeManifest {

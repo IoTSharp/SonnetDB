@@ -22,6 +22,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     private readonly StudioHostOptions _options;
     private readonly StudioConnectionLibrary _connections;
     private readonly StudioManagedServerHost _managedServer;
+    private readonly string _trustedStudioOrigin;
     private string _selectedDataRoot;
     private string _selectedManagedServerUrl;
     private WebApplication? _app;
@@ -35,6 +36,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         _options = options;
         Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         BaseUrl = $"http://127.0.0.1:{options.BridgePort}";
+        _trustedStudioOrigin = GetOrigin(options.ServerUrl);
         _connections = new StudioConnectionLibrary(options.ConnectionLibraryPath, options.ManagedServerUrl);
         _managedServer = new StudioManagedServerHost(options.ServerExecutable, options.KeepManagedServer);
         _selectedDataRoot = options.DataRoot;
@@ -71,7 +73,11 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         builder.Services.AddCors();
 
         var app = builder.Build();
-        app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        app.Use(ValidateBridgeOriginAsync);
+        app.UseCors(policy => policy
+            .WithOrigins(_trustedStudioOrigin)
+            .AllowAnyMethod()
+            .AllowAnyHeader());
         app.Use(AuthorizeBridgeRequestAsync);
 
         var group = app.MapGroup("/studio-bridge");
@@ -118,6 +124,13 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
             return;
         }
 
+        if (context.Request.Query.ContainsKey("token"))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsync("Studio bridge token is not accepted in the query string.", context.RequestAborted).ConfigureAwait(false);
+            return;
+        }
+
         if (!IsAuthorized(context))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -128,11 +141,21 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         await next(context).ConfigureAwait(false);
     }
 
+    private async Task ValidateBridgeOriginAsync(HttpContext context, RequestDelegate next)
+    {
+        if (!HasTrustedOrigin(context))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Studio bridge origin is missing or invalid.", context.RequestAborted).ConfigureAwait(false);
+            return;
+        }
+
+        await next(context).ConfigureAwait(false);
+    }
+
     private bool IsAuthorized(HttpContext context)
     {
         var provided = context.Request.Headers[TokenHeader].ToString();
-        if (string.IsNullOrWhiteSpace(provided))
-            provided = context.Request.Query["token"].ToString();
         if (string.IsNullOrWhiteSpace(provided))
             return false;
 
@@ -140,6 +163,23 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         var providedBytes = Encoding.UTF8.GetBytes(provided);
         return expectedBytes.Length == providedBytes.Length
             && CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
+    }
+
+    private bool HasTrustedOrigin(HttpContext context)
+        => string.Equals(
+            context.Request.Headers.Origin.ToString(),
+            _trustedStudioOrigin,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string GetOrigin(string serverUrl)
+    {
+        if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Studio server URL must be an absolute HTTP or HTTPS URL.", nameof(serverUrl));
+        }
+
+        return uri.GetLeftPart(UriPartial.Authority);
     }
 
     private async Task WriteManifestAsync(HttpContext context)

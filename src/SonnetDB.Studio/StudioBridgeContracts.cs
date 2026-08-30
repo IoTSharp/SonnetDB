@@ -3,6 +3,11 @@ using System.Text.Json.Serialization;
 namespace SonnetDB.Studio;
 
 /// <summary>
+/// NativeWebHost 启动握手返回的当前 WebView bridge 配置。
+/// </summary>
+internal sealed record StudioBridgeBootstrap(string EndpointUrl, string Token);
+
+/// <summary>
 /// Studio 桌面桥暴露给 Web Admin 的能力清单。
 /// </summary>
 internal sealed record StudioBridgeManifest(
@@ -132,6 +137,7 @@ internal sealed record StudioManagedServerStatus(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     WriteIndented = true,
     GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(StudioBridgeBootstrap))]
 [JsonSerializable(typeof(StudioBridgeManifest))]
 [JsonSerializable(typeof(StudioMenuItem))]
 [JsonSerializable(typeof(StudioDesktopActionMessage))]
