@@ -25,6 +25,8 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
+//   dotnet run -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path>
+//   dotnet run -c Release -- --m27-verify-local-onnx <report> [--require-ready]
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
 //   dotnet run -c Release -- --filter *M41RelationInputPushdown* （#372 关系输入下推对拍）
 //   dotnet run -c Release -- --filter *M41JoinAlgorithm* （#378 JOIN 算法对拍）
@@ -32,6 +34,50 @@ using SonnetDB.Benchmarks.Benchmarks;
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
 //   docker compose -f tests/SonnetDB.Benchmarks/docker/docker-compose.yml up -d
+if (args.Contains("--m27-verify-local-onnx", StringComparer.OrdinalIgnoreCase))
+{
+    string? reportPath = ReadOption(args, "--m27-verify-local-onnx");
+    if (reportPath is null || reportPath.StartsWith("--", StringComparison.Ordinal))
+        throw new ArgumentException("--m27-verify-local-onnx 必须提供 evidence report 路径。");
+    M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
+    Console.WriteLine(
+        $"m27-local-onnx-verification={verification.Status} report={reportPath} "
+        + $"recall-at-k={verification.RecomputedSummary.RecallAtK:F6} "
+        + $"p95-ms={verification.RecomputedSummary.P95Milliseconds:F3} "
+        + $"findings={verification.Findings.Length}");
+    if (verification.Status == "INVALID"
+        || (args.Contains("--require-ready", StringComparer.OrdinalIgnoreCase)
+            && verification.Status != "PASS"))
+    {
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--m27-local-onnx-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m27-local-onnx-evidence"));
+    M27LocalOnnxEvidenceReport report = await M27LocalOnnxEvidenceRunner.RunAsync(
+        new M27LocalOnnxEvidenceRunOptions(
+            RequireOption(args, "--model"),
+            RequireOption(args, "--tokenizer"),
+            RequireOption(args, "--profile"),
+            RequireOption(args, "--corpus"),
+            RequireOption(args, "--model-source"),
+            RequireOption(args, "--model-version"),
+            RequireOption(args, "--model-license"),
+            outputDirectory,
+            ReadPositiveIntOption(args, "--warmup", 3),
+            ReadPositiveIntOption(args, "--iterations", 10))).ConfigureAwait(false);
+    Console.WriteLine(
+        $"m27-local-onnx-evidence={report.Status} output={outputDirectory} "
+        + $"fallback={report.ProviderFallback} recall-at-k={report.Summary.RecallAtK:F6} "
+        + $"p95-ms={report.Summary.P95Milliseconds:F3} failures={report.Summary.FailureCount}");
+    if (report.Status != "PASS")
+        Environment.ExitCode = 2;
+    return;
+}
+
 if (args.Contains("--m40-verify-artifact", StringComparer.OrdinalIgnoreCase))
 {
     string? artifactPath = ReadOption(args, "--m40-verify-artifact");
@@ -364,4 +410,24 @@ static string? ReadOption(string[] args, string option)
     }
 
     return null;
+}
+
+// 读取必填单值选项。
+static string RequireOption(string[] args, string option)
+{
+    string? value = ReadOption(args, option);
+    if (value is null || value.StartsWith("--", StringComparison.Ordinal))
+        throw new ArgumentException($"{option} 必须提供路径。");
+    return value;
+}
+
+// 读取正整数选项。
+static int ReadPositiveIntOption(string[] args, string option, int defaultValue)
+{
+    string? value = ReadOption(args, option);
+    if (value is null)
+        return defaultValue;
+    if (!int.TryParse(value, out int parsed) || parsed <= 0)
+        throw new ArgumentException($"{option} 必须为正整数。");
+    return parsed;
 }

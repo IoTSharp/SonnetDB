@@ -21,4 +21,8 @@
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SonnetDB.Benchmarks.Tests" />
+  </ItemGroup>
+
 </Project>
