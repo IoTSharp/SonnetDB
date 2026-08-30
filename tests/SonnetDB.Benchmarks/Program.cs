@@ -25,7 +25,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
-//   dotnet run -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path>
+//   dotnet run -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path> --environment <name> --intra-op-threads <n> --inter-op-threads <n>
 //   dotnet run -c Release -- --m27-verify-local-onnx <report> [--require-ready]
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
 //   dotnet run -c Release -- --filter *M41RelationInputPushdown* （#372 关系输入下推对拍）
@@ -67,6 +67,10 @@ if (args.Contains("--m27-local-onnx-evidence", StringComparer.OrdinalIgnoreCase)
             RequireOption(args, "--model-version"),
             RequireOption(args, "--model-license"),
             outputDirectory,
+            RequireOption(args, "--environment"),
+            ReadNonNegativeIntOption(args, "--intra-op-threads", 0),
+            ReadNonNegativeIntOption(args, "--inter-op-threads", 0),
+            args.Contains("--target-model-evidence", StringComparer.OrdinalIgnoreCase),
             ReadPositiveIntOption(args, "--warmup", 3),
             ReadPositiveIntOption(args, "--iterations", 10))).ConfigureAwait(false);
     Console.WriteLine(
@@ -429,5 +433,16 @@ static int ReadPositiveIntOption(string[] args, string option, int defaultValue)
         return defaultValue;
     if (!int.TryParse(value, out int parsed) || parsed <= 0)
         throw new ArgumentException($"{option} 必须为正整数。");
+    return parsed;
+}
+
+// 读取非负整数选项；零表示由运行时选择默认值。
+static int ReadNonNegativeIntOption(string[] args, string option, int defaultValue)
+{
+    string? value = ReadOption(args, option);
+    if (value is null)
+        return defaultValue;
+    if (!int.TryParse(value, out int parsed) || parsed < 0)
+        throw new ArgumentException($"{option} 必须为非负整数。");
     return parsed;
 }

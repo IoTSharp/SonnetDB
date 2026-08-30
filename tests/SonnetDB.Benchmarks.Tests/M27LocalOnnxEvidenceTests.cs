@@ -21,7 +21,10 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
             inputs.ToOptions(Path.Combine(_root, "missing-output")));
 
         Assert.Equal("NOT_READY", report.Status);
+        Assert.Equal("m27-local-onnx-evidence-v2", report.Schema);
         Assert.False(report.Model.Exists);
+        Assert.False(report.TargetModelLoaded);
+        Assert.False(report.TargetModelEvidence);
         Assert.False(string.IsNullOrWhiteSpace(report.Tokenizer.Sha256));
         Assert.False(string.IsNullOrWhiteSpace(report.ProfileArtifact.Sha256));
         Assert.False(string.IsNullOrWhiteSpace(report.CorpusArtifact.Sha256));
@@ -30,9 +33,22 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
         Assert.Equal("Apache-2.0", report.Provenance.License);
         Assert.True(report.Environment.PeakWorkingSetBytes >= report.Environment.WorkingSetBeforeBytes);
         Assert.True(report.Environment.PeakManagedMemoryBytes >= report.Environment.ManagedMemoryBeforeBytes);
+        Assert.Equal("contract-test", report.Environment.Name);
+        Assert.Equal(2, report.Environment.Threads.RequestedIntraOpThreads);
+        Assert.Equal(1, report.Environment.Threads.RequestedInterOpThreads);
+        Assert.False(report.Environment.Threads.AppliedToSession);
+        Assert.Null(report.Environment.Threads.EffectiveIntraOpThreads);
+        Assert.Null(report.Environment.Threads.EffectiveInterOpThreads);
+        Assert.Equal(6, report.BoundarySamples.Length);
+        Assert.Contains(report.BoundarySamples, static sample => sample is
+            { Scenario: "batch-input", Status: "NOT_SUPPORTED" });
         Assert.Empty(report.RawSamples);
         Assert.Contains(report.Failures, static failure => failure.Contains("model", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("--model", report.ReplayArguments);
+        Assert.Contains("--environment", report.ReplayArguments);
+        Assert.Contains("--intra-op-threads", report.ReplayArguments);
+        Assert.Contains("--inter-op-threads", report.ReplayArguments);
+        Assert.DoesNotContain("--target-model-evidence", report.ReplayArguments);
 
         string reportPath = Path.Combine(_root, "missing-output", M27LocalOnnxEvidenceRunner.ReportFileName);
         M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
@@ -52,6 +68,10 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(report.Model.Sha256));
         Assert.True(report.ProviderFallback);
         Assert.False(string.IsNullOrWhiteSpace(report.FallbackReason));
+        Assert.Contains(report.BoundarySamples, static sample => sample is
+            { Scenario: "blank-input", Status: "PASS", ObservedOutcome: "argument-rejected" });
+        Assert.Contains(report.BoundarySamples, static sample => sample is
+            { Scenario: "malformed-model", Status: "PASS", ObservedOutcome: "observable-fallback" });
         M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(
             Path.Combine(_root, "fallback-output", M27LocalOnnxEvidenceRunner.ReportFileName));
         Assert.Equal("NOT_READY", verification.Status);
@@ -96,6 +116,88 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
 
         Assert.Equal("INVALID", verification.Status);
         Assert.Contains(verification.Findings, static finding => finding.Contains("git evidence", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Verify_V1Schema_IsRejectedWithStableVersionFinding()
+    {
+        EvidenceInputs inputs = WriteInputs(writeInvalidModel: false);
+        string output = Path.Combine(_root, "v1-output");
+        _ = await M27LocalOnnxEvidenceRunner.RunAsync(inputs.ToOptions(output));
+        string reportPath = Path.Combine(output, M27LocalOnnxEvidenceRunner.ReportFileName);
+        JsonNode root = JsonNode.Parse(File.ReadAllText(reportPath))!;
+        root["schema"] = "m27-local-onnx-evidence-v1";
+        File.WriteAllText(reportPath, root.ToJsonString());
+
+        M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
+
+        Assert.Equal("INVALID", verification.Status);
+        Assert.Contains(verification.Findings, static finding => finding.Contains(
+            "expected m27-local-onnx-evidence-v2",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Verify_ClaimedAppliedThreads_IsRejected()
+    {
+        EvidenceInputs inputs = WriteInputs(writeInvalidModel: false);
+        string output = Path.Combine(_root, "thread-claim-output");
+        _ = await M27LocalOnnxEvidenceRunner.RunAsync(inputs.ToOptions(output));
+        string reportPath = Path.Combine(output, M27LocalOnnxEvidenceRunner.ReportFileName);
+        JsonNode root = JsonNode.Parse(File.ReadAllText(reportPath))!;
+        root["environment"]!["threads"]!["appliedToSession"] = true;
+        root["environment"]!["threads"]!["effectiveIntraOpThreads"] = 2;
+        File.WriteAllText(reportPath, root.ToJsonString());
+
+        M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
+
+        Assert.Equal("INVALID", verification.Status);
+        Assert.Contains(verification.Findings, static finding => finding.Contains(
+            "cannot claim applied/effective",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Verify_MissingBoundaryScenario_IsRejected()
+    {
+        EvidenceInputs inputs = WriteInputs(writeInvalidModel: false);
+        string output = Path.Combine(_root, "missing-boundary-output");
+        _ = await M27LocalOnnxEvidenceRunner.RunAsync(inputs.ToOptions(output));
+        string reportPath = Path.Combine(output, M27LocalOnnxEvidenceRunner.ReportFileName);
+        JsonNode root = JsonNode.Parse(File.ReadAllText(reportPath))!;
+        JsonArray samples = root["boundarySamples"]!.AsArray();
+        JsonNode batch = samples.Single(static sample => sample!["scenario"]!.GetValue<string>() == "batch-input")!;
+        Assert.True(samples.Remove(batch));
+        File.WriteAllText(reportPath, root.ToJsonString());
+
+        M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
+
+        Assert.Equal("INVALID", verification.Status);
+        Assert.Contains(verification.Findings, static finding => finding.Contains(
+            "Required boundary scenario 'batch-input' is missing",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Verify_FabricatedBatchPass_IsRejected()
+    {
+        EvidenceInputs inputs = WriteInputs(writeInvalidModel: false);
+        string output = Path.Combine(_root, "batch-claim-output");
+        _ = await M27LocalOnnxEvidenceRunner.RunAsync(inputs.ToOptions(output));
+        string reportPath = Path.Combine(output, M27LocalOnnxEvidenceRunner.ReportFileName);
+        JsonNode root = JsonNode.Parse(File.ReadAllText(reportPath))!;
+        JsonNode batch = root["boundarySamples"]!.AsArray()
+            .Single(static sample => sample!["scenario"]!.GetValue<string>() == "batch-input")!;
+        batch["status"] = "PASS";
+        batch["observedOutcome"] = "embedding";
+        File.WriteAllText(reportPath, root.ToJsonString());
+
+        M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(reportPath);
+
+        Assert.Equal("INVALID", verification.Status);
+        Assert.Contains(verification.Findings, static finding => finding.Contains(
+            "cannot claim real batch evidence",
+            StringComparison.Ordinal));
     }
 
     [Theory]
@@ -277,6 +379,10 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
                 "contract-fixture-v1",
                 "Apache-2.0",
                 output,
+                "contract-test",
+                2,
+                1,
+                false,
                 1,
                 2);
     }
