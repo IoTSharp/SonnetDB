@@ -256,13 +256,16 @@ M27 #340 的 Web 首切片把 CopilotDock 接到统一 client runtime。构建�
 `StudioNative` 或 `Disabled`；省略时为保持现有部署兼容而固定使用 `ServerRelay`，
 不会依据一次探活在模式之间切换。
 
-当前只有 `ServerRelay` transport 已实现。它先通过当前活动 SonnetDB API 客户端检查
+`ServerRelay` 与 `BrowserDirect` transport 已注册到真实聊天入口。ServerRelay 先通过当前活动 SonnetDB API 客户端检查
 本地 `/healthz`，把客户端公网 readiness 明确标记为 `not-required`，再将数据库
 Bearer Token 发送到同一活动连接派生出的固定 `/v1/copilot/chat/stream` 端点。
 请求使用 `credentials: omit` 和 `redirect: error`，readiness 与携带数据库 Token/消息/页面上下文的
 POST 都拒绝 3xx 跳转；不接受任意 URL，也没有外部 AI Token 输入。
-`BrowserDirect` 和 `StudioNative` 在各自 transport、独立公网 readiness 与凭据边界
-完成前会稳定拒绝，不能静默回退到 ServerRelay。
+BrowserDirect 只接受 `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` 指定的 HTTPS 地址，
+且其 origin 必须位于 `VITE_COPILOT_BROWSER_DIRECT_APPROVED_ORIGINS`；公网 readiness 与
+流式 POST 只携带独立的 public-client token。该 token 仅驻留内存，必须具有未来过期时间且
+TTL 不超过两小时；与数据库 token 同值、缺配置、缺 token、过期或登出时均 fail closed，
+不会静默回退到 ServerRelay。StudioNative 在 transport 和凭据边界完成前仍稳定拒绝。
 
 统一状态机为每次运行维护 `runId`、严格递增 `sequence`、opaque `cursor` 和
 `toolCallId`。只有 transport 提供稳定 `toolCallId` 时，完全相同的重复工具调用/结果才可幂等；
@@ -277,8 +280,9 @@ ServerRelay 会先生成稳定 `error` 再结束为 `done`，不会把截断响�
 卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会清除，并从服务端重新同步会话。
 SQL 工具页签和最终回答中的 SQL 只在完整 `done` 验证后提交。SSE 解码覆盖 LF、CRLF、
 bare CR、跨行结束符分片、多行 data 与严格 JSON。
-真实 Browser Direct、Studio Native、外部 OAuth/BYOK、分片续流和服务器无公网出口的
-双网 journey 仍保持未完成。
+BrowserDirect 当前只提供显式配置和内存 token 的集成边界，尚无可信 Device Flow/PKCE
+获取入口，也未接入本地 MCP tool-call loop。Studio Native、外部 OAuth/BYOK、分片续流和
+服务器无公网出口的真实双网 journey 仍保持未完成。
 
 切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
 docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境

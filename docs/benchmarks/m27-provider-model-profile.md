@@ -21,6 +21,7 @@ provider 使用可观测的 384 维确定性 hash fallback，并不是 ONNX 语�
 | Copilot `IEmbeddingProvider` 抽象与 builtin fallback | `PASS` | 离线首次启动路径可运行，但 hash 向量不等价于语义模型。 |
 | 本地 ONNX model profile 合同 | `PASS` | 已显式描述 tokenizer、输入 tensor、输出、pooling、归一化和维度；无效配置会稳定失败或进入可观测 fallback。 |
 | 合成 tiny ONNX 合同测试 | `PASS` | `LocalOnnxEmbeddingProviderTests` 43/43 通过；仅证明 tiny ONNX/tokenizer 绑定和数值语义，不代表目标模型质量。 |
+| 真实模型 evidence artifact runner/consistency verifier | `PASS（增量）` | `m27-local-onnx-evidence-v1` 已记录输入哈希、来源/license、逐查询样本、Recall@K、延迟、内存和 clean commit，并从原始样本重算摘要；这里只表示工具合同通过。 |
 | Native AOT 发布 | `NOT_READY` | 显式 `win-x64` 发布被现有 `IoTSharp.CoAP.NET` 子模块的 `SYSLIB1100`/`SYSLIB1101` 阻断；本次 M27 未修改该范围外模块。 |
 | 目标模型真实推理 | `NOT_READY` | 需要实际模型文件、tokenizer 和可追溯配置。 |
 | 语义质量、延迟和内存报告 | `NOT_READY` | 未取得真实数据集和目标环境报告前不得宣称通过。 |
@@ -36,6 +37,12 @@ fallback。
 `NOT_READY` 是有意的发布结论。模型文件不存在、使用占位模型、开发机 quick
 smoke、hash fallback、历史运行结果或仅通过 schema 校验，均不能升级为真实
 ONNX 证据。
+
+当前 verifier 是报告内部一致性检查，不是签名、防篡改或重新执行 ONNX 推理的
+验证器。它会对照当前文件重算输入哈希，并从 corpus、候选和逐查询样本重算
+Recall 与延迟摘要；它不会证明同步改写后的整组 artifact 未被篡改，也尚未覆盖
+线程配置、空白/错误模型、batch/mask 等完整边界。即使单次 runner 状态为 `PASS`，
+在下述真实模型证据门禁全部归档前，#185 仍保持 `NOT_READY`。
 
 ### 本地合同运行记录（2026-08-29）
 
@@ -200,6 +207,7 @@ token 维度求平均。`LowerCase` 是 `LowerCaseBeforeTokenization` 的兼容�
 | `LocalOnnxEmbeddingProviderTests` 的 tiny graph、BERT vocab 和 SentencePiece fixture；定向 xUnit 命令输出 | 输入 tensor 类型/名称、三态绑定、左右 padding、position ids、pooling、维度和资源生命周期合同可重复通过 | 保留为 `contractEvidence=PASS`；fixture 不升级为真实模型证据 |
 | `CopilotReadiness`、`/healthz/ready` 和 `/v1/copilot/knowledge/status` 的配置检查 | 状态是 lazy；首次推理前不能证明 graph/tokenizer/语义执行成功，`EmbeddingFallback=false` 也不是质量结论 | 报告中显式记录 `readiness=configuration_only`，首次真实调用需留存原始结果 |
 | `ManagementEmbeddingPreviewErrorTests` 的 fake provider 端到端测试 | provider 合同错误在向量预览边界稳定映射为 `503 embedding_failed`，保留可诊断消息 | 保留为 API error-contract 证据；不替代真实模型质量/性能报告 |
+| `M27LocalOnnxEvidenceTests` 的 runner/verifier 合同测试 | runner 记录输入 SHA-256、有效 profile、环境、原始延迟、向量摘要、Top-K、Recall@K 与峰值内存；verifier 从 corpus 和原始样本重算汇总 | 缺资产、hash fallback、低 Recall 或脏工作树保持 `NOT_READY`；结构缺失或内部摘要/profile 不一致为 `INVALID`，但 verifier 不重放推理或提供密码学防篡改证明 |
 | 真实目标 ONNX/tokenizer SHA、profile 回显、质量/性能原始日志 | 当前工作区尚未提供可追溯目标模型或目标环境结果 | `realModelEvidence=NOT_READY`；补齐来源/license、Recall@K、P50/P95、RSS/托管内存和可重放 artifact 后再复核 |
 | 固定目标硬件、7 天 nightly、Studio 安装/宿主、真实 broker/provider | 不属于本地 fixture 能证明的范围，当前均后置 | 各自保持 `NOT_READY`/`DEFERRED`，不得写入本页 PASS |
 
@@ -214,11 +222,16 @@ token 维度求平均。`LowerCase` 是 `LowerCaseBeforeTokenization` 的兼容�
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release -r win-x64 --no-build --no-restore --nologo --filter "FullyQualifiedName~ManagementEmbeddingPreviewErrorTests"'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release -r win-x64 --no-build --no-restore --nologo'
 & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r win-x64 -p:SonnetDbPublishAot=true -p:PublishAot=true -p:SelfContained=true -p:UseAppHost=true --no-restore --nologo'
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet run --project tests/SonnetDB.Benchmarks -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path> --model-source <source> --model-version <version> --model-license <license> --output <dir>'
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -Command 'dotnet run --project tests/SonnetDB.Benchmarks -c Release -- --m27-verify-local-onnx <report> --require-ready'
 ```
 
 本轮观察结果依次为构建 `0 warning / 0 error`、ONNX/状态定向 `44/44 PASS`、
 preview 错误合同 `2/2 PASS`、全量 `642/642 PASS`（0 skipped）；Native AOT publish
 `NOT_READY`（退出码 1，见上面的 CoAP `SYSLIB1100`/`SYSLIB1101` 阻断）。
+evidence runner/verifier 的定向测试为 `4/4 PASS`，`SonnetDB.Benchmarks.Tests` 全量为
+`15/15 PASS`。本轮未提供真实模型、tokenizer、corpus 或目标环境报告，因此未运行
+`--m27-local-onnx-evidence` 生成发布证据，真实模型门禁继续为 `NOT_READY`。
 
 Windows 上显式指定 `win-x64` 是为了让测试宿主选择匹配的 ONNX Runtime 原生资产；
 Linux/macOS 应改用当前主机对应的 RID。RID 选择只解决本地运行时装载，不增加任何
