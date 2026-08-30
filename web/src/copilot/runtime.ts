@@ -318,7 +318,7 @@ export class CopilotEventStateMachine<TEvent extends CopilotEventPayload> {
 
     const fingerprint = stableStringify({
       toolName,
-      toolArguments: candidate.event.toolArguments ?? '',
+      toolArguments: replayJsonFingerprint(candidate.event.toolArguments),
     });
     const existing = this.toolCalls.get(toolCallId);
     if (existing === undefined) {
@@ -341,7 +341,7 @@ export class CopilotEventStateMachine<TEvent extends CopilotEventPayload> {
     const toolName = this.requireMatchingToolName(candidate, toolCallId);
     const fingerprint = stableStringify({
       toolName,
-      toolResult: candidate.event.toolResult ?? '',
+      toolResult: replayJsonFingerprint(candidate.event.toolResult),
     });
     const existing = this.toolResults.get(toolCallId);
     if (existing === undefined) {
@@ -397,6 +397,159 @@ function requireToolCallId<TEvent extends CopilotEventPayload>(
     throw contractError('runtime_tool_call_id_missing', `${candidate.event.type} 事件缺少 toolCallId。`);
   }
   return toolCallId;
+}
+
+type ReplayJsonFingerprint =
+  | readonly ['missing']
+  | readonly ['json', string]
+  | readonly ['text', string];
+
+function replayJsonFingerprint(value: unknown): ReplayJsonFingerprint {
+  if (value === undefined || value === null) return ['missing'];
+  if (typeof value !== 'string') {
+    throw contractError(
+      'runtime_tool_payload_invalid',
+      'Copilot 工具参数和结果必须是 JSON 文本或字符串。',
+    );
+  }
+
+  try {
+    return ['json', new JsonReplayCanonicalizer(value).canonicalize()];
+  } catch {
+    // The server accepts byte-identical non-JSON payload replays before attempting
+    // semantic JSON comparison. Keep the same exact, fail-closed fallback here.
+    return ['text', value];
+  }
+}
+
+class JsonReplayCanonicalizer {
+  private offset = 0;
+
+  constructor(private readonly input: string) {}
+
+  canonicalize(): string {
+    this.skipWhitespace();
+    const value = this.parseValue();
+    this.skipWhitespace();
+    if (this.offset !== this.input.length) throw new Error('Trailing JSON content.');
+    return value;
+  }
+
+  private parseValue(): string {
+    const token = this.input[this.offset];
+    if (token === '{') return this.parseObject();
+    if (token === '[') return this.parseArray();
+    if (token === '"') return JSON.stringify(['string', this.parseString()]);
+    if (token === 't') return this.parseLiteral('true', ['boolean', true]);
+    if (token === 'f') return this.parseLiteral('false', ['boolean', false]);
+    if (token === 'n') return this.parseLiteral('null', ['null']);
+    if (token === '-' || (token !== undefined && token >= '0' && token <= '9')) {
+      return JSON.stringify(['number', this.parseNumber()]);
+    }
+    throw new Error('Invalid JSON value.');
+  }
+
+  private parseObject(): string {
+    this.offset += 1;
+    this.skipWhitespace();
+    const entries: Array<{ key: string; value: string; ordinal: number }> = [];
+    if (this.consume('}')) return JSON.stringify(['object', []]);
+
+    while (true) {
+      if (this.input[this.offset] !== '"') throw new Error('Invalid JSON property name.');
+      const key = this.parseString();
+      this.skipWhitespace();
+      this.expect(':');
+      this.skipWhitespace();
+      entries.push({ key, value: this.parseValue(), ordinal: entries.length });
+      this.skipWhitespace();
+      if (this.consume('}')) break;
+      this.expect(',');
+      this.skipWhitespace();
+    }
+
+    entries.sort((left, right) => {
+      if (left.key < right.key) return -1;
+      if (left.key > right.key) return 1;
+      return left.ordinal - right.ordinal;
+    });
+    return JSON.stringify(['object', entries.map(({ key, value }) => [key, value])]);
+  }
+
+  private parseArray(): string {
+    this.offset += 1;
+    this.skipWhitespace();
+    const items: string[] = [];
+    if (this.consume(']')) return JSON.stringify(['array', items]);
+
+    while (true) {
+      items.push(this.parseValue());
+      this.skipWhitespace();
+      if (this.consume(']')) break;
+      this.expect(',');
+      this.skipWhitespace();
+    }
+    return JSON.stringify(['array', items]);
+  }
+
+  private parseString(): string {
+    const start = this.offset;
+    this.offset += 1;
+    while (this.offset < this.input.length) {
+      const code = this.input.charCodeAt(this.offset);
+      if (code < 0x20) throw new Error('Invalid JSON string.');
+      if (code === 0x22) {
+        this.offset += 1;
+        const parsed: unknown = JSON.parse(this.input.slice(start, this.offset));
+        if (typeof parsed !== 'string') throw new Error('Invalid JSON string.');
+        return parsed;
+      }
+      this.offset += code === 0x5c ? 2 : 1;
+    }
+    throw new Error('Unterminated JSON string.');
+  }
+
+  private parseNumber(): string {
+    const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?/u
+      .exec(this.input.slice(this.offset));
+    if (!match) throw new Error('Invalid JSON number.');
+    this.offset += match[0].length;
+
+    const fraction = match[3] ?? '';
+    let digits = `${match[2]}${fraction}`.replace(/^0+/u, '');
+    if (!digits) return '0e0';
+
+    let exponent = BigInt(match[4] ?? '0') - BigInt(fraction.length);
+    while (digits.endsWith('0')) {
+      digits = digits.slice(0, -1);
+      exponent += 1n;
+    }
+    return `${match[1]}${digits}e${exponent.toString()}`;
+  }
+
+  private parseLiteral(literal: string, canonical: readonly unknown[]): string {
+    if (!this.input.startsWith(literal, this.offset)) throw new Error('Invalid JSON literal.');
+    this.offset += literal.length;
+    return JSON.stringify(canonical);
+  }
+
+  private skipWhitespace(): void {
+    while (this.offset < this.input.length) {
+      const code = this.input.charCodeAt(this.offset);
+      if (code !== 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) return;
+      this.offset += 1;
+    }
+  }
+
+  private expect(token: string): void {
+    if (!this.consume(token)) throw new Error(`Expected ${token}.`);
+  }
+
+  private consume(token: string): boolean {
+    if (this.input[this.offset] !== token) return false;
+    this.offset += 1;
+    return true;
+  }
 }
 
 function stableStringify(value: unknown): string {

@@ -296,10 +296,22 @@ public-client token 只发送到已批准公网 origin。每次会话执行 MCP 
 每条流必须先返回唯一的 `final` 或 `error` outcome，再返回 `done`；仅有 `done`、
 缺少 `done` 或 outcome 后仍继续发送事件都会被拒绝。云端 runtime 未返回 outcome 时，
 ServerRelay 会先生成稳定 `error` 再结束为 `done`，不会把截断响应误报为成功。
-现有服务端 SSE 尚未发布这些 envelope 字段，因此 ServerRelay 适配器只在当前运行
-内按工具名 FIFO 合成 ID 并配对 `tool_call` / `tool_result`；它不能识别 provider 重放的重复
-调用，也不构成跨刷新续流或服务端幂等证据。Dock 的停止、关闭、切换/删除会话、登出与组件
-卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会清除，并从服务端重新同步会话。
+ServerRelay 服务端现以 extend-only、source-generated 字段发布稳定 `runId`、`sequence`、
+`cursor` 和 `toolCallId`；Web POST 会带上 runtime 生成的 run ID，并直接消费服务端 envelope，
+缺少这些字段的旧 SSE fail closed，不再按工具名 FIFO 合成 ID。单进程 journal 按认证 owner、
+database 和规范化请求 fingerprint 绑定，最多保留 64 个 active run、64 个 replay run 和 2048 个
+active/replay/tombstone identity；每个 run 最多 256 个事件、4 MiB 序列化日志，active 与 replay
+默认各有 10 分钟绝对 TTL。已知 cursor 只返回其后的事件，不重新调用 provider 或工具；同一
+stable ID 的等价 JSON tool call/result 可以重放缓存结果，错名、错参、结果冲突、stale retry/result
+和未完成工具后的 final 都被拒绝。
+
+请求断开会取消 linked provider、Agent 与 SQL 工具执行，并把 journal 封闭为 interrupted
+`error` / `done`；服务端不会在请求丢失后另起后台 continuation。仍连接的客户端在 deadline、
+provider 异常或生产者截断时会从 journal 收到缺失的终态。该 journal 不持久化、不跨 Server
+进程或多实例共享；Web 当前也没有在页面刷新后以新 runtime 从非 1 sequence 恢复。因此这里
+只构成同进程 HTTP/流合同与重放证据，不构成跨刷新、进程重启或高可用续流证据。Dock 的停止、
+关闭、切换/删除会话、登出与组件卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会
+清除，并从服务端重新同步会话。
 SQL 工具页签和最终回答中的 SQL 只在完整 `done` 验证后提交。SSE 解码覆盖 LF、CRLF、
 bare CR、跨行结束符分片、多行 data 与严格 JSON。
 BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳定 `tool_call` 收口，

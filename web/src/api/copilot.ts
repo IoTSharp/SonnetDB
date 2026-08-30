@@ -196,7 +196,13 @@ export interface CopilotChatEvent {
   toolNames?: string[];
   citations?: CopilotCitation[];
   attempt?: number;
-  /** 未来 transport 可直接提供；legacy ServerRelay 的合成值只用于当前流内 FIFO 配对。 */
+  /** ServerRelay 服务端分配的稳定运行 ID。 */
+  runId?: string;
+  /** ServerRelay 服务端分配的严格递增事件序号。 */
+  sequence?: number;
+  /** ServerRelay 服务端分配的可重放事件游标。 */
+  cursor?: string;
+  /** ServerRelay 服务端分配的稳定工具调用 ID。 */
   toolCallId?: string;
 }
 
@@ -213,6 +219,8 @@ export interface CopilotChatRequest {
   mode?: 'read-only' | 'read-write';
   /** 本次调用的模型覆盖；省略时跟随平台默认模型。 */
   model?: string;
+  /** ServerRelay 最后确认的事件游标；省略时从运行首条事件开始。 */
+  cursor?: string;
 }
 
 export interface CopilotConversationSummary {
@@ -376,7 +384,7 @@ implements CopilotTransport<CopilotChatRequest, CopilotChatEvent> {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.token}`,
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify({ ...request, runId }),
         signal,
         credentials: 'omit',
         redirect: 'error',
@@ -398,17 +406,8 @@ implements CopilotTransport<CopilotChatRequest, CopilotChatEvent> {
       );
     }
 
-    const calls = new ServerRelayToolCallIds(runId);
-    let sequence = 0;
     for await (const event of readServerRelayEvents(response, signal)) {
-      sequence += 1;
-      yield {
-        runId,
-        sequence,
-        cursor: `${runId}:${sequence}`,
-        toolCallId: calls.resolve(event),
-        event,
-      };
+      yield serverRelayEnvelope(event);
     }
   }
 }
@@ -469,49 +468,28 @@ function resolveCurrentSonnetDbEndpoint(
   return endpoint.href;
 }
 
-class ServerRelayToolCallIds {
-  // Legacy SSE has no stable call ID. These IDs pair one in-flight stream only;
-  // they cannot identify a replayed/duplicated provider call across events or runs.
-  private readonly pendingByTool = new Map<string, string[]>();
-  private readonly lastByTool = new Map<string, string>();
-  private nextId = 0;
-
-  constructor(private readonly runId: string) {}
-
-  resolve(event: CopilotChatEvent): string | undefined {
-    const type = event.type;
-    if (type !== 'tool_call' && type !== 'tool_retry' && type !== 'tool_result') return undefined;
-
-    const toolName = event.toolName?.trim() ?? '';
-    const explicit = event.toolCallId?.trim();
-    if (type === 'tool_call') {
-      const id = explicit || `${this.runId}:tool:${++this.nextId}`;
-      const pending = this.pendingByTool.get(toolName) ?? [];
-      pending.push(id);
-      this.pendingByTool.set(toolName, pending);
-      this.lastByTool.set(toolName, id);
-      return id;
-    }
-
-    if (explicit) {
-      if (type === 'tool_result') this.removePending(toolName, explicit);
-      return explicit;
-    }
-    if (type === 'tool_retry') return this.lastByTool.get(toolName);
-
-    const pending = this.pendingByTool.get(toolName);
-    const id = pending?.shift();
-    if (pending?.length === 0) this.pendingByTool.delete(toolName);
-    return id ?? this.lastByTool.get(toolName);
+function serverRelayEnvelope(
+  event: CopilotChatEvent,
+): CopilotTransportEvent<CopilotChatEvent> {
+  if (typeof event.runId !== 'string'
+    || typeof event.sequence !== 'number'
+    || typeof event.cursor !== 'string'
+    || (event.toolCallId !== undefined
+      && event.toolCallId !== null
+      && typeof event.toolCallId !== 'string')) {
+    throw new CopilotRuntimeContractError(
+      'server_relay_envelope_invalid',
+      'Copilot ServerRelay 事件缺少或包含无效的服务端 runId、sequence、cursor 或 toolCallId。',
+    );
   }
 
-  private removePending(toolName: string, toolCallId: string): void {
-    const pending = this.pendingByTool.get(toolName);
-    if (!pending) return;
-    const index = pending.indexOf(toolCallId);
-    if (index >= 0) pending.splice(index, 1);
-    if (pending.length === 0) this.pendingByTool.delete(toolName);
-  }
+  return {
+    runId: event.runId,
+    sequence: event.sequence,
+    cursor: event.cursor,
+    ...(typeof event.toolCallId === 'string' ? { toolCallId: event.toolCallId } : {}),
+    event,
+  };
 }
 
 interface SseDecodeState {

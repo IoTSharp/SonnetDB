@@ -12,6 +12,7 @@ namespace SonnetDB.Tests.Copilot;
 /// <summary>
 /// M17 #92：Copilot 知识召回指标与 Agent 子 span 测试。
 /// </summary>
+[Collection(CopilotTestCollection.Name)]
 public sealed class CopilotDiagnosticsTests
 {
     [Fact]

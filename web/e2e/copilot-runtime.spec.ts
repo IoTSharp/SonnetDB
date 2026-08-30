@@ -28,13 +28,23 @@ const Request: CopilotChatRequest = {
 
 test('ServerRelay runs through the common state machine and preserves current events', async () => {
   const api = fakeApi('https://db.internal/sonnetdb');
+  const runId = 'run_server_relay';
+  const request: CopilotChatRequest = { ...Request, cursor: 'relay-cursor-before' };
   const sse = [
-    event({ type: 'start', message: 'started' }),
-    event({ type: 'risk_review', message: 'read only' }),
-    event({ type: 'tool_call', toolName: 'describe_measurement', toolArguments: '{"measurement":"cpu"}' }),
-    event({ type: 'tool_result', toolName: 'describe_measurement', toolResult: '{"fields":["usage"]}' }),
-    event({ type: 'final', answer: 'cpu has usage' }),
-    event({ type: 'done', message: 'completed' }),
+    relayEvent(runId, 1, 'relay-cursor-start', { type: 'start', message: 'started' }),
+    relayEvent(runId, 2, 'relay-cursor-risk', { type: 'risk_review', message: 'read only' }),
+    relayEvent(runId, 3, 'relay-cursor-call', {
+      type: 'tool_call',
+      toolName: 'describe_measurement',
+      toolArguments: '{"measurement":"cpu"}',
+    }, 'relay-call-stable-42'),
+    relayEvent(runId, 4, 'relay-cursor-result', {
+      type: 'tool_result',
+      toolName: 'describe_measurement',
+      toolResult: '{"fields":["usage"]}',
+    }, 'relay-call-stable-42'),
+    relayEvent(runId, 5, 'relay-cursor-final', { type: 'final', answer: 'cpu has usage' }),
+    relayEvent(runId, 6, 'relay-cursor-done', { type: 'done', message: 'completed' }),
   ].join('');
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const transport = new ServerRelayCopilotTransport(api, 'database-token', {
@@ -50,7 +60,7 @@ test('ServerRelay runs through the common state machine and preserves current ev
   });
   const runtime = new CopilotRuntime('ServerRelay', [transport]);
 
-  const received = await collect(runtime.run(Request, { runId: 'run_server_relay' }));
+  const received = await collect(runtime.run(request, { runId }));
 
   expect(received.map((item) => item.event.type)).toEqual([
     'start',
@@ -62,15 +72,15 @@ test('ServerRelay runs through the common state machine and preserves current ev
   ]);
   expect(received.map((item) => item.sequence)).toEqual([1, 2, 3, 4, 5, 6]);
   expect(received.map((item) => item.cursor)).toEqual([
-    'run_server_relay:1',
-    'run_server_relay:2',
-    'run_server_relay:3',
-    'run_server_relay:4',
-    'run_server_relay:5',
-    'run_server_relay:6',
+    'relay-cursor-start',
+    'relay-cursor-risk',
+    'relay-cursor-call',
+    'relay-cursor-result',
+    'relay-cursor-final',
+    'relay-cursor-done',
   ]);
-  expect(received[2].toolCallId).toBe('run_server_relay:tool:1');
-  expect(received[3].toolCallId).toBe(received[2].toolCallId);
+  expect(received[2].toolCallId).toBe('relay-call-stable-42');
+  expect(received[3].toolCallId).toBe('relay-call-stable-42');
   expect(requests.map((item) => item.url)).toEqual([
     'https://db.internal/sonnetdb/healthz',
     'https://db.internal/sonnetdb/v1/copilot/chat/stream',
@@ -81,7 +91,7 @@ test('ServerRelay runs through the common state machine and preserves current ev
   expect(requests[1].init?.credentials).toBe('omit');
   expect(requests[0].init?.redirect).toBe('error');
   expect(requests[1].init?.redirect).toBe('error');
-  expect(JSON.parse(String(requests[1].init?.body))).toEqual(Request);
+  expect(JSON.parse(String(requests[1].init?.body))).toEqual({ ...request, runId });
 });
 
 test('ServerRelay resolves only the fixed endpoint on the active SonnetDB connection', () => {
@@ -94,12 +104,8 @@ test('ServerRelay resolves only the fixed endpoint on the active SonnetDB connec
     .toThrow(/HTTP\(S\)/u);
 });
 
-test('legacy ServerRelay uses FIFO synthetic IDs but does not claim duplicate-call idempotency', async () => {
+test('legacy ServerRelay without a stable server envelope fails closed', async () => {
   const sse = [
-    event({ type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows":1}' }),
-    event({ type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows":1}' }),
-    event({ type: 'tool_result', toolName: 'sample_rows', toolResult: '{"rows":[]}' }),
-    event({ type: 'tool_result', toolName: 'sample_rows', toolResult: '{"rows":[]}' }),
     event({ type: 'final', answer: 'complete' }),
     event({ type: 'done' }),
   ].join('');
@@ -111,12 +117,26 @@ test('legacy ServerRelay uses FIFO synthetic IDs but does not claim duplicate-ca
   });
   const runtime = new CopilotRuntime('ServerRelay', [transport]);
 
-  const received = await collect(runtime.run(Request, { runId: 'run_legacy_fifo' }));
-  const calls = received.filter((item) => item.event.type === 'tool_call');
-  const results = received.filter((item) => item.event.type === 'tool_result');
-  expect(calls).toHaveLength(2);
-  expect(calls[0].toolCallId).not.toBe(calls[1].toolCallId);
-  expect(results.map((item) => item.toolCallId)).toEqual(calls.map((item) => item.toolCallId));
+  await expect(collect(runtime.run(Request, { runId: 'run_legacy_fifo' })))
+    .rejects.toMatchObject({ code: 'server_relay_envelope_invalid' });
+});
+
+test('ServerRelay preserves a conflicting server runId for runtime validation', async () => {
+  const transport = new ServerRelayCopilotTransport(fakeApi('https://db.internal'), 'token', {
+    locationHref: 'https://studio.local/app',
+    fetchImpl: async (input) => String(input).endsWith('/healthz')
+      ? Response.json({ status: 'ok' })
+      : fragmentedSseResponse(relayEvent(
+        'run_from_other_request',
+        1,
+        'relay-cursor-other',
+        { type: 'final', answer: 'wrong run' },
+      ), []),
+  });
+  const runtime = new CopilotRuntime('ServerRelay', [transport]);
+
+  await expect(collect(runtime.run(Request, { runId: 'run_expected' })))
+    .rejects.toMatchObject({ code: 'runtime_run_id_mismatch' });
 });
 
 test('ServerRelay decodes bare CR and CRLF split across chunks', async () => {
@@ -124,16 +144,31 @@ test('ServerRelay decodes bare CR and CRLF split across chunks', async () => {
     {
       runId: 'run_bare_cr',
       body: [
-        `data: ${JSON.stringify({ type: 'final', answer: 'bare-cr' })}\r\r`,
-        `data: ${JSON.stringify({ type: 'done' })}\r\r`,
+        `data: ${JSON.stringify(relayPayload(
+          'run_bare_cr',
+          1,
+          'relay-cursor-bare-final',
+          { type: 'final', answer: 'bare-cr' },
+        ))}\r\r`,
+        `data: ${JSON.stringify(relayPayload(
+          'run_bare_cr',
+          2,
+          'relay-cursor-bare-done',
+          { type: 'done' },
+        ))}\r\r`,
       ].join(''),
       cuts: [7, 19],
     },
     {
       runId: 'run_split_crlf',
       body: [
-        event({ type: 'final', answer: 'split-crlf' }),
-        event({ type: 'done' }),
+        relayEvent(
+          'run_split_crlf',
+          1,
+          'relay-cursor-split-final',
+          { type: 'final', answer: 'split-crlf' },
+        ),
+        relayEvent('run_split_crlf', 2, 'relay-cursor-split-done', { type: 'done' }),
       ].join(''),
       cuts: [] as number[],
     },
@@ -217,6 +252,102 @@ test('state machine uses stable toolCallIds for idempotency and rejects conflict
   const conflictRuntime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>('ServerRelay', [conflict]);
   await expect(collect(conflictRuntime.run(Request, { runId: conflictRunId })))
     .rejects.toMatchObject({ code: 'runtime_tool_call_conflict' });
+});
+
+test('state machine accepts semantically equivalent JSON tool replay payloads', async () => {
+  const runId = 'run_equivalent_json';
+  const relay = scriptedTransport(ReadyRelay, [
+    envelope(runId, 1, {
+      type: 'tool_call',
+      toolName: 'sample_rows',
+      toolArguments: '{"maxRows":1,"filter":{"site":"A","active":true},"ratio":0.01}',
+    }, 'call-equivalent'),
+    envelope(runId, 2, {
+      type: 'tool_result',
+      toolName: 'sample_rows',
+      toolResult: '{"rows":[],"count":0}',
+    }, 'call-equivalent'),
+    envelope(runId, 3, {
+      type: 'tool_call',
+      toolName: 'sample_rows',
+      toolArguments: ' { "ratio": 10e-3, "filter": { "active": true, "site": "A" }, "maxRows": 1.0 } ',
+    }, 'call-equivalent'),
+    envelope(runId, 4, {
+      type: 'tool_result',
+      toolName: 'sample_rows',
+      toolResult: '{ "count": -0.0, "rows" : [ ] }',
+    }, 'call-equivalent'),
+    envelope(runId, 5, { type: 'final', answer: 'equivalent replay accepted' }),
+    envelope(runId, 6, { type: 'done' }),
+  ]);
+  const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>('ServerRelay', [relay]);
+
+  const received = await collect(runtime.run(Request, { runId }));
+  expect(received.map((item) => item.sequence)).toEqual([1, 2, 5, 6]);
+});
+
+test('state machine compares non-JSON replay payloads exactly and fails closed on conflicts', async () => {
+  const exactRunId = 'run_exact_non_json';
+  const exactRelay = scriptedTransport(ReadyRelay, [
+    envelope(exactRunId, 1, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows":',
+    }, 'call-non-json'),
+    envelope(exactRunId, 2, {
+      type: 'tool_result', toolName: 'sample_rows', toolResult: 'not-json',
+    }, 'call-non-json'),
+    envelope(exactRunId, 3, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows":',
+    }, 'call-non-json'),
+    envelope(exactRunId, 4, {
+      type: 'tool_result', toolName: 'sample_rows', toolResult: 'not-json',
+    }, 'call-non-json'),
+    envelope(exactRunId, 5, { type: 'final', answer: 'exact replay accepted' }),
+    envelope(exactRunId, 6, { type: 'done' }),
+  ]);
+  const exactRuntime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>('ServerRelay', [exactRelay]);
+  const exactReceived = await collect(exactRuntime.run(Request, { runId: exactRunId }));
+  expect(exactReceived.map((item) => item.sequence)).toEqual([1, 2, 5, 6]);
+
+  const argumentsRunId = 'run_conflicting_non_json_arguments';
+  const argumentsRelay = scriptedTransport(ReadyRelay, [
+    envelope(argumentsRunId, 1, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows":',
+    }, 'call-invalid-arguments'),
+    envelope(argumentsRunId, 2, {
+      type: 'tool_result', toolName: 'sample_rows', toolResult: '{}',
+    }, 'call-invalid-arguments'),
+    envelope(argumentsRunId, 3, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{"maxRows": ',
+    }, 'call-invalid-arguments'),
+  ]);
+  const argumentsRuntime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(
+    'ServerRelay',
+    [argumentsRelay],
+  );
+  await expect(collect(argumentsRuntime.run(Request, { runId: argumentsRunId })))
+    .rejects.toMatchObject({ code: 'runtime_tool_call_conflict' });
+
+  const resultRunId = 'run_conflicting_non_json_result';
+  const resultRelay = scriptedTransport(ReadyRelay, [
+    envelope(resultRunId, 1, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{}',
+    }, 'call-invalid-result'),
+    envelope(resultRunId, 2, {
+      type: 'tool_result', toolName: 'sample_rows', toolResult: 'not-json',
+    }, 'call-invalid-result'),
+    envelope(resultRunId, 3, {
+      type: 'tool_call', toolName: 'sample_rows', toolArguments: '{}',
+    }, 'call-invalid-result'),
+    envelope(resultRunId, 4, {
+      type: 'tool_result', toolName: 'sample_rows', toolResult: 'not-json ',
+    }, 'call-invalid-result'),
+  ]);
+  const resultRuntime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(
+    'ServerRelay',
+    [resultRelay],
+  );
+  await expect(collect(resultRuntime.run(Request, { runId: resultRunId })))
+    .rejects.toMatchObject({ code: 'runtime_tool_result_conflict' });
 });
 
 test('state machine binds tool results to the original toolName', async () => {
@@ -354,6 +485,32 @@ function fakeApi(baseUrl: string): AxiosInstance {
 
 function event(value: CopilotChatEvent): string {
   return `data: ${JSON.stringify(value)}\r\n\r\n`;
+}
+
+function relayEvent(
+  runId: string,
+  sequence: number,
+  cursor: string,
+  value: CopilotChatEvent,
+  toolCallId?: string,
+): string {
+  return event(relayPayload(runId, sequence, cursor, value, toolCallId));
+}
+
+function relayPayload(
+  runId: string,
+  sequence: number,
+  cursor: string,
+  value: CopilotChatEvent,
+  toolCallId?: string,
+): CopilotChatEvent {
+  return {
+    ...value,
+    runId,
+    sequence,
+    cursor,
+    ...(toolCallId ? { toolCallId } : {}),
+  };
 }
 
 function fragmentedSseResponse(body: string, cuts: number[]): Response {

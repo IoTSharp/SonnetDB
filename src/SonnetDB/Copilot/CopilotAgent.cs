@@ -813,6 +813,7 @@ internal sealed class CopilotAgent
         CopilotToolInvocation tool,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
             CopilotDiagnostics.RunToolActivityName,
             ActivityKind.Internal);
@@ -834,7 +835,10 @@ internal sealed class CopilotAgent
                     []),
                 "list_measurements" => new CopilotToolExecutionResult(tool, ExecuteListMeasurements(context, tool), []),
                 "describe_measurement" => new CopilotToolExecutionResult(tool, ExecuteDescribeMeasurement(context, tool), []),
-                "sample_rows" => new CopilotToolExecutionResult(tool, ExecuteSampleRows(context, tool), []),
+                "sample_rows" => new CopilotToolExecutionResult(
+                    tool,
+                    ExecuteSampleRows(context, tool, cancellationToken),
+                    []),
                 "explain_sql" => new CopilotToolExecutionResult(tool, ExecuteExplainSql(context, tool), []),
                 "draft_sql" => new CopilotToolExecutionResult(tool, ExecuteDraftSql(context, tool), []),
                 "execute_sql" => new CopilotToolExecutionResult(
@@ -853,6 +857,16 @@ internal sealed class CopilotAgent
 
             activity?.SetTag("tool.result.rows", GetToolResultRowCount(result.ResultJson));
             return result;
+        }
+        catch (RoutineExecutionException ex) when (
+            cancellationToken.IsCancellationRequested &&
+            string.Equals(ex.Code, RoutineErrorCodes.Cancelled, StringComparison.Ordinal))
+        {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            throw new OperationCanceledException(
+                "Copilot Agent SQL 执行已取消。",
+                ex,
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -915,7 +929,10 @@ internal sealed class CopilotAgent
         return SerializeToolResult(payload, ServerJsonContext.Default.McpMeasurementSchemaResult);
     }
 
-    private string ExecuteSampleRows(CopilotAgentContext context, CopilotToolInvocation tool)
+    private string ExecuteSampleRows(
+        CopilotAgentContext context,
+        CopilotToolInvocation tool,
+        CancellationToken cancellationToken)
     {
         var measurement = tool.Measurement
             ?? throw new InvalidOperationException("sample_rows 缺少 measurement 参数。");
@@ -931,7 +948,13 @@ internal sealed class CopilotAgent
             TableValuedFunction: null,
             Pagination: new PaginationSpec(0, checked(rows + 1)));
 
-        var executionResult = SqlExecutor.ExecuteStatement(database, statement);
+        var executionResult = SqlExecutor.ExecuteStatement(
+            database,
+            databaseName,
+            statement,
+            controlPlane: null,
+            transaction: null,
+            options: CreateReadOnlyExecutionOptions(context, cancellationToken));
         if (executionResult is not SelectExecutionResult selectResult)
             throw new InvalidOperationException("sample_rows 未返回结果集。");
 
@@ -1122,7 +1145,9 @@ internal sealed class CopilotAgent
                     throw new InvalidOperationException("当前凭据没有控制面权限，无法直接创建数据库。");
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 executionResult = SqlExecutor.ExecuteControlPlaneStatement(statement, _controlPlane);
+                cancellationToken.ThrowIfCancellationRequested();
             }
             else
             {
@@ -1264,7 +1289,10 @@ internal sealed class CopilotAgent
         {
             try
             {
-                return new CopilotToolExecutionResult(currentTool, TryExecuteQuerySql(context, currentTool), events);
+                return new CopilotToolExecutionResult(
+                    currentTool,
+                    TryExecuteQuerySql(context, currentTool, cancellationToken),
+                    events);
             }
             catch (SqlExecutionException ex) when (attempt < MaxSqlRepairAttempts)
             {
@@ -1333,6 +1361,10 @@ internal sealed class CopilotAgent
                 cancellationToken).ConfigureAwait(false);
             return TryExtractSql(response);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.CopilotSqlRepairFailed(ex, tool.Sql);
@@ -1340,7 +1372,10 @@ internal sealed class CopilotAgent
         }
     }
 
-    private string TryExecuteQuerySql(CopilotAgentContext context, CopilotToolInvocation tool)
+    private string TryExecuteQuerySql(
+        CopilotAgentContext context,
+        CopilotToolInvocation tool,
+        CancellationToken cancellationToken)
     {
         var sql = tool.Sql
             ?? throw new InvalidOperationException("query_sql 缺少 sql 参数。");
@@ -1374,7 +1409,13 @@ internal sealed class CopilotAgent
         object? executionResult;
         try
         {
-            executionResult = SqlExecutor.ExecuteStatement(database, executable);
+            executionResult = SqlExecutor.ExecuteStatement(
+                database,
+                databaseName,
+                executable,
+                controlPlane: null,
+                transaction: null,
+                options: CreateReadOnlyExecutionOptions(context, cancellationToken));
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
         {
@@ -1395,6 +1436,17 @@ internal sealed class CopilotAgent
 
         return SerializeToolResult(payload, ServerJsonContext.Default.McpSqlQueryResult);
     }
+
+    private static SqlExecutionOptions CreateReadOnlyExecutionOptions(
+        CopilotAgentContext context,
+        CancellationToken cancellationToken)
+        => new()
+        {
+            CancellationToken = cancellationToken,
+            Caller = "copilot",
+            CanWrite = false,
+            CanAdminister = context.CanAdministerDatabase,
+        };
 
     private static string BuildPlannerPrompt(
         CopilotAgentContext context,

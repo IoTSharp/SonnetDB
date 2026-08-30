@@ -10,7 +10,10 @@ using SonnetDB.Auth;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
+using SonnetDB.Endpoints;
+using SonnetDB.Hosting;
 using SonnetDB.Json;
+using SonnetDB.Tests.Copilot;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -18,6 +21,7 @@ namespace SonnetDB.Tests;
 /// <summary>
 /// Cloud-only Copilot endpoint bridge tests.
 /// </summary>
+[Collection(CopilotTestCollection.Name)]
 public sealed class CopilotChatEndpointTests : IAsyncLifetime
 {
     private const string AdminToken = "copilot-admin-token";
@@ -257,6 +261,824 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         var measurement = Assert.Single(cloudRequest.Context.Measurements ?? []);
         Assert.Equal("cpu", measurement.Name);
         Assert.Contains(measurement.Fields ?? [], field => field.Name == "usage");
+    }
+
+    [Fact]
+    public async Task CopilotChatStream_WithToolCall_EmitsStableRelayIdentifiers()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            ToolRequiredEvent(
+                "describe_measurement",
+                """{"measurement":"cpu"}""",
+                requestId: "req-relay-identifiers",
+                toolCallId: "tool-relay-identifiers"),
+            CloudEvent("done", message: "waiting for tool result"));
+        _cloud.EnqueueChat(
+            CloudEvent("final", answer: "cpu schema ready"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat/stream",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "描述 cpu",
+                    ConversationId: "relay-identifiers-conversation")
+                {
+                    RunId = "relay-identifiers-run",
+                },
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadSseEventsAsync(response);
+        Assert.Equal([1L, 2L, 3L, 4L], events.Select(static evt => evt.Sequence));
+        Assert.All(events, static evt => Assert.Equal("relay-identifiers-run", evt.RunId));
+        Assert.Equal(
+            events.Select(static evt => $"relay-identifiers-run:{evt.Sequence}"),
+            events.Select(static evt => evt.Cursor));
+
+        var toolCall = Assert.Single(events, static evt => evt.Type == "tool_call");
+        var toolResult = Assert.Single(events, static evt => evt.Type == "tool_result");
+        Assert.Equal("tool-relay-identifiers", toolCall.ToolCallId);
+        Assert.Equal(toolCall.ToolCallId, toolResult.ToolCallId);
+    }
+
+    [Fact]
+    public async Task CopilotChatStream_WithKnownCursor_ReplaysTailWithoutCloudReexecution()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "stable relay answer"),
+            CloudEvent("done", message: "completed"));
+        var request = new CopilotChatRequest(
+            DatabaseName,
+            "重放同一运行",
+            ConversationId: "relay-replay-conversation")
+        {
+            RunId = "relay-replay-run",
+        };
+
+        using var client = CreateClient(AdminToken);
+        using var firstResponse = await client.PostAsync(
+            "/v1/copilot/chat/stream",
+            JsonContent.Create(request, ServerJsonContext.Default.CopilotChatRequest));
+        var firstEvents = await ReadSseEventsAsync(firstResponse);
+        Assert.Equal(["final", "done"], firstEvents.Select(static evt => evt.Type));
+
+        using var replayResponse = await client.PostAsync(
+            "/v1/copilot/chat/stream",
+            JsonContent.Create(
+                request with { Cursor = firstEvents[0].Cursor },
+                ServerJsonContext.Default.CopilotChatRequest));
+        var replayEvents = await ReadSseEventsAsync(replayResponse);
+
+        var replayed = Assert.Single(replayEvents);
+        Assert.Equal("done", replayed.Type);
+        Assert.Equal(2, replayed.Sequence);
+        Assert.Equal("relay-replay-run:2", replayed.Cursor);
+        Assert.Single(_cloud.ChatRequests);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WithConflictingRunShape_RejectsBeforeCloudCall()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "first answer"),
+            CloudEvent("done", message: "completed"));
+        var request = new CopilotChatRequest(
+            DatabaseName,
+            "first question",
+            ConversationId: "relay-conflict-conversation")
+        {
+            RunId = "relay-conflict-run",
+        };
+
+        using var client = CreateClient(AdminToken);
+        using var firstResponse = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(request, ServerJsonContext.Default.CopilotChatRequest));
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        _ = await ReadNdjsonEventsAsync(firstResponse);
+
+        using var conflictResponse = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                request with { Message = "different question" },
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.Conflict, conflictResponse.StatusCode);
+        Assert.Contains("relay_run_conflict", await conflictResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Single(_cloud.ChatRequests);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WithUnknownCursor_RejectsBeforeCloudCall()
+    {
+        SaveCloudConfig();
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "unknown relay run")
+                {
+                    RunId = "relay-unknown-run",
+                    Cursor = "relay-unknown-run:1",
+                },
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.Gone, response.StatusCode);
+        Assert.Contains("relay_run_unknown", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Empty(_cloud!.ChatRequests);
+    }
+
+    [Fact]
+    public async Task CopilotChat_WithFutureCursor_RejectsBeforeCloudReexecution()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "cursor answer"),
+            CloudEvent("done", message: "completed"));
+        var request = new CopilotChatRequest(
+            DatabaseName,
+            "cursor bounds")
+        {
+            RunId = "relay-cursor-run",
+        };
+
+        using var client = CreateClient(AdminToken);
+        using var firstResponse = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(request, ServerJsonContext.Default.CopilotChatRequest));
+        _ = await ReadNdjsonEventsAsync(firstResponse);
+
+        using var invalidResponse = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                request with { Cursor = "relay-cursor-run:99" },
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.Conflict, invalidResponse.StatusCode);
+        Assert.Contains("relay_cursor_invalid", await invalidResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Single(_cloud.ChatRequests);
+    }
+
+    [Fact]
+    public void ServerRelayRun_WithLocalToolEvents_AssignsOneStableToolCallId()
+    {
+        var store = new CopilotServerRelayRunStore();
+        var attached = store.Attach(
+            "relay-local-tool-run",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"));
+        var run = Assert.IsType<CopilotServerRelayRun>(attached.Run);
+
+        var toolCall = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}"));
+        var retry = run.Publish(new CopilotChatEvent(
+            "tool_retry",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 2\"}",
+            Attempt: 1));
+        var result = run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[]}"));
+        _ = run.Publish(new CopilotChatEvent("final", Answer: "done"));
+        _ = run.Publish(new CopilotChatEvent("done", Message: "completed"));
+        run.Complete();
+
+        Assert.Equal("relay-local-tool-run:tool:1", toolCall.ToolCallId);
+        Assert.Equal(toolCall.ToolCallId, retry.ToolCallId);
+        Assert.Equal(toolCall.ToolCallId, result.ToolCallId);
+        Assert.Equal([1L, 2L, 3L], new[] { toolCall.Sequence, retry.Sequence, result.Sequence });
+    }
+
+    [Fact]
+    public void ServerRelayRun_WithConcurrentOrDuplicateToolCall_RejectsLifecycleConflict()
+    {
+        var run = CreateRelayRun("relay-tool-lifecycle");
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}")
+        {
+            ToolCallId = "tool-lifecycle-1",
+        });
+
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 2\"}")
+        {
+            ToolCallId = "tool-lifecycle-2",
+        }));
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}")
+        {
+            ToolCallId = "tool-lifecycle-1",
+        }));
+
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[]}")
+        {
+            ToolCallId = "tool-lifecycle-1",
+        });
+        _ = run.Publish(new CopilotChatEvent("final", Answer: "done"));
+        _ = run.Publish(new CopilotChatEvent("done", Message: "completed"));
+        run.Complete();
+    }
+
+    [Fact]
+    public async Task ServerRelayRun_WithActiveToolCall_RejectsFinalButAllowsErrorSeal()
+    {
+        var run = CreateRelayRun("relay-active-tool-final");
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}"));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            run.Publish(new CopilotChatEvent("final", Answer: "incomplete success")));
+        _ = run.Publish(new CopilotChatEvent("error", Message: "tool interrupted"));
+        _ = run.Publish(new CopilotChatEvent("done", Message: "completed"));
+        run.Complete();
+
+        Assert.Equal(
+            ["tool_call", "error", "done"],
+            (await ReadRelayEventsAsync(run)).Select(static evt => evt.Type));
+    }
+
+    [Fact]
+    public void ServerRelayRun_WithWrongNameOrCompletedToolCall_RejectsStaleEvents()
+    {
+        var run = CreateRelayRun("relay-tool-stale");
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}")
+        {
+            ToolCallId = "tool-stale-1",
+        });
+
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_retry",
+            ToolName: "execute_sql",
+            Attempt: 1)
+        {
+            ToolCallId = "tool-stale-1",
+        }));
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[]}")
+        {
+            ToolCallId = "tool-stale-1",
+        });
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_retry",
+            ToolName: "query_sql",
+            Attempt: 2)
+        {
+            ToolCallId = "tool-stale-1",
+        }));
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[]}")
+        {
+            ToolCallId = "tool-stale-1",
+        }));
+
+        _ = run.Publish(new CopilotChatEvent("final", Answer: "done"));
+        _ = run.Publish(new CopilotChatEvent("done", Message: "completed"));
+        run.Complete();
+    }
+
+    [Fact]
+    public void ServerRelayRun_WithCompletedExactReplay_AcceptsOnlyEquivalentIdentityAndResult()
+    {
+        var run = CreateRelayRun("relay-tool-replay");
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 1\"}")
+        {
+            ToolCallId = "tool-replay-1",
+        });
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[]}")
+        {
+            ToolCallId = "tool-replay-1",
+        });
+
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{\"sql\":\"SELECT 2\"}")
+        {
+            ToolCallId = "tool-replay-1",
+        }));
+        _ = run.Publish(new CopilotChatEvent(
+            "tool_call",
+            ToolName: "query_sql",
+            ToolArguments: "{ \"sql\" : \"SELECT 1\" }")
+        {
+            ToolCallId = "tool-replay-1",
+        });
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_retry",
+            ToolName: "query_sql",
+            Attempt: 1)
+        {
+            ToolCallId = "tool-replay-1",
+        }));
+        Assert.Throws<InvalidOperationException>(() => run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{\"rows\":[1]}")
+        {
+            ToolCallId = "tool-replay-1",
+        }));
+        var replayResult = run.Publish(new CopilotChatEvent(
+            "tool_result",
+            ToolName: "query_sql",
+            ToolResult: "{ \"rows\" : [] }")
+        {
+            ToolCallId = "tool-replay-1",
+        });
+
+        Assert.Equal("tool-replay-1", replayResult.ToolCallId);
+        Assert.Equal(4, replayResult.Sequence);
+        _ = run.Publish(new CopilotChatEvent("final", Answer: "done"));
+        _ = run.Publish(new CopilotChatEvent("done", Message: "completed"));
+        run.Complete();
+    }
+
+    [Theory]
+    [InlineData("final")]
+    [InlineData("error")]
+    public async Task ServerRelayRun_WithOversizedOutcome_RejectsBeforeConsumingDoneReserve(
+        string outcomeType)
+    {
+        var run = CreateRelayRun("relay-outcome-capacity");
+        var oversized = new string('x', 4_194_200);
+        var outcome = string.Equals(outcomeType, "final", StringComparison.Ordinal)
+            ? new CopilotChatEvent("final", Answer: oversized)
+            : new CopilotChatEvent("error", Message: oversized);
+
+        Assert.Throws<InvalidOperationException>(() => run.Publish(outcome));
+        Assert.Null(Record.Exception(() => run.Fail("capacity closed")));
+        Assert.Null(Record.Exception(run.Complete));
+
+        var events = await ReadRelayEventsAsync(run);
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal([1L, 2L], events.Select(static evt => evt.Sequence));
+    }
+
+    [Fact]
+    public async Task ServerRelayRun_WhenDeadlineCallbackThrows_StillClosesWithoutLeakingException()
+    {
+        var completed = new TaskCompletionSource<CopilotServerRelayRun>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new CopilotServerRelayRun(
+            "relay-throwing-deadline-callback",
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            closed => completed.TrySetResult(closed));
+        using var registration = run.DeadlineToken.Register(
+            static () => throw new InvalidOperationException("deadline callback failed"));
+
+        Assert.Null(Record.Exception(run.Expire));
+        Assert.Same(run, await completed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(
+            ["error", "done"],
+            (await ReadRelayEventsAsync(run)).Select(static evt => evt.Type));
+    }
+
+    [Fact]
+    public void ServerRelayRun_WhenCompletionCallbackThrows_DoesNotLeakException()
+    {
+        var run = new CopilotServerRelayRun(
+            "relay-throwing-completion-callback",
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            static _ => throw new InvalidOperationException("completion callback failed"));
+        run.Fail("closed");
+
+        Assert.Null(Record.Exception(run.Complete));
+        Assert.Throws<InvalidOperationException>(() =>
+            run.Publish(new CopilotChatEvent("start", Message: "late")));
+    }
+
+    [Fact]
+    public void CopilotContracts_KeepLegacyPositionalConstructors()
+    {
+        Assert.NotNull(typeof(CopilotChatRequest).GetConstructor(
+        [
+            typeof(string),
+            typeof(string),
+            typeof(List<AiMessage>),
+            typeof(int?),
+            typeof(int?),
+            typeof(string),
+            typeof(string),
+            typeof(string),
+        ]));
+        Assert.NotNull(typeof(CopilotChatEvent).GetConstructor(
+        [
+            typeof(string),
+            typeof(string),
+            typeof(string),
+            typeof(string),
+            typeof(string),
+            typeof(string),
+            typeof(IReadOnlyList<string>),
+            typeof(IReadOnlyList<string>),
+            typeof(IReadOnlyList<CopilotCitation>),
+            typeof(int?),
+        ]));
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_WithCompletedRuns_DoesNotConsumeActiveCapacity()
+    {
+        var store = new CopilotServerRelayRunStore();
+        for (var index = 0; index < 80; index++)
+        {
+            var attached = store.Attach(
+                $"relay-capacity-{index}",
+                cursor: null,
+                new CopilotServerRelayRunBinding("owner", DatabaseName, $"fingerprint-{index}"));
+            Assert.Equal(CopilotServerRelayAttachStatus.Created, attached.Status);
+            attached.Run!.Fail("closed");
+            attached.Run.Complete();
+        }
+
+        var next = store.Attach(
+            "relay-capacity-next",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint-next"));
+        Assert.Equal(CopilotServerRelayAttachStatus.Created, next.Status);
+        next.Run!.Fail("closed");
+        next.Run.Complete();
+
+        var retired = store.Attach(
+            "relay-capacity-0",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint-0"));
+        Assert.Equal(CopilotServerRelayAttachStatus.Expired, retired.Status);
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_WhenActiveCapacityIsFull_RejectsUntilRunCompletes()
+    {
+        var store = new CopilotServerRelayRunStore();
+        var activeRuns = new List<CopilotServerRelayRun>();
+        for (var index = 0; index < 64; index++)
+        {
+            var attached = store.Attach(
+                $"relay-active-{index}",
+                cursor: null,
+                new CopilotServerRelayRunBinding("owner", DatabaseName, $"fingerprint-{index}"));
+            Assert.Equal(CopilotServerRelayAttachStatus.Created, attached.Status);
+            activeRuns.Add(attached.Run!);
+        }
+
+        var rejected = store.Attach(
+            "relay-active-overflow",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint-overflow"));
+        Assert.Equal(CopilotServerRelayAttachStatus.CapacityExceeded, rejected.Status);
+        Assert.Null(rejected.Run);
+
+        foreach (var run in activeRuns)
+        {
+            run.Fail("closed");
+            run.Complete();
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_ScopesRunIdByOwner()
+    {
+        var store = new CopilotServerRelayRunStore();
+        var ownerA = store.Attach(
+            "shared-run-id",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner-a", DatabaseName, "fingerprint-a"));
+        var ownerB = store.Attach(
+            "shared-run-id",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner-b", DatabaseName, "fingerprint-b"));
+
+        Assert.Equal(CopilotServerRelayAttachStatus.Created, ownerA.Status);
+        Assert.Equal(CopilotServerRelayAttachStatus.Created, ownerB.Status);
+        Assert.NotSame(ownerA.Run, ownerB.Run);
+        ownerA.Run!.Fail("closed");
+        ownerA.Run.Complete();
+        ownerB.Run!.Fail("closed");
+        ownerB.Run.Complete();
+    }
+
+    [Fact]
+    public void ServerRelayRun_WhenDonePrecedesOutcome_RejectsEvent()
+    {
+        var store = new CopilotServerRelayRunStore();
+        var attached = store.Attach(
+            "relay-done-before-outcome",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            attached.Run!.Publish(new CopilotChatEvent("done", Message: "completed")));
+        Assert.Contains("final/error", exception.Message, StringComparison.Ordinal);
+        attached.Run!.Fail("closed");
+        attached.Run.Complete();
+    }
+
+    [Fact]
+    public async Task ServerRelayRun_WhenActiveDeadlineExpires_ClosesAsErrorOutcome()
+    {
+        var completed = new TaskCompletionSource<CopilotServerRelayRun>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new CopilotServerRelayRun(
+            "relay-deadline",
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddMilliseconds(25),
+            closed => completed.TrySetResult(closed));
+
+        var closedRun = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Same(run, closedRun);
+        Assert.True(run.DeadlineToken.IsCancellationRequested);
+        var events = new List<CopilotChatEvent>();
+        await foreach (var evt in run.ReadAfterAsync(0, CancellationToken.None))
+            events.Add(evt);
+
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Throws<InvalidOperationException>(() =>
+            run.Publish(new CopilotChatEvent("start", Message: "late")));
+    }
+
+    [Fact]
+    public async Task ServerRelayRun_WithPastDeadline_InvokesCompletionAfterTimerFieldInitialization()
+    {
+        var completed = new TaskCompletionSource<CopilotServerRelayRun>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new CopilotServerRelayRun(
+            "relay-immediate-deadline",
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddSeconds(-1),
+            closed => completed.TrySetResult(closed));
+
+        Assert.Same(run, await completed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(
+            ["error", "done"],
+            (await ReadRelayEventsAsync(run)).Select(static evt => evt.Type));
+    }
+
+    [Fact]
+    public async Task CopilotChatStream_WhenRelayDeadlineExpires_ReturnsJournaledTerminalTailToCurrentClient()
+    {
+        string dataRoot = CreateTempDirectory("sndb-copilot-relay-deadline-");
+        var options = new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [AdminToken] = ServerRoles.Admin,
+            },
+        };
+        options.Copilot.Enabled = true;
+        options.Copilot.Docs.AutoIngestOnStartup = false;
+        options.Copilot.Skills.AutoIngestOnStartup = false;
+        var cloud = new FakeCloudGatewayClient
+        {
+            BlockChatUntilCancellation = true,
+        };
+        var relayRuns = new CopilotServerRelayRunStore(TimeSpan.FromMilliseconds(100));
+        WebApplication app = TestServerHost.Build(
+            options,
+            services =>
+            {
+                services.AddSingleton<ICopilotCloudGatewayClient>(cloud);
+                services.AddSingleton(relayRuns);
+            });
+
+        try
+        {
+            await app.StartAsync();
+            app.Services.GetRequiredService<AiConfigStore>().Save(CreateBoundCloudOptions());
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.First()),
+                Timeout = TimeSpan.FromSeconds(10),
+            };
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", AdminToken);
+            await CreateDatabaseAsync(client, DatabaseName);
+            var request = new CopilotChatRequest(
+                DatabaseName,
+                "等待 relay deadline",
+                ConversationId: "relay-deadline-current-client")
+            {
+                RunId = "relay-deadline-current-client-run",
+            };
+
+            using var response = await client.PostAsync(
+                "/v1/copilot/chat/stream",
+                JsonContent.Create(request, ServerJsonContext.Default.CopilotChatRequest));
+            var events = await ReadSseEventsAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+            Assert.Equal([1L, 2L], events.Select(static evt => evt.Sequence));
+            Assert.Contains("TTL", events[0].Message ?? string.Empty, StringComparison.Ordinal);
+            Assert.True(cloud.ChatCancellationObserved);
+
+            cloud.BlockChatUntilCancellation = false;
+            using var replay = await client.PostAsync(
+                "/v1/copilot/chat/stream",
+                JsonContent.Create(
+                    request with { Cursor = events[0].Cursor },
+                    ServerJsonContext.Default.CopilotChatRequest));
+            var replayEvents = await ReadSseEventsAsync(replay);
+            Assert.Equal("done", Assert.Single(replayEvents).Type);
+            Assert.Single(cloud.ChatRequests);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteDirectory(dataRoot);
+        }
+    }
+
+    [Fact]
+    public async Task CopilotLocalToolExecutor_QuerySql_CancelsControllablyBlockingSqlExecution()
+    {
+        using var admin = CreateClient(AdminToken);
+        await ExecuteSqlAsync(
+            admin,
+            "CREATE TABLE relay_cancel_left (id INT, PRIMARY KEY (id))");
+        await ExecuteSqlAsync(
+            admin,
+            "CREATE TABLE relay_cancel_right (id INT, PRIMARY KEY (id))");
+        string values = string.Join(
+            ',',
+            Enumerable.Range(0, 10_000).Select(static value => $"({value})"));
+        await ExecuteSqlAsync(
+            admin,
+            $"INSERT INTO relay_cancel_left (id) VALUES {values}");
+        await ExecuteSqlAsync(
+            admin,
+            $"INSERT INTO relay_cancel_right (id) VALUES {values}");
+
+        var registry = _app!.Services.GetRequiredService<TsdbRegistry>();
+        Assert.True(registry.TryGet(DatabaseName, out var database));
+        var httpContext = new DefaultHttpContext();
+        httpContext.Items[BearerAuthMiddleware.RoleKey] = ServerRoles.Admin;
+        using var cancellation = new CancellationTokenSource();
+        var context = new CopilotLocalToolContext(
+            httpContext,
+            _app.Services.GetRequiredService<GrantsStore>(),
+            DatabaseName,
+            database,
+            [DatabaseName],
+            AllowWrite: false,
+            CanUseControlPlane: false,
+            cancellation.Token);
+        var tool = new CopilotCloudToolCallEvent(
+            "relay-cancel-tool",
+            "query_sql",
+            ParseJson(
+                "{\"sql\":\"SELECT COUNT(*) AS total FROM relay_cancel_left l " +
+                "JOIN relay_cancel_right r ON l.id >= 0\",\"maxRows\":10}"),
+            RequiresConfirmation: false,
+            TimeoutSeconds: 30,
+            MaxRows: 10,
+            ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(1));
+        var executor = _app.Services.GetRequiredService<CopilotLocalToolExecutor>();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<CopilotLocalToolResult> execution = Task.Run(() =>
+        {
+            started.TrySetResult();
+            return executor.Execute(context, tool);
+        });
+
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(25);
+        Assert.False(execution.IsCompleted, "The SQL fixture completed before cancellation could be observed.");
+        cancellation.Cancel();
+
+        Exception exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await execution.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsAssignableFrom<OperationCanceledException>(exception);
+    }
+
+    [Fact]
+    public async Task RelayResponse_WhenProducerEndsWithoutOutcome_WritesSealedTailToCurrentClient()
+    {
+        var run = CreateRelayRun("relay-normal-truncation");
+        var context = new DefaultHttpContext();
+        await using var body = new MemoryStream();
+        context.Response.Body = body;
+        var progress = new CopilotChatEndpointHandler.CopilotRelayResponseProgress();
+
+        await CopilotChatEndpointHandler.CompleteRelayResponseAsync(
+            context,
+            run,
+            progress,
+            sse: false);
+
+        body.Position = 0;
+        using var reader = new StreamReader(body, leaveOpen: true);
+        string payload = await reader.ReadToEndAsync();
+        CopilotChatEvent[] events = payload
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonSerializer.Deserialize(
+                line,
+                ServerJsonContext.Default.CopilotChatEvent)!)
+            .ToArray();
+        Assert.Equal(["error", "done"], events.Select(static evt => evt.Type));
+        Assert.Equal([1L, 2L], events.Select(static evt => evt.Sequence));
+        Assert.Equal(2, progress.LastWrittenSequence);
+    }
+
+    [Fact]
+    public void ServerRelayRun_ExplicitExpire_CancelsDeadlineToken()
+    {
+        var run = new CopilotServerRelayRun(
+            "relay-explicit-expire",
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            static _ => { });
+
+        run.Expire();
+
+        Assert.True(run.DeadlineToken.IsCancellationRequested);
+        Assert.Throws<InvalidOperationException>(() =>
+            run.Publish(new CopilotChatEvent("start", Message: "late")));
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_WhenReplayExpires_RetainsLightweightTombstone()
+    {
+        var store = new CopilotServerRelayRunStore();
+        var binding = new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint");
+        var attached = store.Attach("relay-replay-expired", cursor: null, binding);
+        attached.Run!.Fail("closed");
+        attached.Run.Complete();
+        attached.Run.SetReplayExpiresAt(DateTimeOffset.UtcNow.AddMilliseconds(-1));
+
+        var expired = store.Attach("relay-replay-expired", cursor: null, binding);
+        Assert.Equal(CopilotServerRelayAttachStatus.Expired, expired.Status);
+        Assert.Null(expired.Run);
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_WhenIdentityCapacityIsFull_DoesNotEvictLiveTombstone()
+    {
+        var store = new CopilotServerRelayRunStore();
+        for (var index = 0; index < 2048; index++)
+        {
+            var attached = store.Attach(
+                $"relay-identity-{index}",
+                cursor: null,
+                new CopilotServerRelayRunBinding("owner", DatabaseName, $"fingerprint-{index}"));
+            Assert.Equal(CopilotServerRelayAttachStatus.Created, attached.Status);
+            attached.Run!.Fail("closed");
+            attached.Run.Complete();
+        }
+
+        var overflow = store.Attach(
+            "relay-identity-overflow",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint-overflow"));
+        Assert.Equal(CopilotServerRelayAttachStatus.CapacityExceeded, overflow.Status);
+
+        var firstIdentity = store.Attach(
+            "relay-identity-0",
+            cursor: null,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint-0"));
+        Assert.Equal(CopilotServerRelayAttachStatus.Expired, firstIdentity.Status);
     }
 
     [Fact]
@@ -762,7 +1584,14 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         DateTimeOffset? expiresAtUtc = null)
     {
         var store = _app!.Services.GetRequiredService<AiConfigStore>();
-        store.Save(new AiOptions
+        store.Save(CreateBoundCloudOptions(accessToken, expiresAtUtc));
+        _cloud!.Reset();
+    }
+
+    private static AiOptions CreateBoundCloudOptions(
+        string accessToken = "cloud-access-token",
+        DateTimeOffset? expiresAtUtc = null)
+        => new()
         {
             Enabled = true,
             GatewayBaseUrl = "https://ai.sonnetdb.com",
@@ -774,9 +1603,7 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
             CloudScope = "ai.invoke",
             CloudBoundAtUtc = DateTimeOffset.UtcNow,
             TimeoutSeconds = 60,
-        });
-        _cloud!.Reset();
-    }
+        };
 
     /// <summary>
     /// 创建仅有数据库 READ 权限的测试客户端。
@@ -881,6 +1708,22 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         return document.RootElement.Clone();
     }
 
+    private static CopilotServerRelayRun CreateRelayRun(string runId)
+        => new(
+            runId,
+            new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"),
+            DateTimeOffset.UtcNow.AddMinutes(1),
+            static _ => { });
+
+    private static async Task<List<CopilotChatEvent>> ReadRelayEventsAsync(
+        CopilotServerRelayRun run)
+    {
+        var events = new List<CopilotChatEvent>();
+        await foreach (var evt in run.ReadAfterAsync(0, CancellationToken.None))
+            events.Add(evt);
+        return events;
+    }
+
     private static string CreateTempDirectory(string prefix)
     {
         var path = Path.Combine(Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N"));
@@ -969,26 +1812,44 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
 
         public List<CopilotCloudToolResultRequest> ToolResults { get; } = [];
 
+        public bool BlockChatUntilCancellation { get; set; }
+
+        public bool ChatCancellationObserved { get; private set; }
+
         public void Reset()
         {
             _responses.Clear();
             ChatRequests.Clear();
             ToolResults.Clear();
+            ChatCancellationObserved = false;
         }
 
         public void EnqueueChat(params CopilotCloudRuntimeEvent[] events)
             => _responses.Enqueue(events);
 
-        public Task<CopilotCloudChatResponse> ChatAsync(
+        public async Task<CopilotCloudChatResponse> ChatAsync(
             AiOptions options,
             CopilotCloudChatRequest request,
             CancellationToken cancellationToken)
         {
             ChatRequests.Add(request);
+            if (BlockChatUntilCancellation)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    ChatCancellationObserved = true;
+                    throw;
+                }
+            }
+
             var events = _responses.Count > 0
                 ? _responses.Dequeue()
                 : [CloudEvent("final", answer: "默认云端回答。"), CloudEvent("done", message: "completed")];
-            return Task.FromResult(new CopilotCloudChatResponse(StatusCodes.Status200OK, "req-chat", events));
+            return new CopilotCloudChatResponse(StatusCodes.Status200OK, "req-chat", events);
         }
 
         public Task<CopilotCloudToolResultResponse> SubmitToolResultAsync(

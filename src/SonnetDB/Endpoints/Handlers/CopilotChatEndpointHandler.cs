@@ -1,4 +1,6 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -40,6 +42,8 @@ internal static class CopilotChatEndpointHandler
         "云端 Copilot 工具调用缺少稳定的 toolCallId，已拒绝该响应。";
     private const string CloudToolCallConflictMessage =
         "云端 Copilot 对同一 toolCallId 返回了冲突的工具名称或参数，已拒绝该响应。";
+    private const string RelayInterruptedMessage =
+        "ServerRelay 连接已中断；该请求内运行已停止，可使用最后确认的 cursor 重放已记录事件。";
 
     public static void Map(
         WebApplication app,
@@ -53,11 +57,13 @@ internal static class CopilotChatEndpointHandler
         GrantsStore grantsStore,
         TsdbRegistry registry)
     {
+        var relayRuns = app.Services.GetService<CopilotServerRelayRunStore>()
+            ?? new CopilotServerRelayRunStore();
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -71,6 +77,7 @@ internal static class CopilotChatEndpointHandler
         CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry,
+        CopilotServerRelayRunStore relayRuns,
         bool sse)
     {
         var cfg = configStore.Get();
@@ -85,6 +92,7 @@ internal static class CopilotChatEndpointHandler
                     inFlightTracker,
                     grantsStore,
                     registry,
+                    relayRuns,
                     sse).ConfigureAwait(false);
                 return;
             }
@@ -198,6 +206,36 @@ internal static class CopilotChatEndpointHandler
         var conversationId = cloudRequest.ConversationId
             ?? throw new InvalidOperationException("Copilot 会话 ID 未生成。");
         var owner = CopilotStateStore.ResolveOwner(ctx);
+        if (!TryResolveRunId(req.RunId, req.Cursor, out var runId))
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status400BadRequest,
+                "relay_run_id_invalid",
+                "ServerRelay runId 必须为 1-128 个 ASCII 字母、数字、下划线或连字符；携带 cursor 时必须同时携带 runId。")
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var binding = new CopilotServerRelayRunBinding(
+            owner,
+            databaseName,
+            CreateRelayRequestFingerprint("cloud", req, messages, cloudRequest.Mode));
+        var attach = relayRuns.Attach(runId, req.Cursor, binding);
+        if (attach.Status != CopilotServerRelayAttachStatus.Created)
+        {
+            if (attach.Status == CopilotServerRelayAttachStatus.Attached)
+            {
+                await WriteRelayReplayAsync(ctx, attach.Run!, attach.AfterSequence, sse).ConfigureAwait(false);
+            }
+            else
+            {
+                await WriteRelayAttachErrorAsync(ctx, attach.Status).ConfigureAwait(false);
+            }
+            return;
+        }
+
+        var relayRun = attach.Run!;
         var latestUserMessage = messages.Last(static message =>
             string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase));
         try
@@ -207,18 +245,26 @@ internal static class CopilotChatEndpointHandler
         }
         catch (UnauthorizedAccessException exception)
         {
+            relayRun.Fail(exception.Message);
+            relayRun.Complete();
             await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", exception.Message).ConfigureAwait(false);
             return;
         }
+        catch (Exception exception)
+        {
+            relayRun.Fail(exception.Message);
+            relayRun.Complete();
+            throw;
+        }
 
-        ctx.Response.StatusCode = StatusCodes.Status200OK;
-        ctx.Response.ContentType = sse
-            ? "text/event-stream; charset=utf-8"
-            : "application/x-ndjson; charset=utf-8";
-        ctx.Response.Headers.CacheControl = "no-cache";
-        ctx.Response.Headers.Append("X-Accel-Buffering", "no");
+        ConfigureRelayResponse(ctx, sse);
 
         var startedAt = Stopwatch.GetTimestamp();
+        using var relayCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            ctx.RequestAborted,
+            relayRun.DeadlineToken);
+        localContext = localContext with { CancellationToken = relayCancellation.Token };
+        var responseProgress = new CopilotRelayResponseProgress();
         using var inFlightLease = inFlightTracker.Enter();
         using var activity = CopilotDiagnostics.ActivitySource.StartActivity("copilot.chat", ActivityKind.Server);
         activity?.SetTag("copilot.mode", cloudRequest.Mode);
@@ -233,26 +279,34 @@ internal static class CopilotChatEndpointHandler
                 toolExecutor,
                 localContext,
                 cloudRequest,
-                sse).ConfigureAwait(false);
+                relayRun,
+                relayCancellation.Token,
+                sse,
+                responseProgress).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
         {
+            relayRun.Fail(RelayInterruptedMessage);
             throw;
+        }
+        catch (OperationCanceledException) when (relayRun.DeadlineToken.IsCancellationRequested)
+        {
+            relayRun.Expire();
+            run.ErrorMessage = "ServerRelay run 已超过绝对 TTL，运行已停止并封闭为错误终态。";
         }
         catch (Exception ex)
         {
             run.ErrorMessage = ex.Message;
-            await WriteMappedEventAsync(
-                ctx,
-                new CopilotChatEvent("error", Message: ex.Message),
-                sse).ConfigureAwait(false);
-            await WriteMappedEventAsync(
-                ctx,
-                new CopilotChatEvent("done", Message: "completed"),
-                sse).ConfigureAwait(false);
+            relayRun.Fail(ex.Message);
+            relayRun.Complete();
         }
         finally
         {
+            await CompleteRelayResponseAsync(
+                ctx,
+                relayRun,
+                responseProgress,
+                sse).ConfigureAwait(false);
             var duration = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
             var inputTokens = run.InputTokens ?? EstimateTokens(messages.Select(static message => message.Content));
             var outputTokens = run.OutputTokens ?? EstimateTokens([run.FinalAnswer ?? string.Empty]);
@@ -302,10 +356,7 @@ internal static class CopilotChatEndpointHandler
         }
 
         if (sse)
-        {
-            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted).ConfigureAwait(false);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-        }
+            await WriteSseDoneAsync(ctx).ConfigureAwait(false);
     }
 
     private static async Task HandleLocalAsync(
@@ -315,6 +366,7 @@ internal static class CopilotChatEndpointHandler
         CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry,
+        CopilotServerRelayRunStore relayRuns,
         bool sse)
     {
         var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.CopilotChatRequest).ConfigureAwait(false);
@@ -405,6 +457,36 @@ internal static class CopilotChatEndpointHandler
             CanAdministerDatabase: DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Admin));
         var conversationId = NormalizeConversationId(request.ConversationId) ?? $"sndb_{Guid.NewGuid():N}";
         var owner = CopilotStateStore.ResolveOwner(ctx);
+        if (!TryResolveRunId(request.RunId, request.Cursor, out var runId))
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status400BadRequest,
+                "relay_run_id_invalid",
+                "ServerRelay runId 必须为 1-128 个 ASCII 字母、数字、下划线或连字符；携带 cursor 时必须同时携带 runId。")
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var binding = new CopilotServerRelayRunBinding(
+            owner,
+            databaseName,
+            CreateRelayRequestFingerprint("local", request, messages, request.Mode ?? "read-only"));
+        var attach = relayRuns.Attach(runId, request.Cursor, binding);
+        if (attach.Status != CopilotServerRelayAttachStatus.Created)
+        {
+            if (attach.Status == CopilotServerRelayAttachStatus.Attached)
+            {
+                await WriteRelayReplayAsync(ctx, attach.Run!, attach.AfterSequence, sse).ConfigureAwait(false);
+            }
+            else
+            {
+                await WriteRelayAttachErrorAsync(ctx, attach.Status).ConfigureAwait(false);
+            }
+            return;
+        }
+
+        var relayRun = attach.Run!;
         var latestUserMessage = messages.Last(static message => string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase));
 
         try
@@ -414,16 +496,25 @@ internal static class CopilotChatEndpointHandler
         }
         catch (UnauthorizedAccessException exception)
         {
+            relayRun.Fail(exception.Message);
+            relayRun.Complete();
             await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", exception.Message).ConfigureAwait(false);
             return;
         }
+        catch (Exception exception)
+        {
+            relayRun.Fail(exception.Message);
+            relayRun.Complete();
+            throw;
+        }
 
-        ctx.Response.StatusCode = StatusCodes.Status200OK;
-        ctx.Response.ContentType = sse ? "text/event-stream; charset=utf-8" : "application/x-ndjson; charset=utf-8";
-        ctx.Response.Headers.CacheControl = "no-cache";
-        ctx.Response.Headers.Append("X-Accel-Buffering", "no");
+        ConfigureRelayResponse(ctx, sse);
 
         var startedAt = Stopwatch.GetTimestamp();
+        using var relayCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            ctx.RequestAborted,
+            relayRun.DeadlineToken);
+        var responseProgress = new CopilotRelayResponseProgress();
         var finalAnswer = (string?)null;
         IReadOnlyList<CopilotCitation>? citations = null;
         var toolCalls = 0L;
@@ -437,9 +528,14 @@ internal static class CopilotChatEndpointHandler
 
         try
         {
-            await foreach (var evt in agent.RunAsync(agentContext, messages, request.DocsK, request.SkillsK, ctx.RequestAborted).ConfigureAwait(false))
+            await foreach (var evt in agent.RunAsync(agentContext, messages, request.DocsK, request.SkillsK, relayCancellation.Token).ConfigureAwait(false))
             {
-                await WriteMappedEventAsync(ctx, evt, sse).ConfigureAwait(false);
+                await WriteRelayEventAsync(
+                    ctx,
+                    relayRun,
+                    evt,
+                    sse,
+                    responseProgress).ConfigureAwait(false);
                 if (string.Equals(evt.Type, "tool_call", StringComparison.OrdinalIgnoreCase))
                     toolCalls++;
                 if (string.Equals(evt.Type, "final", StringComparison.OrdinalIgnoreCase))
@@ -450,18 +546,29 @@ internal static class CopilotChatEndpointHandler
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
         {
+            relayRun.Fail(RelayInterruptedMessage);
             throw;
+        }
+        catch (OperationCanceledException) when (relayRun.DeadlineToken.IsCancellationRequested)
+        {
+            relayRun.Expire();
+            errorMessage = "ServerRelay run 已超过绝对 TTL，运行已停止并封闭为错误终态。";
         }
         catch (Exception exception)
         {
             errorMessage = exception.Message;
-            await WriteMappedEventAsync(ctx, new CopilotChatEvent("error", Message: exception.Message), sse).ConfigureAwait(false);
-            await WriteMappedEventAsync(ctx, new CopilotChatEvent("done", Message: "completed"), sse).ConfigureAwait(false);
+            relayRun.Fail(exception.Message);
+            relayRun.Complete();
         }
         finally
         {
+            await CompleteRelayResponseAsync(
+                ctx,
+                relayRun,
+                responseProgress,
+                sse).ConfigureAwait(false);
             var duration = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
             var inputTokens = EstimateTokens(messages.Select(static message => message.Content));
             var outputTokens = EstimateTokens([finalAnswer ?? string.Empty]);
@@ -488,10 +595,7 @@ internal static class CopilotChatEndpointHandler
         }
 
         if (sse)
-        {
-            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted).ConfigureAwait(false);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-        }
+            await WriteSseDoneAsync(ctx).ConfigureAwait(false);
     }
 
     private static async Task<CopilotRunSummary> RunCloudConversationAsync(
@@ -501,7 +605,10 @@ internal static class CopilotChatEndpointHandler
         CopilotLocalToolExecutor toolExecutor,
         CopilotLocalToolContext localContext,
         CopilotCloudChatRequest cloudRequest,
-        bool sse)
+        CopilotServerRelayRun relayRun,
+        CancellationToken cancellationToken,
+        bool sse,
+        CopilotRelayResponseProgress responseProgress)
     {
         var summary = new CopilotRunSummary();
         var outcomeSeen = false;
@@ -510,7 +617,7 @@ internal static class CopilotChatEndpointHandler
 
         for (var round = 0; round < MaxCloudToolRounds; round++)
         {
-            var response = await cloudClient.ChatAsync(options, cloudRequest, ctx.RequestAborted)
+            var response = await cloudClient.ChatAsync(options, cloudRequest, cancellationToken)
                 .ConfigureAwait(false);
             summary.CaptureUsage(response.Events);
             ValidateCloudRoundEvents(response.Events, toolCallCache);
@@ -523,6 +630,10 @@ internal static class CopilotChatEndpointHandler
                     cloudEvent.Type,
                     "tool_result_required",
                     StringComparison.OrdinalIgnoreCase);
+                var isToolRequest =
+                    (string.Equals(cloudEvent.Type, "tool_call", StringComparison.OrdinalIgnoreCase) ||
+                     isToolResultRequired) &&
+                    cloudEvent.Tool is not null;
                 if (string.Equals(cloudEvent.Type, "done", StringComparison.OrdinalIgnoreCase) &&
                     !outcomeSeen)
                 {
@@ -532,7 +643,12 @@ internal static class CopilotChatEndpointHandler
                 if (!isToolResultRequired)
                 {
                     var mapped = MapCloudEvent(cloudEvent);
-                    await WriteMappedEventAsync(ctx, mapped, sse).ConfigureAwait(false);
+                    await WriteRelayEventAsync(
+                        ctx,
+                        relayRun,
+                        mapped,
+                        sse,
+                        responseProgress).ConfigureAwait(false);
                     if (string.Equals(mapped.Type, "final", StringComparison.OrdinalIgnoreCase))
                     {
                         outcomeSeen = true;
@@ -553,17 +669,21 @@ internal static class CopilotChatEndpointHandler
                     }
                 }
 
-                if ((string.Equals(cloudEvent.Type, "tool_call", StringComparison.OrdinalIgnoreCase) ||
-                     isToolResultRequired) &&
-                    cloudEvent.Tool is not null)
+                if (isToolRequest)
                 {
                     if (isToolResultRequired)
                     {
-                        await WriteMappedEventAsync(ctx, MapCloudEvent(cloudEvent), sse).ConfigureAwait(false);
+                        await WriteRelayEventAsync(
+                            ctx,
+                            relayRun,
+                            MapCloudEvent(cloudEvent),
+                            sse,
+                            responseProgress).ConfigureAwait(false);
                     }
 
                     handledToolCall = true;
-                    var toolCallId = GetRequiredToolCallId(cloudEvent.Tool);
+                    var tool = cloudEvent.Tool!;
+                    var toolCallId = GetRequiredToolCallId(tool);
                     CopilotLocalToolResult localResult;
                     if (toolCallCache.TryGetValue(toolCallId, out var cachedToolCall))
                     {
@@ -571,20 +691,26 @@ internal static class CopilotChatEndpointHandler
                     }
                     else
                     {
-                        localResult = cloudEvent.Tool.RequiresConfirmation
-                            ? CreateConfirmationRequiredResult(cloudEvent.Tool)
-                            : ExecuteLocalTool(toolExecutor, localContext, cloudEvent.Tool);
+                        localResult = tool.RequiresConfirmation
+                            ? CreateConfirmationRequiredResult(tool)
+                            : ExecuteLocalTool(toolExecutor, localContext, tool);
                         toolCallCache.Add(
                             toolCallId,
                             new CachedCloudToolCall(
-                                cloudEvent.Tool.Name,
-                                cloudEvent.Tool.Arguments.Clone(),
+                                tool.Name,
+                                tool.Arguments.Clone(),
                                 localResult));
                         summary.ToolCalls++;
-                        CopilotDiagnostics.ToolCalls.Add(1, new TagList { { "tool.name", cloudEvent.Tool.Name } });
+                        CopilotDiagnostics.ToolCalls.Add(1, new TagList { { "tool.name", tool.Name } });
                     }
+
                     var toolResultEvent = CreateLocalToolResultEvent(cloudEvent, localResult);
-                    await WriteMappedEventAsync(ctx, toolResultEvent, sse).ConfigureAwait(false);
+                    await WriteRelayEventAsync(
+                        ctx,
+                        relayRun,
+                        toolResultEvent,
+                        sse,
+                        responseProgress).ConfigureAwait(false);
 
                     await SubmitToolResultAsync(
                         cloudClient,
@@ -592,7 +718,7 @@ internal static class CopilotChatEndpointHandler
                         cloudRequest.ConversationId,
                         cloudEvent,
                         localResult,
-                        ctx.RequestAborted).ConfigureAwait(false);
+                        cancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -606,23 +732,34 @@ internal static class CopilotChatEndpointHandler
             if (!handledToolCall)
             {
                 summary.ErrorMessage = CloudOutcomeMissingMessage;
-                await WriteMappedEventAsync(
+                await WriteRelayEventAsync(
                     ctx,
+                    relayRun,
                     new CopilotChatEvent("error", Message: CloudOutcomeMissingMessage),
-                    sse).ConfigureAwait(false);
-                await WriteMappedEventAsync(
+                    sse,
+                    responseProgress).ConfigureAwait(false);
+                await WriteRelayEventAsync(
                     ctx,
+                    relayRun,
                     new CopilotChatEvent("done", Message: "completed"),
-                    sse).ConfigureAwait(false);
+                    sse,
+                    responseProgress).ConfigureAwait(false);
                 return summary;
             }
         }
 
-        await WriteMappedEventAsync(
+        await WriteRelayEventAsync(
             ctx,
+            relayRun,
             new CopilotChatEvent("error", Message: "云端 Copilot 工具循环超过最大轮次，请缩小问题范围后重试。"),
-            sse).ConfigureAwait(false);
-        await WriteMappedEventAsync(ctx, new CopilotChatEvent("done", Message: "completed"), sse)
+            sse,
+            responseProgress).ConfigureAwait(false);
+        await WriteRelayEventAsync(
+            ctx,
+            relayRun,
+            new CopilotChatEvent("done", Message: "completed"),
+            sse,
+            responseProgress)
             .ConfigureAwait(false);
         summary.ErrorMessage = "云端 Copilot 工具循环超过最大轮次。";
         return summary;
@@ -976,7 +1113,10 @@ internal static class CopilotChatEndpointHandler
                 : $"本地工具 {tool.Name} 未执行：{result.ErrorMessage}",
             ToolName: tool.Name,
             ToolArguments: tool.Arguments.GetRawText(),
-            ToolResult: result.ResultJson);
+            ToolResult: result.ResultJson)
+        {
+            ToolCallId = tool.ToolCallId,
+        };
     }
 
     private static CopilotChatEvent MapCloudEvent(CopilotCloudRuntimeEvent cloudEvent)
@@ -997,7 +1137,10 @@ internal static class CopilotChatEndpointHandler
                 Type: "tool_call",
                 Message: $"云端请求本地工具 {cloudEvent.Tool.Name}。",
                 ToolName: cloudEvent.Tool.Name,
-                ToolArguments: cloudEvent.Tool.Arguments.GetRawText());
+                ToolArguments: cloudEvent.Tool.Arguments.GetRawText())
+            {
+                ToolCallId = cloudEvent.Tool.ToolCallId,
+            };
         }
 
         if (string.Equals(cloudEvent.Type, "risk_review", StringComparison.OrdinalIgnoreCase) &&
@@ -1007,7 +1150,10 @@ internal static class CopilotChatEndpointHandler
                 Type: "risk_review",
                 Message: $"云端风险审查：{cloudEvent.RiskReview.Action}（{cloudEvent.RiskReview.RiskLevel}）。",
                 ToolName: cloudEvent.Tool?.Name,
-                ToolArguments: cloudEvent.Tool?.Arguments.GetRawText());
+                ToolArguments: cloudEvent.Tool?.Arguments.GetRawText())
+            {
+                ToolCallId = cloudEvent.Tool?.ToolCallId ?? cloudEvent.ToolCallId,
+            };
         }
 
         if (string.Equals(cloudEvent.Type, "retrieval", StringComparison.OrdinalIgnoreCase))
@@ -1020,7 +1166,124 @@ internal static class CopilotChatEndpointHandler
 
         return new CopilotChatEvent(
             Type: cloudEvent.Type,
-            Message: cloudEvent.Message);
+            Message: cloudEvent.Message)
+        {
+            ToolCallId = cloudEvent.ToolCallId ?? cloudEvent.Result?.ToolCallId,
+        };
+    }
+
+    private static async Task WriteRelayEventAsync(
+        HttpContext ctx,
+        CopilotServerRelayRun relayRun,
+        CopilotChatEvent evt,
+        bool sse,
+        CopilotRelayResponseProgress? responseProgress = null)
+    {
+        var mapped = relayRun.Publish(evt);
+        await WriteMappedEventAsync(ctx, mapped, sse).ConfigureAwait(false);
+        if (responseProgress is not null)
+            responseProgress.LastWrittenSequence = mapped.Sequence ?? responseProgress.LastWrittenSequence;
+    }
+
+    private static async Task WriteRelayTailAsync(
+        HttpContext ctx,
+        CopilotServerRelayRun relayRun,
+        CopilotRelayResponseProgress responseProgress,
+        bool sse)
+    {
+        await foreach (var evt in relayRun.ReadAfterAsync(
+                           responseProgress.LastWrittenSequence,
+                           ctx.RequestAborted).ConfigureAwait(false))
+        {
+            await WriteMappedEventAsync(ctx, evt, sse).ConfigureAwait(false);
+            responseProgress.LastWrittenSequence = evt.Sequence ?? responseProgress.LastWrittenSequence;
+        }
+    }
+
+    internal static async Task CompleteRelayResponseAsync(
+        HttpContext ctx,
+        CopilotServerRelayRun relayRun,
+        CopilotRelayResponseProgress responseProgress,
+        bool sse)
+    {
+        relayRun.Complete();
+        if (!ctx.RequestAborted.IsCancellationRequested)
+        {
+            await WriteRelayTailAsync(
+                ctx,
+                relayRun,
+                responseProgress,
+                sse).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task WriteRelayReplayAsync(
+        HttpContext ctx,
+        CopilotServerRelayRun relayRun,
+        long afterSequence,
+        bool sse)
+    {
+        ConfigureRelayResponse(ctx, sse);
+        await foreach (var evt in relayRun.ReadAfterAsync(afterSequence, ctx.RequestAborted).ConfigureAwait(false))
+            await WriteMappedEventAsync(ctx, evt, sse).ConfigureAwait(false);
+
+        if (sse)
+            await WriteSseDoneAsync(ctx).ConfigureAwait(false);
+    }
+
+    internal sealed class CopilotRelayResponseProgress
+    {
+        public long LastWrittenSequence { get; set; }
+    }
+
+    private static async Task WriteRelayAttachErrorAsync(
+        HttpContext ctx,
+        CopilotServerRelayAttachStatus status)
+    {
+        var (statusCode, code, message) = status switch
+        {
+            CopilotServerRelayAttachStatus.Unknown => (
+                StatusCodes.Status410Gone,
+                "relay_run_unknown",
+                "ServerRelay run 不存在或已退出当前服务器进程，拒绝按 cursor 重新执行。"),
+            CopilotServerRelayAttachStatus.Expired => (
+                StatusCodes.Status410Gone,
+                "relay_run_expired",
+                "ServerRelay run 已超过绝对 TTL，拒绝重放或重新执行。"),
+            CopilotServerRelayAttachStatus.Conflict => (
+                StatusCodes.Status409Conflict,
+                "relay_run_conflict",
+                "ServerRelay runId 已绑定到不同的认证主体、数据库或请求内容。"),
+            CopilotServerRelayAttachStatus.CursorInvalid => (
+                StatusCodes.Status409Conflict,
+                "relay_cursor_invalid",
+                "ServerRelay cursor 不属于该 run，或引用了尚未产生的 sequence。"),
+            CopilotServerRelayAttachStatus.CapacityExceeded => (
+                StatusCodes.Status429TooManyRequests,
+                "relay_capacity_exceeded",
+                "ServerRelay 单进程续流容量已满，请等待现有 run 的 TTL 到期。"),
+            _ => (
+                StatusCodes.Status409Conflict,
+                "relay_attach_invalid",
+                "ServerRelay run 无法附加。"),
+        };
+        await WriteErrorAsync(ctx, statusCode, code, message).ConfigureAwait(false);
+    }
+
+    private static void ConfigureRelayResponse(HttpContext ctx, bool sse)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        ctx.Response.ContentType = sse
+            ? "text/event-stream; charset=utf-8"
+            : "application/x-ndjson; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        ctx.Response.Headers.Append("X-Accel-Buffering", "no");
+    }
+
+    private static async Task WriteSseDoneAsync(HttpContext ctx)
+    {
+        await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted).ConfigureAwait(false);
+        await ctx.Response.Body.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
     }
 
     private static async Task WriteMappedEventAsync(HttpContext ctx, CopilotChatEvent evt, bool sse)
@@ -1109,6 +1372,73 @@ internal static class CopilotChatEndpointHandler
             "system" => "system",
             _ => "user"
         };
+
+    private static bool TryResolveRunId(string? requestedRunId, string? cursor, out string runId)
+    {
+        if (requestedRunId is null)
+        {
+            if (!string.IsNullOrWhiteSpace(cursor))
+            {
+                runId = string.Empty;
+                return false;
+            }
+
+            runId = $"sndb_run_{Guid.NewGuid():N}";
+            return true;
+        }
+
+        runId = requestedRunId.Trim();
+        if (runId.Length is 0 or > 128)
+            return false;
+
+        foreach (var character in runId)
+        {
+            var valid = character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '_' or '-';
+            if (!valid)
+                return false;
+        }
+
+        return true;
+    }
+
+    private static string CreateRelayRequestFingerprint(
+        string provider,
+        CopilotChatRequest request,
+        IReadOnlyList<AiMessage> messages,
+        string effectiveMode)
+    {
+        var builder = new StringBuilder();
+        AppendFingerprintValue(builder, provider);
+        AppendFingerprintValue(builder, request.Db?.Trim());
+        AppendFingerprintValue(builder, request.ConversationId?.Trim());
+        AppendFingerprintValue(builder, request.Mode?.Trim().ToLowerInvariant());
+        AppendFingerprintValue(builder, request.CloudMode?.Trim().ToLowerInvariant());
+        AppendFingerprintValue(builder, effectiveMode.Trim().ToLowerInvariant());
+        AppendFingerprintValue(builder, request.Model?.Trim());
+        AppendFingerprintValue(builder, request.DocsK?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        AppendFingerprintValue(builder, request.SkillsK?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        AppendFingerprintValue(builder, messages.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var message in messages)
+        {
+            AppendFingerprintValue(builder, message.Role);
+            AppendFingerprintValue(builder, message.Content);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+    }
+
+    private static void AppendFingerprintValue(StringBuilder builder, string? value)
+    {
+        if (value is null)
+        {
+            builder.Append("-1:");
+            return;
+        }
+
+        builder.Append(value.Length)
+            .Append(':')
+            .Append(value);
+    }
 
     private static bool IsCloudBound(SonnetDB.Configuration.AiOptions cfg)
         => !string.IsNullOrWhiteSpace(cfg.CloudAccessToken);

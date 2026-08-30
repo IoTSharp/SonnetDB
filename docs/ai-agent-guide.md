@@ -175,7 +175,7 @@ SonnetDB 不要求用户选择某一家大模型：
 - 外部 Agent 最稳定的集成边界是 MCP；本地或云端模型都可以由自己的 Agent Host 连接。
 - Server 内部保留 `IChatProvider` / `IEmbeddingProvider` 的 provider-neutral 抽象。
 - 当前直接 Chat 适配器使用 OpenAI-compatible HTTP 合同，可由兼容网关承接不同云端或本地模型。
-- Web CopilotDock 当前仍由 SonnetDB 云端 Copilot Runtime 编排，仅修改底层 Chat 配置不会自动变成完全本地 CopilotDock。
+- Web CopilotDock 的 `ServerRelay` 会优先使用已绑定的 SonnetDB 云端 Copilot Runtime；未绑定云账号且 `Copilot:Chat` readiness 完整时，同一端点改用已配置的 `IChatProvider` 与本地自研 `CopilotAgent`。本地 HTTP 分支仍只开放只读工具，不等于 Microsoft Agent Framework 或完整离线产品验收。
 - 本地 ONNX 文本 embedding 只有在配置完整 `ModelProfile`（tokenizer、tensor 名称/类型、序列处理、pooling、归一化和维度）后才执行；缺少 profile 或资源时保持可观测的 hash fallback，无效 profile 合同则 fail closed。内置 docs/skills 知识库当前固定为 `VECTOR(384)`，非 384 维 profile 只能直调 provider 或使用独立索引。tiny ONNX 合同测试不等于目标模型质量证据，真实模型/profile 报告归档前仍保持 `NOT_READY`，字段和门禁见 [M27 #185 provider model profile 证据](benchmarks/m27-provider-model-profile.md)。
 - 当前是自研 `CopilotAgent`，不是已完成的 Microsoft Agent Framework 集成。
 

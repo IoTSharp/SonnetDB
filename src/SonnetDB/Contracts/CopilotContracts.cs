@@ -190,6 +190,12 @@ public sealed record CopilotChatRequest(
 {
     /// <summary>本次调用的可选模型覆盖；为空时继续跟随平台默认模型。</summary>
     public string? Model { get; init; }
+
+    /// <summary>ServerRelay 运行 ID；为空时由服务端生成，重连时必须原样回传。</summary>
+    public string? RunId { get; init; }
+
+    /// <summary>ServerRelay 最后确认的事件游标；为空时从该运行的首条事件开始。</summary>
+    public string? Cursor { get; init; }
 }
 
 /// <summary>
@@ -230,7 +236,20 @@ public sealed record CopilotChatEvent(
     IReadOnlyList<string>? SkillNames = null,
     IReadOnlyList<string>? ToolNames = null,
     IReadOnlyList<CopilotCitation>? Citations = null,
-    int? Attempt = null);
+    int? Attempt = null)
+{
+    /// <summary>ServerRelay 运行 ID；同一运行内保持稳定。</summary>
+    public string? RunId { get; init; }
+
+    /// <summary>事件在当前运行内从 1 开始的严格递增序号。</summary>
+    public long? Sequence { get; init; }
+
+    /// <summary>当前事件的幂等续流游标。</summary>
+    public string? Cursor { get; init; }
+
+    /// <summary>工具调用稳定 ID；工具调用、重试和结果事件必须引用同一 ID。</summary>
+    public string? ToolCallId { get; init; }
+}
 
 /// <summary>
 /// 创建或更新 Copilot 会话的请求。

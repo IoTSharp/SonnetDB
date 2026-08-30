@@ -41,6 +41,7 @@ internal sealed class CopilotLocalToolExecutor
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(cloudTool);
+        context.CancellationToken.ThrowIfCancellationRequested();
 
         try
         {
@@ -48,6 +49,15 @@ internal sealed class CopilotLocalToolExecutor
             var json = ExecuteTool(context, tool);
             using var document = JsonDocument.Parse(json);
             return CopilotLocalToolResult.Success(document.RootElement.Clone(), json);
+        }
+        catch (RoutineExecutionException ex) when (
+            context.CancellationToken.IsCancellationRequested &&
+            string.Equals(ex.Code, RoutineErrorCodes.Cancelled, StringComparison.Ordinal))
+        {
+            throw new OperationCanceledException(
+                "Copilot 本地工具 SQL 执行已取消。",
+                ex,
+                context.CancellationToken);
         }
         catch (SqlExecutionException ex)
         {
@@ -124,7 +134,13 @@ internal sealed class CopilotLocalToolExecutor
             TableValuedFunction: null,
             Pagination: new PaginationSpec(0, checked(rows + 1)));
 
-        var executionResult = SqlExecutor.ExecuteStatement(database, statement);
+        var executionResult = SqlExecutor.ExecuteStatement(
+            database,
+            databaseName,
+            statement,
+            controlPlane: null,
+            transaction: null,
+            options: CreateReadOnlyExecutionOptions(context));
         if (executionResult is not SelectExecutionResult selectResult)
         {
             throw new InvalidOperationException("sample_rows 未返回结果集。");
@@ -277,7 +293,13 @@ internal sealed class CopilotLocalToolExecutor
         object? executionResult;
         try
         {
-            executionResult = SqlExecutor.ExecuteStatement(database, executable);
+            executionResult = SqlExecutor.ExecuteStatement(
+                database,
+                databaseName,
+                executable,
+                controlPlane: null,
+                transaction: null,
+                options: CreateReadOnlyExecutionOptions(context));
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
         {
@@ -353,7 +375,9 @@ internal sealed class CopilotLocalToolExecutor
                     throw new InvalidOperationException("当前凭据没有控制面权限，无法直接创建数据库。");
                 }
 
+                context.CancellationToken.ThrowIfCancellationRequested();
                 executionResult = SqlExecutor.ExecuteControlPlaneStatement(statement, _controlPlane);
+                context.CancellationToken.ThrowIfCancellationRequested();
             }
             else
             {
@@ -361,7 +385,7 @@ internal sealed class CopilotLocalToolExecutor
                 // 显式下传治理能力，禁止默认嵌入式选项把 Copilot 提升为数据库管理员。
                 var options = new SqlExecutionOptions
                 {
-                    CancellationToken = context.HttpContext.RequestAborted,
+                    CancellationToken = context.CancellationToken,
                     Caller = BearerAuthMiddleware.GetUser(context.HttpContext)?.UserName ?? "copilot",
                     CanWrite = canWrite,
                     CanAdminister = DatabaseAccessEvaluator.HasPermission(
@@ -496,6 +520,16 @@ internal sealed class CopilotLocalToolExecutor
             database);
         return DatabaseAccessEvaluator.HasPermission(permission, required);
     }
+
+    private static SqlExecutionOptions CreateReadOnlyExecutionOptions(
+        CopilotLocalToolContext context)
+        => new()
+        {
+            CancellationToken = context.CancellationToken,
+            Caller = BearerAuthMiddleware.GetUser(context.HttpContext)?.UserName ?? "copilot",
+            CanWrite = false,
+            CanAdminister = false,
+        };
 
     private static CopilotToolInvocation ParseToolInvocation(CopilotCloudToolCallEvent tool)
     {
@@ -657,7 +691,8 @@ internal sealed record CopilotLocalToolContext(
     Tsdb? Database,
     IReadOnlyList<string> VisibleDatabases,
     bool AllowWrite,
-    bool CanUseControlPlane);
+    bool CanUseControlPlane,
+    CancellationToken CancellationToken = default);
 
 internal sealed record CopilotLocalToolResult(
     bool Ok,
