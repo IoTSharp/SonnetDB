@@ -11,11 +11,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sonnetdb-generation-consumer-' + [Guid]::NewGuid().ToString('N'))
 $feed = Join-Path $temporaryRoot 'feed'
 $consumer = Join-Path $temporaryRoot 'consumer'
+$packages = Join-Path $temporaryRoot 'packages'
 $packageVersion = '0.0.0-generation-contract'
 
 try
 {
-    New-Item -ItemType Directory -Path $feed, $consumer -Force | Out-Null
+    New-Item -ItemType Directory -Path $feed, $consumer, $packages -Force | Out-Null
     & dotnet pack (Join-Path $repoRoot 'src/SonnetDB.Core/SonnetDB.Core.csproj') `
         --configuration Release `
         --no-restore `
@@ -92,6 +93,20 @@ try
     if (published.Revision != 1
         || !lease.ReadCursor(cursor, "query-v1").SequenceEqual(new byte[] { 1, 2, 3 }))
         throw new InvalidOperationException("generation package contract returned an unexpected result.");
+    DatabaseGenerationCleanupResult cleanup = db.Generations.CleanupRetired(
+        "source",
+        new DatabaseGenerationCleanupOptions(DateTimeOffset.MaxValue),
+        CancellationToken.None);
+    if (cleanup.RemovedRevisions.Count != 0
+        || cleanup.DeferredRevisions.Count != 0
+        || cleanup.RetentionDeferredRevisions.Count != 0
+        || db.Generations.List("source").Single().Revision != 1)
+        throw new InvalidOperationException("selective generation cleanup removed the active revision.");
+    DatabaseGenerationCleanupResult legacyCleanup = db.Generations.CleanupRetired("source", default);
+    if (legacyCleanup.RemovedRevisions.Count != 0
+        || legacyCleanup.DeferredRevisions.Count != 0
+        || legacyCleanup.RetentionDeferredRevisions.Count != 0)
+        throw new InvalidOperationException("legacy generation cleanup changed behavior.");
     Console.WriteLine("generation-package-consumer: PASS");
 }
 finally
@@ -101,12 +116,18 @@ finally
 }
 '@ | Set-Content -LiteralPath (Join-Path $consumer 'Program.cs') -Encoding utf8NoBOM
 
-    & dotnet restore (Join-Path $consumer 'Consumer.csproj') --configfile (Join-Path $consumer 'NuGet.config') --use-lock-file
+    & dotnet restore (Join-Path $consumer 'Consumer.csproj') `
+        --configfile (Join-Path $consumer 'NuGet.config') `
+        --packages $packages `
+        --use-lock-file
     if ($LASTEXITCODE -ne 0)
     {
         throw 'Package consumer restore failed.'
     }
-    & dotnet restore (Join-Path $consumer 'Consumer.csproj') --configfile (Join-Path $consumer 'NuGet.config') --locked-mode
+    & dotnet restore (Join-Path $consumer 'Consumer.csproj') `
+        --configfile (Join-Path $consumer 'NuGet.config') `
+        --packages $packages `
+        --locked-mode
     if ($LASTEXITCODE -ne 0)
     {
         throw 'Package consumer locked restore failed.'

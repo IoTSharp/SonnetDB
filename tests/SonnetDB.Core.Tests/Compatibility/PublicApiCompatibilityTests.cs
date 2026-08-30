@@ -39,6 +39,21 @@ public sealed class PublicApiCompatibilityTests
         Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
             nameof(DatabaseGenerationManager.CleanupRetired),
             [typeof(string), typeof(CancellationToken)]));
+        Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
+            nameof(DatabaseGenerationManager.CleanupRetired),
+            [
+                typeof(string),
+                typeof(DatabaseGenerationCleanupOptions),
+                typeof(CancellationToken),
+            ]));
+        var cleanupOptions = new DatabaseGenerationCleanupOptions(
+            new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.FromHours(8)));
+        Assert.Equal(TimeSpan.Zero, cleanupOptions.PublishedBeforeUtc.Offset);
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 30, 4, 0, 0, TimeSpan.Zero),
+            cleanupOptions.PublishedBeforeUtc);
+        Assert.NotNull(typeof(DatabaseGenerationCleanupResult).GetProperty(
+            nameof(DatabaseGenerationCleanupResult.RetentionDeferredRevisions)));
         Assert.Equal(1, (int)DatabaseGenerationResourceKind.KvKeyspace);
         Assert.Equal(2, (int)DatabaseGenerationResourceKind.DocumentCollection);
         Assert.Equal(3, (int)DatabaseGenerationResourceKind.DocumentFullTextIndex);

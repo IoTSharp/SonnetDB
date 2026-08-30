@@ -93,6 +93,7 @@ public sealed class DatabaseGenerationManagerTests : IDisposable
 
         Assert.Empty(whileLeased.RemovedRevisions);
         Assert.Equal([1L], whileLeased.DeferredRevisions);
+        Assert.Empty(whileLeased.RetentionDeferredRevisions);
         Assert.NotNull(db.Documents.Catalog.TryGet("docs_a"));
         Assert.Contains("kv_a", db.Keyspaces.List());
 
@@ -102,6 +103,7 @@ public sealed class DatabaseGenerationManagerTests : IDisposable
 
         Assert.Empty(stillLeased.RemovedRevisions);
         Assert.Equal([1L], stillLeased.DeferredRevisions);
+        Assert.Empty(stillLeased.RetentionDeferredRevisions);
 
         secondLease.Dispose();
         Assert.True(db.Documents.Drop("docs_a"));
@@ -118,10 +120,245 @@ public sealed class DatabaseGenerationManagerTests : IDisposable
 
         Assert.Equal([1L], released.RemovedRevisions);
         Assert.Empty(released.DeferredRevisions);
+        Assert.Empty(released.RetentionDeferredRevisions);
         Assert.Null(db.Documents.Catalog.TryGet("docs_a"));
         Assert.DoesNotContain("kv_a", db.Keyspaces.List());
         Assert.False(Directory.Exists(Path.GetDirectoryName(orphanedFullTextDirectory)));
         AssertGenerationQuery(db, "b", "bravo", expectedRevision: 2);
+    }
+
+    [Fact]
+    public void CleanupRetired_CutoffMixedAgeAfterReopen_RemovesOnlyDueRetiredGeneration()
+    {
+        DatabaseGeneration first;
+        DatabaseGeneration second;
+        DatabaseGeneration third;
+        using (var db = Open())
+        {
+            first = Publish(db, "a", "alpha", expectedRevision: 0);
+            WaitForUtcClockAfter(first.PublishedAtUtc);
+            second = Publish(db, "b", "bravo", expectedRevision: 1);
+            WaitForUtcClockAfter(second.PublishedAtUtc);
+            third = Publish(db, "c", "charlie", expectedRevision: 2);
+        }
+
+        using var reopened = Open();
+        DatabaseGeneration[] persisted = reopened.Generations.List("workspace").ToArray();
+        Assert.Equal([1L, 2L, 3L], persisted.Select(static generation => generation.Revision));
+        Assert.Equal(
+            [first.PublishedAtUtc, second.PublishedAtUtc, third.PublishedAtUtc],
+            persisted.Select(static generation => generation.PublishedAtUtc));
+
+        var options = new DatabaseGenerationCleanupOptions(first.PublishedAtUtc);
+        DatabaseGenerationCleanupResult result = reopened.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None);
+
+        Assert.Equal([1L], result.RemovedRevisions);
+        Assert.Empty(result.DeferredRevisions);
+        Assert.Equal([2L], result.RetentionDeferredRevisions);
+        Assert.Equal([2L, 3L], reopened.Generations.List("workspace").Select(static item => item.Revision));
+        Assert.DoesNotContain("kv_a", reopened.Keyspaces.List());
+        Assert.Null(reopened.Documents.Catalog.TryGet("docs_a"));
+        Assert.Contains("kv_b", reopened.Keyspaces.List());
+        Assert.NotNull(reopened.Documents.Catalog.TryGet("docs_b"));
+        AssertGenerationQuery(reopened, "c", "charlie", expectedRevision: 3);
+
+        DatabaseGenerationCleanupResult repeated = reopened.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None);
+        Assert.Empty(repeated.RemovedRevisions);
+        Assert.Empty(repeated.DeferredRevisions);
+        Assert.Equal([2L], repeated.RetentionDeferredRevisions);
+    }
+
+    [Fact]
+    public void CleanupRetired_DueGenerationWithLease_DefersThenRemovesAfterRelease()
+    {
+        using var db = Open();
+        Publish(db, "a", "alpha", expectedRevision: 0);
+        using DatabaseGenerationQueryLease lease = db.Generations.AcquireActive("workspace");
+        Publish(db, "b", "bravo", expectedRevision: 1);
+        var options = new DatabaseGenerationCleanupOptions(DateTimeOffset.MaxValue);
+
+        DatabaseGenerationCleanupResult leased = db.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None);
+
+        Assert.Empty(leased.RemovedRevisions);
+        Assert.Equal([1L], leased.DeferredRevisions);
+        Assert.Empty(leased.RetentionDeferredRevisions);
+        Assert.Equal([1L, 2L], db.Generations.List("workspace").Select(static item => item.Revision));
+
+        lease.Dispose();
+        DatabaseGenerationCleanupResult released = db.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None);
+
+        Assert.Equal([1L], released.RemovedRevisions);
+        Assert.Empty(released.DeferredRevisions);
+        Assert.Empty(released.RetentionDeferredRevisions);
+        AssertGenerationQuery(db, "b", "bravo", expectedRevision: 2);
+    }
+
+    [Fact]
+    public void CleanupRetired_CancellationAndFailure_LeaveEligibleGenerationRetryable()
+    {
+        using var db = Open();
+        Publish(db, "a", "alpha", expectedRevision: 0);
+        Publish(db, "b", "bravo", expectedRevision: 1);
+        var options = new DatabaseGenerationCleanupOptions(DateTimeOffset.MaxValue);
+
+        using (var cancellation = new CancellationTokenSource())
+        {
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => db.Generations.CleanupRetired(
+                "workspace",
+                options,
+                cancellation.Token));
+        }
+        Assert.Equal([1L, 2L], db.Generations.List("workspace").Select(static item => item.Revision));
+        Assert.Contains("kv_a", db.Keyspaces.List());
+        Assert.NotNull(db.Documents.Catalog.TryGet("docs_a"));
+
+        db.Generations.BeforeCleanupTestHook = static _ =>
+            throw new InjectedGenerationFailureException();
+        Assert.Throws<InjectedGenerationFailureException>(() => db.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None));
+        Assert.Equal([1L, 2L], db.Generations.List("workspace").Select(static item => item.Revision));
+        Assert.Contains("kv_a", db.Keyspaces.List());
+        Assert.NotNull(db.Documents.Catalog.TryGet("docs_a"));
+
+        db.Generations.BeforeCleanupTestHook = null;
+        DatabaseGenerationCleanupResult retry = db.Generations.CleanupRetired(
+            "workspace",
+            options,
+            CancellationToken.None);
+        Assert.Equal([1L], retry.RemovedRevisions);
+        Assert.Empty(retry.DeferredRevisions);
+        Assert.Empty(retry.RetentionDeferredRevisions);
+    }
+
+    [Fact]
+    public void CleanupRetired_CancellationDuringCandidate_CompletesCandidateAndLeavesNextRetryable()
+    {
+        using (var db = Open())
+        {
+            Publish(db, "a", "alpha", expectedRevision: 0);
+            Publish(db, "b", "bravo", expectedRevision: 1);
+            Publish(db, "c", "charlie", expectedRevision: 2);
+            using var cancellation = new CancellationTokenSource();
+            db.Generations.BeforeCleanupTestHook = generation =>
+            {
+                Assert.Equal(1, generation.Revision);
+                cancellation.Cancel();
+            };
+
+            Assert.Throws<OperationCanceledException>(() => db.Generations.CleanupRetired(
+                "workspace",
+                new DatabaseGenerationCleanupOptions(DateTimeOffset.MaxValue),
+                cancellation.Token));
+
+            Assert.Equal([2L, 3L], db.Generations.List("workspace").Select(static item => item.Revision));
+            Assert.DoesNotContain("kv_a", db.Keyspaces.List());
+            Assert.Null(db.Documents.Catalog.TryGet("docs_a"));
+            Assert.Contains("kv_b", db.Keyspaces.List());
+            Assert.NotNull(db.Documents.Catalog.TryGet("docs_b"));
+        }
+
+        using var reopened = Open();
+        Assert.Equal([2L, 3L], reopened.Generations.List("workspace").Select(static item => item.Revision));
+        DatabaseGenerationCleanupResult retry = reopened.Generations.CleanupRetired(
+            "workspace",
+            new DatabaseGenerationCleanupOptions(DateTimeOffset.MaxValue),
+            CancellationToken.None);
+        Assert.Equal([2L], retry.RemovedRevisions);
+        Assert.Empty(retry.DeferredRevisions);
+        Assert.Empty(retry.RetentionDeferredRevisions);
+        AssertGenerationQuery(reopened, "c", "charlie", expectedRevision: 3);
+    }
+
+    [Fact]
+    public async Task CleanupRetired_CutoffSerializesWithConcurrentPublishAndPreservesNewActive()
+    {
+        using var db = Open();
+        DatabaseGeneration first = Publish(db, "a", "alpha", expectedRevision: 0);
+        Publish(db, "b", "bravo", expectedRevision: 1);
+        Stage(db, "c", "charlie");
+        using var cleanupEntered = new ManualResetEventSlim();
+        using var releaseCleanup = new ManualResetEventSlim();
+        using var publishStarted = new ManualResetEventSlim();
+        db.Generations.BeforeCleanupTestHook = generation =>
+        {
+            Assert.Equal(1, generation.Revision);
+            cleanupEntered.Set();
+            Assert.True(releaseCleanup.Wait(TimeSpan.FromSeconds(10)));
+        };
+
+        Task<DatabaseGenerationCleanupResult> cleanup = Task.Run(() =>
+            db.Generations.CleanupRetired(
+                "workspace",
+                new DatabaseGenerationCleanupOptions(first.PublishedAtUtc),
+                CancellationToken.None));
+        Task<DatabaseGeneration>? publish = null;
+        try
+        {
+            Assert.True(cleanupEntered.Wait(TimeSpan.FromSeconds(10)));
+            publish = Task.Run(() =>
+            {
+                publishStarted.Set();
+                return db.Generations.Publish(Request("c", expectedRevision: 2));
+            });
+            Assert.True(publishStarted.Wait(TimeSpan.FromSeconds(10)));
+        }
+        finally
+        {
+            releaseCleanup.Set();
+        }
+
+        DatabaseGenerationCleanupResult cleanupResult = await cleanup;
+        DatabaseGeneration published = await publish!;
+        db.Generations.BeforeCleanupTestHook = null;
+
+        Assert.Equal([1L], cleanupResult.RemovedRevisions);
+        Assert.Empty(cleanupResult.DeferredRevisions);
+        Assert.Empty(cleanupResult.RetentionDeferredRevisions);
+        Assert.Equal(3, published.Revision);
+        Assert.Equal([2L, 3L], db.Generations.List("workspace").Select(static item => item.Revision));
+        AssertGenerationQuery(db, "c", "charlie", expectedRevision: 3);
+    }
+
+    [Fact]
+    public void CleanupRetired_LegacyOverload_StillImmediatelyRemovesAllRetiredGenerations()
+    {
+        using var db = Open();
+        Publish(db, "a", "alpha", expectedRevision: 0);
+        Publish(db, "b", "bravo", expectedRevision: 1);
+        Publish(db, "c", "charlie", expectedRevision: 2);
+
+        DatabaseGenerationCleanupResult retained = db.Generations.CleanupRetired(
+            "workspace",
+            new DatabaseGenerationCleanupOptions(DateTimeOffset.MinValue),
+            CancellationToken.None);
+        Assert.Empty(retained.RemovedRevisions);
+        Assert.Empty(retained.DeferredRevisions);
+        Assert.Equal([1L, 2L], retained.RetentionDeferredRevisions);
+
+        DatabaseGenerationCleanupResult result = db.Generations.CleanupRetired(
+            "workspace",
+            CancellationToken.None);
+
+        Assert.Equal([1L, 2L], result.RemovedRevisions);
+        Assert.Empty(result.DeferredRevisions);
+        Assert.Empty(result.RetentionDeferredRevisions);
+        Assert.Equal([3L], db.Generations.List("workspace").Select(static item => item.Revision));
+        AssertGenerationQuery(db, "c", "charlie", expectedRevision: 3);
     }
 
     [Fact]
@@ -343,6 +580,12 @@ public sealed class DatabaseGenerationManagerTests : IDisposable
                     "docs_" + suffix),
             ],
         };
+
+    private static void WaitForUtcClockAfter(DateTimeOffset timestamp)
+    {
+        while (DateTimeOffset.UtcNow <= timestamp)
+            Thread.Sleep(1);
+    }
 
     private static void AssertGenerationQuery(
         Tsdb db,

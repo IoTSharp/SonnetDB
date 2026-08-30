@@ -7,6 +7,8 @@
 
 ### Added
 
+- **跨模型 generation 选择性清理合同**：`Tsdb.Generations` 新增 extend-only cleanup options overload，按 durable `PublishedAtUtc` 的 inclusive UTC cutoff 只清理已到期 retired generation，并把 lease-deferred 与 retention-deferred revisions 分开返回；既有 overload 继续立即处理全部 eligible retired generations。取消只在每个 candidate 开始前生效，candidate 一旦开始会完成物理资源与 catalog 删除，避免取消造成半清理；新增 mixed-age/reopen、UTC cutoff、lease、并发 publish、取消边界和独立 NuGet consumer 回归，未修改持久化格式。
+
 - **M29 Studio 发布与宿主生命周期合同**：Windows 发布脚本现在生成独立 `sonnetdb-studio-<version>-win-x64.zip` 与 MSI，bundle 携带同版本 `server/` 托管 Server；Studio 默认数据目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不随安装目录升级/卸载删除。宿主启停串行化，记录 `.studio/managed-server.log`，异常退出包含退出码/stderr 尾部，健康超时会清理子进程；新增 Windows Studio host 合同测试和 CI TRX artifact。WebView2、干净机器安装、升级/卸载和端口冲突仍登记为待真机验证。
 
 - **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据。

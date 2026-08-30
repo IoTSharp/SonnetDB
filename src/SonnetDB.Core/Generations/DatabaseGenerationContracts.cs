@@ -123,16 +123,40 @@ public sealed class DatabaseGeneration
 }
 
 /// <summary>
+/// 选择 retired generation 清理候选的选项。
+/// </summary>
+public sealed class DatabaseGenerationCleanupOptions
+{
+    /// <summary>
+    /// 创建按发布时间选择候选的清理选项。
+    /// </summary>
+    /// <param name="publishedBeforeUtc">
+    /// 发布时间 cutoff；内部归一为 UTC，只有 <c>PublishedAtUtc &lt;= cutoff</c> 的 retired generation 才可清理。
+    /// </param>
+    public DatabaseGenerationCleanupOptions(DateTimeOffset publishedBeforeUtc)
+    {
+        PublishedBeforeUtc = publishedBeforeUtc.ToUniversalTime();
+    }
+
+    /// <summary>
+    /// 已归一为 UTC 的 inclusive 发布时间 cutoff。
+    /// </summary>
+    public DateTimeOffset PublishedBeforeUtc { get; }
+}
+
+/// <summary>
 /// 一次 retired generation 清理的结果。
 /// </summary>
 public sealed class DatabaseGenerationCleanupResult
 {
     internal DatabaseGenerationCleanupResult(
         IReadOnlyList<long> removedRevisions,
-        IReadOnlyList<long> deferredRevisions)
+        IReadOnlyList<long> deferredRevisions,
+        IReadOnlyList<long> retentionDeferredRevisions)
     {
         RemovedRevisions = Array.AsReadOnly(removedRevisions.ToArray());
         DeferredRevisions = Array.AsReadOnly(deferredRevisions.ToArray());
+        RetentionDeferredRevisions = Array.AsReadOnly(retentionDeferredRevisions.ToArray());
     }
 
     /// <summary>本轮已删除持久化资源和 catalog 记录的 revision。</summary>
@@ -140,6 +164,9 @@ public sealed class DatabaseGenerationCleanupResult
 
     /// <summary>因仍有 query lease 而延后清理的 revision。</summary>
     public IReadOnlyList<long> DeferredRevisions { get; }
+
+    /// <summary>因发布时间晚于本轮 inclusive cutoff 而保留的 retired revision。</summary>
+    public IReadOnlyList<long> RetentionDeferredRevisions { get; }
 }
 
 /// <summary>

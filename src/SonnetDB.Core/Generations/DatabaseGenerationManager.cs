@@ -216,6 +216,31 @@ public sealed class DatabaseGenerationManager
         CancellationToken cancellationToken = default)
     {
         ValidateText(stream, nameof(stream));
+        return CleanupRetiredCore(stream, publishedBeforeUtc: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// 删除指定 stream 中达到发布时间 cutoff、不再 active 且没有 query lease 的 generation 资源。
+    /// </summary>
+    /// <param name="stream">generation stream 名称。</param>
+    /// <param name="options">按 durable 发布时间选择候选的清理选项。</param>
+    /// <param name="cancellationToken">每个 generation 清理开始前可取消的令牌。</param>
+    /// <returns>已删除、因租约延后和因 cutoff 未到期而保留的 revision。</returns>
+    public DatabaseGenerationCleanupResult CleanupRetired(
+        string stream,
+        DatabaseGenerationCleanupOptions options,
+        CancellationToken cancellationToken)
+    {
+        ValidateText(stream, nameof(stream));
+        ArgumentNullException.ThrowIfNull(options);
+        return CleanupRetiredCore(stream, options.PublishedBeforeUtc, cancellationToken);
+    }
+
+    private DatabaseGenerationCleanupResult CleanupRetiredCore(
+        string stream,
+        DateTimeOffset? publishedBeforeUtc,
+        CancellationToken cancellationToken)
+    {
         lock (_schemaSync)
         {
             lock (_sync)
@@ -223,8 +248,9 @@ public sealed class DatabaseGenerationManager
                 ThrowIfDisposed();
                 var removed = new List<long>();
                 var deferred = new List<long>();
+                var retentionDeferred = new List<long>();
                 if (!_generations.TryGetValue(stream, out SortedDictionary<long, PersistedGeneration>? generations))
-                    return new DatabaseGenerationCleanupResult(removed, deferred);
+                    return new DatabaseGenerationCleanupResult(removed, deferred, retentionDeferred);
 
                 long activeRevision = _active.TryGetValue(stream, out ActiveGeneration? active)
                     ? active.Generation.Revision
@@ -235,6 +261,19 @@ public sealed class DatabaseGenerationManager
                 foreach (PersistedGeneration candidate in candidates)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (_active.TryGetValue(stream, out active)
+                        && candidate.Generation.Revision == active.Generation.Revision)
+                    {
+                        continue;
+                    }
+
+                    if (publishedBeforeUtc is DateTimeOffset cutoff
+                        && candidate.Generation.PublishedAtUtc > cutoff)
+                    {
+                        retentionDeferred.Add(candidate.Generation.Revision);
+                        continue;
+                    }
+
                     var leaseKey = new LeaseKey(stream, candidate.Generation.Revision);
                     if (_leaseCounts.TryGetValue(leaseKey, out int count) && count != 0)
                     {
@@ -242,15 +281,18 @@ public sealed class DatabaseGenerationManager
                         continue;
                     }
 
+                    BeforeCleanupTestHook?.Invoke(candidate.Generation);
+                    // Once a candidate starts, finish its physical and catalog deletion before
+                    // observing cancellation again at the next candidate boundary.
                     DeletePhysicalResources(candidate.Generation);
-                    DeleteCatalogRecord(candidate, cancellationToken);
+                    DeleteCatalogRecord(candidate);
                     generations.Remove(candidate.Generation.Revision);
                     removed.Add(candidate.Generation.Revision);
                 }
 
                 if (generations.Count == 0)
                     _generations.Remove(stream);
-                return new DatabaseGenerationCleanupResult(removed, deferred);
+                return new DatabaseGenerationCleanupResult(removed, deferred, retentionDeferred);
             }
         }
     }
@@ -258,6 +300,8 @@ public sealed class DatabaseGenerationManager
     internal Action<DatabaseGeneration>? BeforePublishTestHook { get; set; }
 
     internal Action<DatabaseGeneration>? AfterPublishTestHook { get; set; }
+
+    internal Action<DatabaseGeneration>? BeforeCleanupTestHook { get; set; }
 
     internal long CheckpointCatalog()
     {
@@ -502,7 +546,7 @@ public sealed class DatabaseGenerationManager
         }
     }
 
-    private void DeleteCatalogRecord(PersistedGeneration persisted, CancellationToken cancellationToken)
+    private void DeleteCatalogRecord(PersistedGeneration persisted)
     {
         DatabaseGeneration generation = persisted.Generation;
         byte[] descriptorKey = DescriptorKey(generation.Stream, generation.Revision);
@@ -526,7 +570,7 @@ public sealed class DatabaseGenerationManager
         KvConditionalBatchResult result = _catalog.ApplyConditionalBatch(
             mutations,
             preconditions,
-            cancellationToken);
+            CancellationToken.None);
         if (!result.Applied)
             throw new InvalidDataException("generation retired catalog 在清理期间发生冲突。");
     }
