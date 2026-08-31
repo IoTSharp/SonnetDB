@@ -565,7 +565,54 @@ public sealed class KvKeyspace : IDisposable
     public long Put(string key, ReadOnlySpan<byte> value, DateTimeOffset? expiresAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Put(Encoding.UTF8.GetBytes(key), value, expiresAtUtc);
+        return Put(EncodeUtf8Key(key, _options), value, expiresAtUtc);
+    }
+
+    /// <summary>
+    /// 按存在性条件写入或覆盖指定 key。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">无条件、NX 或 XX 存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition = KvSetCondition.Always,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ValidateSetCondition(condition);
+        ValidateKey(key, _options);
+        ValidateValue(value, _options);
+        ValidateExpiresAtUtc(expiresAtUtc);
+        return SetValidated(key.ToArray(), value.ToArray(), condition, expiresAtUtc);
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码并按存在性条件写入或覆盖指定字符串 key。
+    /// </summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">无条件、NX 或 XX 存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        string key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition = KvSetCondition.Always,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ValidateSetCondition(condition);
+        byte[] keyCopy = EncodeUtf8Key(key, _options);
+        ValidateValue(value, _options);
+        ValidateExpiresAtUtc(expiresAtUtc);
+        return SetValidated(
+            keyCopy,
+            value.ToArray(),
+            condition,
+            expiresAtUtc);
     }
 
     /// <summary>
@@ -620,7 +667,7 @@ public sealed class KvKeyspace : IDisposable
     public KvEntry? GetEntry(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return GetEntry(Encoding.UTF8.GetBytes(key));
+        return GetEntry(EncodeUtf8Key(key, _options));
     }
 
     /// <summary>
@@ -631,7 +678,47 @@ public sealed class KvKeyspace : IDisposable
     public byte[]? Get(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Get(Encoding.UTF8.GetBytes(key));
+        return Get(EncodeUtf8Key(key, _options));
+    }
+
+    /// <summary>
+    /// 原子读取旧记录并写入新值；新值的 TTL 完全由 <paramref name="expiresAtUtc"/> 决定。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <returns>变更前可见记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ValidateKey(key, _options);
+        ValidateValue(value, _options);
+        ValidateExpiresAtUtc(expiresAtUtc);
+        return GetAndSetValidated(key.ToArray(), value.ToArray(), expiresAtUtc);
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码原子读取字符串 key 的旧记录并写入新值。
+    /// </summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <returns>变更前可见记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        string key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        byte[] keyCopy = EncodeUtf8Key(key, _options);
+        ValidateValue(value, _options);
+        ValidateExpiresAtUtc(expiresAtUtc);
+        return GetAndSetValidated(
+            keyCopy,
+            value.ToArray(),
+            expiresAtUtc);
     }
 
     /// <summary>
@@ -695,7 +782,7 @@ public sealed class KvKeyspace : IDisposable
     public (long Value, long Version) Increment(string key, long delta = 1)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Increment(Encoding.UTF8.GetBytes(key), delta);
+        return Increment(EncodeUtf8Key(key, _options), delta);
     }
 
     /// <summary>
@@ -719,7 +806,7 @@ public sealed class KvKeyspace : IDisposable
     public (long Value, long Version) Decrement(string key, long delta = 1)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Decrement(Encoding.UTF8.GetBytes(key), delta);
+        return Decrement(EncodeUtf8Key(key, _options), delta);
     }
 
     /// <summary>
@@ -773,7 +860,7 @@ public sealed class KvKeyspace : IDisposable
         DateTimeOffset? expiresAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return CompareAndSet(Encoding.UTF8.GetBytes(key), expectedVersion, value, expiresAtUtc);
+        return CompareAndSet(EncodeUtf8Key(key, _options), expectedVersion, value, expiresAtUtc);
     }
 
     /// <summary>
@@ -795,7 +882,7 @@ public sealed class KvKeyspace : IDisposable
     public bool Expire(string key, TimeSpan ttl)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Expire(Encoding.UTF8.GetBytes(key), ttl);
+        return Expire(EncodeUtf8Key(key, _options), ttl);
     }
 
     /// <summary>
@@ -827,7 +914,7 @@ public sealed class KvKeyspace : IDisposable
     public bool ExpireAt(string key, DateTimeOffset expiresAtUtc)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return ExpireAt(Encoding.UTF8.GetBytes(key), expiresAtUtc);
+        return ExpireAt(EncodeUtf8Key(key, _options), expiresAtUtc);
     }
 
     /// <summary>
@@ -860,7 +947,7 @@ public sealed class KvKeyspace : IDisposable
     public bool Persist(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Persist(Encoding.UTF8.GetBytes(key));
+        return Persist(EncodeUtf8Key(key, _options));
     }
 
     /// <summary>
@@ -894,7 +981,7 @@ public sealed class KvKeyspace : IDisposable
     public KvTtlResult GetTimeToLive(string key, DateTimeOffset? utcNow = null)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return GetTimeToLive(Encoding.UTF8.GetBytes(key), utcNow);
+        return GetTimeToLive(EncodeUtf8Key(key, _options), utcNow);
     }
 
     /// <summary>
@@ -931,7 +1018,29 @@ public sealed class KvKeyspace : IDisposable
     public bool Delete(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        return Delete(Encoding.UTF8.GetBytes(key));
+        return Delete(EncodeUtf8Key(key, _options));
+    }
+
+    /// <summary>
+    /// 原子读取并删除指定 key；已过期 key 按现有惰性过期清理语义处理，但不作为旧值返回。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <returns>变更前可见记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(ReadOnlySpan<byte> key)
+    {
+        ValidateKey(key, _options);
+        return GetAndDeleteValidated(key.ToArray());
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码原子读取并删除指定字符串 key。
+    /// </summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <returns>变更前可见记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return GetAndDeleteValidated(EncodeUtf8Key(key, _options));
     }
 
     /// <summary>
@@ -966,8 +1075,7 @@ public sealed class KvKeyspace : IDisposable
         {
             ArgumentNullException.ThrowIfNull(pair.Key);
             ArgumentNullException.ThrowIfNull(pair.Value);
-            byte[] key = Encoding.UTF8.GetBytes(pair.Key);
-            ValidateKey(key, _options);
+            byte[] key = EncodeUtf8Key(pair.Key, _options);
             ValidateValue(pair.Value, _options);
             operations.Add(KvBatchMutation.Put(key, pair.Value.ToArray(), expiresAtUtc));
             keys.Add(pair.Key);
@@ -1014,6 +1122,15 @@ public sealed class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(preconditions);
         KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
         KvBatchPrecondition[] conditions = CanonicalizeBatchPreconditions(preconditions);
+        return ApplyCanonicalConditionalBatch(batch, conditions, cancellationToken);
+    }
+
+    /// <summary>执行已校验、复制并规范化的条件批次。</summary>
+    private KvConditionalBatchResult ApplyCanonicalConditionalBatch(
+        KvBatchMutation[] batch,
+        KvBatchPrecondition[] conditions,
+        CancellationToken cancellationToken)
+    {
 
         using CancellationTokenRegistration cancellationRegistration = cancellationToken.CanBeCanceled
             ? cancellationToken.UnsafeRegister(
@@ -1372,10 +1489,13 @@ public sealed class KvKeyspace : IDisposable
             if (!Enum.IsDefined(condition.Kind))
                 throw new ArgumentOutOfRangeException(nameof(preconditions), "KV batch precondition kind 无效。");
             ArgumentNullException.ThrowIfNull(condition.Operand);
-            if (condition.Kind == KvBatchPreconditionKind.KeyVersionEquals)
+            if (condition.Kind is KvBatchPreconditionKind.KeyVersionEquals or KvBatchPreconditionKind.KeyExists)
             {
                 ValidateKey(condition.Operand, _options);
-                ArgumentOutOfRangeException.ThrowIfNegative(condition.ExpectedVersion);
+                if (condition.Kind == KvBatchPreconditionKind.KeyVersionEquals)
+                    ArgumentOutOfRangeException.ThrowIfNegative(condition.ExpectedVersion);
+                else if (condition.ExpectedVersion != 0)
+                    throw new ArgumentException("KV key-exists 条件不能携带 expected version。", nameof(preconditions));
             }
             else
             {
@@ -1415,6 +1535,16 @@ public sealed class KvKeyspace : IDisposable
                 continue;
             }
 
+            if (condition.Kind == KvBatchPreconditionKind.KeyExists)
+            {
+                if (!TryGetEntryLocked(condition.Operand, out var entry)
+                    || entry.IsExpired(utcNow))
+                {
+                    return i;
+                }
+                continue;
+            }
+
             bool hasVisibleEntry = EnumerateVisibleEntriesLocked(
                 condition.Operand,
                 afterKey: null,
@@ -1437,7 +1567,7 @@ public sealed class KvKeyspace : IDisposable
         foreach (string key in keys)
         {
             ArgumentNullException.ThrowIfNull(key);
-            encoded.Add(Encoding.UTF8.GetBytes(key));
+            encoded.Add(EncodeUtf8Key(key, _options));
         }
 
         return DeleteMany(encoded);
@@ -1954,7 +2084,7 @@ public sealed class KvKeyspace : IDisposable
     public int CountPrefix(string prefix)
     {
         ArgumentNullException.ThrowIfNull(prefix);
-        return CountPrefix(Encoding.UTF8.GetBytes(prefix));
+        return CountPrefix(KvValueCodec.EncodeUtf8(prefix));
     }
 
     /// <summary>
@@ -1966,7 +2096,7 @@ public sealed class KvKeyspace : IDisposable
     public IReadOnlyList<KvEntry> ScanPrefix(string prefix, int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(prefix);
-        return ScanPrefix(Encoding.UTF8.GetBytes(prefix), limit);
+        return ScanPrefix(KvValueCodec.EncodeUtf8(prefix), limit);
     }
 
     /// <summary>
@@ -1976,8 +2106,8 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(prefix);
         return ScanPrefixAfter(
-            Encoding.UTF8.GetBytes(prefix),
-            string.IsNullOrEmpty(afterKey) ? null : Encoding.UTF8.GetBytes(afterKey),
+            KvValueCodec.EncodeUtf8(prefix),
+            string.IsNullOrEmpty(afterKey) ? null : KvValueCodec.EncodeUtf8(afterKey),
             limit);
     }
 
@@ -1999,10 +2129,10 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(prefix);
         return ScanRangeCore(
-            Encoding.UTF8.GetBytes(prefix),
-            string.IsNullOrEmpty(startInclusive) ? null : Encoding.UTF8.GetBytes(startInclusive),
-            string.IsNullOrEmpty(endExclusive) ? null : Encoding.UTF8.GetBytes(endExclusive),
-            string.IsNullOrEmpty(afterKey) ? null : Encoding.UTF8.GetBytes(afterKey),
+            KvValueCodec.EncodeUtf8(prefix),
+            string.IsNullOrEmpty(startInclusive) ? null : KvValueCodec.EncodeUtf8(startInclusive),
+            string.IsNullOrEmpty(endExclusive) ? null : KvValueCodec.EncodeUtf8(endExclusive),
+            string.IsNullOrEmpty(afterKey) ? null : KvValueCodec.EncodeUtf8(afterKey),
             limit);
     }
 
@@ -2039,7 +2169,7 @@ public sealed class KvKeyspace : IDisposable
     public int DeletePrefix(string prefix, int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(prefix);
-        return DeletePrefix(Encoding.UTF8.GetBytes(prefix), limit);
+        return DeletePrefix(KvValueCodec.EncodeUtf8(prefix), limit);
     }
 
     /// <summary>
@@ -2421,11 +2551,43 @@ public sealed class KvKeyspace : IDisposable
     }
 
     private static void ValidateKey(ReadOnlySpan<byte> key, KvOptions options)
+        => ValidateKeyLength(key.Length, options, nameof(key));
+
+    private static void ValidateKeyLength(int keyLength, KvOptions options, string parameterName)
     {
-        if (key.IsEmpty)
+        if (keyLength == 0)
+            throw new ArgumentException("KV key 不能为空。", parameterName);
+        if (keyLength > options.MaxKeyBytes)
+            throw new ArgumentOutOfRangeException(parameterName, $"KV key 不能超过 {options.MaxKeyBytes} 字节。");
+    }
+
+    private static byte[] EncodeUtf8Key(string key, KvOptions options)
+        => EncodeUtf8Key(key, prefixByteCount: 0, options);
+
+    /// <summary>在不拼接 namespace prefix 的情况下校验完整 UTF-8 key 长度。</summary>
+    internal void ValidateQualifiedUtf8Key(string key, int prefixByteCount)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        _ = EncodeUtf8Key(key, prefixByteCount, _options);
+    }
+
+    private static byte[] EncodeUtf8Key(string key, int prefixByteCount, KvOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentOutOfRangeException.ThrowIfNegative(prefixByteCount);
+        byte[] encoded = KvValueCodec.EncodeUtf8(key);
+        if (prefixByteCount == 0 && encoded.Length == 0)
             throw new ArgumentException("KV key 不能为空。", nameof(key));
-        if (key.Length > options.MaxKeyBytes)
-            throw new ArgumentOutOfRangeException(nameof(key), $"KV key 不能超过 {options.MaxKeyBytes} 字节。");
+
+        if (prefixByteCount > options.MaxKeyBytes
+            || encoded.Length > options.MaxKeyBytes - prefixByteCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(key),
+                $"KV key 不能超过 {options.MaxKeyBytes} 字节。");
+        }
+
+        return encoded;
     }
 
     private static void ValidateValue(ReadOnlySpan<byte> value, KvOptions options)
@@ -2438,6 +2600,12 @@ public sealed class KvKeyspace : IDisposable
     {
         if (expiresAtUtc.HasValue)
             ValidateUtc(expiresAtUtc.Value, nameof(expiresAtUtc));
+    }
+
+    private static void ValidateSetCondition(KvSetCondition condition)
+    {
+        if (!Enum.IsDefined(condition))
+            throw new ArgumentOutOfRangeException(nameof(condition), condition, "KV set condition 无效。");
     }
 
     private static void ValidateUtc(DateTimeOffset value, string parameterName)
@@ -3219,6 +3387,105 @@ public sealed class KvKeyspace : IDisposable
         ScheduleAutoCheckpointLocked();
         return sequence;
     }
+
+    /// <summary>为需要明确 commit-outcome-unknown 语义的新 API 执行单条 put。</summary>
+    private long PutFailClosedLocked(byte[] keyCopy, byte[] valueCopy, DateTimeOffset? expiresAtUtc)
+    {
+        long sequence;
+        try
+        {
+            sequence = _wal!.AppendPut(keyCopy, valueCopy, expiresAtUtc);
+            if (_options.SyncWalOnEveryWrite)
+                _wal.Sync();
+        }
+        catch (Exception ex)
+        {
+            _writeFault = ex;
+            throw;
+        }
+
+        _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
+        _lastSequence = sequence;
+        ScheduleAutoCheckpointLocked();
+        return sequence;
+    }
+
+    private KvSetResult SetValidated(
+        byte[] keyCopy,
+        byte[] valueCopy,
+        KvSetCondition condition,
+        DateTimeOffset? expiresAtUtc)
+    {
+        if (condition == KvSetCondition.Always)
+        {
+            long lockWait = SonnetDbMeter.StartLockWaitTiming();
+            lock (_sync)
+            {
+                SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                ThrowIfDisposed();
+                WaitForWriteBudgetLocked();
+                return new KvSetResult(
+                    true,
+                    PutFailClosedLocked(keyCopy, valueCopy, expiresAtUtc));
+            }
+        }
+
+        KvBatchPrecondition precondition = condition == KvSetCondition.IfNotExists
+            ? KvBatchPrecondition.KeyVersion(keyCopy, expectedVersion: 0)
+            : KvBatchPrecondition.Exists(keyCopy);
+        KvConditionalBatchResult result = ApplyCanonicalConditionalBatch(
+            [KvBatchMutation.Put(keyCopy, valueCopy, expiresAtUtc)],
+            [precondition],
+            CancellationToken.None);
+        return new KvSetResult(result.Applied, result.Applied ? result.Sequence : null);
+    }
+
+    private KvExchangeResult GetAndSetValidated(
+        byte[] keyCopy,
+        byte[] valueCopy,
+        DateTimeOffset? expiresAtUtc)
+    {
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
+            KvEntry? previousEntry = GetVisibleEntryCopyLocked(keyCopy, DateTimeOffset.UtcNow);
+            long version = PutFailClosedLocked(keyCopy, valueCopy, expiresAtUtc);
+            return new KvExchangeResult(previousEntry, version);
+        }
+    }
+
+    private KvExchangeResult GetAndDeleteValidated(byte[] lookup)
+    {
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
+            if (!TryGetEntryLocked(lookup, out var entry))
+                return new KvExchangeResult(null, null);
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                return new KvExchangeResult(null, null);
+
+            var previousEntry = CreateEntryCopy(lookup, entry);
+            bool deleted = DeleteExistingLocked(lookup);
+            Debug.Assert(deleted);
+            return new KvExchangeResult(previousEntry, _lastSequence);
+        }
+    }
+
+    private KvEntry? GetVisibleEntryCopyLocked(byte[] key, DateTimeOffset utcNow)
+    {
+        if (!TryGetEntryLocked(key, out var entry) || entry.IsExpired(utcNow))
+            return null;
+        return CreateEntryCopy(key, entry);
+    }
+
+    private static KvEntry CreateEntryCopy(byte[] key, KvValueEntry entry)
+        => new(key.ToArray(), entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
 
     private bool TryGetEntryLocked(ReadOnlySpan<byte> key, out KvValueEntry entry)
     {

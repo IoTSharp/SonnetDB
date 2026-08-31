@@ -4,6 +4,7 @@ namespace SonnetDB.Kv;
 internal enum KvBatchPreconditionKind
 {
     KeyVersionEquals,
+    KeyExists,
     PrefixEmpty,
 }
 
@@ -22,6 +23,13 @@ internal sealed record KvBatchPrecondition(
             KvBatchPreconditionKind.KeyVersionEquals,
             key,
             expectedVersion);
+    }
+
+    /// <summary>要求 key 当前存在且未过期。</summary>
+    internal static KvBatchPrecondition Exists(byte[] key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return new KvBatchPrecondition(KvBatchPreconditionKind.KeyExists, key, 0);
     }
 
     /// <summary>要求指定前缀下没有可见 key。</summary>

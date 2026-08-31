@@ -14,6 +14,7 @@ KV Keyspace 是 SonnetDB Core 的轻量键值存储能力，面向内部 metadat
 ```csharp
 using System.Text;
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 
 using var db = Tsdb.Open(new TsdbOptions
 {
@@ -22,7 +23,11 @@ using var db = Tsdb.Open(new TsdbOptions
 
 var kv = db.Keyspaces.Open("devices");
 
-kv.Put("device:1001", Encoding.UTF8.GetBytes("online"));
+KvSetResult created = kv.Set(
+    "device:1001",
+    KvValueCodec.EncodeUtf8("online"),
+    KvSetCondition.IfNotExists,
+    expiresAtUtc: DateTimeOffset.UtcNow.AddMinutes(5));
 
 byte[]? value = kv.Get("device:1001");
 
@@ -31,8 +36,40 @@ foreach (var row in kv.ScanPrefix("device:", limit: 100))
     Console.WriteLine($"{Encoding.UTF8.GetString(row.Key.Span)} v{row.Version}");
 }
 
-kv.Delete("device:1001");
+KvExchangeResult removed = kv.GetAndDelete("device:1001");
 ```
+
+`Set(..., IfNotExists)` 对应 NX，`Set(..., IfExists)` 对应 XX。已经过期的 key 在条件判断时视为不存在；成功写入返回提交版本，条件不成立时 `Applied=false` 且 `Version=null`。`GetAndSet` 与 `GetAndDelete` 原子返回变更前可见记录的副本，调用方不需要用一次独立 `Get` 拼接竞态窗口。
+
+逻辑 namespace 复用同一个 keyspace 和 WAL，只在 key 前增加稳定前缀；返回的 `KvEntry.Key` 会去掉此前缀：
+
+```csharp
+KvNamespace tenant = kv.Namespace("tenant-42");
+tenant.Set("device:1001", KvValueCodec.EncodeUtf8("online"));
+KvExchangeResult previous = tenant.GetAndSet(
+    "device:1001",
+    KvValueCodec.EncodeUtf8("maintenance"));
+```
+
+raw bytes 始终是权威 value 语义。需要字符串或 JSON 时显式使用 codec；JSON 调用方必须提供 source-generated `JsonTypeInfo<T>`，不能退回反射序列化：
+
+```csharp
+using System.Text.Json.Serialization;
+
+byte[] payload = KvValueCodec.EncodeJson(
+    new DeviceState("online"),
+    AppJsonContext.Default.DeviceState);
+DeviceState? state = KvValueCodec.DecodeJson(
+    payload,
+    AppJsonContext.Default.DeviceState);
+
+internal sealed record DeviceState(string Status);
+
+[JsonSerializable(typeof(DeviceState))]
+internal sealed partial class AppJsonContext : JsonSerializerContext;
+```
+
+`KvValueCodec` 的 UTF-8 编解码拒绝不成对的 surrogate 和非法字节序列。所有 string key/prefix/range 入口与 namespace 名称都复用严格编码；写操作会在锁和 WAL 前校验 UTF-8 及 key 字节预算，避免不同非法字符串折叠为同一替换字符 key。
 
 ## API 边界
 
@@ -40,14 +77,19 @@ kv.Delete("device:1001");
 | --- | --- |
 | `Tsdb.Keyspaces.Open(name)` | 打开或创建 keyspace。名称只允许字母、数字、点、下划线和短横线。 |
 | `Put(key, value, expiresAtUtc?)` | 写入或覆盖 key，返回单调递增版本号。可选 `DateTimeOffset` 指定到期时间；到期后读到 `false`/`null`，由后台 GC 真正回收。 |
+| `Set(key, value, condition, expiresAtUtc?)` | 按 Always/NX/XX 条件写入；过期记录按不存在处理，返回 `KvSetResult`。 |
 | `PutMany(values, expiresAtUtc?)` | 把多个 key 编码为单条原子 WAL batch；所有返回项共享同一个 batch commit 版本。 |
 | `Get(key)` / `TryGet(key, out value)` | 读取当前值，返回 value 副本。 |
+| `GetAndSet(key, value, expiresAtUtc?)` | 原子返回旧 `KvEntry` 并写入新值；新 TTL 完全由本次参数决定。 |
+| `GetAndDelete(key)` | 原子返回旧 `KvEntry` 并删除；不存在或已过期时返回空 previous/mutation，过期记录仍可能按既有惰性过期语义写入清理 tombstone。 |
 | `Delete(key)` | 删除 key。不存在时返回 `false`。 |
 | `ScanPrefix(prefix, limit)` | 按 key 字节序升序返回当前快照。 |
+| `Namespace(name)` | 创建同一 keyspace 上的逻辑前缀视图；不是独立存储或跨 namespace 事务边界。 |
+| `KvValueCodec` | 严格 UTF-8 与调用方 `JsonTypeInfo<T>` JSON 转换；不改变 raw bytes 权威语义。 |
 | `CreateSnapshot()` | 写出完整快照并截断快照版本之前的 KV WAL。 |
 | `Compact()` | 写出不可变 KV 段文件并截断已压实版本之前的 KV WAL。 |
 
-当前 key 和 value 都是字节序列。字符串重载使用 UTF-8 编码 key；value 编码由调用方决定。
+当前 key 和 value 都是字节序列。字符串重载只负责 key 编码；value 编码由调用方决定。条件写和交换操作复用现有锁、版本、WAL 与恢复路径，没有第二套 KV 存储。WAL append 或 sync 的提交结果无法确定时会 fail closed 并阻止实例继续写入，调用方不能把异常解释为“确定未提交”后盲目重试。
 
 ## 持久化布局
 
@@ -89,4 +131,5 @@ KV WAL v3 增加 mixed put/delete `MutationBatch` record。batch 由单个 heade
 - 不提供 KV SQL 语法。
 - 不提供 MVCC 事务和跨 keyspace 事务。
 - 不提供独立 TCP / HTTP KV 服务。
+- 不在本切片提供异步 cursor、pipeline/batch 分项结果、hot-key/expiry/容量诊断或远程 parity。
 - 不引入 SharpDB 文件格式或 NetMQ 协议。

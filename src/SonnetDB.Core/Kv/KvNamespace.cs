@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace SonnetDB.Kv;
 
 /// <summary>
@@ -19,7 +17,7 @@ public sealed class KvNamespace
         _keyspace = keyspace;
         Name = name;
         _prefixText = name.Length == 0 ? string.Empty : name + ":";
-        _prefix = Encoding.UTF8.GetBytes(_prefixText);
+        _prefix = KvValueCodec.EncodeUtf8(_prefixText);
     }
 
     /// <summary>命名空间名称；空字符串表示 root 命名空间。</summary>
@@ -30,6 +28,24 @@ public sealed class KvNamespace
     /// </summary>
     public long Put(string key, ReadOnlySpan<byte> value, DateTimeOffset? expiresAtUtc = null) =>
         _keyspace.Put(Qualify(key), value, expiresAtUtc);
+
+    /// <summary>
+    /// 按无条件、NX 或 XX 存在性条件写入命名空间内的 key。
+    /// </summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">写入存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        string key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition = KvSetCondition.Always,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return _keyspace.Set(Qualify(key), value, condition, expiresAtUtc);
+    }
 
     /// <summary>
     /// 原子增加命名空间内 key 的整数 value。
@@ -80,6 +96,22 @@ public sealed class KvNamespace
     public byte[]? Get(string key) => _keyspace.Get(Qualify(key));
 
     /// <summary>
+    /// 原子读取命名空间内 key 的旧记录并写入新值。
+    /// </summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <returns>变更前记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        string key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return StripPrefix(_keyspace.GetAndSet(Qualify(key), value, expiresAtUtc));
+    }
+
+    /// <summary>
     /// 读取命名空间内 key 的当前值与 metadata。
     /// </summary>
     public KvEntry? GetEntry(string key)
@@ -92,6 +124,17 @@ public sealed class KvNamespace
     /// 删除命名空间内的 key。
     /// </summary>
     public bool Delete(string key) => _keyspace.Delete(Qualify(key));
+
+    /// <summary>
+    /// 原子读取并删除命名空间内的 key。
+    /// </summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <returns>变更前记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(string key)
+    {
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return StripPrefix(_keyspace.GetAndDelete(Qualify(key)));
+    }
 
     /// <summary>
     /// 批量删除命名空间内的 key。
@@ -135,4 +178,9 @@ public sealed class KvNamespace
 
         return new KvEntry(key, entry.Value, entry.Version, entry.ExpiresAtUtc);
     }
+
+    private KvExchangeResult StripPrefix(KvExchangeResult result) =>
+        result.PreviousEntry is null
+            ? result
+            : result with { PreviousEntry = StripPrefix(result.PreviousEntry) };
 }
