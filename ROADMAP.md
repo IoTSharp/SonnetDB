@@ -39,8 +39,8 @@
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
-| 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
-| 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
+| 35 | 语义内容与多模态检索 | 🚧 | #297/#299/#301 已完成，#298/#300/#302 已交付部分能力；RAG Core 首切片已落地，CLI、持久化 writer/retry/resume、实际派生索引应用与剩余质量/媒体/治理项仍待完成。 |
+| 36 | 八模型专用品类易用性对齐 | 🚧 | #316 嵌入式 KV 首切片已落地；#310/#311、远程 parity、golden journey、产品入口及其他模型专用工作流仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
@@ -187,7 +187,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #299 | 异步摄取、幂等 hash、重试/取消/背压/重启恢复，以及对象覆盖删除后的对账。已落地 KV 持久化任务、幂等对象版本、5 次退避重试、取消/替代、有界 Channel 背压补偿、重启恢复，以及普通删除、批量删除和生命周期过期后的语义索引/缩略图清理。 | ✅ |
 | #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。当前已落地 text/image provider 合同、SigLIP2 ONNX 与状态发现；object embedding、外发策略和调用审计仍未完成。 | 🚧 |
 | #301 | 图片搜图片、文字搜图片、缩略图/来源/profile/分数展示和工业图片样例。已落地原图摄取/读取、文搜图、图搜图、WebP 缩略图、来源/profile/分数 REST 契约、managed/USearch 后端、对象桶管理面和可运行工业图片样例。 | ✅ |
-| #302 | 通用 RAG 摄取 SDK/CLI、稳定 chunk、增量更新、删除同步和 Copilot 可回滚迁移。 | 📋 |
+| #302 | 通用 RAG 摄取 SDK/CLI、稳定 chunk、增量更新、删除同步和 Copilot 可回滚迁移。Core 已落地严格 UTF-8 的确定性 hash、Unicode 安全稳定分块、完整快照 add/update/delete diff、资源预算、取消和有界 callback executor；CLI、持久化 writer/retry/resume、实际 Document/FullText/Vector 删除应用与 Copilot 可回滚迁移尚未实现。 | 🚧 |
 | #303 | RRF/归一化/去重/rerank hook，以及 Recall@K、nDCG、P50/P95、体积和重建评测。 | 📋 |
 | #304 | 音视频 transcript、关键帧和 timecode segment；媒体处理留在可选扩展或外部工具。 | 📋 |
 | #305 | 管理面、安全、失败恢复、备份重建、模型换代和 10k/100k 容量基线。 | 📋 |
@@ -227,7 +227,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。 | 📋 |
 | #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |
-| #316 | KV 条件与类型化 API：NX/XX、get-and-set/delete、UTF-8 与基于 `JsonTypeInfo<T>` 的 AOT JSON codec，保持 raw bytes 为底层权威语义。 | 📋 |
+| #316 | KV 条件与类型化 API：嵌入式 Core 已落地 NX/XX、原子 get-and-set/delete、namespace 视图、严格 UTF-8 与基于 `JsonTypeInfo<T>` 的 AOT JSON codec，保持 raw bytes 为底层权威语义。#310/#311、远程 parity、golden journey 和产品入口尚未完成。 | 🚧 |
 | #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。 | 📋 |
 | #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。 | 📋 |
 | #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和可观察 rebuild task。 | 📋 |
@@ -293,15 +293,15 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 详细的复用矩阵、key layout、事务不变量、SQL 双入口、逐 PR 验收和容量门禁见 [docs/native-graph-database-roadmap.md](docs/native-graph-database-roadmap.md)。
 
-代码知识与 Agent 产品已在独立仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet) 建立；仓库与路线基线完成不表示 Couplet 功能或 SonnetDB 图能力已经完成。依赖方向固定为 `Couplet -> SonnetDB.Core`：Couplet 负责工作区/Git、语言解析、代码领域 schema、增量协调、本地 embedding、上下文组装、首版只读 typed MCP、CLI/Agent 接线和产品评测；SonnetDB 负责通用 Graph/KV/Document/FullText/Vector/Hybrid Search、事务、快照、恢复、执行计划和性能。两个仓库保持独立，不互相作为 Git submodule；跨仓开发与联合门禁由 Couplet 直接 `ProjectReference` 最新 SonnetDB 源码，不能继续固定到旧 `SonnetDB.Core` package。SonnetDB 的独立 package consumer 仍作为发布兼容证据，但不替代 Couplet 最新源码联合回归。Couplet 不复制 Core、不读取内部 key layout，也不得以关系边表、应用层遍历、第二套图存储或隐藏全扫补缺。
+代码知识与 Agent 产品已在独立仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet) 建立；仓库与路线基线完成不表示 Couplet 功能或 SonnetDB 图能力已经完成。依赖方向固定为 `Couplet -> SonnetDB.Core`：Couplet 负责工作区/Git、语言解析、代码领域 schema、增量协调、本地 embedding、上下文组装、首版只读 typed MCP、CLI/Agent 接线和产品评测；SonnetDB 负责通用 Graph/KV/Document/FullText/Vector/Hybrid Search、事务、快照、恢复、执行计划和性能。两个仓库保持独立，不互相作为 Git submodule；跨仓开发与联合门禁由 Couplet 显式 `ProjectReference` 最新 SonnetDB 源码，默认固定 package lane 继续作为可独立构建的兼容基线。两条 lane 必须分别验证，package lane 不能替代最新源码联合回归。Couplet 不复制 Core、不读取内部 key layout，也不得以关系边表、应用层遍历、第二套图存储或隐藏全扫补缺。
 
 凡 Couplet golden journey 暴露 Graph/KV/事务/快照/恢复缺口，必须在 M40 先修复；暴露 Document、FullText、Vector 或混合检索缺口，必须回收到 M32、M35、M36 或对应公共执行里程碑并优先排期。声明支持的上层阶段在阻塞缺口关闭并取得回归/容量证据前不得发布，也不得通过产品侧旁路绕过 Core。Couplet 的完整路线以其仓库 [ROADMAP.md](https://github.com/IoTSharp/Couplet/blob/main/ROADMAP.md) 为准，SonnetDB 只维护跨仓门禁，不复制产品待办。
 
 | Couplet 阶段 | 产品边界 | 联调/开发开始条件 | 联合退出/发布门禁 | 当前状态 |
 |---|---|---|---|---|
 | 仓库/路线基线 | 独立仓库、ADR、MCP 合同语义、golden journeys、SLO 与 C0-C4 路线 | 无 | 把相同 workload/SLO 输入 M40 #341 | ✅ 已建立；不表示 C0 或图能力完成 |
-| C0 基础与合同 | 可运行骨架、schema/capability handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结合同与证据 | 📋 |
-| C1 增量代码索引 | 工作区/Git、语言适配、Document/FullText、基础只读 MCP | `Tsdb.Generations` public contract 已可从最新 SonnetDB 源码联调 | Couplet 切换到最新源码，并使 revision/crash/cursor/cleanup/capacity gate 全部 PASS | 🚧 Core exact-revision lease 与 Couplet orderly store reopen cursor/watcher 本地回归已通过；跨进程 cursor、双客户端、固定硬件和长稳未运行，`CG-005` 保持 verifying |
+| C0 基础与合同 | 可运行骨架、schema/capability handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结合同与证据 | ✅ 已完成；不表示 C1 或图能力完成 |
+| C1 增量代码索引 | 工作区/Git、语言适配、Document/FullText、基础只读 MCP | `Tsdb.Generations` public contract 已可从最新 SonnetDB 源码联调 | source lane revision/crash/cursor/cleanup/capacity gate 全部 PASS | 🚧 Core exact-revision lease 与 Couplet source publish/query、database-root 单 live store、orderly reopen cursor terminal cleanup 和 watcher 本地回归已通过；真实跨进程 cursor/root 竞争、hard-kill CAS、双客户端、固定硬件和长稳未运行，`CG-005` 保持 verifying |
 | C2 原生图代码智能 | 关系、路径、影响与测试选择 | #347~#351 目标 public API 可联调 | #352 与 Couplet C2 两个 gate 同时 PASS | 📋（Preview 发布受联合门禁约束） |
 | C3 混合检索与 context pack | 本地 embedding、shared FullText/Vector/Graph typed plan 和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 与 Couplet C3 gate 同时 PASS | 📋（Beta 发布受联合门禁约束） |
 | C4 生产与 Agent 体验 | 长稳、恢复、安全、分发和 Codex/Claude Code 验收 | M40 修复顺序步骤 1~7 全部通过后取证 | #367 与 Couplet C4 生产门禁同时 PASS | 📋（1.0 发布受联合门禁约束） |
@@ -313,7 +313,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN、跨模型 SQL 组合与 M35/M36 Hybrid Search 候选合同复用。 | ✅ #353~#359 功能与本地自动化门禁已完成；外部语义/容量和联合发布证据仍 `NOT_RUN` |
 | Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 🚧 #360~#366 已有功能切片，#367 strict evaluator 已完成；性能/恢复加固及正式发布证据未完成 |
 
-2026-08-25 的 Couplet C1 审计确认，#343 只固定单个 KV keyspace 内的 read snapshot/range cursor，#346 只固定已知模型（尤其 Graph）的 checkpoint、backup 与 crash/invariant；两者都没有一个覆盖 KV、Document、FullText 的 active generation 指针、跨分页 query lease、generation-bound cursor 或 lease-aware retired cleanup，因此“#343/#346 已完成”不能关闭 `CG-005`。本次新增通用、extend-only 的 `Tsdb.Generations`：发布前 checkpoint 并校验独占资源，内部 KV 条件批次原子发布 descriptor/ownership/active revision，查询租约固定 revision，清理等待全部租约释放；A/B reopen、publish 前后 fault、真实 Document+FullText、backup/restore、public API、package consumer 和 Core 回归均已通过。2026-08-31 又增加 `Acquire(stream, revision)` 的原子 exact-revision lease；Couplet 已用它完成持久 cursor 的 orderly store reopen 和本地 watcher/revision provenance 回归。该结果不包含真实进程重启/跨进程 cursor、双客户端、固定硬件或长稳，C1/`CG-005` 仍未关闭。
+2026-08-25 的 Couplet C1 审计确认，#343 只固定单个 KV keyspace 内的 read snapshot/range cursor，#346 只固定已知模型（尤其 Graph）的 checkpoint、backup 与 crash/invariant；两者都没有一个覆盖 KV、Document、FullText 的 active generation 指针、跨分页 query lease、generation-bound cursor 或 lease-aware retired cleanup，因此“#343/#346 已完成”不能关闭 `CG-005`。本次新增通用、extend-only 的 `Tsdb.Generations`：发布前 checkpoint 并校验独占资源，内部 KV 条件批次原子发布 descriptor/ownership/active revision，查询租约固定 revision，清理等待全部租约释放；A/B reopen、publish 前后 fault、真实 Document+FullText、backup/restore、public API、package consumer 和 Core 回归均已通过。2026-08-31 又增加 `Acquire(stream, revision)` 的原子 exact-revision lease；Couplet 已用它完成持久 cursor 的 orderly store reopen、database-root 独占 lease、terminal cursor 的 version-CAS/snapshot/delete/snapshot 恢复窗口，以及本地 watcher/revision provenance 回归。本轮证据只覆盖本机同进程 open race、Windows extended-path alias、orderly dispose/reopen 和注入式恢复故障；真实进程重启/跨进程 cursor/root 竞争、hard-kill CAS、双客户端、固定硬件、随机故障和长稳仍未取得，C1/`CG-005` 继续保持 verifying/FAIL。
 
 ### M40 修复与发布执行顺序（2026-08-23 复盘）
 

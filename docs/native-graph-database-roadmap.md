@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-25 核查结论：Phase 0（#341～#346）原范围公共地基 ✅ 已完成；另已补充此前不在 #343/#346 范围内的跨 KV/Document/FullText generation public contract，但 Couplet C1/`CG-005` 联合门禁尚未运行。修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；步骤 6~7 的实现加固（路径/离线 spill 分配、维护审计尾部恢复、真实 quick kill/reopen）已落地并通过本地回归，但固定 workload/7 天 parity 证据仍未完成，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
+> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-31 核查结论：Phase 0（#341～#346）原范围公共地基 ✅ 已完成；另已补充此前不在 #343/#346 范围内的跨 KV/Document/FullText generation public contract。Couplet C0 已完成，C1 source lane 已完成 generation/query、database-root 单 owner 和 orderly-reopen cursor 本地接线，但两个 C1 gate 仍为 FAIL、`CG-005` 保持 verifying。修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；步骤 6~7 的实现加固（路径/离线 spill 分配、维护审计尾部恢复、真实 quick kill/reopen）已落地并通过本地回归，但固定 workload/7 天 parity 证据仍未完成，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
 
 ## 1. 决策与目标
 
@@ -60,7 +60,7 @@ SonnetDB 的图能力采用两种数据来源、一个图计划和一套执行�
 
 ### 2.2 Couplet 上层工作负载与缺口回收门禁
 
-[Couplet](https://github.com/IoTSharp/Couplet) 是面向 Codex、Claude Code 等编码 Agent 的独立本地代码知识产品。两个仓库保持同级独立，不互相作为 Git submodule；依赖方向固定为 `Couplet -> SonnetDB.Core`，跨仓开发与联合门禁直接 `ProjectReference` 最新 SonnetDB 源码，不再固定旧 package；独立 package consumer 只保留为 SonnetDB 发布兼容证据。Couplet 负责工作区/Git、解析器、代码领域 schema、增量协调、本地 embedding、上下文组装、首版只读 typed MCP 和 Agent 产品面；SonnetDB 负责通用多模型存储、查询、事务、恢复、资源治理与性能。Couplet 不读取内部 key layout，不复制 Core，也不能建立替代数据引擎。
+[Couplet](https://github.com/IoTSharp/Couplet) 是面向 Codex、Claude Code 等编码 Agent 的独立本地代码知识产品。两个仓库保持同级独立，不互相作为 Git submodule；依赖方向固定为 `Couplet -> SonnetDB.Core`。跨仓开发与联合门禁使用显式 source `ProjectReference`；默认固定 package lane 继续承担 Couplet 独立构建与兼容基线，两条 lane 分别验证。Couplet 负责工作区/Git、解析器、代码领域 schema、增量协调、本地 embedding、上下文组装、首版只读 typed MCP 和 Agent 产品面；SonnetDB 负责通用多模型存储、查询、事务、恢复、资源治理与性能。Couplet 不读取内部 key layout，不复制 Core，也不能建立替代数据引擎。
 
 代码知识、依赖分析和 Agent 上下文检索是原生图与多模型组合的正式 golden journey。该边界不允许上层绕过 Core：
 
@@ -75,8 +75,8 @@ Couplet 仓库/路线基线已经建立，但 C0-C4 产品实现仍按证据推�
 | Couplet 阶段 | 产品交付 | 联调/开发开始条件 | 联合退出/发布门禁 | 状态边界 |
 |---|---|---|---|---|
 | 仓库/路线基线 | README/ADR、MCP 合同语义、golden journeys、质量/性能门禁和 gap catalog | 无 | 输入 #341 workload/SLO | ✅ 仅规划基线完成，不代表任何运行能力 |
-| C0 基础与合同 | 可运行骨架、代码 schema、capability/version handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结 | 📋 不宣称图检索可用 |
-| C1 增量代码索引 | Git/worktree/revision、语言适配、Document/FullText 和基础 MCP | `Tsdb.Generations` 已可从最新 SonnetDB 源码联调 | Couplet 最新源码接线 + revision/crash/cursor/cleanup/capacity gate | 🚧 Core 合同已通过；`CG-005` 联合门禁未运行，不用 Document/KV 边表旁路图 |
+| C0 基础与合同 | 可运行骨架、代码 schema、capability/version handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结 | ✅ 已完成；不宣称图检索可用 |
+| C1 增量代码索引 | Git/worktree/revision、语言适配、Document/FullText 和基础 MCP | `Tsdb.Generations` 已可从最新 SonnetDB 源码联调 | source revision/crash/cursor/cleanup/capacity gate | 🚧 source 接线与本地 root/cursor 加固已运行；`CG-005` 仍 verifying、两个 C1 gate 仍 FAIL，不用 Document/KV 边表旁路图 |
 | C2 原生图代码智能 | 定义/引用/调用/继承/依赖路径/影响与测试选择 | #347~#351 目标 public API 可联调 | #352 + Couplet C2 correctness/performance 同时 PASS | 📋 才可发布 Native Graph Preview |
 | C3 混合检索与 context pack | FullText + 本地 embedding/Vector + Native Graph、证据和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 + Couplet C3 gate 同时 PASS | 📋 才可发布 Beta，不得产品侧 merge/遍历 |
 | C4 生产与 Agent 体验 | 7 天长稳、恢复、安全、容量、分发和双客户端验收 | M40 修复顺序步骤 1~7 全部通过后取证 | #367 + Couplet C4 门禁同时 PASS | 📋 才可发布 Production/1.0 |
@@ -236,7 +236,7 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 
 ✅ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。Phase 1 的步骤 1/3 已关闭 #348/#349 正确性、目标过滤和 #351 有界导入合同；#352 的固定硬件、Neo4j、完整恢复/容量 artifact 保持 `NOT_RUN`，因此 Phase 1 发布准入仍未完成。
 
-Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspace 的可见视图，#346 的 crash/backup 合同只恢复已经纳入其 checkpoint 的模型状态；它们不提供一个跨 KV、Document、FullText 的 active generation publication point，也不管理 query lease 与 retired resource 的共同生命周期。本次新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest` 和 `DatabaseGenerationQueryLease`，以内部 durable KV 条件批次一次发布 descriptor、resource ownership 与 active revision；cursor 同时绑定 stream/generation/revision/query fingerprint，retired cleanup 只在全部 lease 释放后执行。Core 已通过 A/B reopen、publish 前后故障注入、真实 Document+FullText 无混代、双 lease、取消/异常、backup/restore、public API、package consumer 与完整回归；这不等于 Couplet `CG-005` 关闭。Couplet 必须停止固定旧 package，直接消费最新 SonnetDB 源码完成 C1 产品接线和联合 correctness/recovery、performance/capacity 证据。
+Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspace 的可见视图，#346 的 crash/backup 合同只恢复已经纳入其 checkpoint 的模型状态；它们不提供一个跨 KV、Document、FullText 的 active generation publication point，也不管理 query lease 与 retired resource 的共同生命周期。本次新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest` 和 `DatabaseGenerationQueryLease`，以内部 durable KV 条件批次一次发布 descriptor、resource ownership 与 active revision；cursor 同时绑定 stream/generation/revision/query fingerprint，retired cleanup 只在全部 lease 释放后执行。Core 已通过 A/B reopen、publish 前后故障注入、真实 Document+FullText 无混代、双 lease、取消/异常、backup/restore、public API、package consumer 与完整回归。Couplet source lane 已消费该合同，并增加数据库 root 独占 lease 及 terminal cursor version-CAS/snapshot/delete/snapshot 恢复；本机同进程 race、Windows path alias、orderly reopen 和注入窗口已有回归。默认 package lane 继续作为独立兼容基线；真实跨进程 root/cursor 竞争、hard-kill CAS、双客户端、固定硬件和长稳未完成，因此 `CG-005` 与 C1 双门禁仍未关闭。
 
 ### Phase 1：可用的原生图数据库第一阶段（🚧 功能合同已闭环；#352 `NOT_RUN`）
 
