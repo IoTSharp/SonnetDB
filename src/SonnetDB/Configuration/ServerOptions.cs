@@ -67,6 +67,12 @@ public sealed class ServerOptions
     public SqlHttpAdmissionOptions SqlHttpAdmission { get; set; } = new();
 
     /// <summary>
+    /// 每个数据库实例的 SQL 内部执行资源配置。该配置约束阻塞算子内存和查询内部 worker，
+    /// 不等同于 <see cref="SqlHttpAdmission"/> 的 HTTP 请求并发准入。
+    /// </summary>
+    public SqlExecutionResourceOptions SqlExecution { get; set; } = new();
+
+    /// <summary>
     /// KV 存储维护配置。这里只放服务器部署需要覆盖的有界恢复预算，日常写入预算仍使用 Core 默认值。
     /// </summary>
     public KvStorageOptions Kv { get; set; } = new();
@@ -204,6 +210,30 @@ public sealed class SqlHttpAdmissionOptions
     /// frame-http2 返回 <c>sql_overloaded</c> 错误帧。
     /// </summary>
     public int QueueLimit { get; set; } = 8;
+}
+
+/// <summary>
+/// 每个数据库实例的 SQL 阻塞算子内存和查询内部并行资源配置。
+/// Server 启动时会把这些可绑定属性冻结为 Core <see cref="SonnetDB.Engine.SqlMemoryOptions"/>。
+/// </summary>
+public sealed class SqlExecutionResourceOptions
+{
+    /// <summary>单条 SQL 的阻塞算子内存上限，默认 64 MiB。</summary>
+    public long QueryLimitBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.QueryLimitBytes;
+
+    /// <summary>同一数据库全部并发 SQL 共享的阻塞算子内存上限，默认 256 MiB。</summary>
+    public long GlobalLimitBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.GlobalLimitBytes;
+
+    /// <summary>
+    /// 同一数据库可同时使用的查询内部 worker 上限。默认取 Core 根据处理器数量计算的有界值。
+    /// </summary>
+    public int MaxParallelWorkers { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.MaxParallelWorkers;
+
+    /// <summary>估算输入行数达到该阈值后才评估查询内部并行收益，默认 2048 行。</summary>
+    public long ParallelismMinRows { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.ParallelismMinRows;
+
+    /// <summary>每个查询内部 worker 从查询和全局预算中预留的额度，默认 64 KiB。</summary>
+    public long ParallelWorkerMemoryBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.ParallelWorkerMemoryBytes;
 }
 
 /// <summary>

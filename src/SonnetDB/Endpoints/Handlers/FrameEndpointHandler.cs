@@ -30,7 +30,8 @@ namespace SonnetDB.Endpoints;
 /// #239 挂载 vector service；#240 挂载 kv / object / doc service；M40 #351 追加 graph service）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
 /// sql 查询与 vector 检索响应为同 streamId 的流式帧序列（meta → rows × N → end），
-/// object get 响应为 meta → data × N → end，均逐块 flush。
+/// object get 响应为 meta → data × N → end；SQL 查询仅在确认仍有后续块时中途 flush，
+/// 最后一块与 end 由外层统一 flush。
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
@@ -487,10 +488,9 @@ internal static class FrameEndpointHandler
                 return;
             }
 
-            // 流式回写：meta → rows × N（逐块 flush）→ end。执行本身是同步物化（引擎契约），
-            // 分块编码把峰值响应缓冲压到单块，行数大时客户端可增量消费。
+            // 流式回写：meta → rows × N → end。meta 与首块合并，最后一块与 end 合并；
+            // 仅在确认还有后续块时中途 flush，既保留大结果反压，也避免小结果多次微小刷新。
             SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns);
-            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
 
             int position = 0;
             while (position < select.Rows.Count)
@@ -498,7 +498,8 @@ internal static class FrameEndpointHandler
                 int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
                 SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows, select.Columns.Count);
                 position += chunkRows;
-                await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+                if (position < select.Rows.Count)
+                    await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
             }
 
             double elapsed = sw.Elapsed.TotalMilliseconds;

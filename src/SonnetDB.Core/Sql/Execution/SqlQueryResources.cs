@@ -239,6 +239,17 @@ internal sealed class SqlQueryResources : IDisposable
             return true;
         }
 
+        /// <summary>归还本算子已预留的部分预算，供同查询或其他并发查询立即复用。</summary>
+        internal void Release(long bytes)
+        {
+            ObjectDisposedException.ThrowIf(_owner is null, this);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bytes);
+            if (bytes > _bytes)
+                throw new InvalidOperationException("SQL 算子释放量超过自身已预留预算。");
+            _bytes -= bytes;
+            _owner.Release(bytes);
+        }
+
         internal void ReleaseAll()
         {
             if (_owner is null || _bytes == 0)

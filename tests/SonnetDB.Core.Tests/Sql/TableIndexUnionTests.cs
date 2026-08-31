@@ -59,6 +59,41 @@ public sealed class TableIndexUnionTests : IDisposable
         Assert.Null(explainValues["fallback_reason"]);
     }
 
+    /// <summary>OR 两侧的主键和唯一索引 IN 应复用去重后的编码键，并在同一快照内合并候选。</summary>
+    [Fact]
+    public void Select_PrimaryAndUniqueIndexInBranches_ReuseEncodedLookupKeys()
+    {
+        using var db = CreateDatabase();
+        var store = db.Tables.Open("union_events");
+        long scansBefore = store.FullScanCount;
+        int snapshotsAcquired = 0;
+        store.ReadSnapshotAcquiredTestHook = () => snapshotsAcquired++;
+        const string sql = """
+            SELECT id FROM union_events
+            WHERE id IN (4, 2, 2, NULL)
+               OR external_key IN ('key-003', 'missing', 'key-003')
+            ORDER BY id
+            """;
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(sql));
+
+        Assert.True(TableSqlExecutor.TryChooseIndexUnionPlan(
+            store.Schema,
+            statement.Where,
+            out var plan,
+            out var fallbackReason));
+        Assert.Null(fallbackReason);
+        Assert.Equal(2, Assert.Single(plan.Branches, static branch =>
+            branch.AccessPlan.InPlan?.UsesPrimaryKey == true).AccessPlan.InPlan!.LookupKeys.Count);
+        Assert.Equal(2, Assert.Single(plan.Branches, static branch =>
+            branch.AccessPlan.InPlan is { UsesPrimaryKey: false }).AccessPlan.InPlan!.LookupKeys.Count);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
+
+        Assert.Equal([2L, 3L, 4L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(1, snapshotsAcquired);
+    }
+
     /// <summary>IS NULL 与同列范围分支应复用 nullable 二级索引并只返回真实匹配行。</summary>
     [Fact]
     public void Select_NullableIsNullOrRange_UsesIndexUnion()

@@ -72,6 +72,7 @@ public static class SonnetDbMeter
         description: "Time spent waiting to acquire a critical storage lock.");
 
     private static readonly KeyValuePair<string, object?> LockTableManager = new("lock.name", "table_manager");
+    private static readonly KeyValuePair<string, object?> LockTableStore = new("lock.name", "table_store");
     private static readonly KeyValuePair<string, object?> LockKvKeyspace = new("lock.name", "kv_keyspace");
 
     /// <summary>仅在锁等待直方图启用时取得计时起点。</summary>
@@ -82,9 +83,47 @@ public static class SonnetDbMeter
     internal static void RecordTableManagerLockWait(long startTimestamp)
         => RecordLockWait(startTimestamp, LockTableManager, tableManager: true);
 
+    /// <summary>记录单张关系表存储锁的等待耗时。</summary>
+    internal static void RecordTableStoreLockWait(long startTimestamp)
+        => RecordLockWait(startTimestamp, LockTableStore, tableManager: true);
+
     /// <summary>记录 KV keyspace 锁的等待耗时。</summary>
     internal static void RecordKvKeyspaceLockWait(long startTimestamp)
         => RecordLockWait(startTimestamp, LockKvKeyspace, tableManager: false);
+
+    // ── KV state 读取 ───────────────────────────────────────────────────────
+
+    /// <summary>不可变 KV state 文件的按位置读取次数。</summary>
+    internal static readonly Counter<long> KvStateReads = Meter.CreateCounter<long>(
+        "sonnetdb.kv.state.reads", unit: "{read}",
+        description: "Positional reads issued against immutable KV state files.");
+
+    /// <summary>不可变 KV state 文件读取的 payload 字节数。</summary>
+    internal static readonly Counter<long> KvStateReadBytes = Meter.CreateCounter<long>(
+        "sonnetdb.kv.state.read.bytes", unit: "By",
+        description: "Payload bytes read from immutable KV state files.");
+
+    /// <summary>不可变 KV state 文件单次按位置读取耗时。</summary>
+    internal static readonly Histogram<double> KvStateReadDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.kv.state.read.duration", unit: "ms",
+        description: "Latency of a positional read from an immutable KV state file.");
+
+    /// <summary>仅在 KV state 读取耗时直方图启用时取得计时起点。</summary>
+    internal static long StartKvStateReadTiming()
+        => KvStateReadDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
+    /// <summary>记录一次已完成的 KV state payload 读取及其 SQL 物理读归属。</summary>
+    internal static void RecordKvStateRead(long startTimestamp, int bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        if (KvStateReads.Enabled)
+            KvStateReads.Add(1);
+        if (KvStateReadBytes.Enabled)
+            KvStateReadBytes.Add(bytes);
+        if (startTimestamp != 0 && KvStateReadDuration.Enabled)
+            KvStateReadDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+        SqlExecutionTelemetry.RecordPhysicalRead(bytes);
+    }
 
     // ── Flush ────────────────────────────────────────────────────────────────
 

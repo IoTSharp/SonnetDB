@@ -16,6 +16,8 @@ SQL 并行只用于可以按输入项独立计算、且结果可以按输入序�
 
 `SqlExecutionOptions` 可以关闭并行、降低 `MaxDegreeOfParallelism` 或覆盖行数阈值。准入顺序是：估算收益、事务门控、用户函数纯度门控、数据库 worker 槽位、查询/全局内存预留和取消检查。没有线程安全/纯函数合同的用户标量或窗口函数会记录 `user_defined_function` 并串行执行；不能拿到至少两个 worker 时回退串行。回退不截断结果，也不泄漏 semaphore 或预算；并行 worker 的异常会解包为与串行路径一致的实际异常类型。数据库关闭与 crash-simulation 路径都释放协调器。
 
+Server 通过 `SonnetDBServer:SqlExecution` 把 `MaxParallelWorkers`、`ParallelismMinRows` 和 `ParallelWorkerMemoryBytes` 连同查询/全局内存预算冻结到每个新建或自动加载的数据库。该节配置查询内部 worker，不替代 `SonnetDBServer:SqlHttpAdmission` 的请求级许可和等待队列；Server 还会把 worker 数限制到进程可见处理器数以内，并保证全部 worker 固定预留不超过数据库全局预算。
+
 ## 估算反馈
 
 SQL 根作用域为 AST 生成不含参数值和行内容的 SHA-256 fingerprint。现有 `SqlExplainPlanner` 的扫描估算写入执行资源，点读取和聚合 bucket 的实际计数写入同一反馈记录。`SqlRuntimeFeedbackStore` 在内存中保留最多 1,024 个 fingerprint，滚动平均 estimated/actual rows，并提供有限比例修正给后续同形状查询的并行准入；目录不持久化业务数据，超限按最旧记录淘汰。

@@ -36,6 +36,129 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.False(kv.Delete("device:1"));
     }
 
+    /// <summary>Span alternate lookup 必须与 byte[] 字典键使用相同的相等性和哈希语义。</summary>
+    [Fact]
+    public void KvKeyComparer_AlternateLookup_FindsByteArrayKey()
+    {
+        byte[] storedKey = Encoding.UTF8.GetBytes("device:alternate");
+        var values = new Dictionary<byte[], int>(KvKeyComparer.Instance)
+        {
+            [storedKey] = 42,
+        };
+
+        var lookup = values.GetAlternateLookup<ReadOnlySpan<byte>>();
+        ReadOnlySpan<byte> matching = "device:alternate"u8;
+        ReadOnlySpan<byte> missing = "device:missing"u8;
+
+        Assert.True(lookup.TryGetValue(matching, out int value));
+        Assert.Equal(42, value);
+        Assert.False(lookup.ContainsKey(missing));
+        Assert.Equal(
+            KvKeyComparer.Instance.GetHashCode(storedKey),
+            KvKeyComparer.Instance.GetHashCode(matching));
+    }
+
+    /// <summary>验证公共 Get 与 GetEntry 可同时进入同一不可变 state 的按位置读取。</summary>
+    [Fact]
+    public async Task GetAndGetEntry_DiskReadsRunOutsideTheKeyspaceLock()
+    {
+        using var keyspace = KvKeyspace.Open("public-point-read", _root, PointReadOptions());
+        byte[] firstValue = Enumerable.Repeat((byte)0x31, 64 * 1024).ToArray();
+        byte[] secondValue = Enumerable.Repeat((byte)0x52, 64 * 1024).ToArray();
+        keyspace.Put("capture:first", firstValue);
+        keyspace.Put("capture:second", secondValue);
+        keyspace.CreateSnapshot();
+
+        using var readersReady = new Barrier(2);
+        keyspace.ConfigureDiskReadTestHook(() =>
+        {
+            if (!readersReady.SignalAndWait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("public KV disk reads did not overlap");
+        });
+
+        Task<byte[]?> first = StartDedicated(() => keyspace.Get("capture:first"));
+        Task<KvEntry?> second = StartDedicated(() => keyspace.GetEntry("capture:second"));
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(15));
+
+        Assert.Equal(firstValue, await first);
+        Assert.Equal(secondValue, (await second)!.Value.ToArray());
+    }
+
+    /// <summary>验证 keyspace 释放 owner 时，在途公共点读仍由磁盘租约保护到完成。</summary>
+    [Fact]
+    public async Task Get_InFlightDispose_KeepsDiskStateAliveUntilReadCompletes()
+    {
+        var keyspace = KvKeyspace.Open("public-dispose-read", _root, PointReadOptions());
+        byte[] expected = Enumerable.Repeat((byte)0x6A, 64 * 1024).ToArray();
+        keyspace.Put("capture:dispose", expected);
+        keyspace.CreateSnapshot();
+        using var readStarted = new ManualResetEventSlim();
+        using var releaseRead = new ManualResetEventSlim();
+        keyspace.ConfigureDiskReadTestHook(() =>
+        {
+            readStarted.Set();
+            if (!releaseRead.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("test did not release the public disk read");
+        });
+
+        Task<byte[]?> read = StartDedicated(() => keyspace.Get("capture:dispose"));
+        try
+        {
+            Assert.True(readStarted.Wait(TimeSpan.FromSeconds(10)));
+            Task<bool> dispose = StartDedicated(() =>
+            {
+                keyspace.Dispose();
+                return true;
+            });
+            Assert.True(await dispose.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally
+        {
+            releaseRead.Set();
+        }
+
+        Assert.Equal(expected, await read.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Throws<ObjectDisposedException>(() => keyspace.Get("capture:dispose"));
+    }
+
+    /// <summary>验证 checkpoint 替换磁盘 state 时不会关闭公共点读正在使用的旧句柄。</summary>
+    [Fact]
+    public async Task Get_InFlightCheckpoint_KeepsPreviousDiskStateAliveUntilReadCompletes()
+    {
+        using var keyspace = KvKeyspace.Open("public-checkpoint-read", _root, PointReadOptions());
+        byte[] expected = Enumerable.Repeat((byte)0x7B, 64 * 1024).ToArray();
+        keyspace.Put("capture:checkpoint", expected);
+        keyspace.CreateSnapshot();
+        using var readStarted = new ManualResetEventSlim();
+        using var releaseRead = new ManualResetEventSlim();
+        int hookCalls = 0;
+        keyspace.ConfigureDiskReadTestHook(() =>
+        {
+            if (Interlocked.Increment(ref hookCalls) != 1)
+                return;
+
+            readStarted.Set();
+            if (!releaseRead.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("test did not release the checkpoint disk read");
+        });
+
+        Task<byte[]?> read = StartDedicated(() => keyspace.Get("capture:checkpoint"));
+        try
+        {
+            Assert.True(readStarted.Wait(TimeSpan.FromSeconds(10)));
+            keyspace.Put("capture:new", [0x01]);
+            Task<long> checkpoint = StartDedicated(keyspace.CreateSnapshot);
+            await checkpoint.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            releaseRead.Set();
+        }
+
+        Assert.Equal(expected, await read.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal([0x01], keyspace.Get("capture:new"));
+    }
+
     [Fact]
     public void ScanPrefix_ReturnsSortedLimitedSnapshot()
     {
@@ -644,4 +767,14 @@ public sealed class KvKeyspaceTests : IDisposable
         thread.Start();
         return completion.Task;
     }
+
+    /// <summary>创建关闭后台维护的确定性点读测试选项。</summary>
+    private static KvOptions PointReadOptions()
+        => KvOptions.Default with
+        {
+            AutoCheckpointEnabled = false,
+            SyncWalOnEveryWrite = false,
+            ExpirerEnabled = false,
+            CleanupEnabled = false,
+        };
 }

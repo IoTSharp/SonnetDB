@@ -556,6 +556,33 @@ public sealed class KvReadSnapshotTests : IDisposable
         }
     }
 
+    /// <summary>验证同一 sequence 的查询复用有序覆盖层，并在写入后重建且保持旧快照稳定。</summary>
+    [Fact]
+    public void AcquireReadSnapshot_UnchangedOverlayReusesSortedCacheAndWriteInvalidatesIt()
+    {
+        using var keyspace = KvKeyspace.Open("snapshot-overlay-cache", _root, Options());
+        for (int index = 0; index < 4_096; index++)
+            keyspace.Put($"item:{index:D5}", [(byte)index]);
+
+        using KvReadSnapshot first = keyspace.AcquireReadSnapshot();
+        Assert.Equal(1, keyspace.SnapshotOverlayCacheBuildCount);
+        Assert.Equal(0, keyspace.SnapshotOverlayCacheHitCount);
+
+        using (KvReadSnapshot second = keyspace.AcquireReadSnapshot())
+        {
+            Assert.Equal(1, keyspace.SnapshotOverlayCacheBuildCount);
+            Assert.Equal(1, keyspace.SnapshotOverlayCacheHitCount);
+            Assert.Equal([(byte)123], second.GetEntry(Bytes("item:00123"))!.Value.ToArray());
+        }
+
+        keyspace.Put("item:00123", [0xFE]);
+        using KvReadSnapshot current = keyspace.AcquireReadSnapshot();
+
+        Assert.Equal(2, keyspace.SnapshotOverlayCacheBuildCount);
+        Assert.Equal([(byte)123], first.GetEntry(Bytes("item:00123"))!.Value.ToArray());
+        Assert.Equal([0xFE], current.GetEntry(Bytes("item:00123"))!.Value.ToArray());
+    }
+
     public void Dispose()
     {
         if (!Directory.Exists(_root))

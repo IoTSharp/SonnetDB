@@ -226,12 +226,13 @@ internal static class JoinSqlExecutor
 
         if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
         {
-            long rows = Math.Min(store.RowCount, inPlan.Values.Count);
+            long rows = Math.Min(store.RowCount, inPlan.LookupKeys.Count);
+            string accessPath = TableSqlExecutor.FormatInAccessPath(inPlan);
             return new TableAccessCostEstimate(
-                inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                accessPath,
                 inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
                 rows, Math.Max(1, rows), 0, rows, "catalog", null, null,
-                $"{(inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in")} rows<={rows}",
+                $"{accessPath} rows<={rows}",
                 null, null);
         }
 

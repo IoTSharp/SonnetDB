@@ -8,6 +8,15 @@ namespace SonnetDB.Hosting;
 /// </summary>
 internal static class ServerOptionsBinder
 {
+    private const long MinSqlQueryLimitBytes = 1024L * 1024;
+    private const long MaxSqlQueryLimitBytes = 16L * 1024 * 1024 * 1024;
+    private const long MinSqlGlobalLimitBytes = 1024L * 1024;
+    private const long MaxSqlGlobalLimitBytes = 64L * 1024 * 1024 * 1024;
+    private const long MinSqlParallelWorkerMemoryBytes = 4L * 1024;
+    private const long MaxSqlParallelWorkerMemoryBytes = 64L * 1024 * 1024;
+    private const long MaxSqlParallelismMinRows = 1_000_000_000;
+    private static readonly int MaxSqlParallelWorkers = Math.Clamp(Environment.ProcessorCount, 1, 64);
+
     private static readonly string[] DefaultCopilotDocsRoots =
     [
         "./docs",
@@ -72,6 +81,8 @@ internal static class ServerOptionsBinder
             0,
             4096);
 
+        ApplySqlExecutionBounds(options.SqlExecution);
+
         options.Modbus.DiscoveryIntervalMilliseconds = Math.Clamp(
             options.Modbus.DiscoveryIntervalMilliseconds,
             10,
@@ -117,6 +128,48 @@ internal static class ServerOptionsBinder
             options.SemanticSearch.MaxTopK);
     }
 
+    /// <summary>
+    /// 收紧每数据库 SQL 内部资源边界，并保证共享预算可覆盖全部 worker 的固定预留。
+    /// </summary>
+    /// <param name="options">待规范化的 SQL 内部执行资源配置。</param>
+    private static void ApplySqlExecutionBounds(SqlExecutionResourceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.QueryLimitBytes = Math.Clamp(
+            options.QueryLimitBytes,
+            MinSqlQueryLimitBytes,
+            MaxSqlQueryLimitBytes);
+        options.GlobalLimitBytes = Math.Max(
+            options.QueryLimitBytes,
+            Math.Clamp(
+                options.GlobalLimitBytes,
+                MinSqlGlobalLimitBytes,
+                MaxSqlGlobalLimitBytes));
+        options.MaxParallelWorkers = Math.Clamp(
+            options.MaxParallelWorkers,
+            1,
+            MaxSqlParallelWorkers);
+        options.ParallelismMinRows = Math.Clamp(
+            options.ParallelismMinRows,
+            1,
+            MaxSqlParallelismMinRows);
+
+        // worker 预留同时计入单查询和数据库全局预算；分别用除法求上限，避免极值乘法溢出。
+        long queryBoundPerWorker = options.QueryLimitBytes / options.MaxParallelWorkers;
+        long globalBoundPerWorker = options.GlobalLimitBytes / options.MaxParallelWorkers;
+        long workerUpperBound = Math.Min(
+            MaxSqlParallelWorkerMemoryBytes,
+            Math.Min(queryBoundPerWorker, globalBoundPerWorker));
+        options.ParallelWorkerMemoryBytes = Math.Clamp(
+            options.ParallelWorkerMemoryBytes,
+            MinSqlParallelWorkerMemoryBytes,
+            workerUpperBound);
+    }
+
+    /// <summary>当新分层配置不存在时，把旧版慢查询键迁移到当前选项对象。</summary>
+    /// <param name="serverSection">服务器配置根节。</param>
+    /// <param name="options">待补齐兼容值的服务器选项。</param>
     private static void ApplyLegacySlowQueryOptions(IConfigurationSection serverSection, ServerOptions options)
     {
         var nestedSection = serverSection.GetSection("Observability:SlowQueryLog");

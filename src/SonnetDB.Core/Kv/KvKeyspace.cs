@@ -84,11 +84,14 @@ public sealed class KvKeyspace : IDisposable
     private readonly KvOptions _options;
     private Dictionary<byte[], KvValueEntry> _values;
     private Dictionary<byte[], KvValueEntry>? _frozenValues;
+    private SnapshotOverlayCache? _snapshotOverlayCache;
     private KvDiskState? _diskState;
     private KvWalFile? _wal;
     private KvCheckpointState? _checkpointState;
     private long _lastSequence;
     private long _generation;
+    private long _snapshotOverlayCacheBuildCount;
+    private long _snapshotOverlayCacheHitCount;
     private bool _autoCheckpointQueued;
     private bool _autoCheckpointForceReschedule;
     private int _autoCheckpointFailureCount;
@@ -192,6 +195,26 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    /// <summary>稳定读快照重新构建有序覆盖层缓存的累计次数。</summary>
+    internal long SnapshotOverlayCacheBuildCount
+    {
+        get
+        {
+            lock (_sync)
+                return _snapshotOverlayCacheBuildCount;
+        }
+    }
+
+    /// <summary>稳定读快照复用同一版本有序覆盖层缓存的累计次数。</summary>
+    internal long SnapshotOverlayCacheHitCount
+    {
+        get
+        {
+            lock (_sync)
+                return _snapshotOverlayCacheHitCount;
+        }
+    }
+
     internal long AutoCheckpointScheduleCount
     {
         get
@@ -236,6 +259,18 @@ public sealed class KvKeyspace : IDisposable
                 throw new InvalidOperationException("KV keyspace has no disk state to observe.");
             _diskState.ScanStartedTestHook = scanStarted;
             _diskState.ScanIndexVisitedTestHook = indexVisited;
+        }
+    }
+
+    /// <summary>为当前不可变磁盘状态设置点读测试钩子。</summary>
+    internal void ConfigureDiskReadTestHook(Action? readStarted)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_diskState is null)
+                throw new InvalidOperationException("KV keyspace has no disk state to observe.");
+            _diskState.ReadStartedTestHook = readStarted;
         }
     }
 
@@ -624,18 +659,8 @@ public sealed class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
-
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (!TryGetEntryLocked(lookup, out var entry))
-                return null;
-
-            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
-                return null;
-
-            return entry.Value.ToArray();
-        }
+        KvValueEntry? entry = ReadVisibleEntry(lookup);
+        return entry?.Value.ToArray();
     }
 
     /// <summary>
@@ -647,18 +672,10 @@ public sealed class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
-
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (!TryGetEntryLocked(lookup, out var entry))
-                return null;
-
-            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
-                return null;
-
-            return new KvEntry(lookup, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
-        }
+        KvValueEntry? entry = ReadVisibleEntry(lookup);
+        return entry is null
+            ? null
+            : new KvEntry(lookup, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
     }
 
     /// <summary>
@@ -1408,7 +1425,7 @@ public sealed class KvKeyspace : IDisposable
                 _values[batch[i].Key] = value;
         }
 
-        _lastSequence = sequence;
+        PublishLastSequenceLocked(sequence);
         ScheduleAutoCheckpointLocked();
         return sequence;
     }
@@ -1653,7 +1670,7 @@ public sealed class KvKeyspace : IDisposable
 
             // WAL fsync 是 Clear 的提交点；后续元数据维护失败时，内存视图也必须保持已清空。
             _generation = nextGeneration;
-            _lastSequence = sequence;
+            PublishLastSequenceLocked(sequence);
             _values.Clear();
             _frozenValues = null;
 
@@ -1814,12 +1831,17 @@ public sealed class KvKeyspace : IDisposable
     {
         KeyValuePair<byte[], KvValueEntry>[] mutableValues;
         KeyValuePair<byte[], KvValueEntry>[] frozenValues;
+        Dictionary<byte[], KvValueEntry> mutableSource;
+        Dictionary<byte[], KvValueEntry>? frozenSource;
         KvDiskStateLease? diskLease;
         long sequence;
         DateTimeOffset readTimestampUtc;
+        bool cacheHit;
 
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             int maximumEntries = _options.MaxSnapshotOverlayEntries;
             if (maximumEntries <= 0)
@@ -1836,21 +1858,48 @@ public sealed class KvKeyspace : IDisposable
                     $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
             }
 
-            mutableValues = _values.ToArray();
-            frozenValues = _frozenValues?.ToArray() ?? [];
-            diskLease = _diskState?.AcquireLease();
+            mutableSource = _values;
+            frozenSource = _frozenValues;
             sequence = _lastSequence;
+            SnapshotOverlayCache? cache = _snapshotOverlayCache;
+            cacheHit = cache is not null
+                && cache.Sequence == sequence
+                && ReferenceEquals(cache.MutableSource, mutableSource)
+                && ReferenceEquals(cache.FrozenSource, frozenSource);
+            if (cacheHit)
+            {
+                mutableValues = cache!.MutableValues;
+                frozenValues = cache.FrozenValues;
+                _snapshotOverlayCacheHitCount++;
+            }
+            else
+            {
+                // 键和值对象在发布后不可变；这里只复制字典条目，排序完成后可由同版本查询安全共享。
+                mutableValues = mutableSource.ToArray();
+                frozenValues = frozenSource?.ToArray() ?? [];
+                _snapshotOverlayCacheBuildCount++;
+            }
+            diskLease = _diskState?.AcquireLease();
             readTimestampUtc = DateTimeOffset.UtcNow;
         }
 
         try
         {
-            Array.Sort(
-                mutableValues,
-                static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
-            Array.Sort(
-                frozenValues,
-                static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
+            if (!cacheHit)
+            {
+                Array.Sort(
+                    mutableValues,
+                    static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
+                Array.Sort(
+                    frozenValues,
+                    static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
+                PublishSnapshotOverlayCache(
+                    mutableSource,
+                    frozenSource,
+                    sequence,
+                    mutableValues,
+                    frozenValues);
+            }
             var state = new KvReadSnapshotState(
                 mutableValues,
                 frozenValues,
@@ -1864,6 +1913,44 @@ public sealed class KvKeyspace : IDisposable
             diskLease?.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// 当排序期间覆盖层没有变化时发布共享缓存；并发写或检查点切层后，本次快照仍保持正确，
+    /// 但不会把旧视图留作后续查询缓存。
+    /// </summary>
+    private void PublishSnapshotOverlayCache(
+        Dictionary<byte[], KvValueEntry> mutableSource,
+        Dictionary<byte[], KvValueEntry>? frozenSource,
+        long sequence,
+        KeyValuePair<byte[], KvValueEntry>[] mutableValues,
+        KeyValuePair<byte[], KvValueEntry>[] frozenValues)
+    {
+        lock (_sync)
+        {
+            if (_disposed
+                || sequence != _lastSequence
+                || !ReferenceEquals(mutableSource, _values)
+                || !ReferenceEquals(frozenSource, _frozenValues))
+            {
+                return;
+            }
+
+            _snapshotOverlayCache = new SnapshotOverlayCache(
+                mutableSource,
+                frozenSource,
+                sequence,
+                mutableValues,
+                frozenValues);
+        }
+    }
+
+    /// <summary>发布新的可见 sequence，并立即释放不再匹配当前覆盖层的共享排序缓存。</summary>
+    private void PublishLastSequenceLocked(long sequence)
+    {
+        Debug.Assert(Monitor.IsEntered(_sync));
+        _lastSequence = sequence;
+        _snapshotOverlayCache = null;
     }
 
     /// <summary>
@@ -2276,6 +2363,7 @@ public sealed class KvKeyspace : IDisposable
             _wal = null;
             _values.Clear();
             _frozenValues = null;
+            _snapshotOverlayCache = null;
             checkpointRunning = _checkpointState?.IsRunning == true;
             Monitor.PulseAll(_sync);
         }
@@ -2705,6 +2793,7 @@ public sealed class KvKeyspace : IDisposable
                     _diskState = openedState;
                     openedState = null;
                     _frozenValues = null;
+                    _snapshotOverlayCache = null;
                     _checkpointState = null;
                     LastCheckpointException = null;
                     published = true;
@@ -3147,7 +3236,7 @@ public sealed class KvKeyspace : IDisposable
         Debug.Assert(sequence == expectedSequence);
         PublishPlannedValueLocked(key, publishedValue);
 
-        _lastSequence = sequence;
+        PublishLastSequenceLocked(sequence);
         ScheduleAutoCheckpointLocked();
         return true;
     }
@@ -3240,7 +3329,7 @@ public sealed class KvKeyspace : IDisposable
             if (publishPlan.Values[i] is { } value)
                 _values[materialized[i]] = value;
         }
-        _lastSequence = commitSequence;
+        PublishLastSequenceLocked(commitSequence);
         ScheduleAutoCheckpointLocked();
         return true;
     }
@@ -3383,7 +3472,7 @@ public sealed class KvKeyspace : IDisposable
             _wal.Sync();
 
         _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
-        _lastSequence = sequence;
+        PublishLastSequenceLocked(sequence);
         ScheduleAutoCheckpointLocked();
         return sequence;
     }
@@ -3405,7 +3494,7 @@ public sealed class KvKeyspace : IDisposable
         }
 
         _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
-        _lastSequence = sequence;
+        PublishLastSequenceLocked(sequence);
         ScheduleAutoCheckpointLocked();
         return sequence;
     }
@@ -3487,13 +3576,102 @@ public sealed class KvKeyspace : IDisposable
     private static KvEntry CreateEntryCopy(byte[] key, KvValueEntry entry)
         => new(key.ToArray(), entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
 
+    /// <summary>
+    /// 在线性化点解析内存覆盖层并取得不可变磁盘租约，随后在 keyspace 锁外完成物理点读。
+    /// 并发写可以在读取期间继续执行，而 checkpoint 或释放 owner 不会关闭租约保护的句柄。
+    /// </summary>
+    private KvValueEntry? ReadVisibleEntry(byte[] key)
+    {
+        KvDiskStateLease? diskLease;
+        DateTimeOffset readTimestampUtc;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            readTimestampUtc = DateTimeOffset.UtcNow;
+            if (TryResolveOverlayEntryLocked(key, out KvValueEntry? overlayEntry))
+            {
+                if (overlayEntry is null
+                    || TryDeleteExpiredLocked(key, overlayEntry, readTimestampUtc))
+                {
+                    return null;
+                }
+
+                return overlayEntry;
+            }
+
+            diskLease = _diskState?.AcquireLease();
+        }
+
+        if (diskLease is null)
+            return null;
+
+        using (diskLease)
+        {
+            KvValueEntry? diskEntry = diskLease.State.Get(key);
+            if (diskEntry is null)
+                return null;
+            if (!diskEntry.IsExpired(readTimestampUtc))
+                return diskEntry;
+
+            CleanupExpiredDiskEntry(key, diskLease.State, diskEntry);
+            return null;
+        }
+    }
+
+    /// <summary>仅当过期磁盘记录仍是当前可见版本时执行惰性清理，避免删除并发写入的新值。</summary>
+    private void CleanupExpiredDiskEntry(
+        byte[] key,
+        KvDiskState observedDiskState,
+        KvValueEntry expiredEntry)
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
+
+            if (TryResolveOverlayEntryLocked(key, out KvValueEntry? overlayEntry))
+            {
+                if (overlayEntry is not null)
+                    TryDeleteExpiredLocked(key, overlayEntry, DateTimeOffset.UtcNow);
+                return;
+            }
+
+            if (ReferenceEquals(_diskState, observedDiskState))
+                TryDeleteExpiredLocked(key, expiredEntry, DateTimeOffset.UtcNow);
+        }
+    }
+
+    /// <summary>
+    /// 解析可变与冻结覆盖层；返回 true 表示覆盖层已决定结果，null 表示显式 tombstone。
+    /// </summary>
+    private bool TryResolveOverlayEntryLocked(ReadOnlySpan<byte> key, out KvValueEntry? entry)
+    {
+        if (_values.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(key, out KvValueEntry? mutableEntry))
+        {
+            entry = mutableEntry.IsDeleted ? null : mutableEntry;
+            return true;
+        }
+
+        if (_frozenValues is { } frozenValues
+            && frozenValues.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(key, out KvValueEntry? frozenEntry))
+        {
+            entry = frozenEntry.IsDeleted ? null : frozenEntry;
+            return true;
+        }
+
+        entry = null;
+        return false;
+    }
+
     private bool TryGetEntryLocked(ReadOnlySpan<byte> key, out KvValueEntry entry)
     {
-        if (_values.TryGetValue(key.ToArray(), out entry!))
-            return !entry.IsDeleted;
-
-        if (_frozenValues?.TryGetValue(key.ToArray(), out entry!) == true)
-            return !entry.IsDeleted;
+        if (TryResolveOverlayEntryLocked(key, out KvValueEntry? overlayEntry))
+        {
+            entry = overlayEntry!;
+            return overlayEntry is not null;
+        }
 
         entry = _diskState?.Get(key)!;
         return entry is not null;
@@ -3502,8 +3680,11 @@ public sealed class KvKeyspace : IDisposable
     private bool BaseContainsVisibleLocked(ReadOnlySpan<byte> key)
     {
         BaseLookupTestHook?.Invoke();
-        if (_frozenValues?.TryGetValue(key.ToArray(), out var frozenEntry) == true)
+        if (_frozenValues is { } frozenValues
+            && frozenValues.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(key, out var frozenEntry))
+        {
             return !frozenEntry.IsDeleted;
+        }
         return _diskState?.Contains(key) == true;
     }
 
@@ -3879,6 +4060,38 @@ public sealed class KvKeyspace : IDisposable
                 "KV keyspace is read-only after a WAL or committed maintenance failure; reopen it before writing.",
                 _writeFault);
         }
+    }
+
+    /// <summary>
+    /// 保存某一逻辑版本已排序的可变/冻结覆盖层。数组内容只引用发布后不可变的键和值对象，
+    /// 后续写会替换字典条目并推进 sequence，不会修改已发布数组。
+    /// </summary>
+    private sealed class SnapshotOverlayCache
+    {
+        /// <summary>创建一个与来源字典引用和 sequence 绑定的共享有序视图。</summary>
+        public SnapshotOverlayCache(
+            Dictionary<byte[], KvValueEntry> mutableSource,
+            Dictionary<byte[], KvValueEntry>? frozenSource,
+            long sequence,
+            KeyValuePair<byte[], KvValueEntry>[] mutableValues,
+            KeyValuePair<byte[], KvValueEntry>[] frozenValues)
+        {
+            MutableSource = mutableSource;
+            FrozenSource = frozenSource;
+            Sequence = sequence;
+            MutableValues = mutableValues;
+            FrozenValues = frozenValues;
+        }
+
+        public Dictionary<byte[], KvValueEntry> MutableSource { get; }
+
+        public Dictionary<byte[], KvValueEntry>? FrozenSource { get; }
+
+        public long Sequence { get; }
+
+        public KeyValuePair<byte[], KvValueEntry>[] MutableValues { get; }
+
+        public KeyValuePair<byte[], KvValueEntry>[] FrozenValues { get; }
     }
 
     private sealed class KvCheckpointState

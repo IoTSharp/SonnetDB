@@ -821,14 +821,14 @@ internal static class RelationalSelectExecutor
                 ? new TableAccessCostEstimate(
                     access.AccessPath,
                     access.IndexName,
-                    Math.Min(tableRows, inPlan.Values.Count),
-                    Math.Max(1, Math.Min(tableRows, inPlan.Values.Count)),
+                    Math.Min(tableRows, inPlan.LookupKeys.Count),
+                    Math.Max(1, Math.Min(tableRows, inPlan.LookupKeys.Count)),
                     0,
-                    Math.Max(1, Math.Min(tableRows, inPlan.Values.Count)),
+                    Math.Max(1, Math.Min(tableRows, inPlan.LookupKeys.Count)),
                     "catalog",
                     null,
                     null,
-                    $"{access.AccessPath} rows<={Math.Min(tableRows, inPlan.Values.Count)}",
+                    $"{access.AccessPath} rows<={Math.Min(tableRows, inPlan.LookupKeys.Count)}",
                     access.FallbackReason,
                     null)
                 : TableCostPlanner.Estimate(
@@ -871,7 +871,7 @@ internal static class RelationalSelectExecutor
         }
 
         if (access.InPlan is { } inPlan)
-            return Math.Min(tableRows, inPlan.Values.Count);
+            return Math.Min(tableRows, inPlan.LookupKeys.Count);
 
         TableStatisticsState state = store.GetStatisticsState();
         if (access.IndexPlan is { } indexPlan
@@ -5035,7 +5035,11 @@ internal static class RelationalSelectExecutor
             var sortValues = new object?[values.Length - rowLength - 1];
             Array.Copy(values, rowLength + 1, sortValues, 0, sortValues.Length);
             return new RelationSortRow(row, sortValues);
-        });
+        },
+        // 两段行估算的第二个固定头正好等于编码中 rowLength 标量的引用和载荷，无需组合数组。
+        static item => checked(
+            SqlSpillRowCodec.EstimateRowBytes(item.Row)
+            + SqlSpillRowCodec.EstimateRowBytes(item.SortValues)));
 
     private sealed class RelationSortComparer(IReadOnlyList<SortDirection> directions) : IComparer<RelationSortRow>
     {

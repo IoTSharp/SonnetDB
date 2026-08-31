@@ -25,6 +25,7 @@ public sealed partial class TsdbRegistry : IDisposable
     private readonly string _dataRoot;
     private readonly EventBroadcaster? _broadcaster;
     private readonly KvOptions _kvOptions;
+    private readonly SqlMemoryOptions _sqlMemoryOptions;
     private bool _disposed;
 
     /// <summary>
@@ -33,7 +34,7 @@ public sealed partial class TsdbRegistry : IDisposable
     /// <param name="dataRoot">数据库根目录。</param>
     /// <param name="broadcaster">可选事件广播器；非 null 时 Create/Drop 会广播 <c>db</c> 事件。</param>
     public TsdbRegistry(string dataRoot, EventBroadcaster? broadcaster = null)
-        : this(dataRoot, broadcaster, kvOptions: null)
+        : this(dataRoot, broadcaster, kvOptions: null, sqlMemoryOptions: null)
     {
     }
 
@@ -47,11 +48,29 @@ public sealed partial class TsdbRegistry : IDisposable
         string dataRoot,
         EventBroadcaster? broadcaster,
         KvOptions? kvOptions)
+        : this(dataRoot, broadcaster, kvOptions, sqlMemoryOptions: null)
+    {
+    }
+
+    /// <summary>
+    /// 使用指定 KV 与 SQL 内部资源选项构造注册表。传入选项会作为所有新建和自动加载数据库的固定配置。
+    /// </summary>
+    /// <param name="dataRoot">数据库根目录。</param>
+    /// <param name="broadcaster">可选事件广播器；非 null 时 Create/Drop 会广播 <c>db</c> 事件。</param>
+    /// <param name="kvOptions">所有数据库共用的 KV 选项；为空时使用 Core 默认值。</param>
+    /// <param name="sqlMemoryOptions">所有数据库共用的 SQL 内部资源选项；为空时使用 Core 默认值。</param>
+    public TsdbRegistry(
+        string dataRoot,
+        EventBroadcaster? broadcaster,
+        KvOptions? kvOptions,
+        SqlMemoryOptions? sqlMemoryOptions)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
         _dataRoot = Path.GetFullPath(dataRoot);
         _broadcaster = broadcaster;
         _kvOptions = kvOptions ?? KvOptions.Default;
+        _sqlMemoryOptions = sqlMemoryOptions ?? SqlMemoryOptions.Default;
+        _sqlMemoryOptions.Validate();
         Directory.CreateDirectory(_dataRoot);
     }
 
@@ -114,12 +133,7 @@ public sealed partial class TsdbRegistry : IDisposable
 
             var path = Path.Combine(_dataRoot, name);
             Directory.CreateDirectory(path);
-            var instance = Tsdb.Open(new TsdbOptions
-            {
-                RootDirectory = path,
-                AllowUserFunctions = false,
-                Kv = _kvOptions,
-            });
+            var instance = OpenDatabase(path);
             _databases[name] = instance;
             tsdb = instance;
             _broadcaster?.Publish(ServerEventFactory.Database(
@@ -141,16 +155,23 @@ public sealed partial class TsdbRegistry : IDisposable
                 var name = Path.GetFileName(dir);
                 if (!IsValidName(name) || _databases.ContainsKey(name))
                     continue;
-                var instance = Tsdb.Open(new TsdbOptions
-                {
-                    RootDirectory = dir,
-                    AllowUserFunctions = false,
-                    Kv = _kvOptions,
-                });
+                var instance = OpenDatabase(dir);
                 _databases[name] = instance;
             }
         }
     }
+
+    /// <summary>使用注册表冻结的存储与 SQL 资源配置打开一个数据库实例。</summary>
+    /// <param name="path">数据库目录绝对路径。</param>
+    /// <returns>已打开的数据库实例。</returns>
+    private Tsdb OpenDatabase(string path)
+        => Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = path,
+            AllowUserFunctions = false,
+            Kv = _kvOptions,
+            SqlMemory = _sqlMemoryOptions,
+        });
 
     /// <summary>
     /// 删除数据库：从注册表移除、Dispose 实例，并把磁盘目录尝试删除（best-effort）。

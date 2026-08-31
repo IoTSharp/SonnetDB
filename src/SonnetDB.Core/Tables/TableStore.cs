@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using SonnetDB.Diagnostics;
 using SonnetDB.Kv;
 
 namespace SonnetDB.Tables;
@@ -138,8 +139,10 @@ public sealed class TableStore : IDisposable
     internal KvReadSnapshot AcquireReadSnapshot()
     {
         KvReadSnapshot snapshot;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             snapshot = _keyspace.AcquireReadSnapshot();
         }
@@ -165,8 +168,10 @@ public sealed class TableStore : IDisposable
         KvReadSnapshot snapshot;
         int rowCount;
         long generation;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             schema = _schema;
             snapshot = _keyspace.AcquireReadSnapshot();
@@ -490,8 +495,10 @@ public sealed class TableStore : IDisposable
     public TableRow? GetByPrimaryKey(IReadOnlyList<object?> primaryKeyValues)
     {
         ArgumentNullException.ThrowIfNull(primaryKeyValues);
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             TableSchema schema = _schema;
             Interlocked.Increment(ref _primaryKeyLookupCount);
@@ -514,26 +521,39 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(primaryKeyValues);
+        byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
+        return GetByEncodedPrimaryKey(snapshot, schema, key);
+    }
+
+    /// <summary>在调用方持有的稳定读快照内按已编码主键读取一行。</summary>
+    internal TableRow? GetByEncodedPrimaryKey(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        byte[] primaryKey)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(primaryKey);
         Interlocked.Increment(ref _primaryKeyLookupCount);
 
-        byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
-        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
         KvEntry? payload = snapshot.GetEntry(rowKey);
         return payload is null
             ? null
-            : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), key);
+            : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), primaryKey);
     }
 
     /// <summary>
-    /// 在同一个稳定读快照内按单列主键批量读取，保持输入键顺序并跳过未命中项。
+    /// 在同一个稳定读快照内按已编码主键批量读取，保持输入键顺序并跳过未命中项。
     /// </summary>
-    /// <param name="primaryKeyValues">已完成类型转换和物理键去重的单列主键值。</param>
+    /// <param name="primaryKeys">已完成类型转换、物理编码和去重的主键。</param>
+    /// <param name="limit">最多返回的有效行数；为空表示读取全部命中。</param>
     /// <returns>按输入键顺序排列的命中行。</returns>
-    internal IReadOnlyList<TableRow> GetByPrimaryKeys(
-        IReadOnlyList<object> primaryKeyValues,
+    internal IReadOnlyList<TableRow> GetByEncodedPrimaryKeys(
+        IReadOnlyList<byte[]> primaryKeys,
         int? limit = null)
     {
-        ArgumentNullException.ThrowIfNull(primaryKeyValues);
+        ArgumentNullException.ThrowIfNull(primaryKeys);
         Interlocked.Increment(ref _multiGetCount);
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
@@ -542,25 +562,17 @@ public sealed class TableStore : IDisposable
             throw new InvalidOperationException("批量主键点读仅支持单列主键。");
 
         int take = limit ?? int.MaxValue;
-        if (primaryKeyValues.Count == 0 || take <= 0)
+        if (primaryKeys.Count == 0 || take <= 0)
             return [];
 
-        var rows = new List<TableRow>(Math.Min(primaryKeyValues.Count, take));
-        foreach (var value in primaryKeyValues)
+        var rows = new List<TableRow>(Math.Min(primaryKeys.Count, take));
+        foreach (byte[] primaryKey in primaryKeys)
         {
             if (rows.Count >= take)
                 break;
 
-            Interlocked.Increment(ref _primaryKeyLookupCount);
-            byte[] primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, [value]);
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-            KvEntry? payload = tableSnapshot.Snapshot.GetEntry(rowKey);
-            if (payload is not null)
-            {
-                rows.Add(new TableRow(
-                    TableRowCodec.Decode(schema, payload.Value.Span),
-                    primaryKey));
-            }
+            if (GetByEncodedPrimaryKey(tableSnapshot.Snapshot, schema, primaryKey) is { } row)
+                rows.Add(row);
         }
 
         return rows;
@@ -699,63 +711,50 @@ public sealed class TableStore : IDisposable
     }
 
     /// <summary>
-    /// 在同一个稳定读快照内批量探测单列二级索引，保持输入键及索引项顺序。
+    /// 在同一个稳定读快照内批量探测已编码的二级索引前缀，保持输入键及索引项顺序。
     /// </summary>
-    /// <param name="index">单列普通二级索引。</param>
-    /// <param name="indexValues">已完成类型转换和物理键去重的索引值。</param>
+    /// <param name="index">普通二级索引。</param>
+    /// <param name="lookupPrefixes">已完成类型转换、物理编码和去重的索引查找前缀。</param>
+    /// <param name="uniquePointLookup">每个查找前缀是否覆盖完整唯一索引键。</param>
     /// <param name="limit">最多返回的有效行数；为空表示读取全部命中。</param>
     /// <returns>批量索引探测命中的候选行。</returns>
-    internal IReadOnlyList<TableRow> GetByIndexValues(
+    internal IReadOnlyList<TableRow> GetByEncodedIndexPrefixes(
         TableIndex index,
-        IReadOnlyList<object> indexValues,
+        IReadOnlyList<byte[]> lookupPrefixes,
+        bool uniquePointLookup,
         int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(index);
-        ArgumentNullException.ThrowIfNull(indexValues);
+        ArgumentNullException.ThrowIfNull(lookupPrefixes);
         Interlocked.Increment(ref _multiGetCount);
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         TableSchema schema = tableSnapshot.Schema;
-        if (index.Columns.Count != 1 || !string.IsNullOrWhiteSpace(index.JsonPath))
-            throw new InvalidOperationException("批量二级索引点读仅支持单列普通索引。");
+        if (!string.IsNullOrWhiteSpace(index.JsonPath) || (uniquePointLookup && !index.IsUnique))
+        {
+            throw new InvalidOperationException(
+                "批量二级索引点读要求普通索引，且完整键点读只能用于唯一索引。");
+        }
 
         int take = limit ?? int.MaxValue;
-        if (take <= 0 || indexValues.Count == 0)
+        if (take <= 0 || lookupPrefixes.Count == 0)
             return [];
 
-        var rows = new List<TableRow>(Math.Min(indexValues.Count, take));
-        foreach (var value in indexValues)
+        var rows = new List<TableRow>(Math.Min(lookupPrefixes.Count, take));
+        foreach (byte[] prefix in lookupPrefixes)
         {
             if (rows.Count >= take)
                 break;
 
-            byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, [value], schema)
-                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的批量等值键无法编码。");
-            using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
+            foreach (TableRow row in EnumerateByEncodedIndexPrefix(
+                tableSnapshot.Snapshot,
+                schema,
+                index,
+                prefix,
+                uniquePointLookup,
+                take - rows.Count))
             {
-                Prefix = prefix,
-                PageSize = Math.Min(256, take - rows.Count),
-            });
-
-            while (!cursor.IsExhausted && rows.Count < take)
-            {
-                IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
-                if (page.Count == 0)
-                    break;
-
-                foreach (var entry in page)
-                {
-                    if (rows.Count >= take)
-                        break;
-
-                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
-                    KvEntry? payload = tableSnapshot.Snapshot.GetEntry(rowKey);
-                    if (payload is null)
-                        continue;
-                    rows.Add(new TableRow(
-                        TableRowCodec.Decode(schema, payload.Value.Span),
-                        entry.Value.ToArray()));
-                }
+                rows.Add(row);
             }
         }
 
@@ -882,11 +881,56 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(indexColumnValues);
 
-        if (limit is <= 0)
-            yield break;
-
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema)
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+        foreach (TableRow row in EnumerateByEncodedIndexPrefix(
+            snapshot,
+            schema,
+            index,
+            prefix,
+            uniquePointLookup: index.IsUnique && indexColumnValues.Count == index.Columns.Count,
+            limit))
+        {
+            yield return row;
+        }
+    }
+
+    /// <summary>在调用方持有的稳定读快照内按已编码二级索引前缀惰性读取候选行。</summary>
+    internal IEnumerable<TableRow> EnumerateByEncodedIndexPrefix(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        TableIndex index,
+        byte[] prefix,
+        bool uniquePointLookup,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(prefix);
+
+        if (limit is <= 0)
+            yield break;
+        if (uniquePointLookup)
+        {
+            if (!index.IsUnique)
+                throw new InvalidOperationException("完整索引键点读只能用于唯一索引。");
+
+            KvEntry? entry = snapshot.GetEntry(prefix);
+            if (entry is not null)
+            {
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                KvEntry? payload = snapshot.GetEntry(rowKey);
+                if (payload is not null)
+                {
+                    yield return new TableRow(
+                        TableRowCodec.Decode(schema, payload.Value.Span),
+                        entry.Value.ToArray());
+                }
+            }
+            yield break;
+        }
+
         using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = prefix,

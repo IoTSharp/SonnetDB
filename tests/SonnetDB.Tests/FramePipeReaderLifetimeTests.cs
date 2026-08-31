@@ -2,12 +2,15 @@ using System.Buffers;
 using System.IO.Pipelines;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
 using SonnetDB.Protocol;
+using SonnetDB.Sql.Execution;
 using SonnetMQ;
 using Xunit;
 
@@ -20,6 +23,82 @@ namespace SonnetDB.Tests;
 public sealed class FramePipeReaderLifetimeTests
 {
     private const string FrameContentType = "application/x-sonnetdb-frame";
+
+    /// <summary>
+    /// 验证单块 SQL 查询只由外层执行一次最终刷新，且 meta、rows、end 三帧完整同批送出。
+    /// </summary>
+    [Fact]
+    public async Task Unary_SqlSingleChunk_FlushesCompleteResponseOnce()
+    {
+        using var dependencies = new HandlerDependencies();
+        const string databaseName = "single-flush";
+        Assert.True(dependencies.Registry.TryCreate(databaseName, out _));
+
+        IReadOnlyList<byte[]> batches = await ExecuteSqlQueryAsync(
+            dependencies,
+            databaseName,
+            "SELECT 1 AS value",
+            streamId: 41);
+
+        List<(FrameHeader Header, byte[] Payload)> frames = DecodeFrames(Assert.Single(batches));
+        Assert.Equal(
+            [SqlQueryChunkKind.Meta, SqlQueryChunkKind.Rows, SqlQueryChunkKind.End],
+            frames.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
+        Assert.Single(SqlFrameCodec.DecodeQueryRowsFrame(frames[1].Payload));
+        (long rowCount, _) = SqlFrameCodec.DecodeQueryEndFrame(frames[2].Payload);
+        Assert.Equal(1, rowCount);
+        Assert.All(frames, static frame =>
+        {
+            Assert.Equal((byte)FrameService.Sql, frame.Header.Service);
+            Assert.Equal(41u, frame.Header.StreamId);
+            Assert.True(frame.Header.IsResponse);
+            Assert.False(frame.Header.IsError);
+        });
+    }
+
+    /// <summary>
+    /// 验证跨两个 rows 块的 SQL 查询只在首块后中途刷新，第二块与 end 保持在最终刷新中。
+    /// </summary>
+    [Fact]
+    public async Task Unary_SqlMultipleChunks_FlushesOnlyBeforeFollowingChunk()
+    {
+        using var dependencies = new HandlerDependencies();
+        const string databaseName = "multiple-flushes";
+        const string tableName = "frame_flush_rows";
+        int rowCount = SqlFrameCodec.DefaultMaxChunkRows + 1;
+        Assert.True(dependencies.Registry.TryCreate(databaseName, out var database));
+        SqlExecutor.Execute(database, $"CREATE TABLE {tableName} (id INT, PRIMARY KEY (id))");
+
+        var rows = new IReadOnlyList<object?>[rowCount];
+        for (int i = 0; i < rows.Length; i++)
+            rows[i] = new object?[] { (long)i };
+        Assert.Equal(rowCount, database.Tables.Open(tableName).InsertMany(rows));
+
+        IReadOnlyList<byte[]> batches = await ExecuteSqlQueryAsync(
+            dependencies,
+            databaseName,
+            $"SELECT id FROM {tableName} ORDER BY id",
+            streamId: 42);
+
+        Assert.Equal(2, batches.Count);
+        List<(FrameHeader Header, byte[] Payload)> firstBatch = DecodeFrames(batches[0]);
+        List<(FrameHeader Header, byte[] Payload)> finalBatch = DecodeFrames(batches[1]);
+        Assert.Equal(
+            [SqlQueryChunkKind.Meta, SqlQueryChunkKind.Rows],
+            firstBatch.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
+        Assert.Equal(
+            [SqlQueryChunkKind.Rows, SqlQueryChunkKind.End],
+            finalBatch.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
+
+        object?[][] firstRows = SqlFrameCodec.DecodeQueryRowsFrame(firstBatch[1].Payload);
+        object?[][] finalRows = SqlFrameCodec.DecodeQueryRowsFrame(finalBatch[0].Payload);
+        Assert.Equal(SqlFrameCodec.DefaultMaxChunkRows, firstRows.Length);
+        Assert.Single(finalRows);
+        Assert.Equal(0L, firstRows[0][0]);
+        Assert.Equal((long)rowCount - 1, finalRows[0][0]);
+        (long encodedRowCount, _) = SqlFrameCodec.DecodeQueryEndFrame(finalBatch[1].Payload);
+        Assert.Equal(rowCount, encodedRowCount);
+    }
 
     [Fact]
     public async Task Unary_CancelDuringResponseFlush_ReleasesRequestRead()
@@ -138,11 +217,16 @@ public sealed class FramePipeReaderLifetimeTests
         await AssertReaderReleasedAsync(requestPipe.Reader, expectBufferedData: true);
     }
 
+    /// <summary>
+    /// 创建直接调用帧处理器所需的最小 HTTP 上下文。
+    /// </summary>
     private static DefaultHttpContext CreateContext(
         PipeReader requestReader,
         PipeWriter responseWriter,
         CancellationToken requestAborted,
-        string protocol)
+        string protocol,
+        IServiceProvider? requestServices = null,
+        string? role = null)
     {
         var context = new DefaultHttpContext();
         context.Features.Set<IRequestBodyPipeFeature>(new RequestBodyPipeFeature(requestReader));
@@ -150,7 +234,82 @@ public sealed class FramePipeReaderLifetimeTests
         context.Request.ContentType = FrameContentType;
         context.Request.Protocol = protocol;
         context.RequestAborted = requestAborted;
+        if (requestServices is not null)
+            context.RequestServices = requestServices;
+        if (role is not null)
+            context.Items[BearerAuthMiddleware.RoleKey] = role;
         return context;
+    }
+
+    /// <summary>
+    /// 执行一条 SQL 请求并在每次底层 flush 后立即取走该批字节，以便验证真实刷新边界。
+    /// </summary>
+    private static async Task<IReadOnlyList<byte[]>> ExecuteSqlQueryAsync(
+        HandlerDependencies dependencies,
+        string database,
+        string sql,
+        uint streamId)
+    {
+        var encodedRequest = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(encodedRequest, streamId, database, sql);
+
+        var requestPipe = new Pipe();
+        var responsePipe = new Pipe(new PipeOptions(
+            pauseWriterThreshold: 16 * 1024 * 1024,
+            resumeWriterThreshold: 8 * 1024 * 1024));
+        var batches = new List<byte[]>();
+
+        // 每次刷新后立即消费完整缓冲，因此批次内容精确对应一次 FlushAsync。
+        async ValueTask<FlushResult> RecordFlushAsync(CancellationToken cancellationToken)
+        {
+            FlushResult flush = await responsePipe.Writer.FlushAsync(cancellationToken);
+            ReadResult read = await responsePipe.Reader.ReadAsync(cancellationToken);
+            batches.Add(read.Buffer.ToArray());
+            responsePipe.Reader.AdvanceTo(read.Buffer.End);
+            return flush;
+        }
+
+        var responseWriter = new ControlledFlushPipeWriter(responsePipe.Writer, RecordFlushAsync);
+        DefaultHttpContext context = CreateContext(
+            requestPipe.Reader,
+            responseWriter,
+            CancellationToken.None,
+            "HTTP/2",
+            dependencies.Services,
+            ServerRoles.Admin);
+
+        await requestPipe.Writer.WriteAsync(encodedRequest.WrittenMemory);
+        await requestPipe.Writer.CompleteAsync();
+        try
+        {
+            await FrameEndpointHandler.HandleAsync(
+                context,
+                dependencies.Registry,
+                dependencies.Grants,
+                dependencies.MqStore,
+                dependencies.Metrics);
+        }
+        finally
+        {
+            await requestPipe.Reader.CompleteAsync();
+            await responsePipe.Writer.CompleteAsync();
+            await responsePipe.Reader.CompleteAsync();
+        }
+
+        return batches;
+    }
+
+    /// <summary>
+    /// 解码一个刷新批次中的全部完整帧，并拒绝残留的半帧字节。
+    /// </summary>
+    private static List<(FrameHeader Header, byte[] Payload)> DecodeFrames(byte[] batch)
+    {
+        var frames = new List<(FrameHeader, byte[])>();
+        var buffer = new ReadOnlySequence<byte>(batch);
+        while (FrameCodec.TryReadFrame(ref buffer, out FrameHeader header, out ReadOnlySequence<byte> payload))
+            frames.Add((header, payload.ToArray()));
+        Assert.Equal(0, buffer.Length);
+        return frames;
     }
 
     private static byte[] EncodeMissingDatabasePullFrames(int count)
@@ -266,6 +425,9 @@ public sealed class FramePipeReaderLifetimeTests
             Path.GetTempPath(),
             "sonnetdb-frame-reader-lifetime-" + Guid.NewGuid().ToString("N"));
 
+        /// <summary>
+        /// 创建帧处理器依赖，并注册 SQL 并发准入服务供直接调用测试使用。
+        /// </summary>
         public HandlerDependencies()
         {
             Directory.CreateDirectory(_root);
@@ -276,6 +438,10 @@ public sealed class FramePipeReaderLifetimeTests
                 Path = Path.Combine(_root, "mq"),
                 RetentionInterval = TimeSpan.Zero,
             });
+            var services = new ServiceCollection();
+            services.AddSingleton<IOptions<ServerOptions>>(Options.Create(new ServerOptions()));
+            services.AddSingleton<SqlHttpRequestAdmission>();
+            Services = services.BuildServiceProvider();
         }
 
         public TsdbRegistry Registry { get; }
@@ -286,8 +452,14 @@ public sealed class FramePipeReaderLifetimeTests
 
         public ServerMetrics Metrics { get; } = new();
 
+        public ServiceProvider Services { get; }
+
+        /// <summary>
+        /// 释放服务、数据库注册表和消息存储，并尽力清理测试目录。
+        /// </summary>
         public void Dispose()
         {
+            Services.Dispose();
             MqStore.Dispose();
             Registry.Dispose();
             try

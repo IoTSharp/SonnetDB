@@ -20,6 +20,11 @@ internal static class TableSqlExecutor
 {
     private const int MaxIndexUnionBranches = 32;
     private const int MaxIndexUnionCandidates = 65_536;
+    // 范围等值组只需要保存列值；主键已经包含在 Values 中，无需在 spill 文件中重复一份编码键。
+    private static readonly SqlSpillCodec<TableRow> _tableRowSpillCodec = new(
+        static row => row.Values as object?[] ?? row.Values.ToArray(),
+        static values => new TableRow(values),
+        static row => SqlSpillRowCodec.EstimateRowBytes(row.Values));
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTableColumns =
@@ -1501,7 +1506,7 @@ internal static class TableSqlExecutor
         return store.Scan();
     }
 
-    /// <summary>按安全的单列正向 IN 形状加载候选行，失败时返回 false 交给既有规划器。</summary>
+    /// <summary>按安全的主键或复合索引正向 IN 形状加载候选行，失败时返回 false 交给既有规划器。</summary>
     private static bool TryLoadInCandidateRows(
         TableStore store,
         TableSchema schema,
@@ -1513,15 +1518,30 @@ internal static class TableSqlExecutor
             return false;
 
         rows = plan.UsesPrimaryKey
-            ? store.GetByPrimaryKeys(plan.Values)
-            : store.GetByIndexValues(plan.Index!, plan.Values);
+            ? store.GetByEncodedPrimaryKeys(plan.LookupKeys)
+            : store.GetByEncodedIndexPrefixes(
+                plan.Index!,
+                plan.LookupKeys,
+                IsUniqueInPointLookup(plan));
         return true;
     }
 
-    /// <summary>识别单列主键或单列非 JSON 二级索引的正向 IN，并完成键值转换。</summary>
+    /// <summary>识别单列主键，或复合索引“连续等值前缀 + 下一列 IN”，并完成键值转换。</summary>
     internal static bool TryChooseInAccessPlan(
         TableSchema schema,
         SqlExpression? where,
+        out TableInAccessPlan plan)
+        => TryChooseInAccessPlan(schema, where, equalityCollectionTestHook: null, out plan);
+
+    /// <summary>识别 IN 批量访问计划，并允许测试观察复合索引等值前缀的收集动作。</summary>
+    /// <param name="schema">目标表结构。</param>
+    /// <param name="where">待规划的 WHERE 谓词。</param>
+    /// <param name="equalityCollectionTestHook">开始收集等值前缀时触发的测试钩子；生产调用传空。</param>
+    /// <param name="plan">成功选择的 IN 批量访问计划。</param>
+    internal static bool TryChooseInAccessPlan(
+        TableSchema schema,
+        SqlExpression? where,
+        Action? equalityCollectionTestHook,
         out TableInAccessPlan plan)
     {
         plan = null!;
@@ -1548,19 +1568,117 @@ internal static class TableSqlExecutor
             return false;
 
         TableIndex? index = null;
+        IReadOnlyList<object?> equalityPrefixValues = [];
         bool usesPrimaryKey = schema.PrimaryKey.Count == 1
             && string.Equals(schema.PrimaryKey[0], column.Name, StringComparison.Ordinal);
         if (!usesPrimaryKey)
         {
-            index = schema.Indexes.FirstOrDefault(candidate =>
-                candidate.Columns.Count == 1
-                && string.IsNullOrWhiteSpace(candidate.JsonPath)
-                && string.Equals(candidate.Columns[0], column.Name, StringComparison.Ordinal));
+            int bestMatchedColumns = 0;
+            bool hasPrefixedIndexCandidate = false;
+
+            // 单列及 IN 位于首列的索引无需解析其他谓词，先走零前缀选择以保留低分配快路。
+            foreach (TableIndex candidate in schema.Indexes)
+            {
+                if (!string.IsNullOrWhiteSpace(candidate.JsonPath))
+                    continue;
+
+                int inColumnOrdinal = FindIndexColumnOrdinal(candidate, column.Name);
+                if (inColumnOrdinal < 0)
+                    continue;
+                if (inColumnOrdinal > 0)
+                {
+                    hasPrefixedIndexCandidate = true;
+                    continue;
+                }
+
+                const int matchedColumns = 1;
+                if (candidate.IsUnique
+                    && matchedColumns < candidate.Columns.Count
+                    && HasNullableUnmatchedIndexColumn(schema, candidate, matchedColumns))
+                {
+                    continue;
+                }
+
+                if (IsPreferredInIndexCandidate(candidate, matchedColumns, index, bestMatchedColumns))
+                {
+                    index = candidate;
+                    bestMatchedColumns = matchedColumns;
+                }
+            }
+
+            if (hasPrefixedIndexCandidate)
+            {
+                equalityCollectionTestHook?.Invoke();
+                if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
+                    equalityByColumn.Clear();
+
+                foreach (TableIndex candidate in schema.Indexes)
+                {
+                    if (!string.IsNullOrWhiteSpace(candidate.JsonPath))
+                        continue;
+
+                    int inColumnOrdinal = FindIndexColumnOrdinal(candidate, column.Name);
+                    if (inColumnOrdinal <= 0)
+                        continue;
+
+                    var prefix = new List<object?>(inColumnOrdinal);
+                    bool prefixBound = true;
+                    for (int ordinal = 0; ordinal < inColumnOrdinal; ordinal++)
+                    {
+                        string prefixColumnName = candidate.Columns[ordinal];
+                        if (!equalityByColumn.TryGetValue(prefixColumnName, out SqlExpression? expression))
+                        {
+                            prefixBound = false;
+                            break;
+                        }
+
+                        TableColumn prefixColumn = schema.TryGetColumn(prefixColumnName)
+                            ?? throw new InvalidOperationException(
+                                $"索引 '{candidate.Name}' 引用了未知列 '{prefixColumnName}'。");
+                        if (!CanUseIndexEqualityLookup(prefixColumn, expression))
+                        {
+                            prefixBound = false;
+                            break;
+                        }
+                        try
+                        {
+                            prefix.Add(ConvertTableValue(expression, prefixColumn));
+                        }
+                        catch (Exception exception) when (exception is InvalidOperationException
+                            or ArgumentOutOfRangeException
+                            or InvalidCastException
+                            or FormatException
+                            or OverflowException)
+                        {
+                            prefixBound = false;
+                            break;
+                        }
+                    }
+                    if (!prefixBound)
+                        continue;
+
+                    int matchedColumns = inColumnOrdinal + 1;
+                    if (candidate.IsUnique
+                        && matchedColumns < candidate.Columns.Count
+                        && HasNullableUnmatchedIndexColumn(schema, candidate, matchedColumns))
+                    {
+                        continue;
+                    }
+
+                    if (IsPreferredInIndexCandidate(candidate, matchedColumns, index, bestMatchedColumns))
+                    {
+                        index = candidate;
+                        bestMatchedColumns = matchedColumns;
+                        equalityPrefixValues = prefix;
+                    }
+                }
+            }
+
             if (index is null)
                 return false;
         }
 
-        var values = new List<object>(inExpression.Values.Count);
+        var lookupKeys = new List<byte[]>(inExpression.Values.Count);
         var seen = new HashSet<byte[]>(inExpression.Values.Count, KvKeyComparer.Instance);
         foreach (var expression in inExpression.Values)
         {
@@ -1596,13 +1714,56 @@ internal static class TableSqlExecutor
                 return false;
             }
 
-            byte[] encoded = EncodeInLookupKey(schema, column, index, usesPrimaryKey, value);
+            byte[] encoded = EncodeInLookupKey(
+                schema,
+                column,
+                index,
+                usesPrimaryKey,
+                equalityPrefixValues,
+                value);
             if (seen.Add(encoded))
-                values.Add(value);
+                lookupKeys.Add(encoded);
         }
 
-        plan = new TableInAccessPlan(index, usesPrimaryKey, values);
+        // 规划阶段产生的物理键会直接交给单快照 MultiGet，避免执行阶段按每个 IN 值再次分配和编码。
+        plan = new TableInAccessPlan(index, usesPrimaryKey, equalityPrefixValues, lookupKeys);
         return true;
+    }
+
+    /// <summary>返回目标列在索引中的序号；索引不包含该列时返回 -1。</summary>
+    private static int FindIndexColumnOrdinal(TableIndex index, string columnName)
+    {
+        for (int ordinal = 0; ordinal < index.Columns.Count; ordinal++)
+        {
+            if (string.Equals(index.Columns[ordinal], columnName, StringComparison.Ordinal))
+                return ordinal;
+        }
+
+        return -1;
+    }
+
+    /// <summary>按唯一点读、匹配列数和完整前缀的既有顺序比较 IN 索引候选。</summary>
+    private static bool IsPreferredInIndexCandidate(
+        TableIndex candidate,
+        int candidateMatchedColumns,
+        TableIndex? current,
+        int currentMatchedColumns)
+    {
+        if (current is null)
+            return true;
+
+        bool candidateIsUniquePoint = candidate.IsUnique
+            && candidateMatchedColumns == candidate.Columns.Count;
+        bool currentIsUniquePoint = current.IsUnique
+            && currentMatchedColumns == current.Columns.Count;
+        if (candidateIsUniquePoint != currentIsUniquePoint)
+            return candidateIsUniquePoint;
+        if (candidateMatchedColumns != currentMatchedColumns)
+            return candidateMatchedColumns > currentMatchedColumns;
+
+        bool candidateIsFullPrefix = candidateMatchedColumns == candidate.Columns.Count;
+        bool currentIsFullPrefix = currentMatchedColumns == current.Columns.Count;
+        return candidateIsFullPrefix && !currentIsFullPrefix;
     }
 
     /// <summary>为主键或二级索引点查生成稳定去重键。</summary>
@@ -1611,10 +1772,27 @@ internal static class TableSqlExecutor
         TableColumn column,
         TableIndex? index,
         bool usesPrimaryKey,
+        IReadOnlyList<object?> equalityPrefixValues,
         object value)
-        => usesPrimaryKey
-            ? TableKeyCodec.EncodePrimaryKeyValues(schema, [value])
-            : TableIndexCodec.EncodeLookupPrefix(index!, [value], schema)!;
+    {
+        if (usesPrimaryKey)
+            return TableKeyCodec.EncodePrimaryKeyValues(schema, [value]);
+
+        object?[] lookupValues = BuildInLookupValues(equalityPrefixValues, value);
+        return TableIndexCodec.EncodeLookupPrefix(index!, lookupValues, schema)!;
+    }
+
+    /// <summary>把已绑定的索引等值前缀和一个 IN 值组合为连续物理查找键。</summary>
+    private static object?[] BuildInLookupValues(
+        IReadOnlyList<object?> equalityPrefixValues,
+        object value)
+    {
+        var lookupValues = new object?[equalityPrefixValues.Count + 1];
+        for (int prefixIndex = 0; prefixIndex < equalityPrefixValues.Count; prefixIndex++)
+            lookupValues[prefixIndex] = equalityPrefixValues[prefixIndex];
+        lookupValues[^1] = value;
+        return lookupValues;
+    }
 
     /// <summary>
     /// A materialized positive IN over a single-column primary key can use point reads. This is
@@ -1918,13 +2096,14 @@ internal static class TableSqlExecutor
 
         if (TryChooseInAccessPlan(schema, where, out var inPlan))
         {
+            bool predicateCovered = IsWhereFullyCoveredByInPlan(where, schema, inPlan);
             return new TableExistsAccessPlan(
-                AccessPath: inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                AccessPath: FormatInAccessPath(inPlan),
                 IndexName: inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
                 UsesPrimaryKey: false,
                 IndexPlan: null,
-                PredicateCovered: IsWhereOnlyInPredicate(where),
-                HasResidualPredicate: !IsWhereOnlyInPredicate(where),
+                PredicateCovered: predicateCovered,
+                HasResidualPredicate: !predicateCovered,
                 InPlan: inPlan);
         }
 
@@ -2220,20 +2399,22 @@ internal static class TableSqlExecutor
 
         if (access.InPlan is { } inPlan)
         {
-            foreach (var value in inPlan.Values)
+            bool uniquePointLookup = IsUniqueInPointLookup(inPlan);
+            foreach (byte[] lookupKey in inPlan.LookupKeys)
             {
                 if (inPlan.UsesPrimaryKey)
                 {
-                    if (store.GetByPrimaryKey(snapshot, schema, [value]) is { } primary)
+                    if (store.GetByEncodedPrimaryKey(snapshot, schema, lookupKey) is { } primary)
                         yield return primary;
                     continue;
                 }
 
-                foreach (var row in store.EnumerateByIndexPrefix(
+                foreach (var row in store.EnumerateByEncodedIndexPrefix(
                     snapshot,
                     schema,
                     inPlan.Index!,
-                    [value]))
+                    lookupKey,
+                    uniquePointLookup))
                     yield return row;
             }
             yield break;
@@ -2378,8 +2559,12 @@ internal static class TableSqlExecutor
         if (plan.InPlan is { } inPlan)
         {
             IReadOnlyList<TableRow> rows = inPlan.UsesPrimaryKey
-                ? store.GetByPrimaryKeys(inPlan.Values, candidateLimit)
-                : store.GetByIndexValues(inPlan.Index!, inPlan.Values, candidateLimit);
+                ? store.GetByEncodedPrimaryKeys(inPlan.LookupKeys, candidateLimit)
+                : store.GetByEncodedIndexPrefixes(
+                    inPlan.Index!,
+                    inPlan.LookupKeys,
+                    IsUniqueInPointLookup(inPlan),
+                    candidateLimit);
             return new TableExistsCandidateRows(plan, rows);
         }
 
@@ -2473,7 +2658,7 @@ internal static class TableSqlExecutor
             return (
                 ObserveCandidateRows(
                     inRows,
-                    inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                    FormatInAccessPath(inPlan),
                     inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
                     fallbackReason: null),
                 false);
@@ -2481,6 +2666,7 @@ internal static class TableSqlExecutor
 
         var plan = ChooseBestIndexAccessPlan(store, schema, statement.Where);
         if (TryChooseOrderedRangeAccessPlan(
+            store,
             schema,
             statement,
             projections,
@@ -2515,6 +2701,40 @@ internal static class TableSqlExecutor
                     FormatIndexAccessPath(orderedPlan),
                     orderedPlan.Index.Name,
                     fallbackReason: null),
+                true);
+        }
+
+        if (TryChooseOrderedResidualRangeAccessPlan(
+            store,
+            schema,
+            statement,
+            projections,
+            plan,
+            out var residualOrderedPlan,
+            out bool residualDescending))
+        {
+            // 残余谓词必须先于分页执行，因此这里只保持索引顺序惰性读取，不下推候选行数上限。
+            IEnumerable<TableRow> residualRows = ObserveCandidateRows(
+                store.EnumerateByIndexRange(
+                    residualOrderedPlan.Index,
+                    residualOrderedPlan.EqualityPrefixValues,
+                    residualOrderedPlan.Range!,
+                    descending: residualDescending),
+                FormatIndexAccessPath(residualOrderedPlan),
+                residualOrderedPlan.Index.Name,
+                fallbackReason: null);
+            if (statement.OrderByList.Count > 1)
+            {
+                // 复合索引中的字符串等长度前缀物理顺序不等同于 SQL 顺序，按范围值分组后校正后缀排序。
+                residualRows = OrderRowsWithinRangeValueGroups(
+                    residualRows,
+                    schema,
+                    residualOrderedPlan,
+                    statement.OrderByList);
+            }
+
+            return (
+                residualRows,
                 true);
         }
 
@@ -2578,7 +2798,7 @@ internal static class TableSqlExecutor
             false);
     }
 
-    /// <summary>在不物化惰性候选的前提下记录实际访问路径和逐行检查数量。</summary>
+    /// <summary>在不物化惰性候选的前提下记录实际访问路径，并在枚举结束时批量累计检查数量。</summary>
     private static IEnumerable<TableRow> ObserveCandidateRows(
         IEnumerable<TableRow> rows,
         string accessPath,
@@ -2586,11 +2806,20 @@ internal static class TableSqlExecutor
         string? fallbackReason)
     {
         SqlExecutionTelemetry.RecordAccessPath(accessPath, indexName, fallbackReason);
-        foreach (var row in rows)
+        long observedRows = 0;
+        try
         {
-            SqlExecutionTelemetry.RecordCandidateRows(1);
-            SqlExecutionTelemetry.RecordExaminedRows(1);
-            yield return row;
+            foreach (var row in rows)
+            {
+                observedRows++;
+                yield return row;
+            }
+        }
+        finally
+        {
+            // LIMIT 早停、取消和异常都会释放枚举器；finally 保证只累计实际交给上层的候选行。
+            if (observedRows > 0)
+                SqlExecutionTelemetry.RecordCandidateAndExaminedRows(observedRows);
         }
     }
 
@@ -2604,6 +2833,7 @@ internal static class TableSqlExecutor
         out int candidateLimit,
         out bool descending)
         => TryChooseOrderedRangeAccessPlan(
+            store: null,
             schema,
             statement,
             BuildProjections(statement.Projections, schema),
@@ -2612,10 +2842,30 @@ internal static class TableSqlExecutor
             out candidateLimit,
             out descending);
 
+    /// <summary>使用运行时成本模型选中的基础计划判断有序范围，供 EXPLAIN 与真实执行保持一致。</summary>
+    internal static bool TryChooseOrderedRangeAccessPlan(
+        TableStore store,
+        TableSchema schema,
+        SelectStatement statement,
+        TableIndexAccessPlan? existingPlan,
+        out TableIndexAccessPlan plan,
+        out int candidateLimit,
+        out bool descending)
+        => TryChooseOrderedRangeAccessPlan(
+            store,
+            schema,
+            statement,
+            BuildProjections(statement.Projections, schema),
+            existingPlan,
+            out plan,
+            out candidateLimit,
+            out descending);
+
     /// <summary>
     /// 选择能完整满足单表排序与分页的有符号范围索引；必要时为无界有序扫描合成全范围。
     /// </summary>
     private static bool TryChooseOrderedRangeAccessPlan(
+        TableStore? store,
         TableSchema schema,
         SelectStatement statement,
         IReadOnlyList<Projection> projections,
@@ -2636,55 +2886,334 @@ internal static class TableSqlExecutor
             return false;
         }
 
-        bool synthesizedRange = false;
-        if (existingPlan is { Range: not null })
-        {
-            plan = existingPlan;
-        }
-        else if (existingPlan is { Range: null } prefixPlan
-            && TryCreateUnboundedOrderRange(schema, prefixPlan, out plan))
-        {
-            synthesizedRange = true;
-        }
-        else if (existingPlan is null && statement.Where is null)
+        if (statement.Where is null)
         {
             foreach (var index in schema.Indexes)
             {
                 var candidate = new TableIndexAccessPlan(index, [], Range: null);
-                if (!TryCreateUnboundedOrderRange(schema, candidate, out var rangedCandidate)
-                    || !OrderByMatchesRangeIndexSequence(
-                        statement.OrderByList,
-                        schema,
-                        projections,
-                        rangedCandidate,
-                        out _))
-                {
+                if (!TryPrepareFullyCoveredOrderedRangeCandidate(
+                    schema,
+                    statement,
+                    projections,
+                    candidate,
+                    out plan,
+                    out descending))
                     continue;
-                }
 
-                plan = rangedCandidate;
-                synthesizedRange = true;
-                break;
+                return true;
             }
+
+            return false;
         }
 
-        if (plan?.Range is null
-            || !OrderByMatchesRangeIndexSequence(
-                statement.OrderByList,
-                schema,
-                projections,
-                plan,
-                out descending)
-            || (statement.Where is null
-                ? !synthesizedRange || plan.EqualityPrefixValues.Count != 0
-                : !IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan)))
+        foreach (TableIndexAccessPlan candidate in EnumerateOrderAwareIndexPlans(
+            store,
+            schema,
+            statement.Where,
+            existingPlan))
         {
-            plan = null!;
+            if (!TryPrepareFullyCoveredOrderedRangeCandidate(
+                schema,
+                statement,
+                projections,
+                candidate,
+                out plan,
+                out descending))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        plan = null!;
+        descending = false;
+        return false;
+    }
+
+    /// <summary>
+    /// 把索引前缀或已有范围计划转换为可满足排序的范围计划，并确认 WHERE 已被完整覆盖。
+    /// </summary>
+    private static bool TryPrepareFullyCoveredOrderedRangeCandidate(
+        TableSchema schema,
+        SelectStatement statement,
+        IReadOnlyList<Projection> projections,
+        TableIndexAccessPlan candidate,
+        out TableIndexAccessPlan plan,
+        out bool descending)
+    {
+        bool synthesizedRange = candidate.Range is null;
+        plan = candidate;
+        descending = false;
+        if (synthesizedRange && !TryCreateUnboundedOrderRange(schema, candidate, out plan))
             return false;
+
+        if (!OrderByMatchesRangeIndexSequence(
+            statement.OrderByList,
+            schema,
+            projections,
+            plan,
+            out descending))
+        {
+            return false;
+        }
+
+        return statement.Where is null
+            ? synthesizedRange && plan.EqualityPrefixValues.Count == 0
+            : IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan);
+    }
+
+    /// <summary>
+    /// 先返回成本模型选中的计划；替代索引只有在不扩大估算候选集时才可换取 ORDER BY 顺序。
+    /// </summary>
+    private static IEnumerable<TableIndexAccessPlan> EnumerateOrderAwareIndexPlans(
+        TableStore? store,
+        TableSchema schema,
+        SqlExpression where,
+        TableIndexAccessPlan? existingPlan)
+    {
+        if (existingPlan is not null)
+            yield return existingPlan;
+
+        // 运行时成本模型明确选择 table scan 时，不允许排序偏好重新启用已被成本淘汰的索引。
+        if (store is not null && existingPlan is null)
+            yield break;
+
+        foreach (TableIndexAccessPlan candidate in CollectIndexAccessPlans(schema, where))
+        {
+            if (existingPlan is not null
+                && (string.Equals(candidate.Index.Name, existingPlan.Index.Name, StringComparison.Ordinal)
+                    || !HasEquivalentEqualityPrefix(candidate, existingPlan)
+                    || !IsOrderAwareAlternativeSelectiveEnough(store, schema, candidate, existingPlan)))
+            {
+                continue;
+            }
+
+            yield return candidate;
+        }
+    }
+
+    /// <summary>确认两个候选绑定了相同列和值的连续等值前缀，避免为排序扩大 WHERE 扫描分区。</summary>
+    private static bool HasEquivalentEqualityPrefix(
+        TableIndexAccessPlan candidate,
+        TableIndexAccessPlan existingPlan)
+    {
+        if (candidate.EqualityPrefixValues.Count != existingPlan.EqualityPrefixValues.Count)
+            return false;
+
+        for (int index = 0; index < candidate.EqualityPrefixValues.Count; index++)
+        {
+            if (!string.Equals(
+                    candidate.Index.Columns[index],
+                    existingPlan.Index.Columns[index],
+                    StringComparison.Ordinal)
+                || !ValuesEqual(
+                    candidate.EqualityPrefixValues[index],
+                    existingPlan.EqualityPrefixValues[index]))
+            {
+                return false;
+            }
         }
 
         return true;
     }
+
+    /// <summary>
+    /// 保守判断排序替代索引是否会扩大候选范围；范围不同且缺少新鲜统计时一律保留原计划。
+    /// </summary>
+    private static bool IsOrderAwareAlternativeSelectiveEnough(
+        TableStore? store,
+        TableSchema schema,
+        TableIndexAccessPlan candidate,
+        TableIndexAccessPlan existingPlan)
+    {
+        // 原计划只有等值前缀时，等价前缀候选覆盖同一分区，替代计划不会比它更宽。
+        if (existingPlan.Range is null)
+            return true;
+        if (candidate.Range is null)
+            return false;
+        if (Equals(candidate.Range, existingPlan.Range))
+            return true;
+        if (store is null)
+            return false;
+
+        TableStatisticsState state = store.GetStatisticsState();
+        if (state is not { IsStale: false, Statistics: { } statistics })
+            return false;
+
+        long existingRows = TableCostPlanner.EstimateIndexRows(
+            store.RowCount,
+            schema,
+            existingPlan,
+            statistics);
+        long candidateRows = TableCostPlanner.EstimateIndexRows(
+            store.RowCount,
+            schema,
+            candidate,
+            statistics);
+        return candidateRows <= existingRows;
+    }
+
+    /// <summary>
+    /// 判断已有范围索引能否按索引顺序惰性执行 AND 残余过滤，并由上层 LIMIT/OFFSET 安全早停。
+    /// </summary>
+    internal static bool TryChooseOrderedResidualRangeAccessPlan(
+        TableSchema schema,
+        SelectStatement statement,
+        out TableIndexAccessPlan plan,
+        out bool descending)
+        => TryChooseOrderedResidualRangeAccessPlan(
+            store: null,
+            schema,
+            statement,
+            BuildProjections(statement.Projections, schema),
+            ChooseBestIndexAccessPlan(schema, statement.Where),
+            out plan,
+            out descending);
+
+    /// <summary>
+    /// 选择只省略阻塞排序、不提前截断候选的有序残余范围计划。
+    /// </summary>
+    private static bool TryChooseOrderedResidualRangeAccessPlan(
+        TableStore? store,
+        TableSchema schema,
+        SelectStatement statement,
+        IReadOnlyList<Projection> projections,
+        TableIndexAccessPlan? existingPlan,
+        out TableIndexAccessPlan plan,
+        out bool descending)
+    {
+        plan = null!;
+        descending = false;
+        if (statement.Distinct
+            || statement.Where is not BinaryExpression { Operator: SqlBinaryOperator.And } where
+            || statement.OrderByList.Count == 0
+            || !TryGetPaginationCandidateLimit(statement.Pagination, out _)
+            || ContainsDisjunctionOrIn(where)
+            || (SqlTransactionContext.Current is { } transaction
+                && transaction.TryGetBufferedMutations(schema.Name, out _)))
+        {
+            return false;
+        }
+
+        foreach (TableIndexAccessPlan candidate in EnumerateOrderAwareIndexPlans(
+            store,
+            schema,
+            where,
+            existingPlan))
+        {
+            if (candidate.Range is null
+                || IsWhereFullyCoveredByRangePlan(where, schema, candidate)
+                || !OrderByMatchesRangeIndexSequence(
+                    statement.OrderByList,
+                    schema,
+                    projections,
+                    candidate,
+                    out descending))
+            {
+                continue;
+            }
+
+            plan = candidate;
+            return true;
+        }
+
+        plan = null!;
+        descending = false;
+        return false;
+    }
+
+    /// <summary>
+    /// 保持范围列的流式顺序，并在查询预算内外排单个并列组，以 SQL 比较语义校正复合索引后缀顺序。
+    /// </summary>
+    private static IEnumerable<TableRow> OrderRowsWithinRangeValueGroups(
+        IEnumerable<TableRow> rows,
+        TableSchema schema,
+        TableIndexAccessPlan plan,
+        IReadOnlyList<OrderBySpec> orderBy)
+    {
+        int rangeOrdinal = plan.Range!.Column.Ordinal;
+        var orderOrdinals = new int[orderBy.Count];
+        int explicitStart = plan.EqualityPrefixValues.Count;
+        int explicitCount = plan.Index.Columns.Count - explicitStart;
+        for (int index = 0; index < orderBy.Count; index++)
+        {
+            string columnName = index < explicitCount
+                ? plan.Index.Columns[explicitStart + index]
+                : schema.PrimaryKey[index - explicitCount];
+            orderOrdinals[index] = schema.TryGetColumn(columnName)?.Ordinal
+                ?? throw new InvalidOperationException(
+                    $"索引 '{plan.Index.Name}' 引用了未知列 '{columnName}'。");
+        }
+
+        var comparer = new TableRowIndexOrderComparer(orderOrdinals, orderBy[0].Direction);
+        using IEnumerator<TableRow> enumerator = rows.GetEnumerator();
+        if (!enumerator.MoveNext())
+            yield break;
+
+        TableRow groupHead = enumerator.Current;
+        bool hasGroup = true;
+        while (hasGroup)
+        {
+            object? rangeValue = groupHead.Values[rangeOrdinal];
+
+            // 该局部迭代器只消费当前范围值，并把下一组首行留给外层循环。
+            IEnumerable<TableRow> EnumerateCurrentGroup()
+            {
+                yield return groupHead;
+                while (enumerator.MoveNext())
+                {
+                    TableRow row = enumerator.Current;
+                    if (!ValuesEqual(rangeValue, row.Values[rangeOrdinal]))
+                    {
+                        groupHead = row;
+                        yield break;
+                    }
+
+                    yield return row;
+                }
+
+                hasGroup = false;
+            }
+
+            IEnumerable<TableRow> orderedGroup = SqlQueryResources.Current is null
+                ? OrderRangeValueGroupInMemory(EnumerateCurrentGroup(), comparer)
+                : SqlSpillSorter.Order(EnumerateCurrentGroup(), comparer, _tableRowSpillCodec);
+            foreach (TableRow groupedRow in orderedGroup)
+                yield return groupedRow;
+        }
+    }
+
+    /// <summary>没有查询资源作用域时保持兼容的组内排序；正常 SQL 根执行均使用预算感知外排路径。</summary>
+    private static IEnumerable<TableRow> OrderRangeValueGroupInMemory(
+        IEnumerable<TableRow> rows,
+        IComparer<TableRow> comparer)
+    {
+        var group = rows.ToList();
+        group.Sort(comparer);
+        foreach (TableRow groupedRow in group)
+            yield return groupedRow;
+    }
+
+    /// <summary>递归排除 OR、IN 与子查询，确保新路径只覆盖可逐行执行的 AND 残余谓词。</summary>
+    private static bool ContainsDisjunctionOrIn(SqlExpression expression)
+        => expression switch
+        {
+            BinaryExpression { Operator: SqlBinaryOperator.Or } => true,
+            BinaryExpression binary => ContainsDisjunctionOrIn(binary.Left)
+                || ContainsDisjunctionOrIn(binary.Right),
+            InExpression => true,
+            UnaryExpression unary => ContainsDisjunctionOrIn(unary.Operand),
+            IsNullExpression isNull => ContainsDisjunctionOrIn(isNull.Operand),
+            FunctionCallExpression function => function.Arguments.Any(ContainsDisjunctionOrIn),
+            NamedArgumentExpression named => ContainsDisjunctionOrIn(named.Value),
+            CaseExpression @case => @case.WhenClauses.Any(static clause =>
+                    ContainsDisjunctionOrIn(clause.Condition)
+                    || ContainsDisjunctionOrIn(clause.Result))
+                || (@case.Else is not null && ContainsDisjunctionOrIn(@case.Else)),
+            SubqueryExpression or ExistsExpression => true,
+            _ => false,
+        };
 
     /// <summary>在等值前缀后的非空 Int64/DATETIME 列上合成无界范围，供 ORDER BY cursor 使用。</summary>
     private static bool TryCreateUnboundedOrderRange(
@@ -2907,9 +3436,96 @@ internal static class TableSqlExecutor
                 ? "secondary_index_range"
                 : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
 
-    /// <summary>判断 WHERE 是否仅由一个正向 IN 谓词组成。</summary>
-    private static bool IsWhereOnlyInPredicate(SqlExpression? where)
-        => where is InExpression { Negated: false, Subquery: null };
+    /// <summary>把主键或二级索引 IN 计划映射为稳定的运行时与 EXPLAIN 访问路径名称。</summary>
+    internal static string FormatInAccessPath(TableInAccessPlan plan)
+        => plan.UsesPrimaryKey
+            ? "primary_key_in"
+            : plan.EqualityPrefixValues.Count == 0
+                ? "secondary_index_in"
+                : "secondary_index_prefix_in";
+
+    /// <summary>判断二级索引 IN 的每个编码前缀是否已经覆盖完整唯一键，可直接执行单次 KV 点读。</summary>
+    private static bool IsUniqueInPointLookup(TableInAccessPlan plan)
+        => !plan.UsesPrimaryKey
+            && plan.Index is { IsUnique: true } index
+            && plan.EqualityPrefixValues.Count + 1 == index.Columns.Count;
+
+    /// <summary>
+    /// 确认 WHERE 仅由当前 IN 谓词及其复合索引连续等值前缀构成，供 EXISTS 安全下推首行上限。
+    /// </summary>
+    private static bool IsWhereFullyCoveredByInPlan(
+        SqlExpression? where,
+        TableSchema schema,
+        TableInAccessPlan plan)
+    {
+        if (where is null)
+            return false;
+
+        string inColumnName = plan.UsesPrimaryKey
+            ? schema.PrimaryKey[0]
+            : plan.Index!.Columns[plan.EqualityPrefixValues.Count];
+        var matchedPrefix = new bool[plan.EqualityPrefixValues.Count];
+        bool matchedIn = false;
+
+        foreach (SqlExpression leaf in FlattenAnd(where))
+        {
+            if (leaf is InExpression
+                {
+                    Negated: false,
+                    Subquery: null,
+                    Value: IdentifierExpression inIdentifier,
+                })
+            {
+                if (matchedIn || !string.Equals(inIdentifier.Name, inColumnName, StringComparison.Ordinal))
+                    return false;
+                matchedIn = true;
+                continue;
+            }
+
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } equality)
+                return false;
+
+            var (identifier, expression) = NormalizeIdentifierComparison(equality);
+            if (identifier is null || expression is null || plan.UsesPrimaryKey)
+                return false;
+
+            int prefixIndex = -1;
+            for (int index = 0; index < plan.EqualityPrefixValues.Count; index++)
+            {
+                if (string.Equals(plan.Index!.Columns[index], identifier.Name, StringComparison.Ordinal))
+                {
+                    prefixIndex = index;
+                    break;
+                }
+            }
+            if (prefixIndex < 0 || matchedPrefix[prefixIndex])
+                return false;
+
+            TableColumn column = schema.TryGetColumn(identifier.Name)
+                ?? throw new InvalidOperationException(
+                    $"索引 '{plan.Index!.Name}' 引用了未知列 '{identifier.Name}'。");
+            if (!CanUseIndexEqualityLookup(column, expression))
+                return false;
+
+            try
+            {
+                if (!ValuesEqual(ConvertTableValue(expression, column), plan.EqualityPrefixValues[prefixIndex]))
+                    return false;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException
+                or ArgumentOutOfRangeException
+                or InvalidCastException
+                or FormatException
+                or OverflowException)
+            {
+                return false;
+            }
+
+            matchedPrefix[prefixIndex] = true;
+        }
+
+        return matchedIn && matchedPrefix.All(static matched => matched);
+    }
 
     /// <summary>
     /// 对完整主键等值条件执行事务内点查：先读取已提交目标行，再仅检查当前事务的小型 mutation 集。
@@ -4295,6 +4911,32 @@ internal static class TableSqlExecutor
                 var comparison = ScalarComparer.Instance.Compare(x[item.ColumnIndex], y[item.ColumnIndex]);
                 if (comparison != 0)
                     return item.Direction == SortDirection.Descending ? -comparison : comparison;
+            }
+
+            return 0;
+        }
+    }
+
+    /// <summary>按已解析的表列顺序比较索引范围行，供单个范围值并列组校正 SQL 排序。</summary>
+    private sealed class TableRowIndexOrderComparer(
+        IReadOnlyList<int> columnOrdinals,
+        SortDirection direction) : IComparer<TableRow>
+    {
+        /// <summary>逐列应用统一 SQL 标量比较，并按查询方向返回首个非零结果。</summary>
+        public int Compare(TableRow? x, TableRow? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+
+            foreach (int ordinal in columnOrdinals)
+            {
+                int comparison = ScalarComparer.Instance.Compare(x.Values[ordinal], y.Values[ordinal]);
+                if (comparison != 0)
+                    return direction == SortDirection.Descending ? -comparison : comparison;
             }
 
             return 0;

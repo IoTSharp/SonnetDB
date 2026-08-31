@@ -117,6 +117,81 @@ public sealed class SqlExecutionMetricsTests : IDisposable
         Assert.Equal(3, snapshot.LogicalReads);
     }
 
+    /// <summary>并发物理读取应通过原子累计完整保留读取次数和 payload 字节数。</summary>
+    [Fact]
+    public void RecordPhysicalRead_ConcurrentCalls_AccumulatesAllValues()
+    {
+        const int workerCount = 8;
+        const int readsPerWorker = 10_000;
+        const int bytesPerRead = 17;
+        var metrics = new SqlExecutionMetrics();
+
+        Parallel.For(0, workerCount, _ =>
+        {
+            for (var index = 0; index < readsPerWorker; index++)
+                metrics.RecordPhysicalRead(bytesPerRead);
+        });
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        long expectedReads = workerCount * readsPerWorker;
+        Assert.Equal(expectedReads, snapshot.PhysicalReads);
+        Assert.Equal(expectedReads * bytesPerRead, snapshot.PhysicalReadBytes);
+    }
+
+    /// <summary>并发读取尚未全部结束时冻结指标，也必须返回来自同一稳定点的次数与字节数。</summary>
+    [Fact]
+    public async Task Complete_ConcurrentPhysicalReads_ReturnsConsistentPair()
+    {
+        const int workerCount = 8;
+        const int readsPerWorker = 20_000;
+        const int bytesPerRead = 19;
+        var metrics = new SqlExecutionMetrics();
+        using var firstReadsCompleted = new CountdownEvent(workerCount);
+
+        Task[] writers = Enumerable.Range(0, workerCount)
+            .Select(_ => Task.Run(() =>
+            {
+                metrics.RecordPhysicalRead(bytesPerRead);
+                firstReadsCompleted.Signal();
+                for (var index = 1; index < readsPerWorker; index++)
+                    metrics.RecordPhysicalRead(bytesPerRead);
+            }))
+            .ToArray();
+
+        firstReadsCompleted.Wait();
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+        await Task.WhenAll(writers);
+
+        Assert.True(snapshot.PhysicalReads >= workerCount);
+        Assert.Equal(snapshot.PhysicalReads * bytesPerRead, snapshot.PhysicalReadBytes);
+    }
+
+    /// <summary>溢出回滚与成功 writer 交错时，失败样本不得回绕字节数或污染读取次数。</summary>
+    [Fact]
+    public void RecordPhysicalRead_ByteCountOverflow_FailsWithoutMutatingTotals()
+    {
+        const int workerCount = 8;
+        const int callsPerWorker = 2_000;
+        var metrics = new SqlExecutionMetrics();
+        metrics.RecordPhysicalRead(long.MaxValue);
+
+        Parallel.For(0, workerCount, worker =>
+        {
+            for (var index = 0; index < callsPerWorker; index++)
+            {
+                if ((worker & 1) == 0)
+                    metrics.RecordPhysicalRead(0);
+                else
+                    Assert.Throws<OverflowException>(() => metrics.RecordPhysicalRead(1));
+            }
+        });
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        long successfulReads = 1L + (workerCount / 2L * callsPerWorker);
+        Assert.Equal(successfulReads, snapshot.PhysicalReads);
+        Assert.Equal(long.MaxValue, snapshot.PhysicalReadBytes);
+    }
+
     /// <summary>事务已有同表写入时，完整复合主键 UPDATE 仍应只合并目标键而不扫描全表。</summary>
     [Fact]
     public void QueueUpdate_CompositePrimaryKeyWithBufferedWrite_UsesPointLookup()

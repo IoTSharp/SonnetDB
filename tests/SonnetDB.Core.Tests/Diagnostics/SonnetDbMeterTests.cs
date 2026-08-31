@@ -218,6 +218,17 @@ public sealed class SonnetDbMeterTests : IDisposable
         Assert.All(measurements, measurement => Assert.True(measurement.Value >= 0));
     }
 
+    /// <summary>仅开启 SQL 执行明细时，KV state 读取不应承担直方图计时开销。</summary>
+    [Fact]
+    public void StartKvStateReadTiming_SqlTelemetryOnly_ReturnsZero()
+    {
+        var metrics = new SqlExecutionMetrics();
+
+        Assert.False(SonnetDbMeter.KvStateReadDuration.Enabled);
+        using (SqlExecutionTelemetry.Enter(metrics))
+            Assert.Equal(0, SonnetDbMeter.StartKvStateReadTiming());
+    }
+
     [Fact]
     public void KvGenerationAndCleanup_RecordTaskMetrics()
     {

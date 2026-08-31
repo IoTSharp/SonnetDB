@@ -22,6 +22,24 @@ SONNETDB_SonnetDBServer__SqlHttpAdmission__QueueLimit=8
 
 许可数最小为 1、最大为 256；队列最小为 0、最大为 4096。客户端收到 `sql_overloaded` 时应遵守 `Retry-After` 并使用有界重试，不应无间隔立即重放。
 
+## SQL 内部资源预算
+
+`SqlHttpAdmission` 控制进入数据库的 HTTP/Frame SQL 请求数；`SqlExecution` 控制每个数据库实例内部的阻塞算子内存和查询内部 worker。两者不是同一个并发旋钮，不能通过无限增加内部 worker 代替请求排队治理。
+
+默认配置如下，修改后需重启 Server，使新打开和自动加载的数据库取得同一份冻结资源快照：
+
+```text
+SONNETDB_SonnetDBServer__SqlExecution__QueryLimitBytes=67108864
+SONNETDB_SonnetDBServer__SqlExecution__GlobalLimitBytes=268435456
+SONNETDB_SonnetDBServer__SqlExecution__MaxParallelWorkers=8
+SONNETDB_SonnetDBServer__SqlExecution__ParallelismMinRows=2048
+SONNETDB_SonnetDBServer__SqlExecution__ParallelWorkerMemoryBytes=65536
+```
+
+`QueryLimitBytes` 限制单条 SQL 的阻塞算子工作集，有效范围为 1 MiB～16 GiB；`GlobalLimitBytes` 限制同一数据库全部并发 SQL 的共享工作集，有效范围为 1 MiB～64 GiB，并会自动提高到不小于单查询预算。预算不足时 Hash Join、排序/Top-N、GROUP BY、DISTINCT 等支持的算子会 spill 到数据库临时目录，不会静默截断结果；过低预算可能显著增加磁盘 I/O。
+
+`MaxParallelWorkers` 的有效上限为当前进程可见处理器数与 64 的较小值，且只影响已接入受控并行的算子；`ParallelismMinRows` 有效范围为 1～1,000,000,000。`ParallelWorkerMemoryBytes` 有效范围为 4 KiB～64 MiB，绑定时还会按 `GlobalLimitBytes / MaxParallelWorkers` 收紧，保证数据库全部内部 worker 的固定预留不超过共享预算。提高请求许可或内部 worker 前，应以吞吐、P95/P99、SQL 队列等待、锁等待、spill 和 ThreadPool 积压的阶梯压测结果为依据。
+
 ## 关系表 `IN (SELECT ...)` 更新与删除
 
 关系表 `UPDATE` / `DELETE` 支持以普通关系表或 measurement 为数据源的非相关、单列 `IN (SELECT ...)` 与 `NOT IN (SELECT ...)`。子查询在外层行遍历前只执行一次，参数、`ORDER BY`、`LIMIT`、空结果和 `NULL` 三值逻辑均按普通 `SELECT` 处理；多列结果与相关子查询会在执行重型扫描前明确拒绝。Document、information schema、TVF、vector/hybrid 等暂未建立静态绑定合同的数据源会在扫描前返回明确的“不支持”错误。正向单列主键 `IN` 会把物化结果转为主键点读，避免外层再次全表解码宽行。

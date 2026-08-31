@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using SonnetDB.Configuration;
+using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using Xunit;
 
@@ -22,6 +23,13 @@ public sealed class ServerOptionsTests
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
+        Assert.Equal(SqlMemoryOptions.Default.QueryLimitBytes, options.SqlExecution.QueryLimitBytes);
+        Assert.Equal(SqlMemoryOptions.Default.GlobalLimitBytes, options.SqlExecution.GlobalLimitBytes);
+        Assert.Equal(SqlMemoryOptions.Default.MaxParallelWorkers, options.SqlExecution.MaxParallelWorkers);
+        Assert.Equal(SqlMemoryOptions.Default.ParallelismMinRows, options.SqlExecution.ParallelismMinRows);
+        Assert.Equal(
+            SqlMemoryOptions.Default.ParallelWorkerMemoryBytes,
+            options.SqlExecution.ParallelWorkerMemoryBytes);
         Assert.Equal(4, options.RelationalTableWarmupConcurrency);
         Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
         Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
@@ -183,6 +191,129 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(1, boundedOptions.PermitLimit);
         Assert.Equal(4096, boundedOptions.QueueLimit);
+    }
+
+    /// <summary>验证每数据库 SQL 内部资源配置可绑定，并按处理器数量限制内部 worker。</summary>
+    [Fact]
+    public void Bind_WithSqlExecutionValues_AppliesConfiguration()
+    {
+        int configuredWorkers = Math.Min(2, Math.Clamp(Environment.ProcessorCount, 1, 64));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlExecution:QueryLimitBytes"] = "8388608",
+                ["SonnetDBServer:SqlExecution:GlobalLimitBytes"] = "67108864",
+                ["SonnetDBServer:SqlExecution:MaxParallelWorkers"] = "2",
+                ["SonnetDBServer:SqlExecution:ParallelismMinRows"] = "512",
+                ["SonnetDBServer:SqlExecution:ParallelWorkerMemoryBytes"] = "131072",
+            })
+            .Build();
+
+        SqlExecutionResourceOptions options = ServerOptionsBinder.Bind(configuration).SqlExecution;
+
+        Assert.Equal(8L * 1024 * 1024, options.QueryLimitBytes);
+        Assert.Equal(64L * 1024 * 1024, options.GlobalLimitBytes);
+        Assert.Equal(configuredWorkers, options.MaxParallelWorkers);
+        Assert.Equal(512, options.ParallelismMinRows);
+        Assert.Equal(128L * 1024, options.ParallelWorkerMemoryBytes);
+    }
+
+    /// <summary>验证查询、全局和 worker 预算的交叉约束不会允许总预留超过全局预算。</summary>
+    [Fact]
+    public void Bind_WithSqlExecutionExtremes_EnforcesCoupledBounds()
+    {
+        int workerLimit = Math.Clamp(Environment.ProcessorCount, 1, 64);
+        var coupled = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlExecution:QueryLimitBytes"] = "8388608",
+                ["SonnetDBServer:SqlExecution:GlobalLimitBytes"] = "1",
+                ["SonnetDBServer:SqlExecution:MaxParallelWorkers"] = int.MaxValue.ToString(),
+                ["SonnetDBServer:SqlExecution:ParallelismMinRows"] = "0",
+                ["SonnetDBServer:SqlExecution:ParallelWorkerMemoryBytes"] = long.MaxValue.ToString(),
+            })
+            .Build();
+
+        SqlExecutionResourceOptions coupledOptions = ServerOptionsBinder.Bind(coupled).SqlExecution;
+
+        Assert.Equal(8L * 1024 * 1024, coupledOptions.QueryLimitBytes);
+        Assert.Equal(coupledOptions.QueryLimitBytes, coupledOptions.GlobalLimitBytes);
+        Assert.Equal(workerLimit, coupledOptions.MaxParallelWorkers);
+        Assert.Equal(1, coupledOptions.ParallelismMinRows);
+        Assert.Equal(
+            Math.Min(64L * 1024 * 1024, coupledOptions.GlobalLimitBytes / workerLimit),
+            coupledOptions.ParallelWorkerMemoryBytes);
+        Assert.True(
+            coupledOptions.ParallelWorkerMemoryBytes * coupledOptions.MaxParallelWorkers
+            <= coupledOptions.GlobalLimitBytes);
+
+        var maximums = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlExecution:QueryLimitBytes"] = long.MaxValue.ToString(),
+                ["SonnetDBServer:SqlExecution:GlobalLimitBytes"] = long.MaxValue.ToString(),
+                ["SonnetDBServer:SqlExecution:ParallelismMinRows"] = long.MaxValue.ToString(),
+            })
+            .Build();
+        SqlExecutionResourceOptions maximumOptions = ServerOptionsBinder.Bind(maximums).SqlExecution;
+
+        Assert.Equal(16L * 1024 * 1024 * 1024, maximumOptions.QueryLimitBytes);
+        Assert.Equal(64L * 1024 * 1024 * 1024, maximumOptions.GlobalLimitBytes);
+        Assert.Equal(1_000_000_000, maximumOptions.ParallelismMinRows);
+    }
+
+    /// <summary>验证 worker 总预留同时受单查询预算约束，避免配置有效但运行时始终回退串行。</summary>
+    [Fact]
+    public void Bind_WithWorkerMemoryAbovePerQueryShare_ClampsToQueryBudget()
+    {
+        int workerLimit = Math.Clamp(Environment.ProcessorCount, 1, 64);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlExecution:QueryLimitBytes"] = (1024L * 1024).ToString(),
+                ["SonnetDBServer:SqlExecution:GlobalLimitBytes"] = (4L * 1024 * 1024 * 1024).ToString(),
+                ["SonnetDBServer:SqlExecution:MaxParallelWorkers"] = int.MaxValue.ToString(),
+                ["SonnetDBServer:SqlExecution:ParallelWorkerMemoryBytes"] = long.MaxValue.ToString(),
+            })
+            .Build();
+
+        SqlExecutionResourceOptions options = ServerOptionsBinder.Bind(configuration).SqlExecution;
+        long expectedWorkerBytes = Math.Min(
+            64L * 1024 * 1024,
+            Math.Min(
+                options.QueryLimitBytes / options.MaxParallelWorkers,
+                options.GlobalLimitBytes / options.MaxParallelWorkers));
+
+        Assert.Equal(workerLimit, options.MaxParallelWorkers);
+        Assert.Equal(expectedWorkerBytes, options.ParallelWorkerMemoryBytes);
+        Assert.True(
+            options.ParallelWorkerMemoryBytes * options.MaxParallelWorkers
+            <= options.QueryLimitBytes);
+        Assert.True(
+            options.ParallelWorkerMemoryBytes * options.MaxParallelWorkers
+            <= options.GlobalLimitBytes);
+    }
+
+    /// <summary>验证服务注册层把五个可绑定字段完整复制到 Core 的不可变资源选项。</summary>
+    [Fact]
+    public void ServiceRegistration_MapsSqlExecutionOptionsToCore()
+    {
+        var server = new SqlExecutionResourceOptions
+        {
+            QueryLimitBytes = 11,
+            GlobalLimitBytes = 22,
+            MaxParallelWorkers = 3,
+            ParallelismMinRows = 44,
+            ParallelWorkerMemoryBytes = 55,
+        };
+
+        SqlMemoryOptions core = SonnetDbServiceRegistration.CreateSqlMemoryOptions(server);
+
+        Assert.Equal(server.QueryLimitBytes, core.QueryLimitBytes);
+        Assert.Equal(server.GlobalLimitBytes, core.GlobalLimitBytes);
+        Assert.Equal(server.MaxParallelWorkers, core.MaxParallelWorkers);
+        Assert.Equal(server.ParallelismMinRows, core.ParallelismMinRows);
+        Assert.Equal(server.ParallelWorkerMemoryBytes, core.ParallelWorkerMemoryBytes);
     }
 
     /// <summary>验证索引重建预算可由部署配置覆盖，并始终限制在明确的安全范围内。</summary>

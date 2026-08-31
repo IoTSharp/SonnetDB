@@ -1,6 +1,9 @@
 namespace SonnetDB.Kv;
 
-internal sealed class KvKeyComparer : IEqualityComparer<byte[]>, IComparer<byte[]>
+internal sealed class KvKeyComparer :
+    IEqualityComparer<byte[]>,
+    IComparer<byte[]>,
+    IAlternateEqualityComparer<ReadOnlySpan<byte>, byte[]>
 {
     public static KvKeyComparer Instance { get; } = new();
 
@@ -20,15 +23,30 @@ internal sealed class KvKeyComparer : IEqualityComparer<byte[]>, IComparer<byte[
     public int GetHashCode(byte[] obj)
     {
         ArgumentNullException.ThrowIfNull(obj);
+        return GetHashCode(obj.AsSpan());
+    }
 
+    /// <summary>比较调用方的临时字节视图与字典持有的稳定键，不创建中间数组。</summary>
+    public bool Equals(ReadOnlySpan<byte> alternate, byte[] other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return alternate.SequenceEqual(other);
+    }
+
+    /// <summary>为临时字节视图计算与 byte[] 键完全一致的 FNV-1a 哈希。</summary>
+    public int GetHashCode(ReadOnlySpan<byte> alternate)
+    {
         unchecked
         {
             int hash = (int)2166136261;
-            for (int i = 0; i < obj.Length; i++)
-                hash = (hash ^ obj[i]) * 16777619;
+            for (int i = 0; i < alternate.Length; i++)
+                hash = (hash ^ alternate[i]) * 16777619;
             return hash;
         }
     }
+
+    /// <summary>需要把 alternate key 插入字典时创建独立数组；只读查找不会调用本方法。</summary>
+    public byte[] Create(ReadOnlySpan<byte> alternate) => alternate.ToArray();
 
     public int Compare(byte[]? x, byte[]? y)
     {

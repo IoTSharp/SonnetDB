@@ -44,14 +44,16 @@ internal sealed record TableExistsAccessPlan(
     TableInAccessPlan? InPlan = null,
     TableIndexUnionAccessPlan? UnionPlan = null);
 
-/// <summary>单列正向 IN 的点查访问计划。</summary>
-/// <param name="Index">使用的单列二级索引；主键点查时为空。</param>
+/// <summary>单列主键，或复合二级索引“连续等值前缀 + 下一列 IN”的批量访问计划。</summary>
+/// <param name="Index">使用的普通二级索引；主键点查时为空。</param>
 /// <param name="UsesPrimaryKey">是否使用单列主键点查。</param>
-/// <param name="Values">已按列类型转换并去除 NULL 的键值。</param>
+/// <param name="EqualityPrefixValues">IN 列之前已按索引顺序绑定的连续等值前缀。</param>
+/// <param name="LookupKeys">已完成类型转换、物理编码和去重的主键或索引查找前缀。</param>
 internal sealed record TableInAccessPlan(
     TableIndex? Index,
     bool UsesPrimaryKey,
-    IReadOnlyList<object> Values);
+    IReadOnlyList<object?> EqualityPrefixValues,
+    IReadOnlyList<byte[]> LookupKeys);
 
 /// <summary>OR 索引并集中的单个可索引分支。</summary>
 /// <param name="Predicate">分支原始谓词，最终结果仍按完整 WHERE 复检。</param>

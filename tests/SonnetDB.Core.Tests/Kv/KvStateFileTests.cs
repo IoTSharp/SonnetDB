@@ -169,6 +169,75 @@ public sealed class KvStateFileTests : IDisposable
             $"Reading should allocate the returned value once without a payload copy. Allocated={allocated:N0} bytes.");
     }
 
+    /// <summary>验证同一不可变 state 的不同键可同时进入按位置读取，不再受共享文件游标串行化。</summary>
+    [Fact]
+    public async Task DiskRead_DifferentKeysCanRunConcurrentlyWithoutSharedFilePosition()
+    {
+        string path = Path.Combine(_root, "concurrent-read.SDBKVSNP");
+        byte[] firstKey = Encoding.UTF8.GetBytes("capture:first");
+        byte[] secondKey = Encoding.UTF8.GetBytes("capture:second");
+        byte[] firstValue = Enumerable.Repeat((byte)0x11, 64 * 1024).ToArray();
+        byte[] secondValue = Enumerable.Repeat((byte)0x22, 64 * 1024).ToArray();
+        KeyValuePair<byte[], KvValueEntry>[] entries =
+        [
+            new(firstKey, new KvValueEntry(firstValue, version: 1)),
+            new(secondKey, new KvValueEntry(secondValue, version: 2)),
+        ];
+        KvStateFile.SaveSnapshot(path, sequence: 2, entries, entries.Length);
+        using KvDiskState state = KvStateFile.OpenDiskState(path);
+        using var readersReady = new Barrier(2);
+        state.ReadStartedTestHook = () =>
+        {
+            if (!readersReady.SignalAndWait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("concurrent disk reads did not overlap");
+        };
+
+        Task<KvValueEntry?> first = Task.Run(() => state.Get(firstKey));
+        Task<KvValueEntry?> second = Task.Run(() => state.Get(secondKey));
+        KvValueEntry?[] values = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(15));
+
+        Assert.Equal(firstValue, values[0]!.Value);
+        Assert.Equal(secondValue, values[1]!.Value);
+    }
+
+    /// <summary>验证 owner 在按位置读取期间释放时，临时引用会把缓存句柄保留到读取结束。</summary>
+    [Fact]
+    public async Task DiskRead_InFlightOwnerDispose_KeepsHandleAliveUntilReadCompletes()
+    {
+        string path = Path.Combine(_root, "dispose-during-read.SDBKVSNP");
+        byte[] key = Encoding.UTF8.GetBytes("capture:dispose");
+        byte[] expected = Enumerable.Repeat((byte)0x5A, 64 * 1024).ToArray();
+        KeyValuePair<byte[], KvValueEntry>[] entries =
+        [
+            new(key, new KvValueEntry(expected, version: 1)),
+        ];
+        KvStateFile.SaveSnapshot(path, sequence: 1, entries, entries.Length);
+        var state = KvStateFile.OpenDiskState(path);
+        using var readStarted = new ManualResetEventSlim();
+        using var releaseRead = new ManualResetEventSlim();
+        state.ReadStartedTestHook = () =>
+        {
+            readStarted.Set();
+            if (!releaseRead.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("test did not release the in-flight disk read");
+        };
+
+        Task<KvValueEntry?> read = Task.Run(() => state.Get(key));
+        try
+        {
+            Assert.True(readStarted.Wait(TimeSpan.FromSeconds(10)));
+            state.Dispose();
+        }
+        finally
+        {
+            releaseRead.Set();
+        }
+
+        KvValueEntry? restored = await read.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(expected, restored!.Value);
+        Assert.Throws<ObjectDisposedException>(() => state.Get(key));
+    }
+
     [Fact]
     public void DiskRead_CorruptValue_ThrowsCrcMismatch()
     {

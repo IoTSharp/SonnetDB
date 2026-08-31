@@ -9,6 +9,7 @@ using SonnetDB.Coap;
 using SonnetDB.Configuration;
 using SonnetDB.Copilot;
 using SonnetDB.Diagnostics;
+using SonnetDB.Engine;
 using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.LineProtocolUdp;
@@ -66,10 +67,12 @@ internal static class SonnetDbServiceRegistration
                 IndexRebuildMaxWalBytes = options.Kv.IndexRebuildMaxWalBytes,
                 IndexRebuildMaxOverlayEntries = options.Kv.IndexRebuildMaxOverlayEntries,
             };
+            SqlMemoryOptions sqlMemoryOptions = CreateSqlMemoryOptions(options.SqlExecution);
             var registry = new TsdbRegistry(
                 options.DataRoot,
                 sp.GetRequiredService<EventBroadcaster>(),
-                kvOptions);
+                kvOptions,
+                sqlMemoryOptions);
             if (options.AutoLoadExistingDatabases)
                 registry.LoadExisting();
             return registry;
@@ -250,6 +253,27 @@ internal static class SonnetDbServiceRegistration
         LineProtocolUdpBootstrap.ConfigureServices(builder, serverOptions.LineProtocolUdp);
     }
 
+    /// <summary>
+    /// 把已完成边界规范化的 Server 配置复制为不可变 Core SQL 资源快照。
+    /// </summary>
+    /// <param name="options">Server 的每数据库 SQL 内部资源配置。</param>
+    /// <returns>供所有数据库实例共用的 Core SQL 内存与并行配置。</returns>
+    internal static SqlMemoryOptions CreateSqlMemoryOptions(SqlExecutionResourceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new SqlMemoryOptions
+        {
+            QueryLimitBytes = options.QueryLimitBytes,
+            GlobalLimitBytes = options.GlobalLimitBytes,
+            MaxParallelWorkers = options.MaxParallelWorkers,
+            ParallelismMinRows = options.ParallelismMinRows,
+            ParallelWorkerMemoryBytes = options.ParallelWorkerMemoryBytes,
+        };
+    }
+
+    /// <summary>取得承载控制面持久数据的系统目录，并确保目录已经创建。</summary>
+    /// <param name="services">应用服务容器。</param>
+    /// <returns>系统目录绝对或规范化路径。</returns>
     private static string GetSystemDirectory(IServiceProvider services)
     {
         var serverOptions = services.GetRequiredService<IOptions<ServerOptions>>().Value;

@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Hashing;
+using Microsoft.Win32.SafeHandles;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Kv;
 
@@ -382,6 +384,7 @@ internal sealed class KvDiskState : IDisposable
     private readonly object _sync = new();
     private readonly KvDiskIndexEntry[] _entries;
     private readonly FileStream _stream;
+    private readonly SafeFileHandle _readHandle;
     private int _referenceCount = 1;
     private bool _ownerReleased;
     private bool _disposed;
@@ -391,6 +394,9 @@ internal sealed class KvDiskState : IDisposable
 
     /// <summary>测试范围扫描底层枚举器实际开始执行的次数。</summary>
     internal Action? ScanStartedTestHook { get; set; }
+
+    /// <summary>测试并发按位置读取进入实际 I/O 前的时机。</summary>
+    internal Action? ReadStartedTestHook { get; set; }
 
     public KvDiskState(string path, long sequence, long generation, IReadOnlyList<KvDiskIndexEntry> entries)
     {
@@ -405,6 +411,8 @@ internal sealed class KvDiskState : IDisposable
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read | FileShare.Delete);
+        // 构造时只暴露一次句柄，避免每次点读触发 FileStream 的 Flush/Seek 兼容逻辑。
+        _readHandle = _stream.SafeFileHandle;
     }
 
     public string Path { get; }
@@ -557,25 +565,58 @@ internal sealed class KvDiskState : IDisposable
 
     public KvValueEntry Read(KvDiskIndexEntry entry)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        byte[] value = new byte[entry.ValueLength];
+        AddReadReference();
+        try
+        {
+            byte[] value = new byte[entry.ValueLength];
+            ReadStartedTestHook?.Invoke();
+            long readStarted = SonnetDbMeter.StartKvStateReadTiming();
+            if (ReadExactAt(value, entry.ValueOffset) < entry.ValueLength)
+                throw new InvalidDataException("KV state entry value is truncated.");
+            SonnetDbMeter.RecordKvStateRead(readStarted, entry.ValueLength);
 
+            var crc = new Crc32();
+            crc.Append(entry.Key);
+            crc.Append(value);
+            uint actualCrc = crc.GetCurrentHashAsUInt32();
+            if (actualCrc != entry.PayloadCrc)
+                throw new InvalidDataException("KV state entry CRC mismatch.");
+
+            return new KvValueEntry(value, entry.Version, entry.ExpiresAtUtc);
+        }
+        finally
+        {
+            ReleaseLease();
+        }
+    }
+
+    /// <summary>为一次锁外按位置读取增加临时引用，避免 checkpoint 替换期间关闭共享句柄。</summary>
+    private void AddReadReference()
+    {
         lock (_sync)
         {
+            // owner 释放后，既有快照 lease 仍必须可读；只有引用归零并真正关闭后才拒绝。
             ObjectDisposedException.ThrowIf(_disposed, this);
-            _stream.Position = entry.ValueOffset;
-            if (ReadExact(_stream, value) < entry.ValueLength)
-                throw new InvalidDataException("KV state entry value is truncated.");
+            _referenceCount = checked(_referenceCount + 1);
+        }
+    }
+
+    /// <summary>从明确文件偏移读取完整 payload；不同线程不共享或修改 FileStream.Position。</summary>
+    private int ReadExactAt(Span<byte> destination, long fileOffset)
+    {
+        int total = 0;
+        while (total < destination.Length)
+        {
+            int read = RandomAccess.Read(
+                _readHandle,
+                destination[total..],
+                checked(fileOffset + total));
+            if (read == 0)
+                break;
+            total += read;
         }
 
-        var crc = new Crc32();
-        crc.Append(entry.Key);
-        crc.Append(value);
-        uint actualCrc = crc.GetCurrentHashAsUInt32();
-        if (actualCrc != entry.PayloadCrc)
-            throw new InvalidDataException("KV state entry CRC mismatch.");
-
-        return new KvValueEntry(value, entry.Version, entry.ExpiresAtUtc);
+        return total;
     }
 
     public void ValidateAllEntries()

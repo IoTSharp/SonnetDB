@@ -1575,20 +1575,23 @@ public static class SqlExplainPlanner
 
         if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
         {
-            long rows = inPlan.Values.Count;
+            long rows = inPlan.LookupKeys.Count;
+            string accessPath = TableSqlExecutor.FormatInAccessPath(inPlan);
             return new TableAccessCostEstimate(
-                inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                accessPath,
                 inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
                 rows, rows, 0, rows, "catalog", null, null,
-                $"{(inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in")} rows<={rows}",
+                $"{accessPath} rows<={rows}",
                 null, null);
         }
 
         if ((estimate.IndexPlan is not null || where is null)
             && statement is not null
             && TableSqlExecutor.TryChooseOrderedRangeAccessPlan(
+                store,
                 schema,
                 statement,
+                estimate.IndexPlan,
                 out var orderedPlan,
                 out int orderedCandidateLimit,
                 out _))
@@ -1626,7 +1629,7 @@ public static class SqlExplainPlanner
                 long branchRows = branch.AccessPlan switch
                 {
                     { UsesPrimaryKey: true } => 1,
-                    { InPlan: { } branchIn } => branchIn.Values.Count,
+                    { InPlan: { } branchIn } => branchIn.LookupKeys.Count,
                     { IndexPlan: { Index.IsUnique: true, IsFullEquality: true } } => 1,
                     { IndexPlan: { } branchIndex } when state.Statistics is not null && !state.IsStale
                         => TableCostPlanner.EstimateIndexRows(

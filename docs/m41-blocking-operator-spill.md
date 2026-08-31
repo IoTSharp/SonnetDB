@@ -4,6 +4,8 @@
 
 `TsdbOptions.SqlMemory` 定义数据库实例级资源边界：`QueryLimitBytes` 是每条 SQL 的默认阻塞算子额度，`GlobalLimitBytes` 是该实例并发查询共享的总额度。单次调用可用 `SqlExecutionOptions.BlockingOperatorMemoryLimitBytes` 覆盖查询额度；值必须大于零。
 
+独立 Server 部署可通过 `SonnetDBServer:SqlExecution` 配置同名的查询/全局预算以及内部并行参数；启动绑定会强制 `GlobalLimitBytes >= QueryLimitBytes`，并把配置快照传给新建与自动加载的每个数据库。配置修改不会热替换已打开数据库的预算，需要重启 Server。
+
 预算只约束算子的工作集，不截断公开查询结果。算子无法同时取得查询额度和全局额度时必须切换 spill；不能把候选行、分组、连接匹配或排序尾部静默丢弃。
 
 ## 算子行为
