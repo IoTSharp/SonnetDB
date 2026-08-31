@@ -224,6 +224,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Copilot providers, model groups, local models | [Copilot Provider and Model Catalog](docs/copilot-providers.md) |
 | VS Code installation, connections, and extension development | [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode), [SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
+| Deterministic text chunks, full-snapshot diffs, and bounded RAG apply callbacks (Core building blocks) | [RAG Ingestion Core](docs/rag-ingestion-core.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md), [MongoDB-like Migration](docs/mongodb-migration.md), [Vector Search](docs/vector-search.md) |
 | Binary frame protocol, MQTT ingest | [Frame Protocol](docs/frame-protocol.md) |

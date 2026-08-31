@@ -15,8 +15,15 @@ public static class SemanticContentValidator
     public static SemanticContentValidationResult Validate(
         SemanticContentManifest manifest,
         IReadOnlyDictionary<string, EmbeddingProfile>? profiles = null)
+        => Validate(manifest, profiles, CancellationToken.None);
+
+    internal static SemanticContentValidationResult Validate(
+        SemanticContentManifest manifest,
+        IReadOnlyDictionary<string, EmbeddingProfile>? profiles,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+        cancellationToken.ThrowIfCancellationRequested();
         var failures = new List<SemanticContentValidationFailure>();
 
         if (manifest.SchemaVersion <= 0)
@@ -42,9 +49,9 @@ public static class SemanticContentValidator
             Add(failures, "sizeBytes", "minimum", "sizeBytes 不能为负数。");
 
         ValidateState(manifest.IndexState, failures, "indexState");
-        ValidateChunks(manifest.Chunks, failures);
-        ValidateSegments(manifest.Segments, failures);
-        ValidateBindings(manifest, profiles, failures);
+        ValidateChunks(manifest.Chunks, failures, cancellationToken);
+        ValidateSegments(manifest.Segments, failures, cancellationToken);
+        ValidateBindings(manifest, profiles, failures, cancellationToken);
 
         if (manifest.CreatedUtc != default
             && manifest.UpdatedUtc != default
@@ -53,6 +60,7 @@ public static class SemanticContentValidator
             Add(failures, "updatedUtc", "ordering", "updatedUtc 不能早于 createdUtc。");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return failures.Count == 0
             ? SemanticContentValidationResult.Valid
             : new SemanticContentValidationResult(false, failures.AsReadOnly());
@@ -66,15 +74,27 @@ public static class SemanticContentValidator
     public static void ValidateOrThrow(
         SemanticContentManifest manifest,
         IReadOnlyDictionary<string, EmbeddingProfile>? profiles = null)
+        => ValidateOrThrow(manifest, profiles, CancellationToken.None);
+
+    internal static void ValidateOrThrow(
+        SemanticContentManifest manifest,
+        IReadOnlyDictionary<string, EmbeddingProfile>? profiles,
+        CancellationToken cancellationToken)
     {
-        var result = Validate(manifest, profiles);
+        var result = Validate(manifest, profiles, cancellationToken);
         if (result.IsValid)
             return;
 
-        string message = string.Join(
-            " ",
-            result.Failures.Select(static failure =>
-                $"[{failure.Path}] {failure.Rule}: {failure.Message}"));
+        var messages = new string[result.Failures.Count];
+        for (int index = 0; index < messages.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SemanticContentValidationFailure failure = result.Failures[index];
+            messages[index] = $"[{failure.Path}] {failure.Rule}: {failure.Message}";
+        }
+
+        string message = string.Join(" ", messages);
+        cancellationToken.ThrowIfCancellationRequested();
         throw new ArgumentException(message, nameof(manifest));
     }
 
@@ -87,8 +107,15 @@ public static class SemanticContentValidator
     public static IReadOnlyList<SemanticContentValidationFailure> ValidateProfile(
         EmbeddingProfile profile,
         string path = "profile")
+        => ValidateProfile(profile, path, CancellationToken.None);
+
+    private static IReadOnlyList<SemanticContentValidationFailure> ValidateProfile(
+        EmbeddingProfile profile,
+        string path,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        cancellationToken.ThrowIfCancellationRequested();
         var failures = new List<SemanticContentValidationFailure>();
         if (string.IsNullOrWhiteSpace(profile.Id))
             Add(failures, path + ".id", "required", "profile id 不能为空。");
@@ -104,13 +131,15 @@ public static class SemanticContentValidator
             Add(failures, path + ".metric", "enum", "metric 不是受支持的距离度量。");
         if (!Enum.IsDefined(profile.Normalization))
             Add(failures, path + ".normalization", "enum", "normalization 不是受支持的归一化方式。");
-        if (profile.SupportedModalities.Count == 0)
+        int supportedModalityCount = profile.SupportedModalities.Count;
+        if (supportedModalityCount == 0)
             Add(failures, path + ".supportedModalities", "required", "至少声明一个支持的模态。");
         else
         {
             var seen = new HashSet<SemanticContentModality>();
-            for (var i = 0; i < profile.SupportedModalities.Count; i++)
+            for (var i = 0; i < supportedModalityCount; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var modality = profile.SupportedModalities[i];
                 if (!Enum.IsDefined(modality) || modality == SemanticContentModality.Unknown)
                     Add(failures, $"{path}.supportedModalities[{i}]", "enum", "模态值非法。");
@@ -127,6 +156,7 @@ public static class SemanticContentValidator
             Add(failures, path + ".dataEgressPolicy.target", "required", "非本地外发模式必须指定 target。");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return failures.AsReadOnly();
     }
 
@@ -169,7 +199,8 @@ public static class SemanticContentValidator
 
     private static void ValidateChunks(
         IReadOnlyList<SemanticContentChunk>? chunks,
-        ICollection<SemanticContentValidationFailure> failures)
+        ICollection<SemanticContentValidationFailure> failures,
+        CancellationToken cancellationToken)
     {
         if (chunks is null)
         {
@@ -178,10 +209,17 @@ public static class SemanticContentValidator
         }
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        for (var i = 0; i < chunks.Count; i++)
+        int chunkCount = chunks.Count;
+        for (var i = 0; i < chunkCount; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var chunk = chunks[i];
             string path = $"chunks[{i}]";
+            if (chunk is null)
+            {
+                Add(failures, path, "required", "分块不能为 null。");
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(chunk.Id))
                 Add(failures, path + ".id", "required", "分块 id 不能为空。");
             else if (!ids.Add(chunk.Id))
@@ -203,7 +241,8 @@ public static class SemanticContentValidator
 
     private static void ValidateSegments(
         IReadOnlyList<SemanticContentSegment>? segments,
-        ICollection<SemanticContentValidationFailure> failures)
+        ICollection<SemanticContentValidationFailure> failures,
+        CancellationToken cancellationToken)
     {
         if (segments is null)
         {
@@ -212,10 +251,17 @@ public static class SemanticContentValidator
         }
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        for (var i = 0; i < segments.Count; i++)
+        int segmentCount = segments.Count;
+        for (var i = 0; i < segmentCount; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var segment = segments[i];
             string path = $"segments[{i}]";
+            if (segment is null)
+            {
+                Add(failures, path, "required", "分段不能为 null。");
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(segment.Id))
                 Add(failures, path + ".id", "required", "分段 id 不能为空。");
             else if (!ids.Add(segment.Id))
@@ -232,10 +278,19 @@ public static class SemanticContentValidator
     private static void ValidateBindings(
         SemanticContentManifest manifest,
         IReadOnlyDictionary<string, EmbeddingProfile>? profiles,
-        ICollection<SemanticContentValidationFailure> failures)
+        ICollection<SemanticContentValidationFailure> failures,
+        CancellationToken cancellationToken)
     {
+        if (manifest.Embeddings is null)
+        {
+            Add(failures, "embeddings", "required", "embeddings 不能为 null；没有绑定时使用空数组。");
+            return;
+        }
+
+        IReadOnlyList<SemanticEmbeddingBinding> embeddings = manifest.Embeddings;
+        int embeddingCount = embeddings.Count;
         if (!string.IsNullOrWhiteSpace(manifest.EmbeddingProfileId)
-            && manifest.Embeddings.Count == 0
+            && embeddingCount == 0
             && profiles is not null
             && !profiles.ContainsKey(manifest.EmbeddingProfileId))
         {
@@ -243,10 +298,16 @@ public static class SemanticContentValidator
         }
 
         var names = new HashSet<string>(StringComparer.Ordinal);
-        for (var i = 0; i < manifest.Embeddings.Count; i++)
+        for (var i = 0; i < embeddingCount; i++)
         {
-            var binding = manifest.Embeddings[i];
+            cancellationToken.ThrowIfCancellationRequested();
+            var binding = embeddings[i];
             string path = $"embeddings[{i}]";
+            if (binding is null)
+            {
+                Add(failures, path, "required", "命名向量绑定不能为 null。");
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(binding.Name))
                 Add(failures, path + ".name", "required", "命名向量名称不能为空。");
             else if (!names.Add(binding.Name))
@@ -262,9 +323,17 @@ public static class SemanticContentValidator
             }
             else if (profiles is not null && profile is not null)
             {
-                foreach (var failure in ValidateProfile(profile, path + ".profile"))
-                    failures.Add(failure);
-                if (!profile.Supports(manifest.Modality))
+                IReadOnlyList<SemanticContentValidationFailure> profileFailures = ValidateProfile(
+                    profile,
+                    path + ".profile",
+                    cancellationToken);
+                for (int failureIndex = 0; failureIndex < profileFailures.Count; failureIndex++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    failures.Add(profileFailures[failureIndex]);
+                }
+
+                if (!Supports(profile, manifest.Modality, cancellationToken))
                 {
                     Add(
                         failures,
@@ -276,6 +345,23 @@ public static class SemanticContentValidator
 
             ValidateState(binding.IndexState, failures, path + ".indexState");
         }
+    }
+
+    private static bool Supports(
+        EmbeddingProfile profile,
+        SemanticContentModality modality,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<SemanticContentModality> supportedModalities = profile.SupportedModalities;
+        int count = supportedModalities.Count;
+        for (int index = 0; index < count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (supportedModalities[index] == modality)
+                return true;
+        }
+
+        return false;
     }
 
     private static bool IsMimeType(string? mimeType)

@@ -142,6 +142,41 @@ public sealed class SemanticContentContractTests
     }
 
     [Fact]
+    public void ValidateOrThrow_WhenCanceledDuringFrozenChunkTraversal_StopsValidation()
+    {
+        var chunks = new SemanticContentChunk[1_000_000];
+        Array.Fill(
+            chunks,
+            new SemanticContentChunk(
+                "repeated",
+                ordinal: 0,
+                "content",
+                startOffset: 0,
+                endOffset: 7));
+        SemanticContentManifest manifest = CreateManifest() with { Chunks = chunks };
+        using var cancellation = new CancellationTokenSource();
+        using var validationStarted = new ManualResetEventSlim();
+        var cancelThread = new Thread(() =>
+        {
+            validationStarted.Wait();
+            Thread.Sleep(TimeSpan.FromMilliseconds(10));
+            cancellation.Cancel();
+        })
+        {
+            IsBackground = true,
+        };
+        cancelThread.Start();
+
+        validationStarted.Set();
+        Assert.Throws<OperationCanceledException>(() =>
+            SemanticContentValidator.ValidateOrThrow(
+                manifest,
+                profiles: null,
+                cancellationToken: cancellation.Token));
+        cancelThread.Join();
+    }
+
+    [Fact]
     public void JsonRoundTrip_UsesCamelCaseAndStableEnumNames()
     {
         var profile = CreateImageProfile();

@@ -231,6 +231,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 | 嵌入式 API、ADO.NET、EF Core、CLI | [嵌入式 API](docs/embedded-api.md)、[ADO.NET](docs/ado-net.md)、[CLI](docs/cli-reference.md) |
 | .NET 生态接入与 Profile 边界 | [生态接入](docs/ecosystem-integration.md)、[可运行样例](samples/SonnetDB.EcosystemSample/README.md) |
 | SigLIP2 文搜图、图搜图与 Bucket 异步摄取 | [语义图片检索](docs/semantic-image-search.md)、[工业图片样例](samples/SonnetDB.SemanticImages/README.md) |
+| 确定性文本分块、完整快照 diff 与有界 RAG 应用回调（Core building blocks） | [RAG 摄取 Core](docs/rag-ingestion-core.md) |
 | 批量写入、Line Protocol、JSON ingest | [批量写入](docs/bulk-ingest.md) |
 | KV、文档、全文、向量、Hybrid Search | [KV Keyspace](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md)、[MongoDB-like 迁移](docs/mongodb-migration.md)、[向量搜索](docs/vector-search.md) |
 | Graph Beta 本地功能、SQL/PGQ、GQL 风格查询与 GraphRAG 合同（固定硬件/外部对拍/长稳发布门禁未完成） | [Graph GQL 风格查询入口](docs/m40-graph-364-gql-entry.md)、[知识图谱与 GraphRAG 合同](docs/m40-graph-365-knowledge-contract.md)、[原生属性图路线与边界](docs/native-graph-database-roadmap.md) |

@@ -50,6 +50,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
+| 生成确定性文本分块、比较完整快照并以有界 callback 应用 RAG 计划 | [RAG 摄取 Core]({{ site.docs_baseurl | default: '/help' }}/rag-ingestion-core/) |
 | 试用受限 GQL 风格的原生图或关系映射图查询 | [Graph GQL 风格查询入口]({{ site.docs_baseurl | default: '/help' }}/graph-gql/) |
 | 通过 provenance、claim 与 source/chunk 引用构建 GraphRAG | [知识图谱与 GraphRAG 合同]({{ site.docs_baseurl | default: '/help' }}/knowledge-graph-contract/) |
 | 使用 JSON 文档集合或从 MongoDB-like 负载迁移 | [Document Store 能力矩阵]({{ site.docs_baseurl | default: '/help' }}/document-store/) 和 [迁移指南]({{ site.docs_baseurl | default: '/help' }}/mongodb-migration/) |
