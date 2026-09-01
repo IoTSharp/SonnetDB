@@ -33,6 +33,8 @@ public sealed class ServerOptionsTests
         Assert.Equal(4, options.RelationalTableWarmupConcurrency);
         Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
         Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
+        Assert.Equal(1024, options.Mqtt.Sparkplug.RebirthQueueCapacity);
+        Assert.Equal(5_000, options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds);
         Assert.False(options.SemanticSearch.Enabled);
         Assert.Equal("auto", options.SemanticSearch.Backend);
         Assert.Equal(768, options.SemanticSearch.Dimensions);
@@ -44,6 +46,41 @@ public sealed class ServerOptionsTests
         Assert.Equal(250, options.Modbus.DiscoveryIntervalMilliseconds);
         Assert.Equal(1_000, options.Modbus.ReconnectBaseDelayMilliseconds);
         Assert.Equal(30_000, options.Modbus.MaxReconnectDelayMilliseconds);
+    }
+
+    /// <summary>验证 Sparkplug Rebirth 容量和单请求 deadline 可配置，并始终收敛到明确边界。</summary>
+    [Fact]
+    public void Bind_WithSparkplugRebirthLimits_AppliesAndBoundsConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthQueueCapacity"] = "64",
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthPublishTimeoutMilliseconds"] = "250",
+            })
+            .Build();
+        Assert.Equal(64, ServerOptionsBinder.Bind(configured).Mqtt.Sparkplug.RebirthQueueCapacity);
+        Assert.Equal(250, ServerOptionsBinder.Bind(configured).Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds);
+
+        var tooLow = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthQueueCapacity"] = "0",
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthPublishTimeoutMilliseconds"] = "0",
+            })
+            .Build();
+        var tooHigh = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthQueueCapacity"] = int.MaxValue.ToString(),
+                ["SonnetDBServer:Mqtt:Sparkplug:RebirthPublishTimeoutMilliseconds"] = int.MaxValue.ToString(),
+            })
+            .Build();
+
+        Assert.Equal(1, ServerOptionsBinder.Bind(tooLow).Mqtt.Sparkplug.RebirthQueueCapacity);
+        Assert.Equal(65_536, ServerOptionsBinder.Bind(tooHigh).Mqtt.Sparkplug.RebirthQueueCapacity);
+        Assert.Equal(100, ServerOptionsBinder.Bind(tooLow).Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds);
+        Assert.Equal(60_000, ServerOptionsBinder.Bind(tooHigh).Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds);
     }
 
     [Fact]

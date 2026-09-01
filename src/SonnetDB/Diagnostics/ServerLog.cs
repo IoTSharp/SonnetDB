@@ -141,6 +141,30 @@ internal static partial class ServerLog
         string hostId,
         string state);
 
+    [LoggerMessage(EventId = 1039, EventName = "Write.SparkplugRebirthQueueRejected", Level = LogLevel.Debug,
+        Message = "Sparkplug Rebirth 请求被有界队列拒绝：GroupId={GroupId}, EdgeNodeId={EdgeNodeId}, Reason={Reason}, Capacity={Capacity}")]
+    internal static partial void SparkplugRebirthQueueRejected(
+        this ILogger logger,
+        string groupId,
+        string edgeNodeId,
+        string reason,
+        int capacity);
+
+    [LoggerMessage(EventId = 1040, EventName = "Write.SparkplugRebirthPublishTimedOut", Level = LogLevel.Warning,
+        Message = "Sparkplug Rebirth 发布超过 deadline，已释放节点并继续队列：Topic={Topic}, TimeoutMs={TimeoutMilliseconds}")]
+    internal static partial void SparkplugRebirthPublishTimedOut(
+        this ILogger logger,
+        Exception exception,
+        string topic,
+        int timeoutMilliseconds);
+
+    [LoggerMessage(EventId = 1041, EventName = "Write.SparkplugRebirthPublishFailed", Level = LogLevel.Debug,
+        Message = "Sparkplug Rebirth 发布异常，已释放节点并继续队列：Topic={Topic}")]
+    internal static partial void SparkplugRebirthPublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string topic);
+
     [LoggerMessage(EventId = 1030, EventName = "Write.ModbusMasterStarted", Level = LogLevel.Information,
         Message = "Modbus TCP master runtime 已显式启用")]
     internal static partial void ModbusMasterStarted(this ILogger logger);

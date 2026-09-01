@@ -34,6 +34,10 @@ internal static class SqlQueryDiagnostics
         "sonnetdb.sql.physical.reads", unit: "{read}", description: "Physical segment reads attributed to a SQL statement.");
     private static readonly Histogram<long> PhysicalReadBytes = Meter.CreateHistogram<long>(
         "sonnetdb.sql.physical.read.bytes", unit: "By", description: "Physical segment payload bytes attributed to a SQL statement.");
+    private static readonly Counter<long> PhysicalReadSnapshotDegraded = Meter.CreateCounter<long>(
+        "sonnetdb.sql.physical.read.snapshot.degraded.count",
+        unit: "{snapshot}",
+        description: "SQL physical-read snapshots that exhausted the bounded consistency budget.");
     private static readonly Histogram<long> PhysicalWrites = Meter.CreateHistogram<long>(
         "sonnetdb.sql.physical.writes", unit: "{write}", description: "Physical WAL record writes attributed to a SQL statement.");
     private static readonly Histogram<long> PhysicalWriteBytes = Meter.CreateHistogram<long>(
@@ -51,7 +55,7 @@ internal static class SqlQueryDiagnostics
     private static readonly Histogram<long> Gen2Collections = Meter.CreateHistogram<long>(
         "sonnetdb.sql.gc.gen2.collections", unit: "{collection}", description: "Gen2 collections observed during a SQL statement.");
 
-    /// <summary>记录一条完成语句，标签仅使用封闭的 outcome/access-path/fallback 集合。</summary>
+    /// <summary>记录一条完成语句；物理读快照降级时仅记录低基数降级计数，不写入误导性的零值直方图。</summary>
     internal static void Record(SlowQueryDiagnosticEntry entry)
     {
         var tags = new TagList
@@ -71,8 +75,15 @@ internal static class SqlQueryDiagnostics
         LockWait.Record(entry.TableLockWaitMs + entry.KvLockWaitMs, tags);
         LogicalReads.Record(entry.LogicalReads, tags);
         LogicalWrites.Record(entry.LogicalWrites, tags);
-        PhysicalReads.Record(entry.PhysicalReads, tags);
-        PhysicalReadBytes.Record(entry.PhysicalReadBytes, tags);
+        if (entry.PhysicalReadSnapshotComplete)
+        {
+            PhysicalReads.Record(entry.PhysicalReads, tags);
+            PhysicalReadBytes.Record(entry.PhysicalReadBytes, tags);
+        }
+        else
+        {
+            PhysicalReadSnapshotDegraded.Add(1, tags);
+        }
         PhysicalWrites.Record(entry.PhysicalWrites, tags);
         PhysicalWriteBytes.Record(entry.PhysicalWriteBytes, tags);
         ExecutionDuration.Record(entry.ExecutionElapsedMs, tags);

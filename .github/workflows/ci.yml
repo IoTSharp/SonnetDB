@@ -89,6 +89,8 @@ jobs:
         include:
           - os: ubuntu-latest
             rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
           - os: windows-latest
             rid: win-x64
 
@@ -105,8 +107,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          key: ${{ runner.os }}-${{ matrix.rid }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
           restore-keys: |
+            ${{ runner.os }}-${{ matrix.rid }}-nuget-
             ${{ runner.os }}-nuget-
 
       - name: Publish SonnetDB.Cli (Native AOT)

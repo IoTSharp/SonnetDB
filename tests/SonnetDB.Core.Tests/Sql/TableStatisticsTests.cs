@@ -205,6 +205,25 @@ public sealed class TableStatisticsTests : IDisposable
         Assert.Contains(histogram, bucket => bucket.Int64UpperBound == long.MaxValue);
     }
 
+    /// <summary>取消统计刷新后必须释放快照，并允许同一表继续成功刷新。</summary>
+    [Fact]
+    public void RefreshStatistics_PreCanceled_ReleasesSnapshotAndRemainsUsable()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE canceled_stats (id INT, value STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX ix_canceled_stats_value ON canceled_stats (value)");
+        SqlExecutor.Execute(db, "INSERT INTO canceled_stats (id, value) VALUES (1, 'ready')");
+        TableStore store = db.Tables.Open("canceled_stats");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => store.RefreshStatistics(cancellationToken: cancellation.Token));
+
+        TableStatistics statistics = store.RefreshStatistics();
+        Assert.Equal(1, statistics.RowCount);
+        Assert.Equal(1, statistics.TryGetIndex("ix_canceled_stats_value")!.RowCount);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }

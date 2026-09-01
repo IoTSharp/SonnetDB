@@ -136,6 +136,8 @@ public sealed class SlowQueryRingTests
         Assert.Equal(1, item.TableLockWaitMs);
         Assert.Equal(4, item.KvLockWaitMs);
         Assert.Equal(40, item.PhysicalReadBytes);
+        Assert.Equal(2, item.PhysicalReadSampleCount);
+        Assert.Equal(0, item.PhysicalReadDegradedSampleCount);
         Assert.Equal(60, item.PhysicalWriteBytes);
         Assert.Equal(2, item.WalFsyncMs);
         Assert.Equal(3, item.WalFsyncCount);
@@ -144,6 +146,32 @@ public sealed class SlowQueryRingTests
         Assert.Equal(1, item.Gen1Collections);
         Assert.Equal(384, item.AllocatedBytes);
         Assert.Equal("secondary_index", item.AccessPath);
+    }
+
+    /// <summary>降级物理读快照必须从累计值中排除，并通过独立样本计数对外暴露。</summary>
+    [Fact]
+    public void Top_WithDegradedPhysicalReadSnapshot_ExcludesUnknownZeros()
+    {
+        var ring = new SlowQueryRing(4);
+        ring.Add(CreateEntry(1, "SELECT 1", "shape-a", 10) with
+        {
+            PhysicalReads = 2,
+            PhysicalReadBytes = 256,
+        });
+        ring.Add(CreateEntry(2, "SELECT 2", "shape-a", 20) with
+        {
+            PhysicalReadSnapshotComplete = false,
+        });
+
+        var snapshot = ring.Snapshot(static _ => true);
+        var (items, _) = ring.Top(static _ => true, 10);
+        TopQueryDiagnosticEntry item = Assert.Single(items);
+
+        Assert.False(snapshot[0].PhysicalReadSnapshotComplete);
+        Assert.Equal(2, item.PhysicalReads);
+        Assert.Equal(256, item.PhysicalReadBytes);
+        Assert.Equal(1, item.PhysicalReadSampleCount);
+        Assert.Equal(1, item.PhysicalReadDegradedSampleCount);
     }
 
     private static SlowQueryDiagnosticEntry CreateEntry(

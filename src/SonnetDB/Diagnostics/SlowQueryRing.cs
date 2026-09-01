@@ -208,6 +208,8 @@ internal sealed class SlowQueryRing
         private long _logicalWrites;
         private long _physicalReads;
         private long _physicalReadBytes;
+        private long _physicalReadSampleCount;
+        private long _physicalReadDegradedSampleCount;
         private long _physicalWrites;
         private long _physicalWriteBytes;
         private double _queueWaitMs;
@@ -245,8 +247,17 @@ internal sealed class SlowQueryRing
             _returnedRows = checked(_returnedRows + entry.RowCount);
             _logicalReads = checked(_logicalReads + entry.LogicalReads);
             _logicalWrites = checked(_logicalWrites + entry.LogicalWrites);
-            _physicalReads = checked(_physicalReads + entry.PhysicalReads);
-            _physicalReadBytes = checked(_physicalReadBytes + entry.PhysicalReadBytes);
+            if (entry.PhysicalReadSnapshotComplete)
+            {
+                _physicalReads = checked(_physicalReads + entry.PhysicalReads);
+                _physicalReadBytes = checked(_physicalReadBytes + entry.PhysicalReadBytes);
+                _physicalReadSampleCount = checked(_physicalReadSampleCount + 1);
+            }
+            else
+            {
+                // 降级快照的零值只表示未知，不能污染累计物理读取值。
+                _physicalReadDegradedSampleCount = checked(_physicalReadDegradedSampleCount + 1);
+            }
             _physicalWrites = checked(_physicalWrites + entry.PhysicalWrites);
             _physicalWriteBytes = checked(_physicalWriteBytes + entry.PhysicalWriteBytes);
             _queueWaitMs += entry.QueueWaitMs;
@@ -285,6 +296,8 @@ internal sealed class SlowQueryRing
                 _logicalWrites,
                 _physicalReads,
                 _physicalReadBytes,
+                _physicalReadSampleCount,
+                _physicalReadDegradedSampleCount,
                 _physicalWrites,
                 _physicalWriteBytes,
                 _queueWaitMs,
@@ -317,6 +330,8 @@ internal sealed class SlowQueryRing
         long LogicalWrites,
         long PhysicalReads,
         long PhysicalReadBytes,
+        long PhysicalReadSampleCount,
+        long PhysicalReadDegradedSampleCount,
         long PhysicalWrites,
         long PhysicalWriteBytes,
         double QueueWaitMs,
@@ -357,6 +372,8 @@ internal sealed class SlowQueryRing
                 LogicalWrites = LogicalWrites,
                 PhysicalReads = PhysicalReads,
                 PhysicalReadBytes = PhysicalReadBytes,
+                PhysicalReadSampleCount = PhysicalReadSampleCount,
+                PhysicalReadDegradedSampleCount = PhysicalReadDegradedSampleCount,
                 PhysicalWrites = PhysicalWrites,
                 PhysicalWriteBytes = PhysicalWriteBytes,
                 QueueWaitMs = QueueWaitMs,

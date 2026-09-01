@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using SonnetDB.Configuration;
+using SonnetDB.Mqtt;
 
 namespace SonnetDB.Hosting;
 
@@ -80,6 +81,16 @@ internal static class ServerOptionsBinder
             options.SqlHttpAdmission.QueueLimit,
             0,
             4096);
+
+        // Rebirth 队列必须始终有固定上界，避免异常节点风暴持续占用内存。
+        options.Mqtt.Sparkplug.RebirthQueueCapacity = Math.Clamp(
+            options.Mqtt.Sparkplug.RebirthQueueCapacity,
+            SparkplugRebirthQueue.MinCapacity,
+            SparkplugRebirthQueue.MaxCapacity);
+        options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds = Math.Clamp(
+            options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds,
+            SparkplugHostApplicationService.MinPublishTimeoutMilliseconds,
+            SparkplugHostApplicationService.MaxPublishTimeoutMilliseconds);
 
         ApplySqlExecutionBounds(options.SqlExecution);
 

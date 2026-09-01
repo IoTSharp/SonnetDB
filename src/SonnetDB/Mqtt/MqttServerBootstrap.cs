@@ -51,6 +51,19 @@ internal static class MqttServerBootstrap
                 throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:Database 必须为合法数据库名。");
             if (mqttOptions.Sparkplug.MaxPayloadBytes <= 0)
                 throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:MaxPayloadBytes 必须大于 0。");
+            if (mqttOptions.Sparkplug.RebirthQueueCapacity is < SparkplugRebirthQueue.MinCapacity
+                or > SparkplugRebirthQueue.MaxCapacity)
+            {
+                throw new InvalidOperationException(
+                    $"SonnetDBServer:Mqtt:Sparkplug:RebirthQueueCapacity 必须位于 {SparkplugRebirthQueue.MinCapacity}..{SparkplugRebirthQueue.MaxCapacity}。");
+            }
+            if (mqttOptions.Sparkplug.RebirthPublishTimeoutMilliseconds
+                is < SparkplugHostApplicationService.MinPublishTimeoutMilliseconds
+                or > SparkplugHostApplicationService.MaxPublishTimeoutMilliseconds)
+            {
+                throw new InvalidOperationException(
+                    $"SonnetDBServer:Mqtt:Sparkplug:RebirthPublishTimeoutMilliseconds 必须位于 {SparkplugHostApplicationService.MinPublishTimeoutMilliseconds}..{SparkplugHostApplicationService.MaxPublishTimeoutMilliseconds}。");
+            }
             if (string.IsNullOrWhiteSpace(mqttOptions.Sparkplug.HostId)
                 || mqttOptions.Sparkplug.HostId.Length > 255
                 || mqttOptions.Sparkplug.HostId.AsSpan().IndexOfAny("/+#\n\r\t") >= 0)
@@ -67,6 +80,8 @@ internal static class MqttServerBootstrap
             builder.Services.AddSingleton<SparkplugLifecycleStore>();
             builder.Services.AddSingleton<SparkplugIngestor>();
             builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
+            builder.Services.AddSingleton<ISparkplugInternalPublisher>(static services =>
+                services.GetRequiredService<SonnetMqttBrokerBridge>());
             builder.Services.AddSingleton<SparkplugHostApplicationService>();
             // AOT 安全：用泛型控制器重载（编译期已知类型）替代程序集扫描重载。
             builder.Services.AddMqttControllers<SonnetMqttController>(options =>

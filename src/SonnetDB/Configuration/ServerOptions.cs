@@ -367,6 +367,16 @@ public sealed class SparkplugOptions
     public bool PublishHostState { get; set; } = true;
 
     /// <summary>
+    /// 自动 Rebirth 队列最多保留的唯一 edge node 数；等待项和正在发布项共同计入容量。
+    /// </summary>
+    public int RebirthQueueCapacity { get; set; } = 1024;
+
+    /// <summary>
+    /// 单条自动 Rebirth 命令允许占用发布 worker 的最长毫秒数，超时后继续处理下一节点。
+    /// </summary>
+    public int RebirthPublishTimeoutMilliseconds { get; set; } = 5_000;
+
+    /// <summary>
     /// 是否允许外部 MQTT 管理员发布 NCMD/DCMD。默认关闭；开启后仍需显式审批属性。
     /// </summary>
     public bool AllowCommands { get; set; }

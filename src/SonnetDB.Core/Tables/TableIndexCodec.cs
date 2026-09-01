@@ -14,36 +14,32 @@ internal static class TableIndexCodec
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 的 JSON path 值为空，无法编码索引键。");
 
     public static byte[]? TryEncodeIndexPrefix(TableIndex index, IReadOnlyList<object?> rowValues, TableSchema schema)
+        => TryEncodeIndexPrefix(index, rowValues, schema, out _);
+
+    /// <summary>编码索引 prefix，并返回普通索引列是否包含 NULL。</summary>
+    private static byte[]? TryEncodeIndexPrefix(
+        TableIndex index,
+        IReadOnlyList<object?> rowValues,
+        TableSchema schema,
+        out bool hasNullColumn)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(rowValues);
         ArgumentNullException.ThrowIfNull(schema);
 
         byte[] indexNameBytes = _utf8.GetBytes(index.Name);
-        if (indexNameBytes.Length > ushort.MaxValue)
-            throw new InvalidOperationException($"索引 '{index.Name}' 名称过长。");
+        ValidateIndexNameLength(index, indexNameBytes.Length);
+        int? totalSize = TryGetIndexPrefixLength(
+            index,
+            rowValues,
+            schema,
+            indexNameBytes.Length,
+            out object? pathValue,
+            out hasNullColumn);
+        if (totalSize is null)
+            return null;
 
-        int totalSize = 1 + 2 + indexNameBytes.Length;
-        object? pathValue = null;
-        if (!string.IsNullOrWhiteSpace(index.JsonPath))
-        {
-            var column = ResolveJsonPathColumn(index, schema);
-            pathValue = JsonPathEvaluator.Evaluate(rowValues[column.Ordinal] as string, index.JsonPath);
-            if (pathValue is null)
-                return null;
-            totalSize += GetEncodedScalarSize(pathValue);
-        }
-        else
-        {
-            foreach (var columnName in index.Columns)
-            {
-                var column = schema.TryGetColumn(columnName)
-                    ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{columnName}'。");
-                totalSize += GetEncodedValueSize(column, rowValues[column.Ordinal]);
-            }
-        }
-
-        var buffer = new byte[totalSize];
+        var buffer = new byte[totalSize.Value];
         int offset = 0;
         buffer[offset++] = (byte)'i';
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset, 2), (ushort)indexNameBytes.Length);
@@ -191,10 +187,10 @@ internal static class TableIndexCodec
 
     public static byte[]? TryEncodeIndexEntryKey(TableIndex index, IReadOnlyList<object?> rowValues, TableSchema schema, ReadOnlySpan<byte> primaryKey)
     {
-        byte[]? prefix = TryEncodeIndexPrefix(index, rowValues, schema);
+        byte[]? prefix = TryEncodeIndexPrefix(index, rowValues, schema, out bool hasNullColumn);
         if (prefix is null)
             return null;
-        if (index.IsUnique && HasNullColumnValue(index, rowValues, schema))
+        if (index.IsUnique && hasNullColumn)
             return null;
         int suffixBytes = index.IsUnique ? 0 : 4 + primaryKey.Length;
         var key = new byte[prefix.Length + suffixBytes];
@@ -208,22 +204,91 @@ internal static class TableIndexCodec
         return key;
     }
 
-    private static bool HasNullColumnValue(
+    /// <summary>
+    /// 在不创建索引 key 的前提下计算其精确编码长度；不产生索引项时返回 false。
+    /// </summary>
+    /// <param name="index">待计算的索引定义。</param>
+    /// <param name="rowValues">按 schema 顺序排列的行值。</param>
+    /// <param name="schema">关系表 schema。</param>
+    /// <param name="primaryKey">已编码的主键。</param>
+    /// <param name="encodedLength">成功时返回完整索引 key 的字节数。</param>
+    /// <returns>该行会产生索引项时返回 true；JSON path 缺失或唯一索引含 NULL 时返回 false。</returns>
+    public static bool TryGetIndexEntryKeyLength(
         TableIndex index,
         IReadOnlyList<object?> rowValues,
-        TableSchema schema)
+        TableSchema schema,
+        ReadOnlySpan<byte> primaryKey,
+        out int encodedLength)
     {
-        if (!string.IsNullOrWhiteSpace(index.JsonPath))
-            return false;
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(rowValues);
+        ArgumentNullException.ThrowIfNull(schema);
 
-        foreach (var columnName in index.Columns)
+        int indexNameLength = _utf8.GetByteCount(index.Name);
+        ValidateIndexNameLength(index, indexNameLength);
+        int? prefixLength = TryGetIndexPrefixLength(
+            index,
+            rowValues,
+            schema,
+            indexNameLength,
+            out _,
+            out bool hasNullColumn);
+
+        if (prefixLength is null || (index.IsUnique && hasNullColumn))
         {
-            var column = schema.TryGetColumn(columnName)!;
-            if (rowValues[column.Ordinal] is null)
-                return true;
+            encodedLength = 0;
+            return false;
         }
 
-        return false;
+        int suffixLength = index.IsUnique ? 0 : checked(4 + primaryKey.Length);
+        encodedLength = checked(prefixLength.Value + suffixLength);
+        return true;
+    }
+
+    /// <summary>
+    /// 统一计算索引 prefix 长度与可索引性，供真实编码和统计测量共享格式决策。
+    /// </summary>
+    private static int? TryGetIndexPrefixLength(
+        TableIndex index,
+        IReadOnlyList<object?> rowValues,
+        TableSchema schema,
+        int indexNameLength,
+        out object? pathValue,
+        out bool hasNullColumn)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(rowValues);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        int prefixLength = checked(1 + 2 + indexNameLength);
+        pathValue = null;
+        hasNullColumn = false;
+        if (!string.IsNullOrWhiteSpace(index.JsonPath))
+        {
+            TableColumn column = ResolveJsonPathColumn(index, schema);
+            pathValue = JsonPathEvaluator.Evaluate(rowValues[column.Ordinal] as string, index.JsonPath);
+            return pathValue is null
+                ? null
+                : checked(prefixLength + GetEncodedScalarSize(pathValue));
+        }
+
+        foreach (string columnName in index.Columns)
+        {
+            TableColumn column = schema.TryGetColumn(columnName)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{columnName}'。");
+            object? value = rowValues[column.Ordinal];
+            hasNullColumn |= value is null;
+            prefixLength = checked(prefixLength + GetEncodedValueSize(column, value));
+        }
+
+        return prefixLength;
+    }
+
+    /// <summary>校验索引名称的 UTF-8 长度是否能写入现有二进制格式。</summary>
+    private static void ValidateIndexNameLength(TableIndex index, int indexNameLength)
+    {
+        if ((uint)indexNameLength > ushort.MaxValue)
+            throw new InvalidOperationException($"索引 '{index.Name}' 名称过长。");
     }
 
     public static byte[] EncodeIndexEntryValue(ReadOnlySpan<byte> primaryKey)

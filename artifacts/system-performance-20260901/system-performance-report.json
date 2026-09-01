@@ -1,0 +1,632 @@
+{
+  "schema": "sonnetdb-system-performance-report-v1",
+  "reportId": "system-performance-20260901",
+  "reportDate": "2026-09-01",
+  "status": "LOCAL_SMOKE_ONLY",
+  "summary": "SonnetDB 八个正式数据模型加 M40 原生属性图候选域的系统性能审计。本报告包含当前 dirty 基线、两个有前后对照的实现切片、三个新增模型 smoke、规划器与公共存储残余队列；固定硬件、ARM64、木垒同语料和生产门禁均未执行。",
+  "baseline": {
+    "outerRepository": {
+      "requestedBase": "988ed78df18b46a399d5b544fd78904452d2405f",
+      "currentHead": "770a139f6f00512d7725458cb7ca43bb1ad75620",
+      "currentHeadParent": "988ed78df18b46a399d5b544fd78904452d2405f",
+      "relationship": "current_head_is_direct_child_of_requested_base"
+    },
+    "sonnetDb": {
+      "requiredAncestor": "3f362d1c387149524c8d08f536a687c135aa45eb",
+      "currentHead": "424f61ad16e883d6b9050a9eb29a352105d28cef",
+      "requiredAncestorPresent": true,
+      "oldGitlink": "0be6898b1f4ef8b646872ece749dd803cf990e24",
+      "oldGitlinkRestored": false,
+      "dirtyChangesPreserved": true
+    },
+    "disposition": "以 SonnetDB 424f61a（包含 3f362d1）及当前未提交改动为唯一基线；不 reset、不覆盖用户工作。"
+  },
+  "scope": {
+    "officialProductModels": [
+      "time_series",
+      "relational",
+      "kv_cache",
+      "json_document",
+      "full_text",
+      "vector",
+      "object_storage",
+      "message_queue"
+    ],
+    "candidatePerformanceDomain": "native_property_graph",
+    "candidateDomainReleaseStatus": "NOT_RUN",
+    "publicModelCount": 8,
+    "performanceDomainCount": 9,
+    "sharedCore": "relational_sql_planner_executor",
+    "scopeCorrection": "README 仍定义八种正式数据模型；M40 原生属性图只作为第九性能域审计，发布门禁通过前不得改称九模型。"
+  },
+  "evidenceTiers": [
+    {
+      "id": "local_smoke",
+      "status": "PARTIAL_PASS",
+      "meaning": "同一本机上的短迭代功能与方向性性能证据；不得换算生产容量或 SLO。"
+    },
+    {
+      "id": "fixed_hardware_x64",
+      "status": "NOT_RUN",
+      "meaning": "冻结 CPU、内存、磁盘、电源、运行时与数据集后的重复测量。"
+    },
+    {
+      "id": "fixed_hardware_arm64",
+      "status": "NOT_RUN",
+      "meaning": "ARM64 Native AOT、实际指令能力、端序/非对齐与同一语料差分。"
+    },
+    {
+      "id": "mulei_same_corpus",
+      "status": "NOT_RUN",
+      "meaning": "木垒脱敏同语料、同查询形状的离线复测；本轮未连接生产。"
+    },
+    {
+      "id": "production_gate",
+      "status": "NOT_RUN",
+      "meaning": "部署候选的 mixed workload、恢复、Native AOT、观测与回滚门禁。"
+    }
+  ],
+  "unifiedMetrics": [
+    {
+      "id": "throughput",
+      "unit": "operations_or_domain_units_per_second",
+      "contract": "必须同时记录操作定义、批大小、并发与 durability。"
+    },
+    {
+      "id": "latency",
+      "unit": "milliseconds",
+      "contract": "至少 P50/P95/P99；冷启动与稳态分开。"
+    },
+    {
+      "id": "scan_amplification",
+      "unit": "examined_rows_per_returned_row",
+      "contract": "同时保留 candidate、examined、returned；returned=0 单独报告。"
+    },
+    {
+      "id": "managed_allocation",
+      "unit": "bytes_per_operation",
+      "contract": "与 Gen0/Gen1/Gen2 和 GC pause 一起解释。"
+    },
+    {
+      "id": "resident_memory",
+      "unit": "bytes",
+      "contract": "记录 steady、peak RSS 与数据规模。"
+    },
+    {
+      "id": "waits",
+      "unit": "milliseconds",
+      "contract": "分别记录请求许可、内部 worker、table/KV lock、队列与 backpressure。"
+    },
+    {
+      "id": "io",
+      "unit": "operations_and_bytes",
+      "contract": "区分逻辑/物理读写、cache 状态、随机/顺序 I/O；降级快照不得写成真实零值。"
+    },
+    {
+      "id": "wal",
+      "unit": "records_bytes_fsync_count_and_milliseconds",
+      "contract": "记录 fsync 模式与批大小，不能把不同 durability 混比。"
+    },
+    {
+      "id": "spill",
+      "unit": "count_bytes_files_and_peak_memory",
+      "contract": "记录 fan-in、工作目录、取消/异常清理和结果差分。"
+    },
+    {
+      "id": "recovery",
+      "unit": "milliseconds_and_files",
+      "contract": "记录 checkpoint、WAL replay、cold open、kill/reopen、backup/restore 与文件数量。"
+    },
+    {
+      "id": "correctness",
+      "unit": "pass_fail_with_oracle",
+      "contract": "每个快路径必须与已验证路径逐行或逐字节差分，覆盖取消、异常、资源释放与回退原因。"
+    }
+  ],
+  "architectureLayers": [
+    {
+      "order": 1,
+      "id": "evidence_and_gate",
+      "current": "BenchmarkDotNet、M41/M40 evidence runner、结构化 JSON/Markdown。",
+      "next": "统一 schema、固定硬件 manifest、每域红绿门禁。"
+    },
+    {
+      "order": 2,
+      "id": "request_admission",
+      "current": "每数据库 SQL permit=4、等待队列=8；超载显式拒绝。",
+      "next": "按目标硬件校准，禁止以扩容 permit 掩盖慢计划。"
+    },
+    {
+      "order": 3,
+      "id": "parser_binder_logical_plan",
+      "current": "共享 SQL AST、绑定、规范化 fingerprint 与多模型分派。",
+      "next": "把参数类型/选择率族纳入计划身份，冻结 extend-only 诊断合同。"
+    },
+    {
+      "order": 4,
+      "id": "statistics_and_cost",
+      "current": "列统计、MCV、直方图、索引宽度/页估算和有限成本门控。",
+      "next": "后台统计刷新、无偏采样、相关列统计、页级窄查成本。"
+    },
+    {
+      "order": 5,
+      "id": "physical_planning",
+      "current": "复合索引前缀/IN、index union、reverse Top-N、有限 join ordering 与算法选择。",
+      "next": "参数敏感计划、更多 covering、半连接/相关子查询去相关与稳定 plan cache。"
+    },
+    {
+      "order": 6,
+      "id": "execution_resources",
+      "current": "64 MiB/query、256 MiB/database、最多 8 worker、2048 行并行门槛、64 KiB/worker 预留。",
+      "next": "批执行边界、I/O 独立许可、反馈按计划/参数族隔离。"
+    },
+    {
+      "order": 7,
+      "id": "storage",
+      "current": "WAL、mutable/frozen/state、checkpoint/compaction、RandomAccess 点读、动态 spill fan-in。",
+      "next": "single-flight cold miss、减少大值复制、文件数/冷启动合同和 I/O 队列。"
+    },
+    {
+      "order": 8,
+      "id": "domain_engines",
+      "current": "九个性能域共享底层资源，但各自保留语义 oracle 与专用 benchmark。",
+      "next": "为缺证的时序、全文、向量、MQ、Graph 建立本轮同版本 artifact。"
+    },
+    {
+      "order": 9,
+      "id": "observability_and_feedback",
+      "current": "EXPLAIN ANALYZE、慢查询指标、有限 runtime feedback、物理读快照降级计数。",
+      "next": "完整参数敏感反馈、队列/锁/I/O/RSS 关联和回归阈值。"
+    }
+  ],
+  "concurrencyContracts": [
+    {
+      "scope": "sql_requests_per_database",
+      "currentLimit": "PermitLimit=4, QueueLimit=8",
+      "backpressure": "REST 503 或 frame sql_overloaded",
+      "cancellation": "等待与执行使用请求取消令牌",
+      "gate": "必须记录 queue wait P95/P99 和拒绝率；本轮 embedded M41 为 NOT_APPLICABLE。"
+    },
+    {
+      "scope": "sql_internal_workers_per_database",
+      "currentLimit": "MaxParallelWorkers=min(processor_count,8), ParallelismMinRows=2048",
+      "backpressure": "拿不到至少两个 worker 或内存预留时串行回退",
+      "cancellation": "worker 检查查询令牌并在 finally 释放许可/预算",
+      "gate": "串并行逐行差分、固定顺序、异常解包与最大活动 worker 断言。"
+    },
+    {
+      "scope": "blocking_operator_memory",
+      "currentLimit": "64 MiB/query, 256 MiB/database, 64 KiB/parallel worker",
+      "backpressure": "Hash/Sort/Top-N/Group/Distinct/index-union spill，不截断结果",
+      "cancellation": "查询结束、异常或取消删除带所有权标记的工作目录",
+      "gate": "内存路径与强制 spill 路径逐行差分。"
+    },
+    {
+      "scope": "embedded_random_io",
+      "currentLimit": "NOT_DEFINED",
+      "backpressure": "NOT_DEFINED",
+      "cancellation": "调用链有取消，但没有独立 RandomAccess I/O semaphore",
+      "gate": "P1：在固定 NVMe/ARM64 上测饱和点后设置独立预算。"
+    },
+    {
+      "scope": "same_entity_writes",
+      "currentLimit": "KV keyspace、Table、Document、MQ topic/group 由各自锁序列化",
+      "backpressure": "锁等待；不存在无界 worker 扩散",
+      "cancellation": "长维护/等待路径必须有限等待并释放锁",
+      "gate": "同 key/row/document/topic 竞争、CAS、幂等、异常与恢复差分。"
+    },
+    {
+      "scope": "relational_cold_open",
+      "currentLimit": "RelationalTableWarmupConcurrency=4, binder clamps 1..16",
+      "backpressure": "有限并发打开表",
+      "cancellation": "host stopping token",
+      "gate": "按表数、文件数、WAL 规模记录 cold-open P50/P95/P99 与 RSS。"
+    },
+    {
+      "scope": "sparkplug_rebirth",
+      "currentLimit": "RebirthQueueCapacity=1024, clamps 1..65536, one publisher",
+      "backpressure": "同 group/node 合并；满载或停止显式拒绝并恢复 retry 标记",
+      "cancellation": "停止接收、唤醒 reader、丢弃有界 outstanding 并恢复生命周期标记",
+      "readiness": "在 deadline 与最大次数双重边界内检查 MqttServer.IsStarted；未就绪使用 SparkplugPublisherUnavailableException。",
+      "failureContract": "预期未就绪/期限耗尽记录后继续；readiness helper 不把未知 InvalidOperationException 重分类，初始 ONLINE 的未知异常立即穿透。",
+      "gate": "12/12 合同测试已覆盖初始 publish/stop、deadline 与未知异常；仍需真实 MQTT server 在 readiness 检查后停止的集成竞态。"
+    }
+  ],
+  "domains": [
+    {
+      "id": "time_series",
+      "officialProductModel": true,
+      "performanceContract": "固定 durability 下的批量写吞吐、范围查询与窗口聚合 P50/P95/P99；无 missing/duplicate/value mismatch；retention/compaction/reopen 后语义一致。",
+      "hotspots": ["WAL 编码与 fsync", "memtable/frozen/flush", "segment pruning 与解码", "压缩与 compaction", "数值聚合 SIMD"],
+      "capacity": {"status": "NOT_ESTABLISHED_THIS_ROUND", "knownHarness": "InsertBenchmark/QueryBenchmark/AggregateBenchmark/CompactionBenchmark"},
+      "competitors": ["ClickHouse", "DataFusion", "QuestDB"],
+      "correctnessFallback": "SIMD 前置条件不满足时回退 scalar；缺少可证明剪枝条件时扫描已验证范围路径。",
+      "benchmarks": ["InsertBenchmark", "QueryBenchmark", "AggregateBenchmark", "CompactionBenchmark", "NumericAggregateSimdBenchmark"],
+      "currentEvidence": "NOT_RUN"
+    },
+    {
+      "id": "relational",
+      "officialProductModel": true,
+      "performanceContract": "SQL 三值逻辑、事务 overlay、排序稳定性与返回结果不变；访问路径、join、spill、并行必须报告 candidate/examined/returned、成本、等待、I/O 与回退。",
+      "hotspots": ["parser/binder/normalization", "统计刷新与基数估算", "复合/覆盖索引", "谓词/投影/LIMIT 下推", "join ordering/algorithm", "sort/Top-N/group/distinct spill", "runtime feedback"],
+      "capacity": {"status": "LOCAL_QUICK_ONLY", "workload": "mulei-relational-synthetic-v1 quick: 64 tasks, 64 audits, 8 devices"},
+      "competitors": ["PostgreSQL", "SQLite", "DuckDB", "DataFusion"],
+      "correctnessFallback": "统计缺失/过期、事务写集、资源不足或不能证明等价时使用启发式索引、串行或 table scan，并公开 fallback reason。",
+      "benchmarks": ["M41PerformanceBaseline", "M41P0AccessPathBenchmark", "M41RelationInputPushdownBenchmark", "M41JoinAlgorithmBenchmark", "TableStatisticsRefreshBenchmark"],
+      "currentEvidence": "PARTIAL_PASS"
+    },
+    {
+      "id": "kv_cache",
+      "officialProductModel": true,
+      "performanceContract": "点读/GetMany/前缀扫描/TTL/CAS 在稳定快照下保持版本与原子语义；报告锁等待、WAL、RandomAccess I/O、分配与恢复。",
+      "hotspots": ["snapshot overlay", "RandomAccess point read", "value copy", "keyspace write lock", "WAL/state checkpoint", "cold miss"],
+      "capacity": {"status": "LOCAL_SMOKE_ONLY", "workload": "10k keys, 256-byte values; 256 dispersed GetMany keys"},
+      "competitors": ["RocksDB"],
+      "correctnessFallback": "快照缓存未命中时读取已验证 state/WAL 可见版本；CAS 冲突返回未提交，不静默覆盖。",
+      "benchmarks": ["KvModelBenchmark", "SetGetScanThroughputScenario", "ScanCursor10MKeysScenario", "CasOptimisticLockScenario"],
+      "currentEvidence": "LOCAL_SMOKE_PASS"
+    },
+    {
+      "id": "json_document",
+      "officialProductModel": true,
+      "performanceContract": "ID CRUD、JSON path 查询、索引、更新与 TTL 结果一致；索引维护失败不得把已提交业务写伪装为未提交；报告解析/索引/基表读取成本。",
+      "hotspots": ["JSON parse/encode", "path evaluation", "document index", "KV metadata/state", "derived index maintenance"],
+      "capacity": {"status": "LOCAL_SMOKE_ONLY", "workload": "10k documents; ID point read and 32 indexed site predicates", "fixedProfiles": "million and ten-million NOT_RUN"},
+      "competitors": ["MongoDB repository parity", "RocksDB storage mechanisms"],
+      "correctnessFallback": "索引不适用时 collection scan；validator/index 异常使用稳定错误或可修复派生索引状态，不返回部分匹配。",
+      "benchmarks": ["DocumentModelBenchmark", "DocumentSoak", "Document parity scenarios"],
+      "currentEvidence": "LOCAL_SMOKE_PASS"
+    },
+    {
+      "id": "full_text",
+      "officialProductModel": true,
+      "performanceContract": "tokenization、BM25 排名、facet/fuzzy、增量更新与 tombstone 语义可对拍；Top-K 必须稳定并报告 posting/candidate 放大。",
+      "hotspots": ["tokenization/dictionary", "posting intersection", "BM25 scoring", "active-term filtering", "Top-K", "index compaction"],
+      "capacity": {"status": "NOT_ESTABLISHED_THIS_ROUND", "knownHarness": "FullTextActiveTermBenchmark and full-text parity scenarios"},
+      "competitors": ["Lucene"],
+      "correctnessFallback": "索引不可验证时不得返回部分排序；使用显式失败、重建或已验证精确路径。",
+      "benchmarks": ["FullTextActiveTermBenchmark", "IndexOneMillionDocumentsScenario", "Bm25RankingTop10OverlapScenario"],
+      "currentEvidence": "NOT_RUN"
+    },
+    {
+      "id": "vector",
+      "officialProductModel": true,
+      "performanceContract": "维度/metric 一致，ANN 同时报告 Recall@K 与延迟；精确回退逐结果对拍；持久文件 CRC 逐字节兼容。",
+      "hotspots": ["query norm repeated per row", "SIMD distance", "HNSW traversal", "filtered ANN", "vector file encode/decode and CRC"],
+      "capacity": {"status": "CRC_ONLY_THIS_ROUND", "knownHarness": "VectorRecallBenchmark 10k/100k; optional 1M", "arm64": "NOT_RUN"},
+      "competitors": ["Qdrant", "Milvus not source-pinned this round", "HNSWlib not source-pinned this round"],
+      "correctnessFallback": "ANN 条件不满足时精确 brute-force；SIMD/硬件路径不可用时由运行时回退；CRC 保持 IEEE 而非 CRC32C。",
+      "benchmarks": ["VectorRecallBenchmark", "VectorCrc32Benchmark", "HnswIndexRecallTests"],
+      "currentEvidence": "CRC_LOCAL_SMOKE_PASS"
+    },
+    {
+      "id": "object_storage",
+      "officialProductModel": true,
+      "performanceContract": "Put/Get/Range/multipart/delete/audit 的字节范围和元数据一致；流、临时对象与审计资源在取消/异常后释放。",
+      "hotspots": ["metadata KV", "full/range stream read", "large value copy", "audit write", "multipart cleanup"],
+      "capacity": {"status": "EXPLORATORY_LOCAL_SMOKE", "workload": "256 objects x 64 KiB; 16 full reads and 32 x 4 KiB ranges", "warning": "BenchmarkDotNet min iteration below 100 ms"},
+      "competitors": ["MinIO", "RocksDB storage mechanisms"],
+      "correctnessFallback": "严格校验 Range；缺对象返回稳定 not-found；取消/异常关闭流并只清理任务所有临时资源。",
+      "benchmarks": ["ObjectStorageModelBenchmark", "ObjectStorageEndpointTests", "MinIO parity adapter"],
+      "currentEvidence": "EXPLORATORY_LOCAL_SMOKE_PASS"
+    },
+    {
+      "id": "message_queue",
+      "officialProductModel": true,
+      "performanceContract": "publish/pull/ack/replay/consumer-group 顺序与至少一次语义可验证；吞吐必须连同 batch、fsync、积压、重投、队列等待和恢复报告。",
+      "hotspots": ["append/WAL", "topic/group locks", "group commit", "cold payload RandomAccess", "ack/retention compaction", "protocol frame", "Sparkplug rebirth storms"],
+      "capacity": {"status": "NOT_ESTABLISHED_THIS_ROUND", "boundedSlice": "Sparkplug rebirth outstanding default 1024, single publisher, bounded broker-readiness retry/deadline"},
+      "competitors": ["NATS", "Kafka", "Redpanda"],
+      "correctnessFallback": "资源不足时有界等待或显式拒绝；重启 replay 与 ack oracle 防止静默丢失；Rebirth 重复按节点合并；broker 未就绪使用专用异常且未知错误不重分类。",
+      "benchmarks": ["MqThroughputBenchmark", "FrameEncodingBenchmark", "NATS parity scenarios", "SparkplugRebirthQueueTests", "SparkplugHostApplicationServiceTests", "SonnetMqttBrokerBridgeRetryTests"],
+      "currentEvidence": "BOUNDED_QUEUE_AND_READINESS_CONTRACT_ONLY"
+    },
+    {
+      "id": "native_property_graph",
+      "officialProductModel": false,
+      "performanceContract": "顶点/边/属性、遍历、最短/加权路径、SQL/PGQ/GQL、分页 snapshot 与恢复 oracle 全通过后才允许进入正式模型定位。",
+      "hotspots": ["adjacency decode", "frontier and visited set", "generation lease", "weighted path heap", "algorithm spill", "checkpoint/reopen"],
+      "capacity": {"status": "NOT_RUN", "required": "1m vertices/10m edges, fixed hardware, 168-hour 8-reader+1-writer mixed workload"},
+      "competitors": ["Neo4j", "PostgreSQL graph relational oracle"],
+      "correctnessFallback": "预算不足或索引不可用时只允许有界 relation_scan_fallback/显式失败；不能读取超出剩余预算的邻接。",
+      "benchmarks": ["GraphWeightedPathBenchmark", "M40 production gate runner", "LDBC/Graphalytics planned gate"],
+      "currentEvidence": "NOT_RUN"
+    }
+  ],
+  "implementedSlices": [
+    {
+      "id": "statistics_refresh_allocation",
+      "status": "IMPLEMENTED_AND_BENCHMARKED_LOCAL",
+      "mechanism": "共享真实索引编码长度计算，移除采样主键复制和每索引 key/prefix 临时分配。",
+      "files": ["src/SonnetDB.Core/Tables/TableIndexCodec.cs", "src/SonnetDB.Core/Tables/TableStatistics.cs"],
+      "correctness": "标量类型、复合/唯一索引、NULL/empty、Unicode/BLOB、JSON path、随机行、复合主键、取消和取消后复用测试。"
+    },
+    {
+      "id": "vector_ieee_crc32_runtime",
+      "status": "IMPLEMENTED_AND_BENCHMARKED_LOCAL",
+      "mechanism": "向量持久文件 IEEE CRC32 委托 System.IO.Hashing.Crc32.HashToUInt32；没有切换为 CRC32C。",
+      "files": ["src/SonnetDB.Core/Vector/IO/Crc32.cs"],
+      "correctness": "golden、随机、offset 0..15、边界长度和 1 MiB 差分。"
+    },
+    {
+      "id": "physical_read_snapshot_bounded",
+      "status": "IMPLEMENTED_CONTRACT_NO_THROUGHPUT_CLAIM",
+      "mechanism": "最多 64 次尝试且 5 ms 墙钟预算；不稳定时返回保守零下界和 complete=false，meter 只增 degraded counter。",
+      "files": ["src/SonnetDB.Core/Sql/Execution/SqlExecutionMetrics.cs", "src/SonnetDB/Diagnostics/SqlQueryDiagnostics.cs"]
+    },
+    {
+      "id": "sparkplug_rebirth_bounded_queue",
+      "status": "IMPLEMENTED_CONTRACT_NO_THROUGHPUT_CLAIM",
+      "mechanism": "有界 Channel、按 group/edge node outstanding 合并、单消费者、显式满载/停止拒绝和停止丢弃回收；broker readiness 由有界 MqttServer.IsStarted 检查驱动，预期未就绪/期限耗尽使用专用异常分类。",
+      "files": ["src/SonnetDB/Mqtt/SparkplugRebirthQueue.cs", "src/SonnetDB/Mqtt/SparkplugHostApplicationService.cs", "src/SonnetDB/Mqtt/SonnetMqttBrokerBridge.cs"],
+      "correctness": "12/12 targeted tests 覆盖初始 ONLINE 失败继续、未知异常不被 readiness helper 重分类、初始 publish/stop 竞态、deadline、in-flight cancel 与 lifecycle release。",
+      "residualRisk": "尚无真实 MQTT server 集成测试覆盖 IsStarted 在 readiness 检查与 publish 之间改变。"
+    },
+    {
+      "id": "model_benchmark_coverage",
+      "status": "IMPLEMENTED_AND_SMOKE_RUN",
+      "mechanism": "增加 KV、Document、Object Storage 独立原生 API benchmark，不再用单个 SQL microbenchmark 代表全部模型。",
+      "files": ["tests/SonnetDB.Benchmarks/Benchmarks/KvModelBenchmark.cs", "tests/SonnetDB.Benchmarks/Benchmarks/DocumentModelBenchmark.cs", "tests/SonnetDB.Benchmarks/Benchmarks/ObjectStorageModelBenchmark.cs"]
+    },
+    {
+      "id": "arm64_native_aot_ci_configuration",
+      "status": "CONFIGURED_NOT_EXECUTED",
+      "mechanism": "AOT CI matrix 增加 ubuntu-24.04-arm/linux-arm64，并按 RID 隔离 NuGet cache。",
+      "files": [".github/workflows/ci.yml"],
+      "correctness": "YamlDotNet 16.3.0 syntax parse PASS，手工核对 matrix 与 RID 路径；actionlint、GitHub schema/execution 和真实 ARM64 run 均为 NOT_RUN，不证明 Kunpeng 指令能力或性能。"
+    }
+  ],
+  "benchmarkResults": {
+    "environment": {
+      "classification": "local_smoke",
+      "os": "Windows 11 10.0.26200.9278",
+      "cpu": "Intel Core Ultra 9 185H",
+      "logicalCores": 22,
+      "physicalCores": 16,
+      "runtime": ".NET 10.0.11",
+      "sdk": "10.0.400",
+      "architecture": "X64",
+      "benchmarkDotNet": "0.15.8"
+    },
+    "statisticsRefresh": {
+      "classification": "local_before_after_smoke",
+      "workload": "10,000 rows, four secondary indexes, full sample, five iterations and two warmups",
+      "before": {"meanMs": 54.81, "medianMs": 54.77, "p90Ms": 55.24, "allocatedMiBDisplay": 34.72},
+      "intermediateAfter": {"meanMs": 50.89, "medianMs": 50.80, "p90Ms": 51.43, "allocatedMiBDisplay": 22.67, "role": "earlier_intermediate_rerun"},
+      "after": {"meanMs": 51.25, "medianMs": 50.68, "p90Ms": 52.29, "allocatedMiBDisplay": 22.67, "role": "final_dirty_rerun"},
+      "delta": {"meanReductionPercent": 6.495, "medianReductionPercent": 7.468, "p90ReductionPercent": 5.340, "allocationReductionPercent": 34.706},
+      "artifact": "artifacts/system-performance-20260901/statistics-current-final/bdn/results/SonnetDB.Benchmarks.Benchmarks.TableStatisticsRefreshBenchmark-report.csv",
+      "artifactSha256": "503C5D11893C8079D23B9D22F84FA02C83354D0E395C2AB13106872466BA4A8D",
+      "caveat": "before/after 是独立短跑；after 为最终 dirty 形状复测，只证明本机方向，不证明固定硬件、ARM64 或生产收益。"
+    },
+    "vectorCrc32": {
+      "classification": "local_before_after_smoke",
+      "algorithm": "IEEE CRC32",
+      "allocatedBytesPerOperation": 0,
+      "cases": [
+        {"lengthBytes": 64, "beforeProductionMeanNs": 130.8, "afterProductionMeanNs": 8.596, "speedup": 15.216, "meanReductionPercent": 93.428},
+        {"lengthBytes": 4096, "beforeProductionMeanNs": 8584.7, "afterProductionMeanNs": 213.571, "speedup": 40.196, "meanReductionPercent": 97.512},
+        {"lengthBytes": 1048576, "beforeProductionMeanNs": 2374971.8, "afterProductionMeanNs": 61436.644, "speedup": 38.657, "meanReductionPercent": 97.413}
+      ],
+      "caveat": "before/after 是独立五迭代短跑，误差较高；只证明本机方向，不证明 ARM64 或生产收益。"
+    },
+    "modelSmoke": [
+      {"domain": "json_document", "operation": "id_read_10k_documents", "normalization": "per document", "meanUs": 3.099, "medianUs": 3.047, "p95Us": 3.287, "allocatedDisplay": "1.24 KB", "status": "LOCAL_SMOKE", "percentileSemantics": "percentile of BenchmarkDotNet iteration means; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"},
+      {"domain": "json_document", "operation": "indexed_json_path_query_32_site_predicates", "normalization": "per query", "meanUs": 1375.524, "medianUs": 1368.046, "p95Us": 1447.969, "allocatedDisplay": "894.94 KB", "status": "LOCAL_SMOKE", "percentileSemantics": "percentile of BenchmarkDotNet iteration means after OperationsPerInvoke normalization; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"},
+      {"domain": "kv_cache", "operation": "point_read_10k_keys_256_byte_value", "normalization": "per key", "meanUs": 2.921, "medianUs": 2.935, "p95Us": 2.996, "allocatedDisplay": "736 B", "status": "LOCAL_SMOKE", "percentileSemantics": "percentile of BenchmarkDotNet iteration means; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"},
+      {"domain": "kv_cache", "operation": "get_many_256_dispersed_keys", "normalization": "per key", "meanUs": 4.019, "medianUs": 4.043, "p95Us": 4.141, "allocatedDisplay": "823 B", "status": "LOCAL_SMOKE", "percentileSemantics": "percentile of BenchmarkDotNet iteration means after OperationsPerInvoke normalization; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"},
+      {"domain": "object_storage", "operation": "full_read_64_kib", "normalization": "per object", "meanUs": 257.9, "medianUs": 266.1, "p95Us": 294.1, "allocatedDisplay": "8.84 KB", "status": "EXPLORATORY_LOCAL_SMOKE", "warning": "minimum iteration below 100 ms", "percentileSemantics": "percentile of BenchmarkDotNet iteration means after OperationsPerInvoke normalization; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"},
+      {"domain": "object_storage", "operation": "range_read_4_kib", "normalization": "per object", "meanUs": 230.2, "medianUs": 234.9, "p95Us": 259.6, "allocatedDisplay": "8.83 KB", "status": "EXPLORATORY_LOCAL_SMOKE", "warning": "minimum iteration below 100 ms", "percentileSemantics": "percentile of BenchmarkDotNet iteration means after OperationsPerInvoke normalization; not request-level tail", "requestLevelP99": "SEE_REQUEST_LEVEL_MODEL_READ_SMOKE"}
+    ],
+    "requestLevelModelReadSmoke": {
+      "status": "PASS_LOCAL_HOT_EMBEDDED",
+      "mode": "local_smoke",
+      "warmupCount": 32,
+      "sampleCountPerOperation": 256,
+      "percentileMethod": "nearest_rank",
+      "environment": ".NET 10.0.11; Windows 10.0.26200; X64; 22 processors; workstation GC Interactive",
+      "artifact": "artifacts/system-performance-20260901/model-read-latency-current-final/model-read-latency.json",
+      "artifactSha256": "6E189C38ED59FF0FA71575D16147E9B80DC69714543B88D9CD7D38401A326116",
+      "operations": [
+        {"domain": "kv_cache", "operation": "point_read", "p50Ms": 0.0041, "p95Ms": 0.0050, "p99Ms": 0.0060, "maxMs": 0.0182, "requestsPerSecond": 234303.50, "allocatedP95Bytes": 760, "unknownAllocationSamples": 0},
+        {"domain": "kv_cache", "operation": "get_many_256", "p50Ms": 1.2828, "p95Ms": 1.4061, "p99Ms": 1.9250, "maxMs": 6.1029, "requestsPerSecond": 762.52, "allocatedP95Bytes": 216904, "unknownAllocationSamples": 0},
+        {"domain": "json_document", "operation": "id_read", "p50Ms": 0.0032, "p95Ms": 0.0039, "p99Ms": 0.0042, "maxMs": 0.0044, "requestsPerSecond": 307803.29, "allocatedP95Bytes": 1376, "unknownAllocationSamples": 0},
+        {"domain": "json_document", "operation": "indexed_json_path_query", "p50Ms": 2.6186, "p95Ms": 3.0759, "p99Ms": 4.0001, "maxMs": 4.1119, "requestsPerSecond": 374.03, "allocatedP95Bytes": 921992, "unknownAllocationSamples": 0},
+        {"domain": "object_storage", "operation": "full_read_64_kib", "p50Ms": 0.1790, "p95Ms": 0.2715, "p99Ms": 0.3523, "maxMs": 0.6137, "requestsPerSecond": 5275.21, "allocatedP95Bytes": 9112, "unknownAllocationSamples": 26},
+        {"domain": "object_storage", "operation": "range_read_4_kib", "p50Ms": 0.1500, "p95Ms": 0.2216, "p99Ms": 0.3198, "maxMs": 0.3317, "requestsPerSecond": 6171.54, "allocatedP95Bytes": 9144, "unknownAllocationSamples": 21}
+      ],
+      "limitations": [
+        "Single-threaded hot local embedded reads; no Server admission, concurrency, cold-cache or physical-I/O tail claim.",
+        "Fixed x64/ARM64, Native AOT, Mulei corpus and production gates remain NOT_RUN.",
+        "Async thread switches make Object allocation attribution unknown for 26/21 samples; latency samples are complete and unknown allocation must not be replaced with zero."
+      ]
+    },
+    "modelSmokeEvidenceGap": {
+      "status": "REQUEST_LEVEL_LOCAL_SMOKE_CLOSED_CAPACITY_OPEN",
+      "benchmarkDotNetSemantics": "Median/P95 are percentiles of iteration means after OperationsPerInvoke normalization and are not request tails.",
+      "requestLevelHarness": "ModelReadLatencyEvidenceRunner quick contract: 32 warmups, 256 measured requests, two-minute Program timeout.",
+      "requestLevelArtifactStatus": "PASS_LOCAL_HOT_EMBEDDED",
+      "nextGate": "fixed-hardware concurrent Server/cold-cache/physical-I/O P50/P95/P99 with cancellation"
+    },
+    "m41QuickComparison": {
+      "classification": "embedded_local_quick_behavior_comparison",
+      "correctness": "PASS",
+      "beforeCommitSha": "424f61ad16e883d6b9050a9eb29a352105d28cef",
+      "afterCommitSha": "424f61ad16e883d6b9050a9eb29a352105d28cef-dirty",
+      "dataset": {"taskRows": 64, "auditRows": 64, "deviceRows": 8, "iterationsPerQuery": 3},
+      "sqlPermitQueueEvidence": "NOT_APPLICABLE_EMBEDDED",
+      "fixedHardware": "NOT_RUN",
+      "productionGate": "NOT_RUN",
+      "queries": [
+        {"name": "indexed_exists", "accessPath": "secondary_index", "returnedRows": 1, "examinedRows": 1, "examinedToReturned": 1.0, "beforeP50Ms": 0.332, "beforeP95Ms": 2.414, "afterP50Ms": 0.2925, "afterP95Ms": 1.6836, "allocatedP50Bytes": 12832},
+        {"name": "scalar_in", "accessPath": "mixed", "returnedRows": 20, "examinedRows": 40, "examinedToReturned": 2.0, "beforeP50Ms": 1.2302, "beforeP95Ms": 1.7371, "afterP50Ms": 1.2043, "afterP95Ms": 1.6988, "allocatedP50Bytes": 71352},
+        {"name": "nullable_or", "accessPath": "index_union", "returnedRows": 20, "examinedRows": 20, "examinedToReturned": 1.0, "beforeP50Ms": 0.8853, "beforeP95Ms": 1.16, "afterP50Ms": 0.7756, "afterP95Ms": 1.0921, "allocatedP50Bytes": 45456},
+        {"name": "multi_table_join", "accessPath": "table_scan", "returnedRows": 20, "examinedRows": 72, "examinedToReturned": 3.6, "beforeP50Ms": 1.6045, "beforeP95Ms": 3.6136, "afterP50Ms": 1.176, "afterP95Ms": 1.3226, "allocatedP50Bytes": 88816},
+        {"name": "descending_pagination", "accessPath": "secondary_index_range", "returnedRows": 20, "examinedRows": 64, "examinedToReturned": 3.2, "beforeP50Ms": 1.2814, "beforeP95Ms": 1.5349, "afterP50Ms": 1.6916, "afterP95Ms": 1.8362, "allocatedP50Bytes": 85544}
+      ],
+      "interpretation": "access path, examined/returned and allocation unchanged; three samples are behavior evidence, not a performance claim"
+    }
+  },
+  "competitorResearch": [
+    {"project": "PostgreSQL", "version": "17.6", "commit": "7885b94d", "sourceEntry": ["src/backend/optimizer/path/costsize.c", "src/backend/optimizer/path/allpaths.c", "src/backend/optimizer/path/joinrels.c"], "license": "PostgreSQL License", "mechanisms": ["基数/成本", "访问路径", "join 枚举"], "reuseBoundary": "机制研究；不逐行移植"},
+    {"project": "SQLite", "version": "3.50.4", "commit": "8ed5e736", "sourceEntry": ["src/where.c", "src/wherecode.c", "src/analyze.c", "src/vdbe.c"], "license": "Public Domain", "mechanisms": ["轻量统计", "where loop", "字节码执行"], "reuseBoundary": "机制研究；按 SonnetDB 语义重写"},
+    {"project": "DuckDB", "version": "1.3.2", "commit": "0b83e5d2", "sourceEntry": ["src/optimizer/join_order", "src/execution/operator/join/physical_hash_join.cpp", "src/common/radix_partitioned_hashtable.cpp"], "license": "MIT", "mechanisms": ["join ordering", "向量化执行", "radix hash"], "reuseBoundary": "机制研究；保持现有执行合同"},
+    {"project": "ClickHouse", "version": "25.8.1", "commit": "4f2b50b8", "sourceEntry": ["src/Processors/QueryPlan", "src/Interpreters/Cache"], "license": "Apache-2.0", "mechanisms": ["pipeline/query plan", "缓存"], "reuseBoundary": "机制研究"},
+    {"project": "RocksDB", "version": "10.4.2", "commit": "410c5623", "sourceEntry": ["db/db_impl", "db/version_set", "table/block_based"], "license": "Apache-2.0/GPL-2.0 dual", "mechanisms": ["LSM 生命周期", "version", "block cache/read path"], "reuseBoundary": "只采用兼容许可证或 clean-room 机制"},
+    {"project": "DataFusion", "version": "49.0.2", "commit": "f43df3f2", "sourceEntry": ["datafusion/optimizer", "datafusion/physical-optimizer", "datafusion/core/src/execution"], "license": "Apache-2.0", "mechanisms": ["rule optimizer", "physical optimizer", "执行资源"], "reuseBoundary": "作为 IOx 相关 planner substrate 对照；机制研究"},
+    {"project": "QuestDB", "version": "9.0.0", "commit": "3609c551", "sourceEntry": ["core/src/main/java/io/questdb/griffin/SqlOptimiser.java", "core/src/main/java/io/questdb/cairo/TableWriter.java"], "license": "Apache-2.0", "mechanisms": ["时序 SQL 优化", "写入路径"], "reuseBoundary": "机制研究"},
+    {"project": "Lucene", "version": "10.2.2", "commit": "279eb7aa", "sourceEntry": ["lucene/core/src/java/org/apache/lucene/search/IndexSearcher.java", "lucene/core/src/java/org/apache/lucene/search/similarities/BM25Similarity.java", "lucene/core/src/java/org/apache/lucene/index/SegmentReader.java"], "license": "Apache-2.0", "mechanisms": ["BM25", "segment reader", "top-k search"], "reuseBoundary": "机制研究"},
+    {"project": "Qdrant", "version": "1.15.1", "commit": "af7ab5b1", "sourceEntry": ["lib/segment/src/index/hnsw_index", "lib/collection/src/shards/local_shard"], "license": "Apache-2.0", "mechanisms": ["HNSW", "filtered search", "local shard admission"], "reuseBoundary": "机制研究"},
+    {"project": "MinIO", "version": null, "commit": "0d7408fc", "sourceEntry": ["cmd/object-api-interface.go", "cmd/erasure-server-pool.go"], "license": "AGPL-3.0", "mechanisms": ["对象 API", "erasure pool scheduling"], "reuseBoundary": "clean-room only"},
+    {"project": "NATS", "version": "2.11.7", "commit": "df44964e", "sourceEntry": ["server/consumer.go", "server/store.go", "server/filestore.go"], "license": "Apache-2.0", "mechanisms": ["consumer backpressure", "store", "file persistence"], "reuseBoundary": "机制研究"},
+    {"project": "Kafka", "version": "4.0.0", "commit": "985bc995", "sourceEntry": ["storage/src/main/java/org/apache/kafka/storage/internals/log", "core/src/main/scala/kafka/log"], "license": "Apache-2.0", "mechanisms": ["append log", "segment/index", "retention"], "reuseBoundary": "机制研究"},
+    {"project": "Redpanda", "version": "25.2.4", "commit": "e04206cd", "sourceEntry": ["src/v/storage", "src/v/kafka/server/handlers"], "license": "BSL/RCL", "mechanisms": ["有界并发", "log storage", "request scheduling"], "reuseBoundary": "behavior-only; no code copying"},
+    {"project": "Neo4j", "version": "2025.08.0", "commit": "04c8ed8d", "sourceEntry": ["community/cypher/cypher-planner", "community/kernel"], "license": "GPL", "mechanisms": ["Cypher planning", "graph kernel"], "reuseBoundary": "clean-room only"}
+  ],
+  "runtimeMatrix": [
+    {"capability": ".NET 10", "status": "DEFAULT", "evidence": "global.json 10.0.100 latestMinor; TargetFramework net10.0"},
+    {"capability": "Span/Memory", "status": "IN_USE", "evidence": "codec、存储、查询和协议热路径"},
+    {"capability": "SearchValues", "status": "IN_USE", "evidence": "PointValidation and SqlLexer"},
+    {"capability": "Frozen collections", "status": "IN_USE", "evidence": "catalog/schema/index snapshots"},
+    {"capability": "ArrayPool", "status": "IN_USE", "evidence": "WAL、segment、ingest、MQ、object storage and endpoints"},
+    {"capability": "MemoryPool", "status": "NOT_IN_USE", "evidence": "no source reference found"},
+    {"capability": "RandomAccess", "status": "IN_USE_WITHOUT_GLOBAL_IO_BUDGET", "evidence": "KvStateFile, SonnetMqStore, GraphAlgorithmSpillVector"},
+    {"capability": "Pipelines", "status": "IN_USE", "evidence": "frame endpoints and codecs"},
+    {"capability": "Channels", "status": "IN_USE_BOUNDED", "evidence": "semantic processing, rebirth, event broadcaster, frame stream"},
+    {"capability": "SIMD", "status": "IN_USE_RUNTIME_DISPATCH", "evidence": "TensorPrimitives, System.Numerics.Vector, BitOperations"},
+    {"capability": "System.Runtime.Intrinsics direct calls", "status": "NOT_IN_USE", "evidence": "no Avx2/Avx512/BMI/AdvSimd direct source call found"},
+    {"capability": "Native AOT", "status": "WIN_X64_CLI_AND_SERVER_PUBLISH_PASS_ARM64_CONFIGURED_NOT_EXECUTED", "evidence": "win-x64 CLI and Server publish PASS; CLI executable --version PASS; Server not started. CI matrix contains ubuntu-24.04-arm/linux-arm64, but real ARM64 run remains NOT_RUN"},
+    {"capability": ".NET 11 preview", "status": "NOT_USED", "evidence": "must remain isolated behind explicit feature gate or experiment project"}
+  ],
+  "hardwareMatrix": [
+    {"path": "x64_avx2_avx512_sse", "implementation": "TensorPrimitives/System.Numerics.Vector runtime dispatch", "explicitProbe": false, "scalarFallback": true, "currentEvidence": "LOCAL_X64_ONLY", "required": "fixed x64 differential and Native AOT"},
+    {"path": "x64_bmi", "implementation": "none direct", "explicitProbe": false, "scalarFallback": null, "currentEvidence": "NOT_RUN", "required": "do not add without isolated benchmark and fallback"},
+    {"path": "popcnt", "implementation": "BitOperations.PopCount", "explicitProbe": false, "scalarFallback": "runtime managed", "currentEvidence": "unit behavior only", "required": "boundary and target CPU measurement"},
+    {"path": "ieee_crc32", "implementation": "System.IO.Hashing.Crc32.HashToUInt32", "explicitProbe": false, "scalarFallback": "runtime managed", "currentEvidence": "x64 golden/random/unaligned/boundary/1MiB", "required": "ARM64 Native AOT differential"},
+    {"path": "arm64_advsimd_neon", "implementation": "TensorPrimitives/System.Numerics.Vector runtime dispatch", "explicitProbe": false, "scalarFallback": true, "currentEvidence": "NOT_RUN", "required": "actual target IsSupported/runtime observation and differential"},
+    {"path": "arm64_crc", "implementation": "runtime library decision", "explicitProbe": false, "scalarFallback": true, "currentEvidence": "NOT_RUN", "required": "do not assume Kunpeng 920 extension; measure actual machine"},
+    {"path": "endianness_unaligned_small_input", "implementation": "numeric aggregate little-endian guard; CRC offset/boundary tests", "explicitProbe": true, "scalarFallback": true, "currentEvidence": "PARTIAL_PASS", "required": "extend all new direct hardware kernels"}
+  ],
+  "priorities": [
+    {"priority": "P0", "id": "background_statistics_refresh", "finding": "TableCostPlanner can synchronously call TryAutomaticStatisticsRefresh on the first business read for tables >=1024 rows.", "implementationGate": "coalesced background job, no foreground scan/WAL, cancellation/reopen tests, same-plan differential"},
+    {"priority": "P0", "id": "arm64_executable_gate", "finding": "linux-arm64 Native AOT CI configuration is present, but no real ARM64 run or artifact is archived.", "implementationGate": "execute linux-arm64 publish/start/first-query plus scalar/SIMD/CRC differential on actual instruction set"},
+    {"priority": "P1", "id": "representative_statistics_sampling", "finding": "sampling reads the first N rows in primary-key order.", "implementationGate": "deterministic unbiased/block sampling and skew corpus cardinality error report"},
+    {"priority": "P1", "id": "page_aware_index_cost", "finding": "narrow lookups pay half of the full index logical page count in the current cost formula.", "implementationGate": "height/leaf-range/cache-aware reads and plan-choice regression"},
+    {"priority": "P1", "id": "parameter_sensitive_plan_feedback", "finding": "runtime feedback averages estimated/actual rows by normalized SQL fingerprint and is unsafe as a physical-plan selector.", "implementationGate": "parameter/selectivity buckets, plan identity, aging, bounded cache and fallback"},
+    {"priority": "P1", "id": "embedded_io_budget", "finding": "RandomAccess point reads have no independent embedded I/O concurrency budget.", "implementationGate": "per-database semaphore/queue/cancel metrics calibrated on fixed x64 and ARM64"},
+    {"priority": "P1", "id": "vector_query_norm_reuse", "finding": "batch cosine paths can recompute the query norm for each row.", "implementationGate": "precompute once, zero/NaN/dimension differential, brute-force and HNSW benchmark"},
+    {"priority": "P2", "id": "covering_index_expansion", "finding": "covering/index-only is limited to full equality shapes.", "implementationGate": "range/prefix/IN projection coverage with visibility and residual checks"},
+    {"priority": "P2", "id": "snapshot_cold_miss_single_flight", "finding": "concurrent cold misses can duplicate snapshot overlay construction.", "implementationGate": "bounded single-flight, cancellation ownership and failure eviction"},
+    {"priority": "P2", "id": "large_value_copy_reduction", "finding": "disk point reads can copy large values twice.", "implementationGate": "owned/pool-backed lifetime contract, cancellation disposal and allocation benchmark"},
+    {"priority": "P2", "id": "cold_start_file_contract", "finding": "nine-domain reports do not yet share file-count and cold-open budgets.", "implementationGate": "files/count/bytes/replay/checkpoint P50/P95/P99 in each fixed profile"},
+    {"priority": "P2", "id": "sparkplug_real_broker_readiness_race", "finding": "controlled tests cover initial publish/stop and readiness failure, but no real MQTT server test flips IsStarted between readiness check and publish.", "implementationGate": "real broker integration race with dedicated failure classification, continued processing and resource-release assertions"},
+    {"priority": "P3", "id": "direct_intrinsics_experiments", "finding": "direct AVX/BMI/AdvSimd kernels are not currently justified over runtime dispatch.", "implementationGate": "separate feature gate, Runtime IsSupported, scalar fallback, AOT and cross-architecture differential"},
+    {"priority": "P3", "id": "dotnet11_experiment", "finding": ".NET 11 preview is not a production dependency.", "implementationGate": "isolated experiment project or conditional compilation only; no default package/runtime dependency"}
+  ],
+  "gates": {
+    "localCorrectness": "PASS_LOCAL_TESTS_NINE_DOMAIN_GATES_PARTIAL",
+    "localPerformanceDirection": "PARTIAL_PASS",
+    "fixedHardwareX64": "NOT_RUN",
+    "fixedHardwareArm64": "NOT_RUN",
+    "muleiSameCorpus": "NOT_RUN",
+    "nativeAotWinX64Cli": "PASS_PUBLISH_AND_EXECUTION",
+    "nativeAotWinX64Server": "PASS_PUBLISH_NOT_STARTED",
+    "nativeAotArm64CiConfiguration": "CONFIGURED_NOT_EXECUTED",
+    "nativeAotArm64Execution": "NOT_RUN",
+    "ciYamlSyntax": "PASS_SYNTAX_ONLY",
+    "dotnetFormat": "NOT_PASS_PRE_EXISTING_WHITESPACE_EXIT_2",
+    "sevenDayMixedWorkload": "NOT_RUN",
+    "productionRelease": "NOT_RUN"
+  },
+  "validation": {
+    "coreFull": {"status": "PASS", "passed": 3990, "failed": 0},
+    "coreTargeted": {"status": "PASS", "passed": 33, "failed": 0, "scope": ["TableStatistics", "TableIndexEntryKeyLength", "CRC32", "SqlExecutionMetrics"], "note": "subset of core full tests; do not sum as unique tests"},
+    "benchmarkTests": {"status": "PASS", "passed": 25, "failed": 0},
+    "serverFull": {"status": "PASS", "passed": 722, "failed": 0},
+    "sparkplugTargeted": {"status": "PASS", "passed": 12, "failed": 0, "note": "subset of server tests; do not sum as unique tests"},
+    "releaseWarnAsError": {"status": "PASS", "warnings": 0, "errors": 0},
+    "nativeAotWinX64CliPublish": {"status": "PASS"},
+    "nativeAotWinX64CliExecution": {"status": "PASS", "exitCode": 0, "output": "SonnetDB CLI 0.0.0-dev+424f61ad16e883d6b9050a9eb29a352105d28cef"},
+    "nativeAotWinX64ServerPublish": {"status": "PASS_NOT_STARTED", "serverStarted": false},
+    "nativeAotArm64Execution": {"status": "NOT_RUN"},
+    "ciYamlSyntax": {"status": "PASS_SYNTAX_ONLY", "parser": "YamlDotNet 16.3.0", "documents": 1, "rootEntries": 5, "matrix": ["ubuntu-24.04-arm", "linux-arm64", "RID-separated cache/publish path"], "actionlint": "NOT_RUN", "githubSchemaValidation": "NOT_RUN", "githubExecution": "NOT_RUN"},
+    "format": {"status": "NOT_PASS_PRE_EXISTING_WHITESPACE_DIFFERENCES", "exitCode": 2, "command": "dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions\\", "dirtyScopedVerification": {"file": "src/SonnetDB.Core/Sql/Execution/SqlExecutionMetrics.cs", "status": "PASS"}, "residualFiles": ["src/SonnetDB.Core/Tables/TableManager.cs", "tests/SonnetDB.Benchmarks.Tests/M27LocalOnnxEvidenceTests.cs"], "residualProvenance": "pre-existing and not dirty in this round", "bulkRemediationApplied": false}
+  },
+  "evidence": [
+    {"id": "E-001", "sourceType": "command", "sourceRef": "git rev-parse/show/merge-base/status", "contentHash": null, "observation": "outer 770a139 parent 988ed78; SonnetDB 424f61a contains 3f362d1; dirty preserved; old 0be6898 not restored"},
+    {"id": "E-002", "sourceType": "file", "sourceRef": "README.md and ROADMAP.md", "contentHash": {"README.md": "943ff22132f81c7f32062c9befc08b588e59d8b9d092fff31968b4caa8aae0a3", "ROADMAP.md": "84b0df2426c26c621a2278f5baa5ef4b11119b1a13f58ec77c3d955b094d8276"}, "observation": "eight official models; M40 graph release evidence NOT_RUN"},
+    {"id": "E-003", "sourceType": "benchmark_csv", "sourceRef": "before/statistics-refresh-run3 and statistics-current-final CSV", "contentHash": {"before": "bbd6d3853a00568b610fd725c41e1e53120f45e16820daa049422d2d25255cda", "finalDirtyAfter": "503C5D11893C8079D23B9D22F84FA02C83354D0E395C2AB13106872466BA4A8D", "intermediateAfter": "0014ee333de5cadad3a8315064c39cfc9dcf0dfa5d1ed0002e1e6c0e0b5d37c6"}, "observation": "mean 54.81 to 51.25 ms; median 54.77 to 50.68 ms; P90 55.24 to 52.29 ms; allocation 34.72 to 22.67 MB/op; 50.89 ms was an earlier intermediate rerun"},
+    {"id": "E-004", "sourceType": "benchmark_csv", "sourceRef": "before/after vector CRC32 CSV", "contentHash": {"before": "ec6352d208f838e568d857c61f0202967fb06725004dde3d9c021f26e59e6614", "after": "bd9d4563eae6bce395cc25e505878021e1d6085f785c73b49a757d6d232fc7ce"}, "observation": "production IEEE CRC32 local speedup at 64B/4KiB/1MiB"},
+    {"id": "E-005", "sourceType": "benchmark_csv", "sourceRef": "after/model-smoke CSV files", "contentHash": {"kv": "554dd478e166d45a746eef1fa0b9733209dfcbf0e724e6557adfac58d2874cc1", "document": "f9358d28089fc3bbbb0a701ca9752fe34c0452e56371ab5e0f009982897f6244", "object": "bfb95e6180e4d38fd166bebea0462f06fcb62cf69767b21028ae85dcb9abc04f"}, "observation": "independent KV/Document/Object local model smoke"},
+    {"id": "E-006", "sourceType": "artifact_json", "sourceRef": "before/after m41 evidence", "contentHash": {"before": "894bab97ee33734fbbc3ee83717a1a4dbb5dbe8889959dc812a6b9381d0702d4", "after": "28b195d76e8485c19f6b0df831772cca3d0839b6b91993fe61062f35521d7326"}, "observation": "five M41 quick queries PASS with unchanged paths/examined/allocation; fixedHardware and productionGate NOT_RUN"},
+    {"id": "E-007", "sourceType": "source", "sourceRef": "SqlExecutionMetrics.cs and SqlQueryDiagnostics.cs", "contentHash": null, "observation": "64 attempts/5 ms bounded physical-read snapshot with degraded counter"},
+    {"id": "E-008", "sourceType": "source_and_tests", "sourceRef": "SparkplugRebirthQueue.cs, SparkplugHostApplicationService.cs, SonnetMqttBrokerBridge.cs and targeted tests", "contentHash": null, "observation": "bounded queue and IsStarted readiness; dedicated unavailable classification; unknown InvalidOperationException is not reclassified; initial publish/stop race covered; real broker flip integration remains open"},
+    {"id": "E-009", "sourceType": "source_and_syntax_check", "sourceRef": ".github/workflows/ci.yml", "contentHash": null, "observation": "YamlDotNet syntax PASS and manual linux-arm64/RID-path check; actionlint, GitHub schema/execution and real ARM64 remain NOT_RUN"},
+    {"id": "E-010", "sourceType": "artifact_json", "sourceRef": "artifacts/system-performance-20260901/model-read-latency-current-final/model-read-latency.json", "contentHash": "6E189C38ED59FF0FA71575D16147E9B80DC69714543B88D9CD7D38401A326116", "observation": "six hot embedded model-read operations, 32 warmups and 256 single-request samples each; raw nearest-rank P50/P95/P99 recomputation matched"},
+    {"id": "E-011", "sourceType": "test_build_publish_and_format", "sourceRef": "final local validation commands and artifacts/system-performance-20260901/validation", "contentHash": null, "observation": "Core 3990/3990, targeted 33/33, Benchmark 25/25, Server 722/722 and Sparkplug 12/12 PASS; Release 0 warnings/errors; win-x64 CLI/Server AOT publish PASS and CLI execution PASS; solution format exit 2 only for two pre-existing non-dirty files"}
+  ],
+  "findings": [
+    {"id": "F-001", "status": "validated", "confidence": "high", "evidenceIds": ["E-001", "E-002"], "finding": "当前基线完整继承目标 SonnetDB 提交与 dirty 改动，正式产品口径仍为八模型。"},
+    {"id": "F-002", "status": "validated", "confidence": "high", "evidenceIds": ["E-003"], "finding": "统计刷新切片在最终 dirty 本机短跑中降低均值约 6.49% 和托管分配约 34.71%；固定硬件、ARM64 与生产收益仍未验证。"},
+    {"id": "F-003", "status": "validated", "confidence": "high", "evidenceIds": ["E-004"], "finding": "System.IO.Hashing IEEE CRC32 在本机三个尺寸均显示显著方向性收益，格式正确性由差分测试约束。"},
+    {"id": "F-004", "status": "candidate", "confidence": "medium", "evidenceIds": ["E-005", "E-006", "E-010"], "finding": "模型级 BDN 与逐请求热读证据已扩展，但九域固定硬件容量仍不完整。"},
+    {"id": "F-005", "status": "validated", "confidence": "high", "evidenceIds": ["E-007", "E-008"], "finding": "物理读指标冻结和 Sparkplug Rebirth 已具备有界等待/队列及显式失败分类；真实 MQTT readiness/publish 状态翻转仍缺集成验证。"},
+    {"id": "F-006", "status": "candidate", "confidence": "medium", "evidenceIds": ["E-009"], "finding": "ARM64 AOT CI 门禁已配置且 YAML syntax 已验证，但真实 CI/ARM64 未执行，不能推导实际指令或性能。"},
+    {"id": "F-007", "status": "validated", "confidence": "high", "evidenceIds": ["E-011"], "finding": "最终本机测试、Release 与 win-x64 AOT 通过；solution-wide format 因两处 pre-existing whitespace 差异未通过。"}
+  ],
+  "paths": [
+    {"id": "P-001", "type": "delivery", "start": "dirty baseline verification", "steps": [{"action": "freeze identity and scope", "evidenceIds": ["E-001", "E-002"], "findingIds": ["F-001"]}, {"action": "measure common-path slices", "evidenceIds": ["E-003", "E-004"], "findingIds": ["F-002", "F-003"]}, {"action": "add domain-specific BDN/request smoke and bounded concurrency", "evidenceIds": ["E-005", "E-006", "E-007", "E-008", "E-010"], "findingIds": ["F-004", "F-005"]}, {"action": "configure ARM64 AOT CI gate", "evidenceIds": ["E-009"], "findingIds": ["F-006"]}, {"action": "validate local tests, Release, win-x64 AOT and format boundary", "evidenceIds": ["E-011"], "findingIds": ["F-007"]}], "goal": "fixed-hardware and production gates", "residualRisk": "all target-hardware and production tiers remain NOT_RUN"}
+  ],
+  "boundedSourceScan": {
+    "scope": ["src/SonnetDB.Core", "src/SonnetDB"],
+    "excluded": ["bin", "obj"],
+    "classification": "heuristic_candidates_not_bug_counts",
+    "counts": {
+      "indexOfLiteralWithoutComparison": 0,
+      "substring": 6,
+      "startsOrEndsLiteralWithoutComparison": 0,
+      "containsPotentialString": 4,
+      "asyncVoid": 0,
+      "toLowerOrUpper": 0,
+      "tripleReplace": 2,
+      "params": 19,
+      "charAllOrAny": 3,
+      "staticReadonlyDictionary": 2,
+      "frozenDictionaryCandidate": 0,
+      "newList": 664,
+      "newDictionary": 280,
+      "currentCultureComparer": 0,
+      "linqSelectWhereCastTakeAggregate": 615,
+      "newHttpClient": 0,
+      "newJsonSerializerOptions": 0,
+      "regexOptionsCompiled": 5,
+      "generatedRegex": 5,
+      "newRegex": 1,
+      "taskResultPotential": 53,
+      "waitPotential": 18,
+      "unboundedChannel": 0,
+      "boundedChannel": 4,
+      "unsealedClassCandidates": 1,
+      "sealedClasses": 524
+    },
+    "candidateBenchmarks": {
+      "sqlLexerFrozen": {
+        "status": "NO_SAMPLE_BUILD_TIMEOUT",
+        "attempted": true,
+        "timeoutSeconds": 120,
+        "sampleProduced": false
+      }
+    },
+    "reviewNotes": [
+      "GraphTableSqlExecutor Task.Result hit is a synchronous record property false positive.",
+      "Wait hits are mainly explicit locks or bounded waits.",
+      "The one dynamic Regex uses a bounded cache and 250 ms timeout.",
+      "SqlLexer frozen candidate benchmark timed out during BenchmarkDotNet internal 120-second build and has no sample; before/sql-lexer-frozen is NO_SAMPLE_BUILD_TIMEOUT and production code was not changed."
+    ]
+  },
+  "artifactPaths": {
+    "humanReport": "docs/benchmarks/system-performance-20260901.md",
+    "artifactMarkdown": "artifacts/system-performance-20260901/system-performance-report.md",
+    "machineReport": "artifacts/system-performance-20260901/system-performance-report.json"
+  }
+}

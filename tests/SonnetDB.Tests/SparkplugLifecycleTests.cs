@@ -57,6 +57,23 @@ public sealed class SparkplugLifecycleTests
         Assert.False(store.Process(birth, null, 1).Accepted);
     }
 
+    /// <summary>验证队列拒绝后释放抑制标记，下一条缺口消息可以重新请求。</summary>
+    [Fact]
+    public void ReleaseRebirthRequest_AfterQueueRejection_AllowsRetry()
+    {
+        var store = new SparkplugLifecycleStore();
+        SparkplugTopicRoute birth = Parse("spBv1.0/factory/NBIRTH/edge-1");
+        SparkplugTopicRoute data = Parse("spBv1.0/factory/NDATA/edge-1");
+
+        Assert.True(store.Process(birth, 0, 1).Accepted);
+        Assert.True(store.Process(data, 2, null).RequiresRebirth);
+        Assert.False(store.Process(data, 3, null).RequiresRebirth);
+
+        store.ReleaseRebirthRequest("factory", "edge-1");
+
+        Assert.True(store.Process(data, 4, null).RequiresRebirth);
+    }
+
     [Fact]
     public void Process_DeathAndMissingDeviceBirth_TrackOfflineState()
     {

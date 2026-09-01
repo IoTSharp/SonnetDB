@@ -52,6 +52,9 @@ public sealed record SlowQueryDiagnosticEntry(
     /// <summary>实际物理读取的 payload 字节数。</summary>
     public long PhysicalReadBytes { get; init; }
 
+    /// <summary>物理读取次数与字节数是否来自同一完整快照；为 false 时两个数值不可用于聚合。</summary>
+    public bool PhysicalReadSnapshotComplete { get; init; } = true;
+
     /// <summary>WAL record 等实际物理写入次数。</summary>
     public long PhysicalWrites { get; init; }
 
@@ -166,6 +169,12 @@ public sealed record TopQueryDiagnosticEntry(
 
     /// <summary>累计物理读取 payload 字节数。</summary>
     public long PhysicalReadBytes { get; init; }
+
+    /// <summary>参与物理读取累计值的完整快照样本数。</summary>
+    public long PhysicalReadSampleCount { get; init; }
+
+    /// <summary>因一致性预算耗尽而未参与物理读取累计值的降级样本数。</summary>
+    public long PhysicalReadDegradedSampleCount { get; init; }
 
     /// <summary>累计物理写入次数。</summary>
     public long PhysicalWrites { get; init; }

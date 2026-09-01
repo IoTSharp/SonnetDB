@@ -64,6 +64,18 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*M41Relat
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 
+# 仅运行 KV / 缓存模型基准（10k 键，点读与 GetMany）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*KvModel*'
+
+# 仅运行 JSON 文档模型基准（10k 文档，ID 点读与 JSON path 索引查询）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*DocumentModel*'
+
+# 仅运行对象存储模型基准（256 个 64 KiB 对象，完整与 Range 读取）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*ObjectStorageModel*'
+
+# KV / Document / Object Storage 单次原生请求的真实 P50/P95/P99 smoke artifact
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --model-read-latency-evidence --quick --output artifacts/model-read-latency
+
 # 仅运行 PID 控制函数基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Pid*
 ```
@@ -166,6 +178,12 @@ IoTDB 使用 `GROUP BY ([start,end), 60000ms)`；TimescaleDB 使用 `time_bucket
 
 预先写入多个 `.SDBSEG` 段，然后执行一次 `4 -> 1` 的段合并，
 用于度量 SonnetDB 引擎在真实段文件上的 Compaction 耗时与内存分配。
+
+### 多模型读取基准
+
+`KvModelBenchmark`、`DocumentModelBenchmark` 与 `ObjectStorageModelBenchmark` 分别走 KV、JSON 文档和对象存储原生 API；每项使用固定落盘语料，报告 BenchmarkDotNet 的迭代统计、吞吐与托管分配。BenchmarkDotNet 的分位列来自迭代均值分布，`OperationsPerInvoke` 还会归一化批请求成本，因此这些列不能解释为单次请求尾延迟。
+
+`--model-read-latency-evidence` 逐次计时单个原生 API 请求，按 nearest-rank 输出真实 P50/P95/P99、分配、吞吐和可离线复算的原始样本 JSON；quick 只属于本机热读取 smoke。服务端排队、并发上限、冷缓存、物理 I/O、固定 x64/ARM64、Native AOT、现场同语料和生产发布门禁仍需独立证据。
 
 ### SegmentManagerMaintenanceBenchmark（M19 #124）
 

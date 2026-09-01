@@ -25,6 +25,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
+//   dotnet run -c Release -- --model-read-latency-evidence --quick --output artifacts/model-read-latency （KV/Document/Object 请求级 P50/P95/P99）
 //   dotnet run -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path> --environment <name> --intra-op-threads <n> --inter-op-threads <n>
 //   dotnet run -c Release -- --m27-verify-local-onnx <report> [--require-ready]
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
@@ -207,6 +208,21 @@ if (args.Contains("--m41-production-closeout", StringComparer.OrdinalIgnoreCase)
         + $"release-decision={report.ReleaseDecision} deferred={report.DeferredValidations.Count}");
     if (report.LocalCloseout != M41ProductionCloseoutStatus.Pass)
         Environment.ExitCode = 1;
+    return;
+}
+
+if (args.Contains("--model-read-latency-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "model-read-latency"));
+    bool quick = args.Contains("--quick", StringComparer.OrdinalIgnoreCase);
+    using var timeout = new CancellationTokenSource(quick ? TimeSpan.FromMinutes(2) : TimeSpan.FromMinutes(10));
+    ModelReadLatencyEvidenceReport report = await ModelReadLatencyEvidenceRunner.RunAsync(
+        outputDirectory,
+        quick,
+        timeout.Token).ConfigureAwait(false);
+    Console.WriteLine(
+        $"model-read-latency={report.Status} output={outputDirectory} "
+        + $"mode={report.Mode} samples={report.SampleCount} operations={report.Operations.Count}");
     return;
 }
 

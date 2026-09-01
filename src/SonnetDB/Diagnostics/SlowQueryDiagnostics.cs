@@ -91,6 +91,7 @@ internal sealed partial class SlowQueryDiagnostics
             LogicalWrites = Math.Max(0, recordsAffected),
             PhysicalReads = executionMetrics?.PhysicalReads ?? 0,
             PhysicalReadBytes = executionMetrics?.PhysicalReadBytes ?? 0,
+            PhysicalReadSnapshotComplete = executionMetrics?.PhysicalReadSnapshotComplete ?? true,
             PhysicalWrites = executionMetrics?.PhysicalWrites ?? 0,
             PhysicalWriteBytes = executionMetrics?.PhysicalWriteBytes ?? 0,
             QueueWaitMs = Math.Max(0, queueWaitMs),
@@ -151,6 +152,7 @@ internal sealed partial class SlowQueryDiagnostics
             ["sonnetdb.query.duration_ms"] = entry.ElapsedMs,
             ["sonnetdb.query.severity"] = entry.Severity,
             ["sonnetdb.query.failed"] = entry.Failed,
+            ["sonnetdb.query.physical_read_snapshot_complete"] = entry.PhysicalReadSnapshotComplete,
         };
         activity.AddEvent(new ActivityEvent("slow_query", tags: tags));
     }
@@ -165,6 +167,7 @@ internal sealed partial class SlowQueryDiagnostics
                 entry.Fingerprint,
                 entry.ElapsedMs,
                 entry.Failed,
+                entry.PhysicalReadSnapshotComplete,
                 entry.NormalizedSql);
             return;
         }
@@ -176,6 +179,7 @@ internal sealed partial class SlowQueryDiagnostics
             entry.ElapsedMs,
             entry.Severity,
             entry.Failed,
+            entry.PhysicalReadSnapshotComplete,
             entry.NormalizedSql);
     }
 
@@ -183,7 +187,7 @@ internal sealed partial class SlowQueryDiagnostics
         EventId = 2001,
         EventName = "Query.Slow",
         Level = LogLevel.Warning,
-        Message = "慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} severity={Severity} failed={Failed} normalized_sql={NormalizedSql}")]
+        Message = "慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} severity={Severity} failed={Failed} physical_read_snapshot_complete={PhysicalReadSnapshotComplete} normalized_sql={NormalizedSql}")]
     private static partial void LogSlow(
         ILogger logger,
         string database,
@@ -191,18 +195,20 @@ internal sealed partial class SlowQueryDiagnostics
         double elapsedMs,
         string severity,
         bool failed,
+        bool physicalReadSnapshotComplete,
         string normalizedSql);
 
     [LoggerMessage(
         EventId = 2002,
         EventName = "Query.Critical",
         Level = LogLevel.Error,
-        Message = "严重慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} failed={Failed} normalized_sql={NormalizedSql}")]
+        Message = "严重慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} failed={Failed} physical_read_snapshot_complete={PhysicalReadSnapshotComplete} normalized_sql={NormalizedSql}")]
     private static partial void LogCritical(
         ILogger logger,
         string database,
         string fingerprint,
         double elapsedMs,
         bool failed,
+        bool physicalReadSnapshotComplete,
         string normalizedSql);
 }

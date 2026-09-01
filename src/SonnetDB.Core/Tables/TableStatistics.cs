@@ -238,7 +238,7 @@ internal static class TableStatisticsCalculator
                     break;
 
                 object?[] values = TableRowCodec.Decode(schema, entry.Value.Span);
-                byte[] primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key).ToArray();
+                ReadOnlyMemory<byte> primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key);
                 sampledRows++;
                 rowPayloadBytes = checked(rowPayloadBytes + entry.Value.Length);
                 for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
@@ -246,13 +246,14 @@ internal static class TableStatisticsCalculator
 
                 for (int index = 0; index < indexes.Length; index++)
                 {
-                    byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(
+                    bool hasIndexEntry = TableIndexCodec.TryGetIndexEntryKeyLength(
                         indexes[index].Index,
                         values,
                         schema,
-                        primaryKey);
-                    if (key is not null)
-                        indexes[index].Add(checked(key.Length + primaryKey.Length));
+                        primaryKey.Span,
+                        out int keyLength);
+                    if (hasIndexEntry)
+                        indexes[index].Add(checked(keyLength + primaryKey.Length));
                 }
             }
         }

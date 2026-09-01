@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.Options;
 using MQTTnet.Protocol;
 using SonnetDB.Configuration;
@@ -12,31 +11,54 @@ namespace SonnetDB.Mqtt;
 /// </summary>
 internal sealed class SparkplugHostApplicationService : BackgroundService
 {
-    private readonly Channel<RebirthRequest> _requests = Channel.CreateUnbounded<RebirthRequest>(
-        new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
-    private readonly SonnetMqttBrokerBridge _bridge;
+    internal const int MinPublishTimeoutMilliseconds = 100;
+    internal const int MaxPublishTimeoutMilliseconds = 60_000;
+
+    private readonly ISparkplugInternalPublisher _publisher;
+    private readonly SparkplugLifecycleStore _lifecycle;
+    private readonly SparkplugRebirthQueue _requests;
     private readonly SparkplugOptions _options;
     private readonly ServerMetrics _metrics;
     private readonly ILogger<SparkplugHostApplicationService> _logger;
     private byte _sequence;
 
     public SparkplugHostApplicationService(
-        SonnetMqttBrokerBridge bridge,
+        ISparkplugInternalPublisher publisher,
+        SparkplugLifecycleStore lifecycle,
         IOptions<ServerOptions> options,
         ServerMetrics metrics,
         ILogger<SparkplugHostApplicationService> logger)
     {
-        _bridge = bridge;
+        _publisher = publisher;
+        _lifecycle = lifecycle;
         _options = options.Value.Mqtt.Sparkplug;
         _metrics = metrics;
         _logger = logger;
+        _requests = new SparkplugRebirthQueue(_options.RebirthQueueCapacity, metrics);
+        if (_options.RebirthPublishTimeoutMilliseconds is < MinPublishTimeoutMilliseconds
+            or > MaxPublishTimeoutMilliseconds)
+        {
+            throw new InvalidOperationException(
+                $"Sparkplug Rebirth 发布超时必须位于 {MinPublishTimeoutMilliseconds}..{MaxPublishTimeoutMilliseconds} 毫秒。");
+        }
     }
 
     /// <summary>
     /// 将 edge node 的 Rebirth 请求加入单读后台队列。
     /// </summary>
     public bool RequestRebirth(string groupId, string edgeNodeId)
-        => _requests.Writer.TryWrite(new(groupId, edgeNodeId));
+    {
+        SparkplugRebirthEnqueueResult result = _requests.TryEnqueue(groupId, edgeNodeId);
+        if (result is SparkplugRebirthEnqueueResult.RejectedFull or SparkplugRebirthEnqueueResult.RejectedStopped)
+        {
+            // 拒绝后立即恢复生命周期标记，下一条数据仍有机会重新请求，而不会永久静默。
+            _lifecycle.ReleaseRebirthRequest(groupId, edgeNodeId);
+            _logger.SparkplugRebirthQueueRejected(groupId, edgeNodeId, result.ToString(), _requests.Capacity);
+            return false;
+        }
+
+        return true;
+    }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,28 +66,23 @@ internal sealed class SparkplugHostApplicationService : BackgroundService
         try
         {
             if (_options.PublishHostState)
-                await PublishStateAsync("ONLINE", stoppingToken).ConfigureAwait(false);
+                await TryPublishInitialStateAsync(stoppingToken).ConfigureAwait(false);
 
-            await foreach (RebirthRequest request in _requests.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
-            {
-                string topic = $"spBv1.0/{request.GroupId}/NCMD/{request.EdgeNodeId}";
-                byte[] payload = SparkplugCommandEncoder.EncodeRebirth(_sequence++);
-                await _bridge.PublishInternalAsync(
-                    topic,
-                    payload,
-                    MqttQualityOfServiceLevel.AtLeastOnce,
-                    retain: false,
-                    stoppingToken).ConfigureAwait(false);
-                _metrics.RecordSparkplugRebirthCommand();
-                _logger.SparkplugRebirthPublished(topic);
-            }
+            while (await _requests.ReadAsync(stoppingToken).ConfigureAwait(false) is { } request)
+                await PublishRebirthAsync(request, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // 正常停止。
+            // 宿主停止取消是正常生命周期，不计发布失败。
+        }
+        catch (SparkplugPublisherUnavailableException) when (stoppingToken.IsCancellationRequested)
+        {
+            // broker 未就绪与宿主取消竞态时仍按正常停止处理，但不吞正常运行期的同类错误。
         }
         finally
         {
+            _requests.StopAccepting();
+            ReleaseDiscardedRequests();
             if (_options.PublishHostState)
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -73,7 +90,7 @@ internal sealed class SparkplugHostApplicationService : BackgroundService
                 {
                     await PublishStateAsync("OFFLINE", timeout.Token).ConfigureAwait(false);
                 }
-                catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
+                catch (Exception ex) when (ex is OperationCanceledException or SparkplugPublisherUnavailableException)
                 {
                     _logger.SparkplugHostStatePublishFailed(ex, _options.HostId, "OFFLINE");
                 }
@@ -81,15 +98,117 @@ internal sealed class SparkplugHostApplicationService : BackgroundService
         }
     }
 
+    /// <inheritdoc />
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _requests.StopAccepting();
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private Task PublishStateAsync(string state, CancellationToken cancellationToken)
-        => _bridge.PublishInternalAsync(
+        => _publisher.PublishInternalAsync(
             $"spBv1.0/STATE/{_options.HostId}",
             System.Text.Encoding.UTF8.GetBytes(state),
             MqttQualityOfServiceLevel.AtLeastOnce,
             retain: true,
             cancellationToken);
 
-    private readonly record struct RebirthRequest(string GroupId, string EdgeNodeId);
+    /// <summary>首次 ONLINE 在 broker 启动窗口内失败时记录告警，并继续提供有界 Rebirth 服务。</summary>
+    private async Task TryPublishInitialStateAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await PublishStateAsync("ONLINE", stoppingToken).ConfigureAwait(false);
+        }
+        catch (SparkplugPublisherUnavailableException ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            _logger.SparkplugHostStatePublishFailed(ex, _options.HostId, "ONLINE");
+        }
+    }
+
+    /// <summary>
+    /// 在独立 deadline 内发布一条 Rebirth；单节点失败不会终止后续节点处理。
+    /// </summary>
+    private async Task PublishRebirthAsync(
+        SparkplugRebirthRequest request,
+        CancellationToken stoppingToken)
+    {
+        string topic = $"spBv1.0/{request.GroupId}/NCMD/{request.EdgeNodeId}";
+        bool published = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        deadline.CancelAfter(_options.RebirthPublishTimeoutMilliseconds);
+
+        try
+        {
+            byte[] payload = SparkplugCommandEncoder.EncodeRebirth(_sequence++);
+            await _publisher.PublishInternalAsync(
+                topic,
+                payload,
+                MqttQualityOfServiceLevel.AtLeastOnce,
+                retain: false,
+                deadline.Token).ConfigureAwait(false);
+            published = true;
+            _metrics.RecordSparkplugRebirthCommand();
+            _logger.SparkplugRebirthPublished(topic);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            _metrics.RecordSparkplugRebirthPublishFailure();
+            _logger.SparkplugRebirthPublishTimedOut(
+                ex,
+                topic,
+                _options.RebirthPublishTimeoutMilliseconds);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            _metrics.RecordSparkplugRebirthPublishFailure();
+            _logger.SparkplugRebirthPublishFailed(ex, topic);
+        }
+        finally
+        {
+            _requests.Complete(request);
+            if (!published)
+            {
+                // 当前项无论超时、异常还是宿主停止都不再占用容量，并允许后续数据重新请求。
+                _metrics.RecordSparkplugRebirthQueueDiscarded(outstandingCount: 1, queuedCount: 0);
+                _lifecycle.ReleaseRebirthRequest(request.GroupId, request.EdgeNodeId);
+            }
+        }
+    }
+
+    /// <summary>释放停止时未发送请求的生命周期标记，避免同进程内重启后无法重试。</summary>
+    private void ReleaseDiscardedRequests()
+    {
+        IReadOnlyList<SparkplugRebirthRequest> discarded = _requests.DiscardOutstanding();
+        foreach (SparkplugRebirthRequest request in discarded)
+            _lifecycle.ReleaseRebirthRequest(request.GroupId, request.EdgeNodeId);
+    }
+}
+
+/// <summary>
+/// Sparkplug Host 发布边界；生产实现复用 broker bridge，测试可注入确定性的阻塞或异常行为。
+/// </summary>
+internal interface ISparkplugInternalPublisher
+{
+    /// <summary>
+    /// 向内建 broker 发布一条 Host STATE 或 NCMD 消息；未就绪使用专用异常，未知错误原样传播。
+    /// </summary>
+    Task PublishInternalAsync(
+        string topic,
+        ReadOnlyMemory<byte> payload,
+        MqttQualityOfServiceLevel qualityOfService,
+        bool retain,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>表示内建 broker 尚未就绪或在内部发布期限内不可用。</summary>
+internal sealed class SparkplugPublisherUnavailableException : InvalidOperationException
+{
+    /// <summary>创建带可选底层原因的可恢复发布异常。</summary>
+    public SparkplugPublisherUnavailableException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
 }
 
 /// <summary>最小 Sparkplug protobuf 命令编码器。</summary>

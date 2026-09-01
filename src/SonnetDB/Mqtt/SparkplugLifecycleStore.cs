@@ -118,6 +118,18 @@ internal sealed class SparkplugLifecycleStore
         }
     }
 
+    /// <summary>
+    /// Rebirth 请求未能发布时释放抑制标记，使下一条异常数据可以再次尝试入队。
+    /// </summary>
+    public void ReleaseRebirthRequest(string groupId, string edgeNodeId)
+    {
+        if (!_edges.TryGetValue(new EdgeKey(groupId, edgeNodeId), out EdgeState? state))
+            return;
+
+        lock (state.SyncRoot)
+            state.RebirthRequested = false;
+    }
+
     /// <summary>读取节点当前状态，供测试和诊断使用。</summary>
     public SparkplugNodeState GetState(string groupId, string edgeNodeId)
     {

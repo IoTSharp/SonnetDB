@@ -8,6 +8,9 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal sealed class SqlExecutionMetrics
 {
+    // 完成冻结最多消耗固定迭代数和墙钟预算，避免异常 writer 阻塞查询收尾。
+    private const int PhysicalReadSnapshotMaxAttempts = 64;
+    private static readonly TimeSpan PhysicalReadSnapshotWaitBudget = TimeSpan.FromMilliseconds(5);
     private readonly object _sync = new();
     private readonly int _originThreadId = Environment.CurrentManagedThreadId;
     private readonly long _allocatedBytesStart = GC.GetAllocatedBytesForCurrentThread();
@@ -47,12 +50,12 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentException.ThrowIfNullOrWhiteSpace(accessPath);
-        _accessPath = Merge(_accessPath, accessPath);
-        if (indexName is not null)
-            _indexName = Merge(_indexName, indexName);
-        if (fallbackReason is not null)
-            _fallbackReason = Merge(_fallbackReason, fallbackReason);
+            ArgumentException.ThrowIfNullOrWhiteSpace(accessPath);
+            _accessPath = Merge(_accessPath, accessPath);
+            if (indexName is not null)
+                _indexName = Merge(_indexName, indexName);
+            if (fallbackReason is not null)
+                _fallbackReason = Merge(_fallbackReason, fallbackReason);
         }
     }
 
@@ -61,9 +64,9 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        _candidateRows = checked(_candidateRows + count);
-        _logicalReads = checked(_logicalReads + count);
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+            _candidateRows = checked(_candidateRows + count);
+            _logicalReads = checked(_logicalReads + count);
         }
     }
 
@@ -72,8 +75,8 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        _examinedRows = checked(_examinedRows + count);
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+            _examinedRows = checked(_examinedRows + count);
         }
     }
 
@@ -120,9 +123,9 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        _physicalWrites++;
-        _physicalWriteBytes = checked(_physicalWriteBytes + bytes);
+            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+            _physicalWrites++;
+            _physicalWriteBytes = checked(_physicalWriteBytes + bytes);
         }
     }
 
@@ -131,10 +134,10 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        if (tableManager)
-            _tableLockWaitMs += elapsedMs;
-        else
-            _kvLockWaitMs += elapsedMs;
+            if (tableManager)
+                _tableLockWaitMs += elapsedMs;
+            else
+                _kvLockWaitMs += elapsedMs;
         }
     }
 
@@ -143,8 +146,8 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        _walFsyncCount++;
-        _walFsyncMs += elapsedMs;
+            _walFsyncCount++;
+            _walFsyncMs += elapsedMs;
         }
     }
 
@@ -153,9 +156,9 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        if (bytes > _peakMemoryBytes)
-            _peakMemoryBytes = bytes;
+            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+            if (bytes > _peakMemoryBytes)
+                _peakMemoryBytes = bytes;
         }
     }
 
@@ -164,9 +167,9 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        _spillCount++;
-        _spillBytes = checked(_spillBytes + bytes);
+            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+            _spillCount++;
+            _spillBytes = checked(_spillBytes + bytes);
         }
     }
 
@@ -175,8 +178,8 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        _spillBytes = checked(_spillBytes + bytes);
+            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+            _spillBytes = checked(_spillBytes + bytes);
         }
     }
 
@@ -222,44 +225,46 @@ internal sealed class SqlExecutionMetrics
     {
         lock (_sync)
         {
-        if (_completed is not null)
-            return _completed;
+            if (_completed is not null)
+                return _completed;
 
-        long allocatedBytes = Environment.CurrentManagedThreadId == _originThreadId
-            ? Math.Max(0, GC.GetAllocatedBytesForCurrentThread() - _allocatedBytesStart)
-            : -1;
-        (long physicalReads, long physicalReadBytes) = CapturePhysicalReadSnapshot();
-        _completed = new SqlExecutionMetricsSnapshot(
-            _accessPath,
-            _indexName,
-            _fallbackReason,
-            _candidateRows,
-            _examinedRows,
-            _logicalReads,
-            physicalReads,
-            physicalReadBytes,
-            _physicalWrites,
-            _physicalWriteBytes,
-            _tableLockWaitMs,
-            _kvLockWaitMs,
-            _walFsyncMs,
-            _walFsyncCount,
-            _peakMemoryBytes,
-            _spillCount,
-            _spillBytes,
-            _spillCleanupFailures,
-            Stopwatch.GetElapsedTime(_startedTimestamp).TotalMilliseconds,
-            allocatedBytes,
-            Math.Max(0, GC.CollectionCount(0) - _gen0Start),
-            Math.Max(0, GC.CollectionCount(1) - _gen1Start),
-            Math.Max(0, GC.CollectionCount(2) - _gen2Start),
-            _estimatedRows,
-            _parallelOperator,
-            _parallelWorkerCount > 1,
-            _parallelWorkerCount,
-            _parallelCompletedItems,
-            _parallelFallbackReason);
-        return _completed;
+            long allocatedBytes = Environment.CurrentManagedThreadId == _originThreadId
+                ? Math.Max(0, GC.GetAllocatedBytesForCurrentThread() - _allocatedBytesStart)
+                : -1;
+            (long physicalReads, long physicalReadBytes, bool physicalReadSnapshotComplete) =
+                CapturePhysicalReadSnapshot();
+            _completed = new SqlExecutionMetricsSnapshot(
+                _accessPath,
+                _indexName,
+                _fallbackReason,
+                _candidateRows,
+                _examinedRows,
+                _logicalReads,
+                physicalReads,
+                physicalReadBytes,
+                _physicalWrites,
+                _physicalWriteBytes,
+                _tableLockWaitMs,
+                _kvLockWaitMs,
+                _walFsyncMs,
+                _walFsyncCount,
+                _peakMemoryBytes,
+                _spillCount,
+                _spillBytes,
+                _spillCleanupFailures,
+                Stopwatch.GetElapsedTime(_startedTimestamp).TotalMilliseconds,
+                allocatedBytes,
+                Math.Max(0, GC.CollectionCount(0) - _gen0Start),
+                Math.Max(0, GC.CollectionCount(1) - _gen1Start),
+                Math.Max(0, GC.CollectionCount(2) - _gen2Start),
+                _estimatedRows,
+                _parallelOperator,
+                _parallelWorkerCount > 1,
+                _parallelWorkerCount,
+                _parallelCompletedItems,
+                _parallelFallbackReason,
+                physicalReadSnapshotComplete);
+            return _completed;
         }
     }
 
@@ -268,16 +273,20 @@ internal sealed class SqlExecutionMetrics
             ? next
             : "mixed";
 
-    /// <summary>在无在途 writer 且序号前后稳定时读取一致的物理读快照。</summary>
-    private (long Reads, long Bytes) CapturePhysicalReadSnapshot()
+    /// <summary>在有限等待预算内读取一致的物理读快照；无法稳定时返回零下界并标记降级。</summary>
+    private (long Reads, long Bytes, bool Complete) CapturePhysicalReadSnapshot()
     {
+        long startedTimestamp = Stopwatch.GetTimestamp();
         var spinner = new SpinWait();
-        while (true)
+        for (var attempt = 0; attempt < PhysicalReadSnapshotMaxAttempts; attempt++)
         {
             long completedBefore = Volatile.Read(ref _physicalReadCompleted);
             long startedBefore = Volatile.Read(ref _physicalReadStarted);
             if (startedBefore != completedBefore)
             {
+                if (Stopwatch.GetElapsedTime(startedTimestamp) >= PhysicalReadSnapshotWaitBudget)
+                    break;
+
                 spinner.SpinOnce();
                 continue;
             }
@@ -292,11 +301,17 @@ internal sealed class SqlExecutionMetrics
                 && completedBefore == completedAfter
                 && startedAfter == completedAfter)
             {
-                return (reads, bytes);
+                return (reads, bytes, true);
             }
+
+            if (Stopwatch.GetElapsedTime(startedTimestamp) >= PhysicalReadSnapshotWaitBudget)
+                break;
 
             spinner.SpinOnce();
         }
+
+        // 在途 writer 可能只更新了次数或字节；零值是现有数值合同可表达的唯一安全下界。
+        return (0, 0, false);
     }
 
     /// <summary>使用 CAS 原子累加非负计量值，并在提交前检查溢出。</summary>
@@ -344,7 +359,8 @@ internal sealed record SqlExecutionMetricsSnapshot(
     bool ParallelismEnabled = false,
     int ParallelWorkerCount = 1,
     long ParallelCompletedItems = 0,
-    string? ParallelFallbackReason = null)
+    string? ParallelFallbackReason = null,
+    bool PhysicalReadSnapshotComplete = true)
 {
     /// <summary>实际/估算候选行数比率；估算为零时返回 1。</summary>
     public double ActualToEstimatedRowsRatio => EstimatedRows <= 0 ? 1 : (double)CandidateRows / EstimatedRows;

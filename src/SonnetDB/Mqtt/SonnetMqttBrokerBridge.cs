@@ -14,11 +14,12 @@ namespace SonnetDB.Mqtt;
 /// <summary>
 /// 内建 MQTT broker 与 SonnetDB 控制面之间的桥接器。
 /// </summary>
-internal sealed class SonnetMqttBrokerBridge
+internal sealed class SonnetMqttBrokerBridge : ISparkplugInternalPublisher
 {
     internal const string PrincipalSessionKey = "sndb.mqtt.principal";
     internal const string InternalPublishSessionKey = "sndb.mqtt.internal-publish";
     private const int PumpBatchMax = 100;
+    private const int InternalPublishRetryDelayMilliseconds = 25;
 
     private readonly TsdbRegistry _registry;
     private readonly GrantsStore _grants;
@@ -174,7 +175,7 @@ internal sealed class SonnetMqttBrokerBridge
         }
     }
 
-    private Task ClientSubscribedTopicAsync(ClientSubscribedTopicEventArgs args)
+    private async Task ClientSubscribedTopicAsync(ClientSubscribedTopicEventArgs args)
     {
         if (_options.Mqtt.Sparkplug.PublishHostState
             && string.Equals(
@@ -182,20 +183,32 @@ internal sealed class SonnetMqttBrokerBridge
                 $"spBv1.0/STATE/{_options.Mqtt.Sparkplug.HostId}",
                 StringComparison.Ordinal))
         {
-            return PublishInternalAsync(
-                args.TopicFilter.Topic,
-                System.Text.Encoding.UTF8.GetBytes("ONLINE"),
-                MqttQualityOfServiceLevel.AtLeastOnce,
-                retain: true,
-                CancellationToken.None);
+            try
+            {
+                await PublishInternalAsync(
+                    args.TopicFilter.Topic,
+                    System.Text.Encoding.UTF8.GetBytes("ONLINE"),
+                    MqttQualityOfServiceLevel.AtLeastOnce,
+                    retain: true,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or SparkplugPublisherUnavailableException)
+            {
+                // 公共发布入口已有 deadline；订阅事件只记录失败，不能永久占住 MQTTnet 事件循环。
+                _logger.SparkplugHostStatePublishFailed(
+                    ex,
+                    _options.Mqtt.Sparkplug.HostId,
+                    "ONLINE");
+            }
+
+            return;
         }
 
         if (!MqttTopicParser.TryParse(args.TopicFilter.Topic, out var route, out _)
             || route.Kind != MqttTopicKind.Mq)
-            return Task.CompletedTask;
+            return;
 
         _ = TryAddMqSubscription(args.ClientId, args.TopicFilter.Topic, route, out _);
-        return Task.CompletedTask;
     }
 
     private Task ClientUnsubscribedTopicAsync(ClientUnsubscribedTopicEventArgs args)
@@ -438,34 +451,79 @@ internal sealed class SonnetMqttBrokerBridge
         bool retain,
         CancellationToken cancellationToken)
     {
-        MqttServer server = await _serverReady.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-        var message = new MqttApplicationMessageBuilder()
-            .WithTopic(topic)
-            .WithPayload(payload.ToArray())
-            .WithQualityOfServiceLevel(qualityOfService)
-            .WithRetainFlag(retain)
-            .Build();
-        var injected = new InjectedMqttApplicationMessage(message)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(_options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds);
+        try
         {
-            CustomSessionItems = new System.Collections.Hashtable { [InternalPublishSessionKey] = true },
-            SenderClientId = "sonnetdb",
-            SenderUserName = "sonnetdb",
-        };
-        while (true)
-        {
-            try
+            MqttServer server = await _serverReady.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload.ToArray())
+                .WithQualityOfServiceLevel(qualityOfService)
+                .WithRetainFlag(retain)
+                .Build();
+            var injected = new InjectedMqttApplicationMessage(message)
             {
-                if (retain)
-                    await server.UpdateRetainedMessageAsync(message).ConfigureAwait(false);
-                await server.InjectApplicationMessage(injected, cancellationToken).ConfigureAwait(false);
+                CustomSessionItems = new System.Collections.Hashtable { [InternalPublishSessionKey] = true },
+                SenderClientId = "sonnetdb",
+                SenderUserName = "sonnetdb",
+            };
+            int maxAttempts = Math.Max(
+                1,
+                (_options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds
+                    + InternalPublishRetryDelayMilliseconds - 1)
+                / InternalPublishRetryDelayMilliseconds);
+            await ExecuteWithBoundedBrokerReadinessRetryAsync(
+                () => server.IsStarted,
+                async token =>
+                {
+                    if (retain)
+                        await server.UpdateRetainedMessageAsync(message).WaitAsync(token).ConfigureAwait(false);
+                    await server.InjectApplicationMessage(injected, token).ConfigureAwait(false);
+                },
+                deadline.Token,
+                maxAttempts,
+                TimeSpan.FromMilliseconds(InternalPublishRetryDelayMilliseconds)).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (
+            !cancellationToken.IsCancellationRequested
+            && deadline.IsCancellationRequested)
+        {
+            throw new SparkplugPublisherUnavailableException(
+                $"MQTT broker 未能在 {_options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds} 毫秒内完成发布。",
+                ex);
+        }
+    }
+
+    /// <summary>在 deadline 与最大次数双重边界内等待 broker 启动，再执行一次发布。</summary>
+    internal static async Task ExecuteWithBoundedBrokerReadinessRetryAsync(
+        Func<bool> isBrokerReady,
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken,
+        int maxAttempts,
+        TimeSpan retryDelay)
+    {
+        ArgumentNullException.ThrowIfNull(isBrokerReady);
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAttempts);
+        if (retryDelay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(retryDelay));
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (isBrokerReady())
+            {
+                await operation(cancellationToken).ConfigureAwait(false);
                 return;
             }
-            catch (InvalidOperationException) when (!cancellationToken.IsCancellationRequested)
-            {
-                // UseMqttServer 会先提供实例，再由 hosted service 启动 broker。
-                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken).ConfigureAwait(false);
-            }
+
+            if (attempt < maxAttempts)
+                await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
         }
+
+        throw new SparkplugPublisherUnavailableException(
+            $"MQTT broker 在 {maxAttempts} 次有界检查内仍未就绪。");
     }
 
     private bool AuthorizeSparkplug(
@@ -497,24 +555,40 @@ internal sealed class SonnetMqttBrokerBridge
 
     private async Task EnsureHostStateAndGrantSubscriptionAsync(InterceptingSubscriptionEventArgs args)
     {
-        MqttServer server = await _serverReady.Task.ConfigureAwait(false);
+        using var deadline = new CancellationTokenSource(
+            TimeSpan.FromMilliseconds(_options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds));
         var message = new MqttApplicationMessageBuilder()
             .WithTopic($"spBv1.0/STATE/{_options.Mqtt.Sparkplug.HostId}")
             .WithPayload(System.Text.Encoding.UTF8.GetBytes("ONLINE"))
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .WithRetainFlag(true)
             .Build();
-        while (true)
+        int maxAttempts = Math.Max(
+            1,
+            (_options.Mqtt.Sparkplug.RebirthPublishTimeoutMilliseconds
+                + InternalPublishRetryDelayMilliseconds - 1)
+            / InternalPublishRetryDelayMilliseconds);
+        try
         {
-            try
-            {
-                await server.UpdateRetainedMessageAsync(message).ConfigureAwait(false);
-                break;
-            }
-            catch (InvalidOperationException)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
-            }
+            MqttServer server = await _serverReady.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await ExecuteWithBoundedBrokerReadinessRetryAsync(
+                () => server.IsStarted,
+                token => server.UpdateRetainedMessageAsync(message).WaitAsync(token),
+                deadline.Token,
+                maxAttempts,
+                TimeSpan.FromMilliseconds(InternalPublishRetryDelayMilliseconds)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or SparkplugPublisherUnavailableException)
+        {
+            _logger.SparkplugHostStatePublishFailed(
+                ex,
+                _options.Mqtt.Sparkplug.HostId,
+                "ONLINE");
+            RejectSubscription(
+                args,
+                MqttSubscribeReasonCode.ImplementationSpecificError,
+                "Sparkplug Host STATE 当前不可用，请稍后重试订阅。");
+            return;
         }
 
         GrantSubscription(args);

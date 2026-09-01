@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Reflection;
 using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
@@ -134,6 +136,7 @@ public sealed class SqlExecutionMetricsTests : IDisposable
         SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
 
         long expectedReads = workerCount * readsPerWorker;
+        Assert.True(snapshot.PhysicalReadSnapshotComplete);
         Assert.Equal(expectedReads, snapshot.PhysicalReads);
         Assert.Equal(expectedReads * bytesPerRead, snapshot.PhysicalReadBytes);
     }
@@ -158,12 +161,43 @@ public sealed class SqlExecutionMetricsTests : IDisposable
             }))
             .ToArray();
 
-        firstReadsCompleted.Wait();
+        Assert.True(
+            firstReadsCompleted.Wait(TimeSpan.FromSeconds(5)),
+            "并发物理读取未在 5 秒内全部启动。");
         SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
-        await Task.WhenAll(writers);
+        await Task.WhenAll(writers).WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.True(snapshot.PhysicalReads >= workerCount);
-        Assert.Equal(snapshot.PhysicalReads * bytesPerRead, snapshot.PhysicalReadBytes);
+        if (snapshot.PhysicalReadSnapshotComplete)
+        {
+            Assert.True(snapshot.PhysicalReads >= workerCount);
+            Assert.Equal(snapshot.PhysicalReads * bytesPerRead, snapshot.PhysicalReadBytes);
+        }
+        else
+        {
+            Assert.Equal(0, snapshot.PhysicalReads);
+            Assert.Equal(0, snapshot.PhysicalReadBytes);
+        }
+    }
+
+    /// <summary>物理读 writer 长时间未完成时，冻结必须在有限时间内返回明确标记的保守下界。</summary>
+    [Fact]
+    public void Complete_StalledPhysicalReadWriter_ReturnsBoundedDegradedSnapshot()
+    {
+        var metrics = new SqlExecutionMetrics();
+        metrics.RecordPhysicalRead(17);
+        SetPrivateLong(metrics, "_physicalReadStarted", 2);
+
+        var stopwatch = Stopwatch.StartNew();
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+        stopwatch.Stop();
+
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(1),
+            $"冻结物理读快照耗时 {stopwatch.Elapsed.TotalMilliseconds:N2} ms，未按预算终止。");
+        Assert.False(snapshot.PhysicalReadSnapshotComplete);
+        Assert.Equal(0, snapshot.PhysicalReads);
+        Assert.Equal(0, snapshot.PhysicalReadBytes);
+        Assert.Same(snapshot, metrics.Complete());
     }
 
     /// <summary>溢出回滚与成功 writer 交错时，失败样本不得回绕字节数或污染读取次数。</summary>
@@ -190,6 +224,7 @@ public sealed class SqlExecutionMetricsTests : IDisposable
         long successfulReads = 1L + (workerCount / 2L * callsPerWorker);
         Assert.Equal(successfulReads, snapshot.PhysicalReads);
         Assert.Equal(long.MaxValue, snapshot.PhysicalReadBytes);
+        Assert.True(snapshot.PhysicalReadSnapshotComplete);
     }
 
     /// <summary>事务已有同表写入时，完整复合主键 UPDATE 仍应只合并目标键而不扫描全表。</summary>
@@ -393,5 +428,15 @@ public sealed class SqlExecutionMetricsTests : IDisposable
         SqlExecutor.Execute(db, "INSERT INTO audits (id, idempotency_key, status) VALUES "
             + "(1, 'key-1', 'done'), (2, 'key-2', 'ready'), (3, 'key-3', 'ready')");
         return db;
+    }
+
+    /// <summary>构造 writer 停在开始序号后的协议状态，避免测试依赖不可控的线程调度窗口。</summary>
+    private static void SetPrivateLong(SqlExecutionMetrics metrics, string fieldName, long value)
+    {
+        FieldInfo field = typeof(SqlExecutionMetrics).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"未找到指标字段 {fieldName}。");
+        field.SetValue(metrics, value);
     }
 }

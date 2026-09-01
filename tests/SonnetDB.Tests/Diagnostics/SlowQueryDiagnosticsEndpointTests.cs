@@ -100,6 +100,7 @@ public sealed class SlowQueryDiagnosticsEndpointTests : IAsyncLifetime
         Assert.Equal("ux_diagnostics_audits_key", indexed.IndexName);
         Assert.Equal(1, indexed.CandidateRows);
         Assert.Equal(1, indexed.ExaminedRows);
+        Assert.True(indexed.PhysicalReadSnapshotComplete);
         Assert.True(indexed.AllocatedBytes >= 0);
         Assert.True(indexed.QueueWaitMs >= 0);
 
@@ -113,6 +114,8 @@ public sealed class SlowQueryDiagnosticsEndpointTests : IAsyncLifetime
             static item => item.NormalizedSql.Contains("time >= ?", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(2, selectGroup.Count);
         Assert.Equal(2, selectGroup.LifetimeCount);
+        Assert.Equal(2, selectGroup.PhysicalReadSampleCount);
+        Assert.Equal(0, selectGroup.PhysicalReadDegradedSampleCount);
         Assert.True(selectGroup.P95Ms >= selectGroup.P50Ms);
         Assert.True(topResponse.LifetimeSampleCount >= topResponse.SampleCount);
 

@@ -20,6 +20,12 @@ public sealed class ServerMetrics
     private long _sparkplugLifecycleMessages;
     private long _sparkplugSequenceGaps;
     private long _sparkplugRebirthCommands;
+    private long _sparkplugRebirthPublishFailures;
+    private long _sparkplugRebirthQueueEnqueued;
+    private long _sparkplugRebirthQueueCoalesced;
+    private long _sparkplugRebirthQueueRejected;
+    private long _sparkplugRebirthQueueDiscarded;
+    private long _sparkplugRebirthQueueDepth;
     private long _modbusPolls;
     private long _modbusPollFailures;
     private long _modbusReadBatches;
@@ -68,6 +74,24 @@ public sealed class ServerMetrics
 
     /// <summary>累计发布的自动 Rebirth 命令数。</summary>
     public long SparkplugRebirthCommands => Interlocked.Read(ref _sparkplugRebirthCommands);
+
+    /// <summary>累计超时或异常结束的自动 Rebirth 发布次数。</summary>
+    public long SparkplugRebirthPublishFailures => Interlocked.Read(ref _sparkplugRebirthPublishFailures);
+
+    /// <summary>累计进入 Sparkplug Rebirth 队列的唯一节点请求数。</summary>
+    public long SparkplugRebirthQueueEnqueued => Interlocked.Read(ref _sparkplugRebirthQueueEnqueued);
+
+    /// <summary>累计合并到未完成节点请求的 Rebirth 请求数。</summary>
+    public long SparkplugRebirthQueueCoalesced => Interlocked.Read(ref _sparkplugRebirthQueueCoalesced);
+
+    /// <summary>累计因队列满载或已停止而拒绝的 Rebirth 请求数。</summary>
+    public long SparkplugRebirthQueueRejected => Interlocked.Read(ref _sparkplugRebirthQueueRejected);
+
+    /// <summary>累计在停止或后台服务失败时丢弃的未完成 Rebirth 请求数。</summary>
+    public long SparkplugRebirthQueueDiscarded => Interlocked.Read(ref _sparkplugRebirthQueueDiscarded);
+
+    /// <summary>当前等待单消费者发布的 Rebirth 请求数，不包含正在发布的请求。</summary>
+    public long SparkplugRebirthQueueDepth => Interlocked.Read(ref _sparkplugRebirthQueueDepth);
 
     /// <summary>累计完成的 Modbus master 轮询次数。</summary>
     public long ModbusPolls => Interlocked.Read(ref _modbusPolls);
@@ -136,6 +160,38 @@ public sealed class ServerMetrics
 
     /// <summary>记录一条由 host application 发布的 Rebirth 命令。</summary>
     public void RecordSparkplugRebirthCommand() => Interlocked.Increment(ref _sparkplugRebirthCommands);
+
+    /// <summary>记录一条因 deadline 或发布异常而失败的 Rebirth 命令。</summary>
+    public void RecordSparkplugRebirthPublishFailure()
+        => Interlocked.Increment(ref _sparkplugRebirthPublishFailures);
+
+    /// <summary>记录一个唯一节点请求进入 Rebirth 等待队列。</summary>
+    public void RecordSparkplugRebirthQueueEnqueued()
+    {
+        Interlocked.Increment(ref _sparkplugRebirthQueueEnqueued);
+        Interlocked.Increment(ref _sparkplugRebirthQueueDepth);
+    }
+
+    /// <summary>记录一个 Rebirth 请求从等待队列进入单 worker 发布阶段。</summary>
+    public void RecordSparkplugRebirthQueueDequeued()
+        => Interlocked.Decrement(ref _sparkplugRebirthQueueDepth);
+
+    /// <summary>记录一次按 group/edge node 合并的重复 Rebirth 请求。</summary>
+    public void RecordSparkplugRebirthQueueCoalesced()
+        => Interlocked.Increment(ref _sparkplugRebirthQueueCoalesced);
+
+    /// <summary>记录一次因满载或停止而明确拒绝的 Rebirth 请求。</summary>
+    public void RecordSparkplugRebirthQueueRejected()
+        => Interlocked.Increment(ref _sparkplugRebirthQueueRejected);
+
+    /// <summary>记录停止时丢弃的未完成请求，并扣除仍在等待的队列深度。</summary>
+    public void RecordSparkplugRebirthQueueDiscarded(int outstandingCount, int queuedCount)
+    {
+        if (outstandingCount > 0)
+            Interlocked.Add(ref _sparkplugRebirthQueueDiscarded, outstandingCount);
+        if (queuedCount > 0)
+            Interlocked.Add(ref _sparkplugRebirthQueueDepth, -queuedCount);
+    }
 
     /// <summary>记录一次完成的 Modbus master 轮询。</summary>
     public void RecordModbusPoll(bool succeeded, int rowsWritten)
@@ -276,6 +332,30 @@ public static class PrometheusFormatter
         sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_commands_total Sparkplug B automatic rebirth commands.");
         sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_commands_total counter");
         sb.Append("sonnetdb_sparkplug_rebirth_commands_total ").Append(metrics.SparkplugRebirthCommands).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_publish_failures_total Sparkplug B rebirth commands abandoned after a bounded publish failure.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_publish_failures_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_publish_failures_total ").Append(metrics.SparkplugRebirthPublishFailures).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_queue_enqueued_total Unique Sparkplug B rebirth requests accepted by the bounded queue.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_queue_enqueued_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_queue_enqueued_total ").Append(metrics.SparkplugRebirthQueueEnqueued).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_queue_coalesced_total Duplicate Sparkplug B rebirth requests coalesced by group and edge node.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_queue_coalesced_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_queue_coalesced_total ").Append(metrics.SparkplugRebirthQueueCoalesced).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_queue_rejected_total Sparkplug B rebirth requests rejected because the queue was full or stopped.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_queue_rejected_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_queue_rejected_total ").Append(metrics.SparkplugRebirthQueueRejected).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_queue_discarded_total Accepted Sparkplug B rebirth requests discarded during shutdown or publish failure.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_queue_discarded_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_queue_discarded_total ").Append(metrics.SparkplugRebirthQueueDiscarded).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_queue_depth Sparkplug B rebirth requests waiting for the single publisher worker.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_queue_depth gauge");
+        sb.Append("sonnetdb_sparkplug_rebirth_queue_depth ").Append(metrics.SparkplugRebirthQueueDepth).AppendLine();
 
         sb.AppendLine("# HELP sonnetdb_modbus_master_polls_total Completed Modbus master poll rounds.");
         sb.AppendLine("# TYPE sonnetdb_modbus_master_polls_total counter");
