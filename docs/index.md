@@ -1,13 +1,13 @@
 ﻿---
 layout: default
 title: "SonnetDB 文档中心"
-description: "SonnetDB 多模型数据引擎的产品、开发与部署文档总览，覆盖八种数据模型、嵌入式、服务端、Studio、Copilot、ADO.NET、CLI 和批量写入。"
+description: "SonnetDB 多模型数据引擎的产品、开发与部署文档总览，覆盖九种数据模型、嵌入式、服务端、Studio、Copilot、ADO.NET、CLI 和批量写入。"
 permalink: /
 ---
 
-SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶和消息队列，并配套 SQL、标准 API、SonnetDB Studio、Copilot 与 MCP 接口。
+SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶、消息队列和原生属性图（Graph Beta），并配套 SQL、标准 API、SonnetDB Studio、Copilot 与 MCP 接口。
 
-“八种数据模型，一套引擎”是 SonnetDB 的核心产品口径。它支持嵌入式与服务端部署，可用于本地应用、业务系统、设备与边缘节点、搜索与 AI 应用等不同场景；具体行业和部署方式不构成产品定位限制。
+“九种数据模型，各有原生语义，共享一套引擎”是 SonnetDB 的核心产品口径。九种模型共用数据库目录、权限、运维、备份恢复和管理工具，但保留各自的建模与查询语义。SonnetDB 支持嵌入式与服务端部署，可用于本地应用、业务系统、设备与边缘节点、搜索与 AI 应用等不同场景；具体行业和部署方式不构成产品定位限制。
 
 当前版本的持久化方式是数据库目录中的多文件布局，不再以“单文件数据库”作为产品描述。文档中的示例、目录结构和启动方式都以当前仓库代码为准。
 
@@ -23,8 +23,8 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
     <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过 SQL 与标准 API 访问。</p>
   </section>
   <section class="callout-card">
-    <strong>八种数据模型</strong>
-    <p>支持设备时序、关系表、KV、JSON 文档、全文、向量、Hybrid Search、对象桶和本地消息队列。</p>
+    <strong>九种数据模型</strong>
+    <p>支持设备时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶、本地消息队列和原生属性图（Graph Beta），并在全文与向量之上提供 Hybrid Search。</p>
   </section>
   <section class="callout-card">
     <strong>AI、Agent 与运维</strong>
@@ -42,7 +42,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 想直接复制一段常用 SQL 模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
 | 使用 SonnetDB Studio 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
 | 在 VS Code 中连接 SonnetDB、浏览 schema、执行 SQL 和查看结果 | [从 Visual Studio Marketplace 安装 SonnetDB 扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) |
-| 对比 Web Admin、Studio 桌面、VS Code 的八模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
+| 对比 Web Admin、Studio 桌面、VS Code 的九模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
 | 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
 | 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
 | 让任意大模型或外部 Agent 正确理解并安全使用 SonnetDB | [面向大模型与 AI Agent 使用 SonnetDB]({{ site.docs_baseurl | default: '/help' }}/ai-agent-guide/) |

@@ -7,7 +7,7 @@
 
 ### Added
 
-- **九域性能审计与原生读取证据**：新增[系统性能报告](docs/benchmarks/system-performance-20260901.md)，覆盖八个正式数据模型加 M40 原生属性图性能域的统一指标矩阵、竞品源码入口和 P0～P3 残余队列；新增 `KvModelBenchmark`、`DocumentModelBenchmark`、`ObjectStorageModelBenchmark`，以及逐请求采样并按 nearest-rank 输出 P50/P95/P99、吞吐、分配和原始样本的 `ModelReadLatencyEvidenceRunner`。quick 只代表 32 次预热、256 个样本的本机 x64 热嵌入式 smoke；Server 排队、冷缓存、固定硬件、ARM64、木垒同语料和生产门禁均未运行，异步 Object 请求线程切换后的分配样本明确记为 unknown。
+- **九域性能审计与原生读取证据**：新增[系统性能报告](docs/benchmarks/system-performance-20260901.md)，覆盖采集基线的八个正式模型与当前门面的第九个 Graph Beta 性能域，统一记录指标矩阵、竞品源码入口和 P0～P3 残余队列；新增 `KvModelBenchmark`、`DocumentModelBenchmark`、`ObjectStorageModelBenchmark`，以及逐请求采样并按 nearest-rank 输出 P50/P95/P99、吞吐、分配和原始样本的 `ModelReadLatencyEvidenceRunner`。quick 只代表 32 次预热、256 个样本的本机 x64 热嵌入式 smoke；Server 排队、冷缓存、固定硬件、ARM64、木垒同语料和生产门禁均未运行，异步 Object 请求线程切换后的分配样本明确记为 unknown。
 
 - **M35 #302 RAG 摄取 Core building blocks**：新增严格 UTF-8 的确定性文本 SHA-256、Unicode/surrogate 安全且保证前进的 overlap 分块和稳定 chunk ID；完整快照 planner 先按内容 ID 生成 add/update，再追加按内容 ID 排序的 delete，并在任何 callback 前冻结调用方列表、校验清单及执行 chunk/segment/embedding/文本/动作预算。executor 提供有界并发和贯穿嵌套校验的取消，要求调用方提供幂等 callback；需要续跑时 durable checkpoint 也由调用方持久化，异常不返回部分执行结果且不伪造自动回滚。相关 JSON DTO 已注册 Core 内部 source-generated metadata，外部消费者仍须声明自己的 context。M35/M36 定向测试 206/206、Core 3934/3934 通过；本轮新增 API 的 win-x64 Native AOT 可达探针发布并运行通过、无 IL/AOT warning。CLI、持久化 writer/retry/resume、实际派生索引删除应用和 Copilot 可回滚迁移尚未实现，#302 保持 🚧。
 
@@ -49,6 +49,8 @@
 
 ### Changed
 
+- **九模型产品门面**：README、中英文项目介绍、Studio 欢迎页、文档首页与 AI/Agent 机器可读上下文统一改为“九种数据模型，各有原生语义，共享一套引擎”，新增原生属性图（Graph Beta）能力说明；帧协议继续区分七个既有数据面服务，并追加 Graph `service=8` 的受限单跳 `Expand`，图查询/API 与 Graph Frame 的边界均如实记录，且不把固定硬件、外部语义对拍、Native AOT 和 168 小时生产证据门禁描述为已完成。
+
 - **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.9.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
 
 - **关系统计刷新分配收缩**：统计采样直接使用主键的 `ReadOnlyMemory<byte>` 视图，并复用真实索引 codec 的精确长度计算，不再复制采样主键或为每个索引临时编码 key/prefix；JSON path、唯一索引 NULL 和格式边界继续与真实写入路径一致。最终本机短跑均值降低 6.495%，分配降低 34.706%；固定硬件和生产语料未运行。
@@ -69,7 +71,7 @@
 
 - **M41 #378 JOIN 优化**：Hash Join 现在按估算行数与投影行宽选择 build side，LEFT JOIN 固定保留右侧 build；Hash 键保持数值、DATETIME/Unix 毫秒与 BLOB 内容相等合同。非相关 `IN` / `NOT IN` 复用 NULL-aware Hash membership，右侧主键/普通索引可按成本选择 index nested-loop，兼容有序 INT64/布尔/时间索引且收益成立时可选择 merge join；merge 游标按 Table V1 实际补码索引顺序推进，Float64、字符串/JSON 等物理顺序无法证明兼容的类型保守回退。3～6 个基础表的纯 INNER JOIN 使用有界连通枚举，外连接、事务 overlay、派生输入、不可证明谓词、断连或超过 6 个输入时保持声明顺序并报告稳定 fallback；运行指标与 `EXPLAIN` 同步公开算子、索引、build side、join order、候选数和内存行为。新增 Hash/index/merge、semijoin/antijoin、NULL/空集、重复键、稀疏有符号键、跨类型/BLOB 回退、自连接重排、外连接和大图回退测试，以及同语义 BenchmarkDotNet 对拍。本机样本中 index nested-loop 相对 Hash 扫描均值为 6.11 ms / 17.41 ms、分配为 0.54 MiB / 14.49 MiB；merge join 相对 Hash 均值为 20.91 ms / 23.81 ms，并从该样本的 Gen2 回收降为 0，但总分配为 14.90 MiB / 13.64 MiB。固定 ARM64/x64、木垒生产同语料、7 天 mixed workload 与生产发布 gate 仍为 `NOT_RUN`。
 
-- **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开八模型定位、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图未完成门禁和可复用系统提示词；GitHub Pages 发布 `/llms.txt`、`/llms-full.txt`，后续 Server 版本的构建产物和根端点同步提供这两个文件，README、文档首页、工业 AI 文档和 3.1.0 公告加入入口。
+- **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开九模型定位（原生属性图为 Graph Beta）、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图生产门禁和可复用系统提示词；GitHub Pages 发布 `/llms.txt`、`/llms-full.txt`，后续 Server 版本的构建产物和根端点同步提供这两个文件，README、文档首页、工业 AI 文档和 3.1.0 公告加入入口。
 
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 

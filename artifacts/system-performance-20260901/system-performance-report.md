@@ -14,7 +14,7 @@ Full analysis: [`../../docs/benchmarks/system-performance-20260901.md`](../../do
 | Current SonnetDB HEAD | `424f61ad16e883d6b9050a9eb29a352105d28cef` | dirty changes retained |
 | Old gitlink | `0be6898b1f4ef8b646872ece749dd803cf990e24` | not restored |
 
-Product scope remains eight official models. Native property graph is the ninth **performance domain** only; its M40 production gate is `NOT_RUN`. Relational SQL planning/execution is a shared core, not a tenth model.
+Product scope at capture time was eight official models. Native property graph was the ninth **performance domain** in that baseline; its M40 production gate is `NOT_RUN`. The current facade counts it as Graph Beta within nine models, without changing the gate result. Relational SQL planning/execution is a shared core, not a tenth model.
 
 ## Gate state
 

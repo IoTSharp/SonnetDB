@@ -30,7 +30,7 @@
     </div>
     <div v-if="!compact" class="brand-copy">
       <span class="brand-name">SonnetDB</span>
-      <span class="brand-tagline">八种数据模型 · 一套引擎</span>
+      <span class="brand-tagline">九种数据模型 · 原生语义 · 一套引擎</span>
     </div>
   </div>
 </template>

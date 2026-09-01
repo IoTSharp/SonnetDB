@@ -23,7 +23,8 @@ namespace SonnetDB.Parity.Runner;
 
 /// <summary>
 /// M28 P5b #244 全模型接入收口测试：在真实 Kestrel 上分别通过 REST 与二进制帧路径执行同等数据面操作，
-/// 覆盖 MQ、TSDB、SQL、Vector、KV、Object、Document 七个 service 的稳定语义等价。
+/// 覆盖 MQ、TSDB、SQL、Vector、KV、Object、Document 七个基础 service 的稳定语义等价；
+/// M40 Graph Frame 的 codec、端点和 typed client 由独立 Graph 回归覆盖。
 /// </summary>
 public sealed class FrameRestTransportParitySuite : IAsyncLifetime
 {

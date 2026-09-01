@@ -4,7 +4,7 @@
 
 <h1 align="center">SonnetDB</h1>
 
-<p align="center">八种数据模型，一套引擎</p>
+<p align="center">九种数据模型，各有原生语义，共享一套引擎</p>
 
 <p align="center">
   <a href="README.md">中文</a> | <a href="README.en.md">English</a>
@@ -22,13 +22,13 @@
 
 **SonnetDB 是一款多模型数据引擎。**
 
-它把时序、关系表、键值、JSON 文档、全文检索、向量检索、对象存储和消息队列——八类通常需要多个独立系统才能覆盖的数据能力——统一进同一个引擎，通过 SQL、标准 API 和管理工具访问。
+它把时序、关系表、键值、JSON 文档、全文检索、向量检索、对象存储、消息队列和原生属性图——九类通常需要多个独立系统才能覆盖的数据能力——统一进同一个引擎，通过 SQL、标准 API 和管理工具访问。
 
-SonnetDB 的核心价值不是「功能多」，而是**统一**：八种数据模型共用一个进程、一套权限与运维边界、一套备份恢复机制和一个管理后台。这不是把多个独立产品简单打包，而是在同一引擎内提供一致的数据能力。
+SonnetDB 的核心价值不是「功能多」，而是**统一**：九种数据模型保留各自的原生语义和访问方式，同时共用一个进程、一套权限与运维边界、一套备份恢复机制和一个管理后台。这不是把多个独立产品简单打包，而是让不同模型在同一引擎内协同工作。
 
 部署形态保持灵活：既可作为库嵌入进程内直接使用，也可部署为独立服务，适用于本地应用、设备与边缘节点、业务系统、私有化环境等不同场景。
 
-## 🗂️ 八种数据模型，共享同一套语义
+## 🗂️ 九种数据模型，各有原生语义，共享一套引擎
 
 | 数据模型 | 一个引擎内直接提供 |
 | --- | --- |
@@ -40,12 +40,13 @@ SonnetDB 的核心价值不是「功能多」，而是**统一**：八种数据�
 | **向量检索** | HNSW 近邻索引 + 精确回退、Hybrid Search |
 | **对象存储** | S3 兼容 bucket、分片上传、Range 读取、Presigned URL |
 | **消息队列** | SonnetMQ topic、消费者组、推送 / ack、重启 replay |
+| **原生属性图（Graph Beta）** | 顶点、边、标签、属性、双向原生邻接、SQL/PGQ `GRAPH_TABLE`、可选的嵌入式受限 GQL 风格只读入口 |
 
-关系型 SQL 是一个实用子集，覆盖常见查询、聚合、JOIN、事务和多模型扩展，但不是完整的 SQL 标准实现。各能力的成熟度以对应的专题文档为准。
+关系型 SQL 是一个实用子集，覆盖常见查询、聚合、JOIN、事务和多模型扩展，但不是完整的 SQL 标准实现。原生属性图当前为 Graph Beta，不代表完整 GQL、Cypher 或 Neo4j 兼容；固定硬件、外部语义对拍和长稳生产门禁仍未完成。各能力的成熟度以对应的专题文档为准。
 
-## ⚡ 全模型二进制帧协议
+## ⚡ 通用二进制帧协议
 
-3.0 在 HTTP/2 之上落地了一套覆盖全部七个数据面服务（消息队列、时序、SQL、向量、KV、对象、文档）的**通用二进制帧协议**。八种模型共享同一条高吞吐通道：时序批量写以列式紧凑二进制直传，SQL 大结果集改为流式列式分块回传、无需全量物化即可保持内存占用近乎恒定，向量检索的查询向量以原生 f32 二进制承载。REST 接口完整保留作兼容，客户端可通过连接串 `Protocol` 选项在 `auto` / `frame-http2` / `rest` 之间自由切换。
+3.0 在 HTTP/2 之上落地了一套覆盖七个基础数据面服务（消息队列、时序、SQL、向量、KV、对象、文档）的**通用二进制帧协议**。这些服务共享同一条高吞吐通道：时序批量写以列式紧凑二进制直传，SQL 大结果集改为流式列式分块回传、无需全量物化即可保持内存占用近乎恒定，向量检索的查询向量以原生 f32 二进制承载。当前 Graph Beta 又由 M40 #351 在同一端点追加 `service=8` 的受限单跳 `Expand`；原生属性图同时通过 API 和 SQL/PGQ 接入，其余图操作仍按各自 API/SQL 边界执行。REST 接口完整保留作兼容，客户端可通过连接串 `Protocol` 选项在 `auto` / `frame-http2` / `rest` 之间自由切换。
 
 ## 🔌 接入方式
 
@@ -56,7 +57,7 @@ SonnetDB 的核心价值不是「功能多」，而是**统一**：八种数据�
 | .NET 生态 | ADO.NET、EF Core、`IDistributedCache` / EasyCaching Provider |
 | 命令行 | `sndb` 本地 / 远程执行 SQL、备份和维护 |
 | VS Code | [安装 SonnetDB 官方扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)，在编辑器内连接、浏览 schema、执行 SQL 和查看结果 |
-| 二进制帧协议 | HTTP/2 上的高吞吐帧接入，覆盖全部七个模型（数据面），REST 全保留作兼容 |
+| 二进制帧协议 | HTTP/2 上的高吞吐帧接入，覆盖七个基础服务，并提供 Graph `service=8` 单跳 Expand，REST 全保留作兼容 |
 | 设备接入 | 内建 MQTT broker（设备直连落库）+ 外部 MQTT client（订阅现有 EMQX / Mosquitto） |
 | 多语言 | C、Go、Rust、Java、Python、VB6、PureBasic 连接器 |
 | AI / Agent | Web CopilotDock、MCP 工具入口 |
@@ -203,7 +204,7 @@ code --install-extension iotsharp.sonnetdb-vscode
 
 | 组件 | 说明 |
 | --- | --- |
-| `src/SonnetDB.Core` | 多模型核心库：时序、关系表、KV、文档、搜索、对象存储适配、本地消息队列、备份恢复和底层持久化。核心库不引入第三方运行时依赖 |
+| `src/SonnetDB.Core` | 多模型核心库：时序、关系表、KV、文档、搜索、对象存储适配、本地消息队列、原生属性图、备份恢复和底层持久化。核心库不引入第三方运行时依赖 |
 | `src/SonnetDB` | HTTP 服务端、首次安装流程、认证授权、SSE、MCP、Admin UI、Copilot 桥接、二进制帧端点、MQTT broker/client 和内置 `/help` 文档站点 |
 | `src/SonnetDB.Data` | ADO.NET 提供程序，NuGet 包名 `SonnetDB`，命名空间 `SonnetDB.Data`；承接 `Microsoft.Extensions.VectorData` 的 SonnetDB adapter |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core Provider，提供 `UseSonnetDB(...)`、类型映射、查询翻译和 migrations SQL |
@@ -226,7 +227,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 | SQL 语法、函数、控制面 SQL | [SQL 参考](docs/sql-reference.md)、[SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin、SQL 工作台、Copilot | [SonnetDB Studio](docs/web-workbench.md) |
 | Copilot Provider、模型分组、本地模型 | [Copilot Provider 与模型目录](docs/copilot-providers.md) |
-| 八模型管理工作台、Studio 桌面与 VS Code parity | [管理工具与三面能力矩阵](docs/management-tools.md) |
+| 九模型管理工作台、Studio 桌面与 VS Code parity | [管理工具与三面能力矩阵](docs/management-tools.md) |
 | VS Code 扩展安装、连接与开发 | [从 Marketplace 安装](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)、[SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | 嵌入式 API、ADO.NET、EF Core、CLI | [嵌入式 API](docs/embedded-api.md)、[ADO.NET](docs/ado-net.md)、[CLI](docs/cli-reference.md) |
 | .NET 生态接入与 Profile 边界 | [生态接入](docs/ecosystem-integration.md)、[可运行样例](samples/SonnetDB.EcosystemSample/README.md) |

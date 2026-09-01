@@ -1,7 +1,7 @@
 ---
 layout: default
 title: "管理工具与三面能力矩阵"
-description: "SonnetDB 八模型管理工作台、Web Admin / Studio 桌面 / VS Code 三面 parity、对标产品、权限边界和 e2e smoke 说明。"
+description: "SonnetDB 九模型管理工作台、Web Admin / Studio 桌面 / VS Code 三面 parity、对标产品、权限边界和 e2e smoke 说明。"
 permalink: /management-tools/
 ---
 
@@ -13,11 +13,11 @@ SonnetDB 的管理工具共用一套服务端契约和权限模型，但面向�
 - **Studio 桌面** 打包同一套 Web Admin，并增加本地文件对话框、磁盘连接库和托管本地 Server。
 - **VS Code** 是 Remote-first 的开发者子集，重点是 schema / 多模型只读浏览、SQL、结果视图和 Copilot，不复制完整治理工作台。
 
-本文矩阵以 2026-07-13 的仓库实现为准。`完整` 表示当前交付面有专用入口；`部分` 表示可通过 SQL、共享结果面板或有限维护动作完成，但没有该模型的完整专用流程；`不支持` 表示当前没有可交付入口。对标产品用于确定交互方向，不表示 wire protocol、集群能力或全部功能等价。
+本文矩阵以 2026-09-01 的仓库实现为准。`完整` 表示当前交付面有专用入口；`部分` 表示可通过 SQL、共享结果面板或有限维护动作完成，但没有该模型的完整专用流程；`不支持` 表示当前没有可交付入口。对标产品用于确定交互方向，不表示 wire protocol、集群能力或全部功能等价。原生属性图当前为 Graph Beta，不表示生产发布门禁已经通过。
 
 Web Admin 的 SQL 工作区固定以上方工具栏和编辑器、下方结果区组织查询流程。执行反馈、表格、图表和轨迹分别进入下方的“提示 / 表格 / 图表 / 轨迹”页签；有列结果自动打开表格，错误、无结果和写入审批进入提示，不再弹出覆盖编辑器的结果抽屉。其他多模型工作台仍复用共享浮动结果面板。
 
-## 八模型工作台
+## 九模型工作台
 
 | 数据模型 | SonnetDB 工作台 | 重点能力 | 对标单品 | Web Admin | Studio 桌面 | VS Code |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -29,6 +29,7 @@ Web Admin 的 SQL 工作区固定以上方工具栏和编辑器、下方结果�
 | 向量 | Vector Search Workbench | 索引参数、raw/embed query、Top-K、metadata filter | Milvus Attu / Qdrant Console | 完整 | 完整 | 只读子集 |
 | 全文 | FullText Search Workbench | BM25、评分高亮、analyzer、查询构建、rebuild | Kibana / OpenSearch Dashboards | 完整 | 完整 | 只读子集 |
 | 对象桶 | Object Bucket Workbench | 桶/对象、上传下载、版本、multipart、治理、审计 | MinIO Console / S3 Browser | 完整 | 完整 | 只读子集 |
+| 原生属性图（Graph Beta） | Graph Workbench + SQL/PGQ | 有界画布、schema/索引、顶点/边 staged edit、导入导出、维护与审计 | Neo4j Browser / Memgraph Lab | 完整（Beta） | 完整（Beta） | 部分：SQL/PGQ |
 
 ![Web Admin SonnetMQ 工作台与统一多模型 Explorer]({{ site.docs_baseurl | default: '/help' }}/assets/management-workbench-mq.png)
 
@@ -46,6 +47,7 @@ Web Admin 的 SQL 工作区固定以上方工具栏和编辑器、下方结果�
 | 向量 | 完整：索引/维度/metric/HNSW 参数 | 完整：raw/embed Top-K、filter | 完整：按 Measurement 点身份新增、校正、删除，VECTOR 维度校验与统一 preview | 完整：CSV/JSON/JSONL 向量点导入、列映射、分批提交与停止/续传 | 部分：row count 与索引统计 |
 | 全文 | 完整：索引/doc/term/tokenizer | 完整：BM25、fuzzy/phrase/boolean、analyze | 完整：独立文档导入与 staged rebuild；主数据仍由 Document API 管理 | 完整：工作台内 JSON/JSONL/NDJSON 独立导入，100 条分批写入 | 部分：doc/term 统计 |
 | 对象桶 | 完整：bucket/prefix/object/version/multipart | 完整：metadata、range preview、audit | 完整：上传、复制、删除、tag、policy/lifecycle/retention/quota/hold | 完整：上传/下载 | 完整：容量、quota、版本和 audit |
+| 原生属性图（Beta） | 完整：graph、label、属性索引、顶点/边和有界拓扑快照 | 完整：SQL/PGQ `GRAPH_TABLE` 和有界拓扑画布 | 完整：顶点/边按版本 staged upsert/delete，维护动作统一审批 | 完整：受治理的导入导出流程 | 完整：度分布、慢遍历、维护状态和审计 |
 
 所有危险写、导入、删除和 rebuild 都必须经过 `WriteApprovalPanel`、dry-run 或明确确认之一。权限仍由当前 bearer token 和数据库 grant 决定，前端不绕过服务端鉴权。
 
@@ -84,6 +86,7 @@ code --install-extension iotsharp.sonnetdb-vscode
 | 向量 | 完整：index metadata | 完整：search-preview/embed-preview | 不支持 | 不支持 | 不支持 |
 | 全文 | 完整：index metadata | 完整：search-preview/analyze | 不支持 | 不支持 | 不支持 |
 | 对象桶 | 完整：bucket/object metadata | 完整：prefix 只读 list | 不支持 | 不支持 | 不支持 |
+| 原生属性图（Beta） | 不支持专用 Graph Explorer | 部分：通用 SQL/PGQ `GRAPH_TABLE` | 不支持 | 不支持 | 不支持 |
 
 VS Code 的 Query Result Webview 提供 Table / Raw / Chart，并在结果包含 GEOPOINT / GeoJSON Point 时增加 Trajectory 视图；轨迹会按时间列排序，并可按低基数设备或 TAG 列自动分组。连接 profile 存在 `globalState`，token 存在 `SecretStorage`。Copilot 默认 `read-only`；切换 `read-write` 会先显示 VS Code modal 确认，但这不等于提供完整 per-model 编辑工作台。
 
@@ -102,10 +105,10 @@ VS Code 的 Query Result Webview 提供 Table / Raw / Chart，并在结果包含
 
 Web Admin 使用 Playwright 在真实 Chromium 中加载生产 Vue 页面。当前套件包含 43 条 e2e，通过统一 fixture 验证：
 
-- SQL、时序 Measurement、关系、文档、KV、MQ、向量、全文、对象桶工作台均可由路由进入。
+- SQL、时序 Measurement、关系、文档、KV、MQ、向量、全文、对象桶和原生属性图工作台均可由路由进入。
 - Document 工作台覆盖可视化查询、更新前后预览、索引设计与校验、Change Feed 暂停/续传和前后镜像；所有写操作继续进入共享审批。
 - Measurement 文件导入会完成列映射与类型校验，点写入/校正/删除统一进入共享审批；校正点必须改变 time 或 TAG 身份，避免持久 tombstone 屏蔽同身份重写；目标监控可在单 Measurement 与单关系表间切换。
-- 统一 Explorer 同时出现 Measurements、Tables、Collections、KV、Vector、FullText、MQ 和 Buckets。
+- 统一 Explorer 同时出现 Measurements、Tables、Collections、KV、Vector、FullText、MQ、Buckets 和 Graphs。
 - Studio bridge 能加载磁盘连接 profile，并展示本地 Server 的 Health / Stop 状态。
 - 截图与 smoke 共用 fixture，避免文档示例和实际契约分叉。
 

@@ -247,7 +247,7 @@ public static class GraphProductionGateRunner
                     "quick 数据不等于 1m vertex/10m edge production-soak。",
                     "本次只覆盖单次 quick 真子进程 kill/reopen，不等于 Production 的每日 kill matrix。",
                     "未执行 Neo4j/PostgreSQL、LDBC、Graphalytics、Couplet C4 或 Native AOT 发布 artifact 验证。",
-                    "未运行 168 小时 mixed workload，不能据此改变八模型产品定位。",
+                    "未运行 168 小时 mixed workload，不能据此宣称 Graph Production 门禁通过。",
                 ],
             };
             GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, outputRoot);

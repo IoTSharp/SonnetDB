@@ -40,7 +40,7 @@
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
 | 35 | 语义内容与多模态检索 | 🚧 | #297/#299/#301 已完成，#298/#300/#302 已交付部分能力；RAG Core 首切片已落地，CLI、持久化 writer/retry/resume、实际派生索引应用与剩余质量/媒体/治理项仍待完成。 |
-| 36 | 八模型专用品类易用性对齐 | 🚧 | #316 嵌入式 KV 首切片已落地；#310/#311、远程 parity、golden journey、产品入口及其他模型专用工作流仍待完成。 |
+| 36 | 既有八模型专用品类易用性对齐（原范围） | 🚧 | #316 嵌入式 KV 首切片已落地；#310/#311、远程 parity、golden journey、产品入口及其他模型专用工作流仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
@@ -56,9 +56,9 @@
 3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
-6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
+6. M36 先完成其原八模型范围的 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。当前公开定位已将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”；上述门禁仍是宣称 Graph Production 的前提，不因模型计数变化而放宽。
 
 ## 待补验收证据
 
@@ -101,11 +101,11 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 已在显式 `ModelProfile` 下执行 tokenizer、批量输入绑定、逐行 pooling/归一化和可配置 ONNX Runtime 线程模式，并在缺少 profile、资源或运行时不可用时显式回退 hash provider；真实目标模型语义质量、性能和现场证据仍未完成。#185 的合同字段、tiny fixture 测试和真实模型证据门禁见 [provider model profile 证据专页](docs/benchmarks/m27-provider-model-profile.md)。文档和报告必须如实描述这些边界。
+目标是在不改变 SonnetDB“九种数据模型，各有原生语义，共享一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 已在显式 `ModelProfile` 下执行 tokenizer、批量输入绑定、逐行 pooling/归一化和可配置 ONNX Runtime 线程模式，并在缺少 profile、资源或运行时不可用时显式回退 hash provider；真实目标模型语义质量、性能和现场证据仍未完成。#185 的合同字段、tiny fixture 测试和真实模型证据门禁见 [provider model profile 证据专页](docs/benchmarks/m27-provider-model-profile.md)。文档和报告必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
-| #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
+| #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“九种数据模型，各有原生语义，共享一套引擎”；原生属性图明确标注 Graph Beta，部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
 | #183 MCP 合同 | 现有九个只读工具已发布机器可验证 input/output schema、v1 合同版本、稳定错误码与兼容文本，并以端到端测试冻结权限 annotation、既有 required 集合和字段类型；参数、返回、权限、错误与 extend-only 版本规则见 `docs/mcp-contract.md`，未扩大工具面。 | ✅ |
 | #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致；新增可运行 sample、结构化状态和不可达 provider 的 `NOT_READY` 门禁。真实 broker/provider journey 后续验证。 | ✅（待验证） |
 | #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 已完成显式 profile 的 tokenizer/input/pooling 执行合同、单次 ONNX `Run` 的 `[batch, sequence]` 批处理、逐行 pooling/归一化、`IntraOpThreads` / `InterOpThreads` SessionOptions 接线、tiny fixture 测试及 `m27-local-onnx-evidence-v2` runner/verifier。v2 现在真实执行 batch 并记录 session initialized/applied/effective thread state；缺少目标模型/tokenizer/corpus、固定环境质量/性能报告时仍稳定保持 `NOT_READY`，不得把 tiny fixture 或本机 Native AOT 发布包装为真实模型证据；profile 字段和验收门禁见 [证据专页](docs/benchmarks/m27-provider-model-profile.md)。 | 🚧 |
@@ -199,7 +199,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 顺序固定为 #297/#298 地基 → #299/#300 摄取/provider → #301/#302 首批场景 → #303 质量 → #304/#305 扩展收口 → #306~#309 专业视觉。完成 #301 前只宣称“具备多模态检索底座”。所有生物特征能力默认关闭，并要求用途、权限、访问/导出审计、保留期限和删除闭环。
 
-## Milestone 36 — 八模型专用品类易用性对齐
+## Milestone 36 — 既有八模型专用品类易用性对齐（原范围）
 
 目标是让每种数据模型都保留该品类用户熟悉的高频工作流，同时共享 SonnetDB 的连接、权限、审计、错误和运维边界。M20 回答“能力和结果是否对得上”，M29 回答“管理工具是否有入口”，M32 深化 Document MongoDB-like 易用性；本里程碑只处理从第一次成功调用到分页、批处理、失败恢复和诊断的**产品易用性**，不重复三者已经完成的工作。
 
@@ -222,7 +222,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #310 | 八模型 usability gap catalog 与可执行 golden journey：记录每个常用任务的当前入口、证据、手写样板量、失败恢复和 `supported/partial/planned/not_planned`；与 M20 capability report 分开。 | 📋 |
+| #310 | 原八模型范围 usability gap catalog 与可执行 golden journey：记录每个常用任务的当前入口、证据、手写样板量、失败恢复和 `supported/partial/planned/not_planned`；与 M20 capability report 分开。 | 📋 |
 | #311 | 统一新客户端合同：连接/鉴权、取消/超时、分页、批量分项错误、correlation id、仅对可安全重试操作启用的 retry/idempotency 元数据；不强行抹平各模型概念。 | 📋 |
 | #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、ADO.NET 语句级 last-insert-id 与 EF Core 数据库生成整数键回填已落地；仍需 `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集和稳定冲突结果。 | 🚧 |
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
@@ -238,7 +238,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #323 | Object 日常文件流：conditional put/get、metadata/content type、异步 continuation，以及 CLI `cp/sync --dry-run`、冲突与删除保护。 | 📋 |
 | #324 | SonnetMQ 高层 consumer：producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain。 | 📋 |
 | #325 | SonnetMQ 投递失败治理：nack/redelivery/max-delivery/DLQ、message-id 去重窗口、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断。 | 📋 |
-| #326 | 八模型收口：每模型一个嵌入式/远程同代码或最小差异样例，SDK/API/Workbench/CLI 能力矩阵、结构化 gap report 和用户任务 e2e；Document 结果汇总自 M32，不复制任务。 | 📋 |
+| #326 | 原八模型范围收口：每模型一个嵌入式/远程同代码或最小差异样例，SDK/API/Workbench/CLI 能力矩阵、结构化 gap report 和用户任务 e2e；Document 结果汇总自 M32，不复制任务。 | 📋 |
 
 ### 顺序与验收
 
@@ -246,7 +246,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 完成要求：每个模型至少有一个 20 行左右的最小成功样例和一个生产化样例；嵌入式/远程对同一合同做 parity；分页或流式读取内存有界；取消可停止真实工作；重试不会把非幂等写静默执行两次；错误包含稳定 code、操作与可行动建议且不泄露数据；对应产品入口和自动化测试真实接线。UI 控件只能在引擎/SDK 语义完成后开放。M36 不以“拥有与参照产品同名功能”判定完成，而以 golden journey 可运行、gap 可解释、失败可恢复来判定。
 
-总边界：不新增任何竞品 wire protocol，不宣称完整替代专用数据库，不引入分布式复制/分片/集群，不为统一表面 API 混淆八种模型的原生语义，也不把外部采集、媒体推理或长运行工作流塞进 Core。
+总边界：不新增任何竞品 wire protocol，不宣称完整替代专用数据库，不引入分布式复制/分片/集群，不为统一表面 API 混淆各数据模型的原生语义，也不把外部采集、媒体推理或长运行工作流塞进 Core。
 
 ## Milestone 37 — 视图与物化视图
 
@@ -331,11 +331,11 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | 7 | **恢复与产品闭环（#346/#359/#361/#366）**：Server 与 embedded SDK 已统一 `applying` 审计恢复和 torn NDJSON tail 规则，#367 quick 已加入真实子进程 kill/reopen；generation exact-revision acquire 与 cleanup 使用同一生命周期锁序，已清理/资源已删除的 revision 稳定返回 `generation_revision_unavailable`。Server/SDK/CLI/Studio parity 的固定发布证据继续独立采集。 | 审计与维护在进程终止后具有确定终态或可恢复状态，损坏尾部不会被静默接受；Core、远程入口和管理面的结果、权限、错误及审计一致。orderly reopen 小型回归已通过，真实跨进程 cursor、7 天/每日 kill matrix 仍待运行。 |
 | 8 | **最后采集发布证据（#352/#367 + Couplet C2~C4）**：依次运行 Neo4j/PostgreSQL 语义对拍、LDBC/Graphalytics、固定硬件 1m vertex/10m edge、Native AOT journey、Couplet 联合门禁和 7 天 8+1 mixed workload。 | correctness/recovery 与 performance/capacity 双 gate、Couplet C2~C4 对应 gate 全部 PASS，报告含原始样本、commit、硬件、命令、退出码和 access path；任一失败即保持 M40 🚧。 |
 
-准入规则：步骤 1~5 已完成；步骤 6~7 未完成前可以运行用于设计决策的 microbenchmark/quick，但不得启动或累计 #352/#367 固定硬件、外部对拍和 168 小时发布证据。只有步骤 1~7 的阻塞项全部关闭后，步骤 8 才可开始；在两个生产 gate 与 Couplet 联合门禁全部通过前，不得宣称 Production，也不得把正式定位改为九模型。
+准入规则：步骤 1~5 已完成；步骤 6~7 未完成前可以运行用于设计决策的 microbenchmark/quick，但不得启动或累计 #352/#367 固定硬件、外部对拍和 168 小时发布证据。只有步骤 1~7 的阻塞项全部关闭后，步骤 8 才可开始；在两个生产 gate 与 Couplet 联合门禁全部通过前，不得宣称 Production。九模型定位只把原生属性图纳入 Graph Beta 产品范围，不放宽上述准入规则。
 
 固定边界：一个 graph 一个 keyspace，第一阶段不支持跨 graph/跨模型原子事务；vertex 删除先用 `RESTRICT`，不以静默拆批伪装超大 `DETACH DELETE` 原子性；Graphify/实体抽取/LLM/GraphRAG job 留在 importer、Server 或 SDK；不引入第二套 WAL、SQL 表达式系统、向量/全文索引、权限和备份格式；不承诺 Bolt、完整 Cypher/GQL、RDF 推理或分布式图能力。
 
-阶段名称也是产品宣称门禁：Phase 1 gate 通过后才可发布 Native Graph Preview，Phase 2 gate 通过后才可发布 SonnetDB Graph Beta。只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”，并统一评估把产品定位从八模型更新为九模型。
+阶段名称也是产品宣称门禁：Phase 1 gate 通过后才可发布 Native Graph Preview，Phase 2 gate 通过后才可发布 SonnetDB Graph Beta。当前公开定位已将 Graph Beta 计入九模型；只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”。
 
 ## Milestone 41 — 关系查询规划与执行性能加固
 
@@ -425,7 +425,7 @@ SELECT EXISTS (...)
 
 ## Milestone 42 — 九域与规划器系统性能深化
 
-目标是把八个正式数据模型与 M40 原生属性图性能域放进同一套可复现合同，并继续深化关系规划器公共核心。详细数据、竞品版本和复现入口以 [2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md) 为准；关系 SQL 仍是公共核心，不另算第十域，M40 发布门禁完成前也不把产品改称九模型。
+目标是把九种数据模型放进同一套可复现性能合同，并继续深化关系规划器公共核心；原生属性图当前仍按 Graph Beta 取证。详细数据、竞品版本和复现入口以 [2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md) 为准；关系 SQL 仍是公共核心，不另算第十域，M40 发布门禁完成前不得宣称 Graph Production。
 
 | 工作面 | 当前状态 | 已有证据与剩余门禁 |
 |---|---|---|

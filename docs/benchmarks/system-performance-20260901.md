@@ -2,6 +2,8 @@
 
 > **证据边界：** 本轮有本机 x64 smoke、自动化正确性、win-x64 Native AOT CLI/Server 发布及 CLI 实际执行证据；Native AOT Server 启动、固定硬件 x64、ARM64、木垒同语料、七天 mixed workload 与生产发布门禁均为 ⏳ `NOT_RUN`。本文不把开发机短跑换算为容量或生产 SLO，也没有连接、修改或重启木垒生产。
 
+> **产品口径说明：** 本报告的证据采集基线早于本轮门面文案更新；文中“README 的八种数据模型”等表述是该历史基线的事实记录，不代表当前公开定位。当前门面将原生属性图列为第九种模型的 Graph Beta；这不会改变本报告中固定硬件、外部语义对拍、Native AOT、168 小时和生产门禁均为 `NOT_RUN` 的结论。
+
 机器可读结果见 [`../../artifacts/system-performance-20260901/system-performance-report.json`](../../artifacts/system-performance-20260901/system-performance-report.json)，紧凑摘要见 [`../../artifacts/system-performance-20260901/system-performance-report.md`](../../artifacts/system-performance-20260901/system-performance-report.md)。
 
 状态图例：✅ 已完成并在声明范围内验证；🟡 本机或配置级完成，外部门禁待验证；🚧 只完成部分切片或仍有实现残余；⏳ 尚未执行；❌ 已执行但未通过或未产出有效样本；➖ 不适用或有意不采用。表情不替代 `PASS`、`NOT_RUN` 等机器状态码。
@@ -12,7 +14,7 @@
 
 本轮从指定 dirty 基线完成了现状审计、竞品源码机制研究、可量化本机切片基线、分层设计、两个公共热路径实现切片、三个独立模型 benchmark、并发合同加固和证据归档。九域容量闭环仍为 🚧，没有用局部 smoke 替代其余模型。也没有重复实现此前已经完成的 KV 稳定快照、RandomAccess 并发点读、复合索引前缀与 `IN`、倒序 `ORDER BY/LIMIT` 早停、统计成本门控、Server 资源接线、动态 spill fan-in、Top-N 取消/清理及 TOLNSD 热点索引/CAS。
 
-正式产品口径仍是 README 的八种数据模型：时序、关系表、KV/缓存、JSON 文档、全文检索、向量检索、对象存储、消息队列。M40 原生属性图只作为第九性能域纳入矩阵；在 #367 固定硬件、外部对拍、Native AOT 和 168 小时门禁通过前，不能据此把产品改称九模型。关系 SQL parser/binder/planner/optimizer/executor 是跨域公共核心，不另算第十域。
+本报告采集时的正式产品口径仍是 README 的八种数据模型：时序、关系表、KV/缓存、JSON 文档、全文检索、向量检索、对象存储、消息队列。M40 原生属性图在该基线中只作为第九性能域纳入矩阵；当前门面已将其列入 Graph Beta 的九模型范围，但在 #367 固定硬件、外部对拍、Native AOT 和 168 小时门禁通过前，仍不能宣称 Graph Production。关系 SQL parser/binder/planner/optimizer/executor 是跨域公共核心，不另算第十域。
 
 本轮有前后量化对照的两个实现切片为：
 
@@ -152,7 +154,7 @@ P50 有升有降，3 次样本不足以解释性能差异；此处只能认定�
 | 向量 | 🚧 仅 CRC | 维度/metric 一致；ANN 同报 Recall@K 与延迟；精确回退对拍；持久 CRC 兼容 | query norm 重算、SIMD distance、HNSW、filtered ANN、文件 codec/CRC | 本轮只测 CRC；10k/100k recall 与 ARM64 ⏳ `NOT_RUN` | Qdrant；Milvus/HNSWlib 本轮未锁源码版本 | ANN 条件不满足回退 brute-force；运行时 SIMD 不可用回退 scalar；CRC 不改算法 | CRC before/after ✅ `PASS`；召回与容量 ⏳ `NOT_RUN` |
 | 对象存储 | 🚧 exploratory | Put/Get/Range/multipart/delete/audit 字节与元数据一致；流和临时资源可释放 | metadata KV、full/range stream、大值复制、audit、multipart cleanup | 256 x 64 KiB exploratory smoke | MinIO、RocksDB 存储机制 | 严格 Range；not-found 稳定；异常关闭流并只清理任务资源 | `ObjectStorageModelBenchmark` 🚧 `EXPLORATORY_LOCAL_SMOKE_PASS`，需延长迭代 |
 | 消息队列 | 🚧 仅 Rebirth 合同 | publish/pull/ack/replay/group 顺序与至少一次语义；吞吐连同 fsync、积压和重投 | append、topic/group lock、group commit、cold payload、ack/retention、frame、Rebirth storm | MQ 容量 ⏳ `NOT_RUN`；Rebirth default outstanding=1024 | NATS、Kafka、Redpanda | 有界等待/拒绝；重启 replay；重复 Rebirth 合并；broker 未就绪专用异常 | `MqThroughput/FrameEncoding` 本轮 ⏳；queue/readiness/竞态合同 ✅ `12/12 PASS` |
-| 原生属性图 | 🟡 runner 已有；正式门禁 ⏳ | 顶点/边/属性、遍历、路径、SQL/PGQ/GQL、snapshot 分页与恢复 oracle 全通过 | adjacency decode、frontier/visited、generation lease、weighted heap、spill、checkpoint | 1m vertices/10m edges、168h 8+1 均 ⏳ `NOT_RUN` | Neo4j、PostgreSQL oracle | 预算不足只允许有界 relation scan fallback 或显式失败，不能越预算读邻接 | M40 runner/weighted path 已有；正式门禁 ⏳ `NOT_RUN`，不是第九正式模型 |
+| 原生属性图 | 🟡 runner 已有；正式门禁 ⏳ | 顶点/边/属性、遍历、路径、SQL/PGQ/GQL、snapshot 分页与恢复 oracle 全通过 | adjacency decode、frontier/visited、generation lease、weighted heap、spill、checkpoint | 1m vertices/10m edges、168h 8+1 均 ⏳ `NOT_RUN` | Neo4j、PostgreSQL oracle | 预算不足只允许有界 relation scan fallback 或显式失败，不能越预算读邻接 | M40 runner/weighted path 已有；正式门禁 ⏳ `NOT_RUN`，报告基线尚未视为正式模型 |
 
 ## 关系规划器公共核心
 
@@ -332,7 +334,7 @@ SqlLexer Frozen 候选已尝试运行，但在 BenchmarkDotNet 内部 120 秒 bu
 | Evidence | 不可变观察 | 来源/哈希 |
 | --- | --- | --- |
 | E-001 | 外层 HEAD/父提交、SonnetDB HEAD/祖先、dirty 与 gitlink 均已核对 | `git rev-parse/show/merge-base/status` |
-| E-002 | README 是八模型；M40 发布 gate 未完成 | `README.md` SHA256 `943ff2...0a3`；`ROADMAP.md` SHA256 `84b0df...276` |
+| E-002 | 采集基线 README 是八模型（历史快照）；M40 发布 gate 未完成 | `README.md` SHA256 `943ff2...0a3`；`ROADMAP.md` SHA256 `84b0df...276` |
 | E-003 | statistics before/最终 dirty 为 54.81/51.25 ms、34.72/22.67 MB | CSV SHA256 `bbd6d3...5cda` / `503c5d...a4a8d`；`50.89 ms` 为较早中间重跑 |
 | E-004 | CRC production 三个尺寸 before/after 数值 | CSV SHA256 `ec6352...6614` / `bd9d45...7ce` |
 | E-005 | KV/Document/Object 独立模型 smoke | CSV SHA256 `554dd4...cc1` / `f9358d...244` / `bfb95e...04f` |
@@ -343,7 +345,7 @@ SqlLexer Frozen 候选已尝试运行，但在 BenchmarkDotNet 内部 120 秒 bu
 | E-010 | 六类模型热读各 32 次预热、256 个逐请求样本的 nearest-rank P50/P95/P99 可由原始样本复算 | `model-read-latency-current-final/model-read-latency.json` SHA256 `6e189c...116` |
 | E-011 | 最终本机测试、Release、win-x64 AOT 与 format 残留边界 | Core 3990/3990、targeted 33/33、Benchmark 25/25、Server 722/722、Sparkplug 12/12；Release 0/0；CLI/Server AOT publish PASS；format exit 2 仅剩两处既有文件 |
 
-Findings：F-001（E-001/E-002，高置信）确认基线与八模型口径；F-002（E-003，高置信）确认最终 dirty statistics 本机方向性收益；F-003（E-004，高置信）确认 CRC32 本机方向性收益与格式不变；F-004（E-005/E-006/E-010，中置信 candidate）确认模型 benchmark 与真实请求尾延迟证据面已扩展但容量证据不足；F-005（E-007/E-008，高置信）确认两项并发路径具备有限等待/队列及显式失败分类合同，但 Sparkplug 仍缺真实 broker 状态翻转集成测试；F-006（E-009，中置信 candidate）确认 ARM64 门禁配置存在，但执行证据仍缺失；F-007（E-011，高置信）确认本机测试、Release 与 win-x64 AOT 通过，同时明确 solution-wide format gate 因两处既有 whitespace 差异未通过。
+Findings：F-001（E-001/E-002，高置信）确认采集基线与八模型历史口径；F-002（E-003，高置信）确认最终 dirty statistics 本机方向性收益；F-003（E-004，高置信）确认 CRC32 本机方向性收益与格式不变；F-004（E-005/E-006/E-010，中置信 candidate）确认模型 benchmark 与真实请求尾延迟证据面已扩展但容量证据不足；F-005（E-007/E-008，高置信）确认两项并发路径具备有限等待/队列及显式失败分类合同，但 Sparkplug 仍缺真实 broker 状态翻转集成测试；F-006（E-009，中置信 candidate）确认 ARM64 门禁配置存在，但执行证据仍缺失；F-007（E-011，高置信）确认本机测试、Release 与 win-x64 AOT 通过，同时明确 solution-wide format gate 因两处既有 whitespace 差异未通过。
 
 交付路径 P-001：先冻结 dirty 身份与产品边界（E-001/E-002），再测公共热路径（E-003/E-004），然后增加模型级 BDN/逐请求 smoke 与有界并发（E-005～E-008/E-010），配置 ARM64 AOT CI 入口（E-009），并执行本机测试/Release/x64 AOT/格式门禁（E-011），最终进入固定 x64/ARM64、木垒同语料和生产 gate。当前目标环境终点仍是 ⏳ `NOT_RUN`，这是残余风险而不是完成声明。
 

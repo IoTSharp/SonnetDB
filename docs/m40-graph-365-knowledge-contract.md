@@ -11,7 +11,7 @@ M40 #365 提供版本化的知识图谱上层合同、严格校验器、Native A
 
 本项没有修改 Graph V1 record、WAL、checkpoint、备份或查询执行器。Core 仍只持久化通用 Vertex、Edge、Label 和 typed Property；实体抽取、消歧、事实判断、embedding 和社区摘要生成由上层 job 完成。
 
-当前产品阶段仍是 SonnetDB Graph Beta。运维产品面归 #366；固定硬件、LDBC/Graphalytics、7 天 mixed workload、crash/backup/Native AOT 发布报告和 Couplet 联合门禁归 #367。在 #367 通过前不宣称生产可用的第九种数据模型。
+当前产品阶段仍是 SonnetDB Graph Beta，原生属性图已计入公开九模型定位。运维产品面归 #366；固定硬件、LDBC/Graphalytics、7 天 mixed workload、crash/backup/Native AOT 发布报告和 Couplet 联合门禁归 #367。在 #367 通过前不宣称图能力生产就绪或完成第九模型的生产认证。
 
 ## 数据流
 

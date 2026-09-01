@@ -361,8 +361,8 @@ release_decision: PASS only when both gates are PASS
 ```
 
 Gate A 失败时，Gate B 数字仍可用于诊断，但不能形成容量声明。Gate B 失败时，也不能以 Gate A
-正确为由发布。#352 失败阻断 Preview，#359 失败阻断 Beta，#367 任一 gate 失败阻断 Production 和
-“九种数据模型”定位。
+正确为由发布。#352 失败阻断 Preview，#359 失败阻断 Beta，#367 任一 gate 失败阻断 Production。
+当前“九种数据模型”定位只将原生属性图纳入 Graph Beta 产品范围，不代表这些 gate 已通过。
 
 ## 7. Capability gap catalog
 
@@ -438,4 +438,4 @@ Document、FullText、Vector、filtered ANN 和 hybrid lifecycle 归 M32/M35/M36
 
 #341 完成仍不代表以下任何能力完成：Graph record/codec、snapshot cursor、catalog、事务、backup、
 vertex/edge CRUD、Expand/BFS/DFS、SQL/PGQ、Server/SDK、UI、Neo4j/PostgreSQL parity、固定硬件 PASS
-或生产发布。Phase 0 完成前不得进入 Preview；#367 通过前产品定位继续是“八种数据模型，一套引擎”。
+或生产发布。当前公开定位将原生属性图以 Graph Beta 计入第九模型；#367 通过前不得把这一计数解释为 Production 发布。

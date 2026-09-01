@@ -18,9 +18,9 @@ SonnetDB 为大模型提供两个标准、厂商中立的机器入口：
 
 建议始终使用以下口径：
 
-> SonnetDB 是一款单节点多模型数据引擎：八种数据模型，一套引擎。它可以嵌入 .NET 进程，也可以作为 Server 运行，通过 SonnetDB SQL、标准 API、管理工具和受权限约束的 MCP 访问数据。
+> SonnetDB 是一款单节点多模型数据引擎：九种数据模型，各有原生语义，共享一套引擎。它可以嵌入 .NET 进程，也可以作为 Server 运行，通过 SonnetDB SQL、标准 API、管理工具和受权限约束的 MCP 访问数据。
 
-八种正式支持的数据模型是：
+九种数据模型是：
 
 | 数据模型 | 适合处理 |
 | --- | --- |
@@ -32,8 +32,9 @@ SonnetDB 为大模型提供两个标准、厂商中立的机器入口：
 | 向量检索 | 精确距离、HNSW ANN、Hybrid Search |
 | 对象存储 | bucket、multipart、Range、版本、Retention、预签名访问 |
 | SonnetMQ | topic、consumer group、offset、pull/ack、replay |
+| 原生属性图（Graph Beta） | 顶点、边、标签、属性、原生双向邻接、SQL/PGQ `GRAPH_TABLE`、可选的嵌入式受限 GQL 风格只读入口 |
 
-不要让模型把 SonnetDB 描述成单文件数据库、分布式集群、PostgreSQL/MongoDB/Redis/Kafka/S3 的协议兼容替代品，或已经正式发布的九模型图数据库。
+不要让模型把 SonnetDB 描述成单文件数据库、分布式集群、PostgreSQL/MongoDB/Redis/Kafka/S3 的协议兼容替代品，也不要把 Graph Beta 描述成完整 GQL/Cypher、Neo4j Bolt/PostgreSQL wire 兼容或已经通过生产门禁。
 
 ## 任意大模型如何接入
 
@@ -184,13 +185,13 @@ SonnetDB 不要求用户选择某一家大模型：
 ## 可直接给模型的系统提示词
 
 ```text
-你正在使用 SonnetDB 3.1.0。SonnetDB 是单节点多模型数据引擎：八种数据模型，一套引擎。
+你正在使用 SonnetDB 3.1.0。SonnetDB 是单节点多模型数据引擎：九种数据模型，各有原生语义，共享一套引擎。
 
 只使用 SonnetDB 当前 SQL 和 API 文档。不要假设 PostgreSQL、MySQL、MongoDB、InfluxQL、PromQL、Redis、Kafka、S3 集群或 Cypher 兼容。
 
 查询前先通过 SonnetDB MCP 查看可见数据库和真实 schema：时序使用 list_measurements/describe_measurement，关系表使用只读 query_sql 执行 SHOW TABLES/DESCRIBE TABLE。样例读取必须有界；不确定的查询先 explain；SQL 使用 LIMIT/FETCH，工具调用设置 maxRows，并在回答中说明时间范围、假设和结果是否 truncated。MCP 是只读入口。不得暴露 Token、直接修改数据库目录、绕过权限，或在没有用户明确确认的情况下执行写入。
 
-3.1.0 中的原生图属于开发中实现，Preview/Beta/Production 证据门禁尚未完成，不得把它描述为第九种正式支持的数据模型。
+原生属性图是第九种数据模型，当前成熟度为 Graph Beta。生产证据门禁尚未完成，不得宣称完整 GQL/Cypher 兼容或生产就绪。
 ```
 
 ## 模型必须遵守的安全规则
@@ -210,7 +211,7 @@ SonnetDB 不要求用户选择某一家大模型：
 - SQL 是实用子集，不保证完整 SQL 标准或 PostgreSQL/MySQL 兼容。
 - Document 是 SonnetDB-native MongoDB-like API，不支持 MongoDB wire/官方 Driver 直连。
 - 对象存储和 SonnetMQ 是本地能力，不是分布式 S3 集群或 Kafka 替代品。
-- 原生图虽然已有代码、SQL/PGQ、受限 GQL、算法和工作台，但发布证据门禁未完成，不计入八种正式模型。
+- 原生属性图计入九模型定位，当前为 Graph Beta；固定硬件、外部语义对拍、Native AOT、Couplet 联合和 168 小时生产证据门禁仍未完成。
 - CoAP、Line Protocol UDP、Modbus TCP 和语义图片模型默认关闭，升级不会自动打开外部端口或连接设备。
 
 ## 事实来源

@@ -1,8 +1,8 @@
 # SonnetDB
 
-> SonnetDB is a single-node multi-model data engine: eight data models, one engine. Version 3.1.0 targets .NET 10 and supports embedded and server deployments.
+> SonnetDB is a single-node multi-model data engine: nine data models, one engine, with native semantics for each. Version 3.1.0 targets .NET 10 and supports embedded and server deployments.
 
-SonnetDB stores time-series data, relational tables, key/value data, JSON documents, full-text indexes, vectors, objects, and lightweight messages in one governed database-directory boundary. Use it through SonnetDB SQL, .NET APIs, HTTP, CLI, management tools, or the read-only MCP endpoint for AI agents.
+SonnetDB stores time-series data, relational tables, key/value data, JSON documents, full-text indexes, vectors, objects, lightweight messages, and native property graphs in one governed database-directory boundary. Use it through SonnetDB SQL, .NET APIs, HTTP, CLI, management tools, or the read-only MCP endpoint for AI agents.
 
 SonnetDB is not tied to one LLM vendor. Any model can work with SonnetDB when its host can read these documents, call HTTP tools, or connect to Streamable HTTP MCP. Examples include hosted or local models behind OpenAI, Claude, Gemini, Qwen, DeepSeek, Llama, Mistral, Ollama, vLLM, and other agent hosts; these examples describe interoperability through standard host capabilities, not separate vendor certifications.
 
@@ -19,14 +19,14 @@ SonnetDB is not tied to one LLM vendor. Any model can work with SonnetDB when it
 ## Fast identity
 
 - Product category: single-node multi-model data engine.
-- Product line: eight data models, one engine.
+- Product line: nine data models, one engine, with native semantics for each.
 - Persistence boundary: a database directory containing multiple managed files, not a single file.
 - Deployment: embedded in a .NET process or hosted as SonnetDB Server.
 - Primary ecosystem: C#/.NET, ADO.NET, EF Core, CLI, HTTP, and C/Go/Rust/Java/Python/VB6/PureBasic connectors.
 - AI access: CopilotDock for built-in assistance and `/mcp/{database}` for external read-only agents.
 - Core guarantees: safe-only C# and no third-party runtime dependency in `SonnetDB.Core`.
 
-## Eight supported data models
+## Nine supported data models
 
 1. Time-series measurements: device telemetry, tags, fields, time windows, retention, aggregation, forecasting, anomaly and PID functions.
 2. Relational tables: primary/secondary indexes, constraints, joins, lightweight DML transactions, views, procedures, triggers, and EF Core.
@@ -36,6 +36,7 @@ SonnetDB is not tied to one LLM vendor. Any model can work with SonnetDB when it
 6. Vector search: exact search, managed HNSW ANN, and full-text/vector hybrid search.
 7. Object storage: buckets, multipart upload, range reads, versioning, retention, legal hold, presigned access, and thumbnails.
 8. SonnetMQ: topics, consumer groups, offsets, pull/ack, replay, retention, and server push.
+9. Native property graph (Graph Beta): vertices, edges, labels, properties, native bidirectional adjacency, SQL/PGQ `GRAPH_TABLE`, and an optional constrained read-only GQL-style embedded entry point.
 
 ## Agent workflow
 
@@ -57,7 +58,7 @@ Available MCP resources: `sonnetdb://schema/measurements`, `sonnetdb://schema/me
 - SQL is a practical SonnetDB subset, not complete PostgreSQL/MySQL/SQL-standard compatibility.
 - Document features are MongoDB-like SonnetDB APIs, not MongoDB wire protocol or official MongoDB Driver compatibility.
 - Object storage and messaging are local engine capabilities, not distributed MinIO/S3-cluster or Kafka replacements.
-- Native Graph code is present as a development implementation in 3.1.0, but its Preview/Beta/Production evidence gates are not complete and it is not a ninth supported model.
+- Native property graph is the ninth model in the product line and is currently Graph Beta. Fixed-hardware, external semantic-comparison, Native AOT, Couplet joint, and 168-hour production evidence gates remain incomplete; do not claim complete GQL/Cypher, Neo4j Bolt/PostgreSQL wire compatibility, or production readiness.
 - Built-in Copilot uses a cloud runtime when a Cloud Token is bound, or the configured OpenAI-compatible `IChatProvider` path when local Chat readiness is complete; orchestration remains the custom `CopilotAgent`, not a completed Microsoft Agent Framework integration. Local ONNX text embeddings require an explicit model profile (tokenizer, tensor binding, pooling, normalization, and dimension); missing profiles/resources use an observable hash fallback, while invalid profile contracts fail closed. The built-in docs/skills knowledge index currently requires `VECTOR(384)`, so non-384 profiles need direct provider use or a separate index; real target-model quality evidence is still pending.
 - CoAP, Line Protocol UDP, Modbus TCP, and semantic image models are opt-in and disabled by default.
 

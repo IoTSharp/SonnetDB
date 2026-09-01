@@ -3,7 +3,7 @@
   "reportId": "system-performance-20260901",
   "reportDate": "2026-09-01",
   "status": "LOCAL_SMOKE_ONLY",
-  "summary": "SonnetDB 八个正式数据模型加 M40 原生属性图候选域的系统性能审计。本报告包含当前 dirty 基线、两个有前后对照的实现切片、三个新增模型 smoke、规划器与公共存储残余队列；固定硬件、ARM64、木垒同语料和生产门禁均未执行。",
+  "summary": "SonnetDB 采集基线中的八个正式数据模型加 M40 原生属性图候选域的系统性能审计。本报告包含当时 dirty 基线、两个有前后对照的实现切片、三个新增模型 smoke、规划器与公共存储残余队列；当前门面已将 Graph Beta 纳入九模型范围，但固定硬件、ARM64、木垒同语料和生产门禁结论仍为未执行。",
   "baseline": {
     "outerRepository": {
       "requestedBase": "988ed78df18b46a399d5b544fd78904452d2405f",
@@ -37,7 +37,7 @@
     "publicModelCount": 8,
     "performanceDomainCount": 9,
     "sharedCore": "relational_sql_planner_executor",
-    "scopeCorrection": "README 仍定义八种正式数据模型；M40 原生属性图只作为第九性能域审计，发布门禁通过前不得改称九模型。"
+    "scopeCorrection": "采集基线 README 定义八种正式数据模型；M40 原生属性图当时只作为第九性能域审计。当前门面将 Graph Beta 纳入九模型范围，但发布门禁仍未通过。"
   },
   "evidenceTiers": [
     {
@@ -554,7 +554,7 @@
   },
   "evidence": [
     {"id": "E-001", "sourceType": "command", "sourceRef": "git rev-parse/show/merge-base/status", "contentHash": null, "observation": "outer 770a139 parent 988ed78; SonnetDB 424f61a contains 3f362d1; dirty preserved; old 0be6898 not restored"},
-    {"id": "E-002", "sourceType": "file", "sourceRef": "README.md and ROADMAP.md", "contentHash": {"README.md": "943ff22132f81c7f32062c9befc08b588e59d8b9d092fff31968b4caa8aae0a3", "ROADMAP.md": "84b0df2426c26c621a2278f5baa5ef4b11119b1a13f58ec77c3d955b094d8276"}, "observation": "eight official models; M40 graph release evidence NOT_RUN"},
+    {"id": "E-002", "sourceType": "file", "sourceRef": "README.md and ROADMAP.md", "contentHash": {"README.md": "943ff22132f81c7f32062c9befc08b588e59d8b9d092fff31968b4caa8aae0a3", "ROADMAP.md": "84b0df2426c26c621a2278f5baa5ef4b11119b1a13f58ec77c3d955b094d8276"}, "observation": "capture baseline had eight official models; M40 graph release evidence NOT_RUN"},
     {"id": "E-003", "sourceType": "benchmark_csv", "sourceRef": "before/statistics-refresh-run3 and statistics-current-final CSV", "contentHash": {"before": "bbd6d3853a00568b610fd725c41e1e53120f45e16820daa049422d2d25255cda", "finalDirtyAfter": "503C5D11893C8079D23B9D22F84FA02C83354D0E395C2AB13106872466BA4A8D", "intermediateAfter": "0014ee333de5cadad3a8315064c39cfc9dcf0dfa5d1ed0002e1e6c0e0b5d37c6"}, "observation": "mean 54.81 to 51.25 ms; median 54.77 to 50.68 ms; P90 55.24 to 52.29 ms; allocation 34.72 to 22.67 MB/op; 50.89 ms was an earlier intermediate rerun"},
     {"id": "E-004", "sourceType": "benchmark_csv", "sourceRef": "before/after vector CRC32 CSV", "contentHash": {"before": "ec6352d208f838e568d857c61f0202967fb06725004dde3d9c021f26e59e6614", "after": "bd9d4563eae6bce395cc25e505878021e1d6085f785c73b49a757d6d232fc7ce"}, "observation": "production IEEE CRC32 local speedup at 64B/4KiB/1MiB"},
     {"id": "E-005", "sourceType": "benchmark_csv", "sourceRef": "after/model-smoke CSV files", "contentHash": {"kv": "554dd478e166d45a746eef1fa0b9733209dfcbf0e724e6557adfac58d2874cc1", "document": "f9358d28089fc3bbbb0a701ca9752fe34c0452e56371ab5e0f009982897f6244", "object": "bfb95e6180e4d38fd166bebea0462f06fcb62cf69767b21028ae85dcb9abc04f"}, "observation": "independent KV/Document/Object local model smoke"},
@@ -566,7 +566,7 @@
     {"id": "E-011", "sourceType": "test_build_publish_and_format", "sourceRef": "final local validation commands and artifacts/system-performance-20260901/validation", "contentHash": null, "observation": "Core 3990/3990, targeted 33/33, Benchmark 25/25, Server 722/722 and Sparkplug 12/12 PASS; Release 0 warnings/errors; win-x64 CLI/Server AOT publish PASS and CLI execution PASS; solution format exit 2 only for two pre-existing non-dirty files"}
   ],
   "findings": [
-    {"id": "F-001", "status": "validated", "confidence": "high", "evidenceIds": ["E-001", "E-002"], "finding": "当前基线完整继承目标 SonnetDB 提交与 dirty 改动，正式产品口径仍为八模型。"},
+    {"id": "F-001", "status": "validated", "confidence": "high", "evidenceIds": ["E-001", "E-002"], "finding": "采集基线完整继承目标 SonnetDB 提交与 dirty 改动，当时正式产品口径为八模型；当前门面已将 Graph Beta 纳入九模型。"},
     {"id": "F-002", "status": "validated", "confidence": "high", "evidenceIds": ["E-003"], "finding": "统计刷新切片在最终 dirty 本机短跑中降低均值约 6.49% 和托管分配约 34.71%；固定硬件、ARM64 与生产收益仍未验证。"},
     {"id": "F-003", "status": "validated", "confidence": "high", "evidenceIds": ["E-004"], "finding": "System.IO.Hashing IEEE CRC32 在本机三个尺寸均显示显著方向性收益，格式正确性由差分测试约束。"},
     {"id": "F-004", "status": "candidate", "confidence": "medium", "evidenceIds": ["E-005", "E-006", "E-010"], "finding": "模型级 BDN 与逐请求热读证据已扩展，但九域固定硬件容量仍不完整。"},

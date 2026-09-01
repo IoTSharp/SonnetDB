@@ -5,7 +5,7 @@
 - `✅` Core 功能切片已完成：degree、weakly connected components、PageRank 和确定性 label-propagation community 共用一个可恢复 runner。
 - `✅` statement snapshot、CRC sidecar、取消/续作、内存预算、磁盘 spill、Graph/Table 幂等发布和结果版本已覆盖自动回归。
 - `📋` Graphalytics/LDBC 子集、1m vertex/10m edge、固定目标硬件、7 天 mixed workload 和 Couplet C4 联合门禁仍归 #367，保持 `NOT_RUN`。
-- 本项不改变产品定位；#367 通过前不得宣称生产可用的九模型数据库。
+- 本项不改变九模型中的 Graph Beta 定位；#367 通过前不得宣称图能力 Production 就绪。
 
 ## 公共入口
 

@@ -10,7 +10,7 @@ performance_capacity: NOT_RUN
 release_decision: NOT_RUN
 ```
 
-截至当前提交，evaluator 自身加固和防误报回归已经完成；M40 修复顺序步骤 3~7、LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告仍未完成或归档。M40 仍为进行中，产品定位继续是“八种数据模型，一套引擎”。
+截至当前提交，evaluator 自身加固和防误报回归已经完成；M40 修复顺序步骤 3~7、LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告仍未完成或归档。原生属性图已以 Graph Beta 计入九模型产品定位，但 M40 仍为进行中，不能据此宣称 Production 门禁通过。
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 

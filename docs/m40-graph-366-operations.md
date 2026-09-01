@@ -9,7 +9,7 @@ permalink: /graph-operations/
 
 M40 #366 在既有 Graph V1 存储、事务、遍历和维护能力之上，提供一致的 Server、typed SDK、CLI 与 Web/Studio 运维入口。它覆盖 schema/index/degree 统计、慢遍历诊断、有界可视化、带版本条件的元素编辑、JSON 导入导出，以及 repair/rebuild、checkpoint、compaction 的两阶段审批和持久审计。
 
-本项没有修改 Graph V1 record、key、WAL、checkpoint 或备份格式，也没有增加第二套图存储、权限或维护执行器。固定硬件容量、LDBC/Graphalytics、7 天 mixed workload、kill/reopen、backup/restore 和 Production 发布决定仍属于 #367。在 #367 通过前，产品定位继续是“八种数据模型，一套引擎”，不能据 #366 宣称第九模型或生产级图数据库已经发布。
+本项没有修改 Graph V1 record、key、WAL、checkpoint 或备份格式，也没有增加第二套图存储、权限或维护执行器。原生属性图已以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”的产品定位；固定硬件容量、LDBC/Graphalytics、7 天 mixed workload、kill/reopen、backup/restore 和 Production 发布决定仍属于 #367，不能据 #366 宣称生产级图数据库已经发布。
 
 ## 权限矩阵
 
@@ -158,4 +158,4 @@ Workbench 使用现有连接、数据库选择、权限和 URL workspace routing
 - LDBC SNB 和 Graphalytics 子集、Neo4j/PostgreSQL 外部对拍；
 - 7 天 mixed workload、kill/reopen、backup/restore 与恢复正确性报告；
 - 发布构建的 Native AOT 证据归档和 Couplet C4 联合门禁；
-- 是否把对外定位从八模型更新为九模型的发布决定。
+- 是否将原生属性图从 Graph Beta 提升为 Production 的发布决定。

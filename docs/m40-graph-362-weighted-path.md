@@ -5,7 +5,7 @@
 - `✅` 功能与本地收益证据已闭环：Core、HTTP、typed SDK correctness smoke 和 topology journey 三算法收益矩阵均已通过。
 - `✅` quick smoke 三算法 correctness `PASS`，A* 与双向 Dijkstra 的 expanded-edge/P95 局部准入 `PASS`；固定目标硬件与生产发布证据继续归 #367。
 - `📋` Couplet 代码知识真实语料、1m/10m 固定规模、固定目标硬件 P50/P95/P99、退化矩阵、7 天 mixed workload 和 #367 发布门禁尚未完成。
-- 本合同不改变产品定位；在 #367 通过前仍不得宣称生产可用的九模型数据库。
+- 本合同不改变九模型中的 Graph Beta 定位；在 #367 通过前仍不得宣称图能力 Production 就绪。
 
 ## 公共入口
 

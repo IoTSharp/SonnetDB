@@ -7,7 +7,7 @@
         </div>
         <div class="brand-copy">
           <span class="brand-name">SonnetDB</span>
-          <span class="brand-tagline">八种数据模型 · 一套引擎</span>
+          <span class="brand-tagline">九种数据模型 · 原生语义 · 一套引擎</span>
         </div>
       </div>
       <nav class="hero-nav" aria-label="页面导航">
@@ -23,10 +23,10 @@
       <section id="overview" class="hero-panel">
         <div class="hero-copy">
           <div class="hero-eyebrow">产品定位</div>
-          <h1>八种数据模型，一套引擎。</h1>
+          <h1>九种数据模型，各有原生语义，共享一套引擎。</h1>
           <p class="hero-subtitle">
             SonnetDB 支持嵌入式和服务端两种运行方式，通过 SQL、ADO.NET、EF Core、CLI、HTTP API、Web Admin、MCP 和多语言连接器提供统一访问。
-            当前版本覆盖时序、关系表、KV、文档、全文、向量、对象桶和消息队列，Copilot 与 MCP 作为受治理的扩展入口。
+            当前版本覆盖时序、关系表、KV、文档、全文、向量、对象桶、消息队列和原生属性图，Copilot 与 MCP 作为受治理的扩展入口；Graph 当前为 Beta。
           </p>
 
           <div class="hero-actions">
@@ -59,7 +59,7 @@
                 <ul class="stage-list">
                   <li>时序数据支持 SQL 写入、范围查询、聚合、窗口函数和批量导入。</li>
                   <li>服务端内置用户、授权、Token、备份恢复、健康检查、MCP 和 Web Admin。</li>
-                  <li>扩展能力覆盖 KV、关系表、JSON 文档、全文、向量、对象桶、消息队列和 Copilot。</li>
+                  <li>扩展能力覆盖 KV、关系表、JSON 文档、全文、向量、对象桶、消息队列、原生属性图和 Copilot。</li>
                 </ul>
               </section>
               <section class="stage-card">
@@ -74,8 +74,8 @@
               </section>
               <section class="stage-card stage-card-accent">
                 <span class="stage-kicker">多模型</span>
-                <strong>时空、搜索、对象与 AI</strong>
-                <p>支持 GEOPOINT、轨迹分析、全文检索、向量检索、Hybrid Search、对象桶和 Copilot。</p>
+                <strong>时空、图、搜索、对象与 AI</strong>
+                <p>支持 GEOPOINT、轨迹分析、原生属性图、全文检索、向量检索、Hybrid Search、对象桶和 Copilot。</p>
               </section>
             </div>
           </div>
@@ -153,7 +153,7 @@ const heroHighlights = [
   },
   {
     title: '多模型',
-    description: '提供 KV、关系表、文档、全文、向量、对象桶和消息队列',
+    description: '提供 KV、关系表、文档、全文、向量、对象桶、消息队列和原生属性图',
   },
   {
     title: 'AI + 运维',
@@ -227,21 +227,26 @@ const capabilityCards = [
   },
   {
     index: '07',
+    title: '原生属性图（Beta）',
+    description: '支持顶点、边、标签、属性、原生双向邻接、SQL/PGQ GRAPH_TABLE 和嵌入式受限 GQL 风格只读入口。',
+  },
+  {
+    index: '08',
     title: '对象桶与消息队列',
     description: '提供 S3-compatible 对象桶基础能力，以及 SonnetMQ 本地消息队列 MVP。',
   },
   {
-    index: '08',
+    index: '09',
     title: '控制面与运维',
     description: '支持用户、授权、Token、数据库管理、备份恢复、维护接口、健康检查和指标端点。',
   },
   {
-    index: '09',
+    index: '10',
     title: '工具链与连接器',
     description: '提供 ADO.NET、CLI、Web Admin、Docker、C、Go、Rust、Java、Python、VB6 和 PureBasic 连接器。',
   },
   {
-    index: '10',
+    index: '11',
     title: 'Copilot 与 MCP',
     description: '在 Web Admin 和外部 Agent 中提供 SQL 生成、解释、修复、排障、工具调用和知识检索。',
   },

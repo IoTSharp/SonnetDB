@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-31 核查结论：Phase 0（#341～#346）原范围公共地基 ✅ 已完成；另已补充此前不在 #343/#346 范围内的跨 KV/Document/FullText generation public contract。Couplet C0 已完成，C1 source lane 已完成 generation/query、database-root 单 owner 和 orderly-reopen cursor 本地接线，但两个 C1 gate 仍为 FAIL、`CG-005` 保持 verifying。修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；步骤 6~7 的实现加固（路径/离线 spill 分配、维护审计尾部恢复、真实 quick kill/reopen）已落地并通过本地回归，但固定 workload/7 天 parity 证据仍未完成，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
+> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-31 核查结论：Phase 0（#341～#346）原范围公共地基 ✅ 已完成；另已补充此前不在 #343/#346 范围内的跨 KV/Document/FullText generation public contract。Couplet C0 已完成，C1 source lane 已完成 generation/query、database-root 单 owner 和 orderly-reopen cursor 本地接线，但两个 C1 gate 仍为 FAIL、`CG-005` 保持 verifying。修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；步骤 6~7 的实现加固（路径/离线 spill 分配、维护审计尾部恢复、真实 quick kill/reopen）已落地并通过本地回归，但固定 workload/7 天 parity 证据仍未完成，#367 Production evidence 尚未运行。公开定位已将原生属性图以 Graph Beta 计入第九模型；M40 整体保持 🚧，不得宣称 Production 发布门禁已通过。
 
 ## 1. 决策与目标
 
@@ -11,7 +11,7 @@ SonnetDB 的图能力采用两种数据来源、一个图计划和一套执行�
 3. **统一图执行层**：原生图和关系映射图都绑定为同一种图逻辑计划；底层分别使用原生邻接访问器和关系索引访问器，不复制模式匹配、路径语义、过滤、投影和资源治理代码。
 4. **SQL 可组合**：`GRAPH_TABLE` 把图匹配结果作为行集交给现有 SQL 上层完成 JOIN、GROUP BY、ORDER BY 和投影；图内扩展仍由图执行器完成。
 
-完成 M40 前，SonnetDB 的正式定位仍是“八种数据模型，一套引擎”。只有生产验收门禁通过后，才统一修改为“九种数据模型，一套引擎”，不能以 Parser、原型或表映射图提前宣称原生图数据库已经可用。
+SonnetDB 当前将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”的公开定位。模型计数只说明产品能力边界，不代表 Production 认证；#367 生产验收门禁通过前，仍不得宣称图能力生产就绪、完整 GQL/Cypher 兼容或竞品协议兼容。
 
 ### 1.1 必须达到的结果
 
@@ -297,7 +297,7 @@ Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspac
 | ✅ #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | ✅ #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | ✅ #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
-| 🚧 #367 | strict evaluator 已完成 schema-aware artifact 校验、逐轮原始样本重算、真实 clean commit、命令/退出码回放及 allocation/GC 阈值；LDBC、Graphalytics、代码知识/Agent、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量仍待步骤 4~7 后执行。 | 伪造摘要、缺样本、脏/无效 commit 和复现失败回归已通过；候选报告仍须包含 commit/硬件/数据规模/P50/P95/P99/内存/GC/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog。正确性/恢复与性能/容量 gate 全 PASS 前不得改为九模型；当前双 gate 为 `NOT_RUN`。 |
+| 🚧 #367 | strict evaluator 已完成 schema-aware artifact 校验、逐轮原始样本重算、真实 clean commit、命令/退出码回放及 allocation/GC 阈值；LDBC、Graphalytics、代码知识/Agent、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量仍待步骤 4~7 后执行。 | 伪造摘要、缺样本、脏/无效 commit 和复现失败回归已通过；候选报告仍须包含 commit/硬件/数据规模/P50/P95/P99/内存/GC/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog。正确性/恢复与性能/容量 gate 全 PASS 前保持 Graph Beta，不得宣称 Production；当前双 gate 为 `NOT_RUN`。 |
 
 ✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图返回 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；步骤 4 又让关系映射返回同样的 statement consistency，并以 `actual_snapshot_sequences=table:sequence` 如实表达多表捕获结果，单值 `actual_snapshot_sequence` 保持 null。
 
@@ -383,11 +383,11 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 
 ## 8. 与现有路线图的关系
 
-- M20 Parity：Phase 2 增加 `Capability.Graph`，但不改写历史八模型完成结论。
+- M20 Parity：Phase 2 增加 `Capability.Graph`；历史八模型完成结论保持不变，当前产品门面将 Graph 作为 Graph Beta 纳入九模型范围。
 - M27 Agent：只通过授权 Graph API/SQL 访问；写入继续使用现有 staged approval，不给模型旁路。
 - M29 Workbench：Phase 1 先只读浏览/查询，mutation 等 Core/Server 合同稳定后开放。
 - M35 多模态：内容、chunk、embedding 和对象生命周期继续由 M35 建设；M40 Phase 3 只增加图关系和 provenance 组合。
-- M36 八模型易用性：保留原范围；Graph 的 golden journey、SDK 和诊断由 M40 自己验收，避免重开 #310~#326。
+- M36 八模型易用性：保留原范围；Graph 的 golden journey、SDK 和诊断由 M40 自己验收，避免重开 #310~#326。Graph Beta 纳入当前九模型门面不改变该里程碑的原范围。
 - M37 View：复用依赖/catalog 模式；SQL/PGQ mapping graph 是图 catalog，不冒充普通 view。
 - M38/M39 过程触发器：Phase 1 不支持 graph trigger；只有事务写放大和恢复证据完成后另行准入。
 - MM9 Backup：扩展现有 manifest 和 CLI，不新增 Graph 专用备份格式。

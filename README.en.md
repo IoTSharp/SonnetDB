@@ -4,7 +4,7 @@
 
 <h1 align="center">SonnetDB</h1>
 
-<p align="center">Eight data models. One engine.</p>
+<p align="center">Nine data models. One engine. Native semantics for each.</p>
 
 <p align="center">
   <a href="README.md">中文</a> | <a href="README.en.md">English</a>
@@ -22,13 +22,13 @@
 
 **SonnetDB is a multi-model data engine.**
 
-It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, and a message queue — eight kinds of data capability that usually require several separate systems — in one engine accessed through SQL, standard APIs, and management tools.
+It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, a message queue, and native property graphs — nine kinds of data capability that usually require several separate systems — in one engine accessed through SQL, standard APIs, and management tools.
 
-The core value is not "many features" but **unification**: eight data models share one process, one permission and operations boundary, one backup/restore workflow, and one admin console. This is not several independent products bundled together; the capabilities live in one engine.
+The core value is not "many features" but **unification**: all nine models retain their native semantics and access patterns while sharing one process, one permission and operations boundary, one backup/restore workflow, and one admin console. This is not several independent products bundled together; the models work together inside one engine.
 
 Deployment stays flexible: embed it as an in-process library or run it as a standalone server for local applications, devices and edge nodes, business systems, private environments, and other workloads.
 
-## 🗂️ Eight Data Models, One Shared Semantics
+## 🗂️ Nine Data Models, One Engine, Native Semantics for Each
 
 | Data model | What one engine provides directly |
 | --- | --- |
@@ -40,12 +40,13 @@ Deployment stays flexible: embed it as an in-process library or run it as a stan
 | **Vector search** | HNSW approximate index + exact fallback, Hybrid Search |
 | **Object storage** | S3-compatible buckets, multipart upload, range reads, presigned URLs |
 | **Message queue** | SonnetMQ topics, consumer groups, push / ack, restart replay |
+| **Native property graph (Graph Beta)** | Vertices, edges, labels, properties, native bidirectional adjacency, SQL/PGQ `GRAPH_TABLE`, and an optional constrained read-only GQL-style embedded entry point |
 
-The relational SQL surface is a practical subset covering common queries, aggregation, joins, transactions, and multi-model extensions — it is not a full SQL-standard implementation. Treat the topic docs as the source of truth for each capability's maturity.
+The relational SQL surface is a practical subset covering common queries, aggregation, joins, transactions, and multi-model extensions — it is not a full SQL-standard implementation. Native property graphs are currently Graph Beta, not a claim of complete GQL, Cypher, or Neo4j compatibility; fixed-hardware, external semantic-comparison, and long-running production gates remain incomplete. Treat the topic docs as the source of truth for each capability's maturity.
 
 ## ⚡ Universal Binary Frame Protocol
 
-3.0 lands a **universal binary frame protocol** over HTTP/2 covering all seven data-plane services (message queue, time-series, SQL, vector, KV, object, document). All eight models share one high-throughput channel: time-series bulk writes travel as compact columnar binary, large SQL result sets stream back in columnar chunks with no full materialization so memory stays near-constant, and vector-search query vectors are carried as native f32 binary. REST endpoints are fully preserved for compatibility, and clients can switch freely between `auto` / `frame-http2` / `rest` via the connection-string `Protocol` option.
+3.0 introduced a **universal binary frame protocol** over HTTP/2 covering seven foundational data-plane services (message queue, time-series, SQL, vector, KV, object, and document). These services share one high-throughput channel: time-series bulk writes travel as compact columnar binary, large SQL result sets stream back in columnar chunks with no full materialization so memory stays near-constant, and vector-search query vectors are carried as native f32 binary. In the current Graph Beta, M40 #351 adds a constrained single-hop `Expand` at `service=8` on the same endpoint; native property graphs are also accessed through APIs and SQL/PGQ, while other graph operations follow their API/SQL boundaries. REST endpoints are fully preserved for compatibility, and clients can switch freely between `auto` / `frame-http2` / `rest` via the connection-string `Protocol` option.
 
 ## 🔌 How To Use It
 
@@ -56,7 +57,7 @@ The relational SQL surface is a practical subset covering common queries, aggreg
 | .NET ecosystem | ADO.NET, EF Core, `IDistributedCache` / EasyCaching provider |
 | CLI | `sndb` for local / remote SQL, backup, and maintenance |
 | VS Code | [Install the official SonnetDB extension](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) to connect, browse schema, run SQL, and inspect results in the editor |
-| Binary frame protocol | High-throughput frame access over HTTP/2 across all seven models (data plane); REST kept for compatibility |
+| Binary frame protocol | High-throughput frame access over HTTP/2 across seven foundational services plus Graph `service=8` single-hop Expand; REST kept for compatibility |
 | Device ingest | Built-in MQTT broker (devices publish straight into the DB) + external MQTT client (subscribe to existing EMQX / Mosquitto) |
 | Multi-language | C, Go, Rust, Java, Python, VB6, and PureBasic connectors |
 | AI / Agent | Web CopilotDock and MCP tool entry points |
@@ -199,7 +200,7 @@ code --install-extension iotsharp.sonnetdb-vscode
 
 | Component | Purpose |
 | --- | --- |
-| `src/SonnetDB.Core` | Multi-model core library: time-series, relational tables, KV, documents, search, object-storage adapter, local message queue, backup/restore, and persistence. No third-party runtime dependencies |
+| `src/SonnetDB.Core` | Multi-model core library: time-series, relational tables, KV, documents, search, object-storage adapter, local message queue, native property graph, backup/restore, and persistence. No third-party runtime dependencies |
 | `src/SonnetDB` | HTTP server, first-run setup, auth/RBAC, SSE, MCP, Admin UI, Copilot bridge, binary-frame endpoints, MQTT broker/client, and bundled `/help` docs |
 | `src/SonnetDB.Data` | ADO.NET provider; NuGet package ID `SonnetDB`, namespace `SonnetDB.Data` |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core provider with `UseSonnetDB(...)`, type mapping, query translation, and migrations SQL |
@@ -222,11 +223,13 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | SQL grammar, functions, control-plane SQL | [SQL Reference](docs/sql-reference.md), [SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin, SQL Workbench, Copilot | [SonnetDB Workbench](docs/web-workbench.md) |
 | Copilot providers, model groups, local models | [Copilot Provider and Model Catalog](docs/copilot-providers.md) |
+| Nine-model workbenches and Web Admin / Studio / VS Code parity | [Management Tools and Three-Surface Matrix](docs/management-tools.md) |
 | VS Code installation, connections, and extension development | [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode), [SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Deterministic text chunks, full-snapshot diffs, and bounded RAG apply callbacks (Core building blocks) | [RAG Ingestion Core](docs/rag-ingestion-core.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md), [MongoDB-like Migration](docs/mongodb-migration.md), [Vector Search](docs/vector-search.md) |
+| Graph Beta native storage, SQL/PGQ, GQL-style reads, and GraphRAG contracts (production evidence gates incomplete) | [Graph GQL-style Entry](docs/m40-graph-364-gql-entry.md), [Knowledge Graph and GraphRAG Contract](docs/m40-graph-365-knowledge-contract.md), [Native Property Graph Roadmap and Boundaries](docs/native-graph-database-roadmap.md) |
 | Binary frame protocol, MQTT ingest | [Frame Protocol](docs/frame-protocol.md) |
 | Geospatial, trajectory, forecast, PID | [Geospatial](docs/geo-spatial.md), [Forecast](docs/forecast.md), [PID Control](docs/pid-control.md) |
 | Architecture, file layout, backup/restore | [Architecture](docs/architecture.md), [File Format](docs/file-format.md), [Backup & Restore](docs/backup-restore.md) |

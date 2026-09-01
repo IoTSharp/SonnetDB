@@ -8,7 +8,9 @@
 SonnetDB 全模型此前只有 HTTP+JSON 一条接入通道：MQ/对象 payload 走 Base64（+33% 体积 + 编解码 CPU）、
 向量 `float[]` 走 JSON 数字文本、大结果集全量物化 JSON。帧协议消灭 JSON/Base64 税：
 二进制 payload 原始字节直传，多帧一体、`stream-id` 关联，为 #236 推送订阅与 #238 流式结果集铺路。
-自 #240 起七个 service（mq / tsdb / sql / vector / kv / object / doc）全部挂载，全模型二进制覆盖完成。
+自 #240 起七个基础 service（mq / tsdb / sql / vector / kv / object / doc）全部挂载；M40 #351 又追加了
+`graph` service（编号 8）的受限 `Expand` 帧。Graph Beta 同时提供 REST/NDJSON、SQL/PGQ 和 typed API，
+Graph Frame v1 只覆盖无目标谓词的单跳邻接读取，不改变其他服务的帧语义。
 
 ## 传输承载
 
@@ -180,11 +182,15 @@ SonnetDB Server 可启用一个 InfluxDB 兼容的 Line Protocol UDP listener，
 | `kv` | 5 | 1=get, 2=put, 3=scan | ✅ #240 |
 | `object` | 6 | 1=get（流式分块）, 2=put | ✅ #240 |
 | `doc` | 7 | 1=find（ID/扫描）, 2=insert | ✅ #240 |
+| `graph` | 8 | 1=expand（单跳邻接，meta → row × N → end） | ✅ M40 #351 |
 
 MQ 的 browse/stats 等管理面操作不进帧（走 REST 管理契约）。推送订阅（op 5/6）仅在双工流端点
 `/v1/frame/stream` 上可用；一元端点 `/v1/frame` 只接受 op 1~4，收到 op 5/6 回 `unsupported_op`。
 KV 的 ttl/incr/cas/remove、对象的 bucket 管理/版本/multipart/生命周期、文档的复杂查询（filter/
 projection/sort/aggregate）/更新/删除均不进帧——高吞吐数据面走帧，管理面与复杂查询走 REST / SQL。
+Graph 的写入、点读、索引 seek、带目标谓词的 Expand、遍历与路径算法继续走 REST/NDJSON 或 typed API；
+`graph` service=8 的 v1 请求字段为 database、graph、vertexId、direction、edgeLabelId、pageSize、maxResults，
+响应固定为 `meta`（snapshot sequence）、零到多个 `row`（邻接边）和 `end`（行数）。
 
 ## REST vs 帧-HTTP2 选型与 #244 验收
 
@@ -198,6 +204,7 @@ REST/JSON 继续作为兼容、管理面与复杂操作的稳定入口；二进�
 | 大批量时序写入（Line Protocol / JSON points） | ADO `CommandType.TableDirect` + `Protocol=auto/frame-http2` | 客户端列式编码为 tsdb 帧；BulkValues 与 `onerror=skip` 保持 REST |
 | 大 SQL 结果集 / 只读查询 | ADO `Protocol=auto/frame-http2` | sql service 返回 meta → rows × N → end 分块，降低响应缓冲与 JSON 编解码成本；写语句回落 REST |
 | 向量 KNN 检索 | vector service 或 ADO SQL 只读查询 | 查询向量与结果向量列以 f32 二进制传输；REST NDJSON 的向量列仅作兼容 |
+| Graph 单跳邻接 Expand（无目标谓词） | `graph` service（service=8）或 typed Graph SDK | 帧响应按 meta → row × N → end 流式返回；复杂过滤、写入和遍历继续走 REST/NDJSON 或 API |
 | 低延迟 MQ 订阅推送 | `POST /v1/frame/stream`（HTTP/2） | 一条连接多订阅，Push 帧由服务端推送；轮询型 browse/stats 仍走 REST |
 | 设备直连或接入既有 EMQX/Mosquitto | MQTT broker/client | topic `db/{db}/m/{measurement}` 落时序，`db/{db}/mq/{topic}` 写/订阅 SonnetMQ；QoS 0/1，QoS 2 不在范围 |
 | 受约束设备需要 UDP REST、确认或 DTLS PSK | CoAP CON / `coaps` | `db/{db}/m/{measurement}` 复用三格式落库；鉴权、Block1 和协议边界见[设备与遥测协议接入](protocol-ingest.md) |
@@ -215,7 +222,9 @@ Parity 验收：
 
 - `tests/SonnetDB.Tests/*Frame*ParityTests.cs` 覆盖各客户端补口、错误码、回落边界和大对象/批量写细节。
 - `tests/SonnetDB.Parity/runner/FrameRestTransportParitySuite.cs` 是 #244 的横向收口测试，在同一真实 Kestrel 实例上比较
-  MQ、TSDB、SQL、Vector、KV、Object、Document 七个 service 的 REST 与二进制帧稳定语义。
+  MQ、TSDB、SQL、Vector、KV、Object、Document 七个基础 service 的 REST 与二进制帧稳定语义；Graph Frame
+  的 codec、端点和 typed client 回归见 `tests/SonnetDB.Core.Tests/Protocol/GraphFrameCodecTests.cs`
+  与 `tests/SonnetDB.Tests/GraphEndpointTests.cs`，其 Graph Beta 生产门禁仍独立于 #244。
 
 ## MQ 帧体编码（service=1）
 
@@ -629,6 +638,7 @@ HTTP/1.1 请求回 400）。请求体是长生命周期的帧流，响应体是�
 | ADO 批量入库（`CommandType.TableDirect`，#261） | **Line Protocol / JSON** payload 走 tsdb service 列式写帧 | **BulkValues（`INSERT ... VALUES`）** 与 **`onerror=skip`** 恒走 REST（见下） |
 | `SndbObjectStorageClient`（#262） | put（内容 ≤ 帧上限、可缓冲）/ 非 Range 全量 get（meta→data×N→end 流式分块） | bucket 管理 / multipart / 大对象（> 帧上限）/ Range 读 / presigned / tagging / list / head / copy / delete |
 | 向量（`SonnetDBVectorStore`） | 经 ADO SQL `SELECT ... FROM vector_search(...)` 传递性走 sql service；批量写向量列经 ADO 批量入库 JSON/LP 走 tsdb 帧 | — |
+| `SndbGraphClient` | 无目标谓词的单跳 `ExpandAsync` 走 graph service（service=8） | 写入、点读、seek、目标谓词 Expand、BFS/DFS/路径和其他 Graph 操作走 REST/NDJSON |
 
 **时序批量写帧化（#261）**：远程 `SndbConnection` + `CommandType.TableDirect` 的 bulk ingest，在 `Protocol` 允许走帧时，
 把 payload 经既有 reader（`LineProtocolReader` / `JsonPointsReader`）解析为点集，再由 `TsdbColumnarBlockBuilder`
@@ -711,8 +721,12 @@ MQ / KV / 文档三者两条传输字节一致，无此差异。需保持旧类�
   服务端分发在 `FrameEndpointHandler`（kv/doc 同步 `ExecuteKvOp`/`ExecuteDocOp`、object 流式
   `ExecuteObjectOpAsync`），资源级鉴权复用 `SonnetDbEndpoints.EvaluateNamedResourceAccess`
   （kv keyspace / doc collection 名校验，与 REST 同语义）与 `EvaluateDatabaseAccess`（object）
+- graph expand codec（M40 #351）：`src/SonnetDB.Core/Protocol/GraphFrameCodec.cs` / `GraphFrameOp.cs`；
+  服务端分发在 `FrameEndpointHandler.ExecuteGraphExpandAsync`，typed 客户端入口为
+  `src/SonnetDB.Data/Graphs/SndbGraphClient.cs`。响应使用固定 `meta → row × N → end` 顺序并复用 Graph
+  的 snapshot/cursor 语义。
 - 服务端一元处理器：`src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs`（PipeReader 增量解析，
-  内存上界 = 单帧，非全量缓冲；mq + tsdb + sql + vector 四 service 分发）
+  内存上界 = 单帧，非全量缓冲；mq + tsdb + sql + vector + kv + object + doc + graph 八个 service 分发）
 - 服务端双工流处理器（#236）：`src/SonnetDB/Endpoints/Handlers/FrameStreamEndpointHandler.cs`
   （reader 循环复用同一 `TryReadFrame`，响应侧走 `System.Threading.Channels` + 单写者 pump）
 - Core 推送唤醒原语：`SonnetMqStore.WaitForMessagesAsync`（per-topic pulse `TaskCompletionSource`）

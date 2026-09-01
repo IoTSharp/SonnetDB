@@ -11,7 +11,7 @@ M40 #364 提供一个显式 opt-in 的嵌入式 .NET 查询入口。它把受限
 `USE GRAPH ... MATCH ... RETURN` 语法直接解析为现有 `SelectStatement` 和
 `GraphTableSource`，随后调用与 SQL/PGQ `GRAPH_TABLE` 相同的成本规划、原生邻接或关系映射 accessor、预算和执行器。
 
-这不是完整 GQL 或 Cypher 实现。当前产品阶段仍是 SonnetDB Graph Beta；固定硬件、LDBC/Graphalytics、七天 mixed workload、恢复与发布门禁归 M40 #367，在该门禁通过前不宣称生产可用的第九种数据模型。
+这不是完整 GQL 或 Cypher 实现。原生属性图已作为第九种数据模型纳入产品定位，当前阶段仍是 SonnetDB Graph Beta；固定硬件、LDBC/Graphalytics、七天 mixed workload、恢复与发布门禁归 M40 #367，在该门禁通过前不宣称图能力生产就绪。
 
 ## .NET 入口
 

@@ -7,9 +7,9 @@ permalink: /industrial-ai-applications/
 
 SonnetDB 的核心产品定位是：
 
-> **八种数据模型，一套引擎。**
+> **九种数据模型，各有原生语义，共享一套引擎。**
 
-工业边缘是 SonnetDB 的应用场景之一，而不是产品类别。在工厂局域网、边缘网关、Windows 工控机、离线采集程序和私有化部署场景里，可以用一个 SonnetDB 承接设备指标、配置、状态、文档、检索、对象和消息，并通过授权的 Copilot / MCP / Agent 接口使用这些数据。
+工业边缘是 SonnetDB 的应用场景之一，而不是产品类别。在工厂局域网、边缘网关、Windows 工控机、离线采集程序和私有化部署场景里，可以用一个 SonnetDB 承接设备指标、配置、状态、文档、检索、对象、消息和原生属性图，并通过授权的 Copilot / MCP / Agent 接口使用这些数据。
 
 ## 为什么工业 AI 需要本地数据引擎
 
@@ -123,7 +123,7 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 
 短期重点是合同和可发现性：
 
-- README、文档首页和 `llms.txt` 统一使用“八种数据模型，一套引擎”的核心定位。
+- README、文档首页和 `llms.txt` 统一使用“九种数据模型，各有原生语义，共享一套引擎”的核心定位；原生属性图保持 Graph Beta 和未完成生产门禁的边界说明。
 - 工业 AI 文档和示例明确自身是重点场景，不替代 SonnetDB 的通用引擎定位。
 - 示例、文档和 Copilot starter prompt 优先使用工业设备、边缘网关、诊断和运维场景。
 
