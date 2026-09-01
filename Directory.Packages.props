@@ -25,7 +25,7 @@
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.9.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
-    <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.0" />
     <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.0" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
     <!-- Snappy block-format 解压（Prometheus Remote Write 入站端点用），纯托管、AOT 友好。 -->
