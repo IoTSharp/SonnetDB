@@ -7,6 +7,8 @@
 
 ### Added
 
+- **九域性能审计与原生读取证据**：新增[系统性能报告](docs/benchmarks/system-performance-20260901.md)，覆盖八个正式数据模型加 M40 原生属性图性能域的统一指标矩阵、竞品源码入口和 P0～P3 残余队列；新增 `KvModelBenchmark`、`DocumentModelBenchmark`、`ObjectStorageModelBenchmark`，以及逐请求采样并按 nearest-rank 输出 P50/P95/P99、吞吐、分配和原始样本的 `ModelReadLatencyEvidenceRunner`。quick 只代表 32 次预热、256 个样本的本机 x64 热嵌入式 smoke；Server 排队、冷缓存、固定硬件、ARM64、木垒同语料和生产门禁均未运行，异步 Object 请求线程切换后的分配样本明确记为 unknown。
+
 - **M35 #302 RAG 摄取 Core building blocks**：新增严格 UTF-8 的确定性文本 SHA-256、Unicode/surrogate 安全且保证前进的 overlap 分块和稳定 chunk ID；完整快照 planner 先按内容 ID 生成 add/update，再追加按内容 ID 排序的 delete，并在任何 callback 前冻结调用方列表、校验清单及执行 chunk/segment/embedding/文本/动作预算。executor 提供有界并发和贯穿嵌套校验的取消，要求调用方提供幂等 callback；需要续跑时 durable checkpoint 也由调用方持久化，异常不返回部分执行结果且不伪造自动回滚。相关 JSON DTO 已注册 Core 内部 source-generated metadata，外部消费者仍须声明自己的 context。M35/M36 定向测试 206/206、Core 3934/3934 通过；本轮新增 API 的 win-x64 Native AOT 可达探针发布并运行通过、无 IL/AOT warning。CLI、持久化 writer/retry/resume、实际派生索引删除应用和 Copilot 可回滚迁移尚未实现，#302 保持 🚧。
 
 - **M36 #316 KV 条件与类型化嵌入式 API**：`KvKeyspace` 与 `KvNamespace` 新增 `Set` 的 Always/NX/XX 条件、原子 `GetAndSet` / `GetAndDelete`、严格 UTF-8 codec，以及必须由调用方传入 source-generated `JsonTypeInfo<T>` 的 JSON codec；raw bytes 继续是权威语义。所有 string key/prefix/range 与 namespace 名称统一拒绝未配对 surrogate，避免替换字符别名；写入 key 和 namespace qualified key 在锁/WAL 前按严格编码结果校验总字节预算。条件判断按未过期可见记录执行，WAL append/sync 结果不确定时 fail closed。该切片不包含 #310/#311、异步 cursor/pipeline、远程 parity、golden journey 或产品入口，#316 保持 🚧。
@@ -47,7 +49,17 @@
 
 ### Changed
 
-- **M41 #381 本地生产收口、现场验证后置**：新增 `--m41-production-closeout` 报告 runner 和 source-generated JSON/Markdown 合同；#368 基线与 #369~#380 自动化回归作为本地 `PASS`，固定 x64/ARM64、木垒同语料、真进程 crash/replay、backup/restore、部署 Native AOT 和 7 天 mixed workload 按稳定 ID 明确登记为 `DEFERRED`，不得将本机结果解释为生产发布通过，后续部署或现场分析时可直接补证。
+- **关系统计刷新分配收缩**：统计采样直接使用主键的 `ReadOnlyMemory<byte>` 视图，并复用真实索引 codec 的精确长度计算，不再复制采样主键或为每个索引临时编码 key/prefix；JSON path、唯一索引 NULL 和格式边界继续与真实写入路径一致。最终本机短跑均值降低 6.495%，分配降低 34.706%；固定硬件和生产语料未运行。
+
+- **向量持久文件 CRC32 热路径**：向量 WAL/segment 的 IEEE CRC32 改用 `System.IO.Hashing.Crc32.HashToUInt32`，保留既有持久格式、golden 值、非对齐和小输入语义；硬件分派由运行时按实际能力决定，ARM64 与 Kunpeng 920 路径尚未验证。
+
+- **KV 快照与点读并发加固**：同一 sequence 的稳定快照复用已排序 mutable/frozen overlay，写入、checkpoint 和 generation 切换会使缓存失效；磁盘点读通过 lease 保护的 `RandomAccess.Read` 在 keyspace 锁外按位置读取，不再共享 `FileStream.Position`，并覆盖并发读取、owner 释放和过期值竞争。
+
+- **关系访问路径、spill 与 Server 资源接线加固**：单列 `IN` 扩展为复合二级索引“连续等值前缀 + 下一列 IN”的单快照 MultiGet，并新增 `secondary_index_prefix_in`；`ORDER BY/LIMIT` 可沿匹配的复合范围索引流式执行残余谓词、处理并列组后早停，同时由统计成本门控阻止宽有序索引替换高选择性路径。SQL spill 改为预算感知、至多 32 路的增量归并，并补齐超大行串行化、Top-N、取消、异常和提前释放清理。`SonnetDBServer:SqlExecution` 将查询/全局内存、worker 数、并行阈值和 worker 预留接入新建及自动加载数据库，并与请求级 `SqlHttpAdmission` 分离。
+
+- **Native AOT CI 覆盖配置**：Native AOT matrix 新增 `ubuntu-24.04-arm` / `linux-arm64`，NuGet cache 按 RID 隔离。当前只验证 YAML 和配置结构；真实 GitHub ARM64 job、产物执行和硬件指令差分仍为 `NOT_RUN`。win-x64 CLI/Server 本机 publish 与 CLI `--version` 已通过，Server 启动、固定硬件和生产门禁仍未执行。
+
+- **M41 #381 本地生产收口、现场验证后置**：新增 `--m41-production-closeout` 报告 runner 和 source-generated JSON/Markdown 合同；#368 基线与 #369~#374、#376~#380 自动化回归形成了本地 `PASS`。2026-09-01 复审把 #375 的同步首读自动刷新重新列为实现残余，不再用收口报告掩盖该 P0；固定 x64/ARM64、木垒同语料、真进程 crash/replay、backup/restore、部署 Native AOT 和 7 天 mixed workload 按稳定 ID 明确登记为 `DEFERRED`，不得将本机结果解释为生产发布通过。
 
 - **M41 #380 受控并行与运行时反馈**：新增数据库级 worker semaphore、每 worker 查询/全局内存预留和 SQL 执行并行准入选项；measurement per-series scan、legacy numeric aggregate 与安全物化 probe Hash JOIN 仅在估算行数达到阈值、非事务且资源足够时启用有界并行，固定输入索引回收结果顺序，残差、spill、未物化输入、用户函数、预算竞争、取消和关闭路径稳定回退并释放资源。执行根作用域按不含参数值/行内容的完整 AST fingerprint 记录 estimated/actual rows，滚动反馈可为后续同形状规划修正估算；内部指标追加并行算子、worker、完成项、回退原因和实际/估算比率。新增并发上界、预算竞争、取消、异常解包、事务/NULL/LEFT JOIN、串并行逐行对拍与反馈测试；固定硬件、生产 mixed workload、Native AOT 发布门禁继续保持 `NOT_RUN`。
 
@@ -60,6 +72,10 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **SQL 物理读指标冻结上界**：并发物理读快照最多尝试 64 次且墙钟预算不超过 5 ms；无法取得一致次数/字节对时返回带 `PhysicalReadSnapshotComplete=false` 的保守零值。慢查询、Top Query 和 OpenTelemetry 新增完整/降级样本字段与 `sonnetdb.sql.physical.read.snapshot.degraded.count`，降级零值不再污染物理读累计和 histogram。
+
+- **Sparkplug Rebirth 背压与 broker readiness**：自动 Rebirth 从无界 channel 改为容量 1～65,536、默认 1,024、按 group/node 合并的单消费者队列；满载、停止、超时和发布失败会恢复 lifecycle 抑制标记并释放容量，且单节点失败不终止后续请求。内部发布使用默认 5 秒 deadline 和有界 `MqttServer.IsStarted` 检查，未就绪使用专用 `SparkplugPublisherUnavailableException`，未知异常继续传播；新增入队、合并、拒绝、丢弃、失败和深度指标。真实 broker 在 readiness 检查与 publish 之间停机的集成竞态仍待验证。
 
 - **M27 #185 本地 ONNX 合同收口**：provider 在构造时冻结模型路径与 profile 快照，空白 BERT 特殊 token 配置回退标准值，并拒绝无法为正文保留槽位的特殊 token 预算；`CopilotReadiness` 同步拒绝该静态无效预算；tokenizer 的 `ArgumentException` 统一转换为可诊断的 profile `InvalidDataException`。已创建 session 后的 ONNX 缺失输入/运行合同错误改为 fail closed，不再静默换成 hash 向量，`cls` pooling 也不受 mean/auto 特殊 token 排除开关影响。
 
