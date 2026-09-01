@@ -49,6 +49,8 @@
 
 ### Changed
 
+- **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.9.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
+
 - **关系统计刷新分配收缩**：统计采样直接使用主键的 `ReadOnlyMemory<byte>` 视图，并复用真实索引 codec 的精确长度计算，不再复制采样主键或为每个索引临时编码 key/prefix；JSON path、唯一索引 NULL 和格式边界继续与真实写入路径一致。最终本机短跑均值降低 6.495%，分配降低 34.706%；固定硬件和生产语料未运行。
 
 - **向量持久文件 CRC32 热路径**：向量 WAL/segment 的 IEEE CRC32 改用 `System.IO.Hashing.Crc32.HashToUInt32`，保留既有持久格式、golden 值、非对齐和小输入语义；硬件分派由运行时按实际能力决定，ARM64 与 Kunpeng 920 路径尚未验证。

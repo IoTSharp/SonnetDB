@@ -110,9 +110,9 @@ public sealed class QdrantAdapter : IDataPlane, IVectorOps
         if (!string.IsNullOrWhiteSpace(categoryFilter))
             filter = MatchKeyword("category", categoryFilter);
 
-        var hits = await _client.SearchAsync(
+        var hits = await _client.QueryAsync(
             collectionName: collection,
-            vector: query,
+            query: query,
             filter: filter,
             limit: (ulong)topK,
             payloadSelector: true,
