@@ -639,9 +639,69 @@ public sealed class SqlBlockingOperatorSpillTests : IDisposable
         Directory.CreateDirectory(active);
         File.WriteAllText(Path.Combine(active, SqlSpillWorkspace.OwnerMarkerFileName), "active");
 
-        Assert.Throws<IOException>(() => Tsdb.Open(new TsdbOptions { RootDirectory = _root }));
+        string equivalentRoot = Path.Combine(_root, ".");
+        Assert.Throws<IOException>(() => Tsdb.Open(new TsdbOptions { RootDirectory = equivalentRoot }));
 
         Assert.True(Directory.Exists(active));
+    }
+
+    /// <summary>指向同一数据库的目录链接别名不能绕过进程内根目录所有权。</summary>
+    [Fact]
+    public void Open_ThroughDirectoryLinkAlias_WhileDatabaseIsActive_ThrowsIOException()
+    {
+        Directory.CreateDirectory(_root);
+        string aliasParent = $"{_root}-alias";
+        try
+        {
+            Directory.CreateSymbolicLink(aliasParent, _root);
+        }
+        catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        catch (IOException) when (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            string directRoot = Path.Combine(_root, "database");
+            string aliasRoot = Path.Combine(aliasParent, "database");
+            using Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = directRoot });
+
+            Assert.Throws<IOException>(() => Tsdb.Open(new TsdbOptions { RootDirectory = aliasRoot }));
+        }
+        finally
+        {
+            if (Directory.Exists(aliasParent))
+                Directory.Delete(aliasParent);
+        }
+    }
+
+    /// <summary>正常关闭数据库后必须释放进程内根目录所有权并允许重新打开。</summary>
+    [Fact]
+    public void Open_AfterDatabaseIsDisposed_AllowsReopen()
+    {
+        using (Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+        }
+
+        using Tsdb reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+
+        Assert.Equal(_root, reopened.RootDirectory);
+    }
+
+    /// <summary>崩溃模拟关闭也必须停止后台资源、释放根目录所有权并允许恢复打开。</summary>
+    [Fact]
+    public void Open_AfterCrashSimulationCloseWal_AllowsReopen()
+    {
+        using Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        database.CrashSimulationCloseWal();
+
+        using Tsdb reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+
+        Assert.Equal(_root, reopened.RootDirectory);
     }
 
     /// <summary>全局预算必须拒绝超额并在释放后允许其他查询继续预留。</summary>

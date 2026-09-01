@@ -75,6 +75,10 @@
 
 ### Fixed
 
+- **USearch Linux 原生运行时回归**：`Cloud.Unum.USearch` 从会在 `linux-x64` 真实 native 搜索路径崩溃 testhost 的 `2.26.2` 回退并固定到已验证的 `2.26.0`；CI 继续要求加载 native backend，不以 managed fallback 弱化覆盖。
+
+- **Linux CI 与数据库根目录生命周期**：`Tsdb.Open` 在触碰 WAL 和清理 SQL spill 前先取得按平台路径规则规范化且解析目录链接别名的进程内根目录所有权，重复打开统一抛出 `IOException`，正常关闭、失败打开和崩溃模拟均幂等释放；Windows-only Studio 测试在非 Windows solution test 中显式跳过；对象存储生命周期的 `0 days` 固化为立即到期，避免系统时钟细微回拨导致偶发漏删。
+
 - **SQL 物理读指标冻结上界**：并发物理读快照最多尝试 64 次且墙钟预算不超过 5 ms；无法取得一致次数/字节对时返回带 `PhysicalReadSnapshotComplete=false` 的保守零值。慢查询、Top Query 和 OpenTelemetry 新增完整/降级样本字段与 `sonnetdb.sql.physical.read.snapshot.degraded.count`，降级零值不再污染物理读累计和 histogram。
 
 - **Sparkplug Rebirth 背压与 broker readiness**：自动 Rebirth 从无界 channel 改为容量 1～65,536、默认 1,024、按 group/node 合并的单消费者队列；满载、停止、超时和发布失败会恢复 lifecycle 抑制标记并释放容量，且单节点失败不终止后续请求。内部发布使用默认 5 秒 deadline 和有界 `MqttServer.IsStarted` 检查，未就绪使用专用 `SparkplugPublisherUnavailableException`，未知异常继续传播；新增入队、合并、拒绝、丢弃、失败和深度指标。真实 broker 在 readiness 检查与 publish 之间停机的集成竞态仍待验证。

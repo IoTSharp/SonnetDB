@@ -7,6 +7,11 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <IsTestProject>false</IsTestProject>
+    <TestProject>false</TestProject>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

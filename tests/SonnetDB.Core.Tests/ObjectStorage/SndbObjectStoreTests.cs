@@ -560,6 +560,64 @@ public sealed class SndbObjectStoreTests : IDisposable
     }
 
     /// <summary>
+    /// 验证零天保留窗口不会在系统时钟短暂回拨时保护当前或非当前版本。
+    /// </summary>
+    [Fact]
+    public async Task ApplyLifecycle_ZeroDayRetention_DoesNotProtectCurrentOrNoncurrentVersions()
+    {
+        const string bucket = "test-bucket";
+        const string key = "retention-zero.bin";
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory });
+        var store = new SndbObjectStore(db);
+        store.CreateBucket(bucket);
+
+        SndbObjectInfo first = await store.PutObjectAsync(
+            bucket,
+            key,
+            new MemoryStream(Encoding.UTF8.GetBytes("v1"), writable: false));
+        SndbObjectInfo second = await store.PutObjectAsync(
+            bucket,
+            key,
+            new MemoryStream(Encoding.UTF8.GetBytes("v2"), writable: false));
+
+        // 模拟写入后系统时钟短暂回拨，零天语义不能依赖 CreatedUtc <= UtcNow。
+        KvKeyspace metadata = db.Keyspaces.Open("__object_storage");
+        KvEntry[] entries = metadata.ScanPrefix($"object:{bucket}/", limit: 8).ToArray();
+        Assert.Equal(2, entries.Length);
+        DateTimeOffset futureCreatedUtc = DateTimeOffset.UtcNow.AddMinutes(1);
+        foreach (KvEntry entry in entries)
+        {
+            SndbObjectRecord record = JsonSerializer.Deserialize(
+                entry.Value.Span,
+                SndbObjectStoreJsonContext.Default.SndbObjectRecord)!;
+            metadata.Put(
+                Encoding.UTF8.GetString(entry.Key.Span),
+                JsonSerializer.SerializeToUtf8Bytes(
+                    record with { CreatedUtc = futureCreatedUtc },
+                    SndbObjectStoreJsonContext.Default.SndbObjectRecord));
+        }
+
+        store.SetRetention(bucket, retainCurrentForDays: 0, retainNoncurrentForDays: 0);
+        store.SetLifecycle(
+            bucket,
+            expireCurrentAfterDays: 0,
+            expireNoncurrentAfterDays: 0,
+            expireDeleteMarkerAfterDays: null);
+
+        SndbBucketLifecycleApplyResult result = store.ApplyLifecycle(bucket);
+
+        Assert.Equal(1, result.ExpiredCurrentObjects);
+        Assert.Equal(1, result.RemovedNoncurrentVersions);
+        Assert.Equal(second.VersionId, Assert.Single(result.ExpiredObjects).VersionId);
+        Assert.Null(store.HeadObject(bucket, key));
+
+        IReadOnlyList<SndbObjectInfo> versions = store.ListObjectVersions(bucket, key).Versions;
+        Assert.DoesNotContain(versions, version => version.VersionId == first.VersionId);
+        Assert.Contains(versions, version => version.VersionId == second.VersionId);
+        Assert.Single(versions, static version => version.IsDeleteMarker);
+    }
+
+    /// <summary>
     /// 验证生命周期元数据提交后遇到损坏的越界正文路径时，不会反向报错或触碰外部文件。
     /// </summary>
     [Fact]

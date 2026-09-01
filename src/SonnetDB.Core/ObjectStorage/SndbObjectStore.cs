@@ -588,6 +588,7 @@ public sealed class SndbObjectStore
             var lifecycle = GetLifecycle(bucket);
             var versions = LoadObjectVersionRecords(bucket, key: null);
             var latestVersionByKey = LoadLatestObjectVersionIds(bucket);
+            DateTimeOffset utcNow = DateTimeOffset.UtcNow;
             AppendObjectVersionsListAudit(bucket, key: null, versions.Length);
 
             var versionsByKey = new Dictionary<string, List<SndbObjectRecord>>(StringComparer.Ordinal);
@@ -615,7 +616,7 @@ public sealed class SndbObjectStore
 
                 if (version.IsDeleteMarker)
                 {
-                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireDeleteMarkerAfterDays)
+                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireDeleteMarkerAfterDays, utcNow)
                         && !IsObjectVersionProtected(version, isLatest, out _, out _))
                     {
                         AddLifecycleRemoval(removalsByKey, version);
@@ -626,7 +627,7 @@ public sealed class SndbObjectStore
 
                 if (isLatest)
                 {
-                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireCurrentAfterDays)
+                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireCurrentAfterDays, utcNow)
                         && !IsObjectVersionProtected(version, isLatest, out _, out _))
                     {
                         DeleteObject(bucket, version.Key);
@@ -640,7 +641,7 @@ public sealed class SndbObjectStore
                     continue;
                 }
 
-                if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireNoncurrentAfterDays)
+                if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireNoncurrentAfterDays, utcNow)
                     && !IsObjectVersionProtected(version, isLatest, out _, out _))
                 {
                     AddLifecycleRemoval(removalsByKey, version);
@@ -2155,18 +2156,20 @@ public sealed class SndbObjectStore
 
     private static bool IsRetained(DateTimeOffset createdUtc, int? days)
     {
-        if (days is null)
+        if (days is null or 0)
             return false;
 
         return createdUtc > DateTimeOffset.UtcNow.AddDays(-days.Value);
     }
 
-    private static bool ShouldExpire(DateTimeOffset createdUtc, int? days)
+    private static bool ShouldExpire(DateTimeOffset createdUtc, int? days, DateTimeOffset utcNow)
     {
         if (days is null)
             return false;
+        if (days.Value == 0)
+            return true;
 
-        return createdUtc <= DateTimeOffset.UtcNow.AddDays(-days.Value);
+        return createdUtc <= utcNow.AddDays(-days.Value);
     }
 
     private static string QuoteHex(byte[] hash) => "\"" + Convert.ToHexString(hash).ToLowerInvariant() + "\"";

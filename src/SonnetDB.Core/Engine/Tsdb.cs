@@ -28,10 +28,16 @@ namespace SonnetDB.Engine;
 ///   <item><description>写入路径：Append → WAL → MemTable，必要时触发 Flush；</description></item>
 ///   <item><description>关闭时：Flush MemTable + 持久化 catalog。</description></item>
 /// </list>
-/// 单实例只能由一个进程打开（WalSegmentSet 的 active segment 文件句柄提供锁保护）。
+/// 同一数据库根目录只能由一个实例打开（进程内根目录所有权与 WAL active segment 文件句柄共同保护）。
 /// </summary>
 public sealed class Tsdb : IDisposable
 {
+    private const int MaxRootDirectoryLinkResolutions = 64;
+
+    private static readonly object RootDirectoryOwnersSync = new();
+    private static readonly HashSet<string> RootDirectoryOwners = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     private readonly TsdbOptions _options;
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
@@ -76,6 +82,7 @@ public sealed class Tsdb : IDisposable
     private long _lastTombstoneCheckpointUtcTicks;
     private Exception? _lastError;
     private long _meterRegistration;
+    private string? _ownedRootDirectory;
 
     /// <summary>仅供并发测试确认跨 catalog DDL 即将尝试获取 schema 锁。</summary>
     internal Action? BeforeSchemaMutationLockTestHook { get; set; }
@@ -428,6 +435,7 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     /// <param name="options">引擎选项；为 null 时使用 <see cref="TsdbOptions.Default"/>。</param>
     /// <returns>已初始化的 <see cref="Tsdb"/> 实例。</returns>
+    /// <exception cref="IOException">同一进程中的另一个实例已打开同一数据库根目录时抛出。</exception>
     public static Tsdb Open(TsdbOptions? options = null)
     {
         options ??= TsdbOptions.Default;
@@ -436,44 +444,48 @@ public sealed class Tsdb : IDisposable
 
         string root = options.RootDirectory;
         Directory.CreateDirectory(root);
-        Directory.CreateDirectory(TsdbPaths.WalDir(root));
-        Directory.CreateDirectory(TsdbPaths.SegmentsDir(root));
-        Directory.CreateDirectory(TsdbPaths.KvDir(root));
-        Directory.CreateDirectory(TsdbPaths.GenerationsDir(root));
-        Directory.CreateDirectory(TsdbPaths.TablesDir(root));
-        Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
-        Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
-        Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
-        Directory.CreateDirectory(TsdbPaths.RoutinesDir(root));
-        Directory.CreateDirectory(TsdbPaths.ModbusDir(root));
-        Directory.CreateDirectory(TsdbPaths.GraphsDir(root));
-
-        // 加载 measurement schema 集合（文件不存在时返回空集合）
-        var measurements = new MeasurementCatalog();
-        foreach (var schema in MeasurementSchemaCodec.Load(TsdbPaths.MeasurementSchemaPath(root)))
-            measurements.LoadOrReplace(schema);
-        // 加载 catalog（文件不存在时返回空目录）
-        var catalog = CatalogFileCodec.Load(TsdbPaths.CatalogPath(root));
-
-        // 扫描已存在的 Segment 与替换清单，计算 NextSegmentId。
-        // 即便 pending compaction 的新段尚未落盘，也不能复用其 SegmentId。
-        long nextSegmentId = 1;
-        foreach (var (segId, _) in TsdbPaths.EnumerateSegments(root))
-        {
-            if (segId + 1 > nextSegmentId)
-                nextSegmentId = segId + 1;
-        }
-        var segmentReplacementManifest = SegmentReplacementManifest.LoadForRoot(root);
-        if (segmentReplacementManifest.MaxSegmentId + 1 > nextSegmentId)
-            nextSegmentId = segmentReplacementManifest.MaxSegmentId + 1;
-
-        // 打开 WAL segment 集合（自动升级 legacy active.SDBWAL）
-        string walDir = TsdbPaths.WalDir(root);
-        var walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
+        string? ownedRootDirectory = AcquireRootDirectoryOwnership(root);
+        WalSegmentSet? walSet = null;
         SegmentManager? segmentManager = null;
         Tsdb? tsdb = null;
         try
         {
+            Directory.CreateDirectory(TsdbPaths.WalDir(root));
+            Directory.CreateDirectory(TsdbPaths.SegmentsDir(root));
+            Directory.CreateDirectory(TsdbPaths.KvDir(root));
+            Directory.CreateDirectory(TsdbPaths.GenerationsDir(root));
+            Directory.CreateDirectory(TsdbPaths.TablesDir(root));
+            Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
+            Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
+            Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
+            Directory.CreateDirectory(TsdbPaths.RoutinesDir(root));
+            Directory.CreateDirectory(TsdbPaths.ModbusDir(root));
+            Directory.CreateDirectory(TsdbPaths.GraphsDir(root));
+
+            // 加载 measurement schema 集合（文件不存在时返回空集合）
+            var measurements = new MeasurementCatalog();
+            foreach (var schema in MeasurementSchemaCodec.Load(TsdbPaths.MeasurementSchemaPath(root)))
+                measurements.LoadOrReplace(schema);
+            // 加载 catalog（文件不存在时返回空目录）
+            var catalog = CatalogFileCodec.Load(TsdbPaths.CatalogPath(root));
+
+            // 扫描已存在的 Segment 与替换清单，计算 NextSegmentId。
+            // 即便 pending compaction 的新段尚未落盘，也不能复用其 SegmentId。
+            long nextSegmentId = 1;
+            foreach (var (segId, _) in TsdbPaths.EnumerateSegments(root))
+            {
+                if (segId + 1 > nextSegmentId)
+                    nextSegmentId = segId + 1;
+            }
+            var segmentReplacementManifest = SegmentReplacementManifest.LoadForRoot(root);
+            if (segmentReplacementManifest.MaxSegmentId + 1 > nextSegmentId)
+                nextSegmentId = segmentReplacementManifest.MaxSegmentId + 1;
+
+            // 所有目录读取、WAL 打开与 spill 清理都必须在进程内根目录所有权之后进行。
+            // 部分平台不会通过 FileShare 拒绝同进程重复打开。
+            string walDir = TsdbPaths.WalDir(root);
+            // 打开 WAL segment 集合（自动升级 legacy active.SDBWAL）
+            walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
             _ = SqlSpillWorkspace.CleanupStale(root);
             long durableCheckpointLsn = WalCheckpointFile
                 .TryLoad(
@@ -550,23 +562,104 @@ public sealed class Tsdb : IDisposable
             }
 
             tsdb._meterRegistration = SonnetDbMeter.RegisterEngine(tsdb);
+            tsdb._ownedRootDirectory = Interlocked.Exchange(ref ownedRootDirectory, null);
             return tsdb;
         }
         catch
         {
-            if (tsdb is not null)
+            try
             {
-                DisposeAfterFailedOpen(tsdb);
+                if (tsdb is not null)
+                {
+                    // 启动后段失败时先把 owner 转交给实例。若 Dispose 在进入 committed
+                    // 关闭前也失败，owner 会保守保留，避免存活资源与新实例并存。
+                    tsdb._ownedRootDirectory = Interlocked.Exchange(ref ownedRootDirectory, null);
+                    DisposeAfterFailedOpen(tsdb);
+                }
+                else
+                {
+                    // 构造器尚未返回时，WAL 与 Segment 仍由 Open 的局部变量负责释放。
+                    try
+                    {
+                        segmentManager?.Dispose();
+                    }
+                    finally
+                    {
+                        walSet?.Dispose();
+                    }
+                }
             }
-            else
+            finally
             {
-                // 构造器尚未返回时，WAL 与 Segment 仍由 Open 的局部变量负责释放。
-                segmentManager?.Dispose();
-                walSet.Dispose();
+                ReleaseRootDirectoryOwnership(ref ownedRootDirectory);
             }
 
             throw;
         }
+    }
+
+    private static string AcquireRootDirectoryOwnership(string rootDirectory)
+    {
+        string normalizedRoot = NormalizeRootDirectoryForOwnership(rootDirectory);
+        lock (RootDirectoryOwnersSync)
+        {
+            if (!RootDirectoryOwners.Add(normalizedRoot))
+            {
+                throw new IOException(
+                    $"数据库根目录 '{normalizedRoot}' 已由当前进程中的另一个 Tsdb 实例打开。");
+            }
+        }
+
+        return normalizedRoot;
+    }
+
+    private static string NormalizeRootDirectoryForOwnership(string rootDirectory)
+    {
+        string candidatePath = Path.GetFullPath(rootDirectory);
+        for (int resolutionCount = 0;
+             resolutionCount < MaxRootDirectoryLinkResolutions;
+             resolutionCount++)
+        {
+            string pathRoot = Path.GetPathRoot(candidatePath)
+                ?? throw new IOException($"无法确定数据库根目录 '{candidatePath}' 的路径根。");
+            string relativePath = Path.GetRelativePath(pathRoot, candidatePath);
+            string[] segments = relativePath.Split(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                StringSplitOptions.RemoveEmptyEntries);
+            string currentPath = pathRoot;
+            bool resolvedLink = false;
+
+            for (int index = 0; index < segments.Length; index++)
+            {
+                currentPath = Path.Combine(currentPath, segments[index]);
+                FileSystemInfo? target = new DirectoryInfo(currentPath).ResolveLinkTarget(returnFinalTarget: true);
+                if (target is null)
+                    continue;
+
+                candidatePath = target.FullName;
+                for (int suffixIndex = index + 1; suffixIndex < segments.Length; suffixIndex++)
+                    candidatePath = Path.Combine(candidatePath, segments[suffixIndex]);
+                candidatePath = Path.GetFullPath(candidatePath);
+                resolvedLink = true;
+                break;
+            }
+
+            if (!resolvedLink)
+                return Path.TrimEndingDirectorySeparator(Path.GetFullPath(currentPath));
+        }
+
+        throw new IOException(
+            $"数据库根目录 '{rootDirectory}' 的符号链接解析超过 {MaxRootDirectoryLinkResolutions} 次。");
+    }
+
+    private static void ReleaseRootDirectoryOwnership(ref string? ownedRootDirectory)
+    {
+        string? normalizedRoot = Interlocked.Exchange(ref ownedRootDirectory, null);
+        if (normalizedRoot is null)
+            return;
+
+        lock (RootDirectoryOwnersSync)
+            _ = RootDirectoryOwners.Remove(normalizedRoot);
     }
 
     /// <summary>数据库对象已构造但启动后续步骤失败时，尽力释放全部资源并保留原始打开异常。</summary>
@@ -1066,7 +1159,6 @@ public sealed class Tsdb : IDisposable
                 if (_disposed)
                     return;
                 _disposed = true;
-
                 WalSegmentSet? walSetToDispose = _walSet;
                 _walSet = null;
 
@@ -1142,64 +1234,77 @@ public sealed class Tsdb : IDisposable
                 }
                 finally
                 {
-                    try
-                    {
-                        walSetToDispose?.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        ReportDiagnostic(
-                            "Dispose.WalClose",
-                            TsdbDiagnosticSeverity.Warning,
-                            "Dispose 关闭 WAL 时发生异常；资源释放会继续执行。",
-                            ex);
-                    }
+                    DisposeCommittedResources(walSetToDispose);
+                }
+            }
+    }
 
+    private void DisposeCommittedResources(WalSegmentSet? walSetToDispose)
+    {
+        try
+        {
+            try
+            {
+                walSetToDispose?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                ReportDiagnostic(
+                    "Dispose.WalClose",
+                    TsdbDiagnosticSeverity.Warning,
+                    "Dispose 关闭 WAL 时发生异常；资源释放会继续执行。",
+                    ex);
+            }
+
+            try
+            {
+                _walGroupCommit.Dispose();
+            }
+            finally
+            {
+                try
+                {
+                    _modbus.Dispose();
+                }
+                finally
+                {
                     try
                     {
-                        _walGroupCommit.Dispose();
+                        _tables.Dispose();
                     }
                     finally
                     {
                         try
                         {
-                            _modbus.Dispose();
+                            _generations.Dispose();
                         }
                         finally
                         {
                             try
                             {
-                                _tables.Dispose();
+                                _documents.Dispose();
                             }
                             finally
                             {
                                 try
                                 {
-                                    _generations.Dispose();
+                                    _graphs.Dispose();
                                 }
                                 finally
                                 {
                                     try
                                     {
-                                        _documents.Dispose();
+                                        _keyspaces.Dispose();
                                     }
                                     finally
                                     {
                                         try
                                         {
-                                            _graphs.Dispose();
+                                            Segments.Dispose();
                                         }
                                         finally
                                         {
-                                            try
-                                            {
-                                                _keyspaces.Dispose();
-                                            }
-                                            finally
-                                            {
-                                                Segments.Dispose();
-                                                _sqlParallelCoordinator.Dispose();
-                                            }
+                                            _sqlParallelCoordinator.Dispose();
                                         }
                                     }
                                 }
@@ -1208,6 +1313,11 @@ public sealed class Tsdb : IDisposable
                     }
                 }
             }
+        }
+        finally
+        {
+            ReleaseRootDirectoryOwnership(ref _ownedRootDirectory);
+        }
     }
 
     // ── 内部辅助 ─────────────────────────────────────────────────────────────
@@ -2020,12 +2130,27 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
-    /// （仅测试用）模拟进程崩溃：直接关闭 WAL，不保存 catalog，不 Flush MemTable。
+    /// （仅测试用）模拟崩溃式关闭：不保存 catalog，也不 Flush 当前活跃 MemTable。
+    /// 为安全释放进程内资源，已交给 flush 泵的密封请求会先完成；真实的在飞 I/O 崩溃由子进程终止测试覆盖。
     /// </summary>
     internal void CrashSimulationCloseWal()
     {
-        // 模拟崩溃：停掉 flush 泵线程（不排空——崩溃语义下在飞 flush 视为丢失，靠 WAL replay 恢复），
-        // 再直接关闭 WAL，不保存 catalog、不 flush。
+        SonnetDbMeter.UnregisterEngine(_meterRegistration);
+
+        _kvExpirerWorker?.Dispose();
+        _kvExpirerWorker = null;
+
+        _retentionWorker?.Dispose();
+        _retentionWorker = null;
+
+        _compactionWorker?.Dispose();
+        _compactionWorker = null;
+
+        _flushWorker?.Dispose();
+        _flushWorker = null;
+
+        // 等待泵线程到达安全退出点，避免释放 WAL/Segments 后仍有后台 I/O；当前活跃 MemTable
+        // 不会进入泵，也不会执行正常关闭的 final flush，重开后由 WAL replay 恢复。
         _flushPump?.Dispose();
         _flushPump = null;
 
@@ -2035,18 +2160,18 @@ public sealed class Tsdb : IDisposable
                 if (_disposed)
                     return;
                 _disposed = true;
-                if (_walSet is not null)
-                    _walGroupCommit.FlushPending(_walSet);
-                _walSet?.Dispose();
-                _walGroupCommit.Dispose();
-                _modbus.Dispose();
-                _tables.Dispose();
-                _generations.Dispose();
-                _documents.Dispose();
-                _graphs.Dispose();
-                _keyspaces.Dispose();
-                _sqlParallelCoordinator.Dispose();
+
+                WalSegmentSet? walSetToDispose = _walSet;
                 _walSet = null;
+                try
+                {
+                    if (walSetToDispose is not null)
+                        _walGroupCommit.FlushPending(walSetToDispose);
+                }
+                finally
+                {
+                    DisposeCommittedResources(walSetToDispose);
+                }
             }
     }
 }

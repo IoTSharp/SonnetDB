@@ -220,8 +220,9 @@ public sealed class KvGenerationTests : IDisposable
         kv.Clear();
 
         Assert.True(SpinWait.SpinUntil(
-            () => db.GetKvMaintenanceStatus().LastErrorType == typeof(IOException).FullName,
+            () => ReferenceEquals(expected, db.LastError),
             TimeSpan.FromSeconds(3)));
+        Assert.Equal(typeof(IOException).FullName, db.GetKvMaintenanceStatus().LastErrorType);
         Assert.Same(expected, db.LastError);
         Assert.True(File.Exists(oldSegment));
 
