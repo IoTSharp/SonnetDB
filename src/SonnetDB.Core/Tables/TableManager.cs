@@ -965,71 +965,71 @@ public sealed class TableManager : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDegreeOfParallelism);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
-            var warmedTables = new List<string>(schemas.Count);
-            var unopenedSchemas = new List<TableSchema>(schemas.Count);
-            foreach (TableSchema catalogSchema in schemas)
+            lock (_sync)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                TableSchema? current = Catalog.TryGet(catalogSchema.Name);
-                if (current is null)
-                    continue;
-                warmedTables.Add(current.Name);
-                if (_stores.ContainsKey(current.Name))
-                    continue;
-                unopenedSchemas.Add(current);
-            }
-
-            if (maxDegreeOfParallelism == 1 || unopenedSchemas.Count <= 1)
-            {
-                foreach (TableSchema schema in unopenedSchemas)
+                ThrowIfDisposed();
+                IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
+                var warmedTables = new List<string>(schemas.Count);
+                var unopenedSchemas = new List<TableSchema>(schemas.Count);
+                foreach (TableSchema catalogSchema in schemas)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
-                    _ = OpenStoreLocked(schema);
+                    TableSchema? current = Catalog.TryGet(catalogSchema.Name);
+                    if (current is null)
+                        continue;
+                    warmedTables.Add(current.Name);
+                    if (_stores.ContainsKey(current.Name))
+                        continue;
+                    unopenedSchemas.Add(current);
                 }
-                return warmedTables;
-            }
 
-            // 管理器锁在整个阶段阻止查询和 DDL 观察半完成状态；各表目录相互独立，可安全并行恢复。
-            var openedStores = new System.Collections.Concurrent.ConcurrentDictionary<string, TableStore>(
-                StringComparer.Ordinal);
-            try
-            {
-                Parallel.ForEach(
-                    unopenedSchemas,
-                    new ParallelOptions
-                    {
-                        CancellationToken = cancellationToken,
-                        MaxDegreeOfParallelism = maxDegreeOfParallelism,
-                    },
-                    schema =>
-                    {
-                        WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
-                        TableStore store = CreateStore(schema);
-                        if (!openedStores.TryAdd(schema.Name, store))
-                        {
-                            store.Dispose();
-                            throw new InvalidOperationException($"table '{schema.Name}' 被重复安排启动预热。");
-                        }
-                    });
-
-                foreach (TableSchema schema in unopenedSchemas)
-                    _stores.Add(schema.Name, openedStores[schema.Name]);
-                return warmedTables;
-            }
-            catch
-            {
-                foreach (TableStore store in openedStores.Values)
+                if (maxDegreeOfParallelism == 1 || unopenedSchemas.Count <= 1)
                 {
-                    try { store.Dispose(); } catch { }
+                    foreach (TableSchema schema in unopenedSchemas)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
+                        _ = OpenStoreLocked(schema);
+                    }
+                    return warmedTables;
                 }
-                throw;
+
+                // 管理器锁在整个阶段阻止查询和 DDL 观察半完成状态；各表目录相互独立，可安全并行恢复。
+                var openedStores = new System.Collections.Concurrent.ConcurrentDictionary<string, TableStore>(
+                    StringComparer.Ordinal);
+                try
+                {
+                    Parallel.ForEach(
+                        unopenedSchemas,
+                        new ParallelOptions
+                        {
+                            CancellationToken = cancellationToken,
+                            MaxDegreeOfParallelism = maxDegreeOfParallelism,
+                        },
+                        schema =>
+                        {
+                            WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
+                            TableStore store = CreateStore(schema);
+                            if (!openedStores.TryAdd(schema.Name, store))
+                            {
+                                store.Dispose();
+                                throw new InvalidOperationException($"table '{schema.Name}' 被重复安排启动预热。");
+                            }
+                        });
+
+                    foreach (TableSchema schema in unopenedSchemas)
+                        _stores.Add(schema.Name, openedStores[schema.Name]);
+                    return warmedTables;
+                }
+                catch
+                {
+                    foreach (TableStore store in openedStores.Values)
+                    {
+                        try { store.Dispose(); } catch { }
+                    }
+                    throw;
+                }
             }
-        }
     }
 
     /// <summary>

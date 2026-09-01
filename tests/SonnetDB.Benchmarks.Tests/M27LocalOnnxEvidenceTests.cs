@@ -41,7 +41,7 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
         Assert.Null(report.Environment.Threads.EffectiveInterOpThreads);
         Assert.Equal(6, report.BoundarySamples.Length);
         Assert.Contains(report.BoundarySamples, static sample => sample is
-            { Scenario: "batch-input", Status: "NOT_RUN" });
+        { Scenario: "batch-input", Status: "NOT_RUN" });
         Assert.Empty(report.RawSamples);
         Assert.Contains(report.Failures, static failure => failure.Contains("model", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("--model", report.ReplayArguments);
@@ -69,9 +69,9 @@ public sealed class M27LocalOnnxEvidenceTests : IDisposable
         Assert.True(report.ProviderFallback);
         Assert.False(string.IsNullOrWhiteSpace(report.FallbackReason));
         Assert.Contains(report.BoundarySamples, static sample => sample is
-            { Scenario: "blank-input", Status: "PASS", ObservedOutcome: "argument-rejected" });
+        { Scenario: "blank-input", Status: "PASS", ObservedOutcome: "argument-rejected" });
         Assert.Contains(report.BoundarySamples, static sample => sample is
-            { Scenario: "malformed-model", Status: "PASS", ObservedOutcome: "observable-fallback" });
+        { Scenario: "malformed-model", Status: "PASS", ObservedOutcome: "observable-fallback" });
         M27LocalOnnxVerificationResult verification = M27LocalOnnxEvidenceVerifier.Verify(
             Path.Combine(_root, "fallback-output", M27LocalOnnxEvidenceRunner.ReportFileName));
         Assert.Equal("NOT_READY", verification.Status);
