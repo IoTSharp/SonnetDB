@@ -77,6 +77,8 @@
 
 ### Fixed
 
+- **M40 步骤 7 Graph typed point-read 错误 parity**：远程 `SndbGraphClient.GetVertexAsync` / `GetEdgeAsync` 现在只把空响应体的 404 映射为元素不存在 `null`；Server 返回结构化 404 时继续解析稳定错误，因此缺失 graph 与嵌入式入口一致地失败并保留 `graph_not_found`，不再被静默降级为元素缺失。公开 API 签名与 wire schema 未变；固定硬件、完整 Server/SDK/CLI/Studio parity、Native AOT journey 和 7 天证据仍为 `NOT_RUN`。
+
 - **USearch Linux 原生运行时回归**：`Cloud.Unum.USearch` 从会在 `linux-x64` 真实 native 搜索路径崩溃 testhost 的 `2.26.2` 回退并固定到已验证的 `2.26.0`；CI 继续要求加载 native backend，不以 managed fallback 弱化覆盖。
 
 - **Linux CI 与数据库根目录生命周期**：`Tsdb.Open` 在触碰 WAL 和清理 SQL spill 前先取得按平台路径规则规范化且解析目录链接别名的进程内根目录所有权，重复打开统一抛出 `IOException`，正常关闭、失败打开和崩溃模拟均幂等释放；Windows-only Studio 测试在非 Windows solution test 中显式跳过；对象存储生命周期的 `0 days` 固化为立即到期，避免系统时钟细微回拨导致偶发漏删。

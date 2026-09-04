@@ -340,6 +340,27 @@ public sealed class GraphEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GraphApi_TypedPointReads_DistinguishMissingGraphFromMissingElement()
+    {
+        using SndbGraphClient admin = CreateGraphClient(AdminToken);
+        await admin.CreateGraphAsync("point_reads");
+
+        using SndbGraphClient readOnly = CreateGraphClient(ReadOnlyToken);
+        Assert.Null(await readOnly.GetVertexAsync("point_reads", new GraphElementId(1)));
+        Assert.Null(await readOnly.GetEdgeAsync("point_reads", new GraphElementId(1)));
+
+        SndbServerException vertexError = await Assert.ThrowsAsync<SndbServerException>(
+            () => readOnly.GetVertexAsync("missing", new GraphElementId(1)));
+        Assert.Equal(HttpStatusCode.NotFound, vertexError.StatusCode);
+        Assert.Equal("graph_not_found", vertexError.Error);
+
+        SndbServerException edgeError = await Assert.ThrowsAsync<SndbServerException>(
+            () => readOnly.GetEdgeAsync("missing", new GraphElementId(1)));
+        Assert.Equal(HttpStatusCode.NotFound, edgeError.StatusCode);
+        Assert.Equal("graph_not_found", edgeError.Error);
+    }
+
+    [Fact]
     public async Task GraphApi_BothPaginationAndShortestPathBudget_PropagateThroughTypedSdk()
     {
         using SndbGraphClient client = CreateGraphClient(AdminToken);

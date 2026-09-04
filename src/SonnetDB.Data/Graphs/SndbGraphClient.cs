@@ -111,7 +111,7 @@ public sealed class SndbGraphClient : IDisposable
             return read.GetVertex(id);
         }
         using HttpResponseMessage response = await _http!.GetAsync(VertexUrl(graph, id), cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        if (await IsEmptyNotFoundAsync(response, cancellationToken).ConfigureAwait(false))
             return null;
         await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
         GraphVertexDto dto = await ReadJsonAsync(response, RemoteJsonContext.Default.GraphVertexDto, cancellationToken).ConfigureAwait(false);
@@ -133,7 +133,7 @@ public sealed class SndbGraphClient : IDisposable
             return read.GetEdge(id);
         }
         using HttpResponseMessage response = await _http!.GetAsync(EdgeUrl(graph, id), cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        if (await IsEmptyNotFoundAsync(response, cancellationToken).ConfigureAwait(false))
             return null;
         await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
         GraphEdgeDto dto = await ReadJsonAsync(response, RemoteJsonContext.Default.GraphEdgeDto, cancellationToken).ConfigureAwait(false);
@@ -1027,21 +1027,39 @@ public sealed class SndbGraphClient : IDisposable
         }
     }
 
+    private static async Task<bool> IsEmptyNotFoundAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.StatusCode != HttpStatusCode.NotFound)
+            return false;
+
+        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(body))
+            return true;
+        throw CreateHttpError(response, body);
+    }
+
     private static async Task<bool> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
             return true;
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        throw CreateHttpError(response, body);
+    }
+
+    private static SndbServerException CreateHttpError(HttpResponseMessage response, string body)
+    {
         try
         {
             ServerErrorBody? error = JsonSerializer.Deserialize(body, RemoteJsonContext.Default.ServerErrorBody);
             if (error is not null && !string.IsNullOrWhiteSpace(error.Error))
-                throw new SndbServerException(error.Error, error.Message, response.StatusCode);
+                return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
         catch (JsonException)
         {
         }
-        throw new SndbServerException(
+        return new SndbServerException(
             "http_error",
             string.IsNullOrWhiteSpace(body) ? response.ReasonPhrase ?? "SonnetDB Graph HTTP error." : body,
             response.StatusCode);
