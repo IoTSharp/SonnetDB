@@ -10,10 +10,11 @@ namespace SonnetDB.Benchmarks.Tests;
 /// <summary>M40 #367 production gate 证据和防误报合同测试。</summary>
 public sealed class GraphProductionGateTests : IDisposable
 {
+    private const string TestDirectoryPrefix = "sndb-m40-production-gate-test-";
     private const int SampleCount = 10_000;
     private readonly string _rootDirectory = Path.Combine(
         Path.GetTempPath(),
-        "sndb-m40-production-gate-test-" + Guid.NewGuid().ToString("N"));
+        TestDirectoryPrefix + Guid.NewGuid().ToString("N"));
     private readonly string _artifactDirectory;
     private readonly string _commitSha;
 
@@ -29,17 +30,136 @@ public sealed class GraphProductionGateTests : IDisposable
     /// <summary>清理测试 evidence。</summary>
     public void Dispose()
     {
+        string fullPath = Path.GetFullPath(_rootDirectory);
+        if (!GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+            fullPath,
+            Path.GetTempPath(),
+            TestDirectoryPrefix,
+            out string failureReason))
+        {
+            Console.Error.WriteLine(
+                $"production-gate-test-temp-retained path={fullPath} reason={failureReason}");
+        }
+    }
+
+    /// <summary>验证清理器拒绝仅伪装前缀、但不含规范 GUID 的目录。</summary>
+    [Fact]
+    public void OwnedDirectoryCleanup_NameWithoutGuid_RejectsOwnership()
+    {
+        string invalidPath = Path.Combine(Path.GetTempPath(), TestDirectoryPrefix + "not-a-guid");
+
+        bool deleted = GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+            invalidPath,
+            Path.GetTempPath(),
+            TestDirectoryPrefix,
+            out string failureReason);
+
+        Assert.False(deleted);
+        Assert.Equal("ownership", failureReason);
+    }
+
+    /// <summary>验证清理器不跟随目录符号链接进入不属于当前 fixture 的目标。</summary>
+    [Fact]
+    public void OwnedDirectoryCleanup_NestedDirectoryLink_DeletesLinkWithoutFollowingTarget()
+    {
+        string externalDirectory = Path.Combine(
+            Path.GetTempPath(),
+            TestDirectoryPrefix + Guid.NewGuid().ToString("N"));
+        string sentinelPath = Path.Combine(externalDirectory, "sentinel.txt");
+        string linkPath = Path.Combine(_rootDirectory, "external-link");
+        Directory.CreateDirectory(externalDirectory);
+        File.WriteAllText(sentinelPath, "retained");
         try
         {
-            Directory.Delete(_rootDirectory, recursive: true);
+            try
+            {
+                _ = Directory.CreateSymbolicLink(linkPath, externalDirectory);
+            }
+            catch (Exception exception) when (exception is IOException
+                or UnauthorizedAccessException
+                or PlatformNotSupportedException)
+            {
+                return;
+            }
+
+            Assert.True(GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+                _rootDirectory,
+                Path.GetTempPath(),
+                TestDirectoryPrefix,
+                out string failureReason), failureReason);
+            Assert.True(File.Exists(sentinelPath));
         }
-        catch (IOException)
+        finally
         {
-            // 测试清理不能覆盖门禁断言。
+            if (Directory.Exists(linkPath))
+                Directory.Delete(linkPath, recursive: false);
+            if (!GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+                externalDirectory,
+                Path.GetTempPath(),
+                TestDirectoryPrefix,
+                out string failureReason))
+            {
+                Console.Error.WriteLine(
+                    $"production-gate-link-target-retained path={externalDirectory} reason={failureReason}");
+            }
         }
-        catch (UnauthorizedAccessException)
+    }
+
+    /// <summary>验证清理器拒绝把自有根目录替换成指向外部目标的符号链接。</summary>
+    [Fact]
+    public void OwnedDirectoryCleanup_RootDirectoryLink_RejectsDeletion()
+    {
+        string externalDirectory = Path.Combine(
+            Path.GetTempPath(),
+            TestDirectoryPrefix + Guid.NewGuid().ToString("N"));
+        string ownedLink = Path.Combine(
+            Path.GetTempPath(),
+            TestDirectoryPrefix + Guid.NewGuid().ToString("N"));
+        string sentinelPath = Path.Combine(externalDirectory, "sentinel.txt");
+        Directory.CreateDirectory(externalDirectory);
+        File.WriteAllText(sentinelPath, "retained");
+        try
         {
-            // Windows 文件句柄短暂存活时交给临时目录后续清理。
+            try
+            {
+                _ = Directory.CreateSymbolicLink(ownedLink, externalDirectory);
+            }
+            catch (Exception exception) when (exception is IOException
+                or UnauthorizedAccessException
+                or PlatformNotSupportedException)
+            {
+                return;
+            }
+
+            bool deleted = GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+                ownedLink,
+                Path.GetTempPath(),
+                TestDirectoryPrefix,
+                out string failureReason);
+
+            Assert.False(deleted);
+            Assert.Equal("root-reparse-point", failureReason);
+            Assert.True(File.Exists(sentinelPath));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(ownedLink, recursive: false);
+            }
+            catch (DirectoryNotFoundException)
+            {
+            }
+
+            if (!GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+                externalDirectory,
+                Path.GetTempPath(),
+                TestDirectoryPrefix,
+                out string failureReason))
+            {
+                Console.Error.WriteLine(
+                    $"production-gate-root-link-target-retained path={externalDirectory} reason={failureReason}");
+            }
         }
     }
 
@@ -67,6 +187,11 @@ public sealed class GraphProductionGateTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_artifactDirectory, "m40-graph-production-gate.json")));
         Assert.True(File.Exists(Path.Combine(_artifactDirectory, "m40-graph-production-gate.md")));
         Assert.True(File.Exists(Path.Combine(_artifactDirectory, "m40-graph-production-input.template.json")));
+        string quickLog = File.ReadAllText(Path.Combine(_artifactDirectory, "m40-graph-production-quick.log"));
+        Assert.Contains("kill_reopen_tree_tracking_reliable=True", quickLog, StringComparison.Ordinal);
+        Assert.Contains("kill_reopen_cleanup_confirmed=True", quickLog, StringComparison.Ordinal);
+        Assert.Contains("kill_reopen_output_drained=True", quickLog, StringComparison.Ordinal);
+        Assert.Contains("kill_reopen_output_drain_stopped=True", quickLog, StringComparison.Ordinal);
     }
 
     /// <summary>验证完整原始 evidence 经独立重算、Git 检查和命令回放后才能形成 PASS。</summary>
@@ -77,10 +202,10 @@ public sealed class GraphProductionGateTests : IDisposable
 
         GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
 
+        Assert.Empty(report.Findings);
         Assert.Equal(GraphProductionEvidenceStatus.Pass, report.CorrectnessRecovery);
         Assert.Equal(GraphProductionEvidenceStatus.Pass, report.PerformanceCapacity);
         Assert.Equal(GraphProductionEvidenceStatus.Pass, report.ReleaseDecision);
-        Assert.Empty(report.Findings);
         Assert.All(report.Input.Journeys, static journey =>
         {
             Assert.Equal(1, journey.P99Milliseconds);
@@ -203,6 +328,252 @@ public sealed class GraphProductionGateTests : IDisposable
         Assert.Contains(report.Findings, static finding => finding.Code == "git_worktree_dirty");
     }
 
+    /// <summary>验证超量清单在启动 Git 或 artifact 复现进程前即失败。</summary>
+    [Fact]
+    public void Evaluate_ManifestCollectionsExceedFrozenBound_FailsBeforeReplay()
+    {
+        int overLimit = GraphProductionGateEvaluator.GetRequiredJourneyIds().Count + 1;
+        var input = new GraphProductionGateInput
+        {
+            ProductionRun = true,
+            Journeys = Enumerable.Range(0, overLimit)
+                .Select(static index => new GraphProductionJourneyEvidence { Id = $"extra-{index}" })
+                .ToArray(),
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Contains(report.Findings, static finding => finding.Code == "manifest_execution_bound");
+    }
+
+    /// <summary>验证非 Production 清单也不能借早退绕过集合上限。</summary>
+    [Fact]
+    public void Evaluate_NonProductionManifestCollectionsExceedFrozenBound_FailsBeforeEarlyReturn()
+    {
+        int overLimit = GraphProductionGateEvaluator.GetRequiredJourneyIds().Count + 1;
+        var input = new GraphProductionGateInput
+        {
+            ProductionRun = false,
+            Journeys = Enumerable.Range(0, overLimit)
+                .Select(static index => new GraphProductionJourneyEvidence { Id = $"extra-{index}" })
+                .ToArray(),
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Contains(report.Findings, static finding => finding.Code == "manifest_execution_bound");
+        Assert.DoesNotContain(report.Findings, static finding => finding.Code == "production_not_attempted");
+    }
+
+    /// <summary>验证超出字节上限的清单会在 JSON 读取和输出目录创建前失败。</summary>
+    [Fact]
+    public void EvaluateManifest_FileExceedsByteLimit_FailsBeforeDeserialization()
+    {
+        string manifestPath = Path.Combine(_artifactDirectory, "oversized-manifest.json");
+        string outputDirectory = Path.Combine(_rootDirectory, "oversized-output");
+        using (FileStream stream = File.Create(manifestPath))
+            stream.SetLength(GraphProductionGateRunner.MaximumManifestBytes + 1);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            GraphProductionGateRunner.EvaluateManifest(manifestPath, outputDirectory));
+
+        Assert.Contains(
+            GraphProductionGateRunner.MaximumManifestBytes.ToString(),
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.False(Directory.Exists(outputDirectory));
+    }
+
+    /// <summary>验证预取消在打开清单文件前传播。</summary>
+    [Fact]
+    public void EvaluateManifest_WithPreCancelledToken_DoesNotOpenManifest()
+    {
+        string missingManifestPath = Path.Combine(_artifactDirectory, "missing-pre-cancelled.json");
+        string outputDirectory = Path.Combine(_rootDirectory, "pre-cancelled-output");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        _ = Assert.Throws<OperationCanceledException>(() =>
+            GraphProductionGateRunner.EvaluateManifest(
+                missingManifestPath,
+                outputDirectory,
+                cancellation.Token));
+
+        Assert.False(Directory.Exists(outputDirectory));
+    }
+
+    /// <summary>验证单个 artifact 超过字节上限时在哈希、JSON 解析和回放前失败。</summary>
+    [Fact]
+    public void Evaluate_ArtifactExceedsByteLimit_FailsClosed()
+    {
+        string fileName = "oversized-artifact.json";
+        string path = Path.Combine(_artifactDirectory, fileName);
+        using (FileStream stream = File.Create(path))
+            stream.SetLength(GraphProductionGateEvaluator.MaximumArtifactBytes + 1);
+        GraphProductionArtifactRun run = CreateRun();
+        GraphProductionArtifactEvidence reference = CreateUncheckedReference(fileName, run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            Dataset = new GraphProductionDatasetEvidence { Artifact = reference },
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Contains(report.Findings, static finding => finding.Code == "artifact_size_bound");
+    }
+
+    /// <summary>验证 soak 的 checkpoint、kill、cold-open 和资源集合在聚合前统一受限。</summary>
+    [Fact]
+    public void Evaluate_SoakArtifactCollectionsExceedBounds_FailsBeforeAggregation()
+    {
+        GraphProductionArtifactRun run = CreateRun();
+        var artifact = new GraphProductionSoakArtifact
+        {
+            Run = run,
+            CheckpointsUtc = Enumerable.Repeat(DateTimeOffset.UtcNow, GraphProductionGateEvaluator.MaximumSoakCheckpointSamples + 1).ToArray(),
+            KillReopenSamples = Enumerable.Repeat(new GraphProductionKillReopenSample(), GraphProductionGateEvaluator.MaximumSoakKillReopenSamples + 1).ToArray(),
+            ColdOpenMilliseconds = Enumerable.Repeat(1d, GraphProductionGateEvaluator.MaximumSoakColdOpenSamples + 1).ToArray(),
+            ResourceSamples = Enumerable.Repeat(new GraphProductionSoakResourceSample(), GraphProductionGateEvaluator.MaximumSoakResourceSamples + 1).ToArray(),
+        };
+        GraphProductionArtifactEvidence reference = WriteArtifact(
+            "overbound-soak.json",
+            artifact,
+            GraphProductionArtifactJsonContext.Default.GraphProductionSoakArtifact,
+            run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            Soak = new GraphProductionSoakEvidence { Artifact = reference },
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Equal(4, report.Findings.Count(static finding => finding.Code == "artifact_collection_bound"));
+    }
+
+    /// <summary>验证 journey 轮次在逐轮遍历前受限。</summary>
+    [Fact]
+    public void Evaluate_JourneyRoundsExceedBound_FailsBeforeRoundTraversal()
+    {
+        GraphProductionArtifactRun run = CreateRun();
+        var artifact = new GraphProductionJourneyArtifact
+        {
+            Run = run,
+            JourneyId = "SOC-1",
+            Rounds = Enumerable.Range(1, GraphProductionGateEvaluator.MaximumJourneyRounds + 1)
+                .Select(static round => new GraphProductionJourneyRoundArtifact { Round = round })
+                .ToArray(),
+        };
+        GraphProductionArtifactEvidence reference = WriteArtifact(
+            "overbound-journey-rounds.json",
+            artifact,
+            GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact,
+            run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            Journeys = [new GraphProductionJourneyEvidence { Id = "SOC-1", Artifact = reference }],
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Contains(report.Findings, static finding => finding.Code == "artifact_collection_bound");
+    }
+
+    /// <summary>验证 journey 样本列和 oracle 在排序与分组前受限。</summary>
+    [Fact]
+    public void Evaluate_JourneySamplesAndOraclesExceedBounds_FailsBeforeAggregation()
+    {
+        GraphProductionArtifactRun run = CreateRun();
+        var artifact = new GraphProductionJourneyArtifact
+        {
+            Run = run,
+            JourneyId = "SOC-1",
+            Rounds =
+            [
+                new GraphProductionJourneyRoundArtifact
+                {
+                    Round = 1,
+                    ElapsedMicroseconds = Enumerable.Repeat(1L, GraphProductionGateEvaluator.MaximumJourneySamplesPerColumn + 1).ToArray(),
+                    OracleAssertions = Enumerable.Repeat(new GraphProductionOracleAssertion(), GraphProductionGateEvaluator.MaximumJourneyOracleAssertions + 1).ToArray(),
+                },
+            ],
+        };
+        GraphProductionArtifactEvidence reference = WriteArtifact(
+            "overbound-journey-samples.json",
+            artifact,
+            GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact,
+            run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            Journeys = [new GraphProductionJourneyEvidence { Id = "SOC-1", Artifact = reference }],
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Equal(2, report.Findings.Count(static finding => finding.Code == "artifact_collection_bound"));
+    }
+
+    /// <summary>验证 check assertions 在遍历和去重前受限。</summary>
+    [Fact]
+    public void Evaluate_CheckAssertionsExceedBound_FailsBeforeTraversal()
+    {
+        GraphProductionArtifactRun run = CreateRun();
+        var artifact = new GraphProductionCheckArtifact
+        {
+            Run = run,
+            CheckId = "five_journey_oracle",
+            Assertions = Enumerable.Repeat(new GraphProductionCheckAssertion(), GraphProductionGateEvaluator.MaximumCheckAssertions + 1).ToArray(),
+        };
+        GraphProductionArtifactEvidence reference = WriteArtifact(
+            "overbound-check.json",
+            artifact,
+            GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact,
+            run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            CorrectnessRecoveryChecks =
+            [
+                new GraphProductionCheckEvidence
+                {
+                    Id = "five_journey_oracle",
+                    Artifact = reference,
+                },
+            ],
+        };
+
+        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, _artifactDirectory);
+
+        Assert.Equal(GraphProductionEvidenceStatus.Fail, report.ReleaseDecision);
+        Assert.Contains(report.Findings, static finding => finding.Code == "artifact_collection_bound");
+    }
+
+    /// <summary>验证 evaluator 的预取消在任何 Git 探测或 artifact 文件读取前传播。</summary>
+    [Fact]
+    public async Task EvaluateAsync_WithPreCancelledToken_DoesNotReadArtifact()
+    {
+        GraphProductionArtifactRun run = CreateRun();
+        var artifact = new GraphProductionDatasetArtifact { Run = run };
+        GraphProductionArtifactEvidence reference = WriteArtifact(
+            "pre-cancelled-artifact.json",
+            artifact,
+            GraphProductionArtifactJsonContext.Default.GraphProductionDatasetArtifact,
+            run);
+        GraphProductionGateInput input = CreateMinimalProductionInput() with
+        {
+            Dataset = new GraphProductionDatasetEvidence { Artifact = reference },
+        };
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        _ = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            GraphProductionGateEvaluator.EvaluateAsync(input, _artifactDirectory, cancellation.Token));
+    }
+
     /// <summary>验证模板可由 source-generated JSON 路径读取，且所有占位证据稳定失败。</summary>
     [Fact]
     public void EvaluateManifest_TemplateWithPlaceholders_FailsAndWritesReport()
@@ -220,6 +591,32 @@ public sealed class GraphProductionGateTests : IDisposable
         Assert.True(File.Exists(Path.Combine(outputDirectory, "m40-graph-production-gate.json")));
         Assert.True(File.Exists(Path.Combine(outputDirectory, "m40-graph-production-gate.md")));
     }
+
+    private GraphProductionGateInput CreateMinimalProductionInput()
+    {
+        DateTimeOffset finishedUtc = DateTimeOffset.UtcNow.AddHours(-1);
+        return new GraphProductionGateInput
+        {
+            ProductionRun = true,
+            CommitSha = _commitSha,
+            StartedUtc = finishedUtc.AddHours(-1),
+            FinishedUtc = finishedUtc,
+        };
+    }
+
+    private static GraphProductionArtifactEvidence CreateUncheckedReference(
+        string fileName,
+        GraphProductionArtifactRun run)
+        => new()
+        {
+            Path = fileName,
+            Sha256 = new string('a', 64),
+            Command = run.Command,
+            Arguments = run.Arguments,
+            WorkingDirectory = run.WorkingDirectory,
+            ExpectedExitCode = run.ExitCode,
+            TimeoutSeconds = 60,
+        };
 
     private GraphProductionGateInput CreatePassingInput()
     {
@@ -625,14 +1022,16 @@ public sealed class GraphProductionGateTests : IDisposable
         };
         foreach (string argument in arguments)
             startInfo.ArgumentList.Add(argument);
-        using Process process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("无法启动 git 测试进程。");
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"git {string.Join(' ', arguments)} 失败：{error}");
-        return output;
+        GraphEvidenceProcessResult result = GraphEvidenceProcessRunner.Run(
+            startInfo,
+            TimeSpan.FromSeconds(30),
+            captureOutput: true);
+        if (!result.Completed || result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git {string.Join(' ', arguments)} 失败：{result.Diagnostic} stderr={result.StandardError}");
+        }
+        return result.StandardOutput;
     }
 
     private static long[] Repeat(long value)

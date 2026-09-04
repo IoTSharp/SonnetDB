@@ -35,6 +35,13 @@ using SonnetDB.Benchmarks.Benchmarks;
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
 //   docker compose -f tests/SonnetDB.Benchmarks/docker/docker-compose.yml up -d
+if (args.Length > 0
+    && string.Equals(args[0], GraphEvidenceProcessLauncher.Command, StringComparison.Ordinal))
+{
+    Environment.ExitCode = await GraphEvidenceProcessLauncher.RunAsync(args).ConfigureAwait(false);
+    return;
+}
+
 if (args.Contains("--m27-verify-local-onnx", StringComparer.OrdinalIgnoreCase))
 {
     string? reportPath = ReadOption(args, "--m27-verify-local-onnx");
@@ -98,7 +105,12 @@ if (args.Contains("--m40-production-crash-child", StringComparer.OrdinalIgnoreCa
     string? crashRoot = ReadOption(args, "--root");
     if (crashRoot is null || crashRoot.StartsWith("--", StringComparison.Ordinal))
         throw new ArgumentException("--m40-production-crash-child 必须提供 --root <path>。");
-    GraphProductionGateRunner.RunCrashReopenChild(crashRoot);
+    int parentProcessId = ReadRequiredPositiveIntOption(args, "--parent-pid");
+    string parentIdentityToken = RequireOption(args, "--parent-identity-token");
+    GraphProductionGateRunner.RunCrashReopenChild(
+        crashRoot,
+        parentProcessId,
+        parentIdentityToken);
     return;
 }
 
@@ -169,9 +181,24 @@ if (args.Contains("--m40-production-gate", StringComparer.OrdinalIgnoreCase))
         throw new ArgumentException("--manifest 必须提供 M40 #367 evidence 清单路径。");
     if (!quick && manifestPath is null)
         throw new ArgumentException("--m40-production-gate 必须显式提供 --quick 或 --manifest <path>。");
-    GraphProductionGateReport report = manifestPath is null
-        ? GraphProductionGateRunner.RunQuick(outputDirectory)
-        : GraphProductionGateRunner.EvaluateManifest(manifestPath, outputDirectory);
+    using var cancellation = new CancellationTokenSource();
+    ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        cancellation.Cancel();
+    };
+    Console.CancelKeyPress += cancelHandler;
+    GraphProductionGateReport report;
+    try
+    {
+        report = manifestPath is null
+            ? GraphProductionGateRunner.RunQuick(outputDirectory, cancellation.Token)
+            : GraphProductionGateRunner.EvaluateManifest(manifestPath, outputDirectory, cancellation.Token);
+    }
+    finally
+    {
+        Console.CancelKeyPress -= cancelHandler;
+    }
     Console.WriteLine(
         $"m40-production-local={report.LocalSmoke} output={outputDirectory} "
         + $"correctness-recovery={report.CorrectnessRecovery} "
@@ -447,6 +474,15 @@ static int ReadPositiveIntOption(string[] args, string option, int defaultValue)
     string? value = ReadOption(args, option);
     if (value is null)
         return defaultValue;
+    if (!int.TryParse(value, out int parsed) || parsed <= 0)
+        throw new ArgumentException($"{option} 必须为正整数。");
+    return parsed;
+}
+
+// 读取必填正整数选项。
+static int ReadRequiredPositiveIntOption(string[] args, string option)
+{
+    string? value = ReadOption(args, option);
     if (!int.TryParse(value, out int parsed) || parsed <= 0)
         throw new ArgumentException($"{option} 必须为正整数。");
     return parsed;

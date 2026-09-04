@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Child\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -21,6 +25,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SonnetDB.Benchmarks\SonnetDB.Benchmarks.csproj" />
+    <ProjectReference Include="Child\SonnetDB.Benchmarks.Tests.ProcessProbe.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="CopyProcessProbeOutput" AfterTargets="Build">
+    <ItemGroup>
+      <ProcessProbeOutput Include="Child\bin\$(Configuration)\$(TargetFramework)\SonnetDB.Benchmarks.Tests.ProcessProbe.*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(ProcessProbeOutput)"
+      DestinationFolder="$(OutputPath)"
+      SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

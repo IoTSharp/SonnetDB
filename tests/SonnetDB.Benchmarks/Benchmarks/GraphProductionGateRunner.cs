@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime;
@@ -18,12 +19,31 @@ namespace SonnetDB.Benchmarks.Benchmarks;
 /// <summary>M40 #367 可审计 production gate 报告和本地管线 smoke runner。</summary>
 public static class GraphProductionGateRunner
 {
+    internal const long MaximumManifestBytes = 4L * 1024 * 1024;
     private const int QuickVertexCount = 64;
     private const int QuickEdgeCount = 192;
     private const int QuickReaderWorkers = 8;
     private const int QuickSamplesPerReader = 6;
     private const int QuickWriterMutations = 12;
+    private const int QuickCursorPageSize = 8;
+    private const int QuickCursorMaximumResults = 64;
+    private const int QuickCursorMaximumPageReads =
+        (QuickCursorMaximumResults + QuickCursorPageSize - 1) / QuickCursorPageSize;
+    private const int QuickMaximumPeakUpdateAttempts =
+        (QuickReaderWorkers * QuickSamplesPerReader) + QuickWriterMutations;
     private const string CrashReadyFileName = "m40-crash-ready";
+    private const int CrashMarkerMaximumPollCount = 1_200;
+    private const int CrashChildMaximumPollCount = 600;
+    private const int CrashChildWatchdogExitCode = 124;
+    private static readonly TimeSpan CrashMarkerTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CrashMarkerPollInterval = TimeSpan.FromMilliseconds(25);
+    private static readonly TimeSpan CrashChildMaximumLifetime = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan CrashChildWatchdogJoinTimeout = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MetadataProcessTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan QuickMixedWorkloadTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan QuickMixedWorkloadCancellationJoinTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan QuickExecutionTimeout = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ManifestEvaluationTimeout = TimeSpan.FromHours(12);
 
     /// <summary>按冻结 source-generated schema 验证单个 M40 #367 原始 artifact。</summary>
     /// <param name="artifactPath">待验证 artifact 路径。</param>
@@ -62,10 +82,17 @@ public static class GraphProductionGateRunner
 
     /// <summary>运行 8 reader + 1 writer、checkpoint、重开和 backup/restore 的 quick smoke。</summary>
     /// <param name="outputDirectory">报告输出目录。</param>
+    /// <param name="cancellationToken">取消令牌；取消后先回收已启动的子进程。</param>
     /// <returns>保持 Production 双门禁为 NOT_RUN 的本地报告。</returns>
-    public static GraphProductionGateReport RunQuick(string outputDirectory)
+    public static GraphProductionGateReport RunQuick(
+        string outputDirectory,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
+        using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        executionCancellation.CancelAfter(QuickExecutionTimeout);
+        CancellationToken executionToken = executionCancellation.Token;
+        executionToken.ThrowIfCancellationRequested();
         string outputRoot = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(outputRoot);
         string root = Path.Combine(
@@ -84,6 +111,8 @@ public static class GraphProductionGateRunner
         bool checkpointReopenPass = false;
         bool backupRestorePass = false;
         bool killReopenPass = false;
+        bool killReopenAttempted = false;
+        GraphEvidenceProcessResult? killReopenProcess = null;
         int killReopenCount = 0;
         long peakWorkingSet = Process.GetCurrentProcess().WorkingSet64;
         try
@@ -97,7 +126,8 @@ public static class GraphProductionGateRunner
                     store,
                     latencies,
                     lastSequence,
-                    peakWorkingSet);
+                    peakWorkingSet,
+                    executionToken);
                 _ = store.Checkpoint();
                 GraphInvariantReport invariant = GraphInvariantChecker.Check(store);
                 mixedWorkloadPass &= invariant.IsValid
@@ -105,9 +135,14 @@ public static class GraphProductionGateRunner
                     && invariant.VertexCount == QuickVertexCount
                     && invariant.EdgeCount == QuickEdgeCount;
             }
+            executionToken.ThrowIfCancellationRequested();
 
-            killReopenPass = RunRealKillReopen(root);
+            killReopenAttempted = true;
+            killReopenPass = RunRealKillReopen(root, executionToken, out killReopenProcess);
+            GraphEvidenceProcessResult killReopenEvidence = killReopenProcess
+                ?? throw new InvalidOperationException("M40 crash/reopen process evidence 缺失。");
             killReopenCount = killReopenPass ? 1 : 0;
+            executionToken.ThrowIfCancellationRequested();
 
             using (var reopened = Tsdb.Open(CreateQuickOptions(databaseRoot)))
             {
@@ -129,6 +164,7 @@ public static class GraphProductionGateRunner
                 BackupVerificationResult verification = backupService.Verify(backupRoot);
                 backupRestorePass = verification.IsValid;
             }
+            executionToken.ThrowIfCancellationRequested();
 
             var restoreService = new BackupService();
             _ = restoreService.Restore(new BackupRestoreOptions
@@ -145,6 +181,7 @@ public static class GraphProductionGateRunner
                     && invariant.VertexCount == QuickVertexCount
                     && invariant.EdgeCount == QuickEdgeCount;
             }
+            executionToken.ThrowIfCancellationRequested();
 
             DateTimeOffset finishedUtc = DateTimeOffset.UtcNow;
             string artifactName = "m40-graph-production-quick.log";
@@ -163,6 +200,15 @@ public static class GraphProductionGateRunner
                     checkpoint_reopen={Status(checkpointReopenPass)}
                     backup_restore={Status(backupRestorePass)}
                     kill_reopen={Status(killReopenPass)}
+                    kill_reopen_pid={killReopenEvidence.Identity.ProcessId}
+                    kill_reopen_started_utc={killReopenEvidence.Identity.StartedUtc:O}
+                    kill_reopen_parent_pid={killReopenEvidence.Identity.ParentProcessId}
+                    kill_reopen_parent_started_utc={killReopenEvidence.Identity.ParentStartedUtc:O}
+                    kill_reopen_containment={killReopenEvidence.ContainmentKind}
+                    kill_reopen_tree_tracking_reliable={killReopenEvidence.TreeTrackingReliable}
+                    kill_reopen_cleanup_confirmed={killReopenEvidence.CleanupConfirmed}
+                    kill_reopen_output_drained={killReopenEvidence.OutputDrained}
+                    kill_reopen_output_drain_stopped={killReopenEvidence.OutputDrainStopped}
                     reader_workers={QuickReaderWorkers}
                     update_workers=1
                     samples={latencies.Count}
@@ -192,7 +238,7 @@ public static class GraphProductionGateRunner
             var input = new GraphProductionGateInput
             {
                 ProductionRun = false,
-                CommitSha = ResolveCommitSha(),
+                CommitSha = ResolveCommitSha(executionToken),
                 StartedUtc = startedUtc,
                 FinishedUtc = finishedUtc,
                 Dataset = new GraphProductionDatasetEvidence
@@ -203,7 +249,7 @@ public static class GraphProductionGateRunner
                     InputDigest = HashText("m40-graph-generator-v1|0x534F4E4E45544442|64|192"),
                     OutputDigest = outputDigest,
                 },
-                Environment = CaptureEnvironment(outputRoot),
+                Environment = CaptureEnvironment(outputRoot, executionToken),
                 Soak = new GraphProductionSoakEvidence
                 {
                     DurationHours = (finishedUtc - startedUtc).TotalHours,
@@ -250,53 +296,183 @@ public static class GraphProductionGateRunner
                     "未运行 168 小时 mixed workload，不能据此宣称 Graph Production 门禁通过。",
                 ],
             };
-            GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, outputRoot);
+            executionToken.ThrowIfCancellationRequested();
+            GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(
+                input,
+                outputRoot,
+                executionToken);
+            executionToken.ThrowIfCancellationRequested();
             WriteReport(report, outputRoot);
+            executionToken.ThrowIfCancellationRequested();
             WriteTemplate(outputRoot, input.Environment);
+            executionToken.ThrowIfCancellationRequested();
             return report;
         }
         finally
         {
-            TryDeleteDirectory(root);
+            bool cleanupSafe = !killReopenAttempted
+                || killReopenProcess is { CleanupConfirmed: true };
+            if (cleanupSafe)
+            {
+                TryDeleteDirectory(root);
+            }
+            else
+            {
+                Console.Error.WriteLine(
+                    $"m40-temp-retained-unconfirmed-process-tree path={Path.GetFullPath(root)}");
+            }
         }
     }
 
     /// <summary>供 quick 恢复 harness 使用的子进程入口；父进程会在 marker 持久化后主动终止它。</summary>
     /// <param name="databaseRoot">子进程数据库根目录。</param>
-    public static void RunCrashReopenChild(string databaseRoot)
+    /// <param name="parentProcessId">启动本 harness 的父进程 ID。</param>
+    /// <param name="parentIdentityToken">父进程稳定启动标识，用于拒绝 PID 重用。</param>
+    public static void RunCrashReopenChild(
+        string databaseRoot,
+        int parentProcessId,
+        string parentIdentityToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseRoot);
-        Directory.CreateDirectory(databaseRoot);
-        using Tsdb database = Tsdb.Open(CreateQuickOptions(databaseRoot));
-        GraphStore store = database.Graphs.Create("production_crash");
-        long sequence = WriteQuickFixture(store);
-        string marker = Path.Combine(databaseRoot, CrashReadyFileName);
-        File.WriteAllText(marker, sequence.ToString(CultureInfo.InvariantCulture));
-        using var wait = new ManualResetEventSlim(false);
-        wait.Wait();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(parentProcessId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentIdentityToken);
+        var lifetime = Stopwatch.StartNew();
+        using var completed = new ManualResetEventSlim(false);
+        Task watchdog = Task.Run(
+            () => WatchCrashChildParent(
+                parentProcessId,
+                parentIdentityToken,
+                lifetime,
+                completed));
+        try
+        {
+            if (!GraphEvidenceProcessIdentityToken.IsExpectedProcessAlive(parentProcessId, parentIdentityToken))
+                return;
+
+            Directory.CreateDirectory(databaseRoot);
+            using Tsdb database = Tsdb.Open(CreateQuickOptions(databaseRoot));
+            GraphStore store = database.Graphs.Create("production_crash");
+            long sequence = WriteQuickFixture(store);
+            string marker = Path.Combine(databaseRoot, CrashReadyFileName);
+            File.WriteAllText(marker, sequence.ToString(CultureInfo.InvariantCulture));
+            using var wait = new ManualResetEventSlim(false);
+            for (int attempt = 0;
+                attempt < CrashChildMaximumPollCount && lifetime.Elapsed < CrashChildMaximumLifetime;
+                attempt++)
+            {
+                if (!GraphEvidenceProcessIdentityToken.IsExpectedProcessAlive(parentProcessId, parentIdentityToken))
+                    return;
+                _ = wait.Wait(TimeSpan.FromMilliseconds(100));
+                if ((attempt + 1) % 300 == 0)
+                {
+                    Console.Error.WriteLine(FormattableString.Invariant(
+                        $"m40-crash-child-wait pid={Environment.ProcessId} parent_pid={parentProcessId} polls={attempt + 1} elapsed_seconds={lifetime.Elapsed.TotalSeconds:F3}"));
+                }
+            }
+
+            Console.Error.WriteLine(FormattableString.Invariant(
+                $"m40-crash-child-watchdog pid={Environment.ProcessId} parent_pid={parentProcessId} elapsed_seconds={lifetime.Elapsed.TotalSeconds:F3}"));
+        }
+        finally
+        {
+            completed.Set();
+            if (!watchdog.Wait(CrashChildWatchdogJoinTimeout))
+            {
+                Console.Error.WriteLine(FormattableString.Invariant(
+                    $"m40-crash-child-watchdog-join-timeout pid={Environment.ProcessId} parent_pid={parentProcessId}"));
+            }
+        }
+    }
+
+    private static void WatchCrashChildParent(
+        int parentProcessId,
+        string parentIdentityToken,
+        Stopwatch lifetime,
+        ManualResetEventSlim completed)
+    {
+        for (int attempt = 0;
+            attempt < CrashChildMaximumPollCount && lifetime.Elapsed < CrashChildMaximumLifetime;
+            attempt++)
+        {
+            if (!GraphEvidenceProcessIdentityToken.IsExpectedProcessAlive(parentProcessId, parentIdentityToken))
+            {
+                Console.Error.WriteLine(FormattableString.Invariant(
+                    $"m40-crash-child-parent-lost pid={Environment.ProcessId} parent_pid={parentProcessId} elapsed_seconds={lifetime.Elapsed.TotalSeconds:F3}"));
+                Environment.Exit(CrashChildWatchdogExitCode);
+                return;
+            }
+            if (completed.Wait(TimeSpan.FromMilliseconds(100)))
+                return;
+        }
+
+        if (!completed.IsSet)
+        {
+            Console.Error.WriteLine(FormattableString.Invariant(
+                $"m40-crash-child-hard-deadline pid={Environment.ProcessId} parent_pid={parentProcessId} elapsed_seconds={lifetime.Elapsed.TotalSeconds:F3}"));
+            Environment.Exit(CrashChildWatchdogExitCode);
+        }
     }
 
     /// <summary>读取完整证据清单、校验 artifact 并输出双门禁报告。</summary>
     /// <param name="manifestPath">source-generated JSON 输入清单。</param>
     /// <param name="outputDirectory">报告输出目录。</param>
+    /// <param name="cancellationToken">取消令牌；取消后先回收正在执行的复现进程。</param>
     /// <returns>严格门禁报告。</returns>
     public static GraphProductionGateReport EvaluateManifest(
         string manifestPath,
-        string outputDirectory)
+        string outputDirectory,
+        CancellationToken cancellationToken = default)
+        => EvaluateManifestAsync(manifestPath, outputDirectory, cancellationToken)
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
+
+    /// <summary>异步读取完整证据清单、校验 artifact 并输出双门禁报告。</summary>
+    /// <param name="manifestPath">source-generated JSON 输入清单。</param>
+    /// <param name="outputDirectory">报告输出目录。</param>
+    /// <param name="cancellationToken">取消令牌；取消后先回收正在执行的复现进程。</param>
+    /// <returns>严格门禁报告。</returns>
+    public static async Task<GraphProductionGateReport> EvaluateManifestAsync(
+        string manifestPath,
+        string outputDirectory,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
+        using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        executionCancellation.CancelAfter(ManifestEvaluationTimeout);
+        CancellationToken executionToken = executionCancellation.Token;
+        executionToken.ThrowIfCancellationRequested();
         string fullManifestPath = Path.GetFullPath(manifestPath);
-        GraphProductionGateInput input = JsonSerializer.Deserialize(
-            File.ReadAllText(fullManifestPath),
-            GraphProductionGateJsonContext.Default.GraphProductionGateInput)
+        using var manifestStream = new FileStream(
+            fullManifestPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 4_096,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (manifestStream.Length > MaximumManifestBytes)
+        {
+            throw new InvalidDataException(
+                $"M40 #367 证据清单不能超过 {MaximumManifestBytes} 字节。");
+        }
+        executionToken.ThrowIfCancellationRequested();
+        GraphProductionGateInput input = await JsonSerializer.DeserializeAsync(
+            manifestStream,
+            GraphProductionGateJsonContext.Default.GraphProductionGateInput,
+            executionToken).ConfigureAwait(false)
             ?? throw new InvalidDataException("M40 #367 证据清单为空。");
         string artifactRoot = Path.GetDirectoryName(fullManifestPath)
             ?? Directory.GetCurrentDirectory();
         string outputRoot = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(outputRoot);
-        GraphProductionGateReport report = GraphProductionGateEvaluator.Evaluate(input, artifactRoot);
+        GraphProductionGateReport report = await GraphProductionGateEvaluator.EvaluateAsync(
+            input,
+            artifactRoot,
+            executionToken).ConfigureAwait(false);
+        executionToken.ThrowIfCancellationRequested();
         WriteReport(report, outputRoot);
+        executionToken.ThrowIfCancellationRequested();
         return report;
     }
 
@@ -406,47 +582,52 @@ public static class GraphProductionGateRunner
             },
         };
 
-    private static bool RunRealKillReopen(string parentRoot)
+    private static bool RunRealKillReopen(
+        string parentRoot,
+        CancellationToken cancellationToken,
+        out GraphEvidenceProcessResult? processResult)
     {
+        processResult = null;
         string childRoot = Path.Combine(parentRoot, "crash-reopen");
         string marker = Path.Combine(childRoot, CrashReadyFileName);
         Directory.CreateDirectory(childRoot);
         ProcessStartInfo startInfo = CreateSelfStartInfo(childRoot);
-        using Process child = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("无法启动 M40 crash/reopen child process。");
-        try
+        GraphEvidenceProcessResult child = GraphEvidenceProcessRunner.RunUntilFileExists(
+            startInfo,
+            marker,
+            CrashMarkerTimeout,
+            CrashMarkerPollInterval,
+            CrashMarkerMaximumPollCount,
+            captureOutput: true,
+            cancellationToken: cancellationToken);
+        processResult = child;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (child.Cancelled)
         {
-            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(30);
-            while (!File.Exists(marker) && !child.HasExited && DateTimeOffset.UtcNow < deadline)
-                Thread.Sleep(25);
-            if (!File.Exists(marker) || child.HasExited)
-            {
-                string error = child.StandardError.ReadToEnd();
-                string output = child.StandardOutput.ReadToEnd();
-                throw new InvalidOperationException(
-                    $"M40 crash/reopen child 未发布 durable marker；exit={child.HasExited} code={(child.HasExited ? child.ExitCode : -1)} "
-                    + $"stdout={output} stderr={error}");
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new OperationCanceledException("M40 crash/reopen child 已取消并完成回收。");
+        }
+        if (!child.Completed
+            || !child.ConditionSatisfied
+            || !child.TerminationRequested
+            || !child.RunnerTerminationConfirmed
+            || child.TargetCompletionObserved)
+        {
+            throw new InvalidOperationException(
+                "M40 crash/reopen child 未在 deadline 内发布 marker，或其完整进程树未被确认回收；"
+                + $"{child.Diagnostic} stdout={child.StandardOutput} stderr={child.StandardError}");
+        }
 
-            child.Kill(entireProcessTree: true);
-            child.WaitForExit(10_000);
-            using Tsdb reopened = Tsdb.Open(CreateQuickOptions(childRoot));
-            GraphStore store = reopened.Graphs.Open("production_crash");
-            GraphInvariantReport invariant = GraphInvariantChecker.Check(store);
-            using GraphReadSession read = store.BeginRead();
-            return invariant.IsComplete
-                && invariant.IsValid
-                && invariant.VertexCount == QuickVertexCount
-                && invariant.EdgeCount == QuickEdgeCount
-                && read.GetVertex(new GraphElementId(QuickVertexCount)) is not null;
-        }
-        finally
-        {
-            if (!child.HasExited)
-            {
-                try { child.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            }
-        }
+        using Tsdb reopened = Tsdb.Open(CreateQuickOptions(childRoot));
+        GraphStore store = reopened.Graphs.Open("production_crash");
+        GraphInvariantReport invariant = GraphInvariantChecker.Check(store);
+        using GraphReadSession read = store.BeginRead();
+        bool pass = invariant.IsComplete
+            && invariant.IsValid
+            && invariant.VertexCount == QuickVertexCount
+            && invariant.EdgeCount == QuickEdgeCount
+            && read.GetVertex(new GraphElementId(QuickVertexCount)) is not null;
+        return pass;
     }
 
     private static ProcessStartInfo CreateSelfStartInfo(string databaseRoot)
@@ -454,6 +635,8 @@ public static class GraphProductionGateRunner
         string assemblyPath = Path.Combine(AppContext.BaseDirectory, "SonnetDB.Benchmarks.dll");
         if (!File.Exists(assemblyPath))
             throw new FileNotFoundException("M40 crash/reopen child benchmark assembly 不存在。", assemblyPath);
+        using Process parent = Process.GetCurrentProcess();
+        string parentIdentityToken = GraphEvidenceProcessIdentityToken.Create(parent);
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -466,6 +649,10 @@ public static class GraphProductionGateRunner
         startInfo.ArgumentList.Add("--m40-production-crash-child");
         startInfo.ArgumentList.Add("--root");
         startInfo.ArgumentList.Add(databaseRoot);
+        startInfo.ArgumentList.Add("--parent-pid");
+        startInfo.ArgumentList.Add(parent.Id.ToString(CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add("--parent-identity-token");
+        startInfo.ArgumentList.Add(parentIdentityToken);
         return startInfo;
     }
 
@@ -503,8 +690,12 @@ public static class GraphProductionGateRunner
         GraphStore store,
         ConcurrentBag<double> latencies,
         long initialSequence,
-        long initialPeakWorkingSet)
+        long initialPeakWorkingSet,
+        CancellationToken cancellationToken)
     {
+        using var workloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        workloadCancellation.CancelAfter(QuickMixedWorkloadTimeout);
+        CancellationToken workloadToken = workloadCancellation.Token;
         using var start = new ManualResetEventSlim(false);
         long expandedEdges = 0;
         long sequence = initialSequence;
@@ -512,9 +703,10 @@ public static class GraphProductionGateRunner
         Task[] readers = Enumerable.Range(0, QuickReaderWorkers)
             .Select(worker => Task.Run(() =>
             {
-                start.Wait();
+                start.Wait(workloadToken);
                 for (int sample = 0; sample < QuickSamplesPerReader; sample++)
                 {
+                    workloadToken.ThrowIfCancellationRequested();
                     var stopwatch = Stopwatch.StartNew();
                     using GraphReadSession read = store.BeginRead();
                     int anchor = ((worker * QuickSamplesPerReader + sample) % QuickVertexCount) + 1;
@@ -525,9 +717,16 @@ public static class GraphProductionGateRunner
                         throw new InvalidDataException("quick mixed workload 未命中 native adjacency。");
                     using GraphCursor<GraphExpansion> cursor = read.Expand(
                         new GraphElementId(anchor),
-                        options: new GraphCursorOptions { PageSize = 8, MaxResults = 64 });
-                    while (true)
+                        options: new GraphCursorOptions
+                        {
+                            PageSize = QuickCursorPageSize,
+                            MaxResults = QuickCursorMaximumResults,
+                        });
+                    for (int pageRead = 0;
+                        pageRead < QuickCursorMaximumPageReads && !cursor.IsExhausted;
+                        pageRead++)
                     {
+                        workloadToken.ThrowIfCancellationRequested();
                         IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage();
                         if (page.Count == 0)
                             break;
@@ -552,9 +751,10 @@ public static class GraphProductionGateRunner
             .ToArray();
         Task writer = Task.Run(() =>
         {
-            start.Wait();
+            start.Wait(workloadToken);
             for (int mutation = 1; mutation <= QuickWriterMutations; mutation++)
             {
+                workloadToken.ThrowIfCancellationRequested();
                 using GraphReadSession read = store.BeginRead();
                 GraphVertex vertex = read.GetVertex(new GraphElementId(QuickVertexCount))
                     ?? throw new InvalidDataException("quick writer 缺少更新顶点。");
@@ -571,7 +771,30 @@ public static class GraphProductionGateRunner
         });
 
         start.Set();
-        Task.WhenAll(readers.Append(writer)).GetAwaiter().GetResult();
+        Task workload = Task.WhenAll(readers.Append(writer));
+        try
+        {
+            workload.WaitAsync(QuickMixedWorkloadTimeout, cancellationToken)
+                .ConfigureAwait(false)
+                .GetAwaiter()
+                .GetResult();
+        }
+        finally
+        {
+            workloadCancellation.Cancel();
+            if (!workload.IsCompleted)
+            {
+                try
+                {
+                    _ = workload.Wait(QuickMixedWorkloadCancellationJoinTimeout);
+                }
+                catch (AggregateException) when (workload.IsCompleted)
+                {
+                    // WaitAsync 已传播主失败；这里只确认协作任务已在取消后停止。
+                }
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         return (
             latencies.Count == QuickReaderWorkers * QuickSamplesPerReader,
             expandedEdges,
@@ -619,8 +842,11 @@ public static class GraphProductionGateRunner
             Artifact = artifact,
         };
 
-    private static GraphProductionEnvironmentEvidence CaptureEnvironment(string outputDirectory)
+    private static GraphProductionEnvironmentEvidence CaptureEnvironment(
+        string outputDirectory,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string root = Path.GetPathRoot(outputDirectory) ?? Path.DirectorySeparatorChar.ToString();
         var drive = new DriveInfo(root);
         return new GraphProductionEnvironmentEvidence
@@ -633,7 +859,7 @@ public static class GraphProductionGateRunner
             PhysicalMemoryBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
             DiskFormat = drive.DriveFormat,
             Runtime = RuntimeInformation.FrameworkDescription,
-            SdkVersion = ReadDotNetSdkVersion(),
+            SdkVersion = ReadDotNetSdkVersion(cancellationToken),
             GcMode = GCSettings.IsServerGC ? "server" : "workstation",
         };
     }
@@ -648,83 +874,72 @@ public static class GraphProductionGateRunner
         return key?.GetValue("ProcessorNameString") as string ?? "unknown";
     }
 
-    private static string ReadDotNetSdkVersion()
+    private static string ReadDotNetSdkVersion(CancellationToken cancellationToken)
     {
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            startInfo.ArgumentList.Add("--version");
-            using Process? process = Process.Start(startInfo);
-            if (process is null)
-                return "unknown";
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            if (process.ExitCode != 0 || output.Length == 0)
-                return "unknown";
-
-            var statusStartInfo = new ProcessStartInfo
-            {
-                FileName = "git",
-                WorkingDirectory = Directory.GetCurrentDirectory(),
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            statusStartInfo.ArgumentList.Add("status");
-            statusStartInfo.ArgumentList.Add("--porcelain");
-            statusStartInfo.ArgumentList.Add("--untracked-files=normal");
-            using Process? statusProcess = Process.Start(statusStartInfo);
-            if (statusProcess is null)
-                return output + "-status-unknown";
-            string status = statusProcess.StandardOutput.ReadToEnd();
-            statusProcess.WaitForExit();
-            if (statusProcess.ExitCode != 0)
-                return output + "-status-unknown";
-            return status.Length == 0 ? output : output + "-dirty";
-        }
-        catch (Exception)
-        {
+        cancellationToken.ThrowIfCancellationRequested();
+        var startInfo = CreateCapturedStartInfo("dotnet", Directory.GetCurrentDirectory(), ["--version"]);
+        GraphEvidenceProcessResult version = GraphEvidenceProcessRunner.Run(
+            startInfo,
+            MetadataProcessTimeout,
+            captureOutput: true,
+            cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        string output = version.StandardOutput.Trim();
+        if (!version.Completed || version.ExitCode != 0 || output.Length == 0)
             return "unknown";
-        }
+
+        ProcessStartInfo statusStartInfo = CreateCapturedStartInfo(
+            "git",
+            Directory.GetCurrentDirectory(),
+            ["status", "--porcelain", "--untracked-files=normal"]);
+        GraphEvidenceProcessResult status = GraphEvidenceProcessRunner.Run(
+            statusStartInfo,
+            MetadataProcessTimeout,
+            captureOutput: true,
+            cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!status.Completed || status.ExitCode != 0)
+            return output + "-status-unknown";
+        return status.StandardOutput.Length == 0 ? output : output + "-dirty";
     }
 
-    private static string ResolveCommitSha()
+    private static string ResolveCommitSha(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string? configured = Environment.GetEnvironmentVariable("GITHUB_SHA");
         if (!string.IsNullOrWhiteSpace(configured))
             return configured;
-        try
+        ProcessStartInfo startInfo = CreateCapturedStartInfo(
+            "git",
+            Directory.GetCurrentDirectory(),
+            ["rev-parse", "HEAD"]);
+        GraphEvidenceProcessResult result = GraphEvidenceProcessRunner.Run(
+            startInfo,
+            MetadataProcessTimeout,
+            captureOutput: true,
+            cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        string output = result.StandardOutput.Trim();
+        return result.Completed && result.ExitCode == 0 && output.Length > 0 ? output : "unknown";
+    }
+
+    private static ProcessStartInfo CreateCapturedStartInfo(
+        string fileName,
+        string workingDirectory,
+        IReadOnlyList<string> arguments)
+    {
+        var startInfo = new ProcessStartInfo
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "git",
-                WorkingDirectory = Directory.GetCurrentDirectory(),
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            startInfo.ArgumentList.Add("rev-parse");
-            startInfo.ArgumentList.Add("HEAD");
-            using Process? process = Process.Start(startInfo);
-            if (process is null)
-                return "unknown";
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            return process.ExitCode == 0 && output.Length > 0 ? output : "unknown";
-        }
-        catch (Exception)
-        {
-            return "unknown";
-        }
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (string argument in arguments)
+            startInfo.ArgumentList.Add(argument);
+        return startInfo;
     }
 
     private static void WriteReport(GraphProductionGateReport report, string outputDirectory)
@@ -790,14 +1005,17 @@ public static class GraphProductionGateRunner
 
     private static void UpdatePeak(ref long target, long candidate)
     {
-        long current;
-        do
+        for (int attempt = 0; attempt < QuickMaximumPeakUpdateAttempts; attempt++)
         {
-            current = Volatile.Read(ref target);
+            long current = Volatile.Read(ref target);
             if (candidate <= current)
                 return;
+            if (Interlocked.CompareExchange(ref target, candidate, current) == current)
+                return;
+            Thread.Yield();
         }
-        while (Interlocked.CompareExchange(ref target, candidate, current) != current);
+
+        throw new InvalidOperationException("quick working-set peak update exceeded its retry budget.");
     }
 
     private static string Status(bool pass)
@@ -840,18 +1058,17 @@ public static class GraphProductionGateRunner
 
     private static void TryDeleteDirectory(string path)
     {
-        try
+        string fullPath = Path.GetFullPath(path);
+        string expectedPrefix = "sonnetdb-m40-production-smoke-";
+        if (!GraphEvidenceOwnedDirectoryCleanup.TryDelete(
+            fullPath,
+            Path.GetTempPath(),
+            expectedPrefix,
+            out string failureReason))
         {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
-        catch (IOException)
-        {
-            // 临时数据库清理不能覆盖已生成的 evidence。
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Windows 文件句柄短暂存活时交给临时目录后续清理。
+            Console.Error.WriteLine(
+                $"m40-temp-cleanup-failed path={fullPath} reason={failureReason}");
         }
     }
+
 }

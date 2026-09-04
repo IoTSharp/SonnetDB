@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>SonnetDB.Benchmarks.Tests.ProcessProbe</AssemblyName>
+    <RootNamespace>SonnetDB.Benchmarks.Tests.ProcessProbe</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\SonnetDB.Benchmarks\Benchmarks\GraphEvidenceProcessIdentityToken.cs"
+             Link="GraphEvidenceProcessIdentityToken.cs" />
+  </ItemGroup>
+
+</Project>

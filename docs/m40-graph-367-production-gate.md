@@ -14,6 +14,28 @@ release_decision: NOT_RUN
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 
+## 执行、取消与回收边界
+
+#367 的 quick crash/reopen、manifest artifact 回放以及 Git/.NET 元数据探测共用同一个有界子进程 runner。它只接受 `UseShellExecute=false`、不重定向 stdin、同时重定向 stdout/stderr 且通过 `ArgumentList` 传参的进程。runner 先启动仓库内受信 launcher；launcher 在 stdin 握手前不创建真实目标，只有父进程确认可靠平台 containment 后才放行。launcher 和父 runner 都立即并发排空两路输出，避免目标因 pipe 背压停滞。需要诊断输出的 quick/元数据调用每路只留存最前 64 KiB，超出部分继续排空但不保留，并附加截断标记；artifact 回放不留存正文，但仍排空两路流。目标根进程结束后，launcher 会把 token、目标退出码和内部 drain 结果原子写入任务专属 control 目录，并继续留在 containment 中；父 runner 读取该状态后才统一终止并确认整个 Job/PGID 清空。内部 drain timeout/fault 映射为 launcher failure，不能再借目标退出码伪装成成功。
+
+每个子进程使用相互独立的等待预算：执行期由调用点指定，超时或取消后回收确认轮询最多 10 秒，随后 stdout/stderr drain 最多等待 5 秒；drain 超时后会取消读取、分别关闭两路 pipe，并最多再等待 2 秒确认 drain task 停止。manifest 的 `timeout_seconds` 必须在 1~3,600 秒之间；Git/.NET 元数据探测为 30 秒；quick 的 crash marker 同时受 30 秒墙钟、25 ms 间隔和最多 1,200 次轮询约束。退出等待也同时按墙钟与由 timeout 推导的最大轮询次数收敛，长等待会周期输出进度。通常一次调用的等待上限由“执行预算 + 10 秒 cleanup 确认轮询 + 5 秒 drain + 2 秒 drain task join”组成，但 `Process.Start`、Job/PGID 终止和单根进程 `Kill` 属于同步 OS API，无法由托管 token 强制中断，因此这里不把它们误述为严格的整个方法墙钟上限。runner 还拒绝超过 256 项的参数列表和超过 32 KiB 的单个参数，并在调用前已经取消时完全不启动进程。
+
+发生执行超时、外部取消、收到 launcher completion 状态，或 launcher 意外退出时，runner 请求终止平台隔离容器，并在 10 秒预算内同时确认 launcher 退出和可靠隔离容器为空；可靠 Job/PGID 已负责整树终止，不再调用可能同步遍历任意规模后代的 `.NET` tree kill。root-only fallback 不会收到握手，因此真实命令不会启动；runner 只 best-effort 终止已记录的 launcher 根进程，且结果始终 fail closed。隔离状态无法查询也会触发终止并 fail closed。普通 `Run` 和 marker 检查时已经自然退出的目标必须提供 token-authenticated completion；缺失时追加 runner failure，目标退出码固定为 `-1`，绝不回退为 launcher 退出码。只有 marker 已满足、当时尚未观察到目标 completion，且 runner 随后主动终止 containment 的条件等待允许无 completion 完成。除此之外，只有执行未超时/未取消、可靠隔离存在、cleanup 已确认、launcher 与目标两层输出均已 drain、drain task 已停止且没有其他 runner failure 时，结果才算 `Completed`；回收或 drain 未确认会使 quick/回放失败，quick 不会继续重开数据库或删除相关临时目录。即使 launcher 已由 OS 启动后才发生 containment/output 初始化异常，结果也会保留真实 supervisor PID、启动时间和 cleanup 状态，不会降格为“未启动”。`m40-process-start`/completion 记录 supervisor 身份，launcher 另以 `m40-process-target-start` 记录真实目标 PID；日志还包含父 PID、启动 UTC、工作目录、结构化目标命令、containment kind、tree-tracking 可靠性、timeout/cancel、cleanup、drain、drain task、completion requirement/observation 和退出码。quick 原始日志保留 supervisor PID/启动时间及 cleanup/drain 状态。
+
+CLI 的 `Ctrl+C` 会先设置取消令牌并阻止控制台立即终止当前进程；当前正在等待的 child/replay 先走上述 containment termination、cleanup 和 drain，再传播取消。`RunQuick` 自身还创建 10 分钟 linked 总 deadline，`EvaluateManifest` 与 `GraphProductionGateEvaluator.Evaluate` 各自创建 12 小时 linked 总 deadline；任一总 deadline 或调用方取消先到时，当前子进程先完成有界回收等待，取消随后抛出，且不再启动下一项 replay。`EvaluateManifest` 在打开文件前传播预取消，并在反序列化前拒绝超过 4 MiB 的 manifest；随后使用 source-generated `JsonTypeInfo` 的可取消异步流式反序列化，同时保留同步 API。总 deadline 限制执行工作；其后 cleanup、drain 和 task join 分别拥有 10/5/2 秒等待预算，另须考虑上一段列出的不可中断同步 OS 调用。quick marker API 已收窄为本地文件存在性轮询，不接受可能永久阻塞的任意 callback。通用 launcher 在握手期及其后每 100 ms 核对父 PID + 稳定启动标识：Windows 使用 UTC start ticks，Linux 使用 `/proc/<pid>/stat` 的 starttime，避免跨进程墙钟换算差异和 PID 重用；握手最多等待 10 秒，总 lifetime 为目标执行预算加回收/drain grace。握手后独立 watchdog 覆盖 target start、运行、drain、completion 发布和留守阶段；父丢失或 hard lifetime 到达时，Windows launcher 使用复制到自身的 Job handle 调用 `TerminateJobObject`，Linux launcher 对已确认属于自己的当前进程组发送 `SIGKILL`。quick crash child 使用同一稳定父身份标识，并有 60 秒 hard TTL。
+
+Production manifest 先受 4 MiB 文件大小上限约束，并在任何 Git 探测或 artifact 回放前做集合上限检查：journey 最多 16 项、correctness check 最多 10 项、performance check 最多 10 项、gap 最多 12 项；集合上限同样适用于非 Production 输入，任一超量时双 gate 直接失败且不启动外部进程。通过该检查后，唯一 artifact 回放命令另有 64 项硬上限；每项仍使用自己的 `timeout_seconds` 并串行执行，同时受 `EvaluateManifest` 和 evaluator 的 12 小时 linked 总 deadline 约束。总 deadline 到达后不再启动后续回放；需要更早停止时可使用 `Ctrl+C` 或调用方取消令牌。
+
+每个原始 artifact 另有 16 MiB 文件上限；文件在同一只读 handle 上先用可取消的异步 SHA-256 校验，再通过 source-generated JSON 元数据异步读取。反序列化后、任何排序、分组、聚合或逐项校验前，evaluator 会拒绝超量嵌套集合：复现参数最多 256 项；soak checkpoint/cold-open/resource 样本分别最多 20,000/20,000/25,000 项，kill/reopen 最多 1,024 项；journey 最多 16 轮、每个数值样本列最多 20,000 项、每轮 oracle 最多 64 项；check 或 closed-gap assertion 最多 256 项。预取消会在 Git 探测和 artifact 打开前传播，读取期间取消则由 hash/JSON 异步 API 直接传播。
+
+平台隔离边界必须如实理解：
+
+- Windows 在 `Process.Start` 后创建、配置并 attach 带 `KILL_ON_JOB_CLOSE` 的 Job Object；终止时调用 `TerminateJobObject`，并通过 Job accounting 的 active-process 计数确认清空。Start 到 attach 的短窗口中只有受信 launcher 存活，真实命令仍被 stdin 握手阻塞；确认 Job 后，runner 以 `DuplicateHandle` 把 Job handle 复制进 launcher，再发送握手。父异常退出时 launcher watchdog 会主动终止同一 Job；若 launcher 也异常退出，父与 launcher 持有的 handle 全部关闭后 `KILL_ON_JOB_CLOSE` 仍提供内核兜底。父仍存活但卡死时，hard-lifetime watchdog 同样主动终止 Job。极短目标不会先于 attach 退出。
+- Linux 只从固定路径 `/usr/bin/setsid` 或 `/bin/setsid` 以 `setsid -- dotnet <launcher> ...` 启动，不经过 shell；runner 在 500 ms、最多 50 次探测内确认 launcher PGID 等于启动 PID，再发送握手启动目标。launcher 在 target completion 后仍保持为该组 leader，直到父 runner 向该进程组发送 `SIGKILL` 并以 group existence probe 确认清空；因此父进程不会在“launcher 已退出、后代仍存活”的窗口丢失 PGID 所有权。该边界覆盖保持在同一进程组的后代，不防护受信命令主动再次调用 `setsid` 或改组逃逸。
+- 其他平台、Linux 缺少固定路径 `setsid`、Windows Job 建立/配置/attach 失败，或隔离查询无法确认时，runner 会记录 `root-only-*`/fallback 状态，不发送 launcher 握手并 fail closed；此时可以确认尚未创建真实目标，只对 launcher 根做有界回收。即使 launcher 根已确认退出，`TreeTrackingReliable=false` 仍使目标执行结果不能成为 `Completed`。
+
+quick child 的父身份 watchdog 为父进程异常退出提供额外兜底。临时 quick 数据目录只允许删除系统临时目录下带本任务前缀的路径，最多重试 3 次且总清理时间不超过 2 秒；launcher control 目录同样必须是系统临时目录的直接子目录和固定 GUID 前缀，最多重试 3 次且总清理时间不超过 1 秒。两者失败都会输出保留的绝对路径，不扩大删除范围；进程树未确认回收时父 runner 不删除仍供 launcher 使用的 control 目录，父丢失/hard lifetime 时 launcher 会尝试清理自己的 control 目录后再终止 containment。
+
 ## 运行入口
 
 本地管线 smoke：
