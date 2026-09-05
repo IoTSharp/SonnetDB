@@ -47,11 +47,12 @@ public static class SqlExecutor
             "procedure_dependencies", "requires_write", "created_utc"
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showTriggerColumns =
-        new List<string>(5) { "name", "table_name", "event", "when", "created_utc" }.AsReadOnly();
+        new List<string>(7) { "name", "table_name", "event", "when", "created_utc", "enabled", "execution_order" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTriggerColumns =
         new List<string>(8)
         {
-            "name", "table_name", "event", "when", "language", "body", "dependencies", "created_utc"
+            "name", "table_name", "event", "when", "language", "body", "dependencies", "created_utc",
+            "enabled", "execution_order"
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _userColumns =
         new List<string>(4) { "name", "is_superuser", "created_utc", "token_count" }.AsReadOnly();
@@ -264,28 +265,36 @@ public static class SqlExecutor
         var statements = SqlParser.ParseScript(sql);
         var results = new List<object?>(statements.Count);
         SqlTransactionContext? transaction = null;
-        foreach (var statement in statements)
+        try
         {
-            if (statement is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
-                throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
-
-            var result = ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction, options);
-            if (result is SqlTransactionContext started)
+            foreach (var statement in statements)
             {
-                transaction = started;
-            }
-            else if (statement is CommitTransactionStatement or RollbackTransactionStatement)
-            {
-                transaction = null;
+                if (statement is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
+                    throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
+
+                var result = ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction, options);
+                if (result is SqlTransactionContext started)
+                {
+                    transaction = started;
+                }
+                else if (statement is CommitTransactionStatement or RollbackTransactionStatement)
+                {
+                    transaction = null;
+                }
+
+                results.Add(result);
             }
 
-            results.Add(result);
+            if (transaction is not null && !transaction.IsCompleted)
+                throw new InvalidOperationException("SQL 脚本结束时仍有未提交的轻事务。");
+
+            return results.AsReadOnly();
         }
-
-        if (transaction is not null && !transaction.IsCompleted)
-            throw new InvalidOperationException("SQL 脚本结束时仍有未提交的轻事务。");
-
-        return results.AsReadOnly();
+        finally
+        {
+            if (transaction is { IsCompleted: false })
+                RollbackTransaction(tsdb, transaction);
+        }
     }
 
     /// <summary>
@@ -377,7 +386,7 @@ public static class SqlExecutor
             CommitTransactionStatement => transaction is null
                 ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
                 : TableSqlExecutor.CommitTransaction(tsdb, transaction),
-            RollbackTransactionStatement => RollbackTransaction(transaction),
+            RollbackTransactionStatement => RollbackTransaction(tsdb, transaction),
             CreateModbusSourceStatement createModbusSource =>
                 ModbusSqlExecutor.ExecuteCreateSource(tsdb, createModbusSource),
             CreateModbusEndpointStatement createModbusEndpoint =>
@@ -394,8 +403,9 @@ public static class SqlExecutor
                 () => ExecuteCreateView(tsdb, createView)),
             CreateMaterializedViewStatement createMaterializedView => tsdb.ExecuteSchemaMutation(
                 () => ExecuteCreateMaterializedView(tsdb, createMaterializedView)),
-            CreateProcedureStatement createProcedure => SqlRoutineRuntime.CreateProcedure(tsdb, createProcedure),
-            CreateTriggerStatement createTrigger => SqlRoutineRuntime.CreateTrigger(tsdb, createTrigger),
+            CreateProcedureStatement createProcedure => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateProcedure(tsdb, createProcedure)),
+            CreateTriggerStatement createTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateTrigger(tsdb, createTrigger)),
+            AlterTriggerStatement alterTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.AlterTrigger(tsdb, alterTrigger)),
             CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
             CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
@@ -419,6 +429,8 @@ public static class SqlExecutor
             DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(tsdb, deleteGraph),
             SelectStatement select => ExecuteSelect(tsdb, select),
             CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
+            ExplainRoutineStatement explainRoutine => SqlRoutineRuntime.ExplainRoutine(tsdb, explainRoutine),
+            ShowRoutineDiagnosticsStatement showRoutine => ShowRoutineDiagnostics(tsdb, showRoutine),
             RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
             DeleteStatement delete => ExecuteDelete(tsdb, databaseName, delete, controlPlane, transaction),
             TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate),
@@ -433,8 +445,8 @@ public static class SqlExecutor
                 () => ExecuteDropView(tsdb, dropView)),
             DropMaterializedViewStatement dropMaterializedView => tsdb.ExecuteSchemaMutation(
                 () => ExecuteDropMaterializedView(tsdb, dropMaterializedView)),
-            DropProcedureStatement dropProcedure => SqlRoutineRuntime.DropProcedure(tsdb, dropProcedure),
-            DropTriggerStatement dropTrigger => SqlRoutineRuntime.DropTrigger(tsdb, dropTrigger),
+            DropProcedureStatement dropProcedure => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropProcedure(tsdb, dropProcedure)),
+            DropTriggerStatement dropTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropTrigger(tsdb, dropTrigger)),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
@@ -622,6 +634,7 @@ public static class SqlExecutor
             or CreateMaterializedViewStatement
             or CreateProcedureStatement
             or CreateTriggerStatement
+            or AlterTriggerStatement
             or CreateTableIndexStatement
             or CreateDocumentIndexStatement
             or CreateDocumentPathIndexStatement
@@ -662,10 +675,13 @@ public static class SqlExecutor
             or IssueTokenStatement
             or RevokeTokenStatement;
 
-    private static RowsAffectedExecutionResult RollbackTransaction(SqlTransactionContext? transaction)
+    private static RowsAffectedExecutionResult RollbackTransaction(Tsdb tsdb, SqlTransactionContext? transaction)
     {
         if (transaction is null)
             throw new InvalidOperationException("ROLLBACK 前没有活动轻事务。");
+        transaction.ThrowIfCompleted();
+        transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
+            SonnetDB.Exceptions.RoutineErrorCodes.RolledBack);
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", 0, "rollback");
     }
@@ -1093,9 +1109,36 @@ public static class SqlExecutor
                 definition.Event.ToString().ToLowerInvariant(),
                 definition.WhenSql,
                 new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                definition.Enabled,
+                definition.ExecutionOrder,
             })
             .ToArray();
         return new SelectExecutionResult(_showTriggerColumns, rows);
+    }
+
+    private static SelectExecutionResult ShowRoutineDiagnostics(Tsdb tsdb, ShowRoutineDiagnosticsStatement statement)
+    {
+        var records = tsdb.Routines.Diagnostics.SnapshotAudit(statement.Kind, statement.Name);
+        if (statement.Statistics)
+        {
+            double[] elapsed = records.Select(static record => record.ElapsedMilliseconds).Order().ToArray();
+            return new SelectExecutionResult(
+                ["retained_samples", "pending", "succeeded", "failed", "rolled_back", "p50_ms", "p95_ms", "p99_ms"],
+                [new object?[] { records.Count, records.Count(static record => record.Outcome == "pending"),
+                    records.Count(static record => record.Succeeded),
+                    records.Count(static record => record.Outcome is "failed" or "unknown"),
+                    records.Count(static record => record.Outcome == "rolled_back"), Percentile(0.5), Percentile(0.95), Percentile(0.99) }]);
+
+            double? Percentile(double quantile) => elapsed.Length == 0 ? null
+                : elapsed[Math.Clamp((int)Math.Ceiling(quantile * elapsed.Length) - 1, 0, elapsed.Length - 1)];
+        }
+        return new SelectExecutionResult(
+            ["sequence", "kind", "name", "caller", "call_chain", "started_utc", "elapsed_ms", "succeeded",
+             "outcome", "error_code", "statements", "result_rows"],
+            records.Select(static record => (IReadOnlyList<object?>)new object?[]
+                { record.Sequence, record.Kind, record.Name, record.Caller, record.CallChain, record.StartedUtc.UtcDateTime,
+                    record.ElapsedMilliseconds, record.Succeeded, record.Outcome, record.ErrorCode,
+                    record.StatementsExecuted, record.ResultRows }).ToArray());
     }
 
     private static SelectExecutionResult DescribeTrigger(Tsdb tsdb, string name)
@@ -1116,6 +1159,8 @@ public static class SqlExecutor
                 definition.BodySql,
                 string.Join(",", definition.ObjectDependencies),
                 new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                definition.Enabled,
+                definition.ExecutionOrder,
             },
         ];
         return new SelectExecutionResult(_describeTriggerColumns, rows);
@@ -2368,7 +2413,8 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
-        bool hasTriggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Insert).Count != 0;
+        var triggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Insert);
+        bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteInsert(tsdb, statement, schema);
 
@@ -2383,31 +2429,28 @@ public static class SqlExecutor
                 statement,
                 schema,
                 out var changes);
-            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+            SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
-                SqlTriggerEvent.Insert,
+                triggers,
                 changes,
                 controlPlane,
                 effectiveTransaction);
-            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            RoutineExecutionContext.Current?.CheckCancellation();
             if (ownsTransaction)
                 TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
             return result;
         }
         catch (Exception exception)
         {
-            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
-                exception is SonnetDB.Exceptions.RoutineExecutionException routine
-                    ? routine.Code
-                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
-            if (!ownsTransaction)
+            effectiveTransaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
+                SqlRoutineRuntime.GetErrorCode(exception), savepoint);
+            if (!ownsTransaction && !effectiveTransaction.IsCompleted)
                 effectiveTransaction.RollbackTo(savepoint);
             if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
             {
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
-                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    SqlRoutineRuntime.GetErrorCode(exception),
                     $"AFTER INSERT 触发器事务提交失败：{exception.Message}",
                     exception);
             }
@@ -2422,7 +2465,8 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
-        bool hasTriggers = tsdb.Routines.FindTriggers(statement.TableName, SqlTriggerEvent.Update).Count != 0;
+        var triggers = tsdb.Routines.FindTriggers(statement.TableName, SqlTriggerEvent.Update);
+        bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteUpdate(tsdb, statement);
 
@@ -2436,31 +2480,28 @@ public static class SqlExecutor
                 tsdb,
                 statement,
                 out var changes);
-            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+            SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
-                SqlTriggerEvent.Update,
+                triggers,
                 changes,
                 controlPlane,
                 effectiveTransaction);
-            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            RoutineExecutionContext.Current?.CheckCancellation();
             if (ownsTransaction)
                 TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
             return result;
         }
         catch (Exception exception)
         {
-            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
-                exception is SonnetDB.Exceptions.RoutineExecutionException routine
-                    ? routine.Code
-                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
-            if (!ownsTransaction)
+            effectiveTransaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
+                SqlRoutineRuntime.GetErrorCode(exception), savepoint);
+            if (!ownsTransaction && !effectiveTransaction.IsCompleted)
                 effectiveTransaction.RollbackTo(savepoint);
             if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
             {
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
-                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    SqlRoutineRuntime.GetErrorCode(exception),
                     $"AFTER UPDATE 触发器事务提交失败：{exception.Message}",
                     exception);
             }
@@ -2476,7 +2517,8 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
-        bool hasTriggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Delete).Count != 0;
+        var triggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Delete);
+        bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteDelete(tsdb, statement, schema);
 
@@ -2491,31 +2533,28 @@ public static class SqlExecutor
                 statement,
                 schema,
                 out var changes);
-            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+            SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
-                SqlTriggerEvent.Delete,
+                triggers,
                 changes,
                 controlPlane,
                 effectiveTransaction);
-            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            RoutineExecutionContext.Current?.CheckCancellation();
             if (ownsTransaction)
                 TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
             return result;
         }
         catch (Exception exception)
         {
-            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
-                exception is SonnetDB.Exceptions.RoutineExecutionException routine
-                    ? routine.Code
-                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
-            if (!ownsTransaction)
+            effectiveTransaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
+                SqlRoutineRuntime.GetErrorCode(exception), savepoint);
+            if (!ownsTransaction && !effectiveTransaction.IsCompleted)
                 effectiveTransaction.RollbackTo(savepoint);
             if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
             {
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
-                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    SqlRoutineRuntime.GetErrorCode(exception),
                     $"AFTER DELETE 触发器事务提交失败：{exception.Message}",
                     exception);
             }

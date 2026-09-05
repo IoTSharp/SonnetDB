@@ -91,11 +91,9 @@ public sealed class CrashReliabilityTests : IDisposable
     }
 
     [Fact]
-    public void crash_kill9_betweenTriggerTableCommits_ReopenReportsMeasuredPartialPair()
+    public void crash_kill9_betweenTriggerTableCommits_ReopenRollsBackBothTables()
     {
-        // #333：关系表 source 与 trigger outbox 使用独立 KV WAL。子进程在 source
-        // batch 已落盘、outbox 尚未应用的确定性间隔被 kill；恢复必须如实暴露
-        // partial pair，而不是把 V1 宣称成跨 keyspace exactly-once。
+        // source WAL 已写入但没有完成标记，重启必须撤销两张表的整个事务。
         string root = RunKillScenario(
             "crash_kill9_between_trigger_table_commits",
             TimeSpan.Zero);
@@ -108,8 +106,23 @@ public sealed class CrashReliabilityTests : IDisposable
             database,
             "SELECT * FROM audit_outbox"));
 
-        Assert.Single(orders.Rows);
+        Assert.Empty(orders.Rows);
         Assert.Empty(audit.Rows);
+    }
+
+    [Theory]
+    [InlineData("crash_kill9_before_trigger_transaction_complete", 0)]
+    [InlineData("crash_kill9_after_trigger_transaction_complete", 1)]
+    public void crash_kill9_triggerCompletionBoundary_ReopenSeesConsistentPair(string scenario, int expectedRows)
+    {
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        for (int reopen = 0; reopen < 2; reopen++)
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            foreach (string table in new[] { "orders", "audit_outbox" })
+                Assert.Equal(expectedRows, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, $"SELECT * FROM {table}")).Rows.Count);
+        }
     }
 
     [Fact]
@@ -311,8 +324,12 @@ public sealed class CrashReliabilityTests : IDisposable
         startInfo.ArgumentList.Add(scenario);
         startInfo.ArgumentList.Add(root);
         startInfo.ArgumentList.Add(readyFile);
-        return Process.Start(startInfo)
+        var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("无法启动 CrashTests 子进程。");
+        File.WriteAllText(Path.Combine(root, "child-process.txt"),
+            $"PID={process.Id}\nStartedUtc={process.StartTime.ToUniversalTime():O}\nParent={Environment.ProcessId}\n"
+            + $"Command={startInfo.FileName} {string.Join(' ', startInfo.ArgumentList)}");
+        return process;
     }
 
     private static void TerminateAndWait(Process process, TimeSpan timeout)
@@ -384,7 +401,8 @@ public sealed class CrashReliabilityTests : IDisposable
     private static void WaitForReady(Process process, string readyFile, TimeSpan timeout)
     {
         var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < timeout)
+        int maxPolls = checked((int)Math.Ceiling(timeout.TotalMilliseconds / 25) + 1);
+        for (int poll = 0; poll < maxPolls && sw.Elapsed < timeout; poll++)
         {
             if (File.Exists(readyFile))
                 return;

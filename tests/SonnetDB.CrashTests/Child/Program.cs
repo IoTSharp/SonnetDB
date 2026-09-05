@@ -38,6 +38,12 @@ switch (scenario)
     case "crash_kill9_between_trigger_table_commits":
         RunKillBetweenTriggerTableCommits(root, readyFile);
         return 0;
+    case "crash_kill9_before_trigger_transaction_complete":
+    case "crash_kill9_after_trigger_transaction_complete":
+        RunKillBetweenTriggerTableCommits(root, readyFile,
+            beforeComplete: scenario == "crash_kill9_before_trigger_transaction_complete",
+            afterComplete: scenario == "crash_kill9_after_trigger_transaction_complete");
+        return 0;
     case "crash_kill9_graph_batch_during_fsync":
         RunKillGraphBatchDuringFsync(root, readyFile);
         return 0;
@@ -182,9 +188,9 @@ static void RunKillOsFlushedWrites(string root, string readyFile)
     Thread.Sleep(Timeout.Infinite);
 }
 
-// #333：在独立关系表 keyspace 的提交间隔注入真进程终止，记录 V1 AFTER ROW
-// 触发器的跨 WAL 边界。该场景用于证据报告，不改变生产提交合同。
-static void RunKillBetweenTriggerTableCommits(string root, string readyFile)
+// #333：固定跨表 WAL、完成标记前后和已确认提交三个进程终止边界。
+static void RunKillBetweenTriggerTableCommits(string root, string readyFile,
+    bool beforeComplete = false, bool afterComplete = false)
 {
     using var db = Tsdb.Open(new TsdbOptions
     {
@@ -212,15 +218,24 @@ static void RunKillBetweenTriggerTableCommits(string root, string readyFile)
 
     db.Tables.ApplyTransactionAfterTableTestHook = tableName =>
     {
-        if (!string.Equals(tableName, "orders", StringComparison.Ordinal))
+        if (beforeComplete || afterComplete || !string.Equals(tableName, "orders", StringComparison.Ordinal))
             return;
 
         // The parent waits for this marker and then terminates this process.
         // Keep the callback blocked so the next table cannot be applied.
-        File.WriteAllText(readyFile, "source-table-applied");
-        Thread.Sleep(Timeout.Infinite);
+        PauseForTriggerCrash(readyFile, "source-table-applied");
     };
+    if (beforeComplete)
+        db.Tables.ApplyTransactionBeforeCompleteTestHook = () => PauseForTriggerCrash(readyFile, "before-complete");
     SqlExecutor.Execute(db, "INSERT INTO orders (id, status) VALUES (1, 'new')");
+    if (afterComplete) PauseForTriggerCrash(readyFile, "after-complete");
+}
+
+static void PauseForTriggerCrash(string readyFile, string stage)
+{
+    File.WriteAllText(readyFile, stage);
+    Thread.Sleep(TimeSpan.FromSeconds(30));
+    throw new TimeoutException("M39 crash parent did not terminate the child within 30 seconds.");
 }
 
 static void RunKillGraphBatchDuringFsync(string root, string readyFile)

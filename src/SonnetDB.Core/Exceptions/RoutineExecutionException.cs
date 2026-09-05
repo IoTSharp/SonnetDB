@@ -47,4 +47,8 @@ public static class RoutineErrorCodes
     public const string TriggerContext = "trigger_context";
     /// <summary>body 内部语句执行失败。</summary>
     public const string ExecutionFailed = "routine_execution_failed";
+    /// <summary>调用方显式回滚或放弃了包含例程动作的事务。</summary>
+    public const string RolledBack = "routine_rolled_back";
+    /// <summary>底层事务提交或回滚结果未知；须重启恢复后核对业务幂等键。</summary>
+    public const string CommitUnknown = "routine_commit_unknown";
 }

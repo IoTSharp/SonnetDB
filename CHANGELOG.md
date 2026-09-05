@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M39 SQL 例程生产加固**：关系表触发器支持 `ALTER TRIGGER ... ENABLE/DISABLE/RENAME TO/FOLLOWS/PRECEDES` 及创建时显式顺序；新增只读 `EXPLAIN PROCEDURE/TRIGGER`、`SHOW ROUTINE AUDIT/STATS`、按定义过滤及 AOT 兼容 JSON 审计导出。远程 REST/Frame 统一传递服务端配置的例程资源预算。例程目录独立版本升级为 v2，继续读取 v1，旧引擎拒绝 v2；主数据文件和 KV/WAL 格式未改变。
+
 - **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。
 
 - **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
@@ -94,6 +96,8 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **M39 事务与恢复修复**：跨表提交增加有 CRC、128 MiB 上限及同步完成标记的 `tables/transaction.sdbtxn` 恢复日志；在开放访问前撤销未完成提交，备份复制窗口阻止关系表写入。提交结果未知时停止接受表访问，审计明确标记 `unknown`。事务按主键索引归并并用增量保存点撤销，消除批量触发器的重复扫描/复制；无 ROWVERSION 的 SQL 事务也校验原始行状态，避免汇总丢失更新。嵌套过程结果不重复计数，过程和触发器的 INSERT RETURNING 纳入结果预算，外层回滚/请求放弃统一结算过程与触发器审计。固定验收机三轮 10000 行触发器延迟降低约 93% 至 96%、分配降低约 98%；小批量成本、UPDATE 预热对照、测试与未准入语义见 [M39 审计](docs/audits/m39-production-20260906.md)。
 
 - **M36 #316 KV 未知提交与重发边界**：CAS/expire/persist 的 WAL sync 异常统一拒绝后续写入并要求重开核对；可取消写在首次 WAL append 前停止，提交后不伪报取消。SDK 拒绝缺字段或矛盾的原子 REST 响应，以及关联/版本/保留标志错误的 Frame 响应；KV 写禁用发送后的 Frame/REST 回退，专用 HTTP handler 禁止 307/308 自动重发，保留其他客户端默认策略及凭据隔离。
 

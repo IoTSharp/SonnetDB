@@ -1,4 +1,6 @@
 using SonnetDB.Tables;
+using SonnetDB.Kv;
+using SonnetDB.Routines;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -18,9 +20,10 @@ public sealed class SqlTransactionContext
 {
     private static readonly AsyncLocal<SqlTransactionContext?> _current = new();
 
-    private readonly Dictionary<string, List<TableRowMutation>> _tableMutations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, MutationBuffer> _tableMutations = new(StringComparer.Ordinal);
+    private readonly List<Action> _undo = [];
     private readonly Dictionary<string, long> _autoIncrementReservationGenerations = new(StringComparer.Ordinal);
-    private readonly List<long> _triggerAuditSequences = [];
+    private readonly List<(long Sequence, string Kind)> _routineInvocations = [];
     private bool _completed;
 
     /// <summary>事务是否已经提交或回滚。</summary>
@@ -33,21 +36,6 @@ public sealed class SqlTransactionContext
     public static AmbientScope EnterScope(SqlTransactionContext? transaction)
         => new(transaction);
 
-    internal void AddTableMutation(string tableName, TableRowMutation mutation)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-        ArgumentNullException.ThrowIfNull(mutation);
-        ThrowIfCompleted();
-
-        if (!_tableMutations.TryGetValue(tableName, out var list))
-        {
-            list = [];
-            _tableMutations.Add(tableName, list);
-        }
-
-        list.Add(mutation);
-    }
-
     /// <summary>
     /// 按主键归并同一事务内连续的 INSERT、UPDATE、DELETE，保存最终净变化和首次并发版本。
     /// </summary>
@@ -57,19 +45,16 @@ public sealed class SqlTransactionContext
         ArgumentNullException.ThrowIfNull(mutation);
         ThrowIfCompleted();
 
-        if (!_tableMutations.TryGetValue(schema.Name, out var list))
+        if (!_tableMutations.TryGetValue(schema.Name, out var buffer))
         {
-            list = [];
-            _tableMutations.Add(schema.Name, list);
+            buffer = new MutationBuffer();
+            _tableMutations.Add(schema.Name, buffer);
         }
 
         byte[] mutationKey = GetMutationPrimaryKey(schema, mutation);
-        for (int i = 0; i < list.Count; i++)
+        if (buffer.ByKey.TryGetValue(mutationKey, out var node))
         {
-            if (!GetMutationPrimaryKey(schema, list[i]).AsSpan().SequenceEqual(mutationKey))
-                continue;
-
-            var previous = list[i];
+            var previous = node.Value.Mutation;
             bool previousIsInsert = previous.PrimaryKeyValues is null;
             bool previousIsDelete = previous.PrimaryKeyValues is not null && previous.NewValues is null;
             bool mutationIsInsert = mutation.PrimaryKeyValues is null;
@@ -77,36 +62,72 @@ public sealed class SqlTransactionContext
             if (previousIsInsert && mutationIsDelete)
             {
                 // 本事务先插入再删除同一主键时没有净变更。
-                list.RemoveAt(i);
+                var next = node.Next;
+                buffer.Rows.Remove(node);
+                buffer.ByKey.Remove(mutationKey);
+                // 重复 INSERT 仍交由提交阶段拒绝；删除首条时保留其后同键操作。
+                for (var candidate = buffer.DuplicateKeys.Contains(mutationKey) ? next : null;
+                     candidate is not null; candidate = candidate.Next)
+                {
+                    if (KvKeyComparer.Instance.Equals(candidate.Value.Key, mutationKey))
+                    {
+                        buffer.ByKey[mutationKey] = candidate;
+                        break;
+                    }
+                }
+                _undo.Add(() =>
+                {
+                    if (next is null) buffer.Rows.AddLast(node);
+                    else buffer.Rows.AddBefore(next, node);
+                    buffer.ByKey[mutationKey] = node;
+                });
                 return;
             }
 
             if (previousIsDelete && mutationIsInsert)
             {
                 // 删除后重新插入视为替换：校验原行版本，但采用新 INSERT 初始化后的完整行值。
-                list[i] = new TableRowMutation(
+                Replace(new TableRowMutation(
                     previous.PrimaryKeyValues,
                     mutation.NewValues,
-                    previous.ExpectedRowVersion);
+                    previous.ExpectedRowVersion) { ExpectedRowState = previous.ExpectedRowState });
                 return;
             }
 
             if (mutationIsInsert)
             {
                 // INSERT 接在 INSERT/UPDATE 后仍是重复主键操作，保留两条 mutation 交由 COMMIT 报错。
-                list.Add(mutation);
+                Append();
                 return;
             }
 
             // INSERT→UPDATE、UPDATE→UPDATE、UPDATE→DELETE 都保留首次操作的并发基线。
-            list[i] = new TableRowMutation(
+            Replace(new TableRowMutation(
                 previous.PrimaryKeyValues,
                 mutation.NewValues,
-                previous.ExpectedRowVersion);
+                previous.ExpectedRowVersion) { ExpectedRowState = previous.ExpectedRowState });
             return;
+
+            void Replace(TableRowMutation replacement)
+            {
+                node.Value = (node.Value.Key, replacement);
+                _undo.Add(() => node.Value = (node.Value.Key, previous));
+            }
         }
 
-        list.Add(mutation);
+        Append();
+
+        void Append()
+        {
+            var appended = buffer.Rows.AddLast((mutationKey, mutation));
+            bool indexed = buffer.ByKey.TryAdd(mutationKey, appended);
+            if (!indexed) buffer.DuplicateKeys.Add(mutationKey);
+            _undo.Add(() =>
+            {
+                buffer.Rows.Remove(appended);
+                if (indexed) buffer.ByKey.Remove(mutationKey);
+            });
+        }
     }
 
     /// <summary>
@@ -127,9 +148,9 @@ public sealed class SqlTransactionContext
     /// </summary>
     internal bool TryGetBufferedMutations(string tableName, out IReadOnlyList<TableRowMutation> mutations)
     {
-        if (!_completed && _tableMutations.TryGetValue(tableName, out var list) && list.Count > 0)
+        if (!_completed && _tableMutations.TryGetValue(tableName, out var buffer) && buffer.Rows.Count > 0)
         {
-            mutations = list;
+            mutations = buffer.Snapshot();
             return true;
         }
 
@@ -140,7 +161,7 @@ public sealed class SqlTransactionContext
     internal IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> SnapshotTableMutations()
         => _tableMutations.ToDictionary(
             static p => p.Key,
-            static p => (IReadOnlyList<TableRowMutation>)p.Value.ToArray(),
+            static p => p.Value.Snapshot(),
             StringComparer.Ordinal);
 
     internal void RecordAutoIncrementReservation(string tableName, long generation)
@@ -162,58 +183,68 @@ public sealed class SqlTransactionContext
     internal IReadOnlyDictionary<string, long> SnapshotAutoIncrementReservationGenerations()
         => _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal);
 
-    internal void AddTriggerAuditSequences(IReadOnlyList<long> auditSequences)
+    internal void AddRoutineInvocation(long sequence, string kind)
     {
-        ArgumentNullException.ThrowIfNull(auditSequences);
         ThrowIfCompleted();
-        _triggerAuditSequences.AddRange(auditSequences);
+        _routineInvocations.Add((sequence, kind));
     }
 
-    internal IReadOnlyList<long> SnapshotTriggerAuditSequences()
-        => _triggerAuditSequences.ToArray();
-
-    internal void ClearTriggerAuditSequences()
-        => _triggerAuditSequences.Clear();
-
-    internal IReadOnlyList<long> SnapshotTriggerAuditSequencesSince(Savepoint savepoint)
+    internal void ResolveRoutineInvocations(RoutineDiagnostics diagnostics, bool committed,
+        string? errorCode = null, Savepoint? savepoint = null)
     {
-        ArgumentNullException.ThrowIfNull(savepoint);
-        return _triggerAuditSequences.Skip(savepoint.TriggerAuditSequenceCount).ToArray();
+        int start = savepoint?.RoutineInvocationCount ?? 0;
+        if (start >= _routineInvocations.Count) return;
+        diagnostics.CompleteTransaction(_routineInvocations.GetRange(start, _routineInvocations.Count - start),
+            committed, errorCode);
+        _routineInvocations.RemoveRange(start, _routineInvocations.Count - start);
     }
 
     internal Savepoint CreateSavepoint()
-        => new(_tableMutations.ToDictionary(
-            static pair => pair.Key,
-            static pair => pair.Value.ToList(),
-            StringComparer.Ordinal),
+        => new(_undo.Count,
             _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal),
-            _triggerAuditSequences.Count);
+            _routineInvocations.Count);
 
     internal void RollbackTo(Savepoint savepoint)
     {
         ArgumentNullException.ThrowIfNull(savepoint);
         ThrowIfCompleted();
-        _tableMutations.Clear();
-        foreach (var pair in savepoint.TableMutations)
-            _tableMutations.Add(pair.Key, pair.Value.ToList());
+        for (int index = _undo.Count - 1; index >= savepoint.UndoCount; index--)
+            _undo[index]();
+        _undo.RemoveRange(savepoint.UndoCount, _undo.Count - savepoint.UndoCount);
         _autoIncrementReservationGenerations.Clear();
         foreach (var pair in savepoint.AutoIncrementReservationGenerations)
             _autoIncrementReservationGenerations.Add(pair.Key, pair.Value);
-        if (_triggerAuditSequences.Count > savepoint.TriggerAuditSequenceCount)
+        if (_routineInvocations.Count > savepoint.RoutineInvocationCount)
         {
-            _triggerAuditSequences.RemoveRange(
-                savepoint.TriggerAuditSequenceCount,
-                _triggerAuditSequences.Count - savepoint.TriggerAuditSequenceCount);
+            throw new InvalidOperationException("回滚保存点前必须结算例程审计。");
         }
     }
 
     internal sealed record Savepoint(
-        IReadOnlyDictionary<string, List<TableRowMutation>> TableMutations,
+        int UndoCount,
         IReadOnlyDictionary<string, long> AutoIncrementReservationGenerations,
-        int TriggerAuditSequenceCount);
+        int RoutineInvocationCount);
 
     internal void MarkCompleted()
-        => _completed = true;
+    {
+        ThrowIfCompleted();
+        _completed = true;
+        _undo.Clear();
+        _tableMutations.Clear();
+        _autoIncrementReservationGenerations.Clear();
+        _routineInvocations.Clear();
+    }
+
+    private sealed class MutationBuffer
+    {
+        internal LinkedList<(byte[] Key, TableRowMutation Mutation)> Rows { get; } = new();
+        internal Dictionary<byte[], LinkedListNode<(byte[] Key, TableRowMutation Mutation)>> ByKey { get; } =
+            new(KvKeyComparer.Instance);
+        internal HashSet<byte[]> DuplicateKeys { get; } = new(KvKeyComparer.Instance);
+
+        internal IReadOnlyList<TableRowMutation> Snapshot()
+            => Rows.Select(static row => row.Mutation).ToArray();
+    }
 
     internal void ThrowIfCompleted()
     {

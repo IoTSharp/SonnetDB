@@ -1,0 +1,249 @@
+{
+  "schema": "m39-fixed-workstation-evidence-v1",
+  "status": "LOCAL_RELATIONAL_ACCEPTANCE",
+  "fullMilestoneComplete": false,
+  "machine": "DEVPER",
+  "hardwareAcceptedByUser": true,
+  "cpu": {
+    "Name": "Intel(R) Core(TM) Ultra 9 185H",
+    "NumberOfCores": 16,
+    "NumberOfLogicalProcessors": 22
+  },
+  "os": {
+    "Caption": "Microsoft Windows 11 家庭版 中文版",
+    "Version": "10.0.26200",
+    "TotalVisibleMemorySize": 66540240
+  },
+  "disks": {
+    "Model": "NVMe PC SN8000S WD 2048GB",
+    "Size": 2048407280640,
+    "InterfaceType": "SCSI"
+  },
+  "dataVolume": "C:",
+  "databaseDirectory": "%TEMP%/sndb-m39-trigger-bench-*",
+  "sourceAndReportVolume": "D:",
+  "volumeMapping": [
+    "C: and D: are partitions on physical disk 0"
+  ],
+  "sdk": "10.0.400",
+  "runtime": "10.0.11",
+  "powerShell": "7.6.5",
+  "baselineCommit": "56cbcaed729914f1b1dcfa910439b208e0a96704",
+  "sourceIsUncommitted": true,
+  "baselineCoreSha256": "B8F6786425402A68B7E28FD2015EB7E177C370398863A6F392BA977657AB1E2A",
+  "baselineProvenance": "Built before source edits; baseline benchmark and baseline test Core DLL hashes matched. Report was generated after source editing began and therefore records dirty Git state.",
+  "finalBenchmarkCoreSha256": "78A76CA159254E15337B1239049FE42D15B093399E4E76D622415772EEFE036D",
+  "finalBenchmarkSha256": "E187260E699F36225F80B84AF24682513D83B2F5BF4AA0E555A4F38BAA2A0795",
+  "finalTestCoreSha256": "78A76CA159254E15337B1239049FE42D15B093399E4E76D622415772EEFE036D",
+  "testRuns": [
+    {
+      "path": "artifacts/m39-production/m39-full-core.trx",
+      "sha256": "B3CDDBFAC5FD88AD0B9C0186391B722D76590A64B2AE825AB826C878B9799133",
+      "passed": 4217,
+      "failed": 0,
+      "total": 4217,
+      "started": "2026-09-06T02:19:58.7797488+08:00",
+      "finished": "2026-09-06T02:22:54.1549240+08:00"
+    },
+    {
+      "path": "artifacts/m39-production/m39-final-returning.trx",
+      "sha256": "F5EEDDB76DBC83A54D209AD9B2C20D56576E1174EBED5C23D5DFF32BF9854BD1",
+      "passed": 45,
+      "failed": 0,
+      "total": 45,
+      "started": "2026-09-06T02:25:43.0399358+08:00",
+      "finished": "2026-09-06T02:25:48.4792460+08:00"
+    },
+    {
+      "path": "artifacts/m39-production/m39-final-server.trx",
+      "sha256": "63DF110F810EB65A40ECBC869F871FD30D5FF23728A35809B7D11EB312F21969",
+      "passed": 15,
+      "failed": 0,
+      "total": 15,
+      "started": "2026-09-06T02:13:05.4704258+08:00",
+      "finished": "2026-09-06T02:13:12.5629416+08:00"
+    },
+    {
+      "path": "artifacts/m39-production/m39-final-crash.trx",
+      "sha256": "9124BFCD572E6BE42CC06BE4305D67667846361EC1454860B4A56FECE008C4B6",
+      "passed": 3,
+      "failed": 0,
+      "total": 3,
+      "started": "2026-09-06T02:14:50.8081847+08:00",
+      "finished": "2026-09-06T02:14:53.4274639+08:00"
+    },
+    {
+      "path": "artifacts/m39-production/m39-evidence-contract.trx",
+      "sha256": "79DD7FB1533A2A12C5FE4C2833CB51252653F145384623766DF86320AB9A1FA1",
+      "passed": 1,
+      "failed": 0,
+      "total": 1,
+      "started": "2026-09-06T02:15:58.7137610+08:00",
+      "finished": "2026-09-06T02:16:02.3671994+08:00"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/SonnetDB.Core/Engine/Tsdb.cs",
+      "sha256": "17EEFCED68941003D6999E3FE9B2947878E603D13912C025C6BE5B98684A463E"
+    },
+    {
+      "path": "src/SonnetDB.Core/Exceptions/RoutineExecutionException.cs",
+      "sha256": "0FB1E7A3E856156D0570475B8A58AF59232B8DFBA4D7C5054B97E2DB86D489D6"
+    },
+    {
+      "path": "src/SonnetDB.Core/Exceptions/TableTransactionRecoveryException.cs",
+      "sha256": "C385D02D94A890BD0D10A8BAA2001AEB30F4435F5D0A730C8C1D86C6633D6601"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineCatalogCodec.cs",
+      "sha256": "5BFA0EC724EA8728570F9582F03C002CFC33C977E664458BDB41F832EB5D1345"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineDiagnostics.cs",
+      "sha256": "81F04B284C16CA519ADC0177E4E5804DFE90975155D427EE28536AE8CBDAF814"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineExecutionContext.cs",
+      "sha256": "1CCEE285774FD2C728BFC30CC65CF1E28B0963A0561EB5398F22CEE9CB92A391"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineManager.cs",
+      "sha256": "051580B4497175953444D3A3CF03E046E090876F48585FF61E3335308865A858"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+      "sha256": "78CE9A3721C78E852CDCA7A2E9A3F5BB8C564C9FCB5072C979C825FB82E643A8"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/TriggerDefinition.cs",
+      "sha256": "DBE495DB82E45B07FE774C6F906F721B5921A59FF0FDD926DB34EF06C45A42F1"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+      "sha256": "CC4036AE02B399A544FBDAC9E89DFE83F4A26661A28B5D1D9AC158825F890E8A"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "0A4CBA21731D6428CDC4E9ECB82BF889FB8802CEAC31635FABD2DB4C11891C1B"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "4C733F56A56FED445BD7AB26AD660E0E907E60A35F6F8590F802D51835963542"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlTransactionContext.cs",
+      "sha256": "E5E85B4A5E4DCBE9AE6E404DF02F069FEE9ED7847CF9EFE1DB70C033E8958A2C"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "DF75AA3C7788E4CD96B8A5EAF248A09A5A31AF06CC09999A867E41EDAEDFA356"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "sha256": "84C7782B9E4558B1D4872205ED3C105CFA75F6ADCDFF3455E2CDD0339D07AFCD"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "sha256": "7B249285864BB5346040A40189B0F0591A8DAA65FC83EEDB6DF670B34903C241"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableRowMutation.cs",
+      "sha256": "035907130A21B4E33615546238CA069BBC90D5EE18DCEFEE1037E004EC006DE2"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableStore.cs",
+      "sha256": "389B711D4BAEC7EEF403A8A2CBD39F80EAFA5C3002F9F97D4C489C0822C67452"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableTransactionJournal.cs",
+      "sha256": "0CEFCCD8BB1623F3EEDA5D5F520D9F0E1B6D0FA441EA21BF785B57ECD3A4DBC7"
+    },
+    {
+      "path": "src/SonnetDB/Configuration/ServerOptions.cs",
+      "sha256": "703E6907697689D19DE5403711A7E9FFCABF38B05248F64A48A06A0916B4E0D4"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "B89D10716CFD49949C40B26AD156B792D6B17A2D4658533712AF00D74F926049"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "16F7B7D3C2C970233B40920510D804A798111CA5978DC45548A49B18A1A6EE8A"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/ServerOptionsBinder.cs",
+      "sha256": "1A93A2F1710B5FE3738FC10182C02A0DF5B1938670E8DDE1CB5D01D9493DEF43"
+    },
+    {
+      "path": "tests/SonnetDB.Benchmarks.Tests/TriggerEvidenceReportTests.cs",
+      "sha256": "F6FC76DB0B833B36318B3AE280E38BB6CD063A04883B27A8238116DACDEB4D75"
+    },
+    {
+      "path": "tests/SonnetDB.Benchmarks/Benchmarks/TriggerBaselineBenchmark.cs",
+      "sha256": "191698EA064B551DFEF5509FE4C0801C7A0DE46B8DE8CB30D96BBDE181A31A16"
+    },
+    {
+      "path": "tests/SonnetDB.Benchmarks/Benchmarks/TriggerEvidenceReport.cs",
+      "sha256": "06BF558378689D9C70866CAC9D584EB55AB0F5421CD1F88BB7636285D4EE5D4F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlRoutineProductionTests.cs",
+      "sha256": "0ED9FB3FA5AB0FB56785991AC8F6E4D5F51B6DDF9368301DE13A59BC11A91921"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/Program.cs",
+      "sha256": "D8603F001C3F34AE8952A67862759EB2E1FBE9C999CF5B71BB3C8A6DBF4A628D"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/CrashReliabilityTests.cs",
+      "sha256": "385ADE0D20CB2793BF370F08223A7085599BE243C29C30BB2CC9FFB100ED9B3B"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SqlFrameEndpointTests.cs",
+      "sha256": "D5C7B20C40B36E4232C5F41BE1753C9BC612388C516091ACE9C7FAAB0ABBA92B"
+    }
+  ],
+  "rawReports": [
+    {
+      "path": "before.json",
+      "sha256": "E297AF271EB88F67D0E4CEBDE7D4387A909515C9F07D4E93B0BF40DD6B4809F8"
+    },
+    {
+      "path": "before.md",
+      "sha256": "AD6FA1596E881EA87383312284B1050C6801B82CB349BAA5F6C238F1D02561B6"
+    },
+    {
+      "path": "final-1.json",
+      "sha256": "1665C0CA0E8D0B3ECE4C4FE4C7934258AE15CEAA1335178B3FC71804F3B13CA2"
+    },
+    {
+      "path": "final-1.md",
+      "sha256": "EF56D1FE5B0E7867937B36D856B78929A882BB540C5E731EF37B01C5EBB023D7"
+    },
+    {
+      "path": "final-2.json",
+      "sha256": "ED5B59B0384DECAED547712A786FB5143B5D4CDD7F7F11CA1CD838BEEC551B59"
+    },
+    {
+      "path": "final-2.md",
+      "sha256": "605122F5BA9C6310D4B631832D5FE6D455D34BE5D2DFC95BC986445FE8D34DC7"
+    },
+    {
+      "path": "final-3.json",
+      "sha256": "E18D855AAA6EFACAD2A870FFB47DD337B65818D730DA8603E59DF902A9B74DD3"
+    },
+    {
+      "path": "final-3.md",
+      "sha256": "79AEBA23274F71D689E18C09FA640743B9FA3C04A53361E2158F1A63A938C5A5"
+    }
+  ],
+  "qualification": [
+    "Before is one process; final is three sequential fresh processes with identical matrix ordering and no concurrent builds.",
+    "The full Core regression predates only the final trigger INSERT RETURNING budget fix and whitespace cleanup; final-returning revalidates all 45 routine and trigger cases after that fix.",
+    "Server, crash, and report-contract tests predate only the final trigger RETURNING fix; raw TRX files are retained locally and hashed here.",
+    "AOT and trim analyzers enabled with warnings as errors; no NativeAOT publication in this run.",
+    "Process termination is tested; physical power loss, controller failures, distributed exactly-once and production SLO are not proven.",
+    "All results reference an uncommitted working tree. This archive is not proof of a release or remote CI run."
+  ]
+}

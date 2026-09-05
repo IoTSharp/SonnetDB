@@ -310,11 +310,11 @@ DROP PROCEDURE IF EXISTS add_device;
 - 定义时解析全部语句并校验命名参数、数据对象和已存在的被调用过程。过程不能重载，不支持默认参数、OUT/INOUT、动态 SQL、DDL 或外部语言运行时。
 - 多语句过程只向调用方返回 body 最后一条语句的结果；中间 SELECT 参与结果行数治理，但不形成多个远程结果集。
 - 直接或传递包含写入的过程自动使用轻事务；失败时整次调用回滚。位于调用方已有事务中时使用保存点，只撤销该次失败调用新增的 mutation。
-- 默认单次调用链最多执行 64 条 body 语句、嵌套 8 层、累计产生 10,000 行 SELECT 结果；拒绝直接或间接递归，并在语句边界检查取消。
+- 默认单次调用链最多执行 64 条 body 语句、嵌套 8 层、累计产生 10,000 行结果（包含 INSERT RETURNING）；嵌套 CALL 的最终结果只计一次。SELECT 按剩余行预算加一行探测下推分页，超限失败，不静默截断；阻塞算子的中间数据仍受独立 SQL 内存预算约束。拒绝直接或间接递归，在语句边界、关系行扫描和提交前检查取消。
 - 写权限按完整调用图传递计算。只读凭据可调用只读过程，不能通过外层只读过程调用内层写过程提升权限；Frame SQL query 通道固定为只读，因此也只能调用只读过程。
 - `CREATE/DROP PROCEDURE` 不能在活动轻事务中执行。基础对象 `DROP/ALTER` 和被调用过程 `DROP` 会在仍有依赖时返回 `routine_dependency`。
 
-过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。
+过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。当前 v2 持久化启用状态与执行顺序，兼容读取 v1；写入 v2 后旧引擎会拒绝打开例程目录。
 
 ### SQL 触发器
 
@@ -354,20 +354,31 @@ END;
 SHOW TRIGGERS;
 SHOW TRIGGERS ON devices;
 DESCRIBE TRIGGER audit_device_insert;
-DROP TRIGGER audit_device_insert;
-DROP TRIGGER IF EXISTS audit_device_insert;
+ALTER TRIGGER audit_device_insert DISABLE;
+ALTER TRIGGER audit_device_insert ENABLE;
+ALTER TRIGGER audit_device_insert RENAME TO audit_insert;
+EXPLAIN TRIGGER audit_insert;
+EXPLAIN PROCEDURE add_device;
+SHOW ROUTINE AUDIT FOR TRIGGER audit_insert;
+SHOW ROUTINE STATS FOR PROCEDURE add_device;
+DROP TRIGGER audit_insert;
+DROP TRIGGER IF EXISTS audit_insert;
 ```
 
-`SHOW TRIGGERS` 返回 `name`、`table_name`、`event`、`when`、`created_utc`；`ON table` 只保留指定关系表。`DESCRIBE TRIGGER` 返回 `name`、`table_name`、`event`、`when`、`language`、`body`、`dependencies`、`created_utc`。
+`SHOW TRIGGERS` 返回 `name`、`table_name`、`event`、`when`、`created_utc`；`ON table` 只保留指定关系表。`DESCRIBE TRIGGER` 返回 `name`、`table_name`、`event`、`when`、`language`、`body`、`dependencies`、`created_utc`。两者在末尾追加 `enabled`、`execution_order`。
 
 当前语义与限制：
 
 - INSERT 事件只能引用 `NEW`，DELETE 事件只能引用 `OLD`，UPDATE 可同时引用两者。`WHEN` 中的列必须显式写为 `OLD.column` / `NEW.column`，不允许参数或子查询。
 - body 只允许以关系表为目标的 `INSERT`、`UPDATE`、`DELETE`，不允许 SELECT、CALL、DDL、measurement/document 写入或外部副作用。
-- 执行顺序固定为原 DML 行顺序，其次是触发器创建时间，最后是触发器名称。触发器链共享同一个语句数和嵌套深度预算；同一调用链中的触发器递归会被拒绝。
+- 执行顺序先按原 DML 行顺序，再按同表同事件的持久化执行顺序；新触发器默认追加。`FOR EACH ROW FOLLOWS name` / `PRECEDES name` 位于可选 WHEN 之前；也可用 `ALTER TRIGGER name FOLLOWS other` / `PRECEDES other` 原子移动到参照之前或之后。参照必须是另一个同表同事件的已有触发器，禁用定义仍保留位置；重命名和启停保留创建时间与顺序。这是位置调整，不是随参照后续变化而自动移动的依赖边。触发器链共享语句数和深度预算，拒绝递归。
 - 原 DML 与全部触发动作使用同一轻事务提交边界。任一 `WHEN` 求值、body 执行或最终约束提交失败都会撤销原行和触发动作；调用方已有事务中则回滚到本条 DML 的保存点。
-- 目标表或 body 依赖的关系表仍被触发器引用时，`DROP/ALTER` 会被阻断。`CREATE/DROP TRIGGER` 不能在活动轻事务中执行。
-- V1 不支持 BEFORE、FOR EACH STATEMENT、transition tables、启用/禁用、显式顺序子句、deferred/constraint trigger、多事件合并、Document 或 measurement 触发器。这些能力按 M39 的成本和恢复证据逐项准入。
+- 目标表或 body 依赖的关系表仍被触发器引用时，`DROP/ALTER` 会被阻断，包括已禁用的触发器。`CREATE/DROP/ALTER TRIGGER` 需要写权限，不能在活动轻事务中执行。每条 DML 固定使用进入时的定义快照，后续生命周期修改不会改变该条语句中途的触发集合。
+- 不支持 BEFORE、FOR EACH STATEMENT、transition tables、deferred/constraint trigger、多事件合并、Document 或 measurement 触发器。这些能力仍按 M39 的成本与模型证据准入，不能由关系表测试推断支持。
+
+诊断中的 `outcome` 区分 `pending`、`committed`、`rolled_back`、`failed`、`unknown` 和无需事务提交的 `completed`。待提交记录的 `succeeded=false` 不计作失败；外层事务失败、显式回滚和请求放弃会结算全部下游动作。审计最多保留 256 条，STATS 的样本数和 P50/P95/P99 只统计这个保留窗口，并非自创建以来的完整历史。`RoutineManager.Diagnostics.ExportAudit(Stream, ...)` 可把脱敏快照保存为 JSON，既不是持久审计后台服务，也不是 exactly-once 增量订阅；导出 `pending` 后应在提交结束后重新导出其最终状态。EXPLAIN 只校验定义与对象依赖，不执行 body，也不提供 EXPLAIN ANALYZE 例程写入。
+
+嵌入式沿用 `SqlExecutionOptions`。服务器配置 `SonnetDBServer:SqlExecution:MaxRoutineStatements`（1..100000）、`MaxRoutineDepth`（1..32）、`MaxRoutineResultRows`（1..100000）对 REST/Frame 一致生效，默认仍为 64/8/10000。每行一个触发动作的 10000 行批量请求需要显式提高语句预算，例如 10064；预算包含嵌套触发器链，必须按实际工作负载留量。提交临界区开始后的取消不会强行中断持久化决定。
 
 嵌入式调用可通过 `RoutineManager.Diagnostics` 读取最近 256 条不含参数值/行内容的调用审计和累计指标。Server `/metrics` 按数据库公开 `sonnetdb_procedure_*` 与 `sonnetdb_trigger_*` 调用、失败和累计耗时指标。稳定错误码包括 `procedure_not_found`、`trigger_not_found`、`routine_invalid_arguments`、`routine_recursive_call`、`trigger_recursion`、`routine_depth_limit`、`routine_statement_limit`、`routine_result_row_limit`、`routine_cancelled`、`routine_forbidden`、`routine_dependency`、`trigger_context` 和 `routine_execution_failed`。
 
@@ -375,9 +386,12 @@ M39 #333 的证据入口位于 `tests/SonnetDB.Benchmarks`：`--m39-trigger-evid
 派生汇总和状态流转保护 journey，并以 1/100/10,000 行 INSERT、UPDATE、DELETE 记录无触发器、V1 行触发器和客户端候选
 statement 参考的吞吐、关系表 WAL/rowstore 有符号差值、托管内存、分配与失败回滚成本。成功样本会核对源表和审计表
 的精确内容，失败样本会逐行确认源值与审计 sentinel 均已恢复；候选路径仍只是显式事务参考实现，不增加 SQL 语法。
-关系表使用独立 keyspace/WAL，进程终止可能在源表和触发
-目标表之间留下 partial commit；此边界由 CrashTests 的真进程强杀与重启 replay 场景固定，不能
-解释为跨 keyspace 掉电原子性或 exactly-once。
+各关系表仍使用独立 WAL，多表提交现在由 `tables/transaction.sdbtxn` 协调：先同步带 CRC 的原值日志，
+再应用并同步各表 WAL，最后同步完成标记。启动先撤销没有完整完成标记的事务，恢复可重复执行。
+日志上限 128 MiB、1024 张表、每表 100 万个行/索引键；超限在应用事务数据前拒绝，生成键预留仍允许留下间隙。
+提交或补偿 I/O 结果不明时返回 `routine_commit_unknown`，停止当前表管理器及已有表句柄的读写，
+必须重启恢复并按业务幂等键核对结果；不要直接重试有外部副作用的操作。完成后的日志不得手工删改。
+真进程强杀测试证明的是进程崩溃恢复，不替代物理断电、存储控制器故障或分布式 exactly-once 验证。
 
 ### `CREATE INDEX` / `DROP INDEX`
 
@@ -465,7 +479,7 @@ COMMIT;
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
 - 不支持嵌套事务、measurement / document 写入事务、DDL 事务、`IMPORT JSON` 或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE`、文档集合写入、DDL 或文件导入会抛 `NotSupportedException`（这些操作不进入关系表事务缓冲，`ROLLBACK` 无法撤销，故显式拒绝而非静默执行造成"假回滚"）。
 - `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键、CHECK 和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
-- 同一轻事务内的后续 `UPDATE` 会读取并合并该事务已缓冲的同一行变更，因此连续两次 `SET value = value + 1` 会累计两次。跨事务并发仍是 ReadCommitted；需要检测排队后到提交前的覆盖冲突时，应为表声明 `ROWVERSION` 并在 `WHERE` 中携带旧版本。
+- 同一轻事务内的后续 `UPDATE` 会读取并合并已缓冲变更，连续两次 `SET value = value + 1` 会累计两次。跨事务仍是 ReadCommitted；事务队列的 UPDATE/DELETE 保留最初读取的行状态，即使没有 ROWVERSION，也会在提交前拒绝已变化或消失的行并返回 `table_concurrency_conflict`。调用方应重试整个业务事务；跨请求的编辑冲突仍建议用 ROWVERSION 和显式版本谓词检测。
 - 同一轻事务内的 `INSERT` / `UPDATE` / `DELETE` 会按主键归并最终净变化，例如 `INSERT→DELETE` 不产生提交写入，`UPDATE→DELETE` 只提交删除，`DELETE→INSERT` 提交替换；每条多行 INSERT/DELETE 只有在全部行求值和校验成功后才写入事务缓冲。
 - 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_check_violation`、`table_concurrency_conflict`。
 - 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。

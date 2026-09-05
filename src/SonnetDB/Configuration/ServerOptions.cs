@@ -218,6 +218,15 @@ public sealed class SqlHttpAdmissionOptions
 /// </summary>
 public sealed class SqlExecutionResourceOptions
 {
+    /// <summary>单次过程与触发器调用链的 body 语句预算，默认 64；批量触发器须显式按容量验证配置。</summary>
+    public int MaxRoutineStatements { get; set; } = 64;
+
+    /// <summary>过程与触发器嵌套深度预算，默认 8。</summary>
+    public int MaxRoutineDepth { get; set; } = 8;
+
+    /// <summary>过程累计结果行数预算，包含 INSERT RETURNING，默认 10000。</summary>
+    public int MaxRoutineResultRows { get; set; } = 10_000;
+
     /// <summary>单条 SQL 的阻塞算子内存上限，默认 64 MiB。</summary>
     public long QueryLimitBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.QueryLimitBytes;
 

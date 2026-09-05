@@ -61,7 +61,7 @@ public static class TriggerEvidenceReportRunner
         crashTestsVerified = crashTestsVerified && ResolveCrashTestsVerified();
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
         ArgumentNullException.ThrowIfNull(rowCounts);
-        if (rowCounts.Count == 0 || rowCounts.Any(static rows => rows <= 0))
+        if (rowCounts.Count is < 1 or > 16 || rowCounts.Any(static rows => rows is <= 0 or > 100_000))
             throw new ArgumentOutOfRangeException(nameof(rowCounts));
         Directory.CreateDirectory(outputDirectory);
 
@@ -104,6 +104,7 @@ public static class TriggerEvidenceReportRunner
                     {
                         Operation = operation.ToString(),
                         RowsAffected = baseline.RowsAffected,
+                        JournalBytes = baseline.JournalBytes,
                     });
 
                     ForceCollection();
@@ -146,7 +147,7 @@ public static class TriggerEvidenceReportRunner
         DateTimeOffset finishedUtc = DateTimeOffset.UtcNow;
         bool fullMatrix = IsFullMatrix(rowCounts, costs, rollbacks);
         var report = new TriggerEvidenceReport(
-            "m39-trigger-v2-baseline-v3",
+            "m39-trigger-v2-baseline-v4",
             "#333",
             ResolveCommitSha(),
             startedUtc,
@@ -188,7 +189,11 @@ public static class TriggerEvidenceReportRunner
                     crashTestsVerified ? "validated_by_core_test" : "test_reference_not_run"),
                 new(
                     "process_termination_between_table_wals",
-                    "SonnetDB.CrashTests.crash_kill9_betweenTriggerTableCommits_ReopenReportsMeasuredPartialPair",
+                    "CrashReliabilityTests.crash_kill9_betweenTriggerTableCommits_ReopenRollsBackBothTables",
+                    crashTestsVerified ? "validated_by_process_kill_test" : "test_reference_not_run"),
+                new(
+                    "process_termination_before_and_after_completion",
+                    "CrashReliabilityTests.crash_kill9_triggerCompletionBoundary_ReopenSeesConsistentPair",
                     crashTestsVerified ? "validated_by_process_kill_test" : "test_reference_not_run"),
                 new(
                     "restart_wal_replay",
@@ -208,6 +213,7 @@ public static class TriggerEvidenceReportRunner
             ],
             [
                 "CandidateStatementReference 是显式事务与汇总写入的客户端参考，不构成产品 statement trigger 的实现或语义证明。",
+                "多表提交的恢复日志与每表 WAL 都同步到磁盘，journalBytes 单独计量；单表路径仍沿用所配置的 KV WAL 策略。",
                 "成本与回滚数据只代表报告所记录的本次运行环境，不构成固定硬件容量、生产吞吐或 SLO 声明。",
                 "Document/measurement、BEFORE、transition table、deferred 和 exactly-once 语义仍未准入。",
             ])
@@ -355,14 +361,14 @@ public static class TriggerEvidenceReportRunner
         text.AppendLine();
         text.AppendLine("## Cost matrix");
         text.AppendLine();
-        text.AppendLine("| Rows | Operation | Path | Rows affected | Rows/sec | Elapsed ms | WAL bytes | Rowstore bytes delta | Working set | Managed | Allocated |");
-        text.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| Rows | Operation | Path | Rows affected | Rows/sec | Elapsed ms | WAL bytes | Journal bytes | Rowstore bytes delta | Working set | Managed | Allocated |");
+        text.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (TriggerCostEvidence row in report.CostMatrix)
         {
             text.AppendLine(CultureInfo.InvariantCulture,
                 $"| {row.Rows:N0} | {row.Operation} | {row.Path} | {row.RowsAffected:N0} | "
                 + $"{row.RowsPerSecond:F2} | {row.ElapsedMilliseconds:F2} | "
-                + $"{row.WalBytes:N0} | {row.RowStoreBytesDelta:N0} | {row.WorkingSetBytes:N0} | "
+                + $"{row.WalBytes:N0} | {row.JournalBytes:N0} | {row.RowStoreBytesDelta:N0} | {row.WorkingSetBytes:N0} | "
                 + $"{row.ManagedBytes:N0} | {row.AllocatedBytes:N0} |");
         }
 
@@ -449,6 +455,8 @@ public sealed record TriggerCostEvidence(
     long ManagedBytes,
     long AllocatedBytes)
 {
+    /// <summary>跨表恢复日志的字节数，独立于每表 WAL 逻辑字节数。</summary>
+    public long JournalBytes { get; init; }
     /// <summary>本样本执行的 DML 类型；旧构造调用默认仍表示 INSERT。</summary>
     public string Operation { get; init; } = nameof(TriggerDmlOperation.Insert);
 

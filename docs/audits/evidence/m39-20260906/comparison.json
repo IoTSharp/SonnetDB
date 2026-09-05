@@ -1,0 +1,758 @@
+[
+  {
+    "rows": 1,
+    "operation": "Insert",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 28.3183,
+    "finalMilliseconds": [
+      50.4848,
+      43.7954,
+      33.6961
+    ],
+    "finalMedianMilliseconds": 43.7954,
+    "finalMinMilliseconds": 33.6961,
+    "finalMaxMilliseconds": 50.4848,
+    "latencyReductionPercent": -54.65405762351554,
+    "baselineAllocatedBytes": 78544,
+    "finalMedianAllocatedBytes": 78736,
+    "allocationReductionPercent": -0.24444897127724463,
+    "walBytes": [
+      95,
+      95,
+      95
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Insert",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 4.8962,
+    "finalMilliseconds": [
+      22.1159,
+      25.2987,
+      16.8153
+    ],
+    "finalMedianMilliseconds": 22.1159,
+    "finalMinMilliseconds": 16.8153,
+    "finalMaxMilliseconds": 25.2987,
+    "latencyReductionPercent": -351.6951921898615,
+    "baselineAllocatedBytes": 152480,
+    "finalMedianAllocatedBytes": 165600,
+    "allocationReductionPercent": -8.604407135362013,
+    "walBytes": [
+      190,
+      190,
+      190
+    ],
+    "journalBytes": [
+      193,
+      193,
+      193
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Insert",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 0.3312,
+    "finalMilliseconds": [
+      3.2037,
+      4.4046,
+      3.0933
+    ],
+    "finalMedianMilliseconds": 3.2037,
+    "finalMinMilliseconds": 3.0933,
+    "finalMaxMilliseconds": 4.4046,
+    "latencyReductionPercent": -867.3007246376812,
+    "baselineAllocatedBytes": 159760,
+    "finalMedianAllocatedBytes": 172456,
+    "allocationReductionPercent": -7.946920380570854,
+    "walBytes": [
+      190,
+      190,
+      190
+    ],
+    "journalBytes": [
+      193,
+      193,
+      193
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Update",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 11.1387,
+    "finalMilliseconds": [
+      9.0032,
+      9.9516,
+      8.5003
+    ],
+    "finalMedianMilliseconds": 9.0032,
+    "finalMinMilliseconds": 8.5003,
+    "finalMaxMilliseconds": 9.9516,
+    "latencyReductionPercent": 19.171896181780646,
+    "baselineAllocatedBytes": 82704,
+    "finalMedianAllocatedBytes": 83016,
+    "allocationReductionPercent": -0.3772489843296478,
+    "walBytes": [
+      95,
+      95,
+      95
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Update",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 0.4699,
+    "finalMilliseconds": [
+      4.664,
+      4.7093,
+      4.0651
+    ],
+    "finalMedianMilliseconds": 4.664,
+    "finalMinMilliseconds": 4.0651,
+    "finalMaxMilliseconds": 4.7093,
+    "latencyReductionPercent": -892.5516067248351,
+    "baselineAllocatedBytes": 157864,
+    "finalMedianAllocatedBytes": 170976,
+    "allocationReductionPercent": -8.30588354533015,
+    "walBytes": [
+      190,
+      190,
+      190
+    ],
+    "journalBytes": [
+      211,
+      211,
+      211
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Update",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 0.5496,
+    "finalMilliseconds": [
+      4.1011,
+      4.392,
+      4.4894
+    ],
+    "finalMedianMilliseconds": 4.392,
+    "finalMinMilliseconds": 4.1011,
+    "finalMaxMilliseconds": 4.4894,
+    "latencyReductionPercent": -699.1266375545853,
+    "baselineAllocatedBytes": 165296,
+    "finalMedianAllocatedBytes": 178320,
+    "allocationReductionPercent": -7.879198528700027,
+    "walBytes": [
+      190,
+      190,
+      190
+    ],
+    "journalBytes": [
+      211,
+      211,
+      211
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Delete",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 3.1522,
+    "finalMilliseconds": [
+      2.0881,
+      2.0209,
+      1.9607
+    ],
+    "finalMedianMilliseconds": 2.0209,
+    "finalMinMilliseconds": 1.9607,
+    "finalMaxMilliseconds": 2.0881,
+    "latencyReductionPercent": 35.88922022714295,
+    "baselineAllocatedBytes": 81696,
+    "finalMedianAllocatedBytes": 81880,
+    "allocationReductionPercent": -0.22522522522523403,
+    "walBytes": [
+      77,
+      77,
+      77
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Delete",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 0.7082,
+    "finalMilliseconds": [
+      4.7369,
+      3.6417,
+      3.6
+    ],
+    "finalMedianMilliseconds": 3.6417,
+    "finalMinMilliseconds": 3.6,
+    "finalMaxMilliseconds": 4.7369,
+    "latencyReductionPercent": -414.2191471335781,
+    "baselineAllocatedBytes": 157008,
+    "finalMedianAllocatedBytes": 170112,
+    "allocationReductionPercent": -8.346071537756039,
+    "walBytes": [
+      172,
+      172,
+      172
+    ],
+    "journalBytes": [
+      211,
+      211,
+      211
+    ]
+  },
+  {
+    "rows": 1,
+    "operation": "Delete",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 0.4003,
+    "finalMilliseconds": [
+      3.7673,
+      4.4926,
+      3.486
+    ],
+    "finalMedianMilliseconds": 3.7673,
+    "finalMinMilliseconds": 3.486,
+    "finalMaxMilliseconds": 4.4926,
+    "latencyReductionPercent": -841.119160629528,
+    "baselineAllocatedBytes": 162368,
+    "finalMedianAllocatedBytes": 175384,
+    "allocationReductionPercent": -8.016357903035075,
+    "walBytes": [
+      172,
+      172,
+      172
+    ],
+    "journalBytes": [
+      211,
+      211,
+      211
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Insert",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 1.8349,
+    "finalMilliseconds": [
+      2.1521,
+      1.7977,
+      2.3338
+    ],
+    "finalMedianMilliseconds": 2.1521,
+    "finalMinMilliseconds": 1.7977,
+    "finalMaxMilliseconds": 2.3338,
+    "latencyReductionPercent": -17.287045615564868,
+    "baselineAllocatedBytes": 357224,
+    "finalMedianAllocatedBytes": 359000,
+    "allocationReductionPercent": -0.4971670436476838,
+    "walBytes": [
+      4352,
+      4352,
+      4352
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Insert",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 7.6462,
+    "finalMilliseconds": [
+      7.6252,
+      6.0804,
+      7.5267
+    ],
+    "finalMedianMilliseconds": 7.5267,
+    "finalMinMilliseconds": 6.0804,
+    "finalMaxMilliseconds": 7.6252,
+    "latencyReductionPercent": 1.5628678297716525,
+    "baselineAllocatedBytes": 1834760,
+    "finalMedianAllocatedBytes": 1120648,
+    "allocationReductionPercent": 38.921275807190035,
+    "walBytes": [
+      8704,
+      8704,
+      8704
+    ],
+    "journalBytes": [
+      3559,
+      3559,
+      3559
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Insert",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 3.8696,
+    "finalMilliseconds": [
+      3.8113,
+      4.3801,
+      5.9897
+    ],
+    "finalMedianMilliseconds": 4.3801,
+    "finalMinMilliseconds": 3.8113,
+    "finalMaxMilliseconds": 5.9897,
+    "latencyReductionPercent": -13.192578044242275,
+    "baselineAllocatedBytes": 748040,
+    "finalMedianAllocatedBytes": 492888,
+    "allocationReductionPercent": 34.109405914122235,
+    "walBytes": [
+      4447,
+      4447,
+      4447
+    ],
+    "journalBytes": [
+      1876,
+      1876,
+      1876
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Update",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 1.8263,
+    "finalMilliseconds": [
+      1.7594,
+      2.16,
+      1.7457
+    ],
+    "finalMedianMilliseconds": 1.7594,
+    "finalMinMilliseconds": 1.7457,
+    "finalMaxMilliseconds": 2.16,
+    "latencyReductionPercent": 3.663144061764223,
+    "baselineAllocatedBytes": 371304,
+    "finalMedianAllocatedBytes": 382680,
+    "allocationReductionPercent": -3.0637967810742683,
+    "walBytes": [
+      4352,
+      4352,
+      4352
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Update",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 6.3606,
+    "finalMilliseconds": [
+      8.3121,
+      6.9056,
+      6.5941
+    ],
+    "finalMedianMilliseconds": 6.9056,
+    "finalMinMilliseconds": 6.5941,
+    "finalMaxMilliseconds": 8.3121,
+    "latencyReductionPercent": -8.568374052762318,
+    "baselineAllocatedBytes": 1714800,
+    "finalMedianAllocatedBytes": 1189712,
+    "allocationReductionPercent": 30.62094704921857,
+    "walBytes": [
+      8704,
+      8704,
+      8704
+    ],
+    "journalBytes": [
+      5359,
+      5359,
+      5359
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Update",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 3.0265,
+    "finalMilliseconds": [
+      4.5781,
+      6.3162,
+      7.3834
+    ],
+    "finalMedianMilliseconds": 6.3162,
+    "finalMinMilliseconds": 4.5781,
+    "finalMaxMilliseconds": 7.3834,
+    "latencyReductionPercent": -108.69651412522718,
+    "baselineAllocatedBytes": 630152,
+    "finalMedianAllocatedBytes": 566400,
+    "allocationReductionPercent": 10.116924170676278,
+    "walBytes": [
+      4447,
+      4447,
+      4447
+    ],
+    "journalBytes": [
+      3676,
+      3676,
+      3676
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Delete",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 1.5973,
+    "finalMilliseconds": [
+      2.4953,
+      1.4205,
+      1.2258
+    ],
+    "finalMedianMilliseconds": 1.4205,
+    "finalMinMilliseconds": 1.2258,
+    "finalMaxMilliseconds": 2.4953,
+    "latencyReductionPercent": 11.068678394791199,
+    "baselineAllocatedBytes": 323864,
+    "finalMedianAllocatedBytes": 324840,
+    "allocationReductionPercent": -0.3013610651384502,
+    "walBytes": [
+      2552,
+      2552,
+      2552
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Delete",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 6.9707,
+    "finalMilliseconds": [
+      9.111,
+      9.407,
+      7.5929
+    ],
+    "finalMedianMilliseconds": 9.111,
+    "finalMinMilliseconds": 7.5929,
+    "finalMaxMilliseconds": 9.407,
+    "latencyReductionPercent": -30.704233434231874,
+    "baselineAllocatedBytes": 1651376,
+    "finalMedianAllocatedBytes": 1125488,
+    "allocationReductionPercent": 31.845442830706027,
+    "walBytes": [
+      6904,
+      6904,
+      6904
+    ],
+    "journalBytes": [
+      5359,
+      5359,
+      5359
+    ]
+  },
+  {
+    "rows": 100,
+    "operation": "Delete",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 3.3826,
+    "finalMilliseconds": [
+      7.9119,
+      6.2876,
+      4.8007
+    ],
+    "finalMedianMilliseconds": 6.2876,
+    "finalMinMilliseconds": 4.8007,
+    "finalMaxMilliseconds": 7.9119,
+    "latencyReductionPercent": -85.88068349790103,
+    "baselineAllocatedBytes": 564656,
+    "finalMedianAllocatedBytes": 500104,
+    "allocationReductionPercent": 11.432093168229862,
+    "walBytes": [
+      2647,
+      2647,
+      2647
+    ],
+    "journalBytes": [
+      3676,
+      3676,
+      3676
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Insert",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 146.4747,
+    "finalMilliseconds": [
+      170.4912,
+      224.262,
+      182.1101
+    ],
+    "finalMedianMilliseconds": 182.1101,
+    "finalMinMilliseconds": 170.4912,
+    "finalMaxMilliseconds": 224.262,
+    "latencyReductionPercent": -24.328706595746553,
+    "baselineAllocatedBytes": 24626824,
+    "finalMedianAllocatedBytes": 24787016,
+    "allocationReductionPercent": -0.6504777067477319,
+    "walBytes": [
+      430052,
+      430052,
+      430052
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Insert",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 5087.0446,
+    "finalMilliseconds": [
+      349.5215,
+      344.852,
+      413.752
+    ],
+    "finalMedianMilliseconds": 349.5215,
+    "finalMinMilliseconds": 344.852,
+    "finalMaxMilliseconds": 413.752,
+    "latencyReductionPercent": 93.12918349487245,
+    "baselineAllocatedBytes": 7690780200,
+    "finalMedianAllocatedBytes": 92541832,
+    "allocationReductionPercent": 98.79671724332988,
+    "walBytes": [
+      860104,
+      860104,
+      860104
+    ],
+    "journalBytes": [
+      340159,
+      340159,
+      340159
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Insert",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 2680.793,
+    "finalMilliseconds": [
+      89.4121,
+      120.6906,
+      113.4932
+    ],
+    "finalMedianMilliseconds": 113.4932,
+    "finalMinMilliseconds": 89.4121,
+    "finalMaxMilliseconds": 120.6906,
+    "latencyReductionPercent": 95.7664317983522,
+    "baselineAllocatedBytes": 3225143800,
+    "finalMedianAllocatedBytes": 30303960,
+    "allocationReductionPercent": 99.0603842222477,
+    "walBytes": [
+      430147,
+      430147,
+      430147
+    ],
+    "journalBytes": [
+      170176,
+      170176,
+      170176
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Update",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 189.6889,
+    "finalMilliseconds": [
+      262.3715,
+      390.7866,
+      396.3723
+    ],
+    "finalMedianMilliseconds": 390.7866,
+    "finalMinMilliseconds": 262.3715,
+    "finalMaxMilliseconds": 396.3723,
+    "latencyReductionPercent": -106.01447949774605,
+    "baselineAllocatedBytes": 28434808,
+    "finalMedianAllocatedBytes": 30240800,
+    "allocationReductionPercent": -6.3513423406973635,
+    "walBytes": [
+      431104,
+      431104,
+      431104
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Update",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 6604.0696,
+    "finalMilliseconds": [
+      432.6231,
+      418.474,
+      500.0918
+    ],
+    "finalMedianMilliseconds": 432.6231,
+    "finalMinMilliseconds": 418.474,
+    "finalMaxMilliseconds": 500.0918,
+    "latencyReductionPercent": 93.44914384306307,
+    "baselineAllocatedBytes": 6095841816,
+    "finalMedianAllocatedBytes": 100693568,
+    "allocationReductionPercent": 98.34815976136872,
+    "walBytes": [
+      861156,
+      861156,
+      861156
+    ],
+    "journalBytes": [
+      520159,
+      520159,
+      520159
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Update",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 3147.0184,
+    "finalMilliseconds": [
+      228.5508,
+      214.6586,
+      235.8261
+    ],
+    "finalMedianMilliseconds": 228.5508,
+    "finalMinMilliseconds": 214.6586,
+    "finalMaxMilliseconds": 235.8261,
+    "latencyReductionPercent": 92.73754484562276,
+    "baselineAllocatedBytes": 1630207704,
+    "finalMedianAllocatedBytes": 38270656,
+    "allocationReductionPercent": 97.65240613781322,
+    "walBytes": [
+      431199,
+      431199,
+      431199
+    ],
+    "journalBytes": [
+      350176,
+      350176,
+      350176
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Delete",
+    "path": "NoTrigger",
+    "baselineMilliseconds": 237.2331,
+    "finalMilliseconds": [
+      184.1716,
+      148.6505,
+      176.178
+    ],
+    "finalMedianMilliseconds": 176.178,
+    "finalMinMilliseconds": 148.6505,
+    "finalMaxMilliseconds": 184.1716,
+    "latencyReductionPercent": 25.73633274614715,
+    "baselineAllocatedBytes": 22691512,
+    "finalMedianAllocatedBytes": 22771688,
+    "allocationReductionPercent": -0.3533303554209999,
+    "walBytes": [
+      251104,
+      251104,
+      251104
+    ],
+    "journalBytes": [
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Delete",
+    "path": "V1RowTrigger",
+    "baselineMilliseconds": 7634.3709,
+    "finalMilliseconds": [
+      337.0304,
+      319.3475,
+      291.6738
+    ],
+    "finalMedianMilliseconds": 319.3475,
+    "finalMinMilliseconds": 291.6738,
+    "finalMaxMilliseconds": 337.0304,
+    "latencyReductionPercent": 95.81697687755778,
+    "baselineAllocatedBytes": 6089524384,
+    "finalMedianAllocatedBytes": 93971696,
+    "allocationReductionPercent": 98.45683028633718,
+    "walBytes": [
+      681156,
+      681156,
+      681156
+    ],
+    "journalBytes": [
+      520159,
+      520159,
+      520159
+    ]
+  },
+  {
+    "rows": 10000,
+    "operation": "Delete",
+    "path": "CandidateStatementReference",
+    "baselineMilliseconds": 3038.997,
+    "finalMilliseconds": [
+      202.1861,
+      161.9023,
+      179.5511
+    ],
+    "finalMedianMilliseconds": 179.5511,
+    "finalMinMilliseconds": 161.9023,
+    "finalMaxMilliseconds": 202.1861,
+    "latencyReductionPercent": 94.09176448676982,
+    "baselineAllocatedBytes": 1623885400,
+    "finalMedianAllocatedBytes": 31866296,
+    "allocationReductionPercent": 98.0376511790795,
+    "walBytes": [
+      251199,
+      251199,
+      251199
+    ],
+    "journalBytes": [
+      350176,
+      350176,
+      350176
+    ]
+  }
+]

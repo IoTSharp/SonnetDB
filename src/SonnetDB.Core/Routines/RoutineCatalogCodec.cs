@@ -14,7 +14,7 @@ internal static class RoutineCatalogCodec
 {
     public const string FileName = "routines.sdbrtn";
 
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxDefinitions = 100_000;
@@ -69,7 +69,7 @@ internal static class RoutineCatalogCodec
         if (!header[..Magic.Length].SequenceEqual(Magic))
             throw new InvalidDataException("RoutineCatalog: invalid header magic.");
         int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
-        if (version != FormatVersion)
+        if (version is < 1 or > FormatVersion)
             throw new InvalidDataException($"RoutineCatalog: unsupported format version {version}.");
         if (BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize)
             throw new InvalidDataException("RoutineCatalog: unexpected header size.");
@@ -128,6 +128,10 @@ internal static class RoutineCatalogCodec
             long createdAt = ReadInt64(source, crc, $"trigger {index} created at");
             string? whenSql = ReadString(source, crc, MaxSqlBytes, $"trigger {index} WHEN", nullable: true);
             string bodySql = ReadString(source, crc, MaxSqlBytes, $"trigger {index} SQL body")!;
+            byte enabled = version >= 2 ? ReadByte(source, crc, $"trigger {index} enabled") : (byte)1;
+            long order = version >= 2 ? ReadInt64(source, crc, $"trigger {index} order") : createdAt;
+            if (enabled > 1 || order < 0)
+                throw new InvalidDataException("RoutineCatalog: invalid trigger lifecycle metadata.");
             if (!triggerNames.Add(name))
                 throw new InvalidDataException($"RoutineCatalog: duplicate trigger '{name}'.");
             try
@@ -138,7 +142,7 @@ internal static class RoutineCatalogCodec
                     (SqlTriggerEvent)eventValue,
                     whenSql,
                     bodySql,
-                    createdAt));
+                    createdAt, enabled == 1, order));
             }
             catch (Exception exception) when (exception is ArgumentException or SqlParseException)
             {
@@ -195,6 +199,8 @@ internal static class RoutineCatalogCodec
             WriteInt64(destination, crc, trigger.CreatedAtUtcTicks);
             WriteString(destination, crc, trigger.WhenSql, MaxSqlBytes, nullable: true);
             WriteString(destination, crc, trigger.BodySql, MaxSqlBytes, nullable: false);
+            WriteByte(destination, crc, trigger.Enabled ? (byte)1 : (byte)0);
+            WriteInt64(destination, crc, trigger.ExecutionOrder);
         }
 
         Span<byte> footer = stackalloc byte[FooterSize];

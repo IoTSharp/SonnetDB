@@ -1094,14 +1094,17 @@ public sealed class Tsdb : IDisposable
                 CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
                 _catalogDirty = false;
 
-                Tables.CheckpointAll();
-                Documents.CompactAll();
-                return Generations.ExecuteConsistentBackup(() =>
-                    Graphs.ExecuteConsistentBackup(() =>
-                    {
-                        var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
-                        return afterCheckpoint(this, options, checkpointedKeyspaces);
-                    }));
+                return Tables.ExecuteConsistentBackup(() =>
+                {
+                    Tables.CheckpointAll();
+                    Documents.CompactAll();
+                    return Generations.ExecuteConsistentBackup(() =>
+                        Graphs.ExecuteConsistentBackup(() =>
+                        {
+                            var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+                            return afterCheckpoint(this, options, checkpointedKeyspaces);
+                        }));
+                });
             }
         }
     }

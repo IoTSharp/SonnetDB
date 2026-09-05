@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using SonnetDB.Exceptions;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Routines;
@@ -9,10 +10,10 @@ public sealed class RoutineManager
     private readonly object _sync = new();
     private readonly Dictionary<string, ProcedureDefinition> _procedures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TriggerDefinition> _triggers = new(StringComparer.Ordinal);
-    private FrozenDictionary<string, ProcedureDefinition> _procedureSnapshot =
-        FrozenDictionary<string, ProcedureDefinition>.Empty;
-    private FrozenDictionary<string, TriggerDefinition> _triggerSnapshot =
-        FrozenDictionary<string, TriggerDefinition>.Empty;
+    private CatalogState _snapshot = new(
+        FrozenDictionary<string, ProcedureDefinition>.Empty,
+        FrozenDictionary<string, TriggerDefinition>.Empty,
+        FrozenDictionary<(string, SqlTriggerEvent), IReadOnlyList<TriggerDefinition>>.Empty);
 
     /// <summary>打开独立版本化例程目录并加载已有定义。</summary>
     /// <param name="rootDirectory">例程目录。</param>
@@ -37,10 +38,10 @@ public sealed class RoutineManager
     public RoutineDiagnostics Diagnostics { get; }
 
     /// <summary>当前过程数量。</summary>
-    public int ProcedureCount => Volatile.Read(ref _procedureSnapshot).Count;
+    public int ProcedureCount => Volatile.Read(ref _snapshot).Procedures.Count;
 
     /// <summary>当前触发器数量。</summary>
-    public int TriggerCount => Volatile.Read(ref _triggerSnapshot).Count;
+    public int TriggerCount => Volatile.Read(ref _snapshot).Triggers.Count;
 
     /// <summary>按名称读取过程；不存在时返回 null。</summary>
     /// <param name="name">过程名称。</param>
@@ -48,7 +49,7 @@ public sealed class RoutineManager
     public ProcedureDefinition? TryGetProcedure(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return Volatile.Read(ref _procedureSnapshot).GetValueOrDefault(name);
+        return Volatile.Read(ref _snapshot).Procedures.GetValueOrDefault(name);
     }
 
     /// <summary>按名称读取触发器；不存在时返回 null。</summary>
@@ -57,13 +58,13 @@ public sealed class RoutineManager
     public TriggerDefinition? TryGetTrigger(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return Volatile.Read(ref _triggerSnapshot).GetValueOrDefault(name);
+        return Volatile.Read(ref _snapshot).Triggers.GetValueOrDefault(name);
     }
 
     /// <summary>返回按名称升序排列的过程快照。</summary>
     /// <returns>过程定义列表。</returns>
     public IReadOnlyList<ProcedureDefinition> ListProcedures()
-        => Volatile.Read(ref _procedureSnapshot).Values
+        => Volatile.Read(ref _snapshot).Procedures.Values
             .OrderBy(static value => value.Name, StringComparer.Ordinal)
             .ToArray();
 
@@ -71,35 +72,31 @@ public sealed class RoutineManager
     /// <param name="tableName">可选目标表过滤。</param>
     /// <returns>触发器定义列表。</returns>
     public IReadOnlyList<TriggerDefinition> ListTriggers(string? tableName = null)
-        => Volatile.Read(ref _triggerSnapshot).Values
+        => Volatile.Read(ref _snapshot).Triggers.Values
             .Where(value => tableName is null || string.Equals(value.TableName, tableName, StringComparison.Ordinal))
             .OrderBy(static value => value.TableName, StringComparer.Ordinal)
+            .ThenBy(static value => value.ExecutionOrder)
             .ThenBy(static value => value.CreatedAtUtcTicks)
             .ThenBy(static value => value.Name, StringComparer.Ordinal)
             .ToArray();
 
     internal IReadOnlyList<TriggerDefinition> FindTriggers(string tableName, SqlTriggerEvent triggerEvent)
-        => Volatile.Read(ref _triggerSnapshot).Values
-            .Where(value => value.Event == triggerEvent
-                            && string.Equals(value.TableName, tableName, StringComparison.Ordinal))
-            .OrderBy(static value => value.CreatedAtUtcTicks)
-            .ThenBy(static value => value.Name, StringComparer.Ordinal)
-            .ToArray();
+        => Volatile.Read(ref _snapshot).Dispatch.GetValueOrDefault((tableName, triggerEvent)) ?? [];
 
     internal IReadOnlyList<ProcedureDefinition> FindProceduresDependingOnObject(string objectName)
-        => Volatile.Read(ref _procedureSnapshot).Values
+        => Volatile.Read(ref _snapshot).Procedures.Values
             .Where(value => value.ObjectDependencies.Contains(objectName, StringComparer.Ordinal))
             .OrderBy(static value => value.Name, StringComparer.Ordinal)
             .ToArray();
 
     internal IReadOnlyList<TriggerDefinition> FindTriggersDependingOnObject(string objectName)
-        => Volatile.Read(ref _triggerSnapshot).Values
+        => Volatile.Read(ref _snapshot).Triggers.Values
             .Where(value => value.ObjectDependencies.Contains(objectName, StringComparer.Ordinal))
             .OrderBy(static value => value.Name, StringComparer.Ordinal)
             .ToArray();
 
     internal IReadOnlyList<ProcedureDefinition> FindProceduresCalling(string procedureName)
-        => Volatile.Read(ref _procedureSnapshot).Values
+        => Volatile.Read(ref _snapshot).Procedures.Values
             .Where(value => value.ProcedureDependencies.Contains(procedureName, StringComparer.Ordinal))
             .OrderBy(static value => value.Name, StringComparer.Ordinal)
             .ToArray();
@@ -116,16 +113,87 @@ public sealed class RoutineManager
         }
     }
 
-    internal void Create(TriggerDefinition definition)
+    internal void Create(TriggerDefinition definition, string? relativeTo = null, bool precedes = false)
     {
         ArgumentNullException.ThrowIfNull(definition);
         lock (_sync)
         {
             if (_triggers.ContainsKey(definition.Name))
                 throw new InvalidOperationException($"trigger '{definition.Name}' 已存在。");
-            _triggers.Add(definition.Name, definition);
-            PersistOrRollback(() => _triggers.Remove(definition.Name));
+            var previous = _triggers.ToArray();
+            try
+            {
+                var group = OrderedGroup(definition);
+                _triggers.Add(definition.Name, definition.WithLifecycle(order:
+                    group.Count == 0 ? 0 : checked(group[^1].ExecutionOrder + 1)));
+                if (relativeTo is not null) MoveTrigger(definition.Name, relativeTo, precedes);
+                PersistOrRollback(() => RestoreTriggers(previous));
+            }
+            catch { RestoreTriggers(previous); throw; }
         }
+    }
+
+    internal void Alter(AlterTriggerStatement statement)
+    {
+        lock (_sync)
+        {
+            var existing = _triggers.GetValueOrDefault(statement.Name)
+                ?? throw new RoutineExecutionException(RoutineErrorCodes.TriggerNotFound, $"trigger '{statement.Name}' 不存在。");
+            var previous = _triggers.ToArray();
+            try
+            {
+                switch (statement.Action)
+                {
+                    case SqlAlterTriggerAction.Enable:
+                    case SqlAlterTriggerAction.Disable:
+                        _triggers[existing.Name] = existing.WithLifecycle(enabled: statement.Action == SqlAlterTriggerAction.Enable);
+                        break;
+                    case SqlAlterTriggerAction.Rename:
+                        ArgumentException.ThrowIfNullOrWhiteSpace(statement.Target);
+                        if (_triggers.ContainsKey(statement.Target))
+                            throw new InvalidOperationException($"trigger '{statement.Target}' 已存在。");
+                        _triggers.Remove(existing.Name);
+                        _triggers.Add(statement.Target, existing.WithLifecycle(name: statement.Target));
+                        break;
+                    case SqlAlterTriggerAction.Follows:
+                    case SqlAlterTriggerAction.Precedes:
+                        ArgumentException.ThrowIfNullOrWhiteSpace(statement.Target);
+                        MoveTrigger(existing.Name, statement.Target, statement.Action == SqlAlterTriggerAction.Precedes);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(statement));
+                }
+                PersistOrRollback(() => RestoreTriggers(previous));
+            }
+            catch { RestoreTriggers(previous); throw; }
+        }
+    }
+
+    private List<TriggerDefinition> OrderedGroup(TriggerDefinition definition)
+        => _triggers.Values.Where(value => value.TableName == definition.TableName && value.Event == definition.Event)
+            .OrderBy(static value => value.ExecutionOrder)
+            .ThenBy(static value => value.CreatedAtUtcTicks)
+            .ThenBy(static value => value.Name, StringComparer.Ordinal).ToList();
+
+    private void MoveTrigger(string name, string relativeTo, bool precedes)
+    {
+        var definition = _triggers[name];
+        if (name == relativeTo || !_triggers.TryGetValue(relativeTo, out var reference)
+            || reference.TableName != definition.TableName || reference.Event != definition.Event)
+            throw new RoutineExecutionException(RoutineErrorCodes.Dependency,
+                "FOLLOWS/PRECEDES 必须引用不同的、已存在的同表同事件触发器。");
+        var group = OrderedGroup(definition);
+        group.RemoveAll(value => value.Name == name);
+        int index = group.FindIndex(value => value.Name == relativeTo);
+        group.Insert(precedes ? index : index + 1, definition);
+        for (int order = 0; order < group.Count; order++)
+            _triggers[group[order].Name] = group[order].WithLifecycle(order: order);
+    }
+
+    private void RestoreTriggers(KeyValuePair<string, TriggerDefinition>[] previous)
+    {
+        _triggers.Clear();
+        foreach (var pair in previous) _triggers.Add(pair.Key, pair.Value);
     }
 
     internal bool DropProcedure(string name)
@@ -154,16 +222,14 @@ public sealed class RoutineManager
 
     private void PersistOrRollback(Action rollback)
     {
-        FrozenDictionary<string, ProcedureDefinition> procedureSnapshot;
-        FrozenDictionary<string, TriggerDefinition> triggerSnapshot;
+        CatalogState snapshot;
         try
         {
-            procedureSnapshot = _procedures.ToFrozenDictionary(StringComparer.Ordinal);
-            triggerSnapshot = _triggers.ToFrozenDictionary(StringComparer.Ordinal);
+            snapshot = BuildSnapshot();
             RoutineCatalogCodec.Save(
                 CatalogPath,
-                procedureSnapshot.Values.OrderBy(static value => value.Name, StringComparer.Ordinal).ToArray(),
-                triggerSnapshot.Values
+                snapshot.Procedures.Values.OrderBy(static value => value.Name, StringComparer.Ordinal).ToArray(),
+                snapshot.Triggers.Values
                     .OrderBy(static value => value.TableName, StringComparer.Ordinal)
                     .ThenBy(static value => value.CreatedAtUtcTicks)
                     .ThenBy(static value => value.Name, StringComparer.Ordinal)
@@ -175,13 +241,27 @@ public sealed class RoutineManager
             throw;
         }
 
-        Volatile.Write(ref _procedureSnapshot, procedureSnapshot);
-        Volatile.Write(ref _triggerSnapshot, triggerSnapshot);
+        Volatile.Write(ref _snapshot, snapshot);
     }
 
     private void PublishSnapshots()
     {
-        Volatile.Write(ref _procedureSnapshot, _procedures.ToFrozenDictionary(StringComparer.Ordinal));
-        Volatile.Write(ref _triggerSnapshot, _triggers.ToFrozenDictionary(StringComparer.Ordinal));
+        Volatile.Write(ref _snapshot, BuildSnapshot());
     }
+
+    private CatalogState BuildSnapshot() => new(
+        _procedures.ToFrozenDictionary(StringComparer.Ordinal),
+        _triggers.ToFrozenDictionary(StringComparer.Ordinal),
+        _triggers.Values.Where(static trigger => trigger.Enabled)
+            .GroupBy(static trigger => (trigger.TableName, trigger.Event))
+            .ToFrozenDictionary(static group => group.Key,
+                static group => (IReadOnlyList<TriggerDefinition>)Array.AsReadOnly(group
+                    .OrderBy(static trigger => trigger.ExecutionOrder)
+                    .ThenBy(static trigger => trigger.CreatedAtUtcTicks)
+                    .ThenBy(static trigger => trigger.Name, StringComparer.Ordinal).ToArray())));
+
+    private sealed record CatalogState(
+        FrozenDictionary<string, ProcedureDefinition> Procedures,
+        FrozenDictionary<string, TriggerDefinition> Triggers,
+        FrozenDictionary<(string, SqlTriggerEvent), IReadOnlyList<TriggerDefinition>> Dispatch);
 }

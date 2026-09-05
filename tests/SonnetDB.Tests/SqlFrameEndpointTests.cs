@@ -41,6 +41,7 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
             DataRoot = _dataRoot,
             AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
+            SqlExecution = new SqlExecutionResourceOptions { MaxRoutineStatements = 128 },
             Tokens = new Dictionary<string, string>
             {
                 [_adminToken] = ServerRoles.Admin,
@@ -410,6 +411,48 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
         (_, rows, rowCount, _) = await QueryFrameAsync(admin, "SELECT id FROM sf_frame_routine ORDER BY id", streamId: 22);
         Assert.Equal(1, rowCount);
         Assert.Equal(7L, rows[0][0]);
+    }
+
+    [Fact]
+    public async Task Routine_LifecycleAndDiagnostics_RestFrameAndPermissionsAgree()
+    {
+        using var admin = CreateClient();
+        using var ro = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_lifecycle (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_audit (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, """
+            CREATE TRIGGER sf_track AFTER INSERT ON sf_lifecycle FOR EACH ROW LANGUAGE SQL AS BEGIN
+                INSERT INTO sf_audit (id) VALUES (NEW.id);
+            END
+            """);
+        using var denied = await ro.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest("ALTER TRIGGER sf_track DISABLE"), ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        await ExecRestSqlAsync(admin, "ALTER TRIGGER sf_track DISABLE");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_lifecycle (id) VALUES (1)");
+        await ExecRestSqlAsync(admin, "ALTER TRIGGER sf_track RENAME TO sf_renamed");
+        await ExecRestSqlAsync(admin, "ALTER TRIGGER sf_renamed ENABLE");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_lifecycle (id) VALUES (2)");
+        (_, var rows, _, _) = await QueryFrameAsync(ro, "SELECT id FROM sf_audit", streamId: 30);
+        Assert.Equal(2L, Assert.Single(rows)[0]);
+        (_, rows, _, _) = await QueryFrameAsync(ro, "EXPLAIN TRIGGER sf_renamed", streamId: 31);
+        Assert.Single(rows);
+        (_, rows, _, _) = await QueryFrameAsync(ro, "SHOW ROUTINE AUDIT FOR TRIGGER sf_renamed", streamId: 32);
+        Assert.Equal("committed", Assert.Single(rows)[8]);
+        (_, rows, _, _) = await QueryFrameAsync(ro, "SHOW ROUTINE STATS FOR TRIGGER sf_renamed", streamId: 33);
+        Assert.Single(rows);
+        string batchRows = string.Join(',', Enumerable.Range(3, 100).Select(static id => $"({id})"));
+        await ExecRestSqlAsync(admin, $"INSERT INTO sf_lifecycle (id) VALUES {batchRows}");
+        (_, rows, _, _) = await QueryFrameAsync(ro, "SELECT id FROM sf_audit", streamId: 34);
+        Assert.Equal(101, rows.Count);
+
+        using var abandoned = await admin.PostAsync($"/v1/db/{_dbName}/sql/batch",
+            JsonContent.Create(new SqlBatchRequest([
+                new SqlRequest("BEGIN"), new SqlRequest("INSERT INTO sf_lifecycle (id) VALUES (103)"),
+                new SqlRequest("SELECT * FROM missing_table")]), ServerJsonContext.Default.SqlBatchRequest));
+        Assert.Contains("\"error\"", await abandoned.Content.ReadAsStringAsync());
+        (_, rows, _, _) = await QueryFrameAsync(ro, "SHOW ROUTINE AUDIT FOR TRIGGER sf_renamed", streamId: 35);
+        Assert.Equal("rolled_back", rows[^1][8]);
     }
 
     [Fact]

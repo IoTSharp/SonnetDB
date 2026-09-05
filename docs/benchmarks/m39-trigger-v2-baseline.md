@@ -1,7 +1,7 @@
 # M39 SQL 触发器 V2 基线（#333）
 
-本文档记录进入 `ALTER TRIGGER`、statement-level trigger 或 transition table 设计前的
-可复现实验口径。它是容量和恢复证据，不代表任何尚未实现的 SQL 语法已经获得支持。
+本文档记录触发器性能与恢复的可复现实验口径。2026-09-06 已补入生命周期、事务恢复与诊断，
+见 [M39 审计](../audits/m39-production-20260906.md)。statement trigger 等尚未准入的语义不能由参考路径推断支持。
 
 ## 固定运行口径
 
@@ -10,11 +10,12 @@
   `-status-unknown`），避免把临时测量误认成干净提交。
 - 数据库：嵌入式 `Tsdb`，每个样本使用独立临时目录；后台 flush、compaction、自动 checkpoint 和过期清理关闭。
 - WAL：`SyncWalOnEveryWrite=false`、`FlushWalToOsOnWrite=true`，以便比较逻辑写放大；这不是掉电耐久性结论。
+- v4 的多表事务额外同步恢复日志、各表 WAL 和完成标记；此同步成本计入延迟。`journalBytes` 单独记录协调日志文件长度，不能只看各表 WAL 判断全部 I/O 成本。单表 NoTrigger 仍使用上述 KV 配置，因此不能把路径差值全部归因于触发器解释执行。
 - `wal_bytes` 是 DML 前后所有已打开关系表 active WAL 的逻辑长度差，包含尚未从缓冲区刷到文件的记录；它不是 fsync 或掉电耐久性指标。
 - 控制台 `rowstore_bytes_delta` 和 JSON `rowStoreBytesDelta` 是停止计时后执行 `CheckpointAll()` 得到的 `.SDBKVSNP`/`.SDBKVSEG` 文件总量相对 setup checkpoint 的有符号差值，checkpoint I/O 不计入 `elapsed_ms`；DELETE 产生负值时不会被压成 0。JSON 同时保留旧字段 `rowStoreBytes`，两者当前值相同。
 - 行数：`1`、`100`、`10,000`。
 - DML：`INSERT`、`UPDATE`、`DELETE`；UPDATE/DELETE 在创建触发器前预置同规模数据并完成 setup checkpoint。
-- 报告 schema：`m39-trigger-v2-baseline-v3`；`operations`、`journeys`、`costMatrix`、`rollbackMatrix` 和 `crashEvidence` 均为机器可读字段。
+- 报告 schema：`m39-trigger-v2-baseline-v4`；保留 v3 的三种 DML 完整矩阵，增加 `journalBytes` 和完成标记前后的崩溃测试引用。
 - 每档路径：
   - `NoTrigger`：仅向 `trigger_source` 执行对应批量 DML。
   - `V1RowTrigger`：当前对应事件的 `AFTER ... FOR EACH ROW`，每行向 `trigger_audit` 写一条记录。
@@ -98,14 +99,14 @@ v3 回滚 smoke 对三种 DML、三个路径各跑 `1/100/10,000` 行。三条�
 列出 Core 失败注入、提交失败、真进程终止和重启 replay 的自动化测试名称；运行报告不会把未执行的
 进程测试伪装成通过。
 
-当前关系表使用独立 keyspace/WAL；跨表掉电原子性尚未得到证明，因此出现“原始表已提交、
-outbox/summary 缺失”或反向 partial commit 时，应如实记录为 gap，而不是以 V1 触发器成功率掩盖。
+历史 v3 实现曾在源表 WAL 与 outbox WAL 之间的进程终止测试中恢复出 partial pair。
+当前实现增加跨表恢复日志，同一测试要求重启撤销源表与 outbox；完成标记前后也分别要求完整的旧状态或新状态。
+物理断电和存储控制器故障仍不由真进程强杀测试替代。
 
 ## 准入判断
 
 - 只有在固定机器上重复正式测量，确认逐行写放大是主要吞吐/分配瓶颈，并完成上述 crash/replay
   对拍后，才进入 #335（statement trigger / transition tables）设计。
-- #334（生命周期和显式顺序）与 #337（诊断治理）可以基于真实 journey 的缺口独立排期；不得
-  用候选参考路径代替产品合同。
+- #334（生命周期和显式顺序）与 #337（诊断治理）的本地实现及验证已登记在 M39 审计；不得用候选参考路径代替产品合同。
 - 在证据完成前，不实现 `BEFORE`、`FOR EACH STATEMENT`、transition table、Document/measurement
   trigger，也不宣称跨 keyspace exactly-once 或掉电原子性。

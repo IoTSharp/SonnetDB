@@ -222,7 +222,45 @@ public sealed record CreateTriggerStatement(
     string? WhenSql,
     IReadOnlyList<SqlStatement> Body,
     string BodySql,
-    string Language = "SQL") : SqlStatement;
+    string Language = "SQL") : SqlStatement
+{
+    /// <summary>可选的 FOLLOWS/PRECEDES 参照触发器；必须属于同表同事件。</summary>
+    public string? RelativeTo { get; init; }
+    /// <summary>为 true 时排在参照之前，否则排在其后。</summary>
+    public bool Precedes { get; init; }
+}
+
+/// <summary>触发器生命周期操作。</summary>
+public enum SqlAlterTriggerAction
+{
+    /// <summary>启用。</summary>
+    Enable,
+    /// <summary>禁用。</summary>
+    Disable,
+    /// <summary>原子重命名并保留创建时间和执行顺序。</summary>
+    Rename,
+    /// <summary>移至同事件参照触发器之后。</summary>
+    Follows,
+    /// <summary>移至同事件参照触发器之前。</summary>
+    Precedes,
+}
+
+/// <summary>ALTER TRIGGER 生命周期与顺序语句。</summary>
+/// <param name="Name">目标名称。</param>
+/// <param name="Action">生命周期操作。</param>
+/// <param name="Target">重命名目标或同表同事件的顺序参照。</param>
+public sealed record AlterTriggerStatement(string Name, SqlAlterTriggerAction Action, string? Target = null) : SqlStatement;
+
+/// <summary>只读解释例程定义及其事务合同，不执行 body。</summary>
+/// <param name="Kind">procedure 或 trigger。</param>
+/// <param name="Name">定义名称。</param>
+public sealed record ExplainRoutineStatement(string Kind, string Name) : SqlStatement;
+
+/// <summary>查询有界例程审计或其保留窗口内的延迟统计。</summary>
+/// <param name="Statistics">是否返回统计而非明细。</param>
+/// <param name="Kind">可选 procedure 或 trigger 过滤。</param>
+/// <param name="Name">可选定义名称过滤。</param>
+public sealed record ShowRoutineDiagnosticsStatement(bool Statistics, string? Kind = null, string? Name = null) : SqlStatement;
 
 /// <summary>
 /// <c>REFRESH MATERIALIZED VIEW name</c>：显式生成并原子发布一个全量物理代际。

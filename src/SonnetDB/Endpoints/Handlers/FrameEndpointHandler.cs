@@ -4,6 +4,8 @@ using System.IO.Pipelines;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using SonnetDB.Configuration;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
 using SonnetDB.Diagnostics;
@@ -471,6 +473,7 @@ internal static class FrameEndpointHandler
                 && diagnostics.Options.ThresholdMs >= 0
                     ? new SqlExecutionMetrics()
                     : null;
+            var routineOptions = ctx.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
             object? result = SqlExecutor.ExecuteStatement(
                 tsdb,
                 request.Db,
@@ -483,6 +486,9 @@ internal static class FrameEndpointHandler
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     CanWrite = false,
                     CanAdminister = false,
+                    MaxRoutineStatements = routineOptions.MaxRoutineStatements,
+                    MaxRoutineDepth = routineOptions.MaxRoutineDepth,
+                    MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
                     Metrics = executionMetrics,
                 });
             executionSnapshot = executionMetrics?.Complete();

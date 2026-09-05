@@ -784,7 +784,8 @@ internal static class TableSqlExecutor
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
-                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
+                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -879,6 +880,7 @@ internal static class TableSqlExecutor
         RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
         foreach (var row in candidateRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
@@ -893,7 +895,8 @@ internal static class TableSqlExecutor
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
-                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
+                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), values.ToArray()));
         }
 
@@ -950,11 +953,13 @@ internal static class TableSqlExecutor
 
         foreach (var row in candidateRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
             mutations.Add(new TableRowMutation(
-                ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values)));
+                ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values))
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), NewValues: null));
         }
 
@@ -984,6 +989,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(transaction);
 
+        transaction.ThrowIfCompleted();
         int affected;
         try
         {
@@ -1007,15 +1013,15 @@ internal static class TableSqlExecutor
                     return tsdb.Tables.ApplyTransaction(mutations);
                 });
         }
-        catch
+        catch (Exception exception)
         {
-            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                transaction.SnapshotTriggerAuditSequences(),
-                RoutineErrorCodes.ExecutionFailed);
-            transaction.ClearTriggerAuditSequences();
+            transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
+                SqlRoutineRuntime.GetErrorCode(exception));
+            transaction.MarkCompleted();
             throw;
         }
 
+        transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: true);
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", affected, "commit");
     }

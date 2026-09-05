@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
@@ -210,7 +211,10 @@ internal static class SqlEndpointHandler
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
         SqlTransactionContext? transaction = null;
+        var routineOptions = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
 
+        try
+        {
         for (int s = 0; s < statements.Count; s++)
         {
             var stmt = statements[s];
@@ -306,6 +310,9 @@ internal static class SqlEndpointHandler
                             Caller = caller,
                             CanWrite = canWrite,
                             CanAdminister = canAdministerDatabase,
+                            MaxRoutineStatements = routineOptions.MaxRoutineStatements,
+                            MaxRoutineDepth = routineOptions.MaxRoutineDepth,
+                            MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
                             Metrics = executionMetrics,
                         }),
                 };
@@ -448,6 +455,12 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
+        }
+        }
+        finally
+        {
+            if (transaction is { IsCompleted: false })
+                SqlExecutor.ExecuteStatement(tsdb, databaseName, new RollbackTransactionStatement(), null, transaction);
         }
     }
 
@@ -642,6 +655,8 @@ internal static class SqlEndpointHandler
         DescribeMaterializedViewStatement or
         DescribeProcedureStatement or
         DescribeTriggerStatement or
+        ExplainRoutineStatement or
+        ShowRoutineDiagnosticsStatement or
         DescribeDocumentCollectionStatement or
         DescribeGraphStatement or
         DescribePropertyGraphStatement or

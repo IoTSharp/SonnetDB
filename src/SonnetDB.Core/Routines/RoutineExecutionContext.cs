@@ -82,8 +82,9 @@ internal sealed class RoutineExecutionContext
     public void AddResultRows(int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
-        ResultRows = checked(ResultRows + count);
-        if (ResultRows > Options.MaxRoutineResultRows)
+        long total = (long)ResultRows + count;
+        ResultRows = (int)Math.Min(int.MaxValue, total);
+        if (total > Options.MaxRoutineResultRows)
         {
             throw new RoutineExecutionException(
                 RoutineErrorCodes.ResultRowLimit,

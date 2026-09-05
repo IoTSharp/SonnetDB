@@ -1,0 +1,52 @@
+{
+  "schema": "m39-no-trigger-update-warm-v1",
+  "rows": 10000,
+  "operation": "Update",
+  "path": "NoTrigger",
+  "baselineCommit": "56cbcaed729914f1b1dcfa910439b208e0a96704",
+  "baselineCoreSha256": "7E94AB07F270320FDB32C122B1C2D953024D55F754A5CAE63F7E6CA7F866D99D",
+  "finalCoreSha256": "78A76CA159254E15337B1239049FE42D15B093399E4E76D622415772EEFE036D",
+  "samples": [
+    {
+      "path": "warm-before.csv",
+      "sha256": "2382EA4B571FEDCF4D9D43803B97FD2B77A4EA289F69202C96AD3C63570470F0",
+      "tieredCompilation": true,
+      "warmups": 2,
+      "measuredIterations": 5,
+      "medianMilliseconds": 144.6659,
+      "minMilliseconds": 123.0384,
+      "maxMilliseconds": 150.9722
+    },
+    {
+      "path": "warm-final.csv",
+      "sha256": "F86816DB4C37D073497C6F23468539EE2936BAACB6EE99329308634A10FF2C61",
+      "tieredCompilation": true,
+      "warmups": 2,
+      "measuredIterations": 5,
+      "medianMilliseconds": 164.9847,
+      "minMilliseconds": 139.9351,
+      "maxMilliseconds": 222.6808
+    },
+    {
+      "path": "optimized-before.csv",
+      "sha256": "513B0C24E5CCE8B57A706B015F5A5BA8710AAE17DBE9E8DFBF3B65BF20900DEA",
+      "tieredCompilation": false,
+      "warmups": 2,
+      "measuredIterations": 5,
+      "medianMilliseconds": 130.9769,
+      "minMilliseconds": 112.848,
+      "maxMilliseconds": 180.2792
+    },
+    {
+      "path": "optimized-final.csv",
+      "sha256": "D26F62286DF89365C3C1911D7EBFDC8B71F3F0C665D689C4085E0996E98449C5",
+      "tieredCompilation": false,
+      "warmups": 2,
+      "measuredIterations": 5,
+      "medianMilliseconds": 140.0604,
+      "minMilliseconds": 119.5272,
+      "maxMilliseconds": 159.506
+    }
+  ],
+  "qualification": "Two warmup and five measured independent databases per process. Same benchmark executable; only Core DLL replaced in task-owned probe output. Baseline Core rebuilt from recorded commit. Default and DOTNET_TieredCompilation=0 runs are separate diagnostic conditions; neither replaces the original complete matrix."
+}

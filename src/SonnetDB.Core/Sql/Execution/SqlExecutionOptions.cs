@@ -58,6 +58,7 @@ public sealed record SqlExecutionOptions
         ArgumentException.ThrowIfNullOrWhiteSpace(Caller);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineStatements);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineDepth);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxRoutineDepth, 64);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineResultRows);
         if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);

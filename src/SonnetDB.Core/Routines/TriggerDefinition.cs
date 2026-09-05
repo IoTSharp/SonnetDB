@@ -31,7 +31,32 @@ public sealed class TriggerDefinition
             .ToArray();
         RowColumns = analysis.RowColumns;
         CreatedAtUtcTicks = createdAtUtcTicks;
+        ExecutionOrder = createdAtUtcTicks;
     }
+
+    private TriggerDefinition(TriggerDefinition source, string name, bool enabled, long order)
+    {
+        Name = name;
+        Enabled = enabled;
+        ExecutionOrder = order;
+        TableName = source.TableName;
+        Event = source.Event;
+        When = source.When;
+        WhenSql = source.WhenSql;
+        BodySql = source.BodySql;
+        Statements = source.Statements;
+        ObjectDependencies = source.ObjectDependencies;
+        RowColumns = source.RowColumns;
+        CreatedAtUtcTicks = source.CreatedAtUtcTicks;
+    }
+
+    /// <summary>是否参与后续语句的触发；禁用定义继续保护其对象依赖。</summary>
+    public bool Enabled { get; } = true;
+    /// <summary>同表同事件的持久化执行顺序；启用、禁用和重命名均不改变此值。</summary>
+    public long ExecutionOrder { get; }
+
+    internal TriggerDefinition WithLifecycle(string? name = null, bool? enabled = null, long? order = null)
+        => new(this, name ?? Name, enabled ?? Enabled, order ?? ExecutionOrder);
 
     /// <summary>触发器名称。</summary>
     public string Name { get; }
@@ -84,7 +109,7 @@ public sealed class TriggerDefinition
         SqlTriggerEvent triggerEvent,
         string? whenSql,
         string bodySql,
-        long createdAtUtcTicks)
+        long createdAtUtcTicks, bool enabled = true, long? executionOrder = null)
         => Create(
             name,
             tableName,
@@ -93,7 +118,7 @@ public sealed class TriggerDefinition
             whenSql,
             bodySql,
             SqlParser.ParseScript(bodySql),
-            createdAtUtcTicks);
+            createdAtUtcTicks).WithLifecycle(enabled: enabled, order: executionOrder);
 
     private static TriggerDefinition Create(
         string name,

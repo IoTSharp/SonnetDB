@@ -146,6 +146,9 @@ internal static class ServerOptionsBinder
     private static void ApplySqlExecutionBounds(SqlExecutionResourceOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        options.MaxRoutineStatements = Math.Clamp(options.MaxRoutineStatements, 1, 100_000);
+        options.MaxRoutineDepth = Math.Clamp(options.MaxRoutineDepth, 1, 32);
+        options.MaxRoutineResultRows = Math.Clamp(options.MaxRoutineResultRows, 1, 100_000);
 
         options.QueryLimitBytes = Math.Clamp(
             options.QueryLimitBytes,

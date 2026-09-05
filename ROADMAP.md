@@ -43,7 +43,7 @@
 | 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。#323 对象有界分页切片已实现，证据与限制见 [OBJECT-001](docs/audits/object-pagination-20260906.md)。九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
-| 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
+| 39 | SQL 触发器第二版 | 🚧 | #333 已在用户指定的 Windows 验收机归档三轮完整矩阵；跨表恢复、批量事务、例程预算、#334 生命周期和 #337 诊断已加固并本地验收。高级语义准入与性能发布边界见 [M39 审计](docs/audits/m39-production-20260906.md)，不将本轮关系表证据扩展为整个 M39 生产完成。 |
 | 40 | 原生属性图数据库 | 🚧 | Phase 0 已完成；修复与发布步骤 1~5 已关闭。步骤 6 继续加固：Expand/traversal/weighted-path 已按剩余预算读取且最多增加一条 probe，避免预算外邻接解码；步骤 7 已修复 typed point read 将结构化 `graph_not_found` 误判为元素缺失 `null` 的远程 parity 问题；generation 新增 exact-revision lease，供 orderly reopen 的分页链固定 retired revision。Phase 1 仍缺 #352 正式准入证据；固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT journey 与 7 天生产证据均保持 `NOT_RUN`。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 与 #381 本地合同已收口；#375 自动刷新已移到有预算的后台并增加可观察状态，首 N 行采样偏差仍待 M42。固定硬件、木垒同语料、7 天 mixed workload 与现场发布观察均未执行。 |
 | 42 | 九域与规划器系统性能深化 | 🚧 | ✅ 九域矩阵、竞品入口和统一指标已建立；🟡 统计/CRC 本机切片、SQL 指标上界、三域读取 smoke、Rebirth 合同及 win-x64 AOT 已取证；🚧 九域容量闭环和 P0~P3 残余仍在推进；⏳ 固定 x64/ARM64、木垒同语料、168 小时与生产门禁未执行。 |
@@ -57,7 +57,7 @@
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 以九模型 gap catalog 推进真实 golden journey：KV 原子远程切片已取得本地合同/原生重开/Web 证据；#323 的 OBJECT-001 对象有界分页切片已实现，按其证据边界接续 #322 传输与 MQ 消费恢复，#323 conditional/异步游标/CLI 继续独立推进。继续保证目标绑定与取消、明确 database/instance 备份边界。Document 复用 M32，向量高级项复用 M35，Graph 引擎/发布证据复用 M40；不重做已有工作台。
-7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
+7. M39 的 #333 固定 Windows 矩阵及 #334/#337 本地验收已归档；继续性能差异定位和高级语义准入，未证明真实 journey 缺口前不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。当前公开定位已将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”；上述门禁仍是宣称 Graph Production 的前提，不因模型计数变化而放宽。
 
 ## 待补验收证据
@@ -280,15 +280,17 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #333 | V2 gap baseline：固定审计 outbox、派生汇总、状态流转保护三条关系表 golden journey；建立 1/100/10,000 行 DML 下无触发器、V1 row trigger 与候选 statement trigger 的吞吐、WAL、内存和回滚成本矩阵；加入触发动作中途失败、提交失败、进程终止、重启 replay 的 crash-injection 证据，并据此确认后续条目的优先级。`tests/SonnetDB.Benchmarks --m39-trigger-evidence` 的 v3 报告现已覆盖 INSERT/UPDATE/DELETE 三种 DML、三条路径及精确回滚状态，并接入 xUnit quick-contract、`m39-trigger-evidence.yml` 和 CrashTests；固定目标硬件复测仍需归档，不以本地 quick 结果代替语义或容量准入结论。 | 🚧 |
-| #334 | 生命周期与确定性顺序：设计 `ALTER TRIGGER ... ENABLE/DISABLE`、原子替换或重命名，以及显式 `FOLLOWS` / `PRECEDES` 顺序合同；目录更新必须保持落盘后发布、依赖安全和备份恢复兼容，禁用状态不能改变历史创建顺序。 | 📋 |
+| #333 | V2 gap baseline：三条关系表 golden journey、1/100/10,000 行 INSERT/UPDATE/DELETE 的成功/回滚完整矩阵，以及提交失败、真进程终止和重启 replay 已通过。用户指定的 DEVPER Windows 工作站已取得一次修复前与三次最终完整测量；v4 单列恢复 journal 字节，原始 JSON/Markdown、测试摘要与源码/二进制哈希见 [M39 审计](docs/audits/m39-production-20260906.md)。修复了平方复杂度与多表半提交；样本不是生产 SLO，高级语义仍独立准入。 | ✅ |
+| #334 | 生命周期与确定性顺序：已实现 ENABLE/DISABLE、原子 RENAME TO 及 FOLLOWS/PRECEDES 位置调整；目录落盘后一次发布定义与派发表，单条 DML 固定快照。禁用定义保留依赖、创建时间及顺序；目录 v2 读 v1、拒绝损坏，生命周期/失败落盘/备份恢复合同本地通过。 | ✅ |
 | #335 | 语句级触发器与 transition tables：在 #333 证明逐行写放大是主要瓶颈后，实现 `FOR EACH STATEMENT` 及只读 `OLD TABLE` / `NEW TABLE`；固定空影响集、批量 UPDATE/DELETE、同语句多行、触发器链和失败回滚语义，避免把 transition set 无界复制到内存。 | 📋 |
 | #336 | 受控 BEFORE 语义：仅面向关系表 `BEFORE INSERT/UPDATE`，先冻结校验/改写顺序、生成列/ROWVERSION/主外键/CHECK 交互和只读 OLD 规则；若允许修改 NEW，必须使用受限赋值合同，不允许任意递归 DML 或绕过约束。`INSTEAD OF` 与可写视图另行评估。 | 📋 |
-| #337 | 诊断与治理：提供按触发器过滤的执行/失败/回滚原因与延迟分布、最近调用链查询、定义级 `EXPLAIN`/dry-run，以及不记录参数值和行内容的可持久审计导出；指标标签必须有界，提交失败与已回滚动作不能被报告为已提交成功。 | 📋 |
+| #337 | 诊断与治理：已实现按过程/触发器过滤的 SHOW ROUTINE AUDIT/STATS、最近调用链、保留窗口 P50/P95/P99、定义 EXPLAIN 校验与 AOT 兼容 JSON 快照导出。pending/committed/rolled_back/failed/unknown/completed 随最终事务结算；指标标签与 256 条审计窗口有界。快照导出不等于持久审计后台服务，定义校验不执行 body。 | ✅ |
 | #338 | 高级事务语义准入：评估 deferred trigger、constraint trigger 和显式 order group 是否解决 #333 的真实场景；给出死锁、取消、保存点、调用深度和提交阶段错误合同。`AFTER COMMIT` 异步动作优先建模为 durable outbox worker，不伪装成与原 DML 原子的普通触发器。 | 📋 |
 | #339 | Document / measurement 准入：分别量化批量摄取写放大、乱序/重放、幂等键、保留策略、compaction、备份恢复和高基数影响；只有模型原生事件合同和 crash/replay 对拍通过后才实现。不得把关系行 `OLD`/`NEW` 生硬套到 document patch 或 measurement batch。 | 📋 |
 
 执行顺序为 #333 -> #334/#337；#335、#336 和 #338 由 baseline 证据决定是否进入实现，#339 始终独立过模型语义与容量门禁。V2 不默认包含多事件合并语法、异步网络调用、外部脚本、跨数据库触发器或分布式 exactly-once。
+
+2026-09-06 准入复核：批量触发器的主要既有缺口由事务归并与保存点优化解决；客户端单条计数参考和逐行审计的业务语义不同，尚不能用该差值直接准入 #335。状态保护 journey 已能通过 AFTER 原子回滚完成，#336 须先提供需要改写 NEW 的真实用例。#338 与 #339 的高级事务/模型证据尚未取得，保持未实现；全里程碑不因 #333/#334/#337 的本地验收而标记完成。
 
 ## Milestone 40 — 原生属性图数据库
 

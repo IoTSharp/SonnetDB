@@ -32,6 +32,7 @@ public sealed class TableStore : IDisposable
     private bool _automaticStatisticsRefreshPaused;
     private bool _disposing;
     private bool _disposed;
+    private Exception? _transactionFailure;
 
     internal TableStore(TableSchema schema, KvKeyspace keyspace, TableStatisticsRefreshBudget? statisticsRefreshBudget = null)
     {
@@ -645,6 +646,46 @@ public sealed class TableStore : IDisposable
                 batch.RowCountApplied = false;
             }
         }
+    }
+
+    internal TableTransactionUndo CaptureTransactionUndo(PreparedTableBatch batch)
+    {
+        lock (_sync)
+        {
+            var keys = new HashSet<byte[]>(KvKeyComparer.Instance);
+            foreach (var operation in batch.Operations)
+            {
+                keys.Add(operation.RowKey);
+                if (operation.OldRow is not null)
+                    foreach (var entry in BuildIndexEntries(batch.Schema, operation.OldRow)) keys.Add(entry.Key);
+                if (operation.NewRow is not null)
+                    foreach (var entry in BuildIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
+            }
+            return new TableTransactionUndo(batch.Schema.Name, Generation,
+                TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
+                keys.Select(key => new RollbackAction(key, _keyspace.Get(key))).ToArray());
+        }
+    }
+
+    internal void RestoreTransactionUndo(TableTransactionUndo undo)
+    {
+        lock (_sync)
+        {
+            if (undo.Generation != Generation || !undo.SchemaFingerprint.AsSpan().SequenceEqual(
+                    TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema)))
+                throw new InvalidDataException($"table '{_schema.Name}' 的事务恢复 schema 或 generation 不匹配。");
+            _keyspace.ApplyBatch(undo.Actions.Select(static action => action.Value is null
+                ? KvBatchMutation.Delete(action.Key) : KvBatchMutation.Put(action.Key, action.Value)).ToArray());
+            _keyspace.SyncWalForMaintenance();
+            _rowCount = _keyspace.CountPrefix([(byte)'r']);
+        }
+    }
+
+    internal void SyncTransactionWal() => _keyspace.SyncWalForMaintenance();
+
+    internal void InvalidateTransaction(Exception exception)
+    {
+        lock (_sync) _transactionFailure = exception;
     }
 
     /// <summary>
@@ -1738,7 +1779,11 @@ public sealed class TableStore : IDisposable
     }
 
     private void ThrowIfDisposedLocked()
-        => ObjectDisposedException.ThrowIf(_disposed || _disposing, this);
+    {
+        ObjectDisposedException.ThrowIf(_disposed || _disposing, this);
+        if (_transactionFailure is not null)
+            throw new SonnetDB.Exceptions.TableTransactionRecoveryException("关系表需要重启恢复。", _transactionFailure);
+    }
 
     private void WriteAutoIncrementStateLocked(long current, bool changed)
     {
@@ -1860,6 +1905,7 @@ public sealed class TableStore : IDisposable
         IReadOnlyList<TableMutationOperation> operations,
         List<RollbackAction>? applied)
     {
+        ThrowIfDisposedLocked();
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
         for (int i = 0; i < operations.Count; i++)
         {
@@ -2239,6 +2285,7 @@ public sealed class TableStore : IDisposable
 
     private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
     {
+        ThrowIfDisposedLocked();
         var schema = _schema;
         var normalizedMutations = new List<TableRowMutation>(mutations.Count);
         var autoIncrementRows = new List<(object?[] Values, bool AllocateMissing)>(mutations.Count);
@@ -2289,6 +2336,10 @@ public sealed class TableStore : IDisposable
             if (isInsert && oldRow is not null)
                 throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
             ValidateRowVersion(schema, mutation, oldRow);
+            if (mutation.ExpectedRowState is { } expectedState
+                && (oldRow is null || !expectedState.AsSpan().SequenceEqual(TableRowCodec.Encode(schema, oldRow.Values))))
+                throw new TableConstraintException(TableConstraintException.ConcurrencyConflict, schema.Name, "row_state",
+                    $"table '{schema.Name}' 的行在事务读取后发生变化，请重试整个事务。");
             TableRow? newRow = mutation.NewValues is null
                 ? null
                 : new TableRow(mutation.NewValues.ToArray(), primaryKey);
