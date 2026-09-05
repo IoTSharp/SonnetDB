@@ -15,6 +15,13 @@ internal static class DocumentVectorSearchExecutor
 {
     private const string FunctionName = "vector_search";
     private const int DefaultK = 20;
+    private static readonly AsyncLocal<Action?> _distanceComputedTestHook = new();
+
+    internal static Action? DistanceComputedTestHook
+    {
+        get => _distanceComputedTestHook.Value;
+        set => _distanceComputedTestHook.Value = value;
+    }
 
     public static bool IsVectorSearch(SelectStatement statement)
         => statement.TableValuedFunction is { Name: var name }
@@ -39,8 +46,13 @@ internal static class DocumentVectorSearchExecutor
         var projections = BuildProjections(statement.Projections);
 
         var indexRows = TryScoreRowsFromIndex(store, schema, statement, options);
-        var rows = indexRows ?? ScoreRows(store, options);
-        rows = ApplyWhere(rows, statement.Where);
+        int predicateNodes = 128;
+        SqlExpression? metadataFilter = indexRows is null && statement.Where is { } where
+            && IsMetadataExpression(where, ref predicateNodes)
+                ? where
+                : null;
+        var rows = indexRows ?? ScoreRows(store, options, metadataFilter);
+        rows = ApplyWhere(rows, metadataFilter is null ? statement.Where : null);
         rows = ApplyOrderBy(rows, statement.OrderBy, projections);
         rows = rows.Take(options.K).ToList();
         rows = ApplyPagination(rows, statement.Pagination);
@@ -167,11 +179,16 @@ internal static class DocumentVectorSearchExecutor
 
     private static IReadOnlyList<VectorSearchRow> ScoreRows(
         DocumentCollectionStore store,
-        VectorSearchOptions options)
+        VectorSearchOptions options,
+        SqlExpression? metadataFilter)
     {
+        CancellationToken cancellationToken = SqlQueryResources.Current?.CancellationToken ?? default;
+        cancellationToken.ThrowIfCancellationRequested();
+        Action? distanceComputed = DistanceComputedTestHook;
         var rows = new List<VectorSearchRow>();
         foreach (var documentRow in store.Scan())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!DocumentVectorReader.TryReadVector(documentRow.Json, options.VectorPath, out var vector))
                 continue;
             if (vector.Length != options.QueryVector.Length)
@@ -180,12 +197,50 @@ internal static class DocumentVectorSearchExecutor
                     $"vector_search 文档 '{documentRow.Id}' 的向量维度 {vector.Length} 与查询向量维度 {options.QueryVector.Length} 不一致。");
             }
 
+            // Keep vector validation, NULL behavior and short-circuit order unchanged.
+            if (metadataFilter is not null
+                && !EvaluateBoolean(metadataFilter, new VectorSearchRow(documentRow, 0d, 0d)))
+            {
+                continue;
+            }
+
             double distance = VectorDistance.Compute(options.Metric, options.QueryVector, vector);
+            distanceComputed?.Invoke();
             double score = DistanceToScore(options.Metric, distance);
             rows.Add(new VectorSearchRow(documentRow, distance, score));
         }
 
         return rows;
+    }
+
+    private static bool IsMetadataExpression(SqlExpression expression, ref int remainingNodes)
+    {
+        if (--remainingNodes < 0)
+            return false;
+
+        return expression switch
+        {
+            LiteralExpression => true,
+            IdentifierExpression { Qualifier: null, Name: var name } =>
+                !string.Equals(name, "vector_distance", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(name, "vector_score", StringComparison.OrdinalIgnoreCase),
+            BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || binary.Operator is SqlBinaryOperator.Equal or SqlBinaryOperator.NotEqual
+                    or SqlBinaryOperator.LessThan or SqlBinaryOperator.LessThanOrEqual
+                    or SqlBinaryOperator.GreaterThan or SqlBinaryOperator.GreaterThanOrEqual =>
+                IsMetadataExpression(binary.Left, ref remainingNodes)
+                && IsMetadataExpression(binary.Right, ref remainingNodes),
+            UnaryExpression { Operator: SqlUnaryOperator.Not } unary =>
+                IsMetadataExpression(unary.Operand, ref remainingNodes),
+            IsNullExpression isNull => IsMetadataExpression(isNull.Operand, ref remainingNodes),
+            FunctionCallExpression { IsStar: false, Arguments.Count: 2 } function
+                when string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+                && function.Arguments[0] is IdentifierExpression { Qualifier: null, Name: var source }
+                && (string.Equals(source, "document", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(source, "json", StringComparison.OrdinalIgnoreCase))
+                && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String } => true,
+            _ => false,
+        };
     }
 
     private static List<VectorSearchRow> ApplyWhere(
