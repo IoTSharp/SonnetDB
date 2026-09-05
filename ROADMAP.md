@@ -40,7 +40,7 @@
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
 | 35 | 语义内容与多模态检索 | 🚧 | #297/#299/#301 已完成，#298/#300/#302 已交付部分能力；RAG Core 首切片已落地，CLI、持久化 writer/retry/resume、实际派生索引应用与剩余质量/媒体/治理项仍待完成。 |
-| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。九模型 #310/#311 总体、对象分页/传输和 MQ 失败恢复仍待完成。 |
+| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。#323 对象有界分页切片已实现，证据与限制见 [OBJECT-001](docs/audits/object-pagination-20260906.md)。九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
@@ -52,11 +52,11 @@
 ## 当前推进顺序
 
 1. MCP source-generated Schema 注册修复已通过真实托管及 win-x64 Native AOT 启动/首查，下一步恢复 M20 light/full 完整 Parity。最新七次 scheduled 全部失败，不得继续称为仅缺现场证据；修复未合入且双 profile 未通过前不得累计新成功窗口。
-2. M42 的自动统计移出首读已交付本地切片，继续无偏采样、页感知成本、参数敏感计划、独立 I/O 预算、通用向量有界 Top-K 和对象有界分页；ARM64 可执行/AOT、M19 #125、M25 #174 固定容量及 7 天 mixed workload 分开补证，不用本机数字或增加资源掩盖根因。
+2. M42 的自动统计移出首读已交付本地切片，继续无偏采样、页感知成本、参数敏感计划、独立 I/O 预算、通用向量有界 Top-K 和对象分页固定硬件验证；OBJECT-001 的本地切片见 #323。ARM64 可执行/AOT、M19 #125、M25 #174 固定容量及 7 天 mixed workload 分开补证，不用本机数字或增加资源掩盖根因。
 3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
-6. M36 以九模型 gap catalog 推进真实 golden journey：KV 原子远程切片已取得本地合同/原生重开/Web 证据，下一步推进 #323 有界对象分页，再接 #322 传输与 MQ 消费恢复。继续保证目标绑定与取消、明确 database/instance 备份边界。Document 复用 M32，向量高级项复用 M35，Graph 引擎/发布证据复用 M40；不重做已有工作台。
+6. M36 以九模型 gap catalog 推进真实 golden journey：KV 原子远程切片已取得本地合同/原生重开/Web 证据；#323 的 OBJECT-001 对象有界分页切片已实现，按其证据边界接续 #322 传输与 MQ 消费恢复，#323 conditional/异步游标/CLI 继续独立推进。继续保证目标绑定与取消、明确 database/instance 备份边界。Document 复用 M32，向量高级项复用 M35，Graph 引擎/发布证据复用 M40；不重做已有工作台。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。当前公开定位已将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”；上述门禁仍是宣称 Graph Production 的前提，不因模型计数变化而放宽。
 
@@ -237,7 +237,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。 | 📋 |
 | #321 | Vector 生命周期与解释：dimension/metric/Embedding Profile preflight、index health/rebuild progress、ANN/scan/补偿原因与 recall report；依赖 M35 #297/#298 的部分不得提前复制实现。 | 📋 |
 | #322 | Object Transfer Manager：自动 multipart 阈值/part size/并发、checksum、retry、resume、progress、取消和资源释放，基于现有 `SndbObjectStorageClient`。 | 📋 |
-| #323 | Object 日常文件流：先消除 `ListObjects` 每页全 bucket 扫描/排序，保持原始 key 的 ordinal 顺序、版本/删除标记、delimiter 和 continuation 正确；再补 conditional put/get、异步分页及 CLI `cp/sync --dry-run`。编码后 key 顺序不能冒充用户 key 顺序。 | 📋 |
+| #323 | Object 日常文件流：OBJECT-001 已实现同 KV/WAL 派生索引的有界 `ListObjects`，保持原始 key ordinal、版本/删除标记，增加 delimiter/common-prefix、可取消重建和物理候选预算，超预算显式拒绝且不推进令牌。实现、实测及恢复限制见[验证证据](docs/audits/object-pagination-20260906.md)。conditional put/get、异步游标、CLI `cp/sync --dry-run` 与固定硬件容量仍待交付；不以本切片关闭完整 #323。 | 🚧 |
 | #324 | SonnetMQ 高层 consumer：producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain。 | 📋 |
 | #325 | SonnetMQ 投递失败治理：nack/redelivery/max-delivery/DLQ、message-id 去重窗口、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断。 | 📋 |
 | #326 | 九模型范围收口：每模型一个嵌入式/远程同代码或最小差异样例、SDK/API/Workbench/CLI 矩阵和真实用户任务 e2e；补 VS Code Graph 最小浏览/查询入口。Document 汇总 M32、Graph 汇总 M40。单库备份明确排除 Server `.system/mq`；另定义 instance MQ/consumer offset 的一致快照与恢复合同，不将跨库实例数据塞入单库包。 | 📋 |
@@ -439,7 +439,7 @@ SELECT EXISTS (...)
 | 模型级 benchmark | 🚧 | KV/Document 本机热读 smoke 已完成；Object 仅 exploratory 且有最小迭代告警；时序、全文、MQ 吞吐、向量 Recall/容量和 Graph 正式门禁本轮均未运行。 |
 | Native AOT 与硬件路径 | 🟡 | 2026-09-05 本轮 win-x64 Server publish、healthz、建库/表和事务首查通过，0 IL/AOT warning；既有 CLI 证据保留。ARM64 CI matrix 已配置，但真实 ARM64 CI、publish/start/first-query 与指令差分均为 `NOT_RUN`；不代替 Graph Native AOT 专项 journey。 |
 
-自动统计移出首读的本地切片已交付，剩余按收益/风险推进：P0 恢复真实 Server/Parity 启动并完成 ARM64 可执行/AOT 门禁；P1 处理无偏采样、页感知索引成本、参数敏感计划、Embedded I/O 预算、通用向量有界 Top-K 和对象 list 有界分页。通用 Document 向量纯 metadata WHERE 已移到距离计算前，但 Scan/排序仍物化，mixed predicate 与 ANN 另行验收。P2 扩大 covering/index-only、增加 snapshot cold-miss single-flight、减少大值复制、统一 cold-start/file-count 合同、SQL 端到端结果内存及 Web 冷启动拆包，并补真实 Sparkplug broker 竞态；P3 仅在独立 feature gate 与跨架构差分收益成立时评估 direct intrinsics 和 .NET 11 preview。固定 x64/ARM64、木垒同语料、168 小时 mixed workload 与生产发布全部保持 ⏳ `NOT_RUN`。
+自动统计移出首读的本地切片已交付，剩余按收益/风险推进：P0 恢复真实 Server/Parity 启动并完成 ARM64 可执行/AOT 门禁；P1 处理无偏采样、页感知索引成本、参数敏感计划、Embedded I/O 预算、通用向量有界 Top-K 和对象分页固定硬件/高变更率验证（OBJECT-001 本地有界切片见 #323）。通用 Document 向量纯 metadata WHERE 已移到距离计算前，但 Scan/排序仍物化，mixed predicate 与 ANN 另行验收。P2 扩大 covering/index-only、增加 snapshot cold-miss single-flight、减少大值复制、统一 cold-start/file-count 合同、SQL 端到端结果内存及 Web 冷启动拆包，并补真实 Sparkplug broker 竞态；P3 仅在独立 feature gate 与跨架构差分收益成立时评估 direct intrinsics 和 .NET 11 preview。固定 x64/ARM64、木垒同语料、168 小时 mixed workload 与生产发布全部保持 ⏳ `NOT_RUN`。
 
 ## 性能观察项
 

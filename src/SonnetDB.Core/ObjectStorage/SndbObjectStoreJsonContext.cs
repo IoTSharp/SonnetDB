@@ -8,6 +8,7 @@ namespace SonnetDB.ObjectStorage;
     WriteIndented = false)]
 [JsonSerializable(typeof(SndbBucketRecord))]
 [JsonSerializable(typeof(SndbObjectRecord))]
+[JsonSerializable(typeof(SndbObjectPageCursor))]
 [JsonSerializable(typeof(SndbBucketPolicyRecord))]
 [JsonSerializable(typeof(SndbBucketLifecycleRecord))]
 [JsonSerializable(typeof(SndbBucketRetentionRecord))]

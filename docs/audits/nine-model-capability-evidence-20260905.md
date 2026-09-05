@@ -18,7 +18,7 @@
 | Document | 集合、JSON path、CRUD/partial update、mixed Bulk、validator、path/compound/multikey/wildcard 索引、change feed、派生搜索；SDK/SQL/HTTP/工作台 | MongoDB-native pipeline/array/collation 仅明确子集；百万/千万报告未取得；通用过滤向量路径仍全扫 | 真正 JSON 文档模型与 MongoDB-like 单机子集 |
 | 全文 | 倒排 segment、BM25/BM25F、位置短语/布尔、模糊词扩展、Unicode/CJK/中文分词、重建；Document/SQL/管理 HTTP | 吞吐、词项膨胀、merge、中文相关性与长稳无本轮新证据；不是 Elasticsearch/OpenSearch 协议全集 | 真正全文检索模型；派生索引依附 Document 主数据是有效设计 |
 | 向量 | Measurement 的 HNSW/IVF/IVF-PQ/Vamana 派生索引、Document HNSW、精确距离回退、SQL KNN/vector/hybrid、Frame；本轮新增纯 metadata WHERE 的距离计算前过滤 | 通用 Document WHERE 不使用 filtered ANN；距离/评分/通用函数谓词仍走全量残差路径，存储 Scan 仍全量物化；目标模型/质量/召回/规模仍需分别证明 | 真正向量检索能力；不能把多种索引名称等同生产容量或自动多模态理解 |
-| 对象 | blob 文件与 KV 元数据、bucket、版本/删除标记、range、multipart、copy、policy/lifecycle/hold/quota/presign；S3 风格路由 | 当前 ListObjects 每页全桶扫描/解码/排序；完整 AWS S3 身份/协议、分布式对象存储等价不能由这些入口推导；一致备份仍需对象并发写 journey | 真正对象存储；兼容性必须列出操作、鉴权和边界 |
+| 对象 | blob 文件与 KV 元数据、bucket、版本/删除标记、range、multipart、copy、policy/lifecycle/hold/quota/presign；S3 风格路由 | 审计时 ListObjects 每页全桶扫描/解码/排序，后续 OBJECT-001 本地切片见[追加证据](object-pagination-20260906.md)；完整 AWS S3 身份/协议、分布式对象存储等价不能由这些入口推导；一致备份仍需对象并发写 journey | 真正对象存储；兼容性必须列出操作、鉴权和边界 |
 | MQ | append-only 日志、topic offset、consumer group cumulative ack、批量/组提交、分段/稀疏索引/热尾/冷读/retention、replay；HTTP/Frame/SDK | 本轮发现 ack 返回值不一致和 long.MaxValue 溢出；默认仅 OS flush；服务端 MQ 位于全局 `.system/mq`，没有接入单数据库备份合同；无证据支持 exactly-once 事务或分布式队列等价 | 真正本地持久消息队列；必须单列耐久与备份边界 |
 | 原生属性图 | 原生顶点/边/标签/属性/双向邻接，GraphTransaction，snapshot/cursor/index seek/expand/traversal，SQL/PGQ、远程 CRUD/NDJSON、工作台 | 正式外部 Neo4j/PostgreSQL 对拍、LDBC/Graphalytics、固定容量、Couplet 联合发布、168 小时未通过；受限 GQL 不等同完整 GQL/Cypher | 真正原生属性图实现，当前只按 Graph Beta 范围声明 |
 

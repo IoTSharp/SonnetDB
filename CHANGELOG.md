@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。
+
 - **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
 
 - **M40 #367 manifest 输入边界补强**：`EvaluateManifest` 在打开文件前传播预取消，在反序列化前拒绝超过 4 MiB 的清单，并通过 source-generated `JsonTypeInfo` 执行可取消的流式读取；集合上限检查提前到非 Production 早退之前，超量输入统一 fail closed。

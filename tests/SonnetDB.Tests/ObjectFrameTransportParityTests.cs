@@ -129,6 +129,51 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
         Assert.Equal(content, await ReadAllAsync(read));
     }
 
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    [InlineData("auto")]
+    public async Task ListObjects_OrdinalGroupsAndContinuation_KeepSdkContract(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        using var client = new SndbObjectStorageClient(ConnString(protocol), useDedicatedHttpHandler: true);
+        string[] keys = ["a/1", "a/子", "b", "%2F", "+", "é", "\U00010000", "\ue000", " space"];
+        foreach (string key in keys.Reverse())
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            await client.PutObjectAsync(_bucket, key, Stream.Null, cancellationToken: deadline.Token);
+        }
+        await client.DeleteObjectAsync(_bucket, "b", deadline.Token);
+        foreach (string? delimiter in new string?[] { null, "/" })
+        {
+            var actual = new List<string>();
+            string? token = null;
+            for (int pageNumber = 0; pageNumber <= keys.Length; pageNumber++)
+            {
+                deadline.Token.ThrowIfCancellationRequested();
+                var page = await client.ListObjectsAsync(_bucket, "", 2, token, delimiter, deadline.Token);
+                Assert.Equal(delimiter, page.Delimiter);
+                Assert.InRange(page.Objects.Count + page.CommonPrefixes.Count, 1, 2);
+                actual.AddRange(page.Objects.Select(x => x.Key).Concat(page.CommonPrefixes).Order(StringComparer.Ordinal));
+                if (!page.IsTruncated) { Assert.Null(page.NextContinuationToken); break; }
+                Assert.NotEqual(token, page.NextContinuationToken);
+                token = page.NextContinuationToken;
+                Assert.True(pageNumber < keys.Length, "Pagination exceeded the item budget.");
+            }
+            var expected = keys.Where(x => x != "b").Select(x => delimiter is not null && x.StartsWith("a/", StringComparison.Ordinal) ? "a/" : x)
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+            Assert.Equal(expected, actual);
+        }
+        var spaces = await client.ListObjectsAsync(_bucket, " ", 2, deadline.Token);
+        Assert.Equal(" space", Assert.Single(spaces.Objects).Key);
+        var group = await client.ListObjectsAsync(_bucket, "a", 1, null, "/", deadline.Token);
+        Assert.Equal(["a/"], group.CommonPrefixes);
+        Assert.False(group.IsTruncated);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ListObjectsAsync(_bucket, cancellationToken: cancelled.Token));
+    }
+
     [Fact]
     public async Task FrameWrite_RestRead_ByteEquivalent()
     {

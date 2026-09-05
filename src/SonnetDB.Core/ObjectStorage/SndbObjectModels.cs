@@ -36,7 +36,14 @@ public sealed record SndbObjectListResult(
     string? ContinuationToken,
     string? NextContinuationToken,
     bool IsTruncated,
-    IReadOnlyList<SndbObjectInfo> Objects);
+    IReadOnlyList<SndbObjectInfo> Objects)
+{
+    /// <summary>目录分隔符；空值表示不分组。</summary>
+    public string? Delimiter { get; init; }
+
+    /// <summary>当前页公共前缀，与对象合计不超过 MaxKeys。</summary>
+    public IReadOnlyList<string> CommonPrefixes { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>
 /// 批量删除单个对象的结果。

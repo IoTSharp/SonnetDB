@@ -238,7 +238,9 @@ internal static class ObjectStorageEndpointHandler
                         bucket,
                         ctx.Request.Query["prefix"].ToString(),
                         maxKeys,
-                        ctx.Request.Query["continuation-token"].ToString());
+                        ctx.Request.Query["continuation-token"].ToString(),
+                        ctx.Request.Query["delimiter"].ToString(),
+                        ctx.RequestAborted);
                     await Results.Json(ToListResponse(listed), ServerJsonContext.Default.ObjectListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                     return;
                 }
@@ -950,7 +952,11 @@ internal static class ObjectStorageEndpointHandler
             result.ContinuationToken,
             result.NextContinuationToken,
             result.IsTruncated,
-            result.Objects.Select(ToObjectResponse).ToArray());
+            result.Objects.Select(ToObjectResponse).ToArray())
+        {
+            Delimiter = result.Delimiter,
+            CommonPrefixes = result.CommonPrefixes,
+        };
 
     private static ObjectDeleteManyResponse ToDeleteManyResponse(SndbObjectDeleteManyResult result) =>
         new(
@@ -1068,6 +1074,9 @@ internal static class ObjectStorageEndpointHandler
     {
         switch (exception)
         {
+            case SndbObjectStorageException ex when ex.Code == "object_list_scan_budget_exceeded":
+                task = WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, ex.Code, ex.Message);
+                return true;
             case SndbObjectStorageException ex when ex.Code.EndsWith("_not_found", StringComparison.Ordinal):
                 task = WriteErrorAsync(ctx, StatusCodes.Status404NotFound, ex.Code, ex.Message);
                 return true;

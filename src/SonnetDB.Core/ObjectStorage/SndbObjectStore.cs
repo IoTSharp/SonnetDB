@@ -12,7 +12,7 @@ namespace SonnetDB.ObjectStorage;
 /// <summary>
 /// SonnetDB 数据库内置对象桶存储。
 /// </summary>
-public sealed class SndbObjectStore
+public sealed partial class SndbObjectStore
 {
     private const string MetadataKeyspace = "__object_storage";
     private const string BucketPrefix = "bucket:";
@@ -121,7 +121,7 @@ public sealed class SndbObjectStore
                 throw new SndbObjectStorageException("bucket_not_empty", $"Bucket '{bucket}' is not empty.");
             }
 
-            var mutations = new List<KvBatchMutation>(7)
+            var mutations = new List<KvBatchMutation>(8)
             {
                 KvBatchMutation.Delete(Utf8.GetBytes(BucketKey(bucket))),
                 KvBatchMutation.Delete(Utf8.GetBytes(PolicyKey(bucket))),
@@ -129,6 +129,7 @@ public sealed class SndbObjectStore
                 KvBatchMutation.Delete(Utf8.GetBytes(RetentionKey(bucket))),
                 KvBatchMutation.Delete(Utf8.GetBytes(QuotaKey(bucket))),
                 KvBatchMutation.Delete(Utf8.GetBytes(SemanticOptionsKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(ObjectListReadyKey(bucket))),
             };
 
             SndbObjectAuditRecord audit = CreateAuditRecord("bucket.delete", bucket, null, null);
@@ -247,47 +248,7 @@ public sealed class SndbObjectStore
     /// 列出 bucket 内当前可见对象。
     /// </summary>
     public SndbObjectListResult ListObjects(string bucket, string? prefix = null, int maxKeys = 1000, string? continuationToken = null)
-    {
-        EnsureBucket(bucket);
-        if (maxKeys <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maxKeys));
-
-        string normalizedPrefix = prefix?.TrimStart('/') ?? string.Empty;
-        string? afterKey = DecodeContinuationToken(continuationToken);
-        var objects = new List<SndbObjectInfo>();
-        foreach (var latest in _metadata.ScanPrefix(LatestObjectPrefix(bucket), limit: int.MaxValue))
-        {
-            string key = UnescapeKey(Utf8.GetString(latest.Key.Span)[LatestObjectPrefix(bucket).Length..]);
-            if (!string.IsNullOrEmpty(normalizedPrefix) && !key.StartsWith(normalizedPrefix, StringComparison.Ordinal))
-                continue;
-
-            string versionId = Utf8.GetString(latest.Value.Span);
-            var record = LoadObjectRecord(bucket, key, versionId);
-            if (record is null || record.IsDeleteMarker)
-                continue;
-
-            objects.Add(ToInfo(record));
-        }
-
-        objects.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
-        if (!string.IsNullOrEmpty(afterKey))
-        {
-            int startIndex = objects.FindIndex(item => string.CompareOrdinal(item.Key, afterKey) > 0);
-            objects = startIndex < 0 ? [] : objects.GetRange(startIndex, objects.Count - startIndex);
-        }
-
-        bool isTruncated = objects.Count > maxKeys;
-        var page = objects.Take(maxKeys).ToArray();
-        string? nextToken = isTruncated && page.Length > 0
-            ? EncodeContinuationToken(page[^1].Key)
-            : null;
-        AppendAudit("bucket.objects.list", bucket, null, null, new Dictionary<string, string>
-        {
-            ["prefix"] = normalizedPrefix,
-            ["count"] = page.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return new SndbObjectListResult(bucket, normalizedPrefix, maxKeys, continuationToken, nextToken, isTruncated, page);
-    }
+        => ListObjects(bucket, prefix, maxKeys, continuationToken, delimiter: null, CancellationToken.None);
 
     /// <summary>
     /// 列出对象版本；key 为空时列出整个 bucket 的版本。
@@ -1323,17 +1284,17 @@ public sealed class SndbObjectStore
     /// <summary>
     /// 读取指定 bucket 的元数据条目；不存在时抛出统一错误。
     /// </summary>
-    private KvEntry GetRequiredBucketEntry(string bucket)
+    private KvEntry GetRequiredBucketEntry(string bucket, CancellationToken cancellationToken = default)
     {
         ValidateBucket(bucket);
-        return _metadata.GetEntry(BucketKey(bucket))
+        return _metadata.GetEntry(BucketKey(bucket), cancellationToken)
             ?? throw new SndbObjectStorageException("bucket_not_found", $"Bucket '{bucket}' was not found.");
     }
 
     /// <summary>
     /// 获取指定 bucket 的共享提交状态。
     /// </summary>
-    private BucketMutationState GetBucketMutationState(string bucket)
+    private BucketMutationState GetBucketMutationState(string bucket, CancellationToken cancellationToken = default)
     {
         ValidateBucket(bucket);
         BucketMutationState? existing = _objectMutationState.FindBucketMutationState(bucket);
@@ -1341,7 +1302,7 @@ public sealed class SndbObjectStore
             return existing;
 
         // 只为真实 bucket 缓存 gate，避免随机不存在名称造成常驻字典无界增长。
-        EnsureBucket(bucket);
+        GetRequiredBucketEntry(bucket, cancellationToken);
         return _objectMutationState.GetBucketMutationState(bucket);
     }
 
@@ -1354,7 +1315,7 @@ public sealed class SndbObjectStore
         return _objectMutationState.GetBucketMutationState(bucket);
     }
 
-    private SndbObjectRecord? LoadObjectRecord(string bucket, string key, string? versionId = null)
+    private SndbObjectRecord? LoadObjectRecord(string bucket, string key, string? versionId = null, CancellationToken cancellationToken = default)
     {
         string? resolvedVersion = versionId;
         if (string.IsNullOrWhiteSpace(resolvedVersion))
@@ -1365,7 +1326,7 @@ public sealed class SndbObjectStore
             resolvedVersion = Utf8.GetString(latest);
         }
 
-        var entry = _metadata.GetEntry(ObjectKey(bucket, key, resolvedVersion));
+        var entry = _metadata.GetEntry(ObjectKey(bucket, key, resolvedVersion), cancellationToken);
         return entry is null
             ? null
             : Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbObjectRecord);
@@ -1434,7 +1395,7 @@ public sealed class SndbObjectStore
         SndbObjectAuditRecord? audit = null,
         bool updateLatest = true)
     {
-        var mutations = new List<KvBatchMutation>((updateLatest ? 2 : 1) + (audit is null ? 0 : 1));
+        var mutations = new List<KvBatchMutation>((updateLatest ? 3 : 1) + (audit is null ? 0 : 1));
         AddObjectRecordMutations(mutations, record, audit, updateLatest);
         _metadata.ApplyBatch(mutations);
     }
@@ -1456,6 +1417,7 @@ public sealed class SndbObjectStore
             mutations.Add(KvBatchMutation.Put(
                 Utf8.GetBytes(LatestObjectKey(record.Bucket, record.Key)),
                 Utf8.GetBytes(record.VersionId)));
+            mutations.Add(ObjectListMutation(record));
         }
         if (audit is not null)
         {
@@ -1526,6 +1488,9 @@ public sealed class SndbObjectStore
             mutations.Add(replacement is null
                 ? KvBatchMutation.Delete(Utf8.GetBytes(LatestObjectKey(bucket, key)))
                 : KvBatchMutation.Put(Utf8.GetBytes(LatestObjectKey(bucket, key)), Utf8.GetBytes(replacement.VersionId)));
+            mutations.Add(replacement is null
+                ? KvBatchMutation.Delete(ObjectListKey(bucket, key))
+                : ObjectListMutation(replacement));
         }
 
         _metadata.ApplyBatch(mutations);

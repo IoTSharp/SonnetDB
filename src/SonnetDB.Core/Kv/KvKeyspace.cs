@@ -87,7 +87,7 @@ public sealed class KvKeyspace : IDisposable
     private readonly object _sync = new();
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
-    private Dictionary<byte[], KvValueEntry> _values;
+    private KvOrderedOverlay _values;
     private Dictionary<byte[], KvValueEntry>? _frozenValues;
     private SnapshotOverlayCache? _snapshotOverlayCache;
     private KvDiskState? _diskState;
@@ -120,7 +120,7 @@ public sealed class KvKeyspace : IDisposable
         Name = name;
         RootDirectory = rootDirectory;
         _options = options;
-        _values = values;
+        _values = new KvOrderedOverlay(values);
         _diskState = diskState;
         _lastSequence = lastSequence;
         _generation = generation;
@@ -328,9 +328,9 @@ public sealed class KvKeyspace : IDisposable
     /// 若新覆盖层已达到普通预算，仅合并排队一次后台检查点。
     /// </summary>
     /// <returns>释放后恢复普通预算的 scope。</returns>
-    internal IDisposable EnterIndexRebuildBudgetScope()
+    internal IDisposable EnterIndexRebuildBudgetScope(CancellationToken cancellationToken = default)
     {
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
             _indexRebuildBudgetScopeDepth = checked(_indexRebuildBudgetScopeDepth + 1);
@@ -723,6 +723,18 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         return GetEntry(EncodeUtf8Key(key, _options));
+    }
+
+    /// <summary>内部对象分页点读在等待 keyspace 锁时观察取消。</summary>
+    internal KvEntry? GetEntry(string key, CancellationToken cancellationToken)
+    {
+        if (!cancellationToken.CanBeCanceled)
+            return GetEntry(key);
+        using (EnterAtomicWriteLock(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return GetEntry(key);
+        }
     }
 
     /// <summary>
@@ -1357,6 +1369,55 @@ public sealed class KvKeyspace : IDisposable
             return LastSequence;
 
         return ApplyCanonicalIndexRebuildBatch(batch);
+    }
+
+    /// <summary>可取消的索引恢复批次；检查点等待有期限，单页过大时按条目数有界二分。</summary>
+    internal long ApplyIndexRebuildBatch(IReadOnlyList<KvBatchMutation> mutations, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ApplyPage(CanonicalizeBatchMutations(mutations));
+
+        long ApplyPage(KvBatchMutation[] batch)
+        {
+            long started = Stopwatch.GetTimestamp();
+            TimeSpan timeout = _options.CheckpointWriteBackpressureTimeout;
+            for (int attempt = 0; attempt < 1000 && Stopwatch.GetElapsedTime(started) < timeout; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    return ApplyCanonicalConditionalBatch(batch, [], cancellationToken).Sequence;
+                }
+                catch (IOException ex) when (KvAtomicBatchErrors.IsTooLarge(ex) && batch.Length > 1)
+                {
+                    int midpoint = batch.Length / 2;
+                    _ = ApplyPage(batch[..midpoint]);
+                    return ApplyPage(batch[midpoint..]);
+                }
+                catch (IOException ex) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(ex))
+                {
+                    using (EnterAtomicWriteLock(cancellationToken))
+                    {
+                        for (int wait = 0; wait < 1000; wait++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            ThrowIfDisposed();
+                            if (!_autoCheckpointQueued && _checkpointState?.IsRunning != true)
+                                break;
+                            if (Stopwatch.GetElapsedTime(started) >= timeout || wait == 999)
+                                throw CreateCheckpointBackpressureTimeout(timeout);
+                            WriteBackpressureTestHook?.Invoke();
+                            Monitor.Wait(_sync, TimeSpan.FromMilliseconds(50));
+                        }
+                        if (LastCheckpointException is { } failure)
+                            throw CreateIndexRebuildCheckpointFailure(failure);
+                    }
+                }
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            throw CreateCheckpointBackpressureTimeout(timeout);
+        }
     }
 
     /// <summary>
@@ -2163,7 +2224,9 @@ public sealed class KvKeyspace : IDisposable
         byte[]? startInclusive,
         byte[]? endExclusive,
         byte[]? afterKey,
-        int? limit)
+        int? limit,
+        CancellationToken cancellationToken = default,
+        Action? candidateVisited = null)
     {
         int take = limit ?? _options.DefaultScanLimit;
         if (take <= 0)
@@ -2171,7 +2234,7 @@ public sealed class KvKeyspace : IDisposable
 
         byte[] prefixCopy = prefix.ToArray();
 
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
             // 分页扫描不能为预分配容量遍历整个 KV，否则维护任务会随页数退化为平方复杂度。
@@ -2181,8 +2244,11 @@ public sealed class KvKeyspace : IDisposable
                 prefixCopy,
                 afterKey,
                 startInclusive: startInclusive,
-                endExclusive: endExclusive))
+                endExclusive: endExclusive,
+                cancellationToken: cancellationToken,
+                candidateVisited: candidateVisited))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
                     continue;
 
@@ -2196,6 +2262,32 @@ public sealed class KvKeyspace : IDisposable
             }
 
             return rows;
+        }
+    }
+
+    /// <summary>内部维护与对象分页使用可取消的有界范围读取。</summary>
+    internal IReadOnlyList<KvEntry> ScanRange(
+        byte[] prefix, byte[]? startInclusive, byte[]? endExclusive, byte[]? afterKey,
+        int limit, CancellationToken cancellationToken, Action? candidateVisited = null)
+    {
+        using (EnterAtomicWriteLock(cancellationToken))
+        {
+            if (!_values.OrderedScansEnabled
+                || (_frozenValues is KvOrderedOverlay frozen && !frozen.OrderedScansEnabled))
+                throw new IOException("KV ordered overlay is unavailable; reopen the object store to rebuild it.");
+            return ScanRangeCore(prefix, startInclusive, endExclusive, afterKey, limit, cancellationToken, candidateVisited);
+        }
+    }
+
+    /// <summary>对象元数据按需启用可变及冻结覆盖层的有序访问，不改变其他 keyspace 的内存合同。</summary>
+    internal void EnableOrderedOverlayScans(CancellationToken cancellationToken)
+    {
+        using (EnterAtomicWriteLock(cancellationToken))
+        {
+            ThrowIfDisposed();
+            _values.EnableOrderedScans(cancellationToken);
+            if (_frozenValues is KvOrderedOverlay frozen)
+                frozen.EnableOrderedScans(cancellationToken);
         }
     }
 
@@ -3066,7 +3158,7 @@ public sealed class KvKeyspace : IDisposable
         }
 
         var frozen = _values;
-        _values = new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance);
+        _values = new KvOrderedOverlay(frozen.OrderedScansEnabled);
         _frozenValues = frozen;
         _checkpointState = new KvCheckpointState(
             sequence,
@@ -3928,7 +4020,9 @@ public sealed class KvKeyspace : IDisposable
         byte[]? afterKey,
         bool readDiskValues = true,
         byte[]? startInclusive = null,
-        byte[]? endExclusive = null)
+        byte[]? endExclusive = null,
+        CancellationToken cancellationToken = default,
+        Action? candidateVisited = null)
         => EnumerateVisibleEntries(
             _values,
             _frozenValues,
@@ -3937,7 +4031,9 @@ public sealed class KvKeyspace : IDisposable
             afterKey,
             readDiskValues,
             startInclusive,
-            endExclusive);
+            endExclusive,
+            cancellationToken,
+            candidateVisited);
 
     internal static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntries(
         IReadOnlyDictionary<byte[], KvValueEntry> primary,
@@ -3947,7 +4043,9 @@ public sealed class KvKeyspace : IDisposable
         byte[]? afterKey,
         bool readDiskValues,
         byte[]? startInclusive = null,
-        byte[]? endExclusive = null)
+        byte[]? endExclusive = null,
+        CancellationToken cancellationToken = default,
+        Action? candidateVisited = null)
     {
         if (secondary is null)
         {
@@ -3958,7 +4056,9 @@ public sealed class KvKeyspace : IDisposable
                 afterKey,
                 readDiskValues,
                 startInclusive,
-                endExclusive))
+                endExclusive,
+                cancellationToken,
+                candidateVisited))
             {
                 yield return pair;
             }
@@ -3972,14 +4072,18 @@ public sealed class KvKeyspace : IDisposable
             afterKey,
             readDiskValues,
             startInclusive,
-            endExclusive);
+            endExclusive,
+            cancellationToken,
+            candidateVisited);
         foreach (var pair in MergeOverlayAndLowerLayer(
             primary,
             lowerLayer,
             prefix,
             afterKey,
             startInclusive,
-            endExclusive))
+            endExclusive,
+            cancellationToken,
+            candidateVisited))
             yield return pair;
     }
 
@@ -3989,22 +4093,18 @@ public sealed class KvKeyspace : IDisposable
         byte[] prefix,
         byte[]? afterKey,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        CancellationToken cancellationToken,
+        Action? candidateVisited)
     {
-        using var memory = overlay
-            .Where(pair => !pair.Value.IsDeleted
-                && pair.Key.AsSpan().StartsWith(prefix)
-                && (startInclusive is null || KvKeyComparer.Instance.Compare(pair.Key, startInclusive) >= 0)
-                && (endExclusive is null || KvKeyComparer.Instance.Compare(pair.Key, endExclusive) < 0)
-                && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
-            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
-            .GetEnumerator();
+        using var memory = EnumerateOrderedOverlay(overlay, prefix, startInclusive, endExclusive, afterKey, cancellationToken, candidateVisited).GetEnumerator();
         using var lower = lowerLayer.GetEnumerator();
 
         bool hasMemory = memory.MoveNext();
         bool hasLower = lower.MoveNext();
         while (hasMemory || hasLower)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!hasLower)
             {
                 yield return memory.Current;
@@ -4049,24 +4149,29 @@ public sealed class KvKeyspace : IDisposable
         byte[]? afterKey,
         bool readDiskValues,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        CancellationToken cancellationToken,
+        Action? candidateVisited)
     {
-        using var memory = overlay
-            .Where(pair => !pair.Value.IsDeleted
-                && pair.Key.AsSpan().StartsWith(prefix)
-                && (startInclusive is null || KvKeyComparer.Instance.Compare(pair.Key, startInclusive) >= 0)
-                && (endExclusive is null || KvKeyComparer.Instance.Compare(pair.Key, endExclusive) < 0)
-                && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
-            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
-            .GetEnumerator();
-        using var disk = (diskState?.ScanRange(prefix, startInclusive, endExclusive, afterKey)
+        using var memory = EnumerateOrderedOverlay(overlay, prefix, startInclusive, endExclusive, afterKey, cancellationToken, candidateVisited).GetEnumerator();
+        using var disk = ReadDiskCandidates().GetEnumerator();
+
+        IEnumerable<KvDiskIndexEntry> ReadDiskCandidates()
+        {
+            foreach (var entry in diskState?.ScanRange(prefix, startInclusive, endExclusive, afterKey)
                 ?? Enumerable.Empty<KvDiskIndexEntry>())
-            .GetEnumerator();
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                candidateVisited?.Invoke();
+                yield return entry;
+            }
+        }
 
         bool hasMemory = memory.MoveNext();
         bool hasDisk = disk.MoveNext();
         while (hasMemory || hasDisk)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!hasDisk)
             {
                 yield return memory.Current;
@@ -4112,6 +4217,23 @@ public sealed class KvKeyspace : IDisposable
             }
             hasDisk = disk.MoveNext();
         }
+    }
+
+    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateOrderedOverlay(
+        IReadOnlyDictionary<byte[], KvValueEntry> overlay,
+        byte[] prefix, byte[]? startInclusive, byte[]? endExclusive, byte[]? afterKey,
+        CancellationToken cancellationToken,
+        Action? candidateVisited)
+    {
+        if (overlay is KvOrderedOverlay { OrderedScansEnabled: true } ordered)
+            return ordered.Scan(prefix, startInclusive, endExclusive, afterKey, cancellationToken, candidateVisited);
+
+        return overlay.Where(pair => !pair.Value.IsDeleted
+                && pair.Key.AsSpan().StartsWith(prefix)
+                && (startInclusive is null || KvKeyComparer.Instance.Compare(pair.Key, startInclusive) >= 0)
+                && (endExclusive is null || KvKeyComparer.Instance.Compare(pair.Key, endExclusive) < 0)
+                && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
+            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance);
     }
 
     private void ReplaceDiskStateLocked(KvDiskState? diskState)

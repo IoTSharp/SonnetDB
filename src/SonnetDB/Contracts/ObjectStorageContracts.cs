@@ -33,7 +33,14 @@ public sealed record ObjectListResponse(
     string? ContinuationToken,
     string? NextContinuationToken,
     bool IsTruncated,
-    IReadOnlyList<ObjectInfoResponse> Objects);
+    IReadOnlyList<ObjectInfoResponse> Objects)
+{
+    /// <summary>目录分隔符。</summary>
+    public string? Delimiter { get; init; }
+
+    /// <summary>本页公共前缀，与对象共用页大小限制。</summary>
+    public IReadOnlyList<string> CommonPrefixes { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>批量删除对象请求。</summary>
 public sealed record ObjectDeleteManyRequest(IReadOnlyList<string> Keys);
