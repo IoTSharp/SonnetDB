@@ -164,6 +164,12 @@ public sealed record SqlExplainExecutionResult(
     /// <summary>估算使用的统计 sequence。</summary>
     public long? StatisticsSequence { get; init; }
 
+    /// <summary>单关系表或独立 EXISTS 的自动统计维护状态；其它计划为空。</summary>
+    public string? StatisticsRefreshState { get; init; }
+
+    /// <summary>自动统计维护最近一次失败、取消或延后的稳定原因。</summary>
+    public string? StatisticsRefreshErrorCode { get; init; }
+
     /// <summary>统计刷新距当前的毫秒数。</summary>
     public long? StatisticsFreshnessMilliseconds { get; init; }
 
@@ -294,6 +300,17 @@ public static class SqlExplainPlanner
             _ => throw new InvalidOperationException(
                 "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]。"),
         };
+        if (result.Measurement is { } tableName
+            && result.StatementType is "select_table" or "select_exists"
+            && tsdb.Tables.Catalog.TryGet(tableName) is not null)
+        {
+            TableStatisticsRefreshStatus refresh = tsdb.Tables.Open(tableName).AutomaticStatisticsRefreshStatus;
+            result = result with
+            {
+                StatisticsRefreshState = refresh.State,
+                StatisticsRefreshErrorCode = refresh.ErrorCode,
+            };
+        }
         return statement is SelectStatement selectStatement
             && result.MemoryBehavior is null
             && UsesRelationalExecution(tsdb, selectStatement)
@@ -339,6 +356,8 @@ public static class SqlExplainPlanner
             new object?[] { "estimate_source", result.EstimateSource },
             new object?[] { "statistics_sequence", result.StatisticsSequence },
             new object?[] { "statistics_freshness_ms", result.StatisticsFreshnessMilliseconds },
+            new object?[] { "statistics_refresh_state", result.StatisticsRefreshState },
+            new object?[] { "statistics_refresh_error_code", result.StatisticsRefreshErrorCode },
             new object?[] { "actual_rows", result.ActualRows },
             new object?[] { "actual_candidate_rows", result.ActualCandidateRows },
             new object?[] { "actual_examined_rows", result.ActualExaminedRows },

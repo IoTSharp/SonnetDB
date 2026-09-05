@@ -1065,7 +1065,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         TableStore store = tsdb.Tables.Open(statement.TableName);
-        TableStatistics statistics = store.RefreshStatistics();
+        TableStatistics statistics = store.RefreshStatistics(
+            cancellationToken: SqlQueryResources.Current?.CancellationToken ?? default);
         return new SelectExecutionResult(
             _analyzeColumns,
             [new object?[]

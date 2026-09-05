@@ -21,6 +21,7 @@ public sealed class TableManager : IDisposable
     private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Action<string, string>? _schemaMutationGuard;
     private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
+    private readonly TableStatisticsRefreshBudget _statisticsRefreshBudget = new();
     private bool _disposed;
 
     // M39 #333 crash/commit evidence hook.  It is intentionally internal and
@@ -597,9 +598,10 @@ public sealed class TableManager : IDisposable
                 if (Directory.Exists(newDirectory))
                     throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
 
-                TableStore? existingStore = null;
-                if (_stores.Remove(oldName, out existingStore))
-                    existingStore.Dispose();
+                _stores.TryGetValue(oldName, out TableStore? existingStore);
+                using IDisposable? statisticsPause = existingStore?.PauseAutomaticStatisticsRefreshForRename();
+                existingStore?.Dispose();
+                _stores.Remove(oldName);
 
                 Catalog.Remove(oldName);
                 Catalog.Add(updated);
@@ -1112,7 +1114,7 @@ public sealed class TableManager : IDisposable
         var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions);
         try
         {
-            return new TableStore(schema, kv);
+            return new TableStore(schema, kv, _statisticsRefreshBudget);
         }
         catch
         {
