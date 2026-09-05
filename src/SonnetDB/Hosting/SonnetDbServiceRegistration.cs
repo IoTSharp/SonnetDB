@@ -224,7 +224,7 @@ internal static class SonnetDbServiceRegistration
                     return Task.CompletedTask;
                 };
             })
-            .WithTools<SonnetDbMcpTools>()
+            .WithTools<SonnetDbMcpTools>(SonnetDbMcpJson.ToolOptions)
             .WithResources<SonnetDbMcpResources>();
 
         // 在应用关闭时优雅释放所有 Tsdb 实例。
