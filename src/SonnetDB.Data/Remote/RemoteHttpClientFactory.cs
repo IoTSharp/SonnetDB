@@ -17,9 +17,11 @@ internal static class RemoteHttpClientFactory
     /// 认证优先级：<paramref name="username"/> 非空 → HTTP Basic（<c>user:password</c>）；
     /// 否则 <paramref name="token"/> 非空 → Bearer。
     /// </summary>
-    public static HttpClient Create(Uri baseAddress, string? username, string? password, string? token, TimeSpan timeout)
+    public static HttpClient Create(Uri baseAddress, string? username, string? password, string? token, TimeSpan timeout,
+        bool allowAutoRedirect = true)
     {
-        var handler = Handlers.GetOrAdd(BuildHandlerKey(baseAddress), static _ => CreateHandler());
+        var handler = Handlers.GetOrAdd(BuildHandlerKey(baseAddress, allowAutoRedirect),
+            static (_, allowRedirect) => CreateHandler(allowAutoRedirect: allowRedirect), allowAutoRedirect);
         return CreateClient(baseAddress, username, password, token, timeout, handler, disposeHandler: false);
     }
 
@@ -37,8 +39,9 @@ internal static class RemoteHttpClientFactory
         return CreateClient(baseAddress, username, password, token, timeout, handler, disposeHandler: true);
     }
 
-    private static SocketsHttpHandler CreateHandler(TimeSpan? pooledConnectionIdleTimeout = null) => new()
+    private static SocketsHttpHandler CreateHandler(TimeSpan? pooledConnectionIdleTimeout = null, bool allowAutoRedirect = true) => new()
     {
+        AllowAutoRedirect = allowAutoRedirect,
         AutomaticDecompression = DecompressionMethods.All,
         ConnectTimeout = TimeSpan.FromSeconds(5),
         MaxConnectionsPerServer = 64,
@@ -74,8 +77,8 @@ internal static class RemoteHttpClientFactory
         return client;
     }
 
-    private static string BuildHandlerKey(Uri baseAddress) =>
+    private static string BuildHandlerKey(Uri baseAddress, bool allowAutoRedirect) =>
         string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"{baseAddress.Scheme}://{baseAddress.IdnHost}:{baseAddress.Port}");
+            $"{baseAddress.Scheme}://{baseAddress.IdnHost}:{baseAddress.Port}|redirect={allowAutoRedirect}");
 }

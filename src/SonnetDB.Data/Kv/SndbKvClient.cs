@@ -5,6 +5,7 @@ using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.Kv;
@@ -12,7 +13,7 @@ namespace SonnetDB.Data.Kv;
 /// <summary>
 /// 通过 <see cref="SndbConnectionStringBuilder"/> 统一访问 SonnetDB KV 能力。
 /// </summary>
-public sealed class SndbKvClient : IDisposable
+public sealed partial class SndbKvClient : IDisposable
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
@@ -46,8 +47,9 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
         if (_embedded is not null)
         {
@@ -60,7 +62,7 @@ public sealed class SndbKvClient : IDisposable
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeGetRequest(w, 1, _database, keyspace, Encoding.UTF8.GetBytes(Qualify(@namespace, key)));
+            KvFrameCodec.EncodeGetRequest(w, 1, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)));
             var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
             if (frame is { } f)
             {
@@ -96,18 +98,20 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
         ArgumentNullException.ThrowIfNull(value);
+        ValidateExpiry(expiresAtUtc);
 
         if (_embedded is not null)
-            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Put(key, value, expiresAtUtc);
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Set(key, value, KvSetCondition.Always, expiresAtUtc, cancellationToken).Version!.Value;
 
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodePutRequest(w, 1, _database, keyspace, Encoding.UTF8.GetBytes(Qualify(@namespace, key)), value, expiresAtUtc);
-            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            KvFrameCodec.EncodePutRequest(w, 1, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value, expiresAtUtc);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } f)
                 return KvFrameCodec.DecodePutResponse(f.Payload);
         }
@@ -134,8 +138,9 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
         if (_embedded is not null)
             return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Increment(key, delta);
@@ -161,8 +166,9 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
         ArgumentOutOfRangeException.ThrowIfNegative(delta);
 
         if (_embedded is not null)
@@ -191,15 +197,32 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
         ArgumentNullException.ThrowIfNull(value);
+        ValidateExpiry(expiresAtUtc);
 
         if (_embedded is not null)
         {
             var result = _embedded.Keyspaces.Open(keyspace).Namespace(@namespace)
-                .CompareAndSet(key, expectedVersion, value, expiresAtUtc);
+                .CompareAndSet(key, expectedVersion, value, expiresAtUtc, cancellationToken);
             return new SndbKvCasResult(result.Succeeded, result.CurrentVersion, result.NewVersion);
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        if (_frames is { } frames && frames.ShouldTryFrames())
+        {
+            var writer = new ArrayBufferWriter<byte>();
+            KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.CompareAndSet, _database, keyspace,
+                KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value,
+                expectedVersion: expectedVersion, expiresAtUtc: expiresAtUtc);
+            var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
+            if (frame is { } resultFrame)
+            {
+                var result = KvFrameCodec.DecodeCasResponse(resultFrame.Payload);
+                return new SndbKvCasResult(result.Succeeded, result.CurrentVersion, result.NewVersion);
+            }
         }
 
         using var response = await PostJsonAsync(
@@ -222,12 +245,13 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(keys);
 
         var requested = keys.ToArray();
         foreach (string key in requested)
-            ArgumentNullException.ThrowIfNull(key);
+            ValidateKey(@namespace, key);
 
         if (_embedded is not null)
         {
@@ -272,6 +296,7 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(values);
 
@@ -317,8 +342,9 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
         if (_embedded is not null)
             return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Delete(key);
@@ -344,12 +370,13 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(keys);
 
         var requested = keys.ToArray();
         foreach (string key in requested)
-            ArgumentNullException.ThrowIfNull(key);
+            ValidateKey(@namespace, key);
 
         if (_embedded is not null)
             return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).DeleteMany(requested);
@@ -376,6 +403,7 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(prefix);
 
@@ -404,11 +432,22 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
+        ValidateExpiry(expiresAtUtc);
         if (_embedded is not null)
-            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).ExpireAt(key, expiresAtUtc);
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).ExpireAt(key, expiresAtUtc, cancellationToken);
+
+        if (_frames is { } frames && frames.ShouldTryFrames())
+        {
+            var writer = new ArrayBufferWriter<byte>();
+            KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.Expire, _database, keyspace,
+                KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), [], expiresAtUtc: expiresAtUtc);
+            var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
+            if (frame is { } resultFrame) return KvFrameCodec.DecodeBooleanResponse(resultFrame.Payload);
+        }
 
         using var response = await PostJsonAsync(
             KvUrl(keyspace, "expire"),
@@ -430,11 +469,15 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
         if (_embedded is not null)
-            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Persist(key);
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Persist(key, cancellationToken);
+
+        var frame = await SendAtomicKeyAsync(KvFrameOp.Persist, keyspace, @namespace, key, cancellationToken).ConfigureAwait(false);
+        if (frame is { } resultFrame) return KvFrameCodec.DecodeBooleanResponse(resultFrame.Payload);
 
         using var response = await PostJsonAsync(
             KvUrl(keyspace, "persist"),
@@ -456,13 +499,21 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
-        ArgumentNullException.ThrowIfNull(key);
+        ValidateKey(@namespace, key);
 
         if (_embedded is not null)
         {
             var ttl = _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).GetTimeToLive(key);
             return new SndbKvTtlResult(ttl.Milliseconds, ttl.ExpiresAtUtc);
+        }
+
+        var frame = await SendAtomicKeyAsync(KvFrameOp.GetTimeToLive, keyspace, @namespace, key, cancellationToken).ConfigureAwait(false);
+        if (frame is { } resultFrame)
+        {
+            var result = KvFrameCodec.DecodeTtlResponse(resultFrame.Payload);
+            return new SndbKvTtlResult(result.Milliseconds, result.ExpiresAtUtc);
         }
 
         using var response = await PostJsonAsync(
@@ -486,6 +537,7 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(prefix);
 
@@ -540,6 +592,7 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(keyspace);
 
         if (_embedded is not null)
@@ -563,6 +616,7 @@ public sealed class SndbKvClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(keyspace);
 
         if (_embedded is not null)
@@ -628,7 +682,8 @@ public sealed class SndbKvClient : IDisposable
             _builder.Username,
             _builder.Password,
             _builder.Token,
-            TimeSpan.FromSeconds(_builder.Timeout));
+            TimeSpan.FromSeconds(_builder.Timeout),
+            allowAutoRedirect: false);
         _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
@@ -644,7 +699,10 @@ public sealed class SndbKvClient : IDisposable
         using var content = JsonContent.Create(value, typeInfo);
         var response = await _http.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        {
+            using (response)
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        }
         return response;
     }
 
@@ -668,9 +726,9 @@ public sealed class SndbKvClient : IDisposable
             if (error is not null)
                 return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
-        catch
+        catch (JsonException)
         {
-            // Fall through to generic error.
+            // Non-JSON errors retain the HTTP status; cancellation and I/O failures propagate.
         }
 
         return new SndbServerException("http_error", response.ReasonPhrase ?? "SonnetDB HTTP error.", response.StatusCode);

@@ -237,7 +237,7 @@ internal static class FrameEndpointHandler
         }
         else if (header.Service == (byte)FrameService.Kv)
         {
-            if (header.Op is < (byte)KvFrameOp.Get or > (byte)KvFrameOp.Scan)
+            if (header.Op is < (byte)KvFrameOp.Get or > (byte)KvFrameOp.GetTimeToLive)
             {
                 errorCode = "unsupported_op";
                 return $"kv service 不支持 op {header.Op}。";
@@ -330,7 +330,13 @@ internal static class FrameEndpointHandler
         }
         catch (IOException ex)
         {
-            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "mq_io_error", ex.Message);
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                header.Service == (byte)FrameService.Kv ? "kv_io_error" : "mq_io_error", ex.Message);
+        }
+        catch (TimeoutException)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                header.Service == (byte)FrameService.Kv ? "kv_write_timeout" : "timeout", "操作等待超时，请核对写入结果。");
         }
         catch (InvalidDataException ex)
         {
@@ -759,6 +765,7 @@ internal static class FrameEndpointHandler
         FrameHeader header,
         ReadOnlyMemory<byte> payload)
     {
+        ctx.RequestAborted.ThrowIfCancellationRequested();
         switch ((KvFrameOp)header.Op)
         {
             case KvFrameOp.Get:
@@ -779,7 +786,7 @@ internal static class FrameEndpointHandler
                             request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Write, out Tsdb tsdb))
                         return;
                     long version = tsdb.Keyspaces.Open(request.Keyspace)
-                        .Put(request.Key.Span, request.Value.Span, request.ExpiresAtUtc);
+                        .Set(request.Key.Span, request.Value.Span, KvSetCondition.Always, request.ExpiresAtUtc, ctx.RequestAborted).Version!.Value;
                     KvFrameCodec.EncodePutResponse(writer, header.StreamId, version);
                     return;
                 }
@@ -794,6 +801,52 @@ internal static class FrameEndpointHandler
                     IReadOnlyList<KvEntry> entries = tsdb.Keyspaces.Open(request.Keyspace)
                         .ScanPrefixAfter(request.Prefix.Span, request.AfterKey.Span, limit);
                     KvFrameCodec.EncodeScanResponse(writer, header.StreamId, entries);
+                    return;
+                }
+
+            case KvFrameOp.SetConditional:
+            case KvFrameOp.GetAndSet:
+            case KvFrameOp.CompareAndSet:
+            case KvFrameOp.Expire:
+                {
+                    var op = (KvFrameOp)header.Op;
+                    var request = KvFrameCodec.DecodeAtomicWriteRequest(op, payload);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Write, out Tsdb tsdb))
+                        return;
+                    var kv = tsdb.Keyspaces.Open(request.Keyspace);
+                    var cancellationToken = ctx.RequestAborted;
+                    if (op == KvFrameOp.SetConditional)
+                        KvFrameCodec.EncodeConditionalSetResponse(writer, header.StreamId,
+                            kv.Set(request.Key.Span, request.Value.Span, request.Condition, request.ExpiresAtUtc, cancellationToken));
+                    else if (op == KvFrameOp.GetAndSet)
+                        KvFrameCodec.EncodeExchangeResponse(writer, header.StreamId, op,
+                            kv.GetAndSet(request.Key.Span, request.Value.Span, request.ExpiresAtUtc, cancellationToken));
+                    else if (op == KvFrameOp.CompareAndSet)
+                        KvFrameCodec.EncodeCasResponse(writer, header.StreamId,
+                            kv.CompareAndSet(request.Key.Span, request.ExpectedVersion, request.Value.Span, request.ExpiresAtUtc, cancellationToken));
+                    else
+                        KvFrameCodec.EncodeBooleanResponse(writer, header.StreamId, op,
+                            kv.ExpireAt(request.Key.Span, request.ExpiresAtUtc!.Value, cancellationToken));
+                    return;
+                }
+
+            case KvFrameOp.GetAndDelete:
+            case KvFrameOp.Persist:
+            case KvFrameOp.GetTimeToLive:
+                {
+                    var op = (KvFrameOp)header.Op;
+                    var request = KvFrameCodec.DecodeGetRequest(payload);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header, request.Db, request.Keyspace,
+                            "keyspace 名", op == KvFrameOp.GetTimeToLive ? DatabasePermission.Read : DatabasePermission.Write, out Tsdb tsdb))
+                        return;
+                    var kv = tsdb.Keyspaces.Open(request.Keyspace);
+                    if (op == KvFrameOp.GetAndDelete)
+                        KvFrameCodec.EncodeExchangeResponse(writer, header.StreamId, op, kv.GetAndDelete(request.Key.Span, ctx.RequestAborted));
+                    else if (op == KvFrameOp.Persist)
+                        KvFrameCodec.EncodeBooleanResponse(writer, header.StreamId, op, kv.Persist(request.Key.Span, ctx.RequestAborted));
+                    else
+                        KvFrameCodec.EncodeTtlResponse(writer, header.StreamId, kv.GetTimeToLive(request.Key.Span));
                     return;
                 }
 

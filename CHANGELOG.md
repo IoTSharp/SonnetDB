@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
+
 - **M40 #367 manifest 输入边界补强**：`EvaluateManifest` 在打开文件前传播预取消，在反序列化前拒绝超过 4 MiB 的清单，并通过 source-generated `JsonTypeInfo` 执行可取消的流式读取；集合上限检查提前到非 Production 早退之前，超量输入统一 fail closed。
 
 - **M40 #367 evidence 子进程监督与回收加固**：quick crash/reopen、manifest artifact 回放及 Git/.NET 元数据探测统一使用有界 runner，启动即并发排空 stdout/stderr、每路最多留存 64 KiB，并分别限制执行、10 秒回收确认轮询、5 秒输出 drain 和 drain 取消后的 2 秒 task join；`RunQuick` 另有 10 分钟 linked 总 deadline，`EvaluateManifest` 与 evaluator `Evaluate` 各有 12 小时 linked 总 deadline，触发后沿同一路径先回收当前子进程并停止后续回放。受信 launcher 在 stdin 握手前不会启动真实命令；Windows 先 attach 带 `KILL_ON_JOB_CLOSE` 的 Job Object 并向 launcher 复制可主动终止同一 Job 的 handle，Linux 先通过固定路径 `setsid` 建立并确认独立进程组，随后才放行目标，避免极短命令先于 containment 建立而 fail-open/偶发失败。目标完成状态通过带握手 token 的任务专属 control 文件发布，launcher 在父 runner 终止并确认 Job/PGID 清空前不退出；普通 `Run` 与 marker 检查时已自然退出的目标缺少认证 completion 时追加 failure、固定暴露退出码 `-1`，不再回退为 launcher 退出码，只有 marker 已满足后由 runner 主动终止 containment 才允许无 completion。贯穿 target start、运行、drain 和 completion 的 watchdog 在父丢失或 hard lifetime 时主动杀完整 containment，内部 target drain timeout/fault 也稳定 fail closed。进程日志记录 supervisor/target PID、父 PID、稳定启动标识、结构化参数、工作目录和隔离状态；Linux 父身份使用 `/proc/<pid>/stat` starttime，避免跨进程 start-time 换算漂移。超时/取消时终止可靠隔离容器；root-only fallback 不放行目标，只终止已记录 launcher 根进程且 gate 始终 fail closed。启动后的监督初始化失败也保留真实 supervisor 身份和 cleanup 结果，预取消不会启动 launcher。CLI `Ctrl+C` 同样先传播取消并等待回收；quick marker 入口已收窄为有界文件存在性轮询，不接受任意同步 callback。Production manifest 在启动外部进程前限制为 16 个 journey、10 个 correctness check、10 个 performance check 和 12 个 gap，唯一 artifact 回放另设 64 项上限。新增预取消、极短命令重复、marker 成功/timeout/自然退出、无 completion 的 launcher 异常退出、外部取消、双流超管道容量、目标 drain 失败、父丢失、父仍存活时 hard lifetime 整树回收和超量 manifest 不启动回放的回归；Linux 仍不防护受信命令主动脱离其进程组。
@@ -90,6 +92,8 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **M36 #316 KV 未知提交与重发边界**：CAS/expire/persist 的 WAL sync 异常统一拒绝后续写入并要求重开核对；可取消写在首次 WAL append 前停止，提交后不伪报取消。SDK 拒绝缺字段或矛盾的原子 REST 响应，以及关联/版本/保留标志错误的 Frame 响应；KV 写禁用发送后的 Frame/REST 回退，专用 HTTP handler 禁止 307/308 自动重发，保留其他客户端默认策略及凭据隔离。
 
 - **M36 SQL 工作流正确性**：固定执行库、连接和历史归属，切换上下文/卸载取消后续请求；审批绑定凭据与连接，阻止旧审批执行。单库事务脚本整体送 `/sql/batch`，拒绝不支持的混合事务；严格校验 NDJSON frame、行宽、终态/计数，损坏/空/截断及尾部错误不再显示为成功。取消不保证撤回已经提交的写入。
 

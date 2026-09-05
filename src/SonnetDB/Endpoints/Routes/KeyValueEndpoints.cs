@@ -23,6 +23,8 @@ internal static partial class SonnetDbEndpoints
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
 
+        MapKvAtomicEndpoints(app, registry, grants);
+
         // ---- KV API ----
         app.MapPost("/v1/db/{db}/kv/{keyspace}/get", async (HttpContext ctx, string db, string keyspace) =>
         {
@@ -69,21 +71,6 @@ internal static partial class SonnetDbEndpoints
             await Results.Json(new KvGetManyResponse(values), ServerJsonContext.Default.KvGetManyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
-        app.MapPost("/v1/db/{db}/kv/{keyspace}/set", async (HttpContext ctx, string db, string keyspace) =>
-        {
-            if (!await TryResolveKvAsync(ctx, registry, grants, db, keyspace, DatabasePermission.Write).ConfigureAwait(false))
-                return;
-            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.KvSetRequest).ConfigureAwait(false);
-            if (req is null)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
-                return;
-            }
-
-            registry.TryGet(db, out var tsdb);
-            long version = tsdb.Keyspaces.Open(keyspace).Put(req.Key, req.Value, req.ExpiresAtUtc);
-            await Results.Json(new KvSetResponse(version), ServerJsonContext.Default.KvSetResponse).ExecuteAsync(ctx).ConfigureAwait(false);
-        });
 
         app.MapPost("/v1/db/{db}/kv/{keyspace}/set-many", async (HttpContext ctx, string db, string keyspace) =>
         {
@@ -135,23 +122,6 @@ internal static partial class SonnetDbEndpoints
             await Results.Json(new KvIncrementResponse(value, version), ServerJsonContext.Default.KvIncrementResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
-        app.MapPost("/v1/db/{db}/kv/{keyspace}/cas", async (HttpContext ctx, string db, string keyspace) =>
-        {
-            if (!await TryResolveKvAsync(ctx, registry, grants, db, keyspace, DatabasePermission.Write).ConfigureAwait(false))
-                return;
-            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.KvCasRequest).ConfigureAwait(false);
-            if (req is null)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
-                return;
-            }
-
-            registry.TryGet(db, out var tsdb);
-            var result = tsdb.Keyspaces.Open(keyspace).CompareAndSet(req.Key, req.ExpectedVersion, req.Value, req.ExpiresAtUtc);
-            await Results.Json(
-                new KvCasResponse(result.Succeeded, result.CurrentVersion, result.NewVersion),
-                ServerJsonContext.Default.KvCasResponse).ExecuteAsync(ctx).ConfigureAwait(false);
-        });
 
         app.MapPost("/v1/db/{db}/kv/{keyspace}/remove", async (HttpContext ctx, string db, string keyspace) =>
         {
@@ -185,37 +155,7 @@ internal static partial class SonnetDbEndpoints
             await Results.Json(new KvDeleteResponse(removed), ServerJsonContext.Default.KvDeleteResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
-        app.MapPost("/v1/db/{db}/kv/{keyspace}/expire", async (HttpContext ctx, string db, string keyspace) =>
-        {
-            if (!await TryResolveKvAsync(ctx, registry, grants, db, keyspace, DatabasePermission.Write).ConfigureAwait(false))
-                return;
-            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.KvExpireRequest).ConfigureAwait(false);
-            if (req is null)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
-                return;
-            }
 
-            registry.TryGet(db, out var tsdb);
-            bool succeeded = tsdb.Keyspaces.Open(keyspace).ExpireAt(req.Key, req.ExpiresAtUtc);
-            await Results.Json(new KvBooleanResponse(succeeded), ServerJsonContext.Default.KvBooleanResponse).ExecuteAsync(ctx).ConfigureAwait(false);
-        });
-
-        app.MapPost("/v1/db/{db}/kv/{keyspace}/persist", async (HttpContext ctx, string db, string keyspace) =>
-        {
-            if (!await TryResolveKvAsync(ctx, registry, grants, db, keyspace, DatabasePermission.Write).ConfigureAwait(false))
-                return;
-            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.KvDeleteRequest).ConfigureAwait(false);
-            if (req is null)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
-                return;
-            }
-
-            registry.TryGet(db, out var tsdb);
-            bool succeeded = tsdb.Keyspaces.Open(keyspace).Persist(req.Key);
-            await Results.Json(new KvBooleanResponse(succeeded), ServerJsonContext.Default.KvBooleanResponse).ExecuteAsync(ctx).ConfigureAwait(false);
-        });
 
         app.MapPost("/v1/db/{db}/kv/{keyspace}/ttl", async (HttpContext ctx, string db, string keyspace) =>
         {

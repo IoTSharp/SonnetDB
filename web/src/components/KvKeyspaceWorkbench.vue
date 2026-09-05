@@ -53,6 +53,9 @@
         </n-button>
         <input ref="importFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="kv-file-input" @change="onImportFileSelected">
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
+        <n-button size="small" quaternary title="查看 KV 结果" aria-label="查看 KV 结果" :disabled="!ranOnce" @click="openResult">
+          <template #icon><PanelBottom :size="16" /></template>
+        </n-button>
       </div>
     </section>
 
@@ -67,8 +70,10 @@
       v-if="previewPlan"
       :plan="previewPlan"
       :busy="confirmBusy"
+      abortable
       @cancel="clearPendingOperations"
       @confirm="confirmPendingOperations"
+      @abort="abortPendingOperations"
     />
 
     <n-alert
@@ -181,7 +186,7 @@
 
         <template v-if="activeView === 'browser' && selectedEntry">
           <div class="kv-detail-strip">
-            <span>version {{ selectedEntry.version }}</span>
+            <span>version {{ displayKvVersion(undefined, selectedEntry.version) }}</span>
             <span>{{ selectedEntry.byteLength }} bytes</span>
             <span>{{ selectedEntry.ttlLabel }}</span>
           </div>
@@ -200,17 +205,22 @@
           <n-text class="kv-editor__title">Set / edit value</n-text>
           <n-input v-model:value="editKey" size="small" placeholder="Key" />
           <div class="kv-editor__row">
+            <n-select v-model:value="singleOperation" size="small" :options="singleOperationOptions" aria-label="KV operation" />
+            <n-select v-if="singleOperation === 'set'" v-model:value="setCondition" size="small" :options="setConditionOptions" aria-label="Set condition" />
+          </div>
+          <div v-if="singleOperation !== 'get-and-delete'" class="kv-editor__row">
             <n-select v-model:value="editMode" size="small" :options="valueModeOptions" />
             <n-select v-model:value="setExpiryMode" size="small" :options="setExpiryOptions" />
           </div>
           <n-input
+            v-if="singleOperation !== 'get-and-delete'"
             v-model:value="editValue"
             type="textarea"
             :autosize="{ minRows: 4, maxRows: 8 }"
             placeholder="Value"
           />
           <n-input-number
-            v-if="setExpiryMode === 'seconds'"
+            v-if="singleOperation !== 'get-and-delete' && setExpiryMode === 'seconds'"
             v-model:value="setTtlSeconds"
             size="small"
             :min="1"
@@ -218,8 +228,8 @@
             placeholder="Expire in seconds"
           />
           <n-space size="small" align="center" :wrap="true">
-            <n-button size="small" type="primary" :disabled="!activeKeyspace" @click="stageSetFromEditor">
-              Stage set
+            <n-button size="small" type="primary" :disabled="!activeKeyspace || confirmBusy" @click="stageSetFromEditor">
+              {{ singleOperation === 'set' ? 'Stage set' : singleOperation === 'get-and-set' ? 'Stage exchange' : 'Stage get and delete' }}
             </n-button>
             <n-button size="small" secondary :disabled="!selectedEntry" @click="stageExpireSelected">
               Stage expire
@@ -289,6 +299,7 @@
 
     <WorkbenchResultPanel
       class="kv-result"
+      wrap-header
       title="KV operation result"
       :sql="latestCommand"
       :result="latestResult"
@@ -308,7 +319,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue';
+import { PanelBottom } from 'lucide-vue-next';
+import { computed, h, markRaw, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -332,15 +344,21 @@ import {
   expireKvEntry,
   fetchKvStats,
   getManyKvEntries,
+  getAndDeleteKvEntry,
+  getAndSetKvEntry,
   persistKvEntry,
   removeKvPrefix,
   removeManyKvEntries,
   scanKvEntries,
   setManyKvEntries,
+  setConditionalKvEntry,
+  type KvAtomicValueResponse,
+  type KvSetCondition,
   type KvEntryResponse,
   type KvStatsResponse,
   type KvValueItemResponse,
 } from '@/api/kv';
+import { createApiClient } from '@/api/client';
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
@@ -378,7 +396,20 @@ const emit = defineEmits<{
 type ValueView = 'text' | 'json' | 'hex' | 'base64';
 type KvView = 'browser' | 'batch' | 'stats';
 type ValueKind = 'json' | 'text' | 'binary';
-type SetExpiryMode = 'preserve' | 'persist' | 'seconds';
+type SetExpiryMode = 'persist' | 'seconds';
+type SingleOperation = 'set' | 'get-and-set' | 'get-and-delete';
+
+interface KvContext {
+  revision: number;
+  database: string;
+  keyspace: string;
+  connectionId: string;
+  connectionName: string;
+  baseUrl: string | undefined;
+  token: string | undefined;
+  sourceApi: ReturnType<typeof useAuthStore>['api'];
+  api: ReturnType<typeof useAuthStore>['api'];
+}
 
 interface KvRow {
   key: string;
@@ -403,7 +434,8 @@ interface PendingOperation {
   detail: string;
   severity: WriteApprovalSeverity;
   command: string;
-  run: () => Promise<OperationOutcome>;
+  context: KvContext;
+  run: (signal: AbortSignal) => Promise<OperationOutcome>;
 }
 
 interface OperationOutcome {
@@ -412,6 +444,15 @@ interface OperationOutcome {
   succeeded: boolean;
   affected: number;
   detail: string;
+  state?: 'completed' | 'not-applied' | 'failed' | 'unknown';
+  applied?: boolean;
+  version?: number | null;
+  versionText?: string | null;
+  previous?: KvAtomicValueResponse['previous'];
+  mutationVersion?: number | null;
+  previousVersionText?: string | null;
+  mutationVersionText?: string | null;
+  errorCode?: string;
 }
 
 const auth = useAuthStore();
@@ -448,9 +489,19 @@ const valueModeOptions: SelectOption[] = [
 ];
 
 const setExpiryOptions: SelectOption[] = [
-  { label: 'Preserve TTL', value: 'preserve' },
   { label: 'Persistent', value: 'persist' },
   { label: 'Expire in seconds', value: 'seconds' },
+];
+
+const singleOperationOptions: SelectOption[] = [
+  { label: 'Set', value: 'set' },
+  { label: 'Get and set', value: 'get-and-set' },
+  { label: 'Get and delete', value: 'get-and-delete' },
+];
+const setConditionOptions: SelectOption[] = [
+  { label: 'Always', value: 0 },
+  { label: 'Only if absent (NX)', value: 1 },
+  { label: 'Only if present (XX)', value: 2 },
 ];
 
 const rows = ref<KvRow[]>([]);
@@ -476,7 +527,9 @@ const valueView = ref<ValueView>('text');
 const editKey = ref('');
 const editValue = ref('');
 const editMode = ref<ValueView>('text');
-const setExpiryMode = ref<SetExpiryMode>('preserve');
+const setExpiryMode = ref<SetExpiryMode>('persist');
+const singleOperation = ref<SingleOperation>('set');
+const setCondition = ref<KvSetCondition>(0);
 const setTtlSeconds = ref<number | null>(3600);
 const expireSeconds = ref<number | null>(3600);
 const batchKeysText = ref('');
@@ -485,11 +538,27 @@ const importFileInput = ref<HTMLInputElement | null>(null);
 const prefixDeleteLimit = ref<number | null>(1000);
 const cleanExpiredLimit = ref<number | null>(1000);
 const pendingOperations = ref<PendingOperation[]>([]);
+const runningOperations = ref<PendingOperation[]>([]);
 const confirmBusy = ref(false);
 const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+const maxPendingOperations = 1000;
+function openResult(): void {
+  window.dispatchEvent(new CustomEvent('sndb:toggle-result', { detail: { open: true } }));
+}
+let contextRevision = 0;
+let disposed = false;
+let statsRequestId = 0;
+let scanRequestId = 0;
+let getRequestId = 0;
+let writeRequestId = 0;
+let fileRequestId = 0;
+let statsController: AbortController | null = null;
+let scanController: AbortController | null = null;
+let getController: AbortController | null = null;
+let writeController: AbortController | null = null;
 
 const selectedEntry = computed(() =>
   rows.value.find((row) => row.key === selectedKey.value) ?? null);
@@ -569,8 +638,10 @@ const selectedValueText = computed(() => {
 });
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
-  if (pendingOperations.value.length === 0) return null;
-  const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
+  const operations = confirmBusy.value ? runningOperations.value : pendingOperations.value;
+  const first = operations[0];
+  if (!first) return null;
+  const items: WriteApprovalItem[] = operations.map((operation) => ({
     id: operation.id,
     command: operation.command,
     severity: operation.severity,
@@ -578,9 +649,9 @@ const previewPlan = computed<WriteApprovalPlan | null>(() => {
     detail: operation.detail,
   }));
   return createWriteApprovalPlan({
-    id: `kv_${props.targetDb}_${activeKeyspace.value}_${pendingOperations.value.map((item) => item.id).join('_')}`,
+    id: `kv_${first.context.revision}_${operations.map((item) => item.id).join('_')}`,
     title: 'KV operation batch',
-    target: `${props.targetDb}.${activeKeyspace.value}`,
+    target: `${first.context.connectionName}: ${first.context.database}.${first.context.keyspace}`,
     items,
   });
 });
@@ -674,42 +745,58 @@ async function refreshAll(updateResult = true): Promise<void> {
 
 async function loadStats(): Promise<void> {
   if (!props.targetDb || !activeKeyspace.value) return;
+  const context = captureContext();
+  const requestId = ++statsRequestId;
+  statsController?.abort();
+  const controller = statsController = new AbortController();
   try {
-    stats.value = await fetchKvStats(auth.api, props.targetDb, activeKeyspace.value);
+    const result = await fetchKvStats(context.api, context.database, context.keyspace, controller.signal);
+    if (isCurrentContext(context) && requestId === statsRequestId && !controller.signal.aborted) stats.value = result;
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '加载 KV 统计失败');
+    if (isCurrentContext(context) && requestId === statsRequestId && !controller.signal.aborted) errorMsg.value = errorToMessage(error, '加载 KV 统计失败');
+  } finally {
+    if (statsController === controller) statsController = null;
   }
 }
 
 async function loadEntries(reset: boolean, updateResult = true): Promise<void> {
   if (!props.targetDb || !activeKeyspace.value) return;
   const started = performance.now();
+  const context = captureContext();
+  const requestId = ++scanRequestId;
+  const prefix = currentPrefix.value;
+  const limit = scanLimit.value;
+  scanController?.abort();
+  const controller = scanController = new AbortController();
   loadingScan.value = true;
   errorMsg.value = '';
   try {
-    const response = await scanKvEntries(auth.api, props.targetDb, activeKeyspace.value, {
-      prefix: currentPrefix.value,
+    const response = await scanKvEntries(context.api, context.database, context.keyspace, {
+      prefix,
       cursor: reset ? null : cursor.value,
-      limit: scanLimit.value,
-    });
+      limit,
+    }, controller.signal);
+    if (!isCurrentContext(context) || requestId !== scanRequestId || controller.signal.aborted) return;
     const nextRows = response.entries.map(mapEntry);
     rows.value = reset ? nextRows : mergeRows(rows.value, nextRows);
     cursor.value = response.nextCursor ?? null;
     hasMore.value = response.hasMore;
     syncSelectedAfterRows();
     if (updateResult) {
-      latestCommand.value = `KV SCAN ${activeKeyspace.value} PREFIX ${JSON.stringify(currentPrefix.value)} LIMIT ${scanLimit.value}`;
+      latestCommand.value = `KV SCAN ${context.keyspace} PREFIX ${JSON.stringify(prefix)} LIMIT ${limit}`;
       latestResult.value = resultFromEntries(rows.value, performanceElapsed(started));
       ranOnce.value = true;
     }
   } catch (error) {
+    if (!isCurrentContext(context) || requestId !== scanRequestId || controller.signal.aborted) return;
     const msg = errorToMessage(error, '扫描 KV key 失败');
     errorMsg.value = msg;
-    latestResult.value = errorResult(msg);
+    latestResult.value = errorResult(msg, errorCode(error));
     latestCommand.value = 'KV SCAN';
     ranOnce.value = true;
   } finally {
-    loadingScan.value = false;
+    if (!disposed && requestId === scanRequestId) loadingScan.value = false;
+    if (scanController === controller) scanController = null;
   }
 }
 
@@ -737,6 +824,9 @@ function openParentPrefix(): void {
 }
 
 function clearRows(): void {
+  scanController?.abort();
+  scanRequestId += 1;
+  loadingScan.value = false;
   rows.value = [];
   cursor.value = null;
   hasMore.value = false;
@@ -760,26 +850,51 @@ async function loadKeys(keys: string[], action: string): Promise<void> {
   if (!props.targetDb || !activeKeyspace.value) return;
 
   const started = performance.now();
+  const context = captureContext();
+  const requestId = ++getRequestId;
+  getController?.abort();
+  const controller = getController = new AbortController();
+  const command = `KV GET-MANY ${context.keyspace} ${keys.length} keys`;
   try {
-    const values = await getManyKvEntries(auth.api, props.targetDb, activeKeyspace.value, keys);
-    latestCommand.value = `KV GET-MANY ${activeKeyspace.value} ${keys.length} keys`;
+    const values = await getManyKvEntries(context.api, context.database, context.keyspace, keys, controller.signal);
+    if (!isCurrentContext(context) || requestId !== getRequestId || controller.signal.aborted) return;
+    latestCommand.value = command;
     latestResult.value = resultFromValues(values, performanceElapsed(started));
     ranOnce.value = true;
-    recordHistory('success', 'KV get-many', action, latestCommand.value, `${values.length} keys returned`, values.length, performanceElapsed(started));
+    recordHistory('success', 'KV get-many', action, command, `${values.length} keys returned`, values.length, performanceElapsed(started), context);
   } catch (error) {
+    if (!isCurrentContext(context) || requestId !== getRequestId || controller.signal.aborted) return;
     const msg = errorToMessage(error, '批量读取 KV 失败');
     errorMsg.value = msg;
-    latestResult.value = errorResult(msg);
-    latestCommand.value = `KV GET-MANY ${activeKeyspace.value}`;
+    latestResult.value = errorResult(msg, errorCode(error));
+    latestCommand.value = command;
     ranOnce.value = true;
-    recordHistory('error', 'KV get-many', action, latestCommand.value, msg, 0, performanceElapsed(started));
+    recordHistory('error', 'KV get-many', action, command, msg, 0, performanceElapsed(started), context);
+  } finally {
+    if (getController === controller) getController = null;
   }
 }
 
 function stageSetFromEditor(): void {
+  if (confirmBusy.value || !props.targetDb || !activeKeyspace.value) return;
   const key = editKey.value.trim();
   if (!key) {
     message.error('Key is required.');
+    return;
+  }
+  const operation = singleOperation.value;
+  const context = captureContext();
+  if (operation === 'get-and-delete') {
+    enqueueOperation({
+      id: makeOperationId('get-delete'), label: 'Get and delete', detail: key, severity: 'danger', context,
+      command: `KV GET-AND-DELETE ${context.keyspace} ${JSON.stringify(key)}`,
+      run: async (signal) => {
+        const result = await getAndDeleteKvEntry(context.api, context.database, context.keyspace, key, signal);
+        return { action: operation, target: key, succeeded: true, affected: result.previous.found ? 1 : 0,
+          detail: result.previous.found ? 'Deleted' : 'Key absent', previous: result.previous, mutationVersion: result.mutationVersion,
+          previousVersionText: result.previousVersionText, mutationVersionText: result.mutationVersionText };
+      },
+    });
     return;
   }
   const value = encodeDraftValue(editValue.value, editMode.value);
@@ -787,8 +902,32 @@ function stageSetFromEditor(): void {
     message.error(value.message);
     return;
   }
-  const expiresAtUtc = resolveSetExpiresAt(key);
-  stageSetMany([{ key, value: value.base64 }], expiresAtUtc, `Set ${key}`, `${value.byteLength} bytes`);
+  if (setExpiryMode.value === 'seconds' && (!setTtlSeconds.value || !Number.isFinite(setTtlSeconds.value)
+    || setTtlSeconds.value <= 0 || !Number.isFinite(new Date(Date.now() + setTtlSeconds.value * 1000).getTime()))) {
+    message.error('TTL seconds must produce a valid future expiration.');
+    return;
+  }
+  const expiresAtUtc = resolveSetExpiresAt();
+  const request = { key, value: value.base64, expiresAtUtc };
+  const condition = setCondition.value;
+  const conditionLabel = condition === 1 ? 'NX' : condition === 2 ? 'XX' : 'ALWAYS';
+  enqueueOperation({
+    id: makeOperationId(operation), label: operation === 'set' ? 'Set' : 'Get and set',
+    detail: `${key} · ${value.byteLength} bytes`, severity: 'write', context,
+    command: `KV ${operation.toUpperCase()} ${context.keyspace} ${JSON.stringify(key)} entries=1${operation === 'set' ? ` ${conditionLabel}` : ''} expiresAtUtc=${expiresAtUtc ?? 'null'}`,
+    run: async (signal) => {
+      if (operation === 'set') {
+        const result = await setConditionalKvEntry(context.api, context.database, context.keyspace, { ...request, condition }, signal);
+        return { action: 'set-conditional', target: key, succeeded: true, affected: result.applied ? 1 : 0,
+          detail: result.applied ? 'Applied' : 'Condition not met', state: result.applied ? 'completed' : 'not-applied',
+          applied: result.applied, version: result.version, versionText: result.versionText };
+      }
+      const result = await getAndSetKvEntry(context.api, context.database, context.keyspace, request, signal);
+      return { action: operation, target: key, succeeded: true, affected: 1, detail: 'Applied',
+        previous: result.previous, mutationVersion: result.mutationVersion,
+        previousVersionText: result.previousVersionText, mutationVersionText: result.mutationVersionText };
+    },
+  });
 }
 
 function stageBatchSet(): void {
@@ -804,8 +943,11 @@ async function onImportFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  const context = captureContext();
+  const requestId = ++fileRequestId;
   try {
-    stageRoundTripImport(await file.text(), file.name);
+    const text = await file.text();
+    if (isCurrentContext(context) && requestId === fileRequestId && !confirmBusy.value) stageRoundTripImport(text, file.name);
   } finally {
     input.value = '';
   }
@@ -893,8 +1035,8 @@ function parseRoundTripEntries(text: string):
 }
 
 function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtUtc: string | null, label: string, detail: string): void {
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const stagedEntries = entries.map((entry) => ({ ...entry }));
   const command = [
@@ -902,14 +1044,15 @@ function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtU
     `entries=${stagedEntries.length}`,
     `expiresAtUtc=${expiresAtUtc ?? 'null'}`,
   ].join(' ');
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('set'),
     label: 'Set',
     detail,
     severity: 'write',
     command,
-    run: async () => {
-      const response = await setManyKvEntries(auth.api, db, keyspace, stagedEntries, expiresAtUtc);
+    context,
+    run: async (signal) => {
+      const response = await setManyKvEntries(context.api, db, keyspace, stagedEntries, expiresAtUtc, signal);
       return {
         action: 'set-many',
         target: label,
@@ -924,8 +1067,8 @@ function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtU
 function stageExpireSelected(): void {
   const entry = selectedEntry.value;
   if (!entry) return;
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const key = entry.key;
   const seconds = expireSeconds.value;
@@ -934,14 +1077,15 @@ function stageExpireSelected(): void {
     return;
   }
   const expiresAtUtc = new Date(Date.now() + seconds * 1000).toISOString();
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('expire'),
     label: 'Expire',
     detail: `${key} · ${seconds}s`,
     severity: 'write',
     command: `KV EXPIRE ${keyspace} ${JSON.stringify(key)} ${expiresAtUtc}`,
-    run: async () => {
-      const response = await expireKvEntry(auth.api, db, keyspace, key, expiresAtUtc);
+    context,
+    run: async (signal) => {
+      const response = await expireKvEntry(context.api, db, keyspace, key, expiresAtUtc, signal);
       return {
         action: 'expire',
         target: key,
@@ -956,18 +1100,19 @@ function stageExpireSelected(): void {
 function stagePersistSelected(): void {
   const entry = selectedEntry.value;
   if (!entry) return;
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const key = entry.key;
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('persist'),
     label: 'Persist',
     detail: key,
     severity: 'write',
     command: `KV PERSIST ${keyspace} ${JSON.stringify(key)}`,
-    run: async () => {
-      const response = await persistKvEntry(auth.api, db, keyspace, key);
+    context,
+    run: async (signal) => {
+      const response = await persistKvEntry(context.api, db, keyspace, key, signal);
       return {
         action: 'persist',
         target: key,
@@ -992,18 +1137,19 @@ function stageRemoveKeys(keys: string[]): void {
     message.warning('No keys selected.');
     return;
   }
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const stagedKeys = [...keys];
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('remove'),
     label: 'Remove',
     detail: `${stagedKeys.length} keys`,
     severity: 'danger',
     command: `KV REMOVE-MANY ${keyspace} ${stagedKeys.map((key) => JSON.stringify(key)).join(', ')}`,
-    run: async () => {
-      const response = await removeManyKvEntries(auth.api, db, keyspace, stagedKeys);
+    context,
+    run: async (signal) => {
+      const response = await removeManyKvEntries(context.api, db, keyspace, stagedKeys, signal);
       return {
         action: 'remove-many',
         target: `${stagedKeys.length} keys`,
@@ -1020,19 +1166,20 @@ function stagePrefixDelete(): void {
     message.error('Prefix delete requires a non-empty namespace prefix.');
     return;
   }
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const prefix = currentPrefix.value;
   const limit = prefixDeleteLimit.value && prefixDeleteLimit.value > 0 ? prefixDeleteLimit.value : null;
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('prefix'),
     label: 'Prefix delete',
     detail: `${prefix}${limit ? ` · limit ${limit}` : ''}`,
     severity: 'danger',
     command: `KV REMOVE-PREFIX ${keyspace} ${JSON.stringify(prefix)} LIMIT ${limit ?? 'none'}`,
-    run: async () => {
-      const response = await removeKvPrefix(auth.api, db, keyspace, prefix, limit);
+    context,
+    run: async (signal) => {
+      const response = await removeKvPrefix(context.api, db, keyspace, prefix, limit, signal);
       return {
         action: 'remove-prefix',
         target: prefix,
@@ -1045,18 +1192,19 @@ function stagePrefixDelete(): void {
 }
 
 function stageCleanExpired(): void {
-  const db = props.targetDb;
-  const keyspace = activeKeyspace.value;
+  const context = captureContext();
+  const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
   const limit = cleanExpiredLimit.value && cleanExpiredLimit.value > 0 ? cleanExpiredLimit.value : null;
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('clean'),
     label: 'Clean expired',
     detail: limit ? `limit ${limit}` : 'no limit',
     severity: 'danger',
     command: `KV CLEAN-EXPIRED ${keyspace} LIMIT ${limit ?? 'none'}`,
-    run: async () => {
-      const response = await cleanExpiredKvEntries(auth.api, db, keyspace, limit);
+    context,
+    run: async (signal) => {
+      const response = await cleanExpiredKvEntries(context.api, db, keyspace, limit, signal);
       return {
         action: 'clean-expired',
         target: keyspace,
@@ -1069,44 +1217,98 @@ function stageCleanExpired(): void {
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (pendingOperations.value.length === 0) return;
+  if (confirmBusy.value || pendingOperations.value.length === 0) return;
+  const operations = [...pendingOperations.value];
+  const context = operations[0]!.context;
+  if (!operations.every((operation) => isCurrentContext(operation.context))) {
+    pendingOperations.value = [];
+    return;
+  }
+  const requestId = ++writeRequestId;
+  const controller = writeController = new AbortController();
+  statsController?.abort();
+  scanController?.abort();
+  getController?.abort();
+  loadingScan.value = false;
+  // Once dispatched, a write with a lost response must never re-enter the queue.
+  pendingOperations.value = [];
+  runningOperations.value = operations;
   confirmBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
-  const operations = [...pendingOperations.value];
   const command = operations.map((operation) => operation.command).join('\n');
+  const outcomes: OperationOutcome[] = [];
+  const deadline = Date.now() + 120_000;
+  const timeout = setTimeout(() => controller.abort(), 120_000);
   try {
-    const outcomes: OperationOutcome[] = [];
-    for (const operation of operations) {
-      outcomes.push(await operation.run());
+    for (let index = 0; index < Math.min(operations.length, maxPendingOperations) && Date.now() < deadline; index += 1) {
+      const operation = operations[index]!;
+      if (controller.signal.aborted || !isCurrentContext(operation.context)) break;
+      try {
+        outcomes.push(await operation.run(controller.signal));
+      } catch (error) {
+        const status = (error as { response?: { status?: number } } | null)?.response?.status;
+        const knownFailure = typeof status === 'number' && status >= 400 && status < 500 && status !== 408;
+        outcomes.push({ action: operation.label, target: operation.detail, succeeded: false, affected: 0,
+          state: knownFailure ? 'failed' : 'unknown', errorCode: errorCode(error),
+          detail: knownFailure ? errorToMessage(error, '写入被拒绝') : '写入结果未知，请核对服务端状态后重新暂存；未自动重试。' });
+        break;
+      }
     }
     const elapsed = performanceElapsed(started);
     const affected = outcomes.reduce((sum, item) => sum + item.affected, 0);
+    const failure = outcomes.find((outcome) => outcome.state === 'failed' || outcome.state === 'unknown');
+    const stopped = controller.signal.aborted || outcomes.length < operations.length;
+    const status = failure && !controller.signal.aborted ? 'error' : stopped ? 'cancelled' : 'success';
+    const versions = outcomes.map((outcome, index) => {
+      const fields = [
+        ['version', displayKvVersion(outcome.versionText, outcome.version)],
+        ['previousVersion', displayKvVersion(outcome.previousVersionText, outcome.previous?.version)],
+        ['mutationVersion', displayKvVersion(outcome.mutationVersionText, outcome.mutationVersion)],
+      ].filter(([, value]) => value !== null);
+      return fields.length ? `#${index + 1} ${fields.map(([name, value]) => `${name}=${value}`).join(', ')}` : '';
+    }).filter(Boolean).join('; ');
+    const summary = `${outcomes.length}/${operations.length} actions · affected ${affected}${failure ? ` · ${failure.errorCode}: ${failure.detail}` : stopped ? ' · 后续操作未执行' : ''}${versions ? ` · ${versions}` : ''}`;
+    recordHistory(status, 'KV operation batch', operations.map((operation) => operation.label).join(', '), command, summary, affected, elapsed, context);
+    if (!isCurrentContext(context) || requestId !== writeRequestId) return;
     latestCommand.value = command;
     latestResult.value = resultFromOutcomes(outcomes, elapsed);
     ranOnce.value = true;
-    pendingOperations.value = [];
+    errorMsg.value = failure?.detail ?? (stopped ? '后续操作未执行，未重试已派发写入。' : '');
     checkedRowKeys.value = [];
-    batchSetText.value = '';
-    recordHistory('success', 'KV operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions · affected ${affected}`, affected, elapsed);
-    message.success(`Committed ${outcomes.length} KV action${outcomes.length === 1 ? '' : 's'}.`);
-    await refreshAll(false);
-    emit('refreshSchema');
-  } catch (error) {
-    const elapsed = performanceElapsed(started);
-    const msg = errorToMessage(error, '提交 KV 操作失败');
-    errorMsg.value = msg;
-    latestCommand.value = command;
-    latestResult.value = errorResult(msg);
-    ranOnce.value = true;
-    recordHistory('error', 'KV operation batch', 'confirm', command, msg, 0, elapsed);
+    if (!failure && !stopped) {
+      batchSetText.value = '';
+      message.success(`Completed ${outcomes.length} KV actions; affected ${affected}.`);
+      void refreshAll(false);
+      emit('refreshSchema');
+    }
   } finally {
-    confirmBusy.value = false;
+    clearTimeout(timeout);
+    if (writeController === controller) writeController = null;
+    if (!disposed && requestId === writeRequestId) {
+      confirmBusy.value = false;
+      runningOperations.value = [];
+    }
   }
 }
 
 function clearPendingOperations(): void {
+  if (confirmBusy.value) return;
   pendingOperations.value = [];
+}
+
+function abortPendingOperations(): void {
+  writeController?.abort();
+}
+
+function enqueueOperation(operation: PendingOperation): void {
+  if (confirmBusy.value || !isCurrentContext(operation.context)) return;
+  if (pendingOperations.value.some((pending) => !isCurrentContext(pending.context))) pendingOperations.value = [];
+  if (pendingOperations.value.length >= maxPendingOperations) {
+    message.error(`At most ${maxPendingOperations} staged actions are allowed.`);
+    return;
+  }
+  pendingOperations.value.push(operation);
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
@@ -1151,7 +1353,7 @@ function resultFromEntries(entries: KvRow[], elapsedMs: number): SqlResultSet {
     rows: entries.map((entry) => [
       entry.key,
       entry.valueKind,
-      entry.version,
+      displayKvVersion(undefined, entry.version),
       entry.ttlLabel,
       entry.byteLength,
       entry.valuePreview,
@@ -1177,7 +1379,7 @@ function resultFromValues(values: KvValueItemResponse[], elapsedMs: number): Sql
       return [
         item.key,
         item.found,
-        item.version ?? null,
+        displayKvVersion(undefined, item.version),
         ttlLabel(item.expiresAtUtc ?? null),
         bytes,
         item.found && value ? previewValue(value, kind) : '',
@@ -1196,8 +1398,11 @@ function resultFromValues(values: KvValueItemResponse[], elapsedMs: number): Sql
 
 function resultFromOutcomes(outcomes: OperationOutcome[], elapsedMs: number): SqlResultSet {
   return {
-    columns: ['action', 'target', 'succeeded', 'affected', 'detail'],
-    rows: outcomes.map((item) => [item.action, item.target, item.succeeded, item.affected, item.detail]),
+    columns: ['action', 'target', 'state', 'succeeded', 'affected', 'applied', 'version', 'previousFound', 'previousValueBase64', 'previousVersion', 'previousExpiresAtUtc', 'mutationVersion', 'errorCode', 'detail'],
+    rows: outcomes.map((item) => [item.action, item.target, item.state ?? 'completed', item.succeeded, item.affected,
+      item.applied ?? null, displayKvVersion(item.versionText, item.version), item.previous?.found ?? null,
+      item.previous?.found ? item.previous.value ?? '' : null, displayKvVersion(item.previousVersionText, item.previous?.version),
+      item.previous?.expiresAtUtc ?? null, displayKvVersion(item.mutationVersionText, item.mutationVersion), item.errorCode ?? null, item.detail]),
     end: {
       type: 'end',
       rowCount: outcomes.length,
@@ -1209,12 +1414,20 @@ function resultFromOutcomes(outcomes: OperationOutcome[], elapsedMs: number): Sq
   };
 }
 
-function errorResult(messageText: string): SqlResultSet {
+function displayKvVersion(text: string | null | undefined, numeric: number | null | undefined): string | number | null {
+  if (text != null) {
+    return text.length <= 20 && /^(0|[1-9][0-9]*)$/.test(text) ? text : 'unavailable (invalid version text)';
+  }
+  if (numeric == null) return null;
+  return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : 'unavailable (unsafe numeric version)';
+}
+
+function errorResult(messageText: string, code = 'kv_error'): SqlResultSet {
   return {
     columns: [],
     rows: [],
     end: null,
-    error: { type: 'error', code: 'kv_error', message: messageText },
+    error: { type: 'error', code, message: messageText },
     hasColumns: false,
   };
 }
@@ -1264,15 +1477,14 @@ function encodeDraftValue(text: string, mode: ValueView):
   }
 }
 
-function resolveSetExpiresAt(key: string): string | null {
+function resolveSetExpiresAt(): string | null {
   if (setExpiryMode.value === 'persist') return null;
   if (setExpiryMode.value === 'seconds') {
     const seconds = setTtlSeconds.value;
     if (!seconds || seconds <= 0) return null;
     return new Date(Date.now() + seconds * 1000).toISOString();
   }
-  const selected = selectedEntry.value;
-  return selected?.key === key ? selected.expiresAtUtc : null;
+  return null;
 }
 
 function classifyValue(base64: string): ValueKind {
@@ -1437,6 +1649,12 @@ function errorToMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function errorCode(error: unknown): string {
+  const value = error as { code?: unknown; response?: { data?: { code?: unknown; error?: { code?: unknown } } } } | null;
+  const code = value?.response?.data?.code ?? value?.response?.data?.error?.code ?? value?.code;
+  return typeof code === 'string' ? code : 'kv_error';
+}
+
 async function copyKey(key: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(key);
@@ -1447,22 +1665,23 @@ async function copyKey(key: string): Promise<void> {
 }
 
 function recordHistory(
-  status: 'success' | 'error',
+  status: 'success' | 'error' | 'cancelled',
   title: string,
   action: string,
   command: string,
   summary: string,
   recordsAffected: number,
   elapsedMs: number,
+  context: KvContext,
 ): void {
   history.record({
     kind: 'operation',
     status,
     title,
-    target: activeKeyspace.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    target: context.keyspace,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'kv',
     action,
     command,
@@ -1472,18 +1691,56 @@ function recordHistory(
   });
 }
 
-watch(
-  () => [props.targetDb, props.keyspace] as const,
-  () => {
-    clearRows();
-    currentPrefix.value = '';
-    prefixInput.value = '';
-    pendingOperations.value = [];
-    void refreshAll();
-  },
-);
+function captureContext(): KvContext {
+  const token = auth.state?.token;
+  const baseUrl = auth.api.defaults.baseURL;
+  const api = markRaw(createApiClient(() => token ?? null));
+  api.defaults.baseURL = baseUrl;
+  return { revision: contextRevision, database: props.targetDb, keyspace: activeKeyspace.value,
+    connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+    baseUrl, token, sourceApi: auth.api, api };
+}
+
+function isCurrentContext(context: KvContext): boolean {
+  return !disposed && context.revision === contextRevision && context.database === props.targetDb
+    && context.keyspace === activeKeyspace.value && context.connectionId === connections.activeProfileId
+    && context.sourceApi === auth.api && context.baseUrl === auth.api.defaults.baseURL && context.token === auth.state?.token;
+}
+
+function cancelRequests(): void {
+  statsController?.abort();
+  scanController?.abort();
+  getController?.abort();
+  writeController?.abort();
+}
+
+watch(() => [props.targetDb, activeKeyspace.value, connections.activeProfileId, connections.activeBaseUrl, auth.api, auth.state?.token], () => {
+  contextRevision += 1;
+  cancelRequests();
+  clearRows();
+  stats.value = null;
+  latestResult.value = null;
+  latestCommand.value = '';
+  ranOnce.value = false;
+  errorMsg.value = '';
+  currentPrefix.value = '';
+  prefixInput.value = '';
+  pendingOperations.value = [];
+  runningOperations.value = [];
+  confirmBusy.value = false;
+  batchKeysText.value = '';
+  batchSetText.value = '';
+  editKey.value = '';
+  editValue.value = '';
+  setExpiryMode.value = 'persist';
+  const revision = contextRevision;
+  void nextTick().then(() => {
+    if (!disposed && revision === contextRevision) return refreshAll();
+  });
+}, { immediate: true, flush: 'sync' });
 
 watch(selectedEntry, (entry) => {
+  if (activeView.value === 'batch') return;
   editKey.value = entry?.key ?? '';
   const nextMode: ValueView = entry?.valueKind === 'json'
     ? 'json'
@@ -1492,7 +1749,7 @@ watch(selectedEntry, (entry) => {
       : 'text';
   editMode.value = nextMode;
   editValue.value = entry ? formatValue(entry.value, nextMode) : '';
-  setExpiryMode.value = 'preserve';
+  setExpiryMode.value = 'persist';
 });
 
 watch(editMode, (mode) => {
@@ -1501,8 +1758,10 @@ watch(editMode, (mode) => {
   editValue.value = formatValue(entry.value, mode);
 });
 
-onMounted(() => {
-  void refreshAll();
+onBeforeUnmount(() => {
+  disposed = true;
+  contextRevision += 1;
+  cancelRequests();
 });
 </script>
 
@@ -1534,6 +1793,7 @@ onMounted(() => {
 }
 
 .kv-toolbar__title {
+  overflow-wrap: anywhere;
   color: var(--sndb-ink-strong);
   font-size: 15px;
   font-weight: 800;
@@ -1634,7 +1894,7 @@ onMounted(() => {
 }
 
 .kv-body.is-batch {
-  grid-template-columns: minmax(420px, 720px);
+  grid-template-columns: minmax(0, 720px);
   justify-content: center;
   padding: 20px;
   overflow: auto;
@@ -1913,6 +2173,10 @@ onMounted(() => {
     overflow: visible;
   }
 
+  .kv-body.is-batch {
+    padding: 12px;
+  }
+
   .kv-namespace,
   .kv-inspector {
     border-right: 0;
@@ -1928,6 +2192,17 @@ onMounted(() => {
   .kv-toolbar__limit,
   .kv-grid-tools__filter {
     width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .kv-editor__row,
+  .kv-batch__danger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kv-panel-head__meta {
+    overflow-wrap: anywhere;
   }
 }
 </style>

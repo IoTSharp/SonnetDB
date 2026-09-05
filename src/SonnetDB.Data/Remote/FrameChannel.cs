@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.Remote;
@@ -18,8 +19,8 @@ namespace SonnetDB.Data.Remote;
 ///   <item>200 + 可解析帧（哪怕是带内错误帧）视为"服务端懂帧"，缓存走帧。带内错误帧交由
 ///     调用方经 <see cref="ThrowIfError"/> 转成 <see cref="SndbServerException"/>。</item>
 /// </list>
-/// <para>安全性：一元 POST 的传输级失败意味着服务端在处理前拒绝或从未收到请求，回落 REST
-/// 不会重复应用写入；200 带内错误帧意味着操作已执行且应用级失败，直接上抛、绝不重试。</para>
+/// <para>传输失败可能发生在提交之后。原子 KV 写入通过 allowFallback=false 禁用发送后的回落，
+/// 将未知结果交给调用方核对；不能因连接错误或损坏响应推断写入尚未发生。</para>
 /// <para><c>frame-http2</c> 强制走帧：帧端点传输级失败时直接抛错，不静默回落。</para>
 /// </remarks>
 internal sealed class FrameChannel
@@ -57,8 +58,10 @@ internal sealed class FrameChannel
     /// </summary>
     public async Task<IReadOnlyList<FrameMessage>?> TrySendAsync(
         ReadOnlyMemory<byte> requestFrames,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowFallback = true)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_state == CapabilityState.Rest)
             return null;
 
@@ -71,22 +74,30 @@ internal sealed class FrameChannel
             if (!response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                if (!allowFallback)
+                {
+                    ServerErrorBody? error = null;
+                    try { error = JsonSerializer.Deserialize(responseBody, RemoteJsonContext.Default.ServerErrorBody); }
+                    catch (JsonException) { /* Non-JSON responses have no application error code. */ }
+                    if (error is not null && !string.IsNullOrWhiteSpace(error.Error))
+                        throw new SndbServerException(error.Error, error.Message, response.StatusCode);
+                }
                 string detail = string.IsNullOrWhiteSpace(responseBody) ? string.Empty : $" 响应：{responseBody}";
                 return HandleTransportFailure(
-                    $"帧端点返回 HTTP {(int)response.StatusCode}，服务端可能不支持帧协议。{detail}");
+                    $"帧端点返回 HTTP {(int)response.StatusCode}，服务端可能不支持帧协议。{detail}", allowFallback);
             }
 
             byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
             List<FrameMessage>? frames = TryParseFrames(body);
             if (frames is null || frames.Count == 0)
-                return HandleTransportFailure("帧端点响应无法解析为帧，服务端可能不支持帧协议。");
+                return HandleTransportFailure("帧端点响应无法解析为帧，服务端可能不支持帧协议。", allowFallback);
 
             _state = CapabilityState.Frames;
             return frames;
         }
         catch (HttpRequestException ex)
         {
-            return HandleTransportFailure($"帧端点连接失败：{ex.Message}");
+            return HandleTransportFailure($"帧端点连接失败：{ex.Message}", allowFallback);
         }
     }
 
@@ -96,13 +107,24 @@ internal sealed class FrameChannel
     /// </summary>
     public async Task<FrameMessage?> SendUnaryAsync(
         ReadOnlyMemory<byte> requestFrame,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowFallback = true)
     {
-        IReadOnlyList<FrameMessage>? frames = await TrySendAsync(requestFrame, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<FrameMessage>? frames = await TrySendAsync(requestFrame, cancellationToken, allowFallback).ConfigureAwait(false);
         if (frames is null)
             return null;
 
         FrameMessage first = frames[0];
+        if (!allowFallback)
+        {
+            var requestBuffer = new ReadOnlySequence<byte>(requestFrame);
+            if (!FrameCodec.TryReadFrame(ref requestBuffer, out var requestHeader, out _) || frames.Count != 1
+                || requestBuffer.Length != 0 || !first.Header.IsResponse || first.Header.Version != FrameHeader.CurrentVersion
+                || (first.Header.Flags & ~(byte)(FrameFlags.Response | FrameFlags.Error)) != 0
+                || first.Header.Service != requestHeader.Service || first.Header.Op != requestHeader.Op
+                || first.Header.StreamId != requestHeader.StreamId)
+                throw new SndbServerException("frame_transport_error", "帧响应与请求不匹配；写入结果未知，请核对后再操作。", HttpStatusCode.OK);
+        }
         ThrowIfError(first.Header, first.Payload);
         return first;
     }
@@ -116,10 +138,10 @@ internal sealed class FrameChannel
         throw new SndbServerException(code, message, HttpStatusCode.OK);
     }
 
-    private IReadOnlyList<FrameMessage>? HandleTransportFailure(string message)
+    private IReadOnlyList<FrameMessage>? HandleTransportFailure(string message, bool allowFallback)
     {
-        if (_protocol == SndbTransportProtocol.FrameHttp2)
-            throw new SndbServerException("frame_transport_error", message, HttpStatusCode.OK);
+        if (_protocol == SndbTransportProtocol.FrameHttp2 || !allowFallback)
+            throw new SndbServerException("frame_transport_error", message + " 写入结果可能未知，未自动重试。", HttpStatusCode.OK);
 
         _state = CapabilityState.Rest;
         return null;

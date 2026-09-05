@@ -3,7 +3,7 @@
   <section
     v-show="inline || open"
     class="workbench-result-panel"
-    :class="{ 'is-inline': inline }"
+    :class="{ 'is-inline': inline, 'has-wrapped-header': wrapHeader }"
     :data-workbench-result-drawer="inline ? undefined : ''"
     :data-workbench-result-inline="inline ? '' : undefined"
     :style="inline ? undefined : { left: `${drawerLeft}px` }"
@@ -97,6 +97,7 @@ const props = withDefaults(defineProps<{
   emptyDescription?: string;
   fileName?: string;
   inline?: boolean;
+  wrapHeader?: boolean;
   viewMode?: 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
   showViewSwitcher?: boolean;
   availableViews?: Array<'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map'>;
@@ -109,6 +110,7 @@ const props = withDefaults(defineProps<{
   emptyDescription: 'Run an operation to see results.',
   fileName: 'result',
   inline: false,
+  wrapHeader: false,
   viewMode: undefined,
   showViewSwitcher: true,
   availableViews: () => ['plan', 'table', 'raw', 'json', 'chart', 'map'],
@@ -368,6 +370,37 @@ onBeforeUnmount(() => {
 
   .workbench-result-panel__search {
     width: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .has-wrapped-header :deep(.n-card-header) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .has-wrapped-header :deep(.n-card-header__main) {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .has-wrapped-header :deep(.n-card-header__main > .n-space > :last-child) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .has-wrapped-header :deep(.sql-result-card__sql) {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .has-wrapped-header :deep(.n-card-header__extra) {
+    margin-left: 0;
+  }
+
+  .has-wrapped-header :deep(.n-card-header__extra > .n-space) {
+    flex-wrap: wrap !important;
   }
 }
 </style>

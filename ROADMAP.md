@@ -40,7 +40,7 @@
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
 | 35 | 语义内容与多模态检索 | 🚧 | #297/#299/#301 已完成，#298/#300/#302 已交付部分能力；RAG Core 首切片已落地，CLI、持久化 writer/retry/resume、实际派生索引应用与剩余质量/媒体/治理项仍待完成。 |
-| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。#310 已有源码/入口 gap catalog，但真实 golden journey 尚未闭环；SQL/Graph 工作流缺陷已修复，远程 KV、对象传输和 MQ 失败恢复等仍待完成。 |
+| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。九模型 #310/#311 总体、对象分页/传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
@@ -56,7 +56,7 @@
 3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
-6. M36 以九模型 gap catalog 推进真实 golden journey：先保证写操作目标绑定与取消、明确 database/instance 备份边界，再补远程 KV 原子合同、对象传输与 MQ 消费恢复。Document 复用 M32，向量高级项复用 M35，Graph 引擎/发布证据复用 M40；不重做已有工作台。
+6. M36 以九模型 gap catalog 推进真实 golden journey：KV 原子远程切片已取得本地合同/原生重开/Web 证据，下一步推进 #323 有界对象分页，再接 #322 传输与 MQ 消费恢复。继续保证目标绑定与取消、明确 database/instance 备份边界。Document 复用 M32，向量高级项复用 M35，Graph 引擎/发布证据复用 M40；不重做已有工作台。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~5 已关闭；步骤 6 已补剩余预算读取/单 probe 和 exact-revision generation lease，仍需固定 workload 性能证据及步骤 7 的恢复/产品 parity。所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。当前公开定位已将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”；上述门禁仍是宣称 Graph Production 的前提，不因模型计数变化而放宽。
 
@@ -224,13 +224,13 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #310 | 九模型 usability gap catalog 与可执行 golden journey：源码/入口/缺口目录已建立；仍需以同一真实 fixture 验证每模型写入、查询、原生修改/消费、分页、诊断、权限拒绝与恢复，并记录手写样板量；与 M20 capability report 分开。 | 🚧 |
-| #311 | 统一新客户端合同：连接/鉴权、取消/超时、分页、批量分项错误、correlation id、安全 retry/idempotency。SQL 已绑定执行目标/审批上下文、严格 NDJSON 和单请求事务；Graph 已隔离旧审批/乱序响应。其他工作台、SDK 与实际 Server journey 尚未全部对齐。 | 🚧 |
+| #310 | 九模型 usability gap catalog 与可执行 golden journey：KV 单 key 原子子集已有同 fixture embedded/REST/Frame/auto、权限、并发、原生重开与桌面/手机真实 Server 旅程，附约 20 行成功代码及完整样例。其余模型及分页/诊断/备份/宿主边界尚未全部闭环；与 M20 capability report 分开。见 [KV 证据](docs/audits/kv-remote-closure-20260905.md)。 | 🚧 |
+| #311 | 统一新客户端合同：SQL 已绑定目标/审批、严格 NDJSON 和单请求事务，Graph 已隔离旧审批/乱序响应。KV 新原子路径已对齐取消、稳定错误、关联 ID、严格返回值、禁止发送后回退/HTTP 跳转重发，Web 保留原目标与部分/未知结果。其余工作台/SDK 和九模型分页、批量错误及真实恢复仍待完成。 | 🚧 |
 | #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、ADO.NET 语句级 last-insert-id 与 EF Core 数据库生成整数键回填已落地；仍需 `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集和稳定冲突结果。 | 🚧 |
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。 | 📋 |
 | #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |
-| #316 | KV 条件与类型化 API：嵌入式 Core 已落地 NX/XX、原子 get-and-set/delete、namespace 视图、严格 UTF-8 与基于 `JsonTypeInfo<T>` 的 AOT JSON codec，保持 raw bytes 为底层权威语义。#310/#311、远程 parity、golden journey 和产品入口尚未完成。 | 🚧 |
+| #316 | KV 条件与类型化 API：Core/REST/Frame/SDK/Web 已接通 NX/XX、原子 get-and-set/delete、namespace、严格 UTF-8 与 source-generated JSON，补齐取消、WAL 不确定结果拒写、TTL/CAS 和精确版本。单 key 子集已有真实 Kestrel/原生进程重开、桌面/手机工作台和零 IL/AOT warning 发布证据，见 [合同](docs/kv-atomic-contract.md)与[证据](docs/audits/kv-remote-closure-20260905.md)。此完成标记仅覆盖已通过本地验证的单 key 切片；#317、九模型 #310/#311、M20 Parity/nightly 和生产门禁不在此完成标记内。 | ✅ |
 | #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。 | 📋 |
 | #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。 | 📋 |
 | #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和可观察 rebuild task。 | 📋 |

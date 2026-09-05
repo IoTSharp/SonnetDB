@@ -74,6 +74,11 @@ internal static class KvAtomicBatchErrors
 /// SonnetDB 内置 KV Keyspace，提供轻量 <c>Put</c>、<c>Get</c>、<c>Delete</c>、
 /// prefix scan、原子计数、乐观锁与 TTL 能力。
 /// </summary>
+/// <remarks>
+/// 原子写入重载收到可取消令牌时，锁等待以 <see cref="KvOptions.CheckpointWriteBackpressureTimeout"/>
+/// 为上限，超时抛出 <see cref="TimeoutException"/>；检查点背压仍使用现有 I/O 超时合同。
+/// 取消仅在首次 WAL 追加前生效，已开始提交的操作不会因后续取消回滚或改报取消。
+/// </remarks>
 public sealed class KvKeyspace : IDisposable
 {
     private const int ScanResultInitialCapacity = 256;
@@ -615,13 +620,29 @@ public sealed class KvKeyspace : IDisposable
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> value,
         KvSetCondition condition = KvSetCondition.Always,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        Set(key, value, condition, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>按存在性条件原子写入，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">无条件、NX 或 XX 存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateSetCondition(condition);
         ValidateKey(key, _options);
         ValidateValue(value, _options);
         ValidateExpiresAtUtc(expiresAtUtc);
-        return SetValidated(key.ToArray(), value.ToArray(), condition, expiresAtUtc);
+        return SetValidated(key.ToArray(), value.ToArray(), condition, expiresAtUtc, cancellationToken);
     }
 
     /// <summary>
@@ -636,8 +657,24 @@ public sealed class KvKeyspace : IDisposable
         string key,
         ReadOnlySpan<byte> value,
         KvSetCondition condition = KvSetCondition.Always,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        Set(key, value, condition, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 按存在性条件原子写入，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">无条件、NX 或 XX 存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        string key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
         ValidateSetCondition(condition);
         byte[] keyCopy = EncodeUtf8Key(key, _options);
@@ -647,7 +684,8 @@ public sealed class KvKeyspace : IDisposable
             keyCopy,
             value.ToArray(),
             condition,
-            expiresAtUtc);
+            expiresAtUtc,
+            cancellationToken);
     }
 
     /// <summary>
@@ -708,12 +746,26 @@ public sealed class KvKeyspace : IDisposable
     public KvExchangeResult GetAndSet(
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> value,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        GetAndSet(key, value, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>原子读取旧记录并写入新值，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>变更前可见记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key, _options);
         ValidateValue(value, _options);
         ValidateExpiresAtUtc(expiresAtUtc);
-        return GetAndSetValidated(key.ToArray(), value.ToArray(), expiresAtUtc);
+        return GetAndSetValidated(key.ToArray(), value.ToArray(), expiresAtUtc, cancellationToken);
     }
 
     /// <summary>
@@ -726,8 +778,22 @@ public sealed class KvKeyspace : IDisposable
     public KvExchangeResult GetAndSet(
         string key,
         ReadOnlySpan<byte> value,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        GetAndSet(key, value, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 原子读取旧记录并写入新值，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>变更前可见记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        string key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
         byte[] keyCopy = EncodeUtf8Key(key, _options);
         ValidateValue(value, _options);
@@ -735,7 +801,8 @@ public sealed class KvKeyspace : IDisposable
         return GetAndSetValidated(
             keyCopy,
             value.ToArray(),
-            expiresAtUtc);
+            expiresAtUtc,
+            cancellationToken);
     }
 
     /// <summary>
@@ -838,8 +905,24 @@ public sealed class KvKeyspace : IDisposable
         ReadOnlySpan<byte> key,
         long expectedVersion,
         ReadOnlySpan<byte> value,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        CompareAndSet(key, expectedVersion, value, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>按版本原子比较并交换，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="expectedVersion">期望版本；0 表示仅当 key 不存在时创建。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>CAS 操作结果。</returns>
+    public KvCasResult CompareAndSet(
+        ReadOnlySpan<byte> key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
         ValidateKey(key, _options);
         ValidateValue(value, _options);
@@ -848,21 +931,23 @@ public sealed class KvKeyspace : IDisposable
         byte[] lookup = key.ToArray();
         byte[] valueCopy = value.ToArray();
 
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
+            WaitForWriteBudgetLocked(cancellationToken);
             long currentVersion = 0;
-            if (TryGetEntryLocked(lookup, out var entry))
+            bool found = TryGetEntryLocked(lookup, out var entry);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (found)
             {
-                if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow, cancellationToken))
                     currentVersion = entry.Version;
             }
 
             if (currentVersion != expectedVersion)
                 return new KvCasResult(false, currentVersion, null);
 
-            long newVersion = PutLocked(lookup, valueCopy, expiresAtUtc);
+            long newVersion = PutFailClosedLocked(lookup, valueCopy, expiresAtUtc);
             return new KvCasResult(true, currentVersion, newVersion);
         }
     }
@@ -874,10 +959,26 @@ public sealed class KvKeyspace : IDisposable
         string key,
         long expectedVersion,
         ReadOnlySpan<byte> value,
-        DateTimeOffset? expiresAtUtc = null)
+        DateTimeOffset? expiresAtUtc = null) =>
+        CompareAndSet(key, expectedVersion, value, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 按版本原子比较并交换，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="expectedVersion">期望版本；0 表示仅当 key 不存在时创建。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>CAS 操作结果。</returns>
+    public KvCasResult CompareAndSet(
+        string key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
-        return CompareAndSet(EncodeUtf8Key(key, _options), expectedVersion, value, expiresAtUtc);
+        return CompareAndSet(EncodeUtf8Key(key, _options), expectedVersion, value, expiresAtUtc, cancellationToken);
     }
 
     /// <summary>
@@ -905,22 +1006,33 @@ public sealed class KvKeyspace : IDisposable
     /// <summary>
     /// 为已存在 key 设置绝对 UTC 过期时间。key 不存在或已过期时返回 <see langword="false"/>。
     /// </summary>
-    public bool ExpireAt(ReadOnlySpan<byte> key, DateTimeOffset expiresAtUtc)
+    public bool ExpireAt(ReadOnlySpan<byte> key, DateTimeOffset expiresAtUtc) =>
+        ExpireAt(key, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>原子设置绝对 UTC 过期时间，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="expiresAtUtc">新的 UTC 过期时间。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功设置 TTL 时为真；不存在或已过期时为假。</returns>
+    public bool ExpireAt(ReadOnlySpan<byte> key, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key, _options);
         ValidateUtc(expiresAtUtc, nameof(expiresAtUtc));
         byte[] lookup = key.ToArray();
 
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
-            if (!TryGetEntryLocked(lookup, out var entry))
+            WaitForWriteBudgetLocked(cancellationToken);
+            bool found = TryGetEntryLocked(lookup, out var entry);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!found)
                 return false;
-            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow, cancellationToken))
                 return false;
 
-            PutLocked(lookup, entry.Value.ToArray(), expiresAtUtc);
+            PutFailClosedLocked(lookup, entry.Value.ToArray(), expiresAtUtc);
             return true;
         }
     }
@@ -928,32 +1040,50 @@ public sealed class KvKeyspace : IDisposable
     /// <summary>
     /// 使用 UTF-8 编码为字符串 key 设置绝对 UTC 过期时间。
     /// </summary>
-    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc)
+    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc) =>
+        ExpireAt(key, expiresAtUtc, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 原子设置绝对 UTC 过期时间，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="expiresAtUtc">新的 UTC 过期时间。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功设置 TTL 时为真；不存在或已过期时为假。</returns>
+    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
-        return ExpireAt(EncodeUtf8Key(key, _options), expiresAtUtc);
+        return ExpireAt(EncodeUtf8Key(key, _options), expiresAtUtc, cancellationToken);
     }
 
     /// <summary>
     /// 移除已存在 key 的过期时间。key 不存在或已过期时返回 <see langword="false"/>。
     /// </summary>
-    public bool Persist(ReadOnlySpan<byte> key)
+    public bool Persist(ReadOnlySpan<byte> key) => Persist(key, CancellationToken.None);
+
+    /// <summary>原子移除过期时间，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功移除 TTL 时为真；不存在、已过期或原本无 TTL 时为假。</returns>
+    public bool Persist(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
 
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
-            if (!TryGetEntryLocked(lookup, out var entry))
+            WaitForWriteBudgetLocked(cancellationToken);
+            bool found = TryGetEntryLocked(lookup, out var entry);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!found)
                 return false;
-            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow, cancellationToken))
                 return false;
             if (!entry.ExpiresAtUtc.HasValue)
                 return false;
 
-            PutLocked(lookup, entry.Value.ToArray(), expiresAtUtc: null);
+            PutFailClosedLocked(lookup, entry.Value.ToArray(), expiresAtUtc: null);
             return true;
         }
     }
@@ -961,10 +1091,17 @@ public sealed class KvKeyspace : IDisposable
     /// <summary>
     /// 使用 UTF-8 编码移除字符串 key 的过期时间。
     /// </summary>
-    public bool Persist(string key)
+    public bool Persist(string key) => Persist(key, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 原子移除过期时间，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功移除 TTL 时为真；不存在、已过期或原本无 TTL 时为假。</returns>
+    public bool Persist(string key, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
-        return Persist(EncodeUtf8Key(key, _options));
+        return Persist(EncodeUtf8Key(key, _options), cancellationToken);
     }
 
     /// <summary>
@@ -1043,10 +1180,17 @@ public sealed class KvKeyspace : IDisposable
     /// </summary>
     /// <param name="key">非空 key 字节序列。</param>
     /// <returns>变更前可见记录的副本以及删除版本；未找到时两个字段均为空。</returns>
-    public KvExchangeResult GetAndDelete(ReadOnlySpan<byte> key)
+    public KvExchangeResult GetAndDelete(ReadOnlySpan<byte> key) => GetAndDelete(key, CancellationToken.None);
+
+    /// <summary>原子读取并删除，支持取消锁与检查点背压等待。</summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>变更前记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key, _options);
-        return GetAndDeleteValidated(key.ToArray());
+        return GetAndDeleteValidated(key.ToArray(), cancellationToken);
     }
 
     /// <summary>
@@ -1054,10 +1198,17 @@ public sealed class KvKeyspace : IDisposable
     /// </summary>
     /// <param name="key">非空字符串 key。</param>
     /// <returns>变更前可见记录的副本以及删除版本；未找到时两个字段均为空。</returns>
-    public KvExchangeResult GetAndDelete(string key)
+    public KvExchangeResult GetAndDelete(string key) => GetAndDelete(key, CancellationToken.None);
+
+    /// <summary>使用 UTF-8 字符串 key 原子读取并删除，支持取消等待。</summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>变更前记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(string key, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(key);
-        return GetAndDeleteValidated(EncodeUtf8Key(key, _options));
+        return GetAndDeleteValidated(EncodeUtf8Key(key, _options), cancellationToken);
     }
 
     /// <summary>
@@ -1148,27 +1299,19 @@ public sealed class KvKeyspace : IDisposable
         KvBatchPrecondition[] conditions,
         CancellationToken cancellationToken)
     {
-
-        using CancellationTokenRegistration cancellationRegistration = cancellationToken.CanBeCanceled
-            ? cancellationToken.UnsafeRegister(
-                static state =>
-                {
-                    object synchronizationRoot = (object)state!;
-                    lock (synchronizationRoot)
-                        Monitor.PulseAll(synchronizationRoot);
-                },
-                _sync)
-            : default;
-
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
-            while (true)
+            long started = Stopwatch.GetTimestamp();
+            TimeSpan timeout = _options.CheckpointWriteBackpressureTimeout;
+            for (int attempt = 0; attempt < 1_000_000; attempt++)
             {
                 ThrowIfWriteFaultedLocked();
                 cancellationToken.ThrowIfCancellationRequested();
+                if (attempt > 0 && Stopwatch.GetElapsedTime(started) >= timeout)
+                    throw CreateCheckpointBackpressureTimeout(timeout);
 
                 int failedCondition = FindFailedPreconditionLocked(conditions, DateTimeOffset.UtcNow);
                 if (failedCondition >= 0)
@@ -1195,6 +1338,8 @@ public sealed class KvKeyspace : IDisposable
                 WaitForWriteBudgetLocked(cancellationToken);
                 // Monitor.Wait releases the write lock. Re-check both cancellation and conditions.
             }
+
+            throw CreateCheckpointBackpressureTimeout(timeout);
         }
     }
 
@@ -2983,6 +3128,38 @@ public sealed class KvKeyspace : IDisposable
             ? _options.IndexRebuildMaxOverlayEntries
             : _options.MaxOverlayEntries;
 
+    private AtomicWriteLock EnterAtomicWriteLock(CancellationToken cancellationToken)
+    {
+        if (!cancellationToken.CanBeCanceled)
+        {
+            Monitor.Enter(_sync);
+            return new AtomicWriteLock(_sync);
+        }
+
+        TimeSpan timeout = _options.CheckpointWriteBackpressureTimeout;
+        long started = Stopwatch.GetTimestamp();
+        for (int attempt = 0; attempt < 1_000_000; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TimeSpan remaining = timeout - Stopwatch.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero)
+                break;
+            TimeSpan wait = remaining < TimeSpan.FromMilliseconds(50)
+                ? remaining
+                : TimeSpan.FromMilliseconds(50);
+            if (Monitor.TryEnter(_sync, wait))
+                return new AtomicWriteLock(_sync);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new TimeoutException("KV write timed out while waiting for the keyspace lock.");
+    }
+
+    private readonly struct AtomicWriteLock(object synchronizationRoot) : IDisposable
+    {
+        public void Dispose() => Monitor.Exit(synchronizationRoot);
+    }
+
     private void WaitForWriteBudgetLocked(CancellationToken cancellationToken = default)
     {
         ThrowIfWriteFaultedLocked();
@@ -2998,9 +3175,14 @@ public sealed class KvKeyspace : IDisposable
         }
 
         long started = Stopwatch.GetTimestamp();
-        while (IsWriteBudgetExhaustedLocked())
+        for (int attempt = 0; IsWriteBudgetExhaustedLocked(); attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (attempt >= 1_000_000)
+            {
+                RecordCheckpointBackpressure(started, rejected: true);
+                throw CreateCheckpointBackpressureTimeout(timeout);
+            }
             ScheduleAutoCheckpointLocked(force: true);
             if (LastCheckpointException is { } checkpointFailure
                 && _checkpointState?.IsRunning != true)
@@ -3021,9 +3203,13 @@ public sealed class KvKeyspace : IDisposable
             TimeSpan wait = remaining > TimeSpan.FromMilliseconds(int.MaxValue)
                 ? TimeSpan.FromMilliseconds(int.MaxValue)
                 : remaining;
+            if (cancellationToken.CanBeCanceled && wait > TimeSpan.FromMilliseconds(50))
+                wait = TimeSpan.FromMilliseconds(50);
             WriteBackpressureTestHook?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
-            if (!Monitor.Wait(_sync, wait))
+            bool signaled = Monitor.Wait(_sync, wait);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!signaled && Stopwatch.GetElapsedTime(started) >= timeout)
             {
                 RecordCheckpointBackpressure(started, rejected: true);
                 throw CreateCheckpointBackpressureTimeout(timeout);
@@ -3191,7 +3377,11 @@ public sealed class KvKeyspace : IDisposable
         return KvWalFile.Open(activeWalPath, nextSequence, options.WalBufferSize);
     }
 
-    private bool TryDeleteExpiredLocked(byte[] key, KvValueEntry entry, DateTimeOffset utcNow)
+    private bool TryDeleteExpiredLocked(
+        byte[] key,
+        KvValueEntry entry,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken = default)
     {
         if (!entry.IsExpired(utcNow))
             return false;
@@ -3203,11 +3393,11 @@ public sealed class KvKeyspace : IDisposable
             return true;
         }
 
-        DeleteExistingLocked(key);
+        DeleteExistingLocked(key, cancellationToken);
         return true;
     }
 
-    private bool DeleteExistingLocked(byte[] key)
+    private bool DeleteExistingLocked(byte[] key, CancellationToken cancellationToken = default)
     {
         if (!TryGetEntryLocked(key, out _))
             return false;
@@ -3221,6 +3411,7 @@ public sealed class KvKeyspace : IDisposable
             key,
             publishedValue is not null);
         _values.EnsureCapacity(overlayEntryCount);
+        cancellationToken.ThrowIfCancellationRequested();
         long sequence;
         try
         {
@@ -3503,16 +3694,18 @@ public sealed class KvKeyspace : IDisposable
         byte[] keyCopy,
         byte[] valueCopy,
         KvSetCondition condition,
-        DateTimeOffset? expiresAtUtc)
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
         if (condition == KvSetCondition.Always)
         {
             long lockWait = SonnetDbMeter.StartLockWaitTiming();
-            lock (_sync)
+            using (EnterAtomicWriteLock(cancellationToken))
             {
                 SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
                 ThrowIfDisposed();
-                WaitForWriteBudgetLocked();
+                WaitForWriteBudgetLocked(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 return new KvSetResult(
                     true,
                     PutFailClosedLocked(keyCopy, valueCopy, expiresAtUtc));
@@ -3525,42 +3718,46 @@ public sealed class KvKeyspace : IDisposable
         KvConditionalBatchResult result = ApplyCanonicalConditionalBatch(
             [KvBatchMutation.Put(keyCopy, valueCopy, expiresAtUtc)],
             [precondition],
-            CancellationToken.None);
+            cancellationToken);
         return new KvSetResult(result.Applied, result.Applied ? result.Sequence : null);
     }
 
     private KvExchangeResult GetAndSetValidated(
         byte[] keyCopy,
         byte[] valueCopy,
-        DateTimeOffset? expiresAtUtc)
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
     {
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
+            WaitForWriteBudgetLocked(cancellationToken);
             KvEntry? previousEntry = GetVisibleEntryCopyLocked(keyCopy, DateTimeOffset.UtcNow);
+            cancellationToken.ThrowIfCancellationRequested();
             long version = PutFailClosedLocked(keyCopy, valueCopy, expiresAtUtc);
             return new KvExchangeResult(previousEntry, version);
         }
     }
 
-    private KvExchangeResult GetAndDeleteValidated(byte[] lookup)
+    private KvExchangeResult GetAndDeleteValidated(byte[] lookup, CancellationToken cancellationToken)
     {
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
-            if (!TryGetEntryLocked(lookup, out var entry))
+            WaitForWriteBudgetLocked(cancellationToken);
+            bool found = TryGetEntryLocked(lookup, out var entry);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!found)
                 return new KvExchangeResult(null, null);
-            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow, cancellationToken))
                 return new KvExchangeResult(null, null);
 
             var previousEntry = CreateEntryCopy(lookup, entry);
-            bool deleted = DeleteExistingLocked(lookup);
+            bool deleted = DeleteExistingLocked(lookup, cancellationToken);
             Debug.Assert(deleted);
             return new KvExchangeResult(previousEntry, _lastSequence);
         }
