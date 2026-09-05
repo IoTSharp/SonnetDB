@@ -322,7 +322,8 @@ public sealed class SonnetMqStore : IDisposable
         var state = GetOrCreateTopic(topic);
         lock (state.SyncRoot)
         {
-            long next = Math.Min(offset + 1, state.NextOffset);
+            long acknowledgedNext = offset >= state.NextOffset ? state.NextOffset : offset + 1;
+            long next = Math.Max(acknowledgedNext, state.GetConsumerOffset(consumerGroup));
             WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
             state.SetConsumerOffset(consumerGroup, next);
             TrimAcknowledgedMessages(state, force: false);
