@@ -7,7 +7,7 @@ permalink: /kv-keyspace/
 
 # KV Keyspace
 
-KV Keyspace 是 SonnetDB Core 的轻量键值存储能力，面向内部 metadata、小对象、关系表和文档集合后续底座。当前版本先提供嵌入式库级 API，不新增 SQL 语法，也不把 KV 暴露为独立网络服务。
+KV Keyspace 是 SonnetDB Core 的持久键值存储能力，也用于内部 metadata、关系表和文档集合底座。除嵌入式 API 外，Server 已提供 HTTP/Frame KV 入口与管理工作台；本页重点描述嵌入式合同，不表示远程服务不存在。NX/XX、原子 `GetAndSet/GetAndDelete` 与类型化 namespace 是嵌入式首切片，远程对应合同仍由 M36 #316 推进；不承诺 Redis wire protocol 或跨 keyspace 事务。
 
 ## 基本用法
 

@@ -10,9 +10,9 @@
 
 > 九种数据模型，各有原生语义，共享一套引擎；以数据库目录为持久化边界，通过 SQL、标准 API 和管理工具提供一致的治理与访问能力。
 
-当前推进以 [ROADMAP.md](ROADMAP.md) 的 2026-07-14 核查结果为准：先恢复 Parity/nightly 和容量发布证据，再推进 **Milestone 27 — AI / Agent 数据访问与治理** 的真实 provider/Agent 接线，随后处理 M32、M34、M35 和 M36 的未完成能力。
+当前推进以 [ROADMAP.md](ROADMAP.md) 的 2026-09-05 核查结果和 [综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md) 为准：先验证 MCP 启动修复并恢复完整 Parity/nightly，再按九模型 gap catalog 推进真实用户旅程、恢复边界与性能缺口。已有实现不得重新包装为新任务，构建、mock、真实服务和生产门禁证据必须分开。
 
-> 当前派单焦点：M20 修复后的完整 Parity stack 与 7 天 nightly 证据；M19 #125 和 M25 #174 的固定目标硬件报告；M27 typed MCP 合同、工业 Demo、在线 `IChatProvider` 接线、本地 embedding、Microsoft Agent Framework 真实集成或如实边界说明，以及 eval/成本指标。M29 功能实现完成，只剩 Studio 安装包和宿主生命周期实机验收。M14 不再标记为完全完成：当前是 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`，本地 ONNX 与在线 provider-neutral 路径尚未接通。M22 仍是上层应用/示例候选，不作为内置里程碑。M32 只处理当前真实缺口，不重复开发已经落地的 update、索引、change feed 和管理界面。M36 必须先用 golden journey 与 gap catalog 证明真实易用性缺口，再按共享合同和模型原生语义推进，不得把 M20/M29/M32 已有交付重新包装成新任务。
+> 当前派单焦点：M20 最新七次 scheduled 全部失败，须在修复后重新取得 light/full 与 7 天证据；M19 #125、M25 #174 和 M42 的固定目标硬件报告；M27 真实模型质量/成本、双网客户端和 Agent Framework 边界。typed MCP、工业 Demo、在线 `IChatProvider` 和显式 profile 的本地 ONNX 路径已有实现，不能再称为空壳；hash fallback 和合成模型测试不能计作真实语义证据。M14 仍是 `Microsoft.Extensions.AI` 加自研 `CopilotAgent`，不是 Microsoft Agent Framework。M29 安装包/宿主合同已实现，实机安装仍待验证；M32/M34 已有交付不重做；M35 仍缺持久摄取/resume 等切片。M36 已扩为九模型验收，Graph 引擎仍归 M40；优先远程 KV、对象有界分页/传输、MQ 实例恢复和 SQL/Graph 工作流，单库备份不得冒称覆盖 Server 实例 MQ。M22 继续保留为上层应用候选。
 
 ---
 
