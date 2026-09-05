@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "label": "parity",
+  "message": "0%",
+  "color": "red",
+  "profile": "full",
+  "status": "failing",
+  "passRate": 0,
+  "totalScenarios": 0,
+  "passedScenarios": 0,
+  "skippedScenarios": 0,
+  "failedScenarios": 0,
+  "warningOnlyScenarios": 0,
+  "generatedAtUtc": "2026-09-05T06:52:46.6708485Z",
+  "repository": "IoTSharp/SonnetDB",
+  "runId": "33950712561",
+  "runNumber": "82",
+  "commitSha": "3b5ff768adf946b09a3be11ed58a83cacb3c1696",
+  "badgeUrl": "https://img.shields.io/badge/parity-0%25-red",
+  "suites": [],
+  "gateFailures": [
+    {
+      "gate": "infrastructure",
+      "suite": "docker-compose",
+      "scenario": "parity-stack",
+      "reason": "parity stack startup or readiness checks failed with code 1",
+      "gap_reason": "stack_start_failed"
+    }
+  ],
+  "performanceWarnings": []
+}

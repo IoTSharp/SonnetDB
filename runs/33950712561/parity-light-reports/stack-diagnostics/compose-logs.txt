@@ -1,0 +1,135 @@
+nats-1      | [1] 2026/09/05 06:50:14.096702 [INF] Starting nats-server
+sonnetdb-1  | Unhandled exception. System.NotSupportedException: JsonTypeInfo metadata for type 'SonnetDB.Mcp.McpDatabaseListResult' was not provided by TypeInfoResolver of type '[ModelContextProtocol.McpJsonUtilities+JsonContext, Microsoft.Extensions.AI.AIJsonUtilities+JsonContext]'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically.
+sonnetdb-1  |    at System.Text.Json.ThrowHelper.ThrowNotSupportedException_NoMetadataForType(Type type, IJsonTypeInfoResolver resolver)
+sonnetdb-1  |    at System.Text.Json.JsonSerializerOptions.GetTypeInfoInternal(Type type, Boolean ensureConfigured, Nullable`1 ensureNotNull, Boolean resolveIfMutable, Boolean fallBackToNearestAncestorType)
+sonnetdb-1  |    at System.Text.Json.Schema.JsonSchemaExporter.GetJsonSchemaAsNode(JsonSerializerOptions options, Type type, JsonSchemaExporterOptions exporterOptions)
+redis-1     | 1:C 05 Sep 2026 06:50:14.076 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+redis-1     | 1:C 05 Sep 2026 06:50:14.076 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1     | 1:C 05 Sep 2026 06:50:14.076 * Redis version=7.4.11, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1     | 1:C 05 Sep 2026 06:50:14.076 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis-1     | 1:M 05 Sep 2026 06:50:14.076 * monotonic clock: POSIX clock_gettime
+redis-1     | 1:M 05 Sep 2026 06:50:14.077 * Running mode=standalone, port=6379.
+sonnetdb-1  |    at Microsoft.Extensions.AI.AIJsonUtilities.CreateJsonSchemaCore(Type type, ParameterInfo parameter, NullabilityInfoContext nullabilityContext, String description, Boolean hasDefaultValue, Object defaultValue, JsonSerializerOptions serializerOptions, AIJsonSchemaCreateOptions inferenceOptions)
+sonnetdb-1  |    at Microsoft.Extensions.AI.AIJsonUtilities.CreateJsonSchema(Type type, String description, Boolean hasDefaultValue, Object defaultValue, JsonSerializerOptions serializerOptions, AIJsonSchemaCreateOptions inferenceOptions)
+sonnetdb-1  |    at ModelContextProtocol.Server.AIFunctionMcpServerTool.DeriveOptions(MethodInfo method, McpServerToolCreateOptions options)
+sonnetdb-1  |    at ModelContextProtocol.Server.AIFunctionMcpServerTool.Create(MethodInfo method, Object target, McpServerToolCreateOptions options)
+sonnetdb-1  |    at ModelContextProtocol.Server.McpServerTool.Create(MethodInfo method, Object target, McpServerToolCreateOptions options)
+nats-1      | [1] 2026/09/05 06:50:14.096941 [INF]   Version:  2.10.29
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.McpServerBuilderExtensions.<>c__DisplayClass1_1`1.<WithTools>b__0(IServiceProvider services)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitRootCache(ServiceCallSite callSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitIEnumerable(IEnumerableCallSite enumerableCallSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitRootCache(ServiceCallSite callSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitConstructor(ConstructorCallSite constructorCallSite, RuntimeResolverContext context)
+minio-1     | ERRO: Calculating checksum failed: open minio: no such file or directory
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+postgres-1  | This user must also own the server process.
+postgres-1  | 
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+postgres-1  | The default text search configuration will be set to "english".
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1  | creating subdirectories ... ok
+postgres-1  | selecting dynamic shared memory implementation ... posix
+postgres-1  | selecting default max_connections ... 100
+postgres-1  | selecting default shared_buffers ... 128MB
+postgres-1  | selecting default time zone ... Etc/UTC
+postgres-1  | creating configuration files ... ok
+postgres-1  | running bootstrap script ... ok
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor`2.VisitCallSite(ServiceCallSite callSite, TArgument argument)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitIEnumerable(IEnumerableCallSite enumerableCallSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitConstructor(ConstructorCallSite constructorCallSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor`2.VisitCallSite(ServiceCallSite callSite, TArgument argument)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitConstructor(ConstructorCallSite constructorCallSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitRootCache(ServiceCallSite callSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitConstructor(ConstructorCallSite constructorCallSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitRootCache(ServiceCallSite callSite, RuntimeResolverContext context)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceProvider.CreateServiceAccessor(ServiceIdentifier serviceIdentifier)
+sonnetdb-1  |    at System.Collections.Concurrent.ConcurrentDictionary`2.GetOrAdd(TKey key, Func`2 valueFactory)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceProvider.GetService(ServiceIdentifier serviceIdentifier, ServiceProviderEngineScope serviceProviderEngineScope)
+sonnetdb-1  |    at Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService[T](IServiceProvider provider)
+sonnetdb-1  |    at Microsoft.AspNetCore.Builder.McpEndpointRouteBuilderExtensions.MapMcp(IEndpointRouteBuilder endpoints, String pattern)
+sonnetdb-1  |    at SonnetDB.Endpoints.SonnetDbEndpoints.MapSonnetDbEndpoints(WebApplication app, ServerOptions serverOptions) in /repo/src/SonnetDB/Endpoints/Routes/SonnetDbEndpoints.cs:line 29
+sonnetdb-1  |    at SonnetDB.Program.BuildApp(String[] args, Action`1 configureServices) in /repo/src/SonnetDB/Program.cs:line 57
+sonnetdb-1  |    at SonnetDB.Program.Main(String[] args) in /repo/src/SonnetDB/Program.cs:line 23
+sonnetdb-1  |    at SonnetDB.Program.<Main>(String[] args)
+minio-1     | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1     | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1     | MinIO Object Storage Server
+minio-1     | Copyright: 2015-2026 MinIO, Inc.
+postgres-1  | performing post-bootstrap initialization ... ok
+nats-1      | [1] 2026/09/05 06:50:14.096957 [INF]   Git:      [f91ddd8]
+postgres-1  | initdb: warning: enabling "trust" authentication for local connections
+nats-1      | [1] 2026/09/05 06:50:14.096971 [INF]   Name:     NCY6YC7EHYYQ34X56GK6YIYQPGDBHEQCS6CFUJMJUVAGKIKRYDERNPCW
+nats-1      | [1] 2026/09/05 06:50:14.096987 [INF]   Node:     5F9rZKR1
+nats-1      | [1] 2026/09/05 06:50:14.097000 [INF]   ID:       NCY6YC7EHYYQ34X56GK6YIYQPGDBHEQCS6CFUJMJUVAGKIKRYDERNPCW
+nats-1      | [1] 2026/09/05 06:50:14.097701 [INF] Starting http monitor on 0.0.0.0:8222
+nats-1      | [1] 2026/09/05 06:50:14.097912 [INF] Starting JetStream
+nats-1      | [1] 2026/09/05 06:50:14.097940 [WRN] Temporary storage directory used, data could be lost on system reboot
+nats-1      | [1] 2026/09/05 06:50:14.098378 [INF]     _ ___ _____ ___ _____ ___ ___   _   __  __
+nats-1      | [1] 2026/09/05 06:50:14.098420 [INF]  _ | | __|_   _/ __|_   _| _ \ __| /_\ |  \/  |
+nats-1      | [1] 2026/09/05 06:50:14.098434 [INF] | || | _|  | | \__ \ | | |   / _| / _ \| |\/| |
+nats-1      | [1] 2026/09/05 06:50:14.098447 [INF]  \__/|___| |_| |___/ |_| |_|_\___/_/ \_\_|  |_|
+nats-1      | [1] 2026/09/05 06:50:14.098461 [INF] 
+nats-1      | [1] 2026/09/05 06:50:14.098485 [INF]          https://docs.nats.io/jetstream
+nats-1      | [1] 2026/09/05 06:50:14.098506 [INF] 
+nats-1      | [1] 2026/09/05 06:50:14.098519 [INF] ---------------- JETSTREAM ----------------
+nats-1      | [1] 2026/09/05 06:50:14.098534 [INF]   Max Memory:      11.71 GB
+nats-1      | [1] 2026/09/05 06:50:14.098548 [INF]   Max Storage:     60.10 GB
+nats-1      | [1] 2026/09/05 06:50:14.098561 [INF]   Store Directory: "/tmp/nats/jetstream"
+nats-1      | [1] 2026/09/05 06:50:14.098584 [INF] -------------------------------------------
+nats-1      | [1] 2026/09/05 06:50:14.098980 [INF] Listening for client connections on 0.0.0.0:4222
+nats-1      | [1] 2026/09/05 06:50:14.099313 [INF] Server is ready
+redis-1     | 1:M 05 Sep 2026 06:50:14.077 * Server initialized
+redis-1     | 1:M 05 Sep 2026 06:50:14.077 * Ready to accept connections tcp
+postgres-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1  | syncing data to disk ... ok
+postgres-1  | 
+postgres-1  | 
+postgres-1  | Success. You can now start the database server using:
+postgres-1  | 
+postgres-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1  | 
+postgres-1  | waiting for server to start....2026-09-05 06:50:15.377 UTC [50] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-09-05 06:50:15.378 UTC [50] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-09-05 06:50:15.386 UTC [53] LOG:  database system was shut down at 2026-09-05 06:50:14 UTC
+postgres-1  | 2026-09-05 06:50:15.389 UTC [50] LOG:  database system is ready to accept connections
+postgres-1  |  done
+postgres-1  | server started
+postgres-1  | CREATE DATABASE
+postgres-1  | 
+postgres-1  | 
+postgres-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1  | 
+postgres-1  | 2026-09-05 06:50:15.598 UTC [50] LOG:  received fast shutdown request
+postgres-1  | waiting for server to shut down....2026-09-05 06:50:15.604 UTC [50] LOG:  aborting any active transactions
+postgres-1  | 2026-09-05 06:50:15.606 UTC [50] LOG:  background worker "logical replication launcher" (PID 56) exited with exit code 1
+postgres-1  | 2026-09-05 06:50:15.607 UTC [51] LOG:  shutting down
+postgres-1  | 2026-09-05 06:50:15.607 UTC [51] LOG:  checkpoint starting: shutdown immediate
+postgres-1  | 2026-09-05 06:50:15.682 UTC [51] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.049 s, sync=0.025 s, total=0.076 s; sync files=301, longest=0.009 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/19120F8, redo lsn=0/19120F8
+postgres-1  | 2026-09-05 06:50:15.689 UTC [50] LOG:  database system is shut down
+postgres-1  |  done
+postgres-1  | server stopped
+postgres-1  | 
+postgres-1  | PostgreSQL init process complete; ready for start up.
+postgres-1  | 
+postgres-1  | 2026-09-05 06:50:15.718 UTC [1] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-09-05 06:50:15.718 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-09-05 06:50:15.718 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-09-05 06:50:15.719 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-09-05 06:50:15.722 UTC [66] LOG:  database system was shut down at 2026-09-05 06:50:15 UTC
+postgres-1  | 2026-09-05 06:50:15.726 UTC [1] LOG:  database system is ready to accept connections
+minio-1     | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1     | Version: RELEASE.2024-09-22T00-33-43Z (go1.22.7 linux/amd64)
+minio-1     | 
+minio-1     | API: http://172.18.0.4:9000  http://127.0.0.1:9000 
+minio-1     | WebUI: http://172.18.0.4:9001 http://127.0.0.1:9001  
+minio-1     | 
+minio-1     | Docs: https://docs.min.io
+minio-1     | INFO: 
+minio-1     |  You are running an older version of MinIO released 11 months before the latest release 
+minio-1     |  Update: Run `mc admin update ALIAS` 
+minio-1     | 
+minio-1     | 
