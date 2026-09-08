@@ -14,7 +14,7 @@ Phase 1 的证据管线，不把 quick、开发机结果或部分 artifact 变�
 
 quick 复用既有有界恢复 harness，日志文件沿用 `m40-graph-production-quick.log`，不会把同一次本地采样伪装成新的生产证据。quick 仅在 `local_smoke=PASS` 时返回 0；manifest 仅在 `release_decision=PASS` 时返回 0，否则返回 1。`Ctrl+C` 传播取消并先回收当前受监督的子进程，随后解除 CLI 取消处理器。
 
-步骤 6/7 的代码实现和本地回归已完成；固定硬件、Neo4j、Couplet C2 和正式容量证据留待后续真机/外部环境验证，当前仍为 `NOT_RUN`，不得把本地结果当作发布 PASS。
+步骤 6/7 的代码实现和本地回归已完成；固定硬件、Neo4j、Couplet C2 和正式容量证据属于后续真机/外部环境验证，当前登记为 `DEFERRED`，不得把本地结果当作发布 PASS。
 
 ## 输入和输出 schema
 

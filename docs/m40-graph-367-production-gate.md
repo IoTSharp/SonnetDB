@@ -10,7 +10,9 @@ performance_capacity: NOT_RUN
 release_decision: NOT_RUN
 ```
 
-截至当前提交，evaluator 自身加固和防误报回归已经完成；M40 修复顺序步骤 3~7、LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告仍未完成或归档。原生属性图已以 Graph Beta 计入九模型产品定位，但 M40 仍为进行中，不能据此宣称 Production 门禁通过。
+这里的 `NOT_RUN` 是当前 evaluator 报告字段；路线状态使用 `DEFERRED` 表示这些正式样本已移入真机/外部环境验证，不表示编码或本地门禁缺失。
+
+截至当前提交，evaluator 自身加固和防误报回归、M40 修复顺序步骤 1~7 的编码与本地门禁均已完成。LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact、跨进程 kill/reopen、backup/restore 和 7 天固定硬件报告属于真机/外部环境路线，当前标记为 `DEFERRED`，不回退 M40 研发完成状态。原生属性图已以 Graph Beta 计入九模型产品定位；正式 Production 门禁仍须真实证据通过。
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 
@@ -51,7 +53,7 @@ dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Rel
 - `m40-graph-production-gate.md`：可审查摘要；
 - `m40-graph-production-input.template.json`：完整 Production 清单模板，所有占位项默认不可通过。
 
-候选 evidence 判定入口（只能在 M40 修复顺序步骤 1~7 全部通过后用于正式取证）：
+候选 evidence 判定入口（M40 修复顺序步骤 1~7 的代码与本地门禁已通过；仅在真机/外部环境路线取正式证据时使用）：
 
 ```powershell
 dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Release -- --m40-production-gate --manifest artifacts/m40-graph-production-input.json --output artifacts/m40-graph-production-gate
@@ -112,7 +114,7 @@ Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-updat
 
 ## 当前待执行项
 
-- 固定并归档步骤 6~7 的性能、恢复与 parity 证据；当前实现 quick 已通过，但在这些证据齐全前仍只允许运行缺陷回归、evaluator 自测和用于修复决策的 quick/microbenchmark；
+- 在目标机器归档步骤 6~7 的性能、恢复与 parity 证据；本地实现与 quick 已完成，现场样本统一标记 `DEFERRED` 直至执行；
 - 在冻结目标机上生成 `preview-small`、`gate` 和 `production-soak` 数据并保留三个原始测量轮次；
 - 执行 Neo4j/PostgreSQL、LDBC SNB 与 Graphalytics 对拍；
 - 归档 Couplet C4 的代码知识/Agent 组合语料结果；

@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M40 研发与文档闭环（真机验证后置）**：#341～#367 的 Graph 存储、查询、SQL/PGQ、算法、运维面、Server/SDK/CLI/Studio parity、恢复合同、strict evaluator、编码文档和本地自动化回归已全部收口。固定硬件、Neo4j/PostgreSQL、LDBC/Graphalytics、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 与 7 天 8+1 mixed workload 不计入编码完成，统一登记到 [ROADMAP 真机验证待办](ROADMAP.md#真机验证待办)，正式 Preview/Production gate 在现场证据通过前保持 `DEFERRED`。
+
 - **M40 #352 Native Graph Preview strict gate**：新增独立 `m40-graph-preview-input-v1` 输入、`m40-graph-preview-gate-v1` 报告与 `--m40-preview-gate --quick|--manifest` 入口，复用原始 artifact 重算和隔离回放，按双数据档位、12 个 native journey、Preview SLO、恢复与 Couplet C2 判定 correctness/recovery 和 performance/capacity 双 gate。quick 生成未完成模板并保持正式结论 `NOT_RUN`；固定硬件、Neo4j、Couplet C2、外部对拍和正式容量证据仍未运行，不构成 #352 PASS。详见 [M40 #352 Preview gate](docs/m40-graph-352-preview-gate.md)。
 
 - **M40 Phase 1 代码实现完成（待真机验证）**：#347～#351 Native Graph 功能、Server/SDK/import、自动化回归及 #352 strict gate 管线已完成；固定硬件、外部数据库对拍、Couplet C2 与正式发布证据留待后续现场验证，不将 `quick` 或开发机结果计为 Preview 发布 PASS。
