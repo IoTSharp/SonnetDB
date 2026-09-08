@@ -43,6 +43,7 @@
     <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
+    <Project Path="tests/SonnetDB.TriggerAdmission/SonnetDB.TriggerAdmission.csproj" />
   </Folder>
   <Project Path="docker-compose.dcproj">
     <Build />

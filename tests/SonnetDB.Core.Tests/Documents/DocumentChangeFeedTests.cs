@@ -85,5 +85,27 @@ public sealed class DocumentChangeFeedTests : IDisposable
         Assert.False(page.HasMore);
     }
 
+    [Fact]
+    public void ChangeFeed_BulkPersistsRequestIdentityOperationIndexAndPatch()
+    {
+        using var db = Open();
+        db.Documents.Create(DocumentCollectionSchema.Create("docs"));
+        var store = db.Documents.Open("docs");
+        var requestId = "bulk-feed-1";
+        var result = store.BulkWrite(
+        [
+            new DocumentBulkWriteOperation(DocumentBulkWriteOperationType.InsertOne, Id: "a", Json: "{\"value\":1}"),
+            new DocumentBulkWriteOperation(
+                DocumentBulkWriteOperationType.ReplaceOne,
+                Id: "a",
+                Json: "{\"value\":2}")
+        ], requestId: requestId);
+        Assert.True(result.Committed);
+        var page = store.ReadChangeFeed(0, 10);
+        Assert.Equal(requestId, page.Changes[0].RequestId);
+        Assert.Equal(0, page.Changes[0].OperationIndex);
+        Assert.Equal(DocumentChangeCauses.Bulk, page.Changes[0].Cause);
+    }
+
     private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });
 }

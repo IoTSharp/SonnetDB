@@ -9,6 +9,10 @@
 
 ### Added
 
+- **M39 SQL 触发器第二版研发闭环**：#329~#339 的存储过程、关系表触发器第二版、高级事务语义、durable outbox，以及 Document/measurement 原生准入实现和本地证据已完成。固定设备、生产混合负载和长期 SLO 转入 ROADMAP 的真机验证待办，不阻塞研发完成状态。
+
+- **M39 #339 Document / measurement 准入闭环**：Document change feed 增加 cause、bulk request identity、操作序号和受限 patch 描述，TTL 系统删除可区分且旧事件兼容；measurement 新增 durable batch ledger、payload fingerprint、pending/committed 重开 reconcile，`WriteMany` / `BulkIngestor` 支持幂等重放与冲突拒绝。独立 runner 完成 1/100/10,000 点、乱序/重放、1,000 series、Document 索引/feed/重开 full evidence；证据见 [M39 #339 准入记录](docs/audits/m39-339-admission-20260908.md)。
+
 - **M39 #338 高级事务语义**：关系表新增受限 `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`，在持久化前按捕获事件顺序检查事务最终关系状态；保留 OLD/NEW、调用链预算、取消、内部保存点及完整提交回滚，限制跨阶段顺序和提交中的应用回调。例程目录升级 v4，兼容读取 v1/v2/v3，旧引擎拒绝 v4；主数据及 KV/WAL 格式不变。新增显式 `SqlOutboxWorker.ProcessBatchAsync`，提供同步 WAL 的租约、ACK、退避和死信状态；锁外处理器按稳定 EventId 幂等，投递语义为 at-least-once。合同、测试与恢复证据见[验收记录](docs/audits/m39-338-20260908.md)，不代表 M39 或生产门禁整体完成。
 
 - **M39 #335 语句级触发器**：关系表 `AFTER INSERT/UPDATE/DELETE FOR EACH STATEMENT` 每条语句执行一次（包括空影响集），通过 `REFERENCING OLD TABLE AS ... NEW TABLE AS ...` 提供只读快照；复用关系查询的聚合/JOIN 与关系表 `INSERT SELECT`，支持嵌套快照隔离、调用链行数/字节硬上限和原子回滚。与同业务语义的行触发器对照、恢复证据见 [验收记录](docs/audits/m39-335-336-20260906.md)。
