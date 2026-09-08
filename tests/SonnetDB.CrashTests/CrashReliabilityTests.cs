@@ -7,6 +7,7 @@ using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
@@ -113,6 +114,9 @@ public sealed class CrashReliabilityTests : IDisposable
     [Theory]
     [InlineData("crash_kill9_before_trigger_transaction_complete", 0)]
     [InlineData("crash_kill9_after_trigger_transaction_complete", 1)]
+    [InlineData("crash_kill9_advanced_trigger_between_tables", 0)]
+    [InlineData("crash_kill9_advanced_trigger_before_complete", 0)]
+    [InlineData("crash_kill9_advanced_trigger_after_complete", 1)]
     public void crash_kill9_triggerCompletionBoundary_ReopenSeesConsistentPair(string scenario, int expectedRows)
     {
         string root = RunKillScenario(scenario, TimeSpan.Zero);
@@ -122,7 +126,116 @@ public sealed class CrashReliabilityTests : IDisposable
             foreach (string table in new[] { "orders", "audit_outbox" })
                 Assert.Equal(expectedRows, Assert.IsType<SelectExecutionResult>(
                     SqlExecutor.Execute(database, $"SELECT * FROM {table}")).Rows.Count);
+            if (expectedRows != 0 && scenario.Contains("advanced", StringComparison.Ordinal))
+            {
+                Assert.Equal(new object?[] { 11L, "NEW" }, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT id, status FROM orders")).Rows[0]);
+                Assert.Equal(new object?[] { 11L, 11L }, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT event_id, order_id FROM audit_outbox")).Rows[0]);
+            }
         }
+    }
+
+    [Theory]
+    [InlineData("crash_kill9_deferred_trigger_between_tables", 0)]
+    [InlineData("crash_kill9_deferred_trigger_before_complete", 0)]
+    [InlineData("crash_kill9_deferred_trigger_after_complete", 1)]
+    public void crash_kill9_deferredTriggerCommit_ReopenSeesConsistentFinalState(string scenario, int expectedRows)
+    {
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        VerifyRecoveredState();
+        VerifyRecoveredState();
+
+        void VerifyRecoveredState()
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            var orders = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT id, status FROM orders"));
+            var audit = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT event_id, order_id FROM audit_outbox"));
+            Assert.Equal(expectedRows, orders.Rows.Count);
+            Assert.Equal(expectedRows, audit.Rows.Count);
+            var trigger = database.Routines.TryGetTrigger("orders_audit");
+            Assert.NotNull(trigger);
+            Assert.True(trigger.IsConstraint);
+            Assert.True(trigger.InitiallyDeferred);
+            if (expectedRows == 1)
+            {
+                Assert.Equal(new object?[] { 1L, "ready" }, orders.Rows[0]);
+                Assert.Equal(new object?[] { 1L, 1L }, audit.Rows[0]);
+            }
+        }
+    }
+
+    [Fact]
+    public void crash_kill9_deferredTriggerBeforeCommit_ReopenDiscardsQueuedSourceAndAction()
+    {
+        string root = RunKillScenario("crash_kill9_deferred_trigger_before_commit", TimeSpan.Zero);
+        Assert.Equal("deferred-event-queued-before-commit", File.ReadAllText(
+            Path.Combine(root, "crash_kill9_deferred_trigger_before_commit.ready")));
+        VerifyRecoveredState();
+        VerifyRecoveredState();
+
+        void VerifyRecoveredState()
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM orders")).Rows);
+            Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM audit_outbox")).Rows);
+            Assert.True(database.Routines.TryGetTrigger("orders_audit")!.InitiallyDeferred);
+        }
+    }
+
+    [Fact]
+    public async Task crash_kill9_outboxDeliveryBeforeAck_ReopenRedeliversSameEventAndPersistsAcknowledgement()
+    {
+        string root = RunKillScenario("crash_kill9_outbox_delivery_before_ack", TimeSpan.Zero);
+        Assert.Equal("outbox-delivered-before-ack", File.ReadAllText(
+            Path.Combine(root, "crash_kill9_outbox_delivery_before_ack.ready")));
+        string deliveredId = File.ReadAllText(Path.Combine(root, "outbox-delivered.txt"));
+        Assert.Equal("crash-stable-event", deliveredId);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using (var database = Tsdb.Open(MakeOptions(root)))
+        {
+            Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM orders")).Rows);
+            var pending = Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+                "SELECT event_id, state, attempts, lease_token, lease_until, completed_at FROM sql_outbox")).Rows);
+            Assert.Equal(deliveredId, pending[0]);
+            Assert.Equal("leased", pending[1]);
+            Assert.Equal(1L, pending[2]);
+            Assert.NotEmpty(Assert.IsType<string>(pending[3]));
+            long leaseUntil = Assert.IsType<long>(pending[4]);
+            Assert.True(leaseUntil > 0);
+            Assert.Equal(0L, pending[5]);
+
+            var clock = new CrashOutboxClock(DateTimeOffset.FromUnixTimeMilliseconds(checked(leaseUntil + 1)));
+            var worker = new SqlOutboxWorker(database,
+                new SqlOutboxWorkerOptions { BatchTimeout = TimeSpan.FromSeconds(5) }, clock);
+            int deliveryCount = 0;
+            SqlOutboxBatchResult result = await worker.ProcessBatchAsync((message, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Assert.Equal(deliveredId, message.EventId);
+                Assert.Equal("orders", message.Topic);
+                Assert.Equal("local-delivery", message.Payload);
+                Assert.Equal(2, message.Attempt);
+                deliveryCount++;
+                return ValueTask.CompletedTask;
+            }, deadline.Token).WaitAsync(deadline.Token);
+            Assert.Equal(1, deliveryCount);
+            Assert.Equal(1, result.Claimed);
+            Assert.Equal(1, result.Delivered);
+            Assert.Equal(0, result.LeaseLost);
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions(root));
+        var confirmed = Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT event_id, state, attempts, lease_token, lease_until, completed_at FROM sql_outbox")).Rows);
+        Assert.Equal(deliveredId, confirmed[0]);
+        Assert.Equal("done", confirmed[1]);
+        Assert.Equal(2L, confirmed[2]);
+        Assert.Equal(string.Empty, confirmed[3]);
+        Assert.Equal(0L, confirmed[4]);
+        Assert.True(Assert.IsType<long>(confirmed[5]) > 0);
     }
 
     [Fact]
@@ -427,5 +540,10 @@ public sealed class CrashReliabilityTests : IDisposable
             return path;
 
         throw new FileNotFoundException("未找到 CrashTests 子进程程序集。", path);
+    }
+
+    private sealed class CrashOutboxClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 }

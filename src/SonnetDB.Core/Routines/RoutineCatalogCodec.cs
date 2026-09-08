@@ -14,7 +14,7 @@ internal static class RoutineCatalogCodec
 {
     public const string FileName = "routines.sdbrtn";
 
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 4;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxDefinitions = 100_000;
@@ -130,6 +130,20 @@ internal static class RoutineCatalogCodec
             string bodySql = ReadString(source, crc, MaxSqlBytes, $"trigger {index} SQL body")!;
             byte enabled = version >= 2 ? ReadByte(source, crc, $"trigger {index} enabled") : (byte)1;
             long order = version >= 2 ? ReadInt64(source, crc, $"trigger {index} order") : createdAt;
+            var timing = version >= 3 ? (SqlTriggerTiming)ReadByte(source, crc, "trigger timing") : SqlTriggerTiming.After;
+            var level = version >= 3 ? (SqlTriggerLevel)ReadByte(source, crc, "trigger level") : SqlTriggerLevel.Row;
+            string? oldTable = version >= 3 ? ReadString(source, crc, MaxNameBytes, "old table", nullable: true) : null;
+            string? newTable = version >= 3 ? ReadString(source, crc, MaxNameBytes, "new table", nullable: true) : null;
+            bool isConstraint = false;
+            bool initiallyDeferred = false;
+            if (version >= 4)
+            {
+                byte flags = ReadByte(source, crc, $"trigger {index} flags");
+                if (flags is not (0 or 3))
+                    throw new InvalidDataException("RoutineCatalog: invalid trigger flags.");
+                isConstraint = (flags & 1) != 0;
+                initiallyDeferred = (flags & 2) != 0;
+            }
             if (enabled > 1 || order < 0)
                 throw new InvalidDataException("RoutineCatalog: invalid trigger lifecycle metadata.");
             if (!triggerNames.Add(name))
@@ -142,7 +156,8 @@ internal static class RoutineCatalogCodec
                     (SqlTriggerEvent)eventValue,
                     whenSql,
                     bodySql,
-                    createdAt, enabled == 1, order));
+                    createdAt, enabled == 1, order, timing, level, oldTable, newTable,
+                    isConstraint, initiallyDeferred));
             }
             catch (Exception exception) when (exception is ArgumentException or SqlParseException)
             {
@@ -201,6 +216,11 @@ internal static class RoutineCatalogCodec
             WriteString(destination, crc, trigger.BodySql, MaxSqlBytes, nullable: false);
             WriteByte(destination, crc, trigger.Enabled ? (byte)1 : (byte)0);
             WriteInt64(destination, crc, trigger.ExecutionOrder);
+            WriteByte(destination, crc, (byte)trigger.Timing);
+            WriteByte(destination, crc, (byte)trigger.Level);
+            WriteString(destination, crc, trigger.OldTableName, MaxNameBytes, nullable: true);
+            WriteString(destination, crc, trigger.NewTableName, MaxNameBytes, nullable: true);
+            WriteByte(destination, crc, (byte)((trigger.IsConstraint ? 1 : 0) | (trigger.InitiallyDeferred ? 2 : 0)));
         }
 
         Span<byte> footer = stackalloc byte[FooterSize];

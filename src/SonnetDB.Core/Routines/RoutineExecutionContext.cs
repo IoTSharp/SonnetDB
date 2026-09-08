@@ -23,6 +23,20 @@ internal sealed class RoutineExecutionContext
 
     public int ResultRows { get; private set; }
 
+    internal string[] ProcedureAncestry => _procedureStack.ToArray();
+    internal string[] TriggerAncestry => _triggerStack.ToArray();
+
+    internal static IDisposable EnterDeferred(RoutineExecutionContext origin, string[] procedures, string[] triggers)
+    {
+        var scope = new DeferredScope(CurrentSlot.Value, origin, origin.ProcedureAncestry, origin.TriggerAncestry);
+        origin._procedureStack.Clear();
+        origin._procedureStack.AddRange(procedures);
+        origin._triggerStack.Clear();
+        origin._triggerStack.AddRange(triggers);
+        CurrentSlot.Value = origin;
+        return scope;
+    }
+
     public string CallChain
         => string.Join(
             " > ",
@@ -70,6 +84,14 @@ internal sealed class RoutineExecutionContext
     public void ConsumeStatement()
     {
         CheckCancellation();
+        ConsumeStatementCore();
+        if (SqlTransactionContext.Current is { IsExecutingDeferredTriggers: true, CommitContext: { } commit }
+            && !ReferenceEquals(commit, this))
+            commit.ConsumeStatementCore();
+    }
+
+    private void ConsumeStatementCore()
+    {
         StatementsExecuted++;
         if (StatementsExecuted > Options.MaxRoutineStatements)
         {
@@ -80,6 +102,14 @@ internal sealed class RoutineExecutionContext
     }
 
     public void AddResultRows(int count)
+    {
+        AddResultRowsCore(count);
+        if (SqlTransactionContext.Current is { IsExecutingDeferredTriggers: true, CommitContext: { } commit }
+            && !ReferenceEquals(commit, this))
+            commit.AddResultRowsCore(count);
+    }
+
+    private void AddResultRowsCore(int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         long total = (long)ResultRows + count;
@@ -94,6 +124,7 @@ internal sealed class RoutineExecutionContext
 
     public void CheckCancellation()
     {
+        SqlTransactionContext.Current?.CheckCommitDeadline();
         if (Options.CancellationToken.IsCancellationRequested)
         {
             throw new RoutineExecutionException(
@@ -103,13 +134,28 @@ internal sealed class RoutineExecutionContext
         }
     }
 
+    private sealed class DeferredScope(RoutineExecutionContext? previous, RoutineExecutionContext origin,
+        string[] procedures, string[] triggers) : IDisposable
+    {
+        public void Dispose()
+        {
+            origin._procedureStack.Clear();
+            origin._procedureStack.AddRange(procedures);
+            origin._triggerStack.Clear();
+            origin._triggerStack.AddRange(triggers);
+            CurrentSlot.Value = previous;
+        }
+    }
+
     private void EnsureDepth()
     {
-        if (_procedureStack.Count + _triggerStack.Count >= Options.MaxRoutineDepth)
+        int limit = Math.Min(Options.MaxRoutineDepth,
+            SqlTransactionContext.Current?.CommitContext?.Options.MaxRoutineDepth ?? int.MaxValue);
+        if (_procedureStack.Count + _triggerStack.Count >= limit)
         {
             throw new RoutineExecutionException(
                 RoutineErrorCodes.DepthLimit,
-                $"例程调用链深度超过上限 {Options.MaxRoutineDepth}。");
+                $"例程调用链深度超过上限 {limit}。");
         }
     }
 

@@ -35,11 +35,12 @@ internal static class SqlRoutineAnalyzer
     public static SqlRoutineAnalysis AnalyzeTrigger(
         IReadOnlyList<SqlStatement> statements,
         SqlExpression? when,
-        SqlTriggerEvent triggerEvent)
+        SqlTriggerEvent triggerEvent,
+        SqlTriggerTiming timing = SqlTriggerTiming.After)
     {
         ArgumentNullException.ThrowIfNull(statements);
         ValidateStatementCount(statements);
-        var analysis = Analyze(statements, EmptyNames, triggerEvent);
+        var analysis = Analyze(statements, EmptyNames, triggerEvent, timing);
         if (when is null)
             return analysis;
 
@@ -58,7 +59,8 @@ internal static class SqlRoutineAnalyzer
     private static SqlRoutineAnalysis Analyze(
         IReadOnlyList<SqlStatement> statements,
         IReadOnlySet<string> parameterNames,
-        SqlTriggerEvent? triggerEvent)
+        SqlTriggerEvent? triggerEvent,
+        SqlTriggerTiming timing = SqlTriggerTiming.After)
     {
         var objects = new HashSet<string>(StringComparer.Ordinal);
         var procedures = new HashSet<string>(StringComparer.Ordinal);
@@ -67,21 +69,29 @@ internal static class SqlRoutineAnalyzer
 
         foreach (var statement in statements)
         {
-            if (triggerEvent is not null && statement is not InsertStatement and not UpdateStatement and not DeleteStatement)
+            if (triggerEvent is not null && (timing == SqlTriggerTiming.Before
+                ? statement is not SetTriggerNewStatement
+                : statement is not InsertStatement and not UpdateStatement and not DeleteStatement))
             {
                 throw new ArgumentException(
-                    $"触发器 SQL body 只允许 INSERT / UPDATE / DELETE，实际为 {statement.GetType().Name}。",
+                    $"AFTER body 只允许 INSERT / UPDATE / DELETE；BEFORE body 只允许 SET NEW.column，实际为 {statement.GetType().Name}。",
                     nameof(statements));
             }
 
             switch (statement)
             {
+                case SetTriggerNewStatement assignment when triggerEvent is not null && timing == SqlTriggerTiming.Before:
+                    rowColumns.Add(assignment.ColumnName);
+                    VisitExpression(assignment.Value, parameterNames, triggerEvent, objects, procedures, rowColumns);
+                    break;
                 case SelectStatement select:
                     VisitSelect(select, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     break;
                 case InsertStatement insert:
                     requiresWrite = true;
                     objects.Add(insert.Measurement);
+                    if (insert.Query is not null)
+                        VisitSelect(insert.Query, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     foreach (var row in insert.Rows)
                         foreach (var expression in row)
                             VisitExpression(expression, parameterNames, triggerEvent, objects, procedures, rowColumns);

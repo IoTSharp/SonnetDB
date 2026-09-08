@@ -227,6 +227,21 @@ public sealed class SqlExecutionResourceOptions
     /// <summary>过程累计结果行数预算，包含 INSERT RETURNING，默认 10000。</summary>
     public int MaxRoutineResultRows { get; set; } = 10_000;
 
+    /// <summary>每条调用链同时存活的 transition set 行数上限。</summary>
+    public int MaxTriggerTransitionRows { get; set; } = 100_000;
+
+    /// <summary>每条调用链 transition set 的保守内存预算（字节）。</summary>
+    public long MaxTriggerTransitionBytes { get; set; } = 64 * 1024 * 1024;
+
+    /// <summary>单事务延迟触发器调用数量上限。</summary>
+    public int MaxDeferredTriggerInvocations { get; set; } = 100_000;
+
+    /// <summary>单事务延迟触发器队列内存上限（字节）。</summary>
+    public long MaxDeferredTriggerBytes { get; set; } = 64 * 1024 * 1024;
+
+    /// <summary>提交锁等待与延迟执行的协作超时（毫秒）。</summary>
+    public int TransactionCommitTimeoutMilliseconds { get; set; } = 30_000;
+
     /// <summary>单条 SQL 的阻塞算子内存上限，默认 64 MiB。</summary>
     public long QueryLimitBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.QueryLimitBytes;
 

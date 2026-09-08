@@ -10,8 +10,10 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 using SonnetDB.Protocol;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -41,7 +43,13 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
             DataRoot = _dataRoot,
             AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
-            SqlExecution = new SqlExecutionResourceOptions { MaxRoutineStatements = 128 },
+            SqlExecution = new SqlExecutionResourceOptions
+            {
+                MaxRoutineStatements = 128,
+                MaxTriggerTransitionRows = 3,
+                MaxDeferredTriggerInvocations = 3,
+                MaxDeferredTriggerBytes = 4096,
+            },
             Tokens = new Dictionary<string, string>
             {
                 [_adminToken] = ServerRoles.Admin,
@@ -154,6 +162,209 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
         string text = await resp.Content.ReadAsStringAsync();
         Assert.True(resp.IsSuccessStatusCode, text);
         Assert.DoesNotContain("\"error\"", text);
+    }
+
+    [Fact]
+    public async Task AdvancedTriggers_RestWritesAndFrameReads_RespectRewritesBudgetsAndPermissions()
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE advanced_rows (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE advanced_total (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO advanced_total (id, value) VALUES (1, 0)");
+        await ExecRestSqlAsync(admin, "CREATE TRIGGER normalize BEFORE INSERT ON advanced_rows FOR EACH ROW LANGUAGE SQL AS BEGIN SET NEW.value = NEW.value + 1; END");
+        await ExecRestSqlAsync(admin, """
+            CREATE TRIGGER sum_rows AFTER INSERT ON advanced_rows REFERENCING NEW TABLE AS incoming
+            FOR EACH STATEMENT LANGUAGE SQL AS BEGIN
+                UPDATE advanced_total SET value = value + (SELECT SUM(value) FROM incoming) WHERE id = 1;
+            END
+            """);
+        await ExecRestSqlAsync(admin, "INSERT INTO advanced_rows (id, value) VALUES (1, 2), (2, 3)");
+        var (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT value FROM advanced_total", streamId: 41);
+        Assert.Equal(7L, Assert.Single(rows)[0]);
+        var (columns, definitions, _, _) = await QueryFrameAsync(readOnly, "SHOW TRIGGERS ON advanced_rows", streamId: 42);
+        Assert.Contains("timing", columns);
+        Assert.Contains(definitions, row => Equals(row[Array.IndexOf(columns, "level")], "statement"));
+        using var exceeded = await admin.PostAsync($"/v1/db/{_dbName}/sql", JsonContent.Create(new SqlRequest(
+            "INSERT INTO advanced_rows (id, value) VALUES (3, 1), (4, 1), (5, 1), (6, 1)"), ServerJsonContext.Default.SqlRequest));
+        Assert.Contains("trigger_transition_limit", await exceeded.Content.ReadAsStringAsync());
+        using var denied = await readOnly.PostAsync($"/v1/db/{_dbName}/sql", JsonContent.Create(new SqlRequest(
+            "INSERT INTO advanced_rows (id, value) VALUES (3, 1)"), ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT COUNT(*) FROM advanced_rows", streamId: 43);
+        Assert.Equal(2L, Assert.Single(rows)[0]);
+    }
+
+    [Fact]
+    public async Task DeferredTriggers_RestTransactionAndFrameReads_ValidateFinalStateAtCommit()
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        admin.Timeout = TimeSpan.FromSeconds(15);
+        readOnly.Timeout = TimeSpan.FromSeconds(15);
+        await ExecRestSqlAsync(admin, "CREATE TABLE deferred_accounts (id INT, balance INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE deferred_outbox (event_id INT, account_id INT, total_balance INT, PRIMARY KEY (event_id), CHECK (total_balance = 100))");
+        await ExecRestSqlAsync(admin, "INSERT INTO deferred_accounts (id, balance) VALUES (1, 100), (2, 0)");
+        await ExecRestSqlAsync(admin, """
+            CREATE CONSTRAINT TRIGGER balance_check AFTER UPDATE ON deferred_accounts
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN
+                INSERT INTO deferred_outbox (event_id, account_id, total_balance)
+                SELECT NEW.id * 1000 + NEW.balance, NEW.id, (SELECT SUM(balance) FROM deferred_accounts)
+                FROM deferred_accounts WHERE id = NEW.id;
+            END
+            """);
+
+        using var response = await admin.PostAsync($"/v1/db/{_dbName}/sql/batch",
+            JsonContent.Create(new SqlBatchRequest([
+                new SqlRequest("BEGIN"),
+                new SqlRequest("UPDATE deferred_accounts SET balance = 75 WHERE id = 1"),
+                new SqlRequest("SELECT COUNT(*) FROM deferred_outbox"),
+                new SqlRequest("UPDATE deferred_accounts SET balance = 25 WHERE id = 2"),
+                new SqlRequest("COMMIT")]), ServerJsonContext.Default.SqlBatchRequest));
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("\"error\"", body);
+        string[] lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(7, lines.Length);
+        using var beforeCommit = JsonDocument.Parse(lines[3]);
+        Assert.Equal(0, beforeCommit.RootElement[0].GetInt64());
+        using var committed = JsonDocument.Parse(lines[^1]);
+        Assert.Equal("end", committed.RootElement.GetProperty("type").GetString());
+        Assert.Equal(4, committed.RootElement.GetProperty("recordsAffected").GetInt32());
+
+        var (_, rows, _, _) = await QueryFrameAsync(readOnly,
+            "SELECT account_id, total_balance FROM deferred_outbox ORDER BY account_id", streamId: 44);
+        Assert.Collection(rows,
+            row => Assert.Equal(new object?[] { 1L, 100L }, row),
+            row => Assert.Equal(new object?[] { 2L, 100L }, row));
+        var (columns, definitions, _, _) = await QueryFrameAsync(readOnly,
+            "SHOW TRIGGERS ON deferred_accounts", streamId: 45);
+        var definition = Assert.Single(definitions);
+        Assert.Equal(true, definition[Array.IndexOf(columns, "is_constraint")]);
+        Assert.Equal(true, definition[Array.IndexOf(columns, "initially_deferred")]);
+
+        using var rejected = await admin.PostAsync($"/v1/db/{_dbName}/sql/batch",
+            JsonContent.Create(new SqlBatchRequest([
+                new SqlRequest("BEGIN"),
+                new SqlRequest("UPDATE deferred_accounts SET balance = 60 WHERE id = 1"),
+                new SqlRequest("SELECT balance FROM deferred_accounts WHERE id = 1"),
+                new SqlRequest("COMMIT"),
+                new SqlRequest("INSERT INTO deferred_accounts (id, balance) VALUES (3, 0)")]),
+                ServerJsonContext.Default.SqlBatchRequest));
+        // BEGIN 和 DML 已开始 NDJSON 响应；提交失败必须作为末尾错误返回，不能继续执行下一条语句。
+        Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
+        string[] rejectedLines = (await rejected.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(6, rejectedLines.Length);
+        using var pendingBalance = JsonDocument.Parse(rejectedLines[3]);
+        Assert.Equal(60, pendingBalance.RootElement[0].GetInt64());
+        using var error = JsonDocument.Parse(rejectedLines[^1]);
+        Assert.Equal(TableConstraintException.CheckViolation, error.RootElement.GetProperty("error").GetString());
+        (_, rows, _, _) = await QueryFrameAsync(readOnly,
+            "SELECT id, balance FROM deferred_accounts ORDER BY id", streamId: 46);
+        Assert.Collection(rows,
+            row => Assert.Equal(new object?[] { 1L, 75L }, row),
+            row => Assert.Equal(new object?[] { 2L, 25L }, row));
+        (_, rows, _, _) = await QueryFrameAsync(readOnly,
+            "SELECT COUNT(*) FROM deferred_outbox", streamId: 47);
+        Assert.Equal(2L, Assert.Single(rows)[0]);
+        (columns, rows, _, _) = await QueryFrameAsync(readOnly,
+            "SHOW ROUTINE AUDIT FOR TRIGGER balance_check", streamId: 48);
+        Assert.Equal(3, rows.Count);
+        Assert.Equal("rolled_back", rows[^1][Array.IndexOf(columns, "outcome")]);
+        Assert.Equal(TableConstraintException.CheckViolation, rows[^1][Array.IndexOf(columns, "error_code")]);
+    }
+
+    [Theory]
+    [InlineData("INSERT INTO permission_rows (id) VALUES (1)", "forbidden", "bad_request")]
+    [InlineData("CREATE CONSTRAINT TRIGGER denied_audit AFTER INSERT ON permission_rows DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO permission_outbox (id) VALUES (NEW.id); END", "forbidden", "bad_request")]
+    [InlineData("CALL permission_write()", RoutineErrorCodes.Forbidden, RoutineErrorCodes.Forbidden)]
+    public async Task DeferredTriggers_ReadOnlyRestAndFrameChannel_RejectWritesBeforeQueueing(
+        string sql, string expectedRestCode, string expectedFrameCode)
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        admin.Timeout = TimeSpan.FromSeconds(15);
+        readOnly.Timeout = TimeSpan.FromSeconds(15);
+        await ExecRestSqlAsync(admin, "CREATE TABLE permission_rows (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE permission_outbox (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, """
+            CREATE CONSTRAINT TRIGGER permission_audit AFTER INSERT ON permission_rows
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN
+                INSERT INTO permission_outbox (id) VALUES (NEW.id);
+            END
+            """);
+        await ExecRestSqlAsync(admin, """
+            CREATE PROCEDURE permission_write() LANGUAGE SQL AS BEGIN
+                INSERT INTO permission_rows (id) VALUES (1);
+            END
+            """);
+        using var rejected = await readOnly.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(sql), ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.Forbidden, rejected.StatusCode);
+        using var restError = JsonDocument.Parse(await rejected.Content.ReadAsStringAsync());
+        Assert.Equal(expectedRestCode, restError.RootElement.GetProperty("error").GetString());
+
+        // Frame SQL 的只读限制独立于 token；admin 也不能经查询帧执行延迟写入。
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 49, _dbName, sql);
+        var frame = Assert.Single(await PostFramesAsync(admin, writer.WrittenMemory.ToArray()));
+        Assert.True(frame.Header.IsError);
+        Assert.Equal(expectedFrameCode, FrameCodec.ReadErrorPayload(frame.Payload).Code);
+        var (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT COUNT(*) FROM permission_rows", streamId: 50);
+        Assert.Equal(0L, Assert.Single(rows)[0]);
+        (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT COUNT(*) FROM permission_outbox", streamId: 51);
+        Assert.Equal(0L, Assert.Single(rows)[0]);
+        (_, rows, _, _) = await QueryFrameAsync(readOnly, "SHOW TRIGGERS ON permission_rows", streamId: 52);
+        Assert.Single(rows);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeferredTriggers_RestConfiguredQueueLimit_RollsBackBatchAndAcceptsNextTransaction(bool exceedBytes)
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        admin.Timeout = TimeSpan.FromSeconds(15);
+        readOnly.Timeout = TimeSpan.FromSeconds(15);
+        await ExecRestSqlAsync(admin, "CREATE TABLE budget_rows (id INT, payload STRING, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE budget_outbox (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, """
+            CREATE CONSTRAINT TRIGGER budget_audit AFTER INSERT ON budget_rows
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN
+                INSERT INTO budget_outbox (id) VALUES (NEW.id);
+            END
+            """);
+        SqlRequest[] requests = exceedBytes
+            ? [new SqlRequest("BEGIN"),
+               new SqlRequest("INSERT INTO budget_rows (id, payload) VALUES (1, @payload)",
+                   new Dictionary<string, JsonElementValue>
+                   {
+                       ["payload"] = new(ScalarKind.String, StringValue: new string('x', 8192)),
+                   }),
+               new SqlRequest("COMMIT")]
+            : [new SqlRequest("BEGIN"),
+               new SqlRequest("INSERT INTO budget_rows (id, payload) VALUES (1, 'a')"),
+               new SqlRequest("INSERT INTO budget_rows (id, payload) VALUES (2, 'b')"),
+               new SqlRequest("INSERT INTO budget_rows (id, payload) VALUES (3, 'c')"),
+               new SqlRequest("INSERT INTO budget_rows (id, payload) VALUES (4, 'd')"),
+               new SqlRequest("COMMIT")];
+        using var rejected = await admin.PostAsync($"/v1/db/{_dbName}/sql/batch",
+            JsonContent.Create(new SqlBatchRequest(requests), ServerJsonContext.Default.SqlBatchRequest));
+        Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
+        string[] lines = (await rejected.Content.ReadAsStringAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(exceedBytes ? 2 : 5, lines.Length);
+        using var error = JsonDocument.Parse(lines[^1]);
+        Assert.Equal(RoutineErrorCodes.DeferredLimit, error.RootElement.GetProperty("error").GetString());
+        var (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT COUNT(*) FROM budget_rows", streamId: 53);
+        Assert.Equal(0L, Assert.Single(rows)[0]);
+        (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT COUNT(*) FROM budget_outbox", streamId: 54);
+        Assert.Equal(0L, Assert.Single(rows)[0]);
+
+        await ExecRestSqlAsync(admin, "INSERT INTO budget_rows (id, payload) VALUES (5, 'accepted')");
+        (_, rows, _, _) = await QueryFrameAsync(readOnly, "SELECT id FROM budget_outbox", streamId: 55);
+        Assert.Equal(5L, Assert.Single(rows)[0]);
     }
 
     // ────────────────────────────── 1. 时序查询 + 跨协议等价 ──────────────────────────────

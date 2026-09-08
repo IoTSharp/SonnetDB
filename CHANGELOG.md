@@ -9,6 +9,11 @@
 
 ### Added
 
+- **M39 #338 高级事务语义**：关系表新增受限 `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`，在持久化前按捕获事件顺序检查事务最终关系状态；保留 OLD/NEW、调用链预算、取消、内部保存点及完整提交回滚，限制跨阶段顺序和提交中的应用回调。例程目录升级 v4，兼容读取 v1/v2/v3，旧引擎拒绝 v4；主数据及 KV/WAL 格式不变。新增显式 `SqlOutboxWorker.ProcessBatchAsync`，提供同步 WAL 的租约、ACK、退避和死信状态；锁外处理器按稳定 EventId 幂等，投递语义为 at-least-once。合同、测试与恢复证据见[验收记录](docs/audits/m39-338-20260908.md)，不代表 M39 或生产门禁整体完成。
+
+- **M39 #335 语句级触发器**：关系表 `AFTER INSERT/UPDATE/DELETE FOR EACH STATEMENT` 每条语句执行一次（包括空影响集），通过 `REFERENCING OLD TABLE AS ... NEW TABLE AS ...` 提供只读快照；复用关系查询的聚合/JOIN 与关系表 `INSERT SELECT`，支持嵌套快照隔离、调用链行数/字节硬上限和原子回滚。与同业务语义的行触发器对照、恢复证据见 [验收记录](docs/audits/m39-335-336-20260906.md)。
+- **M39 #336 受控 BEFORE**：关系表 `BEFORE INSERT/UPDATE FOR EACH ROW` 支持顺序执行的 `SET NEW.column = expression`、只读 OLD 与 WHEN；默认值和自增预留先执行，最终 ROWVERSION 和约束检查随后执行。拒绝 body DML、子查询、UDF、OLD 赋值及生成列改写。例程目录独立升级为 v3（时机、粒度、transition 别名），兼容读取 v1/v2，旧引擎拒绝 v3；主数据文件及 KV/WAL 格式不变。
+
 - **M39 SQL 例程生产加固**：关系表触发器支持 `ALTER TRIGGER ... ENABLE/DISABLE/RENAME TO/FOLLOWS/PRECEDES` 及创建时显式顺序；新增只读 `EXPLAIN PROCEDURE/TRIGGER`、`SHOW ROUTINE AUDIT/STATS`、按定义过滤及 AOT 兼容 JSON 审计导出。远程 REST/Frame 统一传递服务端配置的例程资源预算。例程目录独立版本升级为 v2，继续读取 v1，旧引擎拒绝 v2；主数据文件和 KV/WAL 格式未改变。
 
 - **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。

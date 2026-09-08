@@ -485,19 +485,22 @@ internal static class TableSqlExecutor
         SqlTransactionContext transaction,
         InsertStatement statement,
         TableSchema schema,
-        out IReadOnlyList<TableRowChange> changes)
-        => QueueInsertCore(tsdb, transaction, statement, schema, out changes);
+        out IReadOnlyList<TableRowChange> changes,
+        IReadOnlyList<TriggerDefinition>? triggers = null, TriggerTransitionBudget? transitionBudget = null)
+        => QueueInsertCore(tsdb, transaction, statement, schema, out changes, triggers, transitionBudget);
 
     private static InsertExecutionResult QueueInsertCore(
         Tsdb? tsdb,
         SqlTransactionContext transaction,
         InsertStatement statement,
         TableSchema schema,
-        out IReadOnlyList<TableRowChange> changes)
+        out IReadOnlyList<TableRowChange> changes,
+        IReadOnlyList<TriggerDefinition>? triggers = null, TriggerTransitionBudget? transitionBudget = null)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        transitionBudget?.CheckRowCapacity(statement.Rows.Count);
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
@@ -514,8 +517,6 @@ internal static class TableSqlExecutor
             }
 
             ApplyInsertDefaults(defaults, values);
-            ApplyInsertRowVersion(schema, values);
-            ValidateRequiredColumns(schema, values);
             valuesRows.Add(values);
         }
 
@@ -533,8 +534,13 @@ internal static class TableSqlExecutor
         foreach (var values in valuesRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
+            if (tsdb is not null && triggers is not null)
+                SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, null, values, transaction);
+            ApplyInsertRowVersion(schema, values);
+            ValidateRequiredColumns(schema, values);
+            transitionBudget?.Add(null, values);
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
-            rowChanges.Add(new TableRowChange(schema, OldValues: null, values.ToArray()));
+            rowChanges.Add(new TableRowChange(schema, OldValues: null, values));
         }
 
         // 整条 INSERT 的所有行都转换、校验成功后再写缓冲，避免后续行失败留下部分插入。
@@ -839,7 +845,8 @@ internal static class TableSqlExecutor
         SqlTransactionContext transaction,
         Tsdb tsdb,
         UpdateStatement statement,
-        out IReadOnlyList<TableRowChange> changes)
+        out IReadOnlyList<TableRowChange> changes,
+        IReadOnlyList<TriggerDefinition>? triggers = null, TriggerTransitionBudget? transitionBudget = null)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -891,13 +898,16 @@ internal static class TableSqlExecutor
                 values[assignment.Column.Ordinal] = EvaluateAssignment(assignment, schema, row.Values);
             }
 
+            if (triggers is not null)
+                SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, row.Values, values, transaction);
             ValidateRequiredColumns(schema, values);
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
                 { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
-            rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), values.ToArray()));
+            transitionBudget?.Add(row.Values, values);
+            rowChanges.Add(new TableRowChange(schema, row.Values, values));
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -918,7 +928,7 @@ internal static class TableSqlExecutor
         Tsdb tsdb,
         DeleteStatement statement,
         TableSchema schema,
-        out IReadOnlyList<TableRowChange> changes)
+        out IReadOnlyList<TableRowChange> changes, TriggerTransitionBudget? transitionBudget = null)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -960,7 +970,8 @@ internal static class TableSqlExecutor
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values))
                 { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
-            rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), NewValues: null));
+            transitionBudget?.Add(row.Values, null);
+            rowChanges.Add(new TableRowChange(schema, row.Values, NewValues: null));
         }
 
         // WHERE 对全部候选行求值成功后再合并，保证一条 DELETE 在事务缓冲中也是语句原子的。
@@ -990,28 +1001,38 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(transaction);
 
         transaction.ThrowIfCompleted();
+        using var routineScope = RoutineExecutionContext.EnterRoot(SqlExecutionOptions.Default);
+        using var transactionScope = SqlTransactionContext.EnterScope(transaction);
         int affected;
         try
         {
-            var mutations = transaction.SnapshotTableMutations();
-            var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
-            affected = reservationGenerations.Count == 0
-                ? tsdb.Tables.ApplyTransaction(mutations)
-                : tsdb.Tables.ExecuteLocked(() =>
+            transaction.BeginCommit();
+            if (transaction.DeferredTriggerCount != 0 && RoutineExecutionContext.Current?.Options.CanWrite == false)
+                throw new SonnetDB.Exceptions.RoutineExecutionException(
+                    SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
+            affected = tsdb.Tables.ExecuteCommitLocked(() =>
+            {
+                // 延迟约束触发器与最终 mutation 快照共享 TableManager 锁，避免跨事务
+                // 的最终状态检查发生 write skew；触发器产生的 mutation 也纳入本次提交。
+                transaction.ExpandDeferredCascades(tsdb.Tables);
+                SqlRoutineRuntime.ExecuteDeferredTriggers(tsdb, transaction);
+                var mutations = transaction.SnapshotTableMutations();
+                var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
+                foreach (var (tableName, expectedGeneration) in reservationGenerations)
                 {
-                    foreach (var (tableName, expectedGeneration) in reservationGenerations)
+                    long actualGeneration = tsdb.Tables.Open(tableName).Generation;
+                    if (actualGeneration != expectedGeneration)
                     {
-                        long actualGeneration = tsdb.Tables.Open(tableName).Generation;
-                        if (actualGeneration != expectedGeneration)
-                        {
-                            throw new InvalidOperationException(
-                                $"table '{tableName}' 在 AUTO_INCREMENT 值预留后执行了 TRUNCATE；"
-                                + $"预留 generation={expectedGeneration}，当前 generation={actualGeneration}，事务已拒绝提交。");
-                        }
+                        throw new InvalidOperationException(
+                            $"table '{tableName}' 在 AUTO_INCREMENT 值预留后执行了 TRUNCATE；"
+                            + $"预留 generation={expectedGeneration}，当前 generation={actualGeneration}，事务已拒绝提交。");
                     }
+                }
 
-                    return tsdb.Tables.ApplyTransaction(mutations);
-                });
+                transaction.CheckCommitDeadline();
+                transaction.EndDeferredExecution();
+                return tsdb.Tables.ApplyTransaction(mutations);
+            }, transaction.CheckCommitDeadline);
         }
         catch (Exception exception)
         {
@@ -1404,6 +1425,15 @@ internal static class TableSqlExecutor
             throw new InvalidOperationException(
                 $"函数 {function.Name} 需要 {expected} 个参数，实际为 {function.Arguments.Count}。");
         }
+    }
+
+    internal static void AssignTriggerNew(TableSchema schema, object?[] values, string columnName, object? value)
+    {
+        var column = schema.TryGetColumn(columnName)
+            ?? throw new InvalidOperationException($"BEFORE 引用了未知列 '{columnName}'。");
+        if (column.IsRowVersion || column.IsAutoIncrement)
+            throw new InvalidOperationException("BEFORE 不允许改写引擎生成列。");
+        values[column.Ordinal] = ConvertTableValue(value, column);
     }
 
     private static void ValidateRequiredColumns(TableSchema schema, IReadOnlyList<object?> values)

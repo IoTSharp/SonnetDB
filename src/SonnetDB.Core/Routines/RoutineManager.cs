@@ -170,7 +170,9 @@ public sealed class RoutineManager
     }
 
     private List<TriggerDefinition> OrderedGroup(TriggerDefinition definition)
-        => _triggers.Values.Where(value => value.TableName == definition.TableName && value.Event == definition.Event)
+        => _triggers.Values.Where(value => value.TableName == definition.TableName && value.Event == definition.Event
+                && value.Timing == definition.Timing && value.Level == definition.Level
+                && value.InitiallyDeferred == definition.InitiallyDeferred)
             .OrderBy(static value => value.ExecutionOrder)
             .ThenBy(static value => value.CreatedAtUtcTicks)
             .ThenBy(static value => value.Name, StringComparer.Ordinal).ToList();
@@ -179,9 +181,11 @@ public sealed class RoutineManager
     {
         var definition = _triggers[name];
         if (name == relativeTo || !_triggers.TryGetValue(relativeTo, out var reference)
-            || reference.TableName != definition.TableName || reference.Event != definition.Event)
+            || reference.TableName != definition.TableName || reference.Event != definition.Event
+            || reference.Timing != definition.Timing || reference.Level != definition.Level
+            || reference.InitiallyDeferred != definition.InitiallyDeferred)
             throw new RoutineExecutionException(RoutineErrorCodes.Dependency,
-                "FOLLOWS/PRECEDES 必须引用不同的、已存在的同表同事件触发器。");
+                "FOLLOWS/PRECEDES 必须引用不同的、已存在的同表同事件同时机同粒度同提交阶段触发器。");
         var group = OrderedGroup(definition);
         group.RemoveAll(value => value.Name == name);
         int index = group.FindIndex(value => value.Name == relativeTo);

@@ -5,6 +5,7 @@ using SonnetDB.Graphs.Storage;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
@@ -37,6 +38,26 @@ switch (scenario)
         return 0;
     case "crash_kill9_between_trigger_table_commits":
         RunKillBetweenTriggerTableCommits(root, readyFile);
+        return 0;
+    case "crash_kill9_advanced_trigger_between_tables":
+    case "crash_kill9_advanced_trigger_before_complete":
+    case "crash_kill9_advanced_trigger_after_complete":
+        RunKillBetweenTriggerTableCommits(root, readyFile,
+            beforeComplete: scenario == "crash_kill9_advanced_trigger_before_complete",
+            afterComplete: scenario == "crash_kill9_advanced_trigger_after_complete", advanced: true);
+        return 0;
+    case "crash_kill9_deferred_trigger_between_tables":
+    case "crash_kill9_deferred_trigger_before_complete":
+    case "crash_kill9_deferred_trigger_after_complete":
+        RunKillBetweenTriggerTableCommits(root, readyFile,
+            beforeComplete: scenario == "crash_kill9_deferred_trigger_before_complete",
+            afterComplete: scenario == "crash_kill9_deferred_trigger_after_complete", deferred: true);
+        return 0;
+    case "crash_kill9_deferred_trigger_before_commit":
+        RunKillDeferredTriggerBeforeCommit(root, readyFile);
+        return 0;
+    case "crash_kill9_outbox_delivery_before_ack":
+        await RunKillOutboxDeliveryBeforeAcknowledgement(root, readyFile);
         return 0;
     case "crash_kill9_before_trigger_transaction_complete":
     case "crash_kill9_after_trigger_transaction_complete":
@@ -190,7 +211,7 @@ static void RunKillOsFlushedWrites(string root, string readyFile)
 
 // #333：固定跨表 WAL、完成标记前后和已确认提交三个进程终止边界。
 static void RunKillBetweenTriggerTableCommits(string root, string readyFile,
-    bool beforeComplete = false, bool afterComplete = false)
+    bool beforeComplete = false, bool afterComplete = false, bool advanced = false, bool deferred = false)
 {
     using var db = Tsdb.Open(new TsdbOptions
     {
@@ -209,7 +230,24 @@ static void RunKillBetweenTriggerTableCommits(string root, string readyFile,
         "CREATE TABLE orders (id INT, status STRING, PRIMARY KEY (id))");
     SqlExecutor.Execute(db,
         "CREATE TABLE audit_outbox (event_id INT, order_id INT, PRIMARY KEY (event_id))");
-    SqlExecutor.Execute(db, """
+    if (advanced)
+        SqlExecutor.Execute(db, """
+            CREATE TRIGGER normalize_order BEFORE INSERT ON orders FOR EACH ROW LANGUAGE SQL AS BEGIN
+                SET NEW.id = NEW.id + 10;
+                SET NEW.status = UPPER(NEW.status);
+            END
+            """);
+    SqlExecutor.Execute(db, deferred ? """
+        CREATE CONSTRAINT TRIGGER orders_audit AFTER INSERT ON orders
+        DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN
+            INSERT INTO audit_outbox (event_id, order_id) SELECT id, id FROM orders WHERE status = 'ready';
+        END
+        """ : advanced ? """
+        CREATE TRIGGER orders_audit AFTER INSERT ON orders REFERENCING NEW TABLE AS incoming
+        FOR EACH STATEMENT LANGUAGE SQL AS BEGIN
+            INSERT INTO audit_outbox (event_id, order_id) SELECT id, id FROM incoming;
+        END
+        """ : """
         CREATE TRIGGER orders_audit AFTER INSERT ON orders FOR EACH ROW
         LANGUAGE SQL AS BEGIN
             INSERT INTO audit_outbox (event_id, order_id) VALUES (NEW.id, NEW.id);
@@ -227,16 +265,95 @@ static void RunKillBetweenTriggerTableCommits(string root, string readyFile,
     };
     if (beforeComplete)
         db.Tables.ApplyTransactionBeforeCompleteTestHook = () => PauseForTriggerCrash(readyFile, "before-complete");
-    SqlExecutor.Execute(db, "INSERT INTO orders (id, status) VALUES (1, 'new')");
+    if (deferred)
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO orders (id, status) VALUES (1, 'new');
+            UPDATE orders SET status = 'ready' WHERE id = 1;
+            COMMIT;
+            """);
+    else
+        SqlExecutor.Execute(db, "INSERT INTO orders (id, status) VALUES (1, 'new')");
     if (afterComplete) PauseForTriggerCrash(readyFile, "after-complete");
 }
 
 static void PauseForTriggerCrash(string readyFile, string stage)
 {
-    File.WriteAllText(readyFile, stage);
+    WriteCrashReady(readyFile, stage);
     Thread.Sleep(TimeSpan.FromSeconds(30));
     throw new TimeoutException("M39 crash parent did not terminate the child within 30 seconds.");
 }
+
+static void RunKillDeferredTriggerBeforeCommit(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    using var db = Tsdb.Open(MakeSqlCrashOptions(root));
+    var options = new SqlExecutionOptions { CancellationToken = deadline.Token };
+    SqlExecutor.Execute(db, "CREATE TABLE orders (id INT, PRIMARY KEY (id))");
+    SqlExecutor.Execute(db, "CREATE TABLE audit_outbox (event_id INT, PRIMARY KEY (event_id))");
+    SqlExecutor.Execute(db, """
+        CREATE CONSTRAINT TRIGGER orders_audit AFTER INSERT ON orders
+        DEFERRABLE INITIALLY DEFERRED FOR EACH ROW LANGUAGE SQL AS BEGIN
+            INSERT INTO audit_outbox (event_id) VALUES (NEW.id);
+        END
+        """);
+    var transaction = new SqlTransactionContext();
+    SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse("INSERT INTO orders (id) VALUES (1)"),
+        null, transaction, options);
+    if (transaction.DeferredTriggerCount != 1)
+        throw new InvalidOperationException("Deferred source change was not queued before the crash marker.");
+    PauseForTriggerCrash(readyFile, "deferred-event-queued-before-commit");
+}
+
+static async Task RunKillOutboxDeliveryBeforeAcknowledgement(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    using var db = Tsdb.Open(MakeSqlCrashOptions(root));
+    var worker = new SqlOutboxWorker(db);
+    SqlExecutor.Execute(db, "CREATE TABLE orders (id INT, PRIMARY KEY (id))");
+    SqlExecutor.Execute(db, """
+        CREATE TRIGGER orders_outbox AFTER INSERT ON orders FOR EACH ROW LANGUAGE SQL AS BEGIN
+            INSERT INTO sql_outbox (event_id, topic, payload)
+            VALUES ('crash-stable-event', 'orders', 'local-delivery');
+        END
+        """);
+    SqlExecutor.Execute(db, "INSERT INTO orders (id) VALUES (1)");
+    await worker.ProcessBatchAsync(async (message, cancellationToken) =>
+    {
+        // 本地文件代表已完成的可观察投递；先完成它，再通知父进程在 ACK 前强杀。
+        File.WriteAllText(Path.Combine(root, "outbox-delivered.txt"), message.EventId);
+        WriteCrashReady(readyFile, "outbox-delivered-before-ack");
+        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+        throw new TimeoutException("M39 outbox crash parent did not terminate the child before ACK.");
+    }, deadline.Token);
+}
+
+static void WriteCrashReady(string readyFile, string stage)
+{
+    string temporaryPath = readyFile + $".{Environment.ProcessId}.tmp";
+    try
+    {
+        File.WriteAllText(temporaryPath, stage);
+        File.Move(temporaryPath, readyFile);
+    }
+    finally
+    {
+        if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+    }
+}
+
+static TsdbOptions MakeSqlCrashOptions(string root) => new()
+{
+    RootDirectory = root,
+    Kv = KvOptions.Default with
+    {
+        SyncWalOnEveryWrite = true,
+        ExpirerEnabled = false,
+        CleanupEnabled = false,
+    },
+    BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+    Compaction = new CompactionPolicy { Enabled = false },
+};
 
 static void RunKillGraphBatchDuringFsync(string root, string readyFile)
 {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SonnetDB.Diagnostics;
 using SonnetDB.Exceptions;
 using SonnetDB.Kv;
@@ -733,6 +734,72 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>有界等待提交锁，允许调用方在等待及取得锁后检查取消和提交期限。</summary>
+    internal TResult ExecuteCommitLocked<TResult>(Func<TResult> action, Action checkCancellationAndDeadline)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(checkCancellationAndDeadline);
+        const int maximumWaitMilliseconds = 120_000;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        long started = Stopwatch.GetTimestamp();
+        bool lockTaken = false;
+        try
+        {
+            for (int attempt = 0; attempt < 2_401; attempt++)
+            {
+                checkCancellationAndDeadline();
+                int remainingMilliseconds = maximumWaitMilliseconds
+                    - (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                if (remainingMilliseconds <= 0)
+                    break;
+                Monitor.TryEnter(_sync, Math.Min(50, remainingMilliseconds), ref lockTaken);
+                if (!lockTaken)
+                    continue;
+                SonnetDbMeter.RecordTableManagerLockWait(lockWait);
+                checkCancellationAndDeadline();
+                if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= maximumWaitMilliseconds)
+                    break;
+                ThrowIfDisposed();
+                return action();
+            }
+
+            throw new RoutineExecutionException(RoutineErrorCodes.CommitTimeout,
+                "事务提交锁等待超时，尚未开始持久化。");
+        }
+        finally
+        {
+            if (lockTaken) Monitor.Exit(_sync);
+        }
+    }
+
+    /// <summary>把级联删除和 SET NULL 的新增行变更加入延迟触发器可读取的事务 overlay。</summary>
+    internal void ExpandDeferredCascades(SqlTransactionContext transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            transaction.ThrowIfCompleted();
+            CheckCascadeExecution(transaction);
+            var original = transaction.SnapshotTableMutations();
+            var expanded = ExpandCascadeDeletesLocked(original, metrics: null, transaction);
+            foreach (var (tableName, mutations) in expanded)
+            {
+                CheckCascadeExecution(transaction);
+                int originalCount = original.TryGetValue(tableName, out var previous) ? previous.Count : 0;
+                if (mutations.Count == originalCount)
+                    continue;
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                for (int index = originalCount; index < mutations.Count; index++)
+                {
+                    CheckCascadeExecution(transaction);
+                    transaction.AddOrMergeTableMutation(schema, mutations[index]);
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// 在同一个 TableManager 临界区内取得多张表的稳定读快照。
     /// SQL 多表提交无法穿过捕获窗口，返回后读取仅持有各 rowstore 的不可变 KV lease。
@@ -1244,8 +1311,12 @@ public sealed class TableManager : IDisposable
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
         IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
-        CascadeDeleteExecutionMetrics? metrics)
+        CascadeDeleteExecutionMetrics? metrics,
+        SqlTransactionContext? transaction = null)
     {
+        transaction ??= SqlTransactionContext.Current;
+        CheckCascadeExecution(transaction);
+        int generatedRows = 0;
         // 单批只读取一次 catalog，并预先建立 principal table -> referencing FK 的反向关系。
         // 后续 BFS 不再为每个父键重复复制 catalog 或遍历无关 schema。
         IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
@@ -1254,13 +1325,17 @@ public sealed class TableManager : IDisposable
 
         var schemasByName = new Dictionary<string, TableSchema>(schemas.Count, StringComparer.Ordinal);
         foreach (var schema in schemas)
+        {
+            CheckCascadeExecution(transaction);
             schemasByName.Add(schema.Name, schema);
+        }
 
         var lookupsByPrincipal = new Dictionary<string, List<CascadeForeignKeyLookup>>(StringComparer.Ordinal);
         foreach (var childSchema in schemas)
         {
             foreach (var fk in childSchema.ForeignKeys)
             {
+                CheckCascadeExecution(transaction);
                 if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull))
                     continue;
                 if (!schemasByName.TryGetValue(fk.PrincipalTable, out var principalSchema))
@@ -1295,6 +1370,7 @@ public sealed class TableManager : IDisposable
 
         foreach (var (tableName, mutations) in mutationsByTable)
         {
+            CheckCascadeExecution(transaction);
             if (!schemasByName.TryGetValue(tableName, out var schema))
                 throw new InvalidOperationException($"table '{tableName}' 不存在。");
             var list = new List<TableRowMutation>(mutations);
@@ -1305,6 +1381,7 @@ public sealed class TableManager : IDisposable
             touchedPks[tableName] = touchedSet;
             foreach (var mutation in mutations)
             {
+                CheckCascadeExecution(transaction);
                 if (mutation.PrimaryKeyValues is not null)
                 {
                     byte[] pkBytes = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
@@ -1318,12 +1395,14 @@ public sealed class TableManager : IDisposable
 
         while (queue.Count > 0)
         {
+            CheckCascadeExecution(transaction);
             var (parentTable, parentPk) = queue.Dequeue();
             if (!lookupsByPrincipal.TryGetValue(parentTable, out var lookups))
                 continue;
 
             foreach (var lookup in lookups)
             {
+                CheckCascadeExecution(transaction);
                 var childSchema = lookup.ChildSchema;
                 var fk = lookup.ForeignKey;
                 var childStore = OpenStoreLocked(childSchema);
@@ -1337,8 +1416,9 @@ public sealed class TableManager : IDisposable
                     ? existingList
                     : working[childSchema.Name] = new List<TableRowMutation>();
 
-                foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics))
+                foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics, transaction))
                 {
+                    CheckCascadeExecution(transaction);
                     var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
                     byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
                     string childPkText = Convert.ToHexString(childPkBytes);
@@ -1351,6 +1431,7 @@ public sealed class TableManager : IDisposable
                             continue;
                         if (!childDeleteSet.Add(childPkText))
                             continue;
+                        CountGeneratedCascadeRow();
                         childTouchedSet.Add(childPkText);
                         childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
                         queue.Enqueue((childSchema.Name, childPk));
@@ -1360,6 +1441,7 @@ public sealed class TableManager : IDisposable
                         // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
                         if (childDeleteSet.Contains(childPkText)) continue;
                         if (!childTouchedSet.Add(childPkText)) continue;
+                        CountGeneratedCascadeRow();
 
                         var nulledValues = childRow.Values.ToArray();
                         foreach (var fkColumn in fk.Columns)
@@ -1379,6 +1461,20 @@ public sealed class TableManager : IDisposable
         foreach (var (k, v) in working)
             result[k] = v;
         return result;
+
+        void CountGeneratedCascadeRow()
+        {
+            if (transaction?.IsExecutingDeferredTriggers == true && generatedRows >= 100_000)
+                throw new RoutineExecutionException(RoutineErrorCodes.DeferredLimit,
+                    "延迟触发器提交阶段的级联行数超过 100000 行预算。");
+            generatedRows++;
+        }
+    }
+
+    private static void CheckCascadeExecution(SqlTransactionContext? transaction)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        transaction?.CheckCommitDeadline();
     }
 
     /// <summary>
@@ -1414,8 +1510,10 @@ public sealed class TableManager : IDisposable
         public IReadOnlyList<TableRow> FindRows(
             TableStore childStore,
             IReadOnlyList<object?> parentPrimaryKey,
-            CascadeDeleteExecutionMetrics? metrics)
+            CascadeDeleteExecutionMetrics? metrics,
+            SqlTransactionContext? transaction)
         {
+            CheckCascadeExecution(transaction);
             if (Index is not null)
             {
                 if (metrics is not null)
@@ -1435,6 +1533,7 @@ public sealed class TableManager : IDisposable
                 _fallbackRows = new Dictionary<byte[], List<TableRow>>(KvKeyComparer.Instance);
                 foreach (var row in rows)
                 {
+                    CheckCascadeExecution(transaction);
                     IReadOnlyList<object?>? values = ExtractForeignKeyValues(ChildSchema, row, ForeignKey);
                     if (values is null)
                         continue;

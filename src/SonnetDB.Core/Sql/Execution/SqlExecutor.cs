@@ -47,12 +47,14 @@ public static class SqlExecutor
             "procedure_dependencies", "requires_write", "created_utc"
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showTriggerColumns =
-        new List<string>(7) { "name", "table_name", "event", "when", "created_utc", "enabled", "execution_order" }.AsReadOnly();
+        new List<string>(13) { "name", "table_name", "event", "when", "created_utc", "enabled", "execution_order",
+            "timing", "level", "old_table", "new_table", "is_constraint", "initially_deferred" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTriggerColumns =
-        new List<string>(8)
+        new List<string>(16)
         {
             "name", "table_name", "event", "when", "language", "body", "dependencies", "created_utc",
-            "enabled", "execution_order"
+            "enabled", "execution_order", "timing", "level", "old_table", "new_table",
+            "is_constraint", "initially_deferred"
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _userColumns =
         new List<string>(4) { "name", "is_superuser", "created_utc", "token_count" }.AsReadOnly();
@@ -373,9 +375,12 @@ public static class SqlExecutor
 
         using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, options);
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
-        ThrowIfCancellationRequested();
+        // COMMIT owns cancellation failure cleanup, including a pre-cancelled request.
+        if (statement is not CommitTransactionStatement)
+            ThrowIfCancellationRequested();
         // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
         using var transactionScope = SqlTransactionContext.EnterScope(transaction);
+        transaction?.ExpandDeferredCascades(tsdb.Tables);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
         RejectDirectModbusSourceWrites(tsdb, statement);
@@ -1111,6 +1116,8 @@ public static class SqlExecutor
                 new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
                 definition.Enabled,
                 definition.ExecutionOrder,
+                definition.Timing.ToString().ToLowerInvariant(), definition.Level.ToString().ToLowerInvariant(),
+                definition.OldTableName, definition.NewTableName, definition.IsConstraint, definition.InitiallyDeferred,
             })
             .ToArray();
         return new SelectExecutionResult(_showTriggerColumns, rows);
@@ -1161,6 +1168,8 @@ public static class SqlExecutor
                 new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
                 definition.Enabled,
                 definition.ExecutionOrder,
+                definition.Timing.ToString().ToLowerInvariant(), definition.Level.ToString().ToLowerInvariant(),
+                definition.OldTableName, definition.NewTableName, definition.IsConstraint, definition.InitiallyDeferred,
             },
         ];
         return new SelectExecutionResult(_describeTriggerColumns, rows);
@@ -1511,6 +1520,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
+            if (statement.Query is not null)
+                throw new NotSupportedException("INSERT SELECT 当前仅支持关系表。");
             if (statement.ReturningColumns.Count != 0)
                 throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
@@ -1530,6 +1541,9 @@ public static class SqlExecutor
 
         if (statement.ReturningColumns.Count != 0)
             throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
+
+        if (statement.Query is not null)
+            throw new NotSupportedException("INSERT SELECT 当前仅支持关系表。");
 
         if (statement.IsDefaultValues
             || statement.Rows.Any(static row => row.Any(static value => value is DefaultValueExpression)))
@@ -1918,6 +1932,8 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
     {
+        if (TriggerTransitionTables.FindSchema(statement.Measurement) is not null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
         if (GraphSqlExecutor.IsGraphSelect(statement))
             return GraphSqlExecutor.ExecuteSelect(tsdb, statement);
 
@@ -2414,6 +2430,8 @@ public static class SqlExecutor
         SqlTransactionContext? transaction)
     {
         var triggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Insert);
+        using var transitionBudget = new TriggerTransitionBudget(triggers.Any(static trigger => trigger.Level == SqlTriggerLevel.Statement));
+        statement = MaterializeInsertQuery(tsdb, statement);
         bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteInsert(tsdb, statement, schema);
@@ -2428,7 +2446,7 @@ public static class SqlExecutor
                 effectiveTransaction,
                 statement,
                 schema,
-                out var changes);
+                out var changes, triggers, transitionBudget);
             SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
@@ -2466,6 +2484,7 @@ public static class SqlExecutor
         SqlTransactionContext? transaction)
     {
         var triggers = tsdb.Routines.FindTriggers(statement.TableName, SqlTriggerEvent.Update);
+        using var transitionBudget = new TriggerTransitionBudget(triggers.Any(static trigger => trigger.Level == SqlTriggerLevel.Statement));
         bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteUpdate(tsdb, statement);
@@ -2479,7 +2498,7 @@ public static class SqlExecutor
                 effectiveTransaction,
                 tsdb,
                 statement,
-                out var changes);
+                out var changes, triggers, transitionBudget);
             SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
@@ -2518,6 +2537,7 @@ public static class SqlExecutor
         SqlTransactionContext? transaction)
     {
         var triggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Delete);
+        using var transitionBudget = new TriggerTransitionBudget(triggers.Any(static trigger => trigger.Level == SqlTriggerLevel.Statement));
         bool hasTriggers = triggers.Count != 0;
         if (transaction is null && !hasTriggers)
             return TableSqlExecutor.ExecuteDelete(tsdb, statement, schema);
@@ -2532,7 +2552,7 @@ public static class SqlExecutor
                 tsdb,
                 statement,
                 schema,
-                out var changes);
+                out var changes, transitionBudget);
             SqlRoutineRuntime.FireTriggers(
                 tsdb,
                 databaseName,
@@ -2560,6 +2580,28 @@ public static class SqlExecutor
             }
             throw;
         }
+    }
+
+    private static InsertStatement MaterializeInsertQuery(Tsdb tsdb, InsertStatement statement)
+    {
+        if (statement.Query is not { } query) return statement;
+        if (statement.Rows.Count != 0 || statement.IsDefaultValues)
+            throw new InvalidOperationException("INSERT SELECT 不能同时指定 VALUES。");
+        var options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
+        int probe = (int)Math.Min(int.MaxValue, (long)options.MaxTriggerTransitionRows + 1);
+        var bounded = query with { Pagination = new PaginationSpec(query.Pagination?.Offset ?? 0,
+            Math.Min(query.Pagination?.Fetch ?? int.MaxValue, probe)) };
+        var result = ExecuteSelect(tsdb, bounded);
+        if (result.Columns.Count != statement.Columns.Count)
+            throw new InvalidOperationException("INSERT SELECT 输出列数与目标列数不一致。");
+        using var budget = new TriggerTransitionBudget(enabled: true);
+        var rows = new List<IReadOnlyList<SqlExpression>>();
+        foreach (var row in result.Rows)
+        {
+            budget.Add(null, row);
+            rows.Add(row.Select(SqlParameterBinder.ToLiteral).ToArray());
+        }
+        return statement with { Query = null, Rows = rows };
     }
 
     private static LiteralExpression AsLiteral(SqlExpression expr, string columnName)

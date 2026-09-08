@@ -128,7 +128,9 @@ public static class SqlParameterBinder
                 changed = true;
             rows.Add(boundRow);
         }
-        return changed ? insert with { Rows = rows } : insert;
+        return changed || insert.Query is not null
+            ? insert with { Rows = rows, Query = insert.Query is null ? null : BindSelect(insert.Query, p) }
+            : insert;
     }
 
     private static UpdateStatement BindUpdate(UpdateStatement update, SqlParameters p)

@@ -1,6 +1,8 @@
 using SonnetDB.Tables;
 using SonnetDB.Kv;
 using SonnetDB.Routines;
+using SonnetDB.Exceptions;
+using System.Diagnostics;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -24,6 +26,16 @@ public sealed class SqlTransactionContext
     private readonly List<Action> _undo = [];
     private readonly Dictionary<string, long> _autoIncrementReservationGenerations = new(StringComparer.Ordinal);
     private readonly List<(long Sequence, string Kind)> _routineInvocations = [];
+    private readonly List<DeferredTriggerInvocation> _deferredTriggers = [];
+    private long _deferredBytes;
+    private long _commitStarted;
+    private int _commitTimeoutMilliseconds;
+    private bool _commitInProgress;
+    private CancellationTokenSource? _originCancellation;
+    private long _cascadeRevision;
+    private long _expandedCascadeRevision;
+    internal RoutineExecutionContext? CommitContext { get; private set; }
+    internal bool IsExecutingDeferredTriggers { get; private set; }
     private bool _completed;
 
     /// <summary>事务是否已经提交或回滚。</summary>
@@ -44,6 +56,9 @@ public sealed class SqlTransactionContext
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(mutation);
         ThrowIfCompleted();
+
+        if (mutation.PrimaryKeyValues is not null && mutation.NewValues is null)
+            _cascadeRevision++;
 
         if (!_tableMutations.TryGetValue(schema.Name, out var buffer))
         {
@@ -189,6 +204,106 @@ public sealed class SqlTransactionContext
         _routineInvocations.Add((sequence, kind));
     }
 
+    internal void EnqueueDeferredTrigger(
+        SonnetDB.Engine.Tsdb tsdb,
+        TriggerDefinition trigger,
+        string? databaseName,
+        TableRowChange change,
+        IControlPlane? controlPlane)
+    {
+        ArgumentNullException.ThrowIfNull(trigger);
+        ArgumentNullException.ThrowIfNull(change);
+        ThrowIfCompleted();
+        var origin = RoutineExecutionContext.Current!;
+        origin.CheckCancellation();
+        var options = origin.Options;
+        string[] procedures = origin.ProcedureAncestry;
+        string[] triggers = origin.TriggerAncestry;
+        // 行图像由事务 mutation 独占且后续修改使用新数组；队列仅持有引用，仍按
+        // 每次保留的完整图像保守计费，包含调用链和定义文本的存活成本。
+        long bytes = 256L + TriggerTransitionBudget.Estimate(change.OldValues)
+            + TriggerTransitionBudget.Estimate(change.NewValues) + (long)trigger.BodySql.Length * 2
+            + (long)trigger.ObjectDependencies.Count * 32
+            + procedures.Sum(static name => 32L + (long)name.Length * 2)
+            + triggers.Sum(static name => 32L + (long)name.Length * 2);
+        int limit = Math.Min(options.MaxDeferredTriggerInvocations,
+            _deferredTriggers.Count == 0 ? int.MaxValue : _deferredTriggers[^1].InvocationLimit);
+        long byteLimit = Math.Min(options.MaxDeferredTriggerBytes,
+            _deferredTriggers.Count == 0 ? long.MaxValue : _deferredTriggers[^1].ByteLimit);
+        if (CommitContext is not null)
+        {
+            limit = Math.Min(limit, CommitContext.Options.MaxDeferredTriggerInvocations);
+            byteLimit = Math.Min(byteLimit, CommitContext.Options.MaxDeferredTriggerBytes);
+        }
+        if (_deferredTriggers.Count >= limit || bytes > byteLimit - _deferredBytes)
+            throw new RoutineExecutionException(RoutineErrorCodes.DeferredLimit, "事务延迟触发器队列超出数量或字节预算。");
+        _deferredBytes += bytes;
+        _deferredTriggers.Add(new DeferredTriggerInvocation(
+            trigger, databaseName, change, controlPlane, origin, procedures, triggers,
+            _deferredBytes, limit, byteLimit,
+            trigger.ObjectDependencies.Select(name => tsdb.Tables.Catalog.TryGet(name)
+                ?? throw new RoutineExecutionException(RoutineErrorCodes.Dependency, "延迟触发器仅能依赖关系表。")).ToArray()));
+    }
+
+    internal DeferredTriggerInvocation GetDeferredTrigger(int index) => _deferredTriggers[index];
+
+    internal int DeferredTriggerCount => _deferredTriggers.Count;
+
+    internal void ExpandDeferredCascades(TableManager tables)
+    {
+        if (!IsExecutingDeferredTriggers || _expandedCascadeRevision == _cascadeRevision) return;
+        tables.ExpandDeferredCascades(this);
+        _expandedCascadeRevision = _cascadeRevision;
+    }
+
+    internal void RemoveDeferredTriggersFrom(int count)
+    {
+        if (count < 0 || count > _deferredTriggers.Count)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        _deferredTriggers.RemoveRange(count, _deferredTriggers.Count - count);
+        _deferredBytes = count == 0 ? 0 : _deferredTriggers[^1].RetainedBytes;
+    }
+
+    internal void BeginCommit()
+    {
+        CommitContext = RoutineExecutionContext.Current!;
+        if (_deferredTriggers.Count > CommitContext.Options.MaxDeferredTriggerInvocations
+            || _deferredBytes > CommitContext.Options.MaxDeferredTriggerBytes)
+            throw new RoutineExecutionException(RoutineErrorCodes.DeferredLimit, "延迟触发器队列超出提交请求的预算。");
+        _commitStarted = Stopwatch.GetTimestamp();
+        _commitTimeoutMilliseconds = CommitContext.Options.TransactionCommitTimeoutMilliseconds;
+        _commitInProgress = true;
+        IsExecutingDeferredTriggers = _deferredTriggers.Count != 0;
+        var originTokens = _deferredTriggers.Select(static invocation => invocation.Origin.Options.CancellationToken)
+            .Where(static token => token.CanBeCanceled).Distinct().ToArray();
+        if (originTokens.Length != 0)
+            _originCancellation = CancellationTokenSource.CreateLinkedTokenSource(originTokens);
+        // Capture the strictest originating deadline without extending it on later queue growth.
+        foreach (var invocation in _deferredTriggers)
+            _commitTimeoutMilliseconds = Math.Min(_commitTimeoutMilliseconds,
+                invocation.Origin.Options.TransactionCommitTimeoutMilliseconds);
+        CheckCommitDeadline();
+    }
+
+    internal void CheckCommitDeadline()
+    {
+        if (!_commitInProgress) return;
+        if (CommitContext!.Options.CancellationToken.IsCancellationRequested)
+            throw new RoutineExecutionException(RoutineErrorCodes.Cancelled, "事务提交已取消。");
+        if (_originCancellation?.IsCancellationRequested == true)
+            throw new RoutineExecutionException(RoutineErrorCodes.Cancelled, "事务的原始触发调用已取消。");
+        if (Stopwatch.GetElapsedTime(_commitStarted).TotalMilliseconds >= _commitTimeoutMilliseconds)
+            throw new RoutineExecutionException(RoutineErrorCodes.CommitTimeout, "事务提交锁等待或延迟触发器执行超时，尚未开始持久化。");
+    }
+
+    internal void EndDeferredExecution()
+    {
+        _commitInProgress = false;
+        IsExecutingDeferredTriggers = false;
+        _originCancellation?.Dispose();
+        _originCancellation = null;
+    }
+
     internal void ResolveRoutineInvocations(RoutineDiagnostics diagnostics, bool committed,
         string? errorCode = null, Savepoint? savepoint = null)
     {
@@ -202,7 +317,8 @@ public sealed class SqlTransactionContext
     internal Savepoint CreateSavepoint()
         => new(_undo.Count,
             _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal),
-            _routineInvocations.Count);
+            _routineInvocations.Count,
+            _deferredTriggers.Count);
 
     internal void RollbackTo(Savepoint savepoint)
     {
@@ -218,12 +334,14 @@ public sealed class SqlTransactionContext
         {
             throw new InvalidOperationException("回滚保存点前必须结算例程审计。");
         }
+        RemoveDeferredTriggersFrom(savepoint.DeferredTriggerCount);
     }
 
     internal sealed record Savepoint(
         int UndoCount,
         IReadOnlyDictionary<string, long> AutoIncrementReservationGenerations,
-        int RoutineInvocationCount);
+        int RoutineInvocationCount,
+        int DeferredTriggerCount);
 
     internal void MarkCompleted()
     {
@@ -233,7 +351,27 @@ public sealed class SqlTransactionContext
         _tableMutations.Clear();
         _autoIncrementReservationGenerations.Clear();
         _routineInvocations.Clear();
+        _deferredTriggers.Clear();
+        _deferredBytes = 0;
+        IsExecutingDeferredTriggers = false;
+        _commitInProgress = false;
+        _originCancellation?.Dispose();
+        _originCancellation = null;
+        CommitContext = null;
     }
+
+    internal sealed record DeferredTriggerInvocation(
+        TriggerDefinition Trigger,
+        string? DatabaseName,
+        TableRowChange Change,
+        IControlPlane? ControlPlane,
+        RoutineExecutionContext Origin,
+        string[] Procedures,
+        string[] Triggers,
+        long RetainedBytes,
+        int InvocationLimit,
+        long ByteLimit,
+        TableSchema[] DependencySchemas);
 
     private sealed class MutationBuffer
     {

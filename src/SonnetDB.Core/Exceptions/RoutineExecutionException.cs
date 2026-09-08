@@ -37,6 +37,12 @@ public static class RoutineErrorCodes
     public const string StatementLimit = "routine_statement_limit";
     /// <summary>结果行数超过上限。</summary>
     public const string ResultRowLimit = "routine_result_row_limit";
+    /// <summary>transition tables 的行数或字节预算超限。</summary>
+    public const string TransitionLimit = "trigger_transition_limit";
+    /// <summary>事务延迟触发器队列数量或保留内存超限。</summary>
+    public const string DeferredLimit = "trigger_deferred_limit";
+    /// <summary>提交锁等待或延迟执行超时；尚未开始持久化。</summary>
+    public const string CommitTimeout = "routine_commit_timeout";
     /// <summary>调用被取消。</summary>
     public const string Cancelled = "routine_cancelled";
     /// <summary>调用方权限不足。</summary>
