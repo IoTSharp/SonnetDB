@@ -77,6 +77,36 @@ public static class GraphProductionGateEvaluator
             ["PGQ-2"] = new(500, 1_500, 192, JourneyPath.RelationIndex),
             ["PGQ-3"] = new(0, 0, 64, JourneyPath.BoundedRelationFallback),
         };
+    private static readonly GateProfile ProductionProfile = new(
+        "Production", "m40-graph-production-input-v2", false,
+        RequiredCorrectnessChecks, RequiredPerformanceChecks, RequiredGapIds, JourneySpecs);
+    private static readonly GateProfile PreviewProfile = new(
+        "Preview", "m40-graph-preview-input-v1", true,
+        [
+            "native_journey_oracle", "neo4j_comparison", "edge_atomicity",
+            "concurrency_idempotency", "kill_reopen_matrix", "backup_restore",
+            "invariant_corruption_detection", "format_compatibility", "budget_cancel",
+        ],
+        [
+            "fixed_hardware", "preview_small_capacity", "gate_capacity", "couplet_c2",
+            "cold_open", "complexity_trend", "access_path",
+        ],
+        ["M40-GAP-001", "M40-GAP-002", "M40-GAP-003", "M40-GAP-004", "M40-GAP-005", "M40-GAP-006", "M40-GAP-007"],
+        new Dictionary<string, JourneySpec>(StringComparer.Ordinal)
+        {
+            ["SOC-1"] = new(10, 25, 32, JourneyPath.Native),
+            ["SOC-2"] = new(100, 300, 128, JourneyPath.Native),
+            ["SOC-3"] = new(300, 900, 256, JourneyPath.Native),
+            ["TOP-1"] = new(75, 225, 96, JourneyPath.Native),
+            ["TOP-2"] = new(200, 600, 192, JourneyPath.Native),
+            ["TOP-3"] = new(350, 1_000, 256, JourneyPath.Native),
+            ["EVD-1"] = new(100, 300, 128, JourneyPath.Native),
+            ["EVD-2"] = new(50, 150, 64, JourneyPath.Native),
+            ["EVD-3"] = new(250, 750, 192, JourneyPath.Native),
+            ["CPL-1"] = new(15, 40, 32, JourneyPath.Native),
+            ["CPL-2"] = new(100, 300, 128, JourneyPath.Native),
+            ["CPL-3"] = new(500, 1_500, 256, JourneyPath.Native),
+        });
 
     /// <summary>判定证据清单；Production PASS 只使用 schema-aware 原始 artifact 重算值。</summary>
     /// <param name="input">原始证据清单。</param>
@@ -101,6 +131,78 @@ public static class GraphProductionGateEvaluator
         GraphProductionGateInput input,
         string artifactBaseDirectory,
         CancellationToken cancellationToken = default)
+        => (await EvaluateCoreAsync(input, artifactBaseDirectory, ProductionProfile, null, cancellationToken)
+            .ConfigureAwait(false)).Report;
+
+    internal static async Task<GraphPreviewGateReport> EvaluatePreviewAsync(
+        GraphPreviewGateInput input,
+        string artifactBaseDirectory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var sharedInput = new GraphProductionGateInput
+        {
+            Schema = input.Schema,
+            ProductionRun = input.PreviewRun,
+            CommitSha = input.CommitSha,
+            StartedUtc = input.StartedUtc,
+            FinishedUtc = input.FinishedUtc,
+            Dataset = input.Dataset,
+            Environment = input.Environment,
+            Soak = input.Recovery,
+            Journeys = input.Journeys,
+            CorrectnessRecoveryChecks = input.CorrectnessRecoveryChecks,
+            PerformanceCapacityChecks = input.PerformanceCapacityChecks,
+            Gaps = input.Gaps,
+            Limitations = input.Limitations,
+        };
+        (GraphProductionGateReport report, GraphProductionDatasetEvidence? smallDataset) =
+            await EvaluateCoreAsync(sharedInput, artifactBaseDirectory, PreviewProfile,
+                input.PreviewSmallDataset, cancellationToken).ConfigureAwait(false);
+        GraphProductionGateInput rebuilt = report.Input;
+        return new GraphPreviewGateReport
+        {
+            GeneratedAtUtc = report.GeneratedAtUtc,
+            LocalSmoke = report.LocalSmoke,
+            CorrectnessRecovery = report.CorrectnessRecovery,
+            PerformanceCapacity = report.PerformanceCapacity,
+            ReleaseDecision = report.ReleaseDecision,
+            Findings = report.Findings,
+            Input = input with
+            {
+                StartedUtc = rebuilt.StartedUtc,
+                FinishedUtc = rebuilt.FinishedUtc,
+                Dataset = rebuilt.Dataset,
+                PreviewSmallDataset = smallDataset ?? new GraphProductionDatasetEvidence(),
+                Environment = rebuilt.Environment,
+                Recovery = rebuilt.Soak,
+                Journeys = rebuilt.Journeys,
+                CorrectnessRecoveryChecks = rebuilt.CorrectnessRecoveryChecks,
+                PerformanceCapacityChecks = rebuilt.PerformanceCapacityChecks,
+                Gaps = rebuilt.Gaps,
+                Limitations = rebuilt.Limitations,
+            },
+        };
+    }
+
+    internal static IReadOnlyList<string> GetPreviewRequiredJourneyIds()
+        => PreviewProfile.Journeys.Keys.Order(StringComparer.Ordinal).ToArray();
+
+    internal static IReadOnlyList<string> GetPreviewRequiredCorrectnessCheckIds()
+        => PreviewProfile.CorrectnessChecks.ToArray();
+
+    internal static IReadOnlyList<string> GetPreviewRequiredPerformanceCheckIds()
+        => PreviewProfile.PerformanceChecks.ToArray();
+
+    internal static IReadOnlyList<string> GetPreviewRequiredGapIds()
+        => PreviewProfile.GapIds.ToArray();
+
+    private static async Task<(GraphProductionGateReport Report, GraphProductionDatasetEvidence? SmallDataset)> EvaluateCoreAsync(
+        GraphProductionGateInput input,
+        string artifactBaseDirectory,
+        GateProfile profile,
+        GraphProductionDatasetEvidence? smallDataset,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(artifactBaseDirectory);
@@ -111,30 +213,44 @@ public static class GraphProductionGateEvaluator
         string artifactRoot = Path.GetFullPath(artifactBaseDirectory);
         var findings = new List<GraphProductionGateFinding>();
         input = NormalizeInput(input, findings);
-
-        if (!ValidateExecutionBounds(input, findings))
+        if (profile.IsPreview && smallDataset is null)
         {
-            return CreateReport(
+            AddFinding(findings, "both", "manifest_null", "PreviewSmallDataset 不能为 null。");
+            smallDataset = new GraphProductionDatasetEvidence();
+        }
+
+        if (!ValidateExecutionBounds(input, profile, findings))
+        {
+            return (CreateReport(
                 input,
                 GraphProductionEvidenceStatus.Fail,
                 GraphProductionEvidenceStatus.Fail,
                 GraphProductionEvidenceStatus.Fail,
-                findings);
+                findings), smallDataset);
+        }
+
+        if (profile.IsPreview && !string.Equals(input.Schema, profile.InputSchema, StringComparison.Ordinal))
+            AddFinding(findings, "both", "input_schema", $"证据清单 schema 必须为 {profile.InputSchema}。");
+        if (profile.IsPreview && findings.Any(static finding => finding.Gate == "both"))
+        {
+            return (CreateReport(input, GraphProductionEvidenceStatus.Fail,
+                GraphProductionEvidenceStatus.Fail, GraphProductionEvidenceStatus.Fail, findings), smallDataset);
         }
 
         if (!input.ProductionRun)
         {
             string quickLocalSmoke = GetLocalSmoke(input);
-            AddFinding(findings, "release", "production_not_attempted", "quick/local evidence 不能替代 #367 Production 门禁。");
-            return CreateReport(
+            AddFinding(findings, "release", profile.IsPreview ? "preview_not_attempted" : "production_not_attempted",
+                profile.IsPreview ? "quick/local evidence 不能替代 #352 Preview 门禁。" : "quick/local evidence 不能替代 #367 Production 门禁。");
+            return (CreateReport(
                 input,
                 quickLocalSmoke,
                 GraphProductionEvidenceStatus.NotRun,
                 GraphProductionEvidenceStatus.NotRun,
-                findings);
+                findings), smallDataset);
         }
 
-        ValidateCommon(input, findings);
+        ValidateCommon(input, profile, findings);
         string localSmoke = GetLocalSmoke(input);
 
         string repositoryRoot = ValidateRepository(
@@ -147,16 +263,29 @@ public static class GraphProductionGateEvaluator
             repositoryRoot,
             input.CommitSha,
             findings,
-            evaluationToken);
+            evaluationToken,
+            profile);
+        if (profile.IsPreview)
+        {
+            smallDataset = await RebuildDatasetAsync(smallDataset!, context).ConfigureAwait(false);
+            ValidatePreviewDataset(smallDataset, "preview-small", 100_000, 1_000_000, findings);
+            context.SmallDatasetOutputDigest = smallDataset.OutputDigest;
+        }
         input = await RebuildInputFromArtifactsAsync(input, context).ConfigureAwait(false);
         evaluationToken.ThrowIfCancellationRequested();
 
-        ValidateRequiredChecks(input.CorrectnessRecoveryChecks, RequiredCorrectnessChecks, "correctness_recovery", findings);
-        ValidateRequiredChecks(input.PerformanceCapacityChecks, RequiredPerformanceChecks, "performance_capacity", findings);
-        ValidateJourneys(input.Journeys, findings);
-        ValidateDataset(input.Dataset, findings);
+        ValidateRequiredChecks(input.CorrectnessRecoveryChecks, profile.CorrectnessChecks, "correctness_recovery", findings);
+        ValidateRequiredChecks(input.PerformanceCapacityChecks, profile.PerformanceChecks, "performance_capacity", findings);
+        ValidateJourneys(input.Journeys, profile, findings);
+        if (profile.IsPreview)
+            ValidatePreviewDataset(input.Dataset, "gate", 1_000_000, 10_000_000, findings);
+        else
+            ValidateDataset(input.Dataset, findings);
         ValidateEnvironment(input.Environment, findings);
-        ValidateSoak(input, findings);
+        if (profile.IsPreview)
+            ValidatePreviewRecovery(input, findings);
+        else
+            ValidateSoak(input, findings);
         await ValidateGapsAsync(input.Gaps, context, findings).ConfigureAwait(false);
         ValidateRepositoryClean(
             repositoryRoot,
@@ -172,12 +301,12 @@ public static class GraphProductionGateEvaluator
             string.Equals(finding.Gate, "performance_capacity", StringComparison.Ordinal)
             || string.Equals(finding.Gate, "both", StringComparison.Ordinal));
 
-        return CreateReport(
+        return (CreateReport(
             input,
             localSmoke,
             correctnessPass ? GraphProductionEvidenceStatus.Pass : GraphProductionEvidenceStatus.Fail,
             performancePass ? GraphProductionEvidenceStatus.Pass : GraphProductionEvidenceStatus.Fail,
-            findings);
+            findings), smallDataset);
     }
 
     /// <summary>返回 #367 所有冻结 journey ID。</summary>
@@ -266,12 +395,13 @@ public static class GraphProductionGateEvaluator
 
     private static void ValidateCommon(
         GraphProductionGateInput input,
+        GateProfile profile,
         List<GraphProductionGateFinding> findings)
     {
-        if (!string.Equals(input.Schema, "m40-graph-production-input-v2", StringComparison.Ordinal))
-            AddFinding(findings, "both", "input_schema", "证据清单 schema 必须为 m40-graph-production-input-v2。");
+        if (!string.Equals(input.Schema, profile.InputSchema, StringComparison.Ordinal))
+            AddFinding(findings, "both", "input_schema", $"证据清单 schema 必须为 {profile.InputSchema}。");
         if (!IsSha1(input.CommitSha))
-            AddFinding(findings, "both", "commit_sha", "Production 证据必须绑定 40 位 clean commit SHA。");
+            AddFinding(findings, "both", "commit_sha", $"{profile.Name} 证据必须绑定 40 位 clean commit SHA。");
         if (input.StartedUtc == default || input.FinishedUtc <= input.StartedUtc)
             AddFinding(findings, "both", "run_interval", "运行开始/结束 UTC 时间无效。");
         else if (input.FinishedUtc > DateTimeOffset.UtcNow.AddMinutes(5))
@@ -280,27 +410,28 @@ public static class GraphProductionGateEvaluator
 
     private static bool ValidateExecutionBounds(
         GraphProductionGateInput input,
+        GateProfile profile,
         List<GraphProductionGateFinding> findings)
     {
         bool valid = true;
         valid &= ValidateCollectionBound(
             input.Journeys.Count,
-            JourneySpecs.Count,
+            profile.Journeys.Count,
             "journeys",
             findings);
         valid &= ValidateCollectionBound(
             input.CorrectnessRecoveryChecks.Count,
-            RequiredCorrectnessChecks.Length,
+            profile.CorrectnessChecks.Count,
             "correctness checks",
             findings);
         valid &= ValidateCollectionBound(
             input.PerformanceCapacityChecks.Count,
-            RequiredPerformanceChecks.Length,
+            profile.PerformanceChecks.Count,
             "performance checks",
             findings);
         valid &= ValidateCollectionBound(
             input.Gaps.Count,
-            RequiredGapIds.Length,
+            profile.GapIds.Count,
             "gaps",
             findings);
         return valid;
@@ -396,6 +527,7 @@ public static class GraphProductionGateEvaluator
         EvaluationContext context)
     {
         GraphProductionDatasetEvidence dataset = await RebuildDatasetAsync(input.Dataset, context).ConfigureAwait(false);
+        context.DatasetOutputDigest = dataset.OutputDigest;
         GraphProductionEnvironmentEvidence environment = await RebuildEnvironmentAsync(input.Environment, context).ConfigureAwait(false);
         (GraphProductionSoakEvidence soak, DateTimeOffset startedUtc, DateTimeOffset finishedUtc) =
             await RebuildSoakAsync(input.Soak, input.StartedUtc, input.FinishedUtc, context).ConfigureAwait(false);
@@ -539,12 +671,13 @@ public static class GraphProductionGateEvaluator
             value => ValidateSoakArtifactBounds(value, context)).ConfigureAwait(false);
         if (artifact is null)
             return (summary, manifestStartedUtc, manifestFinishedUtc);
+        ValidateDatasetBinding(artifact.DatasetOutputDigest, "recovery", context);
 
         IReadOnlyList<DateTimeOffset> checkpoints = artifact.CheckpointsUtc ?? [];
         IReadOnlyList<GraphProductionKillReopenSample> kills = artifact.KillReopenSamples ?? [];
         IReadOnlyList<double> coldOpen = artifact.ColdOpenMilliseconds ?? [];
         IReadOnlyList<GraphProductionSoakResourceSample> resources = artifact.ResourceSamples ?? [];
-        ValidateSoakRawArtifact(artifact, checkpoints, kills, coldOpen, resources, context.Findings);
+        ValidateSoakRawArtifact(artifact, checkpoints, kills, coldOpen, resources, context.Profile, context.Findings);
 
         double maximumCheckpointInterval = ComputeMaximumIntervalMinutes(
             artifact.StartedUtc,
@@ -597,6 +730,7 @@ public static class GraphProductionGateEvaluator
         IReadOnlyList<GraphProductionKillReopenSample> kills,
         IReadOnlyList<double> coldOpen,
         IReadOnlyList<GraphProductionSoakResourceSample> resources,
+        GateProfile profile,
         List<GraphProductionGateFinding> findings)
     {
         bool intervalValid = artifact.StartedUtc != default && artifact.FinishedUtc > artifact.StartedUtc;
@@ -612,7 +746,8 @@ public static class GraphProductionGateEvaluator
             .Where(static sample => sample is not null)
             .Select(static sample => sample.TimestampUtc)
             .ToArray();
-        if (kills.Count < 7
+        int minimumKills = profile.IsPreview ? 1 : 7;
+        if (kills.Count < minimumKills
             || kills.Any(static sample => sample is null
                 || sample.TimestampUtc == default
                 || !sample.ProcessKilled
@@ -621,12 +756,16 @@ public static class GraphProductionGateEvaluator
                 || !IsFinitePositive(sample.RecoveryMilliseconds))
             || killTimestamps.Any(value => value < artifact.StartedUtc || value > artifact.FinishedUtc)
             || !IsStrictlyIncreasing(killTimestamps)
-            || ComputeMaximumIntervalHours(artifact.StartedUtc, artifact.FinishedUtc, killTimestamps) > 24)
+            || (!profile.IsPreview && ComputeMaximumIntervalHours(artifact.StartedUtc, artifact.FinishedUtc, killTimestamps) > 24))
         {
-            AddFinding(findings, "correctness_recovery", "soak_raw_kill_reopen", "soak artifact 必须含按 24 小时分布的真 kill/reopen/invariant 原始样本。");
+            AddFinding(findings, "correctness_recovery", "soak_raw_kill_reopen",
+                profile.IsPreview
+                    ? "Preview recovery artifact 必须含至少一次有序、区间内且成功的真 kill/reopen/invariant 原始样本。"
+                    : "soak artifact 必须含按 24 小时分布的真 kill/reopen/invariant 原始样本。");
         }
-        if (coldOpen.Count < 7 || coldOpen.Any(static value => !IsFinitePositive(value)))
-            AddFinding(findings, "performance_capacity", "soak_raw_cold_open", "soak artifact 必须含至少 7 个有效 cold-open 原始样本。");
+        int minimumColdOpenSamples = profile.IsPreview ? 3 : 7;
+        if (coldOpen.Count < minimumColdOpenSamples || coldOpen.Any(static value => !IsFinitePositive(value)))
+            AddFinding(findings, "performance_capacity", "soak_raw_cold_open", $"recovery artifact 必须含至少 {minimumColdOpenSamples} 个有效 cold-open 原始样本。");
         if (resources.Count == 0
             || resources.Any(sample => sample is null
                 || sample.TimestampUtc < artifact.StartedUtc
@@ -654,11 +793,28 @@ public static class GraphProductionGateEvaluator
             value => ValidateJourneyArtifactBounds(value, summary.Id, context)).ConfigureAwait(false);
         if (artifact is null)
             return summary;
+
+        ValidateDatasetBinding(artifact.DatasetOutputDigest, summary.Id, context);
         if (!string.Equals(artifact.JourneyId, summary.Id, StringComparison.Ordinal))
             AddFinding(context.Findings, "both", "journey_artifact_id", $"{summary.Id} artifact journey_id 不匹配。");
 
         IReadOnlyList<GraphProductionJourneyRoundArtifact> rounds = artifact.Rounds ?? [];
         bool rawValid = ValidateJourneyRounds(summary.Id, rounds, context.Findings);
+        if (context.Profile.IsPreview)
+        {
+            foreach (GraphProductionJourneyRoundArtifact? round in rounds)
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+                if (round?.OracleAssertions is not { Count: 1 } assertions
+                    || assertions[0] is null
+                    || !string.Equals(assertions[0].Name, summary.Id, StringComparison.Ordinal))
+                {
+                    AddFinding(context.Findings, "correctness_recovery", "preview_oracle_binding",
+                        $"Preview {summary.Id} 每轮必须使用同名的逐 ID/property/path oracle 摘要。");
+                    rawValid = false;
+                }
+            }
+        }
         GraphProductionJourneyEvidence rebuilt = SummarizeJourney(summary, rounds, rawValid, context.Findings);
         if (!JourneySummariesEqual(summary, rebuilt))
             AddFinding(context.Findings, "both", "journey_summary_mismatch", $"{summary.Id} manifest 摘要与逐轮原始样本重算结果不一致。");
@@ -793,6 +949,8 @@ public static class GraphProductionGateEvaluator
         if (!string.Equals(artifact.CheckId, summary.Id, StringComparison.Ordinal))
             AddFinding(context.Findings, gate, "check_artifact_id", $"{summary.Id} artifact check_id 不匹配。");
         bool assertionsPass = ValidateCheckAssertions(artifact.Assertions, gate, summary.Id, context.Findings);
+        assertionsPass &= ValidatePreviewCheckBindings(artifact.Assertions, gate, summary.Id, context);
+        assertionsPass &= ValidatePreviewCheckDataset(artifact, gate, summary.Id, context);
         var rebuilt = new GraphProductionCheckEvidence
         {
             Id = summary.Id,
@@ -845,6 +1003,15 @@ public static class GraphProductionGateEvaluator
         valid &= ValidateArtifactCollectionBound(artifact.KillReopenSamples?.Count ?? 0, MaximumSoakKillReopenSamples, "both", "soak kill/reopen samples", context.Findings);
         valid &= ValidateArtifactCollectionBound(artifact.ColdOpenMilliseconds?.Count ?? 0, MaximumSoakColdOpenSamples, "performance_capacity", "soak cold-open samples", context.Findings);
         valid &= ValidateArtifactCollectionBound(artifact.ResourceSamples?.Count ?? 0, MaximumSoakResourceSamples, "performance_capacity", "soak resource samples", context.Findings);
+        if (!valid)
+            return false;
+        if (artifact.KillReopenSamples?.Any(static sample => sample is null) == true
+            || artifact.ResourceSamples?.Any(static sample => sample is null) == true)
+        {
+            AddFinding(context.Findings, "both", "artifact_collection_null",
+                "recovery artifact 的 kill/reopen 或资源样本不能包含 null 条目。");
+            return false;
+        }
         return valid;
     }
 
@@ -863,7 +1030,12 @@ public static class GraphProductionGateEvaluator
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             if (round is null)
+            {
+                AddFinding(context.Findings, "both", "artifact_collection_null",
+                    $"{owner} journey artifact 的原始轮次不能包含 null 条目。");
+                valid = false;
                 continue;
+            }
             valid &= ValidateJourneySampleColumnBounds(round, owner, context.Findings);
             valid &= ValidateArtifactCollectionBound(
                 round.OracleAssertions?.Count ?? 0,
@@ -1189,6 +1361,7 @@ public static class GraphProductionGateEvaluator
 
     private static void ValidateJourneys(
         IReadOnlyList<GraphProductionJourneyEvidence> journeys,
+        GateProfile profile,
         List<GraphProductionGateFinding> findings)
     {
         var byId = new Dictionary<string, GraphProductionJourneyEvidence>(StringComparer.Ordinal);
@@ -1203,7 +1376,7 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, "both", "journey_id", "journey ID 不能为空或重复。");
         }
 
-        foreach ((string id, JourneySpec spec) in JourneySpecs)
+        foreach ((string id, JourneySpec spec) in profile.Journeys)
         {
             if (!byId.TryGetValue(id, out GraphProductionJourneyEvidence? journey))
             {
@@ -1216,19 +1389,20 @@ public static class GraphProductionGateEvaluator
             {
                 AddFinding(findings, "performance_capacity", "journey_samples", $"{id} 必须有 1,000 warmup、3 个独立轮次且每轮至少 10,000 个完整消费样本。");
             }
-            ValidateJourneyMetrics(journey, spec, findings);
+            ValidateJourneyMetrics(journey, spec, profile, findings);
             ValidateJourneyPath(journey, spec.Path, findings);
         }
         foreach (string actualId in byId.Keys)
         {
-            if (!JourneySpecs.ContainsKey(actualId))
-                AddFinding(findings, "both", "journey_unknown", $"Production 清单包含未冻结 journey {actualId}。");
+            if (!profile.Journeys.ContainsKey(actualId))
+                AddFinding(findings, "both", "journey_unknown", $"{profile.Name} 清单包含未冻结 journey {actualId}。");
         }
     }
 
     private static void ValidateJourneyMetrics(
         GraphProductionJourneyEvidence journey,
         JourneySpec spec,
+        GateProfile profile,
         List<GraphProductionGateFinding> findings)
     {
         if (journey.QueryPeakLiveBytes < 0 || journey.QueryPeakLiveBytes > spec.MemoryMiB * MiB)
@@ -1282,7 +1456,7 @@ public static class GraphProductionGateEvaluator
             AddFinding(findings, "performance_capacity", "latency_order", $"{journey.Id} 延迟分位数顺序无效。");
         }
         if (journey.P95Milliseconds > spec.P95Milliseconds || journey.P99Milliseconds > spec.P99Milliseconds)
-            AddFinding(findings, "performance_capacity", "latency_slo", $"{journey.Id} 超过 Production P95/P99 {spec.P95Milliseconds}/{spec.P99Milliseconds} ms。");
+            AddFinding(findings, "performance_capacity", "latency_slo", $"{journey.Id} 超过 {profile.Name} P95/P99 {spec.P95Milliseconds}/{spec.P99Milliseconds} ms。");
         double coldFirstQueryLimit = Math.Max(4 * journey.P99Milliseconds, 2_000);
         if (journey.ColdFirstQueryP99Milliseconds <= 0 || journey.ColdFirstQueryP99Milliseconds > coldFirstQueryLimit)
             AddFinding(findings, "performance_capacity", "cold_first_query", $"{journey.Id} 冷首查 P99 必须在 0~{coldFirstQueryLimit:F3} ms 内。");
@@ -1329,6 +1503,92 @@ public static class GraphProductionGateEvaluator
         }
         if (!IsSha256(dataset.InputDigest) || !IsSha256(dataset.OutputDigest))
             AddFinding(findings, "both", "dataset_digest", "生成器输入和输出必须记录 SHA-256。");
+    }
+
+    private static void ValidatePreviewDataset(
+        GraphProductionDatasetEvidence dataset,
+        string expectedTier,
+        long expectedVertices,
+        long expectedEdges,
+        List<GraphProductionGateFinding> findings)
+    {
+        if (!string.Equals(dataset.Tier, expectedTier, StringComparison.Ordinal)
+            || !string.Equals(dataset.Generator, "m40-graph-generator-v1", StringComparison.Ordinal)
+            || !string.Equals(dataset.Seed, "0x534F4E4E45544442", StringComparison.Ordinal)
+            || dataset.VertexCount != expectedVertices
+            || dataset.EdgeCount != expectedEdges)
+        {
+            AddFinding(findings, "performance_capacity", "dataset_contract",
+                $"Preview {expectedTier} 必须使用冻结的 {expectedVertices} vertex/{expectedEdges} edge 数据集。");
+        }
+        if (!IsSha256(dataset.InputDigest) || !IsSha256(dataset.OutputDigest))
+            AddFinding(findings, "both", "dataset_digest", $"{expectedTier} 生成器输入和输出必须记录 SHA-256。");
+    }
+
+    private static void ValidateDatasetBinding(string digest, string owner, EvaluationContext context)
+    {
+        if (context.Profile.IsPreview
+            && (!IsSha256(digest)
+                || !string.Equals(digest, context.DatasetOutputDigest, StringComparison.OrdinalIgnoreCase)))
+        {
+            AddFinding(context.Findings, "both", "artifact_dataset_mismatch",
+                $"Preview {owner} 原始测量必须绑定 gate 数据 artifact 的 OutputDigest。");
+        }
+    }
+
+    private static bool ValidatePreviewCheckBindings(
+        IReadOnlyList<GraphProductionCheckAssertion>? assertions,
+        string gate,
+        string owner,
+        EvaluationContext context)
+    {
+        if (!context.Profile.IsPreview)
+            return true;
+        IReadOnlyList<string> expectedNames = owner is "native_journey_oracle" or "neo4j_comparison"
+            ? context.Profile.Journeys.Keys.ToArray()
+            : [owner];
+        bool valid = assertions is not null
+            && assertions.Count == expectedNames.Count
+            && expectedNames.All(expected => assertions.Count(assertion => assertion is not null
+                && string.Equals(assertion.Name, expected, StringComparison.Ordinal)) == 1);
+        if (!valid)
+            AddFinding(context.Findings, gate, "preview_check_binding",
+                $"Preview {owner} 原始 assertions 必须精确绑定其冻结的检查或原生旅程 ID。");
+        return valid;
+    }
+
+    private static bool ValidatePreviewCheckDataset(
+        GraphProductionCheckArtifact artifact,
+        string gate,
+        string owner,
+        EvaluationContext context)
+    {
+        if (!context.Profile.IsPreview)
+            return true;
+        string expectedDigest = owner == "preview_small_capacity"
+            ? context.SmallDatasetOutputDigest
+            : context.DatasetOutputDigest;
+        bool valid = IsSha256(artifact.DatasetOutputDigest)
+            && string.Equals(artifact.DatasetOutputDigest, expectedDigest, StringComparison.OrdinalIgnoreCase);
+        string? expectedAssertion = owner is "preview_small_capacity" or "gate_capacity" ? expectedDigest : null;
+        if (owner == "complexity_trend")
+        {
+            valid &= IsSha256(artifact.ComparisonDatasetOutputDigest)
+                && string.Equals(artifact.ComparisonDatasetOutputDigest,
+                    context.SmallDatasetOutputDigest, StringComparison.OrdinalIgnoreCase);
+            expectedAssertion = context.SmallDatasetOutputDigest + ":" + context.DatasetOutputDigest;
+        }
+        if (expectedAssertion is not null)
+        {
+            valid &= artifact.Assertions is { Count: 1 } assertions
+                && assertions[0] is not null
+                && string.Equals(assertions[0].Expected, expectedAssertion, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(assertions[0].Actual, expectedAssertion, StringComparison.OrdinalIgnoreCase);
+        }
+        if (!valid)
+            AddFinding(context.Findings, gate, "preview_check_dataset",
+                $"Preview {owner} 原始检查必须绑定已验证的数据输出摘要；容量与趋势断言须包含相同摘要。");
+        return valid;
     }
 
     private static void ValidateEnvironment(
@@ -1400,6 +1660,54 @@ public static class GraphProductionGateEvaluator
         }
     }
 
+    private static void ValidatePreviewRecovery(
+        GraphProductionGateInput input,
+        List<GraphProductionGateFinding> findings)
+    {
+        GraphProductionSoakEvidence recovery = input.Soak;
+        if (!IsFinitePositive(recovery.DurationHours)
+            || input.FinishedUtc <= input.StartedUtc
+            || recovery.ReaderWorkers <= 0
+            || recovery.UpdateWorkers <= 0)
+        {
+            AddFinding(findings, "both", "preview_mixed_workload",
+                "Preview 必须提供有效运行区间以及同时存在 reader 和 update worker 的混合读写原始证据。");
+        }
+        if (!string.Equals(recovery.UpdateProfile, "m40-frozen-update-profile-v1", StringComparison.Ordinal))
+            AddFinding(findings, "performance_capacity", "update_profile", "更新速率必须使用 #341 冻结 profile。");
+        if (recovery.CheckpointCount <= 0 || recovery.MaximumCheckpointIntervalMinutes <= 0)
+            AddFinding(findings, "correctness_recovery", "checkpoint_schedule", "Preview 必须包含真实 checkpoint 原始证据。");
+        if (recovery.KillReopenCount <= 0 || recovery.InvariantCheckCount != recovery.KillReopenCount)
+            AddFinding(findings, "correctness_recovery", "kill_reopen_schedule", "Preview 必须记录真进程 kill/reopen 和完整 invariant check。");
+        if (recovery.FailedOperationCount != 0 || recovery.UnexpectedRestartCount != 0)
+            AddFinding(findings, "correctness_recovery", "soak_failures", "Preview 恢复与混合读写存在失败操作或非计划重启。");
+        if (!recovery.SyncWalOnEveryWrite
+            || !recovery.AutoCheckpointEnabled
+            || recovery.MaxWalBytes != ExpectedWalBudget
+            || recovery.MaxOverlayEntries != 100_000)
+        {
+            AddFinding(findings, "both", "durability_options", "Preview 必须保持默认 fsync/checkpoint/WAL/overlay 耐久配置。");
+        }
+        if (recovery.PeakWorkingSetBytes <= 0 || recovery.PeakWorkingSetBytes > MaximumWorkingSet || recovery.WalBytes <= 0)
+            AddFinding(findings, "performance_capacity", "soak_resources", "Preview working set/WAL 资源计数无效或超过 12 GiB。");
+        if (!IsFinitePositive(recovery.ColdOpenP95Milliseconds)
+            || recovery.ColdOpenP95Milliseconds > 2_000
+            || !IsFinitePositive(recovery.ColdOpenP99Milliseconds)
+            || recovery.ColdOpenP99Milliseconds < recovery.ColdOpenP95Milliseconds
+            || recovery.ColdOpenP99Milliseconds > 5_000)
+        {
+            AddFinding(findings, "performance_capacity", "cold_open", "冷启动 open P95/P99 必须在 0~2,000/5,000 ms 内且分位数有序。");
+        }
+        if (!IsFinitePositive(recovery.RecoveryP50Milliseconds)
+            || !IsFinitePositive(recovery.RecoveryP95Milliseconds)
+            || !IsFinitePositive(recovery.RecoveryP99Milliseconds)
+            || recovery.RecoveryP50Milliseconds > recovery.RecoveryP95Milliseconds
+            || recovery.RecoveryP95Milliseconds > recovery.RecoveryP99Milliseconds)
+        {
+            AddFinding(findings, "correctness_recovery", "recovery_latency", "kill/reopen 恢复 P50/P95/P99 必须存在且分位数有序。");
+        }
+    }
+
     private static async Task ValidateGapsAsync(
         IReadOnlyList<GraphProductionGapEvidence> gaps,
         EvaluationContext context,
@@ -1424,12 +1732,15 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, "both", "gap_id", "gap ID 不能为空或重复。");
                 continue;
             }
-            if (!RequiredGapIds.Contains(gap.Id, StringComparer.Ordinal))
+            if (!context.Profile.GapIds.Contains(gap.Id, StringComparer.Ordinal))
                 AddFinding(findings, "both", "gap_unknown", $"capability gap catalog 包含未冻结 ID {gap.Id}。");
 
-            bool blocksProduction = gap.Blocks.Contains("Production", StringComparison.OrdinalIgnoreCase)
-                || gap.Blocks.Contains("Couplet C4", StringComparison.OrdinalIgnoreCase);
-            if (blocksProduction && gap.Status is "open" or "in_progress" or "not_planned")
+            // Preview 的阻塞范围来自冻结 profile，不能通过改写 manifest 的 Blocks 自报字段放行。
+            bool blocksRelease = context.Profile.IsPreview
+                ? context.Profile.GapIds.Contains(gap.Id, StringComparer.Ordinal)
+                : gap.Blocks.Contains("Production", StringComparison.OrdinalIgnoreCase)
+                    || gap.Blocks.Contains("Couplet C4", StringComparison.OrdinalIgnoreCase);
+            if (blocksRelease && gap.Status is "open" or "in_progress" or "not_planned")
             {
                 AddFinding(findings, GateForSeverity(gap.Severity), "blocking_gap", $"{gap.Id} 仍阻塞 {gap.Blocks}。");
             }
@@ -1456,6 +1767,7 @@ public static class GraphProductionGateEvaluator
                         if (!string.Equals(artifact.CheckId, gap.Id, StringComparison.Ordinal))
                             AddFinding(findings, "both", "gap_artifact_id", $"{gap.Id} 关闭 artifact ID 不匹配。");
                         _ = ValidateCheckAssertions(artifact.Assertions, "both", gap.Id, findings);
+                        _ = ValidatePreviewCheckBindings(artifact.Assertions, "both", gap.Id, context);
                     }
                 }
             }
@@ -1464,7 +1776,7 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, "both", "gap_status", $"{gap.Id} 的 gap status 无效：{gap.Status}。");
             }
         }
-        foreach (string requiredId in RequiredGapIds)
+        foreach (string requiredId in context.Profile.GapIds)
         {
             if (!ids.Contains(requiredId))
                 AddFinding(findings, "both", "gap_missing", $"capability gap catalog 缺少 {requiredId}。");
@@ -1756,13 +2068,13 @@ public static class GraphProductionGateEvaluator
         return result;
     }
 
-    private static bool IsSha1(string value)
-        => value.Length == 40
+    private static bool IsSha1(string? value)
+        => value is { Length: 40 }
             && value.All(static character => Uri.IsHexDigit(character))
             && value.Any(static character => character != '0');
 
-    private static bool IsSha256(string value)
-        => value.Length == 64
+    private static bool IsSha256(string? value)
+        => value is { Length: 64 }
             && value.All(static character => Uri.IsHexDigit(character))
             && value.Any(static character => character != '0');
 
@@ -1783,10 +2095,24 @@ public static class GraphProductionGateEvaluator
         string RepositoryRoot,
         string CommitSha,
         List<GraphProductionGateFinding> Findings,
-        CancellationToken CancellationToken)
+        CancellationToken CancellationToken,
+        GateProfile Profile)
     {
         public Dictionary<string, GraphEvidenceProcessResult> Replays { get; } = new(StringComparer.Ordinal);
+
+        public string DatasetOutputDigest { get; set; } = string.Empty;
+
+        public string SmallDatasetOutputDigest { get; set; } = string.Empty;
     }
+
+    private sealed record GateProfile(
+        string Name,
+        string InputSchema,
+        bool IsPreview,
+        IReadOnlyList<string> CorrectnessChecks,
+        IReadOnlyList<string> PerformanceChecks,
+        IReadOnlyList<string> GapIds,
+        IReadOnlyDictionary<string, JourneySpec> Journeys);
 
     private sealed record JourneySpec(
         double P95Milliseconds,

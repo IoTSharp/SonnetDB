@@ -238,7 +238,7 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 
 Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspace 的可见视图，#346 的 crash/backup 合同只恢复已经纳入其 checkpoint 的模型状态；它们不提供一个跨 KV、Document、FullText 的 active generation publication point，也不管理 query lease 与 retired resource 的共同生命周期。本次新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest` 和 `DatabaseGenerationQueryLease`，以内部 durable KV 条件批次一次发布 descriptor、resource ownership 与 active revision；cursor 同时绑定 stream/generation/revision/query fingerprint，retired cleanup 只在全部 lease 释放后执行。Core 已通过 A/B reopen、publish 前后故障注入、真实 Document+FullText 无混代、双 lease、取消/异常、backup/restore、public API、package consumer 与完整回归。Couplet source lane 已消费该合同，并增加数据库 root 独占 lease 及 terminal cursor version-CAS/snapshot/delete/snapshot 恢复；本机同进程 race、Windows path alias、orderly reopen 和注入窗口已有回归。默认 package lane 继续作为独立兼容基线；真实跨进程 root/cursor 竞争、hard-kill CAS、双客户端、固定硬件和长稳未完成，因此 `CG-005` 与 C1 双门禁仍未关闭。
 
-### Phase 1：可用的原生图数据库第一阶段（🚧 功能合同已闭环；#352 `NOT_RUN`）
+### Phase 1：可用的原生图数据库第一阶段（✅ 代码实现完成；#352 真机准入待验证）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
@@ -247,11 +247,11 @@ Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspac
 | ✅ #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | shortest path 以 `MaxPaths + 1` 探测区分完整不可达与预算截断，耗尽时 Core 抛 `GraphTraversalLimitExceededException`，Server/SDK 稳定传播 `graph_budget_exceeded`；page size > 1、cycle/self-loop/parallel-edge、取消和 frontier/path 预算均有回归。性能分配加固仍归步骤 6。 |
 | ✅ #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。当前含 fingerprint cardinality、stale/missing explain 回归，容量校准待跑。 |
 | ✅ #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | HTTP/SDK 过滤字段同构，Frame v1 带过滤请求兼容回退 HTTP；import 同时受 10,000 元素、8 MiB batch 与默认 1 MiB CSV 单行预算约束，未知长度请求和 SDK 超限使用稳定错误，输入拒绝不会发布部分批次。Graphify 只作为输入格式，不进入 Core。 |
-| 📋 #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
+| ✅ #352（代码管线） | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | Preview strict gate 判定器、runner、CLI、原始 artifact 校验和自动化回归已完成；固定硬件、外部对拍、正式容量和发布准入证据留待后续真机/外部环境验证。任一正式 gate 未达即阻断 Preview 发布；不得将 quick 或开发机结果当作发布 PASS。 |
 
-🚧 Phase 1 功能合同已闭环但发布准入仍未完成：步骤 1/3 已关闭 #348/#349/#351 的正确性、目标过滤和输入字节预算；#352 correctness/performance gate 仍保持 `NOT_RUN`。在 #352 通过前，最多描述为 Native Graph Preview 的开发中实现，不得宣称 Preview 已通过发布门禁。
+✅ Phase 1 代码实现和自动化回归已完成：#347～#351 功能合同已关闭，#352 已补 [Preview strict gate 管线](m40-graph-352-preview-gate.md)，按 12 个 native journey 和双数据档位独立判定。固定硬件、外部对拍、Couplet C2 和 correctness/performance 正式 gate 留待后续真机/外部环境验证，当前仍为 `NOT_RUN`，因此不得宣称 Preview 发布门禁已通过。
 
-### Phase 1 当前实现边界（🚧 受限切片；2026-08-23 复盘）
+### Phase 1 当前实现边界（✅ 代码完成；真机准入待验证；2026-08-23 复盘）
 
 - ✅ `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
 - ✅ `GraphVertexPredicate` 在固定 statement snapshot 上按目标 label 和可选 typed property 等值过滤邻接；过滤项不占 `MaxResults`。`GraphExpandRequest` 使用 `targetLabelId` / `targetPropertyId` / `targetPropertyValue`，嵌入式与 HTTP 共用 Core cursor；旧 Frame v1 不扩展布局，带过滤的 typed SDK 请求走 source-generated HTTP NDJSON。

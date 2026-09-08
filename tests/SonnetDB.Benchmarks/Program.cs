@@ -18,6 +18,8 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m39-trigger-baseline-smoke （#333 触发器基线证据）
 //   dotnet run -c Release -- --m39-trigger-evidence --output artifacts/m39-trigger-v2 （#333 JSON/Markdown 报告）
 //   dotnet run -c Release -- --m40-graph-evidence --quick （M40 Native Graph Preview 本地 evidence）
+//   dotnet run -c Release -- --m40-preview-gate --quick （M40 #352 本地恢复验证与正式清单模板）
+//   dotnet run -c Release -- --m40-preview-gate --manifest <path> （M40 #352 严格双门禁）
 //   dotnet run -c Release -- --m40-weighted-path-evidence --quick （#362 加权路径收益矩阵）
 //   dotnet run -c Release -- --m40-production-gate --quick （#367 门禁管线 smoke）
 //   dotnet run -c Release -- --m40-production-gate --manifest <path> （#367 完整 evidence 判定）
@@ -152,6 +154,54 @@ if (args.Contains("--m40-graph-evidence", StringComparer.OrdinalIgnoreCase))
         $"m40-graph-local-smoke={report.Correctness} output={outputDirectory} "
         + $"correctness-recovery={report.CorrectnessRecovery} performance-capacity={report.PerformanceCapacity} "
         + $"release-decision={report.ReleaseDecision} fixed-hardware={report.FixedHardware} neo4j={report.Neo4jComparison}");
+    if (report.Correctness != GraphProductionEvidenceStatus.Pass)
+        Environment.ExitCode = 1;
+    return;
+}
+
+if (args.Contains("--m40-preview-gate", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = args.Contains("--output", StringComparer.OrdinalIgnoreCase)
+        ? RequireOption(args, "--output")
+        : Path.Combine("artifacts", "m40-graph-preview-gate");
+    bool quick = args.Contains("--quick", StringComparer.OrdinalIgnoreCase);
+    bool manifestRequested = args.Contains("--manifest", StringComparer.OrdinalIgnoreCase);
+    string? manifestPath = ReadOption(args, "--manifest");
+    if (quick && manifestRequested)
+        throw new ArgumentException("--quick 与 --manifest 不能同时使用。");
+    if (manifestRequested
+        && (manifestPath is null || manifestPath.StartsWith("--", StringComparison.Ordinal)))
+        throw new ArgumentException("--manifest 必须提供 M40 #352 evidence 清单路径。");
+    if (!quick && manifestPath is null)
+        throw new ArgumentException("--m40-preview-gate 必须显式提供 --quick 或 --manifest <path>。");
+    using var cancellation = new CancellationTokenSource();
+    ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        cancellation.Cancel();
+    };
+    Console.CancelKeyPress += cancelHandler;
+    GraphPreviewGateReport report;
+    try
+    {
+        report = manifestPath is null
+            ? GraphPreviewGateRunner.RunQuick(outputDirectory, cancellation.Token)
+            : GraphPreviewGateRunner.EvaluateManifest(manifestPath, outputDirectory, cancellation.Token);
+    }
+    finally
+    {
+        Console.CancelKeyPress -= cancelHandler;
+    }
+    Console.WriteLine(
+        $"m40-preview-local={report.LocalSmoke} output={outputDirectory} "
+        + $"correctness-recovery={report.CorrectnessRecovery} "
+        + $"performance-capacity={report.PerformanceCapacity} "
+        + $"release-decision={report.ReleaseDecision} findings={report.Findings.Count}");
+    if ((manifestPath is null && report.LocalSmoke != GraphProductionEvidenceStatus.Pass)
+        || (manifestPath is not null && report.ReleaseDecision != GraphProductionEvidenceStatus.Pass))
+    {
+        Environment.ExitCode = 1;
+    }
     return;
 }
 

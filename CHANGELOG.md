@@ -9,6 +9,10 @@
 
 ### Added
 
+- **M40 #352 Native Graph Preview strict gate**：新增独立 `m40-graph-preview-input-v1` 输入、`m40-graph-preview-gate-v1` 报告与 `--m40-preview-gate --quick|--manifest` 入口，复用原始 artifact 重算和隔离回放，按双数据档位、12 个 native journey、Preview SLO、恢复与 Couplet C2 判定 correctness/recovery 和 performance/capacity 双 gate。quick 生成未完成模板并保持正式结论 `NOT_RUN`；固定硬件、Neo4j、Couplet C2、外部对拍和正式容量证据仍未运行，不构成 #352 PASS。详见 [M40 #352 Preview gate](docs/m40-graph-352-preview-gate.md)。
+
+- **M40 Phase 1 代码实现完成（待真机验证）**：#347～#351 Native Graph 功能、Server/SDK/import、自动化回归及 #352 strict gate 管线已完成；固定硬件、外部数据库对拍、Couplet C2 与正式发布证据留待后续现场验证，不将 `quick` 或开发机结果计为 Preview 发布 PASS。
+
 - **M39 SQL 触发器第二版研发闭环**：#329~#339 的存储过程、关系表触发器第二版、高级事务语义、durable outbox，以及 Document/measurement 原生准入实现和本地证据已完成。固定设备、生产混合负载和长期 SLO 转入 ROADMAP 的真机验证待办，不阻塞研发完成状态。
 
 - **M39 #339 Document / measurement 准入闭环**：Document change feed 增加 cause、bulk request identity、操作序号和受限 patch 描述，TTL 系统删除可区分且旧事件兼容；measurement 新增 durable batch ledger、payload fingerprint、pending/committed 重开 reconcile，`WriteMany` / `BulkIngestor` 支持幂等重放与冲突拒绝。独立 runner 完成 1/100/10,000 点、乱序/重放、1,000 series、Document 索引/feed/重开 full evidence；证据见 [M39 #339 准入记录](docs/audits/m39-339-admission-20260908.md)。
