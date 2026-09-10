@@ -728,13 +728,12 @@ public sealed class KvKeyspace : IDisposable
     /// <summary>内部对象分页点读在等待 keyspace 锁时观察取消。</summary>
     internal KvEntry? GetEntry(string key, CancellationToken cancellationToken)
     {
-        if (!cancellationToken.CanBeCanceled)
-            return GetEntry(key);
-        using (EnterAtomicWriteLock(cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return GetEntry(key);
-        }
+        ArgumentNullException.ThrowIfNull(key);
+        byte[] lookup = EncodeUtf8Key(key, _options);
+        KvValueEntry? entry = ReadVisibleEntry(lookup, cancellationToken);
+        return entry is null
+            ? null
+            : new KvEntry(lookup, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
     }
 
     /// <summary>
@@ -3870,14 +3869,22 @@ public sealed class KvKeyspace : IDisposable
     /// 并发写可以在读取期间继续执行，而 checkpoint 或释放 owner 不会关闭租约保护的句柄。
     /// </summary>
     private KvValueEntry? ReadVisibleEntry(byte[] key)
+        => ReadVisibleEntry(key, CancellationToken.None);
+
+    /// <summary>
+    /// 可取消地解析内存覆盖层并取得磁盘租约；磁盘点读在释放 keyspace 锁后执行，
+    /// 避免对象存储分页读阻塞并发 KV 写入。
+    /// </summary>
+    private KvValueEntry? ReadVisibleEntry(byte[] key, CancellationToken cancellationToken)
     {
         KvDiskStateLease? diskLease;
         DateTimeOffset readTimestampUtc;
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
             readTimestampUtc = DateTimeOffset.UtcNow;
             if (TryResolveOverlayEntryLocked(key, out KvValueEntry? overlayEntry))
             {
@@ -3892,6 +3899,8 @@ public sealed class KvKeyspace : IDisposable
 
             diskLease = _diskState?.AcquireLease();
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (diskLease is null)
             return null;

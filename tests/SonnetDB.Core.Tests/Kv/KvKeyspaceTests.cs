@@ -84,6 +84,39 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Equal(secondValue, (await second)!.Value.ToArray());
     }
 
+    /// <summary>验证带取消令牌的对象元数据点读在磁盘读取期间不会占用 keyspace 写锁。</summary>
+    [Fact]
+    public async Task CancellableGetEntry_DiskReadDoesNotBlockUnrelatedWrite()
+    {
+        using var keyspace = KvKeyspace.Open("cancellable-point-read", _root, PointReadOptions());
+        keyspace.Put("capture:read", [0x31]);
+        keyspace.CreateSnapshot();
+
+        using var readStarted = new ManualResetEventSlim();
+        using var releaseRead = new ManualResetEventSlim();
+        keyspace.ConfigureDiskReadTestHook(() =>
+        {
+            readStarted.Set();
+            if (!releaseRead.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("test did not release the cancellable disk read");
+        });
+
+        Task<KvEntry?> read = StartDedicated(() => keyspace.GetEntry("capture:read", CancellationToken.None));
+        try
+        {
+            Assert.True(readStarted.Wait(TimeSpan.FromSeconds(10)));
+            Task<long> write = StartDedicated(() => keyspace.Put("capture:unrelated", [0x52]));
+            await write.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseRead.Set();
+        }
+
+        Assert.Equal([0x31], (await read.WaitAsync(TimeSpan.FromSeconds(10)))!.Value.ToArray());
+        Assert.Equal([0x52], keyspace.Get("capture:unrelated"));
+    }
+
     /// <summary>验证 keyspace 释放 owner 时，在途公共点读仍由磁盘租约保护到完成。</summary>
     [Fact]
     public async Task Get_InFlightDispose_KeepsDiskStateAliveUntilReadCompletes()
