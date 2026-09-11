@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using SonnetDB.Documents.Vector;
@@ -1666,7 +1667,13 @@ public sealed partial class DocumentCollectionStore : IDisposable
                         operation.NewRow?.Id ?? operation.OldRow!.Id,
                         documentVersion,
                         operation.OldRow?.Json,
-                        operation.NewRow?.Json),
+                        operation.NewRow?.Json,
+                        operation.Cause,
+                        operation.RequestId,
+                        operation.OperationIndex,
+                        operation.PatchJson ?? (operation.OldRow is not null && operation.NewRow is not null
+                            ? BuildPatchDescription(operation.OldRow.Json, operation.NewRow.Json)
+                            : null)),
                     changedAt.Add(ChangeFeedRetention)));
             }
 
@@ -2266,7 +2273,7 @@ public sealed partial class DocumentCollectionStore : IDisposable
 
         var expiredOperations = new List<PendingDocumentMutation>(expired.Count);
         foreach (var row in expired)
-            expiredOperations.Add(new PendingDocumentMutation(-1, row, NewRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id)));
+            expiredOperations.Add(new PendingDocumentMutation(-1, row, NewRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id), Cause: DocumentChangeCauses.Ttl));
         ApplyPlannedMutationsLocked(_schema, expiredOperations);
     }
 
@@ -2466,7 +2473,12 @@ public sealed partial class DocumentCollectionStore : IDisposable
             }
 
             PrepareMutationLocked(schema, row, newRow, documentKey);
-            operations.Add(new PendingDocumentMutation(-1, row, newRow, documentKey));
+            operations.Add(new PendingDocumentMutation(
+                -1,
+                row,
+                newRow,
+                documentKey,
+                PatchJson: BuildPatchDescription(row.Json, updated)));
             itemIndex++;
         }
 
@@ -2523,6 +2535,46 @@ public sealed partial class DocumentCollectionStore : IDisposable
     private static DocumentValidationResult ValidateDocumentForWrite(DocumentCollectionSchema schema, DocumentRow row)
         => DocumentValidatorExecutor.Validate(schema.Validator, row.Json);
 
+    private static string? BuildPatchDescription(string beforeJson, string afterJson)
+    {
+        const int maxBytes = 8 * 1024;
+        try
+        {
+            using var before = JsonDocument.Parse(beforeJson);
+            using var after = JsonDocument.Parse(afterJson);
+            if (before.RootElement.ValueKind != JsonValueKind.Object || after.RootElement.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var names = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var property in before.RootElement.EnumerateObject()) names.Add(property.Name);
+            foreach (var property in after.RootElement.EnumerateObject()) names.Add(property.Name);
+            var changed = names.Where(name =>
+            {
+                bool hasBefore = before.RootElement.TryGetProperty(name, out var oldValue);
+                bool hasAfter = after.RootElement.TryGetProperty(name, out var newValue);
+                return hasBefore != hasAfter || !hasBefore
+                    || !string.Equals(oldValue.GetRawText(), newValue.GetRawText(), StringComparison.Ordinal);
+            }).Take(128).ToArray();
+            if (changed.Length == 0) return null;
+
+            var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                writer.WritePropertyName("changedPaths");
+                writer.WriteStartArray();
+                foreach (string name in changed) writer.WriteStringValue("$." + name);
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            return buffer.WrittenCount <= maxBytes ? Encoding.UTF8.GetString(buffer.WrittenSpan) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static IReadOnlyList<DocumentWriteError> Combine(
         IReadOnlyList<DocumentWriteError> errors,
         IReadOnlyList<DocumentWriteError> warnings)
@@ -2567,7 +2619,11 @@ public sealed partial class DocumentCollectionStore : IDisposable
         int Index,
         DocumentRow? OldRow,
         DocumentRow? NewRow,
-        byte[] DocumentKey);
+        byte[] DocumentKey,
+        string Cause = DocumentChangeCauses.User,
+        string? RequestId = null,
+        int? OperationIndex = null,
+        string? PatchJson = null);
 
     private sealed record IndexEntry(DocumentPathIndex Index, byte[] Key, byte[] Value);
 

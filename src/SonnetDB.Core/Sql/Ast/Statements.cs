@@ -192,23 +192,46 @@ public sealed record CallProcedureStatement(
     string Name,
     IReadOnlyList<SqlExpression> Arguments) : SqlStatement;
 
-/// <summary>关系表行级触发器事件。</summary>
+/// <summary>关系表触发器事件。</summary>
 public enum SqlTriggerEvent
 {
-    /// <summary>AFTER INSERT。</summary>
+    /// <summary>INSERT。</summary>
     Insert,
-    /// <summary>AFTER UPDATE。</summary>
+    /// <summary>UPDATE。</summary>
     Update,
-    /// <summary>AFTER DELETE。</summary>
+    /// <summary>DELETE。</summary>
     Delete,
 }
+
+/// <summary>关系表触发器执行时机。</summary>
+public enum SqlTriggerTiming
+{
+    /// <summary>行变更缓冲后执行。</summary>
+    After,
+    /// <summary>最终行约束校验前执行受限赋值。</summary>
+    Before,
+}
+
+/// <summary>关系表触发器执行粒度。</summary>
+public enum SqlTriggerLevel
+{
+    /// <summary>每个受影响行执行一次。</summary>
+    Row,
+    /// <summary>每条语句执行一次，包括空影响集。</summary>
+    Statement,
+}
+
+/// <summary>仅供 BEFORE ROW body 使用的 NEW 列赋值。</summary>
+/// <param name="ColumnName">NEW 中待改写的列名。</param>
+/// <param name="Value">受限标量表达式；后续赋值可读取已改写的 NEW。</param>
+public sealed record SetTriggerNewStatement(string ColumnName, SqlExpression Value) : SqlStatement;
 
 /// <summary>
 /// <c>CREATE TRIGGER name AFTER event ON table FOR EACH ROW [WHEN (...)] LANGUAGE SQL AS BEGIN ... END</c>。
 /// </summary>
 /// <param name="Name">触发器名称。</param>
 /// <param name="TableName">目标关系表。</param>
-/// <param name="Event">AFTER 行事件。</param>
+/// <param name="Event">关系表变更事件。</param>
 /// <param name="When">可选只读行条件。</param>
 /// <param name="WhenSql">可选条件的规范化 SQL。</param>
 /// <param name="Body">已经解析的受限 SQL body。</param>
@@ -228,6 +251,18 @@ public sealed record CreateTriggerStatement(
     public string? RelativeTo { get; init; }
     /// <summary>为 true 时排在参照之前，否则排在其后。</summary>
     public bool Precedes { get; init; }
+    /// <summary>执行时机；默认保持 AFTER 兼容。</summary>
+    public SqlTriggerTiming Timing { get; init; }
+    /// <summary>执行粒度；默认保持 FOR EACH ROW 兼容。</summary>
+    public SqlTriggerLevel Level { get; init; }
+    /// <summary>REFERENCING OLD TABLE AS 声明的只读语句快照别名。</summary>
+    public string? OldTableName { get; init; }
+    /// <summary>REFERENCING NEW TABLE AS 声明的只读语句快照别名。</summary>
+    public string? NewTableName { get; init; }
+    /// <summary>是否为 AFTER ROW 约束触发器；当前必须同时设置 InitiallyDeferred。</summary>
+    public bool IsConstraint { get; init; }
+    /// <summary>是否延迟到事务提交；当前仅接受 DEFERRABLE INITIALLY DEFERRED 约束触发器。</summary>
+    public bool InitiallyDeferred { get; init; }
 }
 
 /// <summary>触发器生命周期操作。</summary>
@@ -605,6 +640,8 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>关系表 INSERT SELECT 的查询源；与 VALUES 互斥。</summary>
+    public SelectStatement? Query { get; init; }
     /// <summary>
     /// 是否为 <c>INSERT INTO table DEFAULT VALUES</c>。
     /// 为保持既有构造器与解构 API 兼容，该语法通过 init 属性标记。

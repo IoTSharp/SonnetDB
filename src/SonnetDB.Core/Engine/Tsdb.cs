@@ -42,6 +42,8 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
+    private readonly object _measurementBatchSync = new();
+    private readonly MeasurementBatchLedger _measurementBatchLedger;
     // 锁序固定为 _schemaSync（外）→ _writeSync / 各模型 manager（内）。
     // 隐式 measurement 建立、跨模型 DDL 与备份均持有 schema 锁，保证名称检查和发布不可交错。
     private readonly object _schemaSync = new();
@@ -363,7 +365,8 @@ public sealed class Tsdb : IDisposable
         HashSet<ulong> seriesWithWalRecord,
         SegmentManager segmentManager,
         long checkpointLsn,
-        bool catalogDirty)
+        bool catalogDirty,
+        MeasurementBatchLedger measurementBatchLedger)
     {
         _options = options;
         _sqlMemoryBudget = new SqlGlobalMemoryBudget(options.SqlMemory.GlobalLimitBytes);
@@ -376,6 +379,7 @@ public sealed class Tsdb : IDisposable
         _nextSegmentId = nextSegmentId;
         _seriesWithWalRecord = seriesWithWalRecord;
         _catalogDirty = catalogDirty;
+        _measurementBatchLedger = measurementBatchLedger;
         Segments = segmentManager;
         _flushCoordinator = new FlushCoordinator(options);
         _walGroupCommit = new WalGroupCommitCoordinator(options.WalGroupCommit);
@@ -518,7 +522,8 @@ public sealed class Tsdb : IDisposable
                 seriesWithWalRecord,
                 segmentManager,
                 checkpointLsn,
-                catalogDirty);
+                catalogDirty,
+                MeasurementBatchLedger.Load(TsdbPaths.MeasurementBatchLedgerPath(root)));
 
             // 加载墓碑清单（文件不存在时返回空集合）
             tsdb.Tombstones.LoadFrom(manifestTombstones);
@@ -750,6 +755,79 @@ public sealed class Tsdb : IDisposable
             count++;
         }
         return count;
+    }
+
+    /// <summary>
+    /// 以稳定批次标识写入 measurement。相同标识和相同 payload 的重放返回 0，
+    /// 相同标识但 payload 不同则拒绝，账本在成功写入后持久化并随数据库重开恢复。
+    /// </summary>
+    /// <param name="points">批次中的点。</param>
+    /// <param name="batchId">调用方生成的稳定批次标识（ASCII，1-256 字符）。</param>
+    /// <returns>首次提交实际写入的点数；幂等重放返回 0。</returns>
+    public int WriteMany(ReadOnlySpan<Point> points, string batchId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(batchId);
+        if (batchId.Length > 256 || batchId.Any(static c => c < 0x21 || c > 0x7e || c == '\t'))
+            throw new ArgumentException("Batch ID must contain 1-256 printable ASCII characters.", nameof(batchId));
+        if (points.IsEmpty)
+            return 0;
+
+        string fingerprint = MeasurementBatchLedger.Fingerprint(points);
+        lock (_measurementBatchSync)
+        {
+            if (_measurementBatchLedger.TryGet(batchId, out string? existing))
+            {
+                if (!string.Equals(existing, fingerprint, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"Measurement batch '{batchId}' was already committed with a different payload.");
+                if (_measurementBatchLedger.IsCommitted(batchId))
+                    return 0;
+
+                // A crash can leave a durable pending marker after WAL append. Reconcile
+                // against the current read view and only append fields that are absent.
+                var missing = new List<Point>(points.Length);
+                foreach (Point point in points)
+                {
+                    if (point is null)
+                        continue;
+                    var absentFields = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
+                    var entry = Catalog.GetOrAdd(point);
+                    foreach (var field in point.Fields)
+                    {
+                        bool present = Query.Execute(new PointQuery(
+                            entry.Id,
+                            field.Key,
+                            new TimeRange(point.Timestamp, checked(point.Timestamp + 1)),
+                            Limit: 8)).Any(dataPoint => dataPoint.Value == field.Value);
+                        if (!present)
+                            absentFields[field.Key] = field.Value;
+                    }
+                    if (absentFields.Count > 0)
+                        missing.Add(Point.Create(point.Measurement, point.Timestamp, point.Tags, absentFields));
+                }
+
+                int repaired = missing.Count == 0 ? 0 : WriteMany(missing.ToArray());
+                _measurementBatchLedger.Commit(batchId, fingerprint);
+                return repaired;
+            }
+
+            // Persist intent before WAL writes. Recovery can distinguish a committed
+            // batch from an interrupted write and reconcile the latter without replaying
+            // already durable fields.
+            _measurementBatchLedger.Prepare(batchId, fingerprint);
+            int written = WriteMany(points);
+            _measurementBatchLedger.Commit(batchId, fingerprint);
+            return written;
+        }
+    }
+
+    /// <summary>以稳定批次标识写入 measurement 的集合重载。</summary>
+    public int WriteMany(IEnumerable<Point> points, string batchId)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (points is Point[] array)
+            return WriteMany(array, batchId);
+        var materialized = points.ToArray();
+        return WriteMany(materialized, batchId);
     }
 
     /// <summary>

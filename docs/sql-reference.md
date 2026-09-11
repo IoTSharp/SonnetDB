@@ -314,11 +314,11 @@ DROP PROCEDURE IF EXISTS add_device;
 - 写权限按完整调用图传递计算。只读凭据可调用只读过程，不能通过外层只读过程调用内层写过程提升权限；Frame SQL query 通道固定为只读，因此也只能调用只读过程。
 - `CREATE/DROP PROCEDURE` 不能在活动轻事务中执行。基础对象 `DROP/ALTER` 和被调用过程 `DROP` 会在仍有依赖时返回 `routine_dependency`。
 
-过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。当前 v2 持久化启用状态与执行顺序，兼容读取 v1；写入 v2 后旧引擎会拒绝打开例程目录。
+过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。当前 v4 在启用状态、执行顺序、时机、粒度和 transition table 别名之外持久化约束/延迟标志，兼容读取 v1/v2/v3（旧定义默认为立即触发器）。修改目录后写入 v4，旧引擎会拒绝打开，不可直接降级；未知标志或不一致组合也会被拒绝。主数据文件、KV/WAL 及关系事务 journal 格式不变。
 
 ### SQL 触发器
 
-触发器首版只支持关系表 `AFTER INSERT`、`AFTER UPDATE`、`AFTER DELETE` 的 `FOR EACH ROW` 语义。每个定义只绑定一个事件，`OLD` / `NEW` 是只读行上下文。
+关系表触发器支持 `AFTER INSERT/UPDATE/DELETE FOR EACH ROW`、`AFTER INSERT/UPDATE/DELETE FOR EACH STATEMENT`、受限 `BEFORE INSERT/UPDATE FOR EACH ROW`，以及下述提交阶段执行的延迟约束 AFTER ROW 触发器。每个定义只绑定一个事件；AFTER 中的 `OLD` / `NEW` 是只读行上下文，BEFORE 仅能通过下述受限赋值修改 NEW。
 
 ```sql
 CREATE TRIGGER audit_device_insert
@@ -370,17 +370,140 @@ DROP TRIGGER IF EXISTS audit_insert;
 当前语义与限制：
 
 - INSERT 事件只能引用 `NEW`，DELETE 事件只能引用 `OLD`，UPDATE 可同时引用两者。`WHEN` 中的列必须显式写为 `OLD.column` / `NEW.column`，不允许参数或子查询。
-- body 只允许以关系表为目标的 `INSERT`、`UPDATE`、`DELETE`，不允许 SELECT、CALL、DDL、measurement/document 写入或外部副作用。
-- 执行顺序先按原 DML 行顺序，再按同表同事件的持久化执行顺序；新触发器默认追加。`FOR EACH ROW FOLLOWS name` / `PRECEDES name` 位于可选 WHEN 之前；也可用 `ALTER TRIGGER name FOLLOWS other` / `PRECEDES other` 原子移动到参照之前或之后。参照必须是另一个同表同事件的已有触发器，禁用定义仍保留位置；重命名和启停保留创建时间与顺序。这是位置调整，不是随参照后续变化而自动移动的依赖边。触发器链共享语句数和深度预算，拒绝递归。
-- 原 DML 与全部触发动作使用同一轻事务提交边界。任一 `WHEN` 求值、body 执行或最终约束提交失败都会撤销原行和触发动作；调用方已有事务中则回滚到本条 DML 的保存点。
+- AFTER body 只允许以关系表为目标的 `INSERT`、`UPDATE`、`DELETE`，可在 DML 内嵌 SELECT，不允许独立 SELECT、CALL、DDL 或 measurement/document 写入；BEFORE body 使用下述 SET NEW 合同。
+- 执行顺序先按原 DML 行顺序，再按组内持久化执行顺序；新触发器默认追加。`FOR EACH ROW FOLLOWS name` / `PRECEDES name` 位于可选 WHEN 之前；也可用 `ALTER TRIGGER name FOLLOWS other` / `PRECEDES other` 原子移动到参照之前或之后。参照必须是另一个同表、同事件、同时机、同粒度、同执行阶段（立即或延迟）的已有触发器，禁用定义仍保留位置；重命名和启停保留创建时间与顺序。这是位置调整，不是随参照后续变化而自动移动的依赖边；没有额外的命名 order group 语法。触发器链共享语句数和深度预算，拒绝递归。
+- 原 DML 与全部触发动作使用同一轻事务提交边界。语句执行中的 `WHEN` 或 body 失败会撤销本条 DML 及其动作；调用方已有事务时使用内部保存点。COMMIT 阶段的延迟动作或最终约束失败则结束并回滚整笔事务。
 - 目标表或 body 依赖的关系表仍被触发器引用时，`DROP/ALTER` 会被阻断，包括已禁用的触发器。`CREATE/DROP/ALTER TRIGGER` 需要写权限，不能在活动轻事务中执行。每条 DML 固定使用进入时的定义快照，后续生命周期修改不会改变该条语句中途的触发集合。
-- 不支持 BEFORE、FOR EACH STATEMENT、transition tables、deferred/constraint trigger、多事件合并、Document 或 measurement 触发器。这些能力仍按 M39 的成本与模型证据准入，不能由关系表测试推断支持。
+- 不支持 BEFORE DELETE、BEFORE STATEMENT、INSTEAD OF、多事件合并、Document 或 measurement 触发器；延迟约束触发器仅支持下述固定语法，不提供通用 deferred、`INITIALLY IMMEDIATE` 或 `SET CONSTRAINTS`。
 
-诊断中的 `outcome` 区分 `pending`、`committed`、`rolled_back`、`failed`、`unknown` 和无需事务提交的 `completed`。待提交记录的 `succeeded=false` 不计作失败；外层事务失败、显式回滚和请求放弃会结算全部下游动作。审计最多保留 256 条，STATS 的样本数和 P50/P95/P99 只统计这个保留窗口，并非自创建以来的完整历史。`RoutineManager.Diagnostics.ExportAudit(Stream, ...)` 可把脱敏快照保存为 JSON，既不是持久审计后台服务，也不是 exactly-once 增量订阅；导出 `pending` 后应在提交结束后重新导出其最终状态。EXPLAIN 只校验定义与对象依赖，不执行 body，也不提供 EXPLAIN ANALYZE 例程写入。
+#### 语句级触发器与 Transition Tables（#335）
 
-嵌入式沿用 `SqlExecutionOptions`。服务器配置 `SonnetDBServer:SqlExecution:MaxRoutineStatements`（1..100000）、`MaxRoutineDepth`（1..32）、`MaxRoutineResultRows`（1..100000）对 REST/Frame 一致生效，默认仍为 64/8/10000。每行一个触发动作的 10000 行批量请求需要显式提高语句预算，例如 10064；预算包含嵌套触发器链，必须按实际工作负载留量。提交临界区开始后的取消不会强行中断持久化决定。
+```sql
+CREATE TABLE batch_totals (id INT, amount INT, PRIMARY KEY (id));
+INSERT INTO batch_totals (id, amount) VALUES (1, 0);
+CREATE TRIGGER sum_inserted AFTER INSERT ON orders
+REFERENCING NEW TABLE AS incoming
+FOR EACH STATEMENT LANGUAGE SQL AS BEGIN
+    UPDATE batch_totals
+    SET amount = amount + (SELECT COALESCE(SUM(amount), 0) FROM incoming)
+    WHERE id = 1;
+END;
+```
 
-嵌入式调用可通过 `RoutineManager.Diagnostics` 读取最近 256 条不含参数值/行内容的调用审计和累计指标。Server `/metrics` 按数据库公开 `sonnetdb_procedure_*` 与 `sonnetdb_trigger_*` 调用、失败和累计耗时指标。稳定错误码包括 `procedure_not_found`、`trigger_not_found`、`routine_invalid_arguments`、`routine_recursive_call`、`trigger_recursion`、`routine_depth_limit`、`routine_statement_limit`、`routine_result_row_limit`、`routine_cancelled`、`routine_forbidden`、`routine_dependency`、`trigger_context` 和 `routine_execution_failed`。
+- 分发顺序为：对全部候选行执行 BEFORE 与缓冲准备、所有 AFTER ROW 动作、所有 AFTER STATEMENT 动作、提交时检查最终约束。同组遵循持久化顺序。后续链上 DML 是独立触发语句。
+- AFTER STATEMENT 对空影响集也执行一次；无匹配行的 UPDATE/DELETE 和空 `INSERT SELECT` 均属于空影响集。失败的源语句不继续分发 AFTER。
+- UPDATE 可声明 `REFERENCING OLD TABLE AS previous NEW TABLE AS incoming`；INSERT 只有 NEW TABLE，DELETE 只有 OLD TABLE。REFERENCING 位于 ON table 与 FOR EACH 之间，可省略；别名不能重复或与创建时已有数据对象重名，不能是 OLD、NEW 或目标表名。
+- 快照只含本条语句实际影响的行，保留该语句改写前/最终改写后的配对数据，包含 BEFORE 的修改及生成后的 ROWVERSION。它不包含同事务其他语句或后续触发器链的修改。没有隐式行序保证；有顺序需求时使用 ORDER BY。
+- 别名仅在所属触发器 body 内可见，嵌套触发器隔离并在返回后恢复调用方快照；不能作为 INSERT/UPDATE/DELETE 目标。可用于 SELECT 聚合、JOIN、子查询，以及 `INSERT INTO table (columns) SELECT ...`。UPDATE 赋值支持非相关的单列标量子查询，返回多行时报错；INSERT 的查询取值使用 `INSERT SELECT`，不支持 `VALUES (子查询)`。语句级触发器不提供 OLD/NEW 行变量或行级 WHEN，过滤放在查询内。
+- transition set 复用事务持有的不可变行图像，不额外复制整个 OLD/NEW 集合。默认调用链同时存活的集合最多 100,000 行（UPDATE 一对计一行）、64 MiB 保守内存估算，包含嵌套集合；超过任一上限返回 `trigger_transition_limit` 并撤销本条语句。此版本采用硬上限拒绝，不将 transition set 溢写到磁盘。
+- 关系表 INSERT SELECT 的输出也受上述行数/字节预算约束，整条 INSERT 只触发一次；聚合/JOIN/排序沿用 SQL 阻塞算子独立内存治理。它不扩展到 measurement 或 Document 写入。
+
+#### 受控 BEFORE（#336）
+
+```sql
+CREATE TRIGGER normalize_order BEFORE INSERT ON orders
+FOR EACH ROW LANGUAGE SQL AS BEGIN
+    SET NEW.customer = LOWER(COALESCE(NEW.customer, 'unknown'));
+    SET NEW.amount = CASE WHEN NEW.amount < 0 THEN 0 ELSE NEW.amount END;
+END;
+```
+
+典型用途是把订单标识/金额归一化为满足 NOT NULL、唯一性和 CHECK 的最终值，而不是在 AFTER 中再次写同一行。
+
+1. INSERT 输入先按目标列类型转换并计算 DEFAULT，然后预留 AUTO_INCREMENT；UPDATE 的原 SET 右值全部读取原行，先生成候选 NEW。
+2. 依次执行 BEFORE 的 WHEN 和 `SET NEW.column = expression`。同一 body 的后续赋值、后续触发器都读取前面修改后的 NEW；OLD 始终为原行。WHEN 为 false/NULL 时跳过该触发器。
+3. 生成 ROWVERSION 并检查最终 NOT NULL，然后缓冲最终行；INSERT 的版本为 1，UPDATE 在原版本上加一。生成后的 NEW 对 AFTER 可见。BEFORE 不允许读取尚未生成的 NEW.ROWVERSION，可以读取 OLD.ROWVERSION。
+4. 提交时仍检查主键、唯一索引、外键、CHECK 和乐观并发原行状态；NEW 主键或外键允许改写，但不能绕过这些检查。失败撤销源行及全部触发器动作；已有事务退回本语句保存点。自增预留沿用现有合同，失败可产生序列空洞。
+
+BEFORE body 仅接受逐条 `SET NEW.column = expression`。表达式限字面量、OLD/NEW 列、算术/比较/逻辑、CASE、IS NULL、常量 IN 列表和 LOWER/UPPER/COALESCE；拒绝子查询、CALL、任意 DML、UDF/外部函数和 OLD 赋值。AUTO_INCREMENT 与 ROWVERSION 都是引擎生成列，不允许改写；任意计算生成列表达式仍未支持。预算、取消、递归保护和审计沿用例程调用链合同。
+
+`SqlExecutionOptions.MaxTriggerTransitionRows` / `MaxTriggerTransitionBytes` 可设置嵌入式预算；服务器对应 `SonnetDBServer:SqlExecution` 下同名属性，分别限制为 1..100000 与 1..134217728，默认 100000/67108864，REST/Frame 使用相同服务端值。`SHOW/DESCRIBE TRIGGER` 在既有列后追加 `timing`、`level`、`old_table`、`new_table`。
+
+执行前也检查 transition 别名冲突；若创建触发器后又创建同名数据对象，触发器返回 `routine_dependency` 并回滚源语句，避免优化器把快照误当成持久表。
+
+#### 延迟约束触发器（#338）
+
+下面的一次余额转移由两条 UPDATE 组成。提交时两次检查均读取最终总额 100；若改为普通立即 AFTER 触发器，同一检查体会保存第一条 UPDATE 后的中间总额 90，使最终 CHECK 失败。示例检查表的主键仅用于这一次转移；实际业务应为每个检查事件设计独立键或更新同一检查记录。
+
+```sql
+CREATE TABLE accounts (id INT, balance INT, PRIMARY KEY (id));
+INSERT INTO accounts (id, balance) VALUES (1, 40), (2, 60);
+CREATE TABLE balance_checks (
+    id INT, total INT, PRIMARY KEY (id), CHECK (total = 100));
+CREATE CONSTRAINT TRIGGER balanced AFTER UPDATE ON accounts
+DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+LANGUAGE SQL AS BEGIN
+    INSERT INTO balance_checks (id, total)
+    SELECT NEW.id, total
+    FROM (SELECT SUM(balance) AS total FROM accounts) AS totals;
+END;
+BEGIN;
+UPDATE accounts SET balance = 30 WHERE id = 1;
+UPDATE accounts SET balance = 70 WHERE id = 2;
+COMMIT;
+```
+
+约束触发器必须同时声明 `DEFERRABLE INITIALLY DEFERRED`，仅支持 `AFTER INSERT/UPDATE/DELETE ... FOR EACH ROW`；FOR EACH ROW 后可接同阶段 `FOLLOWS/PRECEDES` 和 `WHEN`。普通触发器不能声明 DEFERRABLE；拒绝部分声明、`INITIALLY IMMEDIATE`、`SET CONSTRAINTS`、BEFORE/STATEMENT 约束触发器及其 transition tables，也没有 `AFTER COMMIT` SQL 语法。
+
+- 源 DML 按语句顺序、实际行顺序和组内持久化触发器顺序入队；空影响集不产生行事件。COMMIT 在持久化前按 FIFO 执行，body 新产生的事件追加到队尾。同一行被多次更新或最终删除也不会合并此前事件。
+- 每个事件捕获自己的 OLD/NEW，包括 BEFORE 改写及对应 ROWVERSION。`WHEN` 在 COMMIT 求值，但读取捕获图像；body 查询读取当时已提交基线、本事务最终缓冲和前面延迟动作的变更。已有 FK 级联先展开到缓冲，之后新增删除会再展开；自动级联动作仍不派发合成 SQL 行事件。延迟 body 随后重插父行不会恢复已执行 CASCADE/SET NULL 的子行变化。
+- 无显式事务的 DML 自动入队并提交。已有事务中的源语句或过程失败，其内部保存点同时撤销新增 mutation、事件和内存计费，保留更早成功语句；未增加 SQL `SAVEPOINT` 语法。COMMIT 期间的 body、预算、取消、依赖或约束失败回滚整笔事务；ROLLBACK 和被放弃的脚本清空队列。
+- 已入队事件保留定义、原 caller 和调用祖先链。随后启停、重命名、排序或删除定义只影响后续 DML；依赖表 schema 被替换、删除或重建时，提交以 `routine_dependency` 拒绝过期依赖。
+- body 只允许基础关系表 INSERT/UPDATE/DELETE 及受支持的纯 SQL 查询和内置函数；提交中间接执行的普通触发器也接受此校验。禁止 UDF、被用户覆盖的内置函数、应用表值回调、CALL、DDL、独立 SELECT、视图、文件/JSON_FILE/GRAPH_TABLE 及其他数据模型入口。
+
+| `SqlExecutionOptions` 选项 | 默认值 | 范围与用途 |
+|---|---:|---|
+| `MaxDeferredTriggerInvocations` | 100000 | 1..100000；同事务保留事件数量上限 |
+| `MaxDeferredTriggerBytes` | 67108864 | 正值；保守计费 OLD/NEW、定义和祖先链，Server 上限 134217728 |
+| `TransactionCommitTimeoutMilliseconds` | 30000 | 1..120000；提交锁等待和协作执行期限 |
+
+Server 使用 `SonnetDBServer:SqlExecution` 下同名设置，REST/Frame 一致生效。队列使用各源请求的最严格上限，COMMIT 可进一步收紧；延迟执行保留原调用链的语句、深度和结果行预算，不能用新的 COMMIT 重置计费或提高源请求上限。原请求与提交请求的取消均生效。队列或每次级联展开的 100000 行上限触发 `trigger_deferred_limit`，锁等待或执行期限超限触发 `routine_commit_timeout`。
+
+最终状态检查与写入在同一 `TableManager` 提交锁内串行，仍检查 `table_concurrency_conflict`；这覆盖同实例、同库的 SQL/TableManager 提交路径，直接 TableStore 调用仍绕过 SQL 触发器。锁等待最多 2401 次、每次至多 50 ms，并有独立 120 秒上限；当前没有行锁死锁图。超时与取消为协作检查，不能强制终止同步 I/O。队列字节预算也不是整笔事务的峰值内存上限，既有级联候选扫描仍可能先物化数据，聚合/JOIN/排序使用独立 SQL 内存治理。
+
+`SHOW/DESCRIBE TRIGGER` 在既有列后追加 `is_constraint`、`initially_deferred`。入队不代表 body 已执行成功；最终提交成功后才报告 committed。持久化或补偿结果未知时沿用下述 `routine_commit_unknown` 合同，直接嵌入式 COMMIT 也可能抛出 `TableTransactionRecoveryException`，须关闭重开并按幂等键核对。
+
+#### 提交后的显式 outbox（#338）
+
+外部投递由宿主在源 SQL 结束后显式调用 `SonnetDB.Routines.SqlOutboxWorker`。构造器创建或校验专用 `sql_outbox` 关系表；生产者只写稳定的 `event_id`、`topic` 和 `payload`，工作器管理其余状态列。以下为执行一次生产事务并处理一个批次的 C# 示例：`db` 是已打开的 `Tsdb`，`deliverIdempotently` 是宿主提供的 `Func<SqlOutboxMessage, CancellationToken, ValueTask>`，必须按 EventId 幂等并遵守取消令牌。
+
+```csharp
+using SonnetDB.Routines;
+using SonnetDB.Sql.Execution;
+
+var worker = new SqlOutboxWorker(db, new SqlOutboxWorkerOptions
+{
+    MaxBatchSize = 32,
+    BatchTimeout = TimeSpan.FromSeconds(30),
+    MaxAttempts = 5,
+});
+SqlExecutor.ExecuteScript(db, """
+    CREATE TABLE published_orders (id INT, PRIMARY KEY (id));
+    BEGIN;
+    INSERT INTO published_orders (id) VALUES (1);
+    INSERT INTO sql_outbox (event_id, topic, payload)
+    VALUES ('order-created-1', 'order.created', '{"orderId":1}');
+    COMMIT;
+    """);
+SqlOutboxBatchResult result = await worker.ProcessBatchAsync(
+    deliverIdempotently, cancellationToken);
+```
+
+outbox 插入也可放入源表 SQL 触发器，与源 DML 原子提交；外部投递和 ACK 在另一个提交边界。构造器及 `ProcessBatchAsync` 禁止从活动 SQL 事务、SQL 函数或例程回调中重入。工作器在领取已提交并同步 WAL 后、数据库锁之外执行 handler，不启动后台线程或自动轮询。
+
+状态为 `pending`、`leased`、`done`、`dead`，时间字段为 Unix 毫秒。领取持久化次数和租约，默认租约一分钟；ACK 必须匹配未过期的租约 token。失败按有上限的指数退避重试，默认最多领取五次，达到次数或正文上限进入 dead。领取、ACK、重试状态返回前均显式同步 outbox WAL；源事件持久性仍遵循源事务配置。状态同步失败返回未知结果并禁止继续使用该表，必须重开恢复。
+
+投递成功但 ACK 前崩溃，或租约过期后重新领取，都可能重复投递相同 EventId，因此合同是 **at-least-once**；消费者须自行去重，旧 handler 不能确认新租约。done/dead 行保留供审计，清理与人工重投由宿主负责。取消后保留未确认租约以待过期恢复；超时只停止等待，无法强制终止不协作的 handler。
+
+每批默认最多 32 个候选，范围 1..1000；默认 30 秒协作期限，最高两分钟。数量限制约束选出的候选和处理尝试，**不限制历史行扫描量**，查询仍可能扫描保留的 outbox 表。`SqlOutboxBatchResult` 分别报告 Claimed、Delivered、Retried、DeadLettered、LeaseLost。完整边界和本次验证状态见 [#338 验收记录](audits/m39-338-20260908.md)。
+
+#### 例程诊断、预算与恢复
+
+诊断中的 `outcome` 区分 `pending`、`committed`、`rolled_back`、`failed`、`unknown` 和无需事务提交的 `completed`。待提交记录的 `succeeded=false` 不计作失败；外层事务失败、显式回滚和请求放弃会结算全部下游动作。审计最多保留 256 条，STATS 的样本数和 P50/P95/P99 只统计这个保留窗口，并非自创建以来的完整历史。`RoutineManager.Diagnostics.ExportAudit(Stream, ...)` 可把脱敏快照保存为 JSON，既不是持久审计后台服务，也不是 exactly-once 增量订阅；导出 `pending` 后应在提交结束后重新导出其最终状态。EXPLAIN 只校验定义与对象依赖，不执行 body，也不证明最终业务约束一定成立；没有 EXPLAIN ANALYZE 例程写入。其 `transaction_boundary` 对延迟约束触发器返回 `relational_commit_before_persistence`，普通写例程返回 `relational_transaction_or_caller_savepoint`，只读过程返回 `caller_read_committed`。
+
+嵌入式沿用 `SqlExecutionOptions`。服务器配置 `SonnetDBServer:SqlExecution:MaxRoutineStatements`（1..100000）、`MaxRoutineDepth`（1..32）、`MaxRoutineResultRows`（1..100000）对 REST/Frame 一致生效，默认仍为 64/8/10000。每行一个触发动作的 10000 行批量请求需要显式提高语句预算，例如 10064；预算包含嵌套触发器链，必须按实际工作负载留量。提交锁等待及延迟执行期间检查取消；持久化决定开始后不再强行中断同步日志操作。
+
+嵌入式调用可通过 `RoutineManager.Diagnostics` 读取最近 256 条不含参数值/行内容的调用审计和累计指标。Server `/metrics` 按数据库公开 `sonnetdb_procedure_*` 与 `sonnetdb_trigger_*` 调用、失败和累计耗时指标。稳定错误码包括 `procedure_not_found`、`trigger_not_found`、`routine_invalid_arguments`、`routine_recursive_call`、`trigger_recursion`、`routine_depth_limit`、`routine_statement_limit`、`routine_result_row_limit`、`trigger_transition_limit`、`trigger_deferred_limit`、`routine_commit_timeout`、`routine_cancelled`、`routine_forbidden`、`routine_dependency`、`trigger_context` 和 `routine_execution_failed`；表约束失败保留其 `TableConstraintException.ErrorCode`。
 
 M39 #333 的证据入口位于 `tests/SonnetDB.Benchmarks`：`--m39-trigger-evidence` 会固定审计 outbox、
 派生汇总和状态流转保护 journey，并以 1/100/10,000 行 INSERT、UPDATE、DELETE 记录无触发器、V1 行触发器和客户端候选

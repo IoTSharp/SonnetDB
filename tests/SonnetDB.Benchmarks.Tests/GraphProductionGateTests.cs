@@ -618,7 +618,9 @@ public sealed class GraphProductionGateTests : IDisposable
             TimeoutSeconds = 60,
         };
 
-    private GraphProductionGateInput CreatePassingInput()
+    internal string ArtifactDirectory => _artifactDirectory;
+
+    internal GraphProductionGateInput CreatePassingInput(bool preview = false)
     {
         DateTimeOffset finishedUtc = DateTimeOffset.UtcNow.AddHours(-1);
         DateTimeOffset startedUtc = finishedUtc.AddHours(-168);
@@ -769,16 +771,24 @@ public sealed class GraphProductionGateTests : IDisposable
             Artifact = soakReference,
         };
 
-        GraphProductionJourneyEvidence[] journeys = GraphProductionGateEvaluator.GetRequiredJourneyIds()
+        GraphProductionJourneyEvidence[] journeys = (preview
+                ? GraphPreviewGateEvaluator.GetRequiredJourneyIds()
+                : GraphProductionGateEvaluator.GetRequiredJourneyIds())
             .Select(id => CreatePassingJourney(id, run))
             .ToArray();
-        GraphProductionCheckEvidence[] correctness = GraphProductionGateEvaluator.GetRequiredCorrectnessCheckIds()
+        GraphProductionCheckEvidence[] correctness = (preview
+                ? GraphPreviewGateEvaluator.GetRequiredCorrectnessCheckIds()
+                : GraphProductionGateEvaluator.GetRequiredCorrectnessCheckIds())
             .Select(id => CreatePassingCheck(id, "correctness", run))
             .ToArray();
-        GraphProductionCheckEvidence[] performance = GraphProductionGateEvaluator.GetRequiredPerformanceCheckIds()
+        GraphProductionCheckEvidence[] performance = (preview
+                ? GraphPreviewGateEvaluator.GetRequiredPerformanceCheckIds()
+                : GraphProductionGateEvaluator.GetRequiredPerformanceCheckIds())
             .Select(id => CreatePassingCheck(id, "performance", run))
             .ToArray();
-        GraphProductionGapEvidence[] gaps = GraphProductionGateEvaluator.GetRequiredGapIds()
+        GraphProductionGapEvidence[] gaps = (preview
+                ? GraphPreviewGateEvaluator.GetRequiredGapIds()
+                : GraphProductionGateEvaluator.GetRequiredGapIds())
             .Select(id => new GraphProductionGapEvidence
             {
                 Id = id,
@@ -953,7 +963,7 @@ public sealed class GraphProductionGateTests : IDisposable
             ExitCode = 0,
         };
 
-    private GraphProductionArtifactEvidence WriteArtifact<T>(
+    internal GraphProductionArtifactEvidence WriteArtifact<T>(
         string fileName,
         T artifact,
         JsonTypeInfo<T> typeInfo,
@@ -964,7 +974,7 @@ public sealed class GraphProductionGateTests : IDisposable
         return CreateReference(fileName, run);
     }
 
-    private GraphProductionArtifactEvidence CreateReference(
+    internal GraphProductionArtifactEvidence CreateReference(
         string fileName,
         GraphProductionArtifactRun run)
     {
@@ -983,7 +993,7 @@ public sealed class GraphProductionGateTests : IDisposable
         };
     }
 
-    private T ReadArtifact<T>(GraphProductionArtifactEvidence reference, JsonTypeInfo<T> typeInfo)
+    internal T ReadArtifact<T>(GraphProductionArtifactEvidence reference, JsonTypeInfo<T> typeInfo)
         where T : class
     {
         using FileStream stream = File.OpenRead(Path.Combine(_artifactDirectory, reference.Path));

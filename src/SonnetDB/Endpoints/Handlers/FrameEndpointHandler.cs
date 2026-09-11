@@ -489,6 +489,11 @@ internal static class FrameEndpointHandler
                     MaxRoutineStatements = routineOptions.MaxRoutineStatements,
                     MaxRoutineDepth = routineOptions.MaxRoutineDepth,
                     MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
+                    MaxTriggerTransitionRows = routineOptions.MaxTriggerTransitionRows,
+                    MaxTriggerTransitionBytes = routineOptions.MaxTriggerTransitionBytes,
+                    MaxDeferredTriggerInvocations = routineOptions.MaxDeferredTriggerInvocations,
+                    MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
+                    TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
                     Metrics = executionMetrics,
                 });
             executionSnapshot = executionMetrics?.Complete();

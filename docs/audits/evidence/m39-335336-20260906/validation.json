@@ -1,0 +1,137 @@
+{
+  "recordedAt": "2026-09-06T03:33:43.8341858+08:00",
+  "uniquePassedTests": 1266,
+  "runs": [
+    {
+      "report": "results/m39-core.trx",
+      "passed": 81,
+      "failed": 0
+    },
+    {
+      "report": "results/m39-sql-tables.trx",
+      "passed": 1248,
+      "failed": 0
+    },
+    {
+      "report": "results/m39-server.trx",
+      "passed": 16,
+      "failed": 0
+    },
+    {
+      "report": "results/m39-crash.trx",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "report": "results/m39-final-targeted.trx",
+      "passed": 58,
+      "failed": 0
+    }
+  ],
+  "archive": "test-evidence.zip",
+  "archiveSha256": "072FEA8E40B12796937F0AB0F3737B30FF2B6B419C5351B749F12C293770BF5D",
+  "nativeAotPublishExecuted": false,
+  "remoteCiExecuted": false,
+  "sources": [
+    {
+      "path": "src/SonnetDB.Core/Exceptions/RoutineExecutionException.cs",
+      "sha256": "4CD3FE9650B06955B3C9677132CF028A22B2E295E3A029DDB6C4E9FA341175EB"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineCatalogCodec.cs",
+      "sha256": "839D8333782750A7F41DFF3FBC954142C9981337BE13113ACC6DB049E595F3A1"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineManager.cs",
+      "sha256": "212D4125DA97250133BF6D4E03E3AFCDFF293721725F2E474C345E69A8AB9146"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineRowBinder.cs",
+      "sha256": "75CA3E5FE11EEEB8C7E65156AD81300A818948B79FCB0A0F12092B0A0A5FFE05"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineAnalysis.cs",
+      "sha256": "7ADFEFA8901237662C6C6399906776C92F03A3BD8E893CE500773630DCB628E0"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+      "sha256": "7F976839836836ABF900BD155218D4EF57FFF7FBE3DD37226E6BD6E51670B201"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/TriggerDefinition.cs",
+      "sha256": "E780FD5361D981A84EB9EA706F9DDF84164DE9F3DA210C05B9A65BD51B4D13B9"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/TriggerTransitionTables.cs",
+      "sha256": "29B99767B3484FD15A23369FC00C4FBB860FB85156FE2BE5F9CD5C1C8AE8E69A"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+      "sha256": "3C38A99C5C48C0632823286AAC8C29B120F3EB00D872C6B24D76414BC64C99A9"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "AA5A6A3CCBD92F8492B622E270A2E662D58EA971B22B1A3531E1DD1A7E8F0B8F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "66CEC315EF9BBE8BAE69511DBADCCCE10ADDEEF511D34FA3AA21F9EA748D8B67"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "617C4392DD0ED87249FD6AB79F9A8220F9AF42F43C010AA6FA04DFA840F8B591"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableInSubqueryExecutor.cs",
+      "sha256": "4C2C895EBD555A7779D1CD94D7514A1527B6762AEA054C75D12E3BDA48C077B3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "DCAE6DD5130140B080805A7B7303441BD4CBFF9FBBA1FD1C8DA6F1AE3CDB9E2B"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+      "sha256": "25BCBBB39993B66213AC9BC81CDC07096AFBD7703E5B1E1477D49666E54590B1"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "sha256": "B170E4DC2F42D5A55092BCC92BEA2306E31E6FED2D81ED4CFDADEF600960B511"
+    },
+    {
+      "path": "src/SonnetDB/Configuration/ServerOptions.cs",
+      "sha256": "4CBE29CE15A2FF116C7E23F2F9A74B9B69EB75508000D6F284054B3D85B764D8"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "90B89011C0A11749AD4B3A1C193C82717B24B64C47DCF3EDF59EDD0B2E7C63E3"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "F99EAF9D1E6EED133BE034E7C40B88211826D016237A836C08F6C7E230823296"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/ServerOptionsBinder.cs",
+      "sha256": "30D8496A01702FEA795EE33CA805D045E81D3A54E656D8991CE64C5D2E35DD8A"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlRoutineProductionTests.cs",
+      "sha256": "DEA422EE2DA3A9C2F138DC4B8DA2A5B40461166523E84669667ED1E68E013E7D"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlTriggerAdvancedTests.cs",
+      "sha256": "810C21332A076FCA4641E86AFDF1CBB1DB3B1D233F535D92CEB9F2203883CCA7"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/Program.cs",
+      "sha256": "7B481C8516F160277327DFA590C5325BD1143E1666DD0BD44C32AC67CC4B35F4"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/CrashReliabilityTests.cs",
+      "sha256": "A7B60FF6D57AC48D3AC115700CAC56112F8B7CACDFAC8CAADDE0420825D137B4"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SqlFrameEndpointTests.cs",
+      "sha256": "5CCAD262FEB358AFC54CCA03AFA3ECB2F88AD20ED595F844185E9087950D33AB"
+    }
+  ]
+}

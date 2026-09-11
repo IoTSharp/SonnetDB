@@ -96,7 +96,15 @@ public sealed partial class DocumentCollectionStore
                                 virtualRows[change.Key] = change.Value;
                         }
 
-                        plannedMutations.AddRange(planned.Mutations);
+                        plannedMutations.AddRange(planned.Mutations.Select(mutation => mutation with
+                        {
+                            Cause = DocumentChangeCauses.Bulk,
+                            RequestId = requestId,
+                            OperationIndex = index,
+                            PatchJson = mutation.OldRow is not null && mutation.NewRow is not null
+                                ? BuildPatchDescription(mutation.OldRow.Json, mutation.NewRow.Json)
+                                : null,
+                        }));
                         items.Add(planned.Item);
                         if (planned.Warnings.Count != 0)
                             errors.AddRange(planned.Warnings);

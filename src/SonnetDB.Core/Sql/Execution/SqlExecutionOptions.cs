@@ -30,6 +30,21 @@ public sealed record SqlExecutionOptions
     /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
     public int MaxRoutineResultRows { get; init; } = 10_000;
 
+    /// <summary>调用链中同时存活的 transition set 最大行数；UPDATE 的 OLD/NEW 算一对。</summary>
+    public int MaxTriggerTransitionRows { get; init; } = 100_000;
+
+    /// <summary>调用链中 transition set 的保守内存预算（字节），超限则回滚语句。</summary>
+    public long MaxTriggerTransitionBytes { get; init; } = 64 * 1024 * 1024;
+
+    /// <summary>单事务最多保留的提交阶段触发器调用数。</summary>
+    public int MaxDeferredTriggerInvocations { get; init; } = 100_000;
+
+    /// <summary>单事务延迟触发器队列的保守内存上限（字节）。</summary>
+    public long MaxDeferredTriggerBytes { get; init; } = 64 * 1024 * 1024;
+
+    /// <summary>提交锁等待及延迟触发器执行的协作超时（毫秒）；持久化开始后不再中断。</summary>
+    public int TransactionCommitTimeoutMilliseconds { get; init; } = 30_000;
+
     /// <summary>
     /// 可选的单查询阻塞算子内存上限（字节）；为空时使用数据库的
     /// <see cref="SonnetDB.Engine.SqlMemoryOptions.QueryLimitBytes"/>。
@@ -60,6 +75,13 @@ public sealed record SqlExecutionOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineDepth);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxRoutineDepth, 64);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineResultRows);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxTriggerTransitionRows);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxTriggerTransitionBytes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxDeferredTriggerInvocations);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxDeferredTriggerInvocations, 100_000);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxDeferredTriggerBytes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(TransactionCommitTimeoutMilliseconds);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(TransactionCommitTimeoutMilliseconds, 120_000);
         if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);
         if (MaxDegreeOfParallelism is { } degree)

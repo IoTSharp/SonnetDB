@@ -252,24 +252,27 @@ public sealed class SqlRoutineProductionTests : IDisposable
         Assert.True(db.Routines.TryGetTrigger("order_audit")!.Enabled);
     }
 
-    [Fact]
-    public void RoutineCatalog_VersionOne_UpgradesWithoutChangingOriginalOrder()
+    [Theory]
+    [InlineData(1, 20)]
+    [InlineData(2, 11)]
+    [InlineData(3, 1)]
+    public void RoutineCatalog_LegacyVersion_UpgradesWithoutChangingOriginalOrder(int version, int removedBytes)
     {
         using (var db = Open()) { Setup(db); }
         string path = Path.Combine(_root, "routines", "routines.sdbrtn");
         byte[] current = File.ReadAllBytes(path);
-        // 仅有一个触发器的已发布 v1 布局比 v2 少尾部的 enabled + order 九字节。
-        byte[] legacy = new byte[current.Length - 9];
-        current.AsSpan(0, current.Length - 16 - 9).CopyTo(legacy);
+        // 单个 AFTER ROW 触发器：v4 新增 flags；v3 新增十字节时机、粒度和空别名；v1 另缺九字节生命周期。
+        byte[] legacy = new byte[current.Length - removedBytes];
+        current.AsSpan(0, current.Length - 16 - removedBytes).CopyTo(legacy);
         current.AsSpan(current.Length - 16).CopyTo(legacy.AsSpan(legacy.Length - 16));
-        BinaryPrimitives.WriteInt32LittleEndian(legacy.AsSpan(8), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(legacy.AsSpan(8), version);
         BinaryPrimitives.WriteUInt32LittleEndian(legacy.AsSpan(legacy.Length - 16),
             Crc32.HashToUInt32(legacy.AsSpan(32, legacy.Length - 48)));
         File.WriteAllBytes(path, legacy);
         using var reopened = Open();
         Assert.True(reopened.Routines.TryGetTrigger("order_audit")!.Enabled);
         SqlExecutor.Execute(reopened, "ALTER TRIGGER order_audit DISABLE");
-        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
+        Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
     }
 
     [Fact]
