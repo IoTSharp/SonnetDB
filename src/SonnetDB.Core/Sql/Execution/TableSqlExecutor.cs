@@ -183,6 +183,34 @@ internal static class TableSqlExecutor
             new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique));
     }
 
+    /// <summary>
+    /// 推进普通非唯一关系表的在线索引构建；未完成时只保存断点并返回 pending，不能把半成品发布给查询规划器。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">带 ONLINE 修饰的 CREATE INDEX 语句。</param>
+    /// <returns>在线构建的有界进度结果。</returns>
+    public static RowsAffectedExecutionResult ExecuteCreateIndexOnline(Tsdb tsdb, CreateTableIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        if (statement.IsUnique || statement.DocumentOptions is not null
+            || statement.Columns.Any(static column => column.StartsWith('$')))
+        {
+            throw new NotSupportedException(
+                "ONLINE 目前仅支持普通非唯一关系表索引，不支持 UNIQUE、JSON path、SPARSE、TTL 或 partial 选项。");
+        }
+
+        var definition = new TableIndexDefinition(statement.IndexName, statement.Columns, IsUnique: false);
+        var progress = tsdb.Tables.CreateIndexOnline(
+            statement.TableName,
+            definition,
+            SqlQueryResources.Current?.CancellationToken ?? default);
+        return new RowsAffectedExecutionResult(
+            statement.TableName,
+            progress.Completed ? 1 : 0,
+            progress.Completed ? "create_index_online_complete" : "create_index_online_pending");
+    }
+
     public static TableIndex ExecuteCreateJsonPathIndex(Tsdb tsdb, CreateTableJsonPathIndexStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);

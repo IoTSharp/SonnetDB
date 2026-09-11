@@ -137,6 +137,9 @@ public sealed class KvStorageOptions
 /// </summary>
 public sealed class SemanticSearchOptions
 {
+    /// <summary>对象缩略图与语义派生任务的持久队列、恢复和负载边界。</summary>
+    public ObjectProcessingOptions ObjectProcessing { get; set; } = new();
+
     /// <summary>是否启用语义图片检索端点。默认关闭。</summary>
     public bool Enabled { get; set; }
 

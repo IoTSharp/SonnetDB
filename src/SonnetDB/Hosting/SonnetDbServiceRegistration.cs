@@ -111,10 +111,9 @@ internal static class SonnetDbServiceRegistration
         {
             var systemDirectory = GetSystemDirectory(sp);
             var store = new AiConfigStore(systemDirectory);
-            // M16/M2：启动时把已持久化的 sonnetdb.com Cloud Token
-            // 同步到 CopilotChatOptions，让 /v1/copilot/chat 直接就绪。
+            // 仅 Cloud 模式允许持久化 Token 同步到 Copilot；内部模式只使用 appsettings 中的 Tomur 配置。
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
-            AiCopilotBridge.Apply(store.Get(), options.Copilot.Chat, options.Copilot.Embedding);
+            AiCopilotBridge.Apply(store.Get(), options.Copilot);
             return store;
         });
         builder.Services.AddSingleton<CopilotReadiness>();

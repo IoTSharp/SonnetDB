@@ -277,13 +277,15 @@ public sealed record RefreshMaterializedViewStatement(string Name) : SqlStatemen
 /// <param name="IsUnique">是否为唯一索引。</param>
 /// <param name="IfNotExists">索引已存在时是否视为成功。</param>
 /// <param name="DocumentOptions">文档集合索引专用选项；关系表索引执行时忽略。</param>
+/// <param name="Online">是否以可暂停、可恢复的在线方式构建普通关系表索引。</param>
 public sealed record CreateTableIndexStatement(
     string IndexName,
     string TableName,
     IReadOnlyList<string> Columns,
     bool IsUnique,
     bool IfNotExists = false,
-    DocumentIndexOptions? DocumentOptions = null) : SqlStatement;
+    DocumentIndexOptions? DocumentOptions = null,
+    bool Online = false) : SqlStatement;
 
 /// <summary>
 /// 普通 <c>CREATE INDEX</c> 用于文档集合时的专用选项。

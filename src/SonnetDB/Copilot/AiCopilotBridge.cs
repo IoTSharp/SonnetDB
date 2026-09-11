@@ -14,6 +14,24 @@ internal static class AiCopilotBridge
     private const string OfficialEndpoint = OfficialGatewayBaseUrl + "/v1/";
 
     /// <summary>
+    /// 按 Copilot 运行模式同步持久化 Cloud 配置。
+    /// 内部模式的运行地址和凭据只来自 appsettings，历史 Cloud Token 不得覆盖它们。
+    /// </summary>
+    /// <param name="ai">持久化的 AI 配置。</param>
+    /// <param name="copilot">当前实例的 Copilot 配置。</param>
+    public static void Apply(AiOptions ai, CopilotOptions copilot)
+    {
+        ArgumentNullException.ThrowIfNull(ai);
+        ArgumentNullException.ThrowIfNull(copilot);
+
+        // 现场内部模式必须以部署配置为唯一来源，保留旧文件仅用于兼容回退到非内部模式的实例。
+        if (copilot.InternalOnly)
+            return;
+
+        Apply(ai, copilot.Chat, copilot.Embedding);
+    }
+
+    /// <summary>
     /// 把 <paramref name="ai"/> 的官方 Gateway / Cloud Token 同步进 Copilot 的 chat 选项。
     /// 若 <paramref name="ai"/> 未配置 <see cref="AiOptions.CloudAccessToken"/>，则不修改任何选项，
     /// 保留运维或测试中已显式配置的 Provider / Endpoint / ApiKey。

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using SonnetDB.Auth;
 using SonnetDB.Catalog;
+using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Engine;
@@ -55,15 +56,16 @@ internal static class CopilotChatEndpointHandler
         CopilotReadiness copilotReadiness,
         CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
-        TsdbRegistry registry)
+        TsdbRegistry registry,
+        CopilotOptions copilotOptions)
     {
         var relayRuns = app.Services.GetService<CopilotServerRelayRunStore>()
             ?? new CopilotServerRelayRunStore();
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, copilotOptions, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, localAgent, copilotReadiness, inFlightTracker, grantsStore, registry, relayRuns, copilotOptions, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -78,9 +80,25 @@ internal static class CopilotChatEndpointHandler
         GrantsStore grantsStore,
         TsdbRegistry registry,
         CopilotServerRelayRunStore relayRuns,
+        CopilotOptions copilotOptions,
         bool sse)
     {
         var cfg = configStore.Get();
+        // 内部模式始终走配置的 Tomur，持久化 Cloud Token 只作为历史数据保留，不参与路由。
+        if (copilotOptions.InternalOnly)
+        {
+            await HandleLocalAsync(
+                ctx,
+                localAgent,
+                stateStore,
+                inFlightTracker,
+                grantsStore,
+                registry,
+                relayRuns,
+                sse).ConfigureAwait(false);
+            return;
+        }
+
         if (!IsCloudBound(cfg))
         {
             if (copilotReadiness.Evaluate().ChatReady)

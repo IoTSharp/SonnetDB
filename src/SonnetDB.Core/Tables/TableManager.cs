@@ -9,7 +9,7 @@ namespace SonnetDB.Tables;
 /// <summary>
 /// 管理同一数据库目录下的关系表 schema 与 rowstore。
 /// </summary>
-public sealed class TableManager : IDisposable
+public sealed partial class TableManager : IDisposable
 {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<TableRow>> _emptyFinalRows =
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<TableRow>>(
@@ -213,6 +213,7 @@ public sealed class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
                 var updated = current.WithIndex(definition);
                 var store = OpenStoreLocked(current);
                 store.ApplySchema(updated);
@@ -249,6 +250,7 @@ public sealed class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
                 if (current.TryGetIndex(indexName) is null)
                     return false;
 
@@ -613,6 +615,7 @@ public sealed class TableManager : IDisposable
                 if (Catalog.TryGet(newName) is not null)
                     throw new InvalidOperationException($"table '{newName}' 已存在。");
                 EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
 
                 var updated = current.WithName(newName);
                 var oldDirectory = TableDirectory(oldName);

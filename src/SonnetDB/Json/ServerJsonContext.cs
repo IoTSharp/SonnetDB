@@ -392,6 +392,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(SemanticImageDocument))]
 [JsonSerializable(typeof(SemanticImageFilterCandidate))]
 [JsonSerializable(typeof(SemanticObjectProcessingJob))]
+[JsonSerializable(typeof(ObjectSemanticBackfillState))]
 [JsonSerializable(typeof(ObjectProcessingStatusResponse))]
 [JsonSerializable(typeof(List<AiMessage>))]
 // ---- AI SSE 内部事件 ----

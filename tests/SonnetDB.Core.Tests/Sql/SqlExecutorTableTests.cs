@@ -62,6 +62,59 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(["tenant", "serial"], stmt.Columns);
     }
 
+    /// <summary>解析 CREATE INDEX 末尾的 ONLINE 修饰词，并保留既有索引选项。</summary>
+    [Fact]
+    public void ParseCreateIndex_Online_ReturnsAstFlag()
+    {
+        var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(
+            "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+
+        Assert.True(stmt.Online);
+        Assert.False(stmt.IsUnique);
+        Assert.False(stmt.IfNotExists);
+        Assert.Equal(["capture_time", "id"], stmt.Columns);
+    }
+
+    /// <summary>直接 SQL 在线构建按有界批次返回 pending，完成后才发布索引。</summary>
+    [Fact]
+    public void CreateIndex_Online_ReturnsPendingThenComplete()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+        // 默认每次最多推进 64 页、每页 16 行；多于该上限才能稳定观察到 pending 结果。
+        var values = string.Join(", ", Enumerable.Range(1, 1025).Select(id => $"({id}, {id * 10})"));
+        SqlExecutor.Execute(db, $"INSERT INTO devices (id, capture_time) VALUES {values}");
+
+        var first = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db, "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+        Assert.Equal(0, first.RowsAffected);
+        Assert.Equal("create_index_online_pending", first.Operation);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db, "SHOW INDEXES ON devices")).Rows);
+
+        var second = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db, "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+        Assert.Equal(1, second.RowsAffected);
+        Assert.Equal("create_index_online_complete", second.Operation);
+        var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW INDEXES ON devices"));
+        Assert.Contains(indexes.Rows, row => Equals(row[0], "ix_devices_capture"));
+    }
+
+    /// <summary>在线索引拒绝唯一、文档、JSON path 以及 partial 变体。</summary>
+    [Theory]
+    [InlineData("CREATE UNIQUE INDEX ix_unique ON devices (capture_time) ONLINE")]
+    [InlineData("CREATE SPARSE INDEX ix_sparse ON devices (capture_time) ONLINE")]
+    [InlineData("CREATE TTL INDEX ix_ttl ON devices (capture_time) WITH (ttl_seconds = 60) ONLINE")]
+    [InlineData("CREATE INDEX ix_partial ON devices (capture_time) WHERE capture_time > 0 ONLINE")]
+    [InlineData("CREATE INDEX ix_json ON devices ('$.capture_time') ONLINE")]
+    public void CreateIndex_Online_RejectsUnsupportedVariants(string sql)
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+
+        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(db, sql));
+    }
+
     [Fact]
     public void ParseCreateJsonIndex_OnTable_ReturnsAst()
     {

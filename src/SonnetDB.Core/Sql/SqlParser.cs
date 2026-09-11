@@ -935,7 +935,16 @@ public sealed class SqlParser
         DocumentIndexOptions? documentOptions = sparse || ttlSeconds is not null || partialFilter is not null
             ? new DocumentIndexOptions(sparse, ttlSeconds, partialFilter)
             : null;
-        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions);
+
+        // ONLINE 只允许出现在索引定义末尾，避免把列名或 WHERE 表达式中的同名标识误判为修饰词。
+        bool online = false;
+        if (IsIdentifier("online"))
+        {
+            Advance();
+            online = true;
+        }
+
+        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions, online);
     }
 
     private CreateDocumentCollectionStatement ParseCreateDocumentBody()

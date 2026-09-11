@@ -7,7 +7,7 @@ namespace SonnetDB.Tables;
 /// <summary>
 /// 单个关系表的 KV-backed 行存储。
 /// </summary>
-public sealed class TableStore : IDisposable
+public sealed partial class TableStore : IDisposable
 {
     private static readonly byte[] _autoIncrementStateKey = [(byte)'m', (byte)'a'];
     private static readonly byte[] _statisticsStateKey = [(byte)'m', (byte)'s'];
@@ -55,6 +55,7 @@ public sealed class TableStore : IDisposable
                 schemaFingerprint);
         }
 
+        LoadOnlineIndexBuildLocked();
         if (!TableStoreMaintenanceFile.ConsumeCleanIndexes(
             keyspace.RootDirectory,
             keyspace.Generation,
@@ -657,9 +658,9 @@ public sealed class TableStore : IDisposable
             {
                 keys.Add(operation.RowKey);
                 if (operation.OldRow is not null)
-                    foreach (var entry in BuildIndexEntries(batch.Schema, operation.OldRow)) keys.Add(entry.Key);
+                    foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.OldRow)) keys.Add(entry.Key);
                 if (operation.NewRow is not null)
-                    foreach (var entry in BuildIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
+                    foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
             }
             return new TableTransactionUndo(batch.Schema.Name, Generation,
                 TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
@@ -806,6 +807,7 @@ public sealed class TableStore : IDisposable
     {
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             int rows = _rowCount;
             KvClearResult result = _keyspace.Clear();
             _rowCount = 0;
@@ -1494,6 +1496,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             var previous = _schema;
             TableStatistics? previousStatistics = _statistics;
             _schema = schema;
@@ -1518,6 +1521,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             _schema = schema;
             _statistics = null;
             _statisticsLoadFailureReason = "schema_changed";
@@ -1531,6 +1535,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             byte[] afterKey = [];
             while (true)
             {
@@ -1561,6 +1566,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(transform);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             var previous = _schema;
             var originalPayloads = _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue)
                 .Select(entry => (Key: entry.Key.ToArray(), Value: entry.Value.ToArray()))
@@ -1675,11 +1681,15 @@ public sealed class TableStore : IDisposable
             long sequence = _keyspace.LastSequence;
             byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
             _keyspace.Dispose();
-            TableStoreMaintenanceFile.MarkIndexesClean(
-                _keyspace.RootDirectory,
-                generation,
-                sequence,
-                schemaFingerprint);
+            // 未完成在线索引保留游标元数据；不写入 clean 标记，重启时不得把 pending 键当作可丢弃垃圾。
+            if (_onlineIndexBuild is null)
+            {
+                TableStoreMaintenanceFile.MarkIndexesClean(
+                    _keyspace.RootDirectory,
+                    generation,
+                    sequence,
+                    schemaFingerprint);
+            }
             _disposed = true;
         }
     }
@@ -1915,7 +1925,7 @@ public sealed class TableStore : IDisposable
 
             if (operation.OldRow is not null)
             {
-                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.OldRow))
+                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
                     desiredValues[indexEntry.Key] = null;
             }
 
@@ -1926,7 +1936,7 @@ public sealed class TableStore : IDisposable
             else
             {
                 desiredValues[operation.RowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
-                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.NewRow))
+                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
                     desiredValues[indexEntry.Key] = indexEntry.Value;
             }
         }
@@ -1990,6 +2000,9 @@ public sealed class TableStore : IDisposable
     {
         using var budgetScope = _keyspace.EnterIndexRebuildBudgetScope();
         int actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
+        // 在线构建的键尚未完整，不参加已发布索引计数，也不能在恢复时被当成垃圾删除。
+        if (_onlineIndexBuild is not null && _schema.TryGetIndex(_onlineIndexBuild.Index.Name) is null)
+            actualIndexCount -= _keyspace.CountPrefix(TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema)!);
         int expectedIndexCount = RepairExpectedIndexesLocked(out int addedIndexCount);
 
         // 期望键均已校验或补齐；实际数量相等时不可能再存在额外 stale/orphan 键。
@@ -2176,7 +2189,7 @@ public sealed class TableStore : IDisposable
         var row = new TableRow(
             TableRowCodec.Decode(_schema, rowPayload),
             entry.Value.ToArray());
-        return BuildIndexEntries(_schema, row).Any(expected =>
+        return BuildMutationIndexEntries(_schema, row).Any(expected =>
             expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
             && expected.Value.AsSpan().SequenceEqual(entry.Value.Span));
     }

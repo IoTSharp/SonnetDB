@@ -23,4 +23,6 @@ internal sealed record SemanticObjectProcessingJob(
     string? ThumbnailKey,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc,
-    DateTimeOffset? NextAttemptUtc);
+    DateTimeOffset? NextAttemptUtc,
+    string? LeaseId = null,
+    DateTimeOffset? LeaseUntilUtc = null);

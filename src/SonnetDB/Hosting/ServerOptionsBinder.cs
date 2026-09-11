@@ -137,6 +137,7 @@ internal static class ServerOptionsBinder
             options.SemanticSearch.DefaultTopK,
             1,
             options.SemanticSearch.MaxTopK);
+        options.SemanticSearch.ObjectProcessing = options.SemanticSearch.ObjectProcessing.BoundedCopy();
     }
 
     /// <summary>

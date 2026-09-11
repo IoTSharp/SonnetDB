@@ -79,7 +79,7 @@ internal static class KvAtomicBatchErrors
 /// 为上限，超时抛出 <see cref="TimeoutException"/>；检查点背压仍使用现有 I/O 超时合同。
 /// 取消仅在首次 WAL 追加前生效，已开始提交的操作不会因后续取消回滚或改报取消。
 /// </remarks>
-public sealed class KvKeyspace : IDisposable
+public sealed partial class KvKeyspace : IDisposable
 {
     private const int ScanResultInitialCapacity = 256;
     private const int MaxOptimisticSequenceFactoryInvalidations = 8;
@@ -2287,6 +2287,29 @@ public sealed class KvKeyspace : IDisposable
             _values.EnableOrderedScans(cancellationToken);
             if (_frozenValues is KvOrderedOverlay frozen)
                 frozen.EnableOrderedScans(cancellationToken);
+        }
+    }
+
+    /// <summary>关系表在线维护先限制覆盖层总量，再逐键可取消地启用有序访问；超限交给正常检查点消化。</summary>
+    internal bool TryEnableOrderedOverlayScans(int maximumEntries, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEntries);
+        using (EnterAtomicWriteLock(cancellationToken))
+        {
+            ThrowIfDisposed();
+            // 在线索引恢复使用独立预算；普通快照仍严格遵守日常覆盖层上限。
+            int configuredLimit = Math.Min(
+                maximumEntries,
+                _options.IndexRebuildMaxOverlayEntries > 0
+                    ? _options.IndexRebuildMaxOverlayEntries
+                    : _options.MaxSnapshotOverlayEntries);
+            long totalEntries = (long)_values.Count + (_frozenValues?.Count ?? 0);
+            if (totalEntries > configuredLimit)
+                return false;
+            _values.EnableOrderedScans(cancellationToken);
+            if (_frozenValues is KvOrderedOverlay frozen)
+                frozen.EnableOrderedScans(cancellationToken);
+            return true;
         }
     }
 

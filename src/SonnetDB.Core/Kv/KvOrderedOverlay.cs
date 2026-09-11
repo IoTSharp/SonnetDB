@@ -61,7 +61,7 @@ internal sealed class KvOrderedOverlay : Dictionary<byte[], KvValueEntry>
 
     internal IEnumerable<KeyValuePair<byte[], KvValueEntry>> Scan(
         byte[] prefix, byte[]? startInclusive, byte[]? endExclusive, byte[]? afterKey,
-        CancellationToken cancellationToken, Action? candidateVisited)
+        CancellationToken cancellationToken, Action? candidateVisited, bool includeDeleted = false)
     {
         SortedSet<byte[]> keys = _keys ?? throw new IOException("KV ordered overlay is unavailable; reopen the object store to rebuild it.");
         byte[] lower = prefix;
@@ -95,7 +95,7 @@ internal sealed class KvOrderedOverlay : Dictionary<byte[], KvValueEntry>
             afterKey = key;
             candidateVisited?.Invoke();
             KvValueEntry value = base[key];
-            if (!value.IsDeleted)
+            if (includeDeleted || !value.IsDeleted)
                 yield return new KeyValuePair<byte[], KvValueEntry>(key, value);
         }
     }

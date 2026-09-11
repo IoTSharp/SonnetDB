@@ -688,6 +688,20 @@ public static class SqlExecutor
 
     private static object ExecuteCreateIndex(Tsdb tsdb, CreateTableIndexStatement statement)
     {
+        if (statement.Online)
+        {
+            // 在线构建不允许落入文档索引路径，避免把不可增量维护的索引误标成已完成。
+            if (statement.IsUnique || statement.DocumentOptions is not null
+                || statement.Columns.Any(static column => column.StartsWith('$'))
+                || tsdb.Documents.Catalog.TryGet(statement.TableName) is not null)
+            {
+                throw new NotSupportedException(
+                    "ONLINE 目前仅支持普通非唯一关系表索引，不支持 document、UNIQUE、JSON path、SPARSE、TTL 或 partial 选项。");
+            }
+
+            return TableSqlExecutor.ExecuteCreateIndexOnline(tsdb, statement);
+        }
+
         if (tsdb.Documents.Catalog.TryGet(statement.TableName) is not null
             || statement.Columns.Any(static c => c.StartsWith('$')))
         {

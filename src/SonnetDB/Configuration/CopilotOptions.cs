@@ -11,6 +11,13 @@ public sealed class CopilotOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// 是否仅使用配置的内部 OpenAI-compatible 服务（现场为 Tomur）。
+    /// 开启后忽略持久化 Cloud Token，且所有 sonnetdb.com 设备码、模型目录和云端聊天入口
+    /// 均不得访问公网；聊天与模型目录只走 <see cref="CopilotChatOptions.Endpoint"/>。
+    /// </summary>
+    public bool InternalOnly { get; set; }
+
+    /// <summary>
     /// Embedding provider 配置。
     /// </summary>
     public CopilotEmbeddingOptions Embedding { get; set; } = new();

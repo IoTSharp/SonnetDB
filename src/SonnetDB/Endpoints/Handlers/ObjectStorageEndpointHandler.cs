@@ -152,7 +152,7 @@ internal static class ObjectStorageEndpointHandler
             if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("semantic"))
             {
                 var result = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
-                    .EnqueueBucket(GetDatabaseName(ctx), tsdb, bucket);
+                    .EnqueueBucket(GetDatabaseName(ctx), tsdb, bucket, ctx.RequestAborted);
                 await Results.Json(
                         result,
                         ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse)
