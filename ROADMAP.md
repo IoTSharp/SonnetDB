@@ -13,7 +13,7 @@
 3. 涉及 CI、nightly、容量、发布或 Marketplace 的声明，必须有对应 workflow、报告或已发布产物证据。
 4. 文档描述与实际依赖、调用链和限制一致；“计划采用”不能写成“已经基于”。
 
-最新核查日期为 2026-09-05，基线为 SonnetDB `3b5ff768adf946b09a3be11ed58a83cacb3c1696` 加本轮工作区修复。结论、验证边界与闭环顺序见[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)，逐模型证据见[九模型核查](docs/audits/nine-model-capability-evidence-20260905.md)，可追踪待办见[九模型 gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)。[2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md)是历史基线，不能替代本轮 CI 或当前工作区验证。
+最新专项核查基线为 2026-09-05/06；截至 2026-09-13，主分支已继续包含 M39/M40 文档与实现推进。结论、验证边界与闭环顺序见[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)，逐模型证据见[九模型核查](docs/audits/nine-model-capability-evidence-20260905.md)，可追踪待办见[九模型 gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)。[2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md)是历史基线，不能替代本轮 CI 或当前工作区验证。十四套能力和总收口见[SonnetDB 总里程碑](docs/roadmap-total-milestone.md)。
 
 ## 里程碑总览
 
@@ -24,7 +24,7 @@
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与测试已落地；会话以服务端持久化为准，不回退 `localStorage`。 |
 | 18 | SonnetDB for VS Code | ✅ | `0.4.1` 已发布；smoke、隔离 VSIX 安装和本地/Marketplace SHA256 对拍通过。 |
 | 19 | 生态适配底座 | ✅（待验证） | #109~#124、#126/#126.1 与 #125 runner、workflow、报告 verifier 已实现；四个默认容量档固定目标硬件报告待后续真机验证。 |
-| 20 | 多模型 Parity | ❌ | 套件与 verifier 已实现，但 2026-08-30 至 09-05 最近七次 scheduled 全部失败；最新运行因 MCP Schema 元数据缺失导致 Server 启动失败。本地修复已通过 28 项 Server 合同和 win-x64 Native AOT 启动/首查，远程双 profile 重跑与七天证据尚未通过。 |
+| 20 | 多模型 Parity | ❌ | 套件与 verifier 已实现；截至 2026-09-13 最近七次 scheduled（09-07 至 09-13）为 4 次成功、3 次失败，约 57%，仍低于 95% 门禁。08-30 至 09-05 的全失败窗口属于历史记录；本地启动修复已通过 28 项 Server 合同和 win-x64 Native AOT 启动/首查，远程双 profile 稳定七天证据尚未通过。 |
 | 21 | Document Store 单机能力 | ✅ | 常用单机 Document 子集已落地。 |
 | 22 | 上层应用/示例候选 | ⏸️ | 不作为 SonnetDB 内置里程碑；通用能力缺口再回收。 |
 | 23 | 搜索与向量引擎合并 | ✅ | DotSearch / DotVector 能力已收编。 |
@@ -47,11 +47,12 @@
 | 40 | 原生属性图数据库 | ✅（待真机验证） | #341~#367 编码、合同、Server/SDK/CLI/Studio parity、恢复边界、strict evaluator、自动化回归和本地文档已闭环；步骤 1~7 的实现与本地门禁均已关闭。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT journey、跨进程 kill/reopen 与 7 天生产证据统一后置到[真机验证待办](#真机验证待办)，不阻塞研发完成状态。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 与 #381 本地合同已收口；#375 自动刷新已移到有预算的后台并增加可观察状态，首 N 行采样偏差仍待 M42。固定硬件、木垒同语料、7 天 mixed workload 与现场发布观察均未执行。 |
 | 42 | 九域与规划器系统性能深化 | 🚧 | ✅ 九域矩阵、竞品入口和统一指标已建立；🟡 统计/CRC 本机切片、SQL 指标上界、三域读取 smoke、Rebirth 合同及 win-x64 AOT 已取证；🚧 九域容量闭环和 P0~P3 残余仍在推进；⏳ 固定 x64/ARM64、木垒同语料、168 小时与生产门禁未执行。 |
+| 43 | 十四套能力与生态发布总收口 | 🚧 | ✅ #382 总规划文档已落地；📋 #383~#402 按七个步骤推进证据索引、CDC/边缘同步、流处理、十四能力验收和生态入榜。既有缺口保留原 PR 归属；完整状态、依赖与顺序见[总里程碑文档](docs/roadmap-total-milestone.md)。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
 
-1. MCP source-generated Schema 注册修复已通过真实托管及 win-x64 Native AOT 启动/首查，下一步恢复 M20 light/full 完整 Parity。最新七次 scheduled 全部失败，不得继续称为仅缺现场证据；修复未合入且双 profile 未通过前不得累计新成功窗口。
+1. MCP source-generated Schema 注册修复已通过真实托管及 win-x64 Native AOT 启动/首查，下一步恢复 M20 light/full 完整 Parity。截至 2026-09-13，最新七次 scheduled 为 4/7 成功、3/7 失败，仍未达到 95% 门禁；修复后的双 profile 稳定窗口未形成，不能只称为现场证据缺口。
 2. M42 的自动统计移出首读已交付本地切片，继续无偏采样、页感知成本、参数敏感计划、独立 I/O 预算、通用向量有界 Top-K 和对象分页固定硬件验证；OBJECT-001 的本地切片见 #323。ARM64 可执行/AOT、M19 #125、M25 #174 固定容量及 7 天 mixed workload 分开补证，不用本机数字或增加资源掩盖根因。
 3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
@@ -460,6 +461,24 @@ SELECT EXISTS (...)
 | Native AOT 与硬件路径 | 🟡 | 2026-09-05 本轮 win-x64 Server publish、healthz、建库/表和事务首查通过，0 IL/AOT warning；既有 CLI 证据保留。ARM64 CI matrix 已配置，但真实 ARM64 CI、publish/start/first-query 与指令差分均为 `NOT_RUN`；不代替 Graph Native AOT 专项 journey。 |
 
 自动统计移出首读的本地切片已交付，剩余按收益/风险推进：P0 恢复真实 Server/Parity 启动并完成 ARM64 可执行/AOT 门禁；P1 处理无偏采样、页感知索引成本、参数敏感计划、Embedded I/O 预算、通用向量有界 Top-K 和对象分页固定硬件/高变更率验证（OBJECT-001 本地有界切片见 #323）。通用 Document 向量纯 metadata WHERE 已移到距离计算前，但 Scan/排序仍物化，mixed predicate 与 ANN 另行验收。P2 扩大 covering/index-only、增加 snapshot cold-miss single-flight、减少大值复制、统一 cold-start/file-count 合同、SQL 端到端结果内存及 Web 冷启动拆包，并补真实 Sparkplug broker 竞态；P3 仅在独立 feature gate 与跨架构差分收益成立时评估 direct intrinsics 和 .NET 11 preview。固定 x64/ARM64、木垒同语料、168 小时 mixed workload 与生产发布全部保持 ⏳ `NOT_RUN`。
+
+## Milestone 43 — 十四套能力与生态发布总收口
+
+🚧 总体进行中：✅ 总规划已写入本地文档，📋 新增能力尚待实施，⏳ 外部提交尚未执行。十四项能力、既有 PR 升序索引、新增 PR 明细与验收条件见[总里程碑文档](docs/roadmap-total-milestone.md)。
+
+新增 #382~#402 为接续 #381 的 ROADMAP PR 工作项编号，不表示 GitHub 已存在同号 PR。每个 PR 只交付该编号的一项工作，✅ 仅表示该行说明的交付完成；旧任务继续在原 M/PR 下完成。
+
+| 步骤 | PR | 交付 | 状态 |
+|---:|---|---|---|
+| 1 | #382~#384 | 总规划、十四能力证据索引、中英文成熟度口径。 | 🚧 #382 本地文档完成，#383/#384 待实施 |
+| 2 | 沿用原 M/PR | M20 Parity、M36 模型工作流、M27/M35 AI、M19/M25/M29/M40/M41/M42 验证。 | ❌ M20 当前窗口未通过；🚧 其余按原状态推进 |
+| 3 | #385~#390 | CDC 合同、快照/增量衔接、离线同步、schema/冲突、客户端与故障验收。 | 📋 |
+| 4 | #391~#395 | 持久订阅、事件时间窗口、结果投递、运维入口与恢复验收。 | 📋 |
+| 5 | #396 | 复用 #326 九模型旅程，补第 10~14 项组合旅程及总验收索引。 | 📋 |
+| 6 | #397 | 汇总原固定硬件、跨架构、AOT、安装、恢复和长稳报告。 | ⏳ 原门禁报告待齐；汇总工具待实施 |
+| 7 | #398~#402 | 入榜资料包、DBDB.io/DB-Engines 提交记录、生态案例、总验收。 | 📋 资料待准备；⏳ 提交/收录结果待执行 |
+
+执行依赖：步骤 1 先冻结边界，步骤 2 保持当前优先级；步骤 3 建立可恢复事件源，步骤 4 消费该合同。步骤 5 在新旧能力可用后联合验收，步骤 6 汇总各原里程碑报告。步骤 7 的资料与提交可在 #384 后并行，只填写当时已验证的能力；最终 #402 等待步骤 5/6 和实际外部记录，提交完成与官方收录/排名分别登记。
 
 ## 性能观察项
 

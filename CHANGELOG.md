@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M43 #382 十四套能力总规划文档**：新增[总里程碑核查与路线图](docs/roadmap-total-milestone.md)，重新核对九种原生数据模型、空间/轨迹、流处理/订阅、CDC/边缘同步/复制、AI/RAG、治理运维和榜单准备的边界；补齐表情状态、既有 PR 升序索引、#382~#402 规划编号、七个执行步骤及依赖/验收。✅ 仅覆盖本地规划文档，新增能力和外部提交尚未执行；资料提交与流行度排名不作为性能认证。
+
 - **M40 研发与文档闭环（真机验证后置）**：#341～#367 的 Graph 存储、查询、SQL/PGQ、算法、运维面、Server/SDK/CLI/Studio parity、恢复合同、strict evaluator、编码文档和本地自动化回归已全部收口。固定硬件、Neo4j/PostgreSQL、LDBC/Graphalytics、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 与 7 天 8+1 mixed workload 不计入编码完成，统一登记到 [ROADMAP 真机验证待办](ROADMAP.md#真机验证待办)，正式 Preview/Production gate 在现场证据通过前保持 `DEFERRED`。
 
 - **M40 #352 Native Graph Preview strict gate**：新增独立 `m40-graph-preview-input-v1` 输入、`m40-graph-preview-gate-v1` 报告与 `--m40-preview-gate --quick|--manifest` 入口，复用原始 artifact 重算和隔离回放，按双数据档位、12 个 native journey、Preview SLO、恢复与 Couplet C2 判定 correctness/recovery 和 performance/capacity 双 gate。quick 生成未完成模板并保持正式结论 `NOT_RUN`；固定硬件、Neo4j、Couplet C2、外部对拍和正式容量证据仍未运行，不构成 #352 PASS。详见 [M40 #352 Preview gate](docs/m40-graph-352-preview-gate.md)。
