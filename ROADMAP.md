@@ -69,6 +69,7 @@
 | M39 | SQL 过程/触发器在真实项目混合 DML、批量提交、失败回滚和 deferred/outbox 场景下的尾延迟与资源占用 | 连接实际项目服务器做实例诊断时 | ⏳ |
 | M39 #339 | Document patch/bulk/TTL、measurement 1/100/10,000 点与高基数写入的吞吐、WAL/磁盘写放大、compaction、backup/restore、crash/replay | 使用真实 Document/measurement 项目数据时 | ⏳ |
 | M39 | 长期稳定性与 SLO（至少按项目约定窗口，包含维护和重启） | 项目持续运行期间 | ⏳ |
+| M19 #125 | `high-cardinality`（1,000,000 series）、`small-segments`（10,000 segment）、`maintenance-chaos`（20 次 kill/reopen）、`many-measurements`（10,000 measurement）四档容量与恢复证据 | 具备受保护的固定 Linux x64 目标机、干净 `main` checkout 和 M19 capacity workflow 后 | ⏳ 研发 runner/verifier 已完成；固定目标硬件报告待执行 |
 | M40 #352/#367 | Native Graph Preview/Production 的固定硬件容量、Neo4j/PostgreSQL 语义对拍、LDBC/Graphalytics、1m vertex/10m edge、Native AOT、真实跨进程 kill/reopen、backup/restore、Couplet C2~C4 与 168 小时 8+1 mixed workload | 具备目标机器、外部数据库或联合 Couplet 环境后 | ⏳ 研发与本地门禁已完成；现场证据待执行 |
 | M40/Couplet C1 | `Tsdb.Generations` 跨进程 cursor/root 竞争、hard-kill CAS、双客户端恢复与长稳联合验证（`CG-005`） | Couplet source lane 与目标机器可用后 | ⏳ Core 合同和本地回归已完成；联合现场证据待执行 |
 M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~7 的编码、合同、文档和本地自动化门禁已关闭；步骤 8 的固定硬件、外部对拍、联合 Couplet、Native AOT 和 7 天发布证据属于部署后真机验证，统一回填[真机验证待办](#真机验证待办)。当前公开定位将原生属性图以 Graph Beta 计入“九种数据模型，各有原生语义，共享一套引擎”；在步骤 8 证据通过前仍不得宣称 Production，但不再阻塞 M40 研发完成。
@@ -77,7 +78,7 @@ M40 按本节新增的“修复与发布执行顺序”推进：步骤 1~7 的�
 
 ### M19 — 生态容量证据
 
-#125 runner、workflow、报告 verifier 和缩规模验证已经完成，研发切片可视为完成；容量发布证据仍需在固定规格目标硬件上分别运行并归档：
+#125 的 runner、workflow、报告 verifier 和缩规模验证已经完成，研发状态为完成；容量发布证据仍需在固定规格目标硬件上分别运行并归档。该项已列入上面的[真机验证待办](#真机验证待办)：
 
 - `high-cardinality`：默认 1,000,000 series。
 - `small-segments`：默认 10,000 segment。

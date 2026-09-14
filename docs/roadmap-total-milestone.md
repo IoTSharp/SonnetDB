@@ -101,7 +101,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | PR | 归属 | 模型 | 状态 | 已完成范围 / 下一步 |
 |---|---|---|---|---|
-| #125 | M19 | GPT-5.6 Terra / medium | 🟡 | runner/verifier 已有；补四个固定硬件容量档。 |
+| #125 | M19 | GPT-5.6 Terra / medium | ✅（待真机验证） | runner/verifier、缩规模验证和 workflow 已完成；补四个固定硬件容量档并归档报告。 |
 | #136 | M20 | GPT-5.6 Sol / high | ❌ | CI/nightly 管线已有；当前七次窗口 4/7，修复失败后重取双 profile 证据。 |
 | #174 | M25 | GPT-5.6 Luna / medium | 🟡 | Document 容量工具已有；执行 million/ten-million。 |
 | #182~#183 | M27 | GPT-5.6 Luna / low | ✅ | 当前九模型定位和 typed MCP 合同已交付；十四能力文档按 #384 演进。 |

@@ -80,6 +80,8 @@
 
 ### Changed
 
+- **M19 #125 状态分层**：将 #125 明确标为“研发完成，待真机验证”；四个固定容量档已加入 `ROADMAP.md` 的真机验证待办，只有受保护固定目标硬件的完整报告归档后才关闭外部容量证据。
+
 - **M19 #125 flush 与维护发布性能收敛**：SegmentManager 的维护发布改为锁内原地更新有序字典，避免 add/swap/drop 每次复制整棵字典；分层 segment 目录在稳定 bucket 仅刷新叶目录，首次建 bucket 才向上刷新缺失目录链；committed publication marker 清理不再额外刷新目录，最多留下可安全重试的 marker。保留 pending marker、段文件、checkpoint 与 committed marker 的恢复顺序；固定硬件前后 P95、分配和 I/O 对比仍待执行。
 
 - **目录 fsync 与旧 WAL checkpoint 兼容**：对明确不支持目录句柄 fsync 的文件系统退回文件内容 `Flush(true)` 语义，权限、目录不存在和其他 I/O 错误仍失败；缺少独立 checkpoint sidecar 且无 pending marker 的旧 WAL 数据库继续信任历史 WAL checkpoint，新格式 sidecar 损坏或存在 marker 时仍 fail closed。
