@@ -19,6 +19,9 @@ public static class WalSegmentLayout
     /// <summary>WAL checkpoint LSN 元数据文件名。</summary>
     public const string CheckpointFileName = "checkpoint.SDBWCKP";
 
+    /// <summary>Flush 段发布恢复标记文件扩展名。</summary>
+    public const string FlushPublicationExtension = ".SDBFPUB";
+
     /// <summary>
     /// 根据 startLsn 生成 segment 文件名（不含目录）：<c>{startLsn:X16}.SDBWAL</c>。
     /// </summary>
@@ -45,6 +48,51 @@ public static class WalSegmentLayout
         Path.Combine(walDir, CheckpointFileName);
 
     /// <summary>
+    /// 根据 walDir 和 SegmentId 生成 Flush 段发布恢复标记完整路径。
+    /// 每个待发布段独占一个标记，避免失败段的 marker 被后续 Flush 覆盖。
+    /// </summary>
+    /// <param name="walDir">WAL 子目录路径。</param>
+    /// <param name="segmentId">待发布段标识。</param>
+    /// <returns>Flush 段发布恢复标记文件完整路径。</returns>
+    public static string FlushPublicationPath(string walDir, long segmentId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(segmentId);
+        return Path.Combine(walDir, $"{segmentId:X16}{FlushPublicationExtension}");
+    }
+
+    /// <summary>
+    /// 枚举 WAL 目录中全部已原子发布的 Flush 段发布标记。临时文件（<c>.tmp</c>）不在此列。
+    /// </summary>
+    /// <param name="walDir">WAL 子目录路径。</param>
+    /// <returns>按 SegmentId 升序排列的 marker 路径与解析出的 SegmentId。</returns>
+    /// <exception cref="InvalidDataException">最终 marker 文件名非法时抛出。</exception>
+    public static IReadOnlyList<(long SegmentId, string Path)> EnumerateFlushPublicationPaths(string walDir)
+    {
+        ArgumentNullException.ThrowIfNull(walDir);
+        if (!Directory.Exists(walDir))
+            return [];
+
+        var markers = new List<(long SegmentId, string Path)>();
+        foreach (string path in Directory.EnumerateFiles(walDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            string fileName = Path.GetFileName(path);
+            if (!fileName.EndsWith(FlushPublicationExtension, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!TryParseFlushPublicationSegmentId(fileName, out long segmentId))
+            {
+                throw new InvalidDataException(
+                    $"Flush publication marker '{path}' has an invalid file name.");
+            }
+
+            markers.Add((segmentId, path));
+        }
+
+        markers.Sort(static (left, right) => left.SegmentId.CompareTo(right.SegmentId));
+        return markers;
+    }
+
+    /// <summary>
     /// 尝试从文件名中解析 segment 的 startLsn。
     /// 合法格式：16 位大写/小写十六进制 + <see cref="Extension"/>。
     /// </summary>
@@ -65,6 +113,22 @@ public static class WalSegmentLayout
             System.Globalization.NumberStyles.HexNumber,
             System.Globalization.CultureInfo.InvariantCulture,
             out startLsn);
+    }
+
+    private static bool TryParseFlushPublicationSegmentId(string fileName, out long segmentId)
+    {
+        segmentId = 0;
+        if (!fileName.EndsWith(FlushPublicationExtension, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        string hex = Path.GetFileNameWithoutExtension(fileName);
+        return hex.Length == 16
+            && long.TryParse(
+                hex,
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out segmentId)
+            && segmentId > 0;
     }
 
     /// <summary>
@@ -128,10 +192,16 @@ public static class WalSegmentLayout
         if (File.Exists(newPath))
         {
             File.Delete(legacyPath);
+            // 旧文件消失同样是恢复边界的一部分；目录项落盘后才能让后续 Open
+            // 将升级完成视为持久状态，避免掉电时新旧名称都不可见。
+            DirectoryFsync.FlushRequired(walDir);
             return;
         }
 
         File.Move(legacyPath, newPath);
+        // legacy -> segmented 名称迁移会改变 WAL 枚举集合。没有目录 fsync 时，掉电可能
+        // 留下目录项未持久化的 rename，下一次启动会把已有记录误判为空 WAL。
+        DirectoryFsync.FlushRequired(walDir);
     }
 
     // ── 私有辅助 ─────────────────────────────────────────────────────────────

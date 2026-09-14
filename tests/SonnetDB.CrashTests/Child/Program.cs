@@ -71,6 +71,15 @@ switch (scenario)
     case "hold_graph_manager_lifecycle_lease":
         RunHoldGraphManagerLifecycleLease(root, readyFile);
         return 0;
+    case "hold_tsdb_root_directory_lease":
+        RunHoldTsdbRootDirectoryLease(root, readyFile);
+        return 0;
+    case "release_tsdb_root_directory_lease_via_dispose":
+        RunReleaseTsdbRootDirectoryLeaseViaDispose(root, readyFile);
+        return 0;
+    case "release_tsdb_root_directory_lease_via_crash_simulation":
+        RunReleaseTsdbRootDirectoryLeaseViaCrashSimulation(root, readyFile);
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
@@ -410,6 +419,38 @@ static void RunHoldGraphManagerLifecycleLease(string root, string readyFile)
     File.Move(temporaryReadyFile, readyFile);
     Thread.Sleep(Timeout.Infinite);
 }
+
+static void RunHoldTsdbRootDirectoryLease(string root, string readyFile)
+{
+    using var database = OpenTsdbForLifecycleLease(root);
+    WriteCrashReady(readyFile, "tsdb-root-directory-lease-acquired");
+    Thread.Sleep(Timeout.Infinite);
+}
+
+static void RunReleaseTsdbRootDirectoryLeaseViaDispose(string root, string readyFile)
+{
+    using (Tsdb database = OpenTsdbForLifecycleLease(root))
+    {
+    }
+
+    WriteCrashReady(readyFile, "tsdb-root-directory-lease-released-by-dispose");
+    Thread.Sleep(Timeout.Infinite);
+}
+
+static void RunReleaseTsdbRootDirectoryLeaseViaCrashSimulation(string root, string readyFile)
+{
+    using var database = OpenTsdbForLifecycleLease(root);
+    database.CrashSimulationCloseWal();
+    WriteCrashReady(readyFile, "tsdb-root-directory-lease-released-by-crash-simulation");
+    Thread.Sleep(Timeout.Infinite);
+}
+
+static Tsdb OpenTsdbForLifecycleLease(string root) => Tsdb.Open(new TsdbOptions
+{
+    RootDirectory = root,
+    BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+    Compaction = new CompactionPolicy { Enabled = false },
+});
 
 static GraphProperty[] BuildGraphProperties(string prefix)
 {

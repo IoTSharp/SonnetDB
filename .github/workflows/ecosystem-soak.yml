@@ -2,11 +2,11 @@ name: Ecosystem Soak
 
 on:
   schedule:
-    - cron: '0 3 * * 0'
+    - cron: "0 3 * * 0"
   workflow_dispatch:
     inputs:
       profile:
-        description: 'Profile (capacity profiles should use a dedicated runner when hosted limits are insufficient)'
+        description: "Hosted ecosystem profile (fixed-hardware capacity evidence uses M19 Capacity Evidence)"
         required: true
         default: quick
         type: choice
@@ -14,10 +14,6 @@ on:
           - quick
           - ci
           - soak
-          - high-cardinality
-          - small-segments
-          - maintenance-chaos
-          - many-measurements
 
 permissions:
   contents: read
@@ -45,9 +41,12 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Validate M19 evidence verifier contract
+      - name: Validate M19 evidence verifier contracts
         shell: pwsh
-        run: ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-report.ps1
+        run: |
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-report.ps1
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-bundle.ps1
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-specialized-soak-profiles.ps1
 
       - name: Run ecosystem profile
         env:
@@ -58,13 +57,6 @@ jobs:
             -- \
             --profile "$PROFILE" \
             --output "artifacts/ecosystem-soak/$PROFILE"
-
-      - name: Verify M19 capacity evidence contract
-        if: ${{ inputs.profile == 'high-cardinality' || inputs.profile == 'small-segments' || inputs.profile == 'maintenance-chaos' || inputs.profile == 'many-measurements' }}
-        shell: pwsh
-        run: |
-          ./tests/SonnetDB.EcosystemSoak/scripts/verify-m19-capacity-report.ps1 `
-            -ReportPath "artifacts/ecosystem-soak/${{ inputs.profile }}/report.json"
 
       - name: Upload ecosystem evidence
         if: always()

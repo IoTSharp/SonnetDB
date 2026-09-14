@@ -433,7 +433,7 @@ public sealed class BackupService
 
             string fileName = Path.GetFileName(normalized);
             // 生命周期锁只描述正在运行的实例，不能进入可恢复的数据清单。
-            if (string.Equals(fileName, KvKeyspace.LifecycleLockFileName, StringComparison.OrdinalIgnoreCase))
+            if (IsLifecycleLockFileName(fileName))
                 return false;
 
             for (int i = 0; i < _transientSuffixes.Length; i++)
@@ -831,12 +831,19 @@ public sealed class BackupService
 
     private static void DeleteRestoreLifecycleLocks(string staging)
     {
-        foreach (string path in Directory.EnumerateFiles(
-                     staging,
+        foreach (string lifecycleLockFileName in new[]
+                 {
+                     TsdbPaths.LifecycleLockFileName,
                      KvKeyspace.LifecycleLockFileName,
-                     SearchOption.AllDirectories))
+                 })
         {
-            File.Delete(path);
+            foreach (string path in Directory.EnumerateFiles(
+                         staging,
+                         lifecycleLockFileName,
+                         SearchOption.AllDirectories))
+            {
+                File.Delete(path);
+            }
         }
     }
 
@@ -863,6 +870,16 @@ public sealed class BackupService
 
     private static string ManifestPath(string backupDirectory)
         => Path.Combine(backupDirectory, BackupManifest.FileName);
+
+    private static bool IsLifecycleLockFileName(string fileName)
+        => string.Equals(
+                fileName,
+                TsdbPaths.LifecycleLockFileName,
+                StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                fileName,
+                KvKeyspace.LifecycleLockFileName,
+                StringComparison.OrdinalIgnoreCase);
 
     private static string ComputeSha256(string path)
     {
@@ -948,10 +965,7 @@ public sealed class BackupService
                             string normalizedPath = ValidateManifestRelativePath(entry.Path);
                             if (!filePaths.Add(normalizedPath))
                                 errors.Add($"Backup manifest contains duplicate file path '{entry.Path}'.");
-                            if (string.Equals(
-                                    Path.GetFileName(normalizedPath),
-                                    KvKeyspace.LifecycleLockFileName,
-                                    StringComparison.OrdinalIgnoreCase))
+                            if (IsLifecycleLockFileName(Path.GetFileName(normalizedPath)))
                             {
                                 errors.Add(
                                     $"Backup manifest cannot contain lifecycle lock file '{entry.Path}'.");

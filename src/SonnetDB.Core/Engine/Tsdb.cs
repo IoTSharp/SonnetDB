@@ -42,7 +42,15 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
+    private readonly object _shutdownSync = new();
     private readonly object _measurementBatchSync = new();
+    // 高位为关闭位，低位为已在失败前获得 admission 的批次计数。失败回调只能原子封门，
+    // 不能等待 _writeSync：某些管理路径会持写锁等待 flush 泵完成。
+    private long _batchWriteAdmissionState;
+    // 高位为关闭位，低位为已在关闭前取得 admission 的 schema mutation 数量。
+    // 关闭流程必须等待这些 mutation 完成，才能把 _disposed 置为 true；否则一个已
+    // 取得 schema 锁、但暂时停在测试 hook 的 DDL 可能被错误地拒绝。
+    private long _schemaMutationAdmissionState;
     private readonly MeasurementBatchLedger _measurementBatchLedger;
     // 锁序固定为 _schemaSync（外）→ _writeSync / 各模型 manager（内）。
     // 隐式 measurement 建立、跨模型 DDL 与备份均持有 schema 锁，保证名称检查和发布不可交错。
@@ -74,6 +82,7 @@ public sealed class Tsdb : IDisposable
     private bool _measurementSchemaDirty;
     private long _measurementSchemaPersistCount;
     private bool _disposed;
+    private int _writeLifecycleClosing;
     private BackgroundFlushWorker? _flushWorker;
     private FlushPump? _flushPump;
     private CompactionWorker? _compactionWorker;
@@ -83,8 +92,11 @@ public sealed class Tsdb : IDisposable
     private long _tombstoneDeletesSinceCheckpoint;
     private long _lastTombstoneCheckpointUtcTicks;
     private Exception? _lastError;
+    // 任一密封表在段发布前失败后，后续 checkpoint 不能越过它，否则 WAL replay 会跳过
+    // 尚未确认落段的数据。保持所有 sealing 表可查询，并拒绝新的 flush 直到重启恢复。
+    private Exception? _flushRecoveryFault;
     private long _meterRegistration;
-    private string? _ownedRootDirectory;
+    private RootDirectoryOwnership? _rootDirectoryOwnership;
 
     /// <summary>仅供并发测试确认跨 catalog DDL 即将尝试获取 schema 锁。</summary>
     internal Action? BeforeSchemaMutationLockTestHook { get; set; }
@@ -92,11 +104,22 @@ public sealed class Tsdb : IDisposable
     /// <summary>仅供并发测试确认跨 catalog DDL 已取得 schema 锁。</summary>
     internal Action? SchemaMutationLockAcquiredTestHook { get; set; }
 
+    /// <summary>仅供恢复并发测试在 measurement 批次取得 admission 前暂停。</summary>
+    internal Action? BeforeMeasurementBatchAdmissionTestHook { get; set; }
+
+    /// <summary>仅供恢复并发测试在 measurement 批次取得 admission 后暂停。</summary>
+    internal Action? AfterMeasurementBatchAdmissionTestHook { get; set; }
+
+    /// <summary>仅供关闭恢复测试在后台 worker 停止路径注入故障。</summary>
+    internal Action? BeforeBackgroundWorkerShutdownTestHook { get; set; }
+
     /// <summary>
     /// <see cref="WriteMany(ReadOnlySpan{Point})"/> 单次持锁处理的最大点数。超大批量按此粒度分块，
     /// 使硬上限背压能在批内周期性触发、块间释放写锁，避免单批无界撑大 MemTable/WAL（C4）。
     /// </summary>
     private const int WriteManyChunkSize = 8192;
+    private const long BatchWriteAdmissionClosed = long.MinValue;
+    private const long SchemaMutationAdmissionClosed = long.MinValue;
 
     /// <summary>数据库根目录路径。</summary>
     public string RootDirectory => _options.RootDirectory;
@@ -439,7 +462,9 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     /// <param name="options">引擎选项；为 null 时使用 <see cref="TsdbOptions.Default"/>。</param>
     /// <returns>已初始化的 <see cref="Tsdb"/> 实例。</returns>
-    /// <exception cref="IOException">同一进程中的另一个实例已打开同一数据库根目录时抛出。</exception>
+    /// <exception cref="IOException">
+    /// 同一进程或另一个进程中的实例已打开同一数据库根目录，或前一实例仍在完成关闭时抛出。
+    /// </exception>
     public static Tsdb Open(TsdbOptions? options = null)
     {
         options ??= TsdbOptions.Default;
@@ -448,7 +473,7 @@ public sealed class Tsdb : IDisposable
 
         string root = options.RootDirectory;
         Directory.CreateDirectory(root);
-        string? ownedRootDirectory = AcquireRootDirectoryOwnership(root);
+        RootDirectoryOwnership? rootDirectoryOwnership = AcquireRootDirectoryOwnership(root);
         WalSegmentSet? walSet = null;
         SegmentManager? segmentManager = null;
         Tsdb? tsdb = null;
@@ -473,7 +498,28 @@ public sealed class Tsdb : IDisposable
             // 加载 catalog（文件不存在时返回空目录）
             var catalog = CatalogFileCodec.Load(TsdbPaths.CatalogPath(root));
 
-            // 扫描已存在的 Segment 与替换清单，计算 NextSegmentId。
+            // 所有目录读取、WAL 打开与 spill 清理都必须在进程内根目录所有权之后进行。
+            // 部分平台不会通过 FileShare 拒绝同进程重复打开。
+            string walDir = TsdbPaths.WalDir(root);
+            // 先打开 WAL 并持有 active segment 的独占写句柄，再执行任何 marker/临时段清理。
+            // 这样另一个进程不能在当前实例进行发布时进入破坏性恢复路径；WalSegmentSet.Open
+            // 同时负责 legacy active.SDBWAL 升级。
+            walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
+            ReconcileInterruptedFlushPublications(
+                root,
+                walDir,
+                options.SegmentWriterOptions.TempFileSuffix,
+                options.SegmentReaderOptions);
+
+            // Flush/Compaction 可能在写入最终 .SDBSEG 前崩溃，且尚未留下可识别的 marker；
+            // 在计算 nextSegmentId 和打开 SegmentManager 前清理严格匹配的临时段文件，
+            // 避免残留文件长期占用空间。清理范围仅限 segments/ 下的 canonical 文件名。
+            SegmentManager.CleanupAllSegmentTemporaryFiles(
+                root,
+                options.SegmentWriterOptions.TempFileSuffix);
+
+            // 只有在清理未提交 Flush 段后才扫描 Segment：否则孤立段会被计入 next id 或被
+            // SegmentManager 加载，和随后的 WAL replay 形成用户可见重复点。
             // 即便 pending compaction 的新段尚未落盘，也不能复用其 SegmentId。
             long nextSegmentId = 1;
             foreach (var (segId, _) in TsdbPaths.EnumerateSegments(root))
@@ -485,32 +531,57 @@ public sealed class Tsdb : IDisposable
             if (segmentReplacementManifest.MaxSegmentId + 1 > nextSegmentId)
                 nextSegmentId = segmentReplacementManifest.MaxSegmentId + 1;
 
-            // 所有目录读取、WAL 打开与 spill 清理都必须在进程内根目录所有权之后进行。
-            // 部分平台不会通过 FileShare 拒绝同进程重复打开。
-            string walDir = TsdbPaths.WalDir(root);
-            // 打开 WAL segment 集合（自动升级 legacy active.SDBWAL）
-            walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
-            _ = SqlSpillWorkspace.CleanupStale(root);
-            long durableCheckpointLsn = WalCheckpointFile
-                .TryLoad(
-                    WalSegmentLayout.CheckpointPath(walDir),
-                    state => IsCheckpointSegmentPresent(root, state))
-                ?.CheckpointLsn ?? 0L;
+            // 先打开全部已发布 canonical 段。任何未被 replacement manifest 抑制的损坏段
+            // 都必须在 WAL replay 前 fail closed；WAL 在成功 flush 后已经允许回收，不能
+            // 把这类段当作可忽略的临时文件。
+            segmentManager = SegmentManager.Open(
+                root,
+                options.SegmentReaderOptions,
+                options.SegmentWriterOptions.TempFileSuffix);
 
-            // 回放全部 WAL segment，使用 Checkpoint LSN 跳过已落盘记录
+            _ = SqlSpillWorkspace.CleanupStale(root);
+            long durableCheckpointLsn = GetVerifiedDurableCheckpointLsn(
+                root,
+                walDir,
+                options.SegmentReaderOptions,
+                segmentReplacementManifest);
+
+            // 兼容引入独立 checkpoint 文件之前创建的数据库：旧版本只把 checkpoint
+            // 记录写入 WAL，因此不存在 checkpoint.SDBWCKP。只要恢复阶段没有 pending
+            // publication marker（有 marker 时 ReconcileInterruptedFlushPublications 已经
+            // 要求独立边界可验证），可以继续信任旧 WAL checkpoint；否则旧库会在升级后
+            // 因“WAL checkpoint 超过已验证边界”无法打开。独立文件存在但损坏时仍保持
+            // fail-closed，避免把新格式的校验失败误当作旧库。
+            long highestVerifiedCheckpointLsn = durableCheckpointLsn;
+            string checkpointPath = WalSegmentLayout.CheckpointPath(walDir);
+            bool hasPublicationMarkers =
+                WalSegmentLayout.EnumerateFlushPublicationPaths(walDir).Count != 0;
+            if (durableCheckpointLsn == 0
+                && !File.Exists(checkpointPath)
+                && !hasPublicationMarkers)
+            {
+                highestVerifiedCheckpointLsn = long.MaxValue;
+            }
+
+            // 回放全部 WAL segment。新格式的 checkpoint 只能推进到已验证的独立边界；
+            // 独立文件损坏或关联段不可读时，残留 checkpoint 不能单独作为丢弃旧写入的依据。
+            // 对没有独立 sidecar、且没有 pending marker 的旧库，上方会保留旧版本仅依赖
+            // WAL checkpoint 的行为，避免升级后无法打开已有数据库。
             var memTable = new MemTable();
             int catalogCountBeforeReplay = catalog.Count;
             string tombstoneManifestPath = TsdbPaths.TombstoneManifestPath(root);
             IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.LoadWithFallback(tombstoneManifestPath);
             long durableTombstoneCheckpointLsn = GetMaxTombstoneLsn(manifestTombstones);
-            var result = walSet.ReplayWithCheckpoint(catalog, durableCheckpointLsn, durableTombstoneCheckpointLsn);
+            var result = walSet.ReplayWithCheckpoint(
+                catalog,
+                durableCheckpointLsn,
+                durableTombstoneCheckpointLsn,
+                highestVerifiedCheckpointLsn);
             memTable.ReplayFrom(result.WritePoints);
             long checkpointLsn = result.CheckpointLsn;
             bool catalogDirty = catalog.Count != catalogCountBeforeReplay;
 
             var seriesWithWalRecord = catalog.Snapshot().Select(e => e.Id).ToHashSet();
-
-            segmentManager = SegmentManager.Open(root, options.SegmentReaderOptions);
 
             tsdb = new Tsdb(
                 options,
@@ -567,7 +638,7 @@ public sealed class Tsdb : IDisposable
             }
 
             tsdb._meterRegistration = SonnetDbMeter.RegisterEngine(tsdb);
-            tsdb._ownedRootDirectory = Interlocked.Exchange(ref ownedRootDirectory, null);
+            tsdb._rootDirectoryOwnership = Interlocked.Exchange(ref rootDirectoryOwnership, null);
             return tsdb;
         }
         catch
@@ -578,7 +649,7 @@ public sealed class Tsdb : IDisposable
                 {
                     // 启动后段失败时先把 owner 转交给实例。若 Dispose 在进入 committed
                     // 关闭前也失败，owner 会保守保留，避免存活资源与新实例并存。
-                    tsdb._ownedRootDirectory = Interlocked.Exchange(ref ownedRootDirectory, null);
+                    tsdb._rootDirectoryOwnership = Interlocked.Exchange(ref rootDirectoryOwnership, null);
                     DisposeAfterFailedOpen(tsdb);
                 }
                 else
@@ -596,14 +667,14 @@ public sealed class Tsdb : IDisposable
             }
             finally
             {
-                ReleaseRootDirectoryOwnership(ref ownedRootDirectory);
+                ReleaseRootDirectoryOwnership(ref rootDirectoryOwnership);
             }
 
             throw;
         }
     }
 
-    private static string AcquireRootDirectoryOwnership(string rootDirectory)
+    private static RootDirectoryOwnership AcquireRootDirectoryOwnership(string rootDirectory)
     {
         string normalizedRoot = NormalizeRootDirectoryForOwnership(rootDirectory);
         lock (RootDirectoryOwnersSync)
@@ -615,7 +686,44 @@ public sealed class Tsdb : IDisposable
             }
         }
 
-        return normalizedRoot;
+        FileStream? lifecycleLease = null;
+        try
+        {
+            // FileShare.None 作为跨进程 lease，必须在加载 catalog、打开/升级 WAL 或清理
+            // 任意恢复 artifact 前取得。进程内 HashSet 仍保留，因为某些平台不会用 share
+            // mode 阻止同一进程重复打开同一文件。
+            lifecycleLease = new FileStream(
+                TsdbPaths.LifecycleLockPath(normalizedRoot),
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 1,
+                FileOptions.None);
+            // FileShare.None 在全部支持的平台阻止常规打开；在支持区间锁的平台再加一层
+            // byte-range lease，以覆盖 share-mode 仅为 advisory 的文件系统。macOS 不支持
+            // FileStream.Lock，那里由 FileShare.None 负责跨进程排他。
+            if (!OperatingSystem.IsMacOS())
+                lifecycleLease.Lock(0, 1);
+            return new RootDirectoryOwnership(normalizedRoot, lifecycleLease);
+        }
+        catch (IOException exception)
+        {
+            lifecycleLease?.Dispose();
+            lock (RootDirectoryOwnersSync)
+                _ = RootDirectoryOwners.Remove(normalizedRoot);
+
+            throw new IOException(
+                $"数据库根目录 '{normalizedRoot}' 已由另一个进程中的 Tsdb 实例打开，" +
+                "或前一实例仍在完成关闭。",
+                exception);
+        }
+        catch
+        {
+            lifecycleLease?.Dispose();
+            lock (RootDirectoryOwnersSync)
+                _ = RootDirectoryOwners.Remove(normalizedRoot);
+            throw;
+        }
     }
 
     private static string NormalizeRootDirectoryForOwnership(string rootDirectory)
@@ -657,14 +765,75 @@ public sealed class Tsdb : IDisposable
             $"数据库根目录 '{rootDirectory}' 的符号链接解析超过 {MaxRootDirectoryLinkResolutions} 次。");
     }
 
-    private static void ReleaseRootDirectoryOwnership(ref string? ownedRootDirectory)
+    private static void ReleaseRootDirectoryOwnership(
+        ref RootDirectoryOwnership? rootDirectoryOwnership)
     {
-        string? normalizedRoot = Interlocked.Exchange(ref ownedRootDirectory, null);
-        if (normalizedRoot is null)
+        RootDirectoryOwnership? ownership = Interlocked.Exchange(ref rootDirectoryOwnership, null);
+        if (ownership is null)
             return;
 
-        lock (RootDirectoryOwnersSync)
-            _ = RootDirectoryOwners.Remove(normalizedRoot);
+        ReleaseRootDirectoryOwnership(ownership);
+    }
+
+    private static void ReleaseRootDirectoryOwnershipAfter(
+        ref RootDirectoryOwnership? rootDirectoryOwnership,
+        Task completion)
+    {
+        ArgumentNullException.ThrowIfNull(completion);
+
+        RootDirectoryOwnership? ownership = Interlocked.Exchange(ref rootDirectoryOwnership, null);
+        if (ownership is null)
+            return;
+
+        if (completion.IsCompleted)
+        {
+            ReleaseRootDirectoryOwnership(ownership);
+            return;
+        }
+
+        _ = completion.ContinueWith(
+            static (_, state) => ReleaseRootDirectoryOwnership((RootDirectoryOwnership)state!),
+            ownership,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static void ReleaseRootDirectoryOwnership(RootDirectoryOwnership ownership)
+    {
+        try
+        {
+            ownership.Dispose();
+        }
+        finally
+        {
+            lock (RootDirectoryOwnersSync)
+                _ = RootDirectoryOwners.Remove(ownership.NormalizedRoot);
+        }
+    }
+
+    /// <summary>
+    /// 同时保存进程内根目录所有权与跨进程文件句柄；必须在全部 WAL、Segment 和模型资源
+    /// 已释放后才释放，避免新进程与上一实例的关闭清理交错。
+    /// </summary>
+    private sealed class RootDirectoryOwnership : IDisposable
+    {
+        private FileStream? _lifecycleLease;
+
+        public RootDirectoryOwnership(string normalizedRoot, FileStream lifecycleLease)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(normalizedRoot);
+            ArgumentNullException.ThrowIfNull(lifecycleLease);
+            NormalizedRoot = normalizedRoot;
+            _lifecycleLease = lifecycleLease;
+        }
+
+        public string NormalizedRoot { get; }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _lifecycleLease, null)?.Dispose();
+        }
     }
 
     /// <summary>数据库对象已构造但启动后续步骤失败时，尽力释放全部资源并保留原始打开异常。</summary>
@@ -698,6 +867,8 @@ public sealed class Tsdb : IDisposable
             lock (_writeSync)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                ThrowIfWriteLifecycleClosing();
+                ThrowIfFlushRecoveryFault();
                 var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
                 WritePointLocked(normalized);
                 hardCapFlush = FlushForHardCapIfNeededLocked();
@@ -775,48 +946,58 @@ public sealed class Tsdb : IDisposable
         string fingerprint = MeasurementBatchLedger.Fingerprint(points);
         lock (_measurementBatchSync)
         {
-            if (_measurementBatchLedger.TryGet(batchId, out string? existing))
+            BeforeMeasurementBatchAdmissionTestHook?.Invoke();
+            EnterBatchWriteAdmission();
+            try
             {
-                if (!string.Equals(existing, fingerprint, StringComparison.Ordinal))
-                    throw new InvalidOperationException($"Measurement batch '{batchId}' was already committed with a different payload.");
-                if (_measurementBatchLedger.IsCommitted(batchId))
-                    return 0;
-
-                // A crash can leave a durable pending marker after WAL append. Reconcile
-                // against the current read view and only append fields that are absent.
-                var missing = new List<Point>(points.Length);
-                foreach (Point point in points)
+                AfterMeasurementBatchAdmissionTestHook?.Invoke();
+                if (_measurementBatchLedger.TryGet(batchId, out string? existing))
                 {
-                    if (point is null)
-                        continue;
-                    var absentFields = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
-                    var entry = Catalog.GetOrAdd(point);
-                    foreach (var field in point.Fields)
+                    if (!string.Equals(existing, fingerprint, StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Measurement batch '{batchId}' was already committed with a different payload.");
+                    if (_measurementBatchLedger.IsCommitted(batchId))
+                        return 0;
+
+                    // A crash can leave a durable pending marker after WAL append. Reconcile
+                    // against the current read view and only append fields that are absent.
+                    var missing = new List<Point>(points.Length);
+                    foreach (Point point in points)
                     {
-                        bool present = Query.Execute(new PointQuery(
-                            entry.Id,
-                            field.Key,
-                            new TimeRange(point.Timestamp, checked(point.Timestamp + 1)),
-                            Limit: 8)).Any(dataPoint => dataPoint.Value == field.Value);
-                        if (!present)
-                            absentFields[field.Key] = field.Value;
+                        if (point is null)
+                            continue;
+                        var absentFields = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
+                        var entry = Catalog.GetOrAdd(point);
+                        foreach (var field in point.Fields)
+                        {
+                            bool present = Query.Execute(new PointQuery(
+                                entry.Id,
+                                field.Key,
+                                new TimeRange(point.Timestamp, checked(point.Timestamp + 1)),
+                                Limit: 8)).Any(dataPoint => dataPoint.Value == field.Value);
+                            if (!present)
+                                absentFields[field.Key] = field.Value;
+                        }
+                        if (absentFields.Count > 0)
+                            missing.Add(Point.Create(point.Measurement, point.Timestamp, point.Tags, absentFields));
                     }
-                    if (absentFields.Count > 0)
-                        missing.Add(Point.Create(point.Measurement, point.Timestamp, point.Tags, absentFields));
+
+                    int repaired = missing.Count == 0 ? 0 : WriteManyFromBatchAdmission(missing.ToArray());
+                    _measurementBatchLedger.Commit(batchId, fingerprint);
+                    return repaired;
                 }
 
-                int repaired = missing.Count == 0 ? 0 : WriteMany(missing.ToArray());
+                // Persist intent before WAL writes. Recovery can distinguish a committed
+                // batch from an interrupted write and reconcile the latter without replaying
+                // already durable fields. admission 保证 Flush 失败已先发生时不会走到此处。
+                _measurementBatchLedger.Prepare(batchId, fingerprint);
+                int written = WriteManyFromBatchAdmission(points);
                 _measurementBatchLedger.Commit(batchId, fingerprint);
-                return repaired;
+                return written;
             }
-
-            // Persist intent before WAL writes. Recovery can distinguish a committed
-            // batch from an interrupted write and reconcile the latter without replaying
-            // already durable fields.
-            _measurementBatchLedger.Prepare(batchId, fingerprint);
-            int written = WriteMany(points);
-            _measurementBatchLedger.Commit(batchId, fingerprint);
-            return written;
+            finally
+            {
+                ExitBatchWriteAdmission();
+            }
         }
     }
 
@@ -843,6 +1024,18 @@ public sealed class Tsdb : IDisposable
     /// <returns>成功写入的点数量（不含 null 跳过）。</returns>
     /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
     public int WriteMany(ReadOnlySpan<Point> points)
+        => WriteManyCore(points, hasBatchWriteAdmission: false);
+
+    /// <summary>
+    /// 在已于 flush 失败前取得 batch admission 的情况下写入。调用方持有 admission 时，
+    /// 首个写入块以 admission 为线性化点完成，确保随后发生的 flush 故障不会让尚未产生
+    /// WAL/MemTable 变更的批次遗留 pending ledger。首块之后的故障可留下 pending ledger，
+    /// 此时账本已有对应的可恢复写入意图。
+    /// </summary>
+    private int WriteManyFromBatchAdmission(ReadOnlySpan<Point> points)
+        => WriteManyCore(points, hasBatchWriteAdmission: true);
+
+    private int WriteManyCore(ReadOnlySpan<Point> points, bool hasBatchWriteAdmission)
     {
         if (points.IsEmpty)
             return 0;
@@ -854,7 +1047,10 @@ public sealed class Tsdb : IDisposable
         while (offset < points.Length)
         {
             int chunkLength = Math.Min(WriteManyChunkSize, points.Length - offset);
-            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength));
+            // batch admission 只跨越第一个实际写入块。它的作用是让 Prepare 与首次 WAL/MemTable
+            // 变更按同一线性化点发生；后续块恢复正常 fault 检查，避免失败后无界继续写入。
+            bool isFirstAdmittedBatchChunk = hasBatchWriteAdmission && offset == 0;
+            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk);
             offset += chunkLength;
         }
 
@@ -865,7 +1061,7 @@ public sealed class Tsdb : IDisposable
     /// 单块批量写入：与整批写入语义一致，但只处理 <paramref name="chunk"/> 一段，
     /// 便于 <see cref="WriteMany(ReadOnlySpan{Point})"/> 在块间释放锁并施加硬上限背压。
     /// </summary>
-    private int WriteManyChunk(ReadOnlySpan<Point> chunk)
+    private int WriteManyChunk(ReadOnlySpan<Point> chunk, bool hasBatchWriteAdmission)
     {
         long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -876,6 +1072,11 @@ public sealed class Tsdb : IDisposable
             lock (_writeSync)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                if (!hasBatchWriteAdmission)
+                {
+                    ThrowIfWriteLifecycleClosing();
+                    ThrowIfFlushRecoveryFault();
+                }
 
                 var normalizedPoints = new Point?[chunk.Length];
 
@@ -900,7 +1101,8 @@ public sealed class Tsdb : IDisposable
                             WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
                     }
 
-                    hardCapFlush = FlushForHardCapIfNeededLocked();
+                    hardCapFlush = FlushForHardCapIfNeededLocked(
+                        permitFaultedBatchAdmission: hasBatchWriteAdmission);
                 }
 
                 if (_options.SyncWalOnEveryWrite && written > 0)
@@ -952,6 +1154,8 @@ public sealed class Tsdb : IDisposable
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfWriteLifecycleClosing();
+            ThrowIfFlushRecoveryFault();
 
             long lsn = _walSet!.AppendDelete(seriesId, fieldName, fromTimestamp, toTimestamp);
             var tomb = new Tombstone(seriesId, fieldName, fromTimestamp, toTimestamp, lsn);
@@ -1012,6 +1216,8 @@ public sealed class Tsdb : IDisposable
             lock (_writeSync)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                ThrowIfWriteLifecycleClosing();
+                ThrowIfFlushRecoveryFault();
                 EnsureViewNameAvailable(schema.Name, "measurement");
                 Measurements.Add(schema);
 
@@ -1043,6 +1249,8 @@ public sealed class Tsdb : IDisposable
             lock (_writeSync)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                ThrowIfWriteLifecycleClosing();
+                ThrowIfFlushRecoveryFault();
                 var existing = Measurements.TryGet(name);
                 if (existing is not null)
                 {
@@ -1080,6 +1288,8 @@ public sealed class Tsdb : IDisposable
                 lock (_writeSync)
                 {
                     ObjectDisposedException.ThrowIf(_disposed, this);
+                    ThrowIfWriteLifecycleClosing();
+                    ThrowIfFlushRecoveryFault();
                     EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
                     if (!Measurements.Contains(name))
@@ -1127,6 +1337,7 @@ public sealed class Tsdb : IDisposable
     public void SignalFlush()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfWriteLifecycleClosing();
         var worker = _flushWorker;
         if (worker is not null)
         {
@@ -1164,6 +1375,7 @@ public sealed class Tsdb : IDisposable
             lock (_writeSync)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                ThrowIfWriteLifecycleClosing();
 
                 SealAndWaitLocked();
                 _walSet?.Sync();
@@ -1196,50 +1408,120 @@ public sealed class Tsdb : IDisposable
     internal TResult ExecuteSchemaMutation<TResult>(Func<TResult> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        BeforeSchemaMutationLockTestHook?.Invoke();
-        lock (_schemaSync)
+        EnterSchemaMutationAdmission();
+        try
         {
-            SchemaMutationLockAcquiredTestHook?.Invoke();
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            return action();
+            BeforeSchemaMutationLockTestHook?.Invoke();
+            lock (_schemaSync)
+            {
+                SchemaMutationLockAcquiredTestHook?.Invoke();
+                // Admission is the linearization point for this mutation.  Once it has
+                // succeeded, shutdown waits for it instead of rejecting it merely because
+                // the lifecycle-closing bit was raised while it was waiting for the lock.
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+                return action();
+            }
+        }
+        finally
+        {
+            ExitSchemaMutationAdmission();
         }
     }
 
     /// <summary>
     /// 关闭数据库：先关闭后台 Flush 线程，再 Flush 剩余 MemTable、保存 catalog、关闭 WAL。
+    /// 已启动的流式查询可继续完成其已取得的段读取租约；在最后一个租约归还前，同一根目录
+    /// 仍保持跨进程所有权，新的 <see cref="Tsdb"/> 实例不能打开该目录。
     /// </summary>
     public void Dispose()
     {
-        SonnetDbMeter.UnregisterEngine(_meterRegistration);
+        lock (_shutdownSync)
+        {
+            if (_disposed)
+            {
+                ReleaseRootDirectoryOwnership(ref _rootDirectoryOwnership);
+                return;
+            }
 
-        _kvExpirerWorker?.Dispose();
-        _kvExpirerWorker = null;
+            BeginWriteLifecycleShutdown();
+            try
+            {
+                SonnetDbMeter.UnregisterEngine(_meterRegistration);
+                StopBackgroundWorkers();
+            }
+            finally
+            {
+                DisposeCommittedState();
+            }
+        }
+    }
 
-        // 先关闭 Retention 后台线程（在锁外，防止与内部操作死锁）
-        _retentionWorker?.Dispose();
-        _retentionWorker = null;
+    /// <summary>
+    /// 按依赖顺序停止后台 worker。每个 finally 均保证即使前一个 worker 的关闭失败，
+    /// 后续 worker 与 flush 泵仍会被停止，避免在已提交资源处置后继续访问它们。
+    /// </summary>
+    private void StopBackgroundWorkers()
+    {
+        try
+        {
+            BeforeBackgroundWorkerShutdownTestHook?.Invoke();
+        }
+        finally
+        {
+            try
+            {
+                _kvExpirerWorker?.Dispose();
+            }
+            finally
+            {
+                _kvExpirerWorker = null;
+                try
+                {
+                    // Retention 与 Compaction 必须在 Flush 泵之前停止。
+                    _retentionWorker?.Dispose();
+                }
+                finally
+                {
+                    _retentionWorker = null;
+                    try
+                    {
+                        _compactionWorker?.Dispose();
+                    }
+                    finally
+                    {
+                        _compactionWorker = null;
+                        try
+                        {
+                            _flushWorker?.Dispose();
+                        }
+                        finally
+                        {
+                            _flushWorker = null;
+                            try
+                            {
+                                // 排空泵后才能关闭 WAL；否则在飞 flush 可能访问已释放资源。
+                                _flushPump?.Dispose();
+                            }
+                            finally
+                            {
+                                _flushPump = null;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-        // 再关闭 Compaction 后台线程（在锁外，防止与内部操作死锁）
-        _compactionWorker?.Dispose();
-        _compactionWorker = null;
-
-        // 再关闭后台 Flush 线程（在锁外，防止与 InternalFlushFromBackground 死锁）
-        _flushWorker?.Dispose();
-        _flushWorker = null;
-
-        // 排空 flush 泵：等待所有已入队的密封表落盘完成（此时 _walSet 仍有效）。
-        // 必须在关闭 WAL 之前，否则在飞 flush 会因 WAL 被释放而失败/丢数据。
-        _flushPump?.Dispose();
-        _flushPump = null;
+    /// <summary>停止后台 worker 后，在 schema → write 锁序下处置数据库的已提交资源。</summary>
+    private void DisposeCommittedState()
+    {
 
         // 关闭提交段与 DDL、备份使用相同的 schema → write 锁序；在途 schema 变更先完成，
         // 关闭取得 schema 锁后再处置各 manager，防止关闭返回后继续发布 Modbus 绑定。
         lock (_schemaSync)
             lock (_writeSync)
             {
-                if (_disposed)
-                    return;
-                _disposed = true;
                 WalSegmentSet? walSetToDispose = _walSet;
                 _walSet = null;
 
@@ -1249,8 +1531,19 @@ public sealed class Tsdb : IDisposable
                     {
                         _walGroupCommit.FlushPending(walSetToDispose);
 
+                        // 任何密封 Flush 失败后都不能再创建更高 checkpoint：那会让 WAL replay
+                        // 跳过失败密封表的数据。关闭时保留 WAL，交给下次 Open 的 marker 恢复路径。
+                        Exception? flushRecoveryFault = Volatile.Read(ref _flushRecoveryFault);
+                        if (flushRecoveryFault is not null)
+                        {
+                            ReportDiagnostic(
+                                "Dispose.FinalFlush",
+                                TsdbDiagnosticSeverity.Warning,
+                                "检测到未恢复的 Flush 发布失败；跳过 final flush 并保留 WAL 供下次启动恢复。",
+                                flushRecoveryFault);
+                        }
                         // 尝试 Flush 剩余数据（Flush 内部会保存 manifest）
-                        if (MemTable.PointCount > 0)
+                        else if (MemTable.PointCount > 0)
                         {
                             try
                             {
@@ -1322,6 +1615,7 @@ public sealed class Tsdb : IDisposable
 
     private void DisposeCommittedResources(WalSegmentSet? walSetToDispose)
     {
+        Task segmentReaderLeaseDrain = Task.CompletedTask;
         try
         {
             try
@@ -1381,7 +1675,8 @@ public sealed class Tsdb : IDisposable
                                     {
                                         try
                                         {
-                                            Segments.Dispose();
+                                            segmentReaderLeaseDrain =
+                                                Segments.DisposeAndGetSnapshotLeaseDrainTask();
                                         }
                                         finally
                                         {
@@ -1397,7 +1692,9 @@ public sealed class Tsdb : IDisposable
         }
         finally
         {
-            ReleaseRootDirectoryOwnership(ref _ownedRootDirectory);
+            ReleaseRootDirectoryOwnershipAfter(
+                ref _rootDirectoryOwnership,
+                segmentReaderLeaseDrain);
         }
     }
 
@@ -1409,8 +1706,11 @@ public sealed class Tsdb : IDisposable
     /// 本方法只做 O(1) 的 swap/入队与少量 catalog I/O，<b>不</b>执行编码落盘或 WAL 回收（由泵在锁外做）。
     /// </summary>
     /// <returns>已入队的 flush 请求；活跃表为空或引擎已关闭时返回 null。</returns>
-    private FlushPump.FlushRequest? SealAndEnqueueLocked()
+    private FlushPump.FlushRequest? SealAndEnqueueLocked(bool permitFaultedBatchAdmission = false)
     {
+        if (!permitFaultedBatchAdmission)
+            ThrowIfFlushRecoveryFault();
+
         if (_walSet == null || _flushPump == null)
             return null;
 
@@ -1450,11 +1750,13 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
-    /// 由 flush 泵线程调用（锁外）：把已密封的 MemTable 编码落盘 + WAL checkpoint/roll/recycle，
-    /// 然后原子发布新段并从 sealing 列表移除该表。全程不获取 <c>_writeSync</c>。
+    /// 由 flush 泵线程调用（锁外）：把已密封的 MemTable 编码落盘，先原子发布新段并从
+    /// sealing 列表移除该表，再提交 WAL checkpoint/回收旧段。全程不获取 <c>_writeSync</c>。
     /// </summary>
     internal void ExecutePumpFlush(FlushPump.FlushRequest request)
     {
+        ThrowIfFlushRecoveryFault();
+
         // 捕获 WAL 引用；若已进入 Dispose 且 WAL 已释放，则跳过（Dispose 会先排空泵，通常不会走到）。
         var walSet = _walSet;
         if (walSet == null)
@@ -1495,8 +1797,13 @@ public sealed class Tsdb : IDisposable
             return;
         }
 
-        // 原子发布：接入新段 + 从 sealing 移除该表（SegmentManager 一次 Volatile.Write）。
+        // 先原子发布：接入新段 + 从 sealing 移除该表（SegmentManager 一次 Volatile.Write）。
+        // WAL checkpoint/recycle 必须在此之后执行；若读快照发布失败，WAL 仍完整保留，
+        // 下次启动可删除/校验该段并回放，而不会因提前回收 WAL 丢失数据。
         Segments.PublishSegmentAndReleaseSealed(result.Path, request.SealedTable);
+
+        // 只有段已由 SegmentManager 成功打开并纳入当前快照，才允许 WAL 越过 sealLsn。
+        _flushCoordinator.FinalizeSealedFlush(walSet, request.SealLsn);
         request.Result = result;
 
         SonnetDbMeter.FlushDuration.Record(
@@ -1535,22 +1842,181 @@ public sealed class Tsdb : IDisposable
         // 在活跃表为空（seal 返回 null）时不足以覆盖先前入队的请求，故显式 Drain。泵不取 _writeSync，无死锁。
         _flushPump?.Drain();
     }
+
+    private void ThrowIfFlushRecoveryFault()
+    {
+        Exception? fault = Volatile.Read(ref _flushRecoveryFault);
+        if (fault is not null)
+        {
+            throw new InvalidOperationException(
+                "此前的 Flush 发布失败，后续 Flush 和 checkpoint 已被停止；请关闭并重新打开数据库以从 WAL 恢复。",
+                fault);
+        }
+    }
+
+    private void ThrowIfWriteLifecycleClosing()
+        => ObjectDisposedException.ThrowIf(Volatile.Read(ref _writeLifecycleClosing) != 0, this);
+
+    /// <summary>
+    /// 先阻止新的批次 admission 并等待已获 admission 的批次建立其首个写入边界，
+    /// 再在 schema → write 锁序下关闭写生命周期。等待阶段不持有任何写相关锁，
+    /// 因此不会阻塞已获 admission 的批次或 flush 泵。
+    /// </summary>
+    private void BeginWriteLifecycleShutdown()
+    {
+        CloseBatchWriteAdmission();
+        CloseSchemaMutationAdmission();
+        Volatile.Write(ref _writeLifecycleClosing, 1);
+
+        var spinner = new SpinWait();
+        while ((Volatile.Read(ref _batchWriteAdmissionState) & ~BatchWriteAdmissionClosed) != 0)
+            spinner.SpinOnce();
+
+        spinner = new SpinWait();
+        while ((Volatile.Read(ref _schemaMutationAdmissionState) & ~SchemaMutationAdmissionClosed) != 0)
+            spinner.SpinOnce();
+
+        lock (_schemaSync)
+            lock (_writeSync)
+                _disposed = true;
+    }
+
+    /// <summary>
+    /// 获取一个 schema mutation admission。关闭开始后不再接受新的 mutation；已取得
+    /// admission 的调用由关闭流程等待完成。
+    /// </summary>
+    private void EnterSchemaMutationAdmission()
+    {
+        while (true)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+            ThrowIfWriteLifecycleClosing();
+
+            long observed = Volatile.Read(ref _schemaMutationAdmissionState);
+            if ((observed & SchemaMutationAdmissionClosed) != 0)
+            {
+                ThrowIfWriteLifecycleClosing();
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+                throw new ObjectDisposedException(GetType().Name);
+            }
+
+            if (Interlocked.CompareExchange(
+                    ref _schemaMutationAdmissionState,
+                    observed + 1,
+                    observed) != observed)
+            {
+                continue;
+            }
+
+            // Close may have won the race immediately after the increment.  In that case
+            // withdraw the admission and retry so a mutation cannot start after shutdown
+            // has sealed the gate.
+            if ((Volatile.Read(ref _schemaMutationAdmissionState) & SchemaMutationAdmissionClosed) == 0
+                && Volatile.Read(ref _writeLifecycleClosing) == 0
+                && !Volatile.Read(ref _disposed))
+            {
+                return;
+            }
+
+            _ = Interlocked.Decrement(ref _schemaMutationAdmissionState);
+            ThrowIfWriteLifecycleClosing();
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        }
+    }
+
+    private void ExitSchemaMutationAdmission()
+        => _ = Interlocked.Decrement(ref _schemaMutationAdmissionState);
+
+    private void CloseSchemaMutationAdmission()
+    {
+        while (true)
+        {
+            long observed = Volatile.Read(ref _schemaMutationAdmissionState);
+            if ((observed & SchemaMutationAdmissionClosed) != 0)
+                return;
+
+            if (Interlocked.CompareExchange(
+                    ref _schemaMutationAdmissionState,
+                    observed | SchemaMutationAdmissionClosed,
+                    observed) == observed)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 获取 measurement 批次的 flush-failure admission。成功返回后，即使失败回调随后运行，
+    /// 当前批次仍按此前线性化顺序完成；失败先封门的批次在写入 ledger 前被拒绝。
+    /// </summary>
+    private void EnterBatchWriteAdmission()
+    {
+        while (true)
+        {
+            long observed = Volatile.Read(ref _batchWriteAdmissionState);
+            if ((observed & BatchWriteAdmissionClosed) != 0)
+            {
+                ThrowIfFlushRecoveryFault();
+                ThrowIfWriteLifecycleClosing();
+                throw new InvalidOperationException("Flush failure admission has been closed.");
+            }
+
+            if (Volatile.Read(ref _flushRecoveryFault) is not null)
+            {
+                CloseBatchWriteAdmission();
+                ThrowIfFlushRecoveryFault();
+            }
+
+            if (Interlocked.CompareExchange(
+                    ref _batchWriteAdmissionState,
+                    observed + 1,
+                    observed) != observed)
+            {
+                continue;
+            }
+
+            if ((Volatile.Read(ref _batchWriteAdmissionState) & BatchWriteAdmissionClosed) == 0
+                && Volatile.Read(ref _flushRecoveryFault) is null)
+            {
+                return;
+            }
+
+            _ = Interlocked.Decrement(ref _batchWriteAdmissionState);
+            ThrowIfFlushRecoveryFault();
+            ThrowIfWriteLifecycleClosing();
+        }
+    }
+
+    private void ExitBatchWriteAdmission()
+        => _ = Interlocked.Decrement(ref _batchWriteAdmissionState);
+
+    private void CloseBatchWriteAdmission()
+    {
+        while (true)
+        {
+            long observed = Volatile.Read(ref _batchWriteAdmissionState);
+            if ((observed & BatchWriteAdmissionClosed) != 0)
+                return;
+
+            if (Interlocked.CompareExchange(
+                    ref _batchWriteAdmissionState,
+                    observed | BatchWriteAdmissionClosed,
+                    observed) == observed)
+            {
+                return;
+            }
+        }
+    }
+
     internal void OnPumpFlushFailed(FlushPump.FlushRequest request, Exception ex)
     {
-        try
-        {
-            Segments.ReleaseSealed(request.SealedTable);
-        }
-        catch
-        {
-            // 忽略：引擎可能正在关闭。
-        }
-
+        _ = Interlocked.CompareExchange(ref _flushRecoveryFault, ex, null);
+        CloseBatchWriteAdmission();
         Volatile.Write(ref _lastError, ex);
         ReportDiagnostic(
             "FlushPump.Flush",
             TsdbDiagnosticSeverity.Error,
-            "后台 flush 泵执行失败；密封表已从 sealing 移除，数据仍可由 WAL replay 恢复。",
+            "后台 flush 泵执行失败；密封表保持在查询快照中，后续 flush 已停止以保留 WAL 恢复边界。",
             ex);
     }
 
@@ -1565,6 +2031,7 @@ public sealed class Tsdb : IDisposable
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfWriteLifecycleClosing();
             request = SealAndEnqueueLocked();
         }
 
@@ -1602,7 +2069,7 @@ public sealed class Tsdb : IDisposable
     {
         lock (_writeSync)
         {
-            if (_disposed)
+            if (_disposed || Volatile.Read(ref _writeLifecycleClosing) != 0)
                 return;
             SealAndEnqueueLocked();
         }
@@ -1689,7 +2156,8 @@ public sealed class Tsdb : IDisposable
     /// 硬上限背压：活跃 MemTable 超过硬上限（内存紧急阈值）时，在 <c>_writeSync</c> 内密封入队（O(1)），
     /// 返回该请求供调用方在锁外<b>同步等待</b>其落盘完成。返回 null 表示未触发。
     /// </summary>
-    private FlushPump.FlushRequest? FlushForHardCapIfNeededLocked()
+    private FlushPump.FlushRequest? FlushForHardCapIfNeededLocked(
+        bool permitFaultedBatchAdmission = false)
     {
         long hardCapBytes = _options.FlushPolicy.ResolveHardCapBytes();
         if (hardCapBytes <= 0)
@@ -1698,7 +2166,12 @@ public sealed class Tsdb : IDisposable
         if (MemTable.EstimatedBytes < hardCapBytes)
             return null;
 
-        return SealAndEnqueueLocked();
+        // 已在 flush 失败前获得 batch admission 的首块必须能够完成其账本提交。若失败
+        // 已可见，保留 active table 由 WAL 恢复，不再制造一个必然失败的第二个 sealing 请求。
+        if (permitFaultedBatchAdmission && Volatile.Read(ref _flushRecoveryFault) is not null)
+            return null;
+
+        return SealAndEnqueueLocked(permitFaultedBatchAdmission);
     }
 
     private void RemoveMeasurementSegmentsLocked(IReadOnlySet<ulong> removedSeriesIds)
@@ -1975,14 +2448,51 @@ public sealed class Tsdb : IDisposable
         }
     }
 
-    private static bool IsCheckpointSegmentPresent(string root, WalCheckpointState state)
+    /// <summary>
+    /// 返回可作为 WAL replay 跳过边界的已验证 durable checkpoint。
+    /// </summary>
+    /// <remarks>
+    /// checkpoint 文件的存在本身不能证明关联段仍在：它可能在目录损坏、手工删除或
+    /// 不完整发布后留下。无法验证时返回 0，让调用方把 WAL 中更高的 checkpoint 当作
+    /// 未验证记录处理并 fail closed；在 WAL 尚未写入 checkpoint 的早期发布窗口，完整
+    /// WAL 仍可安全重放。
+    /// </remarks>
+    private static long GetVerifiedDurableCheckpointLsn(
+        string root,
+        string walDirectory,
+        SegmentReaderOptions? readerOptions,
+        SegmentReplacementManifest replacementManifest)
     {
+        ArgumentNullException.ThrowIfNull(replacementManifest);
+        WalCheckpointState? checkpoint = WalCheckpointFile.TryLoad(
+            WalSegmentLayout.CheckpointPath(walDirectory));
+        if (checkpoint is not { } state)
+            return 0L;
+
+        return IsCheckpointSegmentPresent(root, state, readerOptions, replacementManifest)
+            ? state.CheckpointLsn
+            : 0L;
+    }
+
+    private static bool IsCheckpointSegmentPresent(
+        string root,
+        WalCheckpointState state,
+        SegmentReaderOptions? readerOptions,
+        SegmentReplacementManifest? replacementManifest = null)
+    {
+        if (replacementManifest?.CoversCheckpointSegment(root, state.SegmentId, readerOptions) == true)
+            return true;
+
         if (!TsdbPaths.TryGetSegmentPath(root, state.SegmentId, out string segmentPath))
             return false;
 
         try
         {
-            return new FileInfo(segmentPath).Length == state.SegmentLength;
+            // checkpoint 不只是长度提示：它会让 WAL replay 跳过此前记录，必须确认关联段
+            // 可以被完整解析并且 header 中的 SegmentId 与 checkpoint 一致。
+            using var reader = SegmentReader.Open(segmentPath, readerOptions);
+            return reader.Header.SegmentId == state.SegmentId
+                && reader.FileLength == state.SegmentLength;
         }
         catch (IOException)
         {
@@ -1992,6 +2502,291 @@ public sealed class Tsdb : IDisposable
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// 在任何 Segment 扫描前恢复上次中断的 Flush 发布。marker 未被有效 checkpoint 覆盖时，
+    /// 该段从未提交，必须删除全部 artifact 并让 WAL replay 恢复；marker 损坏或删除失败一律
+    /// 拒绝启动，避免把可能重复的数据静默加载到查询面。
+    /// </summary>
+    private static void ReconcileInterruptedFlushPublications(
+        string root,
+        string walDirectory,
+        string segmentTemporarySuffix,
+        SegmentReaderOptions? readerOptions)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(walDirectory);
+        ArgumentNullException.ThrowIfNull(segmentTemporarySuffix);
+
+        IReadOnlyList<(long SegmentId, string Path)> publicationPaths =
+            WalSegmentLayout.EnumerateFlushPublicationPaths(walDirectory);
+        if (publicationPaths.Count == 0)
+            return;
+
+        // 读取原始 checkpoint 是为了侦测“marker 尚未确认，但后来已有更高 checkpoint”的
+        // 不可判定状态；完整性验证只在其与 marker 精确匹配时作为提交依据。
+        WalCheckpointState? durableCheckpoint = WalCheckpointFile.TryLoad(
+            WalSegmentLayout.CheckpointPath(walDirectory));
+        SegmentReplacementManifest replacementManifest = SegmentReplacementManifest.LoadForRoot(root);
+        long maxWalCheckpointLsn = GetMaximumWalCheckpointLsn(walDirectory);
+
+        foreach (var (segmentIdFromPath, publicationPath) in publicationPaths)
+        {
+            FlushPublicationState publication = FlushPublicationFile.Load(publicationPath);
+            if (publication.SegmentId != segmentIdFromPath)
+            {
+                throw new InvalidDataException(
+                    $"Flush publication marker '{publicationPath}' names segment {segmentIdFromPath}, "
+                    + $"but its payload names segment {publication.SegmentId}.");
+            }
+
+            if (publication.Status == FlushPublicationStatus.Committed)
+            {
+                // Committed 表示独立 checkpoint 已在标记提升前成功持久化；后续 checkpoint
+                // 覆盖该单一文件也不影响此结论。清理失败不能把已提交数据降级为失败。
+                FlushPublicationFile.TryClearCommitted(publicationPath);
+                continue;
+            }
+
+            bool exactDurableCommit = durableCheckpoint is { } checkpoint
+                && checkpoint.SegmentId == publication.SegmentId
+                && checkpoint.CheckpointLsn == publication.CheckpointLsn
+                && IsCheckpointSegmentPresent(root, checkpoint, readerOptions, replacementManifest);
+            if (exactDurableCommit)
+            {
+                // 掉电可能落在 checkpoint 与 marker 状态提升之间。此时段和 checkpoint 已完整
+                // 验证，可以补做状态提升；若提升失败，Open 必须失败而不是误删已提交数据。
+                FlushPublicationFile.MarkCommittedRequired(publicationPath, publication);
+                FlushPublicationFile.TryClearCommitted(publicationPath);
+                continue;
+            }
+
+            bool durableCheckpointCoversPending = durableCheckpoint is { } laterDurable
+                && laterDurable.CheckpointLsn >= publication.CheckpointLsn;
+            bool walCheckpointCoversPending = maxWalCheckpointLsn >= publication.CheckpointLsn;
+            if (durableCheckpointCoversPending || walCheckpointCoversPending)
+            {
+                throw new InvalidDataException(
+                    $"Pending flush publication for segment {publication.SegmentId} at LSN "
+                    + $"{publication.CheckpointLsn} is followed by a durable or WAL checkpoint. "
+                    + "Database open is rejected because the earlier segment cannot be proven committed.");
+            }
+
+            // 尚无任何可跳过该 marker 的 checkpoint：只有先证明 WAL 从最近已验证 checkpoint
+            // 连续覆盖到 marker 的最后一个 WritePoint，才可删除孤立段并重放。否则 marker
+            // 对应的段可能是唯一副本，绝不能为了避免重复而静默删除它。
+            EnsurePendingFlushHasCompleteWalCoverage(
+                root,
+                walDirectory,
+                publication,
+                durableCheckpoint,
+                readerOptions,
+                replacementManifest);
+            DeleteUncommittedFlushSegmentRequired(
+                root,
+                publication.SegmentId,
+                segmentTemporarySuffix);
+            FlushPublicationFile.ClearUncommittedRequired(publicationPath);
+        }
+    }
+
+    /// <summary>
+    /// 确认未提交 Flush 的恢复日志完整覆盖 marker 的 checkpoint。合法的尾部 torn write 可以
+    /// 位于 marker 之后；它不影响已经完整写入的 flush 数据，不能使启动误判为损坏。
+    /// </summary>
+    private static void EnsurePendingFlushHasCompleteWalCoverage(
+        string root,
+        string walDirectory,
+        FlushPublicationState publication,
+        WalCheckpointState? durableCheckpoint,
+        SegmentReaderOptions? readerOptions,
+        SegmentReplacementManifest replacementManifest)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(walDirectory);
+        ArgumentNullException.ThrowIfNull(replacementManifest);
+
+        if (publication.CheckpointLsn == 0)
+        {
+            throw CreateIncompletePendingFlushWalException(
+                publication,
+                "the marker has no positive replay boundary");
+        }
+
+        long durableCheckpointLsn = 0;
+        if (durableCheckpoint is { } checkpoint)
+        {
+            // 使用前必须验证 checkpoint 所指段；否则把它当作 WAL 可缺失的下界会让损坏的
+            // 旧段和缺失的历史日志一起被静默接受。
+            if (!IsCheckpointSegmentPresent(root, checkpoint, readerOptions, replacementManifest))
+            {
+                throw new InvalidDataException(
+                    $"Pending flush publication for segment {publication.SegmentId} at LSN "
+                    + $"{publication.CheckpointLsn} cannot verify the preceding durable checkpoint "
+                    + $"at LSN {checkpoint.CheckpointLsn}. Database open is rejected before removing "
+                    + "the pending segment.");
+            }
+
+            durableCheckpointLsn = checkpoint.CheckpointLsn;
+        }
+
+        IReadOnlyList<WalSegmentInfo> segments = WalSegmentLayout.Enumerate(walDirectory);
+        if (segments.Count == 0)
+            throw CreateIncompletePendingFlushWalException(publication, "no WAL segment is present");
+
+        // 每一条 durable checkpoint 之后的首个 WAL record 都会保留，直到更高的
+        // checkpoint 回收它。因此不能接受任何 LSN 跳跃：否则无法区分“缺失的真实写入”
+        // 和“看似可省略的 checkpoint record”。
+        long expectedFirstReplayLsn = checked(durableCheckpointLsn + 1L);
+        if (segments[0].StartLsn > expectedFirstReplayLsn)
+        {
+            throw CreateIncompletePendingFlushWalException(
+                publication,
+                $"the first retained WAL segment starts at LSN {segments[0].StartLsn}, expected no later than {expectedFirstReplayLsn}");
+        }
+
+        bool reachedReplayRange = false;
+        long expectedLsn = expectedFirstReplayLsn;
+        foreach (WalSegmentInfo segment in segments)
+        {
+            using var reader = WalReader.Open(segment.Path);
+            if (reader.FirstLsn != segment.StartLsn)
+            {
+                throw CreateIncompletePendingFlushWalException(
+                    publication,
+                    $"WAL file '{segment.Path}' names start LSN {segment.StartLsn}, but its header declares {reader.FirstLsn}");
+            }
+
+            foreach (WalRecord record in reader.Replay())
+            {
+                if (!reachedReplayRange)
+                {
+                    if (record.Lsn <= durableCheckpointLsn)
+                        continue;
+
+                    reachedReplayRange = true;
+                }
+
+                if (record.Lsn != expectedLsn)
+                {
+                    throw CreateIncompletePendingFlushWalException(
+                        publication,
+                        $"WAL has an LSN gap at {record.Lsn}, expected {expectedLsn}");
+                }
+
+                if (record.Lsn == publication.CheckpointLsn)
+                {
+                    if (record is not WritePointRecord)
+                    {
+                        throw CreateIncompletePendingFlushWalException(
+                            publication,
+                            $"LSN {publication.CheckpointLsn} is not a WritePoint record");
+                    }
+
+                    return;
+                }
+
+                if (record.Lsn > publication.CheckpointLsn)
+                {
+                    throw CreateIncompletePendingFlushWalException(
+                        publication,
+                        $"WAL passed marker LSN {publication.CheckpointLsn} without its WritePoint record");
+                }
+
+                expectedLsn++;
+            }
+        }
+
+        throw CreateIncompletePendingFlushWalException(
+            publication,
+            $"WAL ends before marker LSN {publication.CheckpointLsn}");
+    }
+
+    private static InvalidDataException CreateIncompletePendingFlushWalException(
+        FlushPublicationState publication,
+        string reason)
+        => new(
+            $"Pending flush publication for segment {publication.SegmentId} at LSN {publication.CheckpointLsn} "
+            + $"does not have complete WAL coverage: {reason}. Database open is rejected before removing "
+            + "the pending segment.");
+
+    private static long GetMaximumWalCheckpointLsn(string walDirectory)
+    {
+        long maximum = 0;
+        foreach (var segment in WalSegmentLayout.Enumerate(walDirectory))
+        {
+            using var reader = WalReader.Open(segment.Path);
+            foreach (WalRecord record in reader.Replay())
+            {
+                if (record is CheckpointRecord checkpoint
+                    && checkpoint.CheckpointLsn > maximum)
+                {
+                    maximum = checkpoint.CheckpointLsn;
+                }
+            }
+        }
+
+        return maximum;
+    }
+
+    private static void DeleteUncommittedFlushSegmentRequired(
+        string root,
+        long segmentId,
+        string segmentTemporarySuffix)
+    {
+        ArgumentNullException.ThrowIfNull(segmentTemporarySuffix);
+
+        var changedDirectories = new HashSet<string>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+        var artifactPaths = new HashSet<string>(
+            TsdbPaths.SegmentArtifactPaths(root, segmentId),
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        if (segmentTemporarySuffix.Length > 0)
+        {
+            foreach (string artifactPath in artifactPaths.ToArray())
+                artifactPaths.Add(artifactPath + segmentTemporarySuffix);
+        }
+
+        foreach (string artifactPath in artifactPaths)
+        {
+            bool existed = File.Exists(artifactPath);
+            try
+            {
+                if (existed)
+                    File.Delete(artifactPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException(
+                    $"Unable to remove uncommitted flush segment artifact '{artifactPath}' for segment {segmentId}. "
+                    + "Database open is rejected to prevent duplicate WAL replay.",
+                    ex);
+            }
+
+            if (File.Exists(artifactPath))
+            {
+                throw new IOException(
+                    $"Uncommitted flush segment artifact '{artifactPath}' for segment {segmentId} remains after deletion. "
+                    + "Database open is rejected to prevent duplicate WAL replay.");
+            }
+
+            if (existed)
+            {
+                string? directory = Path.GetDirectoryName(artifactPath);
+                if (string.IsNullOrEmpty(directory))
+                {
+                    throw new InvalidDataException(
+                        $"Uncommitted flush segment artifact '{artifactPath}' has no parent directory.");
+                }
+
+                changedDirectories.Add(directory);
+            }
+        }
+
+        foreach (string directory in changedDirectories)
+            DirectoryFsync.FlushRequired(directory);
     }
 
     private static long GetMaxTombstoneLsn(IReadOnlyList<Tombstone> tombstones)
@@ -2216,32 +3011,33 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     internal void CrashSimulationCloseWal()
     {
-        SonnetDbMeter.UnregisterEngine(_meterRegistration);
+        lock (_shutdownSync)
+        {
+            if (_disposed)
+            {
+                ReleaseRootDirectoryOwnership(ref _rootDirectoryOwnership);
+                return;
+            }
 
-        _kvExpirerWorker?.Dispose();
-        _kvExpirerWorker = null;
+            BeginWriteLifecycleShutdown();
+            try
+            {
+                SonnetDbMeter.UnregisterEngine(_meterRegistration);
+                StopBackgroundWorkers();
+            }
+            finally
+            {
+                CrashSimulationDisposeCommittedState();
+            }
+        }
+    }
 
-        _retentionWorker?.Dispose();
-        _retentionWorker = null;
-
-        _compactionWorker?.Dispose();
-        _compactionWorker = null;
-
-        _flushWorker?.Dispose();
-        _flushWorker = null;
-
-        // 等待泵线程到达安全退出点，避免释放 WAL/Segments 后仍有后台 I/O；当前活跃 MemTable
-        // 不会进入泵，也不会执行正常关闭的 final flush，重开后由 WAL replay 恢复。
-        _flushPump?.Dispose();
-        _flushPump = null;
-
+    /// <summary>在崩溃模拟路径中关闭已提交资源，不保存 catalog 也不执行最终 flush。</summary>
+    private void CrashSimulationDisposeCommittedState()
+    {
         lock (_schemaSync)
             lock (_writeSync)
             {
-                if (_disposed)
-                    return;
-                _disposed = true;
-
                 WalSegmentSet? walSetToDispose = _walSet;
                 _walSet = null;
                 try

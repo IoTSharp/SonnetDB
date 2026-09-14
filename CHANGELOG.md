@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M43 既有 PR 模型建议**：在[总里程碑核查与路线图](docs/roadmap-total-milestone.md)的“D. 沿用的既有 PR”表格中新增模型与推理等级建议，按任务复杂度匹配 GPT-5.6 Luna/Terra/Sol 与 GPT-6 Astra。
+
 - **M43 #382 十四套能力总规划文档**：新增[总里程碑核查与路线图](docs/roadmap-total-milestone.md)，重新核对九种原生数据模型、空间/轨迹、流处理/订阅、CDC/边缘同步/复制、AI/RAG、治理运维和榜单准备的边界；补齐表情状态、既有 PR 升序索引、#382~#402 规划编号、七个执行步骤及依赖/验收。✅ 仅覆盖本地规划文档，新增能力和外部提交尚未执行；资料提交与流行度排名不作为性能认证。
 
 - **M40 研发与文档闭环（真机验证后置）**：#341～#367 的 Graph 存储、查询、SQL/PGQ、算法、运维面、Server/SDK/CLI/Studio parity、恢复合同、strict evaluator、编码文档和本地自动化回归已全部收口。固定硬件、Neo4j/PostgreSQL、LDBC/Graphalytics、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 与 7 天 8+1 mixed workload 不计入编码完成，统一登记到 [ROADMAP 真机验证待办](ROADMAP.md#真机验证待办)，正式 Preview/Production gate 在现场证据通过前保持 `DEFERRED`。
@@ -60,7 +62,7 @@
 
 - **M29 Studio 发布与宿主生命周期合同**：Windows 发布脚本现在生成独立 `sonnetdb-studio-<version>-win-x64.zip` 与 MSI，bundle 携带同版本 `server/` 托管 Server；Studio 默认数据目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不随安装目录升级/卸载删除。宿主启停串行化，记录 `.studio/managed-server.log`，异常退出包含退出码/stderr 尾部，健康超时会清理子进程；新增 Windows Studio host 合同测试和 CI TRX artifact。WebView2、干净机器安装、升级/卸载和端口冲突仍登记为待真机验证。
 
-- **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据。
+- **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。`maintenance-chaos` 以写前序列预留和 progress 确认范围避免 kill 竞态复用序列；Core 新增 CRC 保护的 `SDBFPUB` Pending/Committed publication marker，在 checkpoint/WAL 不一致、marker 损坏或未发布 artifact 无法清理时 fail closed；补齐跨进程 root lease、schema/batch admission 与 Dispose 竞态边界，以及非空损坏 Segment 的 fail-closed 恢复检查。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据；受控 `Process.Kill` 不等同于掉电或物理耐久性证明。
 
 - **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件统一保持 `NOT_READY`，不能冒充百万/千万发布证据。
 
@@ -78,6 +80,10 @@
 
 ### Changed
 
+- **M19 #125 flush 与维护发布性能收敛**：SegmentManager 的维护发布改为锁内原地更新有序字典，避免 add/swap/drop 每次复制整棵字典；分层 segment 目录在稳定 bucket 仅刷新叶目录，首次建 bucket 才向上刷新缺失目录链；committed publication marker 清理不再额外刷新目录，最多留下可安全重试的 marker。保留 pending marker、段文件、checkpoint 与 committed marker 的恢复顺序；固定硬件前后 P95、分配和 I/O 对比仍待执行。
+
+- **目录 fsync 与旧 WAL checkpoint 兼容**：对明确不支持目录句柄 fsync 的文件系统退回文件内容 `Flush(true)` 语义，权限、目录不存在和其他 I/O 错误仍失败；缺少独立 checkpoint sidecar 且无 pending marker 的旧 WAL 数据库继续信任历史 WAL checkpoint，新格式 sidecar 损坏或存在 marker 时仍 fail closed。
+
 - **M41 #375 / M42 自动统计后台化**：业务规划线程现在立即复用已有统计或启发式估计，自动采样通过每数据库单任务预算合并，限制 4096 样本行、5 秒协作取消及 30 秒冷却；EXPLAIN 暴露维护状态与稳定失败码。后台不继承查询事务/指标执行上下文，显式 ANALYZE 传播取消，迟到采样不覆盖更新或同序列的显式分析。关闭 writer 不再等待读任务，既有快照租约保护在途读取，取消和 disposed 状态阻止迟到发布；首 N 行采样偏差和实际 I/O/尾延迟仍未解决。
 
 - **M35 / M42 通用 Document 向量预过滤**：对可证明为纯 metadata 的整条 WHERE，在向量存在性和维度校验后、距离计算前过滤；保留混合距离/评分/一般函数谓词的原残差路径，新增距离循环取消和固定种子差分/计数回归。未改变 ANN、排序与分页合同；Scan/JSON 解析/排序仍可能全量物化，也未将既有 NULL 行为改为完整 SQL 三值逻辑。
@@ -88,7 +94,7 @@
 
 - **九模型产品门面**：README、中英文项目介绍、Studio 欢迎页、文档首页与 AI/Agent 机器可读上下文统一改为“九种数据模型，各有原生语义，共享一套引擎”，新增原生属性图（Graph Beta）能力说明；帧协议继续区分七个既有数据面服务，并追加 Graph `service=8` 的受限单跳 `Expand`，图查询/API 与 Graph Frame 的边界均如实记录，且不把固定硬件、外部语义对拍、Native AOT 和 168 小时生产证据门禁描述为已完成。
 
-- **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.9.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
+- **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.3.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
 
 - **关系统计刷新分配收缩**：统计采样直接使用主键的 `ReadOnlyMemory<byte>` 视图，并复用真实索引 codec 的精确长度计算，不再复制采样主键或为每个索引临时编码 key/prefix；JSON path、唯一索引 NULL 和格式边界继续与真实写入路径一致。最终本机短跑均值降低 6.495%，分配降低 34.706%；固定硬件和生产语料未运行。
 
@@ -113,6 +119,8 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **M19 #125 Flush 发布恢复边界**：为每个待发布 Segment 在 `wal/` 中持久化 CRC 保护的 pending/committed marker；段 rename 后、独立 checkpoint 前崩溃时，启动会在扫描 Segment 前删除未提交段、sidecar 和配置临时后缀的残留文件并完整 WAL replay，避免同一时间戳记录被 Segment 与 WAL 双重暴露，也避免重用 SegmentId 时临时文件冲突。只有 marker 与可解析、长度及 SegmentId 均匹配的 checkpoint 完全对应时才保留并提升为 committed；被后续 durable/WAL checkpoint 覆盖、最终 marker 损坏或孤立段删除失败时 fail closed。Flush 泵在首次发布失败后保留 sealing 查询快照、拒绝后续 checkpoint，并在 Dispose 时保留 WAL；覆盖 post-rename、pre-rename 临时段、direct Dispose、stale marker、损坏/临时 marker 和 continued-process 场景的恢复回归。未修改 Segment 二进制格式。
 
 - **M39 事务与恢复修复**：跨表提交增加有 CRC、128 MiB 上限及同步完成标记的 `tables/transaction.sdbtxn` 恢复日志；在开放访问前撤销未完成提交，备份复制窗口阻止关系表写入。提交结果未知时停止接受表访问，审计明确标记 `unknown`。事务按主键索引归并并用增量保存点撤销，消除批量触发器的重复扫描/复制；无 ROWVERSION 的 SQL 事务也校验原始行状态，避免汇总丢失更新。嵌套过程结果不重复计数，过程和触发器的 INSERT RETURNING 纳入结果预算，外层回滚/请求放弃统一结算过程与触发器审计。固定验收机三轮 10000 行触发器延迟降低约 93% 至 96%、分配降低约 98%；小批量成本、UPDATE 预热对照、测试与未准入语义见 [M39 审计](docs/audits/m39-production-20260906.md)。
 
@@ -290,7 +298,7 @@
 
 - **M35 语义内容与多模态检索规划**：新增 #297~#309 路线，按 Semantic Content / Embedding Profile、metadata-filtered ANN、异步摄取、多模态 Provider、以图搜图、通用 RAG、融合评测、音视频分段、派生目标 / 轨迹、人脸相似检索、Person ReID / 步态 / 姿态动作、车辆 / 车牌检索和管理验收分阶段推进；明确原始媒体留在对象桶、Document 保存内容清单、全文 / 向量索引保持可重建，专业视觉能力使用独立模型 Profile 并执行敏感数据治理，推荐系统与 Agent Memory 不进入 Core 专用领域。同时重写向量检索文档，按当前代码补齐 Measurement HNSW / IVF / IVF-PQ / Vamana、Document 持久 HNSW、Hybrid Search、VectorData 与过滤回退边界，并纠正“多模型”等同“多模态”和“当前只有 brute-force”的过时表述。
 - **M19 #126 / #126.1 生态底座收官**：SQL 与 Document Validator 统一使用带 250ms timeout、模式/输入预算和 128 项有界缓存的正则 matcher；新增 `regexp_like(input, pattern[, flags])`、`REGEXP`/`RLIKE`、EXPLAIN `scan_filter` 和 EF Core `Regex.IsMatch` 翻译。KV WAL 新增带 commit record 的分块 batch-delete，恢复仅发布完整提交；关系表新增 generation 行数快照、`TRUNCATE TABLE` 与 `DELETE WHERE TRUE` 快路。KV state v4 持久化 generation，`generation.meta` + cleanup manifest 保证崩溃后旧 state 不复活；后台维护可发现重启后未打开实例，严格限制 state 删除路径，并按文件预算及查询/flush/CPU/内存压力节流，公开 pending 字节、速率、原因与最近错误。新增 generation/cleanup 指标、恢复/外键/跨模型测试和 `TableDeleteBenchmark` smoke。
-- **M19 #125 大量 measurement / 长稳专项扩展**：在既有 `SonnetDB.EcosystemSoak` 中新增 `high-cardinality`、`small-segments`、`maintenance-chaos`、`many-measurements` 四个正交 profile，覆盖百万级 series、万级小 segment、后台 flush/compaction/retention 期间的确定性随机 kill/reopen，以及大量 measurement 的目录枚举、备份、retention 与 drop。JSON/Markdown 报告新增阶段 working set/托管内存峰值、查询/恢复 P50/P95/P99、series/time/value 缺失/重复/额外点/值摘要和每档“能验证/不能证明”的容量边界；workflow 支持手动运行并归档四档证据。
+- **M19 #125 大量 measurement / 长稳专项扩展**：在既有 `SonnetDB.EcosystemSoak` 中新增 `high-cardinality`、`small-segments`、`maintenance-chaos`、`many-measurements` 四个正交 profile，覆盖百万级 series、万级小 segment、后台 flush/compaction/retention 期间的确定性随机 kill/reopen，以及大量 measurement 的目录枚举、备份、retention 与 drop。JSON/Markdown 报告新增阶段 working set/托管内存峰值、查询/恢复 P50/P95/P99、series/time/value 缺失/重复/额外点/值摘要和每档“能验证/不能证明”的容量边界；普通 workflow 只运行缩规模预检，四档默认容量证据由受保护的固定目标硬件 workflow 串行归档与核验。
 - 新增关系表 `CHECK` constraint 完整链路：支持 `CREATE TABLE` 与 `ALTER TABLE ADD/DROP CONSTRAINT`、新增约束前扫描存量数据、INSERT/UPDATE 三值逻辑校验、稳定错误码、catalog 持久化与重启恢复，并补齐 EF Core `AddCheckConstraint` / `DropCheckConstraint` migration SQL。`tables.tblschema` codec 向后兼容升级为 v6，v1-v5 文件继续可读。
 
 - **M19 #124 维护发布基准与 #124~#126.1 复核**：新增 `SegmentManagerMaintenanceBenchmark`，覆盖 16/256/1024 段、0/4 个真实 QueryEngine 并发 worker 下的 flush add、compaction swap、retention drop，并以 #207 前的全量 `SegmentIndex.Build` 作为参考；新增 M19 优化项复核报告，按当前实现重新界定 #125 长稳扩展、#126 正则治理和 #126.1 批量删除存储设计。

@@ -6,6 +6,7 @@
 /// 标准磁盘布局：
 /// <code>
 /// &lt;rootDir&gt;/
+/// ├── sonnetdb.lock                (运行中实例的生命周期租约；不属于备份数据)
 /// ├── catalog.SDBCAT
 /// ├── wal/
 /// │   └── active.SDBWAL
@@ -42,6 +43,12 @@ public static class TsdbPaths
 
     /// <summary>目录文件名（相对于根目录）。</summary>
     public const string CatalogFileName = "catalog.SDBCAT";
+
+    /// <summary>
+    /// 数据库根目录生命周期租约文件名。该文件仅用于阻止多个进程同时恢复或修改同一数据库，
+    /// 不属于可备份或可恢复的数据。
+    /// </summary>
+    internal const string LifecycleLockFileName = "sonnetdb.lock";
 
     /// <summary>WAL 子目录名。</summary>
     public const string WalDirName = "wal";
@@ -116,6 +123,12 @@ public static class TsdbPaths
     /// <returns>目录文件路径。</returns>
     public static string CatalogPath(string root) =>
         Path.Combine(root, CatalogFileName);
+
+    /// <summary>返回数据库根目录生命周期租约文件的完整路径。</summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>生命周期租约文件路径。</returns>
+    internal static string LifecycleLockPath(string root) =>
+        Path.Combine(root, LifecycleLockFileName);
 
     /// <summary>
     /// 返回墓碑清单文件的完整路径：<c>{root}/tombstones.tslmanifest</c>。

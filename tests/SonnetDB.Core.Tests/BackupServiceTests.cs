@@ -197,12 +197,21 @@ public sealed class BackupServiceTests : IDisposable
                 DestinationDirectory = backupDirectory,
             });
 
+            Assert.True(File.Exists(TsdbPaths.LifecycleLockPath(dbRoot)));
             Assert.Contains(manifest.Files, static file =>
                 file.Kind == BackupFileKind.Document &&
                 file.Path.Contains("documents/collections/", StringComparison.Ordinal) &&
                 file.Path.EndsWith(".SDBKVSEG", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(manifest.Files, static file =>
                 Path.GetFileName(file.Path) == "keyspace.lock");
+            Assert.DoesNotContain(manifest.Files, static file =>
+                string.Equals(
+                    Path.GetFileName(file.Path),
+                    TsdbPaths.LifecycleLockFileName,
+                    StringComparison.OrdinalIgnoreCase));
+            Assert.False(File.Exists(Path.Combine(
+                backupDirectory,
+                TsdbPaths.LifecycleLockFileName)));
         }
 
         new BackupService().Restore(new BackupRestoreOptions
@@ -210,6 +219,10 @@ public sealed class BackupServiceTests : IDisposable
             BackupDirectory = backupDirectory,
             TargetDirectory = restoreRoot,
         });
+
+        Assert.False(File.Exists(Path.Combine(
+            restoreRoot,
+            TsdbPaths.LifecycleLockFileName)));
 
         using var restored = Tsdb.Open(new TsdbOptions
         {

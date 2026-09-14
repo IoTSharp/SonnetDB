@@ -127,7 +127,15 @@ internal sealed class SegmentReplacementManifest
         });
     }
 
-    public HashSet<long> GetSegmentIdsToSuppress(string root)
+    /// <summary>
+    /// 返回启动时应从读取快照中抑制的段 ID。
+    /// </summary>
+    /// <param name="root">数据库根目录。</param>
+    /// <param name="readerOptions">验证 replacement 段时使用的读取选项；必须与主恢复路径一致。</param>
+    /// <returns>应抑制的段 ID 集合。</returns>
+    public HashSet<long> GetSegmentIdsToSuppress(
+        string root,
+        Storage.Segments.SegmentReaderOptions? readerOptions = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
@@ -146,7 +154,11 @@ internal sealed class SegmentReplacementManifest
             }
 
             if (record.ReplacementSegmentId > 0
-                && !IsReplacementSegmentReadable(root, record.ReplacementSegmentId, existingSegmentIds))
+                && !IsReplacementSegmentReadable(
+                    root,
+                    record.ReplacementSegmentId,
+                    existingSegmentIds,
+                    readerOptions))
             {
                 suppressed.Add(record.ReplacementSegmentId);
                 continue;
@@ -159,6 +171,44 @@ internal sealed class SegmentReplacementManifest
         return suppressed;
     }
 
+    /// <summary>
+    /// 判断某个段的 WAL 数据是否已由持久化的 committed replacement 或显式 drop
+    /// 记录覆盖，因此即使原段不再存在，也可以安全采用对应 checkpoint。
+    /// </summary>
+    /// <param name="root">数据库根目录。</param>
+    /// <param name="segmentId">待判断的源段 ID。</param>
+    /// <param name="readerOptions">验证 replacement 段时使用的读取选项。</param>
+    /// <returns>数据已被 replacement 保留或被显式淘汰时返回 <c>true</c>。</returns>
+    public bool CoversCheckpointSegment(
+        string root,
+        long segmentId,
+        Storage.Segments.SegmentReaderOptions? readerOptions = null)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(segmentId);
+
+        foreach (var record in _records)
+        {
+            if (record.State != SegmentReplacementState.Committed
+                || !record.SourceSegmentIds.Contains(segmentId))
+            {
+                continue;
+            }
+
+            // replacement id 0 is the explicit retention/drop record: the data is
+            // intentionally gone and must not be resurrected from WAL.
+            if (record.ReplacementSegmentId == 0)
+                return true;
+
+            // A committed replacement is safe only while its replacement artifact can
+            // be opened with the same options as the main recovery path.
+            if (IsReplacementSegmentReadable(root, record.ReplacementSegmentId, readerOptions))
+                return true;
+        }
+
+        return false;
+    }
+
     private static HashSet<long> SnapshotExistingSegmentIds(string root)
     {
         var ids = new HashSet<long>();
@@ -167,23 +217,30 @@ internal sealed class SegmentReplacementManifest
         return ids;
     }
 
-    private static bool IsReplacementSegmentReadable(string root, long segmentId, HashSet<long> existingSegmentIds)
+    private static bool IsReplacementSegmentReadable(
+        string root,
+        long segmentId,
+        HashSet<long> existingSegmentIds,
+        Storage.Segments.SegmentReaderOptions? readerOptions)
     {
         // 盘上根本没有该段：无需打开 reader，直接判为不可读。
         if (!existingSegmentIds.Contains(segmentId))
             return false;
 
-        return IsReplacementSegmentReadable(root, segmentId);
+        return IsReplacementSegmentReadable(root, segmentId, readerOptions);
     }
 
-    private static bool IsReplacementSegmentReadable(string root, long segmentId)
+    private static bool IsReplacementSegmentReadable(
+        string root,
+        long segmentId,
+        Storage.Segments.SegmentReaderOptions? readerOptions = null)
     {
         if (!TsdbPaths.TryGetSegmentPath(root, segmentId, out string path))
             return false;
 
         try
         {
-            using var reader = Storage.Segments.SegmentReader.Open(path);
+            using var reader = Storage.Segments.SegmentReader.Open(path, readerOptions);
             return reader.Header.SegmentId == segmentId;
         }
         catch (Storage.Segments.SegmentCorruptedException)

@@ -1,0 +1,153 @@
+name: M19 Capacity Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A single target machine must not run overlapping capacity workloads. The
+# target identity and hardware contract are deliberately not dispatch inputs.
+concurrency:
+  group: m19-capacity-evidence-frozen-target-v1
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  validate-authority:
+    name: Verify authoritative branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require protected main branch
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "M19 fixed-target capacity evidence can only be dispatched from main; received '$GITHUB_REF'." >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_PROTECTED" != "true" ]]; then
+            echo "M19 fixed-target capacity evidence requires GitHub to mark '$GITHUB_REF' as protected." >&2
+            exit 1
+          fi
+
+  capacity:
+    name: Fixed target capacity bundle
+    needs: validate-authority
+    runs-on: [self-hosted, linux, x64, sonnetdb-m19-capacity-x64-v1]
+    environment:
+      name: m19-capacity-frozen-x64
+    timeout-minutes: 1440
+    env:
+      # Configure these as protected environment variables, not workflow inputs.
+      SONNETDB_M19_TARGET_HARDWARE_STATUS: ${{ vars.SONNETDB_M19_TARGET_HARDWARE_STATUS }}
+      SONNETDB_M19_TARGET_HARDWARE_ID: ${{ vars.SONNETDB_M19_TARGET_HARDWARE_ID }}
+      SONNETDB_M19_TARGET_HARDWARE_CONTRACT: ${{ vars.SONNETDB_M19_TARGET_HARDWARE_CONTRACT }}
+      SONNETDB_M19_STORAGE_MODEL: ${{ vars.SONNETDB_M19_STORAGE_MODEL }}
+
+    steps:
+      - name: Validate protected target declaration
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:SONNETDB_M19_TARGET_HARDWARE_STATUS -cne 'PASS') {
+            throw 'Protected target declaration must set SONNETDB_M19_TARGET_HARDWARE_STATUS=PASS.'
+          }
+          foreach ($name in @(
+            'SONNETDB_M19_TARGET_HARDWARE_ID',
+            'SONNETDB_M19_TARGET_HARDWARE_CONTRACT',
+            'SONNETDB_M19_STORAGE_MODEL')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Protected target declaration is missing $name."
+            }
+          }
+
+      # v7 @ 3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Attest exact clean checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actual = (git rev-parse --verify HEAD).Trim()
+          if (-not [string]::Equals($actual, $env:GITHUB_SHA, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Checked out '$actual', expected '$env:GITHUB_SHA'."
+          }
+          $dirty = @(git status --porcelain=v1 --untracked-files=all)
+          if ($dirty.Count -ne 0) {
+            throw "Fixed-target evidence requires a clean checkout: $($dirty -join '; ')"
+          }
+
+      # v6 @ a98b56852c35b8e3190ac28c8c2271da59106c68
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          global-json-file: global.json
+
+      - name: Restore and build capacity runner
+        run: |
+          dotnet restore tests/SonnetDB.EcosystemSoak/SonnetDB.EcosystemSoak.csproj
+          dotnet build tests/SonnetDB.EcosystemSoak/SonnetDB.EcosystemSoak.csproj --configuration Release --no-restore --nologo
+
+      - name: Run and verify M19 capacity evidence bundle
+        id: capacity_bundle
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $bundleRoot = Join-Path 'artifacts/m19-capacity' $env:GITHUB_SHA
+          $artifactUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          ./tests/SonnetDB.EcosystemSoak/scripts/invoke-m19-capacity-bundle.ps1 `
+            -BundleRoot $bundleRoot `
+            -ArtifactUrl $artifactUrl `
+            -TargetHardwareId $env:SONNETDB_M19_TARGET_HARDWARE_ID `
+            -TargetHardwareContract $env:SONNETDB_M19_TARGET_HARDWARE_CONTRACT `
+            -ExpectedCommitSha $env:GITHUB_SHA
+
+      - name: Gate M19 capacity evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundleRoot = Join-Path 'artifacts/m19-capacity' $env:GITHUB_SHA
+          $verificationPath = Join-Path $bundleRoot 'm19-capacity-bundle-verification.json'
+          if ('${{ steps.capacity_bundle.outcome }}' -ne 'success') {
+            throw 'M19 fixed-target capacity evidence is NOT_READY: bundle invocation failed.'
+          }
+          if (-not (Test-Path -LiteralPath $verificationPath -PathType Leaf)) {
+            throw 'M19 fixed-target capacity evidence is NOT_READY: bundle verification output is missing.'
+          }
+          $artifactUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          ./tests/SonnetDB.EcosystemSoak/scripts/verify-m19-capacity-bundle.ps1 `
+            -BundleRoot $bundleRoot `
+            -ArtifactUrl $artifactUrl `
+            -OutputPath $verificationPath `
+            -ExpectedCommitSha $env:GITHUB_SHA `
+            -ExpectedTargetHardwareId $env:SONNETDB_M19_TARGET_HARDWARE_ID `
+            -ExpectedTargetHardwareContract $env:SONNETDB_M19_TARGET_HARDWARE_CONTRACT
+          if ($LASTEXITCODE -ne 0) {
+            throw 'M19 fixed-target capacity evidence is NOT_READY: final bundle verification failed.'
+          }
+          $verification = Get-Content -LiteralPath $verificationPath -Raw -Encoding utf8 | ConvertFrom-Json -Depth 32
+          $releaseEvidenceIsBooleanTrue = $null -ne $verification.PSObject.Properties['releaseEvidence'] -and $verification.releaseEvidence -is [bool] -and $verification.releaseEvidence -eq $true
+          if ($verification.status -ne 'PASS' -or -not $releaseEvidenceIsBooleanTrue) {
+            throw "M19 fixed-target capacity evidence is NOT_READY: verifier status '$($verification.status)'."
+          }
+
+      - name: Upload fixed-target capacity evidence
+        if: always()
+        # v7 @ 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: m19-capacity-evidence-${{ github.sha }}-${{ github.run_id }}
+          path: artifacts/m19-capacity/${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 90

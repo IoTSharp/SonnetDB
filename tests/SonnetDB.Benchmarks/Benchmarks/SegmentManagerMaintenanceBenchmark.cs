@@ -18,7 +18,7 @@ namespace SonnetDB.Benchmarks.Benchmarks;
 /// </summary>
 [Config(typeof(SegmentManagerMaintenanceBenchmarkConfig))]
 [BenchmarkCategory("M19", "SegmentMaintenance")]
-public sealed class SegmentManagerMaintenanceBenchmark
+public class SegmentManagerMaintenanceBenchmark
 {
     private const ulong SeriesId = 0x124UL;
     private const string FieldName = "value";

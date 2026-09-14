@@ -327,6 +327,93 @@ public sealed class CrashReliabilityTests : IDisposable
         Assert.Empty(reopened.Catalog.Snapshot());
     }
 
+    /// <summary>
+    /// 数据库根目录租约必须跨进程阻止第二个 <see cref="Tsdb"/> 实例进入恢复路径；
+    /// 持有者被终止后，操作系统释放文件租约，下一实例可以重新打开同一根目录。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_RejectsConcurrentOwnerAndReopensAfterTermination()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-lease.ready");
+
+        using Process process = StartChild("hold_tsdb_root_directory_lease", root, readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-acquired", File.ReadAllText(readyFile));
+
+            IOException error = Assert.Throws<IOException>(() =>
+            {
+                using var contender = Tsdb.Open(MakeOptions(root));
+            });
+            Assert.Contains("另一个进程", error.Message, StringComparison.Ordinal);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions(root));
+        Assert.Equal(root, reopened.RootDirectory);
+    }
+
+    /// <summary>
+    /// 正常 <see cref="Tsdb.Dispose"/> 完成后必须立即释放跨进程根目录租约，
+    /// 而不是等持有者进程退出才释放。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_DisposeReleasesBeforeHolderTerminates()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-dispose-release.ready");
+
+        using Process process = StartChild("release_tsdb_root_directory_lease_via_dispose", root, readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-released-by-dispose", File.ReadAllText(readyFile));
+
+            using var reopened = Tsdb.Open(MakeOptions(root));
+            Assert.Equal(root, reopened.RootDirectory);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Tsdb.CrashSimulationCloseWal"/> 是测试用关闭路径，也必须在返回时释放
+    /// 跨进程根目录租约，确保恢复实例不会被已无资源的测试进程阻塞。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_CrashSimulationCloseWalReleasesBeforeHolderTerminates()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-crash-simulation-release.ready");
+
+        using Process process = StartChild(
+            "release_tsdb_root_directory_lease_via_crash_simulation",
+            root,
+            readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-released-by-crash-simulation", File.ReadAllText(readyFile));
+
+            using var reopened = Tsdb.Open(MakeOptions(root));
+            Assert.Equal(root, reopened.RootDirectory);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+    }
+
     [Fact]
     public void disk_full_during_wal_append_PreservesPreviouslySyncedRecords()
     {        string root = NewScenarioRoot();
@@ -335,7 +422,11 @@ public sealed class CrashReliabilityTests : IDisposable
             db.Write(MakePoint("disk_full", 1_000L, "h", 1.0));
             Assert.Throws<IOException>(() =>
             {
-                string walPath = Assert.Single(WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root))).Path;
+                // 关闭/直接 flush 可能保留 checkpoint carrier；当前 active 始终是
+                // 按 start LSN 排序后的最后一个 segment。
+                var walSegments = WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root));
+                Assert.NotEmpty(walSegments);
+                string walPath = walSegments[^1].Path;
                 using var blocker = new FileStream(walPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                 db.Write(MakePoint("disk_full", 1_001L, "h", 2.0));
             });
@@ -374,7 +465,21 @@ public sealed class CrashReliabilityTests : IDisposable
         using (var db = Tsdb.Open(MakeOptions(root)))
             db.Write(MakePoint("torn", 1_000L, "h", 1.0));
 
-        string walPath = Assert.Single(WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root))).Path;
+        // direct flush/dispose may retain a checkpoint carrier segment. Locate the
+        // segment containing the actual write record before appending a torn tail.
+        WalSegmentInfo? writeSegment = null;
+        foreach (WalSegmentInfo segment in WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root)))
+        {
+            using var reader = WalReader.Open(segment.Path);
+            if (reader.Replay().OfType<WritePointRecord>().Any())
+            {
+                writeSegment = segment;
+                break;
+            }
+        }
+
+        Assert.True(writeSegment.HasValue);
+        string walPath = writeSegment.Value.Path;
         using (var stream = new FileStream(walPath, FileMode.Append, FileAccess.Write, FileShare.Read))
             stream.Write([0x42, 0x13, 0x37, 0x00, 0x7F]);
 

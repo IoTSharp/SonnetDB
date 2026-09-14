@@ -99,44 +99,49 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 下表汇总与总收口直接相关的既有工作项。更早的已完成实现仍见历史归档；没有独立 PR 编号的 M42 性能残余、M14 框架边界等继续归原里程碑。表内数字顺序用于检索，M20 故障和恢复边界仍优先处理。
 
-| PR | 归属 | 状态 | 已完成范围 / 下一步 |
-|---|---|---|---|
-| #125 | M19 | 🟡 | runner/verifier 已有；补四个固定硬件容量档。 |
-| #136 | M20 | ❌ | CI/nightly 管线已有；当前七次窗口 4/7，修复失败后重取双 profile 证据。 |
-| #174 | M25 | 🟡 | Document 容量工具已有；执行 million/ten-million。 |
-| #182~#183 | M27 | ✅ | 当前九模型定位和 typed MCP 合同已交付；十四能力文档按 #384 演进。 |
-| #184 | M27 | 🟡 | 工业 Demo 研发已完成；真实 broker/provider 流程待验。 |
-| #185 | M27 | 🚧 | Provider/profile 已接线；真实模型质量、性能和资源证据待补。 |
-| #186 | M27 → M29 | ➡️ | 写审批已移交并实现，复用现有 staged approval。 |
-| #187 | M27 | 🟡 | Eval/verifier 已有；真实 usage、质量与成本待验。 |
-| #188 | M27 | ✅ | 上层应用与数据库边界已明确。 |
-| #258 | M29 | 🟡 | Studio 宿主、bridge 与安装交付已有；干净 Windows 安装/升级/卸载待验。 |
-| #288~#296 | M34 | ✅ | Modbus TCP 研发交付完成，作为工业接入基础复用。 |
-| #297 | M35 | ✅ | 语义内容、chunk、来源与 Embedding Profile 合同已有。 |
-| #298 | M35 | 🚧 | 专用 filtered ANN 已有切片；USearch 过滤、预算与召回证据待补。 |
-| #299 | M35 | ✅ | 图片任务持久化、重试、重启与清理已有；通用 RAG writer 仍归 #302。 |
-| #300 | M35 | 🚧 | text/image Provider 已有；object embedding、外发策略与审计待补。 |
-| #301 | M35 | ✅ | 图片检索和工业图片示例已交付。 |
-| #302 | M35 | 🚧 | RAG Core 已有；CLI、durable writer/resume、派生索引应用与回滚待补。 |
-| #303~#305 | M35 | 📋 | 融合质量、音视频、模型换代与容量治理按原顺序推进。 |
-| #306~#309 | M35 | 📋 | 专业视觉扩展保留原规划，不将其状态计为通用 RAG 完成。 |
-| #310~#311 | M36 | 🚧 | 九模型清单和共享客户端已有切片；继续真实跨端旅程。 |
-| #312 | M36 | 🚧 | INSERT 返回值已交付；UPDATE/DELETE RETURNING 与冲突写子集待补。 |
-| #313~#315 | M36 | 📋 | SQL 诊断、时序 writer/query 工作流待完成。 |
-| #316 | M36 | ✅ | 单 key 原子 API 和真实本地远程旅程已完成；不覆盖 #317 或 M20。 |
-| #317~#322 | M36 | 📋 | KV cursor、全文/向量高层 API 与诊断、Object Transfer Manager。 |
-| #323 | M36 | 🚧 | 对象有界分页已完成；conditional、异步游标与 CLI 文件流待补。 |
-| #324~#326 | M36 | 📋 | MQ consumer/DLQ、实例备份、九模型总旅程与 VS Code Graph 待补。 |
-| #327~#332 | M37~M38 | ✅ | 视图、物化视图和过程/触发器第一版已完成。 |
-| #333~#339 | M39 | ✅ | 触发器第二版与本地准入完成；⏳ 固定硬件和长稳另补。 |
-| #340 | M27 | 🚧 | 双网 runtime 已有；可信认证、StudioNative、续流和现场验证待补。 |
-| #341~#346 | M40 | ✅ | Graph 公共地基已完成；Couplet 联合现场证据另列。 |
-| #347~#367 | M40 | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
-| #368~#372 | M41 | ✅ | 已交付范围的 SQL 指标与访问路径优化完成。 |
-| #373 | M41 | 🟡 | 流式关系算子本地完成，发布证据后置。 |
-| #374 | M41 | ✅ | 表/KV 快照读取与锁范围收缩已交付。 |
-| #375 | M41/M42 | 🚧 | 后台统计已有；无偏采样与现场尾延迟待补。 |
-| #376~#381 | M41 | 🟡 | 成本、计划、JOIN、spill、并行与本地收口已有；现场 gate 待验。 |
+| PR | 归属 | 模型 | 状态 | 已完成范围 / 下一步 |
+|---|---|---|---|---|
+| #125 | M19 | GPT-5.6 Terra / medium | 🟡 | runner/verifier 已有；补四个固定硬件容量档。 |
+| #136 | M20 | GPT-5.6 Sol / high | ❌ | CI/nightly 管线已有；当前七次窗口 4/7，修复失败后重取双 profile 证据。 |
+| #174 | M25 | GPT-5.6 Luna / medium | 🟡 | Document 容量工具已有；执行 million/ten-million。 |
+| #182~#183 | M27 | GPT-5.6 Luna / low | ✅ | 当前九模型定位和 typed MCP 合同已交付；十四能力文档按 #384 演进。 |
+| #184 | M27 | GPT-5.6 Terra / high | 🟡 | 工业 Demo 研发已完成；真实 broker/provider 流程待验。 |
+| #185 | M27 | GPT-5.6 Sol / high | 🚧 | Provider/profile 已接线；真实模型质量、性能和资源证据待补。 |
+| #186 | M27 → M29 | GPT-5.6 Luna / low | ➡️ | 写审批已移交并实现，复用现有 staged approval。 |
+| #187 | M27 | GPT-5.6 Sol / high | 🟡 | Eval/verifier 已有；真实 usage、质量与成本待验。 |
+| #188 | M27 | GPT-5.6 Luna / low | ✅ | 上层应用与数据库边界已明确。 |
+| #258 | M29 | GPT-5.6 Terra / high | 🟡 | Studio 宿主、bridge 与安装交付已有；干净 Windows 安装/升级/卸载待验。 |
+| #288~#296 | M34 | GPT-5.6 Luna / low | ✅ | Modbus TCP 研发交付完成，作为工业接入基础复用。 |
+| #297 | M35 | GPT-5.6 Luna / low | ✅ | 语义内容、chunk、来源与 Embedding Profile 合同已有。 |
+| #298 | M35 | GPT-5.6 Sol / high | 🚧 | 专用 filtered ANN 已有切片；USearch 过滤、预算与召回证据待补。 |
+| #299 | M35 | GPT-5.6 Luna / low | ✅ | 图片任务持久化、重试、重启与清理已有；通用 RAG writer 仍归 #302。 |
+| #300 | M35 | GPT-5.6 Sol / high | 🚧 | text/image Provider 已有；object embedding、外发策略与审计待补。 |
+| #301 | M35 | GPT-5.6 Luna / low | ✅ | 图片检索和工业图片示例已交付。 |
+| #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | RAG Core 已有；CLI、durable writer/resume、派生索引应用与回滚待补。 |
+| #303~#305 | M35 | GPT-5.6 Sol / high | 📋 | 融合质量、音视频、模型换代与容量治理按原顺序推进。 |
+| #306~#309 | M35 | GPT-5.6 Sol / high | 📋 | 专业视觉扩展保留原规划，不将其状态计为通用 RAG 完成。 |
+| #310~#311 | M36 | GPT-5.6 Terra / high | 🚧 | 九模型清单和共享客户端已有切片；继续真实跨端旅程。 |
+| #312 | M36 | GPT-5.6 Sol / high | 🚧 | INSERT 返回值已交付；UPDATE/DELETE RETURNING 与冲突写子集待补。 |
+| #313~#315 | M36 | GPT-5.6 Terra / high | 📋 | SQL 诊断、时序 writer/query 工作流待完成。 |
+| #316 | M36 | GPT-5.6 Luna / low | ✅ | 单 key 原子 API 和真实本地远程旅程已完成；不覆盖 #317 或 M20。 |
+| #317~#322 | M36 | GPT-5.6 Sol / high | 📋 | KV cursor、全文/向量高层 API 与诊断、Object Transfer Manager。 |
+| #323 | M36 | GPT-5.6 Terra / high | 🚧 | 对象有界分页已完成；conditional、异步游标与 CLI 文件流待补。 |
+| #324~#326 | M36 | GPT-6 Astra / high | 📋 | MQ consumer/DLQ、实例备份、九模型总旅程与 VS Code Graph 待补。 |
+| #327~#332 | M37~M38 | GPT-5.6 Luna / low | ✅ | 视图、物化视图和过程/触发器第一版已完成。 |
+| #333~#339 | M39 | GPT-5.6 Luna / low | ✅ | 触发器第二版与本地准入完成；⏳ 固定硬件和长稳另补。 |
+| #340 | M27 | GPT-5.6 Sol / high | 🚧 | 双网 runtime 已有；可信认证、StudioNative、续流和现场验证待补。 |
+| #341~#346 | M40 | GPT-5.6 Luna / low | ✅ | Graph 公共地基已完成；Couplet 联合现场证据另列。 |
+| #347~#351 | M40 | GPT-5.6 Terra / high | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
+| #352 | M40 | GPT-6 Astra / high | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
+| #353~#359 | M40 | GPT-5.6 Sol / high | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
+| #360~#366 | M40 | GPT-5.6 Sol / xhigh | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
+| #367 | M40 | GPT-6 Astra / xhigh | 🟡 | Graph 研发与本地门禁已完成；Preview/Beta/Production 外部门禁待验。 |
+| #368~#372 | M41 | GPT-5.6 Luna / medium | ✅ | 已交付范围的 SQL 指标与访问路径优化完成。 |
+| #373 | M41 | GPT-5.6 Terra / high | 🟡 | 流式关系算子本地完成，发布证据后置。 |
+| #374 | M41 | GPT-5.6 Luna / low | ✅ | 表/KV 快照读取与锁范围收缩已交付。 |
+| #375 | M41/M42 | GPT-5.6 Sol / high | 🚧 | 后台统计已有；无偏采样与现场尾延迟待补。 |
+| #376~#380 | M41 | GPT-5.6 Sol / xhigh | 🟡 | 成本、计划、JOIN、spill、并行与本地收口已有；现场 gate 待验。 |
+| #381 | M41 | GPT-5.6 Terra / high | 🟡 | 成本、计划、JOIN、spill、并行与本地收口已有；现场 gate 待验。 |
 
 ## 四、新总里程碑 M43
 

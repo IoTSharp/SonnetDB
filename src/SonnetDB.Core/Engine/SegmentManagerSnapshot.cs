@@ -157,9 +157,14 @@ internal sealed class SegmentReaderLeaseState
 
 internal readonly struct SegmentManagerSnapshotLease : IDisposable
 {
-    public SegmentManagerSnapshotLease(SegmentManagerSnapshot snapshot)
+    private readonly SegmentManager _owner;
+
+    public SegmentManagerSnapshotLease(SegmentManagerSnapshot snapshot, SegmentManager owner)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(owner);
         Snapshot = snapshot;
+        _owner = owner;
     }
 
     public SegmentManagerSnapshot Snapshot { get; }
@@ -189,6 +194,6 @@ internal readonly struct SegmentManagerSnapshotLease : IDisposable
 
     public void Dispose()
     {
-        Snapshot.Release();
+        _owner.ReleaseSnapshotLease(Snapshot);
     }
 }
