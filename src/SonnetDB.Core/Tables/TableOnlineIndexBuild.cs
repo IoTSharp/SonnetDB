@@ -59,9 +59,18 @@ public sealed partial class TableManager
                     ThrowIfDisposed();
                     var schema = Catalog.TryGet(tableName)
                         ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                    // 冷开本身可能需要传统恢复；在线入口要求调用方先让正常业务完成开表。
                     if (!_stores.TryGetValue(tableName, out var store))
+                    {
+                        // 已发布索引的目录足以判断完成；冷表不能因尚未开库而永久返回 pending。
+                        // 残留构建元数据由正常开表恢复路径清理，不为幂等查询触发昂贵冷恢复。
+                        if (schema.TryGetIndex(definition.Name) is { } published)
+                        {
+                            EnsureOnlineIndexDefinition(published, definition);
+                            return new(tableName, definition.Name, true, pages, rows, "complete");
+                        }
+                        // 未完成索引仍须先由正常业务开表，避免在线入口意外执行无界冷恢复。
                         return new(tableName, definition.Name, false, pages, rows, "yielded");
+                    }
                     using (EnterOnlineIndexLock(store.SynchronizationRoot, pageBudget.Token))
                     {
                         if (schema.TryGetIndex(definition.Name) is { } existing)
