@@ -9,9 +9,9 @@ namespace SonnetDB.Protocol;
 /// kv service（<see cref="FrameService.Kv"/>）get / put / scan 三个 opcode 的帧体编解码（M28 P5b #240）。
 /// key / value 以原始字节直传（零 Base64）；解码结果中的 key / value 字段是输入缓冲上的零拷贝视图，
 /// 仅在缓冲存活期内有效（服务端在 PipeReader AdvanceTo 之前处理完毕；引擎 Put 内部自行拷贝）。
-/// TTL / incr / cas / remove 等操作不进帧（走 REST KV 端点）。
+/// 原子写与 TTL 使用扩展 opcode；既有 get / put / scan 帧布局保持不变。
 /// </summary>
-public static class KvFrameCodec
+public static partial class KvFrameCodec
 {
     /// <summary>名字（db / keyspace）UTF-8 字节数上限。</summary>
     public const int MaxNameBytes = 512;

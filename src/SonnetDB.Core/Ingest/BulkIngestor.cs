@@ -60,6 +60,16 @@ public static class BulkIngestor
         bool flushOnComplete = false)
         => Ingest(tsdb, reader, errorPolicy, flushOnComplete ? BulkFlushMode.Sync : BulkFlushMode.None, CancellationToken.None);
 
+    /// <summary>带稳定批次标识的兼容重载；相同批次重放不会重复写入。</summary>
+    public static BulkIngestResult Ingest(
+        Tsdb tsdb,
+        IPointReader reader,
+        BulkErrorPolicy errorPolicy,
+        bool flushOnComplete,
+        string batchId,
+        CancellationToken cancellationToken = default)
+        => Ingest(tsdb, reader, errorPolicy, flushOnComplete ? BulkFlushMode.Sync : BulkFlushMode.None, cancellationToken, batchId);
+
     /// <summary>
     /// 消费 <paramref name="reader"/> 中的所有 <see cref="Point"/>，写入 <paramref name="tsdb"/>，
     /// 并按 <paramref name="flushMode"/> 控制结尾 Flush 行为（PR #48）。
@@ -85,7 +95,8 @@ public static class BulkIngestor
         IPointReader reader,
         BulkErrorPolicy errorPolicy,
         BulkFlushMode flushMode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? batchId = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(reader);
@@ -95,6 +106,7 @@ public static class BulkIngestor
         int written = 0;
         int skipped = 0;
         int batchCount = 0;
+        int batchOrdinal = 0;
         try
         {
             while (true)
@@ -116,13 +128,13 @@ public static class BulkIngestor
                 buffer[batchCount++] = point;
                 if (batchCount >= BatchSize)
                 {
-                    written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken);
+                    written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken, batchId, batchOrdinal++);
                     batchCount = 0;
                 }
             }
 
             if (batchCount > 0)
-                written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken);
+                written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken, batchId, batchOrdinal++);
         }
         finally
         {
@@ -153,14 +165,18 @@ public static class BulkIngestor
         int count,
         BulkErrorPolicy policy,
         ref int skipped,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? batchId,
+        int batchOrdinal)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (policy == BulkErrorPolicy.FailFast)
         {
             try
             {
-                return tsdb.WriteMany(buffer.AsSpan(0, count));
+                return batchId is null
+                    ? tsdb.WriteMany(buffer.AsSpan(0, count))
+                    : tsdb.WriteMany(buffer.AsSpan(0, count), $"{batchId}:{batchOrdinal:D8}");
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
             {

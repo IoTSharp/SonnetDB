@@ -293,18 +293,34 @@ public sealed class SndbObjectStorageClient : IDisposable
         int maxKeys,
         string? continuationToken,
         CancellationToken cancellationToken = default)
+        => await ListObjectsAsync(bucket, prefix, maxKeys, continuationToken, delimiter: null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>使用可取消的有界分页读取对象和公共前缀，令牌沿用服务端合同。</summary>
+    /// <param name="bucket">对象桶。</param>
+    /// <param name="prefix">对象前缀。</param>
+    /// <param name="maxKeys">对象和公共前缀的合计上限。</param>
+    /// <param name="continuationToken">上一页令牌。</param>
+    /// <param name="delimiter">目录分隔符；空值表示不分组。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>当前对象页及公共前缀。</returns>
+    public async Task<SndbObjectListResult> ListObjectsAsync(
+        string bucket, string? prefix, int maxKeys, string? continuationToken,
+        string? delimiter, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         if (_embedded is not null)
-            return new SndbObjectStore(_embedded).ListObjects(bucket, prefix, maxKeys, continuationToken);
+            return new SndbObjectStore(_embedded).ListObjects(bucket, prefix, maxKeys, continuationToken, delimiter, cancellationToken);
 
         string url = BucketUrl(bucket)
             + "?list-type=2&max-keys="
             + maxKeys.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (!string.IsNullOrWhiteSpace(prefix))
+        if (!string.IsNullOrEmpty(prefix))
             url += "&prefix=" + Uri.EscapeDataString(prefix.TrimStart('/'));
         if (!string.IsNullOrWhiteSpace(continuationToken))
             url += "&continuation-token=" + Uri.EscapeDataString(continuationToken);
+        if (!string.IsNullOrEmpty(delimiter))
+            url += "&delimiter=" + Uri.EscapeDataString(delimiter);
 
         using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -318,7 +334,11 @@ public sealed class SndbObjectStorageClient : IDisposable
             body.ContinuationToken,
             body.NextContinuationToken,
             body.IsTruncated,
-            body.Objects.Select(ToInfo).ToArray());
+            body.Objects.Select(ToInfo).ToArray())
+        {
+            Delimiter = body.Delimiter,
+            CommonPrefixes = body.CommonPrefixes,
+        };
     }
 
     /// <summary>

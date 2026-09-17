@@ -11,6 +11,9 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class TableInSubqueryExecutor
 {
+    private static TableSchema? ResolveSchema(Tsdb tsdb, string name)
+        => SonnetDB.Routines.TriggerTransitionTables.FindSchema(name) ?? tsdb.Tables.Catalog.TryGet(name);
+
     private const string CorrelatedReferenceMessagePrefix =
         "DELETE/UPDATE 的 IN 子查询不支持相关子查询引用";
 
@@ -176,7 +179,7 @@ internal static class TableInSubqueryExecutor
             EnsureSupportedSources(tsdb, statement.FromSubquery);
         }
         else if (!string.IsNullOrEmpty(statement.Measurement)
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is null
+            && ResolveSchema(tsdb, statement.Measurement) is null
             && tsdb.Measurements.TryGet(statement.Measurement) is null)
         {
             throw new NotSupportedException(message);
@@ -186,7 +189,7 @@ internal static class TableInSubqueryExecutor
         {
             if (join.Subquery is not null)
                 EnsureSupportedSources(tsdb, join.Subquery);
-            else if (tsdb.Tables.Catalog.TryGet(join.TableName) is null)
+            else if (ResolveSchema(tsdb, join.TableName) is null)
                 throw new NotSupportedException(message);
         }
 
@@ -210,7 +213,7 @@ internal static class TableInSubqueryExecutor
         bool isKnownSingleColumnTable = statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
             && statement.UnionStatements.Count == 0
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement)?.Columns.Count == 1;
+            && ResolveSchema(tsdb, statement.Measurement)?.Columns.Count == 1;
         if (!isKnownSingleColumnTable)
             throw new InvalidOperationException("DELETE/UPDATE 的 IN 子查询必须只返回一列，SELECT * 无法展开为单列。");
     }
@@ -316,7 +319,7 @@ internal static class TableInSubqueryExecutor
             sources.Add(new StaticSource(baseQualifier, GetOutputColumnNames(tsdb, statement.FromSubquery)));
         }
         else if (!string.IsNullOrEmpty(statement.Measurement)
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } schema)
+            && ResolveSchema(tsdb, statement.Measurement) is { } schema)
         {
             sources.Add(new StaticSource(
                 baseQualifier,
@@ -340,7 +343,7 @@ internal static class TableInSubqueryExecutor
             {
                 sources.Add(new StaticSource(join.Alias, GetOutputColumnNames(tsdb, join.Subquery)));
             }
-            else if (tsdb.Tables.Catalog.TryGet(join.TableName) is { } joinSchema)
+            else if (ResolveSchema(tsdb, join.TableName) is { } joinSchema)
             {
                 var columns = joinSchema.Columns
                     .Select(static column => column.Name)
@@ -361,7 +364,7 @@ internal static class TableInSubqueryExecutor
     {
         if (statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } tableSchema
+            && ResolveSchema(tsdb, statement.Measurement) is { } tableSchema
             && !RelationalSelectExecutor.NeedsRelationalPath(statement))
         {
             return TableSqlExecutor.ResolveProjectionColumnNames(statement, tableSchema)

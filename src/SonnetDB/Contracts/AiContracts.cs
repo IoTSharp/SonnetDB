@@ -5,7 +5,13 @@ public sealed record AiConfigResponse(
     bool Enabled,
     bool IsCloudBound,
     DateTimeOffset? CloudAccessTokenExpiresAtUtc,
-    DateTimeOffset? CloudBoundAtUtc);
+    DateTimeOffset? CloudBoundAtUtc)
+{
+    /// <summary>
+    /// 是否只使用部署配置中的内部 Copilot 服务；为 true 时不显示云端绑定入口。
+    /// </summary>
+    public bool InternalOnly { get; init; }
+}
 
 /// <summary>AI 助手配置写入请求。</summary>
 public sealed record AiConfigRequest(
@@ -55,7 +61,13 @@ public sealed record AiChatRequest(
 public sealed record AiMessage(string Role, string Content);
 
 /// <summary>AI 启用状态（任何已认证用户可读）。</summary>
-public sealed record AiStatusResponse(bool Enabled, bool IsCloudBound);
+public sealed record AiStatusResponse(bool Enabled, bool IsCloudBound)
+{
+    /// <summary>
+    /// 是否只使用部署配置中的内部 Copilot 服务。
+    /// </summary>
+    public bool InternalOnly { get; init; }
+}
 
 /// <summary>SSE 流式 token 事件（内部 SSE 数据格式）。</summary>
 internal sealed record SseTokenEvent(string Token);

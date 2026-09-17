@@ -33,7 +33,14 @@ public sealed record ObjectListResponse(
     string? ContinuationToken,
     string? NextContinuationToken,
     bool IsTruncated,
-    IReadOnlyList<ObjectInfoResponse> Objects);
+    IReadOnlyList<ObjectInfoResponse> Objects)
+{
+    /// <summary>目录分隔符。</summary>
+    public string? Delimiter { get; init; }
+
+    /// <summary>本页公共前缀，与对象共用页大小限制。</summary>
+    public IReadOnlyList<string> CommonPrefixes { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>批量删除对象请求。</summary>
 public sealed record ObjectDeleteManyRequest(IReadOnlyList<string> Keys);
@@ -232,7 +239,15 @@ public sealed record ObjectBucketSemanticBackfillResponse(
     string Bucket,
     int ScannedObjects,
     int QueuedObjects,
-    int SkippedObjects);
+    int SkippedObjects)
+{
+    /// <summary>是否仍有后台回填页等待处理。</summary>
+    public bool HasMore { get; init; }
+    /// <summary>当前持久回填游标，便于调用方观察恢复进度。</summary>
+    public string? ContinuationToken { get; init; }
+    /// <summary>本次请求是否已经完成整个 Bucket 的回填。</summary>
+    public bool Completed { get; init; }
+}
 
 /// <summary>Bucket 容量统计响应。</summary>
 public sealed record ObjectStatsResponse(

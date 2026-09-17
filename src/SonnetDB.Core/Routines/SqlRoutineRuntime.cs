@@ -43,8 +43,15 @@ internal static class SqlRoutineRuntime
             ?? throw DependencyError($"trigger '{statement.Name}' 的目标关系表 '{statement.TableName}' 不存在。");
         TriggerDefinition definition = TriggerDefinition.Create(statement);
         ValidateTriggerDependencies(tsdb, definition, schema);
-        tsdb.Routines.Create(definition);
-        return definition;
+        tsdb.Routines.Create(definition, statement.RelativeTo, statement.Precedes);
+        return tsdb.Routines.TryGetTrigger(definition.Name)!;
+    }
+
+    internal static RowsAffectedExecutionResult AlterTrigger(Tsdb tsdb, AlterTriggerStatement statement)
+    {
+        EnsureOutsideTransaction("ALTER TRIGGER");
+        tsdb.Routines.Alter(statement);
+        return new RowsAffectedExecutionResult(statement.Name, 1, "alter_trigger");
     }
 
     public static RowsAffectedExecutionResult DropProcedure(Tsdb tsdb, DropProcedureStatement statement)
@@ -130,16 +137,26 @@ internal static class SqlRoutineRuntime
             {
                 context.ConsumeStatement();
                 SqlStatement bound = SqlParameterBinder.Bind(bodyStatement, parameters);
+                if (bound is SelectStatement query)
+                {
+                    int probeLimit = (int)Math.Min(int.MaxValue,
+                        (long)context.Options.MaxRoutineResultRows - context.ResultRows + 1);
+                    int fetch = Math.Min(query.Pagination?.Fetch ?? int.MaxValue, probeLimit);
+                    bound = query with { Pagination = new PaginationSpec(query.Pagination?.Offset ?? 0, fetch) };
+                }
                 lastResult = SqlExecutor.ExecuteStatement(
                     tsdb,
                     databaseName,
                     bound,
                     controlPlane,
                     effectiveTransaction);
-                if (lastResult is SelectExecutionResult select)
+                if (bodyStatement is not CallProcedureStatement && lastResult is SelectExecutionResult select)
                     context.AddResultRows(select.Rows.Count);
+                if (bodyStatement is not CallProcedureStatement && lastResult is InsertExecutionResult { Returning: { } returning })
+                    context.AddResultRows(returning.Rows.Count);
             }
 
+            context.CheckCancellation();
             if (ownsTransaction)
                 TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction!);
             succeeded = true;
@@ -151,9 +168,8 @@ internal static class SqlRoutineRuntime
             errorCode = routineException.Code;
             if (effectiveTransaction is not null && savepoint is not null)
             {
-                tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                    effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
-                    routineException.Code);
+                effectiveTransaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics,
+                    committed: false, routineException.Code, savepoint);
                 if (!ownsTransaction)
                     effectiveTransaction.RollbackTo(savepoint);
             }
@@ -161,7 +177,8 @@ internal static class SqlRoutineRuntime
         }
         finally
         {
-            tsdb.Routines.Diagnostics.Record(
+            bool pendingCommit = succeeded && effectiveTransaction is { IsCompleted: false };
+            long sequence = tsdb.Routines.Diagnostics.Record(
                 "procedure",
                 definition.Name,
                 context.Options.Caller,
@@ -171,14 +188,17 @@ internal static class SqlRoutineRuntime
                 succeeded,
                 errorCode,
                 context.StatementsExecuted - initialStatements,
-                context.ResultRows - initialRows);
+                context.ResultRows - initialRows,
+                pendingCommit);
+            if (pendingCommit)
+                effectiveTransaction!.AddRoutineInvocation(sequence, "procedure");
         }
     }
 
-    public static IReadOnlyList<long> FireTriggers(
+    public static void FireTriggers(
         Tsdb tsdb,
         string? databaseName,
-        SqlTriggerEvent triggerEvent,
+        IReadOnlyList<TriggerDefinition> triggers,
         IReadOnlyList<TableRowChange> changes,
         IControlPlane? controlPlane,
         SqlTransactionContext transaction)
@@ -186,92 +206,143 @@ internal static class SqlRoutineRuntime
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(transaction);
-        if (changes.Count == 0)
-            return [];
+        if (triggers.Count == 0)
+            return;
+        foreach (var change in changes)
+        {
+            var rowContext = new RoutineRowContext(change.Schema, change.OldValues, change.NewValues);
+            foreach (var trigger in triggers)
+                if (trigger.Timing == SqlTriggerTiming.After && trigger.Level == SqlTriggerLevel.Row)
+                {
+                    if (trigger.IsConstraint && trigger.InitiallyDeferred)
+                    {
+                        transaction.EnqueueDeferredTrigger(
+                            tsdb, trigger, databaseName, change, controlPlane);
+                    }
+                    else
+                        ExecuteTrigger(tsdb, databaseName, trigger, rowContext, [], controlPlane, transaction);
+                }
+        }
+        foreach (var trigger in triggers)
+            if (trigger.Timing == SqlTriggerTiming.After && trigger.Level == SqlTriggerLevel.Statement)
+            {
+                var schema = tsdb.Tables.Catalog.TryGet(trigger.TableName)!;
+                ExecuteTrigger(tsdb, databaseName, trigger, new RoutineRowContext(schema, null, null, tsdb),
+                    changes, controlPlane, transaction);
+            }
+    }
 
+    internal static void FireBeforeTriggers(Tsdb tsdb, IReadOnlyList<TriggerDefinition> triggers,
+        TableSchema schema, IReadOnlyList<object?>? oldValues, object?[] newValues, SqlTransactionContext transaction)
+    {
+        foreach (var trigger in triggers)
+            if (trigger.Timing == SqlTriggerTiming.Before)
+                ExecuteTrigger(tsdb, null, trigger, new RoutineRowContext(schema, oldValues, newValues), [], null, transaction);
+    }
+
+    private static void ExecuteTrigger(Tsdb tsdb, string? databaseName, TriggerDefinition trigger,
+        RoutineRowContext rowContext, IReadOnlyList<TableRowChange> changes,
+        IControlPlane? controlPlane, SqlTransactionContext transaction)
+    {
         RoutineExecutionContext context = RoutineExecutionContext.Current
             ?? throw new InvalidOperationException("触发器运行时缺少 SQL 执行上下文。");
-        IReadOnlyList<TriggerDefinition> triggers = tsdb.Routines.FindTriggers(changes[0].Schema.Name, triggerEvent);
-        if (triggers.Count == 0)
-            return [];
-
-        var successfulAuditSequences = new List<long>();
+        DateTimeOffset startedUtc = DateTimeOffset.UtcNow;
+        long startedTimestamp = Stopwatch.GetTimestamp();
+        int initialStatements = context.StatementsExecuted;
+        int initialRows = context.ResultRows;
+        bool actionExecuted = false;
+        bool succeeded = false;
+        string? errorCode = null;
+        string callChain = string.Empty;
         try
         {
-            foreach (var change in changes)
+            using var triggerScope = context.EnterTrigger(trigger.Name);
+            if (transaction.IsExecutingDeferredTriggers)
+                DeferredTriggerSafety.Validate(tsdb, trigger);
+            if (trigger.Level == SqlTriggerLevel.Statement)
+                ValidateTransitionAliases(tsdb, trigger);
+            using var transitionScope = new TriggerTransitionTables(
+                trigger.Level == SqlTriggerLevel.Statement ? trigger : null, rowContext.Schema, changes);
+            callChain = context.CallChain;
+            if (trigger.When is not null)
             {
-                var rowContext = new RoutineRowContext(change.Schema, change.OldValues, change.NewValues);
-                foreach (var trigger in triggers)
+                SqlExpression boundWhen = RoutineRowBinder.BindExpression(trigger.When, rowContext);
+                if (!RoutineExpressionEvaluator.EvaluateWhen(boundWhen))
                 {
-                    DateTimeOffset startedUtc = DateTimeOffset.UtcNow;
-                    long startedTimestamp = Stopwatch.GetTimestamp();
-                    int initialStatements = context.StatementsExecuted;
-                    int initialRows = context.ResultRows;
-                    bool actionExecuted = false;
-                    bool succeeded = false;
-                    string? errorCode = null;
-                    string callChain = string.Empty;
-                    try
-                    {
-                        using var triggerScope = context.EnterTrigger(trigger.Name);
-                        callChain = context.CallChain;
-                        if (trigger.When is not null)
-                        {
-                            SqlExpression boundWhen = RoutineRowBinder.BindExpression(trigger.When, rowContext);
-                            if (!RoutineExpressionEvaluator.EvaluateWhen(boundWhen))
-                            {
-                                succeeded = true;
-                                continue;
-                            }
-                        }
-
-                        actionExecuted = true;
-                        foreach (var bodyStatement in trigger.Statements)
-                        {
-                            context.ConsumeStatement();
-                            SqlStatement bound = RoutineRowBinder.Bind(bodyStatement, rowContext);
-                            _ = SqlExecutor.ExecuteStatement(
-                                tsdb,
-                                databaseName,
-                                bound,
-                                controlPlane,
-                                transaction);
-                        }
-                        succeeded = true;
-                    }
-                    catch (Exception exception)
-                    {
-                        var routineException = NormalizeTriggerException(trigger.Name, exception);
-                        errorCode = routineException.Code;
-                        throw routineException;
-                    }
-                    finally
-                    {
-                        long auditSequence = tsdb.Routines.Diagnostics.Record(
-                            "trigger",
-                            trigger.Name,
-                            context.Options.Caller,
-                            string.IsNullOrEmpty(callChain) ? "trigger:" + trigger.Name : callChain,
-                            startedUtc,
-                            Stopwatch.GetElapsedTime(startedTimestamp),
-                            succeeded,
-                            errorCode,
-                            context.StatementsExecuted - initialStatements,
-                            context.ResultRows - initialRows);
-                        if (succeeded && actionExecuted)
-                            successfulAuditSequences.Add(auditSequence);
-                    }
+                    succeeded = true;
+                    return;
                 }
             }
+
+            actionExecuted = true;
+            foreach (var bodyStatement in trigger.Statements)
+            {
+                context.ConsumeStatement();
+                if (bodyStatement is SetTriggerNewStatement assignment)
+                {
+                    var boundValue = RoutineRowBinder.BindExpression(assignment.Value, rowContext);
+                    TableSqlExecutor.AssignTriggerNew(rowContext.Schema, (object?[])rowContext.NewValues!,
+                        assignment.ColumnName, RoutineExpressionEvaluator.Evaluate(boundValue));
+                    continue;
+                }
+                SqlStatement bound = RoutineRowBinder.Bind(bodyStatement, rowContext);
+                object? result = SqlExecutor.ExecuteStatement(
+                    tsdb,
+                    databaseName,
+                    bound,
+                    controlPlane,
+                    transaction);
+                if (result is InsertExecutionResult { Returning: { } returning })
+                    context.AddResultRows(returning.Rows.Count);
+            }
+            succeeded = true;
         }
-        catch (RoutineExecutionException exception)
+        catch (Exception exception)
         {
-            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
-                successfulAuditSequences,
-                exception.Code);
-            throw;
+            var routineException = NormalizeTriggerException(trigger.Name, exception);
+            errorCode = routineException.Code;
+            throw routineException;
         }
-        return successfulAuditSequences;
+        finally
+        {
+            long auditSequence = tsdb.Routines.Diagnostics.Record(
+                "trigger",
+                trigger.Name,
+                context.Options.Caller,
+                string.IsNullOrEmpty(callChain) ? "trigger:" + trigger.Name : callChain,
+                startedUtc,
+                Stopwatch.GetElapsedTime(startedTimestamp),
+                succeeded,
+                errorCode,
+                context.StatementsExecuted - initialStatements,
+                context.ResultRows - initialRows,
+                pendingCommit: succeeded && actionExecuted);
+            if (succeeded && actionExecuted)
+                transaction.AddRoutineInvocation(auditSequence, "trigger");
+        }
+    }
+
+    internal static void ExecuteDeferredTriggers(Tsdb tsdb, SqlTransactionContext transaction)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(transaction);
+        // Queue growth has a hard cap; each event is visited once and the shared commit
+        // deadline/cancellation is checked before execution and within SQL row scans.
+        for (int index = 0; index < transaction.DeferredTriggerCount && index < 100_000; index++)
+        {
+            transaction.CheckCommitDeadline();
+            var invocation = transaction.GetDeferredTrigger(index);
+            foreach (var schema in invocation.DependencySchemas)
+                if (!ReferenceEquals(schema, tsdb.Tables.Catalog.TryGet(schema.Name)))
+                    throw DependencyError($"延迟触发器依赖表 '{schema.Name}' 的 schema 已变化，事务已拒绝。");
+            using var origin = RoutineExecutionContext.EnterDeferred(invocation.Origin,
+                invocation.Procedures, invocation.Triggers);
+            var change = invocation.Change;
+            ExecuteTrigger(tsdb, invocation.DatabaseName, invocation.Trigger,
+                new RoutineRowContext(change.Schema, change.OldValues, change.NewValues),
+                [], invocation.ControlPlane, transaction);
+            transaction.ExpandDeferredCascades(tsdb.Tables);
+        }
     }
 
     public static void EnsureNoDependents(Tsdb tsdb, string objectName, string operation)
@@ -306,6 +377,10 @@ internal static class SqlRoutineRuntime
         TriggerDefinition definition,
         TableSchema targetSchema)
     {
+        if (definition.InitiallyDeferred)
+            DeferredTriggerSafety.Validate(tsdb, definition);
+        ValidateTransitionAliases(tsdb, definition);
+        using var transitions = new TriggerTransitionTables(definition, targetSchema, []);
         ValidateBodyObjects(tsdb, definition.Statements, definition.Name, "trigger");
         foreach (string columnName in definition.RowColumns)
         {
@@ -314,6 +389,26 @@ internal static class SqlRoutineRuntime
         }
         if (definition.When is not null)
             ValidateWhenExpression(definition.When, targetSchema, definition.Name);
+        if (definition.Timing == SqlTriggerTiming.Before)
+        {
+            foreach (var assignment in definition.Statements.Cast<SetTriggerNewStatement>())
+            {
+                var column = targetSchema.TryGetColumn(assignment.ColumnName)!;
+                if (column.IsRowVersion || column.IsAutoIncrement)
+                    throw DependencyError("BEFORE 不允许改写引擎生成的 AUTO_INCREMENT 或 ROWVERSION 列。");
+                ValidateWhenExpression(assignment.Value, targetSchema, definition.Name, restricted: true);
+            }
+            if (definition.When is not null)
+                ValidateWhenExpression(definition.When, targetSchema, definition.Name, restricted: true);
+        }
+    }
+
+    private static void ValidateTransitionAliases(Tsdb tsdb, TriggerDefinition definition)
+    {
+        if (definition.OldTableName is { } oldName && SqlExecutor.IsKnownViewSource(tsdb, oldName))
+            throw DependencyError($"transition table 别名 '{oldName}' 与数据库对象重名。");
+        if (definition.NewTableName is { } newName && SqlExecutor.IsKnownViewSource(tsdb, newName))
+            throw DependencyError($"transition table 别名 '{newName}' 与数据库对象重名。");
     }
 
     private static void ValidateBodyObjects(
@@ -331,12 +426,30 @@ internal static class SqlRoutineRuntime
                     break;
                 case InsertStatement insert:
                     EnsureRelationTable(tsdb, ownerKind, ownerName, insert.Measurement);
+                    if (insert.Query is not null)
+                        ValidateSelectSources(tsdb, insert.Query, ownerName, ownerKind);
+                    var insertSchema = tsdb.Tables.Catalog.TryGet(insert.Measurement)!;
+                    foreach (string column in insert.Columns.Concat(insert.ReturningColumns.Where(static column => column != "*")))
+                        if (insertSchema.TryGetColumn(column) is null)
+                            throw DependencyError($"{ownerKind} '{ownerName}' 引用了未知写入或返回列 '{column}'。");
+                    foreach (var row in insert.Rows)
+                        foreach (var expression in row)
+                            ValidateSelectExpressionSources(tsdb, expression, ownerName, ownerKind);
                     break;
                 case UpdateStatement update:
                     EnsureRelationTable(tsdb, ownerKind, ownerName, update.TableName);
+                    var updateSchema = tsdb.Tables.Catalog.TryGet(update.TableName)!;
+                    foreach (var assignment in update.Assignments)
+                    {
+                        if (updateSchema.TryGetColumn(assignment.ColumnName) is null)
+                            throw DependencyError($"{ownerKind} '{ownerName}' 引用了未知赋值列 '{assignment.ColumnName}'。");
+                        ValidateSelectExpressionSources(tsdb, assignment.Value, ownerName, ownerKind);
+                    }
+                    ValidateSelectExpressionSources(tsdb, update.Where, ownerName, ownerKind);
                     break;
                 case DeleteStatement delete:
                     EnsureRelationTable(tsdb, ownerKind, ownerName, delete.Measurement);
+                    ValidateSelectExpressionSources(tsdb, delete.Where, ownerName, ownerKind);
                     break;
             }
         }
@@ -362,6 +475,7 @@ internal static class SqlRoutineRuntime
         }
         else if (!string.IsNullOrEmpty(select.Measurement)
                  && !string.Equals(select.Measurement, "__json_file__", StringComparison.Ordinal)
+                 && TriggerTransitionTables.FindSchema(select.Measurement) is null
                  && !SqlExecutor.IsKnownViewSource(tsdb, select.Measurement))
         {
             throw DependencyError(
@@ -397,7 +511,7 @@ internal static class SqlRoutineRuntime
         {
             if (join.Subquery is null)
             {
-                if (!SqlExecutor.IsKnownViewSource(tsdb, join.TableName))
+                if (TriggerTransitionTables.FindSchema(join.TableName) is null && !SqlExecutor.IsKnownViewSource(tsdb, join.TableName))
                 {
                     throw DependencyError(
                         $"{ownerKind} '{ownerName}' 引用了不存在的数据源 '{join.TableName}'。");
@@ -465,6 +579,8 @@ internal static class SqlRoutineRuntime
 
     private static void EnsureRelationTable(Tsdb tsdb, string ownerKind, string ownerName, string target)
     {
+        if (TriggerTransitionTables.FindSchema(target) is not null)
+            throw DependencyError("transition tables 是只读语句快照，不能作为 DML 目标。");
         if (tsdb.Tables.Catalog.TryGet(target) is null)
         {
             throw DependencyError(
@@ -473,7 +589,7 @@ internal static class SqlRoutineRuntime
         }
     }
 
-    private static void ValidateWhenExpression(SqlExpression expression, TableSchema schema, string triggerName)
+    private static void ValidateWhenExpression(SqlExpression expression, TableSchema schema, string triggerName, bool restricted = false)
     {
         switch (expression)
         {
@@ -484,38 +600,43 @@ internal static class SqlRoutineRuntime
                 {
                     throw DependencyError($"trigger '{triggerName}' 的 WHEN 标识符必须显式使用 OLD.column 或 NEW.column。");
                 }
-                if (schema.TryGetColumn(identifier.Name) is null)
+                if (schema.TryGetColumn(identifier.Name) is not { } referencedColumn)
                     throw DependencyError($"trigger '{triggerName}' 的 WHEN 引用了未知列 '{identifier.Name}'。");
+                if (restricted && referencedColumn.IsRowVersion
+                    && string.Equals(identifier.Qualifier, "NEW", StringComparison.OrdinalIgnoreCase))
+                    throw DependencyError("BEFORE 中 NEW.ROWVERSION 尚未生成；只允许读取 OLD.ROWVERSION。");
                 break;
             case BinaryExpression binary:
-                ValidateWhenExpression(binary.Left, schema, triggerName);
-                ValidateWhenExpression(binary.Right, schema, triggerName);
+                ValidateWhenExpression(binary.Left, schema, triggerName, restricted);
+                ValidateWhenExpression(binary.Right, schema, triggerName, restricted);
                 break;
             case UnaryExpression unary:
-                ValidateWhenExpression(unary.Operand, schema, triggerName);
+                ValidateWhenExpression(unary.Operand, schema, triggerName, restricted);
                 break;
             case IsNullExpression isNull:
-                ValidateWhenExpression(isNull.Operand, schema, triggerName);
+                ValidateWhenExpression(isNull.Operand, schema, triggerName, restricted);
                 break;
             case InExpression @in:
-                ValidateWhenExpression(@in.Value, schema, triggerName);
+                ValidateWhenExpression(@in.Value, schema, triggerName, restricted);
                 foreach (var value in @in.Values)
-                    ValidateWhenExpression(value, schema, triggerName);
+                    ValidateWhenExpression(value, schema, triggerName, restricted);
                 if (@in.Subquery is not null)
                     throw DependencyError($"trigger '{triggerName}' 的 WHEN 不允许子查询。");
                 break;
             case FunctionCallExpression function:
+                if (restricted && function.Name.ToLowerInvariant() is not ("lower" or "upper" or "coalesce"))
+                    throw DependencyError("BEFORE 赋值仅允许 LOWER、UPPER、COALESCE 内置函数，禁止 UDF 或外部调用。");
                 foreach (var argument in function.Arguments)
-                    ValidateWhenExpression(argument, schema, triggerName);
+                    ValidateWhenExpression(argument, schema, triggerName, restricted);
                 break;
             case CaseExpression @case:
                 foreach (var clause in @case.WhenClauses)
                 {
-                    ValidateWhenExpression(clause.Condition, schema, triggerName);
-                    ValidateWhenExpression(clause.Result, schema, triggerName);
+                    ValidateWhenExpression(clause.Condition, schema, triggerName, restricted);
+                    ValidateWhenExpression(clause.Result, schema, triggerName, restricted);
                 }
                 if (@case.Else is not null)
-                    ValidateWhenExpression(@case.Else, schema, triggerName);
+                    ValidateWhenExpression(@case.Else, schema, triggerName, restricted);
                 break;
             case SubqueryExpression or ExistsExpression or ParameterExpression:
                 throw DependencyError($"trigger '{triggerName}' 的 WHEN 不允许子查询或参数。");
@@ -576,46 +697,84 @@ internal static class SqlRoutineRuntime
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(definition);
-        return RequiresWriteCore(tsdb, definition, new HashSet<string>(StringComparer.Ordinal));
+        var visited = new HashSet<string>(StringComparer.Ordinal) { definition.Name };
+        var pending = new Stack<ProcedureDefinition>();
+        pending.Push(definition);
+        for (int inspected = 0; pending.Count > 0 && inspected <= tsdb.Routines.ProcedureCount; inspected++)
+        {
+            var current = pending.Pop();
+            if (current.RequiresWrite) return true;
+            foreach (string dependency in current.ProcedureDependencies)
+            {
+                var called = tsdb.Routines.TryGetProcedure(dependency)
+                    ?? throw DependencyError($"procedure '{current.Name}' 的依赖 '{dependency}' 不存在。");
+                if (visited.Add(dependency)) pending.Push(called);
+            }
+        }
+        if (pending.Count > 0) throw DependencyError("过程调用图在权限检查期间发生变化，请重试。");
+        return false;
     }
 
-    private static bool RequiresWriteCore(
-        Tsdb tsdb,
-        ProcedureDefinition definition,
-        HashSet<string> visited)
+    internal static SelectExecutionResult ExplainRoutine(Tsdb tsdb, ExplainRoutineStatement statement)
     {
-        if (!visited.Add(definition.Name))
-            return false;
-        if (definition.RequiresWrite)
-            return true;
-        foreach (string dependency in definition.ProcedureDependencies)
+        ProcedureDefinition? procedure = null;
+        TriggerDefinition? trigger = null;
+        if (statement.Kind == "procedure")
         {
-            var called = tsdb.Routines.TryGetProcedure(dependency);
-            if (called is not null && RequiresWriteCore(tsdb, called, visited))
-                return true;
+            procedure = tsdb.Routines.TryGetProcedure(statement.Name)
+                ?? throw new RoutineExecutionException(RoutineErrorCodes.ProcedureNotFound, $"procedure '{statement.Name}' 不存在。");
+            ValidateProcedureDependencies(tsdb, procedure);
         }
-        return false;
+        else
+        {
+            trigger = tsdb.Routines.TryGetTrigger(statement.Name)
+                ?? throw new RoutineExecutionException(RoutineErrorCodes.TriggerNotFound, $"trigger '{statement.Name}' 不存在。");
+            var schema = tsdb.Tables.Catalog.TryGet(trigger.TableName)
+                ?? throw DependencyError($"table '{trigger.TableName}' 不存在。");
+            ValidateTriggerDependencies(tsdb, trigger, schema);
+        }
+        bool writes = procedure is null || RequiresWrite(tsdb, procedure);
+        return new SelectExecutionResult(
+            ["kind", "name", "statements", "object_dependencies", "procedure_dependencies", "requires_write",
+             "enabled", "execution_order", "transaction_boundary"],
+            [new object?[] { statement.Kind, statement.Name, procedure?.Statements.Count ?? trigger!.Statements.Count,
+                string.Join(',', procedure?.ObjectDependencies ?? trigger!.ObjectDependencies),
+                string.Join(',', procedure?.ProcedureDependencies ?? []), writes,
+                trigger?.Enabled, trigger?.ExecutionOrder,
+                trigger?.InitiallyDeferred == true ? "relational_commit_before_persistence"
+                    : writes ? "relational_transaction_or_caller_savepoint" : "caller_read_committed" }]);
     }
 
     private static RoutineExecutionException NormalizeExecutionException(string name, Exception exception)
         => exception as RoutineExecutionException
            ?? new RoutineExecutionException(
-               RoutineErrorCodes.ExecutionFailed,
+               GetErrorCode(exception),
                $"procedure '{name}' 执行失败：{exception.Message}",
                exception);
 
     private static RoutineExecutionException NormalizeTriggerException(string name, Exception exception)
         => exception as RoutineExecutionException
            ?? new RoutineExecutionException(
-               RoutineErrorCodes.ExecutionFailed,
+               GetErrorCode(exception),
                $"trigger '{name}' 执行失败：{exception.Message}",
                exception);
 
     private static RoutineExecutionException DependencyError(string message)
         => new(RoutineErrorCodes.Dependency, message);
 
+    internal static string GetErrorCode(Exception exception) => exception switch
+    {
+        RoutineExecutionException routine => routine.Code,
+        TableTransactionRecoveryException => RoutineErrorCodes.CommitUnknown,
+        SonnetDB.Tables.TableConstraintException constraint => constraint.ErrorCode,
+        OperationCanceledException => RoutineErrorCodes.Cancelled,
+        _ => RoutineErrorCodes.ExecutionFailed,
+    };
+
     private static void EnsureOutsideTransaction(string operation)
     {
+        if (RoutineExecutionContext.Current?.Options.CanWrite == false)
+            throw new RoutineExecutionException(RoutineErrorCodes.Forbidden, $"{operation} 需要当前数据库写权限。");
         if (SqlTransactionContext.Current is not null)
             throw new InvalidOperationException($"{operation} 不能在活动轻事务内执行。");
     }

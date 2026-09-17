@@ -1,0 +1,239 @@
+{
+  "recordedAt": "2026-09-08T11:32:01.7913862+08:00",
+  "baseCommit": "40a8f09ab61a284fdd2cae166fa495f87d4d3bf1",
+  "branch": "main",
+  "provenance": "Uncommitted working tree containing pre-existing #335/#336 work plus #338; no merge, release, or remote CI claimed.",
+  "operatingSystem": "Microsoft Windows 10.0.26200",
+  "architecture": "X64",
+  "powerShell": "7.6.5",
+  "dotnetSdk": "10.0.400",
+  "uniquePassedTests": 4416,
+  "runs": [
+    {
+      "report": "m39-338-core-complete.trx",
+      "started": "2026-09-08T11:23:59.6895577+08:00",
+      "finished": "2026-09-08T11:30:25.1934634+08:00",
+      "passed": 4365,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "report": "m39-338-server.trx",
+      "started": "2026-09-08T11:10:12.0711191+08:00",
+      "finished": "2026-09-08T11:10:32.5434134+08:00",
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "report": "m39-338-crash.trx",
+      "started": "2026-09-08T11:11:19.8748516+08:00",
+      "finished": "2026-09-08T11:11:30.7200144+08:00",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "releaseAotAnalysis": "release-aot.log; IsAotCompatible/EnableAotAnalyzer/EnableTrimAnalyzer properties recorded separately",
+  "nativeAotPublishExecuted": false,
+  "remoteCiExecuted": false,
+  "temporaryCleanup": {
+    "status": "retained_policy_block",
+    "path": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sndb338-validation-20260908",
+    "fileCount": 44,
+    "reason": "Automatic approval rejected recursive removal and individually hash-verified non-recursive removal: blocked by policy. Recorded task processes have all exited."
+  },
+  "intermediateFailures": "All intermediate logs retained: fixture grammar, nullable/discard compilation, concurrent-edit compilation, legacy catalog-version assertion, and an unchanged KV loopback HTTP server disposal race (ObjectDisposedException). KV recheck passed 7/7 without code changes. Only the final runs above count toward acceptance.",
+  "archive": "test-evidence.zip",
+  "archiveSha256": "D7FA70293D12894CCD594FFC2C3A902500FDE98D3035001325C332E951ADF203",
+  "sources": [
+    {
+      "path": "src/SonnetDB.Core/Exceptions/RoutineExecutionException.cs",
+      "sha256": "D99504B1A74200B70B6927AD8CACAD12958D6B6C0BFDB12F8BDD4025E4F7E992"
+    },
+    {
+      "path": "src/SonnetDB.Core/Query/Functions/UserFunctionRegistry.cs",
+      "sha256": "41E6CAF6396DE10A65AE02B9C0AF873379293E45C89997C133B42E6585C948B0"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/DeferredTriggerSafety.cs",
+      "sha256": "0B3DF77F65521F47B8EB70DAD8F978D2FA6DDB9DC9ACA677945CFD2AD72B8E18"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineCatalogCodec.cs",
+      "sha256": "DDB5F8DE5C16F846464F4BC445E13807C5BA873B065E17EC0EE1C35D0A2CF436"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineExecutionContext.cs",
+      "sha256": "AEBABC120879F3C3D2F10EB9CA8E0C9BFD2669DD4E77A787EFAF8D89A54CB596"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineManager.cs",
+      "sha256": "E1632A4F0708E5FC80EEF5F4D93AA4E8017B9247072DFBFF26DB5575D84D0EE7"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/RoutineRowBinder.cs",
+      "sha256": "75CA3E5FE11EEEB8C7E65156AD81300A818948B79FCB0A0F12092B0A0A5FFE05"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlOutboxWorker.cs",
+      "sha256": "A98EF182485FB65102610FFC38D75D2F6E5036D0AE63AA66C67B190568644677"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineAnalysis.cs",
+      "sha256": "7ADFEFA8901237662C6C6399906776C92F03A3BD8E893CE500773630DCB628E0"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+      "sha256": "99123B33E2B6840B00FD71E396150160F2B6CADA3C8CA01D24B8069444D06EDD"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/TriggerDefinition.cs",
+      "sha256": "C491B835E336C96F55A04D2F7E5CE9C1008D753FFBB635C3E4F0DD08E524E4C5"
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/TriggerTransitionTables.cs",
+      "sha256": "32E5A7DBA96BAE546934A02684A8987C67145FE6F583403C53FE83C1527BEEE0"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+      "sha256": "D61423A38F2CA596DDB7DEB25C9C95845680F46E63CABB6D8531B284C4B499AF"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "AA5A6A3CCBD92F8492B622E270A2E662D58EA971B22B1A3531E1DD1A7E8F0B8F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "8094FA55F9D69F99E6C2397A3C7DBA0D0F0365469AA7719E2F96080036150F92"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "C06E8BC2B9D1136CDB4950E0F9E05CA852E6A7AF3032F29869334F4119B814A8"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlTransactionContext.cs",
+      "sha256": "8351D42DDE4B38932FD37505C521922CE24CB0D44C9BD4C4E66F80E308986FC3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableInSubqueryExecutor.cs",
+      "sha256": "4C2C895EBD555A7779D1CD94D7514A1527B6762AEA054C75D12E3BDA48C077B3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "4E1E54B8EF64DF829B8E3055DDA62FA230DAC88B1F297806FD38442E403067C8"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+      "sha256": "25BCBBB39993B66213AC9BC81CDC07096AFBD7703E5B1E1477D49666E54590B1"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "sha256": "FE454CFB11F87930157EDE44BFE0B97D18AC0AEFA0DCDA023DB67B4E8297308C"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "sha256": "F642EB4190E6133F20B7926D80B0EFB50AE2EB33AA810F914856D2C653C99777"
+    },
+    {
+      "path": "src/SonnetDB/Configuration/ServerOptions.cs",
+      "sha256": "51DE2A8A523BDF2BF77DAAEECF8DF8324E053137D217F6DF6BB83647B93C2592"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "8AD26210928562FDCE77A59FFE5FE72EFAD99A1F7A32CB773171EBF26D0D76EA"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "CF050C37153B633D16811BDA094BA0F8AC6164D1B82D8DED092645D1E43D8F64"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/ServerOptionsBinder.cs",
+      "sha256": "80B217BDDCA0F2000C8A04D96C3B8DF5AC72E08530C281CF6621C9064A3DEC9D"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlConstraintTriggerTests.cs",
+      "sha256": "40A6D978E1293026A98C3E9ECFDC02F96AA9DC84B8C061796AF484149B5937F8"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlDeferredTriggerDefinitionTests.cs",
+      "sha256": "C767D7956AA5CB7FB48E30E9FA0B90A07527D38D328F69E981625A084CD1D3E5"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlDeferredTriggerSafetyTests.cs",
+      "sha256": "D008921922C5BAFCAA8BD70BC8D149EF765A90A1874B9A44CD0ED27A7A38C15A"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlOutboxWorkerTests.cs",
+      "sha256": "89669EDDEC970300B49289CB0C97D1198A55949BDA7C3333A75A6A61B504F3F7"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlRoutineProductionTests.cs",
+      "sha256": "357CAAEAA99FA1000F0568F0622BB30E677DE61FA3A2C49FBFD3AE7B1B00F13F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlTriggerAdvancedTests.cs",
+      "sha256": "FBC9032C5E9C46AB4AE844DAC1C13370643C17392BA3EA63C615A9EF1E32E214"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/Program.cs",
+      "sha256": "EBD40A502162210822B4688B6BA06B118BE229FF90E525E544B7C21CFCCE45BD"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/CrashReliabilityTests.cs",
+      "sha256": "10C4CD76BF3DCCE3F5B295B4FAF876F9B33AACE4C21D8E4F3D7E8A483490914E"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/ServerOptionsTests.cs",
+      "sha256": "AFB41FEA85BB7D05AAE801D8BF49D8BD43E7791B1B3D78D50DD7BF90026F1008"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SqlFrameEndpointTests.cs",
+      "sha256": "3FC32EDBE1E38133041FAD15BF7C09F011F9259A1B0AAC4E9DE73CC74492BF3D"
+    }
+  ],
+  "assemblies": [
+    {
+      "path": "src/SonnetDB.Core/bin/Debug/net10.0/SonnetDB.Core.dll",
+      "size": 16549376,
+      "modifiedUtc": "2026-09-08T02:55:16.4375400Z",
+      "sha256": "190B856D771112361B96EEC6F743D2093A02A6141417681655469F914FF2AD6F"
+    },
+    {
+      "path": "src/SonnetDB.Core/bin/Release/net10.0/SonnetDB.Core.dll",
+      "size": 16233472,
+      "modifiedUtc": "2026-09-08T03:22:20.8863947Z",
+      "sha256": "E068F3D10611A4695F2553D77BFB7F2977762273CB1C9D7A805630C8B933421D"
+    },
+    {
+      "path": "src/SonnetDB/bin/Release/net10.0/SonnetDB.dll",
+      "size": 4893696,
+      "modifiedUtc": "2026-09-08T03:23:16.2300381Z",
+      "sha256": "9723F67D57BAA6B4A3387B4E59C7F490CECCB414C6AA1A417D098C0C8D3A147F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/bin/Debug/net10.0/SonnetDB.Core.Tests.dll",
+      "size": 3214336,
+      "modifiedUtc": "2026-09-08T03:12:45.9823811Z",
+      "sha256": "CA770BDF9F39CD00A90191955D861757FE12F75EEBCC438B7872539E81AD2A7E"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Debug/net10.0/win-x64/SonnetDB.Tests.dll",
+      "size": 1997312,
+      "modifiedUtc": "2026-09-08T03:10:10.7357287Z",
+      "sha256": "AF388AD926FA71914A7ACC551DAE27435F871433B1605E6E9FAC71803426E5ED"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/bin/Debug/net10.0/SonnetDB.CrashTests.dll",
+      "size": 33792,
+      "modifiedUtc": "2026-09-08T03:11:19.3891146Z",
+      "sha256": "9CE74B25CBAC6A30B20B8A898627A2F838285D5143492E675A41E48CEF88057B"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/bin/Debug/net10.0/SonnetDB.CrashTests.Child.dll",
+      "size": 29696,
+      "modifiedUtc": "2026-09-08T03:11:15.3418817Z",
+      "sha256": "5F331F158E2062718964548E90941FCD74F04AA3071880C92A7C4E5D2170453E"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ using Microsoft.ML.OnnxRuntime;
 using SixLabors.ImageSharp;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
@@ -20,6 +21,7 @@ internal static partial class SonnetDbEndpoints
     {
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
+        MapSemanticEmbeddingEndpoints(app, registry, grants);
 
         app.MapGet("/v1/semantic-search/status", async (HttpContext ctx, CancellationToken cancellationToken) =>
         {
@@ -59,9 +61,13 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_image", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -97,9 +103,13 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -129,9 +139,13 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_image", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -177,9 +191,13 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -413,5 +431,7 @@ internal static partial class SonnetDbEndpoints
         => exception is InvalidOperationException
             or InvalidDataException
             or NotSupportedException
-            or OnnxRuntimeException;
+            or OnnxRuntimeException
+            or TimeoutException
+            or IOException;
 }

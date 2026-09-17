@@ -37,6 +37,8 @@ jobs:
   server-contracts:
     name: Server management contracts
     runs-on: ubuntu-latest
+    env:
+      SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
     steps:
       - uses: actions/checkout@v7
         with:

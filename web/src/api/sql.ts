@@ -61,7 +61,7 @@ export interface SqlStatementRequest {
  * - 末行为 end 或 error。
  */
 export function parseNdjson(body: string): SqlResultSet {
-  return parseNdjsonResults(body)[0] ?? emptyResultSet();
+  return singleResult(parseNdjsonResults(body));
 }
 
 /**
@@ -76,22 +76,40 @@ export function parseNdjsonResults(body: string): SqlResultSet[] {
     try {
       obj = JSON.parse(line);
     } catch {
-      continue;
+      result.error = { code: 'invalid_sql_response', message: 'SQL 响应包含损坏的 JSON，结果可能不完整。' };
+      results.push(result);
+      return results;
     }
     if (Array.isArray(obj)) {
+      if (!result.hasColumns || obj.length !== result.columns.length) {
+        result.error = { code: 'invalid_sql_response', message: 'SQL 响应行与列定义不匹配。' };
+        results.push(result);
+        return results;
+      }
       result.rows.push(obj);
       continue;
     }
     if (obj && typeof obj === 'object') {
       const o = obj as Record<string, unknown>;
-      if (o.type === 'meta' && Array.isArray(o.columns)) {
+      if (o.type === 'meta' && Array.isArray(o.columns) && o.columns.every((column) => typeof column === 'string')) {
         if (hasResultContent(result)) {
+          result.error = { code: 'incomplete_sql_response', message: 'SQL 结果缺少完成标记，不能确认执行成功。' };
           results.push(result);
-          result = emptyResultSet();
+          return results;
         }
         result.columns = o.columns as string[];
         result.hasColumns = true;
+        continue;
       } else if (o.type === 'end') {
+        const elapsedMs = o.elapsedMs ?? o.elapsedMilliseconds;
+        if (!Number.isSafeInteger(o.rowCount) || Number(o.rowCount) < 0
+          || !Number.isSafeInteger(o.recordsAffected) || Number(o.recordsAffected) < -1
+          || typeof elapsedMs !== 'number' || !Number.isFinite(elapsedMs) || elapsedMs < 0
+          || o.rowCount !== result.rows.length) {
+          result.error = { code: 'invalid_sql_response', message: 'SQL 完成标记无效或返回行数不完整。' };
+          results.push(result);
+          return results;
+        }
         result.end = {
           type: 'end',
           rowCount: typeof o.rowCount === 'number' ? o.rowCount : 0,
@@ -104,6 +122,7 @@ export function parseNdjsonResults(body: string): SqlResultSet[] {
         };
         results.push(result);
         result = emptyResultSet();
+        continue;
       } else if (typeof o.message === 'string' && (o.code || o.error || o.type === 'error')) {
         result.error = {
           type: 'error',
@@ -112,10 +131,19 @@ export function parseNdjsonResults(body: string): SqlResultSet[] {
         };
         results.push(result);
         result = emptyResultSet();
+        continue;
       }
     }
+    result.error = { code: 'invalid_sql_response', message: 'SQL 响应包含无法识别的记录，结果可能不完整。' };
+    results.push(result);
+    return results;
   }
   if (hasResultContent(result)) {
+    result.error = { code: 'incomplete_sql_response', message: 'SQL 响应提前结束，结果可能不完整。' };
+    results.push(result);
+  }
+  if (results.length === 0) {
+    result.error = { code: 'incomplete_sql_response', message: 'SQL 响应为空，不能确认执行成功。' };
     results.push(result);
   }
   return results;
@@ -129,8 +157,9 @@ export async function execControlPlaneSql(
   api: AxiosInstance,
   sql: string,
   parameters?: SqlParameters,
+  signal?: AbortSignal,
 ): Promise<SqlResultSet> {
-  return doExec(api, '/v1/sql', { sql, parameters });
+  return doExec(api, '/v1/sql', { sql, parameters }, signal);
 }
 
 /**
@@ -141,8 +170,9 @@ export async function execDataSql(
   db: string,
   sql: string,
   parameters?: SqlParameters,
+  signal?: AbortSignal,
 ): Promise<SqlResultSet> {
-  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters });
+  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters }, signal);
 }
 
 /**
@@ -152,20 +182,30 @@ export async function execDataSqlBatch(
   api: AxiosInstance,
   db: string,
   statements: SqlStatementRequest[],
+  signal?: AbortSignal,
 ): Promise<SqlResultSet[]> {
-  return doExecMany(api, `/v1/db/${encodeURIComponent(db)}/sql/batch`, { statements });
+  const results = await doExecMany(api, `/v1/db/${encodeURIComponent(db)}/sql/batch`, { statements }, signal);
+  if (statements.length > 0 && results.length > statements.length) {
+    const failed = results.find((result) => result.error) ?? results[statements.length];
+    results[statements.length - 1].error = failed.error ?? {
+      code: 'invalid_sql_response', message: 'SQL 批次响应结果数量超出请求语句数。',
+    };
+    return results.slice(0, statements.length);
+  }
+  return results;
 }
 
-async function doExec(api: AxiosInstance, url: string, payload: SqlStatementRequest): Promise<SqlResultSet> {
-  const results = await doExecMany(api, url, normalizeSqlStatementPayload(payload));
-  return results[0] ?? emptyResultSet();
+async function doExec(api: AxiosInstance, url: string, payload: SqlStatementRequest, signal?: AbortSignal): Promise<SqlResultSet> {
+  const results = await doExecMany(api, url, normalizeSqlStatementPayload(payload), signal);
+  return singleResult(results);
 }
 
-async function doExecMany(api: AxiosInstance, url: string, requestBody: unknown): Promise<SqlResultSet[]> {
+async function doExecMany(api: AxiosInstance, url: string, requestBody: unknown, signal?: AbortSignal): Promise<SqlResultSet[]> {
   const resp = await api.post(url, requestBody, {
     responseType: 'text',
     transformResponse: (v) => v,
     validateStatus: () => true,
+    signal,
   });
   const ct = resp.headers['content-type']?.toString() ?? '';
   if (typeof resp.data === 'string' && ct.includes('ndjson')) {
@@ -227,6 +267,16 @@ export function sqlParameterFromValue(value: unknown): SqlParameterValue {
 
 function emptyResultSet(): SqlResultSet {
   return { columns: [], rows: [], end: null, error: null, hasColumns: false };
+}
+
+function singleResult(results: SqlResultSet[]): SqlResultSet {
+  const result = results[0] ?? emptyResultSet();
+  if (results.length !== 1) {
+    result.error = results.find((item) => item.error)?.error ?? {
+      code: 'invalid_sql_response', message: '单条 SQL 请求返回了非预期的多个结果。',
+    };
+  }
+  return result;
 }
 
 function hasResultContent(result: SqlResultSet): boolean {

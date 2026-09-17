@@ -34,8 +34,7 @@ internal static partial class SonnetDbEndpoints
             grants,
             registry,
             httpClientFactory,
-            serverOptions.Copilot.Chat,
-            serverOptions.Copilot.Embedding);
+            serverOptions.Copilot);
         CopilotChatEndpointHandler.Map(
             app,
             aiConfigStore,
@@ -46,7 +45,8 @@ internal static partial class SonnetDbEndpoints
             copilotReadiness,
             app.Services.GetRequiredService<CopilotInFlightTracker>(),
             grants,
-            registry);
+            registry,
+            serverOptions.Copilot);
 
         // ---- Copilot 文档摄入 / 检索（PR #64）----
         var copilotOptions = serverOptions.Copilot;

@@ -191,6 +191,8 @@ public class TriggerBaselineBenchmark
                 LastAllocatedBytes)
             {
                 Operation = Operation,
+                JournalBytes = File.Exists(System.IO.Path.Combine(_rootDirectory, "tables", "transaction.sdbtxn"))
+                    ? new FileInfo(System.IO.Path.Combine(_rootDirectory, "tables", "transaction.sdbtxn")).Length : 0,
             };
         }
         finally
@@ -478,6 +480,8 @@ public sealed record TriggerBaselineSample(
     long ManagedBytes,
     long AllocatedBytes)
 {
+    /// <summary>跨表恢复日志的持久化字节数；独立于各表 WAL 计量。</summary>
+    public long JournalBytes { get; init; }
     /// <summary>本样本执行的 DML 类型；旧调用方默认仍表示 INSERT。</summary>
     public TriggerDmlOperation Operation { get; init; } = TriggerDmlOperation.Insert;
 

@@ -1762,6 +1762,8 @@ internal static class RelationalSelectExecutor
         if (statement.FromSubquery is not null)
             return LoadSubquery(tsdb, statement.FromSubquery, alias);
 
+        if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(statement.Measurement) is { } transitionSchema)
+            return LoadTransitionTable(statement.Measurement, alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (schema is not null)
             return LoadTable(tsdb, schema, alias, plan, memo);
@@ -1779,6 +1781,8 @@ internal static class RelationalSelectExecutor
         if (join.Subquery is not null)
             return LoadSubquery(tsdb, join.Subquery, join.Alias);
 
+        if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(join.TableName) is { } transitionSchema)
+            return LoadTransitionTable(join.TableName, join.Alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
         if (schema is not null)
             return LoadTable(tsdb, schema, join.Alias, plan, memo);
@@ -1786,6 +1790,11 @@ internal static class RelationalSelectExecutor
             return LoadMaterializedView(tsdb.MaterializedViews, join.TableName, join.Alias);
         throw new InvalidOperationException($"JOIN 右侧 table/materialized view '{join.TableName}' 不存在。");
     }
+
+    private static Relation LoadTransitionTable(string name, string alias, TableSchema schema)
+        => new(schema.Columns.Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType)).ToArray(),
+            SonnetDB.Routines.TriggerTransitionTables.Read(name),
+            new RelationalJoinInputEstimate(100_000, Math.Max(1, schema.Columns.Count * 32)));
 
     private static Relation LoadTable(
         Tsdb tsdb,

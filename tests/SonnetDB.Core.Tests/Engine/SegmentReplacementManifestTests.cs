@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Storage.Format;
 using SonnetDB.Storage.Segments;
 using Xunit;
 
@@ -179,5 +181,39 @@ public sealed class SegmentReplacementManifestTests : IDisposable
         // replacement 不可读 → 抑制并清理；源段保留加载（数据不丢）。
         Assert.False(File.Exists(SegPath(100)), "不可读的被抑制 replacement 应被清理");
         Assert.Equal(2, mgr.SegmentCount);
+    }
+
+    [Fact]
+    public void GetSegmentIdsToSuppress_UsesConfiguredReaderOptions()
+    {
+        // The replacement is valid except for its index CRC. A relaxed reader can still
+        // open it, so suppression must use the same options as the main recovery path.
+        WriteSegment(1);
+        WriteSegment(100);
+        CorruptIndexReservedByte(SegPath(100));
+
+        SegmentReplacementManifest.CommitReplacement(_tempDir, 100, new long[] { 1 });
+        var manifest = SegmentReplacementManifest.LoadForRoot(_tempDir);
+
+        var strict = manifest.GetSegmentIdsToSuppress(
+            _tempDir,
+            new SegmentReaderOptions { VerifyIndexCrc = true });
+        Assert.Contains(100L, strict);
+        Assert.DoesNotContain(1L, strict);
+
+        var relaxed = manifest.GetSegmentIdsToSuppress(
+            _tempDir,
+            new SegmentReaderOptions { VerifyIndexCrc = false });
+        Assert.DoesNotContain(100L, relaxed);
+        Assert.Contains(1L, relaxed);
+    }
+
+    private static void CorruptIndexReservedByte(string path)
+    {
+        byte[] bytes = File.ReadAllBytes(path);
+        var footer = MemoryMarshal.Read<SegmentFooter>(
+            bytes.AsSpan(bytes.Length - FormatSizes.SegmentFooterSize));
+        bytes[checked((int)footer.IndexOffset + 40)] ^= 0x01;
+        File.WriteAllBytes(path, bytes);
     }
 }

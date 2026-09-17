@@ -192,23 +192,46 @@ public sealed record CallProcedureStatement(
     string Name,
     IReadOnlyList<SqlExpression> Arguments) : SqlStatement;
 
-/// <summary>关系表行级触发器事件。</summary>
+/// <summary>关系表触发器事件。</summary>
 public enum SqlTriggerEvent
 {
-    /// <summary>AFTER INSERT。</summary>
+    /// <summary>INSERT。</summary>
     Insert,
-    /// <summary>AFTER UPDATE。</summary>
+    /// <summary>UPDATE。</summary>
     Update,
-    /// <summary>AFTER DELETE。</summary>
+    /// <summary>DELETE。</summary>
     Delete,
 }
+
+/// <summary>关系表触发器执行时机。</summary>
+public enum SqlTriggerTiming
+{
+    /// <summary>行变更缓冲后执行。</summary>
+    After,
+    /// <summary>最终行约束校验前执行受限赋值。</summary>
+    Before,
+}
+
+/// <summary>关系表触发器执行粒度。</summary>
+public enum SqlTriggerLevel
+{
+    /// <summary>每个受影响行执行一次。</summary>
+    Row,
+    /// <summary>每条语句执行一次，包括空影响集。</summary>
+    Statement,
+}
+
+/// <summary>仅供 BEFORE ROW body 使用的 NEW 列赋值。</summary>
+/// <param name="ColumnName">NEW 中待改写的列名。</param>
+/// <param name="Value">受限标量表达式；后续赋值可读取已改写的 NEW。</param>
+public sealed record SetTriggerNewStatement(string ColumnName, SqlExpression Value) : SqlStatement;
 
 /// <summary>
 /// <c>CREATE TRIGGER name AFTER event ON table FOR EACH ROW [WHEN (...)] LANGUAGE SQL AS BEGIN ... END</c>。
 /// </summary>
 /// <param name="Name">触发器名称。</param>
 /// <param name="TableName">目标关系表。</param>
-/// <param name="Event">AFTER 行事件。</param>
+/// <param name="Event">关系表变更事件。</param>
 /// <param name="When">可选只读行条件。</param>
 /// <param name="WhenSql">可选条件的规范化 SQL。</param>
 /// <param name="Body">已经解析的受限 SQL body。</param>
@@ -222,7 +245,57 @@ public sealed record CreateTriggerStatement(
     string? WhenSql,
     IReadOnlyList<SqlStatement> Body,
     string BodySql,
-    string Language = "SQL") : SqlStatement;
+    string Language = "SQL") : SqlStatement
+{
+    /// <summary>可选的 FOLLOWS/PRECEDES 参照触发器；必须属于同表同事件。</summary>
+    public string? RelativeTo { get; init; }
+    /// <summary>为 true 时排在参照之前，否则排在其后。</summary>
+    public bool Precedes { get; init; }
+    /// <summary>执行时机；默认保持 AFTER 兼容。</summary>
+    public SqlTriggerTiming Timing { get; init; }
+    /// <summary>执行粒度；默认保持 FOR EACH ROW 兼容。</summary>
+    public SqlTriggerLevel Level { get; init; }
+    /// <summary>REFERENCING OLD TABLE AS 声明的只读语句快照别名。</summary>
+    public string? OldTableName { get; init; }
+    /// <summary>REFERENCING NEW TABLE AS 声明的只读语句快照别名。</summary>
+    public string? NewTableName { get; init; }
+    /// <summary>是否为 AFTER ROW 约束触发器；当前必须同时设置 InitiallyDeferred。</summary>
+    public bool IsConstraint { get; init; }
+    /// <summary>是否延迟到事务提交；当前仅接受 DEFERRABLE INITIALLY DEFERRED 约束触发器。</summary>
+    public bool InitiallyDeferred { get; init; }
+}
+
+/// <summary>触发器生命周期操作。</summary>
+public enum SqlAlterTriggerAction
+{
+    /// <summary>启用。</summary>
+    Enable,
+    /// <summary>禁用。</summary>
+    Disable,
+    /// <summary>原子重命名并保留创建时间和执行顺序。</summary>
+    Rename,
+    /// <summary>移至同事件参照触发器之后。</summary>
+    Follows,
+    /// <summary>移至同事件参照触发器之前。</summary>
+    Precedes,
+}
+
+/// <summary>ALTER TRIGGER 生命周期与顺序语句。</summary>
+/// <param name="Name">目标名称。</param>
+/// <param name="Action">生命周期操作。</param>
+/// <param name="Target">重命名目标或同表同事件的顺序参照。</param>
+public sealed record AlterTriggerStatement(string Name, SqlAlterTriggerAction Action, string? Target = null) : SqlStatement;
+
+/// <summary>只读解释例程定义及其事务合同，不执行 body。</summary>
+/// <param name="Kind">procedure 或 trigger。</param>
+/// <param name="Name">定义名称。</param>
+public sealed record ExplainRoutineStatement(string Kind, string Name) : SqlStatement;
+
+/// <summary>查询有界例程审计或其保留窗口内的延迟统计。</summary>
+/// <param name="Statistics">是否返回统计而非明细。</param>
+/// <param name="Kind">可选 procedure 或 trigger 过滤。</param>
+/// <param name="Name">可选定义名称过滤。</param>
+public sealed record ShowRoutineDiagnosticsStatement(bool Statistics, string? Kind = null, string? Name = null) : SqlStatement;
 
 /// <summary>
 /// <c>REFRESH MATERIALIZED VIEW name</c>：显式生成并原子发布一个全量物理代际。
@@ -239,13 +312,15 @@ public sealed record RefreshMaterializedViewStatement(string Name) : SqlStatemen
 /// <param name="IsUnique">是否为唯一索引。</param>
 /// <param name="IfNotExists">索引已存在时是否视为成功。</param>
 /// <param name="DocumentOptions">文档集合索引专用选项；关系表索引执行时忽略。</param>
+/// <param name="Online">是否以可暂停、可恢复的在线方式构建普通关系表索引。</param>
 public sealed record CreateTableIndexStatement(
     string IndexName,
     string TableName,
     IReadOnlyList<string> Columns,
     bool IsUnique,
     bool IfNotExists = false,
-    DocumentIndexOptions? DocumentOptions = null) : SqlStatement;
+    DocumentIndexOptions? DocumentOptions = null,
+    bool Online = false) : SqlStatement;
 
 /// <summary>
 /// 普通 <c>CREATE INDEX</c> 用于文档集合时的专用选项。
@@ -565,6 +640,8 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>关系表 INSERT SELECT 的查询源；与 VALUES 互斥。</summary>
+    public SelectStatement? Query { get; init; }
     /// <summary>
     /// 是否为 <c>INSERT INTO table DEFAULT VALUES</c>。
     /// 为保持既有构造器与解构 API 兼容，该语法通过 init 属性标记。

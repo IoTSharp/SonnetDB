@@ -7,7 +7,7 @@ permalink: /kv-keyspace/
 
 # KV Keyspace
 
-KV Keyspace 是 SonnetDB Core 的轻量键值存储能力，面向内部 metadata、小对象、关系表和文档集合后续底座。当前版本先提供嵌入式库级 API，不新增 SQL 语法，也不把 KV 暴露为独立网络服务。
+KV Keyspace 是 SonnetDB Core 的持久键值存储能力，也用于内部 metadata、关系表和文档集合底座。Server 的 REST/Frame、`SndbKvClient` 和管理工作台已接通 NX/XX、原子 `GetAndSet/GetAndDelete`；SDK 通过同一 namespace 前缀合同访问嵌入式或远程数据库。见 [远程原子合同与样例](kv-atomic-contract.md)及[本地验证证据](audits/kv-remote-closure-20260905.md)。不承诺 Redis wire protocol 或跨 keyspace 事务。
 
 ## 基本用法
 
@@ -130,6 +130,6 @@ KV WAL v3 增加 mixed put/delete `MutationBatch` record。batch 由单个 heade
 
 - 不提供 KV SQL 语法。
 - 不提供 MVCC 事务和跨 keyspace 事务。
-- 不提供独立 TCP / HTTP KV 服务。
-- 不在本切片提供异步 cursor、pipeline/batch 分项结果、hot-key/expiry/容量诊断或远程 parity。
+- 不提供独立 KV 守护进程或 Redis wire protocol；HTTP/Frame 使用 SonnetDB Server。
+- 本切片未新增异步 cursor、pipeline/batch 分项结果或 hot-key/expiry/容量诊断；这些仍归 M36 #317。本地远程合同验证不能替代 M20 完整 Parity/nightly。
 - 不引入 SharpDB 文件格式或 NetMQ 协议。

@@ -7,6 +7,7 @@ using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
@@ -91,11 +92,9 @@ public sealed class CrashReliabilityTests : IDisposable
     }
 
     [Fact]
-    public void crash_kill9_betweenTriggerTableCommits_ReopenReportsMeasuredPartialPair()
+    public void crash_kill9_betweenTriggerTableCommits_ReopenRollsBackBothTables()
     {
-        // #333：关系表 source 与 trigger outbox 使用独立 KV WAL。子进程在 source
-        // batch 已落盘、outbox 尚未应用的确定性间隔被 kill；恢复必须如实暴露
-        // partial pair，而不是把 V1 宣称成跨 keyspace exactly-once。
+        // source WAL 已写入但没有完成标记，重启必须撤销两张表的整个事务。
         string root = RunKillScenario(
             "crash_kill9_between_trigger_table_commits",
             TimeSpan.Zero);
@@ -108,8 +107,135 @@ public sealed class CrashReliabilityTests : IDisposable
             database,
             "SELECT * FROM audit_outbox"));
 
-        Assert.Single(orders.Rows);
+        Assert.Empty(orders.Rows);
         Assert.Empty(audit.Rows);
+    }
+
+    [Theory]
+    [InlineData("crash_kill9_before_trigger_transaction_complete", 0)]
+    [InlineData("crash_kill9_after_trigger_transaction_complete", 1)]
+    [InlineData("crash_kill9_advanced_trigger_between_tables", 0)]
+    [InlineData("crash_kill9_advanced_trigger_before_complete", 0)]
+    [InlineData("crash_kill9_advanced_trigger_after_complete", 1)]
+    public void crash_kill9_triggerCompletionBoundary_ReopenSeesConsistentPair(string scenario, int expectedRows)
+    {
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        for (int reopen = 0; reopen < 2; reopen++)
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            foreach (string table in new[] { "orders", "audit_outbox" })
+                Assert.Equal(expectedRows, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, $"SELECT * FROM {table}")).Rows.Count);
+            if (expectedRows != 0 && scenario.Contains("advanced", StringComparison.Ordinal))
+            {
+                Assert.Equal(new object?[] { 11L, "NEW" }, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT id, status FROM orders")).Rows[0]);
+                Assert.Equal(new object?[] { 11L, 11L }, Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT event_id, order_id FROM audit_outbox")).Rows[0]);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("crash_kill9_deferred_trigger_between_tables", 0)]
+    [InlineData("crash_kill9_deferred_trigger_before_complete", 0)]
+    [InlineData("crash_kill9_deferred_trigger_after_complete", 1)]
+    public void crash_kill9_deferredTriggerCommit_ReopenSeesConsistentFinalState(string scenario, int expectedRows)
+    {
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        VerifyRecoveredState();
+        VerifyRecoveredState();
+
+        void VerifyRecoveredState()
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            var orders = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT id, status FROM orders"));
+            var audit = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT event_id, order_id FROM audit_outbox"));
+            Assert.Equal(expectedRows, orders.Rows.Count);
+            Assert.Equal(expectedRows, audit.Rows.Count);
+            var trigger = database.Routines.TryGetTrigger("orders_audit");
+            Assert.NotNull(trigger);
+            Assert.True(trigger.IsConstraint);
+            Assert.True(trigger.InitiallyDeferred);
+            if (expectedRows == 1)
+            {
+                Assert.Equal(new object?[] { 1L, "ready" }, orders.Rows[0]);
+                Assert.Equal(new object?[] { 1L, 1L }, audit.Rows[0]);
+            }
+        }
+    }
+
+    [Fact]
+    public void crash_kill9_deferredTriggerBeforeCommit_ReopenDiscardsQueuedSourceAndAction()
+    {
+        string root = RunKillScenario("crash_kill9_deferred_trigger_before_commit", TimeSpan.Zero);
+        Assert.Equal("deferred-event-queued-before-commit", File.ReadAllText(
+            Path.Combine(root, "crash_kill9_deferred_trigger_before_commit.ready")));
+        VerifyRecoveredState();
+        VerifyRecoveredState();
+
+        void VerifyRecoveredState()
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM orders")).Rows);
+            Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM audit_outbox")).Rows);
+            Assert.True(database.Routines.TryGetTrigger("orders_audit")!.InitiallyDeferred);
+        }
+    }
+
+    [Fact]
+    public async Task crash_kill9_outboxDeliveryBeforeAck_ReopenRedeliversSameEventAndPersistsAcknowledgement()
+    {
+        string root = RunKillScenario("crash_kill9_outbox_delivery_before_ack", TimeSpan.Zero);
+        Assert.Equal("outbox-delivered-before-ack", File.ReadAllText(
+            Path.Combine(root, "crash_kill9_outbox_delivery_before_ack.ready")));
+        string deliveredId = File.ReadAllText(Path.Combine(root, "outbox-delivered.txt"));
+        Assert.Equal("crash-stable-event", deliveredId);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using (var database = Tsdb.Open(MakeOptions(root)))
+        {
+            Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * FROM orders")).Rows);
+            var pending = Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+                "SELECT event_id, state, attempts, lease_token, lease_until, completed_at FROM sql_outbox")).Rows);
+            Assert.Equal(deliveredId, pending[0]);
+            Assert.Equal("leased", pending[1]);
+            Assert.Equal(1L, pending[2]);
+            Assert.NotEmpty(Assert.IsType<string>(pending[3]));
+            long leaseUntil = Assert.IsType<long>(pending[4]);
+            Assert.True(leaseUntil > 0);
+            Assert.Equal(0L, pending[5]);
+
+            var clock = new CrashOutboxClock(DateTimeOffset.FromUnixTimeMilliseconds(checked(leaseUntil + 1)));
+            var worker = new SqlOutboxWorker(database,
+                new SqlOutboxWorkerOptions { BatchTimeout = TimeSpan.FromSeconds(5) }, clock);
+            int deliveryCount = 0;
+            SqlOutboxBatchResult result = await worker.ProcessBatchAsync((message, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Assert.Equal(deliveredId, message.EventId);
+                Assert.Equal("orders", message.Topic);
+                Assert.Equal("local-delivery", message.Payload);
+                Assert.Equal(2, message.Attempt);
+                deliveryCount++;
+                return ValueTask.CompletedTask;
+            }, deadline.Token).WaitAsync(deadline.Token);
+            Assert.Equal(1, deliveryCount);
+            Assert.Equal(1, result.Claimed);
+            Assert.Equal(1, result.Delivered);
+            Assert.Equal(0, result.LeaseLost);
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions(root));
+        var confirmed = Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT event_id, state, attempts, lease_token, lease_until, completed_at FROM sql_outbox")).Rows);
+        Assert.Equal(deliveredId, confirmed[0]);
+        Assert.Equal("done", confirmed[1]);
+        Assert.Equal(2L, confirmed[2]);
+        Assert.Equal(string.Empty, confirmed[3]);
+        Assert.Equal(0L, confirmed[4]);
+        Assert.True(Assert.IsType<long>(confirmed[5]) > 0);
     }
 
     [Fact]
@@ -201,6 +327,93 @@ public sealed class CrashReliabilityTests : IDisposable
         Assert.Empty(reopened.Catalog.Snapshot());
     }
 
+    /// <summary>
+    /// 数据库根目录租约必须跨进程阻止第二个 <see cref="Tsdb"/> 实例进入恢复路径；
+    /// 持有者被终止后，操作系统释放文件租约，下一实例可以重新打开同一根目录。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_RejectsConcurrentOwnerAndReopensAfterTermination()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-lease.ready");
+
+        using Process process = StartChild("hold_tsdb_root_directory_lease", root, readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-acquired", File.ReadAllText(readyFile));
+
+            IOException error = Assert.Throws<IOException>(() =>
+            {
+                using var contender = Tsdb.Open(MakeOptions(root));
+            });
+            Assert.Contains("另一个进程", error.Message, StringComparison.Ordinal);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions(root));
+        Assert.Equal(root, reopened.RootDirectory);
+    }
+
+    /// <summary>
+    /// 正常 <see cref="Tsdb.Dispose"/> 完成后必须立即释放跨进程根目录租约，
+    /// 而不是等持有者进程退出才释放。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_DisposeReleasesBeforeHolderTerminates()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-dispose-release.ready");
+
+        using Process process = StartChild("release_tsdb_root_directory_lease_via_dispose", root, readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-released-by-dispose", File.ReadAllText(readyFile));
+
+            using var reopened = Tsdb.Open(MakeOptions(root));
+            Assert.Equal(root, reopened.RootDirectory);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Tsdb.CrashSimulationCloseWal"/> 是测试用关闭路径，也必须在返回时释放
+    /// 跨进程根目录租约，确保恢复实例不会被已无资源的测试进程阻塞。
+    /// </summary>
+    [Fact]
+    public void Tsdb_CrossProcessRootDirectoryLease_CrashSimulationCloseWalReleasesBeforeHolderTerminates()
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, "tsdb-root-directory-crash-simulation-release.ready");
+
+        using Process process = StartChild(
+            "release_tsdb_root_directory_lease_via_crash_simulation",
+            root,
+            readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("tsdb-root-directory-lease-released-by-crash-simulation", File.ReadAllText(readyFile));
+
+            using var reopened = Tsdb.Open(MakeOptions(root));
+            Assert.Equal(root, reopened.RootDirectory);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+    }
+
     [Fact]
     public void disk_full_during_wal_append_PreservesPreviouslySyncedRecords()
     {        string root = NewScenarioRoot();
@@ -209,7 +422,11 @@ public sealed class CrashReliabilityTests : IDisposable
             db.Write(MakePoint("disk_full", 1_000L, "h", 1.0));
             Assert.Throws<IOException>(() =>
             {
-                string walPath = Assert.Single(WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root))).Path;
+                // 关闭/直接 flush 可能保留 checkpoint carrier；当前 active 始终是
+                // 按 start LSN 排序后的最后一个 segment。
+                var walSegments = WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root));
+                Assert.NotEmpty(walSegments);
+                string walPath = walSegments[^1].Path;
                 using var blocker = new FileStream(walPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                 db.Write(MakePoint("disk_full", 1_001L, "h", 2.0));
             });
@@ -248,7 +465,21 @@ public sealed class CrashReliabilityTests : IDisposable
         using (var db = Tsdb.Open(MakeOptions(root)))
             db.Write(MakePoint("torn", 1_000L, "h", 1.0));
 
-        string walPath = Assert.Single(WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root))).Path;
+        // direct flush/dispose may retain a checkpoint carrier segment. Locate the
+        // segment containing the actual write record before appending a torn tail.
+        WalSegmentInfo? writeSegment = null;
+        foreach (WalSegmentInfo segment in WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root)))
+        {
+            using var reader = WalReader.Open(segment.Path);
+            if (reader.Replay().OfType<WritePointRecord>().Any())
+            {
+                writeSegment = segment;
+                break;
+            }
+        }
+
+        Assert.True(writeSegment.HasValue);
+        string walPath = writeSegment.Value.Path;
         using (var stream = new FileStream(walPath, FileMode.Append, FileAccess.Write, FileShare.Read))
             stream.Write([0x42, 0x13, 0x37, 0x00, 0x7F]);
 
@@ -311,8 +542,12 @@ public sealed class CrashReliabilityTests : IDisposable
         startInfo.ArgumentList.Add(scenario);
         startInfo.ArgumentList.Add(root);
         startInfo.ArgumentList.Add(readyFile);
-        return Process.Start(startInfo)
+        var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("无法启动 CrashTests 子进程。");
+        File.WriteAllText(Path.Combine(root, "child-process.txt"),
+            $"PID={process.Id}\nStartedUtc={process.StartTime.ToUniversalTime():O}\nParent={Environment.ProcessId}\n"
+            + $"Command={startInfo.FileName} {string.Join(' ', startInfo.ArgumentList)}");
+        return process;
     }
 
     private static void TerminateAndWait(Process process, TimeSpan timeout)
@@ -384,7 +619,8 @@ public sealed class CrashReliabilityTests : IDisposable
     private static void WaitForReady(Process process, string readyFile, TimeSpan timeout)
     {
         var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < timeout)
+        int maxPolls = checked((int)Math.Ceiling(timeout.TotalMilliseconds / 25) + 1);
+        for (int poll = 0; poll < maxPolls && sw.Elapsed < timeout; poll++)
         {
             if (File.Exists(readyFile))
                 return;
@@ -409,5 +645,10 @@ public sealed class CrashReliabilityTests : IDisposable
             return path;
 
         throw new FileNotFoundException("未找到 CrashTests 子进程程序集。", path);
+    }
+
+    private sealed class CrashOutboxClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 }

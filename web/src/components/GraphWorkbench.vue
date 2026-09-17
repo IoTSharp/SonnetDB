@@ -343,7 +343,17 @@ type GraphChartOption = echarts.ComposeOption<GraphSeriesOption | LegendComponen
 type GraphSection = 'canvas' | 'schema' | 'edit' | 'transfer' | 'maintenance';
 type EditorKind = 'vertex' | 'edge';
 type SelectedElement = { kind: 'vertex'; data: GraphVertex } | { kind: 'edge'; data: GraphEdge };
-type PendingAction = { plan: WriteApprovalPlan; run: () => Promise<void> };
+type GraphContext = {
+  revision: number;
+  database: string;
+  graph: string;
+  api: ReturnType<typeof useAuthStore>['api'];
+  baseUrl: string | undefined;
+  token: string | undefined;
+  connectionId: string;
+  connectionName: string;
+};
+type PendingAction = { plan: WriteApprovalPlan; context: GraphContext; inputs: string; run: () => Promise<void> };
 
 const props = defineProps<{
   targetDb: string;
@@ -373,6 +383,15 @@ const selectedElement = ref<SelectedElement | null>(null);
 const chartElement = ref<HTMLElement | null>(null);
 let chart: echarts.ECharts | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let contextRevision = 0;
+let disposed = false;
+let overviewRequestId = 0;
+let visualizationRequestId = 0;
+let editorRequestId = 0;
+let auditRequestId = 0;
+let transferRequestId = 0;
+let importFileRequestId = 0;
+let writeRequestId = 0;
 
 const editorKind = ref<EditorKind>('vertex');
 const editorId = ref<number | null>(null);
@@ -449,43 +468,55 @@ const auditColumns: DataTableColumns<GraphMaintenanceApproval> = [
 
 async function refreshAll(): Promise<void> {
   if (!props.graph) return;
+  const context = captureContext();
+  const overviewRequest = ++overviewRequestId;
+  const visualizationRequest = ++visualizationRequestId;
   busy.value = true;
   errorMsg.value = '';
   try {
     const [overviewResult, visualizationResult] = await Promise.all([
-      fetchGraphOperationsOverview(auth.api, props.targetDb, props.graph),
-      fetchGraphVisualization(auth.api, props.targetDb, props.graph, visualizationLimit.value ?? 250),
+      fetchGraphOperationsOverview(context.api, context.database, context.graph),
+      fetchGraphVisualization(context.api, context.database, context.graph, visualizationLimit.value ?? 250),
     ]);
-    overview.value = overviewResult;
-    visualization.value = visualizationResult;
-    selectedElement.value = null;
-    await renderChart();
+    if (!isCurrentContext(context)) return;
+    if (overviewRequest === overviewRequestId) overview.value = overviewResult;
+    if (visualizationRequest === visualizationRequestId) {
+      visualization.value = visualizationResult;
+      selectedElement.value = null;
+      await renderChart();
+    }
   } catch (error) {
-    handleError(error, '加载 Graph 运维数据失败');
+    if (isCurrentContext(context) && overviewRequest === overviewRequestId) handleError(error, '加载 Graph 运维数据失败');
   } finally {
-    busy.value = false;
+    if (isCurrentContext(context) && overviewRequest === overviewRequestId) busy.value = false;
+    if (isCurrentContext(context) && visualizationRequest === visualizationRequestId) visualizationBusy.value = false;
   }
 }
 
 async function loadVisualization(): Promise<void> {
   if (!props.graph) return;
+  const context = captureContext();
+  const requestId = ++visualizationRequestId;
   visualizationBusy.value = true;
   errorMsg.value = '';
   try {
-    visualization.value = await fetchGraphVisualization(auth.api, props.targetDb, props.graph, visualizationLimit.value ?? 250);
+    const result = await fetchGraphVisualization(context.api, context.database, context.graph, visualizationLimit.value ?? 250);
+    if (!isCurrentContext(context) || requestId !== visualizationRequestId) return;
+    visualization.value = result;
     selectedElement.value = null;
     await renderChart();
   } catch (error) {
-    handleError(error, '加载 Graph 可视化失败');
+    if (isCurrentContext(context) && requestId === visualizationRequestId) handleError(error, '加载 Graph 可视化失败');
   } finally {
-    visualizationBusy.value = false;
+    if (isCurrentContext(context) && requestId === visualizationRequestId) visualizationBusy.value = false;
   }
 }
 
 async function renderChart(): Promise<void> {
   if (activeSection.value !== 'canvas') return;
+  const context = captureContext();
   await nextTick();
-  if (!chartElement.value || !visualization.value) return;
+  if (!isCurrentContext(context) || !chartElement.value || !visualization.value) return;
   chart ??= echarts.init(chartElement.value);
   const vertexById = new Map(visualization.value.vertices.map((vertex) => [vertex.id, vertex]));
   const categories = [...new Set(visualization.value.vertices.flatMap((vertex) => vertex.labels))]
@@ -553,18 +584,24 @@ function graphTooltip(params: unknown): string {
 
 async function loadElement(): Promise<void> {
   if (!validEditorId.value || !props.graph) return;
+  const context = captureContext();
+  const requestId = ++editorRequestId;
+  const kind = editorKind.value;
+  const id = Number(editorId.value);
   editorBusy.value = true;
   errorMsg.value = '';
   try {
-    if (editorKind.value === 'vertex') {
-      setVertexEditor(await fetchGraphVertex(auth.api, props.targetDb, props.graph, Number(editorId.value)));
+    if (kind === 'vertex') {
+      const result = await fetchGraphVertex(context.api, context.database, context.graph, id);
+      if (isCurrentContext(context) && requestId === editorRequestId && kind === editorKind.value && id === editorId.value) setVertexEditor(result);
     } else {
-      setEdgeEditor(await fetchGraphEdge(auth.api, props.targetDb, props.graph, Number(editorId.value)));
+      const result = await fetchGraphEdge(context.api, context.database, context.graph, id);
+      if (isCurrentContext(context) && requestId === editorRequestId && kind === editorKind.value && id === editorId.value) setEdgeEditor(result);
     }
   } catch (error) {
-    handleError(error, '读取 Graph 元素失败');
+    if (isCurrentContext(context) && requestId === editorRequestId) handleError(error, '读取 Graph 元素失败');
   } finally {
-    editorBusy.value = false;
+    if (isCurrentContext(context) && requestId === editorRequestId) editorBusy.value = false;
   }
 }
 
@@ -598,6 +635,7 @@ function editSelectedElement(): void {
 function stageElementSave(): void {
   if (!validEditor.value) return;
   try {
+    const context = captureContext();
     const properties = parseJsonArray<GraphProperty>(propertiesText.value, 'Properties 必须是 JSON 数组。');
     const uniquePropertyIds = parseIntegerArray(uniquePropertiesText.value, 'Unique property IDs');
     const id = Number(editorId.value);
@@ -605,10 +643,12 @@ function stageElementSave(): void {
       ? `upsert vertex ${id} expectedVersion=${editorVersion.value}`
       : `upsert edge ${id} ${sourceId.value}->${targetId.value} label=${edgeLabelId.value} expectedVersion=${editorVersion.value}`;
     pendingAction.value = {
+      context,
+      inputs: approvalInputKey(),
       plan: makePlan('Graph 元素 Upsert', command, 'write'),
       run: async () => {
         const result = editorKind.value === 'vertex'
-          ? await upsertGraphVertex(auth.api, props.targetDb, props.graph, {
+          ? await upsertGraphVertex(context.api, context.database, context.graph, {
             id,
             expectedElementVersion: editorVersion.value,
             labels: parseIntegerArray(labelsText.value, 'Labels'),
@@ -616,7 +656,7 @@ function stageElementSave(): void {
             uniquePropertyIds,
             requestId: crypto.randomUUID(),
           })
-          : await upsertGraphEdge(auth.api, props.targetDb, props.graph, {
+          : await upsertGraphEdge(context.api, context.database, context.graph, {
             id,
             expectedElementVersion: editorVersion.value,
             sourceId: Number(sourceId.value),
@@ -626,9 +666,10 @@ function stageElementSave(): void {
             uniquePropertyIds,
             requestId: crypto.randomUUID(),
           });
+        if (!isCurrentContext(context)) return;
         message.success(`Graph 元素已写入 sequence ${result.sequence}。`);
         await refreshAll();
-        await loadElement();
+        if (isCurrentContext(context)) await loadElement();
       },
     };
   } catch (error) {
@@ -638,11 +679,15 @@ function stageElementSave(): void {
 
 function stageElementDelete(): void {
   if (!validEditorId.value || editorVersion.value <= 0) return;
+  const context = captureContext();
   const id = Number(editorId.value);
   pendingAction.value = {
+    context,
+    inputs: approvalInputKey(),
     plan: makePlan('删除 Graph 元素', `delete ${editorKind.value} ${id} expectedVersion=${editorVersion.value}`, 'danger'),
     run: async () => {
-      const result = await deleteGraphElement(auth.api, props.targetDb, props.graph, editorKind.value, id, editorVersion.value);
+      const result = await deleteGraphElement(context.api, context.database, context.graph, editorKind.value, id, editorVersion.value);
+      if (!isCurrentContext(context)) return;
       message.success(`Graph 元素已删除，sequence ${result.sequence}。`);
       resetEditor();
       await refreshAll();
@@ -653,12 +698,17 @@ function stageElementDelete(): void {
 async function readImportFile(event: Event): Promise<void> {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
+  const context = captureContext();
+  const requestId = ++importFileRequestId;
+  const text = await file.text();
+  if (!isCurrentContext(context) || requestId !== importFileRequestId) return;
   importFileName.value = file.name;
-  importText.value = await file.text();
+  importText.value = text;
 }
 
 function stageImport(): void {
   try {
+    const context = captureContext();
     const document = JSON.parse(importText.value) as Partial<GraphExportDocument & GraphImportRequest>;
     if (document.truncated === true) throw new Error('截断的 Graph 导出不能作为完整导入源。');
     const vertices = (document.vertices ?? document.nodes ?? []).map((vertex) => ({
@@ -681,9 +731,12 @@ function stageImport(): void {
     if (count < 1 || count > 10000) throw new Error('Graph 导入批次必须包含 1 到 10,000 个元素。');
     const request: GraphImportRequest = { requestId: crypto.randomUUID(), vertices, edges };
     pendingAction.value = {
+      context,
+      inputs: approvalInputKey(),
       plan: makePlan('导入 Graph JSON', `${vertices.length} vertices · ${edges.length} edges\nrequestId=${request.requestId}`, 'write'),
       run: async () => {
-        const result = await importGraphJson(auth.api, props.targetDb, props.graph, request);
+        const result = await importGraphJson(context.api, context.database, context.graph, request);
+        if (!isCurrentContext(context)) return;
         message.success(`已导入 ${result.vertexCount} vertices / ${result.edgeCount} edges。`);
         await refreshAll();
       },
@@ -694,34 +747,42 @@ function stageImport(): void {
 }
 
 async function exportGraph(): Promise<void> {
+  const context = captureContext();
+  const requestId = ++transferRequestId;
   transferBusy.value = true;
   errorMsg.value = '';
   try {
-    const blob = await downloadGraphExport(auth.api, props.targetDb, props.graph, exportLimit.value ?? 100000);
+    const blob = await downloadGraphExport(context.api, context.database, context.graph, exportLimit.value ?? 100000);
+    if (!isCurrentContext(context) || requestId !== transferRequestId) return;
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${props.graph}.graph.json`;
+    anchor.download = `${context.graph}.graph.json`;
     anchor.click();
     URL.revokeObjectURL(url);
     recordHistory('success', 'Graph JSON export', `maxElements=${exportLimit.value ?? 100000}`, 'export completed');
   } catch (error) {
-    handleError(error, 'Graph 导出失败');
+    if (isCurrentContext(context) && requestId === transferRequestId) handleError(error, 'Graph 导出失败');
   } finally {
-    transferBusy.value = false;
+    if (isCurrentContext(context) && requestId === transferRequestId) transferBusy.value = false;
   }
 }
 
 function stageMaintenanceRequest(): void {
+  const context = captureContext();
   const request = {
     action: maintenanceAction.value,
     compactOnCompletion: maintenanceAction.value === 'RepairRebuild' && compactOnCompletion.value,
     maxWorkUnits: maintenanceAction.value === 'RepairRebuild' ? maxWorkUnits.value ?? 64 : 64,
   };
   pendingAction.value = {
+    context,
+    inputs: approvalInputKey(),
     plan: makePlan('暂存 Graph 维护', `${request.action} maxWorkUnits=${request.maxWorkUnits} compact=${request.compactOnCompletion}`, 'danger'),
     run: async () => {
-      stagedApproval.value = await stageGraphMaintenance(auth.api, props.targetDb, props.graph, request);
+      const result = await stageGraphMaintenance(context.api, context.database, context.graph, request);
+      if (!isCurrentContext(context)) return;
+      stagedApproval.value = result;
       message.warning(`维护已暂存，审批 ${stagedApproval.value.approvalId} 尚未执行。`);
       await loadAudit();
     },
@@ -730,11 +791,16 @@ function stageMaintenanceRequest(): void {
 
 function stageApprovalDecision(decision: 'approve'): void {
   if (!stagedApproval.value) return;
+  const context = captureContext();
   const approval = stagedApproval.value;
   pendingAction.value = {
+    context,
+    inputs: approvalInputKey(),
     plan: makePlan('批准 Graph 维护', `${decision} ${approval.action}\napproval=${approval.approvalId}`, 'danger'),
     run: async () => {
-      stagedApproval.value = await approveGraphMaintenance(auth.api, props.targetDb, props.graph, approval.approvalId);
+      const result = await approveGraphMaintenance(context.api, context.database, context.graph, approval.approvalId);
+      if (!isCurrentContext(context)) return;
+      stagedApproval.value = result;
       message.success(`Graph 维护状态：${stagedApproval.value.state}。`);
       await refreshAll();
     },
@@ -742,45 +808,57 @@ function stageApprovalDecision(decision: 'approve'): void {
 }
 
 async function rejectStagedApproval(): Promise<void> {
-  if (!stagedApproval.value) return;
+  if (!stagedApproval.value || writeBusy.value) return;
+  const context = captureContext();
+  const requestId = ++writeRequestId;
   writeBusy.value = true;
   try {
-    stagedApproval.value = await rejectGraphMaintenance(auth.api, props.targetDb, props.graph, stagedApproval.value.approvalId, rejectReason.value);
+    const result = await rejectGraphMaintenance(context.api, context.database, context.graph, stagedApproval.value.approvalId, rejectReason.value);
+    if (!isCurrentContext(context)) return;
+    stagedApproval.value = result;
     message.info('Graph 维护审批已拒绝。');
     await loadAudit();
   } catch (error) {
-    handleError(error, '拒绝 Graph 维护审批失败');
+    if (isCurrentContext(context)) handleError(error, '拒绝 Graph 维护审批失败');
   } finally {
-    writeBusy.value = false;
+    if (isCurrentContext(context) && requestId === writeRequestId) writeBusy.value = false;
   }
 }
 
 async function loadAudit(): Promise<void> {
   if (!props.graph) return;
+  const context = captureContext();
+  const requestId = ++auditRequestId;
   auditBusy.value = true;
   try {
-    audit.value = await fetchGraphMaintenanceAudit(auth.api, props.targetDb, props.graph);
+    const result = await fetchGraphMaintenanceAudit(context.api, context.database, context.graph);
+    if (!isCurrentContext(context) || requestId !== auditRequestId) return;
+    audit.value = result;
   } catch (error) {
-    handleError(error, '加载 Graph 维护审计失败');
+    if (isCurrentContext(context) && requestId === auditRequestId) handleError(error, '加载 Graph 维护审计失败');
   } finally {
-    auditBusy.value = false;
+    if (isCurrentContext(context) && requestId === auditRequestId) auditBusy.value = false;
   }
 }
 
 async function confirmApproval(): Promise<void> {
-  if (!pendingAction.value) return;
+  if (!pendingAction.value || writeBusy.value) return;
   const action = pendingAction.value;
+  if (!isCurrentContext(action.context) || action.inputs !== approvalInputKey()) { pendingAction.value = null; return; }
+  const requestId = ++writeRequestId;
   writeBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
   try {
     await action.run();
-    recordHistory('success', action.plan.title, action.plan.items[0]?.command ?? '', 'completed', performance.now() - started);
-    pendingAction.value = null;
+    recordHistory('success', action.plan.title, action.plan.items[0]?.command ?? '', 'completed', performance.now() - started, action.context);
+    if (pendingAction.value?.plan.id === action.plan.id) pendingAction.value = null;
   } catch (error) {
-    handleError(error, `${action.plan.title}失败`, action.plan.items[0]?.command ?? '', performance.now() - started);
+    const detail = errorToMessage(error, `${action.plan.title}失败`);
+    if (isCurrentContext(action.context)) errorMsg.value = detail;
+    recordHistory('error', action.plan.title, action.plan.items[0]?.command ?? '', detail, performance.now() - started, action.context);
   } finally {
-    writeBusy.value = false;
+    if (isCurrentContext(action.context) && requestId === writeRequestId) writeBusy.value = false;
   }
 }
 
@@ -838,29 +916,70 @@ function handleError(error: unknown, fallback: string, command = '', elapsedMs =
   errorMsg.value = detail;
   recordHistory('error', fallback, command, detail, elapsedMs);
 }
-function recordHistory(status: 'success' | 'error', title: string, command: string, summary: string, elapsedMs = 0): void {
+function recordHistory(status: 'success' | 'error', title: string, command: string, summary: string, elapsedMs = 0, context = captureContext()): void {
   history.record({
-    kind: 'operation', status, title, target: props.graph, database: props.targetDb,
-    connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+    kind: 'operation', status, title, target: context.graph, database: context.database,
+    connectionId: context.connectionId, connectionName: context.connectionName,
     model: 'graph', action: title.toLowerCase().replaceAll(' ', '_'), command, summary, elapsedMs,
   });
 }
 
-watch(() => [props.targetDb, props.graph], () => {
+function captureContext(): GraphContext {
+  return {
+    revision: contextRevision, database: props.targetDb, graph: props.graph,
+    api: auth.api, baseUrl: auth.api.defaults.baseURL, token: auth.state?.token,
+    connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+  };
+}
+
+function isCurrentContext(context: GraphContext): boolean {
+  return !disposed && context.revision === contextRevision
+    && context.database === props.targetDb && context.graph === props.graph
+    && context.api === auth.api && context.baseUrl === auth.api.defaults.baseURL
+    && context.token === auth.state?.token && context.connectionId === connections.activeProfileId;
+}
+
+function approvalInputKey(): string {
+  return JSON.stringify([
+    editorKind.value, editorId.value, editorVersion.value, labelsText.value, propertiesText.value,
+    uniquePropertiesText.value, sourceId.value, targetId.value, edgeLabelId.value,
+    importText.value, maintenanceAction.value, maxWorkUnits.value, compactOnCompletion.value,
+    stagedApproval.value?.approvalId,
+  ]);
+}
+
+watch(approvalInputKey, () => { pendingAction.value = null; }, { flush: 'sync' });
+watch(() => [props.targetDb, props.graph, connections.activeProfileId, connections.activeBaseUrl, auth.state?.token, auth.api], () => {
+  contextRevision += 1;
+  pendingAction.value = null;
+  busy.value = false;
+  visualizationBusy.value = false;
+  editorBusy.value = false;
+  auditBusy.value = false;
+  transferBusy.value = false;
+  writeBusy.value = false;
+  errorMsg.value = '';
+  chart?.clear();
   overview.value = null;
   visualization.value = null;
   selectedElement.value = null;
   stagedApproval.value = null;
   audit.value = [];
+  editorId.value = null;
   resetEditor();
-  void refreshAll();
-}, { immediate: true });
+  const revision = contextRevision;
+  void nextTick().then(() => {
+    if (!disposed && revision === contextRevision) return refreshAll();
+  });
+}, { immediate: true, flush: 'sync' });
 watch(activeSection, (section) => {
   if (section === 'canvas') void renderChart();
   if (section === 'maintenance' && audit.value.length === 0) void loadAudit();
 });
 watch(editorKind, resetEditor);
 onBeforeUnmount(() => {
+  disposed = true;
+  contextRevision += 1;
   resizeObserver?.disconnect();
   chart?.dispose();
   chart = null;

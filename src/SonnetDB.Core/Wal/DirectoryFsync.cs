@@ -13,8 +13,9 @@ namespace SonnetDB.Wal;
 ///   <item><description>Windows：普通 <c>FileStream</c> 无法打开目录，改用 P/Invoke
 ///     <c>CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)</c> 拿到目录句柄后 <c>FlushFileBuffers</c>（#189）。</description></item>
 /// </list>
-/// <para>尽力而为：句柄打开或 flush 失败不抛（吞掉 IO/权限异常），因为上层已对文件内容单独 fsync，
-/// 目录 flush 只加强改名/删除的顺序保证，失败时退化为旧行为而非破坏正确性。</para>
+/// <para>目录 flush 只加强改名/删除的顺序保证。部分文件系统（例如 overlayfs、
+/// 某些网络文件系统和 Windows 重定向器）明确不支持对目录句柄执行 fsync；这些平台
+/// 会退化为文件内容已经 fsync 的旧行为，而不会让数据库因此无法打开或 Flush。</para>
 /// </summary>
 internal static class DirectoryFsync
 {
@@ -36,10 +37,16 @@ internal static class DirectoryFsync
         catch (UnauthorizedAccessException)
         {
         }
+        catch (PlatformNotSupportedException)
+        {
+        }
     }
 
     /// <summary>
-    /// 对目录项执行必须成功的持久化刷新。调用方只有在本方法返回后，才可删除唯一恢复日志。
+    /// 对目录项执行持久化刷新。调用方只有在本方法返回后，才可删除唯一恢复日志。
+    /// 当底层文件系统明确不支持目录 fsync 时，本方法安全退化为 no-op；文件内容仍由
+    /// 调用方通过 FileStream.Flush(true) 单独持久化。目录不存在、权限不足或其它真实 I/O
+    /// 故障仍会抛出，以免把可恢复性错误静默为成功。
     /// </summary>
     internal static void FlushRequired(string directory)
     {
@@ -47,10 +54,35 @@ internal static class DirectoryFsync
         if (!Directory.Exists(directory))
             throw new DirectoryNotFoundException($"Directory fsync target does not exist: '{directory}'.");
 
-        if (OperatingSystem.IsWindows())
-            FlushWindowsRequired(directory);
-        else
-            FlushUnixRequired(directory);
+        try
+        {
+            if (OperatingSystem.IsWindows())
+                FlushWindowsRequired(directory);
+            else
+                FlushUnixRequired(directory);
+        }
+        catch (IOException exception) when (IsDirectoryFsyncUnsupported(exception))
+        {
+            // EINVAL/ENOTSUP（Unix）以及 ERROR_INVALID_FUNCTION/ERROR_NOT_SUPPORTED
+            // （Windows）表示该文件系统没有目录句柄 flush 能力，而不是数据文件写入失败。
+            // 保留旧的 best-effort 语义，避免 overlayfs/NFS 上的能力回退。
+        }
+        catch (PlatformNotSupportedException)
+        {
+            // 新平台尚未提供目录句柄 fsync 时同样退化；文件内容仍已单独 flush。
+        }
+    }
+
+    private static bool IsDirectoryFsyncUnsupported(IOException exception)
+    {
+        int error = exception.InnerException is Win32Exception native
+            ? native.NativeErrorCode
+            : exception.HResult & 0xFFFF;
+
+        // POSIX: EINVAL (22), ENOTSUP/EOPNOTSUPP (95), ENOSYS (38).
+        // Win32: ERROR_INVALID_FUNCTION (1), ERROR_INVALID_HANDLE (6),
+        // ERROR_NOT_SUPPORTED (50), ERROR_INVALID_PARAMETER (87).
+        return error is 1 or 6 or 22 or 38 or 50 or 87 or 95;
     }
 
     private static void FlushUnixRequired(string directory)

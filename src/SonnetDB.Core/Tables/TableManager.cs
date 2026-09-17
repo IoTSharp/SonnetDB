@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using SonnetDB.Diagnostics;
+using SonnetDB.Exceptions;
 using SonnetDB.Kv;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -8,7 +10,7 @@ namespace SonnetDB.Tables;
 /// <summary>
 /// 管理同一数据库目录下的关系表 schema 与 rowstore。
 /// </summary>
-public sealed class TableManager : IDisposable
+public sealed partial class TableManager : IDisposable
 {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<TableRow>> _emptyFinalRows =
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<TableRow>>(
@@ -21,12 +23,16 @@ public sealed class TableManager : IDisposable
     private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Action<string, string>? _schemaMutationGuard;
     private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
+    private readonly TableStatisticsRefreshBudget _statisticsRefreshBudget = new();
     private bool _disposed;
+    private Exception? _transactionFailure;
 
     // M39 #333 crash/commit evidence hook.  It is intentionally internal and
     // unset in production; tests use it to stop between independent keyspace
     // commits without changing the public transaction contract.
     internal Action<string>? ApplyTransactionAfterTableTestHook { get; set; }
+    internal Action? ApplyTransactionBeforeCompleteTestHook { get; set; }
+    internal Action? ApplyTransactionAfterCompleteTestHook { get; set; }
 
     /// <summary>仅供并发测试确认 schema 变更已取得数据库级 schema 锁。</summary>
     internal Action<string>? SchemaMutationLockAcquiredTestHook { get; set; }
@@ -82,6 +88,23 @@ public sealed class TableManager : IDisposable
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadOrReplace(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
+        try
+        {
+            foreach (var undo in TableTransactionJournal.ReadPending(TransactionJournalPath))
+            {
+                var schema = Catalog.TryGet(undo.TableName)
+                    ?? throw new InvalidDataException($"事务恢复引用了不存在的 table '{undo.TableName}'。");
+                OpenStoreLocked(schema).RestoreTransactionUndo(undo);
+            }
+            if (File.Exists(TransactionJournalPath))
+                TableTransactionJournal.Complete(TransactionJournalPath);
+        }
+        catch
+        {
+            foreach (var store in _stores.Values) store.Dispose();
+            _stores.Clear();
+            throw;
+        }
     }
 
     /// <summary>关系表 catalog。</summary>
@@ -89,6 +112,7 @@ public sealed class TableManager : IDisposable
 
     /// <summary>表 schema 文件路径。</summary>
     public string SchemaPath => Path.Combine(_rootDirectory, TableSchemaCodec.FileName);
+    private string TransactionJournalPath => Path.Combine(_rootDirectory, TableTransactionJournal.FileName);
 
     /// <summary>
     /// 创建关系表并持久化 schema。
@@ -190,6 +214,7 @@ public sealed class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
                 var updated = current.WithIndex(definition);
                 var store = OpenStoreLocked(current);
                 store.ApplySchema(updated);
@@ -226,6 +251,7 @@ public sealed class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
                 if (current.TryGetIndex(indexName) is null)
                     return false;
 
@@ -590,6 +616,7 @@ public sealed class TableManager : IDisposable
                 if (Catalog.TryGet(newName) is not null)
                     throw new InvalidOperationException($"table '{newName}' 已存在。");
                 EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
+                OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
 
                 var updated = current.WithName(newName);
                 var oldDirectory = TableDirectory(oldName);
@@ -597,9 +624,10 @@ public sealed class TableManager : IDisposable
                 if (Directory.Exists(newDirectory))
                     throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
 
-                TableStore? existingStore = null;
-                if (_stores.Remove(oldName, out existingStore))
-                    existingStore.Dispose();
+                _stores.TryGetValue(oldName, out TableStore? existingStore);
+                using IDisposable? statisticsPause = existingStore?.PauseAutomaticStatisticsRefreshForRename();
+                existingStore?.Dispose();
+                _stores.Remove(oldName);
 
                 Catalog.Remove(oldName);
                 Catalog.Add(updated);
@@ -680,11 +708,11 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
-    /// 在同一数据库内提交多表 DML 轻事务；进程内失败通过反向补偿回滚。
+    /// 在同一数据库内提交多表 DML 轻事务；通过同步恢复日志撤销未完成的跨表提交。
     /// </summary>
     /// <remarks>
-    /// 每个 table 使用独立 keyspace/WAL，因此本方法不提供跨 keyspace 的掉电原子性；
-    /// 单个 table/keyspace batch 的 WAL 提交是原子的。
+    /// 多表事务先同步 before-images，再写入并同步各表 WAL，最后同步完成标记。
+    /// 重启时，在开放关系表访问前撤销没有完整完成标记的事务；单表仍复用原子 KV batch。
     /// </remarks>
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
     /// <returns>实际影响的行数。</returns>
@@ -706,6 +734,72 @@ public sealed class TableManager : IDisposable
             SonnetDbMeter.RecordTableManagerLockWait(lockWait);
             ThrowIfDisposed();
             return action();
+        }
+    }
+
+    /// <summary>有界等待提交锁，允许调用方在等待及取得锁后检查取消和提交期限。</summary>
+    internal TResult ExecuteCommitLocked<TResult>(Func<TResult> action, Action checkCancellationAndDeadline)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(checkCancellationAndDeadline);
+        const int maximumWaitMilliseconds = 120_000;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        long started = Stopwatch.GetTimestamp();
+        bool lockTaken = false;
+        try
+        {
+            for (int attempt = 0; attempt < 2_401; attempt++)
+            {
+                checkCancellationAndDeadline();
+                int remainingMilliseconds = maximumWaitMilliseconds
+                    - (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                if (remainingMilliseconds <= 0)
+                    break;
+                Monitor.TryEnter(_sync, Math.Min(50, remainingMilliseconds), ref lockTaken);
+                if (!lockTaken)
+                    continue;
+                SonnetDbMeter.RecordTableManagerLockWait(lockWait);
+                checkCancellationAndDeadline();
+                if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= maximumWaitMilliseconds)
+                    break;
+                ThrowIfDisposed();
+                return action();
+            }
+
+            throw new RoutineExecutionException(RoutineErrorCodes.CommitTimeout,
+                "事务提交锁等待超时，尚未开始持久化。");
+        }
+        finally
+        {
+            if (lockTaken) Monitor.Exit(_sync);
+        }
+    }
+
+    /// <summary>把级联删除和 SET NULL 的新增行变更加入延迟触发器可读取的事务 overlay。</summary>
+    internal void ExpandDeferredCascades(SqlTransactionContext transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            transaction.ThrowIfCompleted();
+            CheckCascadeExecution(transaction);
+            var original = transaction.SnapshotTableMutations();
+            var expanded = ExpandCascadeDeletesLocked(original, metrics: null, transaction);
+            foreach (var (tableName, mutations) in expanded)
+            {
+                CheckCascadeExecution(transaction);
+                int originalCount = original.TryGetValue(tableName, out var previous) ? previous.Count : 0;
+                if (mutations.Count == originalCount)
+                    continue;
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                for (int index = originalCount; index < mutations.Count; index++)
+                {
+                    CheckCascadeExecution(transaction);
+                    transaction.AddOrMergeTableMutation(schema, mutations[index]);
+                }
+            }
         }
     }
 
@@ -883,26 +977,82 @@ public sealed class TableManager : IDisposable
             // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
             var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable, metrics);
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
-            foreach (var (tableName, mutations) in expandedMutations)
-            {
-                var schema = Catalog.TryGet(tableName)
-                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                var store = OpenStoreLocked(schema);
-                prepared.Add(tableName, (store, store.PrepareBatch(mutations)));
-            }
-
-            ValidateCheckConstraintsLocked(prepared);
-            ValidateForeignKeysLocked(prepared);
-
-            var applied = new List<(TableStore Store, TableStore.PreparedTableBatch Batch)>(prepared.Count);
+            var lockedStores = new List<TableStore>(expandedMutations.Count);
             try
             {
-                var affected = 0;
-                foreach (var (tableName, entry) in prepared)
+                foreach (string tableName in expandedMutations.Keys.Order(StringComparer.Ordinal))
                 {
-                    affected += entry.Store.ApplyPreparedBatch(entry.Batch);
-                    applied.Add(entry);
-                    ApplyTransactionAfterTableTestHook?.Invoke(tableName);
+                    var schema = Catalog.TryGet(tableName)
+                        ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                    var store = OpenStoreLocked(schema);
+                    Monitor.Enter(store.SynchronizationRoot);
+                    lockedStores.Add(store);
+                }
+                foreach (var (tableName, mutations) in expandedMutations)
+                {
+                    var store = _stores[tableName];
+                    prepared.Add(tableName, (store, store.PrepareBatch(mutations)));
+                }
+                ValidateCheckConstraintsLocked(prepared);
+                ValidateForeignKeysLocked(prepared);
+
+                bool journaled = prepared.Values.Count(static entry => entry.Batch.AffectedRows > 0) > 1;
+                var undoTables = journaled
+                    ? prepared.Values.Select(static entry => entry.Store.CaptureTransactionUndo(entry.Batch)).ToArray()
+                    : [];
+                if (journaled)
+                    TableTransactionJournal.Prepare(TransactionJournalPath, undoTables);
+                var applied = new List<(TableStore Store, TableStore.PreparedTableBatch Batch)>(prepared.Count);
+                var affected = 0;
+                bool completing = false;
+                try
+                {
+                    foreach (var (tableName, entry) in prepared)
+                    {
+                        affected += entry.Store.ApplyPreparedBatch(entry.Batch);
+                        applied.Add(entry);
+                        ApplyTransactionAfterTableTestHook?.Invoke(tableName);
+                    }
+                    if (journaled)
+                    {
+                        foreach (var entry in prepared.Values) entry.Store.SyncTransactionWal();
+                        ApplyTransactionBeforeCompleteTestHook?.Invoke();
+                        completing = true;
+                        TableTransactionJournal.Complete(TransactionJournalPath);
+                        ApplyTransactionAfterCompleteTestHook?.Invoke();
+                    }
+                }
+                catch (Exception commitFailure)
+                {
+                    if (completing)
+                    {
+                        // 完成标记的 fsync 失败可能已持久化提交决定，不能再写相反的补偿。
+                        _transactionFailure = commitFailure;
+                        foreach (var store in _stores.Values) store.InvalidateTransaction(commitFailure);
+                        throw new TableTransactionRecoveryException("关系事务提交结果未知，必须关闭并重新打开数据库完成恢复。", commitFailure);
+                    }
+                    try
+                    {
+                        if (journaled)
+                        {
+                            foreach (var undo in undoTables)
+                                prepared[undo.TableName].Store.RestoreTransactionUndo(undo);
+                            TableTransactionJournal.Complete(TransactionJournalPath);
+                        }
+                        else
+                        {
+                            for (int i = applied.Count - 1; i >= 0; i--)
+                                applied[i].Store.RollbackPreparedBatch(applied[i].Batch);
+                        }
+                    }
+                    catch (Exception rollbackFailure)
+                    {
+                        _transactionFailure = rollbackFailure;
+                        foreach (var store in _stores.Values) store.InvalidateTransaction(rollbackFailure);
+                        throw new TableTransactionRecoveryException("关系事务回滚失败，必须关闭并重新打开数据库完成恢复。",
+                            new AggregateException(commitFailure, rollbackFailure));
+                    }
+                    throw;
                 }
 
                 finalRows = includeFinalRows
@@ -913,11 +1063,10 @@ public sealed class TableManager : IDisposable
                     : _emptyFinalRows;
                 return affected;
             }
-            catch
+            finally
             {
-                for (var i = applied.Count - 1; i >= 0; i--)
-                    applied[i].Store.RollbackPreparedBatch(applied[i].Batch);
-                throw;
+                for (int index = lockedStores.Count - 1; index >= 0; index--)
+                    Monitor.Exit(lockedStores[index].SynchronizationRoot);
             }
         }
     }
@@ -1047,6 +1196,30 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    internal TResult ExecuteConsistentBackup<TResult>(Func<TResult> action)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var locked = new List<TableStore>();
+            try
+            {
+                foreach (var schema in Catalog.Snapshot().OrderBy(static schema => schema.Name, StringComparer.Ordinal))
+                {
+                    var store = OpenStoreLocked(schema);
+                    Monitor.Enter(store.SynchronizationRoot);
+                    locked.Add(store);
+                }
+                return action();
+            }
+            finally
+            {
+                for (int index = locked.Count - 1; index >= 0; index--)
+                    Monitor.Exit(locked[index].SynchronizationRoot);
+            }
+        }
+    }
+
     /// <summary>
     /// 返回已打开关系表 active WAL 的逻辑长度总和，供 M39 基准读取未刷出的 WAL。
     /// </summary>
@@ -1112,7 +1285,7 @@ public sealed class TableManager : IDisposable
         var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions);
         try
         {
-            return new TableStore(schema, kv);
+            return new TableStore(schema, kv, _statisticsRefreshBudget);
         }
         catch
         {
@@ -1141,8 +1314,12 @@ public sealed class TableManager : IDisposable
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
         IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
-        CascadeDeleteExecutionMetrics? metrics)
+        CascadeDeleteExecutionMetrics? metrics,
+        SqlTransactionContext? transaction = null)
     {
+        transaction ??= SqlTransactionContext.Current;
+        CheckCascadeExecution(transaction);
+        int generatedRows = 0;
         // 单批只读取一次 catalog，并预先建立 principal table -> referencing FK 的反向关系。
         // 后续 BFS 不再为每个父键重复复制 catalog 或遍历无关 schema。
         IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
@@ -1151,13 +1328,17 @@ public sealed class TableManager : IDisposable
 
         var schemasByName = new Dictionary<string, TableSchema>(schemas.Count, StringComparer.Ordinal);
         foreach (var schema in schemas)
+        {
+            CheckCascadeExecution(transaction);
             schemasByName.Add(schema.Name, schema);
+        }
 
         var lookupsByPrincipal = new Dictionary<string, List<CascadeForeignKeyLookup>>(StringComparer.Ordinal);
         foreach (var childSchema in schemas)
         {
             foreach (var fk in childSchema.ForeignKeys)
             {
+                CheckCascadeExecution(transaction);
                 if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull))
                     continue;
                 if (!schemasByName.TryGetValue(fk.PrincipalTable, out var principalSchema))
@@ -1192,6 +1373,7 @@ public sealed class TableManager : IDisposable
 
         foreach (var (tableName, mutations) in mutationsByTable)
         {
+            CheckCascadeExecution(transaction);
             if (!schemasByName.TryGetValue(tableName, out var schema))
                 throw new InvalidOperationException($"table '{tableName}' 不存在。");
             var list = new List<TableRowMutation>(mutations);
@@ -1202,6 +1384,7 @@ public sealed class TableManager : IDisposable
             touchedPks[tableName] = touchedSet;
             foreach (var mutation in mutations)
             {
+                CheckCascadeExecution(transaction);
                 if (mutation.PrimaryKeyValues is not null)
                 {
                     byte[] pkBytes = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
@@ -1215,12 +1398,14 @@ public sealed class TableManager : IDisposable
 
         while (queue.Count > 0)
         {
+            CheckCascadeExecution(transaction);
             var (parentTable, parentPk) = queue.Dequeue();
             if (!lookupsByPrincipal.TryGetValue(parentTable, out var lookups))
                 continue;
 
             foreach (var lookup in lookups)
             {
+                CheckCascadeExecution(transaction);
                 var childSchema = lookup.ChildSchema;
                 var fk = lookup.ForeignKey;
                 var childStore = OpenStoreLocked(childSchema);
@@ -1234,8 +1419,9 @@ public sealed class TableManager : IDisposable
                     ? existingList
                     : working[childSchema.Name] = new List<TableRowMutation>();
 
-                foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics))
+                foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics, transaction))
                 {
+                    CheckCascadeExecution(transaction);
                     var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
                     byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
                     string childPkText = Convert.ToHexString(childPkBytes);
@@ -1248,6 +1434,7 @@ public sealed class TableManager : IDisposable
                             continue;
                         if (!childDeleteSet.Add(childPkText))
                             continue;
+                        CountGeneratedCascadeRow();
                         childTouchedSet.Add(childPkText);
                         childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
                         queue.Enqueue((childSchema.Name, childPk));
@@ -1257,6 +1444,7 @@ public sealed class TableManager : IDisposable
                         // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
                         if (childDeleteSet.Contains(childPkText)) continue;
                         if (!childTouchedSet.Add(childPkText)) continue;
+                        CountGeneratedCascadeRow();
 
                         var nulledValues = childRow.Values.ToArray();
                         foreach (var fkColumn in fk.Columns)
@@ -1276,6 +1464,20 @@ public sealed class TableManager : IDisposable
         foreach (var (k, v) in working)
             result[k] = v;
         return result;
+
+        void CountGeneratedCascadeRow()
+        {
+            if (transaction?.IsExecutingDeferredTriggers == true && generatedRows >= 100_000)
+                throw new RoutineExecutionException(RoutineErrorCodes.DeferredLimit,
+                    "延迟触发器提交阶段的级联行数超过 100000 行预算。");
+            generatedRows++;
+        }
+    }
+
+    private static void CheckCascadeExecution(SqlTransactionContext? transaction)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        transaction?.CheckCommitDeadline();
     }
 
     /// <summary>
@@ -1311,8 +1513,10 @@ public sealed class TableManager : IDisposable
         public IReadOnlyList<TableRow> FindRows(
             TableStore childStore,
             IReadOnlyList<object?> parentPrimaryKey,
-            CascadeDeleteExecutionMetrics? metrics)
+            CascadeDeleteExecutionMetrics? metrics,
+            SqlTransactionContext? transaction)
         {
+            CheckCascadeExecution(transaction);
             if (Index is not null)
             {
                 if (metrics is not null)
@@ -1332,6 +1536,7 @@ public sealed class TableManager : IDisposable
                 _fallbackRows = new Dictionary<byte[], List<TableRow>>(KvKeyComparer.Instance);
                 foreach (var row in rows)
                 {
+                    CheckCascadeExecution(transaction);
                     IReadOnlyList<object?>? values = ExtractForeignKeyValues(ChildSchema, row, ForeignKey);
                     if (values is null)
                         continue;
@@ -1702,7 +1907,12 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>管理器释放后拒绝继续访问已打开的关系表资源。</summary>
-    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_transactionFailure is not null)
+            throw new IOException("关系事务需要重启恢复，当前表管理器已停止接受访问。", _transactionFailure);
+    }
 }
 
 /// <summary>

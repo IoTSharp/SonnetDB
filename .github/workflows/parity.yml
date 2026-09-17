@@ -28,6 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true

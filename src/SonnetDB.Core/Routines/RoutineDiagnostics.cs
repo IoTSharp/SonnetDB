@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace SonnetDB.Routines;
 
 /// <summary>一次过程或触发器调用的脱敏审计记录。</summary>
@@ -23,7 +25,11 @@ public sealed record RoutineInvocationRecord(
     bool Succeeded,
     string? ErrorCode,
     int StatementsExecuted,
-    int ResultRows);
+    int ResultRows)
+{
+    /// <summary>执行完成、待提交、已提交、已回滚或执行失败；不把待提交动作报告为成功。</summary>
+    public string Outcome { get; init; } = Succeeded ? "completed" : "failed";
+}
 
 /// <summary>过程与触发器累计指标快照。</summary>
 /// <param name="ProcedureExecutions">过程调用次数。</param>
@@ -62,6 +68,56 @@ public sealed class RoutineDiagnostics
             return _audit.ToArray();
     }
 
+    /// <summary>按类型、名称和序号过滤最近的有界审计记录。</summary>
+    /// <param name="kind">可选的 procedure 或 trigger 类型。</param>
+    /// <param name="name">可选的定义名称。</param>
+    /// <param name="afterSequence">只返回此序号之后的记录。</param>
+    /// <returns>按序号升序的脱敏记录；较旧记录可能已被有界队列淘汰。</returns>
+    public IReadOnlyList<RoutineInvocationRecord> SnapshotAudit(string? kind, string? name, long afterSequence = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(afterSequence);
+        lock (_sync)
+            return _audit.Where(record => record.Sequence > afterSequence
+                    && (kind is null || string.Equals(kind, record.Kind, StringComparison.Ordinal))
+                    && (name is null || string.Equals(name, record.Name, StringComparison.Ordinal)))
+                .ToArray();
+    }
+
+    /// <summary>以 AOT 兼容 JSON 导出最近的脱敏审计快照；不关闭调用方的流。</summary>
+    /// <param name="destination">可写目标流。</param>
+    /// <param name="kind">可选例程类型。</param>
+    /// <param name="name">可选定义名称。</param>
+    /// <param name="afterSequence">只导出此序号之后的记录。</param>
+    public void ExportAudit(Stream destination, string? kind = null, string? name = null, long afterSequence = 0)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        var records = SnapshotAudit(kind, name, afterSequence);
+        using var writer = new Utf8JsonWriter(destination);
+        writer.WriteStartObject();
+        writer.WriteString("schema", "sonnetdb-routine-audit-v1");
+        writer.WriteNumber("capacity", MaxAuditRecords);
+        writer.WriteStartArray("records");
+        foreach (var record in records)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("sequence", record.Sequence);
+            writer.WriteString("kind", record.Kind);
+            writer.WriteString("name", record.Name);
+            writer.WriteString("caller", record.Caller);
+            writer.WriteString("callChain", record.CallChain);
+            writer.WriteString("startedUtc", record.StartedUtc);
+            writer.WriteNumber("elapsedMilliseconds", record.ElapsedMilliseconds);
+            writer.WriteBoolean("succeeded", record.Succeeded);
+            writer.WriteString("outcome", record.Outcome);
+            writer.WriteString("errorCode", record.ErrorCode);
+            writer.WriteNumber("statementsExecuted", record.StatementsExecuted);
+            writer.WriteNumber("resultRows", record.ResultRows);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
     /// <summary>返回累计调用、失败和耗时指标。</summary>
     /// <returns>指标快照。</returns>
     public RoutineMetricsSnapshot GetMetrics()
@@ -83,7 +139,8 @@ public sealed class RoutineDiagnostics
         bool succeeded,
         string? errorCode,
         int statementsExecuted,
-        int resultRows)
+        int resultRows,
+        bool pendingCommit = false)
     {
         if (string.Equals(kind, "procedure", StringComparison.Ordinal))
         {
@@ -100,39 +157,46 @@ public sealed class RoutineDiagnostics
             Interlocked.Add(ref _triggerElapsedTicks, elapsed.Ticks);
         }
 
-        long sequence = Interlocked.Increment(ref _sequence);
-        var record = new RoutineInvocationRecord(
-            sequence,
-            kind,
-            name,
-            caller,
-            callChain,
-            startedUtc,
-            elapsed.TotalMilliseconds,
-            succeeded,
-            errorCode,
-            statementsExecuted,
-            resultRows);
         lock (_sync)
         {
-            while (_audit.Count >= MaxAuditRecords)
+            long sequence = ++_sequence;
+            var record = new RoutineInvocationRecord(
+                sequence,
+                kind,
+                name,
+                caller,
+                callChain,
+                startedUtc,
+                elapsed.TotalMilliseconds,
+                succeeded && !pendingCommit,
+                errorCode,
+                statementsExecuted,
+                resultRows)
+            {
+                Outcome = pendingCommit ? "pending" : succeeded ? "completed"
+                    : errorCode == SonnetDB.Exceptions.RoutineErrorCodes.CommitUnknown ? "unknown" : "failed",
+            };
+            if (_audit.Count >= MaxAuditRecords)
                 _audit.Dequeue();
             _audit.Enqueue(record);
+            return sequence;
         }
-        return sequence;
     }
 
-    internal void MarkTriggerTransactionFailure(
-        IReadOnlyList<long> auditSequences,
-        string errorCode)
+    internal void CompleteTransaction(
+        IReadOnlyList<(long Sequence, string Kind)> invocations,
+        bool committed,
+        string? errorCode)
     {
-        ArgumentNullException.ThrowIfNull(auditSequences);
-        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
-        if (auditSequences.Count == 0)
+        if (invocations.Count == 0)
             return;
 
-        var sequenceSet = auditSequences.ToHashSet();
-        Interlocked.Add(ref _triggerFailures, sequenceSet.Count);
+        var sequenceSet = invocations.Select(static invocation => invocation.Sequence).ToHashSet();
+        if (!committed)
+        {
+            Interlocked.Add(ref _triggerFailures, invocations.Count(static invocation => invocation.Kind == "trigger"));
+            Interlocked.Add(ref _procedureFailures, invocations.Count(static invocation => invocation.Kind == "procedure"));
+        }
         lock (_sync)
         {
             var records = _audit.ToArray();
@@ -141,9 +205,14 @@ public sealed class RoutineDiagnostics
             {
                 _audit.Enqueue(
                     sequenceSet.Contains(record.Sequence)
-                    && string.Equals(record.Kind, "trigger", StringComparison.Ordinal)
-                    && record.Succeeded
-                        ? record with { Succeeded = false, ErrorCode = errorCode }
+                    && record.Outcome == "pending"
+                        ? record with
+                        {
+                            Succeeded = committed,
+                            ErrorCode = errorCode,
+                            Outcome = committed ? "committed" : errorCode == SonnetDB.Exceptions.RoutineErrorCodes.CommitUnknown
+                                ? "unknown" : "rolled_back"
+                        }
                         : record);
             }
         }

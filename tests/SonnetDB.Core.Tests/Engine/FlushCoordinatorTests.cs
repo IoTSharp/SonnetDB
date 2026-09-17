@@ -167,4 +167,27 @@ public sealed class FlushCoordinatorTests : IDisposable
         Assert.True(File.Exists(TsdbPaths.SegmentPath(_tempDir, 7L)));
         Assert.True(result.TotalBytes > 0);
     }
+
+    [Fact]
+    public void GetSegmentPublicationDirectoryChain_NestedSegment_ReturnsLeafThroughDatabaseRoot()
+    {
+        string segmentPath = TsdbPaths.SegmentPath(_tempDir, 1L);
+        string leafDirectory = Path.GetDirectoryName(segmentPath)!;
+        string bucketGroupDirectory = Path.GetDirectoryName(leafDirectory)!;
+        string layoutDirectory = Path.GetDirectoryName(bucketGroupDirectory)!;
+
+        IReadOnlyList<string> chain = FlushCoordinator.GetSegmentPublicationDirectoryChain(
+            _tempDir,
+            segmentPath);
+
+        Assert.Equal(
+            [
+                Path.GetFullPath(leafDirectory),
+                Path.GetFullPath(bucketGroupDirectory),
+                Path.GetFullPath(layoutDirectory),
+                Path.GetFullPath(TsdbPaths.SegmentsDir(_tempDir)),
+                Path.GetFullPath(_tempDir),
+            ],
+            chain);
+    }
 }

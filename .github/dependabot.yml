@@ -5,6 +5,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "Cloud.Unum.USearch"
+        versions: ["2.26.2"]
     labels:
       - "dependencies"
 

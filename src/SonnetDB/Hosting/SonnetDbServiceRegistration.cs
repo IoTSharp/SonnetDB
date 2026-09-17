@@ -111,10 +111,9 @@ internal static class SonnetDbServiceRegistration
         {
             var systemDirectory = GetSystemDirectory(sp);
             var store = new AiConfigStore(systemDirectory);
-            // M16/M2：启动时把已持久化的 sonnetdb.com Cloud Token
-            // 同步到 CopilotChatOptions，让 /v1/copilot/chat 直接就绪。
+            // 仅 Cloud 模式允许持久化 Token 同步到 Copilot；内部模式只使用 appsettings 中的 Tomur 配置。
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
-            AiCopilotBridge.Apply(store.Get(), options.Copilot.Chat, options.Copilot.Embedding);
+            AiCopilotBridge.Apply(store.Get(), options.Copilot);
             return store;
         });
         builder.Services.AddSingleton<CopilotReadiness>();
@@ -176,6 +175,8 @@ internal static class SonnetDbServiceRegistration
             throw new InvalidOperationException($"Unsupported multimodal embedding provider '{options.Provider}'.");
         });
         builder.Services.AddSingleton<USearchSemanticIndexRegistry>();
+        builder.Services.AddSingleton<IObjectEmbeddingProvider, MultimodalObjectEmbeddingProvider>();
+        builder.Services.AddSingleton<SemanticEmbeddingService>();
         builder.Services.AddSingleton<SemanticImageSearchService>();
         builder.Services.AddSingleton<ObjectSemanticProcessingService>();
 
@@ -224,7 +225,7 @@ internal static class SonnetDbServiceRegistration
                     return Task.CompletedTask;
                 };
             })
-            .WithTools<SonnetDbMcpTools>()
+            .WithTools<SonnetDbMcpTools>(SonnetDbMcpJson.ToolOptions)
             .WithResources<SonnetDbMcpResources>();
 
         // 在应用关闭时优雅释放所有 Tsdb 实例。

@@ -144,7 +144,7 @@ ORDER BY distance;
 - `EXPLAIN` 会显示 `document_vector_index` 或 `document_vector_scan` 及索引名 / vector path。
 - `INSERT` / `UPDATE` / `DELETE` 会维护派生索引；索引缺失或损坏时可从 Document 主数据重建。
 
-上述边界描述通用 SQL `vector_search(...)`。M35 #298 的语义图片专用路径已复用 Document path/wildcard index 实现 source/metadata/tag prefilter、managed HNSW filtered traversal、小集合精确补偿，以及大集合/不可索引条件的分页可取消精确回退；HNSW allowed-key 漂移也会 fail closed 到精确路径。通用 Document `WHERE` 尚未复用这条服务层合同。
+上述边界描述通用 SQL `vector_search(...)`。M35 #298 的语义图片专用路径已复用 Document path/wildcard index 实现 source/metadata/tag prefilter、managed HNSW 与 USearch filtered traversal、小集合精确补偿，以及大集合/不可索引条件的分页可取消精确回退；allowed-key 漂移也会 fail closed 到精确路径。[查询预算](m35-filtered-search-budgets.md)可配置，扫描或协作超时超限会显式失败。通用 Document `WHERE` 尚未复用这条服务层合同。
 
 ## Hybrid Search
 
@@ -187,7 +187,7 @@ ORDER BY score DESC;
 | 当前能力 | 当前边界 | 后续归口 |
 |---|---|---|
 | Measurement ANN | 支持 HNSW / IVF / IVF-PQ / Vamana，必要时精确回退 | 继续以 recall、过滤和恢复基准治理 |
-| Document ANN | 持久 HNSW；通用 SQL `WHERE` 仍精确回退；语义图片服务已有受限 filtered ANN / similar-by-id | M35 #298 的 USearch filter、预算与质量证据 |
+| Document ANN | 持久 HNSW；通用 SQL `WHERE` 仍精确回退；语义图片服务已有 managed/USearch filtered ANN、similar-by-id 与查询预算 | M35 #298 的固定硬件 recall、延迟与容量证据 |
 | Embedding Provider | Copilot 入口当前只处理文本 | M35 #300 多模态 Provider |
 | 对象存储 + 向量 | 两类能力已存在，但没有自动关联和索引状态机 | M35 #297 / #299 |
 | 以图搜图 | 尚无图片摄取、模型 profile 和产品 API | M35 #301 |

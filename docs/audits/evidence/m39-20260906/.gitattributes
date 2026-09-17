@@ -1,0 +1,4 @@
+# Preserve captured bytes so archived SHA-256 values survive checkout.
+*.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

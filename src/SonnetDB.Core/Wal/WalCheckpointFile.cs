@@ -37,7 +37,9 @@ internal static class WalCheckpointFile
         }
 
         File.Move(tempPath, path, overwrite: true);
-        FlushDirectoryBestEffort(directory);
+        // checkpoint 一旦返回即会允许 WAL replay 跳过对应记录；目录项必须同步落盘，
+        // 否则掉电后可能保留新段却丢失该承诺，或反过来留下错误的可见性边界。
+        DirectoryFsync.FlushRequired(directory);
     }
 
     internal static WalCheckpointState? TryLoad(string path, Func<WalCheckpointState, bool>? validate = null)

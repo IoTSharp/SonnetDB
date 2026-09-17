@@ -60,6 +60,7 @@ internal sealed class CliApplication
                 "connect" => RunConnect(args),
                 "backup" => RunBackup(args),
                 "document" => new DocumentImportCommandRunner(_output, _error, _profileStore).Run(args),
+                "rag" => new RagCommandRunner(_output).Run(args),
                 "copilot" => new CopilotCommandRunner(_output, _error).Run(args),
                 "diag" => new DiagnosticCommandRunner(_output, _error).Run(args),
                 "graph" => new GraphCommandRunner(_output, _error).Run(args),
@@ -1037,6 +1038,8 @@ SonnetDB CLI __VERSION__
   sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes]
   sndb backup  rebuild-indexes --path ./restored
   sndb document import --input ./dump/devices.bson --collection devices --path ./data [--dry-run] [--report ./migration-report.json]
+  sndb rag ingest --input ./rag-bundle.json --path ./data --stream docs --replace-snapshot [--dry-run] [--timeout 120]
+  sndb rag resume --input ./rag-bundle.json --path ./data --stream docs [--timeout 120]
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
   sndb diag dump [--endpoint http://host] [--token admin-token] [--output ./diagnostic-dump.json]
   sndb graph overview --connection "<conn>" --graph knowledge

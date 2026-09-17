@@ -75,7 +75,7 @@ public sealed class QueryEngineReaderMapCacheTests : IDisposable
 
         manager.Dispose();
 
-        Assert.Empty(QueryPoints(engine));
+        Assert.Throws<ObjectDisposedException>(() => QueryPoints(engine));
     }
 
     [Fact]

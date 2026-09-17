@@ -21,7 +21,20 @@ public sealed record SemanticSearchStatusResponse(
     string ConfiguredBackend,
     string EffectiveBackend,
     IReadOnlyList<string> Capabilities,
-    string? Reason = null);
+    string? Reason = null)
+{
+    /// <summary>对象 embedding 接受的媒体类型。</summary>
+    public IReadOnlyList<string> ObjectContentTypes { get; init; } = [];
+
+    /// <summary>对象 provider 的 profile、维度、就绪状态与执行位置。</summary>
+    public SonnetDB.SemanticSearch.MultimodalEmbeddingProviderInfo? ObjectProvider { get; init; }
+
+    /// <summary>服务器生效的内容外发模式。</summary>
+    public SonnetDB.SemanticContent.SemanticDataEgressMode DataEgressMode { get; init; }
+
+    /// <summary>当前文本/图片 provider 是否保证本地执行。</summary>
+    public bool ProviderIsLocal { get; init; }
+}
 
 /// <summary>
 /// 文搜图请求。
@@ -185,7 +198,7 @@ public sealed record ImageSearchHit(
 /// </summary>
 /// <param name="QueryKind">查询类型：<c>text</c> 或 <c>image</c>。</param>
 /// <param name="Profile">本次查询使用的 embedding profile。</param>
-/// <param name="Backend">本次查询实际使用的 ANN 后端；预过滤 ANN 为 <c>managed</c>，精确回退为 <c>exact-filtered</c>。</param>
+/// <param name="Backend">本次查询实际使用的后端；ANN 为 <c>managed</c> 或 <c>usearch</c>，精确扫描为 <c>exact-filtered</c>。</param>
 /// <param name="Hits">按相似度降序排列的图片命中。</param>
 public sealed record ImageSearchResponse(
     string QueryKind,
@@ -201,6 +214,9 @@ public sealed record ImageSearchResponse(
 
     /// <summary>解释模式下返回通过 profile 与 metadata 过滤的候选数量。</summary>
     public int? FilteredCandidateCount { get; init; }
+
+    /// <summary>解释模式下返回切换后端、补偿或精确回退的原因。</summary>
+    public string? FallbackReason { get; init; }
 }
 
 /// <summary>

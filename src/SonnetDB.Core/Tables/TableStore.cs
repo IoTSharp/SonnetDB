@@ -7,7 +7,7 @@ namespace SonnetDB.Tables;
 /// <summary>
 /// 单个关系表的 KV-backed 行存储。
 /// </summary>
-public sealed class TableStore : IDisposable
+public sealed partial class TableStore : IDisposable
 {
     private static readonly byte[] _autoIncrementStateKey = [(byte)'m', (byte)'a'];
     private static readonly byte[] _statisticsStateKey = [(byte)'m', (byte)'s'];
@@ -17,6 +17,7 @@ public sealed class TableStore : IDisposable
     private const int IndexRepairMutationPageSize = 1024;
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
+    private readonly TableStatisticsRefreshBudget _statisticsRefreshBudget;
     private TableSchema _schema;
     private int _rowCount;
     private long _fullScanCount;
@@ -25,15 +26,21 @@ public sealed class TableStore : IDisposable
     private long _uniqueIndexValidationScanCount;
     private TableStatistics? _statistics;
     private string? _statisticsLoadFailureReason;
-    private int _automaticStatisticsRefreshActive;
+    private AutomaticStatisticsRefreshWork? _automaticStatisticsRefresh;
+    private TableStatisticsRefreshStatus _automaticStatisticsRefreshStatus = new("idle", null);
+    private long _nextAutomaticStatisticsRefreshTick;
+    private bool _automaticStatisticsRefreshPaused;
+    private bool _disposing;
     private bool _disposed;
+    private Exception? _transactionFailure;
 
-    internal TableStore(TableSchema schema, KvKeyspace keyspace)
+    internal TableStore(TableSchema schema, KvKeyspace keyspace, TableStatisticsRefreshBudget? statisticsRefreshBudget = null)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(keyspace);
         _schema = schema;
         _keyspace = keyspace;
+        _statisticsRefreshBudget = statisticsRefreshBudget ?? new TableStatisticsRefreshBudget();
         byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(schema);
         if (!TableStoreMaintenanceFile.IsLegacyMigrationComplete(
             keyspace.RootDirectory,
@@ -48,6 +55,7 @@ public sealed class TableStore : IDisposable
                 schemaFingerprint);
         }
 
+        LoadOnlineIndexBuildLocked();
         if (!TableStoreMaintenanceFile.ConsumeCleanIndexes(
             keyspace.RootDirectory,
             keyspace.Generation,
@@ -100,6 +108,32 @@ public sealed class TableStore : IDisposable
         {
             lock (_sync)
                 return IsStatisticsStaleLocked(_statistics);
+        }
+    }
+
+    /// <summary>最近一次自动统计任务的状态及失败原因；读取此属性不会启动维护。</summary>
+    public TableStatisticsRefreshStatus AutomaticStatisticsRefreshStatus
+    {
+        get
+        {
+            lock (_sync)
+                return _automaticStatisticsRefreshStatus;
+        }
+    }
+
+    /// <summary>供测试在后台扫描前观察执行上下文和取消。</summary>
+    internal Action<CancellationToken>? AutomaticStatisticsRefreshStartedTestHook { get; set; }
+
+    /// <summary>供测试缩短重命名等待时间；不得超过生产环境的十秒上限。</summary>
+    internal TimeSpan? AutomaticStatisticsRefreshRenameTimeoutTestOverride { get; set; }
+
+    /// <summary>供测试等待本表当前维护任务释放所有资源。</summary>
+    internal Task AutomaticStatisticsRefreshCompletion
+    {
+        get
+        {
+            lock (_sync)
+                return _automaticStatisticsRefresh?.Completion.Task ?? Task.CompletedTask;
         }
     }
 
@@ -200,15 +234,23 @@ public sealed class TableStore : IDisposable
     public TableStatistics RefreshStatistics(
         TableStatisticsRefreshOptions? options = null,
         CancellationToken cancellationToken = default)
+        => RefreshStatisticsCore(options, cancellationToken, automatic: false);
+
+    private TableStatistics RefreshStatisticsCore(
+        TableStatisticsRefreshOptions? options,
+        CancellationToken cancellationToken,
+        bool automatic)
     {
         options ??= new TableStatisticsRefreshOptions();
         options.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
         using TableReadSnapshot snapshot = AcquireTableReadSnapshot();
         TableStatistics statistics = TableStatisticsCalculator.Refresh(snapshot, options, cancellationToken);
         byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(snapshot.Schema);
 
         lock (_sync)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ThrowIfDisposedLocked();
             byte[] currentFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
             if (_keyspace.Generation != statistics.Generation
@@ -218,6 +260,12 @@ public sealed class TableStore : IDisposable
                     $"table '{_schema.Name}' 在统计刷新期间发生 generation 或 schema 变更；本次结果未发布。");
             }
 
+            // A slower sample must not replace a newer explicit ANALYZE result.
+            if (_statistics is { } current
+                && (current.SourceSequence > statistics.SourceSequence
+                    || (automatic && current.SourceSequence == statistics.SourceSequence)))
+                return current;
+
             _keyspace.Put(_statisticsStateKey, TableStatisticsCodec.Encode(_schema, statistics));
             _statistics = statistics;
             _statisticsLoadFailureReason = null;
@@ -225,10 +273,9 @@ public sealed class TableStore : IDisposable
         }
     }
 
-    /// <summary>在固定小样本预算内补齐缺失或明显过期的统计，供运行时规划使用。</summary>
+    /// <summary>请求有界后台采样，立即返回已有统计；业务规划线程不扫描或持久化统计。</summary>
     internal TableStatistics? TryAutomaticStatisticsRefresh()
     {
-        bool shouldRefresh;
         lock (_sync)
         {
             ThrowIfDisposedLocked();
@@ -239,32 +286,147 @@ public sealed class TableStore : IDisposable
             long refreshThreshold = current is null
                 ? 0
                 : Math.Max(128, current.RowCount / 5);
-            shouldRefresh = current is null || sequenceDelta >= refreshThreshold;
+            bool shouldRefresh = current is null || sequenceDelta >= refreshThreshold;
             if (!shouldRefresh)
                 return current;
-            if (Interlocked.CompareExchange(ref _automaticStatisticsRefreshActive, 1, 0) != 0)
+            if (_automaticStatisticsRefreshPaused
+                || _automaticStatisticsRefresh is not null
+                || Environment.TickCount64 < _nextAutomaticStatisticsRefreshTick)
                 return current;
+            if (!_statisticsRefreshBudget.TryAcquire())
+            {
+                _automaticStatisticsRefreshStatus = new("deferred", "statistics_refresh_busy");
+                return current;
+            }
+
+            AutomaticStatisticsRefreshWork? work = null;
+            try
+            {
+                work = new AutomaticStatisticsRefreshWork(this);
+                _automaticStatisticsRefresh = work;
+                _automaticStatisticsRefreshStatus = new("queued", null);
+                // Do not inherit the foreground transaction, cancellation, or SQL metrics.
+                if (!ThreadPool.UnsafeQueueUserWorkItem(
+                    static (AutomaticStatisticsRefreshWork item) => item.Store.RunAutomaticStatisticsRefresh(item),
+                    work,
+                    preferLocal: false))
+                {
+                    throw new InvalidOperationException("无法调度自动统计维护。");
+                }
+            }
+            catch
+            {
+                work?.Cancellation.Dispose();
+                _automaticStatisticsRefresh = null;
+                _statisticsRefreshBudget.Release();
+                _automaticStatisticsRefreshStatus = new("failed", "statistics_refresh_schedule_failed");
+                throw;
+            }
+            return current;
+        }
+    }
+
+    /// <summary>重命名前暂停自动统计并有界等待快照释放；超时不关闭原表。</summary>
+    internal IDisposable PauseAutomaticStatisticsRefreshForRename()
+    {
+        TimeSpan maximumTimeout = TimeSpan.FromSeconds(10);
+        TimeSpan timeout = AutomaticStatisticsRefreshRenameTimeoutTestOverride ?? maximumTimeout;
+        if (timeout < TimeSpan.Zero || timeout > maximumTimeout)
+            throw new ArgumentOutOfRangeException(nameof(AutomaticStatisticsRefreshRenameTimeoutTestOverride));
+
+        Task completion;
+        lock (_sync)
+        {
+            ThrowIfDisposedLocked();
+            if (_automaticStatisticsRefreshPaused)
+                throw new InvalidOperationException("表已经暂停自动统计以准备重命名。");
+            _automaticStatisticsRefreshPaused = true;
+            completion = _automaticStatisticsRefresh?.Completion.Task ?? Task.CompletedTask;
         }
 
         try
         {
-            return RefreshStatistics(new TableStatisticsRefreshOptions
+            lock (_sync)
+                _automaticStatisticsRefresh?.Cancellation.Cancel();
+
+            // Windows cannot move the parent directory while a statistics snapshot
+            // retains its disk file. Do not hold the table lock while the worker exits.
+            if (!completion.Wait(timeout))
+                throw new TimeoutException("自动统计尚未释放读快照；原表保持可用，请稍后重试重命名。");
+            return new AutomaticStatisticsRefreshPause(this);
+        }
+        catch
+        {
+            lock (_sync)
+                _automaticStatisticsRefreshPaused = false;
+            throw;
+        }
+    }
+
+    private sealed class AutomaticStatisticsRefreshPause(TableStore store) : IDisposable
+    {
+        private TableStore? _store = store;
+
+        public void Dispose()
+        {
+            TableStore? owner = Interlocked.Exchange(ref _store, null);
+            if (owner is null)
+                return;
+            lock (owner._sync)
+                owner._automaticStatisticsRefreshPaused = false;
+        }
+    }
+
+    private void RunAutomaticStatisticsRefresh(AutomaticStatisticsRefreshWork work)
+    {
+        var status = new TableStatisticsRefreshStatus("completed", null);
+        try
+        {
+            lock (_sync)
+                _automaticStatisticsRefreshStatus = new("running", null);
+            work.Cancellation.Token.ThrowIfCancellationRequested();
+            AutomaticStatisticsRefreshStartedTestHook?.Invoke(work.Cancellation.Token);
+            _ = RefreshStatisticsCore(new TableStatisticsRefreshOptions
             {
                 MaxSampleRows = AutomaticStatisticsSampleRows,
                 MaxHistogramSamples = 1_024,
-            });
+            }, work.Cancellation.Token, automatic: true);
         }
-        catch (InvalidOperationException)
+        catch (OperationCanceledException)
         {
-            // Automatic refresh is opportunistic. A concurrent schema/generation
-            // change must leave planning on the existing or heuristic path.
-            lock (_sync)
-                return GetUsableStatisticsLocked(includeStale: true);
+            status = new("cancelled", "statistics_refresh_cancelled");
+        }
+        catch (Exception error)
+        {
+            // Derived maintenance failures remain visible without failing a business query.
+            status = new("failed", error switch
+            {
+                ObjectDisposedException => "statistics_refresh_store_closed",
+                InvalidDataException => "statistics_refresh_invalid_data",
+                IOException => "statistics_refresh_io_error",
+                InvalidOperationException => "statistics_refresh_source_changed",
+                _ => "statistics_refresh_failed",
+            });
         }
         finally
         {
-            Volatile.Write(ref _automaticStatisticsRefreshActive, 0);
+            lock (_sync)
+            {
+                work.Cancellation.Dispose();
+                _automaticStatisticsRefreshStatus = status;
+                _nextAutomaticStatisticsRefreshTick = Environment.TickCount64 + 30_000;
+                _automaticStatisticsRefresh = null;
+                _statisticsRefreshBudget.Release();
+                work.Completion.SetResult();
+            }
         }
+    }
+
+    private sealed class AutomaticStatisticsRefreshWork(TableStore store)
+    {
+        internal TableStore Store { get; } = store;
+        internal CancellationTokenSource Cancellation { get; } = new(TimeSpan.FromSeconds(5));
+        internal TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <summary>返回统计及其稳定状态，默认 EXPLAIN 只读取此元数据，不触发采样。</summary>
@@ -487,6 +649,46 @@ public sealed class TableStore : IDisposable
         }
     }
 
+    internal TableTransactionUndo CaptureTransactionUndo(PreparedTableBatch batch)
+    {
+        lock (_sync)
+        {
+            var keys = new HashSet<byte[]>(KvKeyComparer.Instance);
+            foreach (var operation in batch.Operations)
+            {
+                keys.Add(operation.RowKey);
+                if (operation.OldRow is not null)
+                    foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.OldRow)) keys.Add(entry.Key);
+                if (operation.NewRow is not null)
+                    foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
+            }
+            return new TableTransactionUndo(batch.Schema.Name, Generation,
+                TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
+                keys.Select(key => new RollbackAction(key, _keyspace.Get(key))).ToArray());
+        }
+    }
+
+    internal void RestoreTransactionUndo(TableTransactionUndo undo)
+    {
+        lock (_sync)
+        {
+            if (undo.Generation != Generation || !undo.SchemaFingerprint.AsSpan().SequenceEqual(
+                    TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema)))
+                throw new InvalidDataException($"table '{_schema.Name}' 的事务恢复 schema 或 generation 不匹配。");
+            _keyspace.ApplyBatch(undo.Actions.Select(static action => action.Value is null
+                ? KvBatchMutation.Delete(action.Key) : KvBatchMutation.Put(action.Key, action.Value)).ToArray());
+            _keyspace.SyncWalForMaintenance();
+            _rowCount = _keyspace.CountPrefix([(byte)'r']);
+        }
+    }
+
+    internal void SyncTransactionWal() => _keyspace.SyncWalForMaintenance();
+
+    internal void InvalidateTransaction(Exception exception)
+    {
+        lock (_sync) _transactionFailure = exception;
+    }
+
     /// <summary>
     /// 按主键读取一行。
     /// </summary>
@@ -605,6 +807,7 @@ public sealed class TableStore : IDisposable
     {
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             int rows = _rowCount;
             KvClearResult result = _keyspace.Clear();
             _rowCount = 0;
@@ -1293,6 +1496,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             var previous = _schema;
             TableStatistics? previousStatistics = _statistics;
             _schema = schema;
@@ -1317,6 +1521,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             _schema = schema;
             _statistics = null;
             _statisticsLoadFailureReason = "schema_changed";
@@ -1330,6 +1535,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             byte[] afterKey = [];
             while (true)
             {
@@ -1360,6 +1566,7 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(transform);
         lock (_sync)
         {
+            EnsureNoOnlineIndexBuild();
             var previous = _schema;
             var originalPayloads = _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue)
                 .Select(entry => (Key: entry.Key.ToArray(), Value: entry.Value.ToArray()))
@@ -1465,16 +1672,24 @@ public sealed class TableStore : IDisposable
         {
             if (_disposed)
                 return;
+            _disposing = true;
+            _automaticStatisticsRefresh?.Cancellation.Cancel();
 
+            // Snapshots own independent disk leases. Close the writer without waiting for a
+            // delayed reader; _disposing prevents that reader from publishing statistics.
             long generation = _keyspace.Generation;
             long sequence = _keyspace.LastSequence;
             byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
             _keyspace.Dispose();
-            TableStoreMaintenanceFile.MarkIndexesClean(
-                _keyspace.RootDirectory,
-                generation,
-                sequence,
-                schemaFingerprint);
+            // 未完成在线索引保留游标元数据；不写入 clean 标记，重启时不得把 pending 键当作可丢弃垃圾。
+            if (_onlineIndexBuild is null)
+            {
+                TableStoreMaintenanceFile.MarkIndexesClean(
+                    _keyspace.RootDirectory,
+                    generation,
+                    sequence,
+                    schemaFingerprint);
+            }
             _disposed = true;
         }
     }
@@ -1574,7 +1789,11 @@ public sealed class TableStore : IDisposable
     }
 
     private void ThrowIfDisposedLocked()
-        => ObjectDisposedException.ThrowIf(_disposed, this);
+    {
+        ObjectDisposedException.ThrowIf(_disposed || _disposing, this);
+        if (_transactionFailure is not null)
+            throw new SonnetDB.Exceptions.TableTransactionRecoveryException("关系表需要重启恢复。", _transactionFailure);
+    }
 
     private void WriteAutoIncrementStateLocked(long current, bool changed)
     {
@@ -1696,6 +1915,7 @@ public sealed class TableStore : IDisposable
         IReadOnlyList<TableMutationOperation> operations,
         List<RollbackAction>? applied)
     {
+        ThrowIfDisposedLocked();
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
         for (int i = 0; i < operations.Count; i++)
         {
@@ -1705,7 +1925,7 @@ public sealed class TableStore : IDisposable
 
             if (operation.OldRow is not null)
             {
-                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.OldRow))
+                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
                     desiredValues[indexEntry.Key] = null;
             }
 
@@ -1716,7 +1936,7 @@ public sealed class TableStore : IDisposable
             else
             {
                 desiredValues[operation.RowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
-                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.NewRow))
+                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
                     desiredValues[indexEntry.Key] = indexEntry.Value;
             }
         }
@@ -1780,6 +2000,9 @@ public sealed class TableStore : IDisposable
     {
         using var budgetScope = _keyspace.EnterIndexRebuildBudgetScope();
         int actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
+        // 在线构建的键尚未完整，不参加已发布索引计数，也不能在恢复时被当成垃圾删除。
+        if (_onlineIndexBuild is not null && _schema.TryGetIndex(_onlineIndexBuild.Index.Name) is null)
+            actualIndexCount -= _keyspace.CountPrefix(TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema)!);
         int expectedIndexCount = RepairExpectedIndexesLocked(out int addedIndexCount);
 
         // 期望键均已校验或补齐；实际数量相等时不可能再存在额外 stale/orphan 键。
@@ -1966,7 +2189,7 @@ public sealed class TableStore : IDisposable
         var row = new TableRow(
             TableRowCodec.Decode(_schema, rowPayload),
             entry.Value.ToArray());
-        return BuildIndexEntries(_schema, row).Any(expected =>
+        return BuildMutationIndexEntries(_schema, row).Any(expected =>
             expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
             && expected.Value.AsSpan().SequenceEqual(entry.Value.Span));
     }
@@ -2075,6 +2298,7 @@ public sealed class TableStore : IDisposable
 
     private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
     {
+        ThrowIfDisposedLocked();
         var schema = _schema;
         var normalizedMutations = new List<TableRowMutation>(mutations.Count);
         var autoIncrementRows = new List<(object?[] Values, bool AllocateMissing)>(mutations.Count);
@@ -2125,6 +2349,10 @@ public sealed class TableStore : IDisposable
             if (isInsert && oldRow is not null)
                 throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
             ValidateRowVersion(schema, mutation, oldRow);
+            if (mutation.ExpectedRowState is { } expectedState
+                && (oldRow is null || !expectedState.AsSpan().SequenceEqual(TableRowCodec.Encode(schema, oldRow.Values))))
+                throw new TableConstraintException(TableConstraintException.ConcurrencyConflict, schema.Name, "row_state",
+                    $"table '{schema.Name}' 的行在事务读取后发生变化，请重试整个事务。");
             TableRow? newRow = mutation.NewValues is null
                 ? null
                 : new TableRow(mutation.NewValues.ToArray(), primaryKey);

@@ -10,6 +10,10 @@
 *.userosscache
 *.sln.docstates
 *.env
+# Six Labors build license; configure its absolute path outside the checkout.
+sixlabors.lic
+sixlabors*.key
+sixlabors-license-key*
 # Parity 测试栈需要把 .env 入库（端口/一次性凭证），对 *.env 例外放行
 !tests/SonnetDB.Parity/.env
 

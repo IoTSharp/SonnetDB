@@ -8,6 +8,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
 using SonnetDB.Query;
@@ -25,12 +26,11 @@ internal sealed class SemanticImageSearchService : IDisposable
     private const string SourceBucketIndexName = "semantic_source_bucket";
     private const string MetadataIndexName = "semantic_metadata";
     private const string TagsIndexName = "semantic_tags";
-    private const int FilteredAnnCandidateLimit = 512;
-    private const int FilteredExactCompensationLimit = 4096;
-    private const int FilteredCandidatePageSize = 256;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _databaseGates = new(StringComparer.Ordinal);
     private readonly SemanticSearchOptions _options;
+    private readonly SemanticSearchQueryOptions _queryOptions;
     private readonly IMultimodalEmbeddingProvider _provider;
+    private readonly SemanticEmbeddingService _embeddings;
     private readonly USearchSemanticIndexRegistry _usearch;
     private readonly ILogger<SemanticImageSearchService> _logger;
 
@@ -38,10 +38,14 @@ internal sealed class SemanticImageSearchService : IDisposable
         IOptions<ServerOptions> options,
         IMultimodalEmbeddingProvider provider,
         USearchSemanticIndexRegistry usearch,
-        ILogger<SemanticImageSearchService> logger)
+        ILogger<SemanticImageSearchService> logger,
+        SemanticEmbeddingService? embeddings = null)
     {
         _options = options.Value.SemanticSearch;
+        _queryOptions = _options.Query.BoundedCopy();
         _provider = provider;
+        _embeddings = embeddings ?? new SemanticEmbeddingService(provider,
+            new MultimodalObjectEmbeddingProvider(provider), options);
         _usearch = usearch;
         _logger = logger;
     }
@@ -82,8 +86,14 @@ internal sealed class SemanticImageSearchService : IDisposable
             _provider.Info.Dimensions,
             configuredBackend,
             effectiveBackend,
-            ["text-embedding", "image-embedding", "text-to-image", "image-to-image"],
-            reason);
+            ["text-embedding", "image-embedding", "object-embedding", "text-to-image", "image-to-image"],
+            reason)
+        {
+            ObjectContentTypes = _embeddings.ObjectProvider.ContentTypes,
+            ObjectProvider = _embeddings.ObjectProvider.Info,
+            DataEgressMode = _options.DataEgressPolicy.Mode,
+            ProviderIsLocal = _provider.Info.IsLocal,
+        };
     }
 
     public async Task<ImageIngestResponse> IngestAsync(
@@ -102,7 +112,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
 
-        float[] embedding = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] embedding = await _embeddings.EmbedImageAsync(tsdb, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(embedding);
         string sha256 = Convert.ToHexString(SHA256.HashData(image.Span)).ToLowerInvariant();
         string profileKey = ProfileKey();
@@ -220,7 +230,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         EnsureReady();
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ValidateMinScore(minScore);
-        float[] query = await _provider.EmbedTextAsync(text, cancellationToken).ConfigureAwait(false);
+        float[] query = await _embeddings.EmbedTextAsync(tsdb, text, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(query);
         return Search(
             database,
@@ -252,7 +262,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
 
-        float[] embedding = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] embedding = await _embeddings.EmbedStoredObjectAsync(tsdb, source, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(embedding);
         var gate = _databaseGates.GetOrAdd(database, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -351,7 +361,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         ValidateMinScore(minScore);
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
-        float[] query = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] query = await _embeddings.EmbedImageAsync(tsdb, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(query);
         return Search(
             database,
@@ -571,18 +581,41 @@ internal sealed class SemanticImageSearchService : IDisposable
         string? excludedId,
         CancellationToken cancellationToken)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_queryOptions.TimeoutMilliseconds);
+        try
+        {
+            ImageSearchResponse result = SearchWithinBudget(database, tsdb, queryKind, query, topK, minScore, filter, explain,
+                excludedId, new QueryBudget(_queryOptions.MaxScannedCandidates), timeout.Token);
+            timeout.Token.ThrowIfCancellationRequested();
+            return result;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
+        {
+            throw new SemanticSearchBudgetExceededException("语义检索超过查询时间预算。");
+        }
+    }
+
+    private ImageSearchResponse SearchWithinBudget(
+        string database,
+        Tsdb tsdb,
+        string queryKind,
+        float[] query,
+        int topK,
+        double? minScore,
+        ImageSearchFilter? filter,
+        bool explain,
+        string? excludedId,
+        QueryBudget budget,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var store = EnsureCollection(tsdb);
         var vectorIndex = store.Schema.TryGetVectorIndex(VectorIndexName)
             ?? throw new InvalidOperationException("语义图片集合缺少向量索引。");
 
         if (HasFilter(filter))
         {
-            if (NormalizeBackend(_options.Backend) == "usearch" && !_options.FallbackToManaged)
-            {
-                throw new InvalidOperationException(
-                    "USearch 后端当前不支持带过滤的向量检索，且已禁用 managed 回退。");
-            }
-
             return SearchFiltered(
                 database,
                 store,
@@ -594,6 +627,7 @@ internal sealed class SemanticImageSearchService : IDisposable
                 filter!,
                 explain,
                 excludedId,
+                budget,
                 cancellationToken);
         }
 
@@ -609,7 +643,9 @@ internal sealed class SemanticImageSearchService : IDisposable
                     query,
                     candidateCount,
                     out candidates,
-                    out string? error))
+                    out string? error,
+                    cancellationToken,
+                    budget.VisitCandidate))
             {
                 backend = "usearch";
             }
@@ -629,6 +665,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         }
 
         var hits = new List<ImageSearchHit>(topK);
+        cancellationToken.ThrowIfCancellationRequested();
         int filteredCandidateCount = 0;
         foreach (var candidate in candidates)
         {
@@ -670,12 +707,14 @@ internal sealed class SemanticImageSearchService : IDisposable
         ImageSearchFilter filter,
         bool explain,
         string? excludedId,
+        QueryBudget budget,
         CancellationToken cancellationToken)
     {
         FilteredCandidateSelection? selection = TryResolveIndexedCandidates(
             store,
             filter,
             excludedId,
+            budget,
             cancellationToken);
         if (selection is null)
         {
@@ -689,10 +728,14 @@ internal sealed class SemanticImageSearchService : IDisposable
                 filter,
                 explain,
                 excludedId,
+                budget,
                 cancellationToken,
                 candidateIds: null,
                 candidateCount: null,
-                searchMode: "exact-filtered-fallback");
+                searchMode: "exact-filtered-fallback") with
+            {
+                FallbackReason = explain ? "过滤条件没有可用的候选索引。" : null,
+            };
         }
 
         if (selection.AllowedIds is null)
@@ -707,22 +750,48 @@ internal sealed class SemanticImageSearchService : IDisposable
                 filter,
                 explain,
                 excludedId,
+                budget,
                 cancellationToken,
                 candidateIds: null,
                 selection.CandidateCount,
                 "exact-filtered-fallback",
-                selection.Driver);
+                selection.Driver) with
+            {
+                FallbackReason = explain ? "过滤 ID 数量超过精确补偿物化预算，改用分页精确扫描。" : null,
+            };
         }
 
         IReadOnlySet<string> allowedIds = selection.AllowedIds;
-        var filtered = store.SearchVectorFiltered(
-            vectorIndex,
-            query,
-            topK,
-            allowedIds,
-            FilteredAnnCandidateLimit,
-            FilteredExactCompensationLimit);
-        if (filtered.RequiresExactFallback)
+        string backend = "managed";
+        IReadOnlyList<(string Id, double Distance)> candidates = [];
+        bool requiresExactFallback = false;
+        bool exactCompensated = false;
+        bool usedUSearch = false;
+        string? fallbackReason = null;
+        if (ShouldUseUSearch())
+        {
+            usedUSearch = _usearch.TrySearchFiltered(
+                database, store, _provider.Info.Dimensions, query, topK, allowedIds,
+                _queryOptions.AnnCandidateLimit, cancellationToken, out candidates,
+                out requiresExactFallback, out string? error, budget.VisitCandidate);
+            if (usedUSearch)
+                backend = "usearch";
+            else if (!_options.FallbackToManaged && NormalizeBackend(_options.Backend) == "usearch")
+                throw new InvalidOperationException(error ?? "USearch 后端不可用。");
+            else
+                fallbackReason = error;
+        }
+        if (!usedUSearch)
+        {
+            var filtered = store.SearchVectorFiltered(
+                vectorIndex, query, topK, allowedIds,
+                _queryOptions.AnnCandidateLimit, _queryOptions.ExactCompensationLimit);
+            candidates = filtered.Hits;
+            requiresExactFallback = filtered.RequiresExactFallback;
+            exactCompensated = filtered.ExactCompensated;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (requiresExactFallback)
         {
             return SearchFilteredExact(
                 database,
@@ -734,15 +803,19 @@ internal sealed class SemanticImageSearchService : IDisposable
                 filter,
                 explain,
                 excludedId,
+                budget,
                 cancellationToken,
                 allowedIds,
                 selection.CandidateCount,
-                "exact-filtered-fallback",
-                indexedDriver: null);
+                usedUSearch ? "prefiltered-ann-exact-compensation" : "exact-filtered-fallback",
+                indexedDriver: null) with
+            {
+                FallbackReason = explain ? "ANN 候选预算不足、结果不足或派生索引缺少允许的 ID。" : null,
+            };
         }
 
         var hits = new List<ImageSearchHit>(topK);
-        foreach (var candidate in filtered.Hits)
+        foreach (var candidate in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
             SemanticImageDocument? document = ReadDocument(store.Get(candidate.Id));
@@ -760,15 +833,16 @@ internal sealed class SemanticImageSearchService : IDisposable
             hits.Add(ToHit(database, document, score, candidate.Distance));
         }
 
-        return new ImageSearchResponse(queryKind, _provider.Info.Profile, "managed", hits)
+        return new ImageSearchResponse(queryKind, _provider.Info.Profile, backend, hits)
         {
             SearchMode = explain
-                ? filtered.ExactCompensated
+                ? exactCompensated
                     ? "prefiltered-ann-exact-compensation"
                     : "prefiltered-ann"
                 : null,
             CandidateCount = explain ? selection.CandidateCount : null,
             FilteredCandidateCount = explain ? selection.AllowedIds.Count : null,
+            FallbackReason = explain ? fallbackReason : null,
         };
     }
 
@@ -782,6 +856,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         ImageSearchFilter filter,
         bool explain,
         string? excludedId,
+        QueryBudget budget,
         CancellationToken cancellationToken,
         IReadOnlySet<string>? candidateIds,
         int? candidateCount,
@@ -795,6 +870,7 @@ internal sealed class SemanticImageSearchService : IDisposable
                      store,
                      candidateIds,
                      indexedDriver,
+                     budget,
                      cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -862,6 +938,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         DocumentCollectionStore store,
         ImageSearchFilter filter,
         string? excludedId,
+        QueryBudget budget,
         CancellationToken cancellationToken)
     {
         DocumentFilter? indexedFilter = BuildIndexedFilter(filter);
@@ -874,7 +951,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         var allowedIds = new HashSet<string>(StringComparer.Ordinal);
         bool exceededCompensationLimit = false;
         int candidateCount = 0;
-        foreach (DocumentRow row in EnumerateIndexedDriverRows(store, driver, cancellationToken))
+        foreach (DocumentRow row in EnumerateIndexedDriverRows(store, driver, budget, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!DocumentQueryPlanner.MatchesValidated(indexedFilter, row))
@@ -895,7 +972,7 @@ internal sealed class SemanticImageSearchService : IDisposable
             if (exceededCompensationLimit)
                 continue;
             allowedIds.Add(row.Id);
-            if (allowedIds.Count > FilteredExactCompensationLimit)
+            if (allowedIds.Count > _queryOptions.ExactCompensationLimit)
             {
                 allowedIds.Clear();
                 exceededCompensationLimit = true;
@@ -956,10 +1033,11 @@ internal sealed class SemanticImageSearchService : IDisposable
         }
     }
 
-    private static IEnumerable<DocumentRow> EnumerateExactCandidateRows(
+    private IEnumerable<DocumentRow> EnumerateExactCandidateRows(
         DocumentCollectionStore store,
         IReadOnlySet<string>? candidateIds,
         IndexedFilterDriver? indexedDriver,
+        QueryBudget budget,
         CancellationToken cancellationToken)
     {
         if (candidateIds is not null)
@@ -967,6 +1045,7 @@ internal sealed class SemanticImageSearchService : IDisposable
             foreach (string id in candidateIds)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                budget.VisitCandidate();
                 if (store.Get(id) is { } row)
                     yield return row;
             }
@@ -975,37 +1054,40 @@ internal sealed class SemanticImageSearchService : IDisposable
 
         if (indexedDriver is not null)
         {
-            foreach (DocumentRow row in EnumerateIndexedDriverRows(store, indexedDriver, cancellationToken))
+            foreach (DocumentRow row in EnumerateIndexedDriverRows(store, indexedDriver, budget, cancellationToken))
                 yield return row;
             yield break;
         }
 
         string? afterId = null;
-        while (true)
+        for (int pageNumber = 0; pageNumber <= _queryOptions.MaxScannedCandidates; pageNumber++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DocumentRow> page = store.ScanAfter(afterId, FilteredCandidatePageSize);
+            IReadOnlyList<DocumentRow> page = store.ScanAfter(afterId, _queryOptions.CandidatePageSize);
             if (page.Count == 0)
                 yield break;
             foreach (DocumentRow row in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                budget.VisitCandidate();
                 yield return row;
             }
 
             afterId = page[^1].Id;
-            if (page.Count < FilteredCandidatePageSize)
+            if (page.Count < _queryOptions.CandidatePageSize)
                 yield break;
         }
+        throw new SemanticSearchBudgetExceededException("语义检索超过候选扫描分页预算。");
     }
 
-    private static IEnumerable<DocumentRow> EnumerateIndexedDriverRows(
+    private IEnumerable<DocumentRow> EnumerateIndexedDriverRows(
         DocumentCollectionStore store,
         IndexedFilterDriver driver,
+        QueryBudget budget,
         CancellationToken cancellationToken)
     {
         string? afterId = null;
-        while (true)
+        for (int pageNumber = 0; pageNumber <= _queryOptions.MaxScannedCandidates; pageNumber++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             IReadOnlyList<DocumentRow> page = driver.Path is null
@@ -1013,25 +1095,27 @@ internal sealed class SemanticImageSearchService : IDisposable
                     driver.Index,
                     driver.Value,
                     afterId,
-                    FilteredCandidatePageSize)
+                    _queryOptions.CandidatePageSize)
                 : store.GetByWildcardIndexAfter(
                     driver.Index,
                     driver.Path,
                     driver.Value,
                     afterId,
-                    FilteredCandidatePageSize);
+                    _queryOptions.CandidatePageSize);
             if (page.Count == 0)
                 yield break;
             foreach (DocumentRow row in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                budget.VisitCandidate();
                 yield return row;
             }
 
             afterId = page[^1].Id;
-            if (page.Count < FilteredCandidatePageSize)
+            if (page.Count < _queryOptions.CandidatePageSize)
                 yield break;
         }
+        throw new SemanticSearchBudgetExceededException("语义检索超过候选索引分页预算。");
     }
 
     private static DocumentFilter? BuildIndexedFilter(ImageSearchFilter filter)
@@ -1428,6 +1512,17 @@ internal sealed class SemanticImageSearchService : IDisposable
         int CandidateCount,
         IReadOnlySet<string>? AllowedIds,
         IndexedFilterDriver Driver);
+
+    private sealed class QueryBudget(int limit)
+    {
+        private int _visited;
+
+        internal void VisitCandidate()
+        {
+            if (++_visited > limit)
+                throw new SemanticSearchBudgetExceededException($"语义检索超过候选扫描预算（{limit} 行）。");
+        }
+    }
 
     private sealed record IndexedFilterDriver(
         DocumentPathIndex Index,

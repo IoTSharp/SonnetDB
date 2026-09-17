@@ -120,6 +120,9 @@ public sealed record GraphProductionEnvironmentSnapshot
 /// <summary>M40 7 天 mixed workload 的 schema-aware 原始 artifact。</summary>
 public sealed record GraphProductionSoakArtifact
 {
+    /// <summary>本次测量使用的数据输出 SHA-256；Preview 必须与 gate 数据 artifact 一致。</summary>
+    public string DatasetOutputDigest { get; init; } = string.Empty;
+
     /// <summary>artifact schema。</summary>
     [JsonRequired]
     public string Schema { get; init; } = "m40-graph-soak-evidence-v1";
@@ -209,6 +212,9 @@ public sealed record GraphProductionSoakResourceSample
 /// <summary>M40 单个 journey 的 schema-aware 原始 artifact。</summary>
 public sealed record GraphProductionJourneyArtifact
 {
+    /// <summary>本次旅程使用的数据输出 SHA-256；Preview 必须与 gate 数据 artifact 一致。</summary>
+    public string DatasetOutputDigest { get; init; } = string.Empty;
+
     /// <summary>artifact schema。</summary>
     [JsonRequired]
     public string Schema { get; init; } = "m40-graph-journey-evidence-v1";
@@ -313,6 +319,12 @@ public sealed record GraphProductionOracleAssertion
 /// <summary>M40 子门禁或 gap close 的 schema-aware 原始 artifact。</summary>
 public sealed record GraphProductionCheckArtifact
 {
+    /// <summary>检查对应的数据输出 SHA-256；Preview 检查必须绑定已验证的数据 artifact。</summary>
+    public string DatasetOutputDigest { get; init; } = string.Empty;
+
+    /// <summary>复杂度比较所用 preview-small 输出 SHA-256；仅 Preview 趋势检查要求。</summary>
+    public string ComparisonDatasetOutputDigest { get; init; } = string.Empty;
+
     /// <summary>artifact schema。</summary>
     [JsonRequired]
     public string Schema { get; init; } = "m40-graph-check-evidence-v1";

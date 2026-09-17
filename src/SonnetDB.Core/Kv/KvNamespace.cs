@@ -47,6 +47,25 @@ public sealed class KvNamespace
         return _keyspace.Set(Qualify(key), value, condition, expiresAtUtc);
     }
 
+    /// <summary>按存在性条件原子写入命名空间内的 key，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="value">value 字节序列，可为空。</param>
+    /// <param name="condition">写入存在性条件。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>是否提交以及成功写入后的版本号。</returns>
+    public KvSetResult Set(
+        string key,
+        ReadOnlySpan<byte> value,
+        KvSetCondition condition,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return _keyspace.Set(Qualify(key), value, condition, expiresAtUtc, cancellationToken);
+    }
+
     /// <summary>
     /// 原子增加命名空间内 key 的整数 value。
     /// </summary>
@@ -69,6 +88,25 @@ public sealed class KvNamespace
         DateTimeOffset? expiresAtUtc = null) =>
         _keyspace.CompareAndSet(Qualify(key), expectedVersion, value, expiresAtUtc);
 
+    /// <summary>按版本原子比较并交换命名空间内的 key，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="expectedVersion">期望版本；0 表示仅当 key 不存在时创建。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>CAS 操作结果。</returns>
+    public KvCasResult CompareAndSet(
+        string key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return _keyspace.CompareAndSet(Qualify(key), expectedVersion, value, expiresAtUtc, cancellationToken);
+    }
+
     /// <summary>
     /// 为命名空间内 key 设置相对 TTL。
     /// </summary>
@@ -79,10 +117,33 @@ public sealed class KvNamespace
     /// </summary>
     public bool ExpireAt(string key, DateTimeOffset expiresAtUtc) => _keyspace.ExpireAt(Qualify(key), expiresAtUtc);
 
+    /// <summary>原子设置命名空间内 key 的绝对 UTC 过期时间，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="expiresAtUtc">新的 UTC 过期时间。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功设置 TTL 时为真；不存在或已过期时为假。</returns>
+    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return _keyspace.ExpireAt(Qualify(key), expiresAtUtc, cancellationToken);
+    }
+
     /// <summary>
     /// 移除命名空间内 key 的过期时间。
     /// </summary>
     public bool Persist(string key) => _keyspace.Persist(Qualify(key));
+
+    /// <summary>原子移除命名空间内 key 的过期时间，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>成功移除 TTL 时为真；不存在、已过期或原本无 TTL 时为假。</returns>
+    public bool Persist(string key, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return _keyspace.Persist(Qualify(key), cancellationToken);
+    }
 
     /// <summary>
     /// 查询命名空间内 key 的剩余 TTL。
@@ -111,6 +172,23 @@ public sealed class KvNamespace
         return StripPrefix(_keyspace.GetAndSet(Qualify(key), value, expiresAtUtc));
     }
 
+    /// <summary>原子读取命名空间内 key 的旧记录并写入新值，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">新值的 UTC 过期时间；为空表示移除旧 TTL。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为 WAL 追加前，提交开始后不再因取消抛出异常。</param>
+    /// <returns>变更前记录的副本以及新写入版本。</returns>
+    public KvExchangeResult GetAndSet(
+        string key,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return StripPrefix(_keyspace.GetAndSet(Qualify(key), value, expiresAtUtc, cancellationToken));
+    }
+
     /// <summary>
     /// 读取命名空间内 key 的当前值与 metadata。
     /// </summary>
@@ -134,6 +212,17 @@ public sealed class KvNamespace
     {
         _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
         return StripPrefix(_keyspace.GetAndDelete(Qualify(key)));
+    }
+
+    /// <summary>原子读取并删除命名空间内的 key，支持取消等待。</summary>
+    /// <param name="key">命名空间内的字符串 key。</param>
+    /// <param name="cancellationToken">取消令牌；最后取消点为首次 WAL 追加（含过期清理）前，之后不再因取消抛出异常。</param>
+    /// <returns>变更前记录的副本以及删除版本；未找到时两个字段均为空。</returns>
+    public KvExchangeResult GetAndDelete(string key, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _keyspace.ValidateQualifiedUtf8Key(key, _prefix.Length);
+        return StripPrefix(_keyspace.GetAndDelete(Qualify(key), cancellationToken));
     }
 
     /// <summary>

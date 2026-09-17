@@ -193,6 +193,15 @@ public sealed class SqlParser
     /// <summary>解析下一条语句。</summary>
     public SqlStatement ParseStatement()
     {
+        if (Current.Kind == TokenKind.KeywordSet)
+        {
+            Advance();
+            ExpectIdentifier("new", "SET 仅支持 BEFORE 触发器中的 NEW.column 赋值");
+            Expect(TokenKind.Dot);
+            string column = ExpectColumnName();
+            Expect(TokenKind.Equal);
+            return new SetTriggerNewStatement(column, ParseExpression());
+        }
         if (IsIdentifier("refresh"))
             return ParseRefreshMaterializedView();
         if (IsIdentifier("call"))
@@ -351,11 +360,14 @@ public sealed class SqlParser
             return ParseCreateProcedureBody();
         }
 
-        if (IsIdentifier("trigger"))
+        if (IsIdentifier("trigger") || IsIdentifier("constraint"))
         {
             if (unique || sparse || ttl)
                 throw Error("CREATE TRIGGER 不支持 UNIQUE / SPARSE / TTL 修饰符");
-            return ParseCreateTriggerBody();
+            bool constraint = IsIdentifier("constraint");
+            if (constraint)
+                Advance();
+            return ParseCreateTriggerBody(constraint);
         }
 
         return Current.Kind switch
@@ -689,11 +701,15 @@ public sealed class SqlParser
         return new CreateProcedureStatement(name, parameters, body, bodySql);
     }
 
-    private CreateTriggerStatement ParseCreateTriggerBody()
+    private CreateTriggerStatement ParseCreateTriggerBody(bool isConstraint)
     {
-        Advance(); // TRIGGER 保持为非保留标识符。
+        ExpectIdentifier("trigger", "CREATE CONSTRAINT 后面期望 TRIGGER");
         string name = ExpectIdentifierName();
-        ExpectIdentifier("after", "CREATE TRIGGER 后面期望 AFTER");
+        bool before = IsIdentifier("before");
+        if (before) Advance();
+        else ExpectIdentifier("after", "CREATE TRIGGER 后面期望 BEFORE 或 AFTER");
+        if (isConstraint && before)
+            throw Error("CONSTRAINT TRIGGER 仅支持 AFTER FOR EACH ROW");
         SqlTriggerEvent triggerEvent = Current.Kind switch
         {
             TokenKind.KeywordInsert => SqlTriggerEvent.Insert,
@@ -704,10 +720,54 @@ public sealed class SqlParser
         Advance();
         Expect(TokenKind.KeywordOn);
         string tableName = ExpectIdentifierName();
+        if (isConstraint)
+        {
+            ExpectIdentifier("deferrable", "CONSTRAINT TRIGGER 必须声明 DEFERRABLE INITIALLY DEFERRED");
+            ExpectIdentifier("initially", "DEFERRABLE 后面期望 INITIALLY DEFERRED");
+            ExpectIdentifier("deferred", "INITIALLY 后面期望 DEFERRED；暂不支持 IMMEDIATE");
+        }
+        string? oldTable = null;
+        string? newTable = null;
+        if (IsIdentifier("referencing"))
+        {
+            Advance();
+            for (int reference = 0; reference < 2 && (IsIdentifier("old") || IsIdentifier("new")); reference++)
+            {
+                bool old = IsIdentifier("old");
+                Advance();
+                Expect(TokenKind.KeywordTable);
+                Expect(TokenKind.KeywordAs);
+                string alias = ExpectIdentifierName();
+                if (old)
+                {
+                    if (oldTable is not null) throw Error("OLD TABLE 不能重复声明");
+                    oldTable = alias;
+                }
+                else
+                {
+                    if (newTable is not null) throw Error("NEW TABLE 不能重复声明");
+                    newTable = alias;
+                }
+            }
+            if (oldTable is null && newTable is null) throw Error("REFERENCING 需要 OLD TABLE 或 NEW TABLE");
+        }
         Expect(TokenKind.KeywordFor);
         ExpectIdentifier("each", "FOR 后面期望 EACH ROW");
-        ExpectIdentifier("row", "FOR EACH 后面期望 ROW");
+        bool statementLevel = IsIdentifier("statement");
+        if (statementLevel) Advance();
+        else ExpectIdentifier("row", "FOR EACH 后面期望 ROW 或 STATEMENT");
+        if (isConstraint && statementLevel)
+            throw Error("CONSTRAINT TRIGGER 仅支持 AFTER FOR EACH ROW");
+        if (isConstraint && (oldTable is not null || newTable is not null))
+            throw Error("CONSTRAINT TRIGGER 不支持 transition tables");
 
+        bool precedes = IsIdentifier("precedes");
+        string? relativeTo = null;
+        if (precedes || IsIdentifier("follows"))
+        {
+            Advance();
+            relativeTo = ExpectIdentifierName();
+        }
         SqlExpression? when = null;
         string? whenSql = null;
         if (Current.Kind == TokenKind.KeywordWhen)
@@ -727,7 +787,14 @@ public sealed class SqlParser
             when,
             whenSql,
             body,
-            bodySql);
+            bodySql)
+        {
+            RelativeTo = relativeTo, Precedes = precedes,
+            Timing = before ? SqlTriggerTiming.Before : SqlTriggerTiming.After,
+            Level = statementLevel ? SqlTriggerLevel.Statement : SqlTriggerLevel.Row,
+            OldTableName = oldTable, NewTableName = newTable,
+            IsConstraint = isConstraint, InitiallyDeferred = isConstraint,
+        };
     }
 
     private SqlProcedureParameterType ParseProcedureParameterType()
@@ -928,7 +995,16 @@ public sealed class SqlParser
         DocumentIndexOptions? documentOptions = sparse || ttlSeconds is not null || partialFilter is not null
             ? new DocumentIndexOptions(sparse, ttlSeconds, partialFilter)
             : null;
-        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions);
+
+        // ONLINE 只允许出现在索引定义末尾，避免把列名或 WHERE 表达式中的同名标识误判为修饰词。
+        bool online = false;
+        if (IsIdentifier("online"))
+        {
+            Advance();
+            online = true;
+        }
+
+        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions, online);
     }
 
     private CreateDocumentCollectionStatement ParseCreateDocumentBody()
@@ -2213,6 +2289,9 @@ public sealed class SqlParser
             columns.Add(ExpectColumnName());
         }
         Expect(TokenKind.RightParen);
+
+        if (Current.Kind == TokenKind.KeywordSelect)
+            return ParseInsertReturning(new InsertStatement(measurement, columns, []) { Query = ParseSelect() });
 
         Expect(TokenKind.KeywordValues);
 
@@ -4580,6 +4659,27 @@ public sealed class SqlParser
     private SqlStatement ParseAlter()
     {
         Expect(TokenKind.KeywordAlter);
+        if (IsIdentifier("trigger"))
+        {
+            Advance();
+            string name = ExpectIdentifierName();
+            if (IsIdentifier("enable")) { Advance(); return new AlterTriggerStatement(name, SqlAlterTriggerAction.Enable); }
+            if (IsIdentifier("disable")) { Advance(); return new AlterTriggerStatement(name, SqlAlterTriggerAction.Disable); }
+            if (IsIdentifier("follows") || IsIdentifier("precedes"))
+            {
+                bool precedes = IsIdentifier("precedes");
+                Advance();
+                return new AlterTriggerStatement(name,
+                    precedes ? SqlAlterTriggerAction.Precedes : SqlAlterTriggerAction.Follows, ExpectIdentifierName());
+            }
+            if (Current.Kind == TokenKind.KeywordRename)
+            {
+                Advance();
+                Expect(TokenKind.KeywordTo);
+                return new AlterTriggerStatement(name, SqlAlterTriggerAction.Rename, ExpectIdentifierName());
+            }
+            throw Error("ALTER TRIGGER 期望 ENABLE / DISABLE / RENAME TO / FOLLOWS / PRECEDES");
+        }
         return Current.Kind switch
         {
             TokenKind.KeywordTable => ParseAlterTableBody(),
@@ -4913,6 +5013,25 @@ public sealed class SqlParser
     private SqlStatement ParseShow()
     {
         Expect(TokenKind.KeywordShow);
+        if (IsIdentifier("routine"))
+        {
+            Advance();
+            bool statistics = IsIdentifier("stats");
+            if (!statistics && !IsIdentifier("audit")) throw Error("SHOW ROUTINE 后面期望 AUDIT 或 STATS");
+            Advance();
+            string? kind = null;
+            string? name = null;
+            if (Current.Kind == TokenKind.KeywordFor)
+            {
+                Advance();
+                if (!IsIdentifier("procedure") && !IsIdentifier("trigger"))
+                    throw Error("FOR 后面期望 PROCEDURE 或 TRIGGER");
+                kind = IsIdentifier("procedure") ? "procedure" : "trigger";
+                Advance();
+                name = ExpectIdentifierName();
+            }
+            return new ShowRoutineDiagnosticsStatement(statistics, kind, name);
+        }
         switch (Current.Kind)
         {
             case TokenKind.KeywordUsers:
@@ -5051,7 +5170,7 @@ public sealed class SqlParser
     /// <c>EXPLAIN SELECT ...</c> / <c>EXPLAIN SHOW MEASUREMENTS</c> / <c>EXPLAIN DESCRIBE ...</c>。
     /// 当前仅接受只读语句，避免把写操作伪装成解释计划。
     /// </summary>
-    private ExplainStatement ParseExplain()
+    private SqlStatement ParseExplain()
     {
         Expect(TokenKind.KeywordExplain);
         bool analyze = false;
@@ -5059,6 +5178,14 @@ public sealed class SqlParser
         {
             Advance();
             analyze = true;
+        }
+
+        if (IsIdentifier("procedure") || IsIdentifier("trigger"))
+        {
+            if (analyze) throw Error("例程定义 EXPLAIN 不执行 body，不支持 ANALYZE");
+            string kind = IsIdentifier("procedure") ? "procedure" : "trigger";
+            Advance();
+            return new ExplainRoutineStatement(kind, ExpectIdentifierName());
         }
 
         SqlStatement statement = Current.Kind switch

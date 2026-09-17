@@ -3,9 +3,46 @@
 本项目所有重要变更将记录在此文件中。
 格式遵循 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer 2.0.0](https://semver.org/lang/zh-CN/)。
 
+本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
+
 ## [Unreleased]
 
 ### Added
+
+- **M35 #302 持久 RAG writer 与本地 CLI**：新增有界 `RagIngestionWriter`，在现有 KV/WAL 中冻结完整任务，支持有限 provider 重试、取消后重开续跑、已完成 chunk 复用、严格 profile/向量校验和损坏 checkpoint 拒绝；Document/FullText/Vector 全部构建后通过 generation 原子发布，删除立即作用于新 active 版本，旧资源按查询租约延迟清理。`sndb rag ingest/resume` 接受有界预计算向量 bundle，支持不打开目标的 dry-run、正文 SHA-256 绑定、显式完整快照替换和机器 JSON 报告。未接入自动在线 provider 或 Copilot 可回滚迁移；受控恢复测试不代表硬件掉电或真实模型质量证据。
+
+- **M35 #300 对象 embedding、外发策略与持久审计**：新增 provider-neutral 对象能力与固定版本/ETag 的 text/image 编码入口，现有文本/图片/异步对象调用统一经过默认 local-only 策略、输入/时间预算和脱敏审计；审计先提交并显式 fsync 再交付内容，取消/失败保留终态。提供数据库权限约束的对象 embedding 与 Admin 有界审计 API，保留审计 keyspace 拒绝通用 REST/Frame 读写绕行。自定义 provider 需显式声明本地处理或配置批准目标；测试 provider 不构成真实模型质量证据。
+
+- **M35 #298 USearch 过滤检索与查询预算**：在固定 USearch 2.26.0 C ABI 上补齐原生 filtered search、SafeHandle 生命周期和回调异常/取消保护；增加可配置 ANN 候选、精确补偿、分页、总扫描与协作超时预算，首次派生索引重建也分页并扣减查询预算。预算失败返回 `semantic_query_budget_exceeded`，解释结果补充回退原因；原生回调不能硬中断遍历，固定硬件 Recall/延迟/容量证据仍待完成。
+
+- **路线图执行顺序重排**：重写总里程碑 D 节，仅保留未完成 PR；按“代码与功能补全 → 性能优化 → 验证、测试与论证”分组，已完成 PR 移出主待办，原编号和依赖保持不变。
+
+- **M43 既有 PR 模型建议**：在[总里程碑核查与路线图](docs/roadmap-total-milestone.md)的“D. 沿用的既有 PR”表格中新增模型与推理等级建议，按任务复杂度匹配 GPT-5.6 Luna/Terra/Sol 与 GPT-6 Astra。
+
+- **M43 #382 十四套能力总规划文档**：新增[总里程碑核查与路线图](docs/roadmap-total-milestone.md)，重新核对九种原生数据模型、空间/轨迹、流处理/订阅、CDC/边缘同步/复制、AI/RAG、治理运维和榜单准备的边界；补齐表情状态、既有 PR 升序索引、#382~#402 规划编号、七个执行步骤及依赖/验收。✅ 仅覆盖本地规划文档，新增能力和外部提交尚未执行；资料提交与流行度排名不作为性能认证。
+
+- **在线关系表索引边界回归**：补充构建期间并发查询、插入、更新、删除及进程重开续建验证；修复已发布索引在冷表重开后仍返回 pending 的问题，保留同名不同定义的冲突保护。说明见 [在线索引合同](docs/online-index-build.md)。
+
+- **M40 研发与文档闭环（真机验证后置）**：#341～#367 的 Graph 存储、查询、SQL/PGQ、算法、运维面、Server/SDK/CLI/Studio parity、恢复合同、strict evaluator、编码文档和本地自动化回归已全部收口。固定硬件、Neo4j/PostgreSQL、LDBC/Graphalytics、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 与 7 天 8+1 mixed workload 不计入编码完成，统一登记到 [ROADMAP 真机验证待办](ROADMAP.md#真机验证待办)，正式 Preview/Production gate 在现场证据通过前保持 `DEFERRED`。
+
+- **M40 #352 Native Graph Preview strict gate**：新增独立 `m40-graph-preview-input-v1` 输入、`m40-graph-preview-gate-v1` 报告与 `--m40-preview-gate --quick|--manifest` 入口，复用原始 artifact 重算和隔离回放，按双数据档位、12 个 native journey、Preview SLO、恢复与 Couplet C2 判定 correctness/recovery 和 performance/capacity 双 gate。quick 生成未完成模板并保持正式结论 `NOT_RUN`；固定硬件、Neo4j、Couplet C2、外部对拍和正式容量证据仍未运行，不构成 #352 PASS。详见 [M40 #352 Preview gate](docs/m40-graph-352-preview-gate.md)。
+
+- **M40 Phase 1 代码实现完成（待真机验证）**：#347～#351 Native Graph 功能、Server/SDK/import、自动化回归及 #352 strict gate 管线已完成；固定硬件、外部数据库对拍、Couplet C2 与正式发布证据留待后续现场验证，不将 `quick` 或开发机结果计为 Preview 发布 PASS。
+
+- **M39 SQL 触发器第二版研发闭环**：#329~#339 的存储过程、关系表触发器第二版、高级事务语义、durable outbox，以及 Document/measurement 原生准入实现和本地证据已完成。固定设备、生产混合负载和长期 SLO 转入 ROADMAP 的真机验证待办，不阻塞研发完成状态。
+
+- **M39 #339 Document / measurement 准入闭环**：Document change feed 增加 cause、bulk request identity、操作序号和受限 patch 描述，TTL 系统删除可区分且旧事件兼容；measurement 新增 durable batch ledger、payload fingerprint、pending/committed 重开 reconcile，`WriteMany` / `BulkIngestor` 支持幂等重放与冲突拒绝。独立 runner 完成 1/100/10,000 点、乱序/重放、1,000 series、Document 索引/feed/重开 full evidence；证据见 [M39 #339 准入记录](docs/audits/m39-339-admission-20260908.md)。
+
+- **M39 #338 高级事务语义**：关系表新增受限 `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`，在持久化前按捕获事件顺序检查事务最终关系状态；保留 OLD/NEW、调用链预算、取消、内部保存点及完整提交回滚，限制跨阶段顺序和提交中的应用回调。例程目录升级 v4，兼容读取 v1/v2/v3，旧引擎拒绝 v4；主数据及 KV/WAL 格式不变。新增显式 `SqlOutboxWorker.ProcessBatchAsync`，提供同步 WAL 的租约、ACK、退避和死信状态；锁外处理器按稳定 EventId 幂等，投递语义为 at-least-once。合同、测试与恢复证据见[验收记录](docs/audits/m39-338-20260908.md)，不代表 M39 或生产门禁整体完成。
+
+- **M39 #335 语句级触发器**：关系表 `AFTER INSERT/UPDATE/DELETE FOR EACH STATEMENT` 每条语句执行一次（包括空影响集），通过 `REFERENCING OLD TABLE AS ... NEW TABLE AS ...` 提供只读快照；复用关系查询的聚合/JOIN 与关系表 `INSERT SELECT`，支持嵌套快照隔离、调用链行数/字节硬上限和原子回滚。与同业务语义的行触发器对照、恢复证据见 [验收记录](docs/audits/m39-335-336-20260906.md)。
+- **M39 #336 受控 BEFORE**：关系表 `BEFORE INSERT/UPDATE FOR EACH ROW` 支持顺序执行的 `SET NEW.column = expression`、只读 OLD 与 WHEN；默认值和自增预留先执行，最终 ROWVERSION 和约束检查随后执行。拒绝 body DML、子查询、UDF、OLD 赋值及生成列改写。例程目录独立升级为 v3（时机、粒度、transition 别名），兼容读取 v1/v2，旧引擎拒绝 v3；主数据文件及 KV/WAL 格式不变。
+
+- **M39 SQL 例程生产加固**：关系表触发器支持 `ALTER TRIGGER ... ENABLE/DISABLE/RENAME TO/FOLLOWS/PRECEDES` 及创建时显式顺序；新增只读 `EXPLAIN PROCEDURE/TRIGGER`、`SHOW ROUTINE AUDIT/STATS`、按定义过滤及 AOT 兼容 JSON 审计导出。远程 REST/Frame 统一传递服务端配置的例程资源预算。例程目录独立版本升级为 v2，继续读取 v1，旧引擎拒绝 v2；主数据文件和 KV/WAL 格式未改变。
+
+- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。
+
+- **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
 
 - **M40 #367 manifest 输入边界补强**：`EvaluateManifest` 在打开文件前传播预取消，在反序列化前拒绝超过 4 MiB 的清单，并通过 source-generated `JsonTypeInfo` 执行可取消的流式读取；集合上限检查提前到非 Production 早退之前，超量输入统一 fail closed。
 
@@ -35,7 +72,7 @@
 
 - **M29 Studio 发布与宿主生命周期合同**：Windows 发布脚本现在生成独立 `sonnetdb-studio-<version>-win-x64.zip` 与 MSI，bundle 携带同版本 `server/` 托管 Server；Studio 默认数据目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不随安装目录升级/卸载删除。宿主启停串行化，记录 `.studio/managed-server.log`，异常退出包含退出码/stderr 尾部，健康超时会清理子进程；新增 Windows Studio host 合同测试和 CI TRX artifact。WebView2、干净机器安装、升级/卸载和端口冲突仍登记为待真机验证。
 
-- **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据。
+- **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。`maintenance-chaos` 以写前序列预留和 progress 确认范围避免 kill 竞态复用序列；Core 新增 CRC 保护的 `SDBFPUB` Pending/Committed publication marker，在 checkpoint/WAL 不一致、marker 损坏或未发布 artifact 无法清理时 fail closed；补齐跨进程 root lease、schema/batch admission 与 Dispose 竞态边界，以及非空损坏 Segment 的 fail-closed 恢复检查。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据；受控 `Process.Kill` 不等同于掉电或物理耐久性证明。
 
 - **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件统一保持 `NOT_READY`，不能冒充百万/千万发布证据。
 
@@ -53,9 +90,25 @@
 
 ### Changed
 
+- **ImageSharp 4.1.1 构建许可（PR #131）**：升级 Server 图片依赖，并为引用 Server 的 CI、CodeQL、证据测试与发布流程接入 Six Labors 社区许可证 secret；Docker 与 Parity 构建通过 BuildKit 临时挂载许可证，本地支持绝对路径配置，许可证文件不进入 Git 或镜像构建上下文。保留包内签名校验，外部 fork 不获得仓库 secret。
+
+- **M19 #125 状态分层**：将 #125 明确标为“研发完成，待真机验证”；四个固定容量档已加入 `ROADMAP.md` 的真机验证待办，只有受保护固定目标硬件的完整报告归档后才关闭外部容量证据。
+
+- **M19 #125 flush 与维护发布性能收敛**：SegmentManager 的维护发布改为锁内原地更新有序字典，避免 add/swap/drop 每次复制整棵字典；分层 segment 目录在稳定 bucket 仅刷新叶目录，首次建 bucket 才向上刷新缺失目录链；committed publication marker 清理不再额外刷新目录，最多留下可安全重试的 marker。保留 pending marker、段文件、checkpoint 与 committed marker 的恢复顺序；固定硬件前后 P95、分配和 I/O 对比仍待执行。
+
+- **目录 fsync 与旧 WAL checkpoint 兼容**：对明确不支持目录句柄 fsync 的文件系统退回文件内容 `Flush(true)` 语义，权限、目录不存在和其他 I/O 错误仍失败；缺少独立 checkpoint sidecar 且无 pending marker 的旧 WAL 数据库继续信任历史 WAL checkpoint，新格式 sidecar 损坏或存在 marker 时仍 fail closed。
+
+- **M41 #375 / M42 自动统计后台化**：业务规划线程现在立即复用已有统计或启发式估计，自动采样通过每数据库单任务预算合并，限制 4096 样本行、5 秒协作取消及 30 秒冷却；EXPLAIN 暴露维护状态与稳定失败码。后台不继承查询事务/指标执行上下文，显式 ANALYZE 传播取消，迟到采样不覆盖更新或同序列的显式分析。关闭 writer 不再等待读任务，既有快照租约保护在途读取，取消和 disposed 状态阻止迟到发布；首 N 行采样偏差和实际 I/O/尾延迟仍未解决。
+
+- **M35 / M42 通用 Document 向量预过滤**：对可证明为纯 metadata 的整条 WHERE，在向量存在性和维度校验后、距离计算前过滤；保留混合距离/评分/一般函数谓词的原残差路径，新增距离循环取消和固定种子差分/计数回归。未改变 ANN、排序与分页合同；Scan/JSON 解析/排序仍可能全量物化，也未将既有 NULL 行为改为完整 SQL 三值逻辑。
+
+- **九模型闭环重规划**：新增[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)、逐模型执行证据、产品入口核查和机器可读 gap catalog；M36 增加 Graph 验收行而不重复 M40 引擎建设。核查出 M20 最新七次 scheduled 全部失败，取代旧窗口状态；KV 专题文档纠正“没有远程服务”的过期描述。
+
+- **交付声明与历史归档核查**：纠正中英文 README 的 SQL 帧内存恒定、任意崩溃零丢失和九模型单库备份覆盖表述；标明 Parity 调度与真实证据的区别。历史 Planned 草案移入独立归档，补录可由本地标签核对的 3.0.1 变更节，拆开粘连 Copilot 条目，并说明历史 M14 eval 使用脚本化 provider。新增[核查报告](docs/audits/changelog-verification-20260905.md)，保留尚未逐项验证的清单和后续能力缺口。
+
 - **九模型产品门面**：README、中英文项目介绍、Studio 欢迎页、文档首页与 AI/Agent 机器可读上下文统一改为“九种数据模型，各有原生语义，共享一套引擎”，新增原生属性图（Graph Beta）能力说明；帧协议继续区分七个既有数据面服务，并追加 Graph `service=8` 的受限单跳 `Expand`，图查询/API 与 Graph Frame 的边界均如实记录，且不把固定硬件、外部语义对拍、Native AOT 和 168 小时生产证据门禁描述为已完成。
 
-- **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.9.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
+- **依赖基线更新**：合入 Dependabot #109、#115、#119～#128，并将根中央包版本更新到 .NET / ASP.NET Core / EF Core 10.0.11、Microsoft.Extensions.AI / VectorData 10.9.0、ModelContextProtocol 2.2.0、ONNX Runtime 1.29.0、OpenTelemetry 1.18.0、Roslyn 5.3.0 及当前稳定的测试与生态客户端版本；Qdrant parity 适配器同步迁移到 `QueryAsync`。ImageSharp 4.1.1 因新增构建许可证密钥要求继续固定 3.1.12；NUnit 因 CoAP 子模块仍使用 NUnit 3 `CollectionAssert` API 更新到兼容线最新 3.14.0，而不升级到 4.x。
 
 - **关系统计刷新分配收缩**：统计采样直接使用主键的 `ReadOnlyMemory<byte>` 视图，并复用真实索引 codec 的精确长度计算，不再复制采样主键或为每个索引临时编码 key/prefix；JSON path、唯一索引 NULL 和格式边界继续与真实写入路径一致。最终本机短跑均值降低 6.495%，分配降低 34.706%；固定硬件和生产语料未运行。
 
@@ -81,9 +134,25 @@
 
 ### Fixed
 
+- **M19 #125 Flush 发布恢复边界**：为每个待发布 Segment 在 `wal/` 中持久化 CRC 保护的 pending/committed marker；段 rename 后、独立 checkpoint 前崩溃时，启动会在扫描 Segment 前删除未提交段、sidecar 和配置临时后缀的残留文件并完整 WAL replay，避免同一时间戳记录被 Segment 与 WAL 双重暴露，也避免重用 SegmentId 时临时文件冲突。只有 marker 与可解析、长度及 SegmentId 均匹配的 checkpoint 完全对应时才保留并提升为 committed；被后续 durable/WAL checkpoint 覆盖、最终 marker 损坏或孤立段删除失败时 fail closed。Flush 泵在首次发布失败后保留 sealing 查询快照、拒绝后续 checkpoint，并在 Dispose 时保留 WAL；覆盖 post-rename、pre-rename 临时段、direct Dispose、stale marker、损坏/临时 marker 和 continued-process 场景的恢复回归。未修改 Segment 二进制格式。
+
+- **M39 事务与恢复修复**：跨表提交增加有 CRC、128 MiB 上限及同步完成标记的 `tables/transaction.sdbtxn` 恢复日志；在开放访问前撤销未完成提交，备份复制窗口阻止关系表写入。提交结果未知时停止接受表访问，审计明确标记 `unknown`。事务按主键索引归并并用增量保存点撤销，消除批量触发器的重复扫描/复制；无 ROWVERSION 的 SQL 事务也校验原始行状态，避免汇总丢失更新。嵌套过程结果不重复计数，过程和触发器的 INSERT RETURNING 纳入结果预算，外层回滚/请求放弃统一结算过程与触发器审计。固定验收机三轮 10000 行触发器延迟降低约 93% 至 96%、分配降低约 98%；小批量成本、UPDATE 预热对照、测试与未准入语义见 [M39 审计](docs/audits/m39-production-20260906.md)。
+
+- **M36 #316 KV 未知提交与重发边界**：CAS/expire/persist 的 WAL sync 异常统一拒绝后续写入并要求重开核对；可取消写在首次 WAL append 前停止，提交后不伪报取消。SDK 拒绝缺字段或矛盾的原子 REST 响应，以及关联/版本/保留标志错误的 Frame 响应；KV 写禁用发送后的 Frame/REST 回退，专用 HTTP handler 禁止 307/308 自动重发，保留其他客户端默认策略及凭据隔离。
+
+- **M36 SQL 工作流正确性**：固定执行库、连接和历史归属，切换上下文/卸载取消后续请求；审批绑定凭据与连接，阻止旧审批执行。单库事务脚本整体送 `/sql/batch`，拒绝不支持的混合事务；严格校验 NDJSON frame、行宽、终态/计数，损坏/空/截断及尾部错误不再显示为成功。取消不保证撤回已经提交的写入。
+
+- **M36 / M40 Graph 目标隔离**：审批绑定库、图、连接、凭据与参数；目标变化同步失效，异步请求按通道序号防止旧响应覆盖，旧写 history 保留原目标；新增真实 Vue setup 的延迟/乱序/卸载回归。
+
+- **M36 SonnetMQ ACK 边界**：修复 `long.MaxValue` ACK 加一溢出及旧/重复 ACK 返回值落后于实际 consumer offset；持久化和返回统一为单调实际位置。新增目录/单文件共 12 个边界用例，检查真实 ACK 日志与 reopen；未改变默认发布耐久策略。
+
+- **MCP 工具元数据导致 Server 启动失败**：`WithTools` 注册通过统一配置合并 Server 与 MCP SDK 协议的 source-generated context，业务 DTO 的输出 Schema 和 `CallToolResult` 同时可用，未注册类型继续拒绝且不走反射回退；保留全部 typed tool 合同和只读权限，新增九工具注册、协议 round-trip 与未知 DTO 拒绝回归。该缺口曾使 2026-09-05 Parity 容器在监听 `/healthz` 前退出，修复后仍需 CI 重跑与重新累计七天证据。
+
+本轮上述统计/MQ/向量/工作流修复的最终本机验证：Core 全量 4037/4037、Server MCP/事务合同 28/28、SQL/Graph 模块 16/16、九模型浏览器 mock 合同 12/12 通过；Web 类型检查和生产构建通过。win-x64 Server Native AOT 发布及真实 healthz/建库/事务写入/首查通过，0 IL/AOT warning。真实浏览器到 Server 的九模型完整旅程、Studio 安装、Linux/ARM64、外部 Parity 与长稳生产门禁不在这些 PASS 范围内。
+
 - **M40 步骤 7 Graph typed point-read 错误 parity**：远程 `SndbGraphClient.GetVertexAsync` / `GetEdgeAsync` 现在只把空响应体的 404 映射为元素不存在 `null`；Server 返回结构化 404 时继续解析稳定错误，因此缺失 graph 与嵌入式入口一致地失败并保留 `graph_not_found`，不再被静默降级为元素缺失。公开 API 签名与 wire schema 未变；固定硬件、完整 Server/SDK/CLI/Studio parity、Native AOT journey 和 7 天证据仍为 `NOT_RUN`。
 
-- **USearch Linux 原生运行时回归**：`Cloud.Unum.USearch` 从会在 `linux-x64` 真实 native 搜索路径崩溃 testhost 的 `2.26.2` 回退并固定到已验证的 `2.26.0`；CI 继续要求加载 native backend，不以 managed fallback 弱化覆盖。
+- **USearch Linux 原生运行时回归保护**：保留 `Cloud.Unum.USearch 2.26.0`，Dependabot 仅忽略 `2.26.2`。2026-09-17 在 WSL Ubuntu linux-x64、.NET 10.0.112 实测 `2.26.2` 初始化触发 SIGILL（退出码 132）；相同源码的 `2.26.0` 通过真实 native 过滤查询、增删、回调异常与取消、释放探针。CI 继续要求加载 native backend。
 
 - **Linux CI 与数据库根目录生命周期**：`Tsdb.Open` 在触碰 WAL 和清理 SQL spill 前先取得按平台路径规则规范化且解析目录链接别名的进程内根目录所有权，重复打开统一抛出 `IOException`，正常关闭、失败打开和崩溃模拟均幂等释放；Windows-only Studio 测试在非 Windows solution test 中显式跳过；对象存储生命周期的 `0 days` 固化为立即到期，避免系统时钟细微回拨导致偶发漏删。
 
@@ -243,7 +312,7 @@
 
 - **M35 语义内容与多模态检索规划**：新增 #297~#309 路线，按 Semantic Content / Embedding Profile、metadata-filtered ANN、异步摄取、多模态 Provider、以图搜图、通用 RAG、融合评测、音视频分段、派生目标 / 轨迹、人脸相似检索、Person ReID / 步态 / 姿态动作、车辆 / 车牌检索和管理验收分阶段推进；明确原始媒体留在对象桶、Document 保存内容清单、全文 / 向量索引保持可重建，专业视觉能力使用独立模型 Profile 并执行敏感数据治理，推荐系统与 Agent Memory 不进入 Core 专用领域。同时重写向量检索文档，按当前代码补齐 Measurement HNSW / IVF / IVF-PQ / Vamana、Document 持久 HNSW、Hybrid Search、VectorData 与过滤回退边界，并纠正“多模型”等同“多模态”和“当前只有 brute-force”的过时表述。
 - **M19 #126 / #126.1 生态底座收官**：SQL 与 Document Validator 统一使用带 250ms timeout、模式/输入预算和 128 项有界缓存的正则 matcher；新增 `regexp_like(input, pattern[, flags])`、`REGEXP`/`RLIKE`、EXPLAIN `scan_filter` 和 EF Core `Regex.IsMatch` 翻译。KV WAL 新增带 commit record 的分块 batch-delete，恢复仅发布完整提交；关系表新增 generation 行数快照、`TRUNCATE TABLE` 与 `DELETE WHERE TRUE` 快路。KV state v4 持久化 generation，`generation.meta` + cleanup manifest 保证崩溃后旧 state 不复活；后台维护可发现重启后未打开实例，严格限制 state 删除路径，并按文件预算及查询/flush/CPU/内存压力节流，公开 pending 字节、速率、原因与最近错误。新增 generation/cleanup 指标、恢复/外键/跨模型测试和 `TableDeleteBenchmark` smoke。
-- **M19 #125 大量 measurement / 长稳专项扩展**：在既有 `SonnetDB.EcosystemSoak` 中新增 `high-cardinality`、`small-segments`、`maintenance-chaos`、`many-measurements` 四个正交 profile，覆盖百万级 series、万级小 segment、后台 flush/compaction/retention 期间的确定性随机 kill/reopen，以及大量 measurement 的目录枚举、备份、retention 与 drop。JSON/Markdown 报告新增阶段 working set/托管内存峰值、查询/恢复 P50/P95/P99、series/time/value 缺失/重复/额外点/值摘要和每档“能验证/不能证明”的容量边界；workflow 支持手动运行并归档四档证据。
+- **M19 #125 大量 measurement / 长稳专项扩展**：在既有 `SonnetDB.EcosystemSoak` 中新增 `high-cardinality`、`small-segments`、`maintenance-chaos`、`many-measurements` 四个正交 profile，覆盖百万级 series、万级小 segment、后台 flush/compaction/retention 期间的确定性随机 kill/reopen，以及大量 measurement 的目录枚举、备份、retention 与 drop。JSON/Markdown 报告新增阶段 working set/托管内存峰值、查询/恢复 P50/P95/P99、series/time/value 缺失/重复/额外点/值摘要和每档“能验证/不能证明”的容量边界；普通 workflow 只运行缩规模预检，四档默认容量证据由受保护的固定目标硬件 workflow 串行归档与核验。
 - 新增关系表 `CHECK` constraint 完整链路：支持 `CREATE TABLE` 与 `ALTER TABLE ADD/DROP CONSTRAINT`、新增约束前扫描存量数据、INSERT/UPDATE 三值逻辑校验、稳定错误码、catalog 持久化与重启恢复，并补齐 EF Core `AddCheckConstraint` / `DropCheckConstraint` migration SQL。`tables.tblschema` codec 向后兼容升级为 v6，v1-v5 文件继续可读。
 
 - **M19 #124 维护发布基准与 #124~#126.1 复核**：新增 `SegmentManagerMaintenanceBenchmark`，覆盖 16/256/1024 段、0/4 个真实 QueryEngine 并发 worker 下的 flush add、compaction swap、retention drop，并以 #207 前的全量 `SegmentIndex.Build` 作为参考；新增 M19 优化项复核报告，按当前实现重新界定 #125 长稳扩展、#126 正则治理和 #126.1 批量删除存储设计。
@@ -319,8 +388,22 @@
 
 - **修复参数化 DATETIME 比较**：统一关系表、关系 SELECT 与 JOIN 的标量比较语义，使 `DateTime`/`DateTimeOffset` 参数绑定后的 Unix 毫秒值可与 `DATETIME` 列执行等值、范围和 `IN` 比较，修复 EF Core 时间窗查询抛出“无法比较 DateTime 与 Int64”的问题。
 - **M33 #282 跨字段 Geo 聚合正确性修复（correctness）**：`SELECT avg(speed) WHERE geo_bbox(position, ...)` 这类「Geo 谓词挂在 GeoPoint 字段、聚合字段是数值字段」的查询此前在快慢两条路上都静默丢弃 Geo 约束——聚合执行按当前聚合字段（如 `speed`）过滤 `where.GeoFilters`，而 Geo 谓词永远挂在 GeoPoint 字段（如 `position`）上，per-field 子集恒为空 → 数值快路径判定不触发、慢路径也不施加过滤，结果把不满足空间条件的行也计入聚合。现改为把作用在非聚合字段上的 Geo 谓词当作**时间戳级约束**：先算出该 GeoPoint 字段命中 box 的时间戳集合（多 Geo 谓词按字段分组、跨字段取交集），聚合只纳入这些时刻的点；同时整句带任一 Geo 谓词时禁用 legacy 数值快路径与扩展聚合 sidecar 快路径，强制走物化路径逐点施加约束。`count(*)` 路径同样按命中时间戳集合过滤行/时刻并集。修复覆盖 `avg`/`count`/`sum`/`min`/`max` 及 `count(*)`、`GROUP BY time(...)` 分桶、段/MemTable 快慢混合，结果与「逐点施加 Geo 后聚合」的参考实现逐桶一致。新增 `SqlExecutorGeoPointTests` 6 项跨字段 Geo 聚合回归测试。
-- 修复 SQL 分页子句不能解析参数占位符的问题，`LIMIT @take OFFSET @skip` 与 `OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY` 现在会在执行前通过参数绑定校验为非负整数，恢复 EF Core `Skip`/`Take` 查询执行。
-- 修复 Server NativeAOT 发布在 `/warnaserror` 下被 `MQTTnet.AspNetCore.Routing` 的程序集级 IL2104/IL3053 诊断阻断的问题；诊断仍会在发布日志中显示为 warning。
+## [3.0.1] - 发布日期未核验
+
+> 2026-09-05 按本地 Git 标签补录：`v3.0.1` 指向 `0f86e7ea`，其提交时间为 2026-07-08，不将提交时间充作远端发布日期。以下内容来自 `v3.0.0..v3.0.1` 的五次提交；其中两条修复原来误归在 3.1.0 下。
+
+### Added
+
+- 新增 `SndbResourceInitializer`，支持由组件显式初始化其所需的嵌入式或远程数据库（`0375b1c5`）。
+
+### Changed
+
+- 将缓存扩展拆分为 `SonnetDB.Caching.EasyCaching` 与 `SonnetDB.Caching.Distributed` 独立 provider 包，并同步连接、测试与文档（`0f86e7ea`）。
+- MQTT 路由从 NuGet 引用切换为仓库子模块源码引用，CI checkout 同步补齐子模块（`98daf162`、`d87edd83`）。该标签中的旧日志曾记录 IL2104/IL3053 仍作为 warning 显示，此历史记录不能作为当前 Native AOT 零警告验收证据。
+
+### Fixed
+
+- 修复 SQL 分页子句不能解析参数占位符的问题，`LIMIT @take OFFSET @skip` 与 `OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY` 现在会在执行前通过参数绑定校验为非负整数，恢复 EF Core `Skip`/`Take` 查询执行（`4bffcc0a`）。
 
 ## [3.0.0] - 2026-07-07
 
@@ -639,7 +722,25 @@
 - **Docker 镜像缺少 SPA 静态文件**：`src/SonnetDB/Dockerfile` 发布服务端时显式传入 `-p:BuildAdminUi=true`，让 `dotnet publish` 在镜像构建阶段执行 `web` 的 `npm ci && npm run build`，并把 `wwwroot/index.html` 与前端 assets 发布进最终镜像，避免容器访问 `/` 或 `/admin` 返回 `SonnetDB SPA static files are missing`。
 - **隐藏 Copilot 系统库 `__copilot__` + 修复"创建数据库"被误解为列 measurement**：`DatabaseAccessEvaluator.GetVisibleDatabases` 现在统一过滤名字以双下划线开头并以双下划线结尾的系统库（含 `__copilot__`），管理员与普通用户均不再在 `GET /v1/db`、Web Admin Dashboard / Databases / SQL Console / Grants 下拉、Copilot Dock 数据库选择器、`/v1/copilot/chat` 的 `VisibleDatabases`、MCP `list_databases` 工具结果里看到它；`CopilotChatEndpointHandler` 同步对 `req.Db` 命中系统库时直接返回 `403 system_database`，防止旧客户端 localStorage 中残留的 `selectedDb = "__copilot__"` 触发 LLM 把系统知识库当成业务库去 `SHOW MEASUREMENTS`。`CopilotDock.vue` 客户端 `SYSTEM_DATABASES` 同步加入 `__copilot__` 并补充 `__xxx__` 通配过滤，作为防御性双重保险。`CopilotAgent` 的 Planner / Answer System Prompt 增加专门分支：用户说"建一个仓库 / 新建数据库 / create database"时，必须先 `draft_sql` 一条 `CREATE DATABASE <name>`（如未指定名字则建议合理名）+ 必要的 `CREATE MEASUREMENT`，禁止再去 `list_measurements` / `describe_measurement`，并显式告诉 LLM "不要把 `__copilot__` / `_internal` 当成业务库"。
 
-### Added- **Copilot 内置零依赖 embedding（M1）**：新增 `BuiltinHashEmbeddingProvider`，基于 SHA-256 + 词袋哈希投影生成 384 维 L2 归一化向量，无需任何模型文件即可让 Copilot 子系统就绪；`CopilotEmbeddingOptions.Provider` 默认值由 `local` 改为 `builtin`，`CopilotReadiness` 接受 `builtin`，DI 工厂在 `local` 模型缺失时自动降级到 `builtin`，从根上消除"`503 copilot_not_ready: embedding.local_model_path_missing`"。同步保证 `CopilotDocsIngestionService` 在新部署即可自动把 `./docs`（含 `sql-reference.md` 等）/`./web/help`/`./src/SonnetDB/wwwroot/help` 全部 markdown/html 摄入系统库 `__copilot__.docs`（`embedding FIELD VECTOR(384)`）作为 Copilot 知识库。- **Copilot 知识库可视化端点（M1.5）**：新增 `GET /v1/copilot/knowledge/status`，返回当前 embedding provider（含是否处于 builtin 降级）、向量维度、扫描根目录绝对路径、已索引文件数 / 块数 / 最近一次摄入 UTC 时间、技能库条数，便于 Web Admin "Copilot 设置" 页面显示知识库实况和提供"立即重建索引"按钮。- **SQL 控制台生成走 SonnetDB 方言（M2）**：重写 `AiEndpointHandler.BuildSqlGenPrompt`，明确告诉模型 SonnetDB 使用 `time` 列（不是 `ts`）、`CREATE MEASUREMENT … (col TAG, col FIELD <FLOAT|INT|BOOL|STRING|VECTOR(N)>)`、`GROUP BY time(1m)`（不支持 `date_trunc` / 按 tag 分组）、`knn(measurement, vec_col, [向量], k [, 'cosine'])` 向量检索、`LIMIT n OFFSET m` 分页、`DELETE FROM ... WHERE ...` 删除，禁止生成 MySQL/PostgreSQL/InfluxQL 方言；未指定 `db` 时也提供通用 SonnetDB system prompt（原实现会跳过提示）；前端 `SqlConsoleView.generateSql` 新增 `stripCodeFence` 防御性剥离 ```sql ... ``` 代码围栏，避免编辑器里残留 Markdown 标记。配套把 prompt 模板抽到 `src/SonnetDB/Copilot/Prompts/sql-gen.md` / `sql-gen-no-db.md`，通过 `<EmbeddedResource>` 嵌入程序集，由 `PromptTemplates` 加载器（带缓存 + `{{key}}` 占位符替换）按需读取，便于非编程人员维护提示词与未来多语言/A-B 测试。- **Copilot Agent 支持 DDL/DML SQL 起草与执行**：在 `/v1/copilot/chat` 后台代理中新增 `draft_sql` 与 `execute_sql` 两个工具。`draft_sql` 会用 `SqlParser` 校验 `CREATE MEASUREMENT` / `INSERT` / `DELETE` / `SELECT` 语句并附带 measurement 是否已存在等说明，但不写入数据；`execute_sql` 在调用方对当前数据库具备 `Write` 权限时才会真正执行写入语句。Planner / Answer / 启发式回退、`CopilotAgentContext` 都已同步扩展，遇到“建表 / 写入 / 删除”意图时会先用 `list_measurements` / `describe_measurement` 收集上下文，再生成可直接复制执行的 SQL（放进 ```sql 代码块）。在 `tests/SonnetDB.Tests/Copilot/copilot-eval-scenarios.json` 新增 2 个 `write` 类场景覆盖回归。- **全局 CopilotDock 浮窗 + 知识库可视化卡片（M4）**：在 Web Admin `AppShell.vue` 右下角注入新组件 `web/src/components/CopilotDock.vue`（折叠态为 52px 圆形 FAB，展开态为 380×540 浮窗，支持顶部拖拽和「全屏 / 收起到角标」切换），任意页面均可呼出 Copilot 助手；浮窗内置数据库选择、最近 3 条进度状态、最终回答展示、停止按钮、3 个示例 quick-prompt，复用既有 `streamCopilotChat` SSE 端点；同时为 `Copilot 设置`（`AiSettingsView.vue`）新增「本地知识库」卡片，消费 `GET /v1/copilot/knowledge/status` 显示 embedding provider（含 builtin 降级提示）、向量维度、根目录、已索引文件 / 块 / 技能数量、最近摄入 UTC 时间，并提供「立即重建索引」按钮（POST `/v1/copilot/docs/ingest {force:true}`，仅 admin 可见）；`web/src/api/copilot.ts` 增加 `fetchCopilotKnowledgeStatus` / `triggerCopilotDocsIngest`。- **Copilot 会话历史 — 客户端持久化（M5 第一阶段）**：新增 Pinia store `web/src/stores/copilotSessions.ts`（`useCopilotSessionsStore`），把 Copilot Dock 内的会话以 `localStorage` key `sndb.copilot.sessions.v1` 持久化（最多 50 条，按 `updatedAt` 倒序，自动从首条用户消息派生 ≤ 32 字符标题，深度 `watch` 自动落盘）；`CopilotDock.vue` header 新增「会话历史」Popover 与 `+ 新会话` / `清空` 按钮，列表项支持点击切换、`✎` 重命名（`useDialog` + `NInput`）、`×` 删除；`send()` 改为写入 `sessions.current.messages`；切换会话时自动还原 `db` 选择。第二阶段（服务端 `__copilot__.conversations` 持久化 + `/v1/copilot/conversations` REST 端点）保留在 ROADMAP。- **Copilot 页面上下文感知（M6）**：CopilotDock 选择数据库下方新增 `📍 当前页面：Xxx [· SQL N 字符] [· db=xxx]` 状态标签，默认启用、可点“×”关闭；发送时（`buildContextMessage()`）根据当前路由（`dashboard` / `sql` / `databases` / `events` / `ai-settings` / `chat` / `home`）生成一条 `role: system` 上下文消息，在 `sql` 页面额外携带当前 SQL Console 选中的数据库与正在编辑的 SQL（超过 2000 字符自动截断）包裹在 ```sql ``` 中一同提供给 LLM。上下文消息仅在 `send()` 时临时拼到 `messages[]` 头部，不会写入 `useCopilotSessionsStore` 会话历史，避免污染本地持久化。同步扩展 `useSqlConsoleStore`：新增 `currentSql` / `currentDb` / `setCurrent(db, sql)`，`SqlConsoleView.vue` 通过 `watch([targetDb, sql], ...)` 实时同步。- **Copilot 权限选择器 + 写操作审批（M7、一阶段）**：CopilotDock 数据库选择下方新增权限模式指示器：`🔒 只读模式`（默认，绿色 NTag）点击后弹 NPopconfirm “切换为读写模式后，Copilot 可直接执行 INSERT / DELETE / CREATE MEASUREMENT 等写入语句。是否启用？” 二次确认，确认后变为 `⚠️ 读写模式`（黄色，可点 × 关闭回退）。偏好持久化在 localStorage `sndb.copilot.permission.v1`。请求载荷新增 `mode: "read-only" | "read-write"` 字段，服务端 `CopilotChatEndpointHandler` 仅当其严格等于 `read-write` 时才使 `effectiveCanWrite = canWrite && true`，其余取值（未提供 / `read-only` / 任意拼写）一律强制收紧为只读。该限制在服务端生效，即使客户端被绕过也无法越权调用 `execute_sql` 写入。服务端原有凭据权限仍是上限（读只凭据即使选 read-write 也仍然只读）。- **Copilot 模型选择器（M8）**：服务端新增 `GET /v1/copilot/models` 端点，返回 `{ default, candidates[] }`（候选来自新增的 `CopilotChatOptions.AvailableModels` 配置，默认模型会被自动插入候选首位）；`CopilotChatRequest` 增加 `Model` 字段，`IChatProvider.CompleteAsync` 签名增加 `string? modelOverride` 参数，`OpenAICompatibleChatProvider` 优先使用 override、仅 fallback 到 `CopilotChatOptions.Model`；`CopilotAgentContext` 增加 `ModelOverride`，Planner / Answer / SQL Repair 三处 `CompleteAsync` 都会透传该 override。CopilotDock 数据库下方新增模型 NSelect（`filterable + tag` 允许自由输入，服务端默认模型标为「默认」，其他候选按原文列出），选择持久化在 localStorage `sndb.copilot.model.v1`，发送时仅在用户显式选中某个模型时才携带 `model` 字段，保持「不选择 = 走服务端默认」语义。
+### Added
+
+- **Copilot 内置零依赖 embedding（M1）**：新增 `BuiltinHashEmbeddingProvider`，基于 SHA-256 + 词袋哈希投影生成 384 维 L2 归一化向量，无需任何模型文件即可让 Copilot 子系统就绪；`CopilotEmbeddingOptions.Provider` 默认值由 `local` 改为 `builtin`，`CopilotReadiness` 接受 `builtin`，DI 工厂在 `local` 模型缺失时自动降级到 `builtin`，从根上消除"`503 copilot_not_ready: embedding.local_model_path_missing`"。同步保证 `CopilotDocsIngestionService` 在新部署即可自动把 `./docs`（含 `sql-reference.md` 等）/`./web/help`/`./src/SonnetDB/wwwroot/help` 全部 markdown/html 摄入系统库 `__copilot__.docs`（`embedding FIELD VECTOR(384)`）作为 Copilot 知识库。
+
+- **Copilot 知识库可视化端点（M1.5）**：新增 `GET /v1/copilot/knowledge/status`，返回当前 embedding provider（含是否处于 builtin 降级）、向量维度、扫描根目录绝对路径、已索引文件数 / 块数 / 最近一次摄入 UTC 时间、技能库条数，便于 Web Admin "Copilot 设置" 页面显示知识库实况和提供"立即重建索引"按钮。
+
+- **SQL 控制台生成走 SonnetDB 方言（M2）**：重写 `AiEndpointHandler.BuildSqlGenPrompt`，明确告诉模型 SonnetDB 使用 `time` 列（不是 `ts`）、`CREATE MEASUREMENT … (col TAG, col FIELD <FLOAT|INT|BOOL|STRING|VECTOR(N)>)`、`GROUP BY time(1m)`（不支持 `date_trunc` / 按 tag 分组）、`knn(measurement, vec_col, [向量], k [, 'cosine'])` 向量检索、`LIMIT n OFFSET m` 分页、`DELETE FROM ... WHERE ...` 删除，禁止生成 MySQL/PostgreSQL/InfluxQL 方言；未指定 `db` 时也提供通用 SonnetDB system prompt（原实现会跳过提示）；前端 `SqlConsoleView.generateSql` 新增 `stripCodeFence` 防御性剥离 ```sql ... ``` 代码围栏，避免编辑器里残留 Markdown 标记。配套把 prompt 模板抽到 `src/SonnetDB/Copilot/Prompts/sql-gen.md` / `sql-gen-no-db.md`，通过 `<EmbeddedResource>` 嵌入程序集，由 `PromptTemplates` 加载器（带缓存 + `{{key}}` 占位符替换）按需读取，便于非编程人员维护提示词与未来多语言/A-B 测试。
+
+- **Copilot Agent 支持 DDL/DML SQL 起草与执行**：在 `/v1/copilot/chat` 后台代理中新增 `draft_sql` 与 `execute_sql` 两个工具。`draft_sql` 会用 `SqlParser` 校验 `CREATE MEASUREMENT` / `INSERT` / `DELETE` / `SELECT` 语句并附带 measurement 是否已存在等说明，但不写入数据；`execute_sql` 在调用方对当前数据库具备 `Write` 权限时才会真正执行写入语句。Planner / Answer / 启发式回退、`CopilotAgentContext` 都已同步扩展，遇到“建表 / 写入 / 删除”意图时会先用 `list_measurements` / `describe_measurement` 收集上下文，再生成可直接复制执行的 SQL（放进 ```sql 代码块）。在 `tests/SonnetDB.Tests/Copilot/copilot-eval-scenarios.json` 新增 2 个 `write` 类场景覆盖回归。
+
+- **全局 CopilotDock 浮窗 + 知识库可视化卡片（M4）**：在 Web Admin `AppShell.vue` 右下角注入新组件 `web/src/components/CopilotDock.vue`（折叠态为 52px 圆形 FAB，展开态为 380×540 浮窗，支持顶部拖拽和「全屏 / 收起到角标」切换），任意页面均可呼出 Copilot 助手；浮窗内置数据库选择、最近 3 条进度状态、最终回答展示、停止按钮、3 个示例 quick-prompt，复用既有 `streamCopilotChat` SSE 端点；同时为 `Copilot 设置`（`AiSettingsView.vue`）新增「本地知识库」卡片，消费 `GET /v1/copilot/knowledge/status` 显示 embedding provider（含 builtin 降级提示）、向量维度、根目录、已索引文件 / 块 / 技能数量、最近摄入 UTC 时间，并提供「立即重建索引」按钮（POST `/v1/copilot/docs/ingest {force:true}`，仅 admin 可见）；`web/src/api/copilot.ts` 增加 `fetchCopilotKnowledgeStatus` / `triggerCopilotDocsIngest`。
+
+- **Copilot 会话历史 — 客户端持久化（M5 第一阶段）**：新增 Pinia store `web/src/stores/copilotSessions.ts`（`useCopilotSessionsStore`），把 Copilot Dock 内的会话以 `localStorage` key `sndb.copilot.sessions.v1` 持久化（最多 50 条，按 `updatedAt` 倒序，自动从首条用户消息派生 ≤ 32 字符标题，深度 `watch` 自动落盘）；`CopilotDock.vue` header 新增「会话历史」Popover 与 `+ 新会话` / `清空` 按钮，列表项支持点击切换、`✎` 重命名（`useDialog` + `NInput`）、`×` 删除；`send()` 改为写入 `sessions.current.messages`；切换会话时自动还原 `db` 选择。第二阶段（服务端 `__copilot__.conversations` 持久化 + `/v1/copilot/conversations` REST 端点）保留在 ROADMAP。
+
+- **Copilot 页面上下文感知（M6）**：CopilotDock 选择数据库下方新增 `📍 当前页面：Xxx [· SQL N 字符] [· db=xxx]` 状态标签，默认启用、可点“×”关闭；发送时（`buildContextMessage()`）根据当前路由（`dashboard` / `sql` / `databases` / `events` / `ai-settings` / `chat` / `home`）生成一条 `role: system` 上下文消息，在 `sql` 页面额外携带当前 SQL Console 选中的数据库与正在编辑的 SQL（超过 2000 字符自动截断）包裹在 ```sql ``` 中一同提供给 LLM。上下文消息仅在 `send()` 时临时拼到 `messages[]` 头部，不会写入 `useCopilotSessionsStore` 会话历史，避免污染本地持久化。同步扩展 `useSqlConsoleStore`：新增 `currentSql` / `currentDb` / `setCurrent(db, sql)`，`SqlConsoleView.vue` 通过 `watch([targetDb, sql], ...)` 实时同步。
+
+- **Copilot 权限选择器 + 写操作审批（M7、一阶段）**：CopilotDock 数据库选择下方新增权限模式指示器：`🔒 只读模式`（默认，绿色 NTag）点击后弹 NPopconfirm “切换为读写模式后，Copilot 可直接执行 INSERT / DELETE / CREATE MEASUREMENT 等写入语句。是否启用？” 二次确认，确认后变为 `⚠️ 读写模式`（黄色，可点 × 关闭回退）。偏好持久化在 localStorage `sndb.copilot.permission.v1`。请求载荷新增 `mode: "read-only" | "read-write"` 字段，服务端 `CopilotChatEndpointHandler` 仅当其严格等于 `read-write` 时才使 `effectiveCanWrite = canWrite && true`，其余取值（未提供 / `read-only` / 任意拼写）一律强制收紧为只读。该限制在服务端生效，即使客户端被绕过也无法越权调用 `execute_sql` 写入。服务端原有凭据权限仍是上限（读只凭据即使选 read-write 也仍然只读）。
+
+- **Copilot 模型选择器（M8）**：服务端新增 `GET /v1/copilot/models` 端点，返回 `{ default, candidates[] }`（候选来自新增的 `CopilotChatOptions.AvailableModels` 配置，默认模型会被自动插入候选首位）；`CopilotChatRequest` 增加 `Model` 字段，`IChatProvider.CompleteAsync` 签名增加 `string? modelOverride` 参数，`OpenAICompatibleChatProvider` 优先使用 override、仅 fallback 到 `CopilotChatOptions.Model`；`CopilotAgentContext` 增加 `ModelOverride`，Planner / Answer / SQL Repair 三处 `CompleteAsync` 都会透传该 override。CopilotDock 数据库下方新增模型 NSelect（`filterable + tag` 允许自由输入，服务端默认模型标为「默认」，其他候选按原文列出），选择持久化在 localStorage `sndb.copilot.model.v1`，发送时仅在用户显式选中某个模型时才携带 `model` 字段，保持「不选择 = 走服务端默认」语义。
 - **SQL Console 多标签页持久化 + Copilot SQL 落盘展示**：SQL Console 状态升级为 Pinia + localStorage 持久化的多标签页模型，每个选项卡独立保存目标库、SQL 文本、执行结果与摘要，切换页面或刷新后不会丢失；页面使用 `KeepAlive` 固化 SQL Console 实例。Copilot 流式返回的 `draft_sql` / `query_sql` / `execute_sql` 会自动创建新的 SQL Console 选项卡，其中查询/执行工具结果直接转换为 Console 结果展示，避免写入类 SQL 被重复执行。
 - **SQL Console 语法高亮回归（M9）**：新增 `web/src/components/sonnetdb-dialect.ts` 定义 `SonnetDbSQL = SQLDialect.define({ ...StandardSQL.spec, keywords + 'measurement measurements tag field bucket show describe explain knn', types + 'vector float int bool string', builtin + 'knn time time_bucket forecast pid_compute pid_tune' })`；`SqlEditor.vue` 改为 `dialect: SonnetDbSQL`，这样 `MEASUREMENT` / `TAG` / `FIELD` / `VECTOR` 等关键字与 `knn` / `time_bucket` / `forecast` / `pid_compute` / `pid_tune` 等内置函数同时获得语法高亮（keyword/type/builtinName 三种 token）与 lang-sql 内置的关键字自动补全。
 - **新手引导 / 提示词模板（M10）**：新增 `web/src/copilot/starters.ts` 定义 `COPILOT_STARTERS` 集合（建表 / 写入 / 聚合 / 向量 / 预测 / PID / 排查共 7 大分类、指定路由 `routeKeys` 过滤）与 `pickStarters(routeKey, max)` 函数；CopilotDock 空白态从原来的 3 条硬编码 `<li>` 重构为 `grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))` 的 starter 卡片（分类胶囊 + 标题 + tooltip 说明），点击后 `prompt` 填入输入框，路由感知下会优先提示当前页面（`sql` / `databases` / `dashboard`）独有的模板。
@@ -664,6 +765,8 @@
 - 修复访问根路径 `/`（产品宣传首页）被 Bearer 认证中间件拦截返回 `401`：将 `/`、`/favicon.ico`、`/robots.txt` 加入匿名白名单，使 `MapHomePage()` 渲染的官网首页可直接访问。
 - **Milestone 14 核查与修复**：核查 PR #63 ~ #69 的实际落地情况，确认 `SonnetDB.Copilot` 命名空间骨架、文档/技能摄入管线、MCP 工具增强、单轮/多轮 Agent 编排、Web Admin Chat Tab 与 nightly eval 套件均已落库；修复 `tests/SonnetDB.Tests/Copilot/copilot-eval-scenarios.json` 中 5 个场景（`metadata_show_measurements_sql` / `query_cpu_time_filter` / `analytics_changepoint_cusum` / `troubleshoot_explain_slow_query_log` / `troubleshoot_multiturn_sample_memory`）的 `answerSummary` 与 `expectedAnswerContains` 不一致问题，使 nightly eval 准确率从 86.11% 恢复到 100%（≥ 95% 阈值），citation 命中率 100%，p95 延迟 < 20 ms。同步把 `ROADMAP.md` 中 PR #66 / #67 / #69 与 Milestone 14 总览状态由 📋 回填为 ✅。
 
+> 2026-09-05 核查补注：上条 M14 的 100% accuracy / citation 和 p95 < 20 ms 是历史测试报告中的编排回归结果；`CopilotEvalSuiteTests` 注入 `ScriptedChatProvider` 与 `KeywordEmbeddingProvider`，不能代表真实模型准确率、embedding 质量或在线推理延迟。其当时将 M14 总体标为完成的判断过宽；当前使用自研 `CopilotAgent`，Microsoft Agent Framework 未集成，真实模型与成本证据须按 M27 单独验收。
+
 ### Changed (品牌重命名 / Breaking)
 - **项目重命名 `TSLite` → `SonnetDB`**：因与其他品牌名称冲突，全仓代码、命名空间、包名、Docker 镜像、文档、CI 脚本统一改名为 `SonnetDB`。
   - **NuGet 包 ID**：
@@ -683,8 +786,7 @@
 - **版本升级**：`0.1.0` → `1.0.0`。
 - Server Admin UI 从“嵌入式资源”切换为官方 SPA 模式：开发期由 `SpaProxy` 自动启动 `web` 的 `npm run dev`，发布期改为 Static Web Assets 输出到 `/admin/`，以便更贴近 ASP.NET Core 推荐做法并减少 AOT 发布链路的额外定制。
 
-### Planned
-- **Milestone 14 — SonnetDB Copilot：MCP 工具 + 知识库 + 智能体**：基于 Microsoft Agent Framework 新建独立项目 `src/SonnetDB.Copilot/`，复用现有 `/mcp/{db}` 工具集 + Milestone 13 的向量召回，把"用户文档 / 技能库 / 数据库 schema"统一存入 `__copilot__` 系统库（dogfooding）。Embedding/Chat 走统一 `IEmbeddingProvider` / `IChatProvider` 抽象，**本地 ONNX（bge-small-zh）** 与 **OpenAI 兼容端点（国际 / 国内任意 OpenAI-compat 网关）** 同时支持，可按部署场景切换。新增 HTTP 端点 `POST /v1/copilot/chat`（NDJSON / SSE 流式）+ Web Admin Chat Tab。详见 ROADMAP PR #63 ~ #69。
+> 历史 Copilot 计划已归档至[历史计划快照](docs/audits/historical-plans-from-changelog.md)。该计划不属于已交付清单；实际 provider、Agent 与验收边界见当前 ROADMAP 的 M27。
 
 ### Fixed
 - 回填 `ROADMAP.md` 的 PR #60 状态与 Milestone 13 进度，统一为与现有代码、测试和 `docs/vector-search.md` 一致的已实现状态。
@@ -1494,60 +1596,10 @@
 
 ---
 
-## [0.1.0] — *Planned*
-
-> 对应 ROADMAP Milestone 0 ～ Milestone 3
-
-### Added
-- 解决方案与项目骨架（`SonnetDB.sln`、`src/SonnetDB`、`src/SonnetDB.Cli`、`tests/SonnetDB.Core.Tests`、`tests/SonnetDB.Benchmarks`）
-- `.editorconfig`、`Directory.Build.props`（统一 `LangVersion` / `Nullable` / `TreatWarningsAsErrors`）
-- GitHub Actions CI（build + test，矩阵 ubuntu-latest / windows-latest）
-- `SpanReader` / `SpanWriter`（`ref struct`，基于 `BinaryPrimitives` + `MemoryMarshal`）
-- `[InlineArray]` 工具：`Magic8`、`Reserved16` 等固定缓冲
-- 核心 `unmanaged struct`：`FileHeader`、`SegmentHeader`、`BlockHeader`、`BlockIndexEntry`、`SegmentFooter`
-- 逻辑模型：`Point`、`DataPoint`、`SeriesFieldKey`、`AggregateResult`
-- `SeriesKey` 规范化 + `SeriesId`（XxHash64）
-- `SeriesCatalog`（内存 + 持久化）
-- `WalWriter` / `WalReader`（append-only + replay）
-- `MemTable`
-- `SegmentWriter`（BlockHeader + payload + footer index）
-- Flush 流程：MemTable → Segment，WAL truncate
-
----
-
-## [0.2.0] — *Planned*
-
-> 对应 ROADMAP Milestone 4 ～ Milestone 5
-
-### Added
-- `SegmentReader`（按 seriesId/time range 裁剪 block）
-- `QueryEngine.QueryRaw`（合并 MemTable + 多 Segment）
-- 聚合：`min/max/sum/avg/count` + 时间桶 `time(10s)` 分组
-- SQL 词法与语法分析器（手写递归下降）
-- `CREATE MEASUREMENT` / `INSERT INTO ... VALUES` / `SELECT ... WHERE ... GROUP BY time(...)` 语句支持
-- ADO.NET 风格 API：`SndbConnection / SndbCommand / SndbDataReader`
-
----
-
-## [0.3.0] — *Planned*
-
-> 对应 ROADMAP Milestone 6 ～ Milestone 8
-
-### Added
-- 时间戳 delta 编码（block payload V2）
-- 值列 delta 编码
-- `CompactionEngine`（合并旧 segment）
-- page manager + free list
-- 将 manifest / wal / segments 合并为单一 `.tsl` 文件
-- BenchmarkDotNet 基准（写入/查询/聚合）
-- 发布 NuGet 包 `SonnetDB` 0.1.0
-
----
+历史 `0.1.0` / `0.2.0` / `0.3.0` 的 Planned 草案已移至[历史计划归档](docs/audits/historical-plans-from-changelog.md)，不再列作发布变更。较早版本的逐标签归档仍待补齐，本文件已有历史实现条目继续保留。
 
 [Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.1.0...HEAD
 [3.1.0]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.1...v3.1.0
+[3.0.1]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
-[0.1.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.1.0
-[0.2.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.2.0
-[0.3.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.3.0

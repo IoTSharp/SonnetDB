@@ -339,10 +339,36 @@ public sealed class WalSegmentSet : IDisposable
         SeriesCatalog catalog,
         long durableCheckpointLsn,
         long durableTombstoneCheckpointLsn)
+        => ReplayWithCheckpoint(
+            catalog,
+            durableCheckpointLsn,
+            durableTombstoneCheckpointLsn,
+            highestVerifiedCheckpointLsn: long.MaxValue);
+
+    /// <summary>
+    /// 顺序回放 WAL，并限制可由 WAL CheckpointRecord 推进的最大已验证边界。
+    /// </summary>
+    /// <remarks>
+    /// 独立 checkpoint 文件丢失或损坏时，WAL 中的 checkpoint 记录本身不足以证明
+    /// 对应 Segment 仍存在。嵌入式引擎启动路径会传入已验证的 durable 边界，防止
+    /// 仅因 WAL 中残留记录而静默跳过已回收的数据；公开兼容重载仍保留历史行为。
+    /// </remarks>
+    internal WalReplayResult ReplayWithCheckpoint(
+        SeriesCatalog catalog,
+        long durableCheckpointLsn,
+        long durableTombstoneCheckpointLsn,
+        long highestVerifiedCheckpointLsn)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentOutOfRangeException.ThrowIfNegative(durableCheckpointLsn);
         ArgumentOutOfRangeException.ThrowIfNegative(durableTombstoneCheckpointLsn);
+        ArgumentOutOfRangeException.ThrowIfNegative(highestVerifiedCheckpointLsn);
+        if (highestVerifiedCheckpointLsn < durableCheckpointLsn)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(highestVerifiedCheckpointLsn),
+                "最高已验证 checkpoint 不能小于 durable checkpoint。");
+        }
 
         IReadOnlyList<WalSegmentInfo> snapshot;
         lock (_sync)
@@ -384,6 +410,14 @@ public sealed class WalSegmentSet : IDisposable
                         break;
 
                     case CheckpointRecord cp:
+                        if (cp.CheckpointLsn > highestVerifiedCheckpointLsn)
+                        {
+                            throw new InvalidDataException(
+                                $"WAL checkpoint LSN {cp.CheckpointLsn} exceeds the highest verified durable "
+                                + $"checkpoint LSN {highestVerifiedCheckpointLsn}. Recovery is rejected to avoid "
+                                + "skipping data whose published Segment cannot be proven present.");
+                        }
+
                         if (cp.CheckpointLsn > checkpointLsn)
                         {
                             checkpointLsn = cp.CheckpointLsn;

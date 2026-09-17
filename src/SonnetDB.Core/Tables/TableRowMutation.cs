@@ -9,4 +9,8 @@ namespace SonnetDB.Tables;
 public sealed record TableRowMutation(
     IReadOnlyList<object?>? PrimaryKeyValues,
     IReadOnlyList<object?>? NewValues,
-    long? ExpectedRowVersion = null);
+    long? ExpectedRowVersion = null)
+{
+    // SQL 事务保留最初读取的规范行编码，未声明 ROWVERSION 的表同样不能静默丢失更新。
+    internal byte[]? ExpectedRowState { get; init; }
+}

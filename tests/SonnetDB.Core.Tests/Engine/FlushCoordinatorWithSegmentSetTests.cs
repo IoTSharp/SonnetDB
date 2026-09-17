@@ -43,7 +43,7 @@ public sealed class FlushCoordinatorWithSegmentSetTests : IDisposable
             initialStartLsn: initialStartLsn);
 
     [Fact]
-    public void Flush_RecyclesOldSegments_OnlyActiveRemains()
+    public void Flush_RecyclesDataSegments_RetainsCheckpointCarrierForPendingPublicationRecovery()
     {
         var opts = MakeOptions();
         var coordinator = new FlushCoordinator(opts);
@@ -65,9 +65,10 @@ public sealed class FlushCoordinatorWithSegmentSetTests : IDisposable
         var result = coordinator.Flush(memTable, walSet, 1L);
 
         Assert.NotNull(result);
-        // Flush 后 RecycleUpTo 应清理旧 segment，只剩 active
+        // Flush 后回收已落段的数据；保留携带 checkpoint record 的一段，使后续 pending
+        // publication marker 能严格证明 WAL 从 durable checkpoint 连续可重放。
         Assert.True(walSet.Segments.Count < segCountBeforeFlush, $"Expected fewer segments after flush; before={segCountBeforeFlush}, after={walSet.Segments.Count}");
-        Assert.Single(walSet.Segments);
+        Assert.Equal(2, walSet.Segments.Count);
         // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成）。
         // 此处只验证段编码与 WAL 回收；MemTable 的数据在协调器视角保持不变。
         Assert.Equal(1, (int)memTable.PointCount);
@@ -91,9 +92,16 @@ public sealed class FlushCoordinatorWithSegmentSetTests : IDisposable
 
         coordinator.Flush(memTable, walSet, 1L);
 
-        // Flush 后：含 Checkpoint 的旧 segment 被 RecycleUpTo 删除，只剩 active segment
-        // 这是正确的行为：checkpoint 已被 Sync 到磁盘并提供了崩溃恢复保证，之后旧段被安全清理
-        Assert.Single(walSet.Segments);
+        // 直接 Flush 保留 checkpoint record 所在段和新的 active 段。这个很小的边界
+        // 记录让 pending publication recovery 可以拒绝任意 WAL LSN gap。
+        Assert.Equal(2, walSet.Segments.Count);
+        var checkpoints = new List<CheckpointRecord>();
+        foreach (WalSegmentInfo segment in walSet.Segments)
+        {
+            using var reader = WalReader.Open(segment.Path);
+            checkpoints.AddRange(reader.Replay().OfType<CheckpointRecord>());
+        }
+        Assert.Contains(checkpoints, checkpoint => checkpoint.CheckpointLsn == memTable.LastLsn);
 
         // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成）。
         Assert.Equal(5, (int)memTable.PointCount);

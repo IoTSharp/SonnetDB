@@ -49,7 +49,11 @@ internal sealed record ObjectListResponse(
     string? ContinuationToken,
     string? NextContinuationToken,
     bool IsTruncated,
-    ObjectInfoResponse[] Objects);
+    ObjectInfoResponse[] Objects)
+{
+    public string? Delimiter { get; init; }
+    public string[] CommonPrefixes { get; init; } = [];
+}
 
 internal sealed record ObjectDeleteManyRequest(IReadOnlyList<string> Keys);
 

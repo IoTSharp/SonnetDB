@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 
@@ -137,19 +138,42 @@ public sealed class UserFunctionRegistry
 
     /// <summary>按名称查找标量 UDF。</summary>
     public bool TryGetScalar(string name, [MaybeNullWhen(false)] out IScalarFunction function)
-        => _scalars.TryGetValue(name, out function);
+    {
+        if (!_scalars.TryGetValue(name, out function)) return false;
+        ThrowIfDeferredExecution(name);
+        return true;
+    }
 
     /// <summary>按名称查找聚合 UDF。</summary>
     public bool TryGetAggregate(string name, [MaybeNullWhen(false)] out IAggregateFunction function)
-        => _aggregates.TryGetValue(name, out function);
+    {
+        if (!_aggregates.TryGetValue(name, out function)) return false;
+        ThrowIfDeferredExecution(name);
+        return true;
+    }
 
     /// <summary>按名称查找窗口 UDF。</summary>
     public bool TryGetWindow(string name, [MaybeNullWhen(false)] out IWindowFunction function)
-        => _windows.TryGetValue(name, out function);
+    {
+        if (!_windows.TryGetValue(name, out function)) return false;
+        ThrowIfDeferredExecution(name);
+        return true;
+    }
 
     /// <summary>按名称查找表值 UDF。</summary>
     public bool TryGetTableValuedFunction(string name, [MaybeNullWhen(false)] out TableValuedFunctionDelegate executor)
-        => _tableValued.TryGetValue(name, out executor);
+    {
+        if (!_tableValued.TryGetValue(name, out executor)) return false;
+        ThrowIfDeferredExecution(name);
+        return true;
+    }
+
+    private static void ThrowIfDeferredExecution(string name)
+    {
+        if (SqlTransactionContext.Current?.IsExecutingDeferredTriggers == true)
+            throw new RoutineExecutionException(RoutineErrorCodes.Dependency,
+                $"提交阶段不允许调用用户函数 '{name}'。");
+    }
 
     /// <summary>把 <paramref name="registry"/> 设为当前查询作用域的 ambient UDF 注册表，返回作用域释放器。</summary>
     public static AmbientScope EnterScope(UserFunctionRegistry? registry)
@@ -208,6 +232,8 @@ public sealed class UserFunctionRegistry
 
         public object? Evaluate(IReadOnlyList<object?> args)
         {
+            // 即使调用方曾在提交前取得委托适配器，也不能在提交临界区执行回调。
+            ThrowIfDeferredExecution(Name);
             ArgumentNullException.ThrowIfNull(args);
             if (args.Count < MinArgumentCount || args.Count > MaxArgumentCount)
             {

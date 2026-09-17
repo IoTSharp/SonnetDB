@@ -25,6 +25,24 @@ public sealed record SndbKvCasResult(bool Succeeded, long CurrentVersion, long? 
 /// </summary>
 public sealed record SndbKvTtlResult(long Milliseconds, DateTimeOffset? ExpiresAtUtc);
 
+/// <summary>KV 条件写结果；未满足条件时版本为空且不产生写入。</summary>
+/// <param name="Applied">是否提交写入。</param>
+/// <param name="Version">成功写入后的单调版本。</param>
+public sealed record SndbKvSetResult(bool Applied, long? Version);
+
+/// <summary>KV 原子交换结果，旧记录的空值与缺失分别表示。</summary>
+/// <param name="PreviousEntry">操作前记录；缺失或过期时为空。</param>
+/// <param name="MutationVersion">变更版本；删除缺失 key 时为空。</param>
+public sealed record SndbKvExchangeResult(SndbKvEntry? PreviousEntry, long? MutationVersion);
+
+internal sealed record KvConditionalSetRequest(string Key, byte[] Value, SonnetDB.Kv.KvSetCondition Condition, DateTimeOffset? ExpiresAtUtc);
+
+internal sealed record KvConditionalSetResponse(bool? Applied, long? Version);
+
+internal sealed record KvAtomicPreviousResponse(bool? Found, byte[]? Value, long? Version, DateTimeOffset? ExpiresAtUtc);
+
+internal sealed record KvExchangeResponse(KvAtomicPreviousResponse? Previous, long? MutationVersion);
+
 internal sealed record KvGetRequest(string Key);
 
 internal sealed record KvSetRequest(string Key, byte[] Value, DateTimeOffset? ExpiresAtUtc);

@@ -32,14 +32,17 @@ internal static class AiEndpointHandler
         GrantsStore grantsStore,
         TsdbRegistry registry,
         IHttpClientFactory httpClientFactory,
-        CopilotChatOptions copilotChatOptions,
-        CopilotEmbeddingOptions copilotEmbeddingOptions)
+        CopilotOptions copilotOptions)
     {
         app.MapGet("/v1/ai/status", () =>
         {
             var cfg = configStore.Get();
+            var internalOnly = copilotOptions.InternalOnly;
             return Results.Json(
-                new AiStatusResponse(Enabled: true, IsCloudBound(cfg)),
+                new AiStatusResponse(Enabled: copilotOptions.Enabled, IsCloudBound(cfg, copilotOptions))
+                {
+                    InternalOnly = internalOnly,
+                },
                 ServerJsonContext.Default.AiStatusResponse);
         });
 
@@ -54,12 +57,16 @@ internal static class AiEndpointHandler
             }
 
             var cfg = configStore.Get();
+            var internalOnly = copilotOptions.InternalOnly;
             return Results.Json(
                 new AiConfigResponse(
-                    Enabled: true,
-                    IsCloudBound(cfg),
-                    cfg.CloudAccessTokenExpiresAtUtc,
-                    cfg.CloudBoundAtUtc),
+                    Enabled: copilotOptions.Enabled,
+                    IsCloudBound(cfg, copilotOptions),
+                    internalOnly ? null : cfg.CloudAccessTokenExpiresAtUtc,
+                    internalOnly ? null : cfg.CloudBoundAtUtc)
+                {
+                    InternalOnly = internalOnly,
+                },
                 ServerJsonContext.Default.AiConfigResponse);
         });
 
@@ -68,6 +75,14 @@ internal static class AiEndpointHandler
             if (!BearerAuthMiddleware.IsAdmin(BearerAuthMiddleware.GetRole(ctx)))
             {
                 await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", "仅 admin 可修改 AI 配置。").ConfigureAwait(false);
+                return;
+            }
+
+            // 内部模式的地址、密钥和模型均由 appsettings 管理，禁止旧云端配置接口重新写入。
+            if (copilotOptions.InternalOnly)
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status409Conflict, "cloud_disabled",
+                    "当前实例仅允许使用内部 Tomur，不能修改 sonnetdb.com 云端配置。").ConfigureAwait(false);
                 return;
             }
 
@@ -98,23 +113,31 @@ internal static class AiEndpointHandler
             configStore.Save(updated);
 
             // M16/M2：同步到 Copilot 子系统选项，使 /v1/copilot/chat 依赖的 Cloud Token 立即生效。
-            AiCopilotBridge.Apply(updated, copilotChatOptions, copilotEmbeddingOptions);
+            AiCopilotBridge.Apply(updated, copilotOptions);
 
             ctx.Response.StatusCode = StatusCodes.Status204NoContent;
         }));
 
         app.MapMethods("/v1/admin/ai-cloud/models", ["GET"], (RequestDelegate)(ctx =>
-            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, requireAdmin: true, useCopilotContract: false)));
+            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, copilotOptions, requireAdmin: true, useCopilotContract: false)));
 
         // 兼容 M8 的模型选择入口，并扩展 provider-neutral 分组；任何已认证用户均可读取。
         app.MapMethods("/v1/copilot/models", ["GET"], (RequestDelegate)(ctx =>
-            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, requireAdmin: false, useCopilotContract: true)));
+            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, copilotOptions, requireAdmin: false, useCopilotContract: true)));
 
         app.MapMethods("/v1/admin/ai-cloud/device-code", ["POST"], (RequestDelegate)(async ctx =>
         {
             if (!BearerAuthMiddleware.IsAdmin(BearerAuthMiddleware.GetRole(ctx)))
             {
                 await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", "仅 admin 可发起 sonnetdb.com 账号绑定。").ConfigureAwait(false);
+                return;
+            }
+
+            // 先于读取请求体和创建 HTTP 客户端拒绝云端设备码，确保内部模式绝不触网。
+            if (copilotOptions.InternalOnly)
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status409Conflict, "cloud_disabled",
+                    "当前实例仅允许使用内部 Tomur，不能发起 sonnetdb.com 设备码绑定。").ConfigureAwait(false);
                 return;
             }
 
@@ -175,6 +198,14 @@ internal static class AiEndpointHandler
                 return;
             }
 
+            // 先于读取请求体和创建 HTTP 客户端拒绝云端令牌轮询，确保内部模式绝不触网。
+            if (copilotOptions.InternalOnly)
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status409Conflict, "cloud_disabled",
+                    "当前实例仅允许使用内部 Tomur，不能轮询 sonnetdb.com 设备令牌。").ConfigureAwait(false);
+                return;
+            }
+
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.AiCloudDeviceTokenRequest).ConfigureAwait(false);
             if (req is null || string.IsNullOrWhiteSpace(req.DeviceCode))
             {
@@ -231,7 +262,7 @@ internal static class AiEndpointHandler
                 TimeoutSeconds = 60,
             };
             configStore.Save(updated);
-            AiCopilotBridge.Apply(updated, copilotChatOptions, copilotEmbeddingOptions);
+            AiCopilotBridge.Apply(updated, copilotOptions);
 
             var resp = new AiCloudDeviceTokenResponse(true, null, null, expiresAt.ToString("O"));
             ctx.Response.StatusCode = StatusCodes.Status200OK;
@@ -265,6 +296,14 @@ internal static class AiEndpointHandler
             }
 
             var cfg = configStore.Get();
+            if (copilotOptions.InternalOnly)
+            {
+                // 内部模式使用部署配置的 Tomur OpenAI-compatible 端点，旧 Cloud Token 不参与鉴权。
+                var internalMessages = BuildMessages(req, sqlGenPrompt);
+                await ProxyOpenAiAsync(ctx, copilotOptions.Chat, internalMessages, httpClientFactory).ConfigureAwait(false);
+                return;
+            }
+
             if (!IsCloudBound(cfg))
             {
                 await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "cloud_not_bound",
@@ -437,6 +476,57 @@ internal static class AiEndpointHandler
         await WriteSseDoneAsync(ctx).ConfigureAwait(false);
     }
 
+    /// <summary>通过内部 OpenAI-compatible endpoint 调用 Tomur，不访问官方云端模型目录。</summary>
+    private static async Task ProxyOpenAiAsync(
+        HttpContext ctx,
+        CopilotChatOptions cfg,
+        List<AiMessage> messages,
+        IHttpClientFactory factory)
+    {
+        using var client = factory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(Math.Clamp(cfg.TimeoutSeconds, 1, 600));
+        var endpoint = (cfg.Endpoint ?? string.Empty).TrimEnd('/');
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var baseUri))
+        {
+            await WriteSseErrorAsync(ctx, "内部 Chat endpoint 配置无效。").ConfigureAwait(false);
+            return;
+        }
+        var model = string.IsNullOrWhiteSpace(cfg.Model) ? "default" : cfg.Model.Trim();
+        var requestBody = new OpenAiRequest(model, messages, Stream: true);
+        using var content = new StringContent(
+            JsonSerializer.Serialize(requestBody, ServerJsonContext.Default.OpenAiRequest),
+            Encoding.UTF8,
+            "application/json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "chat/completions")) { Content = content };
+        if (!string.IsNullOrWhiteSpace(cfg.ApiKey))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.ApiKey);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(ctx.RequestAborted).ConfigureAwait(false);
+            await WriteSseErrorAsync(ctx, $"内部 AI 服务错误 {(int)response.StatusCode}: {error}").ConfigureAwait(false);
+            return;
+        }
+        using var stream = await response.Content.ReadAsStreamAsync(ctx.RequestAborted).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        while (!ctx.RequestAborted.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(ctx.RequestAborted).ConfigureAwait(false);
+            if (line is null) break;
+            if (line.Length == 0 || !line.StartsWith("data: ", StringComparison.Ordinal)) continue;
+            var data = line["data: ".Length..];
+            if (data == "[DONE]") break;
+            try
+            {
+                var chunk = JsonSerializer.Deserialize(data, ServerJsonContext.Default.OpenAiChunk);
+                var token = chunk?.Choices?.FirstOrDefault()?.Delta?.Content;
+                if (!string.IsNullOrEmpty(token)) await WriteSseTokenAsync(ctx, token).ConfigureAwait(false);
+            }
+            catch (JsonException) { }
+        }
+        await WriteSseDoneAsync(ctx).ConfigureAwait(false);
+    }
+
     private static async ValueTask<string?> ResolvePlatformDefaultModelAsync(
         HttpClient client,
         AiOptions cfg,
@@ -466,12 +556,20 @@ internal static class AiEndpointHandler
         HttpContext ctx,
         AiConfigStore configStore,
         IHttpClientFactory httpClientFactory,
+        CopilotOptions copilotOptions,
         bool requireAdmin,
         bool useCopilotContract)
     {
         if (requireAdmin && !BearerAuthMiddleware.IsAdmin(BearerAuthMiddleware.GetRole(ctx)))
         {
             await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", "仅 admin 可读取平台模型列表。").ConfigureAwait(false);
+            return;
+        }
+
+        if (copilotOptions.InternalOnly)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status409Conflict, "cloud_disabled",
+                "当前实例仅允许使用内部 Tomur，不能读取 sonnetdb.com 云端模型目录。").ConfigureAwait(false);
             return;
         }
 
@@ -572,6 +670,10 @@ internal static class AiEndpointHandler
 
     private static bool IsCloudBound(AiOptions cfg)
         => !string.IsNullOrWhiteSpace(cfg.CloudAccessToken);
+
+    /// <summary>内部模式下不把历史 Cloud Token 报告为云端绑定状态。</summary>
+    private static bool IsCloudBound(AiOptions cfg, CopilotOptions copilot)
+        => !copilot.InternalOnly && IsCloudBound(cfg);
 
     private static string NormalizeGatewayBaseUrl(string? value)
         => NormalizeAllowedBaseUrl(value, OfficialGatewayBaseUrl, OfficialGatewayBaseUrl);

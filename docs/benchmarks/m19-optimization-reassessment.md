@@ -12,11 +12,11 @@ permalink: /benchmarks/m19-optimization-reassessment/
 | 项目 | 当前覆盖 | 必要性 | 调整后的方向 |
 | --- | --- | --- | --- |
 | #124 SegmentManager | 核心增量索引已由 #207 落地，但一换一 compaction 会遗留旧索引缓存，且发布仍重复排序；此前没有专项基准 | 高，先修正确性和可测性 | 修复缓存清理，发布从 O(N log N) 降为 O(N)，补 add/swap/drop + 并发查询基准；更复杂分层索引须由数据证明 |
-| #125 大量 measurement / 长稳 | #121 的 quick/ci/soak 已扩展四个正交专项 profile，覆盖百万 series、万级小段、维护并发与随机重启 | 已完成，避免与 #121 重复 | 默认容量档在目标硬件归档报告；开发/CI 用缩规模参数做功能预检 |
+| #125 大量 measurement / 长稳 | #121 的 quick/ci/soak 已扩展四个正交专项 profile，覆盖百万 series、万级小段、维护并发与随机重启 | 研发闭环，固定目标硬件证据待执行 | 默认容量档仅由受保护 fixed-target bundle 归档；开发/hosted CI 用缩规模参数做功能预检 |
 | #126 SQL 正则 | 已有 `REGEX` / `NOT REGEX`、250 ms timeout 和 ADO 回归 | 中高，属于契约和资源治理，不是单纯性能优化 | 先统一 matcher、模式长度、受限缓存、`regexp_like`、EXPLAIN 和 EF 翻译；二阶段函数和前缀剪枝后置 |
 | #126.1 关系批量删除 | table 已建在 KV tombstone 语义上，也有同步 `Compact()`；SQL 仍物化全部 mutation 并逐行删除索引和主键 | 高，是当前最需要深入设计的一项 | 不再引入第二套 row tombstone；先做整表 generation/truncate 和 KV 批量原语，再设计可恢复的异步谓词删除任务 |
 
-#124 与 #125 已按复核方向收口。剩余优先级仍是 `#126.1 设计与基准 -> #126 契约补齐`；`#126` 可独立并行，但不应以正则函数数量挤占批量删除的存储设计工作。
+#124 已按复核方向收口；#125 的 runner、缩规模 smoke、报告/证据合同和 fixed-target workflow 已完成，四份默认容量档的真机 artifact 仍为 `NOT_READY`。剩余优先级仍是 `#126.1 设计与基准 -> #126 契约补齐`；`#126` 可独立并行，但不应以正则函数数量挤占批量删除的存储设计工作。
 
 ## #124：当前实现与本次收口
 
@@ -31,7 +31,7 @@ permalink: /benchmarks/m19-optimization-reassessment/
 本次实现改为：
 
 - 删除段时同步删除对应 `_indexById`，并增加一换一重复 swap 回归；
-- `_readerById` 改为 `SortedDictionary`，发布顺序复制为 O(N)，不再重复排序；
+- `_readerById` 保持 `SortedDictionary` 的有序性，但维护操作在锁内原地更新，避免每次复制整棵树；发布仍只构造不可变 reader 数组，读路径保持无锁一致快照；
 - 无命中的 `DropSegments` 不再发布等价快照；
 - 纯 MemTable 发布复用已有 index、reader state 和 reader 列表，恢复为 O(1)；
 - 新增 `SegmentManagerMaintenanceBenchmark`，参数覆盖 16/256/1024 段与 0/4 个真实 `QueryEngine` worker。
@@ -53,18 +53,20 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter *SegmentMa
 
 BenchmarkDotNet 输出维护线程的 Median、P90 和 managed allocation；`QueryWorkers=4` 使发布与真实点查询租约、block 解码和合并并发。该基准用于判断 O(N) 快照复制是否已成为实际瓶颈，不把一次开发机结果解释成服务端 SLA。
 
-暂不继续引入树状/分层持久索引。当前发布仍需构造不可变的 O(N) 段列表，但读路径获得简单、连续、无锁的一致快照。只有 1024+ 段基准显示发布 P90 或分配超出目标预算时，才值得用更复杂的数据结构交换读路径复杂度。
+暂不继续引入树状/分层持久索引。当前发布仍需构造不可变的 O(N) 段列表和索引字典，但已移除维护路径的整棵有序字典复制。只有 1024+ 段基准显示发布 P90 或分配超出目标预算时，才值得用更复杂的数据结构交换读路径复杂度。Flush 目录 fsync 也已收敛为稳定 bucket 的叶目录刷新；固定目标硬件仍需重新测量 P95、分配和 I/O。
 
-## #125：已作为 #121 的专项扩展交付
+## #125：作为 #121 的专项扩展交付，固定硬件证据待执行
 
 `tests/SonnetDB.EcosystemSoak` 保留 quick/ci/soak 三档组合验收，并在同一个 runner 中交付四个正交专项 profile，没有新增第二套长稳框架：
 
-1. `high-cardinality`：默认 1M series、每 series 1 点，测 catalog、tag index、采样点完整性、启动、内存和查询分位数。
+1. `high-cardinality`：默认 1M series、每 series 1 点，测 catalog、tag index、采样点完整性、reopen、内存和查询分位数。
 2. `small-segments`：固定总点数，默认主动 flush 10k segment，做全量 series/time/value 摘要并测查询和恢复。
-3. `maintenance-chaos`：后台 flush/compaction/retention 开启，以固定随机种子执行 20 轮真子进程 kill/reopen，按已确认序列统计缺失、重复、额外点和值差异。
-4. `many-measurements`：默认 10k measurement，覆盖目录枚举、备份扫描、drop、retention、冷启动和查询。
+3. `maintenance-chaos`：后台 flush/compaction/retention 开启，以固定随机种子执行 20 轮真子进程 kill/reopen；每批写入前持久化序列预留，后续 worker 从预留末尾加一开始。phase 顶层的 `maintenanceChaosReservations` 分离预留与 progress 已确认高水位，已确认序列严格统计缺失、重复和值差异，只有预留范围内的未确认恢复尾部可计入额外点。
+4. `many-measurements`：默认 10k measurement，覆盖目录枚举、备份扫描、drop、retention、reopen 和查询。
 
-统一 JSON/Markdown 报告现在记录阶段 working set/托管内存峰值、恢复与查询 nearest-rank P50/P95/P99、结构化完整性摘要，并按 profile 写明“能验证什么”和“不能证明什么”。`Ecosystem Soak` workflow 可手动选择四个专项档并归档证据。
+统一 JSON/Markdown 报告记录阶段 working set/托管内存峰值、父/子进程资源来源、分配/GC、进程 OS-accounted I/O、恢复与查询 nearest-rank P50/P95/P99、结构化完整性摘要和实际有效配置，并按 profile 写明“能验证什么”和“不能证明什么”。I/O 只代表进程可见的 OS-accounted read/write 操作和传输字节，不代表物理盘写放大、设备缓存落盘或 flush 耐久性。
+
+普通 `Ecosystem Soak` workflow 只调度 quick/ci/soak 并运行缩规模专项 smoke。四个默认容量档由 `M19 Capacity Evidence` workflow 在受保护 `main`、固定 Linux self-hosted target、严格串行锁下调用 `invoke-m19-capacity-bundle.ps1`；该入口在同一 clean checkout 生成硬件/checkout attestation、原始文件 SHA-256 manifest 和 bundle verifier 输出。目标硬件声明、环境变量或缩规模报告本身都不能升级为发布 PASS。
 
 容量边界保持明确：#124 只能降低内存索引发布成本，不能减少 segment 文件数量、解码成本或 compaction I/O；`maintenance-chaos` 的 `Process.Kill` 也不等价于内核崩溃或整机掉电。默认百万/万级容量档不进入普通 PR 主 CI，必须在固定规格目标硬件运行并保留报告，缩规模 PASS 不能替代发布容量结论。
 
@@ -114,7 +116,7 @@ BenchmarkDotNet 输出维护线程的 Median、P90 和 managed allocation；`Que
 - `IndexOf`/`Substring`/缺少 `StringComparison` 的 StartsWith/EndsWith/Contains：0/0/0/0
 - `ToLower/ToUpper`、三段 Replace 链、`params`、char LINQ：0/0/0/0
 - static Dictionary/FrozenDictionary：0/0；方法内 `new List` 21、`new Dictionary` 13
-- Select/Where/Cast/Take/Aggregate 命中 4，其中 3 个是冷启动或返回值转换，1 个是 SIMD aggregate 调用而非 LINQ
+- Select/Where/Cast/Take/Aggregate 命中 4，其中 3 个是初始化路径或返回值转换，1 个是 SIMD aggregate 调用而非 LINQ
 - `HttpClient`、`JsonSerializerOptions`、Regex、`async void`、sync-over-async：全部 0
 - 叶类密封比例：7/7，未密封 0
 
@@ -128,7 +130,7 @@ BenchmarkDotNet 输出维护线程的 Median、P90 和 managed allocation；`Que
 #### Moderate 2. 每次段发布重复排序和中间集合分配
 **Impact:** 大量小段下 add/swap/drop 仍承担 O(N log N) 排序和多份短命集合。
 **Files:** `src/SonnetDB.Core/Engine/SegmentManager.cs`
-**Fix:** 活动 reader 改用 `SortedDictionary`，直接填充定长快照数组。
+**Fix:** 活动 reader 使用 `SortedDictionary` 维护顺序并原地变更，直接填充定长快照数组，避免维护操作复制整棵字典。
 
 #### Moderate 3. 纯 MemTable 发布并非 O(1)
 **Impact:** 每次 seal/release 都复制全部 segment reader 状态，segment 多时会放大 flush 前台暂停。

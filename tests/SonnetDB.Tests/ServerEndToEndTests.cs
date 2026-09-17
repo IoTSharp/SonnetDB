@@ -316,6 +316,154 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
         Assert.Equal(8.25, Assert.Single(updatedRows)[0].GetDouble());
     }
 
+    /// <summary>同一 HTTP 批次提交的两条关系写入在新请求及 Server 重启后均可见。</summary>
+    [Fact]
+    public async Task SqlBatch_CommitTwoWrites_RemainsVisibleAfterServerRestart()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var admin = CreateClient(_adminToken);
+        admin.Timeout = TimeSpan.FromSeconds(10);
+        const string database = "batchcommit";
+        await CreateBatchTransactionDatabaseAsync(admin, database, deadline.Token);
+
+        var records = await PostTransactionBatchAsync(admin, database,
+        [
+            "BEGIN",
+            "INSERT INTO batch_rows (id, name) VALUES (1, 'first')",
+            "INSERT INTO batch_rows (id, name) VALUES (2, 'second')",
+            "COMMIT",
+        ], deadline.Token);
+        Assert.Equal(4, records.Length);
+        Assert.All(records, record => Assert.Equal("end", record.GetProperty("type").GetString()));
+        Assert.Equal(1, records[1].GetProperty("recordsAffected").GetInt32());
+        Assert.Equal(1, records[2].GetProperty("recordsAffected").GetInt32());
+        await AssertBatchTransactionRowsAsync(admin, database, [1L, 2L], deadline.Token);
+
+        await RestartBatchTransactionServerAsync(deadline.Token);
+        using var reopened = CreateClient(_readOnlyToken);
+        reopened.Timeout = TimeSpan.FromSeconds(10);
+        await AssertBatchTransactionRowsAsync(reopened, database, [1L, 2L], deadline.Token);
+    }
+
+    /// <summary>显式回滚不留下持久化行，Server 重启后仍为空表。</summary>
+    [Fact]
+    public async Task SqlBatch_RollbackTwoWrites_RemainsEmptyAfterServerRestart()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var admin = CreateClient(_adminToken);
+        admin.Timeout = TimeSpan.FromSeconds(10);
+        const string database = "batchrollback";
+        await CreateBatchTransactionDatabaseAsync(admin, database, deadline.Token);
+
+        var records = await PostTransactionBatchAsync(admin, database,
+        [
+            "BEGIN",
+            "INSERT INTO batch_rows (id, name) VALUES (1, 'first')",
+            "INSERT INTO batch_rows (id, name) VALUES (2, 'second')",
+            "ROLLBACK",
+        ], deadline.Token);
+        Assert.Equal(4, records.Length);
+        Assert.All(records, record => Assert.Equal("end", record.GetProperty("type").GetString()));
+        await AssertBatchTransactionRowsAsync(admin, database, [], deadline.Token);
+
+        await RestartBatchTransactionServerAsync(deadline.Token);
+        using var reopened = CreateClient(_readOnlyToken);
+        reopened.Timeout = TimeSpan.FromSeconds(10);
+        await AssertBatchTransactionRowsAsync(reopened, database, [], deadline.Token);
+    }
+
+    /// <summary>批次中途错误丢弃未提交前缀，并且不执行后续提交或写入。</summary>
+    [Fact]
+    public async Task SqlBatch_StatementError_DoesNotCommitPrefixOrExecuteRemainingStatements()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var admin = CreateClient(_adminToken);
+        admin.Timeout = TimeSpan.FromSeconds(10);
+        const string database = "batchfailure";
+        await CreateBatchTransactionDatabaseAsync(admin, database, deadline.Token);
+
+        var records = await PostTransactionBatchAsync(admin, database,
+        [
+            "BEGIN",
+            "INSERT INTO batch_rows (id, name) VALUES (1, 'uncommitted')",
+            "INSERT INTO missing_batch_table (id) VALUES (2)",
+            "COMMIT",
+            "INSERT INTO batch_rows (id, name) VALUES (99, 'must not execute')",
+        ], deadline.Token);
+        Assert.Equal(3, records.Length);
+        Assert.Equal("end", records[0].GetProperty("type").GetString());
+        Assert.Equal("end", records[1].GetProperty("type").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(records[2].GetProperty("message").GetString()));
+        Assert.False(records[2].TryGetProperty("recordsAffected", out _));
+        await AssertBatchTransactionRowsAsync(admin, database, [], deadline.Token);
+
+        await RestartBatchTransactionServerAsync(deadline.Token);
+        using var reopened = CreateClient(_readOnlyToken);
+        reopened.Timeout = TimeSpan.FromSeconds(10);
+        await AssertBatchTransactionRowsAsync(reopened, database, [], deadline.Token);
+    }
+
+    private static async Task CreateBatchTransactionDatabaseAsync(HttpClient client, string database, CancellationToken cancellationToken)
+    {
+        using var createContent = JsonContent.Create(new CreateDatabaseRequest(database), ServerJsonContext.Default.CreateDatabaseRequest);
+        using var create = await client.PostAsync("/v1/db", createContent, cancellationToken);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var tableContent = JsonContent.Create(
+            new SqlRequest("CREATE TABLE batch_rows (id INT, name STRING, PRIMARY KEY (id))"), ServerJsonContext.Default.SqlRequest);
+        var records = await PostTransactionRecordsAsync(client, $"/v1/db/{database}/sql", tableContent, cancellationToken);
+        Assert.Equal("end", Assert.Single(records).GetProperty("type").GetString());
+    }
+
+    private static async Task<JsonElement[]> PostTransactionBatchAsync(
+        HttpClient client, string database, string[] statements, CancellationToken cancellationToken)
+    {
+        Assert.InRange(statements.Length, 1, 8);
+        using var content = JsonContent.Create(
+            new SqlBatchRequest(statements.Select(static sql => new SqlRequest(sql)).ToArray()),
+            ServerJsonContext.Default.SqlBatchRequest);
+        return await PostTransactionRecordsAsync(client, $"/v1/db/{database}/sql/batch", content, cancellationToken);
+    }
+
+    private static async Task<JsonElement[]> PostTransactionRecordsAsync(
+        HttpClient client, string path, HttpContent content, CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsync(path, content, cancellationToken);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken);
+        Assert.True(response.IsSuccessStatusCode, $"HTTP {(int)response.StatusCode}: {body}");
+        Assert.Equal("application/x-ndjson", response.Content.Headers.ContentType?.MediaType);
+        string[] lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.InRange(lines.Length, 1, 32);
+        return lines.Select(static line =>
+        {
+            using var document = JsonDocument.Parse(line);
+            return document.RootElement.Clone();
+        }).ToArray();
+    }
+
+    private static async Task AssertBatchTransactionRowsAsync(
+        HttpClient client, string database, long[] expectedIds, CancellationToken cancellationToken)
+    {
+        using var content = JsonContent.Create(new SqlRequest("SELECT id FROM batch_rows ORDER BY id"), ServerJsonContext.Default.SqlRequest);
+        var records = await PostTransactionRecordsAsync(client, $"/v1/db/{database}/sql", content, cancellationToken);
+        Assert.Equal("meta", records[0].GetProperty("type").GetString());
+        Assert.Equal("end", records[^1].GetProperty("type").GetString());
+        Assert.Equal(expectedIds.Length, records[^1].GetProperty("rowCount").GetInt32());
+        Assert.Equal(expectedIds, records.Where(static record => record.ValueKind == JsonValueKind.Array)
+            .Select(static record => record[0].GetInt64()).ToArray());
+    }
+
+    private async Task RestartBatchTransactionServerAsync(CancellationToken cancellationToken)
+    {
+        Assert.NotNull(_app);
+        var options = _app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ServerOptions>>().Value;
+        await _app.StopAsync(cancellationToken);
+        await _app.DisposeAsync().AsTask().WaitAsync(cancellationToken);
+        _app = TestServerHost.Build(options);
+        await _app.StartAsync(cancellationToken);
+        var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>();
+        _baseUrl = Assert.Single(Assert.IsAssignableFrom<IServerAddressesFeature>(addresses).Addresses);
+    }
+
     [Fact]
     public async Task GeoTrajectory_ReturnsFeatureCollectionAndLineString()
     {

@@ -29,6 +29,7 @@
     <Project Path="samples/SonnetDB.DocumentQuickstart/SonnetDB.DocumentQuickstart.csproj" />
     <Project Path="samples/SonnetDB.EcosystemSample/SonnetDB.EcosystemSample.csproj" />
     <Project Path="samples/SonnetDB.IndustrialDiagnostics/SonnetDB.IndustrialDiagnostics.csproj" />
+    <Project Path="samples/SonnetDB.KvQuickstart/SonnetDB.KvQuickstart.csproj" />
     <Project Path="samples/SonnetDB.SemanticImages/SonnetDB.SemanticImages.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -42,6 +43,7 @@
     <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
+    <Project Path="tests/SonnetDB.TriggerAdmission/SonnetDB.TriggerAdmission.csproj" />
   </Folder>
   <Project Path="docker-compose.dcproj">
     <Build />

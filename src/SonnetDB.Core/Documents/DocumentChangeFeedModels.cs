@@ -24,7 +24,22 @@ public sealed record DocumentChangeFeedEntry(
     long DocumentVersion,
     string? BeforeJson,
     string? AfterJson,
-    bool PayloadTruncated);
+    bool PayloadTruncated,
+    string Cause = DocumentChangeCauses.User,
+    string? RequestId = null,
+    int? OperationIndex = null,
+    string? PatchJson = null);
+
+/// <summary>文档变更的原生来源分类。</summary>
+public static class DocumentChangeCauses
+{
+    /// <summary>普通用户 CRUD/更新写入。</summary>
+    public const string User = "user";
+    /// <summary>带 requestId 的 mixed bulk 写入。</summary>
+    public const string Bulk = "bulk";
+    /// <summary>TTL 索引触发的系统过期删除。</summary>
+    public const string Ttl = "ttl";
+}
 
 /// <summary>
 /// 文档变更订阅读取结果。
@@ -90,7 +105,11 @@ internal static class DocumentChangeFeedCodec
         string documentId,
         long documentVersion,
         string? beforeJson,
-        string? afterJson)
+        string? afterJson,
+        string cause = DocumentChangeCauses.User,
+        string? requestId = null,
+        int? operationIndex = null,
+        string? patchJson = null)
     {
         bool truncated = IsTooLarge(beforeJson) || IsTooLarge(afterJson);
         var buffer = new ArrayBufferWriter<byte>();
@@ -105,6 +124,16 @@ internal static class DocumentChangeFeedCodec
             WriteSnapshot(writer, "before", truncated ? null : beforeJson);
             WriteSnapshot(writer, "after", truncated ? null : afterJson);
             writer.WriteBoolean("payloadTruncated", truncated);
+            writer.WriteString("cause", cause);
+            if (requestId is not null)
+                writer.WriteString("requestId", requestId);
+            if (operationIndex.HasValue)
+                writer.WriteNumber("operationIndex", operationIndex.Value);
+            if (patchJson is not null)
+            {
+                writer.WritePropertyName("patch");
+                writer.WriteRawValue(patchJson, skipInputValidation: true);
+            }
             writer.WriteEndObject();
         }
 
@@ -123,7 +152,11 @@ internal static class DocumentChangeFeedCodec
             root.GetProperty("documentVersion").GetInt64(),
             ReadSnapshot(root, "before"),
             ReadSnapshot(root, "after"),
-            root.TryGetProperty("payloadTruncated", out var truncated) && truncated.GetBoolean());
+            root.TryGetProperty("payloadTruncated", out var truncated) && truncated.GetBoolean(),
+            root.TryGetProperty("cause", out var cause) ? cause.GetString() ?? DocumentChangeCauses.User : DocumentChangeCauses.User,
+            root.TryGetProperty("requestId", out var requestId) ? requestId.GetString() : null,
+            root.TryGetProperty("operationIndex", out var operationIndex) && operationIndex.TryGetInt32(out int index) ? index : null,
+            ReadSnapshot(root, "patch"));
     }
 
     private static bool IsTooLarge(string? json)

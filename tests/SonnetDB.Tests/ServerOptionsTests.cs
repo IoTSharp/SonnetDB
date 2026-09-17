@@ -8,6 +8,24 @@ namespace SonnetDB.Tests;
 
 public sealed class ServerOptionsTests
 {
+    [Theory]
+    [InlineData("0",1,1,1)]
+    [InlineData("999999999",100000,134217728,120000)]
+    [InlineData("256",256,256,256)]
+    public void Bind_DeferredTriggerBudgets_AreBounded(string requested,int count,long bytes,int timeout)
+    {
+        var configuration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
+        {
+            ["SonnetDBServer:SqlExecution:MaxDeferredTriggerInvocations"]=requested,
+            ["SonnetDBServer:SqlExecution:MaxDeferredTriggerBytes"]=requested,
+            ["SonnetDBServer:SqlExecution:TransactionCommitTimeoutMilliseconds"]=requested,
+        }).Build();
+        var options=ServerOptionsBinder.Bind(configuration).SqlExecution;
+        Assert.Equal(count,options.MaxDeferredTriggerInvocations);
+        Assert.Equal(bytes,options.MaxDeferredTriggerBytes);
+        Assert.Equal(timeout,options.TransactionCommitTimeoutMilliseconds);
+    }
+
     [Fact]
     public void Defaults_UseProductionObservabilitySettings()
     {

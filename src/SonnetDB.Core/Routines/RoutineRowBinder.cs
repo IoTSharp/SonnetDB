@@ -2,13 +2,16 @@ using SonnetDB.Exceptions;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
+using SonnetDB.Engine;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Routines;
 
 internal sealed record RoutineRowContext(
     TableSchema Schema,
     IReadOnlyList<object?>? OldValues,
-    IReadOnlyList<object?>? NewValues);
+    IReadOnlyList<object?>? NewValues,
+    Tsdb? Database = null);
 
 internal static class RoutineRowBinder
 {
@@ -20,6 +23,7 @@ internal static class RoutineRowBinder
         {
             InsertStatement insert => insert with
             {
+                Query = insert.Query is null ? null : BindSelect(insert.Query, context with { Database = null }),
                 Rows = insert.Rows.Select(row => row
                     .Select(expression => BindInsertValue(expression, context))
                     .ToArray())
@@ -91,8 +95,28 @@ internal static class RoutineRowBinder
                     Else = @case.Else is null ? null : BindExpression(@case.Else, context),
                 };
             case SubqueryExpression subquery:
+                if (context.Database is { } db)
+                {
+                    var result = SqlExecutor.ExecuteSelect(db, subquery.Select with
+                    {
+                        Pagination = new PaginationSpec(subquery.Select.Pagination?.Offset ?? 0,
+                            Math.Min(subquery.Select.Pagination?.Fetch ?? int.MaxValue, 2)),
+                    });
+                    if (result.Columns.Count != 1 || result.Rows.Count > 1)
+                        throw new InvalidOperationException("触发器标量子查询必须返回一列且至多一行。");
+                    return SqlParameterBinder.ToLiteral(result.Rows.Count == 0 ? null : result.Rows[0][0]);
+                }
                 return subquery with { Select = BindSelect(subquery.Select, context) };
             case ExistsExpression exists:
+                if (context.Database is { } database)
+                {
+                    var result = SqlExecutor.ExecuteSelect(database, exists.Select with
+                    {
+                        Pagination = new PaginationSpec(exists.Select.Pagination?.Offset ?? 0,
+                            Math.Min(exists.Select.Pagination?.Fetch ?? int.MaxValue, 1)),
+                    });
+                    return SqlParameterBinder.ToLiteral(result.Rows.Count != 0);
+                }
                 return exists with { Select = BindSelect(exists.Select, context) };
             default:
                 return expression;

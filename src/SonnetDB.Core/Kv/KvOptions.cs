@@ -45,7 +45,7 @@ public sealed record KvOptions
     /// 索引恢复期间允许的可变内存覆盖层最大条目数，默认 100,000；小于等于 0 时关闭条目预算。
     /// 该预算只在关系表索引恢复 scope 内生效，不改变普通业务写入预算。
     /// </summary>
-    public int IndexRebuildMaxOverlayEntries { get; init; } = 100_000;
+    public int IndexRebuildMaxOverlayEntries { get; init; } = 1_000_000;
 
     /// <summary>
     /// 写入因检查点预算耗尽而等待的最长时间，默认 30 秒。超时或后台检查点失败时，

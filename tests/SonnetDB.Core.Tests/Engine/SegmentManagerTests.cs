@@ -53,6 +53,22 @@ public sealed class SegmentManagerTests : IDisposable
         Assert.Equal(0, mgr.Index.SegmentCount);
     }
 
+    [Fact]
+    public void Open_TwoParameterOverload_RetainsPublicAbi()
+    {
+        var twoParameter = typeof(SegmentManager).GetMethod(
+            nameof(SegmentManager.Open),
+            [typeof(string), typeof(SegmentReaderOptions)]);
+        var threeParameter = typeof(SegmentManager).GetMethod(
+            nameof(SegmentManager.Open),
+            [typeof(string), typeof(SegmentReaderOptions), typeof(string)]);
+
+        Assert.NotNull(twoParameter);
+        Assert.True(twoParameter.GetParameters()[1].HasDefaultValue);
+        Assert.NotNull(threeParameter);
+        Assert.False(threeParameter.GetParameters()[2].HasDefaultValue);
+    }
+
     // ── 预写入 2 个段后 Open ─────────────────────────────────────────────────
 
     [Fact]
@@ -104,6 +120,73 @@ public sealed class SegmentManagerTests : IDisposable
 
         var candidates = mgr.Index.LookupCandidates(0xABCUL, "usage", 5000L, 6000L);
         Assert.NotEmpty(candidates);
+    }
+
+    [Fact]
+    public void AddSegment_IndexBuildFailure_LeavesCandidateUnpublished()
+    {
+        WriteSegment(1L, 0x1UL, "f", 1000L, 2000L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        var before = mgr.CurrentSnapshot;
+
+        string failedPath = WriteSegment(2L, 0x2UL, "f", 3000L, 4000L);
+        mgr.BeforeSegmentIndexBuildTestHook = static (_, segId) =>
+        {
+            if (segId == 2L)
+                throw new InvalidOperationException("injected segment index failure");
+        };
+
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() => mgr.AddSegment(failedPath));
+        }
+        finally
+        {
+            mgr.BeforeSegmentIndexBuildTestHook = null;
+        }
+
+        Assert.Same(before, mgr.CurrentSnapshot);
+        Assert.Equal(new[] { 1L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+
+        string succeedingPath = WriteSegment(3L, 0x3UL, "f", 5000L, 6000L);
+        mgr.AddSegment(succeedingPath);
+
+        Assert.Equal(new[] { 1L, 3L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+        Assert.Equal(2, mgr.CachedIndexCount);
+    }
+
+    [Fact]
+    public void SwapSegments_IndexBuildFailure_LeavesRemovedReadersPublished()
+    {
+        WriteSegment(1L, 0x1UL, "f", 1000L, 2000L);
+        WriteSegment(2L, 0x2UL, "f", 3000L, 4000L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        var before = mgr.CurrentSnapshot;
+
+        string failedPath = WriteSegment(3L, 0x3UL, "f", 5000L, 6000L);
+        mgr.BeforeSegmentIndexBuildTestHook = static (_, segId) =>
+        {
+            if (segId == 3L)
+                throw new InvalidOperationException("injected segment index failure");
+        };
+
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() => mgr.SwapSegments([1L, 2L], failedPath));
+        }
+        finally
+        {
+            mgr.BeforeSegmentIndexBuildTestHook = null;
+        }
+
+        Assert.Same(before, mgr.CurrentSnapshot);
+        Assert.Equal(new[] { 1L, 2L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+
+        string succeedingPath = WriteSegment(4L, 0x4UL, "f", 7000L, 8000L);
+        mgr.AddSegment(succeedingPath);
+
+        Assert.Equal(new[] { 1L, 2L, 4L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+        Assert.Equal(3, mgr.CachedIndexCount);
     }
 
     // ── RemoveSegment ─────────────────────────────────────────────────────────
@@ -246,6 +329,83 @@ public sealed class SegmentManagerTests : IDisposable
         Assert.Same(before.Index, after.Index);
         Assert.Same(before.ReaderStates, after.ReaderStates);
         Assert.Same(before.Readers, after.Readers);
+    }
+
+    [Fact]
+    public void SealActiveAndSwap_PreviousSnapshotRejectsLateAcquire()
+    {
+        WriteSegment(1L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        mgr.InitializeActiveMemTable(new MemTable());
+        var before = mgr.CurrentSnapshot;
+
+        mgr.SealActiveAndSwap(new MemTable());
+
+        bool acquired = before.TryAcquire();
+        if (acquired)
+            before.Release();
+
+        Assert.False(acquired);
+    }
+
+    [Fact]
+    public void PublishSegmentAndReleaseSealed_IndexBuildFailure_LeavesSealedTablePublished()
+    {
+        using var mgr = SegmentManager.Open(_tempDir);
+        mgr.InitializeActiveMemTable(new MemTable());
+        MemTable sealedTable = Assert.IsType<MemTable>(mgr.SealActiveAndSwap(new MemTable()));
+        var before = mgr.CurrentSnapshot;
+
+        string failedPath = WriteSegment(2L, 0x2UL, "f", 3000L, 4000L);
+        mgr.BeforeSegmentIndexBuildTestHook = static (_, segId) =>
+        {
+            if (segId == 2L)
+                throw new InvalidOperationException("injected segment index failure");
+        };
+
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                mgr.PublishSegmentAndReleaseSealed(failedPath, sealedTable));
+        }
+        finally
+        {
+            mgr.BeforeSegmentIndexBuildTestHook = null;
+        }
+
+        Assert.Same(before, mgr.CurrentSnapshot);
+        Assert.Equal(0, mgr.SegmentCount);
+        Assert.Equal(1, mgr.SealingCount);
+
+        string succeedingPath = WriteSegment(3L, 0x3UL, "f", 5000L, 6000L);
+        mgr.PublishSegmentAndReleaseSealed(succeedingPath, sealedTable);
+
+        Assert.Equal(new[] { 3L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+        Assert.Equal(0, mgr.SealingCount);
+        Assert.Equal(1, mgr.CachedIndexCount);
+    }
+
+    [Fact]
+    public void PublishSegmentAndReleaseSealed_UnknownSealedTable_RejectsWithoutPublishingSegment()
+    {
+        using var mgr = SegmentManager.Open(_tempDir);
+        mgr.InitializeActiveMemTable(new MemTable());
+        MemTable sealedTable = Assert.IsType<MemTable>(mgr.SealActiveAndSwap(new MemTable()));
+        var before = mgr.CurrentSnapshot;
+        string path = WriteSegment(2L, 0x2UL, "f", 3000L, 4000L);
+
+        var unknownSealedTable = new MemTable();
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            mgr.PublishSegmentAndReleaseSealed(path, unknownSealedTable));
+
+        Assert.Contains("sealing MemTable", error.Message, StringComparison.Ordinal);
+        Assert.Same(before, mgr.CurrentSnapshot);
+        Assert.Empty(mgr.Readers);
+        Assert.Equal(1, mgr.SealingCount);
+
+        mgr.PublishSegmentAndReleaseSealed(path, sealedTable);
+        Assert.Equal(new[] { 2L }, mgr.Readers.Select(static reader => reader.Header.SegmentId));
+        Assert.Equal(0, mgr.SealingCount);
     }
 
     // ── Dispose ──────────────────────────────────────────────────────────────

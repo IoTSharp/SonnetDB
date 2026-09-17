@@ -137,6 +137,24 @@ public sealed class KvStorageOptions
 /// </summary>
 public sealed class SemanticSearchOptions
 {
+    /// <summary>语义查询的 ANN、候选扫描、精确补偿与协作超时预算。</summary>
+    public SemanticSearchQueryOptions Query { get; set; } = new();
+
+    /// <summary>内容外发策略；默认只允许明确声明本地执行的 provider。</summary>
+    public SonnetDB.SemanticContent.SemanticDataEgressPolicy DataEgressPolicy { get; set; } = new();
+
+    /// <summary>单次 provider 调用及对象读取的超时秒数，范围 1 到 300。</summary>
+    public int EmbeddingTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>对象 embedding 输入的最大字节数，范围 1 到 100 MiB。</summary>
+    public int MaxObjectEmbeddingBytes { get; set; } = 20 * 1024 * 1024;
+
+    /// <summary>文本 embedding 输入的 UTF-8 最大字节数，范围 1 到 4 MiB。</summary>
+    public int MaxTextEmbeddingBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>对象缩略图与语义派生任务的持久队列、恢复和负载边界。</summary>
+    public ObjectProcessingOptions ObjectProcessing { get; set; } = new();
+
     /// <summary>是否启用语义图片检索端点。默认关闭。</summary>
     public bool Enabled { get; set; }
 
@@ -195,6 +213,34 @@ public sealed class SemanticSearchOptions
     public int MaxTopK { get; set; } = 100;
 }
 
+/// <summary>语义图片查询预算；服务创建时将配置限制在文档声明的安全范围内。</summary>
+public sealed class SemanticSearchQueryOptions
+{
+    /// <summary>filtered ANN 候选预算，默认 512，范围 1～100000。预算不足时转精确路径。</summary>
+    public int AnnCandidateLimit { get; set; } = 512;
+
+    /// <summary>允许物化与精确补偿的过滤 ID 数量，默认 4096，范围 0～100000。</summary>
+    public int ExactCompensationLimit { get; set; } = 4096;
+
+    /// <summary>预过滤与精确扫描的单页行数，默认 256，范围 1～4096。</summary>
+    public int CandidatePageSize { get; set; } = 256;
+
+    /// <summary>单次查询预过滤与精确扫描累计读取行数上限，默认 100000，范围 1～10000000。</summary>
+    public int MaxScannedCandidates { get; set; } = 100_000;
+
+    /// <summary>检索阶段协作超时毫秒数，默认 30000，范围 1～600000；不包含 embedding 生成。</summary>
+    public int TimeoutMilliseconds { get; set; } = 30_000;
+
+    internal SemanticSearchQueryOptions BoundedCopy() => new()
+    {
+        AnnCandidateLimit = Math.Clamp(AnnCandidateLimit, 1, 100_000),
+        ExactCompensationLimit = Math.Clamp(ExactCompensationLimit, 0, 100_000),
+        CandidatePageSize = Math.Clamp(CandidatePageSize, 1, 4096),
+        MaxScannedCandidates = Math.Clamp(MaxScannedCandidates, 1, 10_000_000),
+        TimeoutMilliseconds = Math.Clamp(TimeoutMilliseconds, 1, 600_000),
+    };
+}
+
 /// <summary>
 /// <c>POST /v1/db/{db}/sql</c>、<c>/sql/batch</c> 与 frame-http2 SQL query 的
 /// 数据库级并发准入配置。
@@ -218,6 +264,30 @@ public sealed class SqlHttpAdmissionOptions
 /// </summary>
 public sealed class SqlExecutionResourceOptions
 {
+    /// <summary>单次过程与触发器调用链的 body 语句预算，默认 64；批量触发器须显式按容量验证配置。</summary>
+    public int MaxRoutineStatements { get; set; } = 64;
+
+    /// <summary>过程与触发器嵌套深度预算，默认 8。</summary>
+    public int MaxRoutineDepth { get; set; } = 8;
+
+    /// <summary>过程累计结果行数预算，包含 INSERT RETURNING，默认 10000。</summary>
+    public int MaxRoutineResultRows { get; set; } = 10_000;
+
+    /// <summary>每条调用链同时存活的 transition set 行数上限。</summary>
+    public int MaxTriggerTransitionRows { get; set; } = 100_000;
+
+    /// <summary>每条调用链 transition set 的保守内存预算（字节）。</summary>
+    public long MaxTriggerTransitionBytes { get; set; } = 64 * 1024 * 1024;
+
+    /// <summary>单事务延迟触发器调用数量上限。</summary>
+    public int MaxDeferredTriggerInvocations { get; set; } = 100_000;
+
+    /// <summary>单事务延迟触发器队列内存上限（字节）。</summary>
+    public long MaxDeferredTriggerBytes { get; set; } = 64 * 1024 * 1024;
+
+    /// <summary>提交锁等待与延迟执行的协作超时（毫秒）。</summary>
+    public int TransactionCommitTimeoutMilliseconds { get; set; } = 30_000;
+
     /// <summary>单条 SQL 的阻塞算子内存上限，默认 64 MiB。</summary>
     public long QueryLimitBytes { get; set; } = SonnetDB.Engine.SqlMemoryOptions.Default.QueryLimitBytes;
 

@@ -62,6 +62,206 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(["tenant", "serial"], stmt.Columns);
     }
 
+    /// <summary>解析 CREATE INDEX 末尾的 ONLINE 修饰词，并保留既有索引选项。</summary>
+    [Fact]
+    public void ParseCreateIndex_Online_ReturnsAstFlag()
+    {
+        var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(
+            "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+
+        Assert.True(stmt.Online);
+        Assert.False(stmt.IsUnique);
+        Assert.False(stmt.IfNotExists);
+        Assert.Equal(["capture_time", "id"], stmt.Columns);
+    }
+
+    /// <summary>解析 EF 常用的 IF NOT EXISTS 与末尾 ONLINE 组合，避免现场版本只支持其中一项。</summary>
+    [Fact]
+    public void ParseCreateIndex_Online_WithIfNotExists_ReturnsAstFlags()
+    {
+        var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(
+            "CREATE INDEX IF NOT EXISTS \"ix_devices_capture\" ON \"devices\" (\"capture_time\") ONLINE"));
+
+        Assert.True(stmt.Online);
+        Assert.True(stmt.IfNotExists);
+        Assert.Equal("ix_devices_capture", stmt.IndexName);
+        Assert.Equal("devices", stmt.TableName);
+    }
+
+    /// <summary>直接 SQL 在线构建按有界批次返回 pending，完成后才发布索引。</summary>
+    [Fact]
+    public void CreateIndex_Online_ReturnsPendingThenComplete()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+        // 默认每次最多推进 64 页、每页 16 行；多于该上限才能稳定观察到 pending 结果。
+        var values = string.Join(", ", Enumerable.Range(1, 1025).Select(id => $"({id}, {id * 10})"));
+        SqlExecutor.Execute(db, $"INSERT INTO devices (id, capture_time) VALUES {values}");
+
+        var first = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db, "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+        Assert.Equal(0, first.RowsAffected);
+        Assert.Equal("create_index_online_pending", first.Operation);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db, "SHOW INDEXES ON devices")).Rows);
+
+        var second = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db, "CREATE INDEX ix_devices_capture ON devices (capture_time, id) ONLINE"));
+        Assert.Equal(1, second.RowsAffected);
+        Assert.Equal("create_index_online_complete", second.Operation);
+        var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW INDEXES ON devices"));
+        Assert.Contains(indexes.Rows, row => Equals(row[0], "ix_devices_capture"));
+    }
+
+    /// <summary>已发布的在线索引重开后无需预热表即可报告完成，且仍拒绝同名不同定义。</summary>
+    [Fact]
+    public void CreateIndex_Online_PublishedColdTable_ReturnsComplete()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "CREATE INDEX ix_devices_capture ON devices (capture_time) ONLINE");
+        }
+
+        using var reopened = Tsdb.Open(Options());
+        var result = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            reopened, "CREATE INDEX IF NOT EXISTS ix_devices_capture ON devices (capture_time) ONLINE"));
+
+        Assert.Equal(1, result.RowsAffected);
+        Assert.Equal("create_index_online_complete", result.Operation);
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            reopened, "CREATE INDEX IF NOT EXISTS ix_devices_capture ON devices (id) ONLINE"));
+    }
+
+    /// <summary>通过页间同步点验证后台仍在构建时能并发读写，且索引包含已扫与未扫区间的变更。</summary>
+    [Fact]
+    public async Task CreateIndex_Online_AllowsConcurrentWritesUntilPublish()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+        var values = string.Join(", ", Enumerable.Range(1, 257).Select(id => $"({id}, {id * 10})"));
+        SqlExecutor.Execute(db, $"INSERT INTO devices (id, capture_time) VALUES {values}");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var firstPage = new ManualResetEventSlim();
+        using var writesFinished = new ManualResetEventSlim();
+        db.Tables.OnlineIndexPageCompletedTestHook = page =>
+        {
+            if (page == 1)
+            {
+                firstPage.Set();
+                Assert.True(writesFinished.Wait(TimeSpan.FromSeconds(10), timeout.Token));
+            }
+        };
+        var writer = Task.Run(() =>
+        {
+            try
+            {
+                Assert.True(firstPage.Wait(TimeSpan.FromSeconds(10), timeout.Token));
+                ExecuteOnlineTestSql(db, "INSERT INTO devices (id, capture_time) VALUES (0, 777)", timeout.Token);
+                ExecuteOnlineTestSql(db, "UPDATE devices SET capture_time = 777 WHERE id = 1", timeout.Token);
+                ExecuteOnlineTestSql(db, "UPDATE devices SET capture_time = 777 WHERE id = 257", timeout.Token);
+                ExecuteOnlineTestSql(db, "DELETE FROM devices WHERE id = 2 OR id = 200", timeout.Token);
+                var during = Assert.IsType<SelectExecutionResult>(ExecuteOnlineTestSql(
+                    db, "SELECT id FROM devices WHERE capture_time = 777 ORDER BY id", timeout.Token));
+                Assert.Equal(new long[] { 0, 1, 257 }, during.Rows.Select(row => (long)row[0]!).ToArray());
+                Assert.Empty(Assert.IsType<SelectExecutionResult>(ExecuteOnlineTestSql(
+                    db, "SHOW INDEXES ON devices", timeout.Token)).Rows);
+            }
+            finally
+            {
+                writesFinished.Set();
+            }
+        }, timeout.Token);
+        var online = Task.Run(() => ExecuteOnlineTestSql(
+            db, "CREATE INDEX ix_devices_capture ON devices (capture_time) ONLINE", timeout.Token), timeout.Token);
+        try
+        {
+            await Task.WhenAll(online, writer).WaitAsync(TimeSpan.FromSeconds(25));
+        }
+        finally
+        {
+            timeout.Cancel();
+            writesFinished.Set();
+            db.Tables.OnlineIndexPageCompletedTestHook = null;
+        }
+        Assert.Equal("create_index_online_complete", Assert.IsType<RowsAffectedExecutionResult>(await online).Operation);
+        var after = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db, "SELECT id FROM devices WHERE capture_time = 777 ORDER BY id"));
+        Assert.Equal(new long[] { 0, 1, 257 }, after.Rows.Select(row => (long)row[0]!).ToArray());
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db, "SELECT id FROM devices WHERE capture_time = 10 OR capture_time = 20 OR capture_time = 2000 OR capture_time = 2570")).Rows);
+        var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW INDEXES ON devices"));
+        Assert.Contains(indexes.Rows, row => Equals(row[0], "ix_devices_capture"));
+    }
+
+    /// <summary>进程在在线索引中途重开后从持久游标续建，半成品始终不出现在 SHOW INDEXES。</summary>
+    [Fact]
+    public void CreateIndex_Online_ResumesAfterReopen()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sndb-online-reopen-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = root }))
+            {
+                SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+                var values = string.Join(", ", Enumerable.Range(1, 257).Select(id => $"({id}, {id * 10})"));
+                SqlExecutor.Execute(db, $"INSERT INTO devices (id, capture_time) VALUES {values}");
+                var first = db.Tables.CreateIndexOnline(
+                    "devices", new TableIndexDefinition("ix_devices_capture", ["capture_time"], IsUnique: false),
+                    maximumPages: 1);
+                Assert.False(first.Completed);
+                Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW INDEXES ON devices")).Rows);
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = root });
+            var coldAttempt = reopened.Tables.CreateIndexOnline(
+                "devices", new TableIndexDefinition("ix_devices_capture", ["capture_time"], IsUnique: false),
+                timeout.Token, maximumPages: 8);
+            Assert.False(coldAttempt.Completed);
+            Assert.Equal("yielded", coldAttempt.Status);
+            // 正常读表先完成冷恢复，在线入口本身不会承担可能阻塞业务的冷开工作。
+            ExecuteOnlineTestSql(reopened, "SELECT id FROM devices LIMIT 1", timeout.Token);
+            var definition = new TableIndexDefinition("ix_devices_capture", ["capture_time"], IsUnique: false);
+            var complete = false;
+            for (var attempt = 0; attempt < 32 && !complete; attempt++)
+            {
+                timeout.Token.ThrowIfCancellationRequested();
+                complete = reopened.Tables.CreateIndexOnline("devices", definition, timeout.Token, maximumPages: 8).Completed;
+                if (!complete && timeout.Token.WaitHandle.WaitOne(5)) timeout.Token.ThrowIfCancellationRequested();
+            }
+
+            Assert.True(complete, "重开后在线索引未在有界批次内完成");
+            var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, "SHOW INDEXES ON devices"));
+            Assert.Contains(indexes.Rows, row => Equals(row[0], "ix_devices_capture"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>把测试总预算传入 SQL 执行，避免并发工作脱离取消约束。</summary>
+    private static object? ExecuteOnlineTestSql(Tsdb database, string sql, CancellationToken cancellationToken) =>
+        SqlExecutor.Execute(database, null, sql, null, null,
+            new SqlExecutionOptions { CancellationToken = cancellationToken });
+
+    /// <summary>在线索引拒绝唯一、文档、JSON path 以及 partial 变体。</summary>
+    [Theory]
+    [InlineData("CREATE UNIQUE INDEX ix_unique ON devices (capture_time) ONLINE")]
+    [InlineData("CREATE SPARSE INDEX ix_sparse ON devices (capture_time) ONLINE")]
+    [InlineData("CREATE TTL INDEX ix_ttl ON devices (capture_time) WITH (ttl_seconds = 60) ONLINE")]
+    [InlineData("CREATE INDEX ix_partial ON devices (capture_time) WHERE capture_time > 0 ONLINE")]
+    [InlineData("CREATE INDEX ix_json ON devices ('$.capture_time') ONLINE")]
+    public void CreateIndex_Online_RejectsUnsupportedVariants(string sql)
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, capture_time INT, PRIMARY KEY (id))");
+
+        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(db, sql));
+    }
+
     [Fact]
     public void ParseCreateJsonIndex_OnTable_ReturnsAst()
     {

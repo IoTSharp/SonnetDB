@@ -24,7 +24,7 @@
 
 It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, a message queue, and native property graphs — nine kinds of data capability that usually require several separate systems — in one engine accessed through SQL, standard APIs, and management tools.
 
-The core value is not "many features" but **unification**: all nine models retain their native semantics and access patterns while sharing one process, one permission and operations boundary, one backup/restore workflow, and one admin console. This is not several independent products bundled together; the models work together inside one engine.
+The core value is **unification**: all nine models retain their native semantics and access patterns while sharing a server process, authorization entry points, and an admin console. Persistence and recovery still have model boundaries: a database backup covers resources within that database directory, while Server SonnetMQ lives in the instance-level `.system/mq` directory and is currently excluded. Restoring one database therefore does not provide a consistent restore of all nine models.
 
 Deployment stays flexible: embed it as an in-process library or run it as a standalone server for local applications, devices and edge nodes, business systems, private environments, and other workloads.
 
@@ -33,20 +33,20 @@ Deployment stays flexible: embed it as an in-process library or run it as a stan
 | Data model | What one engine provides directly |
 | --- | --- |
 | **Time-series** | Device metrics, industrial telemetry, time-window aggregation, compression, retention |
-| **Relational tables** | Business tables, primary keys, indexes, joins, transactions, foreign keys, EF Core |
+| **Relational tables** | Business tables, primary keys, indexes, joins, lightweight transactions across tables in one database, foreign keys, EF Core |
 | **KV / cache** | Device state, sessions, configuration, TTL, prefix scan, atomic operations |
 | **JSON documents** | Document collections, JSON path queries, document indexes, document vector index |
 | **Full-text search** | BM25 ranking, multi-language tokenization, fuzzy search |
 | **Vector search** | HNSW approximate index + exact fallback, Hybrid Search |
-| **Object storage** | S3-compatible buckets, multipart upload, range reads, presigned URLs |
+| **Object storage** | S3-style buckets, multipart upload, range reads, presigned URLs; not full S3/SigV4 compatibility |
 | **Message queue** | SonnetMQ topics, consumer groups, push / ack, restart replay |
 | **Native property graph (Graph Beta)** | Vertices, edges, labels, properties, native bidirectional adjacency, SQL/PGQ `GRAPH_TABLE`, and an optional constrained read-only GQL-style embedded entry point |
 
-The relational SQL surface is a practical subset covering common queries, aggregation, joins, transactions, and multi-model extensions — it is not a full SQL-standard implementation. Native property graphs are currently Graph Beta, not a claim of complete GQL, Cypher, or Neo4j compatibility; fixed-hardware, external semantic-comparison, and long-running production gates remain incomplete. Treat the topic docs as the source of truth for each capability's maturity.
+The relational SQL surface is a practical subset covering common queries, aggregation, joins, transactions, and multi-model extensions; it is not a full SQL-standard implementation. Graph Beta describes the current native property graph feature scope, not a completed formal Beta semantic/capacity gate or full GQL, Cypher, or Neo4j compatibility. Fixed-hardware, external semantic-comparison, and long-running production gates remain incomplete. Treat the topic docs as the source of truth for each capability's maturity.
 
 ## ⚡ Universal Binary Frame Protocol
 
-3.0 introduced a **universal binary frame protocol** over HTTP/2 covering seven foundational data-plane services (message queue, time-series, SQL, vector, KV, object, and document). These services share one high-throughput channel: time-series bulk writes travel as compact columnar binary, large SQL result sets stream back in columnar chunks with no full materialization so memory stays near-constant, and vector-search query vectors are carried as native f32 binary. In the current Graph Beta, M40 #351 adds a constrained single-hop `Expand` at `service=8` on the same endpoint; native property graphs are also accessed through APIs and SQL/PGQ, while other graph operations follow their API/SQL boundaries. REST endpoints are fully preserved for compatibility, and clients can switch freely between `auto` / `frame-http2` / `rest` via the connection-string `Protocol` option.
+3.0 introduced a **universal binary frame protocol** over HTTP/2 covering seven foundational data-plane services (message queue, time-series, SQL, vector, KV, object, and document). These services share one high-throughput channel: time-series bulk writes travel as compact columnar binary, SQL results return in columnar chunks, and vector-search query vectors are carried as native f32 binary. SQL chunking bounds the response encoding buffer; the endpoint still obtains the complete `SelectExecutionResult.Rows` first, so execution and result memory can grow with the data size. Bounded streaming from the executor through the client is not yet available. In the current Graph Beta, M40 #351 adds a constrained single-hop `Expand` at `service=8` on the same endpoint; native property graphs are also accessed through APIs and SQL/PGQ, while other graph operations follow their API/SQL boundaries. REST endpoints are fully preserved for compatibility, and clients can switch freely between `auto` / `frame-http2` / `rest` via the connection-string `Protocol` option.
 
 ## 🔌 How To Use It
 
@@ -235,17 +235,18 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Architecture, file layout, backup/restore | [Architecture](docs/architecture.md), [File Format](docs/file-format.md), [Backup & Restore](docs/backup-restore.md) |
 | Release artifacts, Docker, installers | [Release Docs](docs/releases/README.md) |
 | Performance and reliability | [Benchmark README](tests/SonnetDB.Benchmarks/README.md), [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md) |
+| Historical delivery claims, evidence limits, and unfulfilled plans | [Changelog verification](docs/audits/changelog-verification-20260905.md), [Archived plans](docs/audits/historical-plans-from-changelog.md), [Future roadmap](ROADMAP.md) |
 
 ## 📊 Benchmarks And Reliability
 
-Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) as the source of truth for benchmarks — it has the full environment, commands, and reproduction steps. **All comparisons run between same-machine Docker containers on a single dev box; they are for relative reference and regression only and do not predict production performance.**
+Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) and each report's environment, commands, and raw samples to interpret benchmark results. **Existing reports include embedded tests and same-machine container comparisons; their results apply to their stated workloads and do not predict production performance.** The [nine-domain performance report](docs/benchmarks/system-performance-20260901.md) still marks fixed-hardware, ARM64, production-corpus, and seven-day mixed-workload evidence as `NOT_RUN`.
 
 - Embedded write, range query, time-window aggregation, vector recall, and geospatial queries have dedicated benchmarks.
-- WAL durability has three levels (in-process buffer / OS page cache / per-batch fsync); flushed segment data survives any crash, and Delete is unconditionally WAL-synced. See [Architecture](docs/architecture.md) and [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md).
+- Time-series WAL durability has three levels (in-process buffer / OS page cache / per-batch fsync). Segments use fsync before publication by default, and time-series Delete unconditionally syncs the WAL. Durability depends on configuration and the operating system and storage device honoring flushes; existing recovery tests do not promise zero loss under every power failure or media fault. See [Architecture](docs/architecture.md) and [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md).
 
 ## 🤝 Parity vs Open-Source Stack
 
-SonnetDB continuously checks its multi-model behavior against open-source peers: PostgreSQL, MongoDB, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. MongoDB is a Document semantics reference only; the suite does not claim wire protocol, BSON command, or official Driver connection compatibility. `.github/workflows/parity.yml` runs the `light` / `full` matrix daily; capability, reliability, and algorithmic accuracy are merge gates, while performance numbers are warning/report only. A readable example is at [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md), with the plan in [docs/parity-roadmap.md](docs/parity-roadmap.md).
+SonnetDB provides a parity suite comparing covered scenarios against PostgreSQL, MongoDB, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. MongoDB is a Document semantics reference only; the suite does not claim wire protocol, BSON command, or official Driver connection compatibility. `.github/workflows/parity.yml` schedules the `light` / `full` matrix daily; capability, reliability, and algorithmic accuracy are gates, while performance numbers are warning/report only. A schedule, sample report, or passing subset does not establish a passing complete external stack or seven-day evidence window. See M20 in [ROADMAP.md](ROADMAP.md) for the recorded evidence status, [sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md) for a readable example, and [the parity plan](docs/parity-roadmap.md) for scope.
 
 ## 🎯 Positioning & Boundaries
 

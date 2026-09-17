@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -32,6 +33,9 @@ internal static class Program
             return SpecializedSoakRunner.RunMaintenanceChaosWorker(args);
 
         var options = SoakOptions.Parse(args);
+        // Capture repository provenance before the runner creates an output directory
+        // under a checked-out workspace, otherwise its own artifacts make the tree dirty.
+        SoakSourceRevision sourceRevision = ResolveSourceRevision();
         Directory.CreateDirectory(options.OutputDirectory);
         Directory.CreateDirectory(options.WorkRoot);
         var startedUtc = DateTimeOffset.UtcNow;
@@ -48,25 +52,22 @@ internal static class Program
             failure = ex.ToString();
         }
 
+        DateTimeOffset finishedUtc = DateTimeOffset.UtcNow;
+        SoakEnvironment environment = SoakEnvironment.Capture(options.WorkRoot, sourceRevision.Value);
         var report = new EcosystemSoakReport(
-            options.Profile,
-            startedUtc,
-            DateTimeOffset.UtcNow,
-            failure is null,
-            failure,
-            options.ToReportOptions(),
-            new SoakEnvironment(
-                RuntimeInformation.OSDescription,
-                RuntimeInformation.FrameworkDescription,
-                RuntimeInformation.ProcessArchitecture.ToString(),
-                Environment.MachineName,
-                Environment.ProcessorCount,
-                GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
-                ResolveCommitSha(),
-                SoakDiskSnapshot.Capture(options.WorkRoot)),
-            SoakTargetHardware.Capture(),
-            cycles,
-            SoakReportSummary.Create(options, cycles));
+            SchemaVersion: 2,
+            Evidence: SoakEvidenceMetadata.Create(options, startedUtc, finishedUtc, sourceRevision),
+            Profile: options.Profile,
+            StartedUtc: startedUtc,
+            FinishedUtc: finishedUtc,
+            Succeeded: failure is null,
+            Failure: failure,
+            Options: options.ToReportOptions(),
+            Environment: environment,
+            TargetHardware: SoakTargetHardware.Capture(),
+            EffectiveConfiguration: BuildEffectiveConfiguration(options, cycles),
+            Cycles: cycles,
+            Summary: SoakReportSummary.Create(options, cycles));
         await WriteReportAsync(report, options.OutputDirectory).ConfigureAwait(false);
 
         if (!options.KeepData)
@@ -312,10 +313,27 @@ internal static class Program
             GC.GetTotalMemory(forceFullCollection: false),
             resources.PeakManagedMemoryBytes,
             resources.PeakWorkingSetBytes,
+            resources.ManagedMemoryDeltaBytes,
+            resources.AllocatedBytes,
+            resources.Gen0Collections,
+            resources.Gen1Collections,
+            resources.Gen2Collections,
+            resources.ProcessResources.PeakPrivateMemoryBytes,
+            resources.ProcessResources.WorkingSetDeltaBytes,
+            resources.ProcessResources.PrivateMemoryDeltaBytes,
+            resources.ProcessResources.CpuTimeMilliseconds,
+            resources.ProcessResources.CpuUtilizationPercent,
+            resources.ProcessResources.ReadOperationDelta,
+            resources.ProcessResources.WriteOperationDelta,
+            resources.ProcessResources.ReadTransferBytesDelta,
+            resources.ProcessResources.WriteTransferBytesDelta,
             measurement.Integrity,
             measurement.RecoveryLatencySamplesMilliseconds,
             measurement.QueryLatencySamplesMilliseconds,
-            measurement.Details);
+            measurement.Details,
+            measurement.EffectiveConfiguration,
+            measurement.ProcessResourceContributions,
+            measurement.MaintenanceChaosReservations);
     }
 
     /// <summary>为不包含专项分位数或完整性摘要的既有阶段创建测量结果。</summary>
@@ -380,20 +398,7 @@ internal static class Program
         string root = args[1];
         string readyFile = args[2];
         Directory.CreateDirectory(root);
-        using var db = Tsdb.Open(new TsdbOptions
-        {
-            RootDirectory = root,
-            SyncWalOnEveryWrite = true,
-            BackgroundFlush = new() { Enabled = false },
-            Compaction = new() { Enabled = false },
-            FlushPolicy = new()
-            {
-                MaxPoints = long.MaxValue,
-                MaxBytes = long.MaxValue,
-                HardCapBytes = 0,
-                MaxAge = TimeSpan.MaxValue,
-            },
-        });
+        using var db = Tsdb.Open(CreateCrashWorkerOptions(root));
 
         for (int index = 0; index < CrashSeedPointCount; index++)
         {
@@ -412,13 +417,7 @@ internal static class Program
     private static int RunTornWalRecovery(string root)
     {
         Directory.CreateDirectory(root);
-        using (var db = Tsdb.Open(new TsdbOptions
-        {
-            RootDirectory = root,
-            SyncWalOnEveryWrite = true,
-            BackgroundFlush = new() { Enabled = false },
-            Compaction = new() { Enabled = false },
-        }))
+        using (var db = Tsdb.Open(CreateTornWalRecoveryOptions(root)))
         {
             db.Write(Point.Create(
                 "power_loss_probe",
@@ -464,12 +463,90 @@ internal static class Program
         return bytes;
     }
 
-    private static Tsdb Open(string root) => Tsdb.Open(new TsdbOptions
+    private static Tsdb Open(string root) => Tsdb.Open(CreateStandardOptions(root));
+
+    private static TsdbOptions CreateStandardOptions(string root) => new()
     {
         RootDirectory = root,
         BackgroundFlush = new() { Enabled = false },
         Compaction = new() { Enabled = false },
-    });
+    };
+
+    private static TsdbOptions CreateCrashWorkerOptions(string root) => new()
+    {
+        RootDirectory = root,
+        SyncWalOnEveryWrite = true,
+        BackgroundFlush = new() { Enabled = false },
+        Compaction = new() { Enabled = false },
+        FlushPolicy = new()
+        {
+            MaxPoints = long.MaxValue,
+            MaxBytes = long.MaxValue,
+            HardCapBytes = 0,
+            MaxAge = TimeSpan.MaxValue,
+        },
+    };
+
+    private static TsdbOptions CreateTornWalRecoveryOptions(string root) => new()
+    {
+        RootDirectory = root,
+        SyncWalOnEveryWrite = true,
+        BackgroundFlush = new() { Enabled = false },
+        Compaction = new() { Enabled = false },
+    };
+
+    private static IReadOnlyList<SoakConfigurationEvidence> BuildEffectiveConfiguration(
+        SoakOptions options,
+        IReadOnlyList<SoakCycleResult> cycles)
+    {
+        var evidence = new List<SoakConfigurationEvidence>
+        {
+            SoakConfigurationEvidence.CreateInvocation(options),
+        };
+
+        if (!options.IsSpecializedProfile)
+        {
+            evidence.Add(SoakConfigurationEvidence.FromTsdbOptions(
+                "standard-embedded",
+                "Program.Open",
+                CreateStandardOptions("<report-root>"),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["coverage"] = "Direct Tsdb opens from Program.Open; provider and client-owned opens are reported by their own components.",
+                }));
+            evidence.Add(SoakConfigurationEvidence.FromTsdbOptions(
+                "process-crash-worker",
+                "Program.CreateCrashWorkerOptions",
+                CreateCrashWorkerOptions("<report-root>"),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["coverage"] = "Child process used by process_crash_recovery.",
+                }));
+            evidence.Add(SoakConfigurationEvidence.FromTsdbOptions(
+                "torn-wal-recovery",
+                "Program.CreateTornWalRecoveryOptions",
+                CreateTornWalRecoveryOptions("<report-root>"),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["coverage"] = "Direct Tsdb open used by power_loss_torn_wal_recovery.",
+                }));
+        }
+
+        foreach (SoakConfigurationEvidence configuration in cycles
+            .SelectMany(static cycle => cycle.Phases)
+            .SelectMany(static phase => phase.EffectiveConfiguration))
+        {
+            if (!evidence.Any(existing => string.Equals(
+                existing.StableKey,
+                configuration.StableKey,
+                StringComparison.Ordinal)))
+            {
+                evidence.Add(configuration);
+            }
+        }
+
+        return evidence;
+    }
 
     private static async Task WriteReportAsync(EcosystemSoakReport report, string outputDirectory)
     {
@@ -481,37 +558,70 @@ internal static class Program
         await File.WriteAllTextAsync(markdownPath, BuildMarkdown(report)).ConfigureAwait(false);
     }
 
-    private static string ResolveCommitSha()
+    private static SoakSourceRevision ResolveSourceRevision()
     {
-        string? configured = Environment.GetEnvironmentVariable("GITHUB_SHA");
-        if (!string.IsNullOrWhiteSpace(configured))
-            return configured.Trim();
+        string workingTreeState = ResolveWorkingTreeState();
+        foreach (string variable in new[] { "GITHUB_SHA", "BUILD_SOURCEVERSION" })
+        {
+            string? configured = Environment.GetEnvironmentVariable(variable);
+            if (!string.IsNullOrWhiteSpace(configured))
+                return new SoakSourceRevision(configured.Trim(), "environment:" + variable, workingTreeState);
+        }
 
+        string? revision = TryRunGit("rev-parse", "--verify", "HEAD");
+        return string.IsNullOrWhiteSpace(revision)
+            ? new SoakSourceRevision("UNAVAILABLE", "unavailable", workingTreeState)
+            : new SoakSourceRevision(revision, "git:rev-parse", workingTreeState);
+    }
+
+    private static string ResolveWorkingTreeState()
+    {
+        string? status = TryRunGit("status", "--porcelain=v1", "--untracked-files=all");
+        if (status is null)
+            return "UNAVAILABLE";
+
+        return status.Length == 0 ? "CLEAN" : "DIRTY";
+    }
+
+    private static string? TryRunGit(params string[] arguments)
+    {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = "git",
-                Arguments = "rev-parse --verify HEAD",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-            });
-            if (process is null)
-                return "UNAVAILABLE";
+            };
+            foreach (string argument in arguments)
+                startInfo.ArgumentList.Add(argument);
 
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            return process.ExitCode == 0 && output.Length > 0 ? output : "UNAVAILABLE";
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+                return null;
+
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            Task<string> error = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit((int)TimeSpan.FromSeconds(5).TotalMilliseconds))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                return null;
+            }
+
+            _ = error.GetAwaiter().GetResult();
+            string result = output.GetAwaiter().GetResult().Trim();
+            return process.ExitCode == 0 ? result : null;
         }
         catch (InvalidOperationException)
         {
-            return "UNAVAILABLE";
+            return null;
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            return "UNAVAILABLE";
+            return null;
         }
     }
 
@@ -520,28 +630,39 @@ internal static class Program
         var text = new StringBuilder();
         text.AppendLine("# SonnetDB Ecosystem Soak Report");
         text.AppendLine();
+        text.AppendLine($"- Evidence schema: `{report.SchemaVersion}` (`{report.Evidence.Schema}`, contract `{report.Evidence.Contract}`)");
+        text.AppendLine($"- Evidence run: `{report.Evidence.RunId}`, generated `{report.Evidence.GeneratedUtc:O}`");
         text.AppendLine($"- Profile: `{report.Profile}`");
         text.AppendLine($"- Result: `{(report.Succeeded ? "PASS" : "FAIL")}`");
         text.AppendLine($"- Started UTC: `{report.StartedUtc:O}`");
         text.AppendLine($"- Finished UTC: `{report.FinishedUtc:O}`");
         text.AppendLine($"- Runtime: `{report.Environment.Framework}` on `{report.Environment.Os}`");
-        text.AppendLine($"- Commit: `{report.Environment.CommitSha}`");
-        text.AppendLine($"- Hardware: `{report.Environment.Architecture}`, `{report.Environment.ProcessorCount}` logical CPU, `{report.Environment.AvailableMemoryBytes}` bytes available memory");
-        text.AppendLine($"- Disk: `{report.Environment.Disk.Root}` ({report.Environment.Disk.FileSystem}), `{report.Environment.Disk.TotalBytes}` bytes total / `{report.Environment.Disk.AvailableBytes}` bytes available");
-        text.AppendLine($"- Target hardware evidence: `{report.TargetHardware.Status}` (id `{report.TargetHardware.Id}`, contract `{report.TargetHardware.Contract}`)");
+        text.AppendLine($"- Commit: `{report.Environment.CommitSha}` (`{report.Evidence.SourceRevisionSource}`, working tree `{report.Evidence.WorkingTreeState}`)");
+        text.AppendLine($"- Hardware: `{report.Environment.Hardware.ProcessorModel}` (`{report.Environment.Hardware.ProcessorModelSource}`), `{report.Environment.Architecture}` process / `{report.Environment.Hardware.OperatingSystemArchitecture}` OS, `{report.Environment.ProcessorCount}` logical CPU, `{report.Environment.AvailableMemoryBytes}` bytes available memory");
+        text.AppendLine($"- GC: server `{report.Environment.Hardware.IsServerGarbageCollector}`, latency `{report.Environment.Hardware.GcLatencyMode}`, page `{report.Environment.Hardware.SystemPageSizeBytes}` bytes");
+        text.AppendLine($"- Process provenance: `{report.Environment.Provenance.ProcessExecutable}` pid `{report.Environment.Provenance.ProcessId}`, runtime `{report.Environment.Provenance.RuntimeIdentifier}`, container `{report.Environment.Provenance.ContainerState}`");
+        text.AppendLine($"- Disk: `{report.Environment.Disk.Root}` ({report.Environment.Disk.FileSystem}, `{report.Environment.Disk.DriveType}`), `{report.Environment.Disk.TotalBytes}` bytes total / `{report.Environment.Disk.AvailableBytes}` bytes available, device `{report.Environment.Disk.DeviceModel}` (`{report.Environment.Disk.DeviceModelSource}`)");
+        text.AppendLine($"- Target hardware evidence: `{report.TargetHardware.Status}` (id `{report.TargetHardware.Id}`, contract `{report.TargetHardware.Contract}`, source `{report.TargetHardware.DeclarationSource}`)");
         text.AppendLine($"- Shape: `{report.Options.Measurements}` measurements x `{report.Options.PointsPerMeasurement}` points, `{report.Options.Cycles}` cycle(s)");
         text.AppendLine($"- Peak working set: `{report.Summary.PeakWorkingSetBytes}` bytes");
         text.AppendLine($"- Peak managed memory: `{report.Summary.PeakManagedMemoryBytes}` bytes");
+        text.AppendLine($"- Total allocation / Gen0 / Gen1 / Gen2: `{report.Summary.Resources.TotalAllocatedBytes}` bytes / `{report.Summary.Resources.TotalGen0Collections}` / `{report.Summary.Resources.TotalGen1Collections}` / `{report.Summary.Resources.TotalGen2Collections}`");
+        text.AppendLine($"- Parent CPU: `{report.Summary.Resources.TotalCpuTimeMilliseconds:F2}` ms across `{report.Summary.Resources.TotalMeasuredDurationMilliseconds:F2}` ms measured; average normalized CPU `{FormatNullable(report.Summary.Resources.AverageCpuUtilizationPercent, "F2")}`%");
+        text.AppendLine($"- Parent I/O deltas: read/write operations `{FormatNullable(report.Summary.Resources.TotalReadOperationDelta)}` / `{FormatNullable(report.Summary.Resources.TotalWriteOperationDelta)}`; read/write transfer `{FormatNullable(report.Summary.Resources.TotalReadTransferBytesDelta)}` / `{FormatNullable(report.Summary.Resources.TotalWriteTransferBytesDelta)}` bytes");
+        if (report.Summary.ExternalProcessResources.ProcessCount > 0)
+        {
+            text.AppendLine($"- External processes: `{report.Summary.ExternalProcessResources.ProcessCount}` observed, peak RSS/private `{report.Summary.ExternalProcessResources.PeakWorkingSetBytes}` / `{report.Summary.ExternalProcessResources.PeakPrivateMemoryBytes}` bytes, CPU `{report.Summary.ExternalProcessResources.TotalCpuTimeMilliseconds:F2}` ms, read/write transfer `{FormatNullable(report.Summary.ExternalProcessResources.TotalReadTransferBytesDelta)}` / `{FormatNullable(report.Summary.ExternalProcessResources.TotalWriteTransferBytesDelta)}` bytes");
+        }
         text.AppendLine();
-        text.AppendLine("| Cycle | Phase | Duration ms | Operations | Operations/sec | Managed bytes | Peak working set | Peak managed |");
-        text.AppendLine("| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| Cycle | Phase | Duration ms | Operations | Operations/sec | Allocated bytes | Gen0/1/2 | Peak RSS | Peak private | CPU ms | CPU % | Read/write transfer bytes |");
+        text.AppendLine("| ---: | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- |");
         foreach (var cycle in report.Cycles)
         {
             foreach (var phase in cycle.Phases)
             {
                 text.AppendLine(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"| {cycle.Cycle} | {phase.Name} | {phase.DurationMilliseconds:F2} | {phase.Operations} | {phase.OperationsPerSecond:F2} | {phase.ManagedMemoryBytes} | {phase.PeakWorkingSetBytes} | {phase.PeakManagedMemoryBytes} |"));
+                    $"| {cycle.Cycle} | {phase.Name} | {phase.DurationMilliseconds:F2} | {phase.Operations} | {phase.OperationsPerSecond:F2} | {phase.AllocatedBytes} | {phase.Gen0Collections}/{phase.Gen1Collections}/{phase.Gen2Collections} | {phase.PeakWorkingSetBytes} | {FormatNullable(phase.PeakPrivateMemoryBytes)} | {FormatNullable(phase.CpuTimeMilliseconds, "F2")} | {FormatNullable(phase.CpuUtilizationPercent, "F2")} | {FormatNullable(phase.ReadTransferBytesDelta)} / {FormatNullable(phase.WriteTransferBytesDelta)} |"));
             }
         }
 
@@ -568,7 +689,25 @@ internal static class Program
             {
                 string details = string.Join(", ", phase.Details.Select(static item => $"{item.Key}={item.Value}"));
                 text.AppendLine($"- Cycle {cycle.Cycle} `{phase.Name}`: {details}");
+                text.AppendLine($"  - Parent resource delta: managed `{phase.ManagedMemoryDeltaBytes}` bytes, RSS `{FormatNullable(phase.WorkingSetDeltaBytes)}` bytes, private `{FormatNullable(phase.PrivateMemoryDeltaBytes)}` bytes, read/write operations `{FormatNullable(phase.ReadOperationDelta)}` / `{FormatNullable(phase.WriteOperationDelta)}`, read/write transfer `{FormatNullable(phase.ReadTransferBytesDelta)}` / `{FormatNullable(phase.WriteTransferBytesDelta)}` bytes");
+                foreach (SoakProcessResourceContribution contribution in phase.ProcessResourceContributions)
+                {
+                    text.AppendLine($"  - Child `{contribution.Scope}`: samples `{contribution.SampleCount}`, peak RSS/private `{FormatNullable(contribution.PeakWorkingSetBytes)}` / `{FormatNullable(contribution.PeakPrivateMemoryBytes)}` bytes, CPU `{FormatNullable(contribution.CpuTimeMilliseconds, "F2")}` ms, read/write transfer `{FormatNullable(contribution.ReadTransferBytesDelta)}` / `{FormatNullable(contribution.WriteTransferBytesDelta)}` bytes, exited `{contribution.ProcessExited}`");
+                }
+                foreach (MaintenanceChaosReservationEvidence reservation in phase.MaintenanceChaosReservations)
+                {
+                    text.AppendLine($"  - Restart reservation `{reservation.Restart}`: `{reservation.StartInclusive}`..`{reservation.EndInclusive}`, acknowledged through `{reservation.AcknowledgedThroughInclusive}`");
+                }
             }
+        }
+
+        text.AppendLine();
+        text.AppendLine("## Effective configuration");
+        text.AppendLine();
+        foreach (SoakConfigurationEvidence configuration in report.EffectiveConfiguration)
+        {
+            string settings = string.Join(", ", configuration.Settings.Select(static item => $"{item.Key}={item.Value}"));
+            text.AppendLine($"- `{configuration.Scope}` from `{configuration.Source}`: durability `{configuration.DurabilityMode}`, WAL sync `{FormatNullable(configuration.SyncWalOnEveryWrite)}`, WAL OS flush `{FormatNullable(configuration.FlushWalToOsOnWrite)}`, segment fsync `{FormatNullable(configuration.SegmentFsyncOnCommit)}`, background flush `{FormatNullable(configuration.BackgroundFlushEnabled)}`, compaction `{FormatNullable(configuration.CompactionEnabled)}`, retention `{FormatNullable(configuration.RetentionEnabled)}`; {settings}");
         }
 
         text.AppendLine();
@@ -612,6 +751,13 @@ internal static class Program
             CultureInfo.InvariantCulture,
             $"- Samples: `{latency.Samples}`, min/P50/P95/P99/max: `{latency.MinimumMilliseconds:F2}` / `{latency.P50Milliseconds:F2}` / `{latency.P95Milliseconds:F2}` / `{latency.P99Milliseconds:F2}` / `{latency.MaximumMilliseconds:F2}` ms"));
     }
+
+    private static string FormatNullable(long? value) => value?.ToString(CultureInfo.InvariantCulture) ?? "unavailable";
+
+    private static string FormatNullable(bool? value) => value?.ToString() ?? "unavailable";
+
+    private static string FormatNullable(double? value, string format)
+        => value?.ToString(format, CultureInfo.InvariantCulture) ?? "unavailable";
 
     private static void TryDelete(string path)
     {
@@ -817,7 +963,17 @@ internal sealed record PhaseMeasurement(
     IReadOnlyDictionary<string, string> Details,
     SoakIntegritySummary? Integrity,
     IReadOnlyList<double> RecoveryLatencySamplesMilliseconds,
-    IReadOnlyList<double> QueryLatencySamplesMilliseconds);
+    IReadOnlyList<double> QueryLatencySamplesMilliseconds)
+{
+    /// <summary>执行阶段实际使用的引擎配置；未采集时为空而非推断默认值。</summary>
+    public IReadOnlyList<SoakConfigurationEvidence> EffectiveConfiguration { get; init; } = [];
+
+    /// <summary>由阶段创建的外部子进程资源快照；不与当前进程指标混合。</summary>
+    public IReadOnlyList<SoakProcessResourceContribution> ProcessResourceContributions { get; init; } = [];
+
+    /// <summary>维护混沌阶段每次重启的已保留序列范围；非该阶段为空。</summary>
+    public IReadOnlyList<MaintenanceChaosReservationEvidence> MaintenanceChaosReservations { get; init; } = [];
+}
 
 internal sealed record SoakReportOptions(
     int Cycles,
@@ -847,34 +1003,437 @@ internal sealed record SoakEnvironment(
     int ProcessorCount,
     long AvailableMemoryBytes,
     string CommitSha,
-    SoakDiskSnapshot Disk);
+    SoakDiskSnapshot Disk,
+    SoakHostHardware Hardware,
+    SoakRuntimeProvenance Provenance)
+{
+    /// <summary>采集跨平台可用的运行环境、硬件和进程来源信息。</summary>
+    public static SoakEnvironment Capture(string workRoot, string commitSha)
+        => new(
+            SoakEvidenceText.Normalize(RuntimeInformation.OSDescription),
+            SoakEvidenceText.Normalize(RuntimeInformation.FrameworkDescription),
+            RuntimeInformation.ProcessArchitecture.ToString(),
+            SoakEvidenceText.Normalize(Environment.MachineName),
+            Environment.ProcessorCount,
+            GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
+            commitSha,
+            SoakDiskSnapshot.Capture(workRoot),
+            SoakHostHardware.Capture(),
+            SoakRuntimeProvenance.Capture());
+}
+
+internal sealed record SoakHostHardware(
+    string ProcessorModel,
+    string ProcessorModelSource,
+    string OperatingSystemArchitecture,
+    bool Is64BitOperatingSystem,
+    int LogicalProcessorCount,
+    int SystemPageSizeBytes,
+    long GcTotalAvailableMemoryBytes,
+    bool IsServerGarbageCollector,
+    string GcLatencyMode)
+{
+    /// <summary>收集无需特权即可读取的主机硬件和 GC 限额信息。</summary>
+    public static SoakHostHardware Capture()
+    {
+        (string processorModel, string processorModelSource) = ResolveProcessorModel();
+        return new SoakHostHardware(
+            processorModel,
+            processorModelSource,
+            RuntimeInformation.OSArchitecture.ToString(),
+            Environment.Is64BitOperatingSystem,
+            Environment.ProcessorCount,
+            Environment.SystemPageSize,
+            GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
+            GCSettings.IsServerGC,
+            GCSettings.LatencyMode.ToString());
+    }
+
+    private static (string Model, string Source) ResolveProcessorModel()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            string? processorIdentifier = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER");
+            if (!string.IsNullOrWhiteSpace(processorIdentifier))
+                return (SoakEvidenceText.Normalize(processorIdentifier), "environment:PROCESSOR_IDENTIFIER");
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            string? processorModel = TryReadLinuxProcessorModel();
+            if (!string.IsNullOrWhiteSpace(processorModel))
+                return (processorModel, "/proc/cpuinfo");
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            string? processorModel = TryReadMacProcessorModel();
+            if (!string.IsNullOrWhiteSpace(processorModel))
+                return (processorModel, "sysctl:machdep.cpu.brand_string");
+        }
+
+        return (RuntimeInformation.ProcessArchitecture.ToString(), "runtime:process-architecture");
+    }
+
+    private static string? TryReadLinuxProcessorModel()
+    {
+        try
+        {
+            foreach (string line in File.ReadLines("/proc/cpuinfo").Take(256))
+            {
+                int separator = line.IndexOf(':');
+                if (separator <= 0)
+                    continue;
+
+                string key = line[..separator].Trim();
+                if (key is "model name" or "Hardware" or "Processor" or "cpu model")
+                    return SoakEvidenceText.Normalize(line[(separator + 1)..]);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        return null;
+    }
+
+    private static string? TryReadMacProcessorModel()
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "sysctl",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-n");
+            startInfo.ArgumentList.Add("machdep.cpu.brand_string");
+
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+                return null;
+
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            Task<string> error = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit((int)TimeSpan.FromSeconds(2).TotalMilliseconds))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                return null;
+            }
+
+            _ = error.GetAwaiter().GetResult();
+            return process.ExitCode == 0
+                ? SoakEvidenceText.Normalize(output.GetAwaiter().GetResult())
+                : null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+}
+
+internal sealed record SoakRuntimeProvenance(
+    string RuntimeIdentifier,
+    string ProcessExecutable,
+    int ProcessId,
+    DateTimeOffset? ProcessStartedUtc,
+    bool Is64BitProcess,
+    string ContainerState)
+{
+    /// <summary>采集进程来源和容器探测结果；<c>none</c> 仅表示未发现已知容器标记，不构成宿主机证明。</summary>
+    public static SoakRuntimeProvenance Capture()
+    {
+        DateTimeOffset? processStartedUtc = null;
+        try
+        {
+            using Process process = Process.GetCurrentProcess();
+            processStartedUtc = new DateTimeOffset(process.StartTime.ToUniversalTime());
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        string processPath = Environment.ProcessPath ?? string.Empty;
+        string processExecutable = string.IsNullOrWhiteSpace(processPath)
+            ? "UNAVAILABLE"
+            : SoakEvidenceText.Normalize(Path.GetFileName(processPath));
+        return new SoakRuntimeProvenance(
+            SoakEvidenceText.Normalize(RuntimeInformation.RuntimeIdentifier),
+            processExecutable,
+            Environment.ProcessId,
+            processStartedUtc,
+            Environment.Is64BitProcess,
+            DetectContainerState());
+    }
+
+    private static string DetectContainerState()
+    {
+        foreach (string variable in new[] { "DOTNET_RUNNING_IN_CONTAINER", "DOTNET_RUNNING_IN_CONTAINERS" })
+        {
+            string? value = Environment.GetEnvironmentVariable(variable);
+            if (string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "1", StringComparison.Ordinal))
+            {
+                return "DECLARED_BY_" + variable;
+            }
+        }
+
+        if (!OperatingSystem.IsLinux())
+            return "none";
+
+        if (File.Exists("/.dockerenv"))
+            return "DETECTED_BY_DOCKERENV";
+        if (File.Exists("/run/.containerenv"))
+            return "DETECTED_BY_CONTAINERENV";
+
+        try
+        {
+            string cgroup = File.ReadAllText("/proc/1/cgroup");
+            if (cgroup.Contains("docker", StringComparison.OrdinalIgnoreCase)
+                || cgroup.Contains("containerd", StringComparison.OrdinalIgnoreCase)
+                || cgroup.Contains("kubepods", StringComparison.OrdinalIgnoreCase))
+            {
+                return "DETECTED_BY_CGROUP";
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        // 固定硬件 verifier 将 `none` 定义为没有发现容器标记的唯一可发布状态。
+        // 该值是探测结果，不替代受保护 runner 与环境审批的硬件真实性证明。
+        return "none";
+    }
+}
 
 internal sealed record SoakDiskSnapshot(
     string Root,
     string FileSystem,
     long TotalBytes,
-    long AvailableBytes)
+    long AvailableBytes,
+    string DriveType,
+    string VolumeLabel,
+    string DeviceModel,
+    string DeviceModelSource)
 {
+    /// <summary>工作目录实际所在的文件系统挂载点；Linux 上由 findmnt 解析。</summary>
+    public string MountPoint { get; init; } = "UNAVAILABLE";
+
+    /// <summary>工作目录挂载的 source（例如设备、LVM 或网络源）。</summary>
+    public string MountSource { get; init; } = "UNAVAILABLE";
+
+    /// <summary>挂载设备的 major:minor 标识；无法解析时为 UNAVAILABLE。</summary>
+    public string MountDeviceId { get; init; } = "UNAVAILABLE";
+
+    /// <summary>由 findmnt、DriveInfo 等实际解析路径的来源。</summary>
+    public string ResolutionSource { get; init; } = "unavailable";
+
     /// <summary>从工作目录所在卷读取总容量和可用空间快照。</summary>
     public static SoakDiskSnapshot Capture(string path)
     {
-        string root = Path.GetPathRoot(Path.GetFullPath(path)) ?? string.Empty;
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch (ArgumentException)
+        {
+            return Unavailable("UNAVAILABLE");
+        }
+
+        (string deviceModel, string deviceModelSource) = ResolveDeviceModel();
+        SoakMountResolution mount = SoakMountResolution.Resolve(fullPath);
+        string root = mount.MountPoint;
         try
         {
             var drive = new DriveInfo(root);
+            string volumeLabel = string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                ? (OperatingSystem.IsWindows() ? "UNAVAILABLE" : "NOT_APPLICABLE")
+                : SoakEvidenceText.Normalize(drive.VolumeLabel);
             return new SoakDiskSnapshot(
                 root,
-                drive.DriveFormat,
+                SoakEvidenceText.Normalize(drive.DriveFormat),
                 drive.TotalSize,
-                drive.AvailableFreeSpace);
+                drive.AvailableFreeSpace,
+                drive.DriveType.ToString(),
+                volumeLabel,
+                deviceModel,
+                deviceModelSource)
+            {
+                MountPoint = mount.MountPoint,
+                MountSource = mount.MountSource,
+                MountDeviceId = mount.DeviceId,
+                ResolutionSource = mount.Source,
+            };
         }
         catch (IOException)
         {
-            return new SoakDiskSnapshot(root, "UNAVAILABLE", -1, -1);
+            return Unavailable(root, deviceModel, deviceModelSource, mount);
         }
         catch (UnauthorizedAccessException)
         {
-            return new SoakDiskSnapshot(root, "UNAVAILABLE", -1, -1);
+            return Unavailable(root, deviceModel, deviceModelSource, mount);
+        }
+        catch (NotSupportedException)
+        {
+            return Unavailable(root, deviceModel, deviceModelSource, mount);
+        }
+        catch (System.Security.SecurityException)
+        {
+            return Unavailable(root, deviceModel, deviceModelSource, mount);
+        }
+        catch (ArgumentException)
+        {
+            return Unavailable(root, deviceModel, deviceModelSource, mount);
+        }
+    }
+
+    private static SoakDiskSnapshot Unavailable(
+        string root,
+        string deviceModel = "UNAVAILABLE",
+        string deviceModelSource = "unavailable",
+        SoakMountResolution? mount = null)
+        => new(root, "UNAVAILABLE", -1, -1, "UNAVAILABLE", "UNAVAILABLE", deviceModel, deviceModelSource)
+        {
+            MountPoint = mount?.MountPoint ?? root,
+            MountSource = mount?.MountSource ?? "UNAVAILABLE",
+            MountDeviceId = mount?.DeviceId ?? "UNAVAILABLE",
+            ResolutionSource = mount?.Source ?? "unavailable",
+        };
+
+    private static (string DeviceModel, string Source) ResolveDeviceModel()
+    {
+        foreach (string variable in new[] { "SONNETDB_M19_STORAGE_MODEL", "SONNETDB_M19_DISK_MODEL" })
+        {
+            string? value = Environment.GetEnvironmentVariable(variable);
+            if (!string.IsNullOrWhiteSpace(value))
+                return (SoakEvidenceText.Normalize(value), "environment:" + variable);
+        }
+
+        return ("UNDECLARED", "unconfigured");
+    }
+}
+
+/// <summary>工作目录所在挂载点的最小可审计身份。</summary>
+internal sealed record SoakMountResolution(
+    string MountPoint,
+    string MountSource,
+    string DeviceId,
+    string Source)
+{
+    /// <summary>解析工作路径所在 mount；Linux 优先使用 findmnt，其他平台使用驱动器根。</summary>
+    public static SoakMountResolution Resolve(string fullPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+
+        if (OperatingSystem.IsLinux())
+        {
+            string? output = RunCommand(
+                "findmnt",
+                "--noheadings",
+                "--raw",
+                "--target",
+                fullPath,
+                "--output",
+                "TARGET,SOURCE,FSTYPE,MAJ:MIN");
+            if (!string.IsNullOrWhiteSpace(output))
+            {
+                string[] fields = output.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length >= 4)
+                {
+                    string mountPoint = DecodeMountField(fields[0]);
+                    string source = DecodeMountField(fields[1]);
+                    string deviceId = DecodeMountField(fields[3]);
+                    if (!string.IsNullOrWhiteSpace(mountPoint)
+                        && !string.IsNullOrWhiteSpace(source)
+                        && !string.IsNullOrWhiteSpace(deviceId))
+                    {
+                        return new SoakMountResolution(mountPoint, source, deviceId, "findmnt");
+                    }
+                }
+            }
+
+            return new SoakMountResolution("UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE", "findmnt-unavailable");
+        }
+
+        string root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(root))
+            return new SoakMountResolution("UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE", "path-root-unavailable");
+
+        return new SoakMountResolution(root, root, "UNAVAILABLE", "driveinfo-path-root");
+    }
+
+    private static string DecodeMountField(string value)
+        => value.Replace("\\040", " ", StringComparison.Ordinal)
+            .Replace("\\011", "\t", StringComparison.Ordinal)
+            .Replace("\\012", "\n", StringComparison.Ordinal)
+            .Replace("\\134", "\\", StringComparison.Ordinal);
+
+    private static string? RunCommand(string fileName, params string[] arguments)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (string argument in arguments)
+                startInfo.ArgumentList.Add(argument);
+
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+                return null;
+
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit((int)TimeSpan.FromSeconds(2).TotalMilliseconds))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                return null;
+            }
+
+            return process.ExitCode == 0
+                ? outputTask.GetAwaiter().GetResult()
+                : null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException
+            or IOException
+            or UnauthorizedAccessException
+            or System.ComponentModel.Win32Exception)
+        {
+            return null;
         }
     }
 }
@@ -887,10 +1446,34 @@ internal sealed record SoakPhaseResult(
     long ManagedMemoryBytes,
     long PeakManagedMemoryBytes,
     long PeakWorkingSetBytes,
+    long ManagedMemoryDeltaBytes,
+    long AllocatedBytes,
+    long Gen0Collections,
+    long Gen1Collections,
+    long Gen2Collections,
+    long? PeakPrivateMemoryBytes,
+    long? WorkingSetDeltaBytes,
+    long? PrivateMemoryDeltaBytes,
+    double? CpuTimeMilliseconds,
+    double? CpuUtilizationPercent,
+    long? ReadOperationDelta,
+    long? WriteOperationDelta,
+    long? ReadTransferBytesDelta,
+    long? WriteTransferBytesDelta,
     SoakIntegritySummary? Integrity,
     IReadOnlyList<double> RecoveryLatencySamplesMilliseconds,
     IReadOnlyList<double> QueryLatencySamplesMilliseconds,
-    IReadOnlyDictionary<string, string> Details);
+    IReadOnlyDictionary<string, string> Details,
+    IReadOnlyList<SoakConfigurationEvidence> EffectiveConfiguration,
+    IReadOnlyList<SoakProcessResourceContribution> ProcessResourceContributions,
+    IReadOnlyList<MaintenanceChaosReservationEvidence> MaintenanceChaosReservations);
+
+/// <summary>maintenance-chaos 单次 worker 重启保留的连续序列租约及其 progress 确认上界。</summary>
+internal sealed record MaintenanceChaosReservationEvidence(
+    int Restart,
+    long StartInclusive,
+    long EndInclusive,
+    long AcknowledgedThroughInclusive);
 
 internal sealed record SoakCycleResult(
     int Cycle,
@@ -899,6 +1482,8 @@ internal sealed record SoakCycleResult(
     IReadOnlyList<SoakPhaseResult> Phases);
 
 internal sealed record EcosystemSoakReport(
+    int SchemaVersion,
+    SoakEvidenceMetadata Evidence,
     string Profile,
     DateTimeOffset StartedUtc,
     DateTimeOffset FinishedUtc,
@@ -907,25 +1492,272 @@ internal sealed record EcosystemSoakReport(
     SoakReportOptions Options,
     SoakEnvironment Environment,
     SoakTargetHardware TargetHardware,
+    IReadOnlyList<SoakConfigurationEvidence> EffectiveConfiguration,
     IReadOnlyList<SoakCycleResult> Cycles,
     SoakReportSummary Summary);
 
 internal sealed record SoakTargetHardware(
     string Status,
     string Id,
-    string Contract)
+    string Contract,
+    string DeclarationSource)
 {
     /// <summary>读取外部固定目标机声明；未显式声明时保持 NOT_READY。</summary>
     public static SoakTargetHardware Capture()
-        => new(
-            Read("SONNETDB_M19_TARGET_HARDWARE_STATUS", "NOT_READY"),
-            Read("SONNETDB_M19_TARGET_HARDWARE_ID", "UNDECLARED"),
-            Read("SONNETDB_M19_TARGET_HARDWARE_CONTRACT", "M19-#125-frozen-target-v1"));
+    {
+        string? status = Environment.GetEnvironmentVariable("SONNETDB_M19_TARGET_HARDWARE_STATUS");
+        string? id = Environment.GetEnvironmentVariable("SONNETDB_M19_TARGET_HARDWARE_ID");
+        string? contract = Environment.GetEnvironmentVariable("SONNETDB_M19_TARGET_HARDWARE_CONTRACT");
+        bool configured = !string.IsNullOrWhiteSpace(status)
+            || !string.IsNullOrWhiteSpace(id)
+            || !string.IsNullOrWhiteSpace(contract);
+        return new SoakTargetHardware(
+            Read(status, "NOT_READY"),
+            Read(id, "UNDECLARED"),
+            Read(contract, "M19-#125-frozen-target-v1"),
+            configured ? "environment" : "unconfigured");
+    }
 
-    private static string Read(string name, string fallback)
-        => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name))
+    private static string Read(string? value, string fallback)
+        => string.IsNullOrWhiteSpace(value)
             ? fallback
-            : Environment.GetEnvironmentVariable(name)!.Trim();
+            : SoakEvidenceText.Normalize(value);
+}
+
+internal sealed record SoakSourceRevision(
+    string Value,
+    string Source,
+    string WorkingTreeState);
+
+internal sealed record SoakEvidenceMetadata(
+    string Schema,
+    string Contract,
+    string RunId,
+    string Generator,
+    string GeneratorVersion,
+    string SourceRevision,
+    string SourceRevisionSource,
+    string WorkingTreeState,
+    DateTimeOffset GeneratedUtc,
+    string WorkloadFingerprint,
+    string ExecutionEnvironment,
+    string? CiRunId,
+    string? CiAttempt)
+{
+    /// <summary>建立可关联报告、源码版本和固定输入形状的版本化证据元数据。</summary>
+    public static SoakEvidenceMetadata Create(
+        SoakOptions options,
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        SoakSourceRevision sourceRevision)
+    {
+        string executionEnvironment = ResolveExecutionEnvironment();
+        return new SoakEvidenceMetadata(
+            "sonnetdb.ecosystem-soak.report",
+            "M19-#125-capacity-evidence-v2",
+            CreateRunId(startedUtc, finishedUtc),
+            typeof(Program).Assembly.GetName().Name ?? "SonnetDB.EcosystemSoak",
+            typeof(Program).Assembly.GetName().Version?.ToString() ?? "UNAVAILABLE",
+            sourceRevision.Value,
+            sourceRevision.Source,
+            sourceRevision.WorkingTreeState,
+            DateTimeOffset.UtcNow,
+            CreateWorkloadFingerprint(options),
+            executionEnvironment,
+            ReadOptional("GITHUB_RUN_ID", "BUILD_BUILDID"),
+            ReadOptional("GITHUB_RUN_ATTEMPT", "SYSTEM_JOBATTEMPT"));
+    }
+
+    private static string CreateRunId(DateTimeOffset startedUtc, DateTimeOffset finishedUtc)
+        => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{startedUtc:yyyyMMddTHHmmss.fffffffZ}-{finishedUtc:HHmmss.fffffffZ}-{Guid.NewGuid():N}");
+
+    private static string CreateWorkloadFingerprint(SoakOptions options)
+    {
+        string[] fields =
+        [
+            "profile=" + options.Profile,
+            "cycles=" + options.Cycles.ToString(CultureInfo.InvariantCulture),
+            "relationalRows=" + options.RelationalRows.ToString(CultureInfo.InvariantCulture),
+            "measurements=" + options.Measurements.ToString(CultureInfo.InvariantCulture),
+            "pointsPerMeasurement=" + options.PointsPerMeasurement.ToString(CultureInfo.InvariantCulture),
+            "cacheEntries=" + options.CacheEntries.ToString(CultureInfo.InvariantCulture),
+            "cacheTtlMilliseconds=" + options.CacheTtlMilliseconds.ToString(CultureInfo.InvariantCulture),
+            "multipartParts=" + options.MultipartParts.ToString(CultureInfo.InvariantCulture),
+            "multipartPartBytes=" + options.MultipartPartBytes.ToString(CultureInfo.InvariantCulture),
+            "series=" + options.Series.ToString(CultureInfo.InvariantCulture),
+            "targetSegments=" + options.TargetSegments.ToString(CultureInfo.InvariantCulture),
+            "pointsPerSegment=" + options.PointsPerSegment.ToString(CultureInfo.InvariantCulture),
+            "restartCount=" + options.RestartCount.ToString(CultureInfo.InvariantCulture),
+            "recoverySamples=" + options.RecoverySamples.ToString(CultureInfo.InvariantCulture),
+            "querySamples=" + options.QuerySamples.ToString(CultureInfo.InvariantCulture),
+            "maintenanceBatches=" + options.MaintenanceBatches.ToString(CultureInfo.InvariantCulture),
+            "pointsPerBatch=" + options.PointsPerBatch.ToString(CultureInfo.InvariantCulture),
+            "dropMeasurements=" + options.DropMeasurements.ToString(CultureInfo.InvariantCulture),
+            "randomSeed=" + options.RandomSeed.ToString(CultureInfo.InvariantCulture),
+        ];
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', fields)))).ToLowerInvariant();
+    }
+
+    private static string ResolveExecutionEnvironment()
+    {
+        if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase))
+            return "github-actions";
+        if (string.Equals(Environment.GetEnvironmentVariable("TF_BUILD"), "true", StringComparison.OrdinalIgnoreCase))
+            return "azure-pipelines";
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CI")))
+            return "generic-ci";
+        return "local-or-unknown";
+    }
+
+    private static string? ReadOptional(params string[] names)
+    {
+        foreach (string name in names)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(value))
+                return SoakEvidenceText.Normalize(value);
+        }
+
+        return null;
+    }
+}
+
+internal sealed record SoakConfigurationEvidence(
+    string Scope,
+    string Source,
+    string DurabilityMode,
+    bool? SyncWalOnEveryWrite,
+    bool? FlushWalToOsOnWrite,
+    bool? SegmentFsyncOnCommit,
+    bool? BackgroundFlushEnabled,
+    bool? CompactionEnabled,
+    bool? RetentionEnabled,
+    IReadOnlyDictionary<string, string> Settings)
+{
+    /// <summary>供报告去重使用的稳定键，不属于 JSON evidence 合同。</summary>
+    [JsonIgnore]
+    public string StableKey => string.Join(
+        '\u001F',
+        Scope,
+        Source,
+        DurabilityMode,
+        SyncWalOnEveryWrite?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        FlushWalToOsOnWrite?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        SegmentFsyncOnCommit?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        BackgroundFlushEnabled?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        CompactionEnabled?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        RetentionEnabled?.ToString(CultureInfo.InvariantCulture) ?? "null",
+        string.Join('\u001E', Settings.OrderBy(static item => item.Key, StringComparer.Ordinal).Select(static item => item.Key + "=" + item.Value)));
+
+    /// <summary>从实际 <see cref="TsdbOptions"/> 投影持久性和后台维护的有效配置。</summary>
+    public static SoakConfigurationEvidence FromTsdbOptions(
+        string scope,
+        string source,
+        TsdbOptions options,
+        IReadOnlyDictionary<string, string>? additionalSettings = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var settings = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["walBufferBytes"] = options.WalBufferSize.ToString(CultureInfo.InvariantCulture),
+            ["walGroupCommitEnabled"] = options.WalGroupCommit.Enabled.ToString(CultureInfo.InvariantCulture),
+            ["walGroupCommitFlushWindowTicks"] = options.WalGroupCommit.FlushWindow.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["flushMaxPoints"] = options.FlushPolicy.MaxPoints.ToString(CultureInfo.InvariantCulture),
+            ["flushMaxBytes"] = options.FlushPolicy.MaxBytes.ToString(CultureInfo.InvariantCulture),
+            ["flushHardCapBytes"] = options.FlushPolicy.ResolveHardCapBytes().ToString(CultureInfo.InvariantCulture),
+            ["flushMaxAgeTicks"] = options.FlushPolicy.MaxAge.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["backgroundFlushPollIntervalTicks"] = options.BackgroundFlush.PollInterval.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["compactionMinTierSize"] = options.Compaction.MinTierSize.ToString(CultureInfo.InvariantCulture),
+            ["compactionTierSizeRatio"] = options.Compaction.TierSizeRatio.ToString(CultureInfo.InvariantCulture),
+            ["compactionFirstTierMaxBytes"] = options.Compaction.FirstTierMaxBytes.ToString(CultureInfo.InvariantCulture),
+            ["compactionPollIntervalTicks"] = options.Compaction.PollInterval.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["retentionTtlTicks"] = options.Retention.Ttl.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["retentionTtlTimestampUnits"] = options.Retention.TtlInTimestampUnits?.ToString(CultureInfo.InvariantCulture) ?? "auto-milliseconds",
+            ["retentionPollIntervalTicks"] = options.Retention.PollInterval.Ticks.ToString(CultureInfo.InvariantCulture),
+            ["retentionMaxTombstonesPerRound"] = options.Retention.MaxTombstonesPerRound.ToString(CultureInfo.InvariantCulture),
+            ["segmentBufferBytes"] = options.SegmentWriterOptions.BufferSize.ToString(CultureInfo.InvariantCulture),
+            ["segmentTimestampEncoding"] = options.SegmentWriterOptions.TimestampEncoding.ToString(),
+            ["segmentValueEncoding"] = options.SegmentWriterOptions.ValueEncoding.ToString(),
+        };
+        if (additionalSettings is not null)
+        {
+            foreach ((string key, string value) in additionalSettings)
+                settings[key] = value;
+        }
+
+        return new SoakConfigurationEvidence(
+            scope,
+            source,
+            ResolveDurabilityMode(options),
+            options.SyncWalOnEveryWrite,
+            options.FlushWalToOsOnWrite,
+            options.SegmentWriterOptions.FsyncOnCommit,
+            options.BackgroundFlush.Enabled,
+            options.Compaction.Enabled,
+            options.Retention.Enabled,
+            settings);
+    }
+
+    /// <summary>记录运行参数而不把未由当前阶段采集的引擎默认值伪装为有效配置。</summary>
+    public static SoakConfigurationEvidence CreateInvocation(SoakOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var settings = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profile"] = options.Profile,
+            ["cycles"] = options.Cycles.ToString(CultureInfo.InvariantCulture),
+            ["series"] = options.Series.ToString(CultureInfo.InvariantCulture),
+            ["measurements"] = options.Measurements.ToString(CultureInfo.InvariantCulture),
+            ["pointsPerMeasurement"] = options.PointsPerMeasurement.ToString(CultureInfo.InvariantCulture),
+            ["targetSegments"] = options.TargetSegments.ToString(CultureInfo.InvariantCulture),
+            ["pointsPerSegment"] = options.PointsPerSegment.ToString(CultureInfo.InvariantCulture),
+            ["restartCount"] = options.RestartCount.ToString(CultureInfo.InvariantCulture),
+            ["recoverySamples"] = options.RecoverySamples.ToString(CultureInfo.InvariantCulture),
+            ["querySamples"] = options.QuerySamples.ToString(CultureInfo.InvariantCulture),
+            ["maintenanceBatches"] = options.MaintenanceBatches.ToString(CultureInfo.InvariantCulture),
+            ["pointsPerBatch"] = options.PointsPerBatch.ToString(CultureInfo.InvariantCulture),
+            ["dropMeasurements"] = options.DropMeasurements.ToString(CultureInfo.InvariantCulture),
+            ["randomSeed"] = options.RandomSeed.ToString(CultureInfo.InvariantCulture),
+        };
+        return new SoakConfigurationEvidence(
+            "runner-invocation",
+            "SoakOptions.Parse",
+            "not-an-engine-durability-assertion",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            settings);
+    }
+
+    private static string ResolveDurabilityMode(TsdbOptions options)
+    {
+        if (options.SyncWalOnEveryWrite)
+            return "fsync-on-every-write";
+        if (options.FlushWalToOsOnWrite)
+            return "flush-to-os-on-every-write";
+        return "buffered-until-flush-or-dispose";
+    }
+}
+
+internal static class SoakEvidenceText
+{
+    /// <summary>压缩环境来源文本并限制长度，避免换行或不受控输入破坏报告结构。</summary>
+    public static string Normalize(string? value, string fallback = "UNAVAILABLE")
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        string normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 256 ? normalized : normalized[..256];
+    }
 }
 
 internal sealed record SoakIntegritySummary(
@@ -976,6 +1808,8 @@ internal sealed record SoakCapacityBoundary(
 internal sealed record SoakReportSummary(
     long PeakWorkingSetBytes,
     long PeakManagedMemoryBytes,
+    SoakResourceSummary Resources,
+    SoakExternalProcessResourceSummary ExternalProcessResources,
     SoakIntegritySummary? Integrity,
     SoakLatencySummary? RecoveryLatency,
     SoakLatencySummary? QueryLatency,
@@ -1007,6 +1841,8 @@ internal sealed record SoakReportSummary(
         return new SoakReportSummary(
             phases.Select(static phase => phase.PeakWorkingSetBytes).DefaultIfEmpty().Max(),
             phases.Select(static phase => phase.PeakManagedMemoryBytes).DefaultIfEmpty().Max(),
+            SoakResourceSummary.Create(phases),
+            SoakExternalProcessResourceSummary.Create(phases.SelectMany(static phase => phase.ProcessResourceContributions)),
             aggregate,
             SoakLatencySummary.Create(phases.SelectMany(static phase => phase.RecoveryLatencySamplesMilliseconds)),
             SoakLatencySummary.Create(phases.SelectMany(static phase => phase.QueryLatencySamplesMilliseconds)),
@@ -1017,7 +1853,7 @@ internal sealed record SoakReportSummary(
     {
         "high-cardinality" => new(
             [
-                "验证大量 tag 组合下 catalog、倒排 tag index、目录持久化与冷启动成本。",
+                "验证大量 tag 组合下 catalog、倒排 tag index、目录持久化与 reopen 成本。",
                 "用确定性抽样核对 series、timestamp 与 value，并报告查询和恢复分位数。",
             ],
             [
@@ -1026,7 +1862,7 @@ internal sealed record SoakReportSummary(
             ]),
         "small-segments" => new(
             [
-                "验证主动多次 flush 后大量小 segment 的发布、枚举、查询、完整性与冷启动成本。",
+                "验证主动多次 flush 后大量小 segment 的发布、枚举、查询、完整性与 reopen 成本。",
                 "量化 #124 增量发布之后仍然存在的段数量、解码与恢复成本。",
             ],
             [
@@ -1044,7 +1880,7 @@ internal sealed record SoakReportSummary(
             ]),
         "many-measurements" => new(
             [
-                "验证大量 measurement 下目录枚举、备份扫描、drop、retention 与冷启动。",
+                "验证大量 measurement 下目录枚举、备份扫描、drop、retention 与 reopen。",
                 "报告 measurement/segment/备份文件规模及恢复分位数。",
             ],
             [
@@ -1057,30 +1893,269 @@ internal sealed record SoakReportSummary(
     };
 }
 
-internal sealed class PhaseResourceMonitor : IDisposable
+internal sealed record SoakResourceSummary(
+    long TotalAllocatedBytes,
+    long TotalGen0Collections,
+    long TotalGen1Collections,
+    long TotalGen2Collections,
+    long PeakPrivateMemoryBytes,
+    long? MaximumWorkingSetDeltaBytes,
+    long? MaximumPrivateMemoryDeltaBytes,
+    double TotalCpuTimeMilliseconds,
+    double TotalMeasuredDurationMilliseconds,
+    double? AverageCpuUtilizationPercent,
+    long? TotalReadOperationDelta,
+    long? TotalWriteOperationDelta,
+    long? TotalReadTransferBytesDelta,
+    long? TotalWriteTransferBytesDelta)
 {
-    private readonly ManualResetEventSlim _stop = new(false);
-    private readonly Process _process = Process.GetCurrentProcess();
-    private readonly Thread _thread;
-    private int _stopped;
-    private long _peakManagedMemoryBytes;
-    private long _peakWorkingSetBytes;
-
-    public PhaseResourceMonitor()
+    /// <summary>从父进程阶段采样聚合分配、GC、内存和 CPU 指标。</summary>
+    public static SoakResourceSummary Create(IEnumerable<SoakPhaseResult> phases)
     {
-        Sample();
+        SoakPhaseResult[] materialized = phases.ToArray();
+        long? maximumWorkingSetDelta = MaxNullable(materialized.Select(static phase => phase.WorkingSetDeltaBytes));
+        long? maximumPrivateMemoryDelta = MaxNullable(materialized.Select(static phase => phase.PrivateMemoryDeltaBytes));
+        double totalCpuMilliseconds = materialized.Sum(static phase => phase.CpuTimeMilliseconds ?? 0d);
+        double totalDurationMilliseconds = materialized.Sum(static phase => phase.DurationMilliseconds);
+        double? averageCpuUtilization = totalDurationMilliseconds > 0d && Environment.ProcessorCount > 0
+            ? totalCpuMilliseconds / (totalDurationMilliseconds * Environment.ProcessorCount) * 100d
+            : null;
+        return new SoakResourceSummary(
+            materialized.Sum(static phase => phase.AllocatedBytes),
+            materialized.Sum(static phase => phase.Gen0Collections),
+            materialized.Sum(static phase => phase.Gen1Collections),
+            materialized.Sum(static phase => phase.Gen2Collections),
+            materialized.Select(static phase => phase.PeakPrivateMemoryBytes ?? 0).DefaultIfEmpty().Max(),
+            maximumWorkingSetDelta,
+            maximumPrivateMemoryDelta,
+            totalCpuMilliseconds,
+            totalDurationMilliseconds,
+            averageCpuUtilization,
+            SumAllOrNull(materialized.Select(static phase => phase.ReadOperationDelta)),
+            SumAllOrNull(materialized.Select(static phase => phase.WriteOperationDelta)),
+            SumAllOrNull(materialized.Select(static phase => phase.ReadTransferBytesDelta)),
+            SumAllOrNull(materialized.Select(static phase => phase.WriteTransferBytesDelta)));
+    }
+
+    private static long? MaxNullable(IEnumerable<long?> values)
+    {
+        long? maximum = null;
+        foreach (long? value in values)
+        {
+            if (value.HasValue && (!maximum.HasValue || value.Value > maximum.Value))
+                maximum = value;
+        }
+
+        return maximum;
+    }
+
+    private static long? SumAllOrNull(IEnumerable<long?> values)
+    {
+        long total = 0;
+        bool any = false;
+        foreach (long? value in values)
+        {
+            if (!value.HasValue)
+                return null;
+
+            total = checked(total + value.Value);
+            any = true;
+        }
+
+        return any ? total : null;
+    }
+
+}
+
+internal sealed record SoakExternalProcessResourceSummary(
+    int ProcessCount,
+    long PeakWorkingSetBytes,
+    long PeakPrivateMemoryBytes,
+    double TotalCpuTimeMilliseconds,
+    double TotalObservedElapsedMilliseconds,
+    int TotalSamples,
+    int ExitedProcessCount,
+    long? TotalReadOperationDelta,
+    long? TotalWriteOperationDelta,
+    long? TotalReadTransferBytesDelta,
+    long? TotalWriteTransferBytesDelta)
+{
+    /// <summary>聚合阶段记录的子进程资源快照；CPU 时间和观察时长可能因并发进程重叠。</summary>
+    public static SoakExternalProcessResourceSummary Create(IEnumerable<SoakProcessResourceContribution> contributions)
+    {
+        SoakProcessResourceContribution[] materialized = contributions.ToArray();
+        return new SoakExternalProcessResourceSummary(
+            materialized.Length,
+            materialized.Select(static item => item.PeakWorkingSetBytes ?? 0).DefaultIfEmpty().Max(),
+            materialized.Select(static item => item.PeakPrivateMemoryBytes ?? 0).DefaultIfEmpty().Max(),
+            materialized.Sum(static item => item.CpuTimeMilliseconds ?? 0d),
+            materialized.Sum(static item => item.ElapsedMilliseconds),
+            materialized.Sum(static item => item.SampleCount),
+            materialized.Count(static item => item.ProcessExited),
+            SumAllOrNull(materialized.Select(static item => item.ReadOperationDelta)),
+            SumAllOrNull(materialized.Select(static item => item.WriteOperationDelta)),
+            SumAllOrNull(materialized.Select(static item => item.ReadTransferBytesDelta)),
+            SumAllOrNull(materialized.Select(static item => item.WriteTransferBytesDelta)));
+    }
+
+    private static long? SumAllOrNull(IEnumerable<long?> values)
+    {
+        long total = 0;
+        bool any = false;
+        foreach (long? value in values)
+        {
+            if (!value.HasValue)
+                return null;
+
+            total = checked(total + value.Value);
+            any = true;
+        }
+
+        return any ? total : null;
+    }
+}
+
+internal sealed record ProcessResourceSnapshot(
+    long? InitialWorkingSetBytes,
+    long? FinalObservedWorkingSetBytes,
+    long? PeakWorkingSetBytes,
+    long? WorkingSetDeltaBytes,
+    long? InitialPrivateMemoryBytes,
+    long? FinalObservedPrivateMemoryBytes,
+    long? PeakPrivateMemoryBytes,
+    long? PrivateMemoryDeltaBytes,
+    double? CpuTimeMilliseconds,
+    double ElapsedMilliseconds,
+    double? CpuUtilizationPercent,
+    long? ReadOperationDelta,
+    long? WriteOperationDelta,
+    long? ReadTransferBytesDelta,
+    long? WriteTransferBytesDelta,
+    int SampleCount,
+    bool ProcessExited);
+
+internal sealed record SoakProcessResourceContribution(
+    string Scope,
+    long? InitialWorkingSetBytes,
+    long? FinalObservedWorkingSetBytes,
+    long? PeakWorkingSetBytes,
+    long? WorkingSetDeltaBytes,
+    long? InitialPrivateMemoryBytes,
+    long? FinalObservedPrivateMemoryBytes,
+    long? PeakPrivateMemoryBytes,
+    long? PrivateMemoryDeltaBytes,
+    double? CpuTimeMilliseconds,
+    double ElapsedMilliseconds,
+    double? CpuUtilizationPercent,
+    long? ReadOperationDelta,
+    long? WriteOperationDelta,
+    long? ReadTransferBytesDelta,
+    long? WriteTransferBytesDelta,
+    int SampleCount,
+    bool ProcessExited)
+{
+    /// <summary>把外部进程监控快照附加到所属阶段，不与父进程资源计数混合。</summary>
+    public static SoakProcessResourceContribution FromSnapshot(string scope, ProcessResourceSnapshot snapshot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new SoakProcessResourceContribution(
+            scope,
+            snapshot.InitialWorkingSetBytes,
+            snapshot.FinalObservedWorkingSetBytes,
+            snapshot.PeakWorkingSetBytes,
+            snapshot.WorkingSetDeltaBytes,
+            snapshot.InitialPrivateMemoryBytes,
+            snapshot.FinalObservedPrivateMemoryBytes,
+            snapshot.PeakPrivateMemoryBytes,
+            snapshot.PrivateMemoryDeltaBytes,
+            snapshot.CpuTimeMilliseconds,
+            snapshot.ElapsedMilliseconds,
+            snapshot.CpuUtilizationPercent,
+            snapshot.ReadOperationDelta,
+            snapshot.WriteOperationDelta,
+            snapshot.ReadTransferBytesDelta,
+            snapshot.WriteTransferBytesDelta,
+            snapshot.SampleCount,
+            snapshot.ProcessExited);
+    }
+}
+
+/// <summary>以低频轮询收集任意进程的 CPU、RSS 和 private-memory 快照。</summary>
+internal sealed class ProcessResourceMonitor : IDisposable
+{
+    private static readonly TimeSpan SampleInterval = TimeSpan.FromMilliseconds(25);
+    private readonly object _gate = new();
+    private readonly ManualResetEventSlim _stop = new(false);
+    private readonly Process _process;
+    private readonly bool _ownsProcess;
+    private readonly Thread _thread;
+    private readonly Stopwatch _elapsed = Stopwatch.StartNew();
+    private ProcessResourceReading _initial;
+    private ProcessResourceReading _latest;
+    private long? _peakWorkingSetBytes;
+    private long? _peakPrivateMemoryBytes;
+    private int _sampleCount;
+    private bool _processExited;
+    private int _stopped;
+
+    /// <summary>开始监控已启动或当前正在运行的进程。</summary>
+    /// <param name="process">要监控的进程。</param>
+    /// <param name="ownsProcess">是否由监控器在释放时一并释放 <paramref name="process"/> 对象。</param>
+    public ProcessResourceMonitor(Process process, bool ownsProcess = false)
+    {
+        ArgumentNullException.ThrowIfNull(process);
+        _process = process;
+        _ownsProcess = ownsProcess;
+        _initial = CaptureReading();
+        _latest = _initial;
+        RecordReading(_initial);
         _thread = new Thread(Run)
         {
             IsBackground = true,
-            Name = "SonnetDB-EcosystemSoak-ResourceMonitor",
+            Name = "SonnetDB-EcosystemSoak-ProcessResourceMonitor",
         };
         _thread.Start();
     }
 
-    public long PeakManagedMemoryBytes => Interlocked.Read(ref _peakManagedMemoryBytes);
+    /// <summary>返回最后可读取的资源快照；进程已经退出时保留退出前的最后一次成功采样。</summary>
+    public ProcessResourceSnapshot Snapshot
+    {
+        get
+        {
+            if (Volatile.Read(ref _stopped) == 0)
+                Sample();
 
-    public long PeakWorkingSetBytes => Interlocked.Read(ref _peakWorkingSetBytes);
+            lock (_gate)
+            {
+                double elapsedMilliseconds = _elapsed.Elapsed.TotalMilliseconds;
+                double? cpuTimeMilliseconds = DifferenceMilliseconds(_initial.TotalProcessorTime, _latest.TotalProcessorTime);
+                double? cpuUtilizationPercent = cpuTimeMilliseconds.HasValue && elapsedMilliseconds > 0 && Environment.ProcessorCount > 0
+                    ? cpuTimeMilliseconds.Value / (elapsedMilliseconds * Environment.ProcessorCount) * 100d
+                    : null;
+                return new ProcessResourceSnapshot(
+                    _initial.WorkingSetBytes,
+                    _latest.WorkingSetBytes,
+                    _peakWorkingSetBytes,
+                    Difference(_initial.WorkingSetBytes, _latest.WorkingSetBytes),
+                    _initial.PrivateMemoryBytes,
+                    _latest.PrivateMemoryBytes,
+                    _peakPrivateMemoryBytes,
+                    Difference(_initial.PrivateMemoryBytes, _latest.PrivateMemoryBytes),
+                    cpuTimeMilliseconds,
+                    elapsedMilliseconds,
+                    cpuUtilizationPercent,
+                    Difference(_initial.ReadOperationCount, _latest.ReadOperationCount),
+                    Difference(_initial.WriteOperationCount, _latest.WriteOperationCount),
+                    Difference(_initial.ReadTransferBytes, _latest.ReadTransferBytes),
+                    Difference(_initial.WriteTransferBytes, _latest.WriteTransferBytes),
+                    _sampleCount,
+                    _processExited);
+            }
+        }
+    }
 
+    /// <summary>停止轮询并获取最终可读取的进程资源样本。</summary>
     public void Stop()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
@@ -1089,26 +2164,369 @@ internal sealed class PhaseResourceMonitor : IDisposable
         _stop.Set();
         _thread.Join();
         Sample();
+        _elapsed.Stop();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Stop();
+        if (_ownsProcess)
+            _process.Dispose();
+        _stop.Dispose();
+    }
+
+    private void Run()
+    {
+        while (!_stop.Wait(SampleInterval))
+            Sample();
+    }
+
+    private void Sample()
+    {
+        ProcessResourceReading reading = CaptureReading();
+        lock (_gate)
+            RecordReading(reading);
+    }
+
+    private ProcessResourceReading CaptureReading()
+    {
+        bool exited = TryReadProcessExited();
+        if (!exited)
+            TryRefresh();
+
+        ProcessIoCounters? ioCounters = TryReadProcessIoCounters();
+
+        return new ProcessResourceReading(
+            TryReadLong(static process => process.WorkingSet64, _process),
+            TryReadLong(static process => process.PrivateMemorySize64, _process),
+            TryReadTimeSpan(static process => process.TotalProcessorTime, _process),
+            ioCounters?.ReadOperationCount,
+            ioCounters?.WriteOperationCount,
+            ioCounters?.ReadTransferBytes,
+            ioCounters?.WriteTransferBytes,
+            exited);
+    }
+
+    private ProcessIoCounters? TryReadProcessIoCounters()
+    {
+        if (!OperatingSystem.IsLinux())
+            return null;
+
+        try
+        {
+            string path = $"/proc/{_process.Id.ToString(CultureInfo.InvariantCulture)}/io";
+            long? readOperations = null;
+            long? writeOperations = null;
+            long? readTransferBytes = null;
+            long? writeTransferBytes = null;
+            foreach (string line in File.ReadLines(path))
+            {
+                int separator = line.IndexOf(':');
+                if (separator <= 0
+                    || !long.TryParse(
+                        line[(separator + 1)..].Trim(),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out long value))
+                {
+                    continue;
+                }
+
+                switch (line[..separator])
+                {
+                    case "syscr":
+                        readOperations = value;
+                        break;
+                    case "syscw":
+                        writeOperations = value;
+                        break;
+                    case "rchar":
+                        readTransferBytes = value;
+                        break;
+                    case "wchar":
+                        writeTransferBytes = value;
+                        break;
+                }
+            }
+
+            return readOperations.HasValue
+                && writeOperations.HasValue
+                && readTransferBytes.HasValue
+                && writeTransferBytes.HasValue
+                ? new ProcessIoCounters(
+                    readOperations.Value,
+                    writeOperations.Value,
+                    readTransferBytes.Value,
+                    writeTransferBytes.Value)
+                : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private void RecordReading(ProcessResourceReading reading)
+    {
+        _processExited |= reading.ProcessExited;
+        if (!reading.HasMetrics)
+            return;
+
+        // A just-started Linux child can expose /proc/<pid>/io a moment after its
+        // Process object becomes observable. Use the first readable value as the
+        // baseline for each independent counter; otherwise a transient startup
+        // miss would make the entire phase permanently report unknown I/O.
+        _initial = _initial with
+        {
+            WorkingSetBytes = _initial.WorkingSetBytes ?? reading.WorkingSetBytes,
+            PrivateMemoryBytes = _initial.PrivateMemoryBytes ?? reading.PrivateMemoryBytes,
+            TotalProcessorTime = _initial.TotalProcessorTime ?? reading.TotalProcessorTime,
+            ReadOperationCount = _initial.ReadOperationCount ?? reading.ReadOperationCount,
+            WriteOperationCount = _initial.WriteOperationCount ?? reading.WriteOperationCount,
+            ReadTransferBytes = _initial.ReadTransferBytes ?? reading.ReadTransferBytes,
+            WriteTransferBytes = _initial.WriteTransferBytes ?? reading.WriteTransferBytes,
+        };
+
+        // A process can remain queryable while /proc/<pid>/io is momentarily
+        // unavailable. Preserve the last usable value for each independent
+        // counter instead of turning a valid phase delta into an unknown one.
+        _latest = _latest with
+        {
+            WorkingSetBytes = reading.WorkingSetBytes ?? _latest.WorkingSetBytes,
+            PrivateMemoryBytes = reading.PrivateMemoryBytes ?? _latest.PrivateMemoryBytes,
+            TotalProcessorTime = reading.TotalProcessorTime ?? _latest.TotalProcessorTime,
+            ReadOperationCount = reading.ReadOperationCount ?? _latest.ReadOperationCount,
+            WriteOperationCount = reading.WriteOperationCount ?? _latest.WriteOperationCount,
+            ReadTransferBytes = reading.ReadTransferBytes ?? _latest.ReadTransferBytes,
+            WriteTransferBytes = reading.WriteTransferBytes ?? _latest.WriteTransferBytes,
+            ProcessExited = reading.ProcessExited,
+        };
+        _sampleCount++;
+        UpdateMaximum(ref _peakWorkingSetBytes, reading.WorkingSetBytes);
+        UpdateMaximum(ref _peakPrivateMemoryBytes, reading.PrivateMemoryBytes);
+    }
+
+    private bool TryReadProcessExited()
+    {
+        try
+        {
+            return _process.HasExited;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return true;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
+        }
+    }
+
+    private void TryRefresh()
+    {
+        try
+        {
+            _process.Refresh();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+    }
+
+    private static long? TryReadLong(Func<Process, long> read, Process process)
+    {
+        try
+        {
+            return read(process);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static TimeSpan? TryReadTimeSpan(Func<Process, TimeSpan> read, Process process)
+    {
+        try
+        {
+            return read(process);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static long? Difference(long? start, long? end)
+        => start.HasValue && end.HasValue ? end.Value - start.Value : null;
+
+    private static double? DifferenceMilliseconds(TimeSpan? start, TimeSpan? end)
+        => start.HasValue && end.HasValue
+            ? Math.Max(0d, (end.Value - start.Value).TotalMilliseconds)
+            : null;
+
+    private static void UpdateMaximum(ref long? maximum, long? value)
+    {
+        if (value.HasValue && (!maximum.HasValue || value.Value > maximum.Value))
+            maximum = value;
+    }
+
+    private sealed record ProcessResourceReading(
+        long? WorkingSetBytes,
+        long? PrivateMemoryBytes,
+        TimeSpan? TotalProcessorTime,
+        long? ReadOperationCount,
+        long? WriteOperationCount,
+        long? ReadTransferBytes,
+        long? WriteTransferBytes,
+        bool ProcessExited)
+    {
+        public bool HasMetrics => WorkingSetBytes.HasValue
+            || PrivateMemoryBytes.HasValue
+            || TotalProcessorTime.HasValue
+            || ReadOperationCount.HasValue
+            || WriteOperationCount.HasValue
+            || ReadTransferBytes.HasValue
+            || WriteTransferBytes.HasValue;
+    }
+
+    private sealed record ProcessIoCounters(
+        long ReadOperationCount,
+        long WriteOperationCount,
+        long ReadTransferBytes,
+        long WriteTransferBytes);
+}
+
+internal sealed class PhaseResourceMonitor : IDisposable
+{
+    private readonly ManualResetEventSlim _stop = new(false);
+    private readonly ProcessResourceMonitor _processMonitor;
+    private readonly Thread _thread;
+    private readonly long _startingManagedMemoryBytes;
+    private readonly long _startingAllocatedBytes;
+    private readonly long _startingGen0Collections;
+    private readonly long _startingGen1Collections;
+    private readonly long _startingGen2Collections;
+    private int _stopped;
+    private long _managedMemoryBytes;
+    private long _peakManagedMemoryBytes;
+    private long _allocatedBytes;
+    private long _gen0Collections;
+    private long _gen1Collections;
+    private long _gen2Collections;
+
+    public PhaseResourceMonitor()
+    {
+        _processMonitor = new ProcessResourceMonitor(Process.GetCurrentProcess(), ownsProcess: true);
+        _startingManagedMemoryBytes = GC.GetTotalMemory(forceFullCollection: false);
+        _startingAllocatedBytes = GC.GetTotalAllocatedBytes(precise: false);
+        _startingGen0Collections = GC.CollectionCount(0);
+        _startingGen1Collections = GC.CollectionCount(1);
+        _startingGen2Collections = GC.CollectionCount(2);
+        _managedMemoryBytes = _startingManagedMemoryBytes;
+        _peakManagedMemoryBytes = _startingManagedMemoryBytes;
+        _thread = new Thread(Run)
+        {
+            IsBackground = true,
+            Name = "SonnetDB-EcosystemSoak-ManagedResourceMonitor",
+        };
+        _thread.Start();
+    }
+
+    public long ManagedMemoryBytes => Interlocked.Read(ref _managedMemoryBytes);
+
+    public long PeakManagedMemoryBytes => Interlocked.Read(ref _peakManagedMemoryBytes);
+
+    public long PeakWorkingSetBytes => ProcessResources.PeakWorkingSetBytes ?? 0;
+
+    public long ManagedMemoryDeltaBytes => ManagedMemoryBytes - _startingManagedMemoryBytes;
+
+    public long AllocatedBytes => Interlocked.Read(ref _allocatedBytes);
+
+    public long Gen0Collections => Interlocked.Read(ref _gen0Collections);
+
+    public long Gen1Collections => Interlocked.Read(ref _gen1Collections);
+
+    public long Gen2Collections => Interlocked.Read(ref _gen2Collections);
+
+    public ProcessResourceSnapshot ProcessResources => _processMonitor.Snapshot;
+
+    public void Stop()
+    {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
+            return;
+
+        _stop.Set();
+        _thread.Join();
+        SampleManagedMemory();
+        Interlocked.Exchange(ref _allocatedBytes, Math.Max(0, GC.GetTotalAllocatedBytes(precise: false) - _startingAllocatedBytes));
+        Interlocked.Exchange(ref _gen0Collections, Math.Max(0, (long)GC.CollectionCount(0) - _startingGen0Collections));
+        Interlocked.Exchange(ref _gen1Collections, Math.Max(0, (long)GC.CollectionCount(1) - _startingGen1Collections));
+        Interlocked.Exchange(ref _gen2Collections, Math.Max(0, (long)GC.CollectionCount(2) - _startingGen2Collections));
+        _processMonitor.Stop();
     }
 
     public void Dispose()
     {
         Stop();
-        _process.Dispose();
+        _processMonitor.Dispose();
         _stop.Dispose();
     }
 
     private void Run()
     {
         while (!_stop.Wait(TimeSpan.FromMilliseconds(25)))
-            Sample();
+            SampleManagedMemory();
     }
 
-    private void Sample()
+    private void SampleManagedMemory()
     {
-        UpdateMaximum(ref _peakManagedMemoryBytes, GC.GetTotalMemory(forceFullCollection: false));
-        _process.Refresh();
-        UpdateMaximum(ref _peakWorkingSetBytes, _process.WorkingSet64);
+        long managedMemoryBytes = GC.GetTotalMemory(forceFullCollection: false);
+        Interlocked.Exchange(ref _managedMemoryBytes, managedMemoryBytes);
+        UpdateMaximum(ref _peakManagedMemoryBytes, managedMemoryBytes);
     }
 
     private static void UpdateMaximum(ref long location, long value)
@@ -1126,15 +2544,24 @@ internal sealed class PhaseResourceMonitor : IDisposable
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(EcosystemSoakReport))]
+[JsonSerializable(typeof(SoakEvidenceMetadata))]
 [JsonSerializable(typeof(SoakReportOptions))]
 [JsonSerializable(typeof(SoakEnvironment))]
+[JsonSerializable(typeof(SoakHostHardware))]
+[JsonSerializable(typeof(SoakRuntimeProvenance))]
+[JsonSerializable(typeof(SoakDiskSnapshot))]
 [JsonSerializable(typeof(SoakTargetHardware))]
+[JsonSerializable(typeof(SoakConfigurationEvidence))]
 [JsonSerializable(typeof(SoakCycleResult))]
 [JsonSerializable(typeof(SoakPhaseResult))]
+[JsonSerializable(typeof(MaintenanceChaosReservationEvidence))]
+[JsonSerializable(typeof(SoakProcessResourceContribution))]
 [JsonSerializable(typeof(SoakIntegritySummary))]
 [JsonSerializable(typeof(SoakLatencySummary))]
 [JsonSerializable(typeof(SoakCapacityBoundary))]
 [JsonSerializable(typeof(SoakReportSummary))]
+[JsonSerializable(typeof(SoakResourceSummary))]
+[JsonSerializable(typeof(SoakExternalProcessResourceSummary))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<double>))]
 internal sealed partial class EcosystemSoakJsonContext : JsonSerializerContext;

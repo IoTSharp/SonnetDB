@@ -1,0 +1,261 @@
+{
+  "schema": "m39-339-admission-v1",
+  "startedUtc": "2026-09-08T05:01:18.9854832+00:00",
+  "finishedUtc": "2026-09-08T05:01:22.0389856+00:00",
+  "collectionStatus": "COLLECTED",
+  "mode": "full",
+  "runtime": ".NET 10.0.11",
+  "operatingSystem": "Microsoft Windows 10.0.26200",
+  "machine": "DEVPER",
+  "processorCount": 22,
+  "runnerSha256": "51c9a0e38803669c87c18f587571ceca0601f814f24867d3e666d8e52e4988d6",
+  "coreSha256": "e5bd51805a614afbf3c5d64ef91b3524c00131d537a1244f6a24d9047a0dace9",
+  "decisions": [
+    {
+      "model": "document",
+      "status": "BLOCKED",
+      "blockers": [
+        "change feed does not persist native patch/cause/batch identity",
+        "TTL purge is an implicit delete and its event contract is unqualified",
+        "crash/replay and backup/feed/idempotency four-way evidence is incomplete"
+      ]
+    },
+    {
+      "model": "measurement",
+      "status": "BLOCKED",
+      "blockers": [
+        "no native ingestion idempotency key or batch event identity",
+        "WriteMany and BulkIngestor commit in chunks rather than one atomic batch",
+        "checkpoint/segment rename recovery permits redundant replay"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "model": "Document",
+      "scenario": "insert-query",
+      "items": 128,
+      "cardinality": 128,
+      "elapsedMilliseconds": 141.2052,
+      "allocatedBytes": 1460456,
+      "walBytesDelta": 49921,
+      "dataBytesDelta": 0,
+      "metrics": {
+        "inserted": 128,
+        "matched": 32,
+        "index": 1
+      },
+      "detail": "insert bounded documents, then query an indexed category path"
+    },
+    {
+      "model": "Document",
+      "scenario": "update-delete",
+      "items": 128,
+      "cardinality": 128,
+      "elapsedMilliseconds": 57.4472,
+      "allocatedBytes": 809120,
+      "walBytesDelta": 14811,
+      "dataBytesDelta": 0,
+      "metrics": {
+        "updated": 32,
+        "deleted": 2,
+        "remaining": 126
+      },
+      "detail": "update indexed matches and delete two known IDs"
+    },
+    {
+      "model": "Document",
+      "scenario": "change-feed",
+      "items": 128,
+      "cardinality": 128,
+      "elapsedMilliseconds": 9.0604,
+      "allocatedBytes": 192136,
+      "walBytesDelta": 0,
+      "dataBytesDelta": 0,
+      "metrics": {
+        "entries": 162,
+        "latestSequence": 162,
+        "hasMore": 0
+      },
+      "detail": "read the bounded persisted change feed from sequence zero"
+    },
+    {
+      "model": "Document",
+      "scenario": "reopen",
+      "items": 128,
+      "cardinality": 128,
+      "elapsedMilliseconds": 34.2527,
+      "allocatedBytes": 810152,
+      "walBytesDelta": 0,
+      "dataBytesDelta": 0,
+      "metrics": {
+        "count": 126,
+        "recovered": 1
+      },
+      "detail": "reopen the collection and verify persisted count and row"
+    },
+    {
+      "model": "measurement",
+      "scenario": "write-1",
+      "items": 1,
+      "cardinality": 1,
+      "elapsedMilliseconds": 461.8376,
+      "allocatedBytes": 772944,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 17094,
+      "metrics": {
+        "observedPoints": 1,
+        "series": 1
+      },
+      "detail": "single-series WriteMany, flush, query verification; full mode includes the 8192/8193 chunk boundary"
+    },
+    {
+      "model": "measurement",
+      "scenario": "out-of-order-1",
+      "items": 1,
+      "cardinality": 1,
+      "elapsedMilliseconds": 85.6313,
+      "allocatedBytes": 709040,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 17099,
+      "metrics": {
+        "observedPoints": 1,
+        "timestampsAscending": 1
+      },
+      "detail": "reverse timestamp insertion and ascending query verification"
+    },
+    {
+      "model": "measurement",
+      "scenario": "duplicate-replay-1",
+      "items": 1,
+      "cardinality": 1,
+      "elapsedMilliseconds": 106.718,
+      "allocatedBytes": 711584,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 17128,
+      "metrics": {
+        "initialPoints": 1,
+        "observedPoints": 2,
+        "duplicatePoints": 1
+      },
+      "detail": "replaying the same batch records observed duplicate cardinality without normalizing it away"
+    },
+    {
+      "model": "measurement",
+      "scenario": "write-100",
+      "items": 100,
+      "cardinality": 1,
+      "elapsedMilliseconds": 100.4962,
+      "allocatedBytes": 933896,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 20262,
+      "metrics": {
+        "observedPoints": 100,
+        "series": 1
+      },
+      "detail": "single-series WriteMany, flush, query verification; full mode includes the 8192/8193 chunk boundary"
+    },
+    {
+      "model": "measurement",
+      "scenario": "out-of-order-100",
+      "items": 100,
+      "cardinality": 1,
+      "elapsedMilliseconds": 83.6038,
+      "allocatedBytes": 935480,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 20267,
+      "metrics": {
+        "observedPoints": 100,
+        "timestampsAscending": 1
+      },
+      "detail": "reverse timestamp insertion and ascending query verification"
+    },
+    {
+      "model": "measurement",
+      "scenario": "duplicate-replay-100",
+      "items": 100,
+      "cardinality": 1,
+      "elapsedMilliseconds": 93.5726,
+      "allocatedBytes": 1074128,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 23448,
+      "metrics": {
+        "initialPoints": 100,
+        "observedPoints": 200,
+        "duplicatePoints": 100
+      },
+      "detail": "replaying the same batch records observed duplicate cardinality without normalizing it away"
+    },
+    {
+      "model": "measurement",
+      "scenario": "write-10000",
+      "items": 10000,
+      "cardinality": 1,
+      "elapsedMilliseconds": 269.0741,
+      "allocatedBytes": 23469472,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 184406,
+      "metrics": {
+        "observedPoints": 10000,
+        "series": 1
+      },
+      "detail": "single-series WriteMany, flush, query verification; full mode includes the 8192/8193 chunk boundary"
+    },
+    {
+      "model": "measurement",
+      "scenario": "out-of-order-10000",
+      "items": 10000,
+      "cardinality": 1,
+      "elapsedMilliseconds": 294.9882,
+      "allocatedBytes": 23966112,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 184411,
+      "metrics": {
+        "observedPoints": 10000,
+        "timestampsAscending": 1
+      },
+      "detail": "reverse timestamp insertion and ascending query verification"
+    },
+    {
+      "model": "measurement",
+      "scenario": "duplicate-replay-10000",
+      "items": 10000,
+      "cardinality": 1,
+      "elapsedMilliseconds": 484.8932,
+      "allocatedBytes": 37444536,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 345336,
+      "metrics": {
+        "initialPoints": 10000,
+        "observedPoints": 20000,
+        "duplicatePoints": 10000
+      },
+      "detail": "replaying the same batch records observed duplicate cardinality without normalizing it away"
+    },
+    {
+      "model": "measurement",
+      "scenario": "high-cardinality",
+      "items": 1000,
+      "cardinality": 1000,
+      "elapsedMilliseconds": 262.8241,
+      "allocatedBytes": 70299224,
+      "walBytesDelta": 264,
+      "dataBytesDelta": 16673420,
+      "metrics": {
+        "series": 1000,
+        "sampledSeries": 64,
+        "catalogEntries": 1000
+      },
+      "detail": "bounded unique tag series with deterministic sampled reads"
+    }
+  ],
+  "processes": [],
+  "errors": [],
+  "limitations": [
+    "This is a model-native measurement report; it does not implement SQL triggers.",
+    "Document retention is fixed at seven days and was not time-travel simulated.",
+    "The measurement duplicate-replay boundary is reported as a blocker, not normalized away.",
+    "Fixed production hardware and long-duration SLO evidence remain separate gates."
+  ],
+  "temporaryDataRemoved": true
+}

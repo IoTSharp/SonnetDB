@@ -33,14 +33,14 @@ public sealed class TriggerEvidenceReportTests : IDisposable
 
     /// <summary>验证 quick 报告完整覆盖三种 DML、三条路径及精确回滚状态。</summary>
     [Fact]
-    public void Run_QuickMatrix_EmitsCompleteV3Contract()
+    public void Run_QuickMatrix_EmitsCompleteV4Contract()
     {
         TriggerEvidenceReport report = TriggerEvidenceReportRunner.Run(
             _outputDirectory,
             [1, 3],
             crashTestsVerified: false);
 
-        Assert.Equal("m39-trigger-v2-baseline-v3", report.Schema);
+        Assert.Equal("m39-trigger-v2-baseline-v4", report.Schema);
         Assert.Equal(["Insert", "Update", "Delete"], report.Operations);
         Assert.False(report.CrashTestsVerified);
         Assert.Equal(18, report.CostMatrix.Length);
@@ -59,6 +59,7 @@ public sealed class TriggerEvidenceReportTests : IDisposable
             Assert.Equal(row.Rows, row.RowsAffected);
             Assert.Equal(row.RowsInserted, row.RowsAffected);
             Assert.Equal(row.RowStoreBytes, row.RowStoreBytesDelta);
+            Assert.Equal(row.Path != "NoTrigger", row.JournalBytes > 0);
         });
         Assert.All(report.RollbackMatrix, static row =>
         {
@@ -77,7 +78,7 @@ public sealed class TriggerEvidenceReportTests : IDisposable
         Assert.NotEmpty(jsonBytes);
         Assert.Equal((byte)'{', jsonBytes[0]);
         using JsonDocument json = JsonDocument.Parse(jsonBytes);
-        Assert.Equal("m39-trigger-v2-baseline-v3", json.RootElement.GetProperty("schema").GetString());
+        Assert.Equal("m39-trigger-v2-baseline-v4", json.RootElement.GetProperty("schema").GetString());
         Assert.Equal(3, json.RootElement.GetProperty("operations").GetArrayLength());
         Assert.Equal(18, json.RootElement.GetProperty("costMatrix").GetArrayLength());
         Assert.Equal(18, json.RootElement.GetProperty("rollbackMatrix").GetArrayLength());

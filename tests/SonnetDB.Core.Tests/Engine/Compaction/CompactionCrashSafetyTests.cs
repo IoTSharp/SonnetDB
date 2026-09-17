@@ -147,5 +147,36 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         // SegmentManager.Open 只扫描 .SDBSEG，.tmp 应被忽略
         using var mgr = SegmentManager.Open(_tempDir);
         Assert.Equal(1, mgr.SegmentCount);
+        Assert.True(File.Exists(tmpFile), "无 manifest 保护的无关临时文件不应被启动清理误删");
+    }
+
+    [Fact]
+    public void PendingReplacementTempFile_IsRemovedWithConfiguredSuffix()
+    {
+        const string temporarySuffix = ".compaction-partial";
+        WriteSegment(1, 20, tsBase: 1000);
+
+        // 模拟 compaction 在写 replacement 段期间崩溃：pending manifest 已落盘，
+        // 但最终 .SDBSEG 尚未 rename，只留下配置后缀的临时文件。
+        SegmentReplacementManifest.RecordPendingReplacement(
+            _tempDir,
+            replacementSegmentId: 100,
+            sourceSegmentIds: new long[] { 1 });
+
+        string temporaryPath = SegPath(100) + temporarySuffix;
+        string? directory = Path.GetDirectoryName(temporaryPath);
+        Assert.False(string.IsNullOrEmpty(directory));
+        Directory.CreateDirectory(directory!);
+        File.WriteAllBytes(temporaryPath, [0x01, 0x02, 0x03]);
+        Assert.True(File.Exists(temporaryPath));
+
+        using var mgr = SegmentManager.Open(
+            _tempDir,
+            SegmentReaderOptions.Default,
+            temporarySuffix);
+
+        Assert.False(File.Exists(temporaryPath), "pending replacement 的临时段应在启动时清理");
+        Assert.Equal(1, mgr.SegmentCount);
+        Assert.Equal(1L, mgr.Readers[0].Header.SegmentId);
     }
 }

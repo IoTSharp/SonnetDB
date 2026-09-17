@@ -87,6 +87,12 @@ public static class GraphProductionGateRunner
     public static GraphProductionGateReport RunQuick(
         string outputDirectory,
         CancellationToken cancellationToken = default)
+        => RunQuickCore(outputDirectory, writeProductionReports: true, cancellationToken);
+
+    internal static GraphProductionGateReport RunQuickCore(
+        string outputDirectory,
+        bool writeProductionReports,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -302,9 +308,12 @@ public static class GraphProductionGateRunner
                 outputRoot,
                 executionToken);
             executionToken.ThrowIfCancellationRequested();
-            WriteReport(report, outputRoot);
-            executionToken.ThrowIfCancellationRequested();
-            WriteTemplate(outputRoot, input.Environment);
+            if (writeProductionReports)
+            {
+                WriteReport(report, outputRoot);
+                executionToken.ThrowIfCancellationRequested();
+                WriteTemplate(outputRoot, input.Environment);
+            }
             executionToken.ThrowIfCancellationRequested();
             return report;
         }
@@ -1030,7 +1039,7 @@ public static class GraphProductionGateRunner
         return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
-    private static void WriteAtomically(string path, string content)
+    internal static void WriteAtomically(string path, string content)
     {
         string temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
         try
