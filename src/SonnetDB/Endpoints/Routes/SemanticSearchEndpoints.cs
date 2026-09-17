@@ -7,6 +7,7 @@ using Microsoft.ML.OnnxRuntime;
 using SixLabors.ImageSharp;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
@@ -59,6 +60,10 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_image", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
@@ -97,6 +102,10 @@ internal static partial class SonnetDbEndpoints
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
             }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
@@ -128,6 +137,10 @@ internal static partial class SonnetDbEndpoints
             catch (Exception ex) when (IsSemanticBadRequest(ex))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_image", ex.Message).ConfigureAwait(false);
+            }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
@@ -176,6 +189,10 @@ internal static partial class SonnetDbEndpoints
             catch (Exception ex) when (IsSemanticBadRequest(ex))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (SemanticSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_query_budget_exceeded", ex.Message).ConfigureAwait(false);
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {

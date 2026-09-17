@@ -793,7 +793,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SemanticSearch_StrictUsearchFilteredSearch_FailsClosed()
+    public async Task SemanticSearch_StrictUsearchFilteredSearch_UsesNativeFilterAndExcludesReference()
     {
         if (!USearchSemanticIndexRegistry.IsSupportedPlatform)
             return;
@@ -818,21 +818,64 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                 ServerJsonContext.Default.CreateDatabaseRequest);
             Assert.Equal(HttpStatusCode.Created, create.StatusCode);
 
+            Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "red", [255], "red.jpg", "strictusearch")).StatusCode);
+            Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "other", [1], "other.jpg", "strictusearch")).StatusCode);
+            Assert.True(app.Services.GetRequiredService<TsdbRegistry>().TryGet("strictusearch", out var tsdb));
+            var schema = Assert.Single(tsdb.Documents.Catalog.Snapshot());
+            var store = tsdb.Documents.Open(schema.Name);
+            foreach (string id in new[] { "red", "other" })
+            {
+                var document = JsonSerializer.Deserialize(store.Get(id)!.Json, ServerJsonContext.Default.SemanticImageDocument)!;
+                store.Upsert(id, JsonSerializer.Serialize(document with
+                {
+                    Metadata = new Dictionary<string, string> { ["owner"] = "ops" },
+                }, ServerJsonContext.Default.SemanticImageDocument));
+            }
+
             var search = await client.PostAsJsonAsync(
                 "/v1/db/strictusearch/images/search/text",
                 new ImageTextSearchRequest("red", TopK: 1)
                 {
                     Explain = true,
-                    Filter = new ImageSearchFilter(
-                        Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
+                    Filter = new ImageSearchFilter(Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
                 },
                 ServerJsonContext.Default.ImageTextSearchRequest);
 
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, search.StatusCode);
-            var error = await search.Content.ReadFromJsonAsync(ServerJsonContext.Default.ErrorResponse);
-            Assert.Equal("semantic_provider_unavailable", error!.Error);
-            Assert.Contains("不支持带过滤的向量检索", error.Message, StringComparison.Ordinal);
-            Assert.Contains("已禁用 managed 回退", error.Message, StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+            var result = await search.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
+            Assert.Equal("usearch", result!.Backend);
+            Assert.Equal("prefiltered-ann", result.SearchMode);
+            Assert.Equal("red", Assert.Single(result.Hits).Id);
+
+            var similar = await client.PostAsJsonAsync(
+                "/v1/db/strictusearch/images/red/similar",
+                new SimilarImageSearchRequest(TopK: 1)
+                {
+                    Explain = true,
+                    Filter = new ImageSearchFilter(Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
+                },
+                ServerJsonContext.Default.SimilarImageSearchRequest);
+            Assert.Equal(HttpStatusCode.OK, similar.StatusCode);
+            var similarResult = await similar.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
+            Assert.Equal("usearch", similarResult!.Backend);
+            Assert.Equal("other", Assert.Single(similarResult.Hits).Id);
+
+            // 权威 Document 直接写入一个新 ID，故意使派生 USearch 缺失该候选。
+            var red = JsonSerializer.Deserialize(store.Get("red")!.Json, ServerJsonContext.Default.SemanticImageDocument)!;
+            store.Upsert("drift", JsonSerializer.Serialize(red with { Id = "drift" }, ServerJsonContext.Default.SemanticImageDocument));
+            var driftResponse = await client.PostAsJsonAsync(
+                "/v1/db/strictusearch/images/search/text",
+                new ImageTextSearchRequest("red", TopK: 3)
+                {
+                    Explain = true,
+                    Filter = new ImageSearchFilter(Metadata: new Dictionary<string, string> { ["owner"] = "ops" }),
+                }, ServerJsonContext.Default.ImageTextSearchRequest);
+            Assert.Equal(HttpStatusCode.OK, driftResponse.StatusCode);
+            var drift = await driftResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.ImageSearchResponse);
+            Assert.Equal("exact-filtered", drift!.Backend);
+            Assert.Equal("prefiltered-ann-exact-compensation", drift.SearchMode);
+            Assert.NotNull(drift.FallbackReason);
+            Assert.Equal(3, drift.Hits.Count);
         }
         finally
         {
@@ -842,6 +885,75 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                 await app.DisposeAsync();
             }
             try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task SemanticSearch_UsearchRebuildBudgetFailure_DiscardsPartialIndexAndAllowsRetry()
+    {
+        if (!USearchSemanticIndexRegistry.IsSupportedPlatform)
+            return;
+        using var client = CreateClient();
+        Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "first", [255], "first.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "second", [1], "second.jpg")).StatusCode);
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var store = tsdb.Documents.Open(Assert.Single(tsdb.Documents.Catalog.Snapshot()).Name);
+        using var registry = new USearchSemanticIndexRegistry(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<USearchSemanticIndexRegistry>.Instance);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        int visited = 0;
+        Assert.Throws<SonnetDB.Exceptions.SemanticSearchBudgetExceededException>(() => registry.TrySearch(
+            "images", store, 3, [1, 0, 0], 2, out _, out _, timeout.Token,
+            () =>
+            {
+                if (++visited > 1)
+                    throw new SonnetDB.Exceptions.SemanticSearchBudgetExceededException("test scan budget");
+            }));
+        Assert.Null(registry.RuntimeFailure);
+        Assert.True(registry.TrySearch("images", store, 3, [1, 0, 0], 2, out var hits, out var error, timeout.Token));
+        Assert.Null(error);
+        Assert.Equal(2, hits.Count);
+        Assert.Equal("first", hits[0].Id);
+    }
+
+    [Fact]
+    public async Task SemanticSearch_QueryScanBudget_ReturnsExplicitErrorWithoutPartialHits()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "sonnetdb-query-budget-" + Guid.NewGuid().ToString("N"));
+        WebApplication? app = null;
+        try
+        {
+            ServerOptions options = CreateOptions(root, "managed");
+            options.SemanticSearch.Query.MaxScannedCandidates = 1;
+            options.SemanticSearch.Query.CandidatePageSize = 1;
+            app = TestServerHost.Build(options, services =>
+                services.AddSingleton<IMultimodalEmbeddingProvider>(new FakeMultimodalEmbeddingProvider()));
+            await app.StartAsync();
+            using var client = CreateClient(GetBaseUrl(app), AdminToken);
+            Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/v1/db",
+                new CreateDatabaseRequest("images"), ServerJsonContext.Default.CreateDatabaseRequest)).StatusCode);
+            Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "first", [255], "first.jpg")).StatusCode);
+            Assert.Equal(HttpStatusCode.Created, (await PutImageAsync(client, "second", [1], "second.jpg")).StatusCode);
+            var response = await client.PostAsJsonAsync("/v1/db/images/images/search/text",
+                new ImageTextSearchRequest("red", TopK: 1)
+                {
+                    Explain = true,
+                    Filter = new ImageSearchFilter(ContentType: "image/jpeg"),
+                }, ServerJsonContext.Default.ImageTextSearchRequest);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var error = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ErrorResponse);
+            Assert.Equal("semantic_query_budget_exceeded", error!.Error);
+            Assert.Contains("候选扫描预算", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (app is not null)
+            {
+                await app.StopAsync();
+                await app.DisposeAsync();
+            }
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
         }
     }
 

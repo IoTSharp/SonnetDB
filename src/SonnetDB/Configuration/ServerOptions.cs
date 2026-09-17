@@ -137,6 +137,9 @@ public sealed class KvStorageOptions
 /// </summary>
 public sealed class SemanticSearchOptions
 {
+    /// <summary>语义查询的 ANN、候选扫描、精确补偿与协作超时预算。</summary>
+    public SemanticSearchQueryOptions Query { get; set; } = new();
+
     /// <summary>对象缩略图与语义派生任务的持久队列、恢复和负载边界。</summary>
     public ObjectProcessingOptions ObjectProcessing { get; set; } = new();
 
@@ -196,6 +199,34 @@ public sealed class SemanticSearchOptions
 
     /// <summary>单次搜索允许的最大返回条数。</summary>
     public int MaxTopK { get; set; } = 100;
+}
+
+/// <summary>语义图片查询预算；服务创建时将配置限制在文档声明的安全范围内。</summary>
+public sealed class SemanticSearchQueryOptions
+{
+    /// <summary>filtered ANN 候选预算，默认 512，范围 1～100000。预算不足时转精确路径。</summary>
+    public int AnnCandidateLimit { get; set; } = 512;
+
+    /// <summary>允许物化与精确补偿的过滤 ID 数量，默认 4096，范围 0～100000。</summary>
+    public int ExactCompensationLimit { get; set; } = 4096;
+
+    /// <summary>预过滤与精确扫描的单页行数，默认 256，范围 1～4096。</summary>
+    public int CandidatePageSize { get; set; } = 256;
+
+    /// <summary>单次查询预过滤与精确扫描累计读取行数上限，默认 100000，范围 1～10000000。</summary>
+    public int MaxScannedCandidates { get; set; } = 100_000;
+
+    /// <summary>检索阶段协作超时毫秒数，默认 30000，范围 1～600000；不包含 embedding 生成。</summary>
+    public int TimeoutMilliseconds { get; set; } = 30_000;
+
+    internal SemanticSearchQueryOptions BoundedCopy() => new()
+    {
+        AnnCandidateLimit = Math.Clamp(AnnCandidateLimit, 1, 100_000),
+        ExactCompensationLimit = Math.Clamp(ExactCompensationLimit, 0, 100_000),
+        CandidatePageSize = Math.Clamp(CandidatePageSize, 1, 4096),
+        MaxScannedCandidates = Math.Clamp(MaxScannedCandidates, 1, 10_000_000),
+        TimeoutMilliseconds = Math.Clamp(TimeoutMilliseconds, 1, 600_000),
+    };
 }
 
 /// <summary>
