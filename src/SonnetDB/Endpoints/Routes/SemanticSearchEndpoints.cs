@@ -21,6 +21,7 @@ internal static partial class SonnetDbEndpoints
     {
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
+        MapSemanticEmbeddingEndpoints(app, registry, grants);
 
         app.MapGet("/v1/semantic-search/status", async (HttpContext ctx, CancellationToken cancellationToken) =>
         {
@@ -66,7 +67,7 @@ internal static partial class SonnetDbEndpoints
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -108,7 +109,7 @@ internal static partial class SonnetDbEndpoints
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -144,7 +145,7 @@ internal static partial class SonnetDbEndpoints
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -196,7 +197,7 @@ internal static partial class SonnetDbEndpoints
             }
             catch (Exception ex) when (IsSemanticProviderFailure(ex))
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "semantic_provider_unavailable", ex.Message).ConfigureAwait(false);
+                await WriteSemanticProviderFailureAsync(ctx, ex).ConfigureAwait(false);
             }
         });
 
@@ -430,5 +431,7 @@ internal static partial class SonnetDbEndpoints
         => exception is InvalidOperationException
             or InvalidDataException
             or NotSupportedException
-            or OnnxRuntimeException;
+            or OnnxRuntimeException
+            or TimeoutException
+            or IOException;
 }

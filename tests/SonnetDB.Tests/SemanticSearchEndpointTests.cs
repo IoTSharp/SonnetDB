@@ -1272,7 +1272,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     private sealed class FakeMultimodalEmbeddingProvider : IMultimodalEmbeddingProvider
     {
         public MultimodalEmbeddingProviderInfo Info { get; }
-            = new("fake", "fake-siglip2-test", 3, Ready: true);
+            = new("fake", "fake-siglip2-test", 3, Ready: true) { IsLocal = true };
 
         public ValueTask<float[]> EmbedTextAsync(string text, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(
@@ -1291,7 +1291,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     private sealed class BlockingMultimodalEmbeddingProvider : IMultimodalEmbeddingProvider
     {
         public MultimodalEmbeddingProviderInfo Info { get; }
-            = new("blocking", "fake-siglip2-test", 3, Ready: true);
+            = new("blocking", "fake-siglip2-test", 3, Ready: true) { IsLocal = true };
 
         public ValueTask<float[]> EmbedTextAsync(string text, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(new[] { 1f, 0f, 0f });

@@ -175,6 +175,8 @@ internal static class SonnetDbServiceRegistration
             throw new InvalidOperationException($"Unsupported multimodal embedding provider '{options.Provider}'.");
         });
         builder.Services.AddSingleton<USearchSemanticIndexRegistry>();
+        builder.Services.AddSingleton<IObjectEmbeddingProvider, MultimodalObjectEmbeddingProvider>();
+        builder.Services.AddSingleton<SemanticEmbeddingService>();
         builder.Services.AddSingleton<SemanticImageSearchService>();
         builder.Services.AddSingleton<ObjectSemanticProcessingService>();
 

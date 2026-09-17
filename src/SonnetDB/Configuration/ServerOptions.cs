@@ -140,6 +140,18 @@ public sealed class SemanticSearchOptions
     /// <summary>语义查询的 ANN、候选扫描、精确补偿与协作超时预算。</summary>
     public SemanticSearchQueryOptions Query { get; set; } = new();
 
+    /// <summary>内容外发策略；默认只允许明确声明本地执行的 provider。</summary>
+    public SonnetDB.SemanticContent.SemanticDataEgressPolicy DataEgressPolicy { get; set; } = new();
+
+    /// <summary>单次 provider 调用及对象读取的超时秒数，范围 1 到 300。</summary>
+    public int EmbeddingTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>对象 embedding 输入的最大字节数，范围 1 到 100 MiB。</summary>
+    public int MaxObjectEmbeddingBytes { get; set; } = 20 * 1024 * 1024;
+
+    /// <summary>文本 embedding 输入的 UTF-8 最大字节数，范围 1 到 4 MiB。</summary>
+    public int MaxTextEmbeddingBytes { get; set; } = 1024 * 1024;
+
     /// <summary>对象缩略图与语义派生任务的持久队列、恢复和负载边界。</summary>
     public ObjectProcessingOptions ObjectProcessing { get; set; } = new();
 

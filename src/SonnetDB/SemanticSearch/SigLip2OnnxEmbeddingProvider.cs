@@ -35,7 +35,7 @@ public sealed class SigLip2OnnxEmbeddingProvider : IMultimodalEmbeddingProvider,
             options.Profile,
             options.Dimensions,
             reason is null,
-            reason);
+            reason) { IsLocal = true };
     }
 
     /// <inheritdoc />
