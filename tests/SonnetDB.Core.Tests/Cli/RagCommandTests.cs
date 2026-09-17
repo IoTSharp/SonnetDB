@@ -197,7 +197,8 @@ public sealed class RagCommandTests : IDisposable
         {
             RagTextSnapshot chunked = RagTextChunker.Chunk(text, text);
             manifests.Add(new(text, new("source", text, chunked.ContentHash), chunked.ContentHash, "text/plain", SemanticContentModality.Text,
-                Encoding.UTF8.GetByteCount(text), embeddingProfileId: Profile.Id) { Chunks = chunked.Chunks });
+                Encoding.UTF8.GetByteCount(text), embeddingProfileId: Profile.Id)
+            { Chunks = chunked.Chunks });
             foreach (SemanticContentChunk chunk in chunked.Chunks)
                 vectors.Add(new(chunk.Id, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(chunk.Text))), [1, 0]));
         }

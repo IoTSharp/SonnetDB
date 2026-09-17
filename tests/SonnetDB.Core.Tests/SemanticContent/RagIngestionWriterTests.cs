@@ -371,7 +371,9 @@ public sealed class RagIngestionWriterTests : IDisposable
         database.Documents.Create(DocumentCollectionSchema.Create("external"));
         database.Generations.Publish(new()
         {
-            Stream = "manuals", GenerationId = "external", ExpectedRevision = 1,
+            Stream = "manuals",
+            GenerationId = "external",
+            ExpectedRevision = 1,
             Resources = [new("external", DatabaseGenerationResourceKind.DocumentCollection, "external")],
         });
         await Assert.ThrowsAsync<InvalidOperationException>(() => Writer(database).ResumeAsync(NeverEmbed).AsTask());
