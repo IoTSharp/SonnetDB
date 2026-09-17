@@ -144,6 +144,8 @@ internal sealed class SemanticEmbeddingService
         float[] vector;
         try
         {
+            // fsync 本身不可硬中断；返回后必须重新观察取消，避免已取消请求继续把内容交给 provider。
+            deadline.Token.ThrowIfCancellationRequested();
             if (!_options.Enabled || !info.Ready)
                 throw new InvalidOperationException("语义 embedding provider 未就绪。");
             vector = await invoke(deadline.Token).ConfigureAwait(false);
@@ -158,7 +160,7 @@ internal sealed class SemanticEmbeddingService
                 cancelled ? "semantic_cancelled" : "semantic_timeout");
             if (!cancelled)
                 throw new TimeoutException("语义 embedding 调用超时。");
-            throw;
+            throw new OperationCanceledException("语义 embedding 调用已取消。", cancellationToken);
         }
         catch (Exception exception) when (exception is ArgumentException
             or SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException)

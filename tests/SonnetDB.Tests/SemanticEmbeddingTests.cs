@@ -86,6 +86,25 @@ public sealed class SemanticEmbeddingTests : IDisposable
     }
 
     [Fact]
+    public async Task EmbedText_CancelledDuringAuditSync_DoesNotInvokeProvider()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "cancel-sync"),
+            Kv = new SonnetDB.Kv.KvOptions { SyncWalOnEveryWrite = false } });
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+        var audit = new SemanticEmbeddingAuditStore(db);
+        audit.WalSyncForTest = cancelled.Cancel;
+        var provider = new RecordingProvider();
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateService(provider)
+                .EmbedTextAsync(db, "hello", cancelled.Token));
+            Assert.Equal(0, provider.Calls);
+            Assert.Equal("cancelled", Assert.Single(audit.Read(10, null, _deadline.Token).Entries).Status);
+        }
+        finally { audit.WalSyncForTest = null; }
+    }
+
+    [Fact]
     public async Task EmbedText_ProviderFailure_PersistsSafeFailureWithoutExceptionPayload()
     {
         var provider = new RecordingProvider { Handler = _ => ValueTask.FromException<float[]>(new IOException("secret-input secret-key")) };
@@ -105,14 +124,20 @@ public sealed class SemanticEmbeddingTests : IDisposable
         var provider = new RecordingProvider { Handler = async token =>
         {
             entered.SetResult();
-            await Task.Delay(TimeSpan.FromSeconds(20), token);
+            try { await Task.Delay(TimeSpan.FromSeconds(20), token); }
+            catch (OperationCanceledException)
+            {
+                throw new OperationCanceledException("secret-provider-payload", new IOException("secret-key"), token);
+            }
             return [1f, 0f];
         } };
         using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
         Task<float[]> call = CreateService(provider).EmbedTextAsync(_db, "secret-cancelled", cancelled.Token);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), _deadline.Token);
         await cancelled.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+        Assert.Equal(cancelled.Token, exception.CancellationToken);
+        Assert.DoesNotContain("secret", exception.ToString());
         Assert.Equal("cancelled", Assert.Single(ReadAudit()).Status);
     }
 
