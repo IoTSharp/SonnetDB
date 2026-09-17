@@ -140,6 +140,8 @@
 
 ### Fixed
 
+- **依赖补丁版本对齐**：升级 Microsoft.Extensions.Options，并同步 Configuration.Abstractions、Logging.Abstractions 至 10.0.12，满足已升级 Hosting.Abstractions 的传递依赖，修复 CoAP 子模块还原时的 NU1605（GitHub PR #149）。
+
 - **M19 #125 Flush 发布恢复边界**：为每个待发布 Segment 在 `wal/` 中持久化 CRC 保护的 pending/committed marker；段 rename 后、独立 checkpoint 前崩溃时，启动会在扫描 Segment 前删除未提交段、sidecar 和配置临时后缀的残留文件并完整 WAL replay，避免同一时间戳记录被 Segment 与 WAL 双重暴露，也避免重用 SegmentId 时临时文件冲突。只有 marker 与可解析、长度及 SegmentId 均匹配的 checkpoint 完全对应时才保留并提升为 committed；被后续 durable/WAL checkpoint 覆盖、最终 marker 损坏或孤立段删除失败时 fail closed。Flush 泵在首次发布失败后保留 sealing 查询快照、拒绝后续 checkpoint，并在 Dispose 时保留 WAL；覆盖 post-rename、pre-rename 临时段、direct Dispose、stale marker、损坏/临时 marker 和 continued-process 场景的恢复回归。未修改 Segment 二进制格式。
 
 - **M39 事务与恢复修复**：跨表提交增加有 CRC、128 MiB 上限及同步完成标记的 `tables/transaction.sdbtxn` 恢复日志；在开放访问前撤销未完成提交，备份复制窗口阻止关系表写入。提交结果未知时停止接受表访问，审计明确标记 `unknown`。事务按主键索引归并并用增量保存点撤销，消除批量触发器的重复扫描/复制；无 ROWVERSION 的 SQL 事务也校验原始行状态，避免汇总丢失更新。嵌套过程结果不重复计数，过程和触发器的 INSERT RETURNING 纳入结果预算，外层回滚/请求放弃统一结算过程与触发器审计。固定验收机三轮 10000 行触发器延迟降低约 93% 至 96%、分配降低约 98%；小批量成本、UPDATE 预热对照、测试与未准入语义见 [M39 审计](docs/audits/m39-production-20260906.md)。
