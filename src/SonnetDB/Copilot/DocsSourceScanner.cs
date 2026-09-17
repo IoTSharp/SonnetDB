@@ -23,21 +23,35 @@ internal sealed class DocsSourceScanner
     private static readonly string[] DefaultRootMarkers = ["docs", "web/help", "src/SonnetDB/wwwroot/help"];
 
     public IReadOnlyList<DocsSourceFile> Scan(IEnumerable<string> configuredRoots)
+        => Scan(configuredRoots, CancellationToken.None);
+
+    internal IReadOnlyList<DocsSourceFile> Scan(IEnumerable<string> configuredRoots, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configuredRoots);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromMinutes(2));
+        CancellationToken token = deadline.Token;
+        int roots = 0;
+        int entries = 0;
 
         var filesBySource = new Dictionary<string, DocsSourceFile>(StringComparer.OrdinalIgnoreCase);
         foreach (var rawRoot in configuredRoots)
         {
+            token.ThrowIfCancellationRequested();
+            if (++roots > 32) throw new InvalidOperationException("文档扫描最多支持 32 个根目录。");
             foreach (var resolvedRoot in ResolveRootCandidates(rawRoot))
             {
                 if (!Directory.Exists(resolvedRoot.Path))
                     continue;
 
-                foreach (var file in EnumerateFiles(resolvedRoot.Path))
+                foreach (var file in EnumerateFiles(resolvedRoot.Path, token))
                 {
+                    token.ThrowIfCancellationRequested();
+                    if (++entries > 10_000) throw new InvalidOperationException("文档扫描超过 10000 个文件。");
+                    if (new FileInfo(file).Length > 4 * 1024 * 1024)
+                        throw new InvalidOperationException("文档文件超过 4 MiB 扫描预算。");
                     var source = BuildSourceKey(resolvedRoot.Path, file);
-                    var candidate = CreateSourceFile(file, source, resolvedRoot.Preference);
+                    var candidate = CreateSourceFile(file, source, resolvedRoot.Preference, token);
                     if (filesBySource.TryGetValue(source, out var existing))
                     {
                         if (IsBetter(candidate, existing))
@@ -98,10 +112,26 @@ internal sealed class DocsSourceScanner
         }
     }
 
-    private static IEnumerable<string> EnumerateFiles(string root)
+    private static IEnumerable<string> EnumerateFiles(string root, CancellationToken token)
     {
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        int entries = 0;
+        foreach (var file in Directory.EnumerateFileSystemEntries(root, "*", new EnumerationOptions
         {
+            RecurseSubdirectories = true, MaxRecursionDepth = 16, IgnoreInaccessible = false,
+            AttributesToSkip = 0,
+        }))
+        {
+            token.ThrowIfCancellationRequested();
+            if (++entries > 20_000) throw new InvalidOperationException("文档扫描超过 20000 个目录项。");
+            FileAttributes attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("文档快照不接受符号链接或重解析点。");
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                if (Path.GetRelativePath(root, file).Split(Path.DirectorySeparatorChar).Length >= 16)
+                    throw new InvalidOperationException("文档目录超过 16 层扫描预算。");
+                continue;
+            }
             var extension = Path.GetExtension(file);
             if (string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(extension, ".html", StringComparison.OrdinalIgnoreCase)
@@ -112,7 +142,7 @@ internal sealed class DocsSourceScanner
         }
     }
 
-    private static DocsSourceFile CreateSourceFile(string fullPath, string source, int preference)
+    private static DocsSourceFile CreateSourceFile(string fullPath, string source, int preference, CancellationToken token)
     {
         var info = new FileInfo(fullPath);
         return new DocsSourceFile(
@@ -120,7 +150,7 @@ internal sealed class DocsSourceScanner
             FullPath: info.FullName,
             Title: GuessTitle(source),
             LastWriteTimeUtc: new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
-            Fingerprint: ComputeFingerprint(info.FullName),
+            Fingerprint: ComputeFingerprint(info.FullName, token),
             IsPreferredSource: preference <= 1 || string.Equals(info.Extension, ".md", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -186,10 +216,15 @@ internal sealed class DocsSourceScanner
         return string.Join(' ', last.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
-    private static string ComputeFingerprint(string fullPath)
+    private static string ComputeFingerprint(string fullPath, CancellationToken token)
     {
         using var stream = File.OpenRead(fullPath);
-        var hash = SHA256.HashData(stream);
+        if (stream.Length > 4 * 1024 * 1024) throw new InvalidOperationException("文档文件超过 4 MiB 扫描预算。");
+        byte[] bytes = new byte[checked((int)stream.Length)];
+        stream.ReadExactlyAsync(bytes, token).AsTask().GetAwaiter().GetResult();
+        if (stream.ReadByte() != -1) throw new IOException("扫描期间文档大小发生变化。");
+        token.ThrowIfCancellationRequested();
+        var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash);
     }
 }

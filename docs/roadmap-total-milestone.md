@@ -39,7 +39,7 @@ SonnetDB 最有价值的方向不是在每一个单项指标上击败专用数�
 - ❌ M20 仍未通过当前 nightly 门禁：截至 2026-09-13，最近七次 scheduled（09-07 至 09-13）为 4 次成功、3 次失败，成功率约 57%，低于要求的 95%。此前 08-30 至 09-05 的全失败窗口保留为历史证据；本地已经验证启动修复，但连续七次远程成功和稳定的双 profile 对账仍未形成。
 - 🟡 M19、M25、M29、M40 主要剩固定硬件、干净安装、外部对拍、Native AOT 或长稳等现场证据；本机 smoke 不替代这些证据。
 - 🚧 M27 的 Copilot/MCP/Provider 已有真实代码路径，但真实目标模型的质量、延迟、成本、双网部署和跨进程续流仍未闭环；M14 实际是 Microsoft.Extensions.AI 加自研 CopilotAgent，不能写成 Microsoft Agent Framework。
-- 🚧 M35 已补齐 USearch filtered API/查询预算、对象 embedding/外发治理/审计、持久 RAG writer/resume、派生索引 generation 发布与本地预计算向量 CLI；Copilot 迁移、真实质量评测、融合与媒体扩展仍未完成。
+- 🚧 M35 已补齐 USearch filtered API/查询预算、对象 embedding/外发治理/审计、持久 RAG writer/resume、派生索引 generation 发布、预计算/在线 provider CLI 与 Copilot 可回滚迁移；真实质量评测、融合与媒体扩展仍未完成。
 - 🚧 M36 已经关闭部分 KV 原子操作和对象有界分页问题，但九模型 golden journey、对象传输恢复、MQ 消费恢复、全文工作流和 SQL 端到端有界结果仍未整体关闭。
 - 🚧 M41/M42 已完成大量本地规划器和资源边界切片，但固定 x64/ARM64、统一语料、168 小时混合负载和发布门禁仍是独立证据。
 
@@ -63,7 +63,7 @@ SonnetDB 最有价值的方向不是在每一个单项指标上击败专用数�
 | 10 | 空间、地理与轨迹 | 跨模型能力 | 🟡 基础已交付，待总验收 | M15~17、M30、M34 | GEOPOINT/轨迹/地图和工业接入已有；需补跨模型权限、索引/查询成本、轨迹规模与真实设备旅程，不能把地图 UI 当作数据库能力证据。 |
 | 11 | 流处理与订阅 | 平台能力 | 📋 待建设 | M8、M27、M30、M39、SonnetMQ；M43 #391~#395 | SSE、MQTT、CoAP、MQ replay 和 outbox 是相关基础，不等于统一流处理；缺少持续查询、窗口流、背压、订阅 checkpoint、取消和可恢复消费的独立合同。 |
 | 12 | CDC、边缘同步与复制 | 平台能力 | 📋 待建设 | M24/M32 change feed、M30 协议接入、M39 outbox；M43 #385~#390 | 已有 change feed 和协议路由，但没有通用 CDC 格式、schema/version negotiation、断点同步、冲突策略、边缘离线队列和复制拓扑；新增专门路线，不从现有 change feed 推导完成。 |
-| 13 | 多模态 AI 与 RAG | 平台能力 | 🚧 部分闭环 | M14、M27、M35 | MCP、Copilot、Provider、图片检索和 RAG Core 已有；真实模型质量/成本、durable ingestion/resume、混合检索评测、模型升级和回滚仍需完成。 |
+| 13 | 多模态 AI 与 RAG | 平台能力 | 🚧 部分闭环 | M14、M27、M35 | MCP、Copilot、Provider、图片检索、RAG 持久摄取/resume 和可回滚迁移已有；真实模型质量/成本、混合检索评测、模型升级与现场恢复证据仍需完成。 |
 | 14 | 治理、备份、恢复、观测与安全 | 平台能力 | 🚧 部分闭环 | M8、M17、M19、M20、M27、M29、M39、MM9、M41、M42 | 权限、审计、health/metrics、数据库备份和 AOT 基础已有；实例级 MQ 备份、全模型恢复旅程、跨架构发布、长期 SLO、榜单资料和公开证据仍需收口。 |
 
 ## 三、现有里程碑的重新归档
@@ -107,7 +107,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
-| 1 | #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | 持久 writer/retry/resume、Document/FullText/Vector 原子发布/删除和本地预计算向量 CLI 已交付；继续完成 CLI 的自动在线 provider 接线与 Copilot 可回滚迁移。 |
+| 1 | #302 | M35 | GPT-5.6 Sol / xhigh | 🟡 代码完成 | CLI 在线 provider 接线、严格外发与审计、Copilot 独立 generation/legacy 可回滚迁移已实现；无剩余代码交付，真实模型与现场恢复证据转入后置验证。 |
 | 2 | #303 | M35 | GPT-5.6 Sol / high | 📋 | RRF、归一化、去重与 rerank hook；质量评测后置。 |
 | 3 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
 | 4 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
@@ -148,6 +148,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | #187 | M27 | GPT-5.6 Sol / high | 🟡 | 真实 provider usage、质量、延迟与成本评估。 |
 | #258 | M29 | GPT-5.6 Terra / high | 🟡 | 干净 Windows 安装、升级/卸载、WebView2、宿主生命周期与端口冲突。 |
 | #298/#303/#305/#307/#308/#321 | M35/M36 | GPT-5.6 Sol / high | ⏳ | Recall@K/nDCG、延迟/容量/重建、模型换代与专业视觉质量评测。 |
+| #302 | M35 | GPT-5.6 Sol / xhigh | 🟡 | 在线 CLI 与 Copilot 迁移代码完成；真实模型质量/成本、固定硬件和现场恢复/回滚证据待补，合同 fixture 不计语义质量。 |
 | #310/#311/#326（验收） | M36 | GPT-5.6 Terra / high；#326 沿用 GPT-6 Astra / high | 🚧 / ⏳ | 九模型 gap catalog、最小样例、SDK/API/Workbench/CLI 矩阵、真实跨端 e2e 与恢复旅程。 |
 | #323 | M36 | GPT-5.6 Terra / high | ⏳ | 对象分页与文件传输固定硬件、高变更率和容量报告。 |
 | #340 | M27 | GPT-5.6 Sol / high | ⏳ | 真实双网、认证、续流与 Studio 现场验证。 |
