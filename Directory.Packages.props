@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <!-- ImageSharp 4.x 构建需要 Six Labors 许可证，配置见 docs/build-license.md。 -->
-    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.1" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
     <!-- 2.26.2 在 linux-x64 原生初始化时触发 SIGILL；保留真实 native 探针通过的 2.26.0。 -->
     <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.1" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
