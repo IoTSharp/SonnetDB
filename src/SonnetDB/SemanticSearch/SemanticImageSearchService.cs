@@ -575,8 +575,10 @@ internal sealed class SemanticImageSearchService : IDisposable
         timeout.CancelAfter(_queryOptions.TimeoutMilliseconds);
         try
         {
-            return SearchWithinBudget(database, tsdb, queryKind, query, topK, minScore, filter, explain,
+            ImageSearchResponse result = SearchWithinBudget(database, tsdb, queryKind, query, topK, minScore, filter, explain,
                 excludedId, new QueryBudget(_queryOptions.MaxScannedCandidates), timeout.Token);
+            timeout.Token.ThrowIfCancellationRequested();
+            return result;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
         {
