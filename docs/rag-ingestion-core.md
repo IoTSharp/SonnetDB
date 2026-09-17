@@ -1,13 +1,15 @@
 ---
 layout: default
 title: "RAG 摄取 Core"
-description: "使用 SonnetDB Core 生成确定性文本分块、完整快照增量计划，并以有界 callback 应用计划。"
+description: "使用 SonnetDB Core 生成稳定文本分块，持久化摄取并恢复 Document、FullText 与 Vector generation。"
 permalink: /rag-ingestion-core/
 ---
 
 # RAG 摄取 Core
 
-本页说明 M35 #302 已交付的 Core building blocks。它负责确定性 hash/分块、内容清单校验、完整快照 diff 和有界计划执行；它**不读取文件、不调用 embedding provider、不自动写入 Document/FullText/Vector，也不在失败后自动回滚**。持久化 writer、重试/续跑、实际删除同步、CLI 和 Copilot 迁移仍由后续切片完成。
+本页说明 M35 #302 的 Core SDK。`RagTextChunker`、planner 和 callback executor 提供稳定分块、清单校验与完整快照 diff；`RagIngestionWriter` 进一步保存摄取任务，通过调用方提供的 embedding 函数构建 Document、FullText 和 Vector 索引，支持有限重试、取消和重开续跑。只有完整 generation 才会原子发布。
+
+本切片仅支持 Text/Document 文本分块。原始文件扫描和媒体提取、自动 provider 集成与 Copilot 可回滚迁移尚未交付；离线预计算向量的 CLI 入口见 [RAG CLI](rag-cli.md)。
 
 ## 1. 生成稳定文本分块
 
@@ -115,7 +117,7 @@ RagIngestionExecutionResult result = await RagIngestionExecutor.ExecuteAsync(
     cancellationToken);
 ```
 
-callback 必须按 `ContentId` 和稳定派生 ID 实现幂等 upsert/delete；需要逐项 durable checkpoint 时，也必须由 callback 在该幂等边界内持久化。并发执行开始后，异常或取消可能发生在其他动作已经完成之后；executor 会传播失败，但不会返回部分执行结果，也不会伪造跨 Document/FullText/Vector 的自动回滚。`CompletedActions` 只在全部动作成功后返回，此时等于 `TotalActions`。需要进程重启续跑时，调用方必须读取自己持久化的进度，或重新读取权威来源并生成完整快照，不能把内存执行结果当作 durable checkpoint。
+callback 必须按 `ContentId` 和稳定派生 ID 实现幂等 upsert/delete；需要逐项 durable checkpoint 时，也必须由 callback 在该幂等边界内持久化。并发执行开始后，异常或取消可能发生在其他动作已经完成之后；executor 会传播失败，但不会返回部分执行结果，也不会伪造跨 Document/FullText/Vector 的自动回滚。`CompletedActions` 只在全部动作成功后返回，此时等于 `TotalActions`。需要进程重启续跑时，可使用下文的 `RagIngestionWriter`，或由 callback 自行持久化进度，不能把内存执行结果当作 durable checkpoint。
 
 ## 5. 预算、JSON 与发布边界
 
@@ -124,4 +126,50 @@ callback 必须按 `ContentId` 和稳定派生 ID 实现幂等 upsert/delete；�
 - Core 内部已为 `RagTextSnapshot`、`RagIngestionSnapshot`、`RagIngestionPlan` 及其引用合同注册 source-generated JSON metadata；该 context 不属于 public API。外部应用必须在自己的 `JsonSerializerContext` 中注册实际使用的公开合同，并调用生成的 `JsonTypeInfo<T>` 重载。
 - 本轮 win-x64 Native AOT 可达探针已实际执行 chunk、plan、executor 和 source-generated JSON 路径；这只证明本机构建兼容，不是生产摄取 journey、固定硬件容量或长稳证据。
 
-完成一次真实摄取时，应用层仍需明确选择原始内容的权威来源、Document/FullText/Vector 写入顺序、删除范围、持久化 retry/resume 策略、provider 审计和模型换代流程。不要用本 Core planner 代替这些生命周期合同。
+完成一次真实摄取时，应用层仍需明确选择原始内容的权威来源、删除范围、provider 审计和模型换代流程。planner 本身不提供下面的持久化生命周期合同。
+
+## 6. 持久化 writer 与重开续跑
+
+writer 使用完整快照语义：每次输入必须包含本 stream 期望保留的全部内容。省略旧内容表示删除。stream 应由同一 RAG writer 工作流独占，不要混入其他 generation 发布者。
+
+```csharp
+using SonnetDB.Engine;
+using SonnetDB.Generations;
+using SonnetDB.SemanticContent;
+
+using Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = databasePath });
+var profile = new EmbeddingProfile(
+    "manual-text-v1", "configured-provider", "selected-model", "revision-1", 384,
+    supportedModalities: [SemanticContentModality.Text, SemanticContentModality.Document]);
+var writer = new RagIngestionWriter(database, "maintenance-manuals", profile);
+
+RagIngestionWriteResult result = await writer.WriteAsync(
+    new RagIngestionSnapshot([manifest]),
+    (chunk, token) => GenerateConfiguredEmbeddingAsync(chunk.Text, token),
+    cancellationToken);
+
+// 进程重启后，使用相同 stream 与完整 profile 合同构造 writer。
+// 从 KV 读取冻结任务，不要求原始文件或原快照仍在内存。
+RagIngestionWriteResult? resumed = await writer.ResumeAsync(
+    (chunk, token) => GenerateConfiguredEmbeddingAsync(chunk.Text, token),
+    cancellationToken);
+
+using DatabaseGenerationQueryLease lease = database.Generations.AcquireActive("maintenance-manuals");
+string collectionName = lease.GetRequiredResource(
+    RagIngestionWriter.ChunksResourceRole,
+    DatabaseGenerationResourceKind.DocumentCollection).Name;
+var collection = database.Documents.Open(collectionName);
+var hits = collection.SearchFullText(
+    collection.Schema.TryGetFullTextIndex(RagIngestionWriter.FullTextIndexName)!,
+    "$.text", "pump", 10);
+```
+
+profile 的维度、度量、归一化、模型 revision、模态与外发策略是兼容合同。调用方的 embedding 函数负责实际执行和审计；示例中的默认策略为 LocalOnly，外部 provider 必须显式配置相应 `SemanticDataEgressPolicy`。向量维度和有限值会在写入前检查，声明 L2 时还要求平方范数距 1 不超过 0.001。同一个 profile ID 不能更改模型属性，模型换代需要新 ID，并会重新生成全部向量。
+
+任务先写入现有 KV 并 checkpoint，然后在独立物理名称下构建 chunk collection。每个文档包含 `contentId`、`chunkId`、`profileId`、`text`、`source`、`section`、`ordinal` 与 `embedding`，后两类索引由 Document 层维护；没有新增第二套 WAL。完整快照与清单使用 source-generated JSON 保存。相同 chunk ID、文本和完整 profile 可以从前一个 active 版本复用向量；恢复时复用已经恢复的 chunk 数据，并重放索引维护。provider 调用本身不保证 exactly-once，崩溃丢失未提交结果时可能再次调用。
+
+完成后，现有 generation manager 校验并 checkpoint 所有派生索引，再原子更新 active 指针。发布前的异常、取消或 provider 失败都保留旧 active；发布已成功但响应中断时，`ResumeAsync` 返回同一版本，不重复发布。未完成任务阻止新的 `WriteAsync`，直到续跑成功或调用 `DiscardPendingAsync` 显式放弃；后者只删除未发布 staging，不删除 active 或 retired generation。
+
+新版本查询立即不再命中被删除内容。旧 generation 仍受查询租约保护，调用 `database.Generations.CleanupRetired(stream)` 后才物理删除不再被租用的 Document、FullText、Vector 和快照 KV。需要保留回滚窗口时可以延后清理；本切片没有提供 Copilot 切换或回滚命令。
+
+默认每次最多 10,000 份清单、100,000 个 chunk、4,194,304 个 UTF-16 字符和 8 MiB checkpoint JSON，最长十分钟。只重试 provider 抛出的 `IOException`、`HttpRequestException` 与 `TimeoutException`，最多三次、间隔 200 ms；取消、错误向量和数据库写入错误直接传播。provider 必须遵守取消令牌。本版本采用单数据库实例内串行 writer，generation 发布还校验 expected revision。每次发布都会构建完整集合，因此 staging 空间与索引工作量仍随完整快照增长；这不是固定硬件吞吐或真实模型质量证据。
