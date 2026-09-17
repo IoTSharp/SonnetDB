@@ -107,7 +107,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
-| 2 | #303 | M35 | GPT-5.6 Sol / high | 📋 | RRF、归一化、去重与 rerank hook；质量评测后置。 |
+| 2 | #303 | M35 | GPT-5.6 Sol / high | 🟡 | Core 持久 RAG 查询已接 generation 租约、完整 profile 校验、有界精确向量/全文候选、RRF/min-max、去重和受授权候选约束的 rerank hook；代码合同见 [检索文档](rag-search-fusion.md)，真实质量评测后置。 |
 | 3 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
 | 4 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
 | 5 | #306 | M35 | GPT-5.6 Sol / high | 📋 | 派生目标、区域、track 与 detector profile 模型。 |

@@ -203,7 +203,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。已补固定版本/ETag 对象 text/image adapter、默认 local-only 与批准目标策略、输入/时间预算、先 fsync 后调用的持久脱敏审计，以及授权对象 API 和 Admin 有界审计分页；通用 REST/Frame 与管理列表隔离保留审计 keyspace。自定义 provider 必须声明本地执行或配置批准外发目标；真实模型质量由 #185/#303 等独立证据收口，见 [provider 与治理合同](docs/semantic-embedding-providers.md)。 | ✅ |
 | #301 | 图片搜图片、文字搜图片、缩略图/来源/profile/分数展示和工业图片样例。已落地原图摄取/读取、文搜图、图搜图、WebP 缩略图、来源/profile/分数 REST 契约、managed/USearch 后端、对象桶管理面和可运行工业图片样例。 | ✅ |
 | #302 | 通用 RAG SDK/CLI 代码已完成：持久 writer、有限重试、重开续跑、严格 profile、向量复用、Document/FullText/Vector 完整 generation 发布与删除；CLI 支持预计算向量及显式在线 OpenAI-compatible provider、外发策略和刷盘审计。Copilot 以默认 legacy / 显式 rag 开关使用独立 stream，保留旧表回滚，原文绑定 Object 版本，失败保留旧 active。真实模型质量、成本与硬件恢复证据独立待验；见 [SDK](docs/rag-ingestion-core.md)、[CLI](docs/rag-cli.md) 和 [迁移](docs/copilot-rag-migration.md)。 | 🟡 |
-| #303 | RRF/归一化/去重/rerank hook，以及 Recall@K、nDCG、P50/P95、体积和重建评测。 | 📋 |
+| #303 | 已交付 Core `RagGenerationSearch` 的 generation 租约、完整 profile 核对、有界精确向量/全文候选、RRF/min-max 融合、去重和受候选身份约束的 rerank hook，复用旧 SQL 距离归一化。受控行为验证与[检索合同](docs/rag-search-fusion.md)不替代 Recall@K、nDCG、P50/P95、体积和重建真实评测；评测继续后置。 | 🟡 |
 | #304 | 音视频 transcript、关键帧和 timecode segment；媒体处理留在可选扩展或外部工具。 | 📋 |
 | #305 | 管理面、安全、失败恢复、备份重建、模型换代和 10k/100k 容量基线。 | 📋 |
 | #306 | 派生目标、区域、track 与 detector profile 模型，保持原对象为唯一主数据。 | 📋 |
