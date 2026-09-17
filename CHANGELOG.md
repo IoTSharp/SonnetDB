@@ -90,6 +90,8 @@
 
 ### Changed
 
+- **ImageSharp 4.1.1 构建许可（PR #131）**：升级 Server 图片依赖，并为引用 Server 的 CI、CodeQL、证据测试与发布流程接入 Six Labors 社区许可证 secret；Docker 与 Parity 构建通过 BuildKit 临时挂载许可证，本地支持绝对路径配置，许可证文件不进入 Git 或镜像构建上下文。保留包内签名校验，外部 fork 不获得仓库 secret。
+
 - **M19 #125 状态分层**：将 #125 明确标为“研发完成，待真机验证”；四个固定容量档已加入 `ROADMAP.md` 的真机验证待办，只有受保护固定目标硬件的完整报告归档后才关闭外部容量证据。
 
 - **M19 #125 flush 与维护发布性能收敛**：SegmentManager 的维护发布改为锁内原地更新有序字典，避免 add/swap/drop 每次复制整棵字典；分层 segment 目录在稳定 bucket 仅刷新叶目录，首次建 bucket 才向上刷新缺失目录链；committed publication marker 清理不再额外刷新目录，最多留下可安全重试的 marker。保留 pending marker、段文件、checkpoint 与 committed marker 的恢复顺序；固定硬件前后 P95、分配和 I/O 对比仍待执行。

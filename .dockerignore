@@ -27,6 +27,9 @@
 **/output
 **/reports
 **/secrets.dev.yaml
+**/sixlabors.lic
+**/sixlabors*.key
+**/sixlabors-license-key*
 **/test-results
 **/TestResults
 **/values.dev.yaml
