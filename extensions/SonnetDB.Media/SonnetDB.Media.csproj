@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SonnetDB.Media</RootNamespace>
+    <Description>SonnetDB 音视频派生分段导入与来源回溯；媒体解码由外部工具负责。</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/SonnetDB.Core/SonnetDB.Core.csproj" />
+  </ItemGroup>
+</Project>
