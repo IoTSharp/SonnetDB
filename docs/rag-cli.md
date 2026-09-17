@@ -1,6 +1,6 @@
-# 本地 RAG bundle 摄取与续跑
+# RAG bundle 摄取、在线 embedding 与续跑
 
-`sndb rag` 把完整内容快照和预计算向量写入本地数据库，复用 `RagIngestionWriter` 的持久任务、Document/FullText/Vector 派生索引和 generation 原子发布。所有 JSON 使用 source-generated metadata；命令不访问网络，不生成替代 embedding。
+`sndb rag` 把完整内容快照写入本地数据库，复用 `RagIngestionWriter` 的持久任务、Document/FullText/Vector 派生索引和 generation 原子发布。默认使用预计算向量；显式提供在线端点与外发授权后，可由 OpenAI-compatible provider 自动生成向量。所有 JSON 使用 source-generated metadata，不生成替代 embedding。
 
 ## 执行
 
@@ -66,4 +66,29 @@ sndb rag resume --input ./rag-bundle.json --path ./data --stream manuals
 
 读取端必须通过 `database.Generations.AcquireActive(stream)` 获取租约，再按 `RagIngestionWriter.ChunksResourceRole` 打开本版本的 Document collection；正文和向量索引分别为 `rag_text` 与 `rag_vector`。旧版本仍服务已有租约，`CleanupRetired` 在租约释放后清理旧 Document、FullText、Vector 和快照 KV。
 
-当前 CLI 仅提供 Text/Document 分块的本地预计算向量模式。远程摄取、自动文件解析、在线 provider 接线、媒体分段、Copilot 可回滚迁移、固定硬件容量和真实模型质量评测仍未完成。SDK 合同见 [RAG 持久摄取](rag-ingestion-core.md)。
+当前 CLI 支持 Text/Document 分块的预计算向量和显式在线 embedding。远程数据库摄取、自动文件解析、媒体分段、固定硬件容量和真实模型质量评测仍未完成。SDK 合同见 [RAG 持久摄取](rag-ingestion-core.md)，Copilot 接线见 [可回滚迁移](copilot-rag-migration.md)。
+
+## 在线 provider
+
+```text
+sndb rag ingest --input ./rag-online.json --path ./data --stream manuals --replace-snapshot --endpoint https://provider.example/v1/ --api-key-env EMBEDDING_API_KEY --allow-egress --audit ./rag-audit.jsonl
+sndb rag resume --input ./rag-online.json --path ./data --stream manuals --endpoint https://provider.example/v1/ --api-key-env EMBEDDING_API_KEY --allow-egress --audit ./rag-audit.jsonl
+```
+
+在 bundle 中保留完整 `profile` 和 `snapshot`，省略 `vectors` 或使用空数组。`profile.provider` 必须为 `openai`，`model` 是发送给 provider 的实际模型名称，`revision` 由部署方绑定模型版本；模态、维度、归一化必须与真实模型一致。外发策略示例：
+
+```json
+"dataEgressPolicy": {
+  "mode": "ConfiguredProvider",
+  "target": "https://provider.example/v1/",
+  "auditRequired": true
+}
+```
+
+端点必须为以 `/` 结尾的 HTTPS 基地址，无 URL 凭据、query 或 fragment；策略 target 必须与规范化后的完整基地址一致，包含路径。请求发往该地址的 `embeddings`，禁用重定向。凭据只从指定环境变量读取，不写入 bundle、checkpoint、报告或审计。请由 shell 或凭据工具设置环境变量，不把真实 key 放入命令参数。
+
+实际写入还必须提供 `--allow-egress`；profile 要求审计时必须提供 `--audit`。每次请求先追加脱敏 `started` 并刷盘，再发送正文，完成后追加相同 request ID 的终态。审计记录 profile、端点、正文 SHA-256 和状态，不含正文、向量、API key 或上游错误正文。该 JSONL 是调用方管理的文件，不包含在数据库备份内；须独立保留。文件 flush/fsync 和底层同步数据库操作是协作超时边界，不保证操作系统 I/O 可硬中断。
+
+单次 HTTP 超时 60 秒、响应上限 1 MiB；完整任务仍受 `--timeout` 约束。408、429、5xx 和网络异常由 writer 最多尝试 3 次；其他状态、重定向、非法 JSON、错模型、错 index、错维度和归一化不符直接失败。失败或取消保留旧 active generation 和冻结任务，`resume` 使用原完整 profile 继续缺失分块。在线模式不能混入预计算向量。
+
+`--dry-run` 校验 profile、端点、外发参数和完整快照，既不请求 provider，也不要求凭据已经设置，不打开数据库或审计文件，因此不证明 provider 可达、模型输出正确或语义质量。

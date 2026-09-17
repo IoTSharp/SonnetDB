@@ -8,7 +8,7 @@ using SonnetDB.SemanticContent;
 namespace SonnetDB.Cli;
 
 /// <summary>通过预计算向量 bundle 执行有界的本地 RAG 摄取与持久任务续跑。</summary>
-internal sealed class RagCommandRunner(TextWriter output)
+internal sealed class RagCommandRunner(TextWriter output, Func<HttpMessageHandler>? handlerFactory = null)
 {
     private const int MaxInputBytes = 16 * 1024 * 1024;
     private const int MaxVectors = 100_000;
@@ -27,11 +27,16 @@ internal sealed class RagCommandRunner(TextWriter output)
             CancellationToken token = deadline.Token;
             RagCliBundle bundle = await ReadBundleAsync(options.Input, token).ConfigureAwait(false);
             if (bundle.SchemaVersion != 1 || bundle.Profile is null || bundle.Vectors is null)
-                throw new CliUsageException("RAG bundle 必须使用 schemaVersion=1，并提供 profile 和 vectors。");
+                throw new CliUsageException("RAG bundle 必须使用 schemaVersion=1，并提供 profile；vectors 必须为数组。");
             if (bundle.Profile.SupportedModalities is null || bundle.Profile.DataEgressPolicy is null
                 || SemanticContentValidator.ValidateProfile(bundle.Profile).Count != 0
                 || bundle.Profile.Dimensions > 32_768)
                 throw new CliUsageException("RAG bundle profile 无效。");
+            using var online = options.Endpoint is null ? null : new RagOnlineEmbeddingClient(
+                bundle.Profile, options.Endpoint, options.ApiKeyEnvironment!, options.AllowEgress,
+                options.AuditPath, options.DryRun, handlerFactory);
+            if (online is not null && bundle.Vectors.Count != 0)
+                throw new CliUsageException("在线 provider 模式不能混入预计算 vectors。");
             if (bundle.Vectors.Count > MaxVectors)
                 throw new CliUsageException("RAG bundle 超过 100000 个预计算向量。");
             var vectors = new Dictionary<(string Id, string Hash), float[]>();
@@ -81,7 +86,7 @@ internal sealed class RagCommandRunner(TextWriter output)
                         token.ThrowIfCancellationRequested();
                         if (chunk.Id.Length > 4096)
                             throw new CliUsageException("chunk ID 超过 4096 字符。");
-                        _ = LookupVector(chunk, token);
+                        if (online is null) _ = LookupVector(chunk, token);
                         chunkCount++;
                     }
                 }
@@ -101,7 +106,7 @@ internal sealed class RagCommandRunner(TextWriter output)
                 new RagIngestionWriterOptions
                 {
                     MaxDuration = TimeSpan.FromSeconds(options.TimeoutSeconds),
-                    MaxEmbeddingAttempts = 1,
+                    MaxEmbeddingAttempts = online is null ? 1 : 3,
                 });
             RagIngestionWriteResult? result = options.Resume
                 ? await writer.ResumeAsync(ResolveVector, token).ConfigureAwait(false)
@@ -115,7 +120,8 @@ internal sealed class RagCommandRunner(TextWriter output)
             return ExitCodes.Success;
 
             ValueTask<float[]> ResolveVector(SemanticContentChunk chunk, CancellationToken cancellationToken)
-                => ValueTask.FromResult(LookupVector(chunk, cancellationToken));
+                => online is null ? ValueTask.FromResult(LookupVector(chunk, cancellationToken))
+                    : online.EmbedAsync(chunk, cancellationToken);
 
             float[] LookupVector(SemanticContentChunk chunk, CancellationToken cancellationToken)
             {
@@ -149,17 +155,19 @@ internal sealed class RagCommandRunner(TextWriter output)
 
     private static Options Parse(IReadOnlyList<string> args)
     {
-        if (args.Count is < 2 or > 20 || args[1] is not ("ingest" or "resume"))
+        if (args.Count is < 2 or > 30 || args[1] is not ("ingest" or "resume"))
             throw new CliUsageException("用法：sndb rag ingest|resume --input bundle.json --path DB --stream NAME [--replace-snapshot] [--dry-run] [--timeout 120]");
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         bool replace = false;
         bool dryRun = false;
+        bool allowEgress = false;
         for (int index = 2; index < args.Count; index++)
         {
             string name = args[index];
             if (name == "--replace-snapshot" && !replace) { replace = true; continue; }
             if (name == "--dry-run" && !dryRun) { dryRun = true; continue; }
-            if (name is not ("--input" or "--path" or "--stream" or "--timeout")
+            if (name == "--allow-egress" && !allowEgress) { allowEgress = true; continue; }
+            if (name is not ("--input" or "--path" or "--stream" or "--timeout" or "--endpoint" or "--api-key-env" or "--audit")
                 || index + 1 >= args.Count || args[index + 1].StartsWith("--", StringComparison.Ordinal)
                 || !values.TryAdd(name, args[++index]))
                 throw new CliUsageException($"未知、重复或缺值的 RAG 参数：{name}。");
@@ -183,11 +191,19 @@ internal sealed class RagCommandRunner(TextWriter output)
         {
             throw new CliUsageException("--stream 必须可无损编码为 UTF-8。");
         }
-        return new(Required("--input"), Required("--path"), stream, resume, dryRun, timeout);
+        values.TryGetValue("--endpoint", out string? endpoint);
+        values.TryGetValue("--api-key-env", out string? keyEnvironment);
+        values.TryGetValue("--audit", out string? auditPath);
+        if (endpoint is null && (keyEnvironment is not null || auditPath is not null || allowEgress)
+            || endpoint is not null && string.IsNullOrWhiteSpace(keyEnvironment))
+            throw new CliUsageException("在线模式需要 --endpoint 和 --api-key-env；外发与审计选项仅用于在线模式。");
+        return new(Required("--input"), Required("--path"), stream, resume, dryRun, timeout,
+            endpoint, keyEnvironment, allowEgress, auditPath);
 
         string Required(string name) => values.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value)
             ? value : throw new CliUsageException($"缺少 RAG 参数 {name}。");
     }
 
-    private sealed record Options(string Input, string Path, string Stream, bool Resume, bool DryRun, int TimeoutSeconds);
+    private sealed record Options(string Input, string Path, string Stream, bool Resume, bool DryRun, int TimeoutSeconds,
+        string? Endpoint, string? ApiKeyEnvironment, bool AllowEgress, string? AuditPath);
 }

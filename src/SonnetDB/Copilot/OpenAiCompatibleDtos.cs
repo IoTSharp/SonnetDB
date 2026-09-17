@@ -8,10 +8,12 @@ internal sealed record OpenAiEmbeddingRequest(
     [property: JsonPropertyName("input")] string Input);
 
 internal sealed record OpenAiEmbeddingResponse(
-    [property: JsonPropertyName("data")] List<OpenAiEmbeddingItem> Data);
+    [property: JsonPropertyName("data")] List<OpenAiEmbeddingItem> Data,
+    [property: JsonPropertyName("model")] string? Model = null);
 
 internal sealed record OpenAiEmbeddingItem(
-    [property: JsonPropertyName("embedding")] float[] Embedding);
+    [property: JsonPropertyName("embedding")] float[] Embedding,
+    [property: JsonPropertyName("index")] int? Index = null);
 
 internal sealed record OpenAiChatCompletionRequest(
     [property: JsonPropertyName("model")] string? Model,
