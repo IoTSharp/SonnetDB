@@ -39,7 +39,7 @@
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
-| 35 | 语义内容与多模态检索 | 🚧 | #297/#299~#301 已完成；#298 过滤检索与预算代码已完成，质量证据待补；#302 已交付持久 writer/retry/resume、三类派生索引原子发布、预计算/在线 provider CLI 与 Copilot 可回滚迁移；真实质量、媒体与治理项仍待完成。 |
+| 35 | 语义内容与多模态检索 | 🚧 | #297/#299~#301 已完成；#298 过滤检索与预算代码已完成，质量证据待补；#302 已交付持久 writer/retry/resume、三类派生索引原子发布、预计算/在线 provider CLI 与 Copilot 可回滚迁移；#303 有界融合与重排、#304 可选媒体片段导入与查询已交付；真实质量与 #305 治理项仍待完成。 |
 | 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。#323 对象有界分页切片已实现，证据与限制见 [OBJECT-001](docs/audits/object-pagination-20260906.md)。九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
@@ -54,7 +54,7 @@
 
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整 PR 清单见[总里程碑 D 节](docs/roadmap-total-milestone.md#d-沿用的既有-pr-主执行顺序)。
 
-1. **代码与功能补全：** #303~#305 → #306~#309 → #311 → #312 → #313~#315 → #317~#322 → #323 → #324~#326 → #340。#298/#300/#302 的已完成代码不再进入队列，#310 的独立验收后置。
+1. **代码与功能补全：** #305 → #306~#309 → #311 → #312 → #313~#315 → #317~#322 → #323 → #324~#326 → #340。#298/#300/#302~#304 的已完成代码不再进入队列，#310 的独立验收后置。
 2. **性能优化：** #375 与 M42 页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页和冷启动残余。
 3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #347~#367 → #373 → #376~#381；最后执行 M20/#136 七次 scheduled、M42 跨架构/168 小时和 M43 总验收及生态提交。
 
@@ -203,8 +203,8 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。已补固定版本/ETag 对象 text/image adapter、默认 local-only 与批准目标策略、输入/时间预算、先 fsync 后调用的持久脱敏审计，以及授权对象 API 和 Admin 有界审计分页；通用 REST/Frame 与管理列表隔离保留审计 keyspace。自定义 provider 必须声明本地执行或配置批准外发目标；真实模型质量由 #185/#303 等独立证据收口，见 [provider 与治理合同](docs/semantic-embedding-providers.md)。 | ✅ |
 | #301 | 图片搜图片、文字搜图片、缩略图/来源/profile/分数展示和工业图片样例。已落地原图摄取/读取、文搜图、图搜图、WebP 缩略图、来源/profile/分数 REST 契约、managed/USearch 后端、对象桶管理面和可运行工业图片样例。 | ✅ |
 | #302 | 通用 RAG SDK/CLI 代码已完成：持久 writer、有限重试、重开续跑、严格 profile、向量复用、Document/FullText/Vector 完整 generation 发布与删除；CLI 支持预计算向量及显式在线 OpenAI-compatible provider、外发策略和刷盘审计。Copilot 以默认 legacy / 显式 rag 开关使用独立 stream，保留旧表回滚，原文绑定 Object 版本，失败保留旧 active。真实模型质量、成本与硬件恢复证据独立待验；见 [SDK](docs/rag-ingestion-core.md)、[CLI](docs/rag-cli.md) 和 [迁移](docs/copilot-rag-migration.md)。 | 🟡 |
-| #303 | RRF/归一化/去重/rerank hook，以及 Recall@K、nDCG、P50/P95、体积和重建评测。 | 📋 |
-| #304 | 音视频 transcript、关键帧和 timecode segment；媒体处理留在可选扩展或外部工具。 | 📋 |
+| #303 | 已交付 Core `RagGenerationSearch` 的 generation 租约、完整 profile 核对、有界精确向量/全文候选、RRF/min-max 融合、去重和受候选身份约束的 rerank hook；复用已有向量距离计算，融合前保留原始距离顺序。受控行为验证与[检索合同](docs/rag-search-fusion.md)不替代 Recall@K、nDCG、P50/P95、体积和重建真实评测；评测继续后置。 | 🟡 |
+| #304 | [可选媒体扩展](docs/media-segments.md) 已接外部 transcript/关键帧的有界导入、KV 原子替换/删除、timecode 查询和固定对象来源；Core 不解码媒体，真实转写/OCR 与容量证据后置。 | ✅ 本地实现 |
 | #305 | 管理面、安全、失败恢复、备份重建、模型换代和 10k/100k 容量基线。 | 📋 |
 | #306 | 派生目标、区域、track 与 detector profile 模型，保持原对象为唯一主数据。 | 📋 |
 | #307 | 默认关闭且受治理的人脸 1:1 验证/1:N 候选，独立权限、审计、删除和 FAR/FRR/TAR 评测。 | 📋 |
