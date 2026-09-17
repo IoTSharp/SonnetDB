@@ -107,7 +107,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
-| 3 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
+| 3 | #304 | M35 | GPT-5.6 Sol / high | ✅ 本地实现 | [可选媒体扩展](media-segments.md) 已提供外部 transcript/关键帧有界导入、timecode 查询、原对象版本追溯和完整替换/删除；真实媒体质量与容量验证后置。 |
 | 4 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
 | 5 | #306 | M35 | GPT-5.6 Sol / high | 📋 | 派生目标、区域、track 与 detector profile 模型。 |
 | 6 | #307 | M35 | GPT-5.6 Sol / high | 📋 | 默认关闭的人脸 1:1/1:N 能力及独立权限、审计、删除；FAR/FRR/TAR 评测后置。 |

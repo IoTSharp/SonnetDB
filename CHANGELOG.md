@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #304 音视频分段可选扩展**：新增 `SonnetDB.Media`，复用 SemanticContent 合同和 KV/WAL 原子导入外部工具产生的 transcript、关键帧与 timecode，提供有界文本/时间交集查询及原对象版本/ETag 来源；对象或关键帧变化后返回 stale，完整替换/删除清理全部派生片段。补齐重开、损坏、取消及预算合同和可运行导入/查询示例；Core 不下载模型或解码媒体，真实模型质量/容量验证后置。详见 [媒体分段合同](docs/media-segments.md)。
+
 - **M35 #303 持久 RAG 融合与重排入口**：新增 Core `RagGenerationSearch`，在同一 generation 租约中复用既有全文与向量距离实现，提供有界精确候选、RRF/min-max 融合、分块/内容去重和显式 rerank hook。严格核对完整 profile，限制候选、扫描、字符、posting 和协作时间预算；重排不得注入、重复、遗漏或替换授权候选。保留旧 SQL 默认计分，真实质量/性能/重建评测后置，见 [检索合同](docs/rag-search-fusion.md)。
 
 - **M35 #302 在线 CLI 与 Copilot 可回滚迁移**：`sndb rag ingest/resume` 新增显式 OpenAI-compatible 接线，按完整 HTTPS 目标外发、环境变量读取凭据、禁重定向、响应上界、调用前刷盘审计及有界重试。Copilot 新增默认关闭的 `Docs.StorageMode=rag`，以实际 Object 版本和独立 generation 复用持久 writer；旧 docs 表保留，切回 `legacy` 可回滚。查询严格匹配完整 profile，拒绝 hash fallback、未发布和不匹配索引；新增迁移/删除/失败恢复与在线协议合同测试。真实模型质量、成本、固定硬件容量及硬件掉电证据仍待验，见 [迁移说明](docs/copilot-rag-migration.md)。
