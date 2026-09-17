@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #298 USearch 过滤检索与查询预算**：在固定 USearch 2.26.0 C ABI 上补齐原生 filtered search、SafeHandle 生命周期和回调异常/取消保护；增加可配置 ANN 候选、精确补偿、分页、总扫描与协作超时预算，首次派生索引重建也分页并扣减查询预算。预算失败返回 `semantic_query_budget_exceeded`，解释结果补充回退原因；原生回调不能硬中断遍历，固定硬件 Recall/延迟/容量证据仍待完成。
+
 - **路线图执行顺序重排**：重写总里程碑 D 节，仅保留未完成 PR；按“代码与功能补全 → 性能优化 → 验证、测试与论证”分组，已完成 PR 移出主待办，原编号和依赖保持不变。
 
 - **M43 既有 PR 模型建议**：在[总里程碑核查与路线图](docs/roadmap-total-milestone.md)的“D. 沿用的既有 PR”表格中新增模型与推理等级建议，按任务复杂度匹配 GPT-5.6 Luna/Terra/Sol 与 GPT-6 Astra。

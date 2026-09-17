@@ -6,6 +6,7 @@ using System.Text;
 using Cloud.Unum.USearch;
 using Microsoft.Extensions.Logging;
 using SonnetDB.Documents;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 
 namespace SonnetDB.SemanticSearch;
@@ -86,10 +87,12 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
         float[] query,
         int topK,
         out IReadOnlyList<(string Id, double Distance)> hits,
-        out string? error)
+        out string? error,
+        CancellationToken cancellationToken = default,
+        Action? visitRebuildCandidate = null)
     {
         hits = [];
-        if (!TryGetOrCreate(database, store, dimensions, out var index, out error))
+        if (!TryGetOrCreate(database, store, dimensions, out var index, out error, cancellationToken, visitRebuildCandidate))
             return false;
 
         try
@@ -112,12 +115,47 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
         _indexes.Clear();
     }
 
+    public bool TrySearchFiltered(
+        string database,
+        DocumentCollectionStore store,
+        int dimensions,
+        float[] query,
+        int topK,
+        IReadOnlySet<string> allowedIds,
+        int candidateLimit,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<(string Id, double Distance)> hits,
+        out bool requiresExactFallback,
+        out string? error,
+        Action? visitRebuildCandidate = null)
+    {
+        hits = [];
+        requiresExactFallback = false;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!TryGetOrCreate(database, store, dimensions, out var index, out error, cancellationToken, visitRebuildCandidate))
+            return false;
+
+        try
+        {
+            hits = index.SearchFiltered(query, topK, allowedIds, candidateLimit, cancellationToken, out requiresExactFallback);
+            return true;
+        }
+        catch (Exception ex) when (IsNativeFailure(ex))
+        {
+            Disable(ex);
+            error = _runtimeFailure;
+            return false;
+        }
+    }
+
     private bool TryGetOrCreate(
         string database,
         DocumentCollectionStore store,
         int dimensions,
         out USearchSemanticIndex index,
-        out string? error)
+        out string? error,
+        CancellationToken cancellationToken = default,
+        Action? visitRebuildCandidate = null)
     {
         index = null!;
         error = RuntimeFailure;
@@ -131,14 +169,15 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
 
         try
         {
-            while (true)
+            for (int attempt = 0; attempt < 8; attempt++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var entry = _indexes.GetOrAdd(
                     database,
                     _ => new IndexEntry(store, dimensions));
                 if (ReferenceEquals(entry.Store, store))
                 {
-                    index = entry.Value;
+                    index = entry.GetValue(cancellationToken, visitRebuildCandidate);
                     return true;
                 }
 
@@ -151,9 +190,11 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
                 }
 
                 entry.Dispose();
-                index = replacement.Value;
+                index = replacement.GetValue(cancellationToken, visitRebuildCandidate);
                 return true;
             }
+            error = "USearch 数据库实例持续变化，无法稳定创建派生索引。";
+            return false;
         }
         catch (Exception ex) when (IsNativeFailure(ex))
         {
@@ -179,24 +220,36 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
 
     private sealed class IndexEntry : IDisposable
     {
-        private readonly Lazy<USearchSemanticIndex> _index;
+        private readonly object _sync = new();
+        private readonly int _dimensions;
+        private USearchSemanticIndex? _index;
+        private bool _disposed;
 
         public IndexEntry(DocumentCollectionStore store, int dimensions)
         {
             Store = store;
-            _index = new Lazy<USearchSemanticIndex>(
-                () => USearchSemanticIndex.Create(store, dimensions),
-                LazyThreadSafetyMode.ExecutionAndPublication);
+            _dimensions = dimensions;
         }
 
         public DocumentCollectionStore Store { get; }
 
-        public USearchSemanticIndex Value => _index.Value;
+        public USearchSemanticIndex GetValue(CancellationToken cancellationToken, Action? visitCandidate)
+        {
+            lock (_sync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                // 取消/预算异常不缓存为永久失败，后续查询可重新恢复派生索引。
+                return _index ??= USearchSemanticIndex.Create(Store, _dimensions, cancellationToken, visitCandidate);
+            }
+        }
 
         public void Dispose()
         {
-            if (_index.IsValueCreated)
-                _index.Value.Dispose();
+            lock (_sync)
+            {
+                _disposed = true;
+                _index?.Dispose();
+            }
         }
     }
 
@@ -205,34 +258,45 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
         private readonly object _sync = new();
         private readonly Dictionary<string, ulong> _keysById = new(StringComparer.Ordinal);
         private readonly Dictionary<ulong, string> _idsByKey = [];
-        private readonly USearchIndex _index;
+        private readonly USearchNativeIndex _index;
 
         private USearchSemanticIndex(int dimensions)
         {
-            _index = new USearchIndex(
-                MetricKind.Cos,
-                ScalarKind.Float32,
-                checked((ulong)dimensions),
-                connectivity: 16,
-                expansionAdd: 200,
-                expansionSearch: 64);
+            _index = new USearchNativeIndex(dimensions);
         }
 
-        public static USearchSemanticIndex Create(DocumentCollectionStore store, int dimensions)
+        public static USearchSemanticIndex Create(
+            DocumentCollectionStore store, int dimensions, CancellationToken cancellationToken, Action? visitCandidate)
         {
             var index = new USearchSemanticIndex(dimensions);
             try
             {
-                foreach (var row in store.Scan())
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                if (!cancellationToken.CanBeCanceled)
+                    timeout.CancelAfter(TimeSpan.FromSeconds(30));
+                string? afterId = null;
+                int scanned = 0;
+                // 写入触发重建也有独立上限；查询触发时还扣减共享查询扫描预算。
+                for (int pageNumber = 0; pageNumber < 39_063; pageNumber++)
                 {
-                    var document = System.Text.Json.JsonSerializer.Deserialize(
-                        row.Json,
-                        ServerJsonContext.Default.SemanticImageDocument);
-                    if (document is not null && document.Embedding.Length == dimensions)
-                        index.Upsert(document.Id, document.Embedding);
+                    timeout.Token.ThrowIfCancellationRequested();
+                    var page = store.ScanAfter(afterId, 256);
+                    foreach (var row in page)
+                    {
+                        timeout.Token.ThrowIfCancellationRequested();
+                        if (++scanned > 10_000_000)
+                            throw new SemanticSearchBudgetExceededException("USearch 派生索引重建超过 10000000 行预算。");
+                        visitCandidate?.Invoke();
+                        var document = System.Text.Json.JsonSerializer.Deserialize(
+                            row.Json, ServerJsonContext.Default.SemanticImageDocument);
+                        if (document is not null && document.Embedding.Length == dimensions)
+                            index.Upsert(document.Id, document.Embedding);
+                    }
+                    if (page.Count < 256)
+                        return index;
+                    afterId = page[^1].Id;
                 }
-
-                return index;
+                throw new SemanticSearchBudgetExceededException("USearch 派生索引重建超过分页预算。");
             }
             catch
             {
@@ -286,19 +350,61 @@ internal sealed class USearchSemanticIndexRegistry : IDisposable
                 _index.Dispose();
         }
 
+        public IReadOnlyList<(string Id, double Distance)> SearchFiltered(
+            float[] query,
+            int topK,
+            IReadOnlySet<string> allowedIds,
+            int candidateLimit,
+            CancellationToken cancellationToken,
+            out bool requiresExactFallback)
+        {
+            lock (_sync)
+            {
+                requiresExactFallback = false;
+                if (allowedIds.Count == 0)
+                    return [];
+                var allowedKeys = new HashSet<ulong>();
+                foreach (string id in allowedIds)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!_keysById.TryGetValue(id, out ulong key))
+                    {
+                        // 派生索引缺少允许的权威 ID 时不能把较短结果宣称为完整 filtered top-K。
+                        requiresExactFallback = true;
+                        return [];
+                    }
+                    allowedKeys.Add(key);
+                }
+
+                int take = Math.Min(topK, allowedKeys.Count);
+                int count = _index.SearchFiltered(query, take, allowedKeys, candidateLimit, cancellationToken,
+                    out ulong[] keys, out float[] distances, out bool budgetExceeded);
+                requiresExactFallback = budgetExceeded || count < take;
+                if (requiresExactFallback)
+                    return [];
+                var hits = new List<(string Id, double Distance)>(count);
+                for (int i = 0; i < count; i++)
+                    hits.Add((_idsByKey[keys[i]], distances[i]));
+                return hits;
+            }
+        }
+
         private ulong AllocateKey(string id)
         {
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(id));
             ulong key = BinaryPrimitives.ReadUInt64LittleEndian(hash);
-            while (_idsByKey.TryGetValue(key, out string? existingId)
-                   && !string.Equals(existingId, id, StringComparison.Ordinal))
+            for (int attempt = 0; attempt < 32; attempt++)
             {
-                key++;
+                if (!_idsByKey.TryGetValue(key, out string? existingId)
+                    || string.Equals(existingId, id, StringComparison.Ordinal))
+                {
+                    _keysById[id] = key;
+                    _idsByKey[key] = id;
+                    return key;
+                }
+                key = unchecked(key + 1);
             }
-
-            _keysById[id] = key;
-            _idsByKey[key] = id;
-            return key;
+            throw new USearchException("USearch 业务 ID 哈希冲突次数超过预算。");
         }
     }
 }
