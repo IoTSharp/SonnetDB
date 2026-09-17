@@ -9,7 +9,13 @@
 
 ### Added
 
-- **M35 #302 持久 RAG writer 与本地 CLI**：新增有界 `RagIngestionWriter`，在现有 KV/WAL 中冻结完整任务，支持有限 provider 重试、取消后重开续跑、已完成 chunk 复用、严格 profile/向量校验和损坏 checkpoint 拒绝；Document/FullText/Vector 全部构建后通过 generation 原子发布，删除立即作用于新 active 版本，旧资源按查询租约延迟清理。`sndb rag ingest/resume` 接受有界预计算向量 bundle，支持不打开目标的 dry-run、正文 SHA-256 绑定、显式完整快照替换和机器 JSON 报告。未接入自动在线 provider 或 Copilot 可回滚迁移；受控恢复测试不代表硬件掉电或真实模型质量证据。
+- **M35 #304 音视频分段可选扩展**：新增 `SonnetDB.Media`，复用 SemanticContent 合同和 KV/WAL 原子导入外部工具产生的 transcript、关键帧与 timecode，提供有界文本/时间交集查询及原对象版本/ETag 来源；对象或关键帧变化后返回 stale，完整替换/删除清理全部派生片段。补齐重开、损坏、取消及预算合同和可运行导入/查询示例；Core 不下载模型或解码媒体，真实模型质量/容量验证后置。详见 [媒体分段合同](docs/media-segments.md)。
+
+- **M35 #303 持久 RAG 融合与重排入口**：新增 Core `RagGenerationSearch`，在同一 generation 租约中复用既有全文与向量距离实现，提供有界精确候选、RRF/min-max 融合、分块/内容去重和显式 rerank hook。严格核对完整 profile，限制候选、扫描、字符、posting 和协作时间预算；重排不得注入、重复、遗漏或替换授权候选。保留旧 SQL 默认计分，真实质量/性能/重建评测后置，见 [检索合同](docs/rag-search-fusion.md)。
+
+- **M35 #302 在线 CLI 与 Copilot 可回滚迁移**：`sndb rag ingest/resume` 新增显式 OpenAI-compatible 接线，按完整 HTTPS 目标外发、环境变量读取凭据、禁重定向、响应上界、调用前刷盘审计及有界重试。Copilot 新增默认关闭的 `Docs.StorageMode=rag`，以实际 Object 版本和独立 generation 复用持久 writer；旧 docs 表保留，切回 `legacy` 可回滚。查询严格匹配完整 profile，拒绝 hash fallback、未发布和不匹配索引；新增迁移/删除/失败恢复与在线协议合同测试。真实模型质量、成本、固定硬件容量及硬件掉电证据仍待验，见 [迁移说明](docs/copilot-rag-migration.md)。
+
+- **M35 #302 持久 RAG writer 与本地 CLI**：新增有界 `RagIngestionWriter`，在现有 KV/WAL 中冻结完整任务，支持有限 provider 重试、取消后重开续跑、已完成 chunk 复用、严格 profile/向量校验和损坏 checkpoint 拒绝；Document/FullText/Vector 全部构建后通过 generation 原子发布，删除立即作用于新 active 版本，旧资源按查询租约延迟清理。`sndb rag ingest/resume` 接受有界预计算向量 bundle，支持不打开目标的 dry-run、正文 SHA-256 绑定、显式完整快照替换和机器 JSON 报告。在线 provider 与 Copilot 迁移由上方后续切片补齐；受控恢复测试不代表硬件掉电或真实模型质量证据。
 
 - **M35 #300 对象 embedding、外发策略与持久审计**：新增 provider-neutral 对象能力与固定版本/ETag 的 text/image 编码入口，现有文本/图片/异步对象调用统一经过默认 local-only 策略、输入/时间预算和脱敏审计；审计先提交并显式 fsync 再交付内容，取消/失败保留终态。提供数据库权限约束的对象 embedding 与 Admin 有界审计 API，保留审计 keyspace 拒绝通用 REST/Frame 读写绕行。自定义 provider 需显式声明本地处理或配置批准目标；测试 provider 不构成真实模型质量证据。
 
@@ -133,6 +139,8 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **依赖补丁版本对齐**：升级 Microsoft.Extensions.Options，并同步 Configuration.Abstractions、Logging.Abstractions 至 10.0.12，满足已升级 Hosting.Abstractions 的传递依赖，修复 CoAP 子模块还原时的 NU1605（GitHub PR #149）。
 
 - **M19 #125 Flush 发布恢复边界**：为每个待发布 Segment 在 `wal/` 中持久化 CRC 保护的 pending/committed marker；段 rename 后、独立 checkpoint 前崩溃时，启动会在扫描 Segment 前删除未提交段、sidecar 和配置临时后缀的残留文件并完整 WAL replay，避免同一时间戳记录被 Segment 与 WAL 双重暴露，也避免重用 SegmentId 时临时文件冲突。只有 marker 与可解析、长度及 SegmentId 均匹配的 checkpoint 完全对应时才保留并提升为 committed；被后续 durable/WAL checkpoint 覆盖、最终 marker 损坏或孤立段删除失败时 fail closed。Flush 泵在首次发布失败后保留 sealing 查询快照、拒绝后续 checkpoint，并在 Dispose 时保留 WAL；覆盖 post-rename、pre-rename 临时段、direct Dispose、stale marker、损坏/临时 marker 和 continued-process 场景的恢复回归。未修改 Segment 二进制格式。
 

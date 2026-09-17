@@ -34,19 +34,23 @@ internal sealed class DocsIngestor
     private readonly DocsChunker _chunker;
     private readonly IEmbeddingProvider _embeddingProvider;
     private readonly ILogger<DocsIngestor> _logger;
+    private readonly CopilotRagKnowledgeStore? _ragStore;
+    internal CopilotRagKnowledgeStore? RagStore => _ragStore is { Enabled: true } ? _ragStore : null;
 
     public DocsIngestor(
         TsdbRegistry registry,
         DocsSourceScanner scanner,
         DocsChunker chunker,
         IEmbeddingProvider embeddingProvider,
-        ILogger<DocsIngestor> logger)
+        ILogger<DocsIngestor> logger,
+        CopilotRagKnowledgeStore? ragStore = null)
     {
         _registry = registry;
         _scanner = scanner;
         _chunker = chunker;
         _embeddingProvider = embeddingProvider;
         _logger = logger;
+        _ragStore = ragStore;
     }
 
     public async Task<DocsIngestStats> IngestAsync(
@@ -56,6 +60,8 @@ internal sealed class DocsIngestor
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(roots);
+        if (RagStore is { } ragStore)
+            return await ragStore.IngestAsync(roots, dryRun, cancellationToken).ConfigureAwait(false);
         var files = _scanner.Scan(roots);
         var stateBySource = await LoadStateAsync(cancellationToken).ConfigureAwait(false);
         var scannedSources = new HashSet<string>(
@@ -113,6 +119,8 @@ internal sealed class DocsIngestor
     /// </summary>
     internal async Task<DocsIndexState> GetIndexStateAsync(CancellationToken cancellationToken = default)
     {
+        if (RagStore is { } ragStore)
+            return ragStore.GetIndexState(cancellationToken);
         var rows = await LoadStateAsync(cancellationToken).ConfigureAwait(false);
         if (rows.Count == 0)
             return new DocsIndexState(0, 0, null);

@@ -6,29 +6,29 @@
     <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.12" />
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
-    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.11" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.12" />
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
     <PackageVersion Include="NativeWebHost.Windows" Version="2.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.10.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <!-- ImageSharp 4.x 构建需要 Six Labors 许可证，配置见 docs/build-license.md。 -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.1" />
     <!-- 2.26.2 在 linux-x64 原生初始化时触发 SIGILL；保留真实 native 探针通过的 2.26.0。 -->
-    <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.0" />
+    <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.1" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
     <!-- Snappy block-format 解压（Prometheus Remote Write 入站端点用），纯托管、AOT 友好。 -->
     <PackageVersion Include="Snappier" Version="1.3.1" />

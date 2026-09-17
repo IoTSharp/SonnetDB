@@ -170,6 +170,6 @@ profile 的维度、度量、归一化、模型 revision、模态与外发策略
 
 完成后，现有 generation manager 校验并 checkpoint 所有派生索引，再原子更新 active 指针。发布前的异常、取消或 provider 失败都保留旧 active；发布已成功但响应中断时，`ResumeAsync` 返回同一版本，不重复发布。未完成任务阻止新的 `WriteAsync`，直到续跑成功或调用 `DiscardPendingAsync` 显式放弃；后者只删除未发布 staging，不删除 active 或 retired generation。
 
-新版本查询立即不再命中被删除内容。旧 generation 仍受查询租约保护，调用 `database.Generations.CleanupRetired(stream)` 后才物理删除不再被租用的 Document、FullText、Vector 和快照 KV。需要保留回滚窗口时可以延后清理；本切片没有提供 Copilot 切换或回滚命令。
+新版本查询立即不再命中被删除内容。旧 generation 仍受查询租约保护，调用 `database.Generations.CleanupRetired(stream)` 后才物理删除不再被租用的 Document、FullText、Vector 和快照 KV。需要保留回滚窗口时可以延后清理；Copilot 通过显式后端和独立 stream 配置[切换与回滚](copilot-rag-migration.md)。
 
 默认每次最多 10,000 份清单、100,000 个 chunk、4,194,304 个 UTF-16 字符和 8 MiB checkpoint JSON，最长十分钟。只重试 provider 抛出的 `IOException`、`HttpRequestException` 与 `TimeoutException`，最多三次、间隔 200 ms；取消、错误向量和数据库写入错误直接传播。provider 必须遵守取消令牌。本版本采用单数据库实例内串行 writer，generation 发布还校验 expected revision。每次发布都会构建完整集合，因此 staging 空间与索引工作量仍随完整快照增长；这不是固定硬件吞吐或真实模型质量证据。

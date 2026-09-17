@@ -119,6 +119,8 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<CopilotReadiness>();
         builder.Services.AddSingleton<CopilotInFlightTracker>();
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("copilot-rag-embedding")
+            .ConfigurePrimaryHttpMessageHandler(static () => new HttpClientHandler { AllowAutoRedirect = false });
         builder.Services.AddHealthChecks()
             .AddCheck<RelationalTableWarmupHealthCheck>(
                 "relational_table_warmup",
@@ -189,6 +191,7 @@ internal static class SonnetDbServiceRegistration
         // 当前在线 Copilot 流程已切到 ai.sonnetdb.com，下面的本地索引服务仅保留为兼容/手动诊断能力。
         builder.Services.AddSingleton<DocsSourceScanner>();
         builder.Services.AddSingleton<DocsChunker>();
+        builder.Services.AddSingleton<CopilotRagKnowledgeStore>();
         builder.Services.AddSingleton<DocsIngestor>();
         builder.Services.AddSingleton<DocsSearchService>();
         builder.Services.AddHostedService<CopilotDocsIngestionService>();

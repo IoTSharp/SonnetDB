@@ -127,6 +127,12 @@ public sealed class CopilotEmbeddingOptions
 /// </remarks>
 public sealed class CopilotEmbeddingModelProfile
 {
+    /// <summary>本地模型的显式身份；RAG 迁移必须与 RagProfile.Model 及 Embedding.Model 一致。</summary>
+    public string? ModelId { get; set; }
+
+    /// <summary>模型、tokenizer 与预处理的不可变版本；RAG 迁移必须与 RagProfile.Revision 一致。</summary>
+    public string? Revision { get; set; }
+
     /// <summary>
     /// tokenizer 类型：<c>bert-wordpiece</c> 或 <c>sentencepiece</c>。
     /// </summary>
@@ -397,6 +403,15 @@ public sealed class CopilotChatOptions
 /// </summary>
 public sealed class CopilotDocsOptions
 {
+    /// <summary>知识库后端：默认 <c>legacy</c>；<c>rag</c> 使用独立 generation。改回 legacy 可回滚，不自动回退。</summary>
+    public string StorageMode { get; set; } = "legacy";
+
+    /// <summary>RAG generation stream；与旧 docs/docs_state 表隔离，模型换代建议使用新 stream。</summary>
+    public string RagStream { get; set; } = "copilot-docs";
+
+    /// <summary>RAG 模式必需的完整 embedding 合同；必须与当前 provider 配置一致。</summary>
+    public CopilotRagProfileOptions? RagProfile { get; set; }
+
     /// <summary>
     /// 服务端启动后是否自动执行一次后台增量摄入。默认 <c>false</c>；
     /// 在线 Copilot 不再依赖本地知识库作为兜底。
