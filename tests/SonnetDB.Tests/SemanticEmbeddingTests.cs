@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
@@ -164,6 +166,35 @@ public sealed class SemanticEmbeddingTests : IDisposable
             new SemanticObjectReference(source.Bucket, source.Key, eTag: source.ETag), _deadline.Token);
         Assert.Equal(1, provider.ImageCalls);
         Assert.Equal("succeeded", Assert.Single(ReadAudit()).Status);
+    }
+
+    [Fact]
+    public async Task EmbedStoredObject_TiffAboveNewObjectLimit_PreservesExistingImageLimit()
+    {
+        using var image = new Image<Rgb24>(2, 2, new Rgb24(50, 100, 150));
+        using var content = new MemoryStream();
+        await image.SaveAsTiffAsync(content, _deadline.Token);
+        byte[] bytes = content.ToArray();
+        content.Position = 0;
+        var store = new SndbObjectStore(_db);
+        store.CreateBucket("images");
+        var source = await store.PutObjectAsync("images", "camera.tiff", content, "image/tiff", cancellationToken: _deadline.Token);
+        var provider = new RecordingProvider();
+        var adapter = new MultimodalObjectEmbeddingProvider(provider);
+        Assert.Contains("image/tiff", adapter.ContentTypes);
+        var service = new SemanticEmbeddingService(provider, adapter, Options.Create(new ServerOptions
+        {
+            SemanticSearch = new SemanticSearchOptions
+            {
+                Enabled = true, MaxObjectEmbeddingBytes = 1, MaxImageBytes = bytes.Length,
+            },
+        }));
+        Assert.Equal(new[] { 1f, 0f }, await service.EmbedStoredObjectAsync(_db, source, bytes, _deadline.Token));
+        Assert.Equal(1, provider.ImageCalls);
+        Assert.Equal("succeeded", Assert.Single(ReadAudit()).Status);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.EmbedObjectAsync(_db,
+            new SemanticObjectReference(source.Bucket, source.Key, source.VersionId), _deadline.Token));
+        Assert.Equal(1, provider.ImageCalls);
     }
 
     [Fact]

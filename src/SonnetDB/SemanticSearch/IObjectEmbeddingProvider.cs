@@ -26,10 +26,14 @@ public interface IObjectEmbeddingProvider
 public sealed class MultimodalObjectEmbeddingProvider : IObjectEmbeddingProvider
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
-    private static readonly IReadOnlyList<string> SupportedTypes = Array.AsReadOnly(new[]
-    {
-        "text/plain", "text/markdown", "image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp",
-    });
+    private static readonly IReadOnlyList<string> SupportedTypes = Array.AsReadOnly(
+        SixLabors.ImageSharp.Configuration.Default.ImageFormats
+            .SelectMany(static format => format.MimeTypes)
+            .Concat(["text/plain", "text/markdown"])
+            .Select(static mediaType => mediaType.ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray());
     private readonly IMultimodalEmbeddingProvider _provider;
 
     /// <summary>创建复用现有编码器的对象 adapter。</summary>

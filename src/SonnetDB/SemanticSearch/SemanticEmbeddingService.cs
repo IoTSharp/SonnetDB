@@ -66,7 +66,8 @@ internal sealed class SemanticEmbeddingService
         var reference = new SemanticObjectReference(source.Bucket, source.Key, source.VersionId, source.ETag);
         if (content.Length != source.SizeBytes)
             throw new InvalidDataException("对象内容长度与固定版本不一致。");
-        ValidateObjectInput(source);
+        // 既有 Bucket 图片摄取保留 MaxImageBytes 合同；新对象入口的独立大小限制不反向收紧它。
+        ValidateObjectInput(source, applyObjectByteLimit: false);
         if (_objects.Info.Profile != _provider.Info.Profile || _objects.Info.Dimensions != _provider.Info.Dimensions)
             throw new InvalidOperationException("对象 provider 的向量空间与图片检索 profile 不兼容。");
         return InvokeAsync(tsdb, _objects.Info, "object", content.Length, reference,
@@ -104,9 +105,9 @@ internal sealed class SemanticEmbeddingService
         return new ObjectEmbeddingResponse(resolved, _objects.Info.Name, _objects.Info.Profile, vector);
     }
 
-    private void ValidateObjectInput(SndbObjectInfo source)
+    private void ValidateObjectInput(SndbObjectInfo source, bool applyObjectByteLimit = true)
     {
-        if (source.SizeBytes <= 0 || source.SizeBytes > _options.MaxObjectEmbeddingBytes)
+        if (source.SizeBytes <= 0 || (applyObjectByteLimit && source.SizeBytes > _options.MaxObjectEmbeddingBytes))
             throw new ArgumentOutOfRangeException(nameof(source), "对象超过 embedding 输入上限或为空。");
         string mediaType = MultimodalObjectEmbeddingProvider.NormalizeContentType(source.ContentType);
         if (!_objects.ContentTypes.Contains(mediaType, StringComparer.Ordinal))
