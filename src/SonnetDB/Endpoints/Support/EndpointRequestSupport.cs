@@ -199,6 +199,10 @@ internal static partial class SonnetDbEndpoints
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || name.Length > 128)
             return false;
 
+        // REST、Frame 和管理扫描统一保留语义审计命名空间，不能经通用 KV 绕过只读 Admin 入口。
+        if (SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name))
+            return false;
+
         for (int i = 0; i < name.Length; i++)
         {
             char ch = name[i];

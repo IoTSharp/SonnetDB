@@ -8,7 +8,7 @@ description: "配置 SigLIP2 ONNX，并通过 SonnetDB REST API 执行文搜图�
 
 SonnetDB Server 可以使用 SigLIP2 把文本和图片编码到同一个向量空间，并通过 REST API 提供文搜图和图搜图。该能力默认关闭，模型文件由部署者提供；Server 不会在启动或请求期间自动下载模型。
 
-当前实现已经包含可恢复异步摄取、缩略图、metadata/tag 过滤、similar-by-id、explain、生命周期清理、管理界面和工业图片样例。可索引的 source bucket、metadata 和 tag 条件使用 managed HNSW 预过滤 ANN，并保留精确补偿/回退；通用内容 chunk/segment、调用审计、质量评测和容量报告仍是后续工作。
+当前实现已经包含可恢复异步摄取、缩略图、metadata/tag 过滤、similar-by-id、explain、生命周期清理、管理界面和工业图片样例。可索引的 source bucket、metadata 和 tag 条件使用 managed HNSW 预过滤 ANN，并保留精确补偿/回退；文本、图片和对象 embedding 已统一执行内容外发策略与持久化调用审计，见[provider 治理与对象调用](semantic-embedding-providers.md)。通用内容 chunk/segment、质量评测和容量报告仍是后续工作。
 
 ## 组件与持久化
 

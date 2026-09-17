@@ -21,7 +21,20 @@ public sealed record SemanticSearchStatusResponse(
     string ConfiguredBackend,
     string EffectiveBackend,
     IReadOnlyList<string> Capabilities,
-    string? Reason = null);
+    string? Reason = null)
+{
+    /// <summary>对象 embedding 接受的媒体类型。</summary>
+    public IReadOnlyList<string> ObjectContentTypes { get; init; } = [];
+
+    /// <summary>对象 provider 的 profile、维度、就绪状态与执行位置。</summary>
+    public SonnetDB.SemanticSearch.MultimodalEmbeddingProviderInfo? ObjectProvider { get; init; }
+
+    /// <summary>服务器生效的内容外发模式。</summary>
+    public SonnetDB.SemanticContent.SemanticDataEgressMode DataEgressMode { get; init; }
+
+    /// <summary>当前文本/图片 provider 是否保证本地执行。</summary>
+    public bool ProviderIsLocal { get; init; }
+}
 
 /// <summary>
 /// 文搜图请求。

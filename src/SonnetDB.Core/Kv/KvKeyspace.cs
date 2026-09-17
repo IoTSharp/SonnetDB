@@ -315,10 +315,15 @@ public sealed partial class KvKeyspace : IDisposable
 
     /// <summary>在发布依赖当前 KV 内容的外部维护标记前，显式同步 WAL。</summary>
     internal void SyncWalForMaintenance()
+        => SyncWalForMaintenance(CancellationToken.None);
+
+    /// <summary>以可取消的锁等待同步 WAL，供依赖审计耐久性的外部调用使用。</summary>
+    internal void SyncWalForMaintenance(CancellationToken cancellationToken)
     {
-        lock (_sync)
+        using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
             _wal!.Sync();
         }
     }

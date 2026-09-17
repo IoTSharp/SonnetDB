@@ -30,6 +30,7 @@ internal sealed class SemanticImageSearchService : IDisposable
     private readonly SemanticSearchOptions _options;
     private readonly SemanticSearchQueryOptions _queryOptions;
     private readonly IMultimodalEmbeddingProvider _provider;
+    private readonly SemanticEmbeddingService _embeddings;
     private readonly USearchSemanticIndexRegistry _usearch;
     private readonly ILogger<SemanticImageSearchService> _logger;
 
@@ -37,11 +38,14 @@ internal sealed class SemanticImageSearchService : IDisposable
         IOptions<ServerOptions> options,
         IMultimodalEmbeddingProvider provider,
         USearchSemanticIndexRegistry usearch,
-        ILogger<SemanticImageSearchService> logger)
+        ILogger<SemanticImageSearchService> logger,
+        SemanticEmbeddingService? embeddings = null)
     {
         _options = options.Value.SemanticSearch;
         _queryOptions = _options.Query.BoundedCopy();
         _provider = provider;
+        _embeddings = embeddings ?? new SemanticEmbeddingService(provider,
+            new MultimodalObjectEmbeddingProvider(provider), options);
         _usearch = usearch;
         _logger = logger;
     }
@@ -82,8 +86,14 @@ internal sealed class SemanticImageSearchService : IDisposable
             _provider.Info.Dimensions,
             configuredBackend,
             effectiveBackend,
-            ["text-embedding", "image-embedding", "text-to-image", "image-to-image"],
-            reason);
+            ["text-embedding", "image-embedding", "object-embedding", "text-to-image", "image-to-image"],
+            reason)
+        {
+            ObjectContentTypes = _embeddings.ObjectProvider.ContentTypes,
+            ObjectProvider = _embeddings.ObjectProvider.Info,
+            DataEgressMode = _options.DataEgressPolicy.Mode,
+            ProviderIsLocal = _provider.Info.IsLocal,
+        };
     }
 
     public async Task<ImageIngestResponse> IngestAsync(
@@ -102,7 +112,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
 
-        float[] embedding = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] embedding = await _embeddings.EmbedImageAsync(tsdb, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(embedding);
         string sha256 = Convert.ToHexString(SHA256.HashData(image.Span)).ToLowerInvariant();
         string profileKey = ProfileKey();
@@ -220,7 +230,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         EnsureReady();
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ValidateMinScore(minScore);
-        float[] query = await _provider.EmbedTextAsync(text, cancellationToken).ConfigureAwait(false);
+        float[] query = await _embeddings.EmbedTextAsync(tsdb, text, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(query);
         return Search(
             database,
@@ -252,7 +262,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
 
-        float[] embedding = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] embedding = await _embeddings.EmbedStoredObjectAsync(tsdb, source, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(embedding);
         var gate = _databaseGates.GetOrAdd(database, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -351,7 +361,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         ValidateMinScore(minScore);
         if (image.IsEmpty || image.Length > _options.MaxImageBytes)
             throw new ArgumentOutOfRangeException(nameof(image), $"图片大小必须在 1 到 {_options.MaxImageBytes} 字节之间。");
-        float[] query = await _provider.EmbedImageAsync(image, cancellationToken).ConfigureAwait(false);
+        float[] query = await _embeddings.EmbedImageAsync(tsdb, image, cancellationToken).ConfigureAwait(false);
         ValidateEmbedding(query);
         return Search(
             database,

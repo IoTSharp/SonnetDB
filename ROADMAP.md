@@ -200,7 +200,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #297 | Semantic Content 清单、object reference、chunk/segment、状态机和 Embedding Profile 合同。通用内容清单、稳定 chunk/segment、对象引用、派生状态机、profile 隔离、外发策略和 source-generated JSON 合同已落地。 | ✅ |
 | #298 | metadata-filtered ANN、精确补偿/回退、similar-by-id 和可解释 EXPLAIN。已完成 managed/USearch filtered traversal、source bucket 与 metadata/tag 预过滤、分页精确补偿、allowed-key 漂移保护、similar-by-id、自身排除，以及可配置候选/补偿/分页/扫描/协作超时预算；首次 USearch 重建同样分页且受预算约束，失败返回稳定错误码，EXPLAIN 增加回退原因。原生遍历不支持硬中断；固定硬件 recall/延迟/容量证据仍待完成，见 [查询预算](docs/m35-filtered-search-budgets.md)。 | 🟡（代码完成，待质量验证） |
 | #299 | 异步摄取、幂等 hash、重试/取消/背压/重启恢复，以及对象覆盖删除后的对账。已落地 KV 持久化任务、幂等对象版本、5 次退避重试、取消/替代、有界 Channel 背压补偿、重启恢复，以及普通删除、批量删除和生命周期过期后的语义索引/缩略图清理。 | ✅ |
-| #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。当前已落地 text/image provider 合同、SigLIP2 ONNX 与状态发现；object embedding、外发策略和调用审计仍未完成。 | 🚧 |
+| #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。已补固定版本/ETag 对象 text/image adapter、默认 local-only 与批准目标策略、输入/时间预算、先 fsync 后调用的持久脱敏审计，以及授权对象 API 和 Admin 有界审计分页；通用 REST/Frame 与管理列表隔离保留审计 keyspace。自定义 provider 必须声明本地执行或配置批准外发目标；真实模型质量由 #185/#303 等独立证据收口，见 [provider 与治理合同](docs/semantic-embedding-providers.md)。 | ✅ |
 | #301 | 图片搜图片、文字搜图片、缩略图/来源/profile/分数展示和工业图片样例。已落地原图摄取/读取、文搜图、图搜图、WebP 缩略图、来源/profile/分数 REST 契约、managed/USearch 后端、对象桶管理面和可运行工业图片样例。 | ✅ |
 | #302 | 通用 RAG 摄取 SDK/CLI、稳定 chunk、增量更新、删除同步和 Copilot 可回滚迁移。Core 已落地严格 UTF-8 的确定性 hash、Unicode 安全稳定分块、完整快照 add/update/delete diff、资源预算、取消和有界 callback executor；CLI、持久化 writer/retry/resume、实际 Document/FullText/Vector 删除应用与 Copilot 可回滚迁移尚未实现。 | 🚧 |
 | #303 | RRF/归一化/去重/rerank hook，以及 Recall@K、nDCG、P50/P95、体积和重建评测。 | 📋 |

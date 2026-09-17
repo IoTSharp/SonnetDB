@@ -55,7 +55,9 @@ internal static partial class SonnetDbEndpoints
             if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
                 return;
             registry.TryGet(db, out var tsdb);
-            var keyspaces = tsdb.Keyspaces.List();
+            var keyspaces = tsdb.Keyspaces.List()
+                .Where(static name => !SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name))
+                .ToArray();
             await Results.Json(new KvKeyspaceListResponse(keyspaces), ServerJsonContext.Default.KvKeyspaceListResponse)
                 .ExecuteAsync(ctx).ConfigureAwait(false);
         });

@@ -38,4 +38,11 @@ public sealed record MultimodalEmbeddingProviderInfo(
     string Profile,
     int Dimensions,
     bool Ready,
-    string? Reason = null);
+    string? Reason = null)
+{
+    /// <summary>provider 是否保证在本机处理且不发送内容；未知实现默认不作此保证。</summary>
+    public bool IsLocal { get; init; }
+
+    /// <summary>外部 provider 的稳定目标标识；不得包含凭据或访问令牌。</summary>
+    public string? Target { get; init; }
+}
