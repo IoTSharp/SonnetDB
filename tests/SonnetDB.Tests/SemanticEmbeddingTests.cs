@@ -72,8 +72,11 @@ public sealed class SemanticEmbeddingTests : IDisposable
     [Fact]
     public async Task EmbedText_WeakWalConfigurationAndSyncFailure_DoesNotInvokeProvider()
     {
-        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "weak-wal"),
-            Kv = new SonnetDB.Kv.KvOptions { SyncWalOnEveryWrite = false } });
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = Path.Combine(_root, "weak-wal"),
+            Kv = new SonnetDB.Kv.KvOptions { SyncWalOnEveryWrite = false }
+        });
         var audit = new SemanticEmbeddingAuditStore(db);
         audit.WalSyncForTest = () => throw new IOException("injected sync failure");
         var provider = new RecordingProvider();
@@ -88,8 +91,11 @@ public sealed class SemanticEmbeddingTests : IDisposable
     [Fact]
     public async Task EmbedText_CancelledDuringAuditSync_DoesNotInvokeProvider()
     {
-        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "cancel-sync"),
-            Kv = new SonnetDB.Kv.KvOptions { SyncWalOnEveryWrite = false } });
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = Path.Combine(_root, "cancel-sync"),
+            Kv = new SonnetDB.Kv.KvOptions { SyncWalOnEveryWrite = false }
+        });
         using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
         var audit = new SemanticEmbeddingAuditStore(db);
         audit.WalSyncForTest = cancelled.Cancel;
@@ -121,7 +127,9 @@ public sealed class SemanticEmbeddingTests : IDisposable
     public async Task EmbedText_Cancellation_PersistsCancelledState()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var provider = new RecordingProvider { Handler = async token =>
+        var provider = new RecordingProvider
+        {
+            Handler = async token =>
         {
             entered.SetResult();
             try { await Task.Delay(TimeSpan.FromSeconds(20), token); }
@@ -130,7 +138,8 @@ public sealed class SemanticEmbeddingTests : IDisposable
                 throw new OperationCanceledException("secret-provider-payload", new IOException("secret-key"), token);
             }
             return [1f, 0f];
-        } };
+        }
+        };
         using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
         Task<float[]> call = CreateService(provider).EmbedTextAsync(_db, "secret-cancelled", cancelled.Token);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), _deadline.Token);
@@ -144,11 +153,14 @@ public sealed class SemanticEmbeddingTests : IDisposable
     [Fact]
     public async Task EmbedText_Deadline_PersistsTimeoutState()
     {
-        var provider = new RecordingProvider { Handler = async token =>
+        var provider = new RecordingProvider
+        {
+            Handler = async token =>
         {
             await Task.Delay(TimeSpan.FromSeconds(20), token);
             return [1f, 0f];
-        } };
+        }
+        };
         await Assert.ThrowsAsync<TimeoutException>(() => CreateService(provider, timeoutSeconds: 1)
             .EmbedTextAsync(_db, "hello", _deadline.Token));
         Assert.Equal("timed_out", Assert.Single(ReadAudit()).Status);
@@ -211,7 +223,9 @@ public sealed class SemanticEmbeddingTests : IDisposable
         {
             SemanticSearch = new SemanticSearchOptions
             {
-                Enabled = true, MaxObjectEmbeddingBytes = 1, MaxImageBytes = bytes.Length,
+                Enabled = true,
+                MaxObjectEmbeddingBytes = 1,
+                MaxImageBytes = bytes.Length,
             },
         }));
         Assert.Equal(new[] { 1f, 0f }, await service.EmbedStoredObjectAsync(_db, source, bytes, _deadline.Token));
@@ -227,8 +241,11 @@ public sealed class SemanticEmbeddingTests : IDisposable
     {
         var source = await PutObjectAsync("text.txt", "text/plain", "too-long");
         var provider = new RecordingProvider();
-        var options = Options.Create(new ServerOptions { SemanticSearch = new SemanticSearchOptions
-            { Enabled = true, MaxObjectEmbeddingBytes = 2 } });
+        var options = Options.Create(new ServerOptions
+        {
+            SemanticSearch = new SemanticSearchOptions
+            { Enabled = true, MaxObjectEmbeddingBytes = 2 }
+        });
         var service = new SemanticEmbeddingService(provider, new MultimodalObjectEmbeddingProvider(provider), options);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.EmbedObjectAsync(_db,
             new SemanticObjectReference(source.Bucket, source.Key, source.VersionId), _deadline.Token));
@@ -265,8 +282,12 @@ public sealed class SemanticEmbeddingTests : IDisposable
         var options = new ServerOptions
         {
             DataRoot = Path.Combine(_root, "server"),
-            Tokens = new Dictionary<string, string> { ["admin"] = ServerRoles.Admin, ["reader"] = ServerRoles.ReadOnly,
-                ["writer"] = ServerRoles.ReadWrite },
+            Tokens = new Dictionary<string, string>
+            {
+                ["admin"] = ServerRoles.Admin,
+                ["reader"] = ServerRoles.ReadOnly,
+                ["writer"] = ServerRoles.ReadWrite
+            },
             SemanticSearch = new SemanticSearchOptions { Enabled = true, Backend = "managed", Dimensions = 2 },
         };
         await using var app = TestServerHost.Build(options, services =>
@@ -328,8 +349,11 @@ public sealed class SemanticEmbeddingTests : IDisposable
 
     private SemanticEmbeddingService CreateService(RecordingProvider provider, SemanticDataEgressPolicy? policy = null,
         int timeoutSeconds = 10) => new(provider, new MultimodalObjectEmbeddingProvider(provider),
-        Options.Create(new ServerOptions { SemanticSearch = new SemanticSearchOptions
-            { Enabled = true, DataEgressPolicy = policy ?? new(), EmbeddingTimeoutSeconds = timeoutSeconds } }));
+        Options.Create(new ServerOptions
+        {
+            SemanticSearch = new SemanticSearchOptions
+            { Enabled = true, DataEgressPolicy = policy ?? new(), EmbeddingTimeoutSeconds = timeoutSeconds }
+        }));
 
     private IReadOnlyList<SemanticEmbeddingAuditEntry> ReadAudit()
         => new SemanticEmbeddingAuditStore(_db).Read(100, null, _deadline.Token).Entries;
@@ -353,7 +377,7 @@ public sealed class SemanticEmbeddingTests : IDisposable
     private sealed class RecordingProvider(bool local = true) : IMultimodalEmbeddingProvider
     {
         public MultimodalEmbeddingProviderInfo Info { get; } = new("recording", "test-profile", 2, true)
-            { IsLocal = local, Target = "embedding-target" };
+        { IsLocal = local, Target = "embedding-target" };
         public int Calls { get; private set; }
         public int ImageCalls { get; private set; }
         public string? Text { get; private set; }

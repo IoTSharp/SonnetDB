@@ -193,8 +193,12 @@ internal sealed class SemanticEmbeddingService
     {
         // 调用取消后仍以独立五秒预算写终态；失败不返回向量，started 保留供恢复审查。
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        audit.Write(entry with { Status = status, ErrorCode = errorCode,
-            DurationMilliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds }, deadline.Token);
+        audit.Write(entry with
+        {
+            Status = status,
+            ErrorCode = errorCode,
+            DurationMilliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds
+        }, deadline.Token);
     }
 
     private static string HashIdentity(SemanticObjectReference source)
