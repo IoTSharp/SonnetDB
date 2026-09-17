@@ -99,7 +99,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 ### D. 沿用的既有 PR：主执行顺序
 
-按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#297、#299、#301、#316、#327~#339、#341~#346、#368~#372、#374）从执行队列移除，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 只列剩余工作。
+按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#297、#298 的代码切片、#299、#301、#316、#327~#339、#341~#346、#368~#372、#374）从执行队列移除，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 只列剩余工作。
 
 功能与验收混合的 PR 按剩余内容分列，仍归同一原编号，不新增重复工作项。每个代码 PR 随改动完成必要的回归、构建和 AOT 检查；后置的是独立测试项目、完整旅程、容量评测、现场验证和报告收口。下表保留原有模型建议。
 
@@ -107,34 +107,33 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
-| 1 | #298 | M35 | GPT-5.6 Sol / high | 🚧 | USearch filtered API 与可配置查询预算；复用已有 managed filtered ANN、精确回退和取消。 |
-| 2 | #300 | M35 | GPT-5.6 Sol / high | 🚧 | object embedding、外发策略与调用审计。 |
-| 3 | #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | RAG CLI、持久化 writer/retry/resume、实际派生索引增删应用与 Copilot 可回滚迁移。 |
-| 4 | #303 | M35 | GPT-5.6 Sol / high | 📋 | RRF、归一化、去重与 rerank hook；质量评测后置。 |
-| 5 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
-| 6 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
-| 7 | #306 | M35 | GPT-5.6 Sol / high | 📋 | 派生目标、区域、track 与 detector profile 模型。 |
-| 8 | #307 | M35 | GPT-5.6 Sol / high | 📋 | 默认关闭的人脸 1:1/1:N 能力及独立权限、审计、删除；FAR/FRR/TAR 评测后置。 |
-| 9 | #308 | M35 | GPT-5.6 Sol / high | 📋 | ReID、步态、姿态/动作的独立 profile 与查询；质量评测后置。 |
-| 10 | #309 | M35 | GPT-5.6 Sol / high | 📋 | 车辆外观向量、车牌 OCR 与标准化精确索引。 |
-| 11 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | 其余工作台/SDK 的共享客户端合同、目标绑定、取消、分页与批量错误处理。 |
-| 12 | #312 | M36 | GPT-5.6 Sol / high | 🚧 | `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集及稳定冲突结果。 |
-| 13 | #313 | M36 | GPT-5.6 Terra / high | 📋 | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时。 |
-| 14 | #314 | M36 | GPT-5.6 Terra / high | 📋 | 时序 typed Write API、batch/flush、背压、重试、逐项错误与 drain。 |
-| 15 | #315 | M36 | GPT-5.6 Terra / high | 📋 | 时序 Query builder、流式结果与建模诊断，复用现有查询引擎。 |
-| 16 | #317 | M36 | GPT-5.6 Sol / high | 📋 | KV 大 keyspace 异步 cursor、pipeline/batch、取消/背压与诊断。 |
-| 17 | #318 | M36 | GPT-5.6 Sol / high | 📋 | FullText typed Search API、sort/facet/highlight、服务端 matched offsets/terms。 |
-| 18 | #319 | M36 | GPT-5.6 Sol / high | 📋 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与 rebuild task。 |
-| 19 | #320 | M36 | GPT-5.6 Sol / high | 📋 | VectorData 高层 batch/filter/threshold/include/exact 与检索 preset。 |
-| 20 | #321 | M36 | GPT-5.6 Sol / high | 📋 | Vector profile preflight、index health/rebuild progress 与查询路径解释；复用 #298。 |
-| 21 | #322 | M36 | GPT-5.6 Sol / high | 📋 | Object Transfer Manager：multipart、checksum、retry/resume、进度、取消与资源释放。 |
-| 22 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。 |
-| 23 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |
-| 24 | #325 | M36 | GPT-6 Astra / high | 📋 | MQ nack/redelivery/DLQ、去重窗口、offset reset、lag 与丢弃原因诊断。 |
-| 25 | #326（代码） | M36 | GPT-6 Astra / high | 📋 | VS Code Graph 最小浏览/查询入口，以及 instance MQ/consumer offset 一致快照与恢复；单库包不包含 Server 实例 MQ。 |
-| 26 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | 双网 Copilot 可信认证、页面刷新/跨进程/多实例续流、StudioNative transport 与系统凭据库。 |
-| 27 | #375 | M41/M42 | GPT-5.6 Sol / high | 🚧 | 修复首 N 行采样偏差，完善无偏采样与后台统计刷新；已有后台任务不重做。 |
-| 28 | M42 性能残余 | M42 | — | 🚧 | 页感知成本、参数敏感计划、独立 I/O 预算、通用向量有界 Top-K、covering/index-only、snapshot cold-miss single-flight、大值复制、冷启动与 SQL 端到端结果内存优化。 |
+| 1 | #300 | M35 | GPT-5.6 Sol / high | 🚧 | object embedding、外发策略与调用审计。 |
+| 2 | #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | RAG CLI、持久化 writer/retry/resume、实际派生索引增删应用与 Copilot 可回滚迁移。 |
+| 3 | #303 | M35 | GPT-5.6 Sol / high | 📋 | RRF、归一化、去重与 rerank hook；质量评测后置。 |
+| 4 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
+| 5 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
+| 6 | #306 | M35 | GPT-5.6 Sol / high | 📋 | 派生目标、区域、track 与 detector profile 模型。 |
+| 7 | #307 | M35 | GPT-5.6 Sol / high | 📋 | 默认关闭的人脸 1:1/1:N 能力及独立权限、审计、删除；FAR/FRR/TAR 评测后置。 |
+| 8 | #308 | M35 | GPT-5.6 Sol / high | 📋 | ReID、步态、姿态/动作的独立 profile 与查询；质量评测后置。 |
+| 9 | #309 | M35 | GPT-5.6 Sol / high | 📋 | 车辆外观向量、车牌 OCR 与标准化精确索引。 |
+| 10 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | 其余工作台/SDK 的共享客户端合同、目标绑定、取消、分页与批量错误处理。 |
+| 11 | #312 | M36 | GPT-5.6 Sol / high | 🚧 | `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集及稳定冲突结果。 |
+| 12 | #313 | M36 | GPT-5.6 Terra / high | 📋 | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时。 |
+| 13 | #314 | M36 | GPT-5.6 Terra / high | 📋 | 时序 typed Write API、batch/flush、背压、重试、逐项错误与 drain。 |
+| 14 | #315 | M36 | GPT-5.6 Terra / high | 📋 | 时序 Query builder、流式结果与建模诊断，复用现有查询引擎。 |
+| 15 | #317 | M36 | GPT-5.6 Sol / high | 📋 | KV 大 keyspace 异步 cursor、pipeline/batch、取消/背压与诊断。 |
+| 16 | #318 | M36 | GPT-5.6 Sol / high | 📋 | FullText typed Search API、sort/facet/highlight、服务端 matched offsets/terms。 |
+| 17 | #319 | M36 | GPT-5.6 Sol / high | 📋 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与 rebuild task。 |
+| 18 | #320 | M36 | GPT-5.6 Sol / high | 📋 | VectorData 高层 batch/filter/threshold/include/exact 与检索 preset。 |
+| 19 | #321 | M36 | GPT-5.6 Sol / high | 📋 | Vector profile preflight、index health/rebuild progress 与查询路径解释；复用 #298。 |
+| 20 | #322 | M36 | GPT-5.6 Sol / high | 📋 | Object Transfer Manager：multipart、checksum、retry/resume、进度、取消与资源释放。 |
+| 21 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。 |
+| 22 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |
+| 23 | #325 | M36 | GPT-6 Astra / high | 📋 | MQ nack/redelivery/DLQ、去重窗口、offset reset、lag 与丢弃原因诊断。 |
+| 24 | #326（代码） | M36 | GPT-6 Astra / high | 📋 | VS Code Graph 最小浏览/查询入口，以及 instance MQ/consumer offset 一致快照与恢复；单库包不包含 Server 实例 MQ。 |
+| 25 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | 双网 Copilot 可信认证、页面刷新/跨进程/多实例续流、StudioNative transport 与系统凭据库。 |
+| 26 | #375 | M41/M42 | GPT-5.6 Sol / high | 🚧 | 修复首 N 行采样偏差，完善无偏采样与后台统计刷新；已有后台任务不重做。 |
+| 27 | M42 性能残余 | M42 | — | 🚧 | 页感知成本、参数敏感计划、独立 I/O 预算、通用向量有界 Top-K、covering/index-only、snapshot cold-miss single-flight、大值复制、冷启动与 SQL 端到端结果内存优化。 |
 
 #### 2. 后做：独立测试、验证、评测与论证
 
