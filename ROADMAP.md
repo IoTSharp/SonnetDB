@@ -39,7 +39,7 @@
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
-| 35 | 语义内容与多模态检索 | 🚧 | #297/#299/#301 已完成，#298/#300/#302 已交付部分能力；RAG Core 首切片已落地，CLI、持久化 writer/retry/resume、实际派生索引应用与剩余质量/媒体/治理项仍待完成。 |
+| 35 | 语义内容与多模态检索 | 🚧 | #297/#299~#301 已完成；#298 过滤检索与预算代码已完成，质量证据待补；#302 已交付持久 writer/retry/resume、三类派生索引原子发布及本地预计算向量 CLI，Copilot 迁移与剩余质量/媒体/治理项仍待完成。 |
 | 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。#323 对象有界分页切片已实现，证据与限制见 [OBJECT-001](docs/audits/object-pagination-20260906.md)。九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
@@ -202,7 +202,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #299 | 异步摄取、幂等 hash、重试/取消/背压/重启恢复，以及对象覆盖删除后的对账。已落地 KV 持久化任务、幂等对象版本、5 次退避重试、取消/替代、有界 Channel 背压补偿、重启恢复，以及普通删除、批量删除和生命周期过期后的语义索引/缩略图清理。 | ✅ |
 | #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。已补固定版本/ETag 对象 text/image adapter、默认 local-only 与批准目标策略、输入/时间预算、先 fsync 后调用的持久脱敏审计，以及授权对象 API 和 Admin 有界审计分页；通用 REST/Frame 与管理列表隔离保留审计 keyspace。自定义 provider 必须声明本地执行或配置批准外发目标；真实模型质量由 #185/#303 等独立证据收口，见 [provider 与治理合同](docs/semantic-embedding-providers.md)。 | ✅ |
 | #301 | 图片搜图片、文字搜图片、缩略图/来源/profile/分数展示和工业图片样例。已落地原图摄取/读取、文搜图、图搜图、WebP 缩略图、来源/profile/分数 REST 契约、managed/USearch 后端、对象桶管理面和可运行工业图片样例。 | ✅ |
-| #302 | 通用 RAG 摄取 SDK/CLI、稳定 chunk、增量更新、删除同步和 Copilot 可回滚迁移。Core 已落地严格 UTF-8 的确定性 hash、Unicode 安全稳定分块、完整快照 add/update/delete diff、资源预算、取消和有界 callback executor；CLI、持久化 writer/retry/resume、实际 Document/FullText/Vector 删除应用与 Copilot 可回滚迁移尚未实现。 | 🚧 |
+| #302 | 通用 RAG 摄取 SDK/CLI、稳定 chunk、增量更新、删除同步和 Copilot 可回滚迁移。已在既有 chunk/planner/executor 上补齐持久 writer、有限重试、重开续跑、损坏任务拒绝、严格 profile 与向量复用，以及 Document/FullText/Vector 完整 generation 发布和租约保护的删除清理；本地 `sndb rag ingest/resume` 支持预计算向量 bundle、dry-run、正文 SHA-256 绑定和显式完整快照替换。自动在线 provider CLI 与 Copilot 可回滚迁移仍未实现，真实模型与硬件恢复证据独立待验；见 [SDK](docs/rag-ingestion-core.md) 与 [CLI](docs/rag-cli.md)。 | 🚧 |
 | #303 | RRF/归一化/去重/rerank hook，以及 Recall@K、nDCG、P50/P95、体积和重建评测。 | 📋 |
 | #304 | 音视频 transcript、关键帧和 timecode segment；媒体处理留在可选扩展或外部工具。 | 📋 |
 | #305 | 管理面、安全、失败恢复、备份重建、模型换代和 10k/100k 容量基线。 | 📋 |

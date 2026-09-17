@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #302 持久 RAG writer 与本地 CLI**：新增有界 `RagIngestionWriter`，在现有 KV/WAL 中冻结完整任务，支持有限 provider 重试、取消后重开续跑、已完成 chunk 复用、严格 profile/向量校验和损坏 checkpoint 拒绝；Document/FullText/Vector 全部构建后通过 generation 原子发布，删除立即作用于新 active 版本，旧资源按查询租约延迟清理。`sndb rag ingest/resume` 接受有界预计算向量 bundle，支持不打开目标的 dry-run、正文 SHA-256 绑定、显式完整快照替换和机器 JSON 报告。未接入自动在线 provider 或 Copilot 可回滚迁移；受控恢复测试不代表硬件掉电或真实模型质量证据。
+
 - **M35 #300 对象 embedding、外发策略与持久审计**：新增 provider-neutral 对象能力与固定版本/ETag 的 text/image 编码入口，现有文本/图片/异步对象调用统一经过默认 local-only 策略、输入/时间预算和脱敏审计；审计先提交并显式 fsync 再交付内容，取消/失败保留终态。提供数据库权限约束的对象 embedding 与 Admin 有界审计 API，保留审计 keyspace 拒绝通用 REST/Frame 读写绕行。自定义 provider 需显式声明本地处理或配置批准目标；测试 provider 不构成真实模型质量证据。
 
 - **M35 #298 USearch 过滤检索与查询预算**：在固定 USearch 2.26.0 C ABI 上补齐原生 filtered search、SafeHandle 生命周期和回调异常/取消保护；增加可配置 ANN 候选、精确补偿、分页、总扫描与协作超时预算，首次派生索引重建也分页并扣减查询预算。预算失败返回 `semantic_query_budget_exceeded`，解释结果补充回退原因；原生回调不能硬中断遍历，固定硬件 Recall/延迟/容量证据仍待完成。

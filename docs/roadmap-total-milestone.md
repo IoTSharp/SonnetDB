@@ -1,6 +1,6 @@
 # SonnetDB 总里程碑：十四套能力
 
-**核查日期：2026-09-13**
+**核查日期：2026-09-13；2026-09-17 追加 M35 #298/#300/#302 本地实现与验证进展**
 
 **当前代码基线：ff55b25（主分支）**
 
@@ -39,7 +39,7 @@ SonnetDB 最有价值的方向不是在每一个单项指标上击败专用数�
 - ❌ M20 仍未通过当前 nightly 门禁：截至 2026-09-13，最近七次 scheduled（09-07 至 09-13）为 4 次成功、3 次失败，成功率约 57%，低于要求的 95%。此前 08-30 至 09-05 的全失败窗口保留为历史证据；本地已经验证启动修复，但连续七次远程成功和稳定的双 profile 对账仍未形成。
 - 🟡 M19、M25、M29、M40 主要剩固定硬件、干净安装、外部对拍、Native AOT 或长稳等现场证据；本机 smoke 不替代这些证据。
 - 🚧 M27 的 Copilot/MCP/Provider 已有真实代码路径，但真实目标模型的质量、延迟、成本、双网部署和跨进程续流仍未闭环；M14 实际是 Microsoft.Extensions.AI 加自研 CopilotAgent，不能写成 Microsoft Agent Framework。
-- 🚧 M35 已经有语义内容、图片检索和 RAG Core 地基，持久化 writer、resume、派生索引实际应用、融合质量和媒体扩展仍未完成。
+- 🚧 M35 已补齐 USearch filtered API/查询预算、对象 embedding/外发治理/审计、持久 RAG writer/resume、派生索引 generation 发布与本地预计算向量 CLI；Copilot 迁移、真实质量评测、融合与媒体扩展仍未完成。
 - 🚧 M36 已经关闭部分 KV 原子操作和对象有界分页问题，但九模型 golden journey、对象传输恢复、MQ 消费恢复、全文工作流和 SQL 端到端有界结果仍未整体关闭。
 - 🚧 M41/M42 已完成大量本地规划器和资源边界切片，但固定 x64/ARM64、统一语料、168 小时混合负载和发布门禁仍是独立证据。
 
@@ -107,7 +107,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
-| 1 | #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | RAG CLI、持久化 writer/retry/resume、实际派生索引增删应用与 Copilot 可回滚迁移。 |
+| 1 | #302 | M35 | GPT-5.6 Sol / xhigh | 🚧 | 持久 writer/retry/resume、Document/FullText/Vector 原子发布/删除和本地预计算向量 CLI 已交付；继续完成 CLI 的自动在线 provider 接线与 Copilot 可回滚迁移。 |
 | 2 | #303 | M35 | GPT-5.6 Sol / high | 📋 | RRF、归一化、去重与 rerank hook；质量评测后置。 |
 | 3 | #304 | M35 | GPT-5.6 Sol / high | 📋 | 音视频 transcript、关键帧与 timecode segment，媒体处理放在可选扩展。 |
 | 4 | #305 | M35 | GPT-5.6 Sol / high | 📋 | 管理面、安全、失败恢复、备份重建与模型换代；容量基线后置。 |
