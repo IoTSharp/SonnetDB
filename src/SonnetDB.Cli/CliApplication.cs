@@ -1040,6 +1040,7 @@ SonnetDB CLI __VERSION__
   sndb document import --input ./dump/devices.bson --collection devices --path ./data [--dry-run] [--report ./migration-report.json]
   sndb rag ingest --input ./rag-bundle.json --path ./data --stream docs --replace-snapshot [--dry-run] [--timeout 120]
   sndb rag resume --input ./rag-bundle.json --path ./data --stream docs [--timeout 120]
+  sndb rag ingest --input ./rag-online.json --path ./data --stream docs --replace-snapshot --endpoint https://provider/v1/ --api-key-env EMBEDDING_KEY --allow-egress --audit ./rag-audit.jsonl
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
   sndb diag dump [--endpoint http://host] [--token admin-token] [--output ./diagnostic-dump.json]
   sndb graph overview --connection "<conn>" --graph knowledge

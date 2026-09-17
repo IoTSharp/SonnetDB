@@ -1,0 +1,4 @@
+[
+  { "id": "intro", "ordinal": 0, "startMs": 0, "endMs": 1000, "text": "Opening" },
+  { "id": "alarm", "ordinal": 1, "startMs": 1000, "endMs": 2000, "text": "Alarm detected" }
+]

@@ -37,6 +37,9 @@ internal sealed class DocsSearchService
         if (k <= 0)
             throw new InvalidOperationException("k 必须大于 0。");
 
+        if (_ingestor.RagStore is { } ragStore)
+            return await ragStore.SearchAsync(query, k, cancellationToken).ConfigureAwait(false);
+
         var embedding = await _embeddingProvider.EmbedAsync(query, cancellationToken).ConfigureAwait(false);
         if (embedding.Length != DocsIngestor.ExpectedEmbeddingDimensions)
             throw new InvalidOperationException($"embedding 维度必须为 {DocsIngestor.ExpectedEmbeddingDimensions}，实际为 {embedding.Length}。");
