@@ -1456,7 +1456,20 @@ internal static class HybridSearchExecutor
     }
 
     private static double DistanceToScore(KnnMetric metric, double distance)
-        => SearchScoreNormalization.DistanceToScore(metric, distance);
+    {
+        if (metric == KnnMetric.Cosine)
+            return Math.Clamp(1d - (distance / 2d), 0d, 1d);
+        if (metric == KnnMetric.InnerProduct)
+        {
+            if (distance <= -60d)
+                return 1d;
+            if (distance >= 60d)
+                return 0d;
+            return 1d / (1d + Math.Exp(distance));
+        }
+
+        return 1d / (1d + Math.Max(0d, distance));
+    }
 
     private static int DefaultFullTextTopK(PaginationSpec? pagination)
     {

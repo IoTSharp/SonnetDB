@@ -1,6 +1,6 @@
 # 持久 RAG 检索、融合与重排（M35 #303）
 
-`RagGenerationSearch` 是可直接调用的 Core/嵌入式查询入口，读取 `RagIngestionWriter` 已发布的 generation。它在同一个查询租约中完成全文、精确向量候选、融合和可选重排。新版本发布或 retired 清理不会让一次查询混合不同版本。现有 SQL `hybrid_search` 和 legacy Copilot 的默认计分合同保持兼容；SQL 与新 reader 共用原有向量距离归一化实现。
+`RagGenerationSearch` 是可直接调用的 Core/嵌入式查询入口，读取 `RagIngestionWriter` 已发布的 generation。它在同一个查询租约中完成全文、精确向量候选、融合和可选重排。新版本发布或 retired 清理不会让一次查询混合不同版本。新 reader 复用已有向量距离计算和全文索引；现有 SQL `hybrid_search` 和 legacy Copilot 的默认计分合同保持兼容。
 
 本 PR 交付代码合同及受控 fixture 测试。真实模型的 Recall@K、nDCG、P50/P95、体积和重建评测仍归后置验证；没有声明模型质量或大规模 ANN 性能。
 
@@ -42,7 +42,7 @@ reader 核对快照中的完整 profile（包含 provider、model、revision、n
 - RRF 使用 `weight / (rankConstant + rank)`，名次从一开始；默认常数 60。输入同分先按 Id 序数升序排列，结果同分也按 Id 序数升序排列。
 - `NormalizedScore` 对各路执行 min-max 后加权求和，缺失通道贡献零。常量非空通道统一贡献一；先缩放再计算差值，避免有限极值相减溢出。NaN/Infinity 一律拒绝。
 - 默认保留不同分块；`DeduplicateByContent` 可在融合后、重排窗口之前只保留父内容的最佳分块。
-- reader 向量 RRF 使用负原始距离排名；归一化模式先复用 SQL 的 cosine/L2/inner-product 距离映射，再执行通道 min-max。全文复用现有 BM25 与 posting 预算 API。
+- reader 在所有模式中均使用负原始向量距离挑选候选，再由融合器执行 RRF 或通道 min-max。不会在截断候选前饱和映射分数，因此非归一化 inner-product 的 -100/-200 等不同距离仍保持先后顺序。全文复用现有 BM25 与 posting 预算 API。
 
 ## 重排与权限边界
 
@@ -66,4 +66,4 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "Fully
 
 覆盖数学分数、并列排序、同路/跨路去重、极值和非有限值、重排窗口与注入拒绝、预算和取消；通过真实 writer、Document/FullText、重开和发布期间租约验证生产读取路径。fixture 向量只证明行为合同。
 
-2026-09-17 本地目标验证：新增 26 个用例，连同既有 writer 与 SQL 文档查询回归共 92/92 通过；Core/CLI 编译包含现有 AOT/trim 分析，无编译警告。此记录不包含 NativeAOT 发布、真实 provider 或固定硬件质量评测。
+2026-09-17 本地目标验证：新增 30 个用例，连同既有 writer 与 SQL 文档查询回归共 96/96 通过；包含非归一化内积距离 -100/-200、无全文命中、候选窗口为一和二时的排序回归。Core/CLI 编译包含现有 AOT/trim 分析，无编译警告。此记录不包含 NativeAOT 发布、真实 provider 或固定硬件质量评测。

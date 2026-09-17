@@ -116,8 +116,7 @@ public sealed class RagGenerationSearch
             if (!double.IsFinite(distance))
                 throw new InvalidDataException("RAG 向量距离不是有限值。");
             candidates.Add(row.Id, new(row.Id, document.ContentId, document.Text,
-                options.Mode == SemanticSearchFusionMode.ReciprocalRank ? -distance : SearchScoreNormalization.DistanceToScore(metric, distance),
-                document.Source, document.Section));
+                -distance, document.Source, document.Section));
         }
         token.ThrowIfCancellationRequested();
         var allowed = candidates.Keys.ToHashSet(StringComparer.Ordinal);

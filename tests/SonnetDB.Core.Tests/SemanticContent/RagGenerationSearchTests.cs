@@ -14,6 +14,34 @@ public sealed class RagGenerationSearchTests : IDisposable
         supportedModalities: [SemanticContentModality.Text]);
     private static readonly SemanticSearchFusionOptions Options = new() { TopK = 2, MaxDuration = TimeSpan.FromSeconds(10) };
 
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public async Task SearchAsync_UnnormalizedInnerProduct_PreservesNearestBeforeWindowAndFusion(int candidateCount, bool alphaIsNearest)
+    {
+        using Tsdb database = Open();
+        var profile = Profile with { Metric = SonnetDB.Vector.Primitives.KnnMetric.InnerProduct };
+        var writer = new RagIngestionWriter(database, "manuals", profile);
+        await writer.WriteAsync(Snapshot(("a", "alpha"), ("b", "bravo")), (chunk, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            bool nearest = (chunk.Text == "alpha") == alphaIsNearest;
+            return ValueTask.FromResult(new[] { nearest ? 200f : 100f, 0f, 0f });
+        });
+        var result = await new RagGenerationSearch(database, "manuals", profile).SearchAsync(
+            "unmatched", new float[] { 1, 0, 0 }, Options with
+            {
+                TopK = 1,
+                MaxCandidatesPerSource = candidateCount,
+                Mode = SemanticSearchFusionMode.NormalizedScore,
+            });
+        // 无全文命中，原始距离为 -200/-100；交换向量确保不能依赖文档 Id 的并列顺序。
+        Assert.Equal(alphaIsNearest ? "a" : "b", Assert.Single(result).ContentId);
+        Assert.Equal(1d, result[0].Score);
+    }
+
     [Fact]
     public async Task SearchAsync_RealPublishedIndexes_ReopenAndReplacementRemainConsistent()
     {
