@@ -111,7 +111,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 2 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | Document/Graph/KV/MQ 客户端的取消、目标绑定、流式分页和批量响应边界已补；其余工作台/SDK 矩阵、九模型 golden journey 与现场恢复证据仍待完成。 |
 | 3 | #312 | M36 | GPT-5.6 Sol / high | ✅ | 关系表 `UPDATE/DELETE ... RETURNING`、事务预览、嵌入式/REST ADO.NET 结果映射及 `ON CONFLICT DO NOTHING` 子集已完成本地代码和回归；`DO UPDATE`、文档/时序模型和完整 PostgreSQL 方言保持边界。 |
 | 4 | #313 | M36 | GPT-5.6 Terra / high | ✅ | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时已接通 Core 与 SQL REST；Frame 兼容传输码和现场发布证据仍按独立门禁执行。 |
-| 5 | #314 | M36 | GPT-5.6 Terra / high | 📋 | 时序 typed Write API、batch/flush、背压、重试、逐项错误与 drain。 |
+| 5 | #314 | M36 | GPT-5.6 Terra / high | 🚧 | 时序 typed Write API、batch/flush、背压、逐项错误、取消与 drain 已接通 Core/Data；Frame/REST 代码路径已实现，远程现场 parity 和容量证据后置。 |
 | 6 | #315 | M36 | GPT-5.6 Terra / high | 📋 | 时序 Query builder、流式结果与建模诊断，复用现有查询引擎。 |
 | 7 | #317 | M36 | GPT-5.6 Sol / high | 📋 | KV 大 keyspace 异步 cursor、pipeline/batch、取消/背压与诊断。 |
 | 8 | #318 | M36 | GPT-5.6 Sol / high | 📋 | FullText typed Search API、sort/facet/highlight、服务端 matched offsets/terms。 |

@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #314 时序类型化 Write API 初始切片**：`SonnetDB.Data.TimeSeries` 提供 fluent Point builder、纳秒/微秒/毫秒/秒精度换算、批量与显式 flush、bounded Channel 背压、逐项结果、取消传播和 dispose drain；嵌入式路径直接复用 `Tsdb.WriteMany`，远程路径支持列式 Frame 与 REST Line Protocol，Frame 传输失败禁止自动回落，重试默认关闭且显式开启时由调用方承担幂等责任。新增 builder、精度、嵌入式同步 flush、逐项错误、预取消和 drain 回归；Data Release 构建 0 警告 0 错误。远程现场 parity 与容量证据仍后置。
+
 - **M36 #313 SQL 开发诊断**：解析异常补充稳定 `code`、`operation`、字符 `position` 和不泄露请求内容的 `hint`，执行/约束/取消/超时异常提供统一 `SqlErrorMapper`；`EXPLAIN ANALYZE` 返回实际行数、候选/检查/移除行数、耗时、访问路径、回退原因、锁等待、WAL fsync、spill 与峰值内存，并复用根调用的取消令牌和截止时间。SQL REST 错误响应保留原传输码，同时附加可选诊断字段。新增诊断与取消回归，Core/Data/Server Release 构建均 0 警告 0 错误；Frame 传输错误码和完整生产现场证据仍按各自门禁保留边界。
 
 - **M36 #312 SQL 高频 DML**：关系表支持 `UPDATE/DELETE ... RETURNING`，并新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集；冲突目标必须匹配主键或唯一索引，跳过行和 `RETURNING` 顺序稳定，事务预览、嵌入式 ADO.NET 与 REST SQL 均返回结果集。新增 6 项专用 Core 回归及 177 项组合 SQL 回归通过；`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在本切片范围。
