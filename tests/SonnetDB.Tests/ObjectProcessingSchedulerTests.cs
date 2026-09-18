@@ -36,11 +36,29 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
     {
         var store = new ObjectProcessingJobStore(_db);
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        for (int index = 0; index < 4_096; index++)
+        const int terminalCount = 4_096;
+        const int seedBatchSize = 256;
+        var keyspace = _db.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName);
+        // 保留真实终态写入作为格式对照；其余历史正文只作为范围扫描背景，
+        // 用同样的 job 键、JSON 和七天 TTL 批量落盘，避免 4096 次独立 fsync。
+        Assert.True(store.TryWrite(null, Job("done-000000", "completed", now), _deadline.Token));
+        for (int offset = 1; offset < terminalCount; offset += seedBatchSize)
         {
             _deadline.Token.ThrowIfCancellationRequested();
-            Assert.True(store.TryWrite(null, Job($"done-{index:D6}", "completed", now), _deadline.Token));
+            var batch = new KeyValuePair<string, byte[]>[Math.Min(seedBatchSize, terminalCount - offset)];
+            for (int index = 0; index < batch.Length; index++)
+            {
+                _deadline.Token.ThrowIfCancellationRequested();
+                var job = Job($"done-{offset + index:D6}", "completed", now);
+                batch[index] = new(ObjectProcessingJobStore.JobPrefix + job.Id,
+                    JsonSerializer.SerializeToUtf8Bytes(job, ServerJsonContext.Default.SemanticObjectProcessingJob));
+            }
+            Assert.Equal(batch.Length, keyspace.PutMany(batch, now.AddDays(7)).Count);
         }
+        _deadline.Token.ThrowIfCancellationRequested();
+        Assert.Equal(terminalCount, keyspace.ScanPrefix(ObjectProcessingJobStore.JobPrefix + "done-", terminalCount + 1).Count);
+        Assert.Equal(store.Read("done-000000", _deadline.Token)!.Job with { Id = "done-004095", Key = "done-004095" },
+            store.Read("done-004095", _deadline.Token)!.Job);
         for (int index = 0; index < 16; index++)
         {
             _deadline.Token.ThrowIfCancellationRequested();
