@@ -125,6 +125,13 @@ internal sealed class RoutineExecutionContext
     public void CheckCancellation()
     {
         SqlTransactionContext.Current?.CheckCommitDeadline();
+        if (Options.DeadlineUtc is { } deadline && DateTimeOffset.UtcNow >= deadline)
+        {
+            throw new RoutineExecutionException(
+                RoutineErrorCodes.Cancelled,
+                "SQL 执行已超过截止时间。",
+                new TimeoutException("SQL 执行已超过截止时间。"));
+        }
         if (Options.CancellationToken.IsCancellationRequested)
         {
             throw new RoutineExecutionException(

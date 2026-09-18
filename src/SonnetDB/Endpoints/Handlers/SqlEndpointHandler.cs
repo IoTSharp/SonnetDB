@@ -118,7 +118,7 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
             return;
         }
 
@@ -153,7 +153,7 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "bind").ConfigureAwait(false);
             return;
         }
 
@@ -173,7 +173,7 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "execute").ConfigureAwait(false);
             return;
         }
 
@@ -232,7 +232,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         queueWaitMs: queueWaitMs);
-                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
                     return;
                 }
 
@@ -439,7 +439,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, ex.ErrorCode, ex, "execute").ConfigureAwait(false);
                     return;
                 }
                 catch (RoutineExecutionException ex)
@@ -447,7 +447,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, ex.Code, ex, "execute").ConfigureAwait(false);
                     return;
                 }
                 catch (ModbusWriteException ex)
@@ -463,7 +463,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, "sql_error", ex, "execute").ConfigureAwait(false);
                     return;
                 }
             }
@@ -549,7 +549,21 @@ internal static class SqlEndpointHandler
         await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
-    private static async Task WriteErrorAsync(HttpContext context, string code, string message)
+    private static Task WriteSqlErrorAsync(
+        HttpContext context,
+        string transportCode,
+        Exception exception,
+        string operation)
+    {
+        SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
+        return WriteErrorAsync(context, transportCode, detail.Message, detail);
+    }
+
+    private static async Task WriteErrorAsync(
+        HttpContext context,
+        string code,
+        string message,
+        SqlErrorInfo? sqlError = null)
     {
         // 若响应尚未开始：用 4xx 状态码
         if (!context.Response.HasStarted)
@@ -565,7 +579,12 @@ internal static class SqlEndpointHandler
                 _ => StatusCodes.Status400BadRequest,
             };
             context.Response.ContentType = "application/json; charset=utf-8";
-            var err = new ErrorResponse(code, message);
+            var err = new ErrorResponse(
+                code,
+                message,
+                sqlError?.Code,
+                sqlError?.Position,
+                sqlError?.Hint);
             await JsonSerializer.SerializeAsync(context.Response.Body, err, ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
             return;
         }
@@ -574,7 +593,10 @@ internal static class SqlEndpointHandler
         var body = context.Response.BodyWriter;
         await using (var w = new Utf8JsonWriter(body, new JsonWriterOptions { Indented = false }))
         {
-            JsonSerializer.Serialize(w, new ErrorResponse(code, message), ServerJsonContext.Default.ErrorResponse);
+            JsonSerializer.Serialize(
+                w,
+                new ErrorResponse(code, message, sqlError?.Code, sqlError?.Position, sqlError?.Hint),
+                ServerJsonContext.Default.ErrorResponse);
         }
         await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
         await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);

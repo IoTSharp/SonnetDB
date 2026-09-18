@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #313 SQL 开发诊断**：解析异常补充稳定 `code`、`operation`、字符 `position` 和不泄露请求内容的 `hint`，执行/约束/取消/超时异常提供统一 `SqlErrorMapper`；`EXPLAIN ANALYZE` 返回实际行数、候选/检查/移除行数、耗时、访问路径、回退原因、锁等待、WAL fsync、spill 与峰值内存，并复用根调用的取消令牌和截止时间。SQL REST 错误响应保留原传输码，同时附加可选诊断字段。新增诊断与取消回归，Core/Data/Server Release 构建均 0 警告 0 错误；Frame 传输错误码和完整生产现场证据仍按各自门禁保留边界。
+
 - **M36 #312 SQL 高频 DML**：关系表支持 `UPDATE/DELETE ... RETURNING`，并新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集；冲突目标必须匹配主键或唯一索引，跳过行和 `RETURNING` 顺序稳定，事务预览、嵌入式 ADO.NET 与 REST SQL 均返回结果集。新增 6 项专用 Core 回归及 177 项组合 SQL 回归通过；`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在本切片范围。
 
 - **M36 #311 共享客户端合同切片**：Document、Graph、KV、MQ 客户端统一预取消、目标/关联响应校验、远程请求禁自动跳转，NDJSON 采用响应头后流式读取并对损坏行 fail-closed；补充有界分页、批量 key/offset 校验、MQ 发送后禁止 HTTP 回退和 Graph 分页 API。新增 33 项客户端合同测试与 Data Release 构建通过；九模型 golden journey、完整工作台/SDK 矩阵和现场恢复证据仍后置。

@@ -52,7 +52,15 @@ public enum ScalarKind
 /// </summary>
 /// <param name="Error">错误标识，例如 <c>unauthorized</c> / <c>forbidden</c> / <c>db_not_found</c> / <c>sql_error</c>。</param>
 /// <param name="Message">人类可读的描述。</param>
-public sealed record ErrorResponse(string Error, string Message);
+/// <param name="Code">可选的稳定领域错误码；未提供时使用 <paramref name="Error"/>。</param>
+/// <param name="Position">可选的 SQL 字符位置（0-based）。</param>
+/// <param name="Hint">可选的、不包含请求内容的可行动提示。</param>
+public sealed record ErrorResponse(
+    string Error,
+    string Message,
+    string? Code = null,
+    int? Position = null,
+    string? Hint = null);
 
 /// <summary>
 /// SQL 流式响应的元信息行（ndjson 第一行）。

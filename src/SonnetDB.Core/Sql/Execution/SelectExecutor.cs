@@ -626,6 +626,7 @@ internal static class SelectExecutor
     {
         foreach (var series in matchedSeries)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             foreach (var row in EnumerateSeriesRawRows(
                 tsdb, schema, projections, series, range, QueryDirection.Ascending))
             {
@@ -658,6 +659,7 @@ internal static class SelectExecutor
 
             while (queue.TryDequeue(out int seriesIndex, out _))
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var row = enumerators[seriesIndex].Current;
                 if (enumerators[seriesIndex].MoveNext())
                 {
@@ -712,6 +714,7 @@ internal static class SelectExecutor
 
             while (queue.TryPeek(out int firstFieldIndex, out _))
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 long timestamp = enumerators[firstFieldIndex].Current.Timestamp;
                 values.Clear();
 
@@ -823,6 +826,7 @@ internal static class SelectExecutor
             {
                 foreach (var fname in fieldCols)
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     geoFiltersByField.TryGetValue(fname, out var geoFilters);
                     fieldData[fname] = QueryPoints(tsdb, series.Id, fname, where.TimeRange, geoFilters);
                 }
@@ -831,7 +835,11 @@ internal static class SelectExecutor
             // 时间戳并集
             var timestampSet = new SortedSet<long>();
             foreach (var (_, list) in fieldData)
-                foreach (var dp in list) timestampSet.Add(dp.Timestamp);
+                foreach (var dp in list)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    timestampSet.Add(dp.Timestamp);
+                }
             if (timestampSet.Count == 0)
                 return seriesRows;
 
@@ -839,8 +847,13 @@ internal static class SelectExecutor
             var fieldLookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
             foreach (var fname in fieldCols)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var dict = new Dictionary<long, FieldValue>(fieldData[fname].Count);
-                foreach (var dp in fieldData[fname]) dict[dp.Timestamp] = dp.Value;
+                foreach (var dp in fieldData[fname])
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    dict[dp.Timestamp] = dp.Value;
+                }
                 fieldLookups[fname] = dict;
             }
 
@@ -865,7 +878,10 @@ internal static class SelectExecutor
             parallelFallbackReason);
         var rows = new List<IReadOnlyList<object?>>(perSeries.Sum(static value => value.Count));
         foreach (var seriesRows in perSeries)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
             rows.AddRange(seriesRows);
+        }
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
@@ -1006,6 +1022,7 @@ internal static class SelectExecutor
 
         foreach (long ts in timestampSet)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var row = new object?[projections.Count];
             for (int i = 0; i < projections.Count; i++)
             {
@@ -1078,6 +1095,7 @@ internal static class SelectExecutor
 
         for (int rowIdx = 0; rowIdx < timestamps.Length; rowIdx++)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             long ts = timestamps[rowIdx];
 
             // #217：残差谓词逐点过滤——仅保留在该时间戳上确定为 TRUE 的行。
@@ -1301,10 +1319,14 @@ internal static class SelectExecutor
         var lookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
         foreach (var fname in residualFieldCols)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var pts = QueryPoints(tsdb, series.Id, fname, timeRange);
             var dict = new Dictionary<long, FieldValue>(pts.Count);
             foreach (var dp in pts)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
                 dict[dp.Timestamp] = dp.Value;
+            }
             lookups[fname] = dict;
         }
         return lookups;
@@ -1336,7 +1358,10 @@ internal static class SelectExecutor
                 .Where(f => string.Equals(f.FieldName, col.Name, StringComparison.Ordinal))
                 .ToArray();
             foreach (var dp in QueryPoints(tsdb, series.Id, col.Name, where.TimeRange, geoFilters))
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
                 candidateTimestamps.Add(dp.Timestamp);
+            }
         }
 
         var matched = new List<long>();
@@ -1830,6 +1855,7 @@ internal static class SelectExecutor
 
             foreach (var series in matchedSeries)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 // 残差查表（每 series 构建一次，供逐点残差求值）。
                 var residualLookups = BuildResidualLookups(tsdb, series, where.TimeRange, residualFieldCols);
 
@@ -1885,6 +1911,7 @@ internal static class SelectExecutor
                     // #284：残差 / 跨字段 Geo 逐点过滤只需单趟迭代累加 AggSlot，惰性枚举免物化。
                     foreach (var dp in QueryPointsStream(tsdb, series.Id, fname, where.TimeRange))
                     {
+                        SqlExecutor.ThrowIfCancellationRequested();
                         // #282：跨字段 Geo 逐点过滤——仅纳入 Geo 谓词命中时刻的聚合字段点。
                         if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
                             continue;
@@ -2313,6 +2340,7 @@ internal static class SelectExecutor
 
             foreach (var series in matchedSeries)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var query = new AggregateQuery(
                     series.Id, fname, where.TimeRange, Aggregator.None, bucketSizeMs);
 
@@ -2368,6 +2396,7 @@ internal static class SelectExecutor
         {
             foreach (var series in matchedSeries)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 AccumulateLegacyAggregateFast(
                     tsdb,
                     series.Id,
@@ -2388,6 +2417,7 @@ internal static class SelectExecutor
 
         foreach (var series in matchedSeries)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             // #285：无 residual / Geo 时，各 field 的点流均已按时间升序。用最小堆做 k-way merge，
             // 同一时间戳只更新一次 count(*)，把 O(N) HashSet 峰值降为 O(field-count)。
             if (where.Residual is null && where.GeoFilters.Count == 0)
@@ -2397,6 +2427,7 @@ internal static class SelectExecutor
 
                 foreach (long timestamp in EnumerateDistinctTimestamps(streams))
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     long bucketStart = bucketSizeMs > 0
                         ? TimeBucket.Floor(timestamp, bucketSizeMs)
                         : long.MinValue;
@@ -2420,9 +2451,11 @@ internal static class SelectExecutor
 
             foreach (var fname in fieldNames)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 // #284：时间戳并集只需单趟迭代，惰性枚举免物化。
                 foreach (var dp in QueryPointsStream(tsdb, series.Id, fname, where.TimeRange))
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     // #282：仅纳入 Geo 谓词命中时刻的行；否则 speed 等非 Geo 字段会把未命中时刻计入并集。
                     if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
                         continue;
@@ -2445,6 +2478,7 @@ internal static class SelectExecutor
 
             foreach (var (bucketStart, timestamps) in bucketTimestamps)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
                 {
                     slots = CreateAggSlots(aggSpecs);
@@ -2453,6 +2487,7 @@ internal static class SelectExecutor
 
                 foreach (var ts in timestamps)
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     if (where.Residual is not null
                         && !ResidualHoldsAtPoint(where.Residual, ts, series, residualLookups))
                         continue;
