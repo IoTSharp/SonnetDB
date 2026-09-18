@@ -647,7 +647,7 @@ public sealed class DocumentCollectionManager : IDisposable
         => Path.Combine(_rootDirectory, "vector", EncodeName(collectionName), EncodeName(indexName));
 
     private void PersistCatalogLocked()
-        => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+        => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.SnapshotForPersistence());
 
     /// <summary>阻止调用方绕过 DocumentCollectionManager 的 schema 锁和持久化路径直接修改目录。</summary>
     private void EnsureManagedCatalogMutation(string collectionName, string operation)

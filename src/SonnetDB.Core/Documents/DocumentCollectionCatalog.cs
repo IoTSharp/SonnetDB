@@ -95,6 +95,10 @@ public sealed class DocumentCollectionCatalog
         => Volatile.Read(ref _snapshot).Values.Where(static schema => SqlRagResourceScope.IsVisible(schema.Name))
             .OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
 
+    // SQL 可见性只约束调用方的目录视图；保存完整 catalog 时必须保留内部 RAG 集合。
+    internal IReadOnlyList<DocumentCollectionSchema> SnapshotForPersistence()
+        => Volatile.Read(ref _snapshot).Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+
     private void PublishSnapshot()
         => Volatile.Write(ref _snapshot, _mutable.ToFrozenDictionary(StringComparer.Ordinal));
 }
