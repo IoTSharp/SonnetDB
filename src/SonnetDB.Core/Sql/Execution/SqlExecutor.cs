@@ -2380,6 +2380,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
+            if (statement.ReturningColumns.Count != 0)
+                throw new NotSupportedException("DELETE ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合删除。");
             return DocumentSqlExecutor.ExecuteDelete(tsdb, statement, documentSchema);
@@ -2388,23 +2390,27 @@ public static class SqlExecutor
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
-            var affected = ExecuteTableDeleteWithTriggers(
+            var deleteResult = ExecuteTableDeleteWithTriggers(
                 tsdb,
                 databaseName,
                 statement,
                 tableSchema,
                 controlPlane,
-                transaction).RowsAffected;
+                transaction);
             return new DeleteExecutionResult(
                 statement.Measurement,
-                SeriesAffected: affected,
-                TombstonesAdded: affected);
+                SeriesAffected: deleteResult.RowsAffected,
+                TombstonesAdded: deleteResult.RowsAffected)
+            { Returning = deleteResult.Returning };
         }
 
         // measurement 删除直接落 tombstone/WAL，不进事务缓冲；轻事务 ROLLBACK 无法撤销，
         // 因此在事务上下文内显式拒绝（与 measurement INSERT / 文档删除一致）。
         if (transaction is not null)
             throw new NotSupportedException("轻事务当前不支持 measurement（时序）删除，请在事务外执行 DELETE。");
+
+        if (statement.ReturningColumns.Count != 0)
+            throw new NotSupportedException("DELETE ... RETURNING 当前仅支持关系表。");
 
         return DeleteExecutor.Execute(tsdb, statement);
     }
@@ -2419,6 +2425,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
         {
+            if (update.ReturningColumns.Count != 0)
+                throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合更新。");
             return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
@@ -2430,6 +2438,12 @@ public static class SqlExecutor
         {
             throw new InvalidOperationException(
                 "UPDATE SET column = DEFAULT 仅支持关系表；measurement 不支持 UPDATE 或关系表列 DEFAULT。");
+        }
+
+        if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
+            && update.ReturningColumns.Count != 0)
+        {
+            throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
         }
 
         return ExecuteTableUpdateWithTriggers(

@@ -133,6 +133,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     .GetResult();
             }
 
+            if (IsReturningDml(sql))
+            {
+                return ExecuteTransactionalReturningDmlRequestAsync(
+                        transaction,
+                        sql,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
             if (IsTransactionalRowCountDml(sql))
             {
                 return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, CancellationToken.None)
@@ -184,6 +194,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
             if (TryParseReturningInsert(sql, out var insert))
                 return ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken);
+
+            if (IsReturningDml(sql))
+                return ExecuteTransactionalReturningDmlRequestAsync(transaction, sql, cancellationToken);
 
             if (IsTransactionalRowCountDml(sql))
                 return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, cancellationToken);
@@ -286,6 +299,20 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         statement = null!;
         return false;
+    }
+
+    private static bool IsReturningDml(string sql)
+    {
+        try
+        {
+            return SqlParser.Parse(sql) is
+                UpdateStatement { ReturningColumns.Count: > 0 } or
+                DeleteStatement { ReturningColumns.Count: > 0 };
+        }
+        catch (SqlParseException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -718,6 +745,19 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             preview.RecordsAffected);
     }
 
+    private async Task<IExecutionResult> ExecuteTransactionalReturningDmlRequestAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
+            .ConfigureAwait(false);
+        transaction.Add(sql);
+        return MaterializedExecutionResult.FromSelect(
+            new SelectExecutionResult(preview.Columns, preview.Rows),
+            preview.RecordsAffected);
+    }
+
     /// <summary>
     /// 在回滚事务中重放已排队语句并执行当前 DML，读取目标语句的真实影响行数后再加入提交队列。
     /// </summary>
@@ -975,6 +1015,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 }
                 sql.Append(')');
             }
+        }
+
+        if (statement.OnConflict is { } conflict)
+        {
+            sql.Append(" ON CONFLICT");
+            if (conflict.TargetColumns.Count != 0)
+            {
+                sql.Append(" (");
+                for (int i = 0; i < conflict.TargetColumns.Count; i++)
+                {
+                    if (i > 0)
+                        sql.Append(", ");
+                    AppendIdentifier(sql, conflict.TargetColumns[i]);
+                }
+
+                sql.Append(')');
+            }
+
+            sql.Append(" DO NOTHING");
         }
 
         if (returningAllColumns)

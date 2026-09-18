@@ -372,9 +372,15 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                long rowCount = 0;
+                                if (del.Returning is { } returning)
+                                {
+                                    rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false,
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, del.TombstonesAdded, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
                             }
@@ -388,9 +394,15 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                long rowCount = 0;
+                                if (affected.Returning is { } returning)
+                                {
+                                    rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false,
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, affected.RowsAffected, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
                             }
