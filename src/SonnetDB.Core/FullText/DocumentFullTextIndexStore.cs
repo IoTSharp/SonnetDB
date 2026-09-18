@@ -280,6 +280,7 @@ public sealed class DocumentFullTextIndexStore
 
         try
         {
+            DateTimeOffset startedUtc = RebuildProgress.StartedUtc ?? DateTimeOffset.UtcNow;
             var documents = new List<DocumentRow>();
             foreach (DocumentRow row in rows)
             {
@@ -287,7 +288,7 @@ public sealed class DocumentFullTextIndexStore
                 if (documents.Count >= maxDocuments)
                     throw new InvalidOperationException($"全文重建超过 maxDocuments={maxDocuments}。" );
                 documents.Add(row);
-                var current = new DocumentFullTextRebuildProgress("running", documents.Count, null, null, null, null);
+                var current = new DocumentFullTextRebuildProgress("running", documents.Count, null, null, startedUtc, null);
                 lock (_sync)
                     _rebuildProgress = current;
                 progress?.Invoke(current);
@@ -295,7 +296,7 @@ public sealed class DocumentFullTextIndexStore
 
             cancellationToken.ThrowIfCancellationRequested();
             UpsertMany(documents);
-            var completed = new DocumentFullTextRebuildProgress("completed", documents.Count, documents.Count, null, null, DateTimeOffset.UtcNow);
+            var completed = new DocumentFullTextRebuildProgress("completed", documents.Count, documents.Count, null, startedUtc, DateTimeOffset.UtcNow);
             lock (_sync)
                 _rebuildProgress = completed;
             progress?.Invoke(completed);
