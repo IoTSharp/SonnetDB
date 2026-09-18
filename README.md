@@ -245,7 +245,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 
 ## 📊 基准与可靠性
 
-性能数字请以 [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) 和各报告的环境、命令与原始样本为准。**已有报告包括本机嵌入式测试和同机容器对照，只能说明各自工作负载的结果，不代表生产部署性能。** [九域性能报告](docs/benchmarks/system-performance-20260901.md) 仍将固定硬件、ARM64、生产同语料和七天混合负载证据标为 `NOT_RUN`。
+性能数字请以 [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) 和各报告的环境、命令与原始样本为准。**已有报告包括本机嵌入式测试和同机容器对照，只能说明各自工作负载的结果，不代表生产部署性能。** [历史九域性能报告](docs/benchmarks/system-performance-20260901.md) 的原始证据已撤回，其中数字不能作为当前性能结论；固定硬件、ARM64、生产同语料和七天混合负载仍待重新取证。
 
 - 嵌入式写入、范围查询、时间窗口聚合、向量召回和地理空间查询都有独立 benchmark。
 - 时序 WAL 落盘强度分三级（进程内缓冲 / OS page cache / 每批 fsync）；segment 默认在发布前执行 fsync，时序 Delete 无条件同步 WAL。持久性取决于配置、操作系统及存储设备的落盘保证，现有崩溃恢复测试不构成任意断电或介质故障下零丢失的承诺；详见[架构总览](docs/architecture.md)与[近期性能与可靠性变更](docs/performance-reliability-updates.md)。

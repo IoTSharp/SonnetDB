@@ -224,6 +224,10 @@
 
 - **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并恢复 `3.0.1` 的 `TokenKind` 数值，不通过 suppression 隐藏破坏性变更。由于 `3.1.0` 已发布另一套枚举数值，后续版本必须先明确兼容策略，不能把当前修复直接视为同时兼容 `3.0.1` 与 `3.1.0` 的 patch。
 
+### Removed
+
+- 按用户要求删除 `artifacts/system-performance-20260901` 的 JSON 与 Markdown 报告，撤回其性能证据地位；历史说明、README 和 ROADMAP 同步标明不能作为当前性能或验收依据。
+
 ## [3.1.0] - 2026-08-24
 
 ### Changed

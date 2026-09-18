@@ -13,7 +13,7 @@
 3. 涉及 CI、nightly、容量、发布或 Marketplace 的声明，必须有对应 workflow、报告或已发布产物证据。
 4. 文档描述与实际依赖、调用链和限制一致；“计划采用”不能写成“已经基于”。
 
-最新专项核查基线为 2026-09-05/06；截至 2026-09-13，主分支已继续包含 M39/M40 文档与实现推进。结论、验证边界与闭环顺序见[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)，逐模型证据见[九模型核查](docs/audits/nine-model-capability-evidence-20260905.md)，可追踪待办见[九模型 gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)。[2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md)是历史基线，不能替代本轮 CI 或当前工作区验证。十四套能力和总收口见[SonnetDB 总里程碑](docs/roadmap-total-milestone.md)。
+最新专项核查基线为 2026-09-05/06；截至 2026-09-13，主分支已继续包含 M39/M40 文档与实现推进。结论、验证边界与闭环顺序见[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)，逐模型证据见[九模型核查](docs/audits/nine-model-capability-evidence-20260905.md)，可追踪待办见[九模型 gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)。[2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md)的原始证据已撤回，仅保留历史方法与实施记录，不作为性能或验收依据。十四套能力和总收口见[SonnetDB 总里程碑](docs/roadmap-total-milestone.md)。
 
 ## 里程碑总览
 
@@ -451,7 +451,7 @@ SELECT EXISTS (...)
 
 ## Milestone 42 — 九域与规划器系统性能深化
 
-目标是把九种数据模型放进同一套可复现性能合同，并继续深化关系规划器公共核心；原生属性图当前仍按 Graph Beta 取证。详细数据、竞品版本和复现入口以 [2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md) 为准；关系 SQL 仍是公共核心，不另算第十域，M40 发布门禁完成前不得宣称 Graph Production。
+目标是把九种数据模型放进同一套可复现性能合同，并继续深化关系规划器公共核心；原生属性图当前仍按 Graph Beta 取证。[2026-09-01 系统性能报告](docs/benchmarks/system-performance-20260901.md)的原始证据已撤回，性能数据须按固定环境重新采集与核验；关系 SQL 仍是公共核心，不另算第十域，M40 发布门禁完成前不得宣称 Graph Production。
 
 | 工作面 | 当前状态 | 已有证据与剩余门禁 |
 |---|---|---|

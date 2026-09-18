@@ -1,10 +1,12 @@
 # SonnetDB 九域与规划器系统性能闭环（2026-09-01）
 
+> **证据已撤回（2026-09-18）：** `artifacts/system-performance-20260901` 中的原始报告已删除。本文仅保留历史方法与实施记录，其中的性能数字、PASS 状态和结论不再作为有效性能证据或验收依据；后续须重新采集并核验。
+
 > **证据边界：** 本轮有本机 x64 smoke、自动化正确性、win-x64 Native AOT CLI/Server 发布及 CLI 实际执行证据；Native AOT Server 启动、固定硬件 x64、ARM64、木垒同语料、七天 mixed workload 与生产发布门禁均为 ⏳ `NOT_RUN`。本文不把开发机短跑换算为容量或生产 SLO，也没有连接、修改或重启木垒生产。
 
 > **产品口径说明：** 本报告的证据采集基线早于本轮门面文案更新；文中“README 的八种数据模型”等表述是该历史基线的事实记录，不代表当前公开定位。当前门面将原生属性图列为第九种模型的 Graph Beta；这不会改变本报告中固定硬件、外部语义对拍、Native AOT、168 小时和生产门禁均为 `NOT_RUN` 的结论。
 
-机器可读结果见 [`../../artifacts/system-performance-20260901/system-performance-report.json`](../../artifacts/system-performance-20260901/system-performance-report.json)，紧凑摘要见 [`../../artifacts/system-performance-20260901/system-performance-report.md`](../../artifacts/system-performance-20260901/system-performance-report.md)。
+原机器可读报告与紧凑摘要已撤回，不再提供下载或引用。
 
 状态图例：✅ 已完成并在声明范围内验证；🟡 本机或配置级完成，外部门禁待验证；🚧 只完成部分切片或仍有实现残余；⏳ 尚未执行；❌ 已执行但未通过或未产出有效样本；➖ 不适用或有意不采用。表情不替代 `PASS`、`NOT_RUN` 等机器状态码。
 
@@ -357,30 +359,27 @@ Findings：F-001（E-001/E-002，高置信）确认采集基线与八模型历�
 # 统计刷新
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*TableStatisticsRefresh*' `
-  --artifacts artifacts/system-performance-20260901/repro/statistics/bdn
+  --artifacts artifacts/performance-repro/statistics/bdn
 
 # IEEE CRC32
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*VectorCrc32*' `
-  --artifacts artifacts/system-performance-20260901/repro/crc32/bdn
+  --artifacts artifacts/performance-repro/crc32/bdn
 
 # KV / Document / Object 独立模型
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*KvModel*' '*DocumentModel*' '*ObjectStorageModel*' `
-  --artifacts artifacts/system-performance-20260901/repro/model-smoke/bdn
+  --artifacts artifacts/performance-repro/model-smoke/bdn
 
 # KV / Document / Object 逐请求尾延迟
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --model-read-latency-evidence --quick `
-  --output artifacts/system-performance-20260901/repro/model-read-latency
+  --output artifacts/performance-repro/model-read-latency
 
 # M41 quick，只验证本地查询/报告合同
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --m41-baseline-evidence --quick `
-  --output artifacts/system-performance-20260901/repro/m41/evidence
-
-# 机器可读报告语法
-Get-Content -LiteralPath artifacts/system-performance-20260901/system-performance-report.json -Raw | Test-Json
+  --output artifacts/performance-repro/m41/evidence
 ```
 
-任何复跑都应写入新目录，不能覆盖本报告引用的 before/after 原始 artifact。
+任何复跑都应写入新目录，重新记录 commit、环境、命令与原始样本；不能沿用已撤回报告的验证状态。
