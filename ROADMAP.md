@@ -31,7 +31,7 @@
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
 | 25 | Document 验收与发布治理 | ✅（待验证） | parity、runner、schema v2 报告和发布 verifier 已实现；#174 百万/千万固定目标硬件档待后续真机验证。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
-| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环（真实 provider 运行待验证），本地 ONNX 真实目标模型语义证据与双网客户端 Copilot 仍有研发缺口；#185 profile 合同与证据门禁见 [专页](docs/benchmarks/m27-provider-model-profile.md)。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环。2026-09-18 木垒 ARM64 已完成内部 Tomur provider、`/v1/models` 和 35B 有界短对话 smoke；真实目标模型语义质量、工具闭环、本地 ONNX profile 和双网客户端 Copilot 证据仍有研发缺口；#185 profile 合同与证据门禁见 [专页](docs/benchmarks/m27-provider-model-profile.md)。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
 | 29 | 多模型统一管理工作台 | ✅（待验证） | Web/Studio/VS Code 功能、Studio 独立 bundle/MSI、宿主生命周期合同和自动化测试已落地；干净 Windows 安装、WebView2、升级/卸载保留及端口冲突仍待真机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
