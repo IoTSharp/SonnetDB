@@ -99,7 +99,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 ### D. 沿用的既有 PR：主执行顺序
 
-按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#297、#298 的代码切片、#299~#309、#312~#313、#316、#327~#339、#341~#346、#368~#372、#374）从执行队列移除，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 只列剩余工作。#302 的在线 CLI 与 Copilot 可回滚迁移、#303 的有界融合与重排、#304 的可选媒体片段导入与查询、#305 的治理与恢复合同、#306 的视觉派生模型合同及 #307 的受治理人脸嵌入式入口、#308 的人员外观候选查询合同已通过本地验证；#313 SQL 诊断本地代码、REST 附加字段与回归已完成，下一代码项为 #314，真实模型、容量和现场恢复证据仍后置。
+按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#297、#298 的代码切片、#299~#309、#312~#313、#316、#327~#339、#341~#346、#368~#372、#374）不再作为新实现派单，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 保留剩余工作。#302 的在线 CLI 与 Copilot 可回滚迁移、#303 的有界融合与重排、#304 的可选媒体片段导入与查询、#305 的治理与恢复合同、#306 的视觉派生模型合同及 #307~#309 的专业视觉嵌入式入口已通过本地验证；#313 SQL 诊断已完成，#314/#315/#317~#320 已有代码切片，#321 已补嵌入式 preflight 和只读已加载图状态。继续收口各切片尚缺的代码与合同，真实模型、容量和现场恢复证据仍后置。
 
 功能与验收混合的 PR 按剩余内容分列，仍归同一原编号，不新增重复工作项。每个代码 PR 随改动完成必要的回归、构建和 AOT 检查；后置的是独立测试项目、完整旅程、容量评测、现场验证和报告收口。下表保留原有模型建议。
 
@@ -117,7 +117,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 8 | #318 | M36 | GPT-5.6 Sol / high | 🚧 | FullText typed Search API 已接通嵌入式/远程客户端、query/filter/sort/facet/highlight/page 合同、稳定 continuation token、matched offsets/terms 与版本化 score metadata；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。 |
 | 9 | #319 | M36 | GPT-5.6 Sol / high | 🚧 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与同步可观察 rebuild status 已接通 Core/Data/Server；schema v7 兼容旧版本读取，远程现场与容量证据后置。 |
 | 10 | #320 | M36 | GPT-5.6 Sol / high | 🚧 | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
-| 11 | #321 | M36 | GPT-5.6 Sol / high | 📋 | Vector profile preflight、index health/rebuild progress 与查询路径解释；复用 #298。 |
+| 11 | #321 | M36 | GPT-5.6 Sol / high | 🚧 | 已补嵌入式真实 catalog 维度/度量/数值与持久 RAG 完整 profile 预检、只读已加载图状态；安全重建进度、远程 lifecycle、通用 ANN/scan/补偿解释和 Recall 报告待完成，复用 #297/#298。 |
 | 12 | #322 | M36 | GPT-5.6 Sol / high | 📋 | Object Transfer Manager：multipart、checksum、retry/resume、进度、取消与资源释放。 |
 | 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。 |
 | 14 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |

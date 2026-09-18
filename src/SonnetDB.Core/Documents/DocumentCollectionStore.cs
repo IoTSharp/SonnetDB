@@ -1286,6 +1286,22 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>读取已加载向量图状态；不会隐式打开、重建索引或清理过期文档。</summary>
+    /// <param name="index">当前集合的索引声明。</param>
+    /// <returns>已加载图状态；尚未加载时返回 not_loaded。</returns>
+    public DocumentVectorIndexHealth GetVectorIndexHealth(DocumentVectorIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            DocumentVectorIndex current = _schema.TryGetVectorIndex(index.Name)
+                ?? throw new InvalidOperationException($"向量索引 '{index.Name}' 不存在。");
+            return _vectorStores.TryGetValue(index.Name, out var store)
+                ? store.GetHealth() with { Definition = current }
+                : new(current, "not_loaded", null);
+        }
+    }
+
     internal int RebuildVectorIndex(DocumentVectorIndex index, string indexDirectory)
     {
         ArgumentNullException.ThrowIfNull(index);

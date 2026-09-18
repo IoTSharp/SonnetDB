@@ -458,6 +458,28 @@ public sealed class DocumentCollectionManager : IDisposable
         }
     }
 
+    /// <summary>读取当前 catalog 和已经加载的向量图状态，不打开集合或重建派生索引。</summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">向量索引名。</param>
+    /// <returns>轻量运行状态；不会执行主数据一致性或召回检查。</returns>
+    public DocumentVectorIndexHealth GetVectorIndexHealth(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        SqlRagResourceScope.Demand(collectionName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            DocumentVectorIndex index = schema.TryGetVectorIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中向量索引 '{indexName}' 不存在。");
+            return _stores.TryGetValue(collectionName, out var store)
+                ? store.GetVectorIndexHealth(index)
+                : new(index, "not_loaded", null);
+        }
+    }
+
     /// <summary>
     /// 从文档集合主数据重建指定文档二级索引。
     /// </summary>

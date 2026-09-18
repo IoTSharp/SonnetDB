@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #321 VectorData 生命周期预检首切片**：新增嵌入式实际 catalog 的维度、度量、有限数值/余弦非零预检；复用 M35 持久 RAG generation 完整 profile 并检查 L2 单位范数与 generation 身份，普通集合明确 `profile_unbound`。新增只观察已加载向量图的轻量 health，不扫描主数据、不触发索引加载/重建，诊断 DTO 使用公开 source-generated JSON。安全重建进度、远程 lifecycle、执行路径解释及 Recall 报告仍未完成；合同 fixture 不计真实模型质量证据。
+
 - **M36 #315 时序 Query API 初始切片**：新增复用现有 `QueryEngine` 的 range/aggregate/window/gap-fill builder、方向与 limit、取消传播、有界补桶和 TSQ001-004 静态诊断；完整 schema/cardinality/retention/坏点预检与远程证据仍后置。
 
 - **M36 #318 FullText 类型化 Search API**：新增嵌入式/远程统一 typed Search，复用 query kind、Document filter 与稳定分页；服务端提供 score/id 排序、facet、高亮、matched terms/offsets 和版本化 BM25 score metadata，HTTP JSON 全部走 source-generated context。新增分页与命中元数据合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。
