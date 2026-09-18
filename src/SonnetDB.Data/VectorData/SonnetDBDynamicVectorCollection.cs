@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.VectorData;
 using SonnetDB.Data.VectorData.Internal;
 
@@ -192,25 +193,47 @@ internal sealed class SonnetDBDynamicVectorCollection
     {
         ArgumentNullException.ThrowIfNull(searchValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(top);
-        if (options?.Filter is not null)
-            throw new NotSupportedException("SonnetDB 动态 VectorData collection 暂不支持 LINQ Filter。");
-
         await EnsureOpenAsync(cancellationToken).ConfigureAwait(false);
         var query = SqlVectorStoreHelpers.FormatVectorLiteral(SqlVectorStoreHelpers.ExtractVector(searchValue));
         var metric = DistanceFunctionMapper.ToKnnMetric(_distanceFunction);
+        var where = options?.Filter is null
+            ? SqlWhereClause.Empty
+            : LinqSqlFilterTranslator.Translate(
+                options.Filter,
+                new DynamicFilterFieldResolver(_keyName, _propertyToStorage));
+        int skip = options?.Skip ?? 0;
+        if (skip < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "VectorData SearchAsync 的 Skip 不能为负数。");
+        int requestedTop = checked(top + skip);
         await using var cmd = _connection.CreateCommand();
         cmd.CommandText =
             $"SELECT id, document, vector_distance() AS distance FROM vector_search(" +
             $"source => '{SqlVectorStoreHelpers.EscapeSqlString(Name)}', " +
             $"vector_field => '{SqlVectorStoreHelpers.EscapeSqlString(_vectorJsonPath)}', " +
-            $"vector => {query}, k => {top}, metric => '{metric}')";
+            $"vector => {query}, k => {requestedTop}, metric => '{metric}')" +
+            (where.Sql.Length == 0 ? string.Empty : " WHERE " + where.Sql);
+        foreach (var parameter in where.Parameters)
+            cmd.Parameters.AddWithValue(parameter.Name, parameter.Value);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        int skipped = 0;
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var distance = Convert.ToDouble(reader.GetValue(2), System.Globalization.CultureInfo.InvariantCulture);
+            var score = DistanceFunctionMapper.ToVectorDataScore(_distanceFunction, distance);
+            if (options?.ScoreThreshold is double threshold
+                && (DistanceFunctionMapper.IsHigherScoreBetter(_distanceFunction)
+                    ? score < threshold
+                    : score > threshold))
+                continue;
+            if (skipped < skip)
+            {
+                skipped++;
+                continue;
+            }
+
             yield return new VectorSearchResult<Dictionary<string, object?>>(
                 FromJson(reader.GetString(0), reader.GetString(1), options?.IncludeVectors == true),
-                distance);
+                score);
         }
     }
 
@@ -262,6 +285,40 @@ internal sealed class SonnetDBDynamicVectorCollection
         => record.TryGetValue(_vectorName, out var vector) && vector is not null
             ? vector
             : throw new InvalidOperationException($"动态记录缺少向量字段 '{_vectorName}'。");
+
+    private sealed class DynamicFilterFieldResolver : ISqlFilterFieldResolver
+    {
+        private readonly string _keyName;
+        private readonly IReadOnlyDictionary<string, string> _propertyToStorage;
+
+        public DynamicFilterFieldResolver(
+            string keyName,
+            IReadOnlyDictionary<string, string> propertyToStorage)
+        {
+            _keyName = keyName;
+            _propertyToStorage = propertyToStorage;
+        }
+
+        public bool TryResolveField(
+            string propertyName,
+            [NotNullWhen(true)] out string? sqlExpression)
+        {
+            if (string.Equals(propertyName, _keyName, StringComparison.Ordinal))
+            {
+                sqlExpression = "id";
+                return true;
+            }
+
+            if (_propertyToStorage.TryGetValue(propertyName, out var storageName))
+            {
+                sqlExpression = $"json_value(document, '$.{storageName}')";
+                return true;
+            }
+
+            sqlExpression = null;
+            return false;
+        }
+    }
 
     private async ValueTask EnsureOpenAsync(CancellationToken cancellationToken)
     {

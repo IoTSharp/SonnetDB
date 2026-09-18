@@ -19,6 +19,7 @@ public sealed class SndbMqClient : IDisposable
     private SonnetMqStore? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
+    private int _nextStreamId;
 
     /// <summary>
     /// 使用 SonnetDB 连接字符串创建 MQ 客户端。
@@ -57,6 +58,7 @@ public sealed class SndbMqClient : IDisposable
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentNullException.ThrowIfNull(payload);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (_embedded is not null)
             return _embedded.Publish(topic, payload, new SonnetMqPublishOptions(headers));
@@ -64,10 +66,10 @@ public sealed class SndbMqClient : IDisposable
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            MqFrameCodec.EncodePublishRequest(w, 1, _database, topic, headers, payload);
-            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            MqFrameCodec.EncodePublishRequest(w, NextStreamId(), _database, topic, headers, payload);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } f)
-                return MqFrameCodec.DecodePublishResponse(f.Payload);
+                return ValidatePublishResponse(topic, MqFrameCodec.DecodePublishResponse(f.Payload));
         }
 
         using var response = await PostJsonAsync(
@@ -76,7 +78,7 @@ public sealed class SndbMqClient : IDisposable
             RemoteJsonContext.Default.MqPublishRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqPublishResponse, cancellationToken).ConfigureAwait(false);
-        return body.Offset;
+        return ValidatePublishResponse(topic, body);
     }
 
     /// <summary>
@@ -94,6 +96,7 @@ public sealed class SndbMqClient : IDisposable
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentNullException.ThrowIfNull(messages);
+        cancellationToken.ThrowIfCancellationRequested();
         if (messages.Count == 0)
             return [];
 
@@ -119,10 +122,10 @@ public sealed class SndbMqClient : IDisposable
             }
 
             var w = new ArrayBufferWriter<byte>();
-            MqFrameCodec.EncodePublishBatchRequest(w, 1, _database, topic, frameEntries);
-            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            MqFrameCodec.EncodePublishBatchRequest(w, NextStreamId(), _database, topic, frameEntries);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } f)
-                return MqFrameCodec.DecodePublishBatchResponse(f.Payload);
+                return ValidatePublishBatchResponse(messages.Count, MqFrameCodec.DecodePublishBatchResponse(f.Payload));
         }
 
         var payload = new MqPublishBatchEntry[messages.Count];
@@ -138,7 +141,8 @@ public sealed class SndbMqClient : IDisposable
             RemoteJsonContext.Default.MqPublishBatchRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqPublishBatchResponse, cancellationToken).ConfigureAwait(false);
-        return body.Offsets;
+        ValidateTopic(topic, body.Topic, "publish-batch");
+        return ValidatePublishBatchResponse(messages.Count, body.Offsets);
     }
 
     /// <summary>
@@ -159,21 +163,28 @@ public sealed class SndbMqClient : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (_embedded is not null)
-            return _embedded.Pull(topic, consumerGroup, maxCount)
+        {
+            var messages = _embedded.Pull(topic, consumerGroup, maxCount)
                 .Select(static message => new SndbMqMessage(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload))
                 .ToArray();
+            return ValidatePulledMessages(topic, messages, maxCount);
+        }
 
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            MqFrameCodec.EncodePullRequest(w, 1, _database, topic, consumerGroup, maxCount);
+            MqFrameCodec.EncodePullRequest(w, NextStreamId(), _database, topic, consumerGroup, maxCount);
             var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
             if (frame is { } f)
-                return MqFrameCodec.DecodePullResponse(f.Payload, topic)
+            {
+                var messages = MqFrameCodec.DecodePullResponse(f.Payload, topic)
                     .Select(static message => new SndbMqMessage(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload))
                     .ToArray();
+                return ValidatePulledMessages(topic, messages, maxCount);
+            }
         }
 
         using var response = await PostJsonAsync(
@@ -182,9 +193,10 @@ public sealed class SndbMqClient : IDisposable
             RemoteJsonContext.Default.MqPullRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqPullResponse, cancellationToken).ConfigureAwait(false);
-        return body.Messages
+        var remoteMessages = body.Messages
             .Select(static message => new SndbMqMessage(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload))
             .ToArray();
+        return ValidatePulledMessages(topic, remoteMessages, maxCount);
     }
 
     /// <summary>
@@ -205,17 +217,18 @@ public sealed class SndbMqClient : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (_embedded is not null)
-            return _embedded.Ack(topic, consumerGroup, offset);
+            return ValidateAckResponse(_embedded.Ack(topic, consumerGroup, offset));
 
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            MqFrameCodec.EncodeAckRequest(w, 1, _database, topic, consumerGroup, offset);
-            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            MqFrameCodec.EncodeAckRequest(w, NextStreamId(), _database, topic, consumerGroup, offset);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } f)
-                return MqFrameCodec.DecodeAckResponse(f.Payload);
+                return ValidateAckResponse(MqFrameCodec.DecodeAckResponse(f.Payload));
         }
 
         using var response = await PostJsonAsync(
@@ -224,7 +237,8 @@ public sealed class SndbMqClient : IDisposable
             RemoteJsonContext.Default.MqAckRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqAckResponse, cancellationToken).ConfigureAwait(false);
-        return body.NextOffset;
+        ValidateTopic(topic, body.Topic, "ack");
+        return ValidateAckResponse(body.NextOffset);
     }
 
     /// <summary>
@@ -237,10 +251,15 @@ public sealed class SndbMqClient : IDisposable
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (_embedded is not null)
         {
             var stats = _embedded.GetStats(topic);
+            ValidateTopic(topic, stats.Topic, "stats");
+            if (stats.MessageCount < 0 || stats.NextOffset < 0
+                || stats.ConsumerOffsets.Any(static pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Value < 0))
+                throw new InvalidDataException("MQ stats 响应包含负数或无效消费者 offset。");
             return new SndbMqStats(stats.Topic, stats.MessageCount, stats.NextOffset, stats.ConsumerOffsets);
         }
 
@@ -250,6 +269,8 @@ public sealed class SndbMqClient : IDisposable
             RemoteJsonContext.Default.MqPullRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqStatsResponse, cancellationToken).ConfigureAwait(false);
+        ValidateTopic(topic, body.Topic, "stats");
+        ValidateStats(body);
         return new SndbMqStats(body.Topic, body.MessageCount, body.NextOffset, body.ConsumerOffsets);
     }
 
@@ -272,8 +293,9 @@ public sealed class SndbMqClient : IDisposable
             if (string.IsNullOrWhiteSpace(_builder.DataSource))
                 throw new InvalidOperationException("MQ 客户端缺少 Data Source。");
 
-            _database = _builder.DataSource;
-            _embedded = SharedSndbMqRegistry.Acquire(new SonnetMqOptions { Path = Path.Combine(_builder.DataSource, ".system", "mq") });
+            var dataSource = _builder.ResolveEmbeddedDataSource();
+            _database = dataSource;
+            _embedded = SharedSndbMqRegistry.Acquire(new SonnetMqOptions { Path = Path.Combine(dataSource, ".system", "mq") });
             return;
         }
 
@@ -288,7 +310,8 @@ public sealed class SndbMqClient : IDisposable
             _builder.Username,
             _builder.Password,
             _builder.Token,
-            TimeSpan.FromSeconds(_builder.Timeout));
+            TimeSpan.FromSeconds(_builder.Timeout),
+            allowAutoRedirect: false);
         if (protocol == SndbTransportProtocol.FrameHttp2)
         {
             _http.DefaultRequestVersion = HttpVersion.Version20;
@@ -309,7 +332,10 @@ public sealed class SndbMqClient : IDisposable
         using var content = JsonContent.Create(value, typeInfo);
         var response = await _http.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        {
+            using (response)
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        }
         return response;
     }
 
@@ -333,8 +359,9 @@ public sealed class SndbMqClient : IDisposable
             if (error is not null)
                 return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
-        catch
+        catch (JsonException)
         {
+            // 非 JSON 错误保留 HTTP 状态；取消和 I/O 异常必须传播。
         }
 
         return new SndbServerException("http_error", response.ReasonPhrase ?? "SonnetDB HTTP error.", response.StatusCode);
@@ -342,6 +369,91 @@ public sealed class SndbMqClient : IDisposable
 
     private string MqUrl(string topic, string action) =>
         $"v1/db/{Uri.EscapeDataString(_database)}/mq/{Uri.EscapeDataString(topic)}/{action}";
+
+    private uint NextStreamId()
+    {
+        int value = Interlocked.Increment(ref _nextStreamId);
+        if (value <= 0)
+        {
+            Interlocked.Exchange(ref _nextStreamId, 1);
+            value = 1;
+        }
+
+        return (uint)value;
+    }
+
+    private static long ValidatePublishResponse(string topic, MqPublishResponse response)
+    {
+        ValidateTopic(topic, response.Topic, "publish");
+        ArgumentOutOfRangeException.ThrowIfNegative(response.Offset);
+        return response.Offset;
+    }
+
+    private static long ValidatePublishResponse(string topic, long offset)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        return offset;
+    }
+
+    private static IReadOnlyList<long> ValidatePublishBatchResponse(
+        int expectedCount,
+        IReadOnlyList<long> offsets)
+    {
+        ArgumentNullException.ThrowIfNull(offsets);
+        if (offsets.Count != expectedCount)
+            throw new InvalidDataException($"MQ publish-batch 响应 offset 数量 {offsets.Count} 与请求 {expectedCount} 不一致。");
+
+        long previous = -1;
+        foreach (long offset in offsets)
+        {
+            if (offset < 0 || (previous >= 0 && offset != previous + 1))
+                throw new InvalidDataException("MQ publish-batch 响应 offset 必须为非负连续序列；结果未知。");
+            previous = offset;
+        }
+
+        return offsets;
+    }
+
+    private static IReadOnlyList<SndbMqMessage> ValidatePulledMessages(
+        string topic,
+        IReadOnlyList<SndbMqMessage> messages,
+        int maxCount)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        if (messages.Count > maxCount)
+            throw new InvalidDataException($"MQ pull 响应消息数 {messages.Count} 超过请求上限 {maxCount}。");
+
+        long previous = -1;
+        foreach (SndbMqMessage message in messages)
+        {
+            ValidateTopic(topic, message.Topic, "pull");
+            if (message.Offset < 0 || (previous >= 0 && message.Offset <= previous))
+                throw new InvalidDataException("MQ pull 响应 offset 必须按严格升序排列。");
+            previous = message.Offset;
+        }
+
+        return messages;
+    }
+
+    private static long ValidateAckResponse(long nextOffset)
+    {
+        if (nextOffset < 0)
+            throw new InvalidDataException("MQ ack 响应 nextOffset 不能为负数；结果未知。");
+        return nextOffset;
+    }
+
+    private static void ValidateTopic(string requestedTopic, string responseTopic, string operation)
+    {
+        if (!string.Equals(requestedTopic, responseTopic, StringComparison.Ordinal))
+            throw new InvalidDataException($"MQ {operation} 响应 topic 与请求目标不一致；结果未知。");
+    }
+
+    private static void ValidateStats(MqStatsResponse response)
+    {
+        if (response.MessageCount < 0 || response.NextOffset < 0 || response.ConsumerOffsets is null
+            || response.ConsumerOffsets.Any(static pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Value < 0))
+            throw new InvalidDataException("MQ stats 响应包含负数或无效消费者 offset。");
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }

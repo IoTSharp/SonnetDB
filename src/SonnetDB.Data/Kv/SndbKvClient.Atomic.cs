@@ -37,7 +37,7 @@ public sealed partial class SndbKvClient
         if (_frames is { } frames && frames.ShouldTryFrames())
         {
             var writer = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.SetConditional, _database, keyspace,
+            KvFrameCodec.EncodeAtomicWriteRequest(writer, NextStreamId(), KvFrameOp.SetConditional, _database, keyspace,
                 KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value, condition, expiresAtUtc: expiresAtUtc);
             var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } responseFrame)
@@ -98,9 +98,9 @@ public sealed partial class SndbKvClient
             var writer = new ArrayBufferWriter<byte>();
             var encodedKey = KvValueCodec.EncodeUtf8(Qualify(@namespace, key));
             if (value is null)
-                KvFrameCodec.EncodeAtomicKeyRequest(writer, 1, KvFrameOp.GetAndDelete, _database, keyspace, encodedKey);
+                KvFrameCodec.EncodeAtomicKeyRequest(writer, NextStreamId(), KvFrameOp.GetAndDelete, _database, keyspace, encodedKey);
             else
-                KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.GetAndSet, _database, keyspace,
+                KvFrameCodec.EncodeAtomicWriteRequest(writer, NextStreamId(), KvFrameOp.GetAndSet, _database, keyspace,
                     encodedKey, value, expiresAtUtc: expiresAtUtc);
             var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } responseFrame)
@@ -150,7 +150,7 @@ public sealed partial class SndbKvClient
     {
         if (_frames is not { } frames || !frames.ShouldTryFrames()) return null;
         var writer = new ArrayBufferWriter<byte>();
-        KvFrameCodec.EncodeAtomicKeyRequest(writer, 1, op, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)));
+        KvFrameCodec.EncodeAtomicKeyRequest(writer, NextStreamId(), op, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)));
         return await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
     }
 

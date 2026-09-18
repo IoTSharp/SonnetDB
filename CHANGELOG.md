@@ -11,6 +11,34 @@
 
 - **M27 木垒现场 provider smoke 记录**：补充 2026-09-18 ARM64 现场的内部 Tomur `/v1/models` 与 35B 有界短对话证据；该记录只证明 provider 可达和一次短答，不替代真实语义质量、工具闭环或长期性能门禁。
 
+- **M36 #321 VectorData 生命周期预检首切片**：新增嵌入式实际 catalog 的维度、度量、有限数值/余弦非零预检；复用 M35 持久 RAG generation 完整 profile 并检查 L2 单位范数与 generation 身份，普通集合明确 `profile_unbound`。新增只观察已加载向量图的轻量 health，不扫描主数据、不触发索引加载/重建，诊断 DTO 使用公开 source-generated JSON。安全重建进度、远程 lifecycle、执行路径解释及 Recall 报告仍未完成；合同 fixture 不计真实模型质量证据。
+
+- **M36 #315 时序 Query API 初始切片**：新增复用现有 `QueryEngine` 的 range/aggregate/window/gap-fill builder、方向与 limit、取消传播、有界补桶和 TSQ001-004 静态诊断；完整 schema/cardinality/retention/坏点预检与远程证据仍后置。
+
+- **M36 #318 FullText 类型化 Search API**：新增嵌入式/远程统一 typed Search，复用 query kind、Document filter 与稳定分页；服务端提供 score/id 排序、facet、高亮、matched terms/offsets 和版本化 BM25 score metadata，HTTP JSON 全部走 source-generated context。新增分页与命中元数据合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。
+
+- **M36 #319 FullText 设置与诊断**：全文索引新增 searchable/filterable/sortable 字段、synonym/stopword 与 typo policy，嵌入式和远程客户端提供 analyzer diff、BM25 relevance explain 及同步 rebuild status；新增 settings/analyzer-diff/relevance-explain/rebuild 管理端点和 source-generated JSON。文档 schema 格式升级至 v7，保留 v1-v6 读取并在加载时补齐默认设置；新增 Core 与 Server 合同回归，固定硬件和远程容量证据仍后置。
+
+- **M36 #320 VectorData 高层 Search API**：新增继承 VectorData 标准选项的 SonnetDB typed search，支持 filter、score threshold、skip、include vectors、exact/accurate scan、fast/balanced/accurate preset，以及有界顺序 batch 查询；batch 默认最多 1024 个查询并传播取消。新增向量阈值、精确扫描和批量顺序回归；#321 的 dimension/profile preflight、index health、ANN/scan explain 与 recall report 仍后置。
+
+- **M36 #317 KV 大 keyspace 工作流初始切片**：新增稳定快照异步 range cursor 与远程 continuation cursor，提供有界页、取消和逐条异步枚举；新增带 bounded Channel 背压的 KV pipeline，按输入顺序返回逐项成功/失败/取消结果；新增容量、TTL 和进程内热点 key 诊断及 source-generated REST 契约。大规模远程 parity、固定硬件容量和长期证据仍后置。
+
+- **M36 #314 时序类型化 Write API 初始切片**：`SonnetDB.Data.TimeSeries` 提供 fluent Point builder、纳秒/微秒/毫秒/秒精度换算、批量与显式 flush、bounded Channel 背压、逐项结果、取消传播和 dispose drain；嵌入式路径直接复用 `Tsdb.WriteMany`，远程路径支持列式 Frame 与 REST Line Protocol，Frame 传输失败禁止自动回落，重试默认关闭且显式开启时由调用方承担幂等责任。新增 builder、精度、嵌入式同步 flush、逐项错误、预取消和 drain 回归；Data Release 构建 0 警告 0 错误。远程现场 parity 与容量证据仍后置。
+
+- **M36 #313 SQL 开发诊断**：解析异常补充稳定 `code`、`operation`、字符 `position` 和不泄露请求内容的 `hint`，执行/约束/取消/超时异常提供统一 `SqlErrorMapper`；`EXPLAIN ANALYZE` 返回实际行数、候选/检查/移除行数、耗时、访问路径、回退原因、锁等待、WAL fsync、spill 与峰值内存，并复用根调用的取消令牌和截止时间。SQL REST 错误响应保留原传输码，同时附加可选诊断字段。新增诊断与取消回归，Core/Data/Server Release 构建均 0 警告 0 错误；Frame 传输错误码和完整生产现场证据仍按各自门禁保留边界。
+
+- **M36 #312 SQL 高频 DML**：关系表支持 `UPDATE/DELETE ... RETURNING`，并新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集；冲突目标必须匹配主键或唯一索引，跳过行和 `RETURNING` 顺序稳定，事务预览、嵌入式 ADO.NET 与 REST SQL 均返回结果集。新增 6 项专用 Core 回归及 177 项组合 SQL 回归通过；`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在本切片范围。
+
+- **M36 #311 共享客户端合同切片**：Document、Graph、KV、MQ 客户端统一预取消、目标/关联响应校验、远程请求禁自动跳转，NDJSON 采用响应头后流式读取并对损坏行 fail-closed；补充有界分页、批量 key/offset 校验、MQ 发送后禁止 HTTP 回退和 Graph 分页 API。新增 33 项客户端合同测试与 Data Release 构建通过；九模型 golden journey、完整工作台/SDK 矩阵和现场恢复证据仍后置。
+
+- **M35 #309 车辆外观与车牌精确检索合同**：新增复用 Document、path index、对象桶与现有 WAL 的 `VehicleObservationStore`，支持外部检测/OCR/embedding 导入、跨来源稳定观察 ID、车牌版本化标准化精确查询、车辆外观有界 Top-K、删除和重开恢复；补齐 profile 漂移、对象版本/ETag/hash、新鲜度、取消及候选/向量预算校验。21 项专用测试通过；Core 不运行 OCR 或视觉模型，真实质量、容量和远程治理仍后置，见 [车辆观察合同](docs/vehicle-observation-search.md)。
+
+- **M35 #308 人员外观与动作查询合同**：新增按 ReID、步态、姿态、动作隔离的预计算候选 SDK，复用 #306 固定来源目标，要求完整 profile、显式用途/授权、持久审计、有界候选/向量预算和取消；步态/动作强制视频来源，结果使用跨来源稳定候选 ID。仅提供精确候选查询，不运行模型、不登记身份；20 项专用测试通过，mAP/CMC/precision/recall、真实模型和固定硬件证据仍后置，见 [人员外观查询](docs/person-appearance-search.md)。
+
+- **M35 #307 受治理的人脸模板与比较合同**：新增默认关闭的 `FaceRecognitionStore`，支持独立用途/操作授权、先同步审计后访问、原子终态审计、固定对象版本新鲜度检查、1:1 验证、有限 1:N 候选、导出、来源/主体删除和保留期清理；通用 REST、Frame、SQL 和管理列表拒绝保留 keyspace。14 项 Core 合同测试和语义回归通过；真实模型 FAR/FRR/TAR、远程入口和物理擦除仍后置，见 [人脸合同](docs/face-recognition.md)。
+
+- **M35 #306 视觉派生模型**：新增固定原对象身份的 `VisualDerivedTarget`、归一化区域、同视频版本 track 与完整 detector profile，提供有界、可取消的结构化校验和公开 source-generated JSON；拒绝来源混版、越界坐标与错误轨迹引用，比较完整 profile 兼容性。包含来源、预算、取消与 JSON 合同回归；检测器执行、持久化宿主和真实模型质量仍由后续独立能力承担，见 [视觉派生合同](docs/visual-derived-content.md)。
+
 - **M35 #305 RAG 治理与恢复闭环**：新增受治理的摄取状态、重建/续跑/丢弃和有界退休代生成清理 API；Admin REST 与 Web 管理页提供 CAS、审计、配置隔离和失败结果边界。备份/恢复保留源对象清单与 pending generation，可从中断处继续并支持模型 profile 换代；SQL、REST、Frame 与管理目录隐藏内部 RAG 资源，SDK 访问保持可用。新增对象版本绑定、备份恢复、删除派生集合重建和资源隔离合同测试；10k/100k 容量、真实模型质量与固定硬件证据继续后置，详见 [RAG 治理说明](docs/rag-governance.md)。
 
 - **M35 #304 音视频分段可选扩展**：新增 `SonnetDB.Media`，复用 SemanticContent 合同和 KV/WAL 原子导入外部工具产生的 transcript、关键帧与 timecode，提供有界文本/时间交集查询及原对象版本/ETag 来源；对象或关键帧变化后返回 stale，完整替换/删除清理全部派生片段。补齐重开、损坏、取消及预算合同和可运行导入/查询示例；Core 不下载模型或解码媒体，真实模型质量/容量验证后置。详见 [媒体分段合同](docs/media-segments.md)。
@@ -143,6 +171,12 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **M36 #311 Graph 流式读取收尾**：远程 NDJSON 使用贯穿响应头与完整正文枚举的统一连接超时，继续响应调用方取消，失败响应在抛错前释放；新增超时、取消、HTTP 失败、正常结束及提前退出的 5 项回归，Graph 客户端 9/9 通过，并修复测试 fixture 三个后缀临时目录的回收。与 Document/VectorData 合并的 Release 回归共 39/39 通过；真实远程与九模型恢复证据仍单独验收。
+
+- **M36 #320 VectorData 空批次取消**：同步与异步批量向量查询在枚举输入前检查取消，空批次不再把已取消请求当作成功；新增两项回归，确认保留调用方取消令牌且不枚举输入、不打开连接或执行查询。
+
+- **M36 #311 Document 取消合同补全**：`AggregateAsync` 在访问集合或发送请求前检查取消，错误响应正文读取只处理 JSON 格式错误并继续传播取消/IO 异常。新增嵌入式/远程预取消和错误体读取中取消的 3 项回归，Document 客户端定向测试 25/25 通过；完整九模型旅程仍单独验收。
 
 - **M35 #305 RAG 目录持久化修复**：普通 SQL 创建、删除文档集合或变更索引时，保存完整文档目录，避免 SQL 可见性过滤遗漏内部 RAG 集合并导致重启后查询失败；公开目录仍隐藏保留资源。新增已发布 RAG 经普通 SQL schema 变更、关闭重开后继续检索的回归测试。
 

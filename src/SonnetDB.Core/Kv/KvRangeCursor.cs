@@ -155,6 +155,38 @@ public sealed class KvRangeCursor : IDisposable
         }
     }
 
+    /// <summary>
+    /// 异步读取下一页；读取仍共享同一稳定快照和页预算。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌；取消会终止游标。</param>
+    /// <returns>最多包含 <see cref="PageSize"/> 条记录的结果页。</returns>
+    public ValueTask<IReadOnlyList<KvEntry>> ReadNextPageAsync(CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(ReadNextPage(cancellationToken));
+
+    /// <summary>
+    /// 从当前位置开始异步枚举剩余记录。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>按游标方向逐条返回的记录序列。</returns>
+    public async IAsyncEnumerable<KvEntry> ReadAllAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        for (int pageNumber = 0; pageNumber < int.MaxValue; pageNumber++)
+        {
+            IReadOnlyList<KvEntry> page = await ReadNextPageAsync(cancellationToken).ConfigureAwait(false);
+            if (page.Count == 0)
+                yield break;
+
+            foreach (KvEntry entry in page)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return entry;
+            }
+        }
+
+        throw new InvalidOperationException("KV range cursor 超过异步读取页数上限。");
+    }
+
     /// <summary>释放游标、底层枚举器及其独立快照租约。</summary>
     public void Dispose()
     {

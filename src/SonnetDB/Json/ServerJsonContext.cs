@@ -2,7 +2,9 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
+using SonnetDB.Documents;
 using SonnetDB.Graphs;
+using SonnetDB.FullText;
 using SonnetDB.Mcp;
 using SonnetDB.Modbus;
 using SonnetDB.Model;
@@ -130,6 +132,9 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(KvTtlResponse))]
 [JsonSerializable(typeof(KvScanResponse))]
 [JsonSerializable(typeof(KvStatsResponse))]
+[JsonSerializable(typeof(KvHotKeyResponse))]
+[JsonSerializable(typeof(KvDiagnosticsResponse))]
+[JsonSerializable(typeof(KvDiagnosticsRequest))]
 [JsonSerializable(typeof(DocumentCollectionCreateRequest))]
 [JsonSerializable(typeof(DocumentCollectionOperationResponse))]
 [JsonSerializable(typeof(DocumentValidatorContract))]
@@ -239,10 +244,35 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(FullTextSearchPreviewResponse))]
 [JsonSerializable(typeof(FullTextSearchPreviewHit))]
 [JsonSerializable(typeof(List<FullTextSearchPreviewHit>))]
+[JsonSerializable(typeof(FullTextSearchRequest))]
+[JsonSerializable(typeof(FullTextFacetRequest))]
+[JsonSerializable(typeof(List<FullTextFacetRequest>))]
+[JsonSerializable(typeof(FullTextHighlightRequest))]
+[JsonSerializable(typeof(FullTextSearchResponse))]
+[JsonSerializable(typeof(FullTextSearchHit))]
+[JsonSerializable(typeof(List<FullTextSearchHit>))]
+[JsonSerializable(typeof(FullTextScoreMetadata))]
+[JsonSerializable(typeof(FullTextMatchedOffset))]
+[JsonSerializable(typeof(List<FullTextMatchedOffset>))]
+[JsonSerializable(typeof(FullTextFacetResult))]
+[JsonSerializable(typeof(List<FullTextFacetResult>))]
+[JsonSerializable(typeof(FullTextFacetBucket))]
+[JsonSerializable(typeof(List<FullTextFacetBucket>))]
 [JsonSerializable(typeof(FullTextAnalyzeRequest))]
 [JsonSerializable(typeof(FullTextAnalyzeResponse))]
 [JsonSerializable(typeof(FullTextTokenInfo))]
 [JsonSerializable(typeof(List<FullTextTokenInfo>))]
+[JsonSerializable(typeof(FullTextSettingsRequest))]
+[JsonSerializable(typeof(DocumentFullTextIndexSettings))]
+[JsonSerializable(typeof(DocumentFullTextTypoPolicy))]
+[JsonSerializable(typeof(FullTextAnalyzerDiffRequest))]
+[JsonSerializable(typeof(FullTextAnalyzerDiffResponse))]
+[JsonSerializable(typeof(FullTextRelevanceExplainRequest))]
+[JsonSerializable(typeof(DocumentFullTextRelevanceExplanation))]
+[JsonSerializable(typeof(DocumentFullTextTermContribution))]
+[JsonSerializable(typeof(List<DocumentFullTextTermContribution>))]
+[JsonSerializable(typeof(FullTextRebuildRequest))]
+[JsonSerializable(typeof(FullTextRebuildStatusResponse))]
 [JsonSerializable(typeof(MqTopicListResponse))]
 [JsonSerializable(typeof(MqTopicInfo))]
 [JsonSerializable(typeof(List<MqTopicInfo>))]

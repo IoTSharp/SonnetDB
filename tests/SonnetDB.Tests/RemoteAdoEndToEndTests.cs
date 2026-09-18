@@ -448,6 +448,76 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(2, reader.RecordsAffected);
     }
 
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_UpdateDeleteReturning_EmbeddedAndRemote_ReturnsRowsAndRecordsAffected(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE dml_returning (id INT, value INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using (var seed = connection.CreateCommand())
+        {
+            seed.CommandText = "INSERT INTO dml_returning (id, value) VALUES (1, 10), (2, 20)";
+            Assert.Equal(2, seed.ExecuteNonQuery());
+        }
+
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE dml_returning SET value = value + 1 WHERE id >= 1 RETURNING id, value";
+            using var reader = update.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal(11L, reader.GetInt64(1));
+            Assert.True(reader.Read());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.Equal(21L, reader.GetInt64(1));
+            Assert.False(reader.Read());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        using var delete = connection.CreateCommand();
+        delete.CommandText = "DELETE FROM dml_returning WHERE id = 1 RETURNING id, value";
+        using var deleted = delete.ExecuteReader();
+        Assert.True(deleted.Read());
+        Assert.Equal(1L, deleted.GetInt64(0));
+        Assert.Equal(11L, deleted.GetInt64(1));
+        Assert.False(deleted.Read());
+        Assert.Equal(1, deleted.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_InsertOnConflictReturning_EmbeddedAndRemote_SkipsConflicts(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE conflict_returning (id INT, value INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using (var seed = connection.CreateCommand())
+        {
+            seed.CommandText = "INSERT INTO conflict_returning (id, value) VALUES (1, 10)";
+            Assert.Equal(1, seed.ExecuteNonQuery());
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO conflict_returning (id, value) VALUES (1, 99), (2, 20) ON CONFLICT (id) DO NOTHING RETURNING id, value";
+        using var reader = insert.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.Equal(20L, reader.GetInt64(1));
+        Assert.False(reader.Read());
+        Assert.Equal(1, reader.RecordsAffected);
+    }
+
     [Fact]
     public async Task Remote_Transaction_CommitsViaSqlBatch()
     {

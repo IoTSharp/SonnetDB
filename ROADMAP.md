@@ -40,7 +40,7 @@
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
 | 35 | 语义内容与多模态检索 | 🚧 | #297/#299~#301 已完成；#298 过滤检索与预算代码已完成，质量证据待补；#302 已交付持久 writer/retry/resume、三类派生索引原子发布、预计算/在线 provider CLI 与 Copilot 可回滚迁移；#303 有界融合与重排、#304 可选媒体片段导入与查询、#305 治理/恢复/备份重建与模型换代已交付；真实质量、容量与固定硬件证据仍待完成。 |
-| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#316 远程 KV 原子切片已有 Core/REST/Frame/SDK/Web、本地原生重开和真实浏览器证据。#323 对象有界分页切片已实现，证据与限制见 [OBJECT-001](docs/audits/object-pagination-20260906.md)。九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
+| 36 | 九模型专用品类易用性闭环 | 🚧 | 在原八模型范围上增加 Graph 验收行，图引擎仍归 M40。SQL/Graph 工作流缺陷已修复；#311 客户端合同切片和 #312 SQL 高频 DML 已完成本地代码与回归，但九模型 #310/#311 总体、#323 其余文件流、#322 传输和 MQ 失败恢复仍待完成。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | ✅ | #333~#339 编码、嵌入式/远程接口、恢复和本地准入证据已完成；存储过程与触发器第一版（#329~#332）也已完成。固定目标硬件、生产混合负载和长期 SLO 不再阻塞研发闭环，转入[真机验证待办](#真机验证待办)。 |
@@ -54,7 +54,7 @@
 
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整 PR 清单见[总里程碑 D 节](docs/roadmap-total-milestone.md#d-沿用的既有-pr-主执行顺序)。
 
-1. **代码与功能补全：** #306~#309 → #311 → #312 → #313~#315 → #317~#322 → #323 → #324~#326 → #340。#298/#300/#302~#305 的已完成代码不再进入队列，#310 的独立验收后置。
+1. **代码与功能补全：** #311 → #312 → #313~#315 → #317~#322 → #323 → #324~#326 → #340。#298/#300/#302~#309 的已完成代码不再进入队列，#310 的独立验收后置。
 2. **性能优化：** #375 与 M42 页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页和冷启动残余。
 3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #347~#367 → #373 → #376~#381；最后执行 M20/#136 七次 scheduled、M42 跨架构/168 小时和 M43 总验收及生态提交。
 
@@ -206,10 +206,10 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #303 | 已交付 Core `RagGenerationSearch` 的 generation 租约、完整 profile 核对、有界精确向量/全文候选、RRF/min-max 融合、去重和受候选身份约束的 rerank hook；复用已有向量距离计算，融合前保留原始距离顺序。受控行为验证与[检索合同](docs/rag-search-fusion.md)不替代 Recall@K、nDCG、P50/P95、体积和重建真实评测；评测继续后置。 | 🟡 |
 | #304 | [可选媒体扩展](docs/media-segments.md) 已接外部 transcript/关键帧的有界导入、KV 原子替换/删除、timecode 查询和固定对象来源；Core 不解码媒体，真实转写/OCR 与容量证据后置。 | ✅ 本地实现 |
 | #305 | 管理面、安全、失败恢复、备份重建和模型换代已交付；10k/100k 容量基线、真实质量与固定硬件证据后置。 | 🟡 代码完成，待验证 |
-| #306 | 派生目标、区域、track 与 detector profile 模型，保持原对象为唯一主数据。 | 📋 |
-| #307 | 默认关闭且受治理的人脸 1:1 验证/1:N 候选，独立权限、审计、删除和 FAR/FRR/TAR 评测。 | 📋 |
-| #308 | ReID、步态、姿态/动作的独立 profile、查询和对应 mAP/CMC/precision/recall 评测。 | 📋 |
-| #309 | 车辆外观向量与车牌 OCR；号码以标准化精确索引为主，向量不替代相等语义。 | 📋 |
+| #306 | 已交付固定原对象身份的派生目标、归一化区域、同视频 track、完整 detector profile、有界可取消校验和公开 AOT JSON，并覆盖来源、预算、取消及 JSON 合同回归。范围仅为模型合同，宿主持久化、推理与质量证据见后续独立能力，详见[视觉派生合同](docs/visual-derived-content.md)。 | ✅ 模型合同 |
+| #307 | 已交付默认关闭且受治理的嵌入式人脸 1:1/1:N、独立权限、审计、来源新鲜度、删除与保留期合同；14 项 Core 测试通过。真实 FAR/FRR/TAR、远程入口和物理擦除仍后置，详见[人脸合同](docs/face-recognition.md)。 | ✅ 合同与嵌入式入口 |
+| #308 | 已交付 ReID、步态、姿态/动作隔离的预计算候选查询 SDK，复用 #306 固定来源目标，具备显式用途/授权、审计、完整 profile、视频门禁、有界 Top-K 和取消合同；20 项专用测试通过。真实 mAP/CMC/precision/recall、模型和固定硬件证据仍后置，详见[人员外观查询](docs/person-appearance-search.md)。 | ✅ 合同与嵌入式入口 |
+| #309 | 已交付复用 Document/path index/对象桶的车辆观察嵌入式 SDK，支持外部 OCR/embedding 导入、版本化车牌精确索引、车辆外观有界 Top-K、跨来源稳定观察 ID、来源新鲜度、删除和恢复；21 项专用测试通过。Core 不运行 OCR/模型，真实质量、容量和远程治理仍后置，详见[车辆观察合同](docs/vehicle-observation-search.md)。 | ✅ 合同与嵌入式入口 |
 
 顺序固定为 #297/#298 地基 → #299/#300 摄取/provider → #301/#302 首批场景 → #303 质量 → #304/#305 扩展收口 → #306~#309 专业视觉。完成 #301 前只宣称“具备多模态检索底座”。所有生物特征能力默认关闭，并要求用途、权限、访问/导出审计、保留期限和删除闭环。
 
@@ -240,16 +240,16 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 |---|---|---|
 | #310 | 九模型 usability gap catalog 与可执行 golden journey：KV 单 key 原子子集已有同 fixture embedded/REST/Frame/auto、权限、并发、原生重开与桌面/手机真实 Server 旅程，附约 20 行成功代码及完整样例。其余模型及分页/诊断/备份/宿主边界尚未全部闭环；与 M20 capability report 分开。见 [KV 证据](docs/audits/kv-remote-closure-20260905.md)。 | 🚧 |
 | #311 | 统一新客户端合同：SQL 已绑定目标/审批、严格 NDJSON 和单请求事务，Graph 已隔离旧审批/乱序响应。KV 新原子路径已对齐取消、稳定错误、关联 ID、严格返回值、禁止发送后回退/HTTP 跳转重发，Web 保留原目标与部分/未知结果。其余工作台/SDK 和九模型分页、批量错误及真实恢复仍待完成。 | 🚧 |
-| #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、ADO.NET 语句级 last-insert-id 与 EF Core 数据库生成整数键回填已落地；仍需 `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集和稳定冲突结果。 | 🚧 |
-| #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
-| #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。 | 📋 |
-| #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |
+| #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、`UPDATE/DELETE ... RETURNING`、ADO.NET 结果集映射与 EF Core 数据库生成整数键回填；新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集，冲突目标校验、跳过行顺序和事务预览结果稳定。`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在合同内。 | ✅ |
+| #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环；Core 诊断映射、SQL REST 附加字段和有界取消回归已完成。 | ✅ |
+| #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。初始代码切片已接通 Core/Data、Frame/REST 与取消边界，远程现场 parity/容量证据后置。 | 🚧 |
+| #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。新增复用现有 QueryEngine 的 range/aggregate/window/gap-fill builder、取消传播和 TSQ001-004 静态诊断；完整 schema/cardinality/retention/坏点预检与远程证据后置。 | 🚧 |
 | #316 | KV 条件与类型化 API：Core/REST/Frame/SDK/Web 已接通 NX/XX、原子 get-and-set/delete、namespace、严格 UTF-8 与 source-generated JSON，补齐取消、WAL 不确定结果拒写、TTL/CAS 和精确版本。单 key 子集已有真实 Kestrel/原生进程重开、桌面/手机工作台和零 IL/AOT warning 发布证据，见 [合同](docs/kv-atomic-contract.md)与[证据](docs/audits/kv-remote-closure-20260905.md)。此完成标记仅覆盖已通过本地验证的单 key 切片；#317、九模型 #310/#311、M20 Parity/nightly 和生产门禁不在此完成标记内。 | ✅ |
-| #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。 | 📋 |
-| #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。 | 📋 |
-| #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和可观察 rebuild task。 | 📋 |
-| #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。 | 📋 |
-| #321 | Vector 生命周期与解释：dimension/metric/Embedding Profile preflight、index health/rebuild progress、ANN/scan/补偿原因与 recall report；依赖 M35 #297/#298 的部分不得提前复制实现。 | 📋 |
+| #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。新增 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果以及容量/TTL/热点诊断 REST 契约；大规模远程 parity、固定硬件容量与长期证据后置。 | 🚧 |
+| #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。新增嵌入式/远程统一 typed Search、source-generated JSON、稳定 continuation token 与合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 由 #319 负责。 | 🚧 |
+| #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和同步可观察 rebuild task status；schema v7 保留旧版本读取并补默认设置。 | 🚧 |
+| #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。新增继承 VectorData 标准选项的 typed search、精确/阈值/跳过/向量回传和有界顺序 batch；远程 parity、容量和 #321 生命周期/解释证据后置。 | 🚧 |
+| #321 | Vector 生命周期与解释：已交付嵌入式真实 catalog 的 dimension/metric/数值预检、持久 RAG generation 完整 profile 核验与不扫描/不触发重建的已加载图状态。普通集合明确 profile_unbound；安全重建进度、远程 lifecycle、ANN/scan/补偿解释与 recall report 尚待完成，复用 M35 #297/#298。见[首切片合同](docs/vector-lifecycle-preflight.md)。 | 🚧 |
 | #322 | Object Transfer Manager：自动 multipart 阈值/part size/并发、checksum、retry、resume、progress、取消和资源释放，基于现有 `SndbObjectStorageClient`。 | 📋 |
 | #323 | Object 日常文件流：OBJECT-001 已实现同 KV/WAL 派生索引的有界 `ListObjects`，保持原始 key ordinal、版本/删除标记，增加 delimiter/common-prefix、可取消重建和物理候选预算，超预算显式拒绝且不推进令牌。实现、实测及恢复限制见[验证证据](docs/audits/object-pagination-20260906.md)。conditional put/get、异步游标、CLI `cp/sync --dry-run` 与固定硬件容量仍待交付；不以本切片关闭完整 #323。 | 🚧 |
 | #324 | SonnetMQ 高层 consumer：producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain。 | 📋 |

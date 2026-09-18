@@ -9,4 +9,10 @@ namespace SonnetDB.Sql.Execution;
 public sealed record RowsAffectedExecutionResult(
     string Target,
     int RowsAffected,
-    string Operation);
+    string Operation)
+{
+    /// <summary>
+    /// <c>UPDATE/DELETE ... RETURNING</c> 产生的结果集；普通 DML 为 <see langword="null"/>。
+    /// </summary>
+    public SelectExecutionResult? Returning { get; init; }
+}

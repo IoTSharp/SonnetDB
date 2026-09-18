@@ -2357,6 +2357,9 @@ public sealed class SqlParser
 
     private InsertStatement ParseInsertReturning(InsertStatement statement)
     {
+        if (Current.Kind == TokenKind.KeywordOn)
+            statement = statement with { OnConflict = ParseOnConflictClause() };
+
         if (!IsIdentifier("returning"))
             return statement;
 
@@ -2367,6 +2370,37 @@ public sealed class SqlParser
             return statement with { ReturningColumns = ["*"] };
         }
 
+        return statement with { ReturningColumns = ParseReturningColumns() };
+    }
+
+    private SqlOnConflictClause ParseOnConflictClause()
+    {
+        Expect(TokenKind.KeywordOn);
+        ExpectIdentifier("conflict", "ON 后面期望 CONFLICT");
+
+        var targetColumns = new List<string>();
+        if (Current.Kind == TokenKind.LeftParen)
+        {
+            Advance();
+            targetColumns.Add(ExpectColumnName());
+            while (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                targetColumns.Add(ExpectColumnName());
+            }
+
+            Expect(TokenKind.RightParen);
+        }
+
+        ExpectIdentifier("do", "ON CONFLICT 后面期望 DO NOTHING");
+        if (!IsIdentifier("nothing"))
+            throw Error("SonnetDB ON CONFLICT 子集仅支持 DO NOTHING");
+        Advance();
+        return new SqlOnConflictClause(targetColumns);
+    }
+
+    private IReadOnlyList<string> ParseReturningColumns()
+    {
         var columns = new List<string> { ExpectColumnName() };
         while (Current.Kind == TokenKind.Comma)
         {
@@ -2374,7 +2408,7 @@ public sealed class SqlParser
             columns.Add(ExpectColumnName());
         }
 
-        return statement with { ReturningColumns = columns };
+        return columns;
     }
 
     private ImportJsonStatement ParseImport()
@@ -3070,7 +3104,19 @@ public sealed class SqlParser
         var measurement = ExpectIdentifierName();
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
-        return new DeleteStatement(measurement, where);
+        var statement = new DeleteStatement(measurement, where);
+        if (IsIdentifier("returning"))
+        {
+            Advance();
+            statement = statement with
+            {
+                ReturningColumns = Current.Kind == TokenKind.Star
+                    ? ConsumeReturningStar()
+                    : ParseReturningColumns(),
+            };
+        }
+
+        return statement;
     }
 
     private DeleteGraphStatement ParseGraphDelete()
@@ -3112,7 +3158,25 @@ public sealed class SqlParser
 
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
-        return new UpdateStatement(table, assignments, where, tableAlias);
+        var statement = new UpdateStatement(table, assignments, where, tableAlias);
+        if (IsIdentifier("returning"))
+        {
+            Advance();
+            statement = statement with
+            {
+                ReturningColumns = Current.Kind == TokenKind.Star
+                    ? ConsumeReturningStar()
+                    : ParseReturningColumns(),
+            };
+        }
+
+        return statement;
+    }
+
+    private IReadOnlyList<string> ConsumeReturningStar()
+    {
+        Expect(TokenKind.Star);
+        return ["*"];
     }
 
     private UpdateGraphStatement ParseGraphUpdate()

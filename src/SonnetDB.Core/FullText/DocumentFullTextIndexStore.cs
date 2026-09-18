@@ -21,19 +21,36 @@ public sealed class DocumentFullTextIndexStore
     private readonly string _directory;
     private readonly DocumentFullTextIndex _definition;
     private readonly PersistentFullTextIndex _index;
+    private readonly ITokenizer _tokenizer;
+    private DocumentFullTextRebuildProgress _rebuildProgress = DocumentFullTextRebuildProgress.Idle;
 
     private DocumentFullTextIndexStore(
         string directory,
         DocumentFullTextIndex definition,
-        PersistentFullTextIndex index)
+        PersistentFullTextIndex index,
+        ITokenizer tokenizer)
     {
         _directory = directory;
         _definition = definition;
         _index = index;
+        _tokenizer = tokenizer;
     }
 
     /// <summary>索引声明。</summary>
     public DocumentFullTextIndex Definition => _definition;
+
+    /// <summary>当前全文索引的字段与分析器设置。</summary>
+    public DocumentFullTextIndexSettings Settings => _definition.Settings;
+
+    /// <summary>最近一次重建任务的可观察状态。</summary>
+    public DocumentFullTextRebuildProgress RebuildProgress
+    {
+        get
+        {
+            lock (_sync)
+                return _rebuildProgress;
+        }
+    }
 
     /// <summary>当前可见文档总数。</summary>
     public int DocumentCount
@@ -76,11 +93,12 @@ public sealed class DocumentFullTextIndexStore
         ArgumentNullException.ThrowIfNull(definition);
 
         Directory.CreateDirectory(directory);
+        ITokenizer tokenizer = CreateTokenizer(definition.Tokenizer, definition.Settings);
         var index = PersistentFullTextIndex.Open(
             directory,
-            CreateTokenizer(definition.Tokenizer),
+            tokenizer,
             options: new PersistentIndexOptions { EnableBackgroundMerge = false });
-        return new DocumentFullTextIndexStore(directory, definition, index);
+        return new DocumentFullTextIndexStore(directory, definition, index, tokenizer);
     }
 
     /// <summary>
@@ -238,8 +256,102 @@ public sealed class DocumentFullTextIndexStore
     /// <param name="rows">要重建的文档快照。</param>
     public void Rebuild(IEnumerable<DocumentRow> rows)
     {
+        _ = Rebuild(rows, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// 从主数据重建全文索引并报告有界进度。
+    /// </summary>
+    /// <param name="rows">文档快照序列。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="progress">进度回调；每处理一条文档最多调用一次。</param>
+    /// <param name="maxDocuments">本次重建最多读取的文档数。</param>
+    /// <returns>重建后的文档数量。</returns>
+    public int Rebuild(
+        IEnumerable<DocumentRow> rows,
+        CancellationToken cancellationToken,
+        Action<DocumentFullTextRebuildProgress>? progress = null,
+        int maxDocuments = 1_000_000)
+    {
         ArgumentNullException.ThrowIfNull(rows);
-        UpsertMany(rows);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDocuments);
+        lock (_sync)
+            _rebuildProgress = new DocumentFullTextRebuildProgress("running", 0, null, null, DateTimeOffset.UtcNow, null);
+
+        try
+        {
+            DateTimeOffset startedUtc = RebuildProgress.StartedUtc ?? DateTimeOffset.UtcNow;
+            var documents = new List<DocumentRow>();
+            foreach (DocumentRow row in rows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (documents.Count >= maxDocuments)
+                    throw new InvalidOperationException($"全文重建超过 maxDocuments={maxDocuments}。" );
+                documents.Add(row);
+                var current = new DocumentFullTextRebuildProgress("running", documents.Count, null, null, startedUtc, null);
+                lock (_sync)
+                    _rebuildProgress = current;
+                progress?.Invoke(current);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            UpsertMany(documents);
+            var completed = new DocumentFullTextRebuildProgress("completed", documents.Count, documents.Count, null, startedUtc, DateTimeOffset.UtcNow);
+            lock (_sync)
+                _rebuildProgress = completed;
+            progress?.Invoke(completed);
+            return documents.Count;
+        }
+        catch (Exception ex)
+        {
+            var failed = new DocumentFullTextRebuildProgress(
+                ex is OperationCanceledException ? "cancelled" : "failed",
+                RebuildProgress.ProcessedDocuments,
+                RebuildProgress.TotalDocuments,
+                ex.Message,
+                null,
+                DateTimeOffset.UtcNow);
+            lock (_sync)
+                _rebuildProgress = failed;
+            progress?.Invoke(failed);
+            throw;
+        }
+    }
+
+    /// <summary>对文本执行当前索引分析器并返回词元。</summary>
+    /// <param name="text">待分析文本。</param>
+    /// <returns>经过停用词和同义词规则后的词元。</returns>
+    public IReadOnlyList<Token> Analyze(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var sink = new CollectingTokenSink();
+        _tokenizer.Tokenize(text.AsSpan(), sink);
+        return sink.Tokens.ToArray();
+    }
+
+    /// <summary>解释一个文档对查询的相关性结果。</summary>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="documentId">待解释的文档 ID。</param>
+    /// <param name="mode">检索模式。</param>
+    /// <param name="queryKind">查询组合方式。</param>
+    /// <returns>相关性解释；文档未命中时分数为 0。</returns>
+    public DocumentFullTextRelevanceExplanation Explain(
+        string field,
+        string queryText,
+        string documentId,
+        FullTextSearchMode mode = FullTextSearchMode.Exact,
+        FullTextQueryKind queryKind = FullTextQueryKind.All)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        IReadOnlyList<string> terms = Tokenize(queryText);
+        int take = Math.Clamp(DocumentCount, 1, 100_000);
+        DocumentFullTextSearchHit? hit = Search(field, queryText, take, mode, queryKind)
+            .FirstOrDefault(item => string.Equals(item.DocumentId, documentId, StringComparison.Ordinal));
+        double score = hit?.Score ?? 0d;
+        double share = terms.Count == 0 ? 0d : score / terms.Count;
+        var contributions = terms.Select(term => new DocumentFullTextTermContribution(term, score > 0, share)).ToArray();
+        return new DocumentFullTextRelevanceExplanation(documentId, score, _definition.Tokenizer, terms, contributions);
     }
 
     private SonnetDB.FullText.Query.Query BuildQuery(
@@ -248,7 +360,7 @@ public sealed class DocumentFullTextIndexStore
         FullTextSearchMode mode,
         FullTextQueryKind queryKind)
     {
-        string[] tokens = Tokenize(queryText, _definition.Tokenizer);
+        string[] tokens = Tokenize(queryText).ToArray();
         if (tokens.Length == 0)
             tokens = [queryText.ToLowerInvariant()];
 
@@ -258,10 +370,11 @@ public sealed class DocumentFullTextIndexStore
                 mode == FullTextSearchMode.Fuzzy
                     ? _index.SnapshotActiveTerms(_definition.Fields)
                     : null;
-            var fieldQueries = new SonnetDB.FullText.Query.Query[_definition.Fields.Count];
-            for (int i = 0; i < _definition.Fields.Count; i++)
+            IReadOnlyList<string> searchableFields = _definition.Settings.SearchableFields ?? _definition.Fields;
+            var fieldQueries = new SonnetDB.FullText.Query.Query[searchableFields.Count];
+            for (int i = 0; i < searchableFields.Count; i++)
             {
-                string fieldName = _definition.Fields[i];
+                string fieldName = searchableFields[i];
                 fieldQueries[i] = BuildFieldQuery(
                     fieldName,
                     tokens,
@@ -273,7 +386,7 @@ public sealed class DocumentFullTextIndexStore
         }
 
         string normalizedField = NormalizeField(field);
-        if (!_definition.Fields.Contains(normalizedField, StringComparer.Ordinal))
+        if (!(_definition.Settings.SearchableFields ?? _definition.Fields).Contains(normalizedField, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(
                 $"全文索引 '{_definition.Name}' 不包含字段 '{normalizedField}'。");
@@ -319,7 +432,7 @@ public sealed class DocumentFullTextIndexStore
     /// 阈值随 term 长度递增：≤2 字符要求精确（容错距离 0），3-4 字符容 1 编辑，≥5 字符容 2 编辑。
     /// 若展开后无候选，回退到原 term 的 TermQuery，至少不会引入误判。
     /// </summary>
-    private static SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(
+    private SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(
         string field,
         string queryToken,
         IReadOnlyCollection<string> activeTerms)
@@ -350,11 +463,13 @@ public sealed class DocumentFullTextIndexStore
         return new OrQuery(clauses);
     }
 
-    private static int ComputeFuzzyMaxEdits(string token)
+    private int ComputeFuzzyMaxEdits(string token)
     {
-        if (token.Length <= 2) return 0;
-        if (token.Length <= 4) return 1;
-        return 2;
+        DocumentFullTextTypoPolicy typo = _definition.Settings.TypoPolicy ?? DocumentFullTextTypoPolicy.Default;
+        if (!typo.Enabled) return 0;
+        if (token.Length <= 2) return typo.ShortTokenMaxEdits;
+        if (token.Length <= 4) return typo.MediumTokenMaxEdits;
+        return typo.LongTokenMaxEdits;
     }
 
     private static Document BuildDocument(DocumentFullTextIndex definition, DocumentRow row)
@@ -395,11 +510,10 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
-    private static string[] Tokenize(string text, string tokenizerName)
+    private IReadOnlyList<string> Tokenize(string text)
     {
-        var tokenizer = CreateTokenizer(tokenizerName);
         var sink = new CollectingTokenSink();
-        tokenizer.Tokenize(text.AsSpan(), sink);
+        _tokenizer.Tokenize(text.AsSpan(), sink);
         return sink.Tokens
             .Select(static token => token.Text)
             .Where(static token => token.Length > 0)
@@ -407,9 +521,9 @@ public sealed class DocumentFullTextIndexStore
             .ToArray();
     }
 
-    private static ITokenizer CreateTokenizer(string name)
+    private static ITokenizer CreateTokenizer(string name, DocumentFullTextIndexSettings settings)
     {
-        return name.ToLowerInvariant() switch
+        ITokenizer tokenizer = name.ToLowerInvariant() switch
         {
             "unicode" => new UnicodeTokenizer(),
             "cjk" or "cjk_bigram" or "bigram" => new CjkBigramTokenizer(),
@@ -417,6 +531,53 @@ public sealed class DocumentFullTextIndexStore
             _ => throw new InvalidOperationException(
                 $"未知全文分词器 '{name}'，支持 unicode / cjk / jieba。"),
         };
+        return new SettingsTokenizer(tokenizer, settings);
+    }
+
+    private sealed class SettingsTokenizer : ITokenizer
+    {
+        private readonly ITokenizer _inner;
+        private readonly IReadOnlyDictionary<string, string> _synonyms;
+        private readonly IReadOnlySet<string> _stopWords;
+
+        public SettingsTokenizer(ITokenizer inner, DocumentFullTextIndexSettings settings)
+        {
+            _inner = inner;
+            _synonyms = settings.Synonyms ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            _stopWords = (settings.StopWords ?? []).ToHashSet(StringComparer.Ordinal);
+        }
+
+        public void Tokenize(ReadOnlySpan<char> text, ITokenSink sink)
+        {
+            ArgumentNullException.ThrowIfNull(sink);
+            var filtered = new FilterSink(sink, _synonyms, _stopWords);
+            _inner.Tokenize(text, filtered);
+        }
+
+        private sealed class FilterSink(
+            ITokenSink target,
+            IReadOnlyDictionary<string, string> synonyms,
+            IReadOnlySet<string> stopWords) : ITokenSink
+        {
+            private int _pendingIncrement;
+
+            public void Emit(ReadOnlySpan<char> token, int startOffset, int endOffset, int positionIncrement)
+            {
+                string value = token.ToString();
+                if (stopWords.Contains(value))
+                {
+                    _pendingIncrement = checked(_pendingIncrement + Math.Max(1, positionIncrement));
+                    return;
+                }
+
+                int increment = checked(Math.Max(1, positionIncrement) + _pendingIncrement);
+                _pendingIncrement = 0;
+                if (synonyms.TryGetValue(value, out string? synonym))
+                    target.Emit(synonym.AsSpan(), startOffset, endOffset, increment);
+                else
+                    target.Emit(token, startOffset, endOffset, increment);
+            }
+        }
     }
 
     private static bool IsDocumentField(string field)
@@ -546,6 +707,44 @@ public readonly record struct DocumentFullTextSearchHit(string DocumentId, doubl
     public string FormatScore()
         => Score.ToString("G17", CultureInfo.InvariantCulture);
 }
+
+/// <summary>全文索引重建任务的可观察状态。</summary>
+/// <param name="State">pending、running、completed、failed 或 cancelled。</param>
+/// <param name="ProcessedDocuments">已处理文档数。</param>
+/// <param name="TotalDocuments">总文档数；无法预先知道时为 null。</param>
+/// <param name="Error">失败或取消原因。</param>
+/// <param name="StartedUtc">开始时间。</param>
+/// <param name="CompletedUtc">完成时间。</param>
+public sealed record DocumentFullTextRebuildProgress(
+    string State,
+    int ProcessedDocuments,
+    int? TotalDocuments,
+    string? Error,
+    DateTimeOffset? StartedUtc,
+    DateTimeOffset? CompletedUtc)
+{
+    /// <summary>尚未执行过重建。</summary>
+    public static DocumentFullTextRebuildProgress Idle { get; } = new("pending", 0, null, null, null, null);
+}
+
+/// <summary>全文相关性解释中的单个查询词贡献。</summary>
+/// <param name="Term">规范化词项。</param>
+/// <param name="Matched">该词是否命中。</param>
+/// <param name="ScoreContribution">该词的近似 BM25 分数贡献。</param>
+public sealed record DocumentFullTextTermContribution(string Term, bool Matched, double ScoreContribution);
+
+/// <summary>全文检索相关性解释。</summary>
+/// <param name="DocumentId">被解释的文档 ID。</param>
+/// <param name="Score">文档最终 BM25 分数。</param>
+/// <param name="Tokenizer">使用的分词器。</param>
+/// <param name="QueryTerms">规范化查询词项。</param>
+/// <param name="Contributions">各查询词的分数贡献。</param>
+public sealed record DocumentFullTextRelevanceExplanation(
+    string DocumentId,
+    double Score,
+    string Tokenizer,
+    IReadOnlyList<string> QueryTerms,
+    IReadOnlyList<DocumentFullTextTermContribution> Contributions);
 
 /// <summary>
 /// allowed document ID 集约束下的全文检索结果。

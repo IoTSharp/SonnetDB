@@ -165,6 +165,29 @@ public sealed class RagManagementEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FaceInternalResources_RejectGenericRestFrameAndManagementAccess()
+    {
+        _database.Keyspaces.Open("__face_recognition").Put("private", [1, 2, 3]);
+        As("writer");
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/v1/db/one/kv/__FACE_RECOGNITION./get",
+            new KvGetRequest("private"), ServerJsonContext.Default.KvGetRequest, _deadline.Token)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/v1/db/one/kv/__face_recognition/set",
+            new KvSetRequest("private", [4, 5, 6], null), ServerJsonContext.Default.KvSetRequest, _deadline.Token)).StatusCode);
+        var frame = new ArrayBufferWriter<byte>();
+        KvFrameCodec.EncodePutRequest(frame, 1, "one", "__FACE_RECOGNITION.", "private"u8, "forged"u8);
+        using var content = new ByteArrayContent(frame.WrittenMemory.ToArray());
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/x-sonnetdb-frame");
+        using var response = await _client.PostAsync("/v1/frame", content, _deadline.Token);
+        var sequence = new ReadOnlySequence<byte>(await response.Content.ReadAsByteArrayAsync(_deadline.Token));
+        Assert.True(FrameCodec.TryReadFrame(ref sequence, out FrameHeader header, out _));
+        Assert.True(header.IsError);
+        using var listing = await _client.PostAsync("/v1/db/one/kv/keyspaces", null, _deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, listing.StatusCode);
+        Assert.DoesNotContain("face_recognition", await listing.Content.ReadAsStringAsync(_deadline.Token), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new byte[] { 1, 2, 3 }, _database.Keyspaces.Open("__face_recognition").Get("private"));
+    }
+
+    [Fact]
     public async Task InternalResources_RejectRestAndFrameWindowsAliases()
     {
         await Seed();

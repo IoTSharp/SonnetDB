@@ -33,6 +33,27 @@ public sealed class SndbDocumentClient : IDisposable
         Open();
     }
 
+    /// <summary>
+    /// 使用调用方提供的 HTTP 客户端创建远程文档客户端，供传输边界测试注入响应。
+    /// </summary>
+    /// <param name="connectionString">SonnetDB 远程连接字符串。</param>
+    /// <param name="httpClient">由文档客户端接管并在释放时一并释放的 HTTP 客户端。</param>
+    internal SndbDocumentClient(string connectionString, HttpClient httpClient)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        _builder = new SndbConnectionStringBuilder(connectionString);
+        if (_builder.ResolveMode() == SndbProviderMode.Embedded)
+            throw new ArgumentException("测试 HTTP 客户端仅适用于远程连接。", nameof(connectionString));
+
+        _database = _builder.ResolveDatabase();
+        if (string.IsNullOrWhiteSpace(_database))
+            throw new InvalidOperationException("远程文档客户端缺少数据库名。");
+
+        httpClient.BaseAddress ??= new Uri(_builder.ResolveBaseUrl(), UriKind.Absolute);
+        _http = httpClient;
+        _frames = new FrameChannel(httpClient, _builder.ResolveProtocol());
+    }
+
     /// <summary>当前连接模式。</summary>
     public SndbProviderMode ProviderMode => _builder.ResolveMode();
 
@@ -53,6 +74,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
 
         if (_embedded is not null)
@@ -77,6 +99,7 @@ public sealed class SndbDocumentClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentCollectionOperationResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return body.Status;
     }
 
@@ -89,6 +112,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<bool> DropCollectionAsync(string collection, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
 
         if (_embedded is not null)
@@ -102,6 +126,7 @@ public sealed class SndbDocumentClient : IDisposable
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentCollectionOperationResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return string.Equals(body.Status, "dropped", StringComparison.Ordinal);
     }
 
@@ -118,6 +143,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(validator);
 
@@ -135,6 +161,7 @@ public sealed class SndbDocumentClient : IDisposable
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentValidatorResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return new SndbDocumentValidatorResponse(body.Collection, body.Status, body.Validator);
     }
 
@@ -147,6 +174,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<bool> DropValidatorAsync(string collection, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
 
         if (_embedded is not null)
@@ -160,6 +188,7 @@ public sealed class SndbDocumentClient : IDisposable
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentValidatorResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return string.Equals(body.Status, "dropped", StringComparison.Ordinal);
     }
 
@@ -178,6 +207,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ValidateId(id);
 
@@ -199,7 +229,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "insert-one"),
             new DocumentWriteItem(id, document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentWriteItem,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -216,10 +246,11 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(documents);
 
-        var items = MaterializeWriteItems(documents);
+        var items = MaterializeWriteItems(documents, cancellationToken);
         if (_embedded is not null)
         {
             var result = _embedded.Documents.Open(collection).InsertMany(
@@ -240,7 +271,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "insert-many"),
             payload.Request,
             SndbDocumentClientJsonContext.Default.DocumentInsertManyRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -287,9 +318,14 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         options ??= new SndbDocumentFindOptions();
         int limit = NormalizeFindLimit(options.Limit);
+        if (options.Skip < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "skip 不能为负数。");
+        if (!string.IsNullOrWhiteSpace(options.Id) && options.Ids is { Count: > 0 })
+            throw new ArgumentException("id 与 ids 不能同时提供。", nameof(options));
 
         if (_embedded is not null)
         {
@@ -327,7 +363,7 @@ public sealed class SndbDocumentClient : IDisposable
                 cancellationToken).ConfigureAwait(false);
             var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindResponse, cancellationToken)
                 .ConfigureAwait(false);
-            return ToPage(body, limit);
+            return ToPage(body, limit, collection);
         }
         catch (SndbServerException ex) when (DocumentCursorErrorCodes.IsCursorError(ex.Error))
         {
@@ -348,6 +384,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ValidateId(id);
 
@@ -376,6 +413,7 @@ public sealed class SndbDocumentClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindOneResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return body.Found && body.Document is not null ? ToDocument(body.Document) : null;
     }
 
@@ -394,6 +432,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ValidateId(id);
 
@@ -408,7 +447,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "update-one"),
             new DocumentUpdateOneRequest(Id: id, Document: document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -424,6 +463,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.Update);
@@ -457,7 +497,7 @@ public sealed class SndbDocumentClient : IDisposable
             SndbDocumentClientJsonContext.Default.DocumentFindOneAndUpdateRequest,
             SndbDocumentClientJsonContext.Default.DocumentFindOneAndUpdateResponse,
             cancellationToken).ConfigureAwait(false);
-        return ToClientFindOneAndUpdateResult(response);
+        return ToClientFindOneAndUpdateResult(response, collection);
     }
 
     /// <summary>
@@ -474,10 +514,11 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(documents);
 
-        var items = MaterializeWriteItems(documents);
+        var items = MaterializeWriteItems(documents, cancellationToken);
         if (_embedded is not null)
         {
             var result = _embedded.Documents.Open(collection).ReplaceMany(
@@ -491,7 +532,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "update-many"),
             payload.Request,
             SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -515,6 +556,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(update);
         if (!string.IsNullOrWhiteSpace(id))
@@ -534,7 +576,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "update-one"),
             new DocumentUpdateOneRequest(id, null, filter, update, upsert, upsertId),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -556,6 +598,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(update);
 
@@ -573,7 +616,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "update-many"),
             new DocumentUpdateManyRequest(null, filter, update, upsert, upsertId),
             SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -589,6 +632,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ValidateId(id);
 
@@ -602,7 +646,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "delete-one"),
             new DocumentDeleteOneRequest(id),
             SndbDocumentClientJsonContext.Default.DocumentDeleteOneRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -619,9 +663,10 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(ids);
-        var idList = ids.ToArray();
+        var idList = MaterializeIds(ids, cancellationToken);
 
         if (_embedded is not null)
         {
@@ -633,7 +678,7 @@ public sealed class SndbDocumentClient : IDisposable
             CollectionActionUrl(collection, "delete-many"),
             new DocumentDeleteManyRequest(idList, ordered),
             SndbDocumentClientJsonContext.Default.DocumentDeleteManyRequest,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false), collection);
     }
 
     /// <summary>
@@ -653,9 +698,10 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(operations);
-        SndbDocumentBulkWriteOperation[] materialized = operations.ToArray();
+        SndbDocumentBulkWriteOperation[] materialized = MaterializeBulkOperations(operations, cancellationToken);
         if (materialized.Length == 0)
             throw new ArgumentException("bulk operations 不能为空。", nameof(operations));
 
@@ -680,7 +726,7 @@ public sealed class SndbDocumentClient : IDisposable
                 SndbDocumentClientJsonContext.Default.DocumentBulkWriteRequest,
                 SndbDocumentClientJsonContext.Default.DocumentBulkWriteResponse,
                 cancellationToken).ConfigureAwait(false);
-            return ToClientBulkWriteResult(response);
+            return ToClientBulkWriteResult(response, collection);
         }
         finally
         {
@@ -702,6 +748,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
 
         if (_embedded is not null)
@@ -717,6 +764,7 @@ public sealed class SndbDocumentClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentCountResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return body.Count;
     }
 
@@ -737,6 +785,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -753,6 +802,7 @@ public sealed class SndbDocumentClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentDistinctResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return new SndbDocumentDistinctResult(collection, body.Path, body.Values.Select(ToObject).ToArray());
     }
 
@@ -769,6 +819,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(pipeline);
         if (pipeline.Count == 0)
@@ -787,6 +838,7 @@ public sealed class SndbDocumentClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentAggregateResponse, cancellationToken)
             .ConfigureAwait(false);
+        EnsureResponseCollection(collection, body.Collection);
         return new SndbDocumentAggregateResult(
             body.Collection,
             body.Documents.Select(static document => document.GetRawText()).ToArray(),
@@ -830,7 +882,8 @@ public sealed class SndbDocumentClient : IDisposable
             _builder.Username,
             _builder.Password,
             _builder.Token,
-            TimeSpan.FromSeconds(_builder.Timeout));
+            TimeSpan.FromSeconds(_builder.Timeout),
+            allowAutoRedirect: false);
         _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
@@ -856,7 +909,7 @@ public sealed class SndbDocumentClient : IDisposable
     {
         var w = new ArrayBufferWriter<byte>();
         DocFrameCodec.EncodeInsertRequest(w, 1, _database, collection, docs, ordered);
-        var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+        var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
         if (frame is not { } f)
             return null;
         return ToClientWriteResult(collection, DocFrameCodec.DecodeInsertResponse(f.Payload));
@@ -901,20 +954,19 @@ public sealed class SndbDocumentClient : IDisposable
             return await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false);
 
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict)
+        // 写端点在部分成功、冲突和预算超限时都会返回带稳定 errors 的
+        // DocumentWriteResponse（状态码可能是 207/409/413）。只要响应具有
+        // 文档写结果的 collection 形状，就保留逐项错误与关联 ID，避免把
+        // 可行动的批量结果降级为不带上下文的 SndbServerException。
+        if (HasDocumentResultShape(body))
         {
             try
             {
-                using var document = JsonDocument.Parse(body);
-                if (document.RootElement.TryGetProperty("errors", out var errors)
-                    && errors.ValueKind == JsonValueKind.Array)
-                {
-                    var writeResponse = JsonSerializer.Deserialize(
-                        body,
-                        SndbDocumentClientJsonContext.Default.DocumentWriteResponse);
-                    if (writeResponse is not null)
-                        return writeResponse;
-                }
+                var writeResponse = JsonSerializer.Deserialize(
+                    body,
+                    SndbDocumentClientJsonContext.Default.DocumentWriteResponse);
+                if (writeResponse is not null)
+                    return writeResponse;
             }
             catch (JsonException)
             {
@@ -978,7 +1030,7 @@ public sealed class SndbDocumentClient : IDisposable
             if (error is not null)
                 return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
-        catch
+        catch (JsonException)
         {
         }
 
@@ -1005,17 +1057,46 @@ public sealed class SndbDocumentClient : IDisposable
 
     private string CollectionActionUrl(string collection, string action) => CollectionUrl(collection) + "/" + action;
 
-    private static List<WriteItem> MaterializeWriteItems(IEnumerable<KeyValuePair<string, string>> documents)
+    private static List<WriteItem> MaterializeWriteItems(
+        IEnumerable<KeyValuePair<string, string>> documents,
+        CancellationToken cancellationToken)
     {
         var result = new List<WriteItem>();
         foreach (var pair in documents)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ValidateId(pair.Key);
             ArgumentException.ThrowIfNullOrWhiteSpace(pair.Value);
             result.Add(new WriteItem(pair.Key, JsonPathEvaluator.NormalizeJson(pair.Value)));
         }
 
         return result;
+    }
+
+    private static string[] MaterializeIds(IEnumerable<string> ids, CancellationToken cancellationToken)
+    {
+        var result = new List<string>();
+        foreach (var id in ids)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result.Add(id);
+        }
+
+        return result.ToArray();
+    }
+
+    private static SndbDocumentBulkWriteOperation[] MaterializeBulkOperations(
+        IEnumerable<SndbDocumentBulkWriteOperation> operations,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<SndbDocumentBulkWriteOperation>();
+        foreach (var operation in operations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result.Add(operation);
+        }
+
+        return result.ToArray();
     }
 
     private static InsertManyPayload BuildInsertManyRequest(IReadOnlyList<WriteItem> items, bool ordered)
@@ -1044,8 +1125,12 @@ public sealed class SndbDocumentClient : IDisposable
         return new UpdateManyPayload(new DocumentUpdateManyRequest(requestItems, Ordered: ordered), documents);
     }
 
-    private static SndbDocumentWriteResult ToWriteResult(DocumentWriteResponse response) =>
-        new(
+    private static SndbDocumentWriteResult ToWriteResult(
+        DocumentWriteResponse response,
+        string expectedCollection)
+    {
+        EnsureResponseCollection(expectedCollection, response.Collection);
+        return new(
             response.Collection,
             response.Inserted,
             response.Matched,
@@ -1057,6 +1142,7 @@ public sealed class SndbDocumentClient : IDisposable
                 error.Code,
                 error.Message,
                 error.Severity)).ToArray());
+    }
 
     private static SndbDocumentWriteResult ToClientWriteResult(string collection, DocumentWriteResult result) =>
         new(
@@ -1086,14 +1172,18 @@ public sealed class SndbDocumentClient : IDisposable
             result.WriteResult.Errors.Select(ToClientWriteError).ToArray());
 
     private static SndbDocumentFindOneAndUpdateResult ToClientFindOneAndUpdateResult(
-        DocumentFindOneAndUpdateResponse response)
-        => new(
+        DocumentFindOneAndUpdateResponse response,
+        string expectedCollection)
+    {
+        EnsureResponseCollection(expectedCollection, response.Collection);
+        return new(
             response.Collection,
             response.Document is null ? null : ToDocument(response.Document),
             response.Inserted,
             response.Matched,
             response.Modified,
             response.Errors?.Select(ToClientWriteError).ToArray());
+    }
 
     private static SndbDocumentBulkWriteResult ToClientBulkWriteResult(
         string collection,
@@ -1120,8 +1210,12 @@ public sealed class SndbDocumentClient : IDisposable
             result.Replayed,
             result.Committed);
 
-    private static SndbDocumentBulkWriteResult ToClientBulkWriteResult(DocumentBulkWriteResponse response)
-        => new(
+    private static SndbDocumentBulkWriteResult ToClientBulkWriteResult(
+        DocumentBulkWriteResponse response,
+        string expectedCollection)
+    {
+        EnsureResponseCollection(expectedCollection, response.Collection);
+        return new(
             response.Collection,
             response.Inserted,
             response.Matched,
@@ -1142,6 +1236,7 @@ public sealed class SndbDocumentClient : IDisposable
             response.RequestId,
             response.Replayed,
             response.Committed);
+    }
 
     private static SndbDocumentWriteError ToClientWriteError(DocumentWriteError error)
         => new(error.Index, error.Id, error.Code, error.Message, error.Severity);
@@ -1152,8 +1247,13 @@ public sealed class SndbDocumentClient : IDisposable
     private static SndbDocument ToDocument(DocumentItemResponse response) =>
         new(response.Id, response.Document.GetRawText(), response.Version);
 
-    private static SndbDocumentPage ToPage(DocumentFindResponse response, int requestedLimit) =>
-        new(
+    private static SndbDocumentPage ToPage(
+        DocumentFindResponse response,
+        int requestedLimit,
+        string expectedCollection)
+    {
+        EnsureResponseCollection(expectedCollection, response.Collection);
+        return new(
             response.Collection,
             response.Documents.Select(ToDocument).ToArray(),
             response.ContinuationToken,
@@ -1161,6 +1261,7 @@ public sealed class SndbDocumentClient : IDisposable
             response.BatchSize ?? response.Limit ?? requestedLimit,
             response.SnapshotVersion,
             response.CursorExpiresAtUtc);
+    }
 
     private static DocumentValidatorDefinition? ToCoreValidator(SndbDocumentValidator? validator)
     {
@@ -1882,6 +1983,12 @@ public sealed class SndbDocumentClient : IDisposable
 
     private static void ValidateId(string id)
         => ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+    private static void EnsureResponseCollection(string expected, string actual)
+    {
+        if (!string.Equals(expected, actual, StringComparison.Ordinal))
+            throw new InvalidDataException($"SonnetDB document response target mismatch: expected collection '{expected}', received '{actual}'.");
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 

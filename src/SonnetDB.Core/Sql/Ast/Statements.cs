@@ -653,7 +653,27 @@ public sealed record InsertStatement(
     /// 空集合表示未声明 <c>RETURNING</c>。
     /// </summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+
+    /// <summary>可选的 SonnetDB 原生冲突处理子句。</summary>
+    public SqlOnConflictClause? OnConflict { get; init; }
 }
+
+/// <summary>关系表 INSERT 的有限冲突处理动作。</summary>
+public enum SqlOnConflictAction
+{
+    /// <summary>冲突行跳过，不产生写入或错误。</summary>
+    DoNothing,
+}
+
+/// <summary>
+/// SonnetDB 原生 <c>ON CONFLICT [(column, ...)] DO NOTHING</c> 子集。
+/// 空目标列表示匹配任一主键或唯一索引。
+/// </summary>
+/// <param name="TargetColumns">冲突目标列；为空时匹配任一唯一约束。</param>
+/// <param name="Action">冲突处理动作。</param>
+public sealed record SqlOnConflictClause(
+    IReadOnlyList<string> TargetColumns,
+    SqlOnConflictAction Action = SqlOnConflictAction.DoNothing);
 
 /// <summary>
 /// <c>SELECT projections FROM measurement [JOIN table ON expr] [WHERE expr] [GROUP BY expr, ...]</c>。
@@ -978,7 +998,11 @@ public sealed record TimeBucketSpec(long BucketSizeMs);
 /// <param name="Where">WHERE 表达式（必填）。</param>
 public sealed record DeleteStatement(
     string Measurement,
-    SqlExpression Where) : SqlStatement;
+    SqlExpression Where) : SqlStatement
+{
+    /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
+    public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+}
 
 /// <summary><c>TRUNCATE TABLE name</c> generation 快速清表。</summary>
 /// <param name="TableName">目标关系表名称。</param>
@@ -995,7 +1019,11 @@ public sealed record UpdateStatement(
     string TableName,
     IReadOnlyList<UpdateAssignment> Assignments,
     SqlExpression Where,
-    string? TableAlias = null) : SqlStatement;
+    string? TableAlias = null) : SqlStatement
+{
+    /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
+    public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>UPDATE SET 子句中的一个列赋值。</summary>
 /// <param name="ColumnName">列名。</param>

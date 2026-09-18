@@ -21,6 +21,7 @@ public sealed partial class SndbKvClient : IDisposable
     private Tsdb? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
+    private int _nextStreamId;
 
     /// <summary>
     /// 使用 SonnetDB 连接字符串创建 KV 客户端。
@@ -62,7 +63,7 @@ public sealed partial class SndbKvClient : IDisposable
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeGetRequest(w, 1, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)));
+            KvFrameCodec.EncodeGetRequest(w, NextStreamId(), _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)));
             var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
             if (frame is { } f)
             {
@@ -110,7 +111,7 @@ public sealed partial class SndbKvClient : IDisposable
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodePutRequest(w, 1, _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value, expiresAtUtc);
+            KvFrameCodec.EncodePutRequest(w, NextStreamId(), _database, keyspace, KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value, expiresAtUtc);
             var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } f)
                 return KvFrameCodec.DecodePutResponse(f.Payload);
@@ -214,7 +215,7 @@ public sealed partial class SndbKvClient : IDisposable
         if (_frames is { } frames && frames.ShouldTryFrames())
         {
             var writer = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.CompareAndSet, _database, keyspace,
+            KvFrameCodec.EncodeAtomicWriteRequest(writer, NextStreamId(), KvFrameOp.CompareAndSet, _database, keyspace,
                 KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), value,
                 expectedVersion: expectedVersion, expiresAtUtc: expiresAtUtc);
             var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
@@ -250,6 +251,7 @@ public sealed partial class SndbKvClient : IDisposable
         ArgumentNullException.ThrowIfNull(keys);
 
         var requested = keys.ToArray();
+        EnsureDistinctKeys(requested);
         foreach (string key in requested)
             ValidateKey(@namespace, key);
 
@@ -277,6 +279,8 @@ public sealed partial class SndbKvClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvGetManyResponse, cancellationToken)
             .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(body.Values);
+        ValidateBatchKeys(qualified, body.Values.Select(static item => item.Key), "get-many");
         return body.Values.ToDictionary(
             item => Unqualify(@namespace, item.Key),
             item => item.Found && item.Value is not null
@@ -299,8 +303,10 @@ public sealed partial class SndbKvClient : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(values);
+        ValidateExpiry(expiresAtUtc);
 
         var requested = values.ToArray();
+        EnsureDistinctKeys(requested.Select(static pair => pair.Key));
         foreach (var pair in requested)
         {
             ArgumentNullException.ThrowIfNull(pair.Key);
@@ -326,6 +332,7 @@ public sealed partial class SndbKvClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvSetManyResponse, cancellationToken)
             .ConfigureAwait(false);
+        ValidateBatchKeys(requested.Select(pair => Qualify(@namespace, pair.Key)), body.Versions.Keys, "set-many");
         return body.Versions.ToDictionary(
             pair => Unqualify(@namespace, pair.Key),
             pair => pair.Value,
@@ -375,6 +382,7 @@ public sealed partial class SndbKvClient : IDisposable
         ArgumentNullException.ThrowIfNull(keys);
 
         var requested = keys.ToArray();
+        EnsureDistinctKeys(requested);
         foreach (string key in requested)
             ValidateKey(@namespace, key);
 
@@ -406,6 +414,7 @@ public sealed partial class SndbKvClient : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(prefix);
+        ValidateLimit(limit);
 
         if (_embedded is not null)
             return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).DeletePrefix(prefix, limit);
@@ -443,7 +452,7 @@ public sealed partial class SndbKvClient : IDisposable
         if (_frames is { } frames && frames.ShouldTryFrames())
         {
             var writer = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeAtomicWriteRequest(writer, 1, KvFrameOp.Expire, _database, keyspace,
+            KvFrameCodec.EncodeAtomicWriteRequest(writer, NextStreamId(), KvFrameOp.Expire, _database, keyspace,
                 KvValueCodec.EncodeUtf8(Qualify(@namespace, key)), [], expiresAtUtc: expiresAtUtc);
             var frame = await frames.SendUnaryAsync(writer.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
             if (frame is { } resultFrame) return KvFrameCodec.DecodeBooleanResponse(resultFrame.Payload);
@@ -540,6 +549,7 @@ public sealed partial class SndbKvClient : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateNames(keyspace, @namespace);
         ArgumentNullException.ThrowIfNull(prefix);
+        ValidateLimit(limit);
 
         if (_embedded is not null)
         {
@@ -555,7 +565,7 @@ public sealed partial class SndbKvClient : IDisposable
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
             var w = new ArrayBufferWriter<byte>();
-            KvFrameCodec.EncodeScanRequest(w, 1, _database, keyspace,
+            KvFrameCodec.EncodeScanRequest(w, NextStreamId(), _database, keyspace,
                 Encoding.UTF8.GetBytes(Qualify(@namespace, prefix)), default, limit ?? 0);
             var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
             if (frame is { } f)
@@ -752,6 +762,48 @@ public sealed partial class SndbKvClient : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(keyspace);
         ArgumentNullException.ThrowIfNull(@namespace);
+    }
+
+    private uint NextStreamId()
+    {
+        int value = Interlocked.Increment(ref _nextStreamId);
+        if (value <= 0)
+        {
+            Interlocked.Exchange(ref _nextStreamId, 1);
+            value = 1;
+        }
+
+        return (uint)value;
+    }
+
+    private static void ValidateLimit(int? limit)
+    {
+        if (limit is < 0)
+            throw new ArgumentOutOfRangeException(nameof(limit), "limit 不能为负数。");
+    }
+
+    private static void EnsureDistinctKeys(IEnumerable<string> keys)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string key in keys)
+        {
+            if (!seen.Add(key))
+                throw new ArgumentException("批量 KV 请求不能包含重复 key。", nameof(keys));
+        }
+    }
+
+    private static void ValidateBatchKeys(
+        IEnumerable<string> requestedKeys,
+        IEnumerable<string> responseKeys,
+        string operation)
+    {
+        ArgumentNullException.ThrowIfNull(responseKeys);
+        string[] expected = requestedKeys.ToArray();
+        string[] actual = responseKeys.ToArray();
+        if (actual.Length != expected.Length
+            || actual.Any(key => !expected.Contains(key, StringComparer.Ordinal))
+            || expected.Any(key => !actual.Contains(key, StringComparer.Ordinal)))
+            throw new InvalidDataException($"KV {operation} 响应 key 集合与请求目标不一致；结果未知。");
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

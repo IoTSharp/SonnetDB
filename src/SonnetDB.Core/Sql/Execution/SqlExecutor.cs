@@ -369,6 +369,16 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
+        using var deadlineSource = options.CreateDeadlineSource();
+        if (deadlineSource is not null)
+        {
+            // 将绝对截止时间折叠为当前调用的取消令牌；清除属性避免嵌套 SELECT
+            // 重新创建计时器并延长原始请求的有效期。
+            options = options with
+            {
+                CancellationToken = deadlineSource.Token,
+            };
+        }
         options.Validate();
         if (options.QueryFingerprint is null)
             options = options with { QueryFingerprint = SqlStatementFingerprint.Create(statement) };
@@ -533,7 +543,17 @@ public static class SqlExecutor
     /// 轮询当前 SQL 执行的取消令牌，保留例程取消的标准错误合同。
     /// </summary>
     internal static void ThrowIfCancellationRequested()
-        => RoutineExecutionContext.Current?.CheckCancellation();
+    {
+        if (RoutineExecutionContext.Current is { } routine)
+        {
+            routine.CheckCancellation();
+            return;
+        }
+
+        // 直接调用 ExecuteSelect 时没有例程根作用域；仍须让查询资源中的
+        // 调用方令牌生效，尤其是 EXPLAIN ANALYZE 的嵌入式辅助入口。
+        SqlQueryResources.Current?.ThrowIfCancellationRequested();
+    }
 
     /// <summary>
     /// 拒绝普通关系表 DML 直接改写 source 映射列；这些列只能由轮询或受治理的 WRITE MODBUS 更新。
@@ -986,7 +1006,10 @@ public static class SqlExecutor
                 databaseName,
                 tsdb,
                 analyzedSelect);
-            var metrics = new SqlExecutionMetrics();
+            // Server REST/Frame 调用可能已在根选项中提供诊断收集器；复用它，
+            // 使 EXPLAIN ANALYZE 的真实行数、耗时和回退原因进入同一慢查询快照。
+            SqlExecutionMetrics metrics = RoutineExecutionContext.Current?.Options.Metrics
+                ?? new SqlExecutionMetrics();
             SelectExecutionResult actual;
             SqlExecutionMetricsSnapshot snapshot;
             using (SqlExecutionTelemetry.Enter(metrics))
@@ -1722,9 +1745,13 @@ public static class SqlExecutor
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        // EXPLAIN ANALYZE 和例程内嵌 SELECT 复用当前根调用的治理选项，
+        // 不能因为进入这个公开辅助入口而退回默认取消令牌或丢失执行指标。
+        SqlExecutionOptions executionOptions = RoutineExecutionContext.Current?.Options
+            ?? SqlExecutionOptions.Default;
         using var queryResourcesScope = SqlQueryResources.EnterRoot(
             tsdb,
-            SqlExecutionOptions.Default with
+            executionOptions with
             {
                 QueryFingerprint = SqlStatementFingerprint.Create(statement),
             });
@@ -2380,6 +2407,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
+            if (statement.ReturningColumns.Count != 0)
+                throw new NotSupportedException("DELETE ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合删除。");
             return DocumentSqlExecutor.ExecuteDelete(tsdb, statement, documentSchema);
@@ -2388,23 +2417,27 @@ public static class SqlExecutor
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
-            var affected = ExecuteTableDeleteWithTriggers(
+            var deleteResult = ExecuteTableDeleteWithTriggers(
                 tsdb,
                 databaseName,
                 statement,
                 tableSchema,
                 controlPlane,
-                transaction).RowsAffected;
+                transaction);
             return new DeleteExecutionResult(
                 statement.Measurement,
-                SeriesAffected: affected,
-                TombstonesAdded: affected);
+                SeriesAffected: deleteResult.RowsAffected,
+                TombstonesAdded: deleteResult.RowsAffected)
+            { Returning = deleteResult.Returning };
         }
 
         // measurement 删除直接落 tombstone/WAL，不进事务缓冲；轻事务 ROLLBACK 无法撤销，
         // 因此在事务上下文内显式拒绝（与 measurement INSERT / 文档删除一致）。
         if (transaction is not null)
             throw new NotSupportedException("轻事务当前不支持 measurement（时序）删除，请在事务外执行 DELETE。");
+
+        if (statement.ReturningColumns.Count != 0)
+            throw new NotSupportedException("DELETE ... RETURNING 当前仅支持关系表。");
 
         return DeleteExecutor.Execute(tsdb, statement);
     }
@@ -2419,6 +2452,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
         {
+            if (update.ReturningColumns.Count != 0)
+                throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合更新。");
             return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
@@ -2430,6 +2465,12 @@ public static class SqlExecutor
         {
             throw new InvalidOperationException(
                 "UPDATE SET column = DEFAULT 仅支持关系表；measurement 不支持 UPDATE 或关系表列 DEFAULT。");
+        }
+
+        if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
+            && update.ReturningColumns.Count != 0)
+        {
+            throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
         }
 
         return ExecuteTableUpdateWithTriggers(

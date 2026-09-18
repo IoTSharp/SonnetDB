@@ -476,6 +476,21 @@ internal static class TableSqlExecutor
             valuesRows.Add(values);
         }
 
+        if (statement.OnConflict is not null)
+        {
+            if (statement.Query is not null || statement.IsDefaultValues && statement.Rows.Count == 0)
+                throw new InvalidOperationException("ON CONFLICT 当前仅支持 VALUES 形式的关系表 INSERT。");
+
+            ValidateConflictTarget(schema, statement.OnConflict.TargetColumns);
+
+            // 冲突检测前先分配数据库生成键；即使跳过冲突行，序列也保持单调递增。
+            if (schema.AutoIncrementColumn is not null)
+                tsdb.Tables.Open(schema.Name).ApplyAutoIncrement(valuesRows);
+
+            return tsdb.Tables.ExecuteLocked(() =>
+                ExecuteInsertOnConflict(tsdb, schema, statement.OnConflict, valuesRows, returningColumns));
+        }
+
         var mutations = valuesRows
             .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
             .ToList();
@@ -498,6 +513,149 @@ internal static class TableSqlExecutor
             .Select(static row => row.Values.ToArray())
             .ToArray();
         return CreateInsertResult(schema.Name, insertedWithRows, returningColumns, insertedRows);
+    }
+
+    private static InsertExecutionResult ExecuteInsertOnConflict(
+        Tsdb tsdb,
+        TableSchema schema,
+        SqlOnConflictClause clause,
+        IReadOnlyList<object?[]> valuesRows,
+        IReadOnlyList<TableColumn> returningColumns)
+    {
+        ValidateConflictTarget(schema, clause.TargetColumns);
+        var store = tsdb.Tables.Open(schema.Name);
+        var visibleRows = store.Scan().ToList();
+        var accepted = new List<object?[]>(valuesRows.Count);
+        foreach (var values in valuesRows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (HasConflict(schema, clause.TargetColumns, values, visibleRows, accepted))
+                continue;
+
+            ValidateRequiredColumns(schema, values);
+            accepted.Add(values);
+        }
+
+        if (accepted.Count == 0)
+            return CreateInsertResult(schema.Name, 0, returningColumns, Array.Empty<object?[]>());
+
+        var mutations = accepted
+            .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
+            .ToArray();
+        int inserted = tsdb.Tables.ApplyTransaction(
+            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            {
+                [schema.Name] = mutations,
+            });
+        object?[][] acceptedArray = accepted.ToArray();
+        return CreateInsertResult(
+            schema.Name,
+            inserted,
+            returningColumns,
+            acceptedArray);
+    }
+
+    private static void ValidateConflictTarget(TableSchema schema, IReadOnlyList<string> targetColumns)
+    {
+        if (targetColumns.Count == 0)
+            return;
+
+        bool primaryKeyMatch = schema.PrimaryKey.SequenceEqual(targetColumns, StringComparer.Ordinal);
+        bool uniqueIndexMatch = schema.Indexes.Any(index =>
+            index.IsUnique
+            && string.IsNullOrWhiteSpace(index.JsonPath)
+            && index.Columns.SequenceEqual(targetColumns, StringComparer.Ordinal));
+        if (!primaryKeyMatch && !uniqueIndexMatch)
+        {
+            throw new InvalidOperationException(
+                $"ON CONFLICT 目标列 ({string.Join(", ", targetColumns)}) 必须对应主键或唯一索引。 ");
+        }
+    }
+
+    private static bool HasConflict(
+        TableSchema schema,
+        IReadOnlyList<string> targetColumns,
+        object?[] values,
+        IReadOnlyList<TableRow> committedRows,
+        IReadOnlyList<object?[]> acceptedRows)
+    {
+        var rows = new List<object?[]>(committedRows.Count + acceptedRows.Count);
+        rows.AddRange(committedRows.Select(static row => row.Values.ToArray()));
+        rows.AddRange(acceptedRows);
+        IEnumerable<object?[]> rowViews = rows;
+        if (targetColumns.Count != 0)
+        {
+            foreach (object?[] row in rowViews)
+            {
+                if (ValuesMatch(schema, targetColumns, values, new[] { row }))
+                    return true;
+            }
+
+            return false;
+        }
+
+        if (ValuesMatch(schema, schema.PrimaryKey, values, rowViews))
+            return true;
+        foreach (var index in schema.Indexes.Where(static index => index.IsUnique && string.IsNullOrWhiteSpace(index.JsonPath)))
+        {
+            if (ValuesMatch(schema, index.Columns, values, rowViews))
+                return true;
+        }
+
+        return false;
+
+        static bool ValuesMatch(
+            TableSchema schema,
+            IReadOnlyList<string> columns,
+            object?[] candidate,
+            System.Collections.IEnumerable rows)
+        {
+            if (columns.Count == 0)
+                return false;
+            var ordinals = columns.Select(name =>
+                schema.TryGetColumn(name)?.Ordinal
+                ?? throw new InvalidOperationException($"关系表 '{schema.Name}' 不存在冲突目标列 '{name}'。"))
+                .ToArray();
+            if (ordinals.Any(ordinal => candidate[ordinal] is null))
+                return false;
+            foreach (object?[] row in rows)
+            {
+                bool match = true;
+                for (int i = 0; i < ordinals.Length; i++)
+                {
+                    object? actual = row[ordinals[i]];
+                    if (actual is null || !SqlScalarComparer.ValuesEqual(candidate[ordinals[i]], actual))
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
+    private static List<object?[]> FilterConflictRows(
+        TableSchema schema,
+        SqlOnConflictClause clause,
+        IReadOnlyList<TableRow> committedRows,
+        IReadOnlyList<object?[]> valuesRows)
+    {
+        ValidateConflictTarget(schema, clause.TargetColumns);
+        var accepted = new List<object?[]>(valuesRows.Count);
+        foreach (var values in valuesRows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            ValidateRequiredColumns(schema, values);
+            if (!HasConflict(schema, clause.TargetColumns, values, committedRows, accepted))
+                accepted.Add(values);
+        }
+
+        return accepted;
     }
 
     public static InsertExecutionResult QueueInsert(SqlTransactionContext transaction, InsertStatement statement, TableSchema schema)
@@ -548,6 +706,9 @@ internal static class TableSqlExecutor
             valuesRows.Add(values);
         }
 
+        if (statement.OnConflict is { } conflictClause)
+            ValidateConflictTarget(schema, conflictClause.TargetColumns);
+
         if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
         {
             bool reservedGeneratedValue = valuesRows.Any(
@@ -555,6 +716,19 @@ internal static class TableSqlExecutor
             long generation = tsdb.Tables.Open(schema.Name).ApplyAutoIncrement(valuesRows);
             if (reservedGeneratedValue)
                 transaction.RecordAutoIncrementReservation(schema.Name, generation);
+        }
+
+        if (statement.OnConflict is { } conflict)
+        {
+            if (tsdb is null)
+                throw new NotSupportedException("带 ON CONFLICT 的关系表 INSERT 需要数据库事务上下文。");
+
+            var store = tsdb.Tables.Open(schema.Name);
+            var visibleRows = transaction.TryGetBufferedMutations(schema.Name, out var buffered)
+                ? ApplyMutationOverlay(schema, store.Scan(), buffered)
+                : store.Scan();
+
+            valuesRows = FilterConflictRows(schema, conflict, visibleRows, valuesRows);
         }
 
         var mutations = new List<TableRowMutation>(valuesRows.Count);
@@ -580,17 +754,20 @@ internal static class TableSqlExecutor
     }
 
     private static TableColumn[] BindReturningColumns(InsertStatement statement, TableSchema schema)
+        => BindReturningColumns(statement.ReturningColumns, schema);
+
+    private static TableColumn[] BindReturningColumns(IReadOnlyList<string> requestedColumns, TableSchema schema)
     {
-        if (statement.ReturningColumns.Count == 0)
+        if (requestedColumns.Count == 0)
             return [];
 
-        if (statement.ReturningColumns.Count == 1 && statement.ReturningColumns[0] == "*")
+        if (requestedColumns.Count == 1 && requestedColumns[0] == "*")
             return [.. schema.Columns];
 
-        var columns = new TableColumn[statement.ReturningColumns.Count];
+        var columns = new TableColumn[requestedColumns.Count];
         for (int i = 0; i < columns.Length; i++)
         {
-            string name = statement.ReturningColumns[i];
+            string name = requestedColumns[i];
             columns[i] = schema.TryGetColumn(name)
                 ?? throw new InvalidOperationException(
                     $"table '{schema.Name}' 的 RETURNING 中不存在列 '{name}'。");
@@ -617,6 +794,30 @@ internal static class TableSqlExecutor
             for (int c = 0; c < returningColumns.Count; c++)
                 row[c] = insertedRows[r][returningColumns[c].Ordinal];
             rows[r] = row;
+        }
+
+        return result with { Returning = new SelectExecutionResult(columns, rows) };
+    }
+
+    private static RowsAffectedExecutionResult CreateRowsAffectedResult(
+        string tableName,
+        int rowsAffected,
+        string operation,
+        IReadOnlyList<TableColumn> returningColumns,
+        IReadOnlyList<object?[]> returningRows)
+    {
+        var result = new RowsAffectedExecutionResult(tableName, rowsAffected, operation);
+        if (returningColumns.Count == 0)
+            return result;
+
+        var columns = returningColumns.Select(static column => column.Name).ToArray();
+        var rows = new IReadOnlyList<object?>[returningRows.Count];
+        for (int rowIndex = 0; rowIndex < returningRows.Count; rowIndex++)
+        {
+            var projected = new object?[returningColumns.Count];
+            for (int columnIndex = 0; columnIndex < returningColumns.Count; columnIndex++)
+                projected[columnIndex] = returningRows[rowIndex][returningColumns[columnIndex].Ordinal];
+            rows[rowIndex] = projected;
         }
 
         return result with { Returning = new SelectExecutionResult(columns, rows) };
@@ -720,7 +921,9 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         if (schema.AutoIncrementColumn is null
+            && returningColumns.Length == 0
             && where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
             && tsdb.Tables.TryTruncateFast(schema.Name, out int truncated))
         {
@@ -728,14 +931,22 @@ internal static class TableSqlExecutor
         }
 
         int deleted = 0;
+        var returningRows = new List<object?[]>();
         if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
         {
+            if (returningColumns.Length != 0)
+            {
+                var row = tsdb.Tables.Open(schema.Name).Scan()
+                    .FirstOrDefault(candidate => ExtractPrimaryKeyValues(schema, candidate.Values).SequenceEqual(keyValues));
+                if (row is not null)
+                    returningRows.Add(row.Values.ToArray());
+            }
             deleted = tsdb.Tables.ApplyTransaction(
                 new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
                 {
                     [schema.Name] = [new TableRowMutation(keyValues, NewValues: null)],
                 });
-            return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+            return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
         }
 
         var store = tsdb.Tables.Open(schema.Name);
@@ -750,6 +961,8 @@ internal static class TableSqlExecutor
 
             var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
             mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values)));
+            if (returningColumns.Length != 0)
+                returningRows.Add(row.Values.ToArray());
         }
 
         deleted = tsdb.Tables.ApplyTransaction(
@@ -757,7 +970,7 @@ internal static class TableSqlExecutor
             {
                 [schema.Name] = mutations,
             });
-        return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+        return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
     }
 
     public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement)
@@ -770,6 +983,7 @@ internal static class TableSqlExecutor
         MutationAliasValidator.Validate(statement);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         // IN 子查询可能间接执行用户代码，必须在表管理锁之外完成物化；赋值表达式仍在锁内按最新行求值。
         var where = TableInSubqueryExecutor.Materialize(
             tsdb,
@@ -781,11 +995,11 @@ internal static class TableSqlExecutor
         if (ContainsUserScalarFunction(tsdb.Functions, where)
             || assignments.Any(assignment => ContainsUserScalarFunction(tsdb.Functions, assignment.Value)))
         {
-            return ExecuteBoundUpdate(tsdb, schema, store, assignments, where);
+            return ExecuteBoundUpdate(tsdb, schema, store, assignments, where, returningColumns);
         }
 
         return tsdb.Tables.ExecuteLocked(() =>
-            ExecuteBoundUpdate(tsdb, schema, store, assignments, where));
+            ExecuteBoundUpdate(tsdb, schema, store, assignments, where, returningColumns));
     }
 
     /// <summary>
@@ -796,9 +1010,11 @@ internal static class TableSqlExecutor
         TableSchema schema,
         TableStore store,
         IReadOnlyList<BoundAssignment> assignments,
-        SqlExpression where)
+        SqlExpression where,
+        IReadOnlyList<TableColumn> returningColumns)
     {
         var mutations = new List<TableRowMutation>();
+        var returningRows = new List<object?[]>();
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
         RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
         foreach (var row in candidateRows)
@@ -820,6 +1036,8 @@ internal static class TableSqlExecutor
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            if (returningColumns.Count != 0)
+                returningRows.Add(values);
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -829,7 +1047,7 @@ internal static class TableSqlExecutor
             {
                 [schema.Name] = mutations,
             });
-        return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+        return CreateRowsAffectedResult(schema.Name, updated, "update", returningColumns, returningRows);
     }
 
     /// <summary>
@@ -886,6 +1104,7 @@ internal static class TableSqlExecutor
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         var where = TableInSubqueryExecutor.Materialize(
             tsdb,
             statement.Where,
@@ -894,6 +1113,7 @@ internal static class TableSqlExecutor
 
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
+        var returningRows = new List<object?[]>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
@@ -936,6 +1156,8 @@ internal static class TableSqlExecutor
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             transitionBudget?.Add(row.Values, values);
             rowChanges.Add(new TableRowChange(schema, row.Values, values));
+            if (returningColumns.Length != 0)
+                returningRows.Add(values);
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -945,7 +1167,7 @@ internal static class TableSqlExecutor
             transaction.AddOrMergeTableMutation(schema, mutation);
 
         changes = rowChanges;
-        return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "update");
+        return CreateRowsAffectedResult(schema.Name, mutations.Count, "update", returningColumns, returningRows);
     }
 
     public static RowsAffectedExecutionResult QueueDelete(SqlTransactionContext transaction, Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -966,8 +1188,10 @@ internal static class TableSqlExecutor
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var store = tsdb.Tables.Open(schema.Name);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
+        var returningRows = new List<object?[]>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
@@ -1000,6 +1224,8 @@ internal static class TableSqlExecutor
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             transitionBudget?.Add(row.Values, null);
             rowChanges.Add(new TableRowChange(schema, row.Values, NewValues: null));
+            if (returningColumns.Length != 0)
+                returningRows.Add(row.Values.ToArray());
         }
 
         // WHERE 对全部候选行求值成功后再合并，保证一条 DELETE 在事务缓冲中也是语句原子的。
@@ -1007,7 +1233,7 @@ internal static class TableSqlExecutor
             transaction.AddOrMergeTableMutation(schema, mutation);
 
         changes = rowChanges;
-        return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "delete");
+        return CreateRowsAffectedResult(schema.Name, mutations.Count, "delete", returningColumns, returningRows);
     }
 
     private static void ThrowIfBufferedTargetMakesSubqueryViewInconsistent(

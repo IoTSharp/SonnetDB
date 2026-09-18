@@ -30,6 +30,14 @@ public sealed class DocumentVectorIndexStore : IDisposable
     /// <summary>向量索引声明。</summary>
     public DocumentVectorIndex Definition => _definition;
 
+    /// <summary>读取已加载图的有效向量数，不扫描持久化 KV 或主文档。</summary>
+    /// <returns>当前图的运行状态；该状态不证明主数据一致性或召回质量。</returns>
+    public DocumentVectorIndexHealth GetHealth()
+    {
+        lock (_sync)
+            return new(_definition, "loaded", _graph.Count);
+    }
+
     /// <summary>当前索引的向量数量。</summary>
     public int Count
     {

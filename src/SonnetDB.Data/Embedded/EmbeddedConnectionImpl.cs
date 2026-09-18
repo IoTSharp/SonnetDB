@@ -116,7 +116,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             InsertExecutionResult { Returning: { } returning } insert =>
                 MaterializedExecutionResult.FromSelect(returning, insert.RowsInserted),
             InsertExecutionResult insert => MaterializedExecutionResult.NonQuery(insert.RowsInserted),
+            DeleteExecutionResult { Returning: { } returning } delete =>
+                MaterializedExecutionResult.FromSelect(returning, delete.TombstonesAdded),
             DeleteExecutionResult delete => MaterializedExecutionResult.NonQuery(delete.TombstonesAdded),
+            RowsAffectedExecutionResult { Returning: { } returning } affected =>
+                MaterializedExecutionResult.FromSelect(returning, affected.RowsAffected),
             RowsAffectedExecutionResult affected => MaterializedExecutionResult.NonQuery(affected.RowsAffected),
             null => MaterializedExecutionResult.NonQuery(0),
             _ => MaterializedExecutionResult.NonQuery(0),
