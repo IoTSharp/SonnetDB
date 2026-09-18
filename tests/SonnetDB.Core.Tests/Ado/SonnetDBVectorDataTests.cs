@@ -82,6 +82,51 @@ public sealed class SonnetDBVectorDataTests : IDisposable
         Assert.Equal([1, 0, 0], search[0].Record.Embedding);
     }
 
+    [Fact]
+    public async Task SearchAsync_DynamicCapturedFilter_UsesStorageNamesAndCurrentValue()
+    {
+        await using var connection = new SndbConnection($"Data Source={_root}");
+        using var store = new SonnetDBVectorStore(connection);
+        var collection = store.GetDynamicCollection("dynamic_knowledge", new VectorStoreCollectionDefinition
+        {
+            Properties =
+            [
+                new VectorStoreKeyProperty("Id", typeof(string)),
+                new VectorStoreDataProperty("Site", typeof(string)) { StorageName = "site_code" },
+                new VectorStoreVectorProperty("Embedding", typeof(float[]), 3)
+                {
+                    StorageName = "embedding",
+                    DistanceFunction = DistanceFunction.CosineDistance,
+                },
+            ],
+        });
+        await collection.EnsureCollectionExistsAsync();
+        await collection.UpsertAsync(new Dictionary<string, object?>
+        {
+            ["Id"] = "north-id",
+            ["Site"] = "north",
+            ["Embedding"] = new float[] { 1, 0, 0 },
+        });
+        await collection.UpsertAsync(new Dictionary<string, object?>
+        {
+            ["Id"] = "south-id",
+            ["Site"] = "south",
+            ["Embedding"] = new float[] { 0, 1, 0 },
+        });
+        var site = "north";
+        var options = new VectorSearchOptions<Dictionary<string, object?>>
+        {
+            Filter = record => (string)record["Site"]! == site,
+        };
+
+        var north = await collection.SearchAsync(new ReadOnlyMemory<float>([1, 0, 0]), 2, options).ToArrayAsync();
+        Assert.Equal("north-id", Assert.Single(north).Record["Id"]);
+
+        site = "south";
+        var south = await collection.SearchAsync(new ReadOnlyMemory<float>([1, 0, 0]), 2, options).ToArrayAsync();
+        Assert.Equal("south-id", Assert.Single(south).Record["Id"]);
+    }
+
     private sealed class KnowledgeRecord
     {
         [VectorStoreKey]

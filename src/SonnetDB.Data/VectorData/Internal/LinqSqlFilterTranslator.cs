@@ -15,8 +15,6 @@ internal sealed record SqlWhereClause(string Sql, IReadOnlyList<SqlParameterValu
     public static SqlWhereClause Empty { get; } = new(string.Empty, Array.Empty<SqlParameterValue>());
 }
 
-[RequiresUnreferencedCode("LINQ Filter 翻译依赖反射访问记录属性。")]
-[RequiresDynamicCode("LINQ Filter 翻译会编译子表达式以求值常量。")]
 internal static class LinqSqlFilterTranslator
 {
     public static SqlWhereClause Translate<TRecord>(
@@ -114,9 +112,10 @@ internal static class LinqSqlFilterTranslator
         expression = StripConvert(expression);
         if (expression is ConstantExpression constant)
             return constant.Value;
-        var lambda = Expression.Lambda(Expression.Convert(expression, typeof(object)));
-        var compiled = (Func<object?>)lambda.Compile();
-        return compiled();
+        // 委托类型在编译时固定，常量子表达式通过解释器求值，无需生成动态代码。
+        // 成员元数据来自调用方提供的表达式树，不按名称反射查找记录属性。
+        var lambda = Expression.Lambda<Func<object?>>(Expression.Convert(expression, typeof(object)));
+        return lambda.Compile(preferInterpretation: true)();
     }
 
     private static Expression StripConvert(Expression expression)
