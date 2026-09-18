@@ -1,5 +1,5 @@
-using SonnetDB.SemanticContent;
 using System.Text.Json;
+using SonnetDB.SemanticContent;
 
 namespace SonnetDB.Core.Tests.SemanticContent;
 

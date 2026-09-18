@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using SonnetDB.Backup;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
@@ -7,7 +8,6 @@ using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 using Xunit;
 using Xunit.Abstractions;
-using System.Diagnostics;
 
 namespace SonnetDB.Core.Tests.Sql;
 

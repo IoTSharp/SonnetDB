@@ -490,15 +490,22 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             {
                 _ = store.TryWrite(previous, job with
                 {
-                    Status = "failed", Error = "达到派生任务最大执行次数；可显式重试。",
-                    UpdatedUtc = DateTimeOffset.UtcNow, NextAttemptUtc = null, LeaseId = null, LeaseUntilUtc = null,
+                    Status = "failed",
+                    Error = "达到派生任务最大执行次数；可显式重试。",
+                    UpdatedUtc = DateTimeOffset.UtcNow,
+                    NextAttemptUtc = null,
+                    LeaseId = null,
+                    LeaseUntilUtc = null,
                 }, deadline.Token);
                 return;
             }
             job = job with
             {
-                Status = "processing", Attempts = job.Attempts + 1, Error = null,
-                UpdatedUtc = DateTimeOffset.UtcNow, NextAttemptUtc = null,
+                Status = "processing",
+                Attempts = job.Attempts + 1,
+                Error = null,
+                UpdatedUtc = DateTimeOffset.UtcNow,
+                NextAttemptUtc = null,
                 LeaseId = Guid.NewGuid().ToString("N"),
                 LeaseUntilUtc = DateTimeOffset.UtcNow.AddSeconds(_processingOptions.ProcessingTimeoutSeconds + 30),
             };
@@ -520,8 +527,11 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
                     if (owned?.Job.LeaseId == job.LeaseId)
                         _ = store.TryWrite(owned, job with
                         {
-                            Status = "retry", LeaseId = null, LeaseUntilUtc = null,
-                            NextAttemptUtc = DateTimeOffset.UtcNow, UpdatedUtc = DateTimeOffset.UtcNow,
+                            Status = "retry",
+                            LeaseId = null,
+                            LeaseUntilUtc = null,
+                            NextAttemptUtc = DateTimeOffset.UtcNow,
+                            UpdatedUtc = DateTimeOffset.UtcNow,
                         }, releaseBudget.Token);
                 }
                 catch (Exception releaseFailure)

@@ -141,6 +141,7 @@
 ### Fixed
 
 - **依赖补丁版本对齐**：升级 Microsoft.Extensions.Options，并同步 Configuration.Abstractions、Logging.Abstractions 至 10.0.12，满足已升级 Hosting.Abstractions 的传递依赖，修复 CoAP 子模块还原时的 NU1605（GitHub PR #149）。
+- **CI 构建与回归稳定性**：将进程测试探针纳入 solution 的配置映射，避免 Release 构建混入 Debug 输出；根目录租约测试有界等待异步释放完成，并修复现有格式检查错误。保留原有测试断言、取消和编译警告要求。
 
 - **M19 #125 Flush 发布恢复边界**：为每个待发布 Segment 在 `wal/` 中持久化 CRC 保护的 pending/committed marker；段 rename 后、独立 checkpoint 前崩溃时，启动会在扫描 Segment 前删除未提交段、sidecar 和配置临时后缀的残留文件并完整 WAL replay，避免同一时间戳记录被 Segment 与 WAL 双重暴露，也避免重用 SegmentId 时临时文件冲突。只有 marker 与可解析、长度及 SegmentId 均匹配的 checkpoint 完全对应时才保留并提升为 committed；被后续 durable/WAL checkpoint 覆盖、最终 marker 损坏或孤立段删除失败时 fail closed。Flush 泵在首次发布失败后保留 sealing 查询快照、拒绝后续 checkpoint，并在 Dispose 时保留 WAL；覆盖 post-rename、pre-rename 临时段、direct Dispose、stale marker、损坏/临时 marker 和 continued-process 场景的恢复回归。未修改 Segment 二进制格式。
 

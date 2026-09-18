@@ -36,12 +36,12 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
             db.Keyspaces.Open("__object_storage").CreateSnapshot();
 
         foreach (string prefix in new[] { "", "a", "a/", "x", "\uffff", "missing", "/a" })
-        foreach (string? delimiter in new string?[] { null, "/", "::", "\uffff" })
-        foreach (int size in new[] { 1, 2, 7, int.MaxValue })
-        {
-            _deadline.Token.ThrowIfCancellationRequested();
-            VerifyPages(store, Oracle(db, prefix, delimiter), prefix, delimiter, size);
-        }
+            foreach (string? delimiter in new string?[] { null, "/", "::", "\uffff" })
+                foreach (int size in new[] { 1, 2, 7, int.MaxValue })
+                {
+                    _deadline.Token.ThrowIfCancellationRequested();
+                    VerifyPages(store, Oracle(db, prefix, delimiter), prefix, delimiter, size);
+                }
         Assert.Equal(24, store.ListObjectVersions(Bucket).Versions.Count);
     }
 

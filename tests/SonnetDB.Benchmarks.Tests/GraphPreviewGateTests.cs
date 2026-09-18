@@ -235,12 +235,16 @@ public sealed class GraphPreviewGateTests : IDisposable
                 return check with { Artifact = fixture.CreateReference(check.Artifact.Path, artifact.Run) };
             }
             artifact = artifact with { Assertions = [new GraphProductionCheckAssertion { Name = "unrelated", Expected = "1", Actual = "1" }] };
-            return check with { Artifact = fixture.WriteArtifact(check.Artifact.Path, artifact,
-                GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact, artifact.Run) };
+            return check with
+            {
+                Artifact = fixture.WriteArtifact(check.Artifact.Path, artifact,
+                GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact, artifact.Run)
+            };
         }).ToArray();
         GraphProductionSoakArtifact recovery = fixture.ReadArtifact(
             input.Recovery.Artifact, GraphProductionArtifactJsonContext.Default.GraphProductionSoakArtifact)
-            with { DatasetOutputDigest = input.PreviewSmallDataset.OutputDigest };
+            with
+        { DatasetOutputDigest = input.PreviewSmallDataset.OutputDigest };
         input = input with
         {
             Journeys = journeys,
@@ -315,11 +319,14 @@ public sealed class GraphPreviewGateTests : IDisposable
         GraphProductionGateInput production = fixture.CreatePassingInput(preview: true);
         GraphProductionDatasetArtifact gate = fixture.ReadArtifact(
             production.Dataset.Artifact, GraphProductionArtifactJsonContext.Default.GraphProductionDatasetArtifact)
-            with { Tier = "gate" };
+            with
+        { Tier = "gate" };
         GraphProductionDatasetEvidence gateEvidence = DatasetEvidence(fixture, "dataset.json", gate);
         GraphProductionDatasetEvidence smallEvidence = DatasetEvidence(fixture, "dataset-small.json", gate with
         {
-            Tier = "preview-small", VertexCount = 100_000, EdgeCount = 1_000_000,
+            Tier = "preview-small",
+            VertexCount = 100_000,
+            EdgeCount = 1_000_000,
             OutputDigest = new string('a', 64),
         });
         DateTimeOffset finished = production.FinishedUtc;
@@ -361,8 +368,11 @@ public sealed class GraphPreviewGateTests : IDisposable
                     OracleAssertions = [round.OracleAssertions[0] with { Name = journey.Id }],
                 }).ToArray(),
             };
-            return journey with { Artifact = fixture.WriteArtifact(journey.Artifact.Path, artifact,
-                GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact, artifact.Run) };
+            return journey with
+            {
+                Artifact = fixture.WriteArtifact(journey.Artifact.Path, artifact,
+                GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact, artifact.Run)
+            };
         }).ToArray();
         return new GraphPreviewGateInput
         {

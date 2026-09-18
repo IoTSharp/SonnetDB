@@ -215,252 +215,252 @@ internal static class SqlEndpointHandler
 
         try
         {
-        for (int s = 0; s < statements.Count; s++)
-        {
-            var stmt = statements[s];
-            string diagnosticsSql = RedactSqlForDiagnostics(stmt.Sql);
-            metrics.RecordSqlRequest();
-            var sw = Stopwatch.StartNew();
-
-            SqlStatement parsed;
-            try
+            for (int s = 0; s < statements.Count; s++)
             {
-                parsed = SqlParser.Parse(stmt.Sql);
-            }
-            catch (Exception ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    queueWaitMs: queueWaitMs);
-                await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
-                return;
-            }
+                var stmt = statements[s];
+                string diagnosticsSql = RedactSqlForDiagnostics(stmt.Sql);
+                metrics.RecordSqlRequest();
+                var sw = Stopwatch.StartNew();
 
-            var diagnosticsDatabase = IsControlPlaneStatement(parsed) || parsed is ShowDatabasesStatement
-                ? _controlPlaneDatabaseLabel
-                : databaseName;
-
-            if (!TryAuthorizeStatement(
-                context,
-                parsed,
-                canAdministerDatabase,
-                isServerAdmin,
-                out var authorizationError))
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    queueWaitMs: queueWaitMs);
-                await WriteErrorAsync(context, "forbidden", authorizationError).ConfigureAwait(false);
-                return;
-            }
-
-            if (!IsControlPlaneStatement(parsed) && RequiresWritePermission(parsed) && !canWrite)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    queueWaitMs: queueWaitMs);
-                await WriteErrorAsync(context, "forbidden", "当前凭据对该数据库没有写权限。").ConfigureAwait(false);
-                return;
-            }
-
-            SqlStatement executable;
-            var executionMetrics = diagnostics is not null
-                && diagnostics.Options.Enabled
-                && diagnostics.Options.ThresholdMs >= 0
-                    ? new SqlExecutionMetrics()
-                    : null;
-            SqlExecutionMetricsSnapshot? executionSnapshot = null;
-            try
-            {
-                executable = BindParameters(parsed, stmt);
-
-                if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
-                    throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
-                if (executable is WriteModbusStatement && transaction is not null && !transaction.IsCompleted)
+                SqlStatement parsed;
+                try
                 {
-                    throw new InvalidOperationException(
-                        "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。");
+                    parsed = SqlParser.Parse(stmt.Sql);
+                }
+                catch (Exception ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        queueWaitMs: queueWaitMs);
+                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    return;
                 }
 
-                string caller = ResolveRoutineCaller(context, isServerAdmin);
-                object? result = executable switch
-                {
-                    WriteModbusStatement writeModbus => await GetModbusWriteService(
-                        context,
-                        ref modbusWriteService).ExecuteAsync(
-                        tsdb,
-                        databaseName,
-                        writeModbus,
-                        ResolveModbusWritePrincipal(context, caller),
-                        canWrite,
-                        canAdministerDatabase,
-                        context.RequestAborted).ConfigureAwait(false),
-                    ShowModbusWriteAuditStatement => GetModbusWriteService(
-                        context,
-                        ref modbusWriteService).ShowAudit(databaseName),
-                    _ => SqlExecutor.ExecuteStatement(
-                        tsdb,
-                        databaseName,
-                        executable,
-                        controlPlane,
-                        transaction,
-                        new SqlExecutionOptions
-                        {
-                            CancellationToken = context.RequestAborted,
-                            Caller = caller,
-                            CanWrite = canWrite,
-                            CanAdminister = canAdministerDatabase,
-                            MaxRoutineStatements = routineOptions.MaxRoutineStatements,
-                            MaxRoutineDepth = routineOptions.MaxRoutineDepth,
-                            MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
-                            MaxTriggerTransitionRows = routineOptions.MaxTriggerTransitionRows,
-                            MaxTriggerTransitionBytes = routineOptions.MaxTriggerTransitionBytes,
-                            MaxDeferredTriggerInvocations = routineOptions.MaxDeferredTriggerInvocations,
-                            MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
-                            TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
-                            Metrics = executionMetrics,
-                        }),
-                };
-                executionSnapshot = executionMetrics?.Complete();
-                if (result is SqlTransactionContext started)
-                    transaction = started;
-                else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
-                    transaction = null;
+                var diagnosticsDatabase = IsControlPlaneStatement(parsed) || parsed is ShowDatabasesStatement
+                    ? _controlPlaneDatabaseLabel
+                    : databaseName;
 
-                switch (result)
+                if (!TryAuthorizeStatement(
+                    context,
+                    parsed,
+                    canAdministerDatabase,
+                    isServerAdmin,
+                    out var authorizationError))
                 {
-                    case SelectExecutionResult sel:
-                        {
-                            long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
-                            metrics.AddReturnedRows(rowCount);
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
-                                executionSnapshot, queueWaitMs);
-                            break;
-                        }
-                    case InsertExecutionResult ins:
-                        {
-                            if (!canWrite)
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        queueWaitMs: queueWaitMs);
+                    await WriteErrorAsync(context, "forbidden", authorizationError).ConfigureAwait(false);
+                    return;
+                }
+
+                if (!IsControlPlaneStatement(parsed) && RequiresWritePermission(parsed) && !canWrite)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        queueWaitMs: queueWaitMs);
+                    await WriteErrorAsync(context, "forbidden", "当前凭据对该数据库没有写权限。").ConfigureAwait(false);
+                    return;
+                }
+
+                SqlStatement executable;
+                var executionMetrics = diagnostics is not null
+                    && diagnostics.Options.Enabled
+                    && diagnostics.Options.ThresholdMs >= 0
+                        ? new SqlExecutionMetrics()
+                        : null;
+                SqlExecutionMetricsSnapshot? executionSnapshot = null;
+                try
+                {
+                    executable = BindParameters(parsed, stmt);
+
+                    if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
+                        throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
+                    if (executable is WriteModbusStatement && transaction is not null && !transaction.IsCompleted)
+                    {
+                        throw new InvalidOperationException(
+                            "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。");
+                    }
+
+                    string caller = ResolveRoutineCaller(context, isServerAdmin);
+                    object? result = executable switch
+                    {
+                        WriteModbusStatement writeModbus => await GetModbusWriteService(
+                            context,
+                            ref modbusWriteService).ExecuteAsync(
+                            tsdb,
+                            databaseName,
+                            writeModbus,
+                            ResolveModbusWritePrincipal(context, caller),
+                            canWrite,
+                            canAdministerDatabase,
+                            context.RequestAborted).ConfigureAwait(false),
+                        ShowModbusWriteAuditStatement => GetModbusWriteService(
+                            context,
+                            ref modbusWriteService).ShowAudit(databaseName),
+                        _ => SqlExecutor.ExecuteStatement(
+                            tsdb,
+                            databaseName,
+                            executable,
+                            controlPlane,
+                            transaction,
+                            new SqlExecutionOptions
                             {
-                                metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                                    executionSnapshot, queueWaitMs);
-                                await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                                return;
-                            }
-                            metrics.AddInsertedRows(ins.RowsInserted);
-                            long rowCount = 0;
-                            if (ins.Returning is { } returning)
+                                CancellationToken = context.RequestAborted,
+                                Caller = caller,
+                                CanWrite = canWrite,
+                                CanAdminister = canAdministerDatabase,
+                                MaxRoutineStatements = routineOptions.MaxRoutineStatements,
+                                MaxRoutineDepth = routineOptions.MaxRoutineDepth,
+                                MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
+                                MaxTriggerTransitionRows = routineOptions.MaxTriggerTransitionRows,
+                                MaxTriggerTransitionBytes = routineOptions.MaxTriggerTransitionBytes,
+                                MaxDeferredTriggerInvocations = routineOptions.MaxDeferredTriggerInvocations,
+                                MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
+                                TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
+                                Metrics = executionMetrics,
+                            }),
+                    };
+                    executionSnapshot = executionMetrics?.Complete();
+                    if (result is SqlTransactionContext started)
+                        transaction = started;
+                    else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
+                        transaction = null;
+
+                    switch (result)
+                    {
+                        case SelectExecutionResult sel:
                             {
-                                rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
                                 metrics.AddReturnedRows(rowCount);
-                            }
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
-                                executionSnapshot, queueWaitMs);
-                            break;
-                        }
-                    case DeleteExecutionResult del:
-                        {
-                            if (!canWrite)
-                            {
-                                metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                var elapsed = sw.Elapsed.TotalMilliseconds;
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
                                     executionSnapshot, queueWaitMs);
-                                await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                                return;
+                                break;
                             }
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false,
-                                executionSnapshot, queueWaitMs);
-                            break;
-                        }
-                    case RowsAffectedExecutionResult affected:
-                        {
-                            if (!canWrite)
+                        case InsertExecutionResult ins:
                             {
-                                metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                if (!canWrite)
+                                {
+                                    metrics.RecordSqlError();
+                                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                        executionSnapshot, queueWaitMs);
+                                    await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                    return;
+                                }
+                                metrics.AddInsertedRows(ins.RowsInserted);
+                                long rowCount = 0;
+                                if (ins.Returning is { } returning)
+                                {
+                                    rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                }
+                                var elapsed = sw.Elapsed.TotalMilliseconds;
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
                                     executionSnapshot, queueWaitMs);
-                                await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                                return;
+                                break;
                             }
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false,
-                                executionSnapshot, queueWaitMs);
-                            break;
-                        }
-                    default:
-                        {
-                            // CREATE MEASUREMENT、CREATE USER 等 DDL：返回受影响行数 0。
-                            // 控制面语句已在上面按 admin-only / self-service 细分鉴权，这里仅校验需 canWrite 的普通 DDL。
-                            if (!IsControlPlaneStatement(executable) && !canWrite)
+                        case DeleteExecutionResult del:
                             {
-                                metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                if (!canWrite)
+                                {
+                                    metrics.RecordSqlError();
+                                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                        executionSnapshot, queueWaitMs);
+                                    await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                    return;
+                                }
+                                var elapsed = sw.Elapsed.TotalMilliseconds;
+                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false,
                                     executionSnapshot, queueWaitMs);
-                                await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                                return;
+                                break;
                             }
-                            var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, 0, failed: false,
-                                executionSnapshot, queueWaitMs);
-                            break;
-                        }
+                        case RowsAffectedExecutionResult affected:
+                            {
+                                if (!canWrite)
+                                {
+                                    metrics.RecordSqlError();
+                                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                        executionSnapshot, queueWaitMs);
+                                    await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                    return;
+                                }
+                                var elapsed = sw.Elapsed.TotalMilliseconds;
+                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false,
+                                    executionSnapshot, queueWaitMs);
+                                break;
+                            }
+                        default:
+                            {
+                                // CREATE MEASUREMENT、CREATE USER 等 DDL：返回受影响行数 0。
+                                // 控制面语句已在上面按 admin-only / self-service 细分鉴权，这里仅校验需 canWrite 的普通 DDL。
+                                if (!IsControlPlaneStatement(executable) && !canWrite)
+                                {
+                                    metrics.RecordSqlError();
+                                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                        executionSnapshot, queueWaitMs);
+                                    await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                    return;
+                                }
+                                var elapsed = sw.Elapsed.TotalMilliseconds;
+                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, 0, failed: false,
+                                    executionSnapshot, queueWaitMs);
+                                break;
+                            }
+                    }
+                }
+                catch (ControlPlaneAccessDeniedException ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    await WriteErrorAsync(context, "forbidden", ex.Message).ConfigureAwait(false);
+                    return;
+                }
+                catch (TableConstraintException ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
+                    return;
+                }
+                catch (RoutineExecutionException ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
+                    return;
+                }
+                catch (ModbusWriteException ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    return;
                 }
             }
-            catch (ControlPlaneAccessDeniedException ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                await WriteErrorAsync(context, "forbidden", ex.Message).ConfigureAwait(false);
-                return;
-            }
-            catch (TableConstraintException ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
-                return;
-            }
-            catch (RoutineExecutionException ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
-                return;
-            }
-            catch (ModbusWriteException ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
-                return;
-            }
-            catch (Exception ex)
-            {
-                metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
-                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
-                return;
-            }
-        }
 
-        if (transaction is not null && !transaction.IsCompleted)
-        {
-            metrics.RecordSqlError();
-            await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
-        }
+            if (transaction is not null && !transaction.IsCompleted)
+            {
+                metrics.RecordSqlError();
+                await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
+            }
         }
         finally
         {
