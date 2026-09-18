@@ -61,16 +61,14 @@ internal static class LinqSqlFilterTranslator
     {
         var left = StripConvert(expression.Left);
         var right = StripConvert(expression.Right);
-        MemberExpression member;
         Expression valueExpression;
-        if (left is MemberExpression leftMember && IsParameterMember(leftMember, parameter))
+        string? sqlExpression;
+        if (TryResolveField(left, parameter, resolver, out sqlExpression))
         {
-            member = leftMember;
             valueExpression = right;
         }
-        else if (right is MemberExpression rightMember && IsParameterMember(rightMember, parameter))
+        else if (TryResolveField(right, parameter, resolver, out sqlExpression))
         {
-            member = rightMember;
             valueExpression = left;
         }
         else
@@ -78,13 +76,37 @@ internal static class LinqSqlFilterTranslator
             throw new NotSupportedException("SonnetDB VectorData Filter 的等值比较必须包含一个记录属性。");
         }
 
-        if (!resolver.TryResolveField(member.Member.Name, out var sqlExpression))
-            throw new NotSupportedException($"属性 {member.Member.Name} 未映射为可过滤字段。");
-
         var value = EvaluateConstant(valueExpression);
         var parameterName = "@f" + parameters.Count;
         parameters.Add(new SqlParameterValue(parameterName, value));
-        return $"{sqlExpression} = {parameterName}";
+        return $"{sqlExpression!} = {parameterName}";
+    }
+
+    private static bool TryResolveField(
+        Expression expression,
+        ParameterExpression parameter,
+        ISqlFilterFieldResolver resolver,
+        [NotNullWhen(true)] out string? sqlExpression)
+    {
+        expression = StripConvert(expression);
+        if (expression is MemberExpression member && IsParameterMember(member, parameter))
+            return resolver.TryResolveField(member.Member.Name, out sqlExpression);
+
+        // Dynamic VectorData records use dictionary indexer expressions such as
+        // record => (string)record["site"] == "north".
+        if (expression is MethodCallExpression
+            {
+                Method.Name: "get_Item",
+                Object: var target,
+                Arguments: [ConstantExpression { Value: string propertyName }],
+            }
+            && target == parameter)
+        {
+            return resolver.TryResolveField(propertyName, out sqlExpression);
+        }
+
+        sqlExpression = null;
+        return false;
     }
 
     private static object? EvaluateConstant(Expression expression)

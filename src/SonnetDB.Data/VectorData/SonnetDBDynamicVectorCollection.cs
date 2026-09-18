@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Linq.Expressions;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.VectorData;
 using SonnetDB.Data.VectorData.Internal;
 
@@ -193,13 +193,14 @@ internal sealed class SonnetDBDynamicVectorCollection
     {
         ArgumentNullException.ThrowIfNull(searchValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(top);
-        bool forceExact = options?.Filter is { } filter && IsAlwaysTrue(filter);
-        if (options?.Filter is not null && !forceExact)
-            throw new NotSupportedException("SonnetDB 动态 VectorData collection 暂不支持 LINQ Filter。");
-
         await EnsureOpenAsync(cancellationToken).ConfigureAwait(false);
         var query = SqlVectorStoreHelpers.FormatVectorLiteral(SqlVectorStoreHelpers.ExtractVector(searchValue));
         var metric = DistanceFunctionMapper.ToKnnMetric(_distanceFunction);
+        var where = options?.Filter is null
+            ? SqlWhereClause.Empty
+            : LinqSqlFilterTranslator.Translate(
+                options.Filter,
+                new DynamicFilterFieldResolver(_keyName, _propertyToStorage));
         int skip = options?.Skip ?? 0;
         if (skip < 0)
             throw new ArgumentOutOfRangeException(nameof(options), "VectorData SearchAsync 的 Skip 不能为负数。");
@@ -210,7 +211,9 @@ internal sealed class SonnetDBDynamicVectorCollection
             $"source => '{SqlVectorStoreHelpers.EscapeSqlString(Name)}', " +
             $"vector_field => '{SqlVectorStoreHelpers.EscapeSqlString(_vectorJsonPath)}', " +
             $"vector => {query}, k => {requestedTop}, metric => '{metric}')" +
-            (forceExact ? " WHERE 1 = 1" : string.Empty);
+            (where.Sql.Length == 0 ? string.Empty : " WHERE " + where.Sql);
+        foreach (var parameter in where.Parameters)
+            cmd.Parameters.AddWithValue(parameter.Name, parameter.Value);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         int skipped = 0;
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -283,9 +286,39 @@ internal sealed class SonnetDBDynamicVectorCollection
             ? vector
             : throw new InvalidOperationException($"动态记录缺少向量字段 '{_vectorName}'。");
 
-    private static bool IsAlwaysTrue(
-        Expression<Func<Dictionary<string, object?>, bool>> filter)
-        => filter.Body is ConstantExpression { Value: true };
+    private sealed class DynamicFilterFieldResolver : ISqlFilterFieldResolver
+    {
+        private readonly string _keyName;
+        private readonly IReadOnlyDictionary<string, string> _propertyToStorage;
+
+        public DynamicFilterFieldResolver(
+            string keyName,
+            IReadOnlyDictionary<string, string> propertyToStorage)
+        {
+            _keyName = keyName;
+            _propertyToStorage = propertyToStorage;
+        }
+
+        public bool TryResolveField(
+            string propertyName,
+            [NotNullWhen(true)] out string? sqlExpression)
+        {
+            if (string.Equals(propertyName, _keyName, StringComparison.Ordinal))
+            {
+                sqlExpression = "id";
+                return true;
+            }
+
+            if (_propertyToStorage.TryGetValue(propertyName, out var storageName))
+            {
+                sqlExpression = $"json_value(document, '$.{storageName}')";
+                return true;
+            }
+
+            sqlExpression = null;
+            return false;
+        }
+    }
 
     private async ValueTask EnsureOpenAsync(CancellationToken cancellationToken)
     {
