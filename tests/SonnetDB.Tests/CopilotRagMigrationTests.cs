@@ -19,7 +19,11 @@ public sealed class CopilotRagMigrationTests : IDisposable
     private string DataPath => Path.Combine(_root, "data");
     private static CopilotRagProfileOptions Profile => new()
     {
-        Id = "builtin-contract-v1", Provider = "builtin", Model = "builtin-hash", Revision = "1", Dimensions = 384,
+        Id = "builtin-contract-v1",
+        Provider = "builtin",
+        Model = "builtin-hash",
+        Revision = "1",
+        Dimensions = 384,
         SupportedModalities = [SemanticContentModality.Text, SemanticContentModality.Document],
     };
 
@@ -132,7 +136,10 @@ public sealed class CopilotRagMigrationTests : IDisposable
         var factory = new FixtureHttpFactory(status, payload);
         var provider = new OpenAICompatibleEmbeddingProvider(new()
         {
-            Provider = "openai", Endpoint = "https://embedding.example/v1/", Model = "fixture", ApiKey = "secret",
+            Provider = "openai",
+            Endpoint = "https://embedding.example/v1/",
+            Model = "fixture",
+            ApiKey = "secret",
         }, factory);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.EmbedGovernedAsync("private input", _deadline.Token).AsTask());
         Assert.Equal("copilot-rag-embedding", factory.Name);

@@ -117,7 +117,9 @@ internal sealed class DocsSourceScanner
         int entries = 0;
         foreach (var file in Directory.EnumerateFileSystemEntries(root, "*", new EnumerationOptions
         {
-            RecurseSubdirectories = true, MaxRecursionDepth = 16, IgnoreInaccessible = false,
+            RecurseSubdirectories = true,
+            MaxRecursionDepth = 16,
+            IgnoreInaccessible = false,
             AttributesToSkip = 0,
         }))
         {

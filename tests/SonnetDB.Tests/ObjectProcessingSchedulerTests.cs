@@ -46,7 +46,7 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
             _deadline.Token.ThrowIfCancellationRequested();
             Assert.True(store.TryWrite(null, Job($"due-{index:D4}", "pending", now.AddMinutes(-1)), _deadline.Token));
             Assert.True(store.TryWrite(null, Job($"future-{index:D4}", "retry", now) with
-                { NextAttemptUtc = now.AddHours(1) }, _deadline.Token));
+            { NextAttemptUtc = now.AddHours(1) }, _deadline.Token));
         }
         int candidates = 0;
         store.DueCandidateVisitedForTest = () => candidates++;
@@ -145,7 +145,7 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
     {
         var store = new ObjectProcessingJobStore(_db);
         var lease = Job("recover", "processing", DateTimeOffset.UtcNow) with
-            { LeaseId = "a", LeaseUntilUtc = DateTimeOffset.UtcNow.AddSeconds(10) };
+        { LeaseId = "a", LeaseUntilUtc = DateTimeOffset.UtcNow.AddSeconds(10) };
         Assert.True(store.TryWrite(null, lease, _deadline.Token));
         var before = store.Read(lease.Id, _deadline.Token);
         store.BeforeCommitForTest = () => throw new IOException("WAL unavailable");

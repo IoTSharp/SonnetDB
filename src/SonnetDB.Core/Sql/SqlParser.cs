@@ -789,11 +789,14 @@ public sealed class SqlParser
             body,
             bodySql)
         {
-            RelativeTo = relativeTo, Precedes = precedes,
+            RelativeTo = relativeTo,
+            Precedes = precedes,
             Timing = before ? SqlTriggerTiming.Before : SqlTriggerTiming.After,
             Level = statementLevel ? SqlTriggerLevel.Statement : SqlTriggerLevel.Row,
-            OldTableName = oldTable, NewTableName = newTable,
-            IsConstraint = isConstraint, InitiallyDeferred = isConstraint,
+            OldTableName = oldTable,
+            NewTableName = newTable,
+            IsConstraint = isConstraint,
+            InitiallyDeferred = isConstraint,
         };
     }
 

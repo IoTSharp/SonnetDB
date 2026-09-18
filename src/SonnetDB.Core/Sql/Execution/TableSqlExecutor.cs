@@ -819,7 +819,7 @@ internal static class TableSqlExecutor
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
-                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -933,7 +933,7 @@ internal static class TableSqlExecutor
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
-                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             transitionBudget?.Add(row.Values, values);
             rowChanges.Add(new TableRowChange(schema, row.Values, values));
         }
@@ -997,7 +997,7 @@ internal static class TableSqlExecutor
 
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values))
-                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
             transitionBudget?.Add(row.Values, null);
             rowChanges.Add(new TableRowChange(schema, row.Values, NewValues: null));
         }

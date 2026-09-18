@@ -1,8 +1,8 @@
-using SonnetDB.Tables;
+using System.Diagnostics;
+using SonnetDB.Exceptions;
 using SonnetDB.Kv;
 using SonnetDB.Routines;
-using SonnetDB.Exceptions;
-using System.Diagnostics;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -105,7 +105,8 @@ public sealed class SqlTransactionContext
                 Replace(new TableRowMutation(
                     previous.PrimaryKeyValues,
                     mutation.NewValues,
-                    previous.ExpectedRowVersion) { ExpectedRowState = previous.ExpectedRowState });
+                    previous.ExpectedRowVersion)
+                { ExpectedRowState = previous.ExpectedRowState });
                 return;
             }
 
@@ -120,7 +121,8 @@ public sealed class SqlTransactionContext
             Replace(new TableRowMutation(
                 previous.PrimaryKeyValues,
                 mutation.NewValues,
-                previous.ExpectedRowVersion) { ExpectedRowState = previous.ExpectedRowState });
+                previous.ExpectedRowVersion)
+            { ExpectedRowState = previous.ExpectedRowState });
             return;
 
             void Replace(TableRowMutation replacement)

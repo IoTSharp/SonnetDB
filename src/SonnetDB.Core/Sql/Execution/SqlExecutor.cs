@@ -2603,8 +2603,11 @@ public static class SqlExecutor
             throw new InvalidOperationException("INSERT SELECT 不能同时指定 VALUES。");
         var options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
         int probe = (int)Math.Min(int.MaxValue, (long)options.MaxTriggerTransitionRows + 1);
-        var bounded = query with { Pagination = new PaginationSpec(query.Pagination?.Offset ?? 0,
-            Math.Min(query.Pagination?.Fetch ?? int.MaxValue, probe)) };
+        var bounded = query with
+        {
+            Pagination = new PaginationSpec(query.Pagination?.Offset ?? 0,
+            Math.Min(query.Pagination?.Fetch ?? int.MaxValue, probe))
+        };
         var result = ExecuteSelect(tsdb, bounded);
         if (result.Columns.Count != statement.Columns.Count)
             throw new InvalidOperationException("INSERT SELECT 输出列数与目标列数不一致。");

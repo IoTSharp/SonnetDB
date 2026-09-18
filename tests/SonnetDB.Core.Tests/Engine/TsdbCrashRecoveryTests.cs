@@ -1,5 +1,5 @@
-﻿using SonnetDB.Catalog;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
+using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
@@ -818,7 +818,22 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         }
 
         await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
-        using var reopened = Tsdb.Open(MakeOptions());
+        // reader drain 的 continuation 异步释放目录锁；等待实际可重开，而不是假定 Dispose 同步完成 continuation。
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Tsdb? reopenedDatabase = null;
+        for (int attempt = 0; attempt < 100 && reopenedDatabase is null; attempt++)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            try
+            {
+                reopenedDatabase = Tsdb.Open(MakeOptions());
+            }
+            catch (IOException) when (attempt < 99)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(50), deadline.Token);
+            }
+        }
+        using var reopened = Assert.IsType<Tsdb>(reopenedDatabase);
         Assert.Equal(1, QueryPointCount(reopened, "cpu", "srv1"));
     }
 

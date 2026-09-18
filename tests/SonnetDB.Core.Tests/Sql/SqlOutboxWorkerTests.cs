@@ -365,8 +365,11 @@ public sealed class SqlOutboxWorkerTests : IDisposable
     private SqlOutboxWorker Worker(Tsdb db) => new(db, Options(), _clock);
     private static SqlOutboxWorkerOptions Options() => new()
     {
-        MaxBatchSize = 4, LeaseDuration = TimeSpan.FromSeconds(10), BatchTimeout = TimeSpan.FromSeconds(5),
-        RetryDelay = TimeSpan.FromSeconds(1), MaxRetryDelay = TimeSpan.FromSeconds(4),
+        MaxBatchSize = 4,
+        LeaseDuration = TimeSpan.FromSeconds(10),
+        BatchTimeout = TimeSpan.FromSeconds(5),
+        RetryDelay = TimeSpan.FromSeconds(1),
+        MaxRetryDelay = TimeSpan.FromSeconds(4),
     };
     private Tsdb Open() => Tsdb.Open(new TsdbOptions
     {
