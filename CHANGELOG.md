@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #306 视觉派生模型**：新增固定原对象身份的 `VisualDerivedTarget`、归一化区域、同视频版本 track 与完整 detector profile，提供有界、可取消的结构化校验和公开 source-generated JSON；拒绝来源混版、越界坐标与错误轨迹引用，比较完整 profile 兼容性。包含来源、预算、取消与 JSON 合同回归；检测器执行、持久化宿主和真实模型质量仍由后续独立能力承担，见 [视觉派生合同](docs/visual-derived-content.md)。
+
 - **M35 #305 RAG 治理与恢复闭环**：新增受治理的摄取状态、重建/续跑/丢弃和有界退休代生成清理 API；Admin REST 与 Web 管理页提供 CAS、审计、配置隔离和失败结果边界。备份/恢复保留源对象清单与 pending generation，可从中断处继续并支持模型 profile 换代；SQL、REST、Frame 与管理目录隐藏内部 RAG 资源，SDK 访问保持可用。新增对象版本绑定、备份恢复、删除派生集合重建和资源隔离合同测试；10k/100k 容量、真实模型质量与固定硬件证据继续后置，详见 [RAG 治理说明](docs/rag-governance.md)。
 
 - **M35 #304 音视频分段可选扩展**：新增 `SonnetDB.Media`，复用 SemanticContent 合同和 KV/WAL 原子导入外部工具产生的 transcript、关键帧与 timecode，提供有界文本/时间交集查询及原对象版本/ETag 来源；对象或关键帧变化后返回 stale，完整替换/删除清理全部派生片段。补齐重开、损坏、取消及预算合同和可运行导入/查询示例；Core 不下载模型或解码媒体，真实模型质量/容量验证后置。详见 [媒体分段合同](docs/media-segments.md)。
