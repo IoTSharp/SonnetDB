@@ -214,12 +214,53 @@ public sealed class GraphOperationsClientTests : IDisposable
         Assert.True(body.Disposed);
     }
 
+    [Fact]
+    public async Task GraphClient_FilteredExpand_StreamingRequestUsesConfiguredHttp2Version()
+    {
+        const string responseBody = "{\"anchorId\":1,\"neighborId\":2,\"direction\":1,\"edge\":{\"id\":10,\"elementVersion\":1,\"sourceId\":1,\"targetId\":2,\"labelId\":8,\"properties\":[]}}\n";
+        var handler = new VersionRecordingHandler(responseBody);
+        using var http = new HttpClient(handler);
+        using var client = new SndbGraphClient(
+            "Data Source=sonnetdb+http://localhost/graph-test;Protocol=frame-http2;Timeout=5",
+            http);
+
+        var expansions = new List<GraphExpansion>();
+        await foreach (GraphExpansion expansion in client.ExpandAsync(
+            "plant",
+            new GraphExpandRequest { VertexId = 1, TargetLabelId = 7 }))
+        {
+            expansions.Add(expansion);
+        }
+
+        GraphExpansion result = Assert.Single(expansions);
+        Assert.Equal(2, result.NeighborId.Value);
+        Assert.Equal(HttpVersion.Version20, handler.RequestVersion);
+        Assert.Equal(HttpVersionPolicy.RequestVersionExact, handler.RequestVersionPolicy);
+    }
+
     private sealed class ResponseHandler(HttpStatusCode status, Stream body) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new HttpResponseMessage(status) { Content = new StreamContent(body) });
+        }
+    }
+
+    private sealed class VersionRecordingHandler(string responseBody) : HttpMessageHandler
+    {
+        internal Version? RequestVersion { get; private set; }
+        internal HttpVersionPolicy RequestVersionPolicy { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestVersion = request.Version;
+            RequestVersionPolicy = request.VersionPolicy;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody, Encoding.UTF8, "application/x-ndjson"),
+            });
         }
     }
 

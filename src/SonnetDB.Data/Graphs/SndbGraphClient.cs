@@ -1153,8 +1153,10 @@ public sealed class SndbGraphClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(value, typeInfo),
+            Version = _http!.DefaultRequestVersion,
+            VersionPolicy = _http.DefaultVersionPolicy,
         };
-        HttpResponseMessage response = await _http!.SendAsync(
+        HttpResponseMessage response = await _http.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
