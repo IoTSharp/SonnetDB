@@ -561,6 +561,78 @@ public sealed record FullTextSearchPreviewResponse(IReadOnlyList<FullTextSearchP
 /// <param name="Score">BM25 相关性分数。</param>
 public sealed record FullTextSearchPreviewHit(string DocumentId, double Score);
 
+/// <summary>类型化全文检索请求，复用 Document 过滤、排序和分页语义。</summary>
+/// <param name="Collection">文档集合名称。</param><param name="Index">全文索引名称。</param>
+/// <param name="Field">索引字段或 <c>*</c>。</param><param name="Query">查询文本。</param>
+/// <param name="PageSize">页大小。</param><param name="Skip">起始偏移。</param>
+/// <param name="Mode">exact 或 fuzzy。</param><param name="QueryKind">all、any 或 phrase。</param>
+/// <param name="Filter">可选 Document 过滤条件。</param><param name="Sort">稳定排序字段。</param>
+/// <param name="Facets">facet 字段。</param><param name="Highlight">高亮配置。</param>
+/// <param name="ContinuationToken">上一页 token。</param>
+public sealed record FullTextSearchRequest(
+    string Collection,
+    string Index,
+    string Field,
+    string Query,
+    int? PageSize = null,
+    int Skip = 0,
+    string? Mode = null,
+    string? QueryKind = null,
+    DocumentFilterContract? Filter = null,
+    IReadOnlyList<DocumentSortContract>? Sort = null,
+    IReadOnlyList<FullTextFacetRequest>? Facets = null,
+    FullTextHighlightRequest? Highlight = null,
+    string? ContinuationToken = null);
+
+/// <summary>全文 facet 请求。</summary>
+/// <param name="Field">用于聚合的 JSON path。</param><param name="Limit">最多返回的桶数量。</param>
+public sealed record FullTextFacetRequest(string Field, int Limit = 10);
+
+/// <summary>全文高亮请求。</summary>
+/// <param name="FragmentSize">单个片段最大字符数。</param><param name="MaxFragments">每条命中最多片段数。</param>
+public sealed record FullTextHighlightRequest(int FragmentSize = 160, int MaxFragments = 3);
+
+/// <summary>全文检索响应，包含稳定分页和 facet 元数据。</summary>
+/// <param name="Collection">文档集合名称。</param><param name="Hits">命中列表。</param>
+/// <param name="Facets">facet 分布。</param><param name="NextContinuationToken">下一页 token。</param>
+/// <param name="HasMore">是否还有下一页。</param><param name="PageSize">实际页大小。</param><param name="TotalHits">命中总数。</param>
+public sealed record FullTextSearchResponse(
+    string Collection,
+    IReadOnlyList<FullTextSearchHit> Hits,
+    IReadOnlyList<FullTextFacetResult> Facets,
+    string? NextContinuationToken,
+    bool HasMore,
+    int PageSize,
+    int TotalHits);
+
+/// <summary>一条全文检索命中。</summary>
+/// <param name="DocumentId">稳定文档 ID。</param><param name="Score">BM25 评分。</param>
+/// <param name="ScoreMetadata">评分元数据。</param><param name="MatchedTerms">实际命中词元。</param>
+/// <param name="MatchedOffsets">命中文本偏移。</param><param name="Highlights">高亮片段。</param>
+public sealed record FullTextSearchHit(
+    string DocumentId,
+    double Score,
+    FullTextScoreMetadata ScoreMetadata,
+    IReadOnlyList<string> MatchedTerms,
+    IReadOnlyList<FullTextMatchedOffset> MatchedOffsets,
+    IReadOnlyList<string> Highlights);
+
+/// <summary>稳定的全文评分元数据。</summary>
+/// <param name="Kind">评分算法名称。</param><param name="Version">元数据版本。</param><param name="QueryTerms">规范化查询词元。</param>
+public sealed record FullTextScoreMetadata(string Kind, int Version, IReadOnlyList<string> QueryTerms);
+
+/// <summary>命中文本的字符偏移。</summary>
+/// <param name="Field">来源字段。</param><param name="Term">命中词元。</param><param name="Start">起始偏移。</param><param name="End">结束偏移。</param>
+public sealed record FullTextMatchedOffset(string Field, string Term, int Start, int End);
+
+/// <summary>facet 分布。</summary>
+/// <param name="Field">facet 字段。</param><param name="Buckets">桶列表。</param>
+public sealed record FullTextFacetResult(string Field, IReadOnlyList<FullTextFacetBucket> Buckets);
+
+/// <summary>单个 facet 桶。</summary>
+/// <param name="Value">facet 值。</param><param name="Count">命中数量。</param>
+public sealed record FullTextFacetBucket(string Value, int Count);
+
 /// <summary>
 /// 分词器 analyze 请求。
 /// </summary>

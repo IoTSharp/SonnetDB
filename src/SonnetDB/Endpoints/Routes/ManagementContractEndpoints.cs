@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -695,6 +696,94 @@ internal static partial class SonnetDbEndpoints
             }
         });
 
+        app.MapPost("/v1/db/{db}/fulltext/search", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextSearchRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
+                || string.IsNullOrWhiteSpace(req.Field) || string.IsNullOrWhiteSpace(req.Query))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index、field 与 query。").ConfigureAwait(false);
+                return;
+            }
+
+            if (req.Skip < 0 || req.Skip > 10_000)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "skip 必须在 0 到 10000 之间。").ConfigureAwait(false);
+                return;
+            }
+
+            int pageSize = req.PageSize is null or <= 0 ? 20 : Math.Min(req.PageSize.Value, 100);
+            var mode = string.Equals(req.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
+                ? FullTextSearchMode.Fuzzy
+                : FullTextSearchMode.Exact;
+            if (!TryNormalizeFullTextQueryKind(req.QueryKind, mode, out var queryKind, out var queryKindError))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", queryKindError).ConfigureAwait(false);
+                return;
+            }
+
+            string fingerprint = BuildFullTextFingerprint(req, mode, queryKind);
+            int offset = req.Skip;
+            if (!string.IsNullOrWhiteSpace(req.ContinuationToken))
+            {
+                if (!TryReadFullTextToken(req.ContinuationToken, fingerprint, out offset))
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_continuation_token", "continuation token 与当前查询不匹配或已损坏。").ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            registry.TryGet(db, out var tsdb);
+            var schema = tsdb.Documents.Catalog.TryGet(req.Collection);
+            var indexDef = schema?.TryGetFullTextIndex(req.Index);
+            if (schema is null || indexDef is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", $"全文索引 '{req.Index}' 不存在于集合 '{req.Collection}'。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                ctx.RequestAborted.ThrowIfCancellationRequested();
+                var store = tsdb.Documents.Open(req.Collection);
+                int searchTake = Math.Min(10_000, checked(offset + pageSize + 1));
+                var candidates = store.SearchFullText(indexDef, req.Field, req.Query, searchTake, mode, queryKind);
+                var rowsById = new Dictionary<string, DocumentRow>(StringComparer.Ordinal);
+                foreach (DocumentFullTextSearchHit hit in candidates)
+                {
+                    if (store.Get(hit.DocumentId) is { } row)
+                        rowsById[hit.DocumentId] = row;
+                }
+                DocumentFilter? filter = ToCoreFilter(req.Filter);
+                if (filter is not null)
+                {
+                    // 过滤候选受有界扫描上限约束；超过上限时继续保持完整请求有界。
+                    rowsById = store.Scan(10_000).ToDictionary(static row => row.Id, StringComparer.Ordinal);
+                    candidates = candidates.Where(hit => rowsById.TryGetValue(hit.DocumentId, out var row) && DocumentQueryPlanner.Matches(filter, row)).ToArray();
+                }
+
+                IReadOnlyList<DocumentFullTextSearchHit> ordered = ApplyFullTextSort(candidates, req.Sort);
+                var page = ordered.Skip(offset).Take(pageSize).ToArray();
+                bool hasMore = ordered.Count > offset + page.Length || candidates.Count == searchTake;
+                string? nextToken = hasMore ? CreateFullTextToken(fingerprint, offset + page.Length) : null;
+                var hits = page.Select(hit => BuildFullTextHit(hit, req, rowsById)).ToArray();
+                var facets = BuildFullTextFacets(req.Facets, ordered, rowsById);
+                var response = new FullTextSearchResponse(req.Collection, hits, facets, nextToken, hasMore, pageSize, ordered.Count);
+                await Results.Json(response, ServerJsonContext.Default.FullTextSearchResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "fulltext_search_error", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "fulltext_search_error", ex.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapPost("/v1/db/{db}/fulltext/analyze", async (HttpContext ctx, string db) =>
         {
             if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
@@ -766,6 +855,145 @@ internal static partial class SonnetDbEndpoints
                 error = "queryKind 仅支持 all / any / phrase。";
                 return false;
         }
+    }
+
+    private static string BuildFullTextFingerprint(FullTextSearchRequest request, FullTextSearchMode mode, FullTextQueryKind queryKind)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{request.Collection}\n{request.Index}\n{request.Field}\n{request.Query}\n{mode}\n{queryKind}\n{request.Filter}\n{string.Join(',', request.Sort?.Select(static item => item.Path + ":" + item.Descending) ?? [])}")));
+
+    private static string CreateFullTextToken(string fingerprint, int offset)
+        => $"{offset}:{fingerprint}";
+
+    private static bool TryReadFullTextToken(string token, string fingerprint, out int offset)
+    {
+        offset = 0;
+        int separator = token.IndexOf(':');
+        return separator > 0
+            && int.TryParse(token[..separator], NumberStyles.None, CultureInfo.InvariantCulture, out offset)
+            && offset >= 0
+            && string.Equals(token[(separator + 1)..], fingerprint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<DocumentFullTextSearchHit> ApplyFullTextSort(
+        IReadOnlyList<DocumentFullTextSearchHit> hits,
+        IReadOnlyList<DocumentSortContract>? sort)
+    {
+        bool descending = sort is not { Count: > 0 } || sort[0].Descending;
+        string path = sort is { Count: > 0 } ? sort[0].Path : "score";
+        if (string.Equals(path, "id", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "_id", StringComparison.OrdinalIgnoreCase))
+        {
+            return (descending
+                ? hits.OrderByDescending(static hit => hit.DocumentId, StringComparer.Ordinal)
+                : hits.OrderBy(static hit => hit.DocumentId, StringComparer.Ordinal))
+                .ThenByDescending(static hit => hit.Score)
+                .ToArray();
+        }
+
+        return (descending
+            ? hits.OrderByDescending(static hit => hit.Score)
+            : hits.OrderBy(static hit => hit.Score))
+            .ThenBy(static hit => hit.DocumentId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static FullTextSearchHit BuildFullTextHit(
+        DocumentFullTextSearchHit hit,
+        FullTextSearchRequest request,
+        IReadOnlyDictionary<string, DocumentRow> rows)
+    {
+        string text = string.Empty;
+        if (rows.TryGetValue(hit.DocumentId, out DocumentRow? row))
+        {
+            if (string.Equals(request.Field, "*", StringComparison.Ordinal)
+                || string.Equals(request.Field, "document", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(request.Field, "json", StringComparison.OrdinalIgnoreCase))
+                text = row.Json;
+            else if (!JsonPathEvaluator.TryEvaluate(row.Json, request.Field, out object? value))
+                text = row.Json;
+            else
+                text = value?.ToString() ?? string.Empty;
+        }
+
+        string[] terms = request.Query
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static value => value.ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Take(32)
+            .ToArray();
+        var offsets = new List<FullTextMatchedOffset>();
+        foreach (string term in terms)
+        {
+            int start = 0;
+            int found;
+            while (start < text.Length && (found = text.IndexOf(term, start, StringComparison.OrdinalIgnoreCase)) >= 0)
+            {
+                offsets.Add(new FullTextMatchedOffset(request.Field, term, found, checked(found + term.Length)));
+                start = found + term.Length;
+                if (offsets.Count >= 64)
+                    break;
+            }
+            if (offsets.Count >= 64)
+                break;
+        }
+
+        var highlights = new List<string>();
+        if (request.Highlight is { } highlight && text.Length > 0)
+        {
+            int fragmentSize = Math.Clamp(highlight.FragmentSize, 32, 1_024);
+            int maxFragments = Math.Clamp(highlight.MaxFragments, 1, 8);
+            foreach (FullTextMatchedOffset match in offsets.Take(maxFragments))
+            {
+                int start = Math.Max(0, match.Start - fragmentSize / 3);
+                int length = Math.Min(fragmentSize, text.Length - start);
+                highlights.Add(text.Substring(start, length));
+            }
+        }
+
+        return new FullTextSearchHit(
+            hit.DocumentId,
+            hit.Score,
+            new FullTextScoreMetadata("bm25", 1, terms),
+            offsets.Select(static item => item.Term).Distinct(StringComparer.Ordinal).ToArray(),
+            offsets,
+            highlights);
+    }
+
+    private static IReadOnlyList<FullTextFacetResult> BuildFullTextFacets(
+        IReadOnlyList<FullTextFacetRequest>? requests,
+        IReadOnlyList<DocumentFullTextSearchHit> hits,
+        IReadOnlyDictionary<string, DocumentRow> rows)
+    {
+        if (requests is not { Count: > 0 })
+            return [];
+
+        var results = new List<FullTextFacetResult>(Math.Min(requests.Count, 16));
+        foreach (FullTextFacetRequest request in requests.Take(16))
+        {
+            if (string.IsNullOrWhiteSpace(request.Field))
+                continue;
+            int limit = Math.Clamp(request.Limit, 1, 100);
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (DocumentFullTextSearchHit hit in hits)
+            {
+                if (!rows.TryGetValue(hit.DocumentId, out DocumentRow? row)
+                    || !JsonPathEvaluator.TryEvaluate(row.Json, request.Field, out object? value))
+                    continue;
+                string? key = JsonPathEvaluator.ToIndexScalar(value);
+                if (key is not null)
+                    counts[key] = counts.TryGetValue(key, out int count) ? count + 1 : 1;
+            }
+
+            var buckets = counts
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Take(limit)
+                .Select(static pair => new FullTextFacetBucket(pair.Key, pair.Value))
+                .ToArray();
+            results.Add(new FullTextFacetResult(request.Field, buckets));
+        }
+
+        return results;
     }
 
     // ---- MQ ----

@@ -273,6 +273,43 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FullText_TypedSearch_PaginatesAndReturnsMetadata()
+    {
+        using var admin = CreateClient(_adminToken);
+        using var ro = CreateClient(_readOnlyToken);
+        var db = "fttyped";
+        await CreateDatabaseAsync(admin, db);
+        await ExecuteSqlAsync(admin, db, "CREATE DOCUMENT COLLECTION logs");
+        await ExecuteSqlAsync(admin, db, "INSERT INTO logs (id, document) VALUES ('a', '{\"message\":\"pump alarm\",\"site\":\"north\"}'), ('b', '{\"message\":\"pump alarm\",\"site\":\"south\"}')");
+        await ExecuteSqlAsync(admin, db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+
+        var request = new FullTextSearchRequest(
+            "logs", "ft_logs_message", "$.message", "pump alarm", PageSize: 1,
+            Facets: [new FullTextFacetRequest("$.site", 4)],
+            Highlight: new FullTextHighlightRequest(80, 2));
+        using var firstResponse = await ro.PostAsync($"/v1/db/{db}/fulltext/search",
+            JsonContent.Create(request, ServerJsonContext.Default.FullTextSearchRequest));
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextSearchResponse);
+        Assert.NotNull(first);
+        Assert.True(first!.HasMore);
+        var firstHit = Assert.Single(first.Hits);
+        Assert.Equal("bm25", firstHit.ScoreMetadata.Kind);
+        Assert.Contains("pump", firstHit.MatchedTerms);
+        Assert.NotEmpty(firstHit.MatchedOffsets);
+        Assert.NotEmpty(firstHit.Highlights);
+        Assert.Equal("north", Assert.Single(first.Facets).Buckets[0].Value);
+
+        var nextRequest = request with { ContinuationToken = first.NextContinuationToken };
+        using var secondResponse = await ro.PostAsync($"/v1/db/{db}/fulltext/search",
+            JsonContent.Create(nextRequest, ServerJsonContext.Default.FullTextSearchRequest));
+        var second = await secondResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextSearchResponse);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        Assert.False(second!.HasMore);
+        Assert.Equal("b", Assert.Single(second.Hits).DocumentId);
+    }
+
+    [Fact]
     public async Task Mq_Topics_Offsets_And_Browse()
     {
         using var admin = CreateClient(_adminToken);
