@@ -760,6 +760,67 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.Contains("target mismatch", error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AggregateAsync_WithPreCanceledToken_DoesNotOpenCollectionOrSendRequest(bool remote)
+    {
+        int requests = 0;
+        using var http = new HttpClient(new StubHandler((_, _) =>
+        {
+            requests++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }));
+        using var client = remote
+            ? new SndbDocumentClient("Data Source=http://localhost/test-db;Protocol=Rest", http)
+            : new SndbDocumentClient(new SndbConnectionStringBuilder { DataSource = _root }.ConnectionString);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.AggregateAsync(
+            "missing", [new SndbDocumentAggregateStage(Limit: 1)], cancellation.Token));
+
+        Assert.Equal(0, requests);
+    }
+
+    [Fact]
+    public async Task DropCollectionAsync_CancellationDuringErrorBodyRead_PropagatesCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var body = new CancelingReadStream(cancellation);
+        using var http = new HttpClient(new StubHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StreamContent(body) })));
+        using var client = new SndbDocumentClient("Data Source=http://localhost/test-db;Protocol=Rest", http);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.DropCollectionAsync("devices", cancellation.Token));
+
+        Assert.True(body.ReadStarted);
+        Assert.True(cancellation.IsCancellationRequested);
+    }
+
+    private sealed class CancelingReadStream(CancellationTokenSource cancellation) : Stream
+    {
+        public bool ReadStarted { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ReadStarted = true;
+            cancellation.Cancel();
+            return ValueTask.FromCanceled<int>(cancellationToken);
+        }
+    }
+
     private sealed class StubHandler(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder) : HttpMessageHandler
     {

@@ -819,6 +819,7 @@ public sealed class SndbDocumentClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateCollection(collection);
         ArgumentNullException.ThrowIfNull(pipeline);
         if (pipeline.Count == 0)
@@ -1029,7 +1030,7 @@ public sealed class SndbDocumentClient : IDisposable
             if (error is not null)
                 return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
-        catch
+        catch (JsonException)
         {
         }
 
