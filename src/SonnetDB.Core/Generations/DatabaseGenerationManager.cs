@@ -250,6 +250,62 @@ public sealed class DatabaseGenerationManager
         }
     }
 
+    /// <summary>按 revision 有界读取 catalog 描述符，不检查或打开物理资源。</summary>
+    /// <param name="stream">generation stream。</param>
+    /// <param name="revision">大于零的版本号。</param>
+    /// <returns>已登记的描述符；未登记或已清理时为空。资源损坏不会被解释为未登记。</returns>
+    public DatabaseGeneration? TryGet(string stream, long revision)
+    {
+        ValidateText(stream, nameof(stream));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _generations.TryGetValue(stream, out var generations) && generations.TryGetValue(revision, out var entry)
+                ? entry.Generation : null;
+        }
+    }
+
+    internal bool IsManagedResource(DatabaseGenerationResource resource)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _catalog.Get(OwnerKey(resource)) is not null;
+        }
+    }
+
+    internal TResult ExecuteAtRevision<TResult>(string stream, long expectedRevision, Func<TResult> action)
+    {
+        ValidateText(stream, nameof(stream));
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        lock (_schemaSync)
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                long current = _active.TryGetValue(stream, out var active) ? active.Generation.Revision : 0;
+                if (current != expectedRevision)
+                    throw RevisionConflict(stream, expectedRevision, current);
+                return action();
+            }
+        }
+    }
+
+    // 调用方在 ExecuteAtRevision 的同一生命周期锁内读取与校验；上限在分配前检查。
+    internal IReadOnlyList<DatabaseGeneration> ListForManagement(string stream, int maximumCount, bool requireComplete)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_generations.TryGetValue(stream, out var generations))
+                return Array.Empty<DatabaseGeneration>();
+            if (requireComplete && generations.Count > maximumCount)
+                throw new InvalidOperationException("保留 generation 数量超过 RAG 管理校验预算，请先分批清理退役版本。");
+            return generations.Values.Take(maximumCount).Select(static item => item.Generation).ToArray();
+        }
+    }
+
     /// <summary>
     /// 删除指定 stream 中不再 active 且没有 query lease 的 generation 资源。
     /// </summary>
@@ -261,7 +317,7 @@ public sealed class DatabaseGenerationManager
         CancellationToken cancellationToken = default)
     {
         ValidateText(stream, nameof(stream));
-        return CleanupRetiredCore(stream, publishedBeforeUtc: null, cancellationToken);
+        return CleanupRetiredCore(stream, publishedBeforeUtc: null, int.MaxValue, null, cancellationToken);
     }
 
     /// <summary>
@@ -278,12 +334,17 @@ public sealed class DatabaseGenerationManager
     {
         ValidateText(stream, nameof(stream));
         ArgumentNullException.ThrowIfNull(options);
-        return CleanupRetiredCore(stream, options.PublishedBeforeUtc, cancellationToken);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxGenerations);
+        if (options.ExpectedRevision is long expected)
+            ArgumentOutOfRangeException.ThrowIfNegative(expected);
+        return CleanupRetiredCore(stream, options.PublishedBeforeUtc, options.MaxGenerations, options.ExpectedRevision, cancellationToken);
     }
 
     private DatabaseGenerationCleanupResult CleanupRetiredCore(
         string stream,
         DateTimeOffset? publishedBeforeUtc,
+        int maxGenerations,
+        long? expectedRevision,
         CancellationToken cancellationToken)
     {
         lock (_schemaSync)
@@ -291,6 +352,10 @@ public sealed class DatabaseGenerationManager
             lock (_sync)
             {
                 ThrowIfDisposed();
+                cancellationToken.ThrowIfCancellationRequested();
+                long observedRevision = _active.TryGetValue(stream, out var observedActive) ? observedActive.Generation.Revision : 0;
+                if (expectedRevision is long expected && observedRevision != expected)
+                    throw RevisionConflict(stream, expected, observedRevision);
                 var removed = new List<long>();
                 var deferred = new List<long>();
                 var retentionDeferred = new List<long>();
@@ -302,6 +367,7 @@ public sealed class DatabaseGenerationManager
                     : 0;
                 PersistedGeneration[] candidates = generations.Values
                     .Where(item => item.Generation.Revision != activeRevision)
+                    .Take(maxGenerations)
                     .ToArray();
                 foreach (PersistedGeneration candidate in candidates)
                 {

@@ -150,6 +150,7 @@ const baseNavigation: NavigationItem[] = [
   { label: 'Studio', key: 'sql', icon: FlaskConical },
   { label: '事件', key: 'events', icon: Activity },
   { label: '监控', key: 'monitoring', icon: Gauge },
+  { label: 'RAG', key: 'rag', icon: Bot },
 ];
 
 const adminNavigation: NavigationItem[] = [
@@ -171,6 +172,7 @@ const titleByKey: Record<string, string> = {
   sql: 'Studio',
   events: '事件流',
   monitoring: '监控',
+  rag: 'RAG',
   modbus: 'Modbus TCP',
   users: '用户',
   grants: '权限',

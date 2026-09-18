@@ -140,6 +140,7 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlExecutionOptions options)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(sql);
         ArgumentNullException.ThrowIfNull(options);
@@ -364,6 +365,7 @@ public static class SqlExecutor
         SqlTransactionContext? transaction,
         SqlExecutionOptions options)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
@@ -1528,6 +1530,7 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
@@ -1716,6 +1719,7 @@ public static class SqlExecutor
     /// <exception cref="InvalidOperationException">measurement 不存在 / WHERE 包含不支持的表达式 / 投影违规等。</exception>
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         using var queryResourcesScope = SqlQueryResources.EnterRoot(
@@ -2370,6 +2374,7 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);

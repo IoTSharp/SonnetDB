@@ -142,6 +142,12 @@ public sealed class DatabaseGenerationCleanupOptions
     /// 已归一为 UTC 的 inclusive 发布时间 cutoff。
     /// </summary>
     public DateTimeOffset PublishedBeforeUtc { get; }
+
+    /// <summary>本次最多检查的 retired generation 数；默认保留既有全部检查行为。</summary>
+    public int MaxGenerations { get; init; } = int.MaxValue;
+
+    /// <summary>可选的 active revision 前置条件；零表示尚未发布。</summary>
+    public long? ExpectedRevision { get; init; }
 }
 
 /// <summary>

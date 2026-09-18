@@ -257,6 +257,7 @@ public static class SqlExplainPlanner
     /// <returns>扫描估算摘要。</returns>
     public static SqlExplainExecutionResult Explain(string? databaseName, Tsdb tsdb, SqlStatement statement)
     {
+        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 

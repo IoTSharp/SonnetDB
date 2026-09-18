@@ -200,7 +200,8 @@ internal static partial class SonnetDbEndpoints
             return false;
 
         // REST、Frame 和管理扫描统一保留语义审计命名空间，不能经通用 KV 绕过只读 Admin 入口。
-        if (SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name))
+        if (SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name)
+            || SonnetDB.SemanticSearch.RagManagementResourceNames.IsReserved(name))
             return false;
 
         for (int i = 0; i < name.Length; i++)

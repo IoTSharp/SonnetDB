@@ -9,7 +9,7 @@ permalink: /rag-ingestion-core/
 
 本页说明 M35 #302 的 Core SDK。`RagTextChunker`、planner 和 callback executor 提供稳定分块、清单校验与完整快照 diff；`RagIngestionWriter` 进一步保存摄取任务，通过调用方提供的 embedding 函数构建 Document、FullText 和 Vector 索引，支持有限重试、取消和重开续跑。只有完整 generation 才会原子发布。
 
-本切片仅支持 Text/Document 文本分块。原始文件扫描和媒体提取、自动 provider 集成与 Copilot 可回滚迁移尚未交付；离线预计算向量的 CLI 入口见 [RAG CLI](rag-cli.md)。
+本切片仅支持 Text/Document 文本分块。[RAG CLI](rag-cli.md) 支持离线预计算向量和显式在线 provider；[Copilot 迁移](copilot-rag-migration.md) 提供有界文件扫描与可回滚 stream。外部媒体提取结果可通过[可选媒体扩展](media-segments.md)导入，管理与恢复见 [RAG 治理](rag-governance.md)。
 
 ## 1. 生成稳定文本分块
 
@@ -164,7 +164,7 @@ var hits = collection.SearchFullText(
     "$.text", "pump", 10);
 ```
 
-profile 的维度、度量、归一化、模型 revision、模态与外发策略是兼容合同。调用方的 embedding 函数负责实际执行和审计；示例中的默认策略为 LocalOnly，外部 provider 必须显式配置相应 `SemanticDataEgressPolicy`。向量维度和有限值会在写入前检查，声明 L2 时还要求平方范数距 1 不超过 0.001。同一个 profile ID 不能更改模型属性，模型换代需要新 ID，并会重新生成全部向量。
+profile 的维度、度量、归一化、模型 revision、模态与外发策略是兼容合同。调用方的 embedding 函数负责实际执行和审计；示例中的默认策略为 LocalOnly，外部 provider 必须显式配置相应 `SemanticDataEgressPolicy`。向量维度和有限值会在写入前检查，声明 L2 时还要求平方范数距 1 不超过 0.001。writer 会拒绝以 active 的同一 profile ID 更改模型属性；#305 管理器进一步核对最多 1024 个仍保留的 generation，但不是永久 profile ID 注册表。模型换代应使用新 ID，并重新生成全部向量。
 
 任务先写入现有 KV 并 checkpoint，然后在独立物理名称下构建 chunk collection。每个文档包含 `contentId`、`chunkId`、`profileId`、`text`、`source`、`section`、`ordinal` 与 `embedding`，后两类索引由 Document 层维护；没有新增第二套 WAL。完整快照与清单使用 source-generated JSON 保存。相同 chunk ID、文本和完整 profile 可以从前一个 active 版本复用向量；恢复时复用已经恢复的 chunk 数据，并重放索引维护。provider 调用本身不保证 exactly-once，崩溃丢失未提交结果时可能再次调用。
 

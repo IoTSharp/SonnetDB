@@ -192,6 +192,7 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<DocsSourceScanner>();
         builder.Services.AddSingleton<DocsChunker>();
         builder.Services.AddSingleton<CopilotRagKnowledgeStore>();
+        builder.Services.AddSingleton<RagManagementService>();
         builder.Services.AddSingleton<DocsIngestor>();
         builder.Services.AddSingleton<DocsSearchService>();
         builder.Services.AddHostedService<CopilotDocsIngestionService>();

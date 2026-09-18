@@ -1,6 +1,7 @@
 using SonnetDB.Documents.Vector;
 using SonnetDB.FullText;
 using SonnetDB.Kv;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
@@ -508,6 +509,7 @@ public sealed class DocumentCollectionManager : IDisposable
     public bool Drop(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        SqlRagResourceScope.Demand(name);
         lock (_schemaSync)
             lock (_sync)
             {
@@ -537,6 +539,7 @@ public sealed class DocumentCollectionManager : IDisposable
     public DocumentCollectionStore Open(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        SqlRagResourceScope.Demand(name);
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -595,6 +598,7 @@ public sealed class DocumentCollectionManager : IDisposable
 
     private DocumentCollectionStore OpenStoreLocked(DocumentCollectionSchema schema)
     {
+        SqlRagResourceScope.Demand(schema.Name);
         if (_stores.TryGetValue(schema.Name, out var existing))
             return existing;
 
@@ -648,6 +652,7 @@ public sealed class DocumentCollectionManager : IDisposable
     /// <summary>阻止调用方绕过 DocumentCollectionManager 的 schema 锁和持久化路径直接修改目录。</summary>
     private void EnsureManagedCatalogMutation(string collectionName, string operation)
     {
+        SqlRagResourceScope.Demand(collectionName);
         if (!Monitor.IsEntered(_schemaSync))
         {
             throw new InvalidOperationException(
