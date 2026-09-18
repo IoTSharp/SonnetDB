@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #308 人员外观与动作查询合同**：新增按 ReID、步态、姿态、动作隔离的预计算候选 SDK，复用 #306 固定来源目标，要求完整 profile、显式用途/授权、持久审计、有界候选/向量预算和取消；步态/动作强制视频来源，结果使用跨来源稳定候选 ID。仅提供精确候选查询，不运行模型、不登记身份；19 项专用测试通过，mAP/CMC/precision/recall、真实模型和固定硬件证据仍后置，见 [人员外观查询](docs/person-appearance-search.md)。
+
 - **M35 #307 受治理的人脸模板与比较合同**：新增默认关闭的 `FaceRecognitionStore`，支持独立用途/操作授权、先同步审计后访问、原子终态审计、固定对象版本新鲜度检查、1:1 验证、有限 1:N 候选、导出、来源/主体删除和保留期清理；通用 REST、Frame、SQL 和管理列表拒绝保留 keyspace。14 项 Core 合同测试和语义回归通过；真实模型 FAR/FRR/TAR、远程入口和物理擦除仍后置，见 [人脸合同](docs/face-recognition.md)。
 
 - **M35 #306 视觉派生模型**：新增固定原对象身份的 `VisualDerivedTarget`、归一化区域、同视频版本 track 与完整 detector profile，提供有界、可取消的结构化校验和公开 source-generated JSON；拒绝来源混版、越界坐标与错误轨迹引用，比较完整 profile 兼容性。包含来源、预算、取消与 JSON 合同回归；检测器执行、持久化宿主和真实模型质量仍由后续独立能力承担，见 [视觉派生合同](docs/visual-derived-content.md)。
