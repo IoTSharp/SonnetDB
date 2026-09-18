@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #315 时序 Query API 初始切片**：新增复用现有 `QueryEngine` 的 range/aggregate/window/gap-fill builder、方向与 limit、取消传播、有界补桶和 TSQ001-004 静态诊断；完整 schema/cardinality/retention/坏点预检与远程证据仍后置。
+
 - **M36 #318 FullText 类型化 Search API**：新增嵌入式/远程统一 typed Search，复用 query kind、Document filter 与稳定分页；服务端提供 score/id 排序、facet、高亮、matched terms/offsets 和版本化 BM25 score metadata，HTTP JSON 全部走 source-generated context。新增分页与命中元数据合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。
 
 - **M36 #319 FullText 设置与诊断**：全文索引新增 searchable/filterable/sortable 字段、synonym/stopword 与 typo policy，嵌入式和远程客户端提供 analyzer diff、BM25 relevance explain 及同步 rebuild status；新增 settings/analyzer-diff/relevance-explain/rebuild 管理端点和 source-generated JSON。文档 schema 格式升级至 v7，保留 v1-v6 读取并在加载时补齐默认设置；新增 Core 与 Server 合同回归，固定硬件和远程容量证据仍后置。
