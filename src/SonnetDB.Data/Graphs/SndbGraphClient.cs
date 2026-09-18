@@ -34,6 +34,27 @@ public sealed class SndbGraphClient : IDisposable
         Open();
     }
 
+    /// <summary>
+    /// 使用调用方提供的 HTTP 客户端创建远程 Graph 客户端，供传输边界测试注入响应。
+    /// </summary>
+    /// <param name="connectionString">SonnetDB 远程连接字符串。</param>
+    /// <param name="httpClient">由 Graph 客户端接管并在释放时一并释放的 HTTP 客户端。</param>
+    internal SndbGraphClient(string connectionString, HttpClient httpClient)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        _builder = new SndbConnectionStringBuilder(connectionString);
+        if (_builder.ResolveMode() == SndbProviderMode.Embedded)
+            throw new ArgumentException("测试 HTTP 客户端仅适用于远程连接。", nameof(connectionString));
+
+        _database = _builder.ResolveDatabase();
+        if (string.IsNullOrWhiteSpace(_database))
+            throw new InvalidOperationException("远程 Graph 客户端缺少数据库名。");
+
+        httpClient.BaseAddress ??= new Uri(_builder.ResolveBaseUrl(), UriKind.Absolute);
+        _http = httpClient;
+        _frames = new FrameChannel(httpClient, _builder.ResolveProtocol());
+    }
+
     /// <summary>当前连接模式。</summary>
     public SndbProviderMode ProviderMode => _builder.ResolveMode();
 
@@ -44,6 +65,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<IReadOnlyList<GraphInfoDto>> ListGraphsAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         if (_embedded is not null)
         {
             return _embedded.Graphs.Catalog.Snapshot()
@@ -68,6 +90,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphInfoDto> CreateGraphAsync(string name, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (_embedded is not null)
         {
@@ -89,6 +112,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<bool> DropGraphAsync(string graph, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (_embedded is not null)
             return _embedded.Graphs.Drop(graph);
@@ -104,6 +128,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphVertex?> GetVertexAsync(string graph, GraphElementId id, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (_embedded is not null)
         {
@@ -126,6 +151,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphEdge?> GetEdgeAsync(string graph, GraphElementId id, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (_embedded is not null)
         {
@@ -147,6 +173,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphCommitResult> UpsertVertexAsync(string graph, GraphUpsertVertexRequest request, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateVertexUpsertRequest(request);
@@ -168,6 +195,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphCommitResult> UpsertEdgeAsync(string graph, GraphUpsertEdgeRequest request, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateEdgeUpsertRequest(request);
@@ -195,6 +223,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateDeleteRequest(id, request);
@@ -227,6 +256,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateDeleteRequest(id, request);
@@ -254,6 +284,7 @@ public sealed class SndbGraphClient : IDisposable
     public async Task<GraphImportResponse> ImportAsync(string graph, GraphImportRequest request, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         int requestBytes = JsonSerializer.SerializeToUtf8Bytes(
@@ -300,6 +331,7 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateExpandRequest(request);
@@ -391,21 +423,29 @@ public sealed class SndbGraphClient : IDisposable
             }
         }
 
-        using HttpResponseMessage response = await PostJsonAsync(
+        await foreach (GraphExpansionDto dto in ReadNdjsonAsync(
             StreamExpandUrl(graph),
             request,
             RemoteJsonContext.Default.GraphExpandRequest,
-            cancellationToken).ConfigureAwait(false);
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var reader = new StreamReader(stream);
-        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+            RemoteJsonContext.Default.GraphExpansionDto,
+            cancellationToken).ConfigureAwait(false))
         {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-            GraphExpansionDto? dto = JsonSerializer.Deserialize(line, RemoteJsonContext.Default.GraphExpansionDto);
-            if (dto is not null)
-                yield return ToExpansion(dto);
+            yield return ToExpansion(dto);
         }
+    }
+
+    /// <summary>按请求页大小对扩展结果进行有界分页流式读取。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">扩展方向、过滤条件与分页预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>每页最多包含 <see cref="GraphExpandRequest.PageSize"/> 项的结果流。</returns>
+    public IAsyncEnumerable<IReadOnlyList<GraphExpansion>> ExpandPagesAsync(
+        string graph,
+        GraphExpandRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return BufferPagesAsync(ExpandAsync(graph, request, cancellationToken), request.PageSize, cancellationToken);
     }
 
     /// <summary>按 label 或 label/property 精确索引流式读取顶点。</summary>
@@ -419,6 +459,7 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateSeekRequest(request);
@@ -454,6 +495,20 @@ public sealed class SndbGraphClient : IDisposable
         }
     }
 
+    /// <summary>按请求页大小对顶点 seek 结果进行有界分页流式读取。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">索引条件和读取预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>每页最多包含 <see cref="GraphSeekRequest.PageSize"/> 项的结果流。</returns>
+    public IAsyncEnumerable<IReadOnlyList<GraphVertex>> SeekVerticesPagesAsync(
+        string graph,
+        GraphSeekRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return BufferPagesAsync(SeekVerticesAsync(graph, request, cancellationToken), request.PageSize, cancellationToken);
+    }
+
     /// <summary>按 label 或 label/property 精确索引流式读取边。</summary>
     /// <param name="graph">图名称。</param>
     /// <param name="request">索引条件和读取预算。</param>
@@ -465,6 +520,7 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateSeekRequest(request);
@@ -500,6 +556,20 @@ public sealed class SndbGraphClient : IDisposable
         }
     }
 
+    /// <summary>按请求页大小对边 seek 结果进行有界分页流式读取。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">索引条件和读取预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>每页最多包含 <see cref="GraphSeekRequest.PageSize"/> 项的结果流。</returns>
+    public IAsyncEnumerable<IReadOnlyList<GraphEdge>> SeekEdgesPagesAsync(
+        string graph,
+        GraphSeekRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return BufferPagesAsync(SeekEdgesAsync(graph, request, cancellationToken), request.PageSize, cancellationToken);
+    }
+
     /// <summary>流式执行 BFS、DFS 或显式深度范围路径枚举。</summary>
     /// <param name="graph">图名称。</param>
     /// <param name="request">遍历模式、方向和预算。</param>
@@ -511,6 +581,7 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateTraversalRequest(request);
@@ -559,6 +630,20 @@ public sealed class SndbGraphClient : IDisposable
         }
     }
 
+    /// <summary>按请求页大小对遍历路径进行有界分页流式读取。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">遍历模式、方向和预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>每页最多包含 <see cref="GraphTraversalRequest.PageSize"/> 项的结果流。</returns>
+    public IAsyncEnumerable<IReadOnlyList<GraphPath>> TraversePagesAsync(
+        string graph,
+        GraphTraversalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return BufferPagesAsync(TraverseAsync(graph, request, cancellationToken), request.PageSize, cancellationToken);
+    }
+
     /// <summary>查找第一条无权最短路径。</summary>
     /// <param name="graph">图名称。</param>
     /// <param name="request">端点、方向和预算。</param>
@@ -570,6 +655,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateShortestPathRequest(request);
@@ -613,6 +699,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateWeightedShortestPathRequest(request);
@@ -666,6 +753,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (_embedded is not null)
         {
@@ -723,6 +811,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (limit is < 1 or > 1_000)
             throw new ArgumentOutOfRangeException(nameof(limit));
@@ -752,6 +841,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         ArgumentNullException.ThrowIfNull(destination);
         if (!destination.CanWrite)
@@ -791,6 +881,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         ValidateMaintenanceRequest(request);
         if (_embedded is not null)
@@ -837,6 +928,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (approvalId == Guid.Empty)
             throw new ArgumentException("Graph maintenance approval ID 不能为空。", nameof(approvalId));
@@ -867,6 +959,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (approvalId == Guid.Empty)
             throw new ArgumentException("Graph maintenance approval ID 不能为空。", nameof(approvalId));
@@ -897,6 +990,7 @@ public sealed class SndbGraphClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateName(graph, nameof(graph));
         if (limit is < 1 or > 2_000)
             throw new ArgumentOutOfRangeException(nameof(limit));
@@ -959,7 +1053,13 @@ public sealed class SndbGraphClient : IDisposable
         _database = _builder.ResolveDatabase();
         if (string.IsNullOrWhiteSpace(_database))
             throw new InvalidOperationException("远程 Graph 客户端缺少数据库名。");
-        _http = RemoteHttpClientFactory.Create(new Uri(_builder.ResolveBaseUrl(), UriKind.Absolute), _builder.Username, _builder.Password, _builder.Token, TimeSpan.FromSeconds(_builder.Timeout));
+        _http = RemoteHttpClientFactory.Create(
+            new Uri(_builder.ResolveBaseUrl(), UriKind.Absolute),
+            _builder.Username,
+            _builder.Password,
+            _builder.Token,
+            TimeSpan.FromSeconds(_builder.Timeout),
+            allowAutoRedirect: false);
         _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
@@ -1010,21 +1110,73 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         where TResponse : class
     {
-        using HttpResponseMessage response = await PostJsonAsync(
+        using HttpResponseMessage response = await PostStreamJsonAsync(
             url,
             request,
             requestTypeInfo,
             cancellationToken).ConfigureAwait(false);
         await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);
+        int lineNumber = 0;
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
+            lineNumber++;
             if (string.IsNullOrWhiteSpace(line))
                 continue;
-            TResponse? item = JsonSerializer.Deserialize(line, responseTypeInfo);
-            if (item is not null)
-                yield return item;
+            TResponse? item;
+            try
+            {
+                item = JsonSerializer.Deserialize(line, responseTypeInfo);
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException($"SonnetDB Graph NDJSON 第 {lineNumber} 行无效。", exception);
+            }
+
+            if (item is null)
+                throw new InvalidDataException($"SonnetDB Graph NDJSON 第 {lineNumber} 行为空值。");
+            yield return item;
         }
+    }
+
+    private async Task<HttpResponseMessage> PostStreamJsonAsync<T>(
+        string url,
+        T value,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(value, typeInfo),
+        };
+        HttpResponseMessage response = await _http!.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return response;
+    }
+
+    private static async IAsyncEnumerable<IReadOnlyList<T>> BufferPagesAsync<T>(
+        IAsyncEnumerable<T> source,
+        int pageSize,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (pageSize is <= 0 or > 1_000)
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+
+        var page = new List<T>(pageSize);
+        await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            page.Add(item);
+            if (page.Count < pageSize)
+                continue;
+            yield return page.ToArray();
+            page.Clear();
+        }
+
+        if (page.Count != 0)
+            yield return page.ToArray();
     }
 
     private static async Task<bool> IsEmptyNotFoundAsync(
@@ -1691,36 +1843,67 @@ public sealed class SndbGraphClient : IDisposable
                 nameof(vertices),
                 $"导入批次必须包含 1 到 {GraphImportLimits.MaxBatchElements} 个元素。");
         }
-        foreach (GraphImportVertexDto vertex in vertices)
+        var errors = new List<SndbGraphBatchError>();
+        var vertexIds = new HashSet<long>();
+        var edgeIds = new HashSet<long>();
+        for (int index = 0; index < vertices.Count; index++)
         {
+            GraphImportVertexDto vertex = vertices[index];
             if (vertex is null)
-                throw new ArgumentException("导入批次不能包含 null vertex。", nameof(vertices));
-            ValidateVertexUpsertRequest(new GraphUpsertVertexRequest
             {
-                Id = vertex.Id,
-                ExpectedElementVersion = vertex.ExpectedElementVersion,
-                Labels = vertex.Labels,
-                Properties = vertex.Properties ?? [],
-                UniquePropertyIds = vertex.UniquePropertyIds ?? [],
-                RequestId = requestId,
-            });
+                errors.Add(new SndbGraphBatchError(index, "vertex", null, "null_item", "导入批次不能包含 null vertex。"));
+                continue;
+            }
+            if (!vertexIds.Add(vertex.Id))
+                errors.Add(new SndbGraphBatchError(index, "vertex", vertex.Id, "duplicate_id", "导入批次包含重复 vertex ID。"));
+            try
+            {
+                ValidateVertexUpsertRequest(new GraphUpsertVertexRequest
+                {
+                    Id = vertex.Id,
+                    ExpectedElementVersion = vertex.ExpectedElementVersion,
+                    Labels = vertex.Labels,
+                    Properties = vertex.Properties ?? [],
+                    UniquePropertyIds = vertex.UniquePropertyIds ?? [],
+                    RequestId = requestId,
+                });
+            }
+            catch (ArgumentException exception)
+            {
+                errors.Add(new SndbGraphBatchError(index, "vertex", vertex.Id, "invalid_item", exception.Message));
+            }
         }
-        foreach (GraphImportEdgeDto edge in edges)
+        for (int index = 0; index < edges.Count; index++)
         {
+            GraphImportEdgeDto edge = edges[index];
             if (edge is null)
-                throw new ArgumentException("导入批次不能包含 null edge。", nameof(edges));
-            ValidateEdgeUpsertRequest(new GraphUpsertEdgeRequest
             {
-                Id = edge.Id,
-                ExpectedElementVersion = edge.ExpectedElementVersion,
-                SourceId = edge.SourceId,
-                TargetId = edge.TargetId,
-                LabelId = edge.LabelId,
-                Properties = edge.Properties ?? [],
-                UniquePropertyIds = edge.UniquePropertyIds ?? [],
-                RequestId = requestId,
-            });
+                errors.Add(new SndbGraphBatchError(index, "edge", null, "null_item", "导入批次不能包含 null edge。"));
+                continue;
+            }
+            if (!edgeIds.Add(edge.Id))
+                errors.Add(new SndbGraphBatchError(index, "edge", edge.Id, "duplicate_id", "导入批次包含重复 edge ID。"));
+            try
+            {
+                ValidateEdgeUpsertRequest(new GraphUpsertEdgeRequest
+                {
+                    Id = edge.Id,
+                    ExpectedElementVersion = edge.ExpectedElementVersion,
+                    SourceId = edge.SourceId,
+                    TargetId = edge.TargetId,
+                    LabelId = edge.LabelId,
+                    Properties = edge.Properties ?? [],
+                    UniquePropertyIds = edge.UniquePropertyIds ?? [],
+                    RequestId = requestId,
+                });
+            }
+            catch (ArgumentException exception)
+            {
+                errors.Add(new SndbGraphBatchError(index, "edge", edge.Id, "invalid_item", exception.Message));
+            }
         }
+        if (errors.Count != 0)
+            throw new SndbGraphBatchException(requestId, errors);
     }
 
     private static void ValidateExpandRequest(GraphExpandRequest request)
@@ -1855,4 +2038,49 @@ internal sealed class GraphVertexFactory
             _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
         };
     }
+}
+
+/// <summary>Graph 批量请求中的单项验证错误。</summary>
+/// <param name="Index">在对应 vertex 或 edge 数组中的零基序号。</param>
+/// <param name="ElementKind">元素类型：<c>vertex</c> 或 <c>edge</c>。</param>
+/// <param name="ElementId">元素 ID；元素为空时为 null。</param>
+/// <param name="Code">稳定错误代码。</param>
+/// <param name="Message">面向调用方的错误描述。</param>
+public sealed record SndbGraphBatchError(
+    int Index,
+    string ElementKind,
+    long? ElementId,
+    string Code,
+    string Message);
+
+/// <summary>
+/// Graph 批量请求包含一个或多个可定位的输入错误。
+/// </summary>
+public sealed class SndbGraphBatchException : ArgumentException
+{
+    /// <summary>构造 Graph 批量输入错误。</summary>
+    /// <param name="requestId">原始批次关联 ID。</param>
+    /// <param name="errors">按输入顺序排列的单项错误。</param>
+    public SndbGraphBatchException(Guid requestId, IReadOnlyList<SndbGraphBatchError> errors)
+        : base(CreateMessage(errors))
+    {
+        if (requestId == Guid.Empty)
+            throw new ArgumentException("批次 request ID 不能为空。", nameof(requestId));
+        ArgumentNullException.ThrowIfNull(errors);
+        if (errors.Count == 0)
+            throw new ArgumentException("批次错误列表不能为空。", nameof(errors));
+        RequestId = requestId;
+        Errors = errors.ToArray();
+    }
+
+    /// <summary>批次关联 ID，可用于重试与日志关联。</summary>
+    public Guid RequestId { get; }
+
+    /// <summary>可定位到输入数组的单项错误。</summary>
+    public IReadOnlyList<SndbGraphBatchError> Errors { get; }
+
+    private static string CreateMessage(IReadOnlyList<SndbGraphBatchError> errors)
+        => errors is null || errors.Count == 0
+            ? "Graph 批量请求无效。"
+            : $"Graph 批量请求包含 {errors.Count} 个输入错误。";
 }

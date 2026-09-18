@@ -48,6 +48,95 @@ public sealed class GraphOperationsClientTests : IDisposable
         Assert.Equal(1, (await reopened.GetOperationsOverviewAsync("plant")).VertexCount);
     }
 
+    [Fact]
+    public async Task GraphClient_CancelledOperationsStopBeforeOpeningSnapshot()
+    {
+        using var client = new SndbGraphClient($"Data Source={_root}-cancel");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => client.ListGraphsAsync(cancellation.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (GraphExpansion _ in client.ExpandAsync(
+                "missing",
+                new GraphExpandRequest { VertexId = 1 },
+                cancellation.Token))
+            {
+            }
+        });
+    }
+
+    [Fact]
+    public async Task GraphClient_PageAdaptersKeepResultsBoundedAndPreserveOrder()
+    {
+        using var client = new SndbGraphClient($"Data Source={_root}-pages");
+        await client.CreateGraphAsync("plant");
+        for (long id = 1; id <= 4; id++)
+        {
+            await client.UpsertVertexAsync(
+                "plant",
+                new GraphUpsertVertexRequest { Id = id, RequestId = Guid.NewGuid(), Labels = [7] });
+        }
+        for (long id = 1; id <= 3; id++)
+        {
+            await client.UpsertEdgeAsync(
+                "plant",
+                new GraphUpsertEdgeRequest
+                {
+                    Id = 100 + id,
+                    RequestId = Guid.NewGuid(),
+                    SourceId = 1,
+                    TargetId = id + 1,
+                    LabelId = 8,
+                });
+        }
+
+        var pages = new List<IReadOnlyList<GraphExpansion>>();
+        await foreach (IReadOnlyList<GraphExpansion> page in client.ExpandPagesAsync(
+            "plant",
+            new GraphExpandRequest { VertexId = 1, PageSize = 2 }))
+        {
+            pages.Add(page);
+        }
+
+        Assert.Equal(2, pages.Count);
+        Assert.All(pages, page => Assert.InRange(page.Count, 1, 2));
+        Assert.Equal([2L, 3L, 4L], pages.SelectMany(static page => page).Select(static item => item.NeighborId.Value).ToArray());
+    }
+
+    [Fact]
+    public async Task GraphClient_ImportValidationReportsAllItemErrorsWithRequestId()
+    {
+        using var client = new SndbGraphClient($"Data Source={_root}-batch-errors");
+        await client.CreateGraphAsync("plant");
+        Guid requestId = Guid.NewGuid();
+
+        SndbGraphBatchException exception = await Assert.ThrowsAsync<SndbGraphBatchException>(
+            () => client.ImportAsync(
+                "plant",
+                new GraphImportRequest
+                {
+                    RequestId = requestId,
+                    Vertices =
+                    [
+                        new GraphImportVertexDto { Id = 0 },
+                        new GraphImportVertexDto { Id = 1 },
+                        new GraphImportVertexDto { Id = 1 },
+                    ],
+                    Edges =
+                    [
+                        new GraphImportEdgeDto { Id = 10, SourceId = 0, TargetId = 1, LabelId = 2 },
+                    ],
+                }));
+
+        Assert.Equal(requestId, exception.RequestId);
+        Assert.True(exception.Errors.Count >= 3);
+        Assert.Contains(exception.Errors, error => error.Code == "duplicate_id" && error.ElementId == 1);
+        Assert.Contains(exception.Errors, error => error.Code == "invalid_item" && error.ElementKind == "edge");
+    }
+
     public void Dispose()
     {
         if (!Directory.Exists(_root))

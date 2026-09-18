@@ -53,6 +53,34 @@ public sealed class SndbMqClientTests : IDisposable
         Assert.Equal("v", messages[1].Headers["k"]);
     }
 
+    [Fact]
+    public async Task PublishAsync_PreCanceled_DoesNotAppendMessage()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PublishAsync("events.cancel", [1], cancellationToken: canceled.Token));
+
+        Assert.Empty(await client.PullAsync("events.cancel", "workers", cancellationToken: CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PublishManyAsync_PreCanceled_DoesNotAppendMessage()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PublishManyAsync("events.cancel-batch", [new SndbMqPublishEntry(new byte[] { 1 })], canceled.Token));
+
+        Assert.Empty(await client.PullAsync("events.cancel-batch", "workers"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
