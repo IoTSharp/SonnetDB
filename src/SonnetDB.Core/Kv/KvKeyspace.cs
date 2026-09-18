@@ -702,6 +702,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup);
         return entry?.Value.ToArray();
     }
@@ -715,6 +716,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup);
         return entry is null
             ? null
@@ -735,6 +737,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         byte[] lookup = EncodeUtf8Key(key, _options);
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup, cancellationToken);
         return entry is null
             ? null

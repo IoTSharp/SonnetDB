@@ -265,6 +265,25 @@ public sealed record KvStatsResponse(
     int ExpiringKeys,
     DateTimeOffset? NearestExpiresAtUtc);
 
+/// <summary>KV 热点 key 诊断条目。</summary>
+public sealed record KvHotKeyResponse(string Key, long Reads);
+
+/// <summary>KV 容量、TTL 与热点诊断响应。</summary>
+public sealed record KvDiagnosticsResponse(
+    int TotalKeys,
+    int ActiveKeys,
+    int ExpiredKeys,
+    int ExpiringKeys,
+    DateTimeOffset? NearestExpiresAtUtc,
+    int MutableOverlayEntries,
+    int FrozenOverlayEntries,
+    long WalBytes,
+    int MaxSnapshotOverlayEntries,
+    IReadOnlyList<KvHotKeyResponse> HotKeys);
+
+/// <summary>KV 诊断请求。</summary>
+public sealed record KvDiagnosticsRequest(int? TopHotKeys = null);
+
 /// <summary>
 /// MQ 发布请求。
 /// </summary>

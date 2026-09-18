@@ -113,8 +113,8 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 4 | #313 | M36 | GPT-5.6 Terra / high | ✅ | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时已接通 Core 与 SQL REST；Frame 兼容传输码和现场发布证据仍按独立门禁执行。 |
 | 5 | #314 | M36 | GPT-5.6 Terra / high | 🚧 | 时序 typed Write API、batch/flush、背压、逐项错误、取消与 drain 已接通 Core/Data；Frame/REST 代码路径已实现，远程现场 parity 和容量证据后置。 |
 | 6 | #315 | M36 | GPT-5.6 Terra / high | 📋 | 时序 Query builder、流式结果与建模诊断，复用现有查询引擎。 |
-| 7 | #317 | M36 | GPT-5.6 Sol / high | 📋 | KV 大 keyspace 异步 cursor、pipeline/batch、取消/背压与诊断。 |
-| 8 | #318 | M36 | GPT-5.6 Sol / high | 📋 | FullText typed Search API、sort/facet/highlight、服务端 matched offsets/terms。 |
+| 7 | #317 | M36 | GPT-5.6 Sol / high | 🚧 | KV 大 keyspace 已接通 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果、取消/背压和容量/TTL/热点诊断；大规模远程 parity、固定硬件容量与长期证据待后置。 |
+| 8 | #318 | M36 | GPT-5.6 Sol / high | 🚧 | FullText typed Search API 已接通嵌入式/远程客户端、query/filter/sort/facet/highlight/page 合同、稳定 continuation token、matched offsets/terms 与版本化 score metadata；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。 |
 | 9 | #319 | M36 | GPT-5.6 Sol / high | 📋 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与 rebuild task。 |
 | 10 | #320 | M36 | GPT-5.6 Sol / high | 📋 | VectorData 高层 batch/filter/threshold/include/exact 与检索 preset。 |
 | 11 | #321 | M36 | GPT-5.6 Sol / high | 📋 | Vector profile preflight、index health/rebuild progress 与查询路径解释；复用 #298。 |

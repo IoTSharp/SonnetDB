@@ -15,6 +15,22 @@ public sealed record SndbKvExpirationStats(
     int ExpiringKeys,
     DateTimeOffset? NearestExpiresAtUtc);
 
+/// <summary>KV 热点 key 读取统计。</summary>
+public sealed record SndbKvHotKey(string Key, long Reads);
+
+/// <summary>KV 容量、TTL 与热点诊断快照。</summary>
+public sealed record SndbKvDiagnostics(
+    int TotalKeys,
+    int ActiveKeys,
+    int ExpiredKeys,
+    int ExpiringKeys,
+    DateTimeOffset? NearestExpiresAtUtc,
+    int MutableOverlayEntries,
+    int FrozenOverlayEntries,
+    long WalBytes,
+    int MaxSnapshotOverlayEntries,
+    IReadOnlyList<SndbKvHotKey> HotKeys);
+
 /// <summary>
 /// KV 比较并交换结果。
 /// </summary>
@@ -97,3 +113,19 @@ internal sealed record KvStatsResponse(
     int ExpiredKeys,
     int ExpiringKeys,
     DateTimeOffset? NearestExpiresAtUtc);
+
+internal sealed record KvDiagnosticsRequest(int? TopHotKeys = null);
+
+internal sealed record KvDiagnosticsResponse(
+    int TotalKeys,
+    int ActiveKeys,
+    int ExpiredKeys,
+    int ExpiringKeys,
+    DateTimeOffset? NearestExpiresAtUtc,
+    int MutableOverlayEntries,
+    int FrozenOverlayEntries,
+    long WalBytes,
+    int MaxSnapshotOverlayEntries,
+    List<KvHotKeyResponse> HotKeys);
+
+internal sealed record KvHotKeyResponse(string Key, long Reads);

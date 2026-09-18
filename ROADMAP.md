@@ -245,8 +245,8 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。初始代码切片已接通 Core/Data、Frame/REST 与取消边界，远程现场 parity/容量证据后置。 | 🚧 |
 | #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |
 | #316 | KV 条件与类型化 API：Core/REST/Frame/SDK/Web 已接通 NX/XX、原子 get-and-set/delete、namespace、严格 UTF-8 与 source-generated JSON，补齐取消、WAL 不确定结果拒写、TTL/CAS 和精确版本。单 key 子集已有真实 Kestrel/原生进程重开、桌面/手机工作台和零 IL/AOT warning 发布证据，见 [合同](docs/kv-atomic-contract.md)与[证据](docs/audits/kv-remote-closure-20260905.md)。此完成标记仅覆盖已通过本地验证的单 key 切片；#317、九模型 #310/#311、M20 Parity/nightly 和生产门禁不在此完成标记内。 | ✅ |
-| #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。 | 📋 |
-| #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。 | 📋 |
+| #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。新增 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果以及容量/TTL/热点诊断 REST 契约；大规模远程 parity、固定硬件容量与长期证据后置。 | 🚧 |
+| #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。新增嵌入式/远程统一 typed Search、source-generated JSON、稳定 continuation token 与合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 由 #319 负责。 | 🚧 |
 | #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和可观察 rebuild task。 | 📋 |
 | #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。 | 📋 |
 | #321 | Vector 生命周期与解释：dimension/metric/Embedding Profile preflight、index health/rebuild progress、ANN/scan/补偿原因与 recall report；依赖 M35 #297/#298 的部分不得提前复制实现。 | 📋 |
