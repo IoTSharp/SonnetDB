@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M35 #309 车辆外观与车牌精确检索合同**：新增复用 Document、path index、对象桶与现有 WAL 的 `VehicleObservationStore`，支持外部检测/OCR/embedding 导入、跨来源稳定观察 ID、车牌版本化标准化精确查询、车辆外观有界 Top-K、删除和重开恢复；补齐 profile 漂移、对象版本/ETag/hash、新鲜度、取消及候选/向量预算校验。20 项专用测试通过；Core 不运行 OCR 或视觉模型，真实质量、容量和远程治理仍后置，见 [车辆观察合同](docs/vehicle-observation-search.md)。
+
 - **M35 #308 人员外观与动作查询合同**：新增按 ReID、步态、姿态、动作隔离的预计算候选 SDK，复用 #306 固定来源目标，要求完整 profile、显式用途/授权、持久审计、有界候选/向量预算和取消；步态/动作强制视频来源，结果使用跨来源稳定候选 ID。仅提供精确候选查询，不运行模型、不登记身份；19 项专用测试通过，mAP/CMC/precision/recall、真实模型和固定硬件证据仍后置，见 [人员外观查询](docs/person-appearance-search.md)。
 
 - **M35 #307 受治理的人脸模板与比较合同**：新增默认关闭的 `FaceRecognitionStore`，支持独立用途/操作授权、先同步审计后访问、原子终态审计、固定对象版本新鲜度检查、1:1 验证、有限 1:N 候选、导出、来源/主体删除和保留期清理；通用 REST、Frame、SQL 和管理列表拒绝保留 keyspace。14 项 Core 合同测试和语义回归通过；真实模型 FAR/FRR/TAR、远程入口和物理擦除仍后置，见 [人脸合同](docs/face-recognition.md)。
