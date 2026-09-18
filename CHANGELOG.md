@@ -27,7 +27,7 @@
 
 - **M36 #311 共享客户端合同切片**：Document、Graph、KV、MQ 客户端统一预取消、目标/关联响应校验、远程请求禁自动跳转，NDJSON 采用响应头后流式读取并对损坏行 fail-closed；补充有界分页、批量 key/offset 校验、MQ 发送后禁止 HTTP 回退和 Graph 分页 API。新增 33 项客户端合同测试与 Data Release 构建通过；九模型 golden journey、完整工作台/SDK 矩阵和现场恢复证据仍后置。
 
-- **M35 #309 车辆外观与车牌精确检索合同**：新增复用 Document、path index、对象桶与现有 WAL 的 `VehicleObservationStore`，支持外部检测/OCR/embedding 导入、跨来源稳定观察 ID、车牌版本化标准化精确查询、车辆外观有界 Top-K、删除和重开恢复；补齐 profile 漂移、对象版本/ETag/hash、新鲜度、取消及候选/向量预算校验。20 项专用测试通过；Core 不运行 OCR 或视觉模型，真实质量、容量和远程治理仍后置，见 [车辆观察合同](docs/vehicle-observation-search.md)。
+- **M35 #309 车辆外观与车牌精确检索合同**：新增复用 Document、path index、对象桶与现有 WAL 的 `VehicleObservationStore`，支持外部检测/OCR/embedding 导入、跨来源稳定观察 ID、车牌版本化标准化精确查询、车辆外观有界 Top-K、删除和重开恢复；补齐 profile 漂移、对象版本/ETag/hash、新鲜度、取消及候选/向量预算校验。21 项专用测试通过；Core 不运行 OCR 或视觉模型，真实质量、容量和远程治理仍后置，见 [车辆观察合同](docs/vehicle-observation-search.md)。
 
 - **M35 #308 人员外观与动作查询合同**：新增按 ReID、步态、姿态、动作隔离的预计算候选 SDK，复用 #306 固定来源目标，要求完整 profile、显式用途/授权、持久审计、有界候选/向量预算和取消；步态/动作强制视频来源，结果使用跨来源稳定候选 ID。仅提供精确候选查询，不运行模型、不登记身份；20 项专用测试通过，mAP/CMC/precision/recall、真实模型和固定硬件证据仍后置，见 [人员外观查询](docs/person-appearance-search.md)。
 
