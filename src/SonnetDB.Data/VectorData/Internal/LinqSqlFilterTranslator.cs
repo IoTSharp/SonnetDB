@@ -42,6 +42,7 @@ internal static class LinqSqlFilterTranslator
         node = StripConvert(node);
         return node switch
         {
+            ConstantExpression { Value: bool value } => value ? "1 = 1" : "1 = 0",
             BinaryExpression { NodeType: ExpressionType.AndAlso } and =>
                 "(" + Visit(and.Left, parameter, resolver, parameters) + " AND " +
                 Visit(and.Right, parameter, resolver, parameters) + ")",
