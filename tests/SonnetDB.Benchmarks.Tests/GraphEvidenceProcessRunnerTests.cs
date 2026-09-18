@@ -428,12 +428,22 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                 attempt++)
             {
                 bool watchedParentExited = !IsProcessAlive(watchedParentIdentity.Value);
-                bool launcherExited = launcher.HasExited || launcher.WaitForExit(100);
+                bool launcherExited = launcher.WaitForExit(100);
                 bool stateKnown = containment.TryHasActiveProcesses(out bool active);
                 if (watchedParentExited && launcherExited && stateKnown && !active)
                 {
                     cleanupConfirmed = true;
                     break;
+                }
+                if (launcherExited)
+                {
+                    // 已退出的 launcher 不再阻塞 WaitForExit；让剩余 PGID 成员有时间退出，
+                    // 避免在五秒期限之前忙轮询耗尽次数。
+                    TimeSpan remaining = parentDeathCleanupLimit - parentDeath.Elapsed;
+                    if (remaining > TimeSpan.Zero)
+                        await Task.Delay(remaining < TimeSpan.FromMilliseconds(100)
+                            ? remaining
+                            : TimeSpan.FromMilliseconds(100));
                 }
                 if ((attempt + 1) % 25 == 0)
                     Console.Error.WriteLine($"parent-death-cleanup-progress polls={attempt + 1} elapsed={parentDeath.Elapsed}");
@@ -480,12 +490,20 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                     try
                     {
                         bool launcherExited = launcher is null || !launcherStarted
-                            || launcher.HasExited || launcher.WaitForExit(100);
+                            || launcher.WaitForExit(100);
                         bool stateKnown = containment.TryHasActiveProcesses(out bool active);
                         if (launcherExited && stateKnown && !active)
                         {
                             containmentEmpty = true;
                             break;
+                        }
+                        if (launcherExited)
+                        {
+                            TimeSpan remaining = TimeSpan.FromSeconds(10) - cleanup.Elapsed;
+                            if (remaining > TimeSpan.Zero)
+                                await Task.Delay(remaining < TimeSpan.FromMilliseconds(100)
+                                    ? remaining
+                                    : TimeSpan.FromMilliseconds(100));
                         }
                     }
                     catch (Exception exception) when (exception is Win32Exception
