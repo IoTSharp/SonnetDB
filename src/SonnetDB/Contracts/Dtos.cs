@@ -659,6 +659,43 @@ public sealed record FullTextTokenInfo(
     int EndOffset,
     int PositionIncrement);
 
+/// <summary>全文索引设置读取请求。</summary>
+public sealed record FullTextSettingsRequest(string Collection, string Index);
+
+/// <summary>全文分析器差异请求。</summary>
+/// <param name="Collection">文档集合名称。</param><param name="Index">全文索引名称。</param>
+/// <param name="Text">待分析文本。</param><param name="Tokenizer">可选的候选分词器。</param>
+public sealed record FullTextAnalyzerDiffRequest(string Collection, string Index, string Text, string? Tokenizer = null);
+
+/// <summary>全文分析器差异响应。</summary>
+public sealed record FullTextAnalyzerDiffResponse(
+    IReadOnlyList<FullTextTokenInfo> Current,
+    IReadOnlyList<FullTextTokenInfo> Candidate,
+    IReadOnlyList<string> Added,
+    IReadOnlyList<string> Removed);
+
+/// <summary>全文相关性解释请求。</summary>
+public sealed record FullTextRelevanceExplainRequest(
+    string Collection,
+    string Index,
+    string Field,
+    string Query,
+    string DocumentId,
+    string? Mode = null,
+    string? QueryKind = null);
+
+/// <summary>全文重建任务请求。</summary>
+public sealed record FullTextRebuildRequest(string Collection, string Index);
+
+/// <summary>全文重建任务状态。</summary>
+public sealed record FullTextRebuildStatusResponse(
+    string State,
+    int ProcessedDocuments,
+    int? TotalDocuments,
+    string? Error,
+    DateTimeOffset? StartedUtc,
+    DateTimeOffset? CompletedUtc);
+
 /// <summary>
 /// MQ topic 列表响应。
 /// </summary>

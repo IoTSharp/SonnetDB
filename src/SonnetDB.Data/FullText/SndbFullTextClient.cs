@@ -1,12 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using SonnetDB.Data.Documents;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.FullText;
+using SonnetDB.FullText.Tokenization;
+using SonnetDB.FullText.Tokenizers.Cjk;
+using SonnetDB.FullText.Tokenizers.Jieba;
+using SonnetDB.FullText.Tokenizers.Unicode;
 
 namespace SonnetDB.Data.FullText;
 
@@ -121,6 +126,151 @@ public sealed class SndbFullTextClient : IDisposable
             ?? throw new InvalidDataException("全文检索响应为空。");
     }
 
+    /// <summary>读取全文索引字段与分析器设置。</summary>
+    public async Task<SndbFullTextIndexSettings> GetSettingsAsync(
+        string collection,
+        string index,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+            return MapSettings(_embedded.Documents.GetFullTextIndexSettings(collection, index));
+
+        return await PostJsonAsync(
+            "fulltext/settings",
+            new SndbFullTextSettingsRequest(collection, index),
+            SndbFullTextClientJsonContext.Default.SndbFullTextSettingsRequest,
+            SndbFullTextClientJsonContext.Default.SndbFullTextIndexSettings,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>比较当前全文分析器与候选分词器的词元差异。</summary>
+    public async Task<SndbFullTextAnalyzerDiff> AnalyzeDiffAsync(
+        string collection,
+        string index,
+        string text,
+        string? tokenizer = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        ArgumentNullException.ThrowIfNull(text);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+        {
+            var schema = _embedded.Documents.Catalog.TryGet(collection)
+                ?? throw new InvalidOperationException($"文档集合 '{collection}' 不存在。");
+            var definition = schema.TryGetFullTextIndex(index)
+                ?? throw new InvalidOperationException($"全文索引 '{index}' 不存在。");
+            var current = _embedded.Documents.AnalyzeFullText(collection, index, text);
+            ITokenizer candidateTokenizer = CreateTokenizer(tokenizer ?? definition.Tokenizer);
+            var sink = new CollectingTokenSink();
+            candidateTokenizer.Tokenize(text.AsSpan(), sink);
+            return BuildAnalyzerDiff(current, sink.Tokens);
+        }
+
+        return await PostJsonAsync(
+            "fulltext/analyzer-diff",
+            new SndbFullTextAnalyzerDiffRequest(collection, index, text, tokenizer),
+            SndbFullTextClientJsonContext.Default.SndbFullTextAnalyzerDiffRequest,
+            SndbFullTextClientJsonContext.Default.SndbFullTextAnalyzerDiff,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>读取指定文档对全文查询的相关性解释。</summary>
+    public async Task<SndbFullTextRelevanceExplanation> ExplainRelevanceAsync(
+        string collection,
+        string index,
+        string field,
+        string query,
+        string documentId,
+        SndbFullTextSearchOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        ArgumentException.ThrowIfNullOrWhiteSpace(field);
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        options ??= new SndbFullTextSearchOptions();
+        cancellationToken.ThrowIfCancellationRequested();
+        FullTextSearchMode mode = string.Equals(options.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
+            ? FullTextSearchMode.Fuzzy : FullTextSearchMode.Exact;
+        FullTextQueryKind queryKind = options.QueryKind?.Trim().ToLowerInvariant() switch
+        {
+            "any" or "or" or "should" => FullTextQueryKind.Any,
+            "phrase" => FullTextQueryKind.Phrase,
+            _ => FullTextQueryKind.All,
+        };
+        if (_embedded is not null)
+        {
+            var value = _embedded.Documents.ExplainFullText(collection, index, field, query, documentId, mode, queryKind);
+            return new SndbFullTextRelevanceExplanation(
+                value.DocumentId,
+                value.Score,
+                value.Tokenizer,
+                value.QueryTerms,
+                value.Contributions.Select(static item => new SndbFullTextTermContribution(item.Term, item.Matched, item.ScoreContribution)).ToArray());
+        }
+
+        return await PostJsonAsync(
+            "fulltext/relevance-explain",
+            new SndbFullTextRelevanceExplainRequest(collection, index, field, query, documentId, options.Mode, options.QueryKind),
+            SndbFullTextClientJsonContext.Default.SndbFullTextRelevanceExplainRequest,
+            SndbFullTextClientJsonContext.Default.SndbFullTextRelevanceExplanation,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>同步重建全文索引并返回可观察任务状态。</summary>
+    public async Task<SndbFullTextRebuildStatus> RebuildAsync(
+        string collection,
+        string index,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+        {
+            _ = _embedded.Documents.RebuildFullTextIndex(collection, index);
+            return MapRebuildStatus(_embedded.Documents.GetFullTextRebuildProgress(collection, index));
+        }
+
+        return await PostJsonAsync(
+            "fulltext/rebuild",
+            new SndbFullTextRebuildRequest(collection, index),
+            SndbFullTextClientJsonContext.Default.SndbFullTextRebuildRequest,
+            SndbFullTextClientJsonContext.Default.SndbFullTextRebuildStatus,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>读取全文索引最近一次重建任务状态。</summary>
+    public async Task<SndbFullTextRebuildStatus> GetRebuildStatusAsync(
+        string collection,
+        string index,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+            return MapRebuildStatus(_embedded.Documents.GetFullTextRebuildProgress(collection, index));
+
+        return await PostJsonAsync(
+            "fulltext/rebuild/status",
+            new SndbFullTextRebuildRequest(collection, index),
+            SndbFullTextClientJsonContext.Default.SndbFullTextRebuildRequest,
+            SndbFullTextClientJsonContext.Default.SndbFullTextRebuildStatus,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>释放嵌入式数据库或远程 HTTP 资源。</summary>
     public void Dispose()
     {
@@ -134,6 +284,71 @@ public sealed class SndbFullTextClient : IDisposable
         if (embedded is not null)
             SharedSndbRegistry.Release(embedded);
     }
+
+    private async Task<TResponse> PostJsonAsync<TRequest, TResponse>(
+        string relativePath,
+        TRequest request,
+        JsonTypeInfo<TRequest> requestTypeInfo,
+        JsonTypeInfo<TResponse> responseTypeInfo,
+        CancellationToken cancellationToken)
+    {
+        using var content = JsonContent.Create(request, requestTypeInfo);
+        using HttpResponseMessage response = await _http!.PostAsync(
+            $"v1/db/{Uri.EscapeDataString(_database)}/{relativePath}",
+            content,
+            cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            string detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw new HttpRequestException(
+                $"全文请求失败（HTTP {(int)response.StatusCode} {response.StatusCode}）：{detail}",
+                inner: null,
+                response.StatusCode);
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        return await JsonSerializer.DeserializeAsync(stream, responseTypeInfo, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("全文响应为空。");
+    }
+
+    private static SndbFullTextIndexSettings MapSettings(DocumentFullTextIndexSettings settings)
+        => new(
+            settings.SearchableFields ?? [],
+            settings.FilterableFields ?? [],
+            settings.SortableFields ?? [],
+            settings.Synonyms ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            settings.StopWords ?? [],
+            MapTypoPolicy(settings.TypoPolicy ?? DocumentFullTextTypoPolicy.Default));
+
+    private static SndbFullTextTypoPolicy MapTypoPolicy(DocumentFullTextTypoPolicy policy)
+        => new(policy.Enabled, policy.ShortTokenMaxEdits, policy.MediumTokenMaxEdits, policy.LongTokenMaxEdits);
+
+    private static SndbFullTextRebuildStatus MapRebuildStatus(DocumentFullTextRebuildProgress progress)
+        => new(progress.State, progress.ProcessedDocuments, progress.TotalDocuments, progress.Error, progress.StartedUtc, progress.CompletedUtc);
+
+    private static SndbFullTextAnalyzerDiff BuildAnalyzerDiff(
+        IReadOnlyList<Token> current,
+        IReadOnlyList<Token> candidate)
+    {
+        var currentTokens = current.Select(static token => new SndbFullTextAnalyzerToken(token.Text, token.StartOffset, token.EndOffset, token.PositionIncrement)).ToArray();
+        var candidateTokens = candidate.Select(static token => new SndbFullTextAnalyzerToken(token.Text, token.StartOffset, token.EndOffset, token.PositionIncrement)).ToArray();
+        var currentTerms = currentTokens.Select(static token => token.Text).ToHashSet(StringComparer.Ordinal);
+        var candidateTerms = candidateTokens.Select(static token => token.Text).ToHashSet(StringComparer.Ordinal);
+        return new SndbFullTextAnalyzerDiff(
+            currentTokens,
+            candidateTokens,
+            candidateTerms.Except(currentTerms, StringComparer.Ordinal).OrderBy(static value => value, StringComparer.Ordinal).ToArray(),
+            currentTerms.Except(candidateTerms, StringComparer.Ordinal).OrderBy(static value => value, StringComparer.Ordinal).ToArray());
+    }
+
+    private static ITokenizer CreateTokenizer(string name)
+        => name.Trim().ToLowerInvariant() switch
+        {
+            "unicode" => new UnicodeTokenizer(),
+            "cjk" or "cjk_bigram" or "bigram" => new CjkBigramTokenizer(),
+            "jieba" or "chinese" => new ChineseTokenizer(),
+            _ => throw new ArgumentException($"未知全文分词器 '{name}'。", nameof(name)),
+        };
 
     private SndbFullTextSearchResult SearchEmbedded(
         SndbFullTextSearchRequest request,

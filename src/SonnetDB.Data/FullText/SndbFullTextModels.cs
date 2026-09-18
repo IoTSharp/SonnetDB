@@ -39,6 +39,11 @@ internal sealed record SndbFullTextSearchRequest(
     SndbFullTextHighlightRequest? Highlight,
     string? ContinuationToken);
 
+internal sealed record SndbFullTextSettingsRequest(string Collection, string Index);
+internal sealed record SndbFullTextAnalyzerDiffRequest(string Collection, string Index, string Text, string? Tokenizer);
+internal sealed record SndbFullTextRelevanceExplainRequest(string Collection, string Index, string Field, string Query, string DocumentId, string? Mode, string? QueryKind);
+internal sealed record SndbFullTextRebuildRequest(string Collection, string Index);
+
 /// <summary>全文 facet 请求。</summary>
 /// <param name="Field">用于聚合的 JSON path。</param><param name="Limit">最多返回桶数量。</param>
 public sealed record SndbFullTextFacetRequest(string Field, int Limit = 10);
@@ -86,3 +91,45 @@ public sealed record SndbFullTextFacetResult(string Field, IReadOnlyList<SndbFul
 /// <summary>facet 桶。</summary>
 /// <param name="Value">facet 值。</param><param name="Count">数量。</param>
 public sealed record SndbFullTextFacetBucket(string Value, int Count);
+
+/// <summary>全文索引字段与分析器设置。</summary>
+public sealed record SndbFullTextIndexSettings(
+    IReadOnlyList<string> SearchableFields,
+    IReadOnlyList<string> FilterableFields,
+    IReadOnlyList<string> SortableFields,
+    IReadOnlyDictionary<string, string> Synonyms,
+    IReadOnlyList<string> StopWords,
+    SndbFullTextTypoPolicy TypoPolicy);
+
+/// <summary>全文拼写容错策略。</summary>
+public sealed record SndbFullTextTypoPolicy(bool Enabled, int ShortTokenMaxEdits, int MediumTokenMaxEdits, int LongTokenMaxEdits);
+
+/// <summary>分析器差异结果。</summary>
+public sealed record SndbFullTextAnalyzerDiff(
+    IReadOnlyList<SndbFullTextAnalyzerToken> Current,
+    IReadOnlyList<SndbFullTextAnalyzerToken> Candidate,
+    IReadOnlyList<string> Added,
+    IReadOnlyList<string> Removed);
+
+/// <summary>单个分析器词元。</summary>
+public sealed record SndbFullTextAnalyzerToken(string Text, int StartOffset, int EndOffset, int PositionIncrement);
+
+/// <summary>单个查询词的相关性贡献。</summary>
+public sealed record SndbFullTextTermContribution(string Term, bool Matched, double ScoreContribution);
+
+/// <summary>全文相关性解释。</summary>
+public sealed record SndbFullTextRelevanceExplanation(
+    string DocumentId,
+    double Score,
+    string Tokenizer,
+    IReadOnlyList<string> QueryTerms,
+    IReadOnlyList<SndbFullTextTermContribution> Contributions);
+
+/// <summary>全文重建任务状态。</summary>
+public sealed record SndbFullTextRebuildStatus(
+    string State,
+    int ProcessedDocuments,
+    int? TotalDocuments,
+    string? Error,
+    DateTimeOffset? StartedUtc,
+    DateTimeOffset? CompletedUtc);

@@ -810,6 +810,156 @@ internal static partial class SonnetDbEndpoints
             await Results.Json(new FullTextAnalyzeResponse(tokens), ServerJsonContext.Default.FullTextAnalyzeResponse)
                 .ExecuteAsync(ctx).ConfigureAwait(false);
         });
+
+        app.MapPost("/v1/db/{db}/fulltext/settings", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextSettingsRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection 与 index。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                registry.TryGet(db, out var tsdb);
+                DocumentFullTextIndexSettings settings = tsdb.Documents.GetFullTextIndexSettings(req.Collection, req.Index);
+                await Results.Json(settings, ServerJsonContext.Default.DocumentFullTextIndexSettings).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/fulltext/analyzer-diff", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextAnalyzerDiffRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index) || req.Text is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index 与 text。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                registry.TryGet(db, out var tsdb);
+                var schema = tsdb.Documents.Catalog.TryGet(req.Collection);
+                var index = schema?.TryGetFullTextIndex(req.Index)
+                    ?? throw new InvalidOperationException($"全文索引 '{req.Index}' 不存在。");
+                var store = tsdb.Documents.Open(req.Collection);
+                var current = store.AnalyzeFullText(index, req.Text)
+                    .Select(static token => new FullTextTokenInfo(token.Text, token.StartOffset, token.EndOffset, token.PositionIncrement))
+                    .ToArray();
+                string tokenizerName = string.IsNullOrWhiteSpace(req.Tokenizer) ? index.Tokenizer : req.Tokenizer;
+                ITokenizer? candidateTokenizer = CreateTokenizer(tokenizerName);
+                if (candidateTokenizer is null)
+                    throw new ArgumentException($"未知全文分词器 '{tokenizerName}'。");
+                var sink = new CollectingTokenSink();
+                candidateTokenizer.Tokenize(req.Text, sink);
+                var candidate = sink.Tokens.Select(static token => new FullTextTokenInfo(token.Text, token.StartOffset, token.EndOffset, token.PositionIncrement)).ToArray();
+                var currentTerms = current.Select(static token => token.Text).ToHashSet(StringComparer.Ordinal);
+                var candidateTerms = candidate.Select(static token => token.Text).ToHashSet(StringComparer.Ordinal);
+                var response = new FullTextAnalyzerDiffResponse(
+                    current,
+                    candidate,
+                    candidateTerms.Except(currentTerms, StringComparer.Ordinal).OrderBy(static value => value, StringComparer.Ordinal).ToArray(),
+                    currentTerms.Except(candidateTerms, StringComparer.Ordinal).OrderBy(static value => value, StringComparer.Ordinal).ToArray());
+                await Results.Json(response, ServerJsonContext.Default.FullTextAnalyzerDiffResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "fulltext_analyzer_error", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/fulltext/relevance-explain", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextRelevanceExplainRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
+                || string.IsNullOrWhiteSpace(req.Field) || string.IsNullOrWhiteSpace(req.Query) || string.IsNullOrWhiteSpace(req.DocumentId))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index、field、query 与 documentId。").ConfigureAwait(false);
+                return;
+            }
+
+            FullTextSearchMode mode = string.Equals(req.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
+                ? FullTextSearchMode.Fuzzy
+                : FullTextSearchMode.Exact;
+            if (!TryNormalizeFullTextQueryKind(req.QueryKind, mode, out var queryKind, out var queryKindError))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", queryKindError).ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                registry.TryGet(db, out var tsdb);
+                var explanation = tsdb.Documents.ExplainFullText(req.Collection, req.Index, req.Field, req.Query, req.DocumentId, mode, queryKind);
+                await Results.Json(explanation, ServerJsonContext.Default.DocumentFullTextRelevanceExplanation).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/fulltext/rebuild", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextRebuildRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection 与 index。").ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                registry.TryGet(db, out var tsdb);
+                _ = tsdb.Documents.RebuildFullTextIndex(req.Collection, req.Index);
+                var progress = tsdb.Documents.GetFullTextRebuildProgress(req.Collection, req.Index);
+                var response = new FullTextRebuildStatusResponse(progress.State, progress.ProcessedDocuments, progress.TotalDocuments, progress.Error, progress.StartedUtc, progress.CompletedUtc);
+                await Results.Json(response, ServerJsonContext.Default.FullTextRebuildStatusResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/fulltext/rebuild/status", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextRebuildRequest).ConfigureAwait(false);
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection 与 index。").ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                registry.TryGet(db, out var tsdb);
+                var progress = tsdb.Documents.GetFullTextRebuildProgress(req.Collection, req.Index);
+                var response = new FullTextRebuildStatusResponse(progress.State, progress.ProcessedDocuments, progress.TotalDocuments, progress.Error, progress.StartedUtc, progress.CompletedUtc);
+                await Results.Json(response, ServerJsonContext.Default.FullTextRebuildStatusResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", ex.Message).ConfigureAwait(false);
+            }
+        });
     }
 
     private static ITokenizer? CreateTokenizer(string name) => name.ToLowerInvariant() switch

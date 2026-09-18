@@ -11,6 +11,8 @@
 
 - **M36 #318 FullText 类型化 Search API**：新增嵌入式/远程统一 typed Search，复用 query kind、Document filter 与稳定分页；服务端提供 score/id 排序、facet、高亮、matched terms/offsets 和版本化 BM25 score metadata，HTTP JSON 全部走 source-generated context。新增分页与命中元数据合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。
 
+- **M36 #319 FullText 设置与诊断**：全文索引新增 searchable/filterable/sortable 字段、synonym/stopword 与 typo policy，嵌入式和远程客户端提供 analyzer diff、BM25 relevance explain 及同步 rebuild status；新增 settings/analyzer-diff/relevance-explain/rebuild 管理端点和 source-generated JSON。文档 schema 格式升级至 v7，保留 v1-v6 读取并在加载时补齐默认设置；新增 Core 与 Server 合同回归，固定硬件和远程容量证据仍后置。
+
 - **M36 #320 VectorData 高层 Search API**：新增继承 VectorData 标准选项的 SonnetDB typed search，支持 filter、score threshold、skip、include vectors、exact/accurate scan、fast/balanced/accurate preset，以及有界顺序 batch 查询；batch 默认最多 1024 个查询并传播取消。新增向量阈值、精确扫描和批量顺序回归；#321 的 dimension/profile preflight、index health、ANN/scan explain 与 recall report 仍后置。
 
 - **M36 #317 KV 大 keyspace 工作流初始切片**：新增稳定快照异步 range cursor 与远程 continuation cursor，提供有界页、取消和逐条异步枚举；新增带 bounded Channel 背压的 KV pipeline，按输入顺序返回逐项成功/失败/取消结果；新增容量、TTL 和进程内热点 key 诊断及 source-generated REST 契约。大规模远程 parity、固定硬件容量和长期证据仍后置。

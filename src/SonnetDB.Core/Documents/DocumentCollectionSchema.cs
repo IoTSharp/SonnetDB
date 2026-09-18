@@ -148,11 +148,16 @@ public sealed class DocumentCollectionSchema
                     fields[i] = field;
                 }
 
+                DocumentFullTextIndexSettings settings = (index.Settings ?? DocumentFullTextIndexSettings.Default).Normalize(fields);
+                ValidateFullTextSettings(name, index.Name, fields, settings);
                 fullTextIndexList.Add(new DocumentFullTextIndex(
                     index.Name,
                     Array.AsReadOnly(fields),
                     index.Tokenizer,
-                    index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks));
+                    index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks)
+                {
+                    Settings = settings,
+                });
             }
         }
 
@@ -273,7 +278,7 @@ public sealed class DocumentCollectionSchema
             throw new InvalidOperationException($"document collection '{Name}' 中全文索引 '{definition.Name}' 已存在。");
 
         var definitions = FullTextIndexes
-            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
+            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks, i.Settings))
             .Append(definition)
             .ToArray();
 
@@ -292,7 +297,7 @@ public sealed class DocumentCollectionSchema
 
         var definitions = FullTextIndexes
             .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
-            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
+            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks, i.Settings))
             .ToArray();
 
         return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition(), VectorIndexDefinitions());
@@ -363,7 +368,7 @@ public sealed class DocumentCollectionSchema
 
     private IReadOnlyList<DocumentFullTextIndexDefinition> FullTextIndexDefinitions()
         => FullTextIndexes
-            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
+            .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks, i.Settings))
             .ToArray();
 
     private IReadOnlyList<DocumentVectorIndexDefinition> VectorIndexDefinitions()
@@ -407,6 +412,22 @@ public sealed class DocumentCollectionSchema
             index.EfConstruction,
             index.EfSearch,
             index.CreatedAtUtcTicks);
+
+    private static void ValidateFullTextSettings(
+        string collectionName,
+        string indexName,
+        IReadOnlyList<string> fields,
+        DocumentFullTextIndexSettings settings)
+    {
+        var fieldSet = fields.ToHashSet(StringComparer.Ordinal);
+        foreach (string field in (settings.SearchableFields ?? []).Concat(settings.FilterableFields ?? []).Concat(settings.SortableFields ?? []))
+        {
+            if (!fieldSet.Contains(field))
+                throw new ArgumentException(
+                    $"文档集合 '{collectionName}' 的全文索引 '{indexName}' 设置字段 '{field}' 不在索引 fields 中。",
+                    nameof(settings));
+        }
+    }
 
     private static string NormalizeFullTextField(string field)
     {
@@ -742,7 +763,11 @@ public sealed record DocumentFullTextIndex(
     string Name,
     IReadOnlyList<string> Fields,
     string Tokenizer,
-    long CreatedAtUtcTicks);
+    long CreatedAtUtcTicks)
+{
+    /// <summary>全文字段与分析器设置。</summary>
+    public DocumentFullTextIndexSettings Settings { get; init; } = DocumentFullTextIndexSettings.Default;
+}
 
 /// <summary>
 /// 创建或加载全文索引时使用的轻量声明。
@@ -755,7 +780,91 @@ public sealed record DocumentFullTextIndexDefinition(
     string Name,
     IReadOnlyList<string> Fields,
     string Tokenizer = "unicode",
-    long CreatedAtUtcTicks = 0);
+    long CreatedAtUtcTicks = 0,
+    DocumentFullTextIndexSettings? Settings = null);
+
+/// <summary>全文索引的字段可用性、词项规则和拼写容错设置。</summary>
+/// <param name="SearchableFields">允许全文查询的字段；为空时使用索引声明的全部字段。</param>
+/// <param name="FilterableFields">允许在上层过滤表达式中使用的字段。</param>
+/// <param name="SortableFields">允许在上层排序表达式中使用的字段。</param>
+/// <param name="Synonyms">输入词到规范词的同义词映射。</param>
+/// <param name="StopWords">分析阶段丢弃的停用词。</param>
+/// <param name="TypoPolicy">拼写容错策略。</param>
+public sealed record DocumentFullTextIndexSettings(
+    IReadOnlyList<string>? SearchableFields = null,
+    IReadOnlyList<string>? FilterableFields = null,
+    IReadOnlyList<string>? SortableFields = null,
+    IReadOnlyDictionary<string, string>? Synonyms = null,
+    IReadOnlyList<string>? StopWords = null,
+    DocumentFullTextTypoPolicy? TypoPolicy = null)
+{
+    /// <summary>默认全文设置。</summary>
+    public static DocumentFullTextIndexSettings Default { get; } = new();
+
+    /// <summary>按索引字段规范化设置。</summary>
+    /// <param name="fields">索引声明中的字段。</param>
+    /// <returns>规范化后的不可变设置。</returns>
+    public DocumentFullTextIndexSettings Normalize(IReadOnlyList<string> fields)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        static string NormalizeName(string value) => value.Trim();
+        static IReadOnlyList<string> NormalizeFields(IReadOnlyList<string>? values, IReadOnlyList<string> fallback)
+        {
+            var source = values is { Count: > 0 } ? values : fallback;
+            return source.Select(NormalizeName).Where(static value => value.Length > 0)
+                .Distinct(StringComparer.Ordinal).ToArray();
+        }
+
+        IReadOnlyList<string> searchable = NormalizeFields(SearchableFields, fields);
+        IReadOnlyList<string> filterable = NormalizeFields(FilterableFields, fields);
+        IReadOnlyList<string> sortable = NormalizeFields(SortableFields, fields);
+        var synonyms = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (Synonyms is not null)
+        {
+            foreach (var pair in Synonyms)
+            {
+                string key = pair.Key.Trim().ToLowerInvariant();
+                string value = pair.Value.Trim().ToLowerInvariant();
+                if (key.Length > 0 && value.Length > 0)
+                    synonyms[key] = value;
+            }
+        }
+
+        var stopWords = (StopWords ?? []).Select(static word => word.Trim().ToLowerInvariant())
+            .Where(static word => word.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+        return new DocumentFullTextIndexSettings(
+            searchable,
+            filterable,
+            sortable,
+            synonyms,
+            stopWords,
+            TypoPolicy?.Normalize() ?? DocumentFullTextTypoPolicy.Default);
+    }
+}
+
+/// <summary>全文查询的拼写容错策略。</summary>
+/// <param name="Enabled">是否启用 fuzzy 查询的编辑距离展开。</param>
+/// <param name="ShortTokenMaxEdits">长度不超过 2 的词允许的最大编辑距离。</param>
+/// <param name="MediumTokenMaxEdits">长度 3 到 4 的词允许的最大编辑距离。</param>
+/// <param name="LongTokenMaxEdits">长度至少 5 的词允许的最大编辑距离。</param>
+public sealed record DocumentFullTextTypoPolicy(
+    bool Enabled = true,
+    int ShortTokenMaxEdits = 0,
+    int MediumTokenMaxEdits = 1,
+    int LongTokenMaxEdits = 2)
+{
+    /// <summary>默认拼写策略。</summary>
+    public static DocumentFullTextTypoPolicy Default { get; } = new();
+
+    internal DocumentFullTextTypoPolicy Normalize()
+    {
+        if (ShortTokenMaxEdits is < 0 or > 2
+            || MediumTokenMaxEdits is < 0 or > 2
+            || LongTokenMaxEdits is < 0 or > 2)
+            throw new ArgumentOutOfRangeException(nameof(LongTokenMaxEdits), "全文 typo policy 编辑距离必须位于 0..2。" );
+        return this;
+    }
+}
 
 /// <summary>
 /// JSON 文档集合向量（HNSW ANN）索引声明。为 document collection 的 <c>vector_search</c> 提供

@@ -501,6 +501,104 @@ public sealed class DocumentCollectionManager : IDisposable
         }
     }
 
+    /// <summary>读取指定全文索引的字段与分析器设置。</summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">全文索引名。</param>
+    /// <returns>全文索引设置。</returns>
+    public DocumentFullTextIndexSettings GetFullTextIndexSettings(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            DocumentFullTextIndex index = schema.TryGetFullTextIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中全文索引 '{indexName}' 不存在。");
+            return index.Settings;
+        }
+    }
+
+    /// <summary>使用指定全文索引的分析器处理一段文本。</summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">全文索引名。</param>
+    /// <param name="text">待分析文本。</param>
+    /// <returns>过滤后的词元。</returns>
+    public IReadOnlyList<SonnetDB.FullText.Tokenization.Token> AnalyzeFullText(
+        string collectionName,
+        string indexName,
+        string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        ArgumentNullException.ThrowIfNull(text);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            DocumentFullTextIndex index = schema.TryGetFullTextIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中全文索引 '{indexName}' 不存在。");
+            return OpenStoreLocked(schema).AnalyzeFullText(index, text);
+        }
+    }
+
+    /// <summary>解释指定全文索引对文档的相关性评分。</summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">全文索引名。</param>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="documentId">文档 ID。</param>
+    /// <param name="mode">检索模式。</param>
+    /// <param name="queryKind">查询组合方式。</param>
+    /// <returns>相关性解释。</returns>
+    public SonnetDB.FullText.DocumentFullTextRelevanceExplanation ExplainFullText(
+        string collectionName,
+        string indexName,
+        string field,
+        string queryText,
+        string documentId,
+        SonnetDB.FullText.FullTextSearchMode mode = SonnetDB.FullText.FullTextSearchMode.Exact,
+        SonnetDB.FullText.FullTextQueryKind queryKind = SonnetDB.FullText.FullTextQueryKind.All)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(field);
+        ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            DocumentFullTextIndex index = schema.TryGetFullTextIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中全文索引 '{indexName}' 不存在。");
+            return OpenStoreLocked(schema).ExplainFullText(index, field, queryText, documentId, mode, queryKind);
+        }
+    }
+
+    /// <summary>读取指定全文索引最近一次重建任务状态。</summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">全文索引名。</param>
+    /// <returns>重建进度。</returns>
+    public SonnetDB.FullText.DocumentFullTextRebuildProgress GetFullTextRebuildProgress(
+        string collectionName,
+        string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            DocumentFullTextIndex index = schema.TryGetFullTextIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中全文索引 '{indexName}' 不存在。");
+            return OpenStoreLocked(schema).GetFullTextRebuildProgress(index);
+        }
+    }
+
     /// <summary>
     /// 删除文档集合 schema 与主数据目录。
     /// </summary>

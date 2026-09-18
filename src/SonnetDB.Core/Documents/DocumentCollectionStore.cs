@@ -1168,6 +1168,45 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>使用指定全文索引分析文本。</summary>
+    /// <param name="index">全文索引声明。</param><param name="text">待分析文本。</param>
+    /// <returns>经过索引设置处理的词元。</returns>
+    public IReadOnlyList<SonnetDB.FullText.Tokenization.Token> AnalyzeFullText(DocumentFullTextIndex index, string text)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(text);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).Analyze(text);
+    }
+
+    /// <summary>解释指定全文索引对文档的相关性评分。</summary>
+    /// <param name="index">全文索引声明。</param><param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param><param name="documentId">文档 ID。</param>
+    /// <param name="mode">检索模式。</param><param name="queryKind">查询组合方式。</param>
+    /// <returns>相关性解释。</returns>
+    public SonnetDB.FullText.DocumentFullTextRelevanceExplanation ExplainFullText(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        string documentId,
+        SonnetDB.FullText.FullTextSearchMode mode,
+        SonnetDB.FullText.FullTextQueryKind queryKind)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).Explain(field, queryText, documentId, mode, queryKind);
+    }
+
+    /// <summary>读取指定全文索引的重建任务状态。</summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <returns>最近一次重建状态。</returns>
+    public SonnetDB.FullText.DocumentFullTextRebuildProgress GetFullTextRebuildProgress(DocumentFullTextIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).RebuildProgress;
+    }
+
     internal int RebuildFullTextIndex(DocumentFullTextIndex index, string indexDirectory)
     {
         ArgumentNullException.ThrowIfNull(index);

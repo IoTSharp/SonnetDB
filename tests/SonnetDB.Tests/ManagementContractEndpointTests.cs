@@ -310,6 +310,56 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FullText_Settings_AnalyzerDiff_Explain_AndRebuildAreObservable()
+    {
+        using var admin = CreateClient(_adminToken);
+        using var ro = CreateClient(_readOnlyToken);
+        var db = "ftdiag";
+        await CreateDatabaseAsync(admin, db);
+        await ExecuteSqlAsync(admin, db, "CREATE DOCUMENT COLLECTION logs");
+        await ExecuteSqlAsync(admin, db, "INSERT INTO logs (id, document) VALUES ('a', '{\"message\":\"pump alarm\"}')");
+        await ExecuteSqlAsync(admin, db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+
+        using var settingsResponse = await ro.PostAsync(
+            $"/v1/db/{db}/fulltext/settings",
+            JsonContent.Create(new FullTextSettingsRequest("logs", "ft_logs_message"), ServerJsonContext.Default.FullTextSettingsRequest));
+        Assert.Equal(HttpStatusCode.OK, settingsResponse.StatusCode);
+        var settings = await settingsResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFullTextIndexSettings);
+        Assert.NotNull(settings!.SearchableFields);
+        Assert.Contains("$.message", settings.SearchableFields!);
+
+        using var diffResponse = await ro.PostAsync(
+            $"/v1/db/{db}/fulltext/analyzer-diff",
+            JsonContent.Create(new FullTextAnalyzerDiffRequest("logs", "ft_logs_message", "Pump alarm", "cjk"), ServerJsonContext.Default.FullTextAnalyzerDiffRequest));
+        Assert.Equal(HttpStatusCode.OK, diffResponse.StatusCode);
+        var diff = await diffResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextAnalyzerDiffResponse);
+        Assert.NotEmpty(diff!.Current);
+        Assert.NotEmpty(diff.Candidate);
+
+        using var explainResponse = await ro.PostAsync(
+            $"/v1/db/{db}/fulltext/relevance-explain",
+            JsonContent.Create(new FullTextRelevanceExplainRequest("logs", "ft_logs_message", "$.message", "pump", "a"), ServerJsonContext.Default.FullTextRelevanceExplainRequest));
+        Assert.Equal(HttpStatusCode.OK, explainResponse.StatusCode);
+        var explanation = await explainResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFullTextRelevanceExplanation);
+        Assert.Equal("a", explanation!.DocumentId);
+        Assert.Contains(explanation.Contributions, static item => item.Matched);
+
+        using var rebuildResponse = await admin.PostAsync(
+            $"/v1/db/{db}/fulltext/rebuild",
+            JsonContent.Create(new FullTextRebuildRequest("logs", "ft_logs_message"), ServerJsonContext.Default.FullTextRebuildRequest));
+        Assert.Equal(HttpStatusCode.OK, rebuildResponse.StatusCode);
+        var rebuild = await rebuildResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextRebuildStatusResponse);
+        Assert.Equal("completed", rebuild!.State);
+
+        using var statusResponse = await ro.PostAsync(
+            $"/v1/db/{db}/fulltext/rebuild/status",
+            JsonContent.Create(new FullTextRebuildRequest("logs", "ft_logs_message"), ServerJsonContext.Default.FullTextRebuildRequest));
+        Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
+        var status = await statusResponse.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextRebuildStatusResponse);
+        Assert.Equal("completed", status!.State);
+    }
+
+    [Fact]
     public async Task Mq_Topics_Offsets_And_Browse()
     {
         using var admin = CreateClient(_adminToken);

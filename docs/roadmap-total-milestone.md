@@ -115,7 +115,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 6 | #315 | M36 | GPT-5.6 Terra / high | 📋 | 时序 Query builder、流式结果与建模诊断，复用现有查询引擎。 |
 | 7 | #317 | M36 | GPT-5.6 Sol / high | 🚧 | KV 大 keyspace 已接通 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果、取消/背压和容量/TTL/热点诊断；大规模远程 parity、固定硬件容量与长期证据待后置。 |
 | 8 | #318 | M36 | GPT-5.6 Sol / high | 🚧 | FullText typed Search API 已接通嵌入式/远程客户端、query/filter/sort/facet/highlight/page 合同、稳定 continuation token、matched offsets/terms 与版本化 score metadata；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。 |
-| 9 | #319 | M36 | GPT-5.6 Sol / high | 📋 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与 rebuild task。 |
+| 9 | #319 | M36 | GPT-5.6 Sol / high | 🚧 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与同步可观察 rebuild status 已接通 Core/Data/Server；schema v7 兼容旧版本读取，远程现场与容量证据后置。 |
 | 10 | #320 | M36 | GPT-5.6 Sol / high | 🚧 | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
 | 11 | #321 | M36 | GPT-5.6 Sol / high | 📋 | Vector profile preflight、index health/rebuild progress 与查询路径解释；复用 #298。 |
 | 12 | #322 | M36 | GPT-5.6 Sol / high | 📋 | Object Transfer Manager：multipart、checksum、retry/resume、进度、取消与资源释放。 |
