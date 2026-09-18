@@ -116,6 +116,76 @@ public sealed class SonnetDBVectorSearchApiTests : IDisposable
         Assert.Contains("MaxBatchSize", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SearchBatchAsync_PreCancelledEmptyInput_RejectsBeforeEnumerationOrQuery()
+    {
+        await using var connection = new SndbConnection($"Data Source={_root}");
+        using var store = new SonnetDBVectorStore(connection);
+        var collection = store.GetCollection<string, VectorRecord>("vectors");
+        var inputs = new EmptyBatchInputs();
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => collection.SearchBatchAsync(
+            (IEnumerable<ReadOnlyMemory<float>>)inputs,
+            new SndbVectorSearchOptions<VectorRecord>(), cancelled.Token));
+
+        Assert.Equal(cancelled.Token, exception.CancellationToken);
+        Assert.Equal(0, inputs.EnumeratorRequests);
+        Assert.Equal(0, inputs.MoveNextCalls);
+        Assert.Equal(System.Data.ConnectionState.Closed, connection.State);
+    }
+
+    [Fact]
+    public async Task SearchBatchAsync_PreCancelledEmptyAsyncInput_RejectsBeforeEnumerationOrQuery()
+    {
+        await using var connection = new SndbConnection($"Data Source={_root}");
+        using var store = new SonnetDBVectorStore(connection);
+        var collection = store.GetCollection<string, VectorRecord>("vectors");
+        var inputs = new EmptyBatchInputs();
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => collection.SearchBatchAsync(
+            (IAsyncEnumerable<ReadOnlyMemory<float>>)inputs,
+            new SndbVectorSearchOptions<VectorRecord>(), cancelled.Token));
+
+        Assert.Equal(cancelled.Token, exception.CancellationToken);
+        Assert.Equal(0, inputs.EnumeratorRequests);
+        Assert.Equal(0, inputs.MoveNextCalls);
+        Assert.Equal(System.Data.ConnectionState.Closed, connection.State);
+    }
+
+    private sealed class EmptyBatchInputs : IEnumerable<ReadOnlyMemory<float>>,
+        IAsyncEnumerable<ReadOnlyMemory<float>>, IAsyncEnumerator<ReadOnlyMemory<float>>
+    {
+        public int EnumeratorRequests { get; private set; }
+        public int MoveNextCalls { get; private set; }
+        public ReadOnlyMemory<float> Current => throw new InvalidOperationException("Empty input has no current item.");
+
+        public IEnumerator<ReadOnlyMemory<float>> GetEnumerator()
+        {
+            EnumeratorRequests++;
+            return Enumerable.Empty<ReadOnlyMemory<float>>().GetEnumerator();
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public IAsyncEnumerator<ReadOnlyMemory<float>> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            EnumeratorRequests++;
+            return this;
+        }
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            MoveNextCalls++;
+            return ValueTask.FromResult(false);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     private sealed class VectorRecord
     {
         [VectorStoreKey]

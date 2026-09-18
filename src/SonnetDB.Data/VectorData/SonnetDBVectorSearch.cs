@@ -240,6 +240,7 @@ public static class SonnetDBVectorSearchExtensions
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
 
         var results = new List<SndbVectorBatchSearchResult<TRecord>>();
         int index = 0;
@@ -279,6 +280,7 @@ public static class SonnetDBVectorSearchExtensions
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
 
         var results = new List<SndbVectorBatchSearchResult<TRecord>>();
         int index = 0;
