@@ -43,7 +43,7 @@ RAG 的 `--force` 仍通过 writer 的内容/profile 幂等合同；它不会强
 
 每次 embedding 复用持久化 `__semantic_embedding_audit` 审计；要求审计时先写 `started` 并 fsync 再调用 provider，成功、失败和取消均保存脱敏状态。仍由现有管理/API 权限约束访问，RAG 不引入匿名摄取入口。
 
-RAG roots 必须为 1–32 个存在的绝对路径；根目录缺失会拒绝发布，避免目录挂载失败被解释为删除。扫描最多 10,000 个文档、每根目录最多 20,000 个目录项、深度 16；单文件和总原文预算均为 4 MiB，分块上限 100,000，摄取协作期限 120 秒。读取严格 UTF-8 的 Markdown/HTML 原文，使用通用 `RagTextChunker`；HTML 标签保留为原文，本切片不提供富文档解析。文件以正文 hash 保存到 `copilot-rag-sources` Object Bucket，manifest 引用真实版本。原始快照保留，不随派生 generation 清理；保留期、物理删除和管理入口归 #305。
+RAG roots 必须为 1–32 个存在的绝对路径；根目录缺失会拒绝发布，避免目录挂载失败被解释为删除。扫描最多 10,000 个文档、每根目录最多 20,000 个目录项、深度 16；单文件和总原文预算均为 4 MiB，分块上限 100,000，摄取协作期限 120 秒。读取严格 UTF-8 的 Markdown/HTML 原文，使用通用 `RagTextChunker`；HTML 标签保留为原文，本切片不提供富文档解析。文件以正文 hash 保存到 `copilot-rag-sources` Object Bucket，manifest 引用真实版本。原始快照保留，不随派生 generation 清理；#305 的[管理入口](rag-governance.md)提供重建、续跑、丢弃、退役清理和审计，原始对象仍使用现有对象生命周期与显式删除合同。
 
 ## 验证范围
 

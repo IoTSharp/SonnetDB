@@ -57,6 +57,7 @@ internal static partial class SonnetDbEndpoints
             registry.TryGet(db, out var tsdb);
             var keyspaces = tsdb.Keyspaces.List()
                 .Where(static name => !SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name))
+                .Where(static name => !SonnetDB.SemanticSearch.RagManagementResourceNames.IsReserved(name))
                 .ToArray();
             await Results.Json(new KvKeyspaceListResponse(keyspaces), ServerJsonContext.Default.KvKeyspaceListResponse)
                 .ExecuteAsync(ctx).ConfigureAwait(false);
@@ -621,6 +622,7 @@ internal static partial class SonnetDbEndpoints
             var indexes = new List<FullTextIndexStat>();
             foreach (var collection in tsdb.Documents.Catalog.Snapshot())
             {
+                if (SonnetDB.SemanticSearch.RagManagementResourceNames.IsReserved(collection.Name)) continue;
                 if (collection.FullTextIndexes.Count == 0)
                     continue;
                 var store = tsdb.Documents.Open(collection.Name);
@@ -645,7 +647,7 @@ internal static partial class SonnetDbEndpoints
             if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextSearchPreviewRequest).ConfigureAwait(false);
-            if (req is null || string.IsNullOrWhiteSpace(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
+            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
                 || string.IsNullOrWhiteSpace(req.Field) || string.IsNullOrWhiteSpace(req.Query))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index、field 与 query。").ConfigureAwait(false);

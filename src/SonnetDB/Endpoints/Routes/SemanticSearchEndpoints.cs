@@ -22,6 +22,7 @@ internal static partial class SonnetDbEndpoints
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
         MapSemanticEmbeddingEndpoints(app, registry, grants);
+        MapRagManagementEndpoints(app, registry, grants);
 
         app.MapGet("/v1/semantic-search/status", async (HttpContext ctx, CancellationToken cancellationToken) =>
         {

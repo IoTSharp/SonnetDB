@@ -60,6 +60,7 @@ internal sealed record RagIngestionWriterCheckpoint
     public int AddedContents { get; init; }
     public int UpdatedContents { get; init; }
     public int DeletedContents { get; init; }
+    public bool RebuildAllVectors { get; init; }
 }
 
 internal sealed record RagIngestionChunkDocument

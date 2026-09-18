@@ -1,3 +1,5 @@
+using SonnetDB.Sql.Execution;
+
 namespace SonnetDB.Kv;
 
 /// <summary>
@@ -37,6 +39,7 @@ public sealed class KvKeyspaceManager : IDisposable
     public KvKeyspace Open(string name)
     {
         ValidateName(name);
+        SqlRagResourceScope.Demand(name);
 
         lock (_sync)
         {
@@ -101,6 +104,7 @@ public sealed class KvKeyspaceManager : IDisposable
     internal bool Drop(string name)
     {
         ValidateName(name);
+        SqlRagResourceScope.Demand(name);
 
         lock (_sync)
         {

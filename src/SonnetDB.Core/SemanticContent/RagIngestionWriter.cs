@@ -18,7 +18,7 @@ namespace SonnetDB.SemanticContent;
 /// 并保证同一 profile ID 的模型合同不可变。provider 必须遵守取消令牌；其调用可能因崩溃重放。
 /// 删除从新 active 版本立即生效；旧版本物理清理由 generation CleanupRetired 在租约释放后执行。
 /// </remarks>
-public sealed class RagIngestionWriter
+public sealed partial class RagIngestionWriter
 {
     /// <summary>generation 中分块 Document collection 的逻辑角色。</summary>
     public const string ChunksResourceRole = "rag.chunks";
@@ -226,7 +226,7 @@ public sealed class RagIngestionWriter
                 vectorIndexes: [new(VectorIndexName, "$.embedding", _profile.Dimensions, DocumentMetric())]));
         }
         DocumentCollectionStore staging = _database.Documents.Open(name);
-        DocumentCollectionStore? old = active is not null && previous is not null
+        DocumentCollectionStore? old = !checkpoint.RebuildAllVectors && active is not null && previous is not null
             && ProfilesEqual(previous.Profile, _profile)
             ? _database.Documents.Open(active.GetRequiredResource(
                 ChunksResourceRole, DatabaseGenerationResourceKind.DocumentCollection).Name)
@@ -396,18 +396,7 @@ public sealed class RagIngestionWriter
         => DecodeCheckpoint(Jobs.Get(JobKey), token);
 
     private RagIngestionWriterCheckpoint? ReadPublished(DatabaseGenerationQueryLease? active, CancellationToken token)
-    {
-        if (active is null)
-            return null;
-        string name = active.GetRequiredResource(SnapshotResourceRole, DatabaseGenerationResourceKind.KvKeyspace).Name;
-        RagIngestionWriterCheckpoint checkpoint = DecodeCheckpoint(_database.Keyspaces.Open(name).Get("snapshot"), token)
-            ?? throw new InvalidDataException("已发布 RAG generation 缺少快照。");
-        if (checkpoint.GenerationId != active.Generation.GenerationId
-            || checkpoint.ExpectedRevision != active.Generation.Revision - 1
-            || name != ResourceName(checkpoint))
-            throw new InvalidDataException("已发布快照与 generation 身份不一致。");
-        return checkpoint;
-    }
+        => ReadManagementPublished(_database, _stream, active, _options, token);
 
     private byte[] EncodeCheckpoint(RagIngestionWriterCheckpoint checkpoint)
     {
@@ -418,23 +407,49 @@ public sealed class RagIngestionWriter
     }
 
     private RagIngestionWriterCheckpoint? DecodeCheckpoint(byte[]? bytes, CancellationToken token)
+        => DecodeManagementCheckpoint(bytes, _stream, _options, token);
+
+    internal static RagIngestionWriterCheckpoint? DecodeManagementCheckpoint(
+        byte[]? bytes, string stream, RagIngestionWriterOptions options, CancellationToken token)
     {
         if (bytes is null)
             return null;
-        if (bytes.Length > _options.MaxCheckpointBytes)
+        if (bytes.Length > options.MaxCheckpointBytes)
             throw new InvalidOperationException("持久化任务超过本 writer 的 checkpoint 字节预算。");
-        ValidatePersistedSnapshotShape(bytes, token);
+        ValidatePersistedSnapshotShape(bytes, options, token);
         RagIngestionWriterCheckpoint? checkpoint = JsonSerializer.Deserialize(bytes, RagIngestionWriterJsonContext.Default.RagIngestionWriterCheckpoint);
-        if (checkpoint is null || checkpoint.SchemaVersion != 1 || checkpoint.Stream != _stream
+        if (checkpoint is null || checkpoint.SchemaVersion != 1 || checkpoint.Stream != stream
             || !Guid.TryParseExact(checkpoint.GenerationId, "N", out _)
             || checkpoint.ExpectedRevision is < 0 or long.MaxValue
             || checkpoint.AddedContents < 0 || checkpoint.UpdatedContents < 0 || checkpoint.DeletedContents < 0
             || checkpoint.Profile is null || checkpoint.Snapshot is null)
             throw new InvalidDataException("RAG 持久化任务合同无效。");
+        if (checkpoint.Profile.SupportedModalities is null || checkpoint.Profile.SupportedModalities.Count > 6
+            || checkpoint.Profile.DataEgressPolicy is null || SemanticContentValidator.ValidateProfile(checkpoint.Profile).Count != 0)
+            throw new InvalidDataException("RAG 持久化模型合同无效。");
+        long textCharacters = 0;
+        foreach (var manifest in checkpoint.Snapshot.Manifests)
+        {
+            token.ThrowIfCancellationRequested();
+            if (manifest is null)
+                throw new InvalidDataException("RAG 持久化清单不能为空。");
+            textCharacters += manifest.Text?.Length ?? 0;
+            foreach (var chunk in manifest.Chunks)
+            {
+                token.ThrowIfCancellationRequested();
+                if (chunk is null || chunk.Text is null)
+                    throw new InvalidDataException("RAG 持久化分块不能为空。");
+                textCharacters += chunk.Text.Length;
+                if (textCharacters > options.MaxTextCharacters)
+                    throw new InvalidOperationException("持久化 snapshot 超过正文预算。");
+            }
+            if (textCharacters > options.MaxTextCharacters)
+                throw new InvalidOperationException("持久化 snapshot 超过正文预算。");
+        }
         return checkpoint;
     }
 
-    private void ValidatePersistedSnapshotShape(byte[] bytes, CancellationToken token)
+    private static void ValidatePersistedSnapshotShape(byte[] bytes, RagIngestionWriterOptions options, CancellationToken token)
     {
         // 公共 snapshot DTO 为兼容既有 wire 合同保留默认空集合；持久化恢复不能把缺字段
         // 当作显式空快照，否则损坏 checkpoint 可能被解释为删除。只在本 writer 的内部边界加严。
@@ -449,7 +464,7 @@ public sealed class RagIngestionWriter
             || !snapshot.TryGetProperty("manifests", out JsonElement manifests)
             || manifests.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("持久化 snapshot 必须显式包含版本 1 和 manifests 数组。");
-        if (manifests.GetArrayLength() > _options.MaxManifests)
+        if (manifests.GetArrayLength() > options.MaxManifests)
             throw new InvalidOperationException("持久化 snapshot 超过清单预算。");
         int chunkCount = 0;
         foreach (JsonElement manifest in manifests.EnumerateArray())
@@ -465,7 +480,7 @@ public sealed class RagIngestionWriter
             if (segments.GetArrayLength() != 0 || embeddings.GetArrayLength() != 0)
                 throw new InvalidDataException("持久化 writer 不支持 segments 或命名 embedding 绑定。");
             chunkCount = checked(chunkCount + chunks.GetArrayLength());
-            if (chunkCount > _options.MaxChunks)
+            if (chunkCount > options.MaxChunks)
                 throw new InvalidOperationException("持久化 snapshot 超过分块预算。");
         }
     }

@@ -16,6 +16,7 @@ const GrantsView = () => import('@/views/GrantsView.vue');
 const TokensView = () => import('@/views/TokensView.vue');
 const AiSettingsView = () => import('@/views/AiSettingsView.vue');
 const CopilotTestView = () => import('@/views/CopilotTestView.vue');
+const RagManagementView = () => import('@/views/RagManagementView.vue');
 const ModbusView = () => import('@/views/ModbusView.vue');
 
 const router = createRouter({
@@ -52,6 +53,7 @@ const router = createRouter({
         { path: 'tokens', name: 'tokens', component: TokensView, meta: { admin: true } },
         { path: 'ai-settings', name: 'ai-settings', component: AiSettingsView, meta: { admin: true } },
         { path: 'copilot-test', name: 'copilot-test', component: CopilotTestView, meta: { admin: true } },
+        { path: 'rag', name: 'rag', component: RagManagementView },
       ],
     },
   ],

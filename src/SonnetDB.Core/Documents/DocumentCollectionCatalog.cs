@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
@@ -21,7 +22,7 @@ public sealed class DocumentCollectionCatalog
         get
         {
             lock (_sync)
-                return _mutable.Count;
+                return SqlRagResourceScope.IsActive ? _mutable.Keys.Count(SqlRagResourceScope.IsVisible) : _mutable.Count;
         }
     }
 
@@ -83,6 +84,7 @@ public sealed class DocumentCollectionCatalog
     public DocumentCollectionSchema? TryGet(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        SqlRagResourceScope.Demand(name);
         return Volatile.Read(ref _snapshot).TryGetValue(name, out var schema) ? schema : null;
     }
 
@@ -90,7 +92,8 @@ public sealed class DocumentCollectionCatalog
     /// 返回当前 schema 快照，按集合名升序排列。
     /// </summary>
     public IReadOnlyList<DocumentCollectionSchema> Snapshot()
-        => Volatile.Read(ref _snapshot).Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+        => Volatile.Read(ref _snapshot).Values.Where(static schema => SqlRagResourceScope.IsVisible(schema.Name))
+            .OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
 
     private void PublishSnapshot()
         => Volatile.Write(ref _snapshot, _mutable.ToFrozenDictionary(StringComparer.Ordinal));

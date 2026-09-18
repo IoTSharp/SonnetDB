@@ -23,6 +23,11 @@ internal sealed class CopilotRagKnowledgeStore(
     private readonly CopilotDocsOptions _docs = options.Value.Copilot.Docs;
     private readonly CopilotEmbeddingOptions _embedding = options.Value.Copilot.Embedding;
 
+    internal EmbeddingProfile GetManagedProfile() => ValidateProfile();
+
+    internal ValueTask<float[]> EmbedManagedAsync(Tsdb database, EmbeddingProfile profile, string text, CancellationToken token)
+        => EmbedAsync(database, profile, text, token);
+
     internal bool Enabled => _docs.StorageMode switch
     {
         "legacy" => false,
