@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Documents.Vector;
-using SonnetDB.SemanticContent;
 using SonnetDB.Query;
+using SonnetDB.SemanticContent;
 
 namespace SonnetDB.Data.VectorData;
 

@@ -206,7 +206,8 @@ public sealed class VehicleObservationStoreTests : IDisposable
             {
                 Source = first.Target.Source with
                 {
-                    ObjectRef = new(secondSource.Bucket, secondSource.Key, eTag: secondSource.ETag), ContentHash = secondSource.Sha256,
+                    ObjectRef = new(secondSource.Bucket, secondSource.Key, eTag: secondSource.ETag),
+                    ContentHash = secondSource.Sha256,
                 },
             },
         };
@@ -258,17 +259,30 @@ public sealed class VehicleObservationStoreTests : IDisposable
         SndbObjectInfo source = await Put(objects, "contract fixture image bytes");
         return new(new()
         {
-            Id = id, DetectorProfileId = "detector-v1", Label = "vehicle", Confidence = 0.95,
-            Region = new() { Width = 0.5, Height = 0.5 }, IndexState = new(SemanticIndexState.Ready, updatedUtc: DateTimeOffset.UnixEpoch),
+            Id = id,
+            DetectorProfileId = "detector-v1",
+            Label = "vehicle",
+            Confidence = 0.95,
+            Region = new() { Width = 0.5, Height = 0.5 },
+            IndexState = new(SemanticIndexState.Ready, updatedUtc: DateTimeOffset.UnixEpoch),
             Source = new()
             {
-                ContentId = "frame", ObjectRef = new(source.Bucket, source.Key, eTag: source.ETag), ContentHash = source.Sha256,
-                Modality = SemanticContentModality.Image, Width = 640, Height = 480,
+                ContentId = "frame",
+                ObjectRef = new(source.Bucket, source.Key, eTag: source.ETag),
+                ContentHash = source.Sha256,
+                Modality = SemanticContentModality.Image,
+                Width = 640,
+                Height = 480,
             },
         }, new()
         {
-            Id = "detector-v1", Provider = "fixture", Model = "detector", Revision = "1", PreprocessingRevision = "1",
-            LabelSetRevision = "1", SupportedModalities = [SemanticContentModality.Image],
+            Id = "detector-v1",
+            Provider = "fixture",
+            Model = "detector",
+            Revision = "1",
+            PreprocessingRevision = "1",
+            LabelSetRevision = "1",
+            SupportedModalities = [SemanticContentModality.Image],
         }, Profile, [1, 0], new("CN", plate, 0.9, new("ocr-v1", "fixture", "fixture-ocr", "1", "1")));
     }
 

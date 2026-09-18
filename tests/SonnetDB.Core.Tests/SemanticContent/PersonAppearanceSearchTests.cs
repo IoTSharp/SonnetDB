@@ -166,7 +166,8 @@ public sealed class PersonAppearanceSearchTests
     {
         PersonAppearanceProfile profile = Profile() with
         {
-            Task = task, WindowMilliseconds = 1000,
+            Task = task,
+            WindowMilliseconds = 1000,
             Embedding = Profile().Embedding with { SupportedModalities = [SemanticContentModality.Video] },
         };
         PersonAppearanceCandidate candidate = Candidate("video", [1, 0]);
@@ -193,7 +194,8 @@ public sealed class PersonAppearanceSearchTests
     {
         PersonAppearanceProfile profile = Profile() with
         {
-            Task = task, WindowMilliseconds = 1000,
+            Task = task,
+            WindowMilliseconds = 1000,
             Embedding = Profile().Embedding with { SupportedModalities = [SemanticContentModality.Image, SemanticContentModality.Video] },
         };
         var search = new PersonAppearanceSearch(profile, new Authorizer(), _ => { }, (_, _) => true, Options());
@@ -220,18 +222,30 @@ public sealed class PersonAppearanceSearchTests
     private static PersonAppearanceCandidate Candidate(string id, IReadOnlyList<float> vector)
         => new(new()
         {
-            Id = id, DetectorProfileId = "detector-v1", Label = "person", Confidence = 0.9,
+            Id = id,
+            DetectorProfileId = "detector-v1",
+            Label = "person",
+            Confidence = 0.9,
             Region = new() { Width = 0.5, Height = 0.5 },
             Source = new()
             {
-                ContentId = "content", ObjectRef = new("images", "frame", eTag: "etag"), ContentHash = "hash",
-                Modality = SemanticContentModality.Image, Width = 640, Height = 480,
+                ContentId = "content",
+                ObjectRef = new("images", "frame", eTag: "etag"),
+                ContentHash = "hash",
+                Modality = SemanticContentModality.Image,
+                Width = 640,
+                Height = 480,
             },
             IndexState = new(SemanticIndexState.Ready, updatedUtc: DateTimeOffset.UnixEpoch),
         }, new()
         {
-            Id = "detector-v1", Provider = "fixture", Model = "detector", Revision = "1",
-            PreprocessingRevision = "1", LabelSetRevision = "1", SupportedModalities = [SemanticContentModality.Image],
+            Id = "detector-v1",
+            Provider = "fixture",
+            Model = "detector",
+            Revision = "1",
+            PreprocessingRevision = "1",
+            LabelSetRevision = "1",
+            SupportedModalities = [SemanticContentModality.Image],
         }, Profile(), vector, Access.Purpose, DateTimeOffset.UtcNow.AddHours(1));
 
     private sealed class Authorizer : IBiometricAuthorizer

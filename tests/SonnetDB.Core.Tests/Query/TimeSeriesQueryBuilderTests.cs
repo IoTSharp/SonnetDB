@@ -1,8 +1,8 @@
+using System.Threading;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Storage.Segments;
-using System.Threading;
 
 namespace SonnetDB.Core.Tests.Query;
 

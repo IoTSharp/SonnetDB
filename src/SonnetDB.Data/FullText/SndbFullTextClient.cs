@@ -512,11 +512,20 @@ public sealed class SndbFullTextClient : IDisposable
         if (filter.Not is not null) return new DocumentNotFilter(ToRequiredCoreFilter(filter.Not));
         DocumentFilterOperator op = (filter.Op ?? "eq").ToLowerInvariant() switch
         {
-            "eq" => DocumentFilterOperator.Equal, "ne" => DocumentFilterOperator.NotEqual, "gt" => DocumentFilterOperator.GreaterThan,
-            "gte" => DocumentFilterOperator.GreaterThanOrEqual, "lt" => DocumentFilterOperator.LessThan, "lte" => DocumentFilterOperator.LessThanOrEqual,
-            "in" => DocumentFilterOperator.In, "nin" => DocumentFilterOperator.NotIn, "exists" => DocumentFilterOperator.Exists,
-            "contains" => DocumentFilterOperator.Contains, "regex" => DocumentFilterOperator.Regex, "type" => DocumentFilterOperator.Type,
-            "size" => DocumentFilterOperator.Size, "all" => DocumentFilterOperator.All,
+            "eq" => DocumentFilterOperator.Equal,
+            "ne" => DocumentFilterOperator.NotEqual,
+            "gt" => DocumentFilterOperator.GreaterThan,
+            "gte" => DocumentFilterOperator.GreaterThanOrEqual,
+            "lt" => DocumentFilterOperator.LessThan,
+            "lte" => DocumentFilterOperator.LessThanOrEqual,
+            "in" => DocumentFilterOperator.In,
+            "nin" => DocumentFilterOperator.NotIn,
+            "exists" => DocumentFilterOperator.Exists,
+            "contains" => DocumentFilterOperator.Contains,
+            "regex" => DocumentFilterOperator.Regex,
+            "type" => DocumentFilterOperator.Type,
+            "size" => DocumentFilterOperator.Size,
+            "all" => DocumentFilterOperator.All,
             _ => throw new InvalidOperationException($"不支持的 document filter op '{filter.Op}'。"),
         };
         object? value = op switch
@@ -536,9 +545,14 @@ public sealed class SndbFullTextClient : IDisposable
     private static object? ToCoreValue(JsonElement? value) => value is null ? null : ToCoreValue(value.Value);
     private static object? ToCoreValue(JsonElement value) => value.ValueKind switch
     {
-        JsonValueKind.Null => null, JsonValueKind.True => true, JsonValueKind.False => false,
-        JsonValueKind.String => value.GetString(), JsonValueKind.Number => value.TryGetInt64(out long number) ? number : value.GetDouble(),
-        JsonValueKind.Array => value.EnumerateArray().Select(ToCoreValue).ToArray(), JsonValueKind.Object => value.GetRawText(), _ => null,
+        JsonValueKind.Null => null,
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.TryGetInt64(out long number) ? number : value.GetDouble(),
+        JsonValueKind.Array => value.EnumerateArray().Select(ToCoreValue).ToArray(),
+        JsonValueKind.Object => value.GetRawText(),
+        _ => null,
     };
 
     private void ThrowIfDisposed() { if (_disposed) throw new ObjectDisposedException(nameof(SndbFullTextClient)); }

@@ -366,7 +366,8 @@ public sealed class FaceRecognitionStore
         using KvRangeCursor cursor = snapshot.OpenRangeCursor(new()
         {
             Prefix = Encoding.UTF8.GetBytes(_prefix + "t/" + Hash(purpose) + "/"),
-            PageSize = 32, MaxPageBytes = 524_288,
+            PageSize = 32,
+            MaxPageBytes = 524_288,
         });
         var entries = new List<KvEntry>();
         long bytes = 0;
@@ -403,11 +404,11 @@ public sealed class FaceRecognitionStore
     private void ValidateStored(FaceRecognitionTemplate template, string purpose)
     {
         if (template.Purpose != purpose || template.ProfileId != _profile.Embedding.Id)
-            throw new InvalidDataException("人脸模板用途或 profile 不匹配。" );
+            throw new InvalidDataException("人脸模板用途或 profile 不匹配。");
         float[] normalized = ValidateVector(template.Vector);
         for (int i = 0; i < normalized.Length; i++)
             if (Math.Abs(normalized[i] - template.Vector[i]) > 0.00001f)
-                throw new InvalidDataException("持久人脸向量未规范化。" );
+                throw new InvalidDataException("持久人脸向量未规范化。");
     }
 
     private bool IsCurrent(VisualSourceReference source)
@@ -481,16 +482,16 @@ public sealed class FaceRecognitionStore
     {
         double value = 1d - VectorDistance.ComputeCosine(left, right);
         if (!double.IsFinite(value))
-            throw new InvalidDataException("人脸向量比较结果无效。" );
+            throw new InvalidDataException("人脸向量比较结果无效。");
         return Math.Clamp(value, -1, 1);
     }
 
     private static FaceRecognitionTemplate Decode(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length > 262_144)
-            throw new InvalidDataException("人脸模板记录超过 256 KiB。" );
+            throw new InvalidDataException("人脸模板记录超过 256 KiB。");
         return JsonSerializer.Deserialize(bytes, FaceRecognitionJsonContext.Default.FaceRecognitionTemplate)
-            ?? throw new InvalidDataException("人脸模板记录无效。" );
+            ?? throw new InvalidDataException("人脸模板记录无效。");
     }
 
     private static void WriteAudit(KvKeyspace store, byte[] key, FaceRecognitionAuditEntry entry, CancellationToken token)

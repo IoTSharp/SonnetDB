@@ -18,8 +18,13 @@ public sealed class FaceRecognitionStoreTests : IDisposable
             supportedModalities: [SemanticContentModality.Image]),
         Detector = new()
         {
-            Id = "detector-fixture-v1", Provider = "test", Model = "fixture", Revision = "1",
-            PreprocessingRevision = "1", LabelSetRevision = "1", SupportedModalities = [SemanticContentModality.Image],
+            Id = "detector-fixture-v1",
+            Provider = "test",
+            Model = "fixture",
+            Revision = "1",
+            PreprocessingRevision = "1",
+            LabelSetRevision = "1",
+            SupportedModalities = [SemanticContentModality.Image],
         },
     };
     private static readonly FaceRecognitionProbe Probe = new() { ProfileId = "face-fixture-v1", Vector = [1, 0, 0] };
@@ -274,13 +279,20 @@ public sealed class FaceRecognitionStoreTests : IDisposable
         int maxTemplates = 256, FaceRecognitionProfile? profile = null, string[]? purposes = null, TimeProvider? clock = null)
         => new(db, "gallery", profile ?? Profile, authorizer ?? new Authorizer(), new()
         {
-            Enabled = enabled, AllowedPurposes = purposes ?? [Context.Purpose], MaxTemplates = maxTemplates,
+            Enabled = enabled,
+            AllowedPurposes = purposes ?? [Context.Purpose],
+            MaxTemplates = maxTemplates,
         }, clock);
 
     private static FaceRecognitionTemplate Template(string id, VisualDerivedTarget target) => new()
     {
-        Id = id, SubjectId = "subject-" + id, Purpose = Context.Purpose, ProfileId = Profile.Embedding.Id,
-        Target = target, Vector = [1, 0, 0], ExpiresUtc = DateTimeOffset.UtcNow.AddDays(1),
+        Id = id,
+        SubjectId = "subject-" + id,
+        Purpose = Context.Purpose,
+        ProfileId = Profile.Embedding.Id,
+        Target = target,
+        Vector = [1, 0, 0],
+        ExpiresUtc = DateTimeOffset.UtcNow.AddDays(1),
     };
 
     private static async Task<VisualDerivedTarget> Target(Tsdb db)
@@ -290,12 +302,19 @@ public sealed class FaceRecognitionStoreTests : IDisposable
         SndbObjectInfo original = await objects.PutObjectAsync("face-fixtures", "source.png", new MemoryStream([1, 2, 3]));
         return new()
         {
-            Id = "face-region", DetectorProfileId = Profile.Detector.Id, Label = "face", Confidence = 0.9,
+            Id = "face-region",
+            DetectorProfileId = Profile.Detector.Id,
+            Label = "face",
+            Confidence = 0.9,
             Region = new() { X = 0.1, Y = 0.2, Width = 0.3, Height = 0.4 },
             Source = new()
             {
-                ContentId = "source-content", ContentHash = original.Sha256, Modality = SemanticContentModality.Image,
-                ObjectRef = new(original.Bucket, original.Key, original.VersionId, original.ETag), Width = 640, Height = 480,
+                ContentId = "source-content",
+                ContentHash = original.Sha256,
+                Modality = SemanticContentModality.Image,
+                ObjectRef = new(original.Bucket, original.Key, original.VersionId, original.ETag),
+                Width = 640,
+                Height = 480,
             },
             IndexState = new(SemanticIndexState.Ready),
         };

@@ -1,6 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.VectorData;
 using SonnetDB.Data.VectorData.Internal;
 

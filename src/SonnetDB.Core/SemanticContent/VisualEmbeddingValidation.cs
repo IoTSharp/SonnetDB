@@ -1,7 +1,7 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Security.Cryptography;
 using SonnetDB.Vector.Primitives;
 
 namespace SonnetDB.SemanticContent;

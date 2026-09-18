@@ -195,7 +195,8 @@ public sealed class VisualContentContractTests
         };
         VisualDerivationManifest manifest = Manifest(ImageSource()) with
         {
-            DetectorProfiles = [profile], Targets = [Target(ImageSource())],
+            DetectorProfiles = [profile],
+            Targets = [Target(ImageSource())],
         };
 
         Assert.True(VisualContentValidator.Validate(manifest).IsValid);
@@ -300,31 +301,47 @@ public sealed class VisualContentContractTests
 
     private static VisualSourceReference ImageSource() => new()
     {
-        ContentId = "content-1", ObjectRef = new("images", "source.jpg", versionId: "original-v1"),
-        ContentHash = "sha256:fixture", Modality = SemanticContentModality.Image, Width = 1920, Height = 1080,
+        ContentId = "content-1",
+        ObjectRef = new("images", "source.jpg", versionId: "original-v1"),
+        ContentHash = "sha256:fixture",
+        Modality = SemanticContentModality.Image,
+        Width = 1920,
+        Height = 1080,
     };
 
     private static VisualSourceReference VideoSource() => ImageSource() with
     {
-        ObjectRef = new("videos", "source.mp4", eTag: "original-etag"), Modality = SemanticContentModality.Video, DurationMs = 1000,
+        ObjectRef = new("videos", "source.mp4", eTag: "original-etag"),
+        Modality = SemanticContentModality.Video,
+        DurationMs = 1000,
     };
 
     private static VisualDetectorProfile Profile() => new()
     {
-        Id = "detector-v1", Provider = "external-import", Model = "fixture-detector", Revision = "weights-v1",
-        PreprocessingRevision = "rgb-resize-v1", LabelSetRevision = "classes-v1",
+        Id = "detector-v1",
+        Provider = "external-import",
+        Model = "fixture-detector",
+        Revision = "weights-v1",
+        PreprocessingRevision = "rgb-resize-v1",
+        LabelSetRevision = "classes-v1",
         SupportedModalities = [SemanticContentModality.Image, SemanticContentModality.Video],
     };
 
     private static VisualDerivedTarget Target(VisualSourceReference source) => new()
     {
-        Id = "target-1", Source = source, DetectorProfileId = "detector-v1", Label = "vehicle", Confidence = 0.8,
+        Id = "target-1",
+        Source = source,
+        DetectorProfileId = "detector-v1",
+        Label = "vehicle",
+        Confidence = 0.8,
         Region = new() { X = 0.1, Y = 0.2, Width = 0.3, Height = 0.4 },
     };
 
     private static VisualDerivationManifest Manifest(VisualSourceReference source) => new()
     {
-        Id = "derivation-v1", Source = source, DetectorProfiles = [Profile()],
+        Id = "derivation-v1",
+        Source = source,
+        DetectorProfiles = [Profile()],
     };
 
     private static VisualDerivationManifest VideoManifest()

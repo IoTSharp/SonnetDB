@@ -1,5 +1,5 @@
-using SonnetDB.Sql;
 using SonnetDB.Exceptions;
+using SonnetDB.Sql;
 using SonnetDB.Tables;
 using Xunit;
 

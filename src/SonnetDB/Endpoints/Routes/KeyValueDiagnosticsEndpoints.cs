@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Http;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
+using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
-using SonnetDB.Hosting;
 
 namespace SonnetDB.Endpoints;
 
