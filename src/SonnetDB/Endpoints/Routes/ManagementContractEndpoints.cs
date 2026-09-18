@@ -58,6 +58,7 @@ internal static partial class SonnetDbEndpoints
             var keyspaces = tsdb.Keyspaces.List()
                 .Where(static name => !SonnetDB.SemanticSearch.SemanticEmbeddingAuditStore.IsReservedName(name))
                 .Where(static name => !SonnetDB.SemanticSearch.RagManagementResourceNames.IsReserved(name))
+                .Where(static name => !SonnetDB.SemanticContent.FaceReservedResourceNames.IsReserved(name))
                 .ToArray();
             await Results.Json(new KvKeyspaceListResponse(keyspaces), ServerJsonContext.Default.KvKeyspaceListResponse)
                 .ExecuteAsync(ctx).ConfigureAwait(false);
