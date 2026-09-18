@@ -142,6 +142,8 @@
 
 ### Fixed
 
+- **M35 #305 RAG 目录持久化修复**：普通 SQL 创建、删除文档集合或变更索引时，保存完整文档目录，避免 SQL 可见性过滤遗漏内部 RAG 集合并导致重启后查询失败；公开目录仍隐藏保留资源。新增已发布 RAG 经普通 SQL schema 变更、关闭重开后继续检索的回归测试。
+
 - **依赖补丁版本对齐**：升级 Microsoft.Extensions.Options，并同步 Configuration.Abstractions、Logging.Abstractions 至 10.0.12，满足已升级 Hosting.Abstractions 的传递依赖，修复 CoAP 子模块还原时的 NU1605（GitHub PR #149）。
 - **CI 构建与回归稳定性**：将进程测试探针纳入 solution 的配置映射，避免 Release 构建混入 Debug 输出；根目录租约测试有界等待异步释放完成，并修复现有格式检查错误。保留原有测试断言、取消和编译警告要求。
 

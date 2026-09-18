@@ -125,6 +125,49 @@ public sealed class RagSqlResourceManagementTests : IDisposable
         Assert.Single(normal.Rows); // eager Document rows remain usable after the execution scope exits
     }
 
+    [Theory]
+    [InlineData("CREATE DOCUMENT COLLECTION new_notes")]
+    [InlineData("CREATE JSON INDEX notes_text ON visible_notes ('$.text')")]
+    [InlineData("DROP DOCUMENT COLLECTION visible_notes")]
+    public async Task Execute_NormalDocumentSchemaMutation_PreservesPublishedRagCatalogAcrossReopen(string sql)
+    {
+        var profile = new EmbeddingProfile("catalog-v1", "fixture", "fixture", "1", 3,
+            supportedModalities: [SemanticContentModality.Text]);
+        string generationId;
+        using (Tsdb db = Open())
+        {
+            db.Documents.Create(DocumentCollectionSchema.Create("visible_notes"));
+            var chunked = RagTextChunker.Chunk("manual", "alpha manual");
+            var manifest = new SemanticContentManifest("manual", new("manuals", "a.txt", eTag: chunked.ContentHash), chunked.ContentHash,
+                "text/plain", SemanticContentModality.Text, 12, "fixture", profile.Id)
+            { Chunks = chunked.Chunks };
+            var published = await new RagIngestionWriter(db, "manuals", profile, new()
+            {
+                MaxEmbeddingAttempts = 1,
+                MaxDuration = TimeSpan.FromSeconds(15),
+            }).WriteAsync(new([manifest]), (_, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return ValueTask.FromResult(new float[] { 1, 0, 0 });
+            });
+            generationId = published.Generation.GenerationId;
+
+            SqlExecutor.Execute(db, sql);
+            var shown = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW DOCUMENT COLLECTIONS"));
+            Assert.DoesNotContain(shown.Rows, row => RagReservedResourceNames.IsReserved((string)row[0]!));
+        }
+
+        using Tsdb reopened = Open();
+        var state = await new RagIngestionManager(reopened, "manuals").GetStatusAsync();
+        Assert.Equal(generationId, state.Active!.GenerationId);
+        Assert.NotNull(reopened.Documents.Catalog.TryGet("rag_" + generationId));
+        Assert.Single(await new RagGenerationSearch(reopened, "manuals", profile)
+            .SearchAsync("alpha", new float[] { 1, 0, 0 }));
+        var denied = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(reopened,
+            "SELECT * FROM rag_" + generationId));
+        Assert.Contains("RAG", denied.Message);
+    }
+
     private Tsdb Open() => Tsdb.Open(new TsdbOptions
     {
         RootDirectory = _root,
