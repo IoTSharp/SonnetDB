@@ -1110,16 +1110,21 @@ public sealed class SndbGraphClient : IDisposable
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         where TResponse : class
     {
+        // ResponseHeadersRead 只让 HttpClient.Timeout 覆盖响应头；同一个期限必须继续保护整个正文枚举。
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(_builder.Timeout));
+        CancellationToken readToken = deadline.Token;
         using HttpResponseMessage response = await PostStreamJsonAsync(
             url,
             request,
             requestTypeInfo,
-            cancellationToken).ConfigureAwait(false);
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            readToken).ConfigureAwait(false);
+        await using Stream stream = await response.Content.ReadAsStreamAsync(readToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);
         int lineNumber = 0;
-        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        while (await reader.ReadLineAsync(readToken).ConfigureAwait(false) is { } line)
         {
+            readToken.ThrowIfCancellationRequested();
             lineNumber++;
             if (string.IsNullOrWhiteSpace(line))
                 continue;
@@ -1153,8 +1158,16 @@ public sealed class SndbGraphClient : IDisposable
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
-        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
-        return response;
+        try
+        {
+            await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+            return response;
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     private static async IAsyncEnumerable<IReadOnlyList<T>> BufferPagesAsync<T>(
