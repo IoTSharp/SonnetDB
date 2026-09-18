@@ -286,7 +286,7 @@ public sealed class DocumentFullTextIndexStore
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (documents.Count >= maxDocuments)
-                    throw new InvalidOperationException($"全文重建超过 maxDocuments={maxDocuments}。" );
+                    throw new InvalidOperationException($"全文重建超过 maxDocuments={maxDocuments}。");
                 documents.Add(row);
                 var current = new DocumentFullTextRebuildProgress("running", documents.Count, null, null, startedUtc, null);
                 lock (_sync)

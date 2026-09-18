@@ -861,7 +861,7 @@ public sealed record DocumentFullTextTypoPolicy(
         if (ShortTokenMaxEdits is < 0 or > 2
             || MediumTokenMaxEdits is < 0 or > 2
             || LongTokenMaxEdits is < 0 or > 2)
-            throw new ArgumentOutOfRangeException(nameof(LongTokenMaxEdits), "全文 typo policy 编辑距离必须位于 0..2。" );
+            throw new ArgumentOutOfRangeException(nameof(LongTokenMaxEdits), "全文 typo policy 编辑距离必须位于 0..2。");
         return this;
     }
 }

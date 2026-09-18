@@ -155,7 +155,9 @@ public sealed class FaceRecognitionStore
             double similarity = Similarity(vector, template.Vector);
             return (new FaceVerificationResult
             {
-                TemplateId = template.Id, Similarity = similarity, Threshold = threshold,
+                TemplateId = template.Id,
+                Similarity = similarity,
+                Threshold = threshold,
                 IsMatch = similarity >= threshold,
             }, 1);
         }, cancellationToken);
@@ -256,7 +258,9 @@ public sealed class FaceRecognitionStore
             using KvReadSnapshot snapshot = store.AcquireReadSnapshot();
             using KvRangeCursor cursor = snapshot.OpenRangeCursor(new()
             {
-                Prefix = Encoding.UTF8.GetBytes(AuditPrefix(context.Purpose)), PageSize = limit, MaxPageBytes = 262_144,
+                Prefix = Encoding.UTF8.GetBytes(AuditPrefix(context.Purpose)),
+                PageSize = limit,
+                MaxPageBytes = 262_144,
             });
             foreach (KvEntry entry in cursor.ReadNextPage(token))
             {
@@ -277,7 +281,7 @@ public sealed class FaceRecognitionStore
                 cancellation.ThrowIfCancellationRequested();
                 FaceRecognitionTemplate template = Decode(row.Value.Span);
                 if (template.Purpose != context.Purpose)
-                    throw new InvalidDataException("人脸模板用途不匹配。" );
+                    throw new InvalidDataException("人脸模板用途不匹配。");
                 if (predicate(template))
                     changes.Add(KvBatchMutation.Delete(row.Key.ToArray()));
             }
@@ -300,9 +304,12 @@ public sealed class FaceRecognitionStore
             KvKeyspace store = _database.Keyspaces.Open(FaceReservedResourceNames.KeyspaceName);
             var audit = new FaceRecognitionAuditEntry
             {
-                Id = Guid.NewGuid().ToString("N"), StartedUtc = _clock.GetUtcNow(),
-                ActorHash = Hash(context.Actor), PurposeHash = Hash(context.Purpose),
-                Operation = operation, Outcome = "started",
+                Id = Guid.NewGuid().ToString("N"),
+                StartedUtc = _clock.GetUtcNow(),
+                ActorHash = Hash(context.Actor),
+                PurposeHash = Hash(context.Purpose),
+                Operation = operation,
+                Outcome = "started",
             };
             byte[] auditKey = Encoding.UTF8.GetBytes(AuditPrefix(context.Purpose)
                 + (long.MaxValue - audit.StartedUtc.UtcTicks).ToString("D19", System.Globalization.CultureInfo.InvariantCulture)
