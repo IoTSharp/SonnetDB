@@ -28,7 +28,7 @@ SDK 创建的共享及独立 HTTP 连接池均关闭自动跳转。Frame PUT 复
 
 - Core ObjectStorage 定向 Release 回归 96/96 通过，包含新增 42 项合同案例：真实嵌入式对象存储，以及 HTTP handler/stream 替身的全部入口预取消、正文取消/超时/IO、资源释放、分页目标/limit/token、批量部分错误、输入变化和 Frame 禁止重放。替身测试不是远程服务证据。
 - Data 显式启用 `EnableAotAnalyzer=true` / `EnableTrimAnalyzer=true` 的 Release Rebuild 通过，0 warning / 0 error；普通 Data Release 构建默认关闭 AOT 标记，不能单独作为这项证据。
-- Server 新增真实 Kestrel 回归源码，覆盖三页 delimiter 分页、共享/独立连接池的 307 禁止重放，以及错配 bucket/key 的 multipart 上传/完成/终止后原会话仍可完成。首次运行因环境缺少 Six Labors 构建许可证被阻挡，这些新增 Server 回归及 Server AOT 构建目前尚未取得通过证据，不能计入已完成验证。
+- Server 新增真实 Kestrel 回归源码，覆盖三页 delimiter 分页、共享/独立连接池的 307 禁止重放，以及错配 bucket/key 的 multipart 上传/完成/终止后原会话仍可完成。ImageSharp 已迁移出 Server 构建链；当前批次记录的 Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 均为 0 warning/0 error。固定硬件、远程现场和外部 artifact 仍按独立门禁验收。
 - 完整工作台/SDK 矩阵、九模型 golden journey、现场服务、固定硬件容量、断电/备份恢复与 M20 nightly 均单独验收。
 
 已执行的本地验证命令：
