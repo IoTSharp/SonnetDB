@@ -40,6 +40,11 @@ try {
         Assert-ReportPass (Write-Variant ("valid-" + $profile) { param($report) } $profile)
     }
 
+    Assert-ReportNotReady (Write-Variant 'target-contract' {
+        param($report)
+        $report.targetHardware.contract = 'unapproved-contract'
+    }) 'Unapproved target hardware contract'
+
     Assert-ReportNotReady (Write-Variant 'default-shape' {
         param($report)
         $report.options.targetSegments = 2

@@ -15,6 +15,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     private readonly object _sync = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private Process? _process;
+    private string? _managedDataRoot;
+    private string? _managedUrl;
     private string? _lastError;
     private string _lastDataRoot = string.Empty;
     private string _lastUrl = "http://127.0.0.1:5080";
@@ -58,6 +60,18 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
             if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
                 return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false) with { Error = null };
 
+            bool targetChanged;
+            lock (_sync)
+            {
+                targetChanged = _process is { HasExited: false } && !IsManagedProcessFor(dataRoot, url);
+            }
+
+            // A healthy external target was returned above and must not affect the
+            // existing managed process. For an unhealthy new target, however, the
+            // single managed-process slot must be released before launching it.
+            if (targetChanged)
+                StopProcess();
+
             lock (_sync)
             {
                 if (_process is { HasExited: false })
@@ -88,6 +102,14 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                 process.ErrorDataReceived += (_, args) => AppendProcessLog("stderr", args.Data);
                 process.Exited += (_, _) =>
                 {
+                    lock (_sync)
+                    {
+                        // A replaced process may deliver Exited after a new target
+                        // has been installed; its failure must not overwrite the
+                        // current host state.
+                        if (!ReferenceEquals(_process, process))
+                            return;
+                    }
                     if (process.ExitCode != 0)
                         SetError($"SonnetDB Server exited before becoming healthy (exit code {process.ExitCode}).");
                 };
@@ -97,6 +119,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                 lock (_sync)
                 {
                     _process = process;
+                    _managedDataRoot = dataRoot;
+                    _managedUrl = url;
                     _lastError = null;
                     _stderrTail.Clear();
                 }
@@ -162,7 +186,7 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                     _lastDataRoot = dataRoot;
                 _lastUrl = url;
             }
-            StopProcess();
+            StopProcess(dataRoot, url);
             return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -308,7 +332,7 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     {
         lock (_sync)
         {
-            var runningProcess = _process is { HasExited: false } ? _process : null;
+            var runningProcess = IsManagedProcessFor(dataRoot, url) ? _process : null;
             var running = healthy || runningProcess is not null;
             return new StudioManagedServerStatus(
                 running,
@@ -321,13 +345,18 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
         }
     }
 
-    private void StopProcess()
+    private void StopProcess(string? dataRoot = null, string? url = null)
     {
         Process? process;
         lock (_sync)
         {
+            if (dataRoot is not null && url is not null && !IsManagedProcessFor(dataRoot, url))
+                return;
+
             process = _process;
             _process = null;
+            _managedDataRoot = null;
+            _managedUrl = null;
         }
 
         if (process is null)
@@ -418,6 +447,11 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
 
     private static string NormalizePath(string path)
         => string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetFullPath(path);
+
+    private bool IsManagedProcessFor(string dataRoot, string url)
+        => _process is { HasExited: false }
+            && string.Equals(_managedDataRoot, NormalizePath(dataRoot), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_managedUrl, NormalizeUrl(url), StringComparison.OrdinalIgnoreCase);
 
     private static string NormalizeUrl(string url)
         => string.IsNullOrWhiteSpace(url) ? "http://127.0.0.1:5080" : url.Trim().TrimEnd('/');

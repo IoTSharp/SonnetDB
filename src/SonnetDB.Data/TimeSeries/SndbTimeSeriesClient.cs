@@ -326,7 +326,7 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
     {
         ThrowIfCompleted();
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _queue.Writer.WriteAsync(WriteRequest.Flush(completion, cancellationToken), cancellationToken).ConfigureAwait(false);
+        await WriteRequestAsync(WriteRequest.Flush(completion, cancellationToken), cancellationToken).ConfigureAwait(false);
         await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         await _client.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -352,11 +352,13 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
     {
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
+        bool admissionHeld = false;
         using (var admissionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _admissionClosed.Token))
         {
             try
             {
                 await _batchAdmission.WaitAsync(admissionCancellation.Token).ConfigureAwait(false);
+                admissionHeld = true;
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _completed) != 0)
             {
@@ -387,16 +389,31 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
             if (materialized.Count == 0)
                 return new SndbTimeSeriesWriteResult([]);
             completion = new TaskCompletionSource<SndbTimeSeriesWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-            await _queue.Writer.WriteAsync(WriteRequest.Batch(materialized.ToArray(), completion, cancellationToken), cancellationToken)
+            await WriteRequestAsync(WriteRequest.Batch(materialized.ToArray(), completion, cancellationToken, ownsAdmission: true), cancellationToken)
                 .ConfigureAwait(false);
+            admissionHeld = false;
         }
         finally
         {
-            // 等待队列容量的生产者最多只保留 MaxPendingBatches 个已物化批次。
-            // 不释放 semaphore 本身：Dispose/drain 期间仍可能有尚未进入队列的等待方。
-            _batchAdmission.Release();
+            // 已进入队列的批次将由单消费者在处理结束时归还 admission。
+            // 枚举、取消或入队失败仍由当前生产者归还，避免泄漏许可。
+            if (admissionHeld)
+                _batchAdmission.Release();
         }
         return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask WriteRequestAsync(WriteRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _queue.Writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ChannelClosedException) when (Volatile.Read(ref _completed) != 0)
+        {
+            // DisposeAsync 会关闭 channel 以唤醒正在等待入队的调用；公开合同保持为 writer 已释放。
+            throw new ObjectDisposedException(nameof(SndbTimeSeriesWriter));
+        }
     }
 
     private async Task PumpAsync()
@@ -414,16 +431,24 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
 
             try
             {
-                request.BatchCompletion!.TrySetResult(await ProcessAsync(request.Points!, request.CancellationToken).ConfigureAwait(false));
+                try
+                {
+                    request.BatchCompletion!.TrySetResult(await ProcessAsync(request.Points!, request.CancellationToken).ConfigureAwait(false));
+                }
+                catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+                {
+                    request.BatchCompletion!.TrySetCanceled(request.CancellationToken);
+                    request.FlushCompletion?.TrySetCanceled(request.CancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    request.BatchCompletion!.TrySetResult(FailureForAll(request.Points!, ErrorCode(exception), exception.Message));
+                }
             }
-            catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+            finally
             {
-                request.BatchCompletion!.TrySetCanceled(request.CancellationToken);
-                request.FlushCompletion?.TrySetCanceled(request.CancellationToken);
-            }
-            catch (Exception exception)
-            {
-                request.BatchCompletion!.TrySetResult(FailureForAll(request.Points!, ErrorCode(exception), exception.Message));
+                if (request.OwnsAdmission)
+                    _batchAdmission.Release();
             }
         }
     }
@@ -541,13 +566,21 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
         public TaskCompletionSource<SndbTimeSeriesWriteResult>? BatchCompletion { get; private init; }
         public TaskCompletionSource<bool>? FlushCompletion { get; private init; }
         public CancellationToken CancellationToken { get; private init; }
+        public bool OwnsAdmission { get; private init; }
         public bool IsFlush => FlushCompletion is not null;
 
         public static WriteRequest Batch(
             SndbTimeSeriesPoint[] points,
             TaskCompletionSource<SndbTimeSeriesWriteResult> completion,
-            CancellationToken cancellationToken)
-            => new() { Points = points, BatchCompletion = completion, CancellationToken = cancellationToken };
+            CancellationToken cancellationToken,
+            bool ownsAdmission)
+            => new()
+            {
+                Points = points,
+                BatchCompletion = completion,
+                CancellationToken = cancellationToken,
+                OwnsAdmission = ownsAdmission,
+            };
 
         public static WriteRequest Flush(TaskCompletionSource<bool> completion, CancellationToken cancellationToken)
             => new() { FlushCompletion = completion, CancellationToken = cancellationToken };

@@ -145,6 +145,8 @@ static async Task<long> WriteMqttAsync(IndustrialOptions options, IReadOnlyList<
         new MqttClientOptionsBuilder()
             .WithTcpServer(options.MqttHost, options.MqttPort!.Value)
             .WithClientId("sonnetdb-industrial-demo-" + Guid.NewGuid().ToString("N"))
+            // 内建 broker 与 HTTP API 使用同一份 SonnetDB 凭据；无凭据连接不会构成写入证据。
+            .WithCredentials("sonnetdb", options.Token)
             .WithProtocolVersion(MqttProtocolVersion.V500)
             .Build()).ConfigureAwait(false);
     if (connect.ResultCode != MqttClientConnectResultCode.Success)
@@ -245,7 +247,7 @@ static async Task RunCopilotAsync(HttpClient client, IndustrialOptions options, 
             }
         }
 
-        report.CopilotPass(toolCalls, hasFinal, model: options.CopilotModel);
+        report.CopilotCompletionNotReady(toolCalls, hasFinal);
     }
     catch (HttpRequestException exception)
     {
@@ -286,16 +288,28 @@ internal sealed record IndustrialOptions(
     string MqttHost,
     int? MqttPort,
     string OutputDirectory,
-    bool RunCopilot,
-    string? CopilotModel)
+    bool RunCopilot)
 {
     internal static IndustrialOptions Parse(string[] args)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i + 1 < args.Length; i += 2)
+        for (var i = 0; i < args.Length; i++)
         {
-            if (args[i].StartsWith("--", StringComparison.Ordinal))
-                values[args[i][2..]] = args[i + 1];
+            var argument = args[i];
+            if (!argument.StartsWith("--", StringComparison.Ordinal))
+                continue;
+
+            var key = argument[2..];
+            if (string.Equals(key, "copilot", StringComparison.OrdinalIgnoreCase))
+            {
+                values[key] = string.Empty;
+                continue;
+            }
+
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                values[key] = args[++i];
+            }
         }
 
         string Value(string key, string environment, string fallback)
@@ -315,8 +329,7 @@ internal sealed record IndustrialOptions(
             Value("mqtt-host", "SONNETDB_MQTT_HOST", "127.0.0.1"),
             port,
             Value("output", "SONNETDB_DIAGNOSTICS_OUTPUT", Path.Combine("artifacts", "m27-industrial-diagnostics")),
-            values.ContainsKey("copilot") || string.Equals(Environment.GetEnvironmentVariable("SONNETDB_RUN_COPILOT"), "1", StringComparison.Ordinal),
-            values.GetValueOrDefault("copilot-model") ?? Environment.GetEnvironmentVariable("SONNETDB_COPILOT_MODEL"));
+            values.ContainsKey("copilot") || string.Equals(Environment.GetEnvironmentVariable("SONNETDB_RUN_COPILOT"), "1", StringComparison.Ordinal));
     }
 
     internal static void PrintUsage() => Console.WriteLine(
@@ -332,7 +345,14 @@ internal sealed record CopilotChatRequest(string? Db, string? Message, string? M
 internal sealed record DiagnosticAnomaly(string Device, string Reason, string Severity, IReadOnlyList<string> SuggestedChecks);
 internal sealed record DiagnosticCitation(string Id, string Kind, string Source, string Snippet);
 internal sealed record TokenUsage(bool Reported, long? InputTokens, long? OutputTokens, long? TotalTokens, decimal? CostUsd);
-internal sealed record CopilotReport(string Status, string Provider, string? Model, int ToolCalls, string? FailureReason, TokenUsage Usage);
+internal sealed record CopilotReport(
+    string Status,
+    string Provider,
+    string? Model,
+    int ToolCalls,
+    bool CompletionReceived,
+    string? FailureReason,
+    TokenUsage Usage);
 internal sealed record DiagnosticReport(
     string Schema,
     DateTimeOffset GeneratedAtUtc,
@@ -359,10 +379,10 @@ internal sealed class DiagnosticReportBuilder(IndustrialOptions options)
     private string _query = string.Empty;
     private IReadOnlyList<string> _matchedDevices = [];
     private string _copilotStatus = "NOT_READY";
-    private string _copilotProvider = "not-configured";
-    private string? _copilotModel;
+    private string _copilotProvider = "not-requested";
     private string? _copilotFailure;
     private int _toolCalls;
+    private bool _copilotCompletionReceived;
 
     internal void AddHttpRows(long rows) => _rowsWritten += rows;
     internal void AddMqttRows(long rows) => _rowsWritten += rows;
@@ -380,14 +400,14 @@ internal sealed class DiagnosticReportBuilder(IndustrialOptions options)
     }
     internal void DataFailure(string reason) { _dataStatus = "NOT_READY"; _dataFailure = reason; }
     internal void CopilotNotReady(string reason) { _copilotStatus = "NOT_READY"; _copilotFailure = reason; }
-    internal void CopilotPass(int toolCalls, bool hasFinal, string? model)
+    internal void CopilotCompletionNotReady(int toolCalls, bool hasFinal)
     {
         _toolCalls = toolCalls;
-        _copilotModel = model;
-        _copilotProvider = "server-copilot-endpoint";
-        if (!hasFinal) { CopilotNotReady("provider response had no final event"); return; }
-        _copilotStatus = "PASS";
-        _copilotFailure = null;
+        _copilotCompletionReceived = hasFinal;
+        _copilotProvider = "unverified-server-endpoint";
+        CopilotNotReady(hasFinal
+            ? "聊天流已收到 final 事件，但该 NDJSON 合同未提供可核验的 provider/model/实际 usage；不计作真实 provider 证据。"
+            : "聊天流未包含 final 事件；provider 未就绪。");
     }
 
     internal DiagnosticReport Build()
@@ -419,7 +439,14 @@ internal sealed class DiagnosticReportBuilder(IndustrialOptions options)
             _matchedDevices,
             anomalies,
             citations,
-            new CopilotReport(_copilotStatus, _copilotProvider, _copilotModel, _toolCalls, copilotFailure, new TokenUsage(false, null, null, null, null)));
+            new CopilotReport(
+                _copilotStatus,
+                _copilotProvider,
+                null,
+                _toolCalls,
+                _copilotCompletionReceived,
+                copilotFailure,
+                new TokenUsage(false, null, null, null, null)));
     }
 }
 

@@ -8,7 +8,9 @@ namespace SonnetDB.SemanticSearch;
 /// <summary>Server 图片处理边界：明确格式、首帧、方向、像素预算和预处理版本。</summary>
 internal static class SemanticImageCodec
 {
-    internal const int MaxDecodedPixels = 100_000_000;
+    // 两个 RGBA8 缓冲区可能同时存在（解码器输出和 Skia 位图）。16 MP 将这段
+    // 临时峰值限制在约 128 MiB，避免小尺寸压缩炸弹把 Server 进程推入 OOM。
+    internal const int MaxDecodedPixels = 16_000_000;
     internal const string PreprocessingVersion = "skia-rgba-v1";
 
     // 能力由 SonnetDB 维护，不能随第三方 codec 的注册清单自动扩张。
@@ -38,33 +40,40 @@ internal static class SemanticImageCodec
         if (header.Length >= 4 && header[0] == 0 && header[1] == 0 && header[2] == 2 && header[3] == 0)
             throw new ImageInputException("不支持 CUR 图片；支持 PNG、JPEG、WebP、GIF、BMP、ICO、TIFF。");
 
-        using var data = SKData.CreateCopy(header);
-        using var codec = SKCodec.Create(data)
-            ?? throw new ImageInputException("无法识别图片格式或图片头已损坏。");
-        if (codec.EncodedFormat is not (SKEncodedImageFormat.Png or SKEncodedImageFormat.Jpeg
-            or SKEncodedImageFormat.Webp or SKEncodedImageFormat.Gif or SKEncodedImageFormat.Bmp or SKEncodedImageFormat.Ico))
-            throw new ImageInputException("支持的图片格式为 PNG、JPEG、WebP、GIF、BMP、ICO、TIFF。");
-
-        ValidateDimensions(codec.Info.Width, codec.Info.Height);
-        using var colorSpace = SKColorSpace.CreateSrgb();
-        var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul, colorSpace);
-        var bitmap = new SKBitmap(info);
         try
         {
-            var result = codec.GetPixels(info, bitmap.GetPixels(), bitmap.RowBytes, SKCodecOptions.Default);
-            if (result != SKCodecResult.Success)
-                throw new ImageInputException($"图片解码失败：{result}。");
-            cancellationToken.ThrowIfCancellationRequested();
-            if (codec.EncodedOrigin is SKEncodedOrigin.TopLeft)
-                return bitmap;
-            var oriented = Orient(bitmap, codec.EncodedOrigin, cancellationToken);
-            bitmap.Dispose();
-            return oriented;
+            using var data = SKData.CreateCopy(header);
+            using var codec = SKCodec.Create(data)
+                ?? throw new ImageInputException("无法识别图片格式或图片头已损坏。");
+            if (codec.EncodedFormat is not (SKEncodedImageFormat.Png or SKEncodedImageFormat.Jpeg
+                or SKEncodedImageFormat.Webp or SKEncodedImageFormat.Gif or SKEncodedImageFormat.Bmp or SKEncodedImageFormat.Ico))
+                throw new ImageInputException("支持的图片格式为 PNG、JPEG、WebP、GIF、BMP、ICO、TIFF。");
+
+            ValidateDimensions(codec.Info.Width, codec.Info.Height);
+            using var colorSpace = SKColorSpace.CreateSrgb();
+            var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul, colorSpace);
+            var bitmap = new SKBitmap(info);
+            try
+            {
+                var result = codec.GetPixels(info, bitmap.GetPixels(), bitmap.RowBytes, SKCodecOptions.Default);
+                if (result != SKCodecResult.Success)
+                    throw new ImageInputException($"图片解码失败：{result}。");
+                cancellationToken.ThrowIfCancellationRequested();
+                if (codec.EncodedOrigin is SKEncodedOrigin.TopLeft)
+                    return bitmap;
+                var oriented = Orient(bitmap, codec.EncodedOrigin, cancellationToken);
+                bitmap.Dispose();
+                return oriented;
+            }
+            catch
+            {
+                bitmap.Dispose();
+                throw;
+            }
         }
-        catch
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
-            bitmap.Dispose();
-            throw;
+            throw new ImageInputException("图片内容损坏或编码方式不受支持。", exception);
         }
     }
 

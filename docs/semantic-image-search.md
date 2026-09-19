@@ -184,7 +184,7 @@ GET  /v1/db/{db}/images/{id}/thumbnail
 
 任务状态包括 `pending`、`processing`、`retry`、`completed`、`failed`、`superseded` 和 `cancelled`，失败最多指数退避重试 5 次。覆盖同一对象时旧版本任务会标记为 `superseded`；普通删除、批量删除和生命周期过期都会异步清理语义文档、ANN 记录和缩略图。生命周期响应额外返回实际过期对象的 `key`、`versionId`、`contentType` 以及 `semanticCleanupJobs`，retention 或 legal hold 跳过的对象不会排入清理任务。
 
-只开启 `thumbnailEnabled` 时不要求语义 provider 就绪。缩略图不会放大小图，最大解码像素数为 100,000,000。
+只开启 `thumbnailEnabled` 时不要求语义 provider 就绪。缩略图不会放大小图，最大解码像素数为 16,000,000；该上限用于防止压缩图片在解码时产生过大的临时内存峰值。
 
 ### metadata/tag 过滤与 explain
 

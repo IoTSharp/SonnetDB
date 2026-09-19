@@ -6,10 +6,14 @@
 本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
 
 ## [Unreleased]
+### Fixed
+- 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
 
 ### Added
 
-- **M36 #311 Object 客户端合同**：对象 SDK 所有异步入口先检查取消，REST JSON 成功/错误正文共用请求期限并释放响应；校验分页目标/数量/token、批量删除原始 key 和逐项错误，嵌入式/REST multipart 操作绑定 upload ID 的 bucket/key。对象写入禁自动 HTTP 跳转与发送后 Frame→REST 重放；返回对象内容流后的读取取消仍由调用方管理，传输管理保留 #322。Core 定向回归及 Data 显式 AOT/trim 分析通过；Server 新增 Kestrel 回归与 AOT 构建待本机 Six Labors 许可证验证，见 [合同](docs/object-client-contract.md)。
+- **2026-09-19 Terra/Luna 并行收口切片**：M36 #311 新增 MQ `PublishMany` 逐项物化与发送前取消传播；#323 新增对象条件读写（含强/弱 ETag 列表、HTTP 秒精度、缺失对象 `If-Match` 412 和条件 PUT 优先级）、continuation cursor、`sndb cp` 文件流和 `sync --dry-run`，并提供明确保持 `DEFERRED` 的高变更率分页预检；M36 #310/#311 新增九模型 journey 机器可读矩阵；M36 #314 修复 writer 释放期间等待入队的稳定异常合同；M27 #184 增加带 token 的本机 Server/MQTT journey 并保持真实 provider 为 `NOT_READY`；M29 #258 增加外部健康 Server 不被 Studio 接管及托管目标切换回归。M19/M25/M41 的固定硬件和长期证据仍按 verifier 保持 `NOT_READY`/`DEFERRED`。
+
+- **M36 #311 Object 客户端合同**：对象 SDK 所有异步入口先检查取消，REST JSON 成功/错误正文共用请求期限并释放响应；校验分页目标/数量/token、批量删除原始 key 和逐项错误，嵌入式/REST multipart 操作绑定 upload ID 的 bucket/key。对象写入禁自动 HTTP 跳转与发送后 Frame→REST 重放；返回对象内容流后的读取取消仍由调用方管理，传输管理保留 #322。Core 定向回归、Data 显式 AOT/trim 分析、Server Kestrel 回归和 win-x64 NativeAOT publish 均通过，见 [合同](docs/object-client-contract.md)。
 
 - **M36 #314 时序写入批次接收上限**：新增 `MaxBatchPoints`（默认 8192，上限 65536），在入队前有界枚举并整体拒绝超限输入；接收许可限制同时物化的生产者数量，等待许可及枚举期间传播取消，空批次同样检查取消与释放状态。保留现有逐项结果、分块传输和 drain；超过默认上限的调用需拆批或显式提高上限。见[接收合同](docs/timeseries-write-admission.md)，远程 parity 与容量证据仍后置。
 
@@ -120,7 +124,7 @@
 
 - **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。`maintenance-chaos` 以写前序列预留和 progress 确认范围避免 kill 竞态复用序列；Core 新增 CRC 保护的 `SDBFPUB` Pending/Committed publication marker，在 checkpoint/WAL 不一致、marker 损坏或未发布 artifact 无法清理时 fail closed；补齐跨进程 root lease、schema/batch admission 与 Dispose 竞态边界，以及非空损坏 Segment 的 fail-closed 恢复检查。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据；受控 `Process.Kill` 不等同于掉电或物理耐久性证明。
 
-- **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件统一保持 `NOT_READY`，不能冒充百万/千万发布证据。
+- **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。verifier 现在要求调用方提供预期 commit SHA/目标机 ID 做身份比对，但由于尚无受保护 CI artifact bundle 或独立可核验 attestation，完整自声明报告也只能是 `reportStatus=PASS`、`status=NOT_READY`、`releaseDecision=DEFERRED`、`releaseEvidence=false`；quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件同样不能冒充百万/千万发布证据。
 
 - **M27 #183 MCP typed contract**：现有九个只读 MCP 工具现在通过 `tools/list` 发布真实业务 input/output JSON Schema，并在成功结果与三个 JSON resource 中携带 `contractVersion: "1.0"`；所有工具显式声明只读、非破坏、幂等与 closed-world annotation。失败继续以首个纯文本块兼容旧客户端，同时增加 source-generated JSON 错误块及稳定 `invalid_argument`、`invalid_sql`、`read_only_violation`、`measurement_not_found`、`skill_not_found`、`provider_unavailable`、`request_cancelled`、`operation_failed` code。新增端到端合同/权限/错误测试和 extend-only 兼容测试，并以 `docs/mcp-contract.md` 冻结参数、返回、权限、错误及 1.x 版本规则；未新增工具。
 
@@ -135,6 +139,8 @@
 - **跨模型 generation 原子发布合同**：新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、查询 `DatabaseGenerationQueryLease`、generation-bound opaque cursor 与 lease-aware retired cleanup。发布会先校验并 checkpoint generation 独占的 KV、Document 及其全部 FullText 派生资源，再以内部 durable KV 条件批次一次写入 descriptor、resource ownership 和 active revision；不持久化或暴露 staging，也不要求上层建立第二提交日志。新增 A/B reopen、publish 前后故障注入、双 lease 并发清理、cursor continuation/stale/tamper、取消/异常释放、真实 Document+FullText 不混代、backup/restore、公共 API 与独立 NuGet package consumer 回归。Couplet source lane 已消费最新源码并完成 generation/query、database-root 单 owner 和 cursor terminal cleanup 本地接线；默认固定 package lane 继续承担独立兼容基线。真实跨进程竞争、hard-kill CAS、双客户端及容量门禁仍未通过，`CG-005` 保持 verifying。
 
 ### Changed
+
+- **D 节后置证据口径修正**：将总里程碑最终完成判定中关于 M19/M25/M29/M41 与 M42 的固定硬件、跨架构、长稳和安装验收表述改为“仍待归档”，与各项 `NOT_READY`/`DEFERRED` 门禁及 ROADMAP 待验证状态一致。
 
 - **M35 #301 图片库与无密钥构建迁移**：移除 SixLabors.ImageSharp，Server/测试/图片样例改用 SkiaSharp 4.152.1 与托管 TiffLibrary 0.6.65；明确支持 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，停止声明其他格式。图片输入统一像素上限、EXIF 方向和永久失败分类，缩略图改用单帧 WebP/Mitchell cubic；本地 SigLIP2 有效 profile 自动加 `:skia-rgba-v1`，已有图片需重新摄取，旧向量和原图保留。移除 CI/Docker/Parity 的构建许可注入，增加实际依赖禁入与三 RID NativeAOT 图片运行门禁，固定上游声明随发布物分发。数据库文件格式不变；格式与索引迁移见[说明](docs/image-codecs.md)，真实模型质量与 Parity/nightly 证据仍独立验收。
 

@@ -102,24 +102,16 @@ public sealed class SndbMqClient : IDisposable
 
         if (_embedded is not null)
         {
-            var entries = new SonnetMqPublishEntry[messages.Count];
-            for (int i = 0; i < messages.Count; i++)
-            {
-                var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
-                entries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
-            }
+            SonnetMqPublishEntry[] entries = MaterializePublishEntries(messages, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
             return _embedded.PublishMany(topic, entries);
         }
 
         if (_frames is { } fx && fx.ShouldTryFrames())
         {
-            var frameEntries = new SonnetMqPublishEntry[messages.Count];
-            for (int i = 0; i < messages.Count; i++)
-            {
-                var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
-                frameEntries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
-            }
+            SonnetMqPublishEntry[] frameEntries = MaterializePublishEntries(messages, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
             var w = new ArrayBufferWriter<byte>();
             MqFrameCodec.EncodePublishBatchRequest(w, NextStreamId(), _database, topic, frameEntries);
@@ -128,10 +120,12 @@ public sealed class SndbMqClient : IDisposable
                 return ValidatePublishBatchResponse(messages.Count, MqFrameCodec.DecodePublishBatchResponse(f.Payload));
         }
 
-        var payload = new MqPublishBatchEntry[messages.Count];
-        for (int i = 0; i < messages.Count; i++)
+        SonnetMqPublishEntry[] entriesForRest = MaterializePublishEntries(messages, cancellationToken);
+        var payload = new MqPublishBatchEntry[entriesForRest.Length];
+        for (int i = 0; i < entriesForRest.Length; i++)
         {
-            var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
+            cancellationToken.ThrowIfCancellationRequested();
+            SonnetMqPublishEntry message = entriesForRest[i];
             payload[i] = new MqPublishBatchEntry(message.Payload.ToArray(), message.Headers);
         }
 
@@ -412,6 +406,24 @@ public sealed class SndbMqClient : IDisposable
         }
 
         return offsets;
+    }
+
+    private static SonnetMqPublishEntry[] MaterializePublishEntries(
+        IReadOnlyList<SndbMqPublishEntry> messages,
+        CancellationToken cancellationToken)
+    {
+        var entries = new SonnetMqPublishEntry[messages.Count];
+        for (int i = 0; i < messages.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SndbMqPublishEntry? message = messages[i];
+            if (message is null)
+                throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
+            entries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return entries;
     }
 
     private static IReadOnlyList<SndbMqMessage> ValidatePulledMessages(

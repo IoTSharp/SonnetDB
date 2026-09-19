@@ -15,7 +15,7 @@ namespace SonnetDB.Data.ObjectStorage;
 /// <summary>
 /// SonnetDB 对象桶客户端，统一支持嵌入式与远程 SonnetDB。
 /// </summary>
-public sealed class SndbObjectStorageClient : IDisposable
+public sealed partial class SndbObjectStorageClient : IDisposable
 {
     /// <summary>帧 put 内容字节上限：单帧 payload 上限扣除元数据头空间（db/bucket/key/contentType/maps/varints）。</summary>
     private const long MaxFrameContentBytes = FrameHeader.MaxFramePayloadBytes - (64 * 1024);
@@ -536,28 +536,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         string querySuffix = "")
     {
         using var request = CreateRequest(HttpMethod.Get, ObjectUrl(bucket, key) + querySuffix);
-        if (range.HasValue)
-        {
-            long start = range.Value.Offset;
-            long? length = range.Value.Length;
-            if (range.Value.IsSuffix)
-            {
-                // suffix Range 必须保留为 bytes=-N，不能把起点误编码为零。
-                if (!length.HasValue || length.Value <= 0)
-                    throw new ArgumentOutOfRangeException(nameof(range), "suffix Range 长度必须大于零。");
-                request.Headers.Range = new RangeHeaderValue(null, length.Value);
-            }
-            else if (length.HasValue)
-            {
-                if (start < 0 || length.Value <= 0 || length.Value - 1 > long.MaxValue - start)
-                    throw new ArgumentOutOfRangeException(nameof(range), "对象读取范围超出整数边界。");
-                request.Headers.Range = new RangeHeaderValue(start, start + length.Value - 1);
-            }
-            else
-            {
-                request.Headers.Range = new RangeHeaderValue(start, null);
-            }
-        }
+        AddRangeHeader(request, range);
 
         HttpResponseMessage? response = await _http!.SendAsync(
                 request,
@@ -571,35 +550,7 @@ public sealed class SndbObjectStorageClient : IDisposable
             if (!response.IsSuccessStatusCode)
                 throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
-            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            bool isRangeResponse = response.StatusCode == System.Net.HttpStatusCode.PartialContent;
-            ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
-            long responseLength = response.Content.Headers.ContentLength
-                ?? (isRangeResponse ? ResolveContentRangeLength(contentRange) : 0);
-            // 以服务端实际响应为准；代理忽略 Range 并返回 200 时，偏移必须回到零且总长度取完整响应长度。
-            long responseOffset = isRangeResponse ? contentRange?.From ?? range?.Offset ?? 0 : 0;
-            long totalLength = isRangeResponse ? contentRange?.Length ?? 0 : responseLength;
-            var info = new SndbObjectInfo(
-                bucket,
-                key,
-                response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
-                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
-                totalLength > 0 ? totalLength : responseLength,
-                response.Headers.ETag?.Tag ?? string.Empty,
-                response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
-                false,
-                DateTimeOffset.MinValue,
-                DateTimeOffset.MinValue,
-                new Dictionary<string, string>(),
-                new Dictionary<string, string>());
-
-            var result = new SndbObjectReadResult(
-                info,
-                new ResponseOwnedStream(response, stream),
-                responseOffset,
-                responseLength,
-                isRangeResponse,
-                totalLength);
+            var result = await CreateReadResultAsync(response, bucket, key, range, cancellationToken).ConfigureAwait(false);
             // 从这里开始由结果流接管 response，finally 不再释放成功返回的响应。
             response = null;
             return result;
@@ -608,6 +559,70 @@ public sealed class SndbObjectStorageClient : IDisposable
         {
             response?.Dispose();
         }
+    }
+
+    private static void AddRangeHeader(HttpRequestMessage request, SndbObjectRange? range)
+    {
+        if (!range.HasValue)
+            return;
+
+        long start = range.Value.Offset;
+        long? length = range.Value.Length;
+        if (range.Value.IsSuffix)
+        {
+            // suffix Range 必须保留为 bytes=-N，不能把起点误编码为零。
+            if (!length.HasValue || length.Value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(range), "suffix Range 长度必须大于零。");
+            request.Headers.Range = new RangeHeaderValue(null, length.Value);
+        }
+        else if (length.HasValue)
+        {
+            if (start < 0 || length.Value <= 0 || length.Value - 1 > long.MaxValue - start)
+                throw new ArgumentOutOfRangeException(nameof(range), "对象读取范围超出整数边界。");
+            request.Headers.Range = new RangeHeaderValue(start, start + length.Value - 1);
+        }
+        else
+        {
+            request.Headers.Range = new RangeHeaderValue(start, null);
+        }
+    }
+
+    private static async Task<SndbObjectReadResult> CreateReadResultAsync(
+        HttpResponseMessage response,
+        string bucket,
+        string key,
+        SndbObjectRange? range,
+        CancellationToken cancellationToken)
+    {
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        bool isRangeResponse = response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+        ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
+        long responseLength = response.Content.Headers.ContentLength
+            ?? (isRangeResponse ? ResolveContentRangeLength(contentRange) : 0);
+        // 以服务端实际响应为准；代理忽略 Range 并返回 200 时，偏移必须回到零且总长度取完整响应长度。
+        long responseOffset = isRangeResponse ? contentRange?.From ?? range?.Offset ?? 0 : 0;
+        long totalLength = isRangeResponse ? contentRange?.Length ?? 0 : responseLength;
+        var info = new SndbObjectInfo(
+            bucket,
+            key,
+            response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
+            response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
+            totalLength > 0 ? totalLength : responseLength,
+            response.Headers.ETag?.Tag ?? string.Empty,
+            response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
+            false,
+            DateTimeOffset.MinValue,
+            DateTimeOffset.MinValue,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>());
+
+        return new SndbObjectReadResult(
+            info,
+            new ResponseOwnedStream(response, stream),
+            responseOffset,
+            responseLength,
+            isRangeResponse,
+            totalLength);
     }
 
     /// <summary>

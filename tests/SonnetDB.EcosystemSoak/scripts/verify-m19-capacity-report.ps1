@@ -5,7 +5,7 @@ param(
     [switch] $AllowUnavailableEnvironment,
     [string] $ExpectedCommitSha,
     [string] $ExpectedTargetHardwareId,
-    [string] $ExpectedTargetHardwareContract
+    [string] $ExpectedTargetHardwareContract = 'M19-#125-frozen-target-v1'
 )
 
 $ErrorActionPreference = 'Stop'

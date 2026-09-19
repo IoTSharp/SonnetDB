@@ -29,7 +29,7 @@
 | 22 | 上层应用/示例候选 | ⏸️ | 不作为 SonnetDB 内置里程碑；通用能力缺口再回收。 |
 | 23 | 搜索与向量引擎合并 | ✅ | DotSearch / DotVector 能力已收编。 |
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
-| 25 | Document 验收与发布治理 | ✅（待验证） | parity、runner、schema v2 报告和发布 verifier 已实现；#174 百万/千万固定目标硬件档待后续真机验证。 |
+| 25 | Document 验收与发布治理 | ✅（待验证） | parity、runner、schema v2 报告和发布 verifier 已实现；#174 verifier 仅能通过预期 commit/目标机 ID 做身份比对，尚无受保护 CI artifact attestation，百万/千万固定目标硬件发布决策仍为 `NOT_READY`/`DEFERRED`，待后续真机与可核验证据。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
 | 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环。2026-09-18 木垒 ARM64 已完成内部 Tomur provider、`/v1/models` 和 35B 有界短对话 smoke；真实目标模型语义质量、工具闭环、本地 ONNX profile 和双网客户端 Copilot 证据仍有研发缺口；#185 profile 合同与证据门禁见 [专页](docs/benchmarks/m27-provider-model-profile.md)。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
@@ -239,7 +239,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | PR | 交付 | 状态 |
 |---|---|---|
 | #310 | 九模型 usability gap catalog 与可执行 golden journey：KV 单 key 原子子集已有同 fixture embedded/REST/Frame/auto、权限、并发、原生重开与桌面/手机真实 Server 旅程，附约 20 行成功代码及完整样例。其余模型及分页/诊断/备份/宿主边界尚未全部闭环；与 M20 capability report 分开。见 [KV 证据](docs/audits/kv-remote-closure-20260905.md)。 | 🚧 |
-| #311 | 统一新客户端合同：SQL/Graph/KV/Document/MQ 已有取消、目标绑定和流式/批量边界切片；新增 [Object SDK 合同](docs/object-client-contract.md)，覆盖预取消、JSON 正文完整期限、分页/批量响应校验、multipart 目标绑定及写入禁止自动重放。Object Core 回归与 Data 显式 AOT/trim 分析通过；Server 新增回归与 AOT 构建待本机许可证验证。其余工作台/SDK、九模型 golden journey 和现场恢复仍待完成。 | 🚧 |
+| #311 | 统一新客户端合同：SQL/Graph/KV/Document/MQ 已有取消、目标绑定和流式/批量边界切片；新增 [Object SDK 合同](docs/object-client-contract.md)，覆盖预取消、JSON 正文完整期限、分页/批量响应校验、multipart 目标绑定及写入禁止自动重放；MQ 批量发布补逐项物化与发送前取消传播。Object Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。其余工作台/SDK、九模型 golden journey 和现场恢复仍待完成。 | 🚧 |
 | #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、`UPDATE/DELETE ... RETURNING`、ADO.NET 结果集映射与 EF Core 数据库生成整数键回填；新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集，冲突目标校验、跳过行顺序和事务预览结果稳定。`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在合同内。 | ✅ |
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环；Core 诊断映射、SQL REST 附加字段和有界取消回归已完成。 | ✅ |
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；Core/Data、Frame/REST 路径已有实现。新增入队前 `MaxBatchPoints` 有界枚举、生产者接收许可、枚举取消和空批次生命周期检查，见[接收合同](docs/timeseries-write-admission.md)；远程现场 parity/容量证据后置。 | 🚧 |
@@ -251,7 +251,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。新增继承 VectorData 标准选项的 typed search、精确/阈值/跳过/向量回传和有界顺序 batch；远程 parity、容量和 #321 生命周期/解释证据后置。 | 🚧 |
 | #321 | Vector 生命周期与解释：已交付嵌入式真实 catalog 的 dimension/metric/数值预检、持久 RAG generation 完整 profile 核验、只读已加载图状态及显式 HNSW 图安全重建（候选图成功后替换、失败/取消保留旧图、独立真实计数/终态）。普通集合明确 profile_unbound；从主文档修复持久向量 KV 的安全重建、远程 lifecycle、ANN/scan/补偿解释与 Recall/固定硬件报告尚待完成，复用 M35 #297/#298。见[生命周期合同](docs/vector-lifecycle-preflight.md)。 | 🚧 |
 | #322 | Object Transfer Manager：自动 multipart 阈值/part size/并发、checksum、retry、resume、progress、取消和资源释放，基于现有 `SndbObjectStorageClient`。 | 📋 |
-| #323 | Object 日常文件流：OBJECT-001 已实现同 KV/WAL 派生索引的有界 `ListObjects`，保持原始 key ordinal、版本/删除标记，增加 delimiter/common-prefix、可取消重建和物理候选预算，超预算显式拒绝且不推进令牌。实现、实测及恢复限制见[验证证据](docs/audits/object-pagination-20260906.md)。conditional put/get、异步游标、CLI `cp/sync --dry-run` 与固定硬件容量仍待交付；不以本切片关闭完整 #323。 | 🚧 |
+| #323 | Object 日常文件流：OBJECT-001 已实现同 KV/WAL 派生索引的有界 `ListObjects`，保持原始 key ordinal、版本/删除标记，增加 delimiter/common-prefix、可取消重建和物理候选预算，超预算显式拒绝且不推进令牌；已补 conditional put/get、强/弱 ETag 与 HTTP 秒级日期语义、异步游标、CLI `cp/sync --dry-run`。实现、实测及恢复限制见[验证证据](docs/audits/object-pagination-20260906.md)。固定硬件容量、高变更率和完整文件传输仍待独立验收；不以本切片关闭完整 #323。 | 🚧 |
 | #324 | SonnetMQ 高层 consumer：producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain。 | 📋 |
 | #325 | SonnetMQ 投递失败治理：nack/redelivery/max-delivery/DLQ、message-id 去重窗口、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断。 | 📋 |
 | #326 | 九模型范围收口：每模型一个嵌入式/远程同代码或最小差异样例、SDK/API/Workbench/CLI 矩阵和真实用户任务 e2e；补 VS Code Graph 最小浏览/查询入口。Document 汇总 M32、Graph 汇总 M40。单库备份明确排除 Server `.system/mq`；另定义 instance MQ/consumer offset 的一致快照与恢复合同，不将跨库实例数据塞入单库包。 | 📋 |

@@ -8,7 +8,7 @@ using SonnetDB.Engine.Retention;
 
 namespace SonnetDB.Cli;
 
-internal sealed class CliApplication
+internal sealed partial class CliApplication
 {
     private readonly TextReader _input;
     private readonly TextWriter _output;
@@ -59,6 +59,8 @@ internal sealed class CliApplication
                 "remote" => RunRemote(args),
                 "connect" => RunConnect(args),
                 "backup" => RunBackup(args),
+                "cp" => RunObjectCopy(args),
+                "sync" => RunObjectSync(args),
                 "document" => new DocumentImportCommandRunner(_output, _error, _profileStore).Run(args),
                 "rag" => new RagCommandRunner(_output).Run(args),
                 "copilot" => new CopilotCommandRunner(_output, _error).Run(args),
@@ -1037,6 +1039,8 @@ SonnetDB CLI __VERSION__
   sndb backup  dry-run --path ./backup --target ./restored [--overwrite] [--no-verify]
   sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes]
   sndb backup  rebuild-indexes --path ./restored
+  sndb cp      --connection "<conn>" <file-path|s3://bucket/key> <file-path|s3://bucket/key> [--dry-run]
+  sndb sync    --connection "<conn>" <directory|s3://bucket/prefix> <directory|s3://bucket/prefix> --dry-run
   sndb document import --input ./dump/devices.bson --collection devices --path ./data [--dry-run] [--report ./migration-report.json]
   sndb rag ingest --input ./rag-bundle.json --path ./data --stream docs --replace-snapshot [--dry-run] [--timeout 120]
   sndb rag resume --input ./rag-bundle.json --path ./data --stream docs [--timeout 120]

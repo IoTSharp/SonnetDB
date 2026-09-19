@@ -1,8 +1,8 @@
 # SonnetDB 总里程碑：十四套能力
 
-**核查日期：2026-09-13；2026-09-17 追加 M35 #298/#300/#302~#304 本地实现与验证进展**
+**核查日期：2026-09-20；追加 2026-09-19~20 的 M36 #311/#314/#315/#321/#323、本地旅程与证据门禁复核**
 
-**本批实现基线：98cb0bef（2026-09-17 主分支）**
+**本批实现基线：52a5be03（2026-09-19 主分支；本地未提交切片另见工作区审计）**
 
 本文把此前关于 IoTDB、TDengine、TimechoAI、多模型数据库、AI/RAG、生产验证和数据库榜单的结论重新核对，并收敛为一个总里程碑。它是路线图的产品级收口，不替代 M19、M20、M25、M27、M35、M36、M40、M41、M42 的具体实现任务。
 
@@ -108,7 +108,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
 |---:|---|---|---|---|---|
 | 1 | #309 | M35 | GPT-5.6 Sol / high | ✅ | 车辆观察嵌入式 SDK、外部 OCR/embedding 导入、版本化车牌精确索引、有界 Top-K、来源/删除/恢复合同已交付；真实质量、容量和远程治理仍待独立证据。 |
-| 2 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | Document/Graph/KV/MQ 客户端已有合同切片；新增 Object SDK 预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和禁止自动重放，Core 回归与 Data 显式 AOT/trim 分析通过。Object Server 新增回归/AOT 待本机许可证；其余工作台/SDK 矩阵、九模型 golden journey 与现场恢复仍待完成。 |
+| 2 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | Document/Graph/KV/MQ 客户端已有合同切片；新增 Object SDK 预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和禁止自动重放，并补 MQ `PublishMany` 逐项物化与发送前取消传播。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过；其余工作台/SDK 矩阵、九模型 golden journey 与现场恢复仍待完成。 |
 | 3 | #312 | M36 | GPT-5.6 Sol / high | ✅ | 关系表 `UPDATE/DELETE ... RETURNING`、事务预览、嵌入式/REST ADO.NET 结果映射及 `ON CONFLICT DO NOTHING` 子集已完成本地代码和回归；`DO UPDATE`、文档/时序模型和完整 PostgreSQL 方言保持边界。 |
 | 4 | #313 | M36 | GPT-5.6 Terra / high | ✅ | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时已接通 Core 与 SQL REST；Frame 兼容传输码和现场发布证据仍按独立门禁执行。 |
 | 5 | #314 | M36 | GPT-5.6 Terra / high | 🚧 | 时序 typed Write API、batch/flush、逐项错误、取消与 drain 已接通 Core/Data 和 Frame/REST；已补入队前批次点数上限、生产者接收许可及枚举取消，避免无界输入绕过队列背压。远程现场 parity 和容量证据后置。 |
@@ -119,7 +119,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 10 | #320 | M36 | GPT-5.6 Sol / high | 🚧 | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
 | 11 | #321 | M36 | GPT-5.6 Sol / high | 🚧 | 已补嵌入式真实 catalog/profile 预检、只读已加载图状态与显式 HNSW 图安全重建；候选图成功后替换，失败/取消保留旧图，真实计数/终态独立可读。主文档/持久向量 KV 修复的安全重建、远程 lifecycle、通用 ANN/scan/补偿解释和 Recall/固定硬件报告待完成，复用 #297/#298。 |
 | 12 | #322 | M36 | GPT-5.6 Sol / high | 📋 | Object Transfer Manager：multipart、checksum、retry/resume、进度、取消与资源释放。 |
-| 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。 |
+| 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。固定硬件、高变更率和完整传输仍单独验收。 |
 | 14 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |
 | 15 | #325 | M36 | GPT-6 Astra / high | 📋 | MQ nack/redelivery/DLQ、去重窗口、offset reset、lag 与丢弃原因诊断。 |
 | 16 | #326（代码） | M36 | GPT-6 Astra / high | 📋 | VS Code Graph 最小浏览/查询入口，以及 instance MQ/consumer offset 一致快照与恢复；单库包不包含 Server 实例 MQ。 |
@@ -273,7 +273,7 @@ M43 只有同时满足以下条件才可以标记完成：
 1. 📋 #383~#384：十四项能力的名称、分类和边界在中英文公开材料中一致。
 2. 📋 #326/#396：十四项能力都有真实入口和一条通过权限、失败、取消、重启及结果对账的 golden journey。
 3. 🟡 #352/#367：九个原生模型的生产状态分别可追踪，Graph 的 Beta 边界保持明确；外部发布证据待补。
-4. ❌ #136 / ⏳ #125/#174/#258/#381 与 M42：M20 成功窗口、固定硬件/跨架构/长稳报告和 M29 安装验收已归档；未执行项不能以 PASS 表示。
+4. ❌ #136 / ⏳ #125/#174/#258/#381 与 M42：M20 成功窗口、固定硬件/跨架构/长稳报告和 M29 安装验收仍待归档；未执行项不能以 PASS 表示。
 5. 📋 #385~#395：流处理/订阅与 CDC/边缘同步/复制各自拥有版本化合同、恢复测试和明确拓扑。
 6. 🚧 #185/#187/#298/#300/#302~#305/#340：AI/RAG 真实模型质量、延迟、成本、数据出域、删除同步和回滚边界已公开。
 7. ⏳ #398~#401：DBDB.io 已提交，DB-Engines 资料已提交或取得明确维护反馈；排名本身作为外部结果单独记录。

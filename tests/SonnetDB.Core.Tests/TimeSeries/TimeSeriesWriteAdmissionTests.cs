@@ -1,4 +1,8 @@
 using SonnetDB.Data.TimeSeries;
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.TimeSeries;
@@ -165,6 +169,55 @@ public sealed class TimeSeriesWriteAdmissionTests : IDisposable
     }
 
     [Fact]
+    public async Task WriteBatchAsync_MaxPendingBatches_HoldsAdmissionUntilAcceptedBatchCompletes()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var firstRequestReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task server = ServeTwoWritesAsync(listener, firstRequestReceived, releaseFirstRequest);
+
+        try
+        {
+            using var client = new SndbTimeSeriesClient(
+                $"Data Source=sonnetdb+http://127.0.0.1:{endpoint.Port}/test;Protocol=rest;Timeout=10");
+            await using var writer = client.CreateWriter("cpu", new() { MaxPendingBatches = 1 });
+            Task<SndbTimeSeriesWriteItemResult> first = writer.WriteAsync(Point(1));
+            await firstRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            bool secondEnumerated = false;
+            IEnumerable<SndbTimeSeriesPoint> Second()
+            {
+                secondEnumerated = true;
+                yield return Point(2);
+            }
+
+            Task<SndbTimeSeriesWriteResult> second = writer.WriteBatchAsync(Second());
+            Assert.False(secondEnumerated);
+            Assert.False(second.IsCompleted);
+
+            releaseFirstRequest.TrySetResult();
+            Assert.True((await first.WaitAsync(TimeSpan.FromSeconds(5))).Succeeded);
+            Assert.True((await second.WaitAsync(TimeSpan.FromSeconds(5))).IsSuccess);
+            Assert.True(secondEnumerated);
+            await server.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseFirstRequest.TrySetResult();
+            listener.Stop();
+            try
+            {
+                await server.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    [Fact]
     public async Task DisposeAsync_AdmissionWaiterBehindBlockedInput_RejectsWaiterWithoutEnumeratingIt()
     {
         using var client = new SndbTimeSeriesClient($"Data Source={_root}");
@@ -198,6 +251,120 @@ public sealed class TimeSeriesWriteAdmissionTests : IDisposable
         }
         finally { release.Set(); }
         await Assert.ThrowsAsync<ObjectDisposedException>(() => first.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task DisposeAsync_AdmissionWaiter_ReportsWriterDisposedWithoutEnumeratingIt()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var firstRequestReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task server = ServeTwoWritesAsync(listener, firstRequestReceived, releaseFirstRequest);
+
+        try
+        {
+            using var client = new SndbTimeSeriesClient(
+                $"Data Source=sonnetdb+http://127.0.0.1:{endpoint.Port}/test;Protocol=rest;Timeout=10");
+            var writer = client.CreateWriter("cpu", new() { MaxPendingBatches = 2 });
+            Task<SndbTimeSeriesWriteItemResult> first = writer.WriteAsync(Point(1));
+            await firstRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var secondEnumerated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            IEnumerable<SndbTimeSeriesPoint> Second()
+            {
+                secondEnumerated.TrySetResult();
+                yield return Point(2);
+            }
+
+            Task<SndbTimeSeriesWriteResult> second = writer.WriteBatchAsync(Second());
+            await secondEnumerated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var thirdEnumerated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            IEnumerable<SndbTimeSeriesPoint> Third()
+            {
+                thirdEnumerated.TrySetResult();
+                yield return Point(3);
+            }
+
+            Task<SndbTimeSeriesWriteResult> third = writer.WriteBatchAsync(Third());
+
+            Task dispose = writer.DisposeAsync().AsTask();
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => third.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(thirdEnumerated.Task.IsCompleted);
+
+            releaseFirstRequest.TrySetResult();
+            await Task.WhenAll(first, second, dispose).WaitAsync(TimeSpan.FromSeconds(5));
+            await server.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseFirstRequest.TrySetResult();
+            listener.Stop();
+            try
+            {
+                await server.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    private static async Task ServeTwoWritesAsync(
+        TcpListener listener,
+        TaskCompletionSource firstRequestReceived,
+        TaskCompletionSource releaseFirstRequest)
+    {
+        for (int requestIndex = 0; requestIndex < 2; requestIndex++)
+        {
+            using TcpClient connection = await listener.AcceptTcpClientAsync();
+            await using NetworkStream stream = connection.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            await ReadHttpRequestAsync(reader);
+            if (requestIndex == 0)
+            {
+                firstRequestReceived.TrySetResult();
+                await releaseFirstRequest.Task;
+            }
+
+            byte[] body = Encoding.UTF8.GetBytes("{\"writtenRows\":1}");
+            byte[] response = Encoding.ASCII.GetBytes(
+                $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+            await stream.WriteAsync(response);
+            await stream.WriteAsync(body);
+            await stream.FlushAsync();
+        }
+    }
+
+    private static async Task ReadHttpRequestAsync(StreamReader reader)
+    {
+        string? requestLine = await reader.ReadLineAsync();
+        if (string.IsNullOrEmpty(requestLine))
+            throw new InvalidDataException("缺少 HTTP 请求行。");
+
+        int contentLength = 0;
+        while (true)
+        {
+            string? header = await reader.ReadLineAsync();
+            if (header is null)
+                throw new InvalidDataException("HTTP 请求头不完整。");
+            if (header.Length == 0)
+                break;
+            if (header.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                contentLength = int.Parse(header["Content-Length:".Length..].Trim(), CultureInfo.InvariantCulture);
+        }
+
+        char[] body = new char[contentLength];
+        int offset = 0;
+        while (offset < body.Length)
+        {
+            int read = await reader.ReadAsync(body.AsMemory(offset));
+            if (read == 0)
+                throw new InvalidDataException("HTTP 请求正文不完整。");
+            offset += read;
+        }
     }
 
     private static SndbTimeSeriesPoint Point(int timestamp)
