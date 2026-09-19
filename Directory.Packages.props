@@ -38,7 +38,7 @@
       OpenTelemetry SDK 仅允许出现在 src/SonnetDB（Server 程序集）：Core 只用 BCL Meter/ActivitySource（M17）。
       Prometheus.AspNetCore 上游尚无稳定版（规范仍 experimental），固定 beta 版本。
     -->
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.19.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.18.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
