@@ -22,14 +22,15 @@ internal sealed partial class CliApplication
         }
 
         using var client = new SndbObjectStorageClient(options.ConnectionString!);
+        var transfer = new SndbObjectTransferManager(client);
         if (source.IsObject)
         {
-            DownloadObjectAsync(client, source, destination.Path!).GetAwaiter().GetResult();
+            DownloadObjectAsync(transfer, source, destination.Path!).GetAwaiter().GetResult();
             _output.WriteLine($"已下载 {source.Display} -> {destination.Path}");
         }
         else
         {
-            UploadFileAsync(client, source.Path!, destination).GetAwaiter().GetResult();
+            UploadFileAsync(transfer, source.Path!, destination).GetAwaiter().GetResult();
             _output.WriteLine($"已上传 {source.Path} -> {destination.Display}");
         }
         return ExitCodes.Success;
@@ -82,21 +83,18 @@ internal sealed partial class CliApplication
         return count;
     }
 
-    private static async Task UploadFileAsync(SndbObjectStorageClient client, string filePath, ObjectLocation destination)
+    private static async Task UploadFileAsync(SndbObjectTransferManager transfer, string filePath, ObjectLocation destination)
     {
         await using var input = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await client.PutObjectAsync(destination.Bucket!, destination.KeyPrefix!, input, GetContentType(filePath)).ConfigureAwait(false);
+        await transfer.UploadAsync(destination.Bucket!, destination.KeyPrefix!, input, GetContentType(filePath)).ConfigureAwait(false);
     }
 
-    private static async Task DownloadObjectAsync(SndbObjectStorageClient client, ObjectLocation source, string filePath)
+    private static async Task DownloadObjectAsync(SndbObjectTransferManager transfer, ObjectLocation source, string filePath)
     {
-        var result = await client.OpenReadAsync(source.Bucket!, source.KeyPrefix!).ConfigureAwait(false)
-            ?? throw new FileNotFoundException($"对象不存在: {source.Display}");
         string? parent = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-        await using var content = result.Content;
         await using var output = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await content.CopyToAsync(output).ConfigureAwait(false);
+        await transfer.DownloadAsync(source.Bucket!, source.KeyPrefix!, output).ConfigureAwait(false);
     }
 
     private static ObjectTransferOptions ParseObjectTransferOptions(IReadOnlyList<string> args, string command, bool requireDryRun)
