@@ -10,6 +10,12 @@ public sealed record SndbTimeSeriesWriteOptions
     /// <summary>单次传输的最大点数。</summary>
     public int BatchSize { get; init; } = 512;
 
+    /// <summary>
+    /// 单次 WriteBatchAsync 允许接收的最大点数，默认 8192，范围为 1..65536。
+    /// 超限批次在入队前整体拒绝；更大的输入应由调用方拆成多次调用。
+    /// </summary>
+    public int MaxBatchPoints { get; init; } = 8192;
+
     /// <summary>写入队列允许等待的批次数；达到上限时写入方异步等待。</summary>
     public int MaxPendingBatches { get; init; } = 4;
 
@@ -32,6 +38,8 @@ public sealed record SndbTimeSeriesWriteOptions
     {
         if (BatchSize is < 1 or > 8192)
             throw new ArgumentOutOfRangeException(nameof(BatchSize), "BatchSize 必须位于 1..8192。");
+        if (MaxBatchPoints is < 1 or > 65536)
+            throw new ArgumentOutOfRangeException(nameof(MaxBatchPoints), "MaxBatchPoints 必须位于 1..65536。");
         if (MaxPendingBatches is < 1 or > 1024)
             throw new ArgumentOutOfRangeException(nameof(MaxPendingBatches), "MaxPendingBatches 必须位于 1..1024。");
         if (MaxRetries is < 0 or > 8)

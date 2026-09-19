@@ -275,6 +275,8 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
     private readonly string _measurement;
     private readonly SndbTimeSeriesWriteOptions _options;
     private readonly Channel<WriteRequest> _queue;
+    private readonly SemaphoreSlim _batchAdmission;
+    private readonly CancellationTokenSource _admissionClosed = new();
     private readonly Task _pump;
     private int _completed;
     private int _disposed;
@@ -285,6 +287,7 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
         _measurement = measurement;
         _options = options;
         _options.Validate();
+        _batchAdmission = new SemaphoreSlim(options.MaxPendingBatches, options.MaxPendingBatches);
         _queue = Channel.CreateBounded<WriteRequest>(new BoundedChannelOptions(options.MaxPendingBatches)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -305,16 +308,17 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
         return result.Items[0];
     }
 
-    /// <summary>写入一批点并返回逐项结果。</summary>
+    /// <summary>有界接收一批点并返回逐项结果；超出 MaxBatchPoints 时在入队前整体拒绝。</summary>
+    /// <param name="points">待写入点；枚举期间检查取消并限制同时物化的批次数。</param>
+    /// <param name="cancellationToken">等待接收、枚举和写入的取消令牌。</param>
+    /// <returns>按输入顺序排列的逐项结果。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">批次超过配置的点数上限。</exception>
     public async Task<SndbTimeSeriesWriteResult> WriteBatchAsync(
         IEnumerable<SndbTimeSeriesPoint> points,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(points);
-        var materialized = points.ToArray();
-        if (materialized.Length == 0)
-            return new SndbTimeSeriesWriteResult([]);
-        return await EnqueueAsync(materialized, cancellationToken).ConfigureAwait(false);
+        return await EnqueueAsync(points, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>等待此前已入队的批次完成。</summary>
@@ -333,6 +337,7 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
         Interlocked.Exchange(ref _completed, 1);
+        _admissionClosed.Cancel();
         _queue.Writer.TryComplete();
         try { await _pump.ConfigureAwait(false); }
         catch { /* 每个请求已收到自身错误；drain 不重复抛出。 */ }
@@ -342,12 +347,55 @@ public sealed class SndbTimeSeriesWriter : IDisposable, IAsyncDisposable
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     private async Task<SndbTimeSeriesWriteResult> EnqueueAsync(
-        SndbTimeSeriesPoint[] points,
+        IEnumerable<SndbTimeSeriesPoint> points,
         CancellationToken cancellationToken)
     {
         ThrowIfCompleted();
-        var completion = new TaskCompletionSource<SndbTimeSeriesWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _queue.Writer.WriteAsync(WriteRequest.Batch(points, completion, cancellationToken), cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        using (var admissionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _admissionClosed.Token))
+        {
+            try
+            {
+                await _batchAdmission.WaitAsync(admissionCancellation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && Volatile.Read(ref _completed) != 0)
+            {
+                throw new ObjectDisposedException(nameof(SndbTimeSeriesWriter));
+            }
+        }
+        TaskCompletionSource<SndbTimeSeriesWriteResult> completion;
+        try
+        {
+            ThrowIfCompleted();
+            var materialized = new List<SndbTimeSeriesPoint>(Math.Min(_options.BatchSize, _options.MaxBatchPoints));
+            using (IEnumerator<SndbTimeSeriesPoint> enumerator = points.GetEnumerator())
+            {
+                while (true)
+                {
+                    ThrowIfCompleted();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    bool hasNext = enumerator.MoveNext();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!hasNext)
+                        break;
+                    if (materialized.Count == _options.MaxBatchPoints)
+                        throw new ArgumentOutOfRangeException(nameof(points), "批次超过 MaxBatchPoints；请拆分为多个有界批次。");
+                    materialized.Add(enumerator.Current);
+                }
+            }
+            ThrowIfCompleted();
+            if (materialized.Count == 0)
+                return new SndbTimeSeriesWriteResult([]);
+            completion = new TaskCompletionSource<SndbTimeSeriesWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            await _queue.Writer.WriteAsync(WriteRequest.Batch(materialized.ToArray(), completion, cancellationToken), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            // 等待队列容量的生产者最多只保留 MaxPendingBatches 个已物化批次。
+            // 不释放 semaphore 本身：Dispose/drain 期间仍可能有尚未进入队列的等待方。
+            _batchAdmission.Release();
+        }
         return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
