@@ -92,6 +92,30 @@ public static class SonnetDBVectorLifecycleExtensions
         return Task.FromResult(health);
     }
 
+    /// <summary>
+    /// 显式启动已加载索引的 HNSW 图重建，仅从既有持久向量 KV 构建候选图并安全替换。
+    /// 查询、写入及释放等待索引锁；操作对象可独立读取真实进度，不表示主文档/KV 修复或召回验证。
+    /// </summary>
+    /// <param name="store">现有 VectorData store；嵌入式连接必须已打开。</param>
+    /// <param name="collection">已经加载的文档集合。</param>
+    /// <param name="index">已经加载的向量索引。</param>
+    /// <param name="cancellationToken">协作取消令牌；发布前取消保留旧图，发布后取消不回滚。</param>
+    /// <returns>进程内操作；调用方须等待 Completion 并观察失败或取消。</returns>
+    public static DocumentVectorGraphRebuildOperation StartIndexGraphRebuild(
+        this SonnetDBVectorStore store,
+        string collection,
+        string index,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        SndbConnection connection = GetConnection(store);
+        if (connection.ProviderMode != SndbProviderMode.Embedded)
+            throw new NotSupportedException("向量图重建尚未接通远程传输；请在嵌入式连接调用。");
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("图重建要求连接和集合已经打开，以免隐式执行恢复。");
+        return RequireEmbedded(connection).Documents.StartVectorGraphRebuild(collection, index, cancellationToken);
+    }
+
     private static SndbVectorPreflightResult Validate(
         DocumentVectorIndex index, string collection, ReadOnlyMemory<float> vector, KnnMetric metric,
         EmbeddingProfile? storedProfile, EmbeddingProfile? queryProfile, string? generationId, CancellationToken token)

@@ -37,6 +37,7 @@ public sealed record SndbVectorPreflightResult(
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SndbVectorPreflightResult))]
 [JsonSerializable(typeof(DocumentVectorIndexHealth))]
+[JsonSerializable(typeof(DocumentVectorGraphRebuildProgress))]
 [JsonSerializable(typeof(EmbeddingProfile))]
 [JsonSerializable(typeof(KnnMetric), TypeInfoPropertyName = "DocumentKnnMetric")]
 [JsonSerializable(typeof(SonnetDB.Vector.Primitives.KnnMetric), TypeInfoPropertyName = "ProfileKnnMetric")]
