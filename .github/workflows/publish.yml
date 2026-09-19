@@ -70,8 +70,6 @@ jobs:
   bundles:
     name: Release Bundles (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
-    env:
-      SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
     needs: nuget
     strategy:
       fail-fast: false

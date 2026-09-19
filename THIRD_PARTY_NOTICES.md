@@ -1,6 +1,10 @@
 # Third Party Notices
 
-SonnetDB includes selected third-party assets with permissive licenses. This file records assets that are redistributed with the repository or packaged artifacts.
+SonnetDB includes selected third-party assets. This file records assets and license terms that are redistributed with the repository or packaged artifacts.
+
+## Server image codecs
+
+Server image processing uses SkiaSharp 4.152.1 and TiffLibrary 0.6.65, with JpegLibrary 0.4.32. Their fixed-source licenses and original bundled notices are preserved in [licenses/image-codecs](licenses/image-codecs/README.md) and copied into publish output. The native asset has its own third-party terms, including Adobe DNG SDK terms, and is not represented as MIT-only. Historical Apache-2.0 Six Labors source attribution in the TIFF/JPEG libraries is retained; it does not introduce the modern Six Labors Split License package or a build-license requirement.
 
 ## cppjieba dictionary
 

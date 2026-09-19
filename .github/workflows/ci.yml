@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 env:
-  SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -48,6 +47,10 @@ jobs:
 
       - name: Restore
         run: dotnet restore SonnetDB.slnx
+
+      - name: Verify restored dependency licenses
+        shell: pwsh
+        run: ./eng/verify-dependency-licenses.ps1
 
       - name: Build
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
@@ -118,6 +121,20 @@ jobs:
 
       - name: Publish SonnetDB (Native AOT)
         run: dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r ${{ matrix.rid }} -p:SonnetDbPublishAot=true /warnaserror
+
+      - name: Publish image codec smoke (Native AOT)
+        run: dotnet publish eng/tools/image-codec-smoke/ImageCodecSmoke.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true /warnaserror -o artifacts/image-codec-smoke/${{ matrix.rid }}
+
+      - name: Verify restored dependency licenses
+        shell: pwsh
+        run: ./eng/verify-dependency-licenses.ps1
+
+      - name: Run image codec smoke (Native AOT)
+        shell: pwsh
+        run: |
+          $executable = if ($IsWindows) { 'ImageCodecSmoke.exe' } else { 'ImageCodecSmoke' }
+          & (Join-Path 'artifacts/image-codec-smoke/${{ matrix.rid }}' $executable)
+          if ($LASTEXITCODE -ne 0) { throw "Image codec Native AOT smoke failed with exit code $LASTEXITCODE." }
 
       - name: Show AOT artifacts
         shell: bash

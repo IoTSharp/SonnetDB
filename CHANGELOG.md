@@ -136,6 +136,8 @@
 
 ### Changed
 
+- **M35 #301 图片库与无密钥构建迁移**：移除 SixLabors.ImageSharp，Server/测试/图片样例改用 SkiaSharp 4.152.1 与托管 TiffLibrary 0.6.65；明确支持 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，停止声明其他格式。图片输入统一像素上限、EXIF 方向和永久失败分类，缩略图改用单帧 WebP/Mitchell cubic；本地 SigLIP2 有效 profile 自动加 `:skia-rgba-v1`，已有图片需重新摄取，旧向量和原图保留。移除 CI/Docker/Parity 的构建许可注入，增加实际依赖禁入与三 RID NativeAOT 图片运行门禁，固定上游声明随发布物分发。数据库文件格式不变；格式与索引迁移见[说明](docs/image-codecs.md)，真实模型质量与 Parity/nightly 证据仍独立验收。
+
 - **ImageSharp 4.1.1 构建许可（PR #131）**：升级 Server 图片依赖，并为引用 Server 的 CI、CodeQL、证据测试与发布流程接入 Six Labors 社区许可证 secret；Docker 与 Parity 构建通过 BuildKit 临时挂载许可证，本地支持绝对路径配置，许可证文件不进入 Git 或镜像构建上下文。保留包内签名校验，外部 fork 不获得仓库 secret。
 
 - **M19 #125 状态分层**：将 #125 明确标为“研发完成，待真机验证”；四个固定容量档已加入 `ROADMAP.md` 的真机验证待办，只有受保护固定目标硬件的完整报告归档后才关闭外部容量证据。

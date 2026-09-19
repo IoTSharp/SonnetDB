@@ -1,0 +1,10 @@
+<Project>
+  <!-- 原文与固定依赖版本一起更新；发布后无需联系供应商或下载许可证。 -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\licenses\image-codecs\**\*">
+      <Link>licenses\image-codecs\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+</Project>

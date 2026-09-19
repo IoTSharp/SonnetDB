@@ -2,7 +2,7 @@
 
 M35 #300 在既有文本/图片 provider 上补齐对象能力发现、内容外发检查和数据库内调用审计。现有图片上传、文搜图、图搜图和 Bucket 异步语义摄取均经过同一治理服务。该服务不替代 Copilot 的文本 provider 配置，也不表示真实模型质量、成本或容量评测已经完成。
 
-`GET /v1/semantic-search/status` 继续返回既有状态，并增加 `objectProvider`、`objectContentTypes`、`dataEgressMode` 和 `providerIsLocal`。默认对象 adapter 复用 `IMultimodalEmbeddingProvider` 的文本/图片向量空间：支持严格 UTF-8 的 `text/plain`、`text/markdown`，以及 ImageSharp 默认已注册解码器声明的全部图片媒体类型（包括 PNG、JPEG、WebP、GIF、BMP、TIFF 等），能力清单与既有解码器保持一致。PDF、音视频和其他二进制对象返回不支持，不会被当成字符串或图片强行编码。扩展可以注册 `IObjectEmbeddingProvider`；接口本身只处理已解析内容，服务层负责对象读取、授权后的外发检查和审计。
+`GET /v1/semantic-search/status` 继续返回既有状态，并增加 `objectProvider`、`objectContentTypes`、`dataEgressMode` 和 `providerIsLocal`。默认对象 adapter 复用 `IMultimodalEmbeddingProvider` 的文本/图片向量空间：支持严格 UTF-8 的 `text/plain`、`text/markdown`，以及明确列出的 PNG、JPEG、WebP、GIF、BMP、ICO、TIFF 图片媒体类型和别名。能力清单不再从第三方库的全部解码器自动生成，格式收敛与已有索引升级见[图片处理与迁移](image-codecs.md)。PDF、音视频和其他二进制对象返回不支持，不会被当成字符串或图片强行编码。扩展可以注册 `IObjectEmbeddingProvider`；接口本身只处理已解析内容，服务层负责对象读取、授权后的外发检查和审计。
 
 ## 调用对象 embedding
 

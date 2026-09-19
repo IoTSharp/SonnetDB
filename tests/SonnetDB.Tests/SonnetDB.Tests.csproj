@@ -28,7 +28,8 @@
     <PackageReference Include="MQTTnet.Server" />
     <!-- ProjectReference 不会把 Server 的 USearch native runtime assets 传递到测试宿主输出。 -->
     <PackageReference Include="Cloud.Unum.USearch" />
-    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

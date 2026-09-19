@@ -26,18 +26,12 @@ volumes:
   ch-data:
   mongo-data:
 
-secrets:
-  sixlabors-license:
-    environment: SixLaborsLicenseKey
-
 services:
   # ── 轻量栈（light + full） ─────────────────────────────────────────────
   sonnetdb:
     build:
       context: ../..
       dockerfile: src/SonnetDB/Dockerfile
-      secrets:
-        - sixlabors-license
     image: iotsharp/sonnetdb:parity
     networks: [parity-net]
     ports:
@@ -235,13 +229,10 @@ services:
   harness:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src
-    secrets:
-      - sixlabors-license
     volumes:
       - ../..:/src
     networks: [parity-net]
     environment:
-      SixLaborsLicenseFile: /run/secrets/sixlabors-license
       BACKEND: ${BACKEND:-sonnetdb,postgres}
       PARITY_PG_HOST: postgres
       PARITY_PG_PORT: "5432"

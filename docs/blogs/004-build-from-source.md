@@ -24,7 +24,7 @@ cd SonnetDB
 
 ### 编译项目
 
-Server 使用 ImageSharp 4.1.1；编译前请按[构建许可证配置](../build-license.md)设置 Six Labors 社区许可证。
+Server 图片处理不需要额外申请许可证或配置构建密钥；原生资产随 NuGet 还原和发布，详见[图片处理与迁移](../image-codecs.md)。
 
 SonnetDB 的解决方案包含多个项目，涵盖了核心引擎、HTTP API 服务、CLI 工具和 Web 管理界面。使用 .NET CLI 进行编译：
 

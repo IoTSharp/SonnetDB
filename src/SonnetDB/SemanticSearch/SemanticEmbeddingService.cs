@@ -162,10 +162,11 @@ internal sealed class SemanticEmbeddingService
                 throw new TimeoutException("语义 embedding 调用超时。");
             throw new OperationCanceledException("语义 embedding 调用已取消。", cancellationToken);
         }
-        catch (Exception exception) when (exception is ArgumentException
-            or SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException)
+        catch (Exception exception) when (exception is ArgumentException or SonnetDB.Exceptions.ImageInputException)
         {
             WriteTerminal(audit, entry, started, "failed", "semantic_invalid_input");
+            if (exception is SonnetDB.Exceptions.ImageInputException)
+                throw new SonnetDB.Exceptions.ImageInputException("provider 无法处理图片输入内容。");
             throw new ArgumentException("provider 无法处理输入内容。");
         }
         catch (Exception)

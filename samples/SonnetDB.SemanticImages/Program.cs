@@ -2,8 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 var options = SampleOptions.Parse(args);
 if (string.IsNullOrWhiteSpace(options.Token))
@@ -397,71 +396,80 @@ internal static class DemoImages
     private static void GenerateForklift(string path)
     {
         using var image = CreateFactoryBackground();
-        FillRect(image, 70, 185, 205, 70, new Rgb24(190, 36, 42));
-        FillRect(image, 95, 125, 105, 70, new Rgb24(214, 54, 58));
-        FillRect(image, 110, 138, 72, 48, new Rgb24(82, 124, 145));
-        FillRect(image, 285, 90, 18, 170, new Rgb24(48, 57, 65));
-        FillRect(image, 300, 235, 130, 12, new Rgb24(48, 57, 65));
-        FillRect(image, 360, 190, 70, 45, new Rgb24(156, 104, 52));
-        FillCircle(image, 115, 255, 31, new Rgb24(31, 36, 41));
-        FillCircle(image, 235, 255, 31, new Rgb24(31, 36, 41));
-        FillCircle(image, 115, 255, 13, new Rgb24(165, 171, 176));
-        FillCircle(image, 235, 255, 13, new Rgb24(165, 171, 176));
-        image.SaveAsPng(path);
+        FillRect(image, 70, 185, 205, 70, new SKColor(190, 36, 42));
+        FillRect(image, 95, 125, 105, 70, new SKColor(214, 54, 58));
+        FillRect(image, 110, 138, 72, 48, new SKColor(82, 124, 145));
+        FillRect(image, 285, 90, 18, 170, new SKColor(48, 57, 65));
+        FillRect(image, 300, 235, 130, 12, new SKColor(48, 57, 65));
+        FillRect(image, 360, 190, 70, 45, new SKColor(156, 104, 52));
+        FillCircle(image, 115, 255, 31, new SKColor(31, 36, 41));
+        FillCircle(image, 235, 255, 31, new SKColor(31, 36, 41));
+        FillCircle(image, 115, 255, 13, new SKColor(165, 171, 176));
+        FillCircle(image, 235, 255, 13, new SKColor(165, 171, 176));
+        SavePng(image, path);
     }
 
     private static void GeneratePump(string path)
     {
         using var image = CreateFactoryBackground();
-        FillRect(image, 105, 155, 230, 92, new Rgb24(34, 103, 173));
-        FillCircle(image, 105, 201, 46, new Rgb24(50, 126, 194));
-        FillCircle(image, 335, 201, 46, new Rgb24(25, 78, 132));
-        FillRect(image, 185, 120, 72, 35, new Rgb24(84, 94, 102));
-        FillRect(image, 65, 90, 32, 85, new Rgb24(40, 142, 98));
-        FillRect(image, 65, 75, 225, 25, new Rgb24(40, 142, 98));
-        FillRect(image, 355, 75, 28, 126, new Rgb24(40, 142, 98));
-        FillCircle(image, 369, 110, 27, new Rgb24(201, 45, 48));
-        FillRect(image, 75, 247, 310, 18, new Rgb24(65, 72, 78));
-        image.SaveAsPng(path);
+        FillRect(image, 105, 155, 230, 92, new SKColor(34, 103, 173));
+        FillCircle(image, 105, 201, 46, new SKColor(50, 126, 194));
+        FillCircle(image, 335, 201, 46, new SKColor(25, 78, 132));
+        FillRect(image, 185, 120, 72, 35, new SKColor(84, 94, 102));
+        FillRect(image, 65, 90, 32, 85, new SKColor(40, 142, 98));
+        FillRect(image, 65, 75, 225, 25, new SKColor(40, 142, 98));
+        FillRect(image, 355, 75, 28, 126, new SKColor(40, 142, 98));
+        FillCircle(image, 369, 110, 27, new SKColor(201, 45, 48));
+        FillRect(image, 75, 247, 310, 18, new SKColor(65, 72, 78));
+        SavePng(image, path);
     }
 
     private static void GenerateConveyor(string path)
     {
         using var image = CreateFactoryBackground();
-        FillRect(image, 55, 160, 400, 42, new Rgb24(225, 169, 39));
-        FillRect(image, 70, 145, 370, 14, new Rgb24(58, 64, 69));
+        FillRect(image, 55, 160, 400, 42, new SKColor(225, 169, 39));
+        FillRect(image, 70, 145, 370, 14, new SKColor(58, 64, 69));
         for (int x = 78; x <= 430; x += 44)
-            FillCircle(image, x, 181, 14, new Rgb24(85, 92, 99));
-        FillRect(image, 82, 100, 65, 45, new Rgb24(166, 105, 49));
-        FillRect(image, 205, 92, 78, 53, new Rgb24(181, 120, 56));
-        FillRect(image, 350, 108, 58, 37, new Rgb24(147, 91, 43));
-        FillRect(image, 85, 202, 18, 70, new Rgb24(65, 72, 78));
-        FillRect(image, 408, 202, 18, 70, new Rgb24(65, 72, 78));
-        image.SaveAsPng(path);
+            FillCircle(image, x, 181, 14, new SKColor(85, 92, 99));
+        FillRect(image, 82, 100, 65, 45, new SKColor(166, 105, 49));
+        FillRect(image, 205, 92, 78, 53, new SKColor(181, 120, 56));
+        FillRect(image, 350, 108, 58, 37, new SKColor(147, 91, 43));
+        FillRect(image, 85, 202, 18, 70, new SKColor(65, 72, 78));
+        FillRect(image, 408, 202, 18, 70, new SKColor(65, 72, 78));
+        SavePng(image, path);
     }
 
-    private static Image<Rgb24> CreateFactoryBackground()
+    private static SKBitmap CreateFactoryBackground()
     {
-        var image = new Image<Rgb24>(Width, Height, new Rgb24(221, 229, 232));
-        FillRect(image, 0, 250, Width, 70, new Rgb24(132, 139, 142));
-        FillRect(image, 30, 35, 452, 12, new Rgb24(83, 91, 96));
+        var image = new SKBitmap(Width, Height);
+        image.Erase(new SKColor(221, 229, 232));
+        FillRect(image, 0, 250, Width, 70, new SKColor(132, 139, 142));
+        FillRect(image, 30, 35, 452, 12, new SKColor(83, 91, 96));
         for (int x = 55; x < Width; x += 95)
-            FillRect(image, x, 47, 10, 203, new Rgb24(170, 179, 183));
+            FillRect(image, x, 47, 10, 203, new SKColor(170, 179, 183));
         return image;
     }
 
-    private static void FillRect(Image<Rgb24> image, int x, int y, int width, int height, Rgb24 color)
+    private static void SavePng(SKBitmap bitmap, string path)
+    {
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var output = File.Create(path);
+        encoded.SaveTo(output);
+    }
+
+    private static void FillRect(SKBitmap image, int x, int y, int width, int height, SKColor color)
     {
         int right = Math.Min(image.Width, x + width);
         int bottom = Math.Min(image.Height, y + height);
         for (int row = Math.Max(0, y); row < bottom; row++)
         {
             for (int column = Math.Max(0, x); column < right; column++)
-                image[column, row] = color;
+                image.SetPixel(column, row, color);
         }
     }
 
-    private static void FillCircle(Image<Rgb24> image, int centerX, int centerY, int radius, Rgb24 color)
+    private static void FillCircle(SKBitmap image, int centerX, int centerY, int radius, SKColor color)
     {
         int radiusSquared = radius * radius;
         for (int y = Math.Max(0, centerY - radius); y < Math.Min(image.Height, centerY + radius + 1); y++)
@@ -471,7 +479,7 @@ internal static class DemoImages
                 int dx = x - centerX;
                 int dy = y - centerY;
                 if ((dx * dx) + (dy * dy) <= radiusSquared)
-                    image[x, y] = color;
+                    image.SetPixel(x, y, color);
             }
         }
     }

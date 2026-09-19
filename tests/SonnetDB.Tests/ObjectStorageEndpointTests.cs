@@ -7,8 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data.ObjectStorage;
@@ -481,11 +480,12 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
                 ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
 
         byte[] encoded;
-        using (var image = new Image<Rgb24>(48, 24, new Rgb24(10, 120, 220)))
-        using (var output = new MemoryStream())
+        using (var bitmap = new SKBitmap(48, 24))
         {
-            image.SaveAsPng(output);
-            encoded = output.ToArray();
+            bitmap.Erase(new SKColor(10, 120, 220));
+            using var image = SKImage.FromBitmap(bitmap);
+            using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+            encoded = png.ToArray();
         }
 
         using var content = new ByteArrayContent(encoded);

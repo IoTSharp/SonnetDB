@@ -6,7 +6,7 @@ ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0
 
 # SonnetDB 多阶段 Docker 构建。基础镜像可由构建参数替换，目标 CPU 架构由 Compose 的 platform 传入。
 # Build from the repository root:
-#   docker build --secret id=sixlabors-license,src=/absolute/path/sixlabors.lic -f src/SonnetDB/Dockerfile -t iotsharp/sonnetdb .
+#   docker build -f src/SonnetDB/Dockerfile -t iotsharp/sonnetdb .
 #
 # Run:
 #   docker run -p 5080:5080 -v sonnetdb-data:/data iotsharp/sonnetdb
@@ -30,6 +30,7 @@ RUN node -v && npm -v
 
 # Copy build config and .csproj files first to maximize Docker layer cache for restore.
 COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY eng/image-codec-notices.targets eng/
 COPY .config/dotnet-tools.json .config/
 COPY src/SonnetDB/SonnetDB.csproj src/SonnetDB/
 COPY src/SonnetDB.Core/SonnetDB.Core.csproj src/SonnetDB.Core/
@@ -51,14 +52,13 @@ COPY src/SonnetDB.Core/ src/SonnetDB.Core/
 COPY extensions/IoTSharp.CoAP.NET/ extensions/IoTSharp.CoAP.NET/
 COPY extensions/MQTTnet.AspNetCore.Routing/ extensions/MQTTnet.AspNetCore.Routing/
 COPY docs/ docs/
+COPY licenses/image-codecs/ licenses/image-codecs/
 COPY web/ web/
 
 RUN rm -rf src/SonnetDB/wwwroot/help \
     && dotnet tool run jekyllnet build --source docs --destination src/SonnetDB/wwwroot/help
 
-RUN --mount=type=secret,id=sixlabors-license,required=true \
-    SixLaborsLicenseFile=/run/secrets/sixlabors-license \
-    dotnet publish src/SonnetDB/SonnetDB.csproj \
+RUN dotnet publish src/SonnetDB/SonnetDB.csproj \
     -c Release \
     -p:BuildAdminUi=true \
     -o /app/publish

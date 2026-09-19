@@ -3,9 +3,3 @@ services:
     build:
       context: .
       dockerfile: src/SonnetDB/Dockerfile
-      secrets:
-        - sixlabors-license
-
-secrets:
-  sixlabors-license:
-    file: ${SixLaborsLicenseFile:-./sixlabors.lic}

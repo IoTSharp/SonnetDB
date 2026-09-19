@@ -6,8 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data.ObjectStorage;
@@ -430,7 +429,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             client,
             bucket,
             "camera.png",
-            CreatePng(16, 16, new Rgb24(220, 20, 20)),
+            CreatePng(16, 16, new SKColor(220, 20, 20)),
             metadata: new Dictionary<string, string> { ["owner"] = "ops" });
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         _ = await WaitForProcessingAsync(client, bucket, "camera.png", "completed");
@@ -524,7 +523,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         Assert.False(defaults!.AsyncIngestionEnabled);
         Assert.False(defaults.ThumbnailEnabled);
 
-        byte[] image = CreatePng(64, 32, new Rgb24(220, 20, 20));
+        byte[] image = CreatePng(64, 32, new SKColor(220, 20, 20));
         var disabledPut = await PutBucketImageAsync(client, bucket, "disabled.png", image);
         Assert.Equal(HttpStatusCode.OK, disabledPut.StatusCode);
         Assert.False(disabledPut.Headers.Contains("x-sonnetdb-processing-job-id"));
@@ -567,8 +566,9 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             $"/v1/db/images/s3/{bucket}/nested/red-camera.png?thumbnail");
         Assert.Equal(HttpStatusCode.OK, thumbnail.StatusCode);
         Assert.Equal("image/webp", thumbnail.Content.Headers.ContentType?.MediaType);
-        using (Image decoded = Image.Load(await thumbnail.Content.ReadAsByteArrayAsync()))
+        using (var decoded = SKBitmap.Decode(await thumbnail.Content.ReadAsByteArrayAsync()))
         {
+            Assert.NotNull(decoded);
             Assert.True(decoded.Width <= 32);
             Assert.True(decoded.Height <= 32);
         }
@@ -614,13 +614,13 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         const string key = "camera.png";
         await CreateSemanticBucketAsync(client, bucket);
 
-        byte[] firstImage = CreatePng(16, 16, new Rgb24(220, 20, 20));
+        byte[] firstImage = CreatePng(16, 16, new SKColor(220, 20, 20));
         var firstPut = await PutBucketImageAsync(client, bucket, key, firstImage);
         var firstInfo = await firstPut.Content.ReadFromJsonAsync(ServerJsonContext.Default.ObjectInfoResponse);
         Assert.NotNull(firstInfo);
         _ = await WaitForProcessingAsync(client, bucket, key, "completed");
 
-        byte[] indexedImage = CreatePng(16, 16, new Rgb24(20, 20, 220));
+        byte[] indexedImage = CreatePng(16, 16, new SKColor(20, 20, 220));
         var secondPut = await PutBucketImageAsync(client, bucket, key, indexedImage);
         var secondInfo = await secondPut.Content.ReadFromJsonAsync(ServerJsonContext.Default.ObjectInfoResponse);
         Assert.NotNull(secondInfo);
@@ -650,7 +650,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         var hit = Assert.Single(searchResult!.Hits);
         Assert.Equal(secondInfo!.VersionId, hit.SourceVersionId);
 
-        byte[] newerUnindexedImage = CreatePng(16, 16, new Rgb24(20, 220, 20));
+        byte[] newerUnindexedImage = CreatePng(16, 16, new SKColor(20, 220, 20));
         using (var content = new MemoryStream(newerUnindexedImage, writable: false))
         {
             _ = await new SndbObjectStore(tsdb).PutObjectAsync(
@@ -685,7 +685,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                     ThumbnailEnabled: true),
                 ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
 
-        byte[] image = CreatePng(32, 16, new Rgb24(220, 20, 20));
+        byte[] image = CreatePng(32, 16, new SKColor(220, 20, 20));
         Assert.Equal(
             HttpStatusCode.OK,
             (await PutBucketImageAsync(client, bucket, "expired-camera.png", image)).StatusCode);
@@ -988,7 +988,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                         "/v1/db/recovery/s3/images?semantic",
                         new ObjectBucketSemanticOptionsRequest(AsyncIngestionEnabled: true),
                         ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
-                byte[] image = CreatePng(16, 16, new Rgb24(200, 10, 10));
+                byte[] image = CreatePng(16, 16, new SKColor(200, 10, 10));
                 Assert.Equal(
                     HttpStatusCode.OK,
                     (await PutBucketImageAsync(client, "images", "recover.png", image, "recovery")).StatusCode);
@@ -1046,7 +1046,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                 new ObjectBucketSemanticOptionsRequest(AsyncIngestionEnabled: true),
                 ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
 
-        byte[] image = CreatePng(16, 16, new Rgb24(180, 20, 20));
+        byte[] image = CreatePng(16, 16, new SKColor(180, 20, 20));
         Assert.Equal(
             HttpStatusCode.OK,
             (await PutBucketImageAsync(client, bucket, "source.png", image)).StatusCode);
@@ -1183,11 +1183,12 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                 ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
     }
 
-    private static byte[] CreatePng(int width, int height, Rgb24 color)
+    private static byte[] CreatePng(int width, int height, SKColor color)
     {
-        using var image = new Image<Rgb24>(width, height, color);
-        using var output = new MemoryStream();
-        image.SaveAsPng(output);
+        using var bitmap = new SKBitmap(width, height);
+        bitmap.Erase(color);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var output = image.Encode(SKEncodedImageFormat.Png, 100);
         return output.ToArray();
     }
 
