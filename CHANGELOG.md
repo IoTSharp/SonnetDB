@@ -11,7 +11,7 @@
 
 ### Added
 
-- **M36 #322 Object Transfer Manager**：新增 `SndbObjectTransferManager`，提供固定缓冲的流式上传/下载、自动 multipart 阈值、分片有界并发、校验和、仅对幂等分片的安全重试、原子恢复清单、取消清理和传输进度；complete/普通 PUT 在发送后保持未知结果边界。详见 [对象传输说明](docs/object-transfer-manager.md)。
+- **M36 #322 Object Transfer Manager**：新增 `SndbObjectTransferManager`，提供固定缓冲的流式上传/下载、自动 multipart 阈值、分片有界并发、校验和、仅对幂等分片的安全重试、原子恢复清单、取消清理、批量逐对象结果和传输进度；complete/普通 PUT 在发送后保持未知结果边界。详见 [对象传输说明](docs/object-transfer-manager.md)。
 
 - **2026-09-19 Terra/Luna 并行收口切片**：M36 #311 新增 MQ `PublishMany` 逐项物化与发送前取消传播；#323 新增对象条件读写（含强/弱 ETag 列表、HTTP 秒精度、缺失对象 `If-Match` 412 和条件 PUT 优先级）、continuation cursor、`sndb cp` 文件流和 `sync --dry-run`，并提供明确保持 `DEFERRED` 的高变更率分页预检；M36 #310/#311 新增九模型 journey 机器可读矩阵；M36 #314 修复 writer 释放期间等待入队的稳定异常合同；M27 #184 增加带 token 的本机 Server/MQTT journey 并保持真实 provider 为 `NOT_READY`；M29 #258 增加外部健康 Server 不被 Studio 接管及托管目标切换回归。M19/M25/M41 的固定硬件和长期证据仍按 verifier 保持 `NOT_READY`/`DEFERRED`。
 

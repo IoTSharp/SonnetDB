@@ -20,4 +20,6 @@ SndbObjectTransferResult result = await manager.UploadAsync("media", "photo.bin"
 
 下载通过 `OpenReadAsync` 流式复制到调用方提供的流，在结束时校验对象 SHA-256。取消令牌覆盖临时文件、分片 worker、HTTP 请求和目标写入；返回结果后的流生命周期仍由调用方管理。
 
+批量上传使用 `UploadManyAsync`，以 `MaxConcurrency` 限制同时处理的对象数，按输入顺序返回成功结果或逐项异常；取消会停止整批，单个普通失败不会隐藏其它对象的结果。
+
 本切片已覆盖嵌入式/REST 客户端共用的 manager、multipart 分片有界并发、恢复清单、逐分片安全重试、整对象校验和下载流式复制。固定硬件、大文件内存曲线、断电后的服务端未知结果和跨进程恢复仍需现场证据。

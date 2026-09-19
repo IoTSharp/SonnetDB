@@ -47,6 +47,22 @@ public sealed record SndbObjectTransferResult(
     bool Resumed,
     int Parts);
 
+/// <summary>批量对象上传输入；内容流由调用方负责释放。</summary>
+public sealed record SndbObjectTransferSource(
+    string Bucket,
+    string Key,
+    Stream Content,
+    string? ContentType = null,
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    IReadOnlyDictionary<string, string>? Tags = null);
+
+/// <summary>批量对象上传的逐项结果。</summary>
+public sealed record SndbObjectTransferItemResult(
+    string Bucket,
+    string Key,
+    SndbObjectTransferResult? Result,
+    Exception? Error);
+
 /// <summary>
 /// 提供流式对象上传和下载。上传先落入受控临时文件，使 multipart 分片可以有界并发，
 /// 分片失败只重试幂等的 UploadPart；complete 和普通 PUT 在发送后不自动重放。
@@ -133,6 +149,53 @@ public sealed class SndbObjectTransferManager
             string sha256 = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
             VerifyChecksum(read.Info, sha256);
             return new SndbObjectTransferResult(read.Info, transferred, sha256, false, 1);
+        }
+    }
+
+    /// <summary>
+    /// 按输入顺序返回逐对象结果；单个对象失败不会丢弃同批其它对象。
+    /// </summary>
+    public async Task<IReadOnlyList<SndbObjectTransferItemResult>> UploadManyAsync(
+        IReadOnlyList<SndbObjectTransferSource> sources,
+        IProgress<SndbObjectTransferProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        var results = new SndbObjectTransferItemResult[sources.Count];
+        using var gate = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
+        var workers = sources.Select((source, index) => UploadOneAsync(source, index)).ToArray();
+        await Task.WhenAll(workers).ConfigureAwait(false);
+        return results;
+
+        async Task UploadOneAsync(SndbObjectTransferSource source, int index)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                SndbObjectTransferResult result = await UploadAsync(
+                    source.Bucket,
+                    source.Key,
+                    source.Content,
+                    source.ContentType,
+                    source.Metadata,
+                    source.Tags,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+                results[index] = new(source.Bucket, source.Key, result, null);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                results[index] = new(source.Bucket, source.Key, null, exception);
+            }
+            finally
+            {
+                gate.Release();
+            }
         }
     }
 

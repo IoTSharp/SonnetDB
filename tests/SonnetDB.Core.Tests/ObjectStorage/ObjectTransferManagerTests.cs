@@ -76,6 +76,26 @@ public sealed class ObjectTransferManagerTests
         Assert.False(File.Exists(manifest));
     }
 
+    [Fact]
+    public async Task UploadManyAsync_ReturnsPerObjectErrorsInInputOrder()
+    {
+        using var handler = new TransferHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://object-transfer.test/") };
+        using var client = new SndbObjectStorageClient(
+            "Data Source=sonnetdb+http://object-transfer.test/testdb;Protocol=rest;Timeout=30", http);
+        var manager = new SndbObjectTransferManager(client, new SndbObjectTransferOptions(MultipartThresholdBytes: 100));
+        var results = await manager.UploadManyAsync(
+        [
+            new("media", "ok.txt", new MemoryStream("ok"u8.ToArray())),
+            new("media", "", new MemoryStream("bad"u8.ToArray())),
+        ]);
+
+        Assert.Equal("ok.txt", results[0].Key);
+        Assert.NotNull(results[0].Result);
+        Assert.Equal(string.Empty, results[1].Key);
+        Assert.NotNull(results[1].Error);
+    }
+
     private sealed class TransferHandler : HttpMessageHandler
     {
         private readonly Dictionary<int, byte[]> _parts = [];
@@ -95,7 +115,7 @@ public sealed class ObjectTransferManagerTests
         {
             if (request.Method == HttpMethod.Post && request.RequestUri!.Query.Contains("uploads", StringComparison.Ordinal))
             {
-                _key = request.RequestUri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)[^1];
+                _key = request.RequestUri!.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)[^1];
                 return Json(new { bucket = "media", key = _key, uploadId = "upload-1", contentType = "application/octet-stream", initiatedUtc = DateTimeOffset.UtcNow, expiresUtc = DateTimeOffset.UtcNow.AddHours(1), metadata = new Dictionary<string, string>(), tags = new Dictionary<string, string>() });
             }
 
@@ -118,6 +138,13 @@ public sealed class ObjectTransferManagerTests
                 foreach (byte[] part in _parts.OrderBy(static pair => pair.Key).Select(static pair => pair.Value))
                     CompletedContent.Write(part);
                 return Json(ObjectInfo(CompletedContent.ToArray(), _key));
+            }
+
+            if (request.Method == HttpMethod.Put)
+            {
+                _key = request.RequestUri!.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)[^1];
+                byte[] bytes = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
+                return Json(ObjectInfo(bytes, _key));
             }
 
             if (request.Method == HttpMethod.Get)
