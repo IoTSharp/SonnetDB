@@ -127,6 +127,8 @@ public sealed class Tsdb : IDisposable
     /// <summary>当前数据库的 SQL 阻塞算子内存配置。</summary>
     internal SqlMemoryOptions SqlMemoryOptions => _options.SqlMemory;
 
+    internal RetentionPolicy TimeSeriesRetentionPolicy => _options.Retention;
+
     /// <summary>当前数据库实例内所有 SQL 查询共享的内存预算。</summary>
     internal SqlGlobalMemoryBudget SqlMemoryBudget => _sqlMemoryBudget;
 

@@ -17,6 +17,7 @@ public readonly struct TimeRange : IEquatable<TimeRange>
     /// <param name="fromInclusive">起点时间戳（含）。</param>
     /// <param name="toInclusive">终点时间戳（含）。</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="fromInclusive"/> 大于 <paramref name="toInclusive"/> 时抛出。</exception>
+    [System.Text.Json.Serialization.JsonConstructor]
     public TimeRange(long fromInclusive, long toInclusive)
     {
         if (fromInclusive > toInclusive)

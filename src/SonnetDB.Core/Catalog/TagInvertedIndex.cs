@@ -172,4 +172,29 @@ internal sealed class TagInvertedIndex
             idSet.TryAdd(entry.Id, 0);
         }
     }
+
+    internal (int SeriesCount, IReadOnlyList<SonnetDB.Query.TimeSeriesTagCardinality> Tags, bool Truncated)
+        ReadCardinality(string measurement, int maxTagKeys, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Count 读取现成集合计数；禁止使用 Keys、Values、Find 或 ToArray 复制全部序列。
+        int seriesCount = _byMeasurement.TryGetValue(measurement, out var series) ? series.Count : 0;
+        var tags = new List<SonnetDB.Query.TimeSeriesTagCardinality>();
+        bool truncated = false;
+        if (_byTag.TryGetValue(measurement, out var tagKeys))
+        {
+            foreach (var pair in tagKeys)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (tags.Count == maxTagKeys)
+                {
+                    truncated = true;
+                    break;
+                }
+                tags.Add(new SonnetDB.Query.TimeSeriesTagCardinality(pair.Key, pair.Value.Count));
+            }
+        }
+        tags.Sort(static (left, right) => string.CompareOrdinal(left.TagKey, right.TagKey));
+        return (seriesCount, tags.AsReadOnly(), truncated);
+    }
 }

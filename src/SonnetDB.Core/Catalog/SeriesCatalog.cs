@@ -30,6 +30,10 @@ public sealed class SeriesCatalog
     /// <summary>目录中的序列数量。</summary>
     public int Count => _byCanonical.Count;
 
+    internal (int SeriesCount, IReadOnlyList<SonnetDB.Query.TimeSeriesTagCardinality> Tags, bool Truncated)
+        ReadCardinality(string measurement, int maxTagKeys, CancellationToken cancellationToken)
+        => _tagIndex.ReadCardinality(measurement, maxTagKeys, cancellationToken);
+
     /// <summary>
     /// 取得或创建一条 series 目录项。同一 <see cref="SeriesKey"/> 重复调用幂等。
     /// </summary>
