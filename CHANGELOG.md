@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M36 #314 时序写入批次接收上限**：新增 `MaxBatchPoints`（默认 8192，上限 65536），在入队前有界枚举并整体拒绝超限输入；接收许可限制同时物化的生产者数量，等待许可及枚举期间传播取消，空批次同样检查取消与释放状态。保留现有逐项结果、分块传输和 drain；超过默认上限的调用需拆批或显式提高上限。见[接收合同](docs/timeseries-write-admission.md)，远程 parity 与容量证据仍后置。
+
 - **M27 木垒现场 provider smoke 记录**：补充 2026-09-18 ARM64 现场的内部 Tomur `/v1/models` 与 35B 有界短对话证据；该记录只证明 provider 可达和一次短答，不替代真实语义质量、工具闭环或长期性能门禁。
 
 - **M36 #321 VectorData 生命周期预检首切片**：新增嵌入式实际 catalog 的维度、度量、有限数值/余弦非零预检；复用 M35 持久 RAG generation 完整 profile 并检查 L2 单位范数与 generation 身份，普通集合明确 `profile_unbound`。新增只观察已加载向量图的轻量 health，不扫描主数据、不触发索引加载/重建，诊断 DTO 使用公开 source-generated JSON。安全重建进度、远程 lifecycle、执行路径解释及 Recall 报告仍未完成；合同 fixture 不计真实模型质量证据。
