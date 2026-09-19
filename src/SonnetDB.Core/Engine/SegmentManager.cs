@@ -691,14 +691,22 @@ public sealed class SegmentManager : IDisposable
             : _snapshotLeasesDrained.Task;
     }
 
-    internal SegmentManagerSnapshotLease AcquireSnapshot()
+    internal SegmentManagerSnapshotLease AcquireSnapshot(
+        int maxReaders = int.MaxValue, CancellationToken cancellationToken = default)
     {
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!TryEnterSnapshotLeaseAdmission())
                 throw new ObjectDisposedException(GetType().Name);
 
             var snapshot = CurrentSnapshot;
+            // 在逐个 reader 取得租约之前拒绝过大诊断快照，避免有界采样隐含全库遍历。
+            if (snapshot.Readers.Count > maxReaders)
+            {
+                ExitSnapshotLeaseAdmission();
+                throw new SonnetDB.Exceptions.TimeSeriesPreflightBudgetException("已加载段数量超过 MaxSources。");
+            }
             if (snapshot.TryAcquire())
                 return new SegmentManagerSnapshotLease(snapshot, this);
 

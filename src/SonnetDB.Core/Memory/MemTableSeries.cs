@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Threading;
 using SonnetDB.Model;
+using SonnetDB.Query;
 using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Memory;
@@ -287,6 +288,20 @@ public sealed class MemTableSeries
         var sorted = WrapSnapshot(StableSorted(snapshot));
         var published = TryPublishSnapshot(version, sorted);
         return CopyRange(published.Span, fromInclusive, toInclusive);
+    }
+
+    // 预检须在同一桶锁内检查预算与复制，避免检查 Count 后被并发写入扩大工作量。
+    // 乱序桶的 SnapshotRange 可能复制/排序全桶，因此按全桶计费，即使查询范围很窄。
+    internal ReadOnlyMemory<DataPoint> SnapshotRange(
+        long fromInclusive, long toInclusive, TimeSeriesReadBudget budget)
+    {
+        lock (_sync)
+        {
+            if (_maxTimestamp < fromInclusive || _minTimestamp > toInclusive)
+                return ReadOnlyMemory<DataPoint>.Empty;
+            budget.Charge(_points.Count, _estimatedBytes);
+            return SnapshotRange(fromInclusive, toInclusive);
+        }
     }
 
     /// <summary>

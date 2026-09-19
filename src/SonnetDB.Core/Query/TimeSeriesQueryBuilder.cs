@@ -2,7 +2,10 @@ using System.Collections.Generic;
 using System.Threading;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
+using SonnetDB.Engine.Retention;
+using SonnetDB.Exceptions;
 using SonnetDB.Model;
+using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Query;
 
@@ -18,6 +21,8 @@ public sealed class TimeSeriesQueryBuilder
 {
     private readonly QueryEngine _engine;
     private readonly SeriesCatalog? _catalog;
+    private readonly MeasurementCatalog? _measurements;
+    private readonly RetentionPolicy? _retention;
     private readonly ulong _seriesId;
     private readonly string _fieldName;
     private TimeRange _range = TimeRange.All;
@@ -43,7 +48,9 @@ public sealed class TimeSeriesQueryBuilder
         QueryEngine engine,
         SeriesCatalog? catalog,
         ulong seriesId,
-        string fieldName)
+        string fieldName,
+        MeasurementCatalog? measurements = null,
+        RetentionPolicy? retention = null)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(fieldName);
@@ -52,6 +59,8 @@ public sealed class TimeSeriesQueryBuilder
 
         _engine = engine;
         _catalog = catalog;
+        _measurements = measurements;
+        _retention = retention;
         _seriesId = seriesId;
         _fieldName = fieldName;
     }
@@ -227,6 +236,155 @@ public sealed class TimeSeriesQueryBuilder
             issues);
     }
 
+    /// <summary>
+    /// 只读检查真实 schema、目录基数、retention 配置和目标范围内的有限原始点样本。
+    /// 使用现有查询引擎的合并、墓碑和快照语义；不执行聚合或补桶，不修改数据。
+    /// 源工作量超过预算时明确返回未检查，空样本或截断样本不能证明字段不存在或全量健康。
+    /// </summary>
+    /// <param name="options">检查预算与告警阈值；省略时使用有限默认值。</param>
+    /// <param name="cancellationToken">在访问数据前和有界工作单元之间检查的取消令牌。</param>
+    /// <returns>包含真实证据计数及检查范围的报告。</returns>
+    public TimeSeriesPreflightReport Preflight(
+        TimeSeriesPreflightOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        options ??= new TimeSeriesPreflightOptions();
+        options.Validate();
+        var issues = new List<TimeSeriesQueryDiagnostic>();
+        var report = new TimeSeriesPreflightReport { Query = Diagnose() };
+        var entry = _catalog?.TryGet(_seriesId);
+        MeasurementColumn? field = null;
+        if (_catalog is null || _measurements is null || _retention is null)
+        {
+            AddIssue("TSP001", "缺少数据库上下文，schema、基数和 retention 未检查。", "通过 database.ForSeries 创建构建器以读取实际数据库配置。");
+        }
+        else if (entry is not null)
+        {
+            var schema = _measurements.TryGet(entry.Measurement);
+            field = schema?.TryGetColumn(_fieldName);
+            report = report with
+            {
+                Measurement = entry.Measurement,
+                HasSchema = schema is not null,
+                DeclaredFieldType = field?.Role == MeasurementColumnRole.Field ? field.DataType : null,
+            };
+            if (schema is null)
+                AddIssue("TSP002", "Measurement 目录没有 schema，样本类型不能替代完整 schema。", "检查 measurement schema 的创建或写入推导状态。");
+            else if (field?.Role != MeasurementColumnRole.Field)
+                AddIssue("TSP003", "目标名称不是 schema 中的 Field。", "选择已声明的 Field，Tag 不能作为原始字段查询。", TimeSeriesQueryDiagnosticSeverity.Error);
+            else if (RequiresNumericValue() && !IsNumeric(field.DataType))
+                AddIssue("TSP004", "当前聚合要求数值字段，schema 声明的类型不兼容。", "使用 Count 或原始点读取，或选择数值字段。", TimeSeriesQueryDiagnosticSeverity.Error);
+
+            var cardinality = _catalog.ReadCardinality(entry.Measurement, options.MaxTagKeys, cancellationToken);
+            report = report with
+            {
+                MeasurementSeriesCount = cardinality.SeriesCount,
+                Tags = cardinality.Tags,
+                TagsTruncated = cardinality.Truncated,
+            };
+            if (cardinality.SeriesCount >= options.SeriesWarningThreshold)
+                AddIssue("TSP005", "Measurement 已登记序列数达到调用方告警阈值。", "检查 tag 是否含请求 ID、时间戳等高基数字段；阈值不代表容量验收结果。", TimeSeriesQueryDiagnosticSeverity.Warning);
+            if (cardinality.Tags.Any(tag => tag.DistinctValues >= options.TagValueWarningThreshold))
+                AddIssue("TSP006", "已检查 tag 的不同值数量达到调用方告警阈值。", "结合 Tags 的真实计数评估 tag/field 建模。", TimeSeriesQueryDiagnosticSeverity.Warning);
+            if (cardinality.Truncated)
+                AddIssue("TSP007", "Tag 数超过 MaxTagKeys，部分 tag 基数未检查。", "在允许范围内提高 MaxTagKeys 或单独检查建模。");
+        }
+
+        if (_retention is not null)
+        {
+            report = report with { RetentionEnabled = _retention.Enabled };
+            if (_retention.Enabled)
+            {
+                long ttl = _retention.TtlInTimestampUnits ?? (long)_retention.Ttl.TotalMilliseconds;
+                cancellationToken.ThrowIfCancellationRequested();
+                long now = _retention.NowFn();
+                cancellationToken.ThrowIfCancellationRequested();
+                report = report with { RetentionNow = now };
+                if (ttl <= 0 || now < long.MinValue + Math.Max(ttl, 0))
+                    AddIssue("TSP008", "实际 retention TTL 无效或截止时间计算溢出，无法检查过期范围。", "修正实际 TsdbOptions.Retention 的 TTL 与时间戳单位。", TimeSeriesQueryDiagnosticSeverity.Warning);
+                else
+                {
+                    long cutoff = now - ttl;
+                    report = report with { RetentionTtl = ttl, RetentionCutoff = cutoff };
+                    if (_range.FromInclusive < cutoff)
+                        AddIssue("TSP009", "查询范围包含实际 retention 截止时间之前的数据。", "过期数据可能尚未清理或已经不可见；不要把空结果解释成从未写入。", TimeSeriesQueryDiagnosticSeverity.Warning);
+                }
+            }
+        }
+
+        if (_catalog is not null && entry is null)
+            return report with { Issues = issues.AsReadOnly() };
+
+        int sampled = 0, nonFinite = 0, mismatches = 0, expired = 0;
+        var observed = new HashSet<FieldType>();
+        bool complete = false, checkedData = false;
+        try
+        {
+            // 多拉取一个点仅用于确定是否截断，不纳入样本诊断计数。
+            var query = new PointQuery(_seriesId, _fieldName, _range, options.MaxSamplePoints + 1) { Direction = _direction };
+            using var points = _engine.ExecuteDiagnosticSample(query, new TimeSeriesReadBudget(options, cancellationToken)).GetEnumerator();
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!points.MoveNext())
+                {
+                    complete = true;
+                    break;
+                }
+                if (sampled == options.MaxSamplePoints)
+                    break;
+                var point = points.Current;
+                sampled++;
+                observed.Add(point.Value.Type);
+                if (point.Value.Type == FieldType.Float64 && !double.IsFinite(point.Value.AsDouble()))
+                    nonFinite++;
+                if (field?.Role == MeasurementColumnRole.Field && field.DataType != point.Value.Type
+                    && !(field.DataType == FieldType.Float64 && point.Value.Type == FieldType.Int64))
+                    mismatches++;
+                if (report.RetentionCutoff is long cutoff && point.Timestamp < cutoff)
+                    expired++;
+            }
+            checkedData = true;
+        }
+        catch (TimeSeriesPreflightBudgetException exception)
+        {
+            AddIssue("TSP010", exception.Message + " 数据质量未检查。", "缩小范围，或在硬上限内增加预检预算；使用专门离线验收检查大数据集。");
+        }
+
+        if (checkedData && sampled == 0)
+            AddIssue("TSP011", "该快照的目标范围没有可见点，未获得字段类型或质量样本。", "检查范围、字段名、写入与墓碑；空结果不能证明字段不存在。");
+        if (checkedData && !complete)
+            AddIssue("TSP012", "达到 MaxSamplePoints，结论只覆盖按查询方向取得的前缀样本。", "其他点未经质量检查，不能据此报告全量健康。");
+        if (nonFinite > 0)
+            AddIssue("TSP013", "样本中存在 NaN 或无穷值。", "检查上游传感器数值与写入校验；预检不会修改坏点。", TimeSeriesQueryDiagnosticSeverity.Warning);
+        if (mismatches > 0)
+            AddIssue("TSP014", "样本字段类型与目录 schema 不兼容。", "核对历史数据与 schema 变更。", TimeSeriesQueryDiagnosticSeverity.Error);
+        if (RequiresNumericValue() && observed.Any(static type => !IsNumeric(type))
+            && !issues.Any(static issue => issue.Code == "TSP004"))
+            AddIssue("TSP004", "实际样本类型不支持当前数值聚合。", "使用 Count 或原始点读取，或选择数值字段。", TimeSeriesQueryDiagnosticSeverity.Error);
+        if (expired > 0)
+            AddIssue("TSP015", "样本中存在超过实际 TTL 但仍可见的点。", "结合 retention worker 状态检查异步清理；预检不会执行清理。", TimeSeriesQueryDiagnosticSeverity.Warning);
+        cancellationToken.ThrowIfCancellationRequested();
+        return report with
+        {
+            DataChecked = checkedData,
+            SampleComplete = complete,
+            SampledPoints = sampled,
+            ObservedFieldTypes = observed.Order().ToArray(),
+            NonFinitePoints = nonFinite,
+            SchemaMismatchPoints = mismatches,
+            ExpiredPoints = expired,
+            Issues = issues.AsReadOnly(),
+        };
+
+        void AddIssue(string code, string message, string hint, TimeSeriesQueryDiagnosticSeverity severity = TimeSeriesQueryDiagnosticSeverity.Info)
+            => issues.Add(new TimeSeriesQueryDiagnostic(code, severity, message, hint));
+    }
+
+    private bool RequiresNumericValue() => _aggregator.HasValue && _aggregator != Aggregator.Count;
+
+    private static bool IsNumeric(FieldType type) => type is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
+
     /// <summary>流式读取原始点；枚举周期内由现有查询引擎保持一致快照。</summary>
     /// <returns>按配置方向排列的数据点序列。</returns>
     public IEnumerable<DataPoint> ReadPoints()
@@ -330,6 +488,9 @@ public enum TimeSeriesQueryDiagnosticSeverity : byte
 
     /// <summary>会阻止当前配置执行。</summary>
     Error,
+
+    /// <summary>已观察到的建模或数据质量风险，不阻止合法查询。</summary>
+    Warning,
 }
 
 /// <summary>一条时序查询诊断信息。</summary>
@@ -394,6 +555,7 @@ public static class TimeSeriesQueryExtensions
         string fieldName)
     {
         ArgumentNullException.ThrowIfNull(database);
-        return new TimeSeriesQueryBuilder(database.Query, database.Catalog, seriesId, fieldName);
+        return new TimeSeriesQueryBuilder(database.Query, database.Catalog, seriesId, fieldName,
+            database.Measurements, database.TimeSeriesRetentionPolicy);
     }
 }

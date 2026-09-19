@@ -74,18 +74,20 @@ public sealed class QueryEngine
         in SeriesFieldKey key,
         long from,
         long to,
-        out FieldType? memFieldType)
+        out FieldType? memFieldType,
+        TimeSeriesReadBudget? budget = null)
     {
         memFieldType = null;
         var slices = new List<ReadOnlyMemory<DataPoint>>();
 
         // 顺序：先 sealing（较旧），后 active（最新）——保证同时间戳稳定合并时最新写入在后。
+        budget?.CheckSources((long)lease.SealingMemTables.Count + (lease.ActiveMemTable is null ? 0 : 1));
         foreach (var sealing in lease.SealingMemTables)
-            AppendBucketSlice(sealing, in key, from, to, slices, ref memFieldType);
+            AppendBucketSlice(sealing, in key, from, to, slices, ref memFieldType, budget);
 
         var active = lease.ActiveMemTable;
         if (active is not null)
-            AppendBucketSlice(active, in key, from, to, slices, ref memFieldType);
+            AppendBucketSlice(active, in key, from, to, slices, ref memFieldType, budget);
 
         return slices;
     }
@@ -96,14 +98,17 @@ public sealed class QueryEngine
         long from,
         long to,
         List<ReadOnlyMemory<DataPoint>> slices,
-        ref FieldType? memFieldType)
+        ref FieldType? memFieldType,
+        TimeSeriesReadBudget? budget = null)
     {
         var bucket = memTable.TryGet(in key);
         if (bucket is null)
             return;
 
         memFieldType ??= bucket.FieldType;
-        var slice = bucket.SnapshotRange(from, to);
+        var slice = budget is null
+            ? bucket.SnapshotRange(from, to)
+            : bucket.SnapshotRange(from, to, budget);
         if (slice.Length > 0)
             slices.Add(slice);
     }
@@ -116,8 +121,15 @@ public sealed class QueryEngine
     /// <exception cref="ArgumentNullException"><paramref name="query"/> 为 null 时抛出。</exception>
     /// <exception cref="InvalidOperationException">MemTable 与 Segment 中同 (series, field) 的 FieldType 不一致时抛出。</exception>
     public IEnumerable<DataPoint> Execute(PointQuery query)
+        => ExecutePoints(query, budget: null);
+
+    internal IEnumerable<DataPoint> ExecuteDiagnosticSample(PointQuery query, TimeSeriesReadBudget budget)
+        => ExecutePoints(query, budget);
+
+    private IEnumerable<DataPoint> ExecutePoints(PointQuery query, TimeSeriesReadBudget? budget)
     {
         ArgumentNullException.ThrowIfNull(query);
+        budget?.CancellationToken.ThrowIfCancellationRequested();
 
         using var queryLoad = QueryActivityTracker.Enter();
         // 计量覆盖整个流式枚举周期（含提前 break：finally 在枚举器 Dispose 时运行）。
@@ -141,6 +153,7 @@ public sealed class QueryEngine
             if (_tombstones is not null)
             {
                 var tombstoneList = _tombstones.GetForSeriesField(query.SeriesId, query.FieldName);
+                budget?.CheckSources(tombstoneList.Count);
                 if (tombstoneList.Count > 0)
                     tombstones = FilterTombstonesForQueryRange(tombstoneList, from, to);
             }
@@ -148,12 +161,15 @@ public sealed class QueryEngine
             // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
             // 关键：租约必须在整个流式合并期间保持——段 block 惰性解码发生在下方 foreach 内，
             // 依赖 reader 存活。iterator 被消费完 / 提前 break 时，using 释放租约（#220 C9）。
-            using var snapshotLease = _segments.AcquireSnapshot();
+            using var snapshotLease = _segments.AcquireSnapshot(
+                budget?.MaxSources ?? int.MaxValue, budget?.CancellationToken ?? default);
 
-            var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType);
+            var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType, budget);
 
             var snapshot = snapshotLease.Snapshot;
-            var candidates = snapshot.Index.LookupCandidates(query.SeriesId, query.FieldName, from, to);
+            var candidates = budget is null
+                ? snapshot.Index.LookupCandidates(query.SeriesId, query.FieldName, from, to)
+                : CollectDiagnosticCandidates(snapshot.Index, query, budget);
             var readers = BuildReaderMap(snapshot);
 
             // 构建惰性 block 源：只捕获 (reader, descriptor)，解码推迟到该 block 抵达合并前沿，
@@ -161,6 +177,7 @@ public sealed class QueryEngine
             var segmentBlocks = new List<BlockSourceMerger.LazyBlock>(candidates.Count);
             foreach (var blockRef in candidates)
             {
+                budget?.CancellationToken.ThrowIfCancellationRequested();
                 if (query.GeoFilter is not null
                     && blockRef.Descriptor.HasGeoHashRange
                     && !GeoHash32.Overlaps(
@@ -197,6 +214,7 @@ public sealed class QueryEngine
             using var enumerator = merged.GetEnumerator();
             while (!limit.HasValue || emitted < limit.Value)
             {
+                budget?.CancellationToken.ThrowIfCancellationRequested();
                 if (!enumerator.MoveNext())
                     break;
 
@@ -217,6 +235,32 @@ public sealed class QueryEngine
                     SonnetDbMeter.OperationPoints);
             }
         }
+    }
+
+    private static IReadOnlyList<SegmentBlockRef> CollectDiagnosticCandidates(
+        MultiSegmentIndex index, PointQuery query, TimeSeriesReadBudget budget)
+    {
+        var candidates = new List<SegmentBlockRef>();
+        long indexedBlocks = 0;
+        foreach (var segment in index.Segments)
+        {
+            budget.CancellationToken.ThrowIfCancellationRequested();
+            if (!segment.OverlapsTimeRange(query.Range.FromInclusive, query.Range.ToInclusive))
+                continue;
+            // 无范围的 GetBlocks 返回现成索引，不分配全部匹配块的临时列表。
+            var blocks = segment.GetBlocks(query.SeriesId, query.FieldName);
+            indexedBlocks += blocks.Count;
+            budget.CheckSources(indexedBlocks);
+            foreach (var block in blocks)
+            {
+                if (!query.Range.Overlaps(block.MinTimestamp, block.MaxTimestamp))
+                    continue;
+                // 部分时间范围也可能解码整个块，必须按完整块计费。
+                budget.Charge(block.Count, block.BlockLength);
+                candidates.Add(new SegmentBlockRef(segment.SegmentId, segment.SegmentPath, block));
+            }
+        }
+        return candidates;
     }
 
     /// <summary>
