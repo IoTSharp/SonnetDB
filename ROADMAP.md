@@ -239,7 +239,7 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | PR | 交付 | 状态 |
 |---|---|---|
 | #310 | 九模型 usability gap catalog 与可执行 golden journey：KV 单 key 原子子集已有同 fixture embedded/REST/Frame/auto、权限、并发、原生重开与桌面/手机真实 Server 旅程，附约 20 行成功代码及完整样例。其余模型及分页/诊断/备份/宿主边界尚未全部闭环；与 M20 capability report 分开。见 [KV 证据](docs/audits/kv-remote-closure-20260905.md)。 | 🚧 |
-| #311 | 统一新客户端合同：SQL 已绑定目标/审批、严格 NDJSON 和单请求事务，Graph 已隔离旧审批/乱序响应。KV 新原子路径已对齐取消、稳定错误、关联 ID、严格返回值、禁止发送后回退/HTTP 跳转重发，Web 保留原目标与部分/未知结果。其余工作台/SDK 和九模型分页、批量错误及真实恢复仍待完成。 | 🚧 |
+| #311 | 统一新客户端合同：SQL/Graph/KV/Document/MQ 已有取消、目标绑定和流式/批量边界切片；新增 [Object SDK 合同](docs/object-client-contract.md)，覆盖预取消、JSON 正文完整期限、分页/批量响应校验、multipart 目标绑定及写入禁止自动重放。Object Core 回归与 Data 显式 AOT/trim 分析通过；Server 新增回归与 AOT 构建待本机许可证验证。其余工作台/SDK、九模型 golden journey 和现场恢复仍待完成。 | 🚧 |
 | #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、`UPDATE/DELETE ... RETURNING`、ADO.NET 结果集映射与 EF Core 数据库生成整数键回填；新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集，冲突目标校验、跳过行顺序和事务预览结果稳定。`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在合同内。 | ✅ |
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环；Core 诊断映射、SQL REST 附加字段和有界取消回归已完成。 | ✅ |
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。初始代码切片已接通 Core/Data、Frame/REST 与取消边界，远程现场 parity/容量证据后置。 | 🚧 |

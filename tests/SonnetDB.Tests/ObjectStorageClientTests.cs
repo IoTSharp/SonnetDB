@@ -3,8 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
@@ -88,6 +90,98 @@ public sealed class ObjectStorageClientTests : IAsyncLifetime
 
         await client.DeleteObjectAsync("iotsharp-blob-storage", "attachments/a.txt");
         Assert.Null(await client.OpenReadAsync("iotsharp-blob-storage", "attachments/a.txt"));
+    }
+
+    [Fact]
+    public async Task ListObjectsAsync_RemoteDelimiterPages_PreservesTokensAndTargets()
+    {
+        string connection = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objectsclient;Token={AdminToken};Protocol=rest;Timeout=30";
+        using var client = new SndbObjectStorageClient(connection);
+        await client.CreateBucketAsync("media");
+        foreach (string key in new[] { "dir/a", "dir/sub/b", "dir/z" })
+        {
+            await using var input = new MemoryStream([1]);
+            await client.PutObjectAsync("media", key, input);
+        }
+        var first = await client.ListObjectsAsync("media", "/dir/", 1, null, "/", CancellationToken.None);
+        Assert.Equal("dir/a", Assert.Single(first.Objects).Key);
+        Assert.True(first.IsTruncated);
+        var second = await client.ListObjectsAsync("media", "dir/", 1, first.NextContinuationToken, "/", CancellationToken.None);
+        Assert.Empty(second.Objects);
+        Assert.Equal("dir/sub/", Assert.Single(second.CommonPrefixes));
+        Assert.True(second.IsTruncated);
+        Assert.Equal(first.NextContinuationToken, second.ContinuationToken);
+        var last = await client.ListObjectsAsync("media", "dir/", 1, second.NextContinuationToken, "/", CancellationToken.None);
+        Assert.Equal("dir/z", Assert.Single(last.Objects).Key);
+        Assert.False(last.IsTruncated);
+        Assert.Null(last.NextContinuationToken);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateBucketAsync_Redirect_DoesNotReplayWrite(bool dedicatedPool)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        int requests = 0;
+        app.MapPut("/{**path}", (HttpContext context) =>
+        {
+            Interlocked.Increment(ref requests);
+            context.Response.Headers.Location = "/replayed";
+            context.Response.StatusCode = StatusCodes.Status307TemporaryRedirect;
+        });
+        await app.StartAsync();
+        try
+        {
+            string address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            using var client = new SndbObjectStorageClient($"Data Source=sonnetdb+http://{new Uri(address).Authority}/objectsclient;Protocol=rest;Timeout=10", dedicatedPool);
+            var error = await Assert.ThrowsAsync<SndbServerException>(() => client.CreateBucketAsync("media"));
+            Assert.Equal(HttpStatusCode.TemporaryRedirect, error.StatusCode);
+            Assert.Equal(1, Volatile.Read(ref requests));
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData("upload", false)]
+    [InlineData("upload", true)]
+    [InlineData("complete", false)]
+    [InlineData("complete", true)]
+    [InlineData("abort", false)]
+    [InlineData("abort", true)]
+    public async Task MultipartAsync_WrongRemoteTarget_RejectsBeforeMutation(string operation, bool wrongBucket)
+    {
+        string connection = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objectsclient;Token={AdminToken};Protocol=rest;Timeout=30";
+        using var client = new SndbObjectStorageClient(connection);
+        await client.CreateBucketAsync("media");
+        await client.CreateBucketAsync("other");
+        var upload = await client.InitiateMultipartUploadAsync("media", "original.bin");
+        await using var input = new MemoryStream([1, 2, 3]);
+        await client.UploadPartAsync("media", "original.bin", upload.UploadId, 1, input);
+        await using var replacement = new MemoryStream([9]);
+        string bucket = wrongBucket ? "other" : "media";
+        string key = wrongBucket ? "original.bin" : "other.bin";
+        Func<Task> rejected = operation switch
+        {
+            "upload" => () => client.UploadPartAsync(bucket, key, upload.UploadId, 1, replacement),
+            "complete" => () => client.CompleteMultipartUploadAsync(bucket, key, upload.UploadId, [1]),
+            _ => () => client.AbortMultipartUploadAsync(bucket, key, upload.UploadId),
+        };
+        var error = await Assert.ThrowsAsync<SndbServerException>(rejected);
+        Assert.Equal("multipart_not_found", error.Error);
+        Assert.Equal(HttpStatusCode.NotFound, error.StatusCode);
+
+        await client.CompleteMultipartUploadAsync("media", "original.bin", upload.UploadId, [1]);
+        var read = (await client.OpenReadAsync("media", "original.bin"))!;
+        await using var content = read.Content;
+        using var actual = new MemoryStream();
+        await content.CopyToAsync(actual);
+        Assert.Equal(new byte[] { 1, 2, 3 }, actual.ToArray());
     }
 
     [Fact]

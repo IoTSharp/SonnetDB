@@ -502,16 +502,16 @@ internal static class ObjectStorageEndpointHandler
         string key,
         string uploadId)
     {
+        var session = store.GetMultipartUpload(uploadId);
+        if (!string.Equals(session.Upload.Bucket, bucket, StringComparison.Ordinal)
+            || !string.Equals(session.Upload.Key, key, StringComparison.Ordinal))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "multipart_not_found", "Multipart upload does not match the requested object.").ConfigureAwait(false);
+            return;
+        }
+
         if (HttpMethods.IsGet(ctx.Request.Method))
         {
-            var session = store.GetMultipartUpload(uploadId);
-            if (!string.Equals(session.Upload.Bucket, bucket, StringComparison.Ordinal)
-                || !string.Equals(session.Upload.Key, key, StringComparison.Ordinal))
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "multipart_not_found", "Multipart upload does not match the requested object.").ConfigureAwait(false);
-                return;
-            }
-
             await Results.Json(ToMultipartSessionResponse(session), ServerJsonContext.Default.MultipartUploadSessionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
             return;
         }
