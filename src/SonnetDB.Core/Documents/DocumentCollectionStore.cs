@@ -1302,6 +1302,18 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
+    internal DocumentVectorGraphRebuildOperation StartVectorGraphRebuild(string indexName, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            token.ThrowIfCancellationRequested();
+            if (!_vectorStores.TryGetValue(indexName, out var store))
+                throw new InvalidOperationException("图重建要求向量索引已经加载，请先显式打开集合。");
+            return store.StartGraphRebuild(token);
+        }
+    }
+
     internal int RebuildVectorIndex(DocumentVectorIndex index, string indexDirectory)
     {
         ArgumentNullException.ThrowIfNull(index);

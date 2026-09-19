@@ -218,6 +218,62 @@ public sealed class SonnetDBVectorLifecycleTests : IDisposable
         Assert.Equal(System.Data.ConnectionState.Closed, connection.State);
     }
 
+    [Fact]
+    public async Task StartIndexGraphRebuild_LoadedIndex_ReturnsSerializableCompletedProgress()
+    {
+        await using var connection = Open();
+        CreateIndex(connection);
+        connection.UnderlyingTsdb!.Documents.Open("docs").Upsert("a", "{\"v\":[1,0,0]}");
+        using var vectors = new SonnetDBVectorStore(connection);
+        var result = await vectors.StartIndexGraphRebuild("docs", "vector").Completion;
+        Assert.Equal("completed", result.State);
+        Assert.Equal(1, result.IndexedVectors);
+        string json = JsonSerializer.Serialize(result, SndbVectorLifecycleJsonContext.Default.DocumentVectorGraphRebuildProgress);
+        Assert.Equal(result, JsonSerializer.Deserialize(json, SndbVectorLifecycleJsonContext.Default.DocumentVectorGraphRebuildProgress));
+        Assert.DoesNotContain("v\":", json);
+        Assert.Equal(1, (await vectors.GetIndexHealthAsync("docs", "vector")).GraphVectorCount);
+    }
+
+    [Fact]
+    public async Task StartIndexGraphRebuild_ColdCollection_RejectsWithoutImplicitLoading()
+    {
+        await using (var initial = Open()) CreateIndex(initial);
+        await using var reopened = Open();
+        using var vectors = new SonnetDBVectorStore(reopened);
+        Assert.Throws<InvalidOperationException>(() => vectors.StartIndexGraphRebuild("docs", "vector"));
+        Assert.Equal("not_loaded", (await vectors.GetIndexHealthAsync("docs", "vector")).State);
+        reopened.UnderlyingTsdb!.Documents.Open("docs");
+        Assert.Equal("completed", (await vectors.StartIndexGraphRebuild("docs", "vector").Completion).State);
+    }
+
+    [Fact]
+    public void StartIndexGraphRebuild_ClosedRemoteAndPreCanceled_RejectsBeforeOpeningConnection()
+    {
+        using var connection = new SndbConnection($"Data Source={_root}");
+        using var vectors = new SonnetDBVectorStore(connection);
+        Assert.Throws<InvalidOperationException>(() => vectors.StartIndexGraphRebuild("docs", "vector"));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => vectors.StartIndexGraphRebuild("docs", "vector", canceled.Token));
+        Assert.False(Directory.Exists(_root));
+        using var remote = new SndbConnection("Data Source=sonnetdb+http://127.0.0.1:1/test");
+        using var remoteVectors = new SonnetDBVectorStore(remote);
+        Assert.Throws<NotSupportedException>(() => remoteVectors.StartIndexGraphRebuild("docs", "vector"));
+        Assert.Equal(System.Data.ConnectionState.Closed, remote.State);
+    }
+
+    [Fact]
+    public void StartIndexGraphRebuild_MissingOrDroppedIndex_DoesNotCreateResources()
+    {
+        using var connection = Open();
+        CreateIndex(connection);
+        using var vectors = new SonnetDBVectorStore(connection);
+        Assert.Throws<InvalidOperationException>(() => vectors.StartIndexGraphRebuild("missing", "vector"));
+        Assert.Throws<InvalidOperationException>(() => vectors.StartIndexGraphRebuild("docs", "missing"));
+        connection.UnderlyingTsdb!.Documents.Drop("docs");
+        Assert.Throws<InvalidOperationException>(() => vectors.StartIndexGraphRebuild("docs", "vector"));
+    }
+
     private SndbConnection Open()
     {
         var connection = new SndbConnection($"Data Source={_root}");

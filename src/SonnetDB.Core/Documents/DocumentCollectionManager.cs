@@ -458,6 +458,35 @@ public sealed class DocumentCollectionManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// 显式启动已加载索引的 HNSW 图重建；从持久向量 KV 构建候选图，成功后替换，不修复主文档或 KV。
+    /// 构建期间该索引的查询、写入、删除及释放等待索引锁，操作对象的进度读取不等待。
+    /// </summary>
+    /// <param name="collectionName">已经打开的集合名。</param>
+    /// <param name="indexName">已经加载的向量索引名。</param>
+    /// <param name="cancellationToken">协作取消令牌；发布完成后的取消不回滚。</param>
+    /// <returns>包含真实进度和完成任务的进程内操作。</returns>
+    public DocumentVectorGraphRebuildOperation StartVectorGraphRebuild(
+        string collectionName, string indexName, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        SqlRagResourceScope.Demand(collectionName);
+        lock (_sync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfDisposed();
+            DocumentCollectionSchema schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            if (schema.TryGetVectorIndex(indexName) is null)
+                throw new InvalidOperationException($"向量索引 '{indexName}' 不存在。");
+            if (!_stores.TryGetValue(collectionName, out var store))
+                throw new InvalidOperationException("图重建要求集合和索引已经加载，请先显式打开集合。");
+            return store.StartVectorGraphRebuild(indexName, cancellationToken);
+        }
+    }
+
     /// <summary>读取当前 catalog 和已经加载的向量图状态，不打开集合或重建派生索引。</summary>
     /// <param name="collectionName">集合名。</param>
     /// <param name="indexName">向量索引名。</param>

@@ -15,6 +15,8 @@
 
 - **M36 #315 时序建模与数据预检合同**：补齐嵌入式 builder 的真实 measurement schema、series/tag 基数、实际 retention 配置与有界原始点质量预检，复用现有 `QueryEngine` 的快照、墓碑和合并路径；对段租约、MemTable 全桶排序、候选块解码、索引和墓碑设置预算，超额明确未检查。公开 source-generated JSON 保留采样完整性和真实计数，新增取消、预算、非有限值、schema 不符、TTL 边界和持久化重开回归。远程入口、真实服务 parity、现场恢复和容量证据仍待独立验收，见[合同](docs/timeseries-query-preflight.md)。
 
+- **M36 #321 已加载向量图安全重建切片**：VectorData 和 Core 新增显式进程内 HNSW 图重建操作，从既有持久向量 KV 分页构建候选图，成功后替换，取消/失败保留旧图；真实处理计数和终态无需等待索引锁读取，原始异常通过完成任务传播，进度 DTO 使用 source-generated JSON。构建期间索引读写与释放串行化，不修复主文档/持久 KV；远程 lifecycle、通用执行解释及 Recall/固定硬件报告仍待完成。
+
 - **M27 木垒现场 provider smoke 记录**：补充 2026-09-18 ARM64 现场的内部 Tomur `/v1/models` 与 35B 有界短对话证据；该记录只证明 provider 可达和一次短答，不替代真实语义质量、工具闭环或长期性能门禁。
 
 - **M36 #321 VectorData 生命周期预检首切片**：新增嵌入式实际 catalog 的维度、度量、有限数值/余弦非零预检；复用 M35 持久 RAG generation 完整 profile 并检查 L2 单位范数与 generation 身份，普通集合明确 `profile_unbound`。新增只观察已加载向量图的轻量 health，不扫描主数据、不触发索引加载/重建，诊断 DTO 使用公开 source-generated JSON。安全重建进度、远程 lifecycle、执行路径解释及 Recall 报告仍未完成；合同 fixture 不计真实模型质量证据。
