@@ -42,6 +42,45 @@ public sealed class SndbMqClient : IDisposable
     public string Database => _database;
 
     /// <summary>
+    /// 创建一个高层发布器构建器。
+    /// </summary>
+    /// <param name="topic">发布目标 Topic。</param>
+    /// <returns>可配置并构建发布器的构建器。</returns>
+    public SndbMqProducerBuilder CreateProducerBuilder(string topic)
+    {
+        ThrowIfDisposed();
+        return new SndbMqProducerBuilder(this, topic);
+    }
+
+    /// <summary>
+    /// 创建一个高层发布器构建器的简写入口。
+    /// </summary>
+    /// <param name="topic">发布目标 Topic。</param>
+    /// <returns>可配置并构建发布器的构建器。</returns>
+    public SndbMqProducerBuilder Producer(string topic) => CreateProducerBuilder(topic);
+
+    /// <summary>
+    /// 创建一个高层消费者构建器。
+    /// </summary>
+    /// <param name="topic">消费目标 Topic。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <returns>可配置并构建消费者的构建器。</returns>
+    public SndbMqConsumerBuilder CreateConsumerBuilder(string topic, string consumerGroup)
+    {
+        ThrowIfDisposed();
+        return new SndbMqConsumerBuilder(this, topic, consumerGroup);
+    }
+
+    /// <summary>
+    /// 创建一个高层消费者构建器的简写入口。
+    /// </summary>
+    /// <param name="topic">消费目标 Topic。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <returns>可配置并构建消费者的构建器。</returns>
+    public SndbMqConsumerBuilder Consumer(string topic, string consumerGroup)
+        => CreateConsumerBuilder(topic, consumerGroup);
+
+    /// <summary>
     /// 发布消息。
     /// </summary>
     /// <param name="topic">Topic 名称。</param>

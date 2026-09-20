@@ -120,7 +120,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 11 | #321 | M36 | GPT-5.6 Sol / high | 🚧 | 已补嵌入式真实 catalog/profile 预检、只读已加载图状态与显式 HNSW 图安全重建；候选图成功后替换，失败/取消保留旧图，真实计数/终态独立可读。主文档/持久向量 KV 修复的安全重建、远程 lifecycle、通用 ANN/scan/补偿解释和 Recall/固定硬件报告待完成，复用 #297/#298。 |
 | 12 | #322 | M36 | GPT-5.6 Sol / high | ✅ | `SndbObjectTransferManager` 代码切片、本地回归与 AOT/trim 门禁已完成：流式临时文件、自动 multipart、分片有界并发、checksum、幂等分片安全重试、原子且落盘的 resume manifest、逐对象结果、原子文件下载、进度、取消与资源释放；固定硬件、大文件内存、断电未知结果和跨进程现场证据仍按后置门禁执行。 |
 | 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。本机 quick/full 高变更率预检已通过，但固定硬件、高变更率现场对账和完整传输仍单独验收，见[验证状态](audits/object-transfer-validation-20260920.md)。 |
-| 14 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |
+| 14 | #324 | M36 | GPT-6 Astra / high | ✅ | SonnetMQ producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消与 graceful drain 已接入嵌入式/远程共享客户端并完成本地回归；nack/redelivery/DLQ 与 exactly-once 边界仍归 #325。 |
 | 15 | #325 | M36 | GPT-6 Astra / high | 📋 | MQ nack/redelivery/DLQ、去重窗口、offset reset、lag 与丢弃原因诊断。 |
 | 16 | #326（代码） | M36 | GPT-6 Astra / high | 📋 | VS Code Graph 最小浏览/查询入口，以及 instance MQ/consumer offset 一致快照与恢复；单库包不包含 Server 实例 MQ。 |
 | 17 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | 双网 Copilot 可信认证、页面刷新/跨进程/多实例续流、StudioNative transport 与系统凭据库。 |
