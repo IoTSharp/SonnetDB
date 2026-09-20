@@ -62,6 +62,28 @@ public sealed class SndbMqHighLevelTests : IDisposable
     }
 
     [Fact]
+    public async Task Consumer_ManualNack_RedeliversSameMessage()
+    {
+        using var client = new SndbMqClient($"Data Source={_root};Mode=Embedded");
+        await client.PublishAsync("events.nack", [1]);
+
+        await using var consumer = client.Consumer("events.nack", "workers")
+            .ManualAck()
+            .PollInterval(TimeSpan.Zero)
+            .Build();
+        await using var enumerator = consumer.PullAsync().GetAsyncEnumerator();
+
+        Assert.True(await enumerator.MoveNextAsync());
+        SndbMqDelivery first = enumerator.Current;
+        SndbMqNackResult nack = await first.NackAsync("retry");
+        Assert.False(nack.DeadLettered);
+        Assert.True(first.IsAcknowledged);
+        Assert.True(await enumerator.MoveNextAsync());
+        Assert.Equal(first.Offset, enumerator.Current.Offset);
+        await enumerator.Current.AckAsync();
+    }
+
+    [Fact]
     public async Task Producer_Drain_RejectsNewPublishAndWaitsForCurrentOperations()
     {
         using var client = new SndbMqClient($"Data Source={_root};Mode=Embedded");

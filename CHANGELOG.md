@@ -14,6 +14,19 @@
 
 ### Added
 
+- **M36 #321 向量精确扫描 Top-K 有界化**：通用 `vector_search` 在默认距离升序且无/可预筛选元数据过滤时使用固定大小堆保留候选，继续执行完整扫描、取消传播、维度校验和稳定距离/ID 排序；涉及距离/分数谓词或自定义排序时保留完整候选集路径。新增过滤后与残余谓词差分回归，避免将有界扫描误报为 ANN 或 Recall 证据。
+
+- **M41 #375 统计无偏采样**：关系统计刷新在受限样本预算下遍历完整快照并按稳定序列做确定性均匀选样，避免只取主键前缀导致尾部数据缺失；新增尾部样本回归与基准。
+
+- **M42 KV 快照 single-flight**：冷缓存快照覆盖层构建增加进程内 single-flight，重复并发读者复用同一份复制/排序结果，保留预算校验、磁盘租约和取消/释放语义；新增并发回归。
+
+- **M36 #326 VS Code Graph Explorer**：连接树新增 Graph Beta 目录与节点，展示记录格式和存储标识，提供有界 `queryGraph` SQL 模板入口；Graph catalog 查询、激活事件、菜单和 smoke contract 已同步。
+
+- **M36 #325 SonnetMQ 投递失败治理初始切片**：核心队列和共享客户端新增 `Nack`/重投计数、最大投递次数、死信 Topic、拒绝原因与 lag/重投诊断；拒绝记录可随日志重开恢复，达到上限后自动附带原 Topic/offset 头转入 `<topic>.dlq`。远程 HTTP、Frame 和高层 delivery 已接入，消息 ID 去重窗口仍待后续切片。
+
+- **M36 #325 SonnetMQ offset reset**：消费者组支持 earliest/latest/time/explicit 四种有界重置目标，重置记录写入队列日志并在重开后恢复；HTTP、Frame、嵌入式和共享客户端保持相同的 retention 裁剪语义。为增加 nack/offset-reset 记录，SonnetMQ 日志版本从 1 升至 2，同时继续读取版本 1；消息 ID 去重窗口仍待后续切片。
+- SonnetMQ 日志格式版本升级为 v2 以容纳 nack 与 offset-reset 记录；读取端继续兼容 v1 历史消息与确认记录。
+
 - **M36 #324 SonnetMQ 高层客户端切片**：新增 producer/consumer builder；producer 以 `MaxInFlight` 提供有界并发与 `DrainAsync`；consumer 提供有界 prefetch、push/pull `IAsyncEnumerable`、manual/auto ACK、取消和 drain。该切片复用现有 publish/pull/ack 合同，仍不包含 nack/redelivery/DLQ（见 #325），也不宣称 exactly-once 或分布式消费组能力。详见 [MQ 高层客户端](docs/mq-high-level-client.md)。
 
 - **M36 #322 Object Transfer Manager**：新增 `SndbObjectTransferManager`，提供固定缓冲的流式上传/下载、自动 multipart 阈值、分片有界并发、校验和、仅对幂等分片的安全重试、原子恢复清单、取消清理、批量逐对象结果和传输进度；complete/普通 PUT 在发送后保持未知结果边界。详见 [对象传输说明](docs/object-transfer-manager.md)。

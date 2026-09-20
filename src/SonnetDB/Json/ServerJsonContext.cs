@@ -221,7 +221,12 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(MqPullResponse))]
 [JsonSerializable(typeof(MqAckRequest))]
 [JsonSerializable(typeof(MqAckResponse))]
+[JsonSerializable(typeof(MqNackRequest))]
+[JsonSerializable(typeof(MqNackResponse))]
 [JsonSerializable(typeof(MqStatsResponse))]
+[JsonSerializable(typeof(MqDiagnosticsResponse))]
+[JsonSerializable(typeof(MqOffsetResetRequest))]
+[JsonSerializable(typeof(MqOffsetResetResponse))]
 [JsonSerializable(typeof(MqRetentionResponse))]
 [JsonSerializable(typeof(List<MqMessageResponse>))]
 // ---- M29 A #245 多模型只读管理契约 ----

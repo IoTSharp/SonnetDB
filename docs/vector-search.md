@@ -141,6 +141,7 @@ ORDER BY distance;
 
 - 无 `WHERE`、按距离升序、path / dimension / metric 匹配时可以使用持久向量索引。
 - 带 `WHERE` 时当前回退为先过滤、再精确扫描，保证过滤后的 Top-K 语义正确。
+- 无 `WHERE` 或仅包含可预筛选元数据谓词、且按默认距离升序时，精确回退使用固定大小的 Top-K 堆；扫描仍检查整个集合并传播取消，但不会物化所有候选。涉及距离/分数的谓词或自定义排序继续保留完整候选集语义。
 - `EXPLAIN` 会显示 `document_vector_index` 或 `document_vector_scan` 及索引名 / vector path。
 - `INSERT` / `UPDATE` / `DELETE` 会维护派生索引；索引缺失或损坏时可从 Document 主数据重建。
 

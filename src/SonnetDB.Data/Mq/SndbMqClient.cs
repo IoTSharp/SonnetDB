@@ -275,6 +275,108 @@ public sealed class SndbMqClient : IDisposable
     }
 
     /// <summary>
+    /// 拒绝当前消息；达到服务端最大投递次数时会转入死信 Topic。
+    /// </summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <param name="offset">当前待消费 offset。</param>
+    /// <param name="reason">可选拒绝原因。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>拒绝结果。</returns>
+    public async Task<SndbMqNackResult> NackAsync(
+        string topic,
+        string consumerGroup,
+        long offset,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Nack(topic, consumerGroup, offset, reason);
+            return new SndbMqNackResult(result.NextOffset, result.DeliveryAttempt, result.DeadLettered, result.DeadLetterOffset);
+        }
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodeNackRequest(w, NextStreamId(), _database, topic, consumerGroup, offset, reason);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
+            if (frame is { } f)
+            {
+                var result = MqFrameCodec.DecodeNackResponse(f.Payload);
+                if (result.NextOffset < 0 || result.DeliveryAttempt <= 0 || result.DeadLetterOffset is < 0)
+                    throw new InvalidDataException("MQ nack Frame 响应包含无效结果。");
+                return new SndbMqNackResult(result.NextOffset, result.DeliveryAttempt, result.DeadLettered, result.DeadLetterOffset);
+            }
+        }
+
+        using var response = await PostJsonAsync(
+            MqUrl(topic, "nack"),
+            new MqNackRequest(consumerGroup, offset, reason),
+            RemoteJsonContext.Default.MqNackRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqNackResponse, cancellationToken).ConfigureAwait(false);
+        ValidateTopic(topic, body.Topic, "nack");
+        if (!string.Equals(consumerGroup, body.ConsumerGroup, StringComparison.Ordinal)
+            || body.NextOffset < 0 || body.DeliveryAttempt <= 0
+            || (body.DeadLetterOffset is < 0))
+            throw new InvalidDataException("MQ nack 响应包含无效结果。");
+        return new SndbMqNackResult(body.NextOffset, body.DeliveryAttempt, body.DeadLettered, body.DeadLetterOffset);
+    }
+
+    /// <summary>重置消费者组 offset，并返回新的下一条待消费位置。</summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <param name="mode">重置目标模式。</param>
+    /// <param name="value">Time 模式使用 UTC ticks；Explicit 模式使用 offset。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    public async Task<long> ResetOffsetAsync(
+        string topic,
+        string consumerGroup,
+        SndbMqOffsetResetMode mode,
+        long value = 0,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        if ((mode is SndbMqOffsetResetMode.Time or SndbMqOffsetResetMode.Explicit) && value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_embedded is not null)
+            return _embedded.ResetConsumerOffset(topic, consumerGroup, (SonnetMqOffsetResetMode)mode, value);
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodeOffsetResetRequest(w, NextStreamId(), _database, topic, consumerGroup, (byte)mode, value);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
+            if (frame is { } f)
+                return ValidateResetResponse(topic, MqFrameCodec.DecodeOffsetResetResponse(f.Payload));
+        }
+
+        using var response = await PostJsonAsync(
+            MqUrl(topic, "offset-reset"),
+            new MqOffsetResetRequest(consumerGroup, (byte)mode, value),
+            RemoteJsonContext.Default.MqOffsetResetRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqOffsetResetResponse, cancellationToken).ConfigureAwait(false);
+        ValidateTopic(topic, body.Topic, "offset-reset");
+        if (!string.Equals(consumerGroup, body.ConsumerGroup, StringComparison.Ordinal))
+            throw new InvalidDataException("MQ offset-reset 响应消费者组不一致。");
+        return ValidateResetResponse(topic, body.NextOffset);
+    }
+
+    /// <summary>
     /// 获取 Topic 统计。
     /// </summary>
     /// <param name="topic">Topic 名称。</param>
@@ -305,6 +407,40 @@ public sealed class SndbMqClient : IDisposable
         ValidateTopic(topic, body.Topic, "stats");
         ValidateStats(body);
         return new SndbMqStats(body.Topic, body.MessageCount, body.NextOffset, body.ConsumerOffsets);
+    }
+
+    /// <summary>获取 Topic 的重投、死信与消费者积压诊断。</summary>
+    public async Task<SndbMqDiagnostics> GetDiagnosticsAsync(string topic, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_embedded is not null)
+        {
+            var diagnostics = _embedded.GetDiagnostics(topic);
+            return new SndbMqDiagnostics(
+                diagnostics.Topic,
+                diagnostics.NextOffset,
+                diagnostics.EarliestOffset,
+                diagnostics.ConsumerLag,
+                diagnostics.PendingRedeliveryCount,
+                diagnostics.DeadLetterCount,
+                diagnostics.LastDiscardReason);
+        }
+
+        using var response = await PostJsonAsync(
+            MqUrl(topic, "diagnostics"),
+            new MqPullRequest("_diagnostics", 1),
+            RemoteJsonContext.Default.MqPullRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqDiagnosticsResponse, cancellationToken).ConfigureAwait(false);
+        ValidateTopic(topic, body.Topic, "diagnostics");
+        if (body.NextOffset < 0 || body.EarliestOffset < 0 || body.PendingRedeliveryCount < 0 || body.DeadLetterCount < 0
+            || body.ConsumerLag is null || body.ConsumerLag.Any(static pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Value < 0))
+            throw new InvalidDataException("MQ diagnostics 响应包含负数或无效消费者 lag。");
+        return new SndbMqDiagnostics(body.Topic, body.NextOffset, body.EarliestOffset, body.ConsumerLag,
+            body.PendingRedeliveryCount, body.DeadLetterCount, body.LastDiscardReason);
     }
 
     /// <inheritdoc />
@@ -490,6 +626,13 @@ public sealed class SndbMqClient : IDisposable
     {
         if (nextOffset < 0)
             throw new InvalidDataException("MQ ack 响应 nextOffset 不能为负数；结果未知。");
+        return nextOffset;
+    }
+
+    private static long ValidateResetResponse(string topic, long nextOffset)
+    {
+        if (nextOffset < 0)
+            throw new InvalidDataException($"MQ offset-reset 响应 {topic} 包含负数 offset。");
         return nextOffset;
     }
 

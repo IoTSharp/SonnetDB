@@ -51,7 +51,9 @@ internal static class DocumentVectorSearchExecutor
             && IsMetadataExpression(where, ref predicateNodes)
                 ? where
                 : null;
-        var rows = indexRows ?? ScoreRows(store, options, metadataFilter);
+        var rows = indexRows ?? (CanUseBoundedScan(statement, metadataFilter)
+            ? ScoreRowsBounded(store, options, metadataFilter)
+            : ScoreRows(store, options, metadataFilter));
         rows = ApplyWhere(rows, metadataFilter is null ? statement.Where : null);
         rows = ApplyOrderBy(rows, statement.OrderBy, projections);
         rows = rows.Take(options.K).ToList();
@@ -119,6 +121,10 @@ internal static class DocumentVectorSearchExecutor
 
         return rows;
     }
+
+    private static bool CanUseBoundedScan(SelectStatement statement, SqlExpression? metadataFilter)
+        => (statement.OrderBy is null || IsDefaultDistanceOrder(statement.OrderBy))
+            && (statement.Where is null || metadataFilter is not null);
 
     private static DocumentVectorIndex? TryResolveMatchingIndex(
         DocumentCollectionSchema schema,
@@ -211,6 +217,70 @@ internal static class DocumentVectorSearchExecutor
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// 在精确扫描路径上只保留当前最优 K 个候选，避免为默认距离排序物化整个集合。
+    /// 该路径只接受没有 WHERE 或可在计算距离前求值的元数据谓词；涉及距离/分数的残余谓词
+    /// 仍使用 <see cref="ScoreRows"/> 以保持其完整候选集语义。
+    /// </summary>
+    private static IReadOnlyList<VectorSearchRow> ScoreRowsBounded(
+        DocumentCollectionStore store,
+        VectorSearchOptions options,
+        SqlExpression? metadataFilter)
+    {
+        CancellationToken cancellationToken = SqlQueryResources.Current?.CancellationToken ?? default;
+        cancellationToken.ThrowIfCancellationRequested();
+        Action? distanceComputed = DistanceComputedTestHook;
+        var candidates = new PriorityQueue<VectorSearchRow, TopKPriority>(TopKPriorityComparer.Instance);
+        foreach (var documentRow in store.Scan())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!DocumentVectorReader.TryReadVector(documentRow.Json, options.VectorPath, out var vector))
+                continue;
+            if (vector.Length != options.QueryVector.Length)
+            {
+                throw new InvalidOperationException(
+                    $"vector_search 文档 '{documentRow.Id}' 的向量维度 {vector.Length} 与查询向量维度 {options.QueryVector.Length} 不一致。");
+            }
+
+            // 元数据谓词在距离计算前求值，与 ScoreRows 的短路顺序保持一致。
+            if (metadataFilter is not null
+                && !EvaluateBoolean(metadataFilter, new VectorSearchRow(documentRow, 0d, 0d)))
+            {
+                continue;
+            }
+
+            double distance = VectorDistance.Compute(options.Metric, options.QueryVector, vector);
+            distanceComputed?.Invoke();
+            var row = new VectorSearchRow(documentRow, distance, DistanceToScore(options.Metric, distance));
+            if (candidates.Count < options.K)
+            {
+                candidates.Enqueue(row, new TopKPriority(distance, documentRow.Id));
+                continue;
+            }
+
+            VectorSearchRow worst = candidates.Peek();
+            if (CompareDistanceThenId(row, worst) < 0)
+            {
+                candidates.Dequeue();
+                candidates.Enqueue(row, new TopKPriority(distance, documentRow.Id));
+            }
+        }
+
+        return candidates.UnorderedItems
+            .Select(static item => item.Element)
+            .OrderBy(static row => row.VectorDistance)
+            .ThenBy(static row => row.Document.Id, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static int CompareDistanceThenId(VectorSearchRow left, VectorSearchRow right)
+    {
+        int distance = left.VectorDistance.CompareTo(right.VectorDistance);
+        return distance != 0
+            ? distance
+            : string.Compare(left.Document.Id, right.Document.Id, StringComparison.Ordinal);
     }
 
     private static bool IsMetadataExpression(SqlExpression expression, ref int remainingNodes)
@@ -721,6 +791,24 @@ internal static class DocumentVectorSearchExecutor
         DocumentRow Document,
         double VectorDistance,
         double VectorScore);
+
+    private readonly record struct TopKPriority(double Distance, string Id);
+
+    private sealed class TopKPriorityComparer : IComparer<TopKPriority>
+    {
+        public static TopKPriorityComparer Instance { get; } = new();
+
+        public int Compare(TopKPriority left, TopKPriority right)
+        {
+            // PriorityQueue dequeues the smallest priority. Reverse the natural order
+            // so the least desirable (farthest, then lexicographically largest) hit
+            // remains at the head and can be evicted in O(log K).
+            int distance = right.Distance.CompareTo(left.Distance);
+            return distance != 0
+                ? distance
+                : string.Compare(right.Id, left.Id, StringComparison.Ordinal);
+        }
+    }
 
     private sealed class ScalarComparer : IComparer<object?>
     {

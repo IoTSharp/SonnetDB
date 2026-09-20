@@ -14,7 +14,7 @@ public sealed record TableStatisticsRefreshOptions
     /// <summary>每页最多复制的 key/value payload 字节数。</summary>
     public int MaxPageBytes { get; init; } = 4 * 1024 * 1024;
 
-    /// <summary>单次刷新最多采样的关系行数。</summary>
+    /// <summary>单次刷新最多采样的关系行数；快照较大时扫描完整快照并均匀选取样本。</summary>
     public int MaxSampleRows { get; init; } = 100_000;
 
     /// <summary>每列最多保存的 MCV fingerprint 数量。</summary>
@@ -218,13 +218,18 @@ internal static class TableStatisticsCalculator
 
         long rowPayloadBytes = 0;
         int sampledRows = 0;
+        long scannedRows = 0;
+        SamplePlan samplePlan = SamplePlan.Create(
+            tableSnapshot.RowCount,
+            options.MaxSampleRows,
+            tableSnapshot.Snapshot.Sequence);
         using KvRangeCursor cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = new byte[] { (byte)'r' },
             PageSize = options.PageSize,
             MaxPageBytes = options.MaxPageBytes,
         });
-        while (sampledRows < options.MaxSampleRows)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             IReadOnlyList<KvEntry> page = cursor.ReadNextPage(cancellationToken);
@@ -234,8 +239,9 @@ internal static class TableStatisticsCalculator
             foreach (KvEntry entry in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (sampledRows >= options.MaxSampleRows)
-                    break;
+                long rowOrdinal = scannedRows++;
+                if (!samplePlan.Includes(rowOrdinal))
+                    continue;
 
                 object?[] values = TableRowCodec.Decode(schema, entry.Value.Span);
                 ReadOnlyMemory<byte> primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key);
@@ -285,6 +291,54 @@ internal static class TableStatisticsCalculator
             return 0;
         double pages = Math.Ceiling(rows * averageWidth / logicalPageBytes);
         return pages >= long.MaxValue ? long.MaxValue : Math.Max(1, (long)pages);
+    }
+
+    /// <summary>
+    /// 在已知快照行数时为统计刷新构造一个有界、无首部偏差的样本选择器。
+    /// </summary>
+    private readonly record struct SamplePlan(long RowCount, int Limit, ulong Multiplier, ulong Offset)
+    {
+        public static SamplePlan Create(int rowCount, int maxSampleRows, long sequence)
+        {
+            if (rowCount <= maxSampleRows)
+                return new SamplePlan(rowCount, rowCount, 0, 0);
+
+            ulong modulus = (ulong)rowCount;
+            ulong multiplier = 2_862_933_555_777_941_757UL % modulus;
+            if (multiplier == 0)
+                multiplier = 1;
+            while (GreatestCommonDivisor(multiplier, modulus) != 1)
+            {
+                multiplier++;
+                if (multiplier >= modulus)
+                    multiplier = 1;
+            }
+
+            ulong offset = unchecked(
+                (ulong)sequence * 6_364_136_223_846_793_005UL
+                + 1_442_695_040_888_963_407UL) % modulus;
+            return new SamplePlan(rowCount, maxSampleRows, multiplier, offset);
+        }
+
+        public bool Includes(long ordinal)
+        {
+            if (Limit == RowCount)
+                return true;
+
+            ulong rank = unchecked(Multiplier * (ulong)ordinal + Offset) % (ulong)RowCount;
+            return rank < (ulong)Limit;
+        }
+
+        private static ulong GreatestCommonDivisor(ulong left, ulong right)
+        {
+            while (right != 0)
+            {
+                ulong remainder = left % right;
+                left = right;
+                right = remainder;
+            }
+            return left;
+        }
     }
 
     private sealed class IndexAccumulator(TableIndex index)

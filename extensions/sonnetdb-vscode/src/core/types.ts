@@ -158,6 +158,13 @@ export interface SchemaResponse {
   backupStatus?: BackupStatusInfo | null;
 }
 
+/** Native Graph catalog entry exposed by the server Graph Beta endpoint. */
+export interface GraphInfo {
+  name: string;
+  storageId: string;
+  recordFormatVersion: number;
+}
+
 export interface KvKeyspaceListResponse {
   keyspaces: string[];
 }

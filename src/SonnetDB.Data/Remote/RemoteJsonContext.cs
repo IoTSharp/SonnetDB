@@ -127,6 +127,11 @@ namespace SonnetDB.Data.Remote;
 [JsonSerializable(typeof(MqPullResponse))]
 [JsonSerializable(typeof(MqAckRequest))]
 [JsonSerializable(typeof(MqAckResponse))]
+[JsonSerializable(typeof(MqNackRequest))]
+[JsonSerializable(typeof(MqNackResponse))]
+[JsonSerializable(typeof(MqOffsetResetRequest))]
+[JsonSerializable(typeof(MqOffsetResetResponse))]
 [JsonSerializable(typeof(MqStatsResponse))]
+[JsonSerializable(typeof(MqDiagnosticsResponse))]
 [JsonSerializable(typeof(List<MqMessageResponse>))]
 internal sealed partial class RemoteJsonContext : JsonSerializerContext;

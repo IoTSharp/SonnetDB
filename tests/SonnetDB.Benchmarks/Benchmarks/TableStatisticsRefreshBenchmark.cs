@@ -23,6 +23,7 @@ public class TableStatisticsRefreshBenchmark
     private Tsdb? _database;
     private TableStore? _store;
     private TableStatisticsRefreshOptions? _options;
+    private TableStatisticsRefreshOptions? _boundedOptions;
 
     /// <summary>创建固定行数和四个二级索引，初始化成本不计入正式测量。</summary>
     [GlobalSetup]
@@ -63,6 +64,11 @@ public class TableStatisticsRefreshBenchmark
             PageSize = 512,
             MaxPageBytes = 4 * 1024 * 1024,
         };
+        _boundedOptions = _options with
+        {
+            MaxSampleRows = RowCount / 10,
+            MaxHistogramSamples = RowCount / 10,
+        };
 
         // 预先验证统计合同，并把首次 JIT 与文件创建成本排除在正式样本之外。
         TableStatistics statistics = _store.RefreshStatistics(_options);
@@ -76,6 +82,11 @@ public class TableStatisticsRefreshBenchmark
     public long RefreshStatistics()
         => _store!.RefreshStatistics(_options!).RowCount;
 
+    /// <summary>扫描完整快照但只解码有界均匀样本，量化采样统计刷新成本。</summary>
+    [Benchmark]
+    public long RefreshStatistics_BoundedSample()
+        => _store!.RefreshStatistics(_boundedOptions!).SampledRows;
+
     /// <summary>关闭数据库并删除本基准独占的临时目录。</summary>
     [GlobalCleanup]
     public void Cleanup()
@@ -83,6 +94,7 @@ public class TableStatisticsRefreshBenchmark
         _database?.Dispose();
         _database = null;
         _store = null;
+        _boundedOptions = null;
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
     }

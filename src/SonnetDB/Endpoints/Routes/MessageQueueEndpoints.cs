@@ -163,6 +163,35 @@ internal static partial class SonnetDbEndpoints
             }
         });
 
+        app.MapPost("/v1/db/{db}/mq/{topic}/nack", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqNackRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.ConsumerGroup))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 consumerGroup。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                SonnetMqNackResult result = mq.Nack(QualifyMqTopic(db, topic), req.ConsumerGroup, req.Offset, req.Reason);
+                var response = new MqNackResponse(topic, req.ConsumerGroup, result.NextOffset, result.DeliveryAttempt, result.DeadLettered, result.DeadLetterOffset);
+                await Results.Json(response, ServerJsonContext.Default.MqNackResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_io_error", ex.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapPost("/v1/db/{db}/mq/{topic}/stats", async (HttpContext ctx, string db, string topic) =>
         {
             if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
@@ -172,6 +201,63 @@ internal static partial class SonnetDbEndpoints
             var stats = mq.GetStats(QualifyMqTopic(db, topic));
             var response = new MqStatsResponse(topic, stats.MessageCount, stats.NextOffset, stats.ConsumerOffsets);
             await Results.Json(response, ServerJsonContext.Default.MqStatsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/diagnostics", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var mq = app.Services.GetRequiredService<SonnetMqStore>();
+            var diagnostics = mq.GetDiagnostics(QualifyMqTopic(db, topic));
+            var response = new MqDiagnosticsResponse(
+                topic,
+                diagnostics.NextOffset,
+                diagnostics.EarliestOffset,
+                diagnostics.ConsumerLag,
+                diagnostics.PendingRedeliveryCount,
+                diagnostics.DeadLetterCount,
+                diagnostics.LastDiscardReason);
+            await Results.Json(response, ServerJsonContext.Default.MqDiagnosticsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/offset-reset", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqOffsetResetRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.ConsumerGroup))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 consumerGroup。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                if (!Enum.IsDefined((SonnetMqOffsetResetMode)req.Mode))
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "offset reset mode 非法。").ConfigureAwait(false);
+                    return;
+                }
+
+                long nextOffset = mq.ResetConsumerOffset(
+                    QualifyMqTopic(db, topic),
+                    req.ConsumerGroup,
+                    (SonnetMqOffsetResetMode)req.Mode,
+                    req.Value);
+                var response = new MqOffsetResetResponse(topic, req.ConsumerGroup, nextOffset);
+                await Results.Json(response, ServerJsonContext.Default.MqOffsetResetResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_io_error", ex.Message).ConfigureAwait(false);
+            }
         });
 
     }

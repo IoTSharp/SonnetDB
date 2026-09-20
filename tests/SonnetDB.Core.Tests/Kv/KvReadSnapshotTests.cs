@@ -583,6 +583,52 @@ public sealed class KvReadSnapshotTests : IDisposable
         Assert.Equal([0xFE], current.GetEntry(Bytes("item:00123"))!.Value.ToArray());
     }
 
+    /// <summary>并发冷 miss 只允许一个调用者复制并排序覆盖层，等待者复用已发布缓存。</summary>
+    [Fact]
+    public async Task AcquireReadSnapshot_ConcurrentColdMisses_BuildOverlayOnlyOnce()
+    {
+        using var keyspace = KvKeyspace.Open("snapshot-overlay-single-flight", _root, Options());
+        for (int index = 0; index < 8_192; index++)
+            keyspace.Put($"item:{index:D5}", [(byte)index]);
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        keyspace.SnapshotOverlayBuildEnteredTestHook = () =>
+        {
+            entered.TrySetResult();
+            release.Task.GetAwaiter().GetResult();
+        };
+
+        try
+        {
+            Task<byte[]> first = Task.Run(() =>
+            {
+                using KvReadSnapshot snapshot = keyspace.AcquireReadSnapshot();
+                return snapshot.GetEntry(Bytes("item:00001"))!.Value.ToArray();
+            });
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+            Task<byte[]> second = Task.Run(() =>
+            {
+                using KvReadSnapshot snapshot = keyspace.AcquireReadSnapshot();
+                return snapshot.GetEntry(Bytes("item:08191"))!.Value.ToArray();
+            });
+
+            release.TrySetResult();
+            byte[] firstValue = await first.WaitAsync(TimeSpan.FromSeconds(10));
+            byte[] secondValue = await second.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(new byte[] { 1 }, firstValue);
+            Assert.Equal(new byte[] { 0xFF }, secondValue);
+            Assert.Equal(1, keyspace.SnapshotOverlayCacheBuildCount);
+            Assert.Equal(1, keyspace.SnapshotOverlayCacheHitCount);
+        }
+        finally
+        {
+            keyspace.SnapshotOverlayBuildEnteredTestHook = null;
+            release.TrySetResult();
+        }
+    }
+
     public void Dispose()
     {
         if (!Directory.Exists(_root))

@@ -47,6 +47,31 @@ public sealed class TableStatisticsTests : IDisposable
     }
 
     [Fact]
+    public void RefreshStatistics_BoundedSample_UsesRowsAcrossEntireSnapshot()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE sampled (id INT, value INT, PRIMARY KEY (id))");
+        TableStore store = db.Tables.Open("sampled");
+        store.InsertMany(Enumerable.Range(1, 200)
+            .Select(id => (IReadOnlyList<object?>)new object?[] { (long)id, (long)id })
+            .ToArray());
+
+        TableStatistics statistics = store.RefreshStatistics(new TableStatisticsRefreshOptions
+        {
+            MaxSampleRows = 20,
+            HistogramBucketCount = 1,
+            MaxHistogramSamples = 20,
+        });
+
+        Assert.Equal(200L, statistics.RowCount);
+        Assert.Equal(20, statistics.SampledRows);
+        Assert.Equal(0.1, statistics.SampleRate, precision: 6);
+        TableHistogramBucket bucket = Assert.Single(statistics.TryGetColumn("value")!.Histogram);
+        Assert.True(bucket.Int64UpperBound.GetValueOrDefault() > 20,
+            $"bounded sample must include rows beyond the first page; upper bound={bucket.Int64UpperBound}");
+    }
+
+    [Fact]
     public void Explain_ReadsStatisticsMetadata_WithoutScanningBusinessRows()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

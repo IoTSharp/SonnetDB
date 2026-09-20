@@ -359,6 +359,26 @@ public sealed class SndbMqDelivery
             throw;
         }
     }
+
+    /// <summary>拒绝该消息并请求重新投递；达到最大次数后进入死信。</summary>
+    /// <param name="reason">可选拒绝原因。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>拒绝结果。</returns>
+    public async Task<SndbMqNackResult> NackAsync(string? reason = null, CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref _acknowledged, 1) != 0)
+            return new SndbMqNackResult(Message.Offset, 0, false, null);
+
+        try
+        {
+            return await _owner.NackAsync(Message.Offset, reason, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Volatile.Write(ref _acknowledged, 0);
+            throw;
+        }
+    }
 }
 
 /// <summary>
@@ -458,6 +478,23 @@ public sealed class SndbMqConsumer : IAsyncDisposable, IDisposable
         }
 
         return next;
+    }
+
+    internal async Task<SndbMqNackResult> NackAsync(long offset, string? reason, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+        SndbMqNackResult result = await _client.NackAsync(_topic, _consumerGroup, offset, reason, cancellationToken).ConfigureAwait(false);
+        lock (_sync)
+        {
+            _pending.Remove(offset);
+            _pending.RemoveWhere(value => value < result.NextOffset);
+            _ackPulse.TrySetResult();
+            _ackPulse = NewPulse();
+        }
+
+        return result;
     }
 
     private async IAsyncEnumerable<SndbMqDelivery> ConsumeCoreAsync(

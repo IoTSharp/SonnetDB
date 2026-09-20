@@ -236,6 +236,8 @@ internal static class FrameStreamEndpointHandler
             case MqFrameOp.PublishBatch:
             case MqFrameOp.Pull:
             case MqFrameOp.Ack:
+            case MqFrameOp.Nack:
+            case MqFrameOp.OffsetReset:
                 {
                     // payload 是输入缓冲的零拷贝视图，仅在 AdvanceTo 前有效——同步消费（解码 + 引擎调用）
                     // 产出 owned 结果帧后再异步入队，无需整段 ToArray。
@@ -342,6 +344,32 @@ internal static class FrameStreamEndpointHandler
                         long nextOffset = mqStore.Ack(
                             SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
                         return OutboundFrame.AckResponse(header.StreamId, nextOffset);
+                    }
+
+                case MqFrameOp.Nack:
+                    {
+                        MqNackFrameRequest request = MqFrameCodec.DecodeNackRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
+                            return denied;
+                        if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                            return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "nack 需包含 consumerGroup。");
+
+                        SonnetMqNackResult result = mqStore.Nack(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset, request.Reason);
+                        return OutboundFrame.NackResponse(header.StreamId, result);
+                    }
+
+                case MqFrameOp.OffsetReset:
+                    {
+                        MqOffsetResetFrameRequest request = MqFrameCodec.DecodeOffsetResetRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
+                            return denied;
+                        if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                            return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "offset reset 需包含 consumerGroup。");
+
+                        long nextOffset = mqStore.ResetConsumerOffset(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Mode, request.Value);
+                        return OutboundFrame.OffsetResetResponse(header.StreamId, nextOffset);
                     }
 
                 default:
@@ -576,7 +604,7 @@ internal static class FrameStreamEndpointHandler
             return $"service {header.Service} 尚未挂载（当前仅 mq={(byte)FrameService.Mq}）。";
         }
 
-        if (header.Op is < (byte)MqFrameOp.Publish or > (byte)MqFrameOp.Unsubscribe)
+        if (header.Op is < (byte)MqFrameOp.Publish or > (byte)MqFrameOp.OffsetReset)
         {
             errorCode = "unsupported_op";
             return $"mq service 不支持 op {header.Op}。";
@@ -678,6 +706,7 @@ internal static class FrameStreamEndpointHandler
         private readonly long _scalar;
         private readonly IReadOnlyList<SonnetMqMessage>? _messages;
         private readonly IReadOnlyList<long>? _offsets;
+        private readonly SonnetMqNackResult? _nack;
         private readonly byte _service;
         private readonly byte _op;
         private readonly string? _code;
@@ -686,7 +715,7 @@ internal static class FrameStreamEndpointHandler
         private OutboundFrame(
             OutboundKind kind, uint streamId, long scalar,
             IReadOnlyList<SonnetMqMessage>? messages, IReadOnlyList<long>? offsets,
-            byte service, byte op, string? code, string? message)
+            byte service, byte op, string? code, string? message, SonnetMqNackResult? nack = null)
         {
             _kind = kind;
             _streamId = streamId;
@@ -697,6 +726,7 @@ internal static class FrameStreamEndpointHandler
             _op = op;
             _code = code;
             _message = message;
+            _nack = nack;
         }
 
         public static OutboundFrame Error(byte service, byte op, uint streamId, string code, string message)
@@ -713,6 +743,12 @@ internal static class FrameStreamEndpointHandler
 
         public static OutboundFrame AckResponse(uint streamId, long nextOffset)
             => new(OutboundKind.AckResponse, streamId, nextOffset, null, null, 0, 0, null, null);
+
+        public static OutboundFrame NackResponse(uint streamId, SonnetMqNackResult result)
+            => new(OutboundKind.NackResponse, streamId, 0, null, null, 0, 0, null, null, result);
+
+        public static OutboundFrame OffsetResetResponse(uint streamId, long nextOffset)
+            => new(OutboundKind.OffsetResetResponse, streamId, nextOffset, null, null, 0, 0, null, null);
 
         public static OutboundFrame SubscribeResponse(uint streamId, long effectiveOffset)
             => new(OutboundKind.SubscribeResponse, streamId, effectiveOffset, null, null, 0, 0, null, null);
@@ -742,6 +778,12 @@ internal static class FrameStreamEndpointHandler
                 case OutboundKind.AckResponse:
                     MqFrameCodec.EncodeAckResponse(writer, _streamId, _scalar);
                     break;
+                case OutboundKind.NackResponse:
+                    MqFrameCodec.EncodeNackResponse(writer, _streamId, _nack!);
+                    break;
+                case OutboundKind.OffsetResetResponse:
+                    MqFrameCodec.EncodeOffsetResetResponse(writer, _streamId, _scalar);
+                    break;
                 case OutboundKind.SubscribeResponse:
                     MqFrameCodec.EncodeSubscribeResponse(writer, _streamId, _scalar);
                     break;
@@ -762,6 +804,8 @@ internal static class FrameStreamEndpointHandler
         PublishBatchResponse,
         PullResponse,
         AckResponse,
+        NackResponse,
+        OffsetResetResponse,
         SubscribeResponse,
         UnsubscribeResponse,
         Push,

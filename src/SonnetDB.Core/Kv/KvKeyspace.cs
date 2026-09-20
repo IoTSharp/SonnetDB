@@ -85,6 +85,8 @@ public sealed partial class KvKeyspace : IDisposable
     private const int MaxOptimisticSequenceFactoryInvalidations = 8;
     internal const string LifecycleLockFileName = "keyspace.lock";
     private readonly object _sync = new();
+    // 冷缓存 miss 时只允许一个调用者复制、排序并发布覆盖层；其余读者在门闩内复用结果。
+    private readonly SemaphoreSlim _snapshotOverlayBuildGate = new(1, 1);
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
     private KvOrderedOverlay _values;
@@ -243,6 +245,9 @@ public sealed partial class KvKeyspace : IDisposable
     internal Action<KvCheckpointPhase>? CheckpointTestHook { get; set; }
 
     internal Action? WriteBackpressureTestHook { get; set; }
+
+    /// <summary>在快照覆盖层 single-flight 建锁后触发的测试钩子。</summary>
+    internal Action? SnapshotOverlayBuildEnteredTestHook { get; set; }
 
     internal Action? GenerationSaveTestHook { get; set; }
 
@@ -2046,60 +2051,74 @@ public sealed partial class KvKeyspace : IDisposable
         KeyValuePair<byte[], KvValueEntry>[] frozenValues;
         Dictionary<byte[], KvValueEntry> mutableSource;
         Dictionary<byte[], KvValueEntry>? frozenSource;
-        KvDiskStateLease? diskLease;
+        KvDiskStateLease? diskLease = null;
         long sequence;
         DateTimeOffset readTimestampUtc;
-        bool cacheHit;
-
-        long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        // 先走无等待的热路径。冷 miss 才进入 single-flight 门闩，避免并发查询重复复制和排序同一覆盖层。
+        while (true)
         {
-            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
-            ThrowIfDisposed();
-            int maximumEntries = _options.MaxSnapshotOverlayEntries;
-            if (maximumEntries <= 0)
+            long lockWait = SonnetDbMeter.StartLockWaitTiming();
+            lock (_sync)
             {
-                throw new InvalidOperationException(
-                    "KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
-            }
-            long overlayEntryCount = (long)_values.Count + (_frozenValues?.Count ?? 0);
-            if (overlayEntryCount > maximumEntries)
-            {
-                throw new InvalidOperationException(
-                    $"KV read snapshot rejected because the mutable and frozen overlays contain " +
-                    $"{overlayEntryCount} entries in total, " +
-                    $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
+                SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                ThrowIfDisposed();
+                ValidateSnapshotOverlayBudgetLocked();
+                mutableSource = _values;
+                frozenSource = _frozenValues;
+                sequence = _lastSequence;
+                SnapshotOverlayCache? cache = _snapshotOverlayCache;
+                if (cache is not null
+                    && cache.Sequence == sequence
+                    && ReferenceEquals(cache.MutableSource, mutableSource)
+                    && ReferenceEquals(cache.FrozenSource, frozenSource))
+                {
+                    mutableValues = cache.MutableValues;
+                    frozenValues = cache.FrozenValues;
+                    _snapshotOverlayCacheHitCount++;
+                    diskLease = _diskState?.AcquireLease();
+                    readTimestampUtc = DateTimeOffset.UtcNow;
+                    return new KvReadSnapshot(new KvReadSnapshotState(
+                        mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
+                }
             }
 
-            mutableSource = _values;
-            frozenSource = _frozenValues;
-            sequence = _lastSequence;
-            SnapshotOverlayCache? cache = _snapshotOverlayCache;
-            cacheHit = cache is not null
-                && cache.Sequence == sequence
-                && ReferenceEquals(cache.MutableSource, mutableSource)
-                && ReferenceEquals(cache.FrozenSource, frozenSource);
-            if (cacheHit)
+            _snapshotOverlayBuildGate.Wait();
+            try
             {
-                mutableValues = cache!.MutableValues;
-                frozenValues = cache.FrozenValues;
-                _snapshotOverlayCacheHitCount++;
-            }
-            else
-            {
-                // 键和值对象在发布后不可变；这里只复制字典条目，排序完成后可由同版本查询安全共享。
-                mutableValues = mutableSource.ToArray();
-                frozenValues = frozenSource?.ToArray() ?? [];
-                _snapshotOverlayCacheBuildCount++;
-            }
-            diskLease = _diskState?.AcquireLease();
-            readTimestampUtc = DateTimeOffset.UtcNow;
-        }
+                SnapshotOverlayBuildEnteredTestHook?.Invoke();
+                // 等待期间其他调用者可能已经发布缓存；重新检查后即可复用。
+                lockWait = SonnetDbMeter.StartLockWaitTiming();
+                lock (_sync)
+                {
+                    SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                    ThrowIfDisposed();
+                    ValidateSnapshotOverlayBudgetLocked();
+                    mutableSource = _values;
+                    frozenSource = _frozenValues;
+                    sequence = _lastSequence;
+                    SnapshotOverlayCache? cache = _snapshotOverlayCache;
+                    if (cache is not null
+                        && cache.Sequence == sequence
+                        && ReferenceEquals(cache.MutableSource, mutableSource)
+                        && ReferenceEquals(cache.FrozenSource, frozenSource))
+                    {
+                        mutableValues = cache.MutableValues;
+                        frozenValues = cache.FrozenValues;
+                        _snapshotOverlayCacheHitCount++;
+                        diskLease = _diskState?.AcquireLease();
+                        readTimestampUtc = DateTimeOffset.UtcNow;
+                        return new KvReadSnapshot(new KvReadSnapshotState(
+                            mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
+                    }
 
-        try
-        {
-            if (!cacheHit)
-            {
+                    // 键和值对象在发布后不可变；这里只复制字典条目，排序完成后可由同版本查询安全共享。
+                    mutableValues = mutableSource.ToArray();
+                    frozenValues = frozenSource?.ToArray() ?? [];
+                    diskLease = _diskState?.AcquireLease();
+                    readTimestampUtc = DateTimeOffset.UtcNow;
+                    _snapshotOverlayCacheBuildCount++;
+                }
+
                 Array.Sort(
                     mutableValues,
                     static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
@@ -2112,19 +2131,36 @@ public sealed partial class KvKeyspace : IDisposable
                     sequence,
                     mutableValues,
                     frozenValues);
+                return new KvReadSnapshot(new KvReadSnapshotState(
+                    mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
             }
-            var state = new KvReadSnapshotState(
-                mutableValues,
-                frozenValues,
-                diskLease,
-                sequence,
-                readTimestampUtc);
-            return new KvReadSnapshot(state);
+            catch
+            {
+                diskLease?.Dispose();
+                throw;
+            }
+            finally
+            {
+                _snapshotOverlayBuildGate.Release();
+            }
         }
-        catch
+    }
+
+    private void ValidateSnapshotOverlayBudgetLocked()
+    {
+        int maximumEntries = _options.MaxSnapshotOverlayEntries;
+        if (maximumEntries <= 0)
         {
-            diskLease?.Dispose();
-            throw;
+            throw new InvalidOperationException(
+                "KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
+        }
+        long overlayEntryCount = (long)_values.Count + (_frozenValues?.Count ?? 0);
+        if (overlayEntryCount > maximumEntries)
+        {
+            throw new InvalidOperationException(
+                $"KV read snapshot rejected because the mutable and frozen overlays contain " +
+                $"{overlayEntryCount} entries in total, " +
+                $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
         }
     }
 
@@ -3908,7 +3944,7 @@ public sealed partial class KvKeyspace : IDisposable
     /// </summary>
     private KvValueEntry? ReadVisibleEntry(byte[] key, CancellationToken cancellationToken)
     {
-        KvDiskStateLease? diskLease;
+        KvDiskStateLease? diskLease = null;
         DateTimeOffset readTimestampUtc;
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         using (EnterAtomicWriteLock(cancellationToken))

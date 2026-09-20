@@ -278,6 +278,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.queryGraph', async (node?: TreeNode) => {
+      if (!node || node.kind !== 'graph') {
+        void vscode.window.showWarningMessage('Select a Graph from the SonnetDB Explorer first.');
+        return;
+      }
+
+      const graph = node.graph.name.replace(/[^A-Za-z0-9_]/g, '_');
+      const document = await vscode.workspace.openTextDocument({
+        language: 'sql',
+        content: `-- Bounded Graph Beta browse for ${node.graph.name}\nSELECT source_id, edge_id, target_id\nFROM GRAPH_TABLE (\n  ${graph}\n  MATCH (a)-[e]->(b)\n  COLUMNS (a.id AS source_id, e.id AS edge_id, b.id AS target_id)\n)\nLIMIT 100;\n`,
+      });
+      await vscode.window.showTextDocument(document, { preview: false });
+    }),
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('sonnetdb.searchVectorIndex', async (node?: TreeNode) => {
       if (!node || node.kind !== 'vectorIndex') {
         void vscode.window.showWarningMessage('Select a vector index from the SonnetDB Explorer first.');

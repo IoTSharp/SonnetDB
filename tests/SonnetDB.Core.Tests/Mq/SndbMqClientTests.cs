@@ -55,6 +55,22 @@ public sealed class SndbMqClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetOffsetAsync_Embedded_ChangesConsumerPosition()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        await client.PublishManyAsync("events.reset", [
+            new SndbMqPublishEntry("a"u8.ToArray()),
+            new SndbMqPublishEntry("b"u8.ToArray()),
+        ]);
+
+        Assert.Equal(2, await client.ResetOffsetAsync("events.reset", "workers", SndbMqOffsetResetMode.Latest));
+        Assert.Empty(await client.PullAsync("events.reset", "workers"));
+        Assert.Equal(0, await client.ResetOffsetAsync("events.reset", "workers", SndbMqOffsetResetMode.Earliest));
+        Assert.Equal("a", Encoding.UTF8.GetString((await client.PullAsync("events.reset", "workers"))[0].Payload));
+    }
+
+    [Fact]
     public async Task PublishAsync_PreCanceled_DoesNotAppendMessage()
     {
         string connectionString = $"Data Source={_root};Mode=Embedded";

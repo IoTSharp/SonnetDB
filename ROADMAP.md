@@ -45,7 +45,7 @@
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | ✅ | #333~#339 编码、嵌入式/远程接口、恢复和本地准入证据已完成；存储过程与触发器第一版（#329~#332）也已完成。固定目标硬件、生产混合负载和长期 SLO 不再阻塞研发闭环，转入[真机验证待办](#真机验证待办)。 |
 | 40 | 原生属性图数据库 | ✅（待真机验证） | #341~#367 编码、合同、Server/SDK/CLI/Studio parity、恢复边界、strict evaluator、自动化回归和本地文档已闭环；步骤 1~7 的实现与本地门禁均已关闭。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT journey、跨进程 kill/reopen 与 7 天生产证据统一后置到[真机验证待办](#真机验证待办)，不阻塞研发完成状态。 |
-| 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 与 #381 本地合同已收口；#375 自动刷新已移到有预算的后台并增加可观察状态，首 N 行采样偏差仍待 M42。固定硬件、木垒同语料、7 天 mixed workload 与现场发布观察均未执行。 |
+| 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 与 #381 本地合同已收口；#375 自动刷新已移到有预算的后台并增加可观察状态，无偏有界采样已实现。页感知成本、参数敏感反馈、固定硬件、木垒同语料、7 天 mixed workload 与现场发布观察仍未执行。 |
 | 42 | 九域与规划器系统性能深化 | 🚧 | ✅ 九域矩阵、竞品入口和统一指标已建立；🟡 统计/CRC 本机切片、SQL 指标上界、三域读取 smoke、Rebirth 合同及 win-x64 AOT 已取证；🚧 九域容量闭环和 P0~P3 残余仍在推进；⏳ 固定 x64/ARM64、木垒同语料、168 小时与生产门禁未执行。 |
 | 43 | 十四套能力与生态发布总收口 | 🚧 | ✅ #382 总规划文档已落地；📋 #383~#402 按七个步骤推进证据索引、CDC/边缘同步、流处理、十四能力验收和生态入榜。既有缺口保留原 PR 归属；完整状态、依赖与顺序见[总里程碑文档](docs/roadmap-total-milestone.md)。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
@@ -249,12 +249,12 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。新增嵌入式/远程统一 typed Search、source-generated JSON、稳定 continuation token 与合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 由 #319 负责。 | 🚧 |
 | #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和同步可观察 rebuild task status；schema v7 保留旧版本读取并补默认设置。 | 🚧 |
 | #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。新增继承 VectorData 标准选项的 typed search、精确/阈值/跳过/向量回传和有界顺序 batch；远程 parity、容量和 #321 生命周期/解释证据后置。 | 🚧 |
-| #321 | Vector 生命周期与解释：已交付嵌入式真实 catalog 的 dimension/metric/数值预检、持久 RAG generation 完整 profile 核验、只读已加载图状态及显式 HNSW 图安全重建（候选图成功后替换、失败/取消保留旧图、独立真实计数/终态）。普通集合明确 profile_unbound；从主文档修复持久向量 KV 的安全重建、远程 lifecycle、ANN/scan/补偿解释与 Recall/固定硬件报告尚待完成，复用 M35 #297/#298。见[生命周期合同](docs/vector-lifecycle-preflight.md)。 | 🚧 |
+| #321 | Vector 生命周期与解释：已交付嵌入式真实 catalog 的 dimension/metric/数值预检、持久 RAG generation 完整 profile 核验、只读已加载图状态、显式 HNSW 图安全重建，以及通用精确扫描的固定 K Top-N（默认距离排序和 metadata 预筛选路径不再物化全部候选）。普通集合明确 profile_unbound；远程 lifecycle、ANN/scan/补偿解释与 Recall/固定硬件报告仍待验证，复用 M35 #297/#298。见[生命周期合同](docs/vector-lifecycle-preflight.md)。 | 🚧（代码完成，待现场验证） |
 | #322 | Object Transfer Manager：自动 multipart 阈值/part size/并发、checksum、retry、resume、progress、取消和资源释放，基于现有 `SndbObjectStorageClient`；已补批量逐对象结果与 CLI 原子文件下载。代码、本地回归和 AOT/trim 门禁完成；固定硬件、大文件内存、断电未知结果和跨进程现场证据仍后置。 | ✅ |
 | #323 | Object 日常文件流：OBJECT-001 已实现同 KV/WAL 派生索引的有界 `ListObjects`，保持原始 key ordinal、版本/删除标记，增加 delimiter/common-prefix、可取消重建和物理候选预算，超预算显式拒绝且不推进令牌；已补 conditional put/get、强/弱 ETag 与 HTTP 秒级日期语义、异步游标、CLI `cp/sync --dry-run`。实现、实测及恢复限制见[验证证据](docs/audits/object-pagination-20260906.md)；2026-09-20 quick/full 高变更率本机预检见[验证状态](docs/audits/object-transfer-validation-20260920.md)。固定硬件容量、真实 Server/SDK/CLI、跨进程恢复和完整文件传输仍待独立验收；不以本切片关闭完整 #323。 | 🚧 |
 | #324 | SonnetMQ 高层 producer/consumer：builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain；已接入嵌入式/远程共享客户端合同。代码、本地回归和 Data AOT/trim 门禁完成；nack/redelivery/DLQ 与 exactly-once 边界仍归 #325。 | ✅ |
-| #325 | SonnetMQ 投递失败治理：nack/redelivery/max-delivery/DLQ、message-id 去重窗口、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断。 | 📋 |
-| #326 | 九模型范围收口：每模型一个嵌入式/远程同代码或最小差异样例、SDK/API/Workbench/CLI 矩阵和真实用户任务 e2e；补 VS Code Graph 最小浏览/查询入口。Document 汇总 M32、Graph 汇总 M40。单库备份明确排除 Server `.system/mq`；另定义 instance MQ/consumer offset 的一致快照与恢复合同，不将跨库实例数据塞入单库包。 | 📋 |
+| #325 | SonnetMQ 投递失败治理：已交付 nack/redelivery/max-delivery/DLQ、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断，覆盖 Core、嵌入式/远程客户端、HTTP、Frame 和高层 delivery；message-id 去重窗口、实例级快照/恢复和跨节点 exactly-once 仍未承诺。 | 🚧（代码完成，待远程/长期验证） |
+| #326 | 九模型范围收口：VS Code Graph 最小浏览/查询入口已交付，Graph catalog、Explorer、`queryGraph` 模板和 smoke contract 已同步；单库备份继续明确排除 Server `.system/mq`，instance MQ/consumer offset 一致快照与恢复合同及九模型真实用户任务 e2e 仍待后续切片/现场验证。 | 🚧（Graph 代码完成，实例恢复待实现） |
 
 ### 顺序与验收
 
@@ -431,7 +431,7 @@ SELECT EXISTS (...)
 | P1 | #372 | 关系输入谓词与投影下推：在 JOIN 前按绑定列归属拆分并下推单表 WHERE、所需列和安全 LIMIT；顶层残余谓词始终保留，外连接、相关子查询、聚合和视图展开必须有独立等价性测试。 | ✅ |
 | P1 | #373 | 流式关系算子与延迟物化：定义公共 row/candidate cursor，使 scan/filter/project/Top-N/JOIN 可逐批消费；增加 covering/index-only scan，仅在输出或残余谓词需要时读取并解码基表全行；所有阻塞算子必须声明内存行为。 | 🟡 本地完成；发布证据后置 |
 | P1 | #374 | KV/Table 快照读取与锁范围收缩：在短锁内取得不可变可见视图或版本化 cursor，在锁外枚举、复制和解码；保持同一 statement snapshot、事务内 read-your-writes、删除/更新 overlay、checkpoint/compaction/WAL replay 和异常释放语义。与 M40 #342~#346 共享 cursor/codec 地基，不重复实现。 | ✅ |
-| P2 | #375 | 轻量统计信息：持久化表/索引行数与页数、平均行宽、NULL fraction、distinct、MCV 和等深直方图；支持显式 `ANALYZE` 与有预算的自动刷新，采样不得长时间阻塞业务，不保存原始敏感值，并记录 freshness/sample rate。 | 🚧 统计持久化、显式分析、分配优化和后台合并刷新已实现；每库一个自动任务、4096 行/5 秒协作取消、失败状态和冷却；主键前 N 行采样偏差与现场尾延迟仍归 M42 |
+| P2 | #375 | 轻量统计信息：持久化表/索引行数与页数、平均行宽、NULL fraction、distinct、MCV 和等深直方图；支持显式 `ANALYZE` 与有预算的自动刷新，采样不得长时间阻塞业务，不保存原始敏感值，并记录 freshness/sample rate。 | 🚧 统计持久化、显式分析、分配优化、后台合并刷新和确定性无偏有界采样已实现；每库一个自动任务、4096 行/5 秒协作取消、失败状态和冷却；页感知成本、参数敏感反馈与现场尾延迟仍归 M42/真机验证 |
 | P2 | #376 | 逻辑/物理计划与成本选择：统一 point/range/full/index-union access path，基于基数、选择率、行宽、解码、排序、内存和逻辑 I/O 估算选择计划；首版保持小而确定，不引入无界搜索，统计缺失或估算不可信时使用稳定启发式回退。 | 🟡 本地完成；发布证据后置 |
 | P2 | #377 | 可解释计划与实际执行证据：默认 `EXPLAIN` 只读目录/统计元数据，不为估算候选数实际扫描业务数据；为 M36 #313 提供计划树、估算/实际行数、耗时、loops、rows removed、锁/队列等待、峰值内存、spill 和 fallback reason。M36 负责用户侧错误/取消/超时合同，本项只建设共享规划与算子证据源。 | 🟡 本地完成；发布证据后置 |
 | P3 | #378 | JOIN 优化：按估算行数和行宽选择 Hash build side，支持 semijoin/antijoin、index nested-loop，并在有序输入和收益证据成立时准入 merge join；建立有限 join-order 枚举与大连接图回退，外连接和 NULL 语义不得被重写破坏。 | 🟡 本地完成；发布证据后置 |
@@ -443,9 +443,9 @@ SELECT EXISTS (...)
 
 参考 PostgreSQL 的统计信息、扩展统计、Bitmap Scan、有限 join-order 搜索、计划树和 `EXPLAIN ANALYZE`，参考 MySQL 的持久统计/直方图、range optimizer、Index Merge、semijoin/antijoin、Hash Join 内存界限与 spill；学习其机制和验证方法，不复制 wire protocol、完整 SQL 方言、系统目录或分布式能力。计划缓存只有在参数敏感选择和数据倾斜证据完成后另行准入，不能把单一计划盲目复用于所有参数。
 
-原始切片按 `#368 -> #369/#370/#371 -> #372/#374 -> #373 -> #375/#376/#377 -> #378/#379 -> #380 -> #381` 实施。2026-09-01 复审发现的 #375 同步首读刷新已在 09-05 改为后台预算任务；采样偏差与固定硬件/生产验证未关闭，因此 M41 仍不按普通 ✅ 收口。P1 必须证明长扫描不在表级锁内完成全行解码；P2 必须报告 estimated/actual rows 偏差；P3 不以线程数或单条最佳数字验收，而以混合负载尾延迟、吞吐和内存上界验收。
+原始切片按 `#368 -> #369/#370/#371 -> #372/#374 -> #373 -> #375/#376/#377 -> #378/#379 -> #380 -> #381` 实施。2026-09-01 复审发现的 #375 同步首读刷新已在 09-05 改为后台预算任务；无偏有界采样已在本轮补齐，但页感知成本、参数敏感反馈与固定硬件/生产验证未关闭，因此 M41 仍不按普通 ✅ 收口。P1 必须证明长扫描不在表级锁内完成全行解码；P2 必须报告 estimated/actual rows 偏差；P3 不以线程数或单条最佳数字验收，而以混合负载尾延迟、吞吐和内存上界验收。
 
-#369~#374、#376~#379 当前完成了本地自动化门禁：固定随机种子差分覆盖主键/二级索引 semijoin、索引 OR、有符号倒序窗口、成本选择和 EXPLAIN 不扫描业务行；事务写集验证安全回退；#372 覆盖双侧索引谓词、跨输入残余、LEFT JOIN NULL 语义、聚合、相关子查询、逻辑视图、事务 overlay、有状态 UDF 回退与无排序纯 LEFT JOIN 的安全输入窗口；#373 覆盖 probe 侧 LIMIT 早停、完整等值 covering/index-only 零基表解码，以及 EXPLAIN 的 streaming、右侧 build/replay、aggregate、full sort 与 bounded Top-N 内存合同；#374 覆盖表读快照在索引/范围读取期间的并发写、稳定结果和异常租约释放；#378 覆盖 Hash build side、NULL-aware semijoin/antijoin、主键/二级索引 nested-loop、兼容有序输入 merge join、重复/NULL/空集/有符号/跨类型边界、3～6 表有限枚举、自连接别名与列序恢复、外连接和超过 6 表回退；#379 使用同一查询/数据库实例全局预算约束 Hash Join、稳定外部排序/Top-N、分组、DISTINCT 和索引候选去重，强制 96-byte 预算与内存路径逐行对拍，并覆盖取消释放、标记目录启动清理、全局额度竞争及 EXPLAIN 峰值/spill 指标；#380 覆盖 measurement scan、legacy aggregate 和物化 probe Hash JOIN 的有界 worker 上限、查询/全局预算竞争、取消释放、事务门控、稳定输出、LEFT/NULL 语义、串并行逐行对拍和 estimated/actual 反馈。#375 的统计持久化、显式分析、成本消费和后台刷新已有本地回归；外层主键前 N 行采样仍是实现残余。#381 新增 `--m41-production-closeout` 收口报告：本地报告管线为 `PASS`，固定硬件、木垒同语料、真进程 crash/replay、backup/restore、部署 Native AOT 与 7 天 mixed workload 均显式为 `DEFERRED`；`DEFERRED` 不等于发布 `PASS`。
+#369~#374、#376~#379 当前完成了本地自动化门禁：固定随机种子差分覆盖主键/二级索引 semijoin、索引 OR、有符号倒序窗口、成本选择和 EXPLAIN 不扫描业务行；事务写集验证安全回退；#372 覆盖双侧索引谓词、跨输入残余、LEFT JOIN NULL 语义、聚合、相关子查询、逻辑视图、事务 overlay、有状态 UDF 回退与无排序纯 LEFT JOIN 的安全输入窗口；#373 覆盖 probe 侧 LIMIT 早停、完整等值 covering/index-only 零基表解码，以及 EXPLAIN 的 streaming、右侧 build/replay、aggregate、full sort 与 bounded Top-N 内存合同；#374 覆盖表读快照在索引/范围读取期间的并发写、稳定结果和异常租约释放；#378 覆盖 Hash build side、NULL-aware semijoin/antijoin、主键/二级索引 nested-loop、兼容有序输入 merge join、重复/NULL/空集/有符号/跨类型边界、3～6 表有限枚举、自连接别名与列序恢复、外连接和超过 6 表回退；#379 使用同一查询/数据库实例全局预算约束 Hash Join、稳定外部排序/Top-N、分组、DISTINCT 和索引候选去重，强制 96-byte 预算与内存路径逐行对拍，并覆盖取消释放、标记目录启动清理、全局额度竞争及 EXPLAIN 峰值/spill 指标；#380 覆盖 measurement scan、legacy aggregate 和物化 probe Hash JOIN 的有界 worker 上限、查询/全局预算竞争、取消释放、事务门控、稳定输出、LEFT/NULL 语义、串并行逐行对拍和 estimated/actual 反馈。#375 的统计持久化、显式分析、成本消费、后台刷新和无偏有界采样已有本地回归。#381 新增 `--m41-production-closeout` 收口报告：本地报告管线为 `PASS`，固定硬件、木垒同语料、真进程 crash/replay、backup/restore、部署 Native AOT 与 7 天 mixed workload 均显式为 `DEFERRED`；`DEFERRED` 不等于发布 `PASS`。
 
 所有快速路径必须满足以下不变量：索引 union/MultiGet 按主键去重；残余谓词不得丢失；NULL/三值逻辑、排序稳定性、LIMIT/OFFSET、相关子查询和事务可见性不变；WAL/checkpoint/compaction/backup/recovery 合同不变；公开 API 与 EXPLAIN schema 采用 extend-only 演进；Core 保持零第三方运行时依赖、Safe-only 和 Native AOT。每个新计划先与当前执行器做随机化及木垒固定语料差分测试，再按 feature gate/canary 放量；无法证明等价、统计过期或资源预算不足时必须回退到已验证路径并暴露原因。
 
@@ -461,7 +461,7 @@ SELECT EXISTS (...)
 | 模型级 benchmark | 🚧 | KV/Document 本机热读 smoke 已完成；Object 仅 exploratory 且有最小迭代告警；时序、全文、MQ 吞吐、向量 Recall/容量和 Graph 正式门禁本轮均未运行。 |
 | Native AOT 与硬件路径 | 🟡 | 2026-09-05 本轮 win-x64 Server publish、healthz、建库/表和事务首查通过，0 IL/AOT warning；既有 CLI 证据保留。ARM64 CI matrix 已配置，但真实 ARM64 CI、publish/start/first-query 与指令差分均为 `NOT_RUN`；不代替 Graph Native AOT 专项 journey。 |
 
-自动统计移出首读的本地切片已交付，剩余按收益/风险推进：P0 恢复真实 Server/Parity 启动并完成 ARM64 可执行/AOT 门禁；P1 处理无偏采样、页感知索引成本、参数敏感计划、Embedded I/O 预算、通用向量有界 Top-K 和对象分页固定硬件/高变更率验证（OBJECT-001 本地有界切片见 #323）。通用 Document 向量纯 metadata WHERE 已移到距离计算前，但 Scan/排序仍物化，mixed predicate 与 ANN 另行验收。P2 扩大 covering/index-only、增加 snapshot cold-miss single-flight、减少大值复制、统一 cold-start/file-count 合同、SQL 端到端结果内存及 Web 冷启动拆包，并补真实 Sparkplug broker 竞态；P3 仅在独立 feature gate 与跨架构差分收益成立时评估 direct intrinsics 和 .NET 11 preview。固定 x64/ARM64、木垒同语料、168 小时 mixed workload 与生产发布全部保持 ⏳ `NOT_RUN`。
+自动统计移出首读的本地切片已交付，剩余按收益/风险推进：P0 恢复真实 Server/Parity 启动并完成 ARM64 可执行/AOT 门禁；P1 继续处理页感知索引成本、参数敏感计划、Embedded I/O 预算和对象分页固定硬件/高变更率验证（OBJECT-001 本地有界切片见 #323），并对通用向量有界 Top-K 做固定硬件与 ANN/Recall 验收。通用 Document 向量纯 metadata WHERE 已移到距离计算前，默认距离排序的精确回退已改为固定 K 候选堆，mixed predicate 与 ANN 另行验收。P2 扩大 covering/index-only、减少大值复制、统一 cold-start/file-count 合同、SQL 端到端结果内存及 Web 冷启动拆包，并补真实 Sparkplug broker 竞态；P3 仅在独立 feature gate 与跨架构差分收益成立时评估 direct intrinsics 和 .NET 11 preview。固定 x64/ARM64、木垒同语料、168 小时 mixed workload 与生产发布全部保持 ⏳ `NOT_RUN`。
 
 ## Milestone 43 — 十四套能力与生态发布总收口
 

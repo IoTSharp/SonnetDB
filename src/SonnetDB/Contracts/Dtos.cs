@@ -361,6 +361,18 @@ public sealed record MqAckRequest(string ConsumerGroup, long Offset);
 /// <param name="NextOffset">消费者组下一条待消费 offset。</param>
 public sealed record MqAckResponse(string Topic, string ConsumerGroup, long NextOffset);
 
+/// <summary>MQ 拒绝投递请求。</summary>
+public sealed record MqNackRequest(string ConsumerGroup, long Offset, string? Reason = null);
+
+/// <summary>MQ 拒绝投递响应。</summary>
+public sealed record MqNackResponse(
+    string Topic,
+    string ConsumerGroup,
+    long NextOffset,
+    int DeliveryAttempt,
+    bool DeadLettered,
+    long? DeadLetterOffset);
+
 /// <summary>
 /// MQ Topic 统计响应。
 /// </summary>
@@ -373,6 +385,22 @@ public sealed record MqStatsResponse(
     long MessageCount,
     long NextOffset,
     IReadOnlyDictionary<string, long> ConsumerOffsets);
+
+/// <summary>MQ 投递治理诊断响应。</summary>
+public sealed record MqDiagnosticsResponse(
+    string Topic,
+    long NextOffset,
+    long EarliestOffset,
+    IReadOnlyDictionary<string, long> ConsumerLag,
+    long PendingRedeliveryCount,
+    long DeadLetterCount,
+    string? LastDiscardReason);
+
+/// <summary>MQ 消费者组 offset 重置请求。</summary>
+public sealed record MqOffsetResetRequest(string ConsumerGroup, byte Mode, long Value = 0);
+
+/// <summary>MQ 消费者组 offset 重置响应。</summary>
+public sealed record MqOffsetResetResponse(string Topic, string ConsumerGroup, long NextOffset);
 
 /// <summary>
 /// MQ Topic 保留窗口与运行期 retention 参数响应。
