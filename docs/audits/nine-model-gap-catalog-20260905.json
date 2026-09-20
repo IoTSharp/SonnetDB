@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "observedAt": "2026-09-05",
   "baselineCommit": "3b5ff768adf946b09a3be11ed58a83cacb3c1696",
-  "latestLocalValidation": { "validatedAt": "2026-09-06", "baselineCommit": "e06b7b9da7a0bec47b3574ab99ccbf993eccd58f", "workingTree": "uncommitted", "scope": "M36 #323 / OBJECT-001 bounded object listing only; full #323, #322, M36 and fixed-hardware gates remain separate", "evidence": "docs/audits/object-pagination-20260906.md" },
+  "latestLocalValidation": { "validatedAt": "2026-09-20", "baselineCommit": "89d0054b", "workingTree": "clean", "scope": "M36 #323 / OBJECT-001 bounded object listing plus #322 transfer-manager local regression; full #323, fixed-hardware, crash/unknown-complete and production gates remain separate", "evidence": "docs/audits/object-pagination-20260906.md; docs/audits/object-transfer-validation-20260920.md; docs/object-transfer-manager.md" },
   "scope": "Source and product workflow audit plus explicitly recorded local validation; not production certification",
   "overallStatus": "partial",
   "statusContract": {
