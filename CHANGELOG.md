@@ -9,6 +9,9 @@
 ### Fixed
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
 
+### Changed
+- **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
+
 ### Added
 
 - **M36 #322 Object Transfer Manager**：新增 `SndbObjectTransferManager`，提供固定缓冲的流式上传/下载、自动 multipart 阈值、分片有界并发、校验和、仅对幂等分片的安全重试、原子恢复清单、取消清理、批量逐对象结果和传输进度；complete/普通 PUT 在发送后保持未知结果边界。详见 [对象传输说明](docs/object-transfer-manager.md)。

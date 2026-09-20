@@ -2,7 +2,7 @@
 
 **核查日期：2026-09-20；追加 2026-09-19~20 的 M36 #311/#314/#315/#321/#323、本地旅程与证据门禁复核**
 
-**本批实现基线：52a5be03（2026-09-19 主分支；本地未提交切片另见工作区审计）**
+**本批实现基线：5d69ff65（2026-09-20 `main`；对象传输代码与文档已提交，固定硬件/现场证据仍按后置门禁执行）**
 
 本文把此前关于 IoTDB、TDengine、TimechoAI、多模型数据库、AI/RAG、生产验证和数据库榜单的结论重新核对，并收敛为一个总里程碑。它是路线图的产品级收口，不替代 M19、M20、M25、M27、M35、M36、M40、M41、M42 的具体实现任务。
 
@@ -118,8 +118,8 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 9 | #319 | M36 | GPT-5.6 Sol / high | 🚧 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与同步可观察 rebuild status 已接通 Core/Data/Server；schema v7 兼容旧版本读取，远程现场与容量证据后置。 |
 | 10 | #320 | M36 | GPT-5.6 Sol / high | 🚧 | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
 | 11 | #321 | M36 | GPT-5.6 Sol / high | 🚧 | 已补嵌入式真实 catalog/profile 预检、只读已加载图状态与显式 HNSW 图安全重建；候选图成功后替换，失败/取消保留旧图，真实计数/终态独立可读。主文档/持久向量 KV 修复的安全重建、远程 lifecycle、通用 ANN/scan/补偿解释和 Recall/固定硬件报告待完成，复用 #297/#298。 |
-| 12 | #322 | M36 | GPT-5.6 Sol / high | 🚧 | 已新增 `SndbObjectTransferManager`：流式临时文件、自动 multipart、分片有界并发、checksum、幂等分片安全重试、原子 resume manifest、进度、取消与资源释放；固定硬件、断电未知结果和跨进程现场证据待补。 |
-| 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。固定硬件、高变更率和完整传输仍单独验收。 |
+| 12 | #322 | M36 | GPT-5.6 Sol / high | ✅ | `SndbObjectTransferManager` 代码切片、本地回归与 AOT/trim 门禁已完成：流式临时文件、自动 multipart、分片有界并发、checksum、幂等分片安全重试、原子且落盘的 resume manifest、逐对象结果、原子文件下载、进度、取消与资源释放；固定硬件、大文件内存、断电未知结果和跨进程现场证据仍按后置门禁执行。 |
+| 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。本机 quick/full 高变更率预检已通过，但固定硬件、高变更率现场对账和完整传输仍单独验收，见[验证状态](audits/object-transfer-validation-20260920.md)。 |
 | 14 | #324 | M36 | GPT-6 Astra / high | 📋 | MQ producer/consumer builder、push/pull、prefetch、ack、背压与 graceful drain。 |
 | 15 | #325 | M36 | GPT-6 Astra / high | 📋 | MQ nack/redelivery/DLQ、去重窗口、offset reset、lag 与丢弃原因诊断。 |
 | 16 | #326（代码） | M36 | GPT-6 Astra / high | 📋 | VS Code Graph 最小浏览/查询入口，以及 instance MQ/consumer offset 一致快照与恢复；单库包不包含 Server 实例 MQ。 |

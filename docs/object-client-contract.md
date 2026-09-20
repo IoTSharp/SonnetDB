@@ -1,6 +1,6 @@
 # Object 客户端取消与目标合同
 
-本页对应 M36 #311 的 Object SDK 切片。复用既有 `SndbObjectStorageClient`、对象列表与 multipart 接口，不实现 #322 Transfer Manager，也不把完整九模型合同标为完成。
+本页对应 M36 #311 的 Object SDK 切片。复用既有 `SndbObjectStorageClient`、对象列表与 multipart 接口；完整文件传输由已独立交付的 M36 #322 `SndbObjectTransferManager` 负责，#311 本页不扩大其合同，也不把完整九模型合同标为完成。
 
 ## 取消、超时与响应资源
 

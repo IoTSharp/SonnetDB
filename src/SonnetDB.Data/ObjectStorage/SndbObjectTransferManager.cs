@@ -71,6 +71,7 @@ public sealed class SndbObjectTransferManager
 {
     private readonly SndbObjectStorageClient _client;
     private readonly SndbObjectTransferOptions _options;
+    private readonly object _manifestGate = new();
 
     /// <summary>创建对象传输管理器。</summary>
     public SndbObjectTransferManager(SndbObjectStorageClient client, SndbObjectTransferOptions? options = null)
@@ -153,6 +154,60 @@ public sealed class SndbObjectTransferManager
     }
 
     /// <summary>
+    /// 下载对象到文件，并在校验成功后以原子替换方式发布目标文件。
+    /// </summary>
+    public async Task<SndbObjectTransferResult> DownloadToFileAsync(
+        string bucket,
+        string key,
+        string destinationPath,
+        IProgress<SndbObjectTransferProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string fullPath = Path.GetFullPath(destinationPath);
+        string? directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        string temporaryPath = fullPath + ".sndb-download-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            SndbObjectTransferResult result;
+            await using (var output = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                128 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                result = await DownloadAsync(
+                    bucket,
+                    key,
+                    output,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                output.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, fullPath, overwrite: true);
+            return result;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
     /// 按输入顺序返回逐对象结果；单个对象失败不会丢弃同批其它对象。
     /// </summary>
     public async Task<IReadOnlyList<SndbObjectTransferItemResult>> UploadManyAsync(
@@ -173,7 +228,12 @@ public sealed class SndbObjectTransferManager
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                SndbObjectTransferResult result = await UploadAsync(
+                SndbObjectTransferManager transfer = string.IsNullOrWhiteSpace(_options.ResumeManifestPath)
+                    ? this
+                    : new SndbObjectTransferManager(
+                        _client,
+                        _options with { ResumeManifestPath = GetBatchManifestPath(_options.ResumeManifestPath!, source.Bucket, source.Key) });
+                SndbObjectTransferResult result = await transfer.UploadAsync(
                     source.Bucket,
                     source.Key,
                     source.Content,
@@ -216,31 +276,35 @@ public sealed class SndbObjectTransferManager
             throw new ArgumentOutOfRangeException(nameof(length), "对象分片数不能超过 10000。");
         var parts = new SndbMultipartPartInfo[partCount];
         bool resumed = false;
-        SndbMultipartUploadInfo upload;
+        SndbMultipartUploadInfo? upload = null;
+        bool manifestPersisted = false;
         TransferManifest? manifest = LoadManifest(bucket, key, length, sourceSha256);
-        if (manifest is not null && manifest.PartSizeBytes == _options.PartSizeBytes)
-        {
-            upload = new SndbMultipartUploadInfo(
-                manifest.Bucket,
-                manifest.Key,
-                manifest.UploadId,
-                manifest.ContentType,
-                DateTimeOffset.MinValue,
-                DateTimeOffset.MaxValue,
-                manifest.Metadata,
-                manifest.Tags);
-            foreach (TransferManifestPart part in manifest.Parts.Where(part => part.PartNumber >= 1 && part.PartNumber <= partCount))
-                parts[part.PartNumber - 1] = new SndbMultipartPartInfo(part.PartNumber, part.SizeBytes, part.ETag, part.Sha256);
-            resumed = true;
-        }
-        else
-        {
-            upload = await _client.InitiateMultipartUploadAsync(bucket, key, contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
-            SaveManifest(CreateManifest(upload, length, sourceSha256, parts));
-        }
-        using var gate = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
         try
         {
+            if (manifest is not null && manifest.PartSizeBytes == _options.PartSizeBytes && IsUsableManifest(manifest, partCount))
+            {
+                upload = new SndbMultipartUploadInfo(
+                    manifest.Bucket,
+                    manifest.Key,
+                    manifest.UploadId,
+                    manifest.ContentType,
+                    DateTimeOffset.MinValue,
+                    DateTimeOffset.MaxValue,
+                    manifest.Metadata,
+                    manifest.Tags);
+                foreach (TransferManifestPart part in manifest.Parts.Where(part => part.PartNumber >= 1 && part.PartNumber <= partCount))
+                    parts[part.PartNumber - 1] = new SndbMultipartPartInfo(part.PartNumber, part.SizeBytes, part.ETag, part.Sha256);
+                resumed = true;
+                manifestPersisted = !string.IsNullOrWhiteSpace(_options.ResumeManifestPath);
+            }
+            else
+            {
+                upload = await _client.InitiateMultipartUploadAsync(bucket, key, contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
+                SaveManifest(CreateManifest(upload, length, sourceSha256, parts));
+                manifestPersisted = !string.IsNullOrWhiteSpace(_options.ResumeManifestPath);
+            }
+
+            using var gate = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
             var workers = Enumerable.Range(0, partCount).Select(async index =>
             {
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -251,8 +315,9 @@ public sealed class SndbObjectTransferManager
                     long size = Math.Min(_options.PartSizeBytes, length - offset);
                     if (parts[index] is null)
                     {
-                        parts[index] = await UploadPartWithRetryAsync(upload, sourcePath, partNumber, offset, size, length, partCount, progress, cancellationToken).ConfigureAwait(false);
-                        SaveManifest(CreateManifest(upload, length, sourceSha256, parts));
+                        parts[index] = await UploadPartWithRetryAsync(upload!, sourcePath, partNumber, offset, size, length, partCount, progress, cancellationToken).ConfigureAwait(false);
+                        SaveManifest(CreateManifest(upload!, length, sourceSha256, parts));
+                        manifestPersisted = !string.IsNullOrWhiteSpace(_options.ResumeManifestPath);
                     }
                     else
                     {
@@ -269,7 +334,7 @@ public sealed class SndbObjectTransferManager
             SndbObjectInfo info = await _client.CompleteMultipartUploadAsync(
                 bucket,
                 key,
-                upload.UploadId,
+                upload!.UploadId,
                 parts.Select(static part => part.PartNumber).ToArray(),
                 cancellationToken).ConfigureAwait(false);
             VerifyChecksum(info, sourceSha256);
@@ -279,7 +344,7 @@ public sealed class SndbObjectTransferManager
         catch
         {
             // 取消/失败时保留 manifest 只在调用方明确配置恢复路径时发生；否则清理服务端会话。
-            if (string.IsNullOrWhiteSpace(_options.ResumeManifestPath))
+            if (upload is not null && (string.IsNullOrWhiteSpace(_options.ResumeManifestPath) || !manifestPersisted))
             {
                 try { await _client.AbortMultipartUploadAsync(bucket, key, upload.UploadId, CancellationToken.None).ConfigureAwait(false); }
                 catch (Exception exception) when (exception is IOException or HttpRequestException or SndbServerException) { }
@@ -350,15 +415,18 @@ public sealed class SndbObjectTransferManager
             return null;
         try
         {
-            byte[] bytes = File.ReadAllBytes(_options.ResumeManifestPath);
-            TransferManifest? manifest = JsonSerializer.Deserialize(bytes, SndbObjectClientJsonContext.Default.TransferManifest);
-            return manifest is not null
-                && string.Equals(manifest.Bucket, bucket, StringComparison.Ordinal)
-                && string.Equals(manifest.Key, key, StringComparison.Ordinal)
-                && manifest.Length == length
-                && string.Equals(manifest.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
-                ? manifest
-                : null;
+            lock (_manifestGate)
+            {
+                byte[] bytes = File.ReadAllBytes(_options.ResumeManifestPath);
+                TransferManifest? manifest = JsonSerializer.Deserialize(bytes, SndbObjectClientJsonContext.Default.TransferManifest);
+                return manifest is not null
+                    && string.Equals(manifest.Bucket, bucket, StringComparison.Ordinal)
+                    && string.Equals(manifest.Key, key, StringComparison.Ordinal)
+                    && manifest.Length == length
+                    && string.Equals(manifest.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
+                    ? manifest
+                    : null;
+            }
         }
         catch (Exception exception) when (exception is IOException or JsonException)
         {
@@ -389,16 +457,23 @@ public sealed class SndbObjectTransferManager
         string directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         string temporary = path + ".tmp." + Guid.NewGuid().ToString("N");
-        try
+        lock (_manifestGate)
         {
-            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(manifest, SndbObjectClientJsonContext.Default.TransferManifest);
-            File.WriteAllBytes(temporary, bytes);
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            try { if (File.Exists(temporary)) File.Delete(temporary); }
-            catch (IOException) { }
+            try
+            {
+                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(manifest, SndbObjectClientJsonContext.Default.TransferManifest);
+                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.SequentialScan))
+                {
+                    stream.Write(bytes);
+                    stream.Flush(flushToDisk: true);
+                }
+                File.Move(temporary, path, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(temporary)) File.Delete(temporary); }
+                catch (IOException) { }
+            }
         }
     }
 
@@ -428,7 +503,29 @@ public sealed class SndbObjectTransferManager
     private void DeleteManifest()
     {
         if (!string.IsNullOrWhiteSpace(_options.ResumeManifestPath))
-            File.Delete(_options.ResumeManifestPath);
+        {
+            lock (_manifestGate)
+            {
+                try { File.Delete(_options.ResumeManifestPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
+
+    private static bool IsUsableManifest(TransferManifest manifest, int partCount)
+        => !string.IsNullOrWhiteSpace(manifest.UploadId)
+            && manifest.Metadata is not null
+            && manifest.Tags is not null
+            && manifest.Parts is not null
+            && manifest.Parts.All(static part => part is not null && part.PartNumber >= 1 && !string.IsNullOrWhiteSpace(part.ETag) && part.SizeBytes > 0)
+            && manifest.Parts.Select(static part => part.PartNumber).Distinct().Count() == manifest.Parts.Length
+            && manifest.Parts.All(part => part.PartNumber <= partCount);
+
+    private static string GetBatchManifestPath(string basePath, string bucket, string key)
+    {
+        byte[] identity = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(bucket + "\n" + key));
+        return Path.GetFullPath(basePath) + "." + Convert.ToHexString(identity).ToLowerInvariant() + ".json";
     }
 
     private static void TryDeleteDirectory(string path)

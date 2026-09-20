@@ -91,10 +91,7 @@ internal sealed partial class CliApplication
 
     private static async Task DownloadObjectAsync(SndbObjectTransferManager transfer, ObjectLocation source, string filePath)
     {
-        string? parent = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-        await using var output = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await transfer.DownloadAsync(source.Bucket!, source.KeyPrefix!, output).ConfigureAwait(false);
+        await transfer.DownloadToFileAsync(source.Bucket!, source.KeyPrefix!, filePath).ConfigureAwait(false);
     }
 
     private static ObjectTransferOptions ParseObjectTransferOptions(IReadOnlyList<string> args, string command, bool requireDryRun)

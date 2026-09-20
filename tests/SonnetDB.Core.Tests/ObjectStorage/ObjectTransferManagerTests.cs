@@ -57,6 +57,32 @@ public sealed class ObjectTransferManagerTests
     }
 
     [Fact]
+    public async Task DownloadToFileAsync_PublishesOnlyAfterChecksum()
+    {
+        byte[] expected = Encoding.UTF8.GetBytes("verified object");
+        string directory = Path.Combine(Path.GetTempPath(), "sndb-transfer-test-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(directory, "object.bin");
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(path, "old content");
+        try
+        {
+            using var handler = new TransferHandler(expected, corruptDownloadChecksum: true);
+            using var http = new HttpClient(handler) { BaseAddress = new Uri("http://object-transfer.test/") };
+            using var client = new SndbObjectStorageClient(
+                "Data Source=sonnetdb+http://object-transfer.test/testdb;Protocol=rest;Timeout=30", http);
+            var manager = new SndbObjectTransferManager(client);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => manager.DownloadToFileAsync("media", "broken.bin", path));
+            Assert.Equal("old content", await File.ReadAllTextAsync(path));
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.sndb-download-*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task UploadAsync_WithManifest_ResumesExistingMultipartSession()
     {
         byte[] source = Enumerable.Range(0, 20).Select(static value => (byte)value).ToArray();
@@ -74,6 +100,32 @@ public sealed class ObjectTransferManagerTests
 
         Assert.True(resumed.Resumed);
         Assert.False(File.Exists(manifest));
+    }
+
+    [Fact]
+    public async Task UploadAsync_ResumedFailure_PreservesManifestForAnotherAttempt()
+    {
+        byte[] source = Enumerable.Range(0, 20).Select(static value => (byte)value).ToArray();
+        string manifest = Path.Combine(Path.GetTempPath(), "sndb-transfer-" + Guid.NewGuid().ToString("N") + ".json");
+        using var handler = new TransferHandler(failPartNumber: 2, failPartAttempts: 2);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://object-transfer.test/") };
+        using var client = new SndbObjectStorageClient(
+            "Data Source=sonnetdb+http://object-transfer.test/testdb;Protocol=rest;Timeout=30", http);
+        var manager = new SndbObjectTransferManager(client, new SndbObjectTransferOptions(8, 5, 1, 0, manifest));
+        try
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => manager.UploadAsync("media", "resume-again.bin", new MemoryStream(source)));
+            await Assert.ThrowsAsync<HttpRequestException>(() => manager.UploadAsync("media", "resume-again.bin", new MemoryStream(source)));
+            Assert.True(File.Exists(manifest));
+
+            SndbObjectTransferResult result = await manager.UploadAsync("media", "resume-again.bin", new MemoryStream(source));
+            Assert.True(result.Resumed);
+            Assert.False(File.Exists(manifest));
+        }
+        finally
+        {
+            try { if (File.Exists(manifest)) File.Delete(manifest); } catch (IOException) { }
+        }
     }
 
     [Fact]
@@ -98,17 +150,28 @@ public sealed class ObjectTransferManagerTests
 
     private sealed class TransferHandler : HttpMessageHandler
     {
-        private readonly Dictionary<int, byte[]> _parts = [];
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte[]> _parts = new();
         private readonly byte[] _download;
         private readonly bool _failFirstPart;
+        private readonly bool _corruptDownloadChecksum;
+        private readonly int? _failPartNumber;
+        private int _remainingFailures;
         private bool _failed;
         private string _key = "large.bin";
         public MemoryStream CompletedContent { get; } = new();
 
-        public TransferHandler(byte[]? download = null, bool failFirstPart = false)
+        public TransferHandler(
+            byte[]? download = null,
+            bool failFirstPart = false,
+            bool corruptDownloadChecksum = false,
+            int? failPartNumber = null,
+            int failPartAttempts = 0)
         {
             _download = download ?? [];
             _failFirstPart = failFirstPart;
+            _corruptDownloadChecksum = corruptDownloadChecksum;
+            _failPartNumber = failPartNumber ?? (failFirstPart ? 1 : null);
+            _remainingFailures = failFirstPart ? 1 : failPartAttempts;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -121,12 +184,14 @@ public sealed class ObjectTransferManagerTests
 
             if (request.Method == HttpMethod.Put && request.RequestUri!.Query.Contains("uploadId", StringComparison.Ordinal))
             {
-                if (_failFirstPart && !_failed)
+                int requestedPart = int.Parse(ParseQuery(request.RequestUri.Query, "partNumber"));
+                if ((_failFirstPart && !_failed) || (_failPartNumber == requestedPart && _remainingFailures > 0))
                 {
                     _failed = true;
+                    _remainingFailures--;
                     throw new HttpRequestException("simulated part failure");
                 }
-                int partNumber = int.Parse(ParseQuery(request.RequestUri.Query, "partNumber"));
+                int partNumber = requestedPart;
                 byte[] bytes = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
                 _parts[partNumber] = bytes;
                 return Json(new { partNumber, sizeBytes = bytes.Length, eTag = "\"part-" + partNumber + "\"", sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant() });
@@ -156,7 +221,9 @@ public sealed class ObjectTransferManagerTests
                 };
                 response.Content.Headers.ContentType = new("application/octet-stream");
                 response.Headers.TryAddWithoutValidation("ETag", "\"download\"");
-                response.Headers.TryAddWithoutValidation("x-amz-meta-sha256", Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
+                response.Headers.TryAddWithoutValidation(
+                    "x-amz-meta-sha256",
+                    _corruptDownloadChecksum ? new string('0', 64) : Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
                 return response;
             }
 
