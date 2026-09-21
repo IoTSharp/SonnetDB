@@ -26,12 +26,26 @@ $updatedIds = @($snapshot.issueMetadata.updatedAtById.psobject.Properties.Name |
 if ((Compare-Object -ReferenceObject $expectedIds -DifferenceObject $updatedIds).Count -ne 0) {
     throw 'Issue metadata does not contain one updatedAt value for every issue.'
 }
+if ($snapshot.currentState.commit -ne '9c4de6e9') { throw 'Current issue state must reference commit 9c4de6e9.' }
+if ($snapshot.currentState.closedCount -ne 17 -or $snapshot.currentState.openCount -ne 8) {
+    throw "Unexpected current issue counts: closed=$($snapshot.currentState.closedCount), open=$($snapshot.currentState.openCount)"
+}
+$expectedClosed = @(89, 91, 171, 172, 173, 174, 175, 176, 178, 179, 181, 182, 183, 185, 186, 188, 192 | Sort-Object)
+$expectedCurrentOpen = @(177, 180, 184, 187, 189, 190, 191, 193 | Sort-Object)
+$actualClosed = @($snapshot.currentState.closedImplementedScope | Sort-Object)
+$actualCurrentOpen = @($snapshot.currentState.open | Sort-Object)
+if ((Compare-Object -ReferenceObject $expectedClosed -DifferenceObject $actualClosed).Count -ne 0) {
+    throw 'Current closedImplementedScope does not match the verified closed issue set.'
+}
+if ((Compare-Object -ReferenceObject $expectedCurrentOpen -DifferenceObject $actualCurrentOpen).Count -ne 0) {
+    throw 'Current open issue set does not match the remaining unimplemented issue set.'
+}
 
 $seen = @{}
 foreach ($issue in $issues) {
     if ($seen.ContainsKey($issue.id)) { throw "Duplicate issue id: $($issue.id)" }
     $seen[$issue.id] = $true
-    if ($issue.status -ne 'open' -and $issue.status -ne 'implemented_pending_verification') {
+    if ($issue.status -notin @('open', 'implemented_pending_verification', 'closed_implemented_scope')) {
         throw "Unexpected status for issue $($issue.id): $($issue.status)"
     }
     if ([string]::IsNullOrWhiteSpace($issue.title) -or $issue.roadmap.Count -lt 1) {

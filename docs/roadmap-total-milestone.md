@@ -215,14 +215,14 @@ M43 是总收口里程碑，不要求把所有实现集中在一个 PR，也不�
 
 ### 外部 GitHub Issues（2026-09-21 快照）
 
-GitHub 仓库当日公开快照包含 25 个 open issue、0 个 closed issue；标签和 milestone 均为空。完整编号、更新时间、标题、依赖和证据边界见 [`docs/github-issues-roadmap.md`](github-issues-roadmap.md) 与 [`docs/audits/github-issues-20260921.json`](audits/github-issues-20260921.json)。这些编号必须写成 `GH-Issue #N`，因为它们与内部 M/PR 编号重叠（例如 GH-Issue #174 不是内部 M25 #174，GH-Issue #185 不是 M27 Provider #185）。
+GitHub 仓库 2026-09-21 公开快照包含 25 个 open issue、0 个 closed issue；标签和 milestone 均为空。随后基于提交 `9c4de6e9`，其中 17 个有界实现已评论并以 `completed` 关闭，8 个仍保持 open。完整编号、更新时间、依赖、当前状态和证据边界见 [`docs/github-issues-roadmap.md`](github-issues-roadmap.md) 与 [`docs/audits/github-issues-20260921.json`](audits/github-issues-20260921.json)。这些编号必须写成 `GH-Issue #N`，因为它们与内部 M/PR 编号重叠（例如 GH-Issue #174 不是内部 M25 #174，GH-Issue #185 不是 M27 Provider #185）。
 
 外部队列归入 M43 Step 2，按以下顺序推进：
 
 1. SQL 基础：GH-Issue #171 → #178 → #172 → #173 → #174 → #175 → #176 → #179 → #181 → #182 → #183 → #192；#189（`WITH RECURSIVE`）依赖 #171/#178。
 2. SQL DML、并发与 DDL：GH-Issue #177 → #191/#184 → #190 → #187 → #188。
 3. 模型、驱动与管理：GH-Issue #193 → #186 → #185；GH-Issue #180 可在元数据合同稳定后并行。
-4. GH-Issue #89/#91 只做现有 MCP/管理工作台入口复核；在取得独立证据前不得重复实现或标记 closed。
+4. GH-Issue #89/#91 已完成现有 MCP/管理工作台入口复核并以 `closed_implemented_scope` 关闭；独立部署和真机证据仍归 M27/M29 后续验收，不重复实现。
 
 每个外部 issue 必须单独绑定实现合同、确定性回归、AOT/协议影响（如适用）和 `PASS` / `NOT_READY` / `DEFERRED` 证据；快照中的 `open` 不是实现状态。
 
