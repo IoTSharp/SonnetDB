@@ -16,6 +16,30 @@
 
 ### Added
 
+- **GH-Issue #177 标准关系表 JOIN**：关系 SQL 新增 `RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`，保留声明顺序、SQL 三值 `ON` 条件、外连接 `NULL` 扩展和笛卡尔积语义；右/全外连接使用有界嵌套循环，既有 INNER/LEFT 的 hash、索引和 merge 计划保持不变，右侧未匹配行补发循环逐行检查取消。measurement JOIN 明确继续只支持单个 INNER JOIN，并对这三类标准连接返回稳定的不支持错误。新增解析、右侧/两侧未匹配、重复键和笛卡尔积回归；本轮定向 JOIN/解析测试 99/99 通过。固定硬件、远程 parity 和大规模笛卡尔积容量证据仍未执行。
+- **GH-Issue #180 JSON 标量/数组查询**：注册 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)`，关系表 JSON 列与 Document 集合共用 `JsonPath`/`JsonDocument` 实现，支持参数化 path、JSON `null` 与缺失区分、数组无序子集及对象字段子集。输入、path、嵌套深度、集合大小和对象属性/数组配对比较次数均有明确上限（每次 `json_contains` 最多 1,000,000 次结构比较），不使用反射序列化；新增关系/Document/NULL/非法输入/资源边界回归，定向测试 4/4 通过。远程 Frame/parity、复杂 JSON 索引下推和真实大语料性能仍待验证。
+- **GH-Issue #193 关系表 VECTOR/GEOPOINT 边界**：关系表 DDL 对 `VECTOR(dim)` 与 `GEOPOINT` 保持明确、稳定的拒绝错误，避免把 measurement/Document 专用类型误写成关系表已支持；新增解析器边界回归和 SQL 参考说明。跨模型 typed journey、远程 metadata parity 和完整关系列支持仍未承诺。
+- **M42 KV state 独立磁盘读预算**：`KvOptions.MaxConcurrentStateReads`（默认 8）在同一嵌入式数据库的 keyspace 之间共享有界 RandomAccess 许可；等待观察取消，不持有 keyspace 写锁，完成读字节与等待时延接入 `SonnetDbMeter`，峰值并发和取消次数保留为预算对象内部统计并由测试断言。补齐 manager/standalone keyspace、checkpoint、游标和延迟释放的预算引用生命周期，异常/取消路径释放许可；新增 3 项预算并发、取消、生命周期回归，KV state/游标回归 15/15 通过。该预算不替代固定 x64/ARM64、冷启动、恢复或 168 小时 I/O 门禁，均保留在真机验证计划。
+
+<a id="roadmap-completed-archive-2026-09-21"></a>
+
+#### 路线图完成项归档（2026-09-21）
+
+本节接收 `docs/roadmap-total-milestone.md` 中已经完成实现、入口、自动化回归和本地门禁的明细；路线图只保留仍有未闭环实现或待执行证据的项目。下表是归档索引，既有同编号的详细变更仍以本文件本节及后续条目为准：
+
+| 归档范围 | 已完成内容 | 仍保留的边界 |
+|---|---|---|
+| M0~M13、M15~M18、M21、M23、M24、M26、M28、M30、M31、M33、M34、M37~M39、MM9 | 存储/查询/Server、函数与向量底座、空间与 Copilot UX、Document 管理、连接器、协议接入、Modbus、视图/触发器和第一批备份恢复的代码与本地回归已交付。 | 固定硬件、部署安装、生产混合负载和长期 SLO 仍按 [真机验证待办](ROADMAP.md#真机验证待办) 执行；M14 Copilot 和其他未闭环项不在本归档内；本条不表示生产 PASS。 |
+| M35 #297、#299~#301、#304、#306~#309 | 语义内容清单、持久摄取/重启恢复、provider 治理、图文检索、媒体片段和专业视觉的合同与嵌入式入口已完成。 | #298/#303 的检索质量，#302/#305 的真实模型、容量、回滚和固定硬件证据仍为 `NOT_READY`/`DEFERRED`，详见 [M35 证据合同](docs/m35-filtered-search-budgets.md)。 |
+| M36 #311~#326（代码范围） | 九模型客户端取消/目标绑定、时序/KV/全文/向量/对象/MQ typed API、传输与实例恢复代码、Server/SDK/CLI/Studio 合同和本地回归已完成。 | #310/#311/#326 的九模型 golden journey、远程 parity、跨进程恢复、容量和长期证据仍在独立验收队列，详见 [总路线图](docs/roadmap-total-milestone.md)。 |
+| M40 #341~#367（步骤 1~7） | Native Graph Preview/Beta 的存储、SQL/PGQ、planner、恢复、运维面、strict evaluator 和本地自动化门禁已闭环。 | Neo4j/PostgreSQL 对拍、LDBC/Graphalytics、固定硬件、Native AOT、Couplet C2~C4、kill/reopen 和 7 天 mixed workload 只在现场计划中执行；Graph 继续标为 Beta。 |
+| M41 #368~#380（本地合同） | 规划器可观测性、EXISTS/OR/Top-N 快路径、谓词/投影下推、快照、统计、成本、JOIN、spill 和受控并行的代码及差分回归已完成。 | #373、#375~#380 的固定 x64/ARM64、统一语料、生产尾延迟和 7 天报告仍待执行；不能用本机短跑替代发布证据。 |
+| M43 #382~#384 | 十四能力机器索引、中英文成熟度口径和证据边界已落地。 | #385~#402 的 CDC、流处理、用户旅程、发布汇总和外部榜单仍按未完成队列推进；外部提交不由本归档自动完成。 |
+
+归档依据与当前状态以 [ROADMAP.md](ROADMAP.md)、[总里程碑](docs/roadmap-total-milestone.md) 和 [历史路线图](docs/roadmap-history.md) 为准。`✅` 仅表示相应代码/文档范围完成；任何 `🟡`、`🚧`、`⏳`、`❌` 或 `DEFERRED` 的现场、远程、容量、质量和长期证据均未被本次归档提升为 PASS。
+
+- **标准 JOIN 语义切片（本轮工作树验证）**：关系表解析与执行新增 `RIGHT JOIN`、`FULL JOIN`、`CROSS JOIN`，保持 NULL 扩展与笛卡尔积语义；measurement 路径继续明确拒绝这三类 JOIN。`dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~RelationalStandardJoinTests"`：4/4 PASS；兼容回归 `dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~RelationalJoinAlgorithmTests|FullyQualifiedName~SqlParserTests"`：95/95 PASS。以上为本轮工作树验证，不代表远程 CI、固定硬件或真机证据。
+
 - **GH-Issue #181 `DECIMAL` / `NUMERIC` 精确类型**：补齐有界 `DECIMAL(precision, scale)` / `NUMERIC` 解析、`System.Decimal` CAST 与算术，关系表使用 16-byte decimal payload 和 schema format v9 保存精确值；嵌入式/远程 ADO.NET `Columns` schema 投影声明的 precision/scale；`SqlDecimalTests` 5/5、`SqlCastTests` 9/9 通过，并新增 `DECIMAL(18,4)` 元数据回归。远程 Frame parity、超出 `System.Decimal` 的溢出/scale enforcement 与外部 issue 线程确认仍待执行。
 - **GH-Issue #182 `TIME` / `TimeOnly` 精确类型**：关系表支持 `TIME` DDL、`TimeOnly` ticks 的 8-byte 持久化、`TIME` CAST、`TimeOnly`/`TimeSpan` 参数绑定、当天范围比较和嵌入式 ADO.NET `TIME`/`TimeOnly` 元数据；schema format 升至 v10。`SqlTimeTests` 3/3、ADO TIME 回归 1/1 通过；`24:00:00`、跨日值和 DATETIME/DateTimeOffset 到 TIME 的隐式转换明确拒绝，远程 typed TIME/Frame parity 与外部 issue 线程确认仍待执行。
 - **M43 #383/#384 十四能力证据索引与成熟度口径**：新增 `docs/audits/fourteen-capability-evidence-index.json` 及 PowerShell 7 校验脚本，冻结十四项能力的稳定 ID、类别、路线图、真实入口、证据路径和边界；README 中英文与 `docs/capability-maturity.md` 统一 `supported` / `partial` / `planned` / `not_planned` / `beta` 状态合同，并明确 Graph Beta、单库备份不含实例级 SonnetMQ 及未验证证据边界。完整固定硬件、远程、恢复和长期证据仍按后续路线推进。

@@ -34,14 +34,15 @@ public sealed class SqlStringFunctionTests : IDisposable
                    trim(value) AS trimmed,
                    substring(value, 2, 3) AS middle,
                    length(value) AS length,
-                   replace(value, 'l', 'L') AS replaced
+                   replace(value, 'l', 'L') AS replaced,
+                   right(value, 2) AS suffix
             FROM strings
             ORDER BY id
             """));
 
-        Assert.Equal(new object?[] { 1L, "Hello", " He", 9L, "  HeLLo  " }, projected.Rows[0]);
-        Assert.Equal(new object?[] { 2L, "shell", "hel", 5L, "sheLL" }, projected.Rows[1]);
-        Assert.Equal(new object?[] { 3L, null, null, null, null }, projected.Rows[2]);
+        Assert.Equal(new object?[] { 1L, "Hello", " He", 9L, "  HeLLo  ", "  " }, projected.Rows[0]);
+        Assert.Equal(new object?[] { 2L, "shell", "hel", 5L, "sheLL", "ll" }, projected.Rows[1]);
+        Assert.Equal(new object?[] { 3L, null, null, null, null, null }, projected.Rows[2]);
 
         var filtered = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
             "SELECT id FROM strings WHERE contains(value, 'ell') OR starts_with(value, '  He') ORDER BY id"));

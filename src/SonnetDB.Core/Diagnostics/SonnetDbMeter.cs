@@ -108,9 +108,25 @@ public static class SonnetDbMeter
         "sonnetdb.kv.state.read.duration", unit: "ms",
         description: "Latency of a positional read from an immutable KV state file.");
 
+    /// <summary>等待 KV state 随机读许可的时延。</summary>
+    internal static readonly Histogram<double> KvStateReadWaitDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.kv.state.read.wait.duration", unit: "ms",
+        description: "Time spent waiting for an embedded KV state read permit.");
+
     /// <summary>仅在 KV state 读取耗时直方图启用时取得计时起点。</summary>
     internal static long StartKvStateReadTiming()
         => KvStateReadDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
+    /// <summary>仅在 KV state 读许可等待直方图启用时取得计时起点。</summary>
+    internal static long StartKvStateReadWaitTiming()
+        => KvStateReadWaitDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
+    /// <summary>记录一次 KV state 读许可等待。</summary>
+    internal static void RecordKvStateReadWait(long startTimestamp)
+    {
+        if (startTimestamp != 0 && KvStateReadWaitDuration.Enabled)
+            KvStateReadWaitDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+    }
 
     /// <summary>记录一次已完成的 KV state payload 读取及其 SQL 物理读归属。</summary>
     internal static void RecordKvStateRead(long startTimestamp, int bytes)

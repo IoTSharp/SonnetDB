@@ -3,6 +3,8 @@
 本文件归档 SonnetDB 早期路线图的详细正文，避免主路线图被已完成实现细节淹没。
 
 > 当前路线图见 [ROADMAP.md](../ROADMAP.md)。
+>
+> 2026-09-21 起，已经完成的当前实现与本地门禁以 [`CHANGELOG.md` 路线图归档](../CHANGELOG.md#roadmap-completed-archive-2026-09-21)为准；本文件只承担历史追溯，不代表现场、远程、容量或生产证据已通过。
 
 ---
 

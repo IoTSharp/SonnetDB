@@ -48,7 +48,7 @@ internal static class KvStateFile
         long generation = 0)
         => Save(path, SegmentMagic, sequence, orderedValues, count, generation);
 
-    public static KvDiskState OpenDiskState(string path)
+    public static KvDiskState OpenDiskState(string path, KvDiskReadBudget? readBudget = null)
     {
         ArgumentNullException.ThrowIfNull(path);
 
@@ -120,7 +120,7 @@ internal static class KvStateFile
         if (fs.Position != fs.Length)
             throw new InvalidDataException("KV state file contains trailing data.");
 
-        return new KvDiskState(path, header.Sequence, header.Generation, entries);
+        return new KvDiskState(path, header.Sequence, header.Generation, entries, readBudget);
     }
 
     public static KvStateSnapshot Load(string path)
@@ -385,6 +385,8 @@ internal sealed class KvDiskState : IDisposable
     private readonly KvDiskIndexEntry[] _entries;
     private readonly FileStream _stream;
     private readonly SafeFileHandle _readHandle;
+    private readonly KvDiskReadBudget _readBudget;
+    private readonly bool _ownsReadBudget;
     private int _referenceCount = 1;
     private bool _ownerReleased;
     private bool _disposed;
@@ -398,7 +400,12 @@ internal sealed class KvDiskState : IDisposable
     /// <summary>测试并发按位置读取进入实际 I/O 前的时机。</summary>
     internal Action? ReadStartedTestHook { get; set; }
 
-    public KvDiskState(string path, long sequence, long generation, IReadOnlyList<KvDiskIndexEntry> entries)
+    public KvDiskState(
+        string path,
+        long sequence,
+        long generation,
+        IReadOnlyList<KvDiskIndexEntry> entries,
+        KvDiskReadBudget? readBudget = null)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(entries);
@@ -406,13 +413,26 @@ internal sealed class KvDiskState : IDisposable
         Sequence = sequence;
         Generation = generation;
         _entries = entries.ToArray();
-        _stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read | FileShare.Delete);
-        // 构造时只暴露一次句柄，避免每次点读触发 FileStream 的 Flush/Seek 兼容逻辑。
-        _readHandle = _stream.SafeFileHandle;
+        _ownsReadBudget = readBudget is null;
+        _readBudget = readBudget ?? new KvDiskReadBudget(KvDiskReadBudget.DefaultMaxConcurrentReads);
+        _readBudget.AddStateReference();
+        try
+        {
+            _stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read | FileShare.Delete);
+            // 构造时只暴露一次句柄，避免每次点读触发 FileStream 的 Flush/Seek 兼容逻辑。
+            _readHandle = _stream.SafeFileHandle;
+        }
+        catch
+        {
+            _readBudget.ReleaseStateReference();
+            if (_ownsReadBudget)
+                _readBudget.Dispose();
+            throw;
+        }
     }
 
     public string Path { get; }
@@ -437,12 +457,15 @@ internal sealed class KvDiskState : IDisposable
     public bool Contains(ReadOnlySpan<byte> key) => FindIndex(key) >= 0;
 
     public KvValueEntry? Get(ReadOnlySpan<byte> key)
+        => Get(key, CancellationToken.None);
+
+    public KvValueEntry? Get(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
         int index = FindIndex(key);
         if (index < 0)
             return null;
 
-        return Read(_entries[index]);
+        return Read(_entries[index], cancellationToken);
     }
 
     /// <summary>
@@ -564,16 +587,22 @@ internal sealed class KvDiskState : IDisposable
     }
 
     public KvValueEntry Read(KvDiskIndexEntry entry)
+        => Read(entry, CancellationToken.None);
+
+    public KvValueEntry Read(KvDiskIndexEntry entry, CancellationToken cancellationToken)
     {
         AddReadReference();
         try
         {
+            using KvDiskReadBudget.ReadLease readLease = _readBudget.Acquire(cancellationToken);
             byte[] value = new byte[entry.ValueLength];
             ReadStartedTestHook?.Invoke();
             long readStarted = SonnetDbMeter.StartKvStateReadTiming();
-            if (ReadExactAt(value, entry.ValueOffset) < entry.ValueLength)
+            int bytesRead = ReadExactAt(value, entry.ValueOffset);
+            readLease.RecordRead(bytesRead);
+            SonnetDbMeter.RecordKvStateRead(readStarted, bytesRead);
+            if (bytesRead < entry.ValueLength)
                 throw new InvalidDataException("KV state entry value is truncated.");
-            SonnetDbMeter.RecordKvStateRead(readStarted, entry.ValueLength);
 
             var crc = new Crc32();
             crc.Append(entry.Key);
@@ -683,7 +712,16 @@ internal sealed class KvDiskState : IDisposable
             return;
 
         _disposed = true;
-        _stream.Dispose();
+        try
+        {
+            _stream.Dispose();
+        }
+        finally
+        {
+            _readBudget.ReleaseStateReference();
+            if (_ownsReadBudget)
+                _readBudget.Dispose();
+        }
     }
 
     private int FindIndex(ReadOnlySpan<byte> key)

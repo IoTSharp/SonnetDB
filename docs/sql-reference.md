@@ -145,6 +145,7 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
+- 关系表当前明确支持 `INT`、`FLOAT`、`DECIMAL/NUMERIC`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB` 和 `JSON`；`VECTOR(dim)` 与 `GEOPOINT` 在关系表 DDL 中会稳定拒绝。VECTOR/GEOPOINT 仍可用于 measurement 或 Document/Vector 专用入口，不能把关系表拒绝边界解释为跨模型 typed journey 已完成。
 - 普通列可声明 `DEFAULT <expr>`；默认表达式支持字面量、常量算术和内置标量函数，不能引用列、参数、聚合或子查询。`ROWVERSION` 列不能声明默认值。
 - `INSERT` 省略带默认值的列，或在 `VALUES` 对应位置写 `DEFAULT` 时，会在每一行写入时求值并应用目标列的默认表达式；显式写入 `NULL` 不会改用默认值。目标列没有声明显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`：可空列成功，非空列由现有约束拒绝。
 - `INSERT INTO table DEFAULT VALUES` 会为每个非 `ROWVERSION` 列使用其默认值；没有显式默认值的列产生隐式 `NULL`。`UPDATE table SET column = DEFAULT WHERE ...` 会按每个命中行重新求值默认表达式，轻事务路径保持相同语义。
@@ -622,6 +623,32 @@ WHERE guid IN (
 - 关系表 `UPDATE` / `DELETE` 的 `WHERE` 支持非相关 `IN (SELECT ...)`；子查询必须只返回一列，可使用参数、`JOIN`、派生表、`UNION`、`ORDER BY` 和分页。结果会在修改目标行前物化，并保持 `IN` / `NOT IN` 对 `NULL` 和空集的三值逻辑。
 - 写操作的 `IN` 子查询当前只接受普通关系表或 measurement 来源，不支持 document、vector/hybrid search、表值函数或引用待修改外层行的相关子查询。轻事务中如果目标表已有缓冲写，也会明确拒绝对该表执行带 `IN` 子查询的后续 `UPDATE` / `DELETE`，避免子查询看到不一致视图。
 
+### 关系表 JOIN
+
+关系表查询支持 `INNER JOIN`、`LEFT JOIN`、`RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`。连接两侧可以是关系表、关系视图、物化视图或可解析为关系行的派生表；连接结果仍按关系查询的列投影、谓词和分页规则执行。
+
+```sql
+SELECT d.id, d.name, s.name AS site_name
+FROM devices AS d
+RIGHT JOIN sites AS s ON d.site_id = s.id;
+
+SELECT d.id, s.id AS site_id
+FROM devices AS d
+FULL JOIN sites AS s ON d.site_id = s.id;
+
+SELECT d.id, r.retry_count
+FROM devices AS d
+CROSS JOIN retry_policies AS r;
+```
+
+当前语义与限制：
+
+- `RIGHT JOIN` 保留右侧的全部行；没有匹配的左侧列填充 `NULL`。`FULL JOIN` 保留两侧全部行，未匹配的一侧填充 `NULL`。`CROSS JOIN` 不使用连接谓词，返回两侧行的笛卡尔积；两侧任一为空时结果为空。
+- `RIGHT` / `FULL` 的未匹配行和匹配行按 `FROM` 中的声明顺序处理；同一查询不会为了选择算法而重排结果的声明顺序。`CROSS JOIN` 也按左侧行、再按右侧行的声明顺序产生结果。
+- `RIGHT JOIN` 和 `FULL JOIN` 当前使用有界的声明顺序嵌套循环，并保留 SQL `NULL` 扩展语义；`INNER` / `LEFT` 的 hash、索引和 merge 计划仍可按现有条件选择。`CROSS JOIN` 使用恒真连接条件，不应当用来替代缺失的过滤条件。
+- `ON` 连接条件使用 SQL 三值逻辑：条件为 `UNKNOWN`（包括连接列为 `NULL`）不算匹配；外连接随后按上述规则产生 `NULL` 扩展行。`WHERE` 在外连接完成后执行，因此对补出的列直接过滤可能把外连接结果收窄为内连接结果。
+- 单条语句仍受关系查询的行、内存和取消预算约束；笛卡尔积可能快速增长，应在 `WHERE`、`LIMIT` 或更窄的输入上使用它。
+
 ### 关系表轻事务
 
 `SqlExecutor.ExecuteScript(...)` 和服务端 `/sql/batch` 支持关系表小批量 DML 轻事务：
@@ -672,7 +699,7 @@ LIMIT 100;
 
 当前限制：
 
-- 不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN`。
+- measurement JOIN 仍只支持 `measurement INNER JOIN relation` 的单个内连接；不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN` / `CROSS JOIN`，也不把关系表 JOIN 扩展为 measurement 的外连接或笛卡尔积。
 - 不支持 measurement 与 measurement JOIN、table 与 table JOIN、多表 JOIN、子查询 JOIN。
 - JOIN 查询暂不支持聚合、`GROUP BY` 或窗口函数。
 
@@ -714,6 +741,16 @@ DROP JSON INDEX idx_device_type ON device_docs;
 DROP DOCUMENT COLLECTION device_docs;
 ```
 
+JSON 标量函数也可用于关系表的 `JSON` 列；path 可以使用 SQL 参数：
+
+```sql
+SELECT id,
+       json_exists(metadata, @path) AS has_path,
+       json_array_length(metadata, '$.tags') AS tag_count,
+       json_contains(metadata, '$.tags', @tag) AS has_tag
+FROM devices;
+```
+
 当前行为：
 
 - 文档集合固定暴露 `id` 和 `document` / `json` 两个伪列；`SELECT *` 展开为 `id, document`。
@@ -721,6 +758,10 @@ DROP DOCUMENT COLLECTION device_docs;
 - SQL `UPDATE` 使用 `SET document = '<json>'` 做整体替换；局部更新操作符通过 Document HTTP API 或 `SndbDocumentClient.UpdateOneAsync/UpdateManyAsync` 调用。
 - 单条 SQL `UPDATE` / `DELETE` 会先完成候选规划，再用一个 KV 原子 batch 提交；取消、校验失败或批次预算拒绝不会留下部分修改。该 batch 受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制，超限时会在追加 WAL 前整体拒绝；引擎不会为绕过限制自动拆批，因为拆批会破坏语句原子性。
 - `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
+- `json_exists(json, path)` 返回 path 是否存在；path 指向 JSON `null` 时仍返回 `TRUE`，path 缺失返回 `FALSE`。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
+- `json_array_length(json, path)` 返回 path 指向数组的元素数（`BIGINT`）；path 缺失或指向 JSON `null` 时返回 SQL `NULL`，指向非数组值时返回执行错误。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
+- `json_contains(json, path, candidate)` 判断 path 结果是否包含候选值。候选字符串按普通 SQL 字符串比较；以 `{` 或 `[` 开头的字符串会按 JSON 对象或数组解析。数组候选按无序子集匹配，对象候选按字段子集匹配；对对象传入普通字符串还可判断字段名是否存在。path 缺失或指向 JSON `null` 返回 `FALSE`，任一参数为 `NULL` 返回 SQL `NULL`。
+- 这些函数只接受字符串 JSON/path（候选值可为 SQL 标量），并在解析前后执行固定资源边界：JSON 文本最多 8 MiB、path 最多 1024 个字符和 64 个片段、嵌套/比较深度最多 64 层、单个数组或对象最多 100,000 个元素/字段；每次 `json_contains` 最多执行 1,000,000 次结构比较，避免数组子集匹配退化为无界笛卡尔扫描。超限或 JSON/path 无效会返回执行错误，不会静默截断。
 - `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 不提供 MongoDB wire/Driver 兼容 API 或跨文档复杂事务；集合 validator 支持 SonnetDB 自有 required/type/range/enum/pattern 子集。

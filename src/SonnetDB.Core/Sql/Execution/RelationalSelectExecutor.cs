@@ -605,7 +605,16 @@ internal static class RelationalSelectExecutor
             SqlExpression predicate = declaredOrderFallback
                 ? statement.JoinClauses[step - 1].On
                 : predicates[step - 1];
-            if (TryPlanHashJoin(relation, right, predicate, out List<JoinKeyPair> explainKeys, out _))
+            if (kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
+            {
+                plans.Add(CreateNestedLoopPlan(
+                    step,
+                    kind,
+                    relation.Estimate,
+                    right.Estimate,
+                    "outer_or_cross_join_requires_declared_order"));
+            }
+            else if (TryPlanHashJoin(relation, right, predicate, out List<JoinKeyPair> explainKeys, out _))
             {
                 JoinExecutionPlan executionPlan = ChooseJoinExecutionPlan(
                     relation,
@@ -1974,6 +1983,11 @@ internal static class RelationalSelectExecutor
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
+        // RIGHT/FULL/CROSS 的输出保留规则与现有 Hash/Index/Merge 算子不同；
+        // 先使用声明顺序嵌套循环，确保 NULL 扩展和重复键语义正确。
+        if (kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
+            return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
+
         // #215：等值连接走哈希连接（O(N+M)），替换全物化嵌套循环笛卡尔积（O(N×M)）。
         // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
         // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
@@ -2035,27 +2049,47 @@ internal static class RelationalSelectExecutor
         IEnumerable<object?[]> JoinRows()
         {
             object?[][] rightRows = right.Rows.ToArray();
+            bool preserveRight = kind is JoinKind.Right or JoinKind.Full;
+            bool preserveLeft = kind is JoinKind.Left or JoinKind.Full;
+            bool[] rightMatched = preserveRight ? new bool[rightRows.Length] : Array.Empty<bool>();
             foreach (object?[] leftRow in left.Rows)
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 var matched = false;
-                foreach (object?[] rightRow in rightRows)
+                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
+                    object?[] rightRow = rightRows[rightIndex];
                     var row = new object?[leftRow.Length + rightRow.Length];
                     Array.Copy(leftRow, row, leftRow.Length);
                     Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
                     if (EvaluateBoolean(tsdb, on, columns, row, outerScope, memo))
                     {
                         matched = true;
+                        if (preserveRight)
+                            rightMatched[rightIndex] = true;
                         yield return row;
                     }
                 }
 
-                if (!matched && kind == JoinKind.Left)
+                if (!matched && preserveLeft)
                 {
                     var row = new object?[leftRow.Length + right.Columns.Count];
                     Array.Copy(leftRow, row, leftRow.Length);
+                    yield return row;
+                }
+            }
+
+            if (preserveRight)
+            {
+                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (rightMatched[rightIndex])
+                        continue;
+
+                    var row = new object?[left.Columns.Count + right.Columns.Count];
+                    Array.Copy(rightRows[rightIndex], 0, row, left.Columns.Count, right.Columns.Count);
                     yield return row;
                 }
             }

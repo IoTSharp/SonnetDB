@@ -1948,6 +1948,8 @@ public sealed class SqlParser
         decimalScale = null;
         if (Current.Kind == TokenKind.KeywordVector)
             throw Error("关系表 MVP 暂不支持 VECTOR 类型");
+        if (Current.Kind == TokenKind.KeywordGeoPoint)
+            throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
 
         var token = Current;
         switch (token.Kind)
@@ -3029,6 +3031,31 @@ public sealed class SqlParser
             return ParseJoinClauseTail(JoinKind.Left);
         }
 
+        if (Current.Kind == TokenKind.KeywordRight)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.KeywordOuter)
+                Advance();
+            Expect(TokenKind.KeywordJoin);
+            return ParseJoinClauseTail(JoinKind.Right);
+        }
+
+        if (Current.Kind == TokenKind.KeywordFull)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.KeywordOuter)
+                Advance();
+            Expect(TokenKind.KeywordJoin);
+            return ParseJoinClauseTail(JoinKind.Full);
+        }
+
+        if (Current.Kind == TokenKind.KeywordCross)
+        {
+            Advance();
+            Expect(TokenKind.KeywordJoin);
+            return ParseJoinClauseTail(JoinKind.Cross, requiresOn: false);
+        }
+
         if (Current.Kind != TokenKind.KeywordJoin)
             return null;
 
@@ -3036,7 +3063,7 @@ public sealed class SqlParser
         return ParseJoinClauseTail(JoinKind.Inner);
     }
 
-    private JoinClause ParseJoinClauseTail(JoinKind kind)
+    private JoinClause ParseJoinClauseTail(JoinKind kind, bool requiresOn = true)
     {
         string tableName;
         SelectStatement? subquery = null;
@@ -3055,8 +3082,16 @@ public sealed class SqlParser
         var alias = subquery is null
             ? ParseOptionalTableAlias() ?? tableName
             : tableName;
-        Expect(TokenKind.KeywordOn);
-        var on = ParseExpression();
+        SqlExpression on;
+        if (requiresOn)
+        {
+            Expect(TokenKind.KeywordOn);
+            on = ParseExpression();
+        }
+        else
+        {
+            on = LiteralExpression.Bool(true);
+        }
         return new JoinClause(tableName, alias, on, subquery, kind);
     }
 
@@ -3749,6 +3784,9 @@ public sealed class SqlParser
             case TokenKind.KeywordCollection:
             case TokenKind.KeywordMeasurement:
             case TokenKind.KeywordLeft:
+            case TokenKind.KeywordRight:
+            case TokenKind.KeywordFull:
+            case TokenKind.KeywordCross:
                 return ParseIdentifierOrFunctionCall();
             case TokenKind.KeywordExists:
                 return ParseExistsExpression();

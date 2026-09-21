@@ -23,6 +23,7 @@ public sealed class KvRangeCursor : IDisposable
     private bool _canceled;
     private bool _faulted;
     private bool _disposed;
+    private CancellationToken _currentCancellationToken;
 
     /// <summary>测试读取一页时阻塞在不持有 keyspace 锁的位置。</summary>
     internal Action? PageReadTestHook { get; set; }
@@ -35,7 +36,7 @@ public sealed class KvRangeCursor : IDisposable
         _state = state;
         _pageSize = options.PageSize;
         _maxPageBytes = options.MaxPageBytes;
-        _enumerator = state.CreateEnumerator(options);
+        _enumerator = state.CreateEnumerator(options, () => _currentCancellationToken);
         SnapshotSequence = state.Sequence;
         ReadTimestampUtc = state.ReadTimestampUtc;
     }
@@ -90,6 +91,7 @@ public sealed class KvRangeCursor : IDisposable
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    _currentCancellationToken = cancellationToken;
                     PageReadTestHook?.Invoke();
                     IEnumerator<KeyValuePair<byte[], KvValueEntry>> enumerator = _enumerator
                         ?? throw new InvalidOperationException("KV range cursor 的枚举状态不可用。");
@@ -146,6 +148,10 @@ public sealed class KvRangeCursor : IDisposable
                     _faulted = true;
                     ReleaseEnumerationLocked();
                     throw;
+                }
+                finally
+                {
+                    _currentCancellationToken = CancellationToken.None;
                 }
             }
         }

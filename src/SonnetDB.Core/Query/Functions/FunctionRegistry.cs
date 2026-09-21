@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using SonnetDB.Catalog;
+using SonnetDB.Documents;
 using SonnetDB.Model;
 using SonnetDB.Query.Functions.Aggregates;
 using SonnetDB.Query.Functions.Control;
@@ -167,6 +168,9 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("ends_with", 2, 2, EvaluateEndsWith),
         new BuiltInScalarFunction("endswith", 2, 2, EvaluateEndsWith),
         new BuiltInScalarFunction("contains", 2, 2, EvaluateContains),
+        new BuiltInScalarFunction("json_exists", 2, 2, JsonSqlFunctions.Exists),
+        new BuiltInScalarFunction("json_array_length", 2, 2, JsonSqlFunctions.ArrayLength),
+        new BuiltInScalarFunction("json_contains", 3, 3, JsonSqlFunctions.Contains),
         new BuiltInScalarFunction("regexp_like", 2, 3, static args =>
             RegexPatternMatcher.IsMatch(args[0], args[1], args.Count == 3 ? args[2] : null)),
         new BuiltInScalarFunction("current_datetime", 0, 0, SqlDateTimeFunctions.CurrentDateTime),

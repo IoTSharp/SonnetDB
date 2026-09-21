@@ -22,6 +22,9 @@ internal static class JoinSqlExecutor
 
         var join = statement.Join
             ?? throw new InvalidOperationException("内部错误：JOIN 执行器要求 SELECT 包含 JOIN 子句。");
+        if (join.Kind is not (JoinKind.Inner or JoinKind.Left))
+            throw new InvalidOperationException(
+                "RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN 仍限定为 INNER/LEFT。各自的 NULL 扩展语义尚未接入时序路径。");
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
         if (statement.GroupBy.Count != 0)
@@ -111,6 +114,9 @@ internal static class JoinSqlExecutor
 
         var join = statement.Join
             ?? throw new InvalidOperationException("内部错误：JOIN Explain 要求 SELECT 包含 JOIN 子句。");
+        if (join.Kind is not (JoinKind.Inner or JoinKind.Left))
+            throw new InvalidOperationException(
+                "RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN Explain 仍限定为 INNER/LEFT。");
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
 

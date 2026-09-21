@@ -91,6 +91,12 @@ internal sealed partial class AppJsonContext : JsonSerializerContext;
 
 当前 key 和 value 都是字节序列。字符串重载只负责 key 编码；value 编码由调用方决定。条件写和交换操作复用现有锁、版本、WAL 与恢复路径，没有第二套 KV 存储。WAL append 或 sync 的提交结果无法确定时会 fail closed 并阻止实例继续写入，调用方不能把异常解释为“确定未提交”后盲目重试。
 
+### State 随机读预算
+
+`KvOptions.MaxConcurrentStateReads` 控制同一嵌入式数据库目录内所有已打开 keyspace 的 state 文件 `RandomAccess` 读取并发数，默认值为 `8`，必须为正数。预算由 `KvKeyspaceManager` 共享；直接调用 `KvKeyspace.Open` 时由该 keyspace 独立拥有。等待许可观察调用方 `CancellationToken`，且不占用 keyspace 写锁；读取失败、取消、checkpoint 替换和延迟关闭都会释放许可与 state 生命周期引用。
+
+该选项只限制进入 state payload 的并发 I/O，不是磁盘吞吐、CPU、返回页内存或操作系统同步调用的硬上限。`SonnetDbMeter` 在启用对应 instruments 时记录读取次数、已完成读取字节、读取时延和等待时延；预算对象的峰值并发与取消次数是内部诊断统计，并由本地回归断言。这样可以把统一语料的冷启动、跨架构和长期 mixed workload 结果与本地合同区分开。固定硬件、恢复和 168 小时门禁仍属于 [路线图真机验证计划](../ROADMAP.md#真机验证待办)。
+
 ## 持久化布局
 
 每个 keyspace 存在于数据库目录的 `kv/keyspaces/<name>/` 下：

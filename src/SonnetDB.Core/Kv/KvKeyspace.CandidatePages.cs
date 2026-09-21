@@ -48,7 +48,7 @@ public sealed partial class KvKeyspace
                 bool takeFrozen = hasFrozen && KvKeyComparer.Instance.Compare(frozen.Current.Key, key) == 0;
                 bool takeDisk = hasDisk && KvKeyComparer.Instance.Compare(disk.Current.Key, key) == 0;
                 KvValueEntry value = takeMutable ? mutable.Current.Value
-                    : takeFrozen ? frozen.Current.Value : _diskState!.Read(disk.Current);
+                    : takeFrozen ? frozen.Current.Value : _diskState!.Read(disk.Current, cancellationToken);
                 continuation = key.ToArray();
                 // 上层墓碑屏蔽同键的下层数据；不在只读调度中额外写入 TTL 清理 WAL。
                 if (!value.IsDeleted && !value.IsExpired(now))

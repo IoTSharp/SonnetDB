@@ -123,7 +123,9 @@ internal sealed class KvReadSnapshotState
         }
     }
 
-    public IEnumerator<KeyValuePair<byte[], KvValueEntry>> CreateEnumerator(KvRangeScanOptions options)
+    public IEnumerator<KeyValuePair<byte[], KvValueEntry>> CreateEnumerator(
+        KvRangeScanOptions options,
+        Func<CancellationToken>? cancellationTokenProvider = null)
     {
         byte[] prefix = options.Prefix.ToArray();
         byte[]? startInclusive = ToOptionalArray(options.StartInclusive);
@@ -139,7 +141,8 @@ internal sealed class KvReadSnapshotState
                 afterKey,
                 startInclusive,
                 endExclusive,
-                options.Descending)
+                options.Descending,
+                cancellationTokenProvider ?? (() => CancellationToken.None))
             .GetEnumerator();
     }
 
@@ -175,7 +178,8 @@ internal sealed class KvReadSnapshotState
         byte[]? afterKey,
         byte[]? startInclusive,
         byte[]? endExclusive,
-        bool descending)
+        bool descending,
+        Func<CancellationToken> cancellationTokenProvider)
     {
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> lowerLayer = EnumerateOverlayAndDisk(
             frozenValues,
@@ -184,7 +188,8 @@ internal sealed class KvReadSnapshotState
             afterKey,
             startInclusive,
             endExclusive,
-            descending);
+            descending,
+            cancellationTokenProvider);
         foreach (KeyValuePair<byte[], KvValueEntry> pair in MergeOverlayAndLowerLayer(
             mutableValues,
             lowerLayer,
@@ -192,7 +197,8 @@ internal sealed class KvReadSnapshotState
             afterKey,
             startInclusive,
             endExclusive,
-            descending))
+            descending,
+            cancellationTokenProvider))
         {
             yield return pair;
         }
@@ -205,7 +211,8 @@ internal sealed class KvReadSnapshotState
         byte[]? afterKey,
         byte[]? startInclusive,
         byte[]? endExclusive,
-        bool descending)
+        bool descending,
+        Func<CancellationToken> cancellationTokenProvider)
     {
         using IEnumerator<KeyValuePair<byte[], KvValueEntry>> memory = EnumerateOverlayRange(
             overlay,
@@ -265,7 +272,8 @@ internal sealed class KvReadSnapshotState
         byte[]? afterKey,
         byte[]? startInclusive,
         byte[]? endExclusive,
-        bool descending)
+        bool descending,
+        Func<CancellationToken> cancellationTokenProvider)
     {
         using IEnumerator<KeyValuePair<byte[], KvValueEntry>> memory = EnumerateOverlayRange(
             overlay,
@@ -296,7 +304,7 @@ internal sealed class KvReadSnapshotState
                 KvDiskIndexEntry diskEntry = disk.Current;
                 yield return new KeyValuePair<byte[], KvValueEntry>(
                     diskEntry.Key,
-                    diskState!.Read(diskEntry));
+                    diskState!.Read(diskEntry, cancellationTokenProvider()));
                 hasDisk = disk.MoveNext();
                 continue;
             }
@@ -322,7 +330,7 @@ internal sealed class KvReadSnapshotState
             KvDiskIndexEntry currentDisk = disk.Current;
             yield return new KeyValuePair<byte[], KvValueEntry>(
                 currentDisk.Key,
-                diskState!.Read(currentDisk));
+                diskState!.Read(currentDisk, cancellationTokenProvider()));
             hasDisk = disk.MoveNext();
         }
     }

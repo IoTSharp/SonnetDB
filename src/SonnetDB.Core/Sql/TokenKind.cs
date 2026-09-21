@@ -256,4 +256,10 @@ public enum TokenKind
     KeywordBetween = 148,
     /// <summary>ILIKE 大小写不敏感字符串模式匹配。</summary>
     KeywordIlike = 149,
+    /// <summary>RIGHT JOIN 右外连接修饰词。</summary>
+    KeywordRight = 150,
+    /// <summary>FULL JOIN 全外连接修饰词。</summary>
+    KeywordFull = 151,
+    /// <summary>CROSS JOIN 笛卡尔连接修饰词。</summary>
+    KeywordCross = 152,
 }

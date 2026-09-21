@@ -82,6 +82,19 @@ public sealed class SqlCastTests : IDisposable
         Assert.Contains("不是有效的 Int64", invalid.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("embedding VECTOR(3)", "关系表 MVP 暂不支持 VECTOR")]
+    [InlineData("position GEOPOINT", "关系表 MVP 暂不支持 GEOPOINT 类型")]
+    public void RelationTable_VectorAndGeoPointColumns_RejectWithExplicitBoundary(
+        string columnDefinition,
+        string expectedMessage)
+    {
+        var exception = Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            $"CREATE TABLE relation_types (id INT, {columnDefinition}, PRIMARY KEY (id))"));
+
+        Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TableCast_ColumnProjectionAndPredicate_UseConvertedValue()
     {

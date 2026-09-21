@@ -933,11 +933,11 @@ public sealed record GraphTableSource(
 }
 
 /// <summary>
-/// <c>[INNER|LEFT] JOIN table [AS] alias ON expr</c> 子句。
+/// <c>[INNER|LEFT|RIGHT|FULL|CROSS] JOIN table [AS] alias [ON expr]</c> 子句。
 /// </summary>
 /// <param name="TableName">被 JOIN 的关系表名。</param>
 /// <param name="Alias">关系表别名；未显式声明时为 <paramref name="TableName"/>。</param>
-/// <param name="On">ON 条件表达式；MM4 第一版要求是 measurement tag 与 table 列之间的等值比较。</param>
+/// <param name="On">ON 条件表达式；CROSS JOIN 使用恒真表达式。</param>
 public sealed record JoinClause(
     string TableName,
     string Alias,
@@ -951,7 +951,13 @@ public enum JoinKind
     /// <summary>内连接。</summary>
     Inner,
     /// <summary>左外连接。</summary>
-    Left
+    Left,
+    /// <summary>右外连接。</summary>
+    Right,
+    /// <summary>全外连接。</summary>
+    Full,
+    /// <summary>笛卡尔连接。</summary>
+    Cross,
 }
 
 /// <summary>排序方向。</summary>
