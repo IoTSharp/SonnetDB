@@ -48,8 +48,10 @@ internal sealed class SqlQueryResources : IDisposable
     private readonly Tsdb _tsdb;
     private readonly SqlExecutionOptions _options;
     private readonly string? _queryFingerprint;
+    private readonly string? _parameterSensitiveQueryFingerprint;
     private long _reservedBytes;
     private long _peakReservedBytes;
+    private long _rawEstimatedRows;
     private long _estimatedRows;
     private long _actualRows;
     private SqlSpillWorkspace? _workspace;
@@ -64,6 +66,7 @@ internal sealed class SqlQueryResources : IDisposable
             ?? tsdb.SqlMemoryOptions.QueryLimitBytes;
         _rootDirectory = tsdb.RootDirectory;
         _queryFingerprint = options.QueryFingerprint;
+        _parameterSensitiveQueryFingerprint = options.ParameterSensitiveQueryFingerprint;
         CancellationToken = options.CancellationToken;
     }
 
@@ -146,9 +149,11 @@ internal sealed class SqlQueryResources : IDisposable
     {
         if (rows >= 0)
         {
-            long corrected = _queryFingerprint is null
+            Interlocked.Exchange(ref _rawEstimatedRows, Math.Max(Volatile.Read(ref _rawEstimatedRows), rows));
+            string? feedbackFingerprint = _parameterSensitiveQueryFingerprint ?? _queryFingerprint;
+            long corrected = feedbackFingerprint is null
                 ? rows
-                : _tsdb.SqlRuntimeFeedback.CorrectEstimate(_queryFingerprint, rows);
+                : _tsdb.SqlRuntimeFeedback.CorrectEstimate(feedbackFingerprint, rows);
             Interlocked.Exchange(ref _estimatedRows, Math.Max(Volatile.Read(ref _estimatedRows), corrected));
         }
     }
@@ -214,7 +219,15 @@ internal sealed class SqlQueryResources : IDisposable
             {
                 _tsdb.SqlRuntimeFeedback.Record(
                     _queryFingerprint,
-                    Volatile.Read(ref _estimatedRows),
+                    Volatile.Read(ref _rawEstimatedRows),
+                    Volatile.Read(ref _actualRows));
+            }
+            if (_parameterSensitiveQueryFingerprint is not null
+                && !string.Equals(_parameterSensitiveQueryFingerprint, _queryFingerprint, StringComparison.Ordinal))
+            {
+                _tsdb.SqlRuntimeFeedback.Record(
+                    _parameterSensitiveQueryFingerprint,
+                    Volatile.Read(ref _rawEstimatedRows),
                     Volatile.Read(ref _actualRows));
             }
             long remaining = Interlocked.Exchange(ref _reservedBytes, 0);

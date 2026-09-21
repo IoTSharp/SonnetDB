@@ -67,6 +67,57 @@ public class BatchScorerTests
     }
 
     [Fact]
+    public void CosineWithQueryNormSquared_MatchesRegularPath_AndHandlesZeroQuery()
+    {
+        float[] query = [0.25f, -0.5f, 0.75f, 1.25f];
+        float[] candidate = [-0.75f, 0.5f, 0.25f, 1.5f];
+        float normSquared = Distance.NormSquared(query);
+
+        Assert.Equal(
+            Distance.Cosine(query, candidate),
+            Distance.CosineWithQueryNormSquared(query, normSquared, candidate));
+
+        float[] zero = new float[query.Length];
+        Assert.Equal(1f, Distance.CosineWithQueryNormSquared(zero, 0f, candidate));
+        Assert.Equal(1f, Distance.CosineWithQueryNormSquared(ReadOnlySpan<float>.Empty, 0f, ReadOnlySpan<float>.Empty));
+
+        float[] withNaN = [float.NaN, 1f, 2f, 3f];
+        Assert.True(float.IsNaN(Distance.CosineWithQueryNormSquared(
+            withNaN,
+            Distance.NormSquared(withNaN),
+            candidate)));
+    }
+
+    [Fact]
+    public void CpuScorer_Cosine_ReusesQueryNorm_AndMatchesIndependentRows()
+    {
+        float[] query = [0.1f, -0.7f, 0.4f, 0.9f];
+        float[] dataset =
+        [
+            1f, 0f, 0.5f, -0.25f,
+            -0.4f, 0.3f, 0.2f, 0.8f,
+            0f, 0f, 0f, 0f,
+        ];
+        float[] actual = new float[3];
+
+        CpuTensorPrimitivesScorer.Instance.Score(query, dataset, actual, Metric.Cosine);
+
+        for (int i = 0; i < actual.Length; i++)
+        {
+            Assert.Equal(
+                Distance.Cosine(query, dataset.AsSpan(i * query.Length, query.Length)),
+                actual[i]);
+        }
+    }
+
+    [Fact]
+    public void CosineWithQueryNormSquared_DimensionMismatch_Throws()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            Distance.CosineWithQueryNormSquared([1f, 2f], 5f, [1f]));
+    }
+
+    [Fact]
     public void FlatIndex_WithInjectedScorer_MatchesDefaultPath()
     {
         const int Dim = 16;

@@ -10,7 +10,7 @@ namespace SonnetMQ;
 /// <summary>
 /// 零依赖、本地 append-only 消息队列。
 /// </summary>
-public sealed class SonnetMqStore : IDisposable
+public sealed partial class SonnetMqStore : IDisposable
 {
     private const uint Magic = 0x514D_4E53; // SNMQ little-endian
     private const ushort Version = 2;
@@ -24,9 +24,12 @@ public sealed class SonnetMqStore : IDisposable
     private const int MaxNameBytes = 512;
     private const int MaxHeadersBytes = 64 * 1024;
     private const int MaxPayloadBytes = 128 * 1024 * 1024;
+    private const int MaxMessageIdBytes = 256;
+    private const string MessageIdHeader = "message-id";
     private const int SegmentFileNameWidth = 20;
 
     private readonly object _globalSync = new();
+    private readonly ReaderWriterLockSlim _snapshotGate = new(LockRecursionPolicy.SupportsRecursion);
     private readonly SonnetMqOptions _options;
     private readonly ConcurrentDictionary<string, TopicState> _topics = new(StringComparer.Ordinal);
     private readonly object? _singleFileLock;
@@ -67,6 +70,8 @@ public sealed class SonnetMqStore : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options), "SegmentMaxBytes 必须大于单条记录头长度。");
         if (options.SegmentCacheSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(options), "SegmentCacheSize 必须为正数。");
+        if (options.MessageIdDeduplicationWindow < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "MessageIdDeduplicationWindow 不能为负数。");
 
         var store = new SonnetMqStore(options);
         try
@@ -151,6 +156,10 @@ public sealed class SonnetMqStore : IDisposable
 
     private IReadOnlyList<long> PublishPrepared(string topic, PreparedPublish[] prepared)
     {
+        _snapshotGate.EnterReadLock();
+        try
+        {
+        EnsureNotDisposed();
         byte[] topicBytes = EncodeName(topic, nameof(topic));
         var state = GetOrCreateTopic(topic);
 
@@ -158,14 +167,23 @@ public sealed class SonnetMqStore : IDisposable
             && _options.OpenMode != SonnetMqOpenMode.SingleFile
             && (_options.FlushOnPublish || _options.SyncOnPublish);
 
-        long mySeq;
+        long mySeq = 0;
         long[] offsets;
         lock (state.SyncRoot)
         {
             offsets = new long[prepared.Length];
+            int appendedCount = 0;
             for (int i = 0; i < prepared.Length; i++)
             {
                 var publish = prepared[i];
+                if (TryGetMessageId(publish.Headers, out string? messageId)
+                    && messageId is not null
+                    && state.TryGetMessageId(messageId, out long existingOffset))
+                {
+                    offsets[i] = existingOffset;
+                    continue;
+                }
+
                 long offset = state.NextOffset;
                 var timestamp = DateTimeOffset.UtcNow;
                 var location = WriteRecordAt(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
@@ -173,25 +191,32 @@ public sealed class SonnetMqStore : IDisposable
                     new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload, ColdReadable: location.SegmentBaseOffset >= 0),
                     location,
                     _offsetIndexStride,
-                    _residentHotTailMaxBytes);
+                    _residentHotTailMaxBytes,
+                    _options.MessageIdDeduplicationWindow);
                 offsets[i] = offset;
+                appendedCount++;
             }
 
-            state.AppendedSeq += prepared.Length;
+            state.AppendedSeq += appendedCount;
             mySeq = state.AppendedSeq;
 
             // 未启用组提交（含单文件模式）：沿用逐次内联刷盘，锁内完成，语义与逐条刷盘一致。
-            if (!groupCommit)
+            if (appendedCount > 0 && !groupCommit)
                 FlushPublishBatchIfNeeded(state);
         }
 
         // 组提交 leader-flush：在 SyncRoot 外合并刷盘，仅刷盘瞬间借回 SyncRoot 序列化于写入者。
-        if (groupCommit)
+        if (groupCommit && mySeq > 0)
             CommitPublishFlush(state, mySeq);
 
         // 唤醒推送订阅者（#236）：刷盘完成后、SyncRoot 外，避免被唤醒者立刻回争锁。虚假/重复 pulse 无害。
         state.Pulse();
         return offsets;
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     private void CommitPublishFlush(TopicState state, long mySeq)
@@ -315,6 +340,10 @@ public sealed class SonnetMqStore : IDisposable
     public long Ack(string topic, string consumerGroup, long offset)
     {
         EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
+        EnsureNotDisposed();
         ValidateTopic(topic);
         ValidateConsumerGroup(consumerGroup);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
@@ -333,6 +362,11 @@ public sealed class SonnetMqStore : IDisposable
             TrimAcknowledgedMessages(state, force: false);
             return next;
         }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -346,6 +380,10 @@ public sealed class SonnetMqStore : IDisposable
     /// <returns>拒绝结果和下一条待消费 offset。</returns>
     public SonnetMqNackResult Nack(string topic, string consumerGroup, long offset, string? reason = null)
     {
+        EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
         EnsureNotDisposed();
         ValidateTopic(topic);
         ValidateConsumerGroup(consumerGroup);
@@ -398,6 +436,11 @@ public sealed class SonnetMqStore : IDisposable
             TrimAcknowledgedMessages(state, force: false);
             return new SonnetMqNackResult(nextOffset, attempt, true, deadLetterOffset);
         }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -414,6 +457,10 @@ public sealed class SonnetMqStore : IDisposable
         SonnetMqOffsetResetMode mode,
         long value = 0)
     {
+        EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
         EnsureNotDisposed();
         ValidateTopic(topic);
         ValidateConsumerGroup(consumerGroup);
@@ -445,6 +492,11 @@ public sealed class SonnetMqStore : IDisposable
             state.ClearDeliveryAttempts(consumerGroup, target);
             return target;
         }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -455,6 +507,10 @@ public sealed class SonnetMqStore : IDisposable
     /// <returns>实际保留的第一条 offset。</returns>
     public long TombstoneBefore(string topic, long beforeOffset)
     {
+        EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
         EnsureNotDisposed();
         ValidateTopic(topic);
         ArgumentOutOfRangeException.ThrowIfNegative(beforeOffset);
@@ -472,6 +528,11 @@ public sealed class SonnetMqStore : IDisposable
             DeleteRetiredSegments(state);
             return state.TrimmedBeforeOffset;
         }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -479,6 +540,10 @@ public sealed class SonnetMqStore : IDisposable
     /// </summary>
     public void TrimRetention()
     {
+        EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
         EnsureNotDisposed();
         if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
             return;
@@ -491,6 +556,11 @@ public sealed class SonnetMqStore : IDisposable
                 TrimAcknowledgedMessages(state, force: true);
                 TrimTopicRetention(state);
             }
+        }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
         }
     }
 
@@ -560,6 +630,10 @@ public sealed class SonnetMqStore : IDisposable
     public void Flush(bool flushToDisk = false)
     {
         EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
+        EnsureNotDisposed();
         if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
         {
             lock (_globalSync)
@@ -572,6 +646,11 @@ public sealed class SonnetMqStore : IDisposable
             lock (state.SyncRoot)
                 state.Writer?.Flush(flushToDisk);
         }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
     }
 
     /// <inheritdoc />
@@ -579,6 +658,10 @@ public sealed class SonnetMqStore : IDisposable
     {
         _retentionCts?.Cancel();
         _retentionWorker?.Join(TimeSpan.FromSeconds(2));
+
+        _snapshotGate.EnterWriteLock();
+        try
+        {
         _retentionCts?.Dispose();
 
         lock (_globalSync)
@@ -602,6 +685,11 @@ public sealed class SonnetMqStore : IDisposable
 
         lock (_globalSync)
             _singleFileStream?.Dispose();
+        }
+        finally
+        {
+            _snapshotGate.ExitWriteLock();
+        }
     }
 
     private string RootDirectory => Path.GetFullPath(_options.Path);
@@ -730,7 +818,8 @@ public sealed class SonnetMqStore : IDisposable
                         new StoredMessage(topic, offsetOrNext, new DateTimeOffset(ticks, TimeSpan.Zero), headers, body, ColdReadable: segmentBaseOffset >= 0),
                         new RecordLocation(segmentBaseOffset, recordPosition),
                         _offsetIndexStride,
-                        _residentHotTailMaxBytes);
+                        _residentHotTailMaxBytes,
+                        _options.MessageIdDeduplicationWindow);
                 }
                 else if (type == RecordTypeAck)
                 {
@@ -987,6 +1076,22 @@ public sealed class SonnetMqStore : IDisposable
         }
 
         return result;
+    }
+
+    private static bool TryGetMessageId(
+        IReadOnlyDictionary<string, string> headers,
+        out string? messageId)
+    {
+        if (headers.TryGetValue(MessageIdHeader, out string? value)
+            && !string.IsNullOrWhiteSpace(value)
+            && Encoding.UTF8.GetByteCount(value) <= MaxMessageIdBytes)
+        {
+            messageId = value;
+            return true;
+        }
+
+        messageId = null;
+        return false;
     }
 
     private long FindOffsetAtOrAfter(TopicState state, DateTimeOffset timestampUtc)
@@ -1335,7 +1440,20 @@ public sealed class SonnetMqStore : IDisposable
     }
 
     private TopicState GetOrCreateTopic(string topic)
-        => _topics.GetOrAdd(topic, static (t, self) => new TopicState(t, self._singleFileLock ?? new object()), this);
+    {
+        if (_topics.TryGetValue(topic, out TopicState? existing))
+            return existing;
+
+        _snapshotGate.EnterReadLock();
+        try
+        {
+            return _topics.GetOrAdd(topic, static (t, self) => new TopicState(t, self._singleFileLock ?? new object()), this);
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
+    }
 
     private void RetentionWorkerLoop()
     {
@@ -1614,6 +1732,9 @@ public sealed class SonnetMqStore : IDisposable
 
         public Dictionary<string, long> ConsumerOffsets { get; } = new(StringComparer.Ordinal);
 
+        private readonly Dictionary<string, long> _messageIds = new(StringComparer.Ordinal);
+        private readonly Queue<(string MessageId, long Offset)> _messageIdOrder = new();
+
         private readonly Dictionary<string, Dictionary<long, DeliveryAttempt>> _deliveryAttempts = new(StringComparer.Ordinal);
         private long _deadLetterCount;
         private string? _lastDiscardReason;
@@ -1639,7 +1760,12 @@ public sealed class SonnetMqStore : IDisposable
             Segments.Sort(static (a, b) => a.BaseOffset.CompareTo(b.BaseOffset));
         }
 
-        public void Append(StoredMessage message, RecordLocation location, int offsetIndexStride, long hotTailMaxBytes)
+        public void Append(
+            StoredMessage message,
+            RecordLocation location,
+            int offsetIndexStride,
+            long hotTailMaxBytes,
+            int messageIdWindow)
         {
             if (message.Offset < TrimmedBeforeOffset)
             {
@@ -1662,11 +1788,37 @@ public sealed class SonnetMqStore : IDisposable
                 HotTailStartOffset = message.Offset;
 
             Messages.Add(message);
+            RegisterMessageId(message.Headers, message.Offset, messageIdWindow);
             _residentPayloadBytes += message.Payload.Length;
             if (message.Offset >= NextOffset)
                 NextOffset = message.Offset + 1;
 
             EvictHotTailIfNeeded(hotTailMaxBytes);
+        }
+
+        public bool TryGetMessageId(string messageId, out long offset)
+            => _messageIds.TryGetValue(messageId, out offset);
+
+        private void RegisterMessageId(
+            IReadOnlyDictionary<string, string> headers,
+            long offset,
+            int messageIdWindow)
+        {
+            if (messageIdWindow <= 0
+                || !headers.TryGetValue(MessageIdHeader, out string? messageId)
+                || string.IsNullOrWhiteSpace(messageId)
+                || Encoding.UTF8.GetByteCount(messageId) > MaxMessageIdBytes)
+                return;
+
+            _messageIds[messageId] = offset;
+            _messageIdOrder.Enqueue((messageId, offset));
+            while (_messageIdOrder.Count > messageIdWindow)
+            {
+                var expired = _messageIdOrder.Dequeue();
+                if (_messageIds.TryGetValue(expired.MessageId, out long current)
+                    && current == expired.Offset)
+                    _messageIds.Remove(expired.MessageId);
+            }
         }
 
         /// <summary>

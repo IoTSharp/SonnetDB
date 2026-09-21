@@ -117,4 +117,10 @@ public sealed record SonnetMqOptions
     /// 死信 Topic 后缀。默认将 <c>events</c> 的死信发布到 <c>events.dlq</c>。
     /// </summary>
     public string DeadLetterTopicSuffix { get; init; } = ".dlq";
+
+    /// <summary>
+    /// 按消息头 <c>message-id</c> 去重时保留的最近带 ID 消息数。零表示关闭去重。
+    /// 去重命中返回原消息 offset，不追加新的日志记录；窗口在重开后从持久消息尾部恢复。
+    /// </summary>
+    public int MessageIdDeduplicationWindow { get; init; } = 100_000;
 }

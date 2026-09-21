@@ -15,6 +15,22 @@ internal static class SqlStatementFingerprint
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
+    /// <summary>
+    /// 为运行时反馈生成参数敏感指纹。只返回不可逆摘要，不把绑定值写入指标、目录或日志。
+    /// </summary>
+    internal static string CreateParameterSensitive(SqlStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        string shape = Create(statement);
+        // The bound AST's record representation is used only as hash input. The
+        // value-independent shape fingerprint remains the public metrics key;
+        // this second key prevents a skewed value from contaminating another
+        // parameter value's runtime feedback.
+        string boundShape = statement.ToString() ?? statement.GetType().Name;
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(shape + "|" + boundShape)));
+    }
+
     private static void AppendStatement(StringBuilder builder, SqlStatement statement)
     {
         builder.Append(statement.GetType().Name).Append('|');

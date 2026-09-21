@@ -98,10 +98,16 @@ internal static class TableCostPlanner
             long rows = EstimateIndexRows(store.RowCount, schema, candidate, statistics);
             TableIndexStatistics? indexStatistics = statistics.TryGetIndex(candidate.Index.Name);
             double averageEntryWidth = indexStatistics?.AverageEntryWidth ?? statistics.AverageRowWidth;
-            long reads = Math.Max(1, rows);
+            // Index candidates are page-oriented. Counting every matching row
+            // as a logical read ignores the persisted index density and makes a
+            // selective index look needlessly expensive. Keep row processing in
+            // the cost term, but expose the estimated leaf pages as reads.
+            long reads = EstimateIndexLogicalReads(
+                rows,
+                indexStatistics);
             double cost = 4
-                + (indexStatistics?.LogicalPageCount ?? 0) * 0.5
-                + reads * (1 + averageEntryWidth / 4096);
+                + reads * 0.5
+                + rows * (1 + averageEntryWidth / 4096d);
             estimates.Add((candidate, rows, reads, cost));
         }
 
@@ -119,6 +125,7 @@ internal static class TableCostPlanner
             estimates.Select(estimate =>
                 $"{(ReferenceEquals(estimate.Plan, best.Plan) && best.Cost <= scanCost ? "*" : string.Empty)}"
                 + $"{FormatAccessPath(estimate.Plan)}:{estimate.Plan.Index.Name} rows<={estimate.Rows}"
+                + $" pages<={estimate.Reads}"
                 + $" cost={estimate.Cost.ToString("F2", CultureInfo.InvariantCulture)}"));
 
         if (scanCost < best.Cost)
@@ -225,6 +232,24 @@ internal static class TableCostPlanner
         => statistics is { LogicalPageCount: > 0 }
             ? statistics.LogicalPageCount
             : Math.Max(1, rows);
+
+    private static long EstimateIndexLogicalReads(
+        long estimatedRows,
+        TableIndexStatistics? statistics)
+    {
+        if (estimatedRows <= 0)
+            return 1;
+        if (statistics is not { RowCount: > 0, LogicalPageCount: > 0 })
+            return Math.Max(1, estimatedRows);
+
+        // Scale observed index pages by the estimated matching rows. The clamp
+        // prevents a rounded sample from producing more pages than the index
+        // contains.
+        long pages = (long)Math.Ceiling(
+            (double)estimatedRows * statistics.LogicalPageCount / statistics.RowCount);
+        pages = Math.Clamp(pages, 1, statistics.LogicalPageCount);
+        return pages;
+    }
 
     private static double EstimateScanCost(long rows, TableStatistics? statistics)
     {

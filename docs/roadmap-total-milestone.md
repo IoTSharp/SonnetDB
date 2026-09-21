@@ -40,7 +40,7 @@ SonnetDB 最有价值的方向不是在每一个单项指标上击败专用数�
 - 🟡 M19、M25、M29、M40 主要剩固定硬件、干净安装、外部对拍、Native AOT 或长稳等现场证据；本机 smoke 不替代这些证据。
 - 🚧 M27 的 Copilot/MCP/Provider 已有真实代码路径，但真实目标模型的质量、延迟、成本、双网部署和跨进程续流仍未闭环；M14 实际是 Microsoft.Extensions.AI 加自研 CopilotAgent，不能写成 Microsoft Agent Framework。
 - 🚧 M35 已补齐 USearch filtered API/查询预算、对象 embedding/外发治理/审计、持久 RAG writer/resume、派生索引 generation 发布、预计算/在线 provider CLI、Copilot 可回滚迁移、有界融合/重排、可选媒体片段导入/查询及 #305 治理/恢复/备份重建/模型换代；真实质量、容量/固定硬件证据与后续专业视觉仍未完成。
-- 🚧 M36 已经关闭部分 KV 原子操作、对象有界分页和 MQ 投递失败治理代码问题；九模型 golden journey、对象传输恢复、MQ 实例级恢复、全文工作流和 SQL 端到端有界结果仍未整体关闭。
+- 🚧 M36 的 #311~#326 代码合同已完成；九模型 golden journey、对象传输恢复、MQ 实例级恢复、全文固定语料和 SQL 端到端有界结果仍待独立验证，未将现场证据冒充代码缺口。
 - 🚧 M41/M42 已完成大量本地规划器和资源边界切片，但固定 x64/ARM64、统一语料、168 小时混合负载和发布门禁仍是独立证据。
 
 这些项目不能合并成一个“全部完成”的状态；总里程碑只在每项能力同时满足实现、入口、测试、文档和相应证据后关闭。
@@ -53,18 +53,18 @@ SonnetDB 最有价值的方向不是在每一个单项指标上击败专用数�
 |---:|---|---|---|---|---|
 | 1 | 时序数据库 | 原生模型 | 🚧 部分闭环 | M0~13、M19、M30、M31、M33、M36、M42 | 高基数、多 measurement、小段、长期稳定性和同身份重写语义需要固定旅程与容量证据。 |
 | 2 | 关系 SQL | 原生模型 | 🚧 部分闭环 | M6、M8、M37~39、M41、M42 | SQL 是实用子集；端到端大结果集、参数敏感计划和现场尾延迟仍待验证；跨 keyspace 掉电原子事务明确不在当前合同。 |
-| 3 | 持久键值 | 原生模型 | 🚧 部分闭环 | M28、M36 #316/#317 | 单键原子操作已有 Core/REST/Frame/SDK/UI 切片；大 keyspace cursor、pipeline、远程完整 parity 和诊断仍需完成。 |
+| 3 | 持久键值 | 原生模型 | 🚧 部分闭环 | M28、M36 #316/#317 | 单键原子操作和大 keyspace cursor/pipeline/诊断代码已交付；远程完整 parity、固定硬件容量和长期证据后置。 |
 | 4 | JSON 文档 | 原生模型 | 🚧 部分闭环 | M21、M24、M25、M32、M36 | MongoDB-like 单机子集已经可用；官方 wire/BSON/MQL、分片和副本集不在合同；百万/千万容量证据未取得。 |
-| 5 | 全文搜索 | 原生模型 | 🚧 部分闭环 | M23、M24、M35、M36 | BM25、CJK、短语、模糊和持久索引已存在；稳定分页、相关性解释、权限过滤、重建进度和固定语料证据仍需补齐。 |
+| 5 | 全文搜索 | 原生模型 | 🚧 部分闭环 | M23、M24、M35、M36 | BM25、CJK、短语、模糊、稳定分页、相关性解释和重建状态代码已交付；远程 parity、权限/固定语料和容量证据后置。 |
 | 6 | 向量检索 | 原生模型 | 🚧 部分闭环 | M12、M23、M27、M35、M36、M42 | HNSW/IVF/PQ/Vamana 路线和精确回退已存在；默认距离排序精确回退已接入固定 K Top-N，通用 filtered ANN、Recall@K、质量和容量证据仍不足。 |
-| 7 | 对象/内容存储 | 原生模型 | 🚧 部分闭环 | M24、M29、M35、M36、M42 | bucket、版本、range、multipart、生命周期和 presign 已有；大文件流式传输、断点续传、checksum 和一致备份仍需完成。 |
-| 8 | 持久日志/消息队列 | 原生模型 | 🚧 部分闭环 | M28、M30、M36 | 本地 topic、offset、group、ack/replay、nack/redelivery/DLQ、offset reset 和 lag 诊断已交付；实例级备份、默认耐久和分布式能力边界仍需收口；不宣称 exactly-once。 |
+| 7 | 对象/内容存储 | 原生模型 | 🚧 部分闭环 | M24、M29、M35、M36、M42 | bucket、版本、range、multipart、生命周期、presign 和 #322/#323 文件流代码已交付；固定硬件、大文件/断点恢复、checksum 和一致备份证据后置。 |
+| 8 | 持久日志/消息队列 | 原生模型 | 🚧 部分闭环 | M28、M30、M36 | 本地 topic、offset、group、ack/replay、nack/redelivery/DLQ、offset reset、lag、message-id 去重和实例快照恢复代码已交付；现场恢复、默认耐久报告和分布式能力边界仍后置；不宣称 exactly-once。 |
 | 9 | 原生属性图 | 原生模型 | 🚧 Graph Beta，部分闭环 | M36、M40、M42 | 本地 Graph CRUD、查询、算法、运维面和 parity 已有；Neo4j/PostgreSQL、LDBC/Graphalytics、容量、crash/reopen、AOT 和 168 小时 gate 未通过；跨客户端旅程仍由 M36 收口。 |
 | 10 | 空间、地理与轨迹 | 跨模型能力 | 🟡 基础已交付，待总验收 | M15~17、M30、M34 | GEOPOINT/轨迹/地图和工业接入已有；需补跨模型权限、索引/查询成本、轨迹规模与真实设备旅程，不能把地图 UI 当作数据库能力证据。 |
 | 11 | 流处理与订阅 | 平台能力 | 📋 待建设 | M8、M27、M30、M39、SonnetMQ；M43 #391~#395 | SSE、MQTT、CoAP、MQ replay 和 outbox 是相关基础，不等于统一流处理；缺少持续查询、窗口流、背压、订阅 checkpoint、取消和可恢复消费的独立合同。 |
 | 12 | CDC、边缘同步与复制 | 平台能力 | 📋 待建设 | M24/M32 change feed、M30 协议接入、M39 outbox；M43 #385~#390 | 已有 change feed 和协议路由，但没有通用 CDC 格式、schema/version negotiation、断点同步、冲突策略、边缘离线队列和复制拓扑；新增专门路线，不从现有 change feed 推导完成。 |
 | 13 | 多模态 AI 与 RAG | 平台能力 | 🚧 部分闭环 | M14、M27、M35 | MCP、Copilot、Provider、图片检索、RAG 持久摄取/resume 和可回滚迁移已有；真实模型质量/成本、混合检索评测、模型升级与现场恢复证据仍需完成。 |
-| 14 | 治理、备份、恢复、观测与安全 | 平台能力 | 🚧 部分闭环 | M8、M17、M19、M20、M27、M29、M39、MM9、M41、M42 | 权限、审计、health/metrics、数据库备份和 AOT 基础已有；MQ 投递治理与 KV/统计性能切片已补齐，实例级 MQ 备份、全模型恢复旅程、跨架构发布、长期 SLO、榜单资料和公开证据仍需收口。 |
+| 14 | 治理、备份、恢复、观测与安全 | 平台能力 | 🚧 部分闭环 | M8、M17、M19、M20、M27、M29、M39、MM9、M41、M42 | 权限、审计、health/metrics、数据库备份和 AOT 基础已有；MQ 投递治理、实例级快照恢复与 KV/统计性能代码切片已补齐，全模型恢复旅程、跨架构发布、长期 SLO、榜单资料和公开证据仍需收口。 |
 
 ## 三、现有里程碑的重新归档
 
@@ -99,33 +99,33 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 
 ### D. 沿用的既有 PR：主执行顺序
 
-按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#297、#298 的代码切片、#299~#309、#312~#313、#316、#327~#339、#341~#346、#368~#372、#374）不再作为新实现派单，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 保留剩余工作。#302 的在线 CLI 与 Copilot 可回滚迁移、#303 的有界融合与重排、#304 的可选媒体片段导入与查询、#305 的治理与恢复合同、#306 的视觉派生模型合同及 #307~#309 的专业视觉嵌入式入口已通过本地验证；#313 SQL 诊断已完成，#314/#315/#317~#320 已有代码切片，#321 已补嵌入式 preflight、只读已加载图状态和精确扫描固定 K Top-N，#325 已补投递失败治理与 offset reset，#326 已补 VS Code Graph Explorer，#375 已补无偏统计采样，M42 已补 KV snapshot single-flight。继续收口各切片尚缺的代码与合同，真实模型、容量和现场恢复证据仍后置。
+按下表从上到下逐个实施，组内沿用原 PR 编号升序。先做代码实现、能力补全、优化和性能提升，再做独立测试、验证、评测、论证与发布材料。已完成项（包括 #182~#183、#186、#188、#288~#298、#299~#326、#327~#339、#341~#346、#368~#372、#374）不再作为新实现派单，历史交付见各里程碑记录；#373 仅保留发布证据，部分完成的 PR 保留剩余工作。#302 的在线 CLI 与 Copilot 可回滚迁移、#303 的有界融合与重排、#304 的可选媒体片段导入与查询、#305 的治理与恢复合同、#306 的视觉派生模型合同及 #307~#309 的专业视觉嵌入式入口已通过本地验证；#311~#326 的代码合同和本地回归已完成，远程、真实模型、容量、现场恢复和长期稳定性证据统一后置。#375 与 M42 仍保留未完成的性能能力缺口。
 
 功能与验收混合的 PR 按剩余内容分列，仍归同一原编号，不新增重复工作项。每个代码 PR 随改动完成必要的回归、构建和 AOT 检查；后置的是独立测试项目、完整旅程、容量评测、现场验证和报告收口。下表保留原有模型建议。
 
 #### 1. 先做：代码、功能补全与性能优化
 
-| 顺序 | PR | 归属 | 模型 | 状态 | 剩余代码交付 |
+| 顺序 | PR | 归属 | 模型 | 状态 | 代码交付与后置验证 |
 |---:|---|---|---|---|---|
 | 1 | #309 | M35 | GPT-5.6 Sol / high | ✅ | 车辆观察嵌入式 SDK、外部 OCR/embedding 导入、版本化车牌精确索引、有界 Top-K、来源/删除/恢复合同已交付；真实质量、容量和远程治理仍待独立证据。 |
-| 2 | #311 | M36 | GPT-5.6 Terra / high | 🚧 | Document/Graph/KV/MQ 客户端已有合同切片；新增 Object SDK 预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和禁止自动重放，并补 MQ `PublishMany` 逐项物化与发送前取消传播。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过；其余工作台/SDK 矩阵、九模型 golden journey 与现场恢复仍待完成。 |
+| 2 | #311 | M36 | GPT-5.6 Terra / high | ✅（代码完成，现场验证后置） | Document/Graph/KV/MQ 客户端统一取消、目标绑定、流式/批量边界；Object SDK 覆盖预取消、JSON 正文期限、分页/批量响应校验、multipart 目标绑定和禁止自动重放；MQ `PublishMany` 逐项物化并传播发送前取消。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。九模型 golden journey、工作台/SDK 端到端矩阵、远程恢复和长期证据转入独立验收，不再阻塞代码队列。 |
 | 3 | #312 | M36 | GPT-5.6 Sol / high | ✅ | 关系表 `UPDATE/DELETE ... RETURNING`、事务预览、嵌入式/REST ADO.NET 结果映射及 `ON CONFLICT DO NOTHING` 子集已完成本地代码和回归；`DO UPDATE`、文档/时序模型和完整 PostgreSQL 方言保持边界。 |
 | 4 | #313 | M36 | GPT-5.6 Terra / high | ✅ | SQL 位置/code/hint 错误、`EXPLAIN ANALYZE` 实际指标、取消与超时已接通 Core 与 SQL REST；Frame 兼容传输码和现场发布证据仍按独立门禁执行。 |
-| 5 | #314 | M36 | GPT-5.6 Terra / high | 🚧 | 时序 typed Write API、batch/flush、逐项错误、取消与 drain 已接通 Core/Data 和 Frame/REST；已补入队前批次点数上限、生产者接收许可及枚举取消，避免无界输入绕过队列背压。远程现场 parity 和容量证据后置。 |
-| 6 | #315 | M36 | GPT-5.6 Terra / high | 🚧 | 嵌入式代码合同已补齐：真实 schema、测量级 series/tag 基数、实际 retention 和有界坏点预检复用 QueryEngine，预算超额明确未检查，含取消、重开和 source-generated JSON。已有 builder/TSQ001-004 不重做；远程入口与真实服务 parity、现场恢复和容量证据独立后置，见[合同](timeseries-query-preflight.md)。 |
-| 7 | #317 | M36 | GPT-5.6 Sol / high | 🚧 | KV 大 keyspace 已接通 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果、取消/背压和容量/TTL/热点诊断；大规模远程 parity、固定硬件容量与长期证据待后置。 |
-| 8 | #318 | M36 | GPT-5.6 Sol / high | 🚧 | FullText typed Search API 已接通嵌入式/远程客户端、query/filter/sort/facet/highlight/page 合同、稳定 continuation token、matched offsets/terms 与版本化 score metadata；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。 |
-| 9 | #319 | M36 | GPT-5.6 Sol / high | 🚧 | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与同步可观察 rebuild status 已接通 Core/Data/Server；schema v7 兼容旧版本读取，远程现场与容量证据后置。 |
-| 10 | #320 | M36 | GPT-5.6 Sol / high | 🚧 | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
-| 11 | #321 | M36 | GPT-5.6 Sol / high | 🚧 | 已补嵌入式真实 catalog/profile 预检、只读已加载图状态、显式 HNSW 图安全重建，以及默认距离排序精确扫描的固定 K Top-N；候选图成功后替换，失败/取消保留旧图，真实计数/终态独立可读。远程 lifecycle、通用 ANN/scan/补偿解释和 Recall/固定硬件报告待完成，复用 #297/#298。 |
+| 5 | #314 | M36 | GPT-5.6 Terra / high | ✅（代码完成，远程/容量验证后置） | 时序 typed Write API、batch/flush、逐项错误、取消与 drain 已接通 Core/Data 和 Frame/REST；入队前批次点数上限、生产者接收许可及枚举取消已覆盖无界输入边界。远程现场 parity 和容量证据后置。 |
+| 6 | #315 | M36 | GPT-5.6 Terra / high | ✅（代码完成，远程/现场验证后置） | 嵌入式代码合同已补齐：真实 schema、测量级 series/tag 基数、实际 retention 和有界坏点预检复用 QueryEngine，预算超额明确未检查，含取消、重开和 source-generated JSON。远程入口与真实服务 parity、现场恢复和容量证据独立后置，见[合同](timeseries-query-preflight.md)。 |
+| 7 | #317 | M36 | GPT-5.6 Sol / high | ✅（代码完成，容量/长期验证后置） | KV 大 keyspace 已接通 Core 稳定快照异步 cursor、Data 远程 continuation cursor、bounded Channel pipeline 逐项结果、取消/背压和容量/TTL/热点诊断；大规模远程 parity、固定硬件容量与长期证据待后置。 |
+| 8 | #318 | M36 | GPT-5.6 Sol / high | ✅（代码完成，远程/容量验证后置） | FullText typed Search API 已接通嵌入式/远程客户端、query/filter/sort/facet/highlight/page 合同、稳定 continuation token、matched offsets/terms 与版本化 score metadata；全文设置、analyzer diff、relevance explain 和 rebuild progress 由 #319 提供。 |
+| 9 | #319 | M36 | GPT-5.6 Sol / high | ✅（代码完成，远程/容量验证后置） | FullText 字段设置、synonym/stopword/typo policy、analyzer diff、relevance explain 与同步可观察 rebuild status 已接通 Core/Data/Server；schema v7 兼容旧版本读取，远程现场与容量证据后置。 |
+| 10 | #320 | M36 | GPT-5.6 Sol / high | ✅（代码完成，远程/容量验证后置） | VectorData 高层 typed search 已接通 filter/threshold/include/skip、exact/accurate scan、fast/balanced/accurate preset 和有界顺序 batch；远程 parity、容量与 #321 生命周期/解释证据后置。 |
+| 11 | #321 | M36 | GPT-5.6 Sol / high | ✅（代码完成，远程 lifecycle/Recall/硬件验证后置） | 已补嵌入式真实 catalog/profile 预检、只读已加载图状态、显式 HNSW 图安全重建，以及默认距离排序精确扫描的固定 K Top-N；候选图成功后替换，失败/取消保留旧图，真实计数/终态独立可读。远程 lifecycle、通用 ANN/scan/补偿解释和 Recall/固定硬件报告待验证，复用 #297/#298。 |
 | 12 | #322 | M36 | GPT-5.6 Sol / high | ✅ | `SndbObjectTransferManager` 代码切片、本地回归与 AOT/trim 门禁已完成：流式临时文件、自动 multipart、分片有界并发、checksum、幂等分片安全重试、原子且落盘的 resume manifest、逐对象结果、原子文件下载、进度、取消与资源释放；固定硬件、大文件内存、断电未知结果和跨进程现场证据仍按后置门禁执行。 |
-| 13 | #323 | M36 | GPT-5.6 Terra / high | 🚧 | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流；已完成的有界分页不重做。本机 quick/full 高变更率预检已通过，但固定硬件、高变更率现场对账和完整传输仍单独验收，见[验证状态](audits/object-transfer-validation-20260920.md)。 |
+| 13 | #323 | M36 | GPT-5.6 Terra / high | ✅（代码完成，固定硬件/现场传输验证后置） | conditional put/get（强/弱 ETag 与 HTTP 秒级日期语义）、异步游标、CLI `cp/sync --dry-run` 文件流和有界分页均已实现。本机 quick/full 高变更率预检已通过；固定硬件、高变更率现场对账和完整传输仍单独验收，见[验证状态](audits/object-transfer-validation-20260920.md)。 |
 | 14 | #324 | M36 | GPT-6 Astra / high | ✅ | SonnetMQ producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消与 graceful drain 已接入嵌入式/远程共享客户端并完成本地回归；nack/redelivery/DLQ 与 exactly-once 边界仍归 #325。 |
-| 15 | #325 | M36 | GPT-6 Astra / high | 🚧 | MQ nack/redelivery/max-delivery/DLQ、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断已覆盖 Core、嵌入式/远程客户端、HTTP、Frame 和高层 delivery；message-id 去重窗口与实例级恢复仍待实现/验证。 |
-| 16 | #326（代码） | M36 | GPT-6 Astra / high | 🚧 | VS Code Graph 最小浏览/查询入口已交付，Graph catalog、Explorer、`queryGraph` 模板和 smoke contract 已同步；instance MQ/consumer offset 一致快照与恢复仍待实现，单库包不包含 Server 实例 MQ。 |
-| 17 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | 双网 Copilot 可信认证、页面刷新/跨进程/多实例续流、StudioNative transport 与系统凭据库。 |
-| 18 | #375 | M41/M42 | GPT-5.6 Sol / high | 🚧 | 已修复首 N 行采样偏差，统计刷新使用确定性无偏有界采样并保留后台预算任务；页感知成本、参数敏感计划和现场尾延迟仍待完成。 |
-| 19 | M42 性能残余 | M42 | — | 🚧 | KV snapshot cold-miss single-flight 与通用向量固定 K Top-N 已交付；页感知成本、参数敏感计划、独立 I/O 预算、covering/index-only、大值复制、冷启动与 SQL 端到端结果内存优化仍待完成。 |
+| 15 | #325 | M36 | GPT-6 Astra / high | ✅（代码完成，远程/长期验证后置） | MQ nack/redelivery/max-delivery/DLQ、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断、`message-id` 有界去重窗口已覆盖 Core、嵌入式/远程客户端、HTTP、Frame 和高层 delivery；跨节点 exactly-once 不在合同内，远程和长期证据后置。 |
+| 16 | #326（代码） | M36 | GPT-6 Astra / high | ✅（代码完成，实例恢复/九模型现场验证后置） | VS Code Graph 最小浏览/查询入口和 instance MQ/consumer offset 一致快照/恢复已交付，Graph catalog、Explorer、`queryGraph` 模板和 smoke contract 已同步；单库包继续不包含 Server 实例 MQ，九模型真实用户任务 e2e 与现场恢复证据后置。 |
+| 17 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | ServerRelay durable journal 已支持完成 run 的跨进程/重启 cursor 重放，未完成 run 重启时 fail-closed；可信 OAuth/PKCE、正在执行中的多实例实时接管、StudioNative transport/系统凭据库和真实公网双网验证仍后置。 |
+| 18 | #375 | M41/M42 | GPT-5.6 Sol / high | 🟡 | 首 N 行采样偏差已修复，统计刷新使用确定性无偏有界采样并保留后台预算任务；页感知成本与参数敏感反馈已有本地代码合同和回归，固定硬件、生产尾延迟与现场验证后置。 |
+| 19 | M42 性能残余 | M42 | — | 🚧 | KV snapshot cold-miss single-flight、通用向量固定 K Top-N 与批量 cosine query norm 复用已交付本地代码/基准；Embedded I/O 预算、covering/index-only 扩展、大值复制、冷启动与 SQL 端到端结果内存，以及固定 x64/ARM64 和 168 小时门禁仍待完成。 |
 
 #### 2. 后做：独立测试、验证、评测与论证
 
@@ -209,7 +209,7 @@ M43 是总收口里程碑，不要求把所有实现集中在一个 PR，也不�
 
 #### 步骤 2：🚧 既有 PR 实现、功能补全与性能优化
 
-严格按 D 节第 1、2 组执行：先推进 M35/M36/M27 的功能缺口，随后完成 M41/M42 性能残余。M20 启动修复已在当前基线，#136 仅在步骤 2b 进行失败定位与 nightly 证据恢复。每个 PR 只交付一个范围，已完成切片不得重新包装为新任务。
+严格按 D 节第 1、2 组执行：M36 #311~#326 的代码切片已完成并转入真机验证待办，当前仍推进 M27 #340 及 M41/M42 的明确实现残余；随后集中完成固定硬件、远程 parity、nightly 和长期证据。M20 启动修复已在当前基线，#136 仅在步骤 2b 进行失败定位与 nightly 证据恢复。每个 PR 只交付一个范围，已完成切片不得重新包装为新任务。
 
 **退出条件：** D 节代码与功能补全、性能优化队列全部达到各自的实现合同；测试仅用于证明合同，不把测试或本地 smoke 单独计为功能完成。
 

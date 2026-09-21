@@ -14,17 +14,27 @@
 
 ### Added
 
+- **M27 #340 ServerRelay 跨进程/重启续流 journal**：ServerRelay 事件日志现在可持久化到 `<DataRoot>/.system/copilot-relay-journal.json`，以 source-generated JSON 和原子替换写入；新 Server 进程可按 owner/database/request fingerprint 与 cursor 重放已完成 run。进程重启时未完成 run 会追加 `error`/`done` 的 interrupted 终态并只允许重放已有事件，绝不接管或重复调用 provider/本地工具；journal 使用单写者锁、有限 TTL 和有界 run/event 容量。新增完成 run 重启重放与未完成 run fail-closed 回归。跨多实例正在执行中的实时接管、可信 OAuth/PKCE、StudioNative broker 与真实公网部署仍不在本次合同内。
+
+- **M36 #311 统一新客户端合同代码收口**：Document、Graph、KV、MQ 和 Object 客户端的取消传播、目标/关联响应绑定、流式与批量边界已完成；Object SDK 的预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和写入禁止自动重放，以及 MQ `PublishMany` 的逐项物化和发送前取消传播均已落地。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。九模型 golden journey、工作台/SDK 端到端矩阵、远程恢复和长期证据转入独立验收任务。
+
 - **M36 #321 向量精确扫描 Top-K 有界化**：通用 `vector_search` 在默认距离升序且无/可预筛选元数据过滤时使用固定大小堆保留候选，继续执行完整扫描、取消传播、维度校验和稳定距离/ID 排序；涉及距离/分数谓词或自定义排序时保留完整候选集路径。新增过滤后与残余谓词差分回归，避免将有界扫描误报为 ANN 或 Recall 证据。
 
 - **M41 #375 统计无偏采样**：关系统计刷新在受限样本预算下遍历完整快照并按稳定序列做确定性均匀选样，避免只取主键前缀导致尾部数据缺失；新增尾部样本回归与基准。
 
+- **M41 #375 页感知成本与参数敏感反馈**：索引候选的逻辑读估算按持久化索引页密度缩放，并在 `EXPLAIN` 候选摘要中公开页上界；参数化 SQL 的运行时行数反馈增加绑定值摘要隔离，避免倾斜参数污染同形状查询的后续规划。新增页成本和参数反馈隔离回归。
+
+- **M42 向量批量余弦 query norm 复用**：批量 CPU scorer 现在每次扫描只计算一次查询向量范数平方，再复用到每个候选行；保留零向量、NaN、维度错误、裁剪和距离排序语义。新增逐行差分/边界回归与 BenchmarkDotNet 基线；固定 x64、ARM64 和 168 小时生产门禁仍待现场执行，详见 [M42 query norm 报告](docs/benchmarks/m42-vector-query-norm.md)。
+
 - **M42 KV 快照 single-flight**：冷缓存快照覆盖层构建增加进程内 single-flight，重复并发读者复用同一份复制/排序结果，保留预算校验、磁盘租约和取消/释放语义；新增并发回归。
 
-- **M36 #326 VS Code Graph Explorer**：连接树新增 Graph Beta 目录与节点，展示记录格式和存储标识，提供有界 `queryGraph` SQL 模板入口；Graph catalog 查询、激活事件、菜单和 smoke contract 已同步。
+- **M36 #326 VS Code Graph Explorer 与实例恢复**：连接树新增 Graph Beta 目录与节点，展示记录格式和存储标识，提供有界 `queryGraph` SQL 模板入口；同时补充实例级 SonnetMQ/consumer offset 一致快照与恢复，Graph catalog 查询、激活事件、菜单和 smoke contract 已同步。
 
-- **M36 #325 SonnetMQ 投递失败治理初始切片**：核心队列和共享客户端新增 `Nack`/重投计数、最大投递次数、死信 Topic、拒绝原因与 lag/重投诊断；拒绝记录可随日志重开恢复，达到上限后自动附带原 Topic/offset 头转入 `<topic>.dlq`。远程 HTTP、Frame 和高层 delivery 已接入，消息 ID 去重窗口仍待后续切片。
+- **M36 #325 SonnetMQ 投递失败治理初始切片**：核心队列和共享客户端新增 `Nack`/重投计数、最大投递次数、死信 Topic、拒绝原因与 lag/重投诊断；拒绝记录可随日志重开恢复，达到上限后自动附带原 Topic/offset 头转入 `<topic>.dlq`。远程 HTTP、Frame 和高层 delivery 已接入，消息 ID 去重窗口见下方补充。
 
-- **M36 #325 SonnetMQ offset reset**：消费者组支持 earliest/latest/time/explicit 四种有界重置目标，重置记录写入队列日志并在重开后恢复；HTTP、Frame、嵌入式和共享客户端保持相同的 retention 裁剪语义。为增加 nack/offset-reset 记录，SonnetMQ 日志版本从 1 升至 2，同时继续读取版本 1；消息 ID 去重窗口仍待后续切片。
+- **M36 #325 SonnetMQ offset reset**：消费者组支持 earliest/latest/time/explicit 四种有界重置目标，重置记录写入队列日志并在重开后恢复；HTTP、Frame、嵌入式和共享客户端保持相同的 retention 裁剪语义。为增加 nack/offset-reset 记录，SonnetMQ 日志版本从 1 升至 2，同时继续读取版本 1；消息 ID 去重窗口见同一 Unreleased 段落的补充条目。
+- **M36 #325 SonnetMQ message-id 去重窗口**：新增可配置的有界 `message-id` 去重窗口（默认 100,000，设为 0 可关闭），重复消息复用原 offset 且不追加日志；批量发布和日志重开均保持同一语义，超长或缺失 ID 不启用去重。远程/跨节点 exactly-once 与长期证据仍不在合同内。
+- **M36 #326 SonnetMQ 实例快照与恢复**：新增一致性实例级 snapshot/restore，快照期间阻断会改变队列状态的操作，刷新并复制目录模式或单文件模式日志，生成 source-generated manifest 和 SHA-256 校验；恢复先校验并写入 staging，再原子发布。该合同覆盖消息头、consumer offset 和重开后继续发布，但不改变单库备份不包含 Server `.system/mq` 的边界，现场恢复证据后置。
 - SonnetMQ 日志格式版本升级为 v2 以容纳 nack 与 offset-reset 记录；读取端继续兼容 v1 历史消息与确认记录。
 
 - **M36 #324 SonnetMQ 高层客户端切片**：新增 producer/consumer builder；producer 以 `MaxInFlight` 提供有界并发与 `DrainAsync`；consumer 提供有界 prefetch、push/pull `IAsyncEnumerable`、manual/auto ACK、取消和 drain。该切片复用现有 publish/pull/ack 合同，仍不包含 nack/redelivery/DLQ（见 #325），也不宣称 exactly-once 或分布式消费组能力。详见 [MQ 高层客户端](docs/mq-high-level-client.md)。
@@ -110,7 +120,7 @@
 
 - **M39 SQL 例程生产加固**：关系表触发器支持 `ALTER TRIGGER ... ENABLE/DISABLE/RENAME TO/FOLLOWS/PRECEDES` 及创建时显式顺序；新增只读 `EXPLAIN PROCEDURE/TRIGGER`、`SHOW ROUTINE AUDIT/STATS`、按定义过滤及 AOT 兼容 JSON 审计导出。远程 REST/Frame 统一传递服务端配置的例程资源预算。例程目录独立版本升级为 v2，继续读取 v1，旧引擎拒绝 v2；主数据文件和 KV/WAL 格式未改变。
 
-- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。
+- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；固定硬件、完整传输和生产门禁仍独立验收。
 
 - **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
 

@@ -22,7 +22,7 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m36-object-valida
 
 ## 固定硬件与完整传输门禁
 
-当前没有受保护的固定 x64/ARM64 目标机、冻结硬件/磁盘清单和可追溯外部 artifact，因此 #323 继续保持 `🚧/⏳`。正式闭环必须绑定 commit、Server/SDK/CLI 版本和 workload，至少覆盖：
+当前没有受保护的固定 x64/ARM64 目标机、冻结硬件/磁盘清单和可追溯外部 artifact，因此 #323 的现场验证保持 `⏳`；代码合同与本机预检已完成。正式验证必须绑定 commit、Server/SDK/CLI 版本和 workload，至少覆盖：
 
 - 8K/更大对象集合的并发 PUT、覆盖、删除、delimiter、continuation 和预算拒绝不推进 token；
 - 真实 Kestrel、SDK、CLI 的分页与重开对账，记录 P50/P95/P99、吞吐、RSS、GC、I/O、WAL 和冷启动；

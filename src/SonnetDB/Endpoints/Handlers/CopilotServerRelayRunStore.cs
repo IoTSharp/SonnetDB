@@ -1,12 +1,15 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using SonnetDB.Contracts;
 using SonnetDB.Json;
 
 namespace SonnetDB.Endpoints;
 
 /// <summary>
-/// 保存单个 Server 进程内的短期 ServerRelay 事件日志，避免续流请求重复执行工具。
+/// 保存有界的 ServerRelay 事件日志，避免续流请求重复执行工具。
+/// 配置 journal 路径后，完成事件还会跨进程/重启持久化；未完成 run 在新进程中只会
+/// 被封闭为 interrupted 终态，不会尝试接管 provider 或本地工具。
 /// </summary>
 internal sealed class CopilotServerRelayRunStore
 {
@@ -19,11 +22,15 @@ internal sealed class CopilotServerRelayRunStore
 
     private readonly object _gate = new();
     private readonly TimeSpan _activeRunTimeToLive;
+    private readonly string? _journalPath;
+    private readonly string? _journalLockPath;
     private readonly Dictionary<CopilotServerRelayRunKey, CopilotServerRelayRun> _activeRuns = [];
     private readonly Dictionary<CopilotServerRelayRunKey, CopilotServerRelayRun> _replayRuns = [];
     private readonly Dictionary<CopilotServerRelayRunKey, DateTimeOffset> _tombstones = [];
 
-    public CopilotServerRelayRunStore(TimeSpan? activeRunTimeToLive = null)
+    public CopilotServerRelayRunStore(
+        TimeSpan? activeRunTimeToLive = null,
+        string? journalPath = null)
     {
         _activeRunTimeToLive = activeRunTimeToLive ?? DefaultActiveRunTimeToLive;
         if (_activeRunTimeToLive <= TimeSpan.Zero)
@@ -32,6 +39,15 @@ internal sealed class CopilotServerRelayRunStore
                 nameof(activeRunTimeToLive),
                 _activeRunTimeToLive,
                 "ServerRelay active run TTL 必须大于零。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(journalPath))
+        {
+            _journalPath = Path.GetFullPath(journalPath);
+            _journalLockPath = _journalPath + ".lock";
+            Directory.CreateDirectory(Path.GetDirectoryName(_journalPath)!);
+            lock (_gate)
+                LoadJournalLocked(DateTimeOffset.UtcNow);
         }
     }
 
@@ -46,6 +62,7 @@ internal sealed class CopilotServerRelayRunStore
         lock (_gate)
         {
             var now = DateTimeOffset.UtcNow;
+            LoadJournalLocked(now);
             PruneExpiredEntries(now);
             var key = new CopilotServerRelayRunKey(binding.Owner, runId);
 
@@ -64,8 +81,10 @@ internal sealed class CopilotServerRelayRunStore
                 runId,
                 binding,
                 now + _activeRunTimeToLive,
-                OnRunCompleted);
+                OnRunCompleted,
+                OnRunChanged);
             _activeRuns.Add(key, run);
+            PersistJournalLocked(now);
             return new CopilotServerRelayAttachResult(CopilotServerRelayAttachStatus.Created, run, 0);
         }
     }
@@ -99,7 +118,265 @@ internal sealed class CopilotServerRelayRunStore
             _replayRuns[key] = run;
             PruneExpiredEntries(now);
             TrimReplayRuns(now);
+            PersistJournalLocked(now);
         }
+    }
+
+    private void OnRunChanged(CopilotServerRelayRun run)
+    {
+        try
+        {
+            lock (_gate)
+                PersistJournalLocked(DateTimeOffset.UtcNow);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError(
+                "ServerRelay durable journal update failed for {0}: {1}",
+                run.RunId,
+                exception);
+        }
+    }
+
+    private void LoadJournalLocked(DateTimeOffset now)
+    {
+        if (_journalPath is null || !File.Exists(_journalPath))
+            return;
+
+        using var journalLock = AcquireJournalLock();
+        CopilotServerRelayJournalDocument? document;
+        try
+        {
+            using var stream = new FileStream(
+                _journalPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            document = JsonSerializer.Deserialize(
+                stream,
+                CopilotServerRelayJournalJsonContext.Default.CopilotServerRelayJournalDocument);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            System.Diagnostics.Trace.TraceError(
+                "ServerRelay durable journal could not be loaded: {0}",
+                exception);
+            return;
+        }
+
+        if (document is null)
+            return;
+
+        foreach (var tombstone in document.Tombstones ?? [])
+        {
+            if (tombstone is null ||
+                string.IsNullOrWhiteSpace(tombstone.Owner) ||
+                string.IsNullOrWhiteSpace(tombstone.RunId) ||
+                tombstone.ExpiresAtUtc <= now)
+                continue;
+
+            _tombstones[new CopilotServerRelayRunKey(tombstone.Owner, tombstone.RunId)] = tombstone.ExpiresAtUtc;
+        }
+
+        foreach (var persisted in document.Runs ?? [])
+        {
+            if (persisted is null || persisted.Binding is null || persisted.Events is null ||
+                string.IsNullOrWhiteSpace(persisted.RunId) ||
+                string.IsNullOrWhiteSpace(persisted.Binding.Owner) ||
+                string.IsNullOrWhiteSpace(persisted.Binding.DatabaseName) ||
+                string.IsNullOrWhiteSpace(persisted.Binding.RequestFingerprint))
+                continue;
+
+            var key = new CopilotServerRelayRunKey(persisted.Binding.Owner, persisted.RunId);
+            if (_activeRuns.ContainsKey(key) || _replayRuns.ContainsKey(key) || _tombstones.ContainsKey(key))
+                continue;
+
+            var replayExpiresAt = persisted.ReplayExpiresAtUtc ?? now + ReplayTimeToLive;
+            if (replayExpiresAt <= now)
+            {
+                AddTombstone(key, now + TombstoneTimeToLive);
+                continue;
+            }
+
+            try
+            {
+                // A process cannot safely continue a provider call after restart. The
+                // persisted event tail is replayable, while an unfinished run is sealed
+                // as interrupted instead of invoking the provider a second time.
+                var run = persisted.Completed
+                    ? CopilotServerRelayRun.RestoreCompleted(
+                        persisted.RunId,
+                        persisted.Binding,
+                        persisted.ActiveExpiresAtUtc,
+                        persisted.Events)
+                    : CopilotServerRelayRun.RestoreInterrupted(
+                        persisted.RunId,
+                        persisted.Binding,
+                        persisted.ActiveExpiresAtUtc,
+                        persisted.Events,
+                        "ServerRelay 所在进程已重启；运行已中断，仅允许重放已记录事件。");
+                run.SetReplayExpiresAt(replayExpiresAt);
+                _replayRuns.Add(key, run);
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "ServerRelay durable journal run {0} was rejected: {1}",
+                    persisted.RunId,
+                    exception);
+                AddTombstone(key, now + TombstoneTimeToLive);
+            }
+        }
+
+        TrimReplayRuns(now);
+    }
+
+    private void PersistJournalLocked(DateTimeOffset now)
+    {
+        if (_journalPath is null)
+            return;
+
+        using var journalLock = AcquireJournalLock();
+        var persisted = new Dictionary<CopilotServerRelayRunKey, CopilotServerRelayJournalRun>();
+        var tombstones = new Dictionary<CopilotServerRelayRunKey, DateTimeOffset>();
+        LoadExternalJournalInto(persisted, tombstones, now);
+        foreach (var tombstone in _tombstones)
+        {
+            if (tombstone.Value > now)
+                tombstones[tombstone.Key] = tombstone.Value;
+        }
+        foreach (var run in _activeRuns.Values.Concat(_replayRuns.Values))
+        {
+            var snapshot = run.CreateJournalSnapshot();
+            if (snapshot.ReplayExpiresAtUtc is DateTimeOffset replayExpiry && replayExpiry <= now)
+                continue;
+            var key = new CopilotServerRelayRunKey(snapshot.Binding.Owner, snapshot.RunId);
+            if (!tombstones.ContainsKey(key))
+                persisted[key] = snapshot;
+        }
+
+        var document = new CopilotServerRelayJournalDocument(
+            persisted.Values.ToArray(),
+            tombstones.Select(static item => new CopilotServerRelayJournalTombstone(
+                item.Key.Owner,
+                item.Key.RunId,
+                item.Value)).ToArray());
+        var temporaryPath = _journalPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            JsonSerializer.Serialize(
+                stream,
+                document,
+                CopilotServerRelayJournalJsonContext.Default.CopilotServerRelayJournalDocument);
+            stream.Flush(true);
+        }
+
+        try
+        {
+            File.Move(temporaryPath, _journalPath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch (IOException)
+            {
+                // The replacement already succeeded; a stale temp file is harmless
+                // and will be removed by the next writer.
+            }
+        }
+    }
+
+    private void LoadExternalJournalInto(
+        Dictionary<CopilotServerRelayRunKey, CopilotServerRelayJournalRun> target,
+        Dictionary<CopilotServerRelayRunKey, DateTimeOffset> tombstones,
+        DateTimeOffset now)
+    {
+        if (_journalPath is null || !File.Exists(_journalPath))
+            return;
+
+        try
+        {
+            using var stream = new FileStream(
+                _journalPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            var document = JsonSerializer.Deserialize(
+                stream,
+                CopilotServerRelayJournalJsonContext.Default.CopilotServerRelayJournalDocument);
+            if (document is null)
+                return;
+
+            foreach (var tombstone in document.Tombstones ?? [])
+            {
+                if (tombstone is null ||
+                    string.IsNullOrWhiteSpace(tombstone.Owner) ||
+                    string.IsNullOrWhiteSpace(tombstone.RunId))
+                    continue;
+                var key = new CopilotServerRelayRunKey(tombstone.Owner, tombstone.RunId);
+                if (tombstone.ExpiresAtUtc > now)
+                    tombstones[key] = tombstone.ExpiresAtUtc;
+            }
+
+            foreach (var run in document.Runs ?? [])
+            {
+                if (run is null || run.Binding is null || run.Events is null ||
+                    string.IsNullOrWhiteSpace(run.RunId) ||
+                    string.IsNullOrWhiteSpace(run.Binding.Owner) ||
+                    string.IsNullOrWhiteSpace(run.Binding.DatabaseName) ||
+                    string.IsNullOrWhiteSpace(run.Binding.RequestFingerprint))
+                    continue;
+                var expiry = run.ReplayExpiresAtUtc;
+                var key = new CopilotServerRelayRunKey(run.Binding.Owner, run.RunId);
+                if ((expiry is null || expiry > now) && !tombstones.ContainsKey(key))
+                    target[key] = run;
+            }
+
+            while (target.Count > MaxActiveRuns + MaxReplayRuns)
+            {
+                var oldest = target.MinBy(static pair =>
+                    pair.Value.ReplayExpiresAtUtc ?? pair.Value.ActiveExpiresAtUtc);
+                target.Remove(oldest.Key);
+            }
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError(
+                "ServerRelay durable journal merge failed: {0}",
+                exception);
+        }
+    }
+
+    private FileStream AcquireJournalLock()
+    {
+        if (_journalLockPath is null)
+            throw new InvalidOperationException("ServerRelay durable journal path is not configured.");
+
+        IOException? last = null;
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            try
+            {
+                return new FileStream(
+                    _journalLockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None,
+                    bufferSize: 1,
+                    options: FileOptions.DeleteOnClose);
+            }
+            catch (IOException exception)
+            {
+                last = exception;
+                Thread.Sleep(25);
+            }
+        }
+
+        throw new IOException("ServerRelay durable journal lock could not be acquired.", last);
     }
 
     private void PruneExpiredEntries(DateTimeOffset now)
@@ -182,6 +459,7 @@ internal sealed class CopilotServerRelayRun
     private readonly Dictionary<string, CopilotServerRelayToolCallState> _toolCalls =
         new(StringComparer.Ordinal);
     private readonly Action<CopilotServerRelayRun> _onCompleted;
+    private readonly Action<CopilotServerRelayRun>? _onChanged;
     private readonly CancellationTokenSource _deadlineCancellation = new();
     private readonly Timer _deadlineTimer;
     private TaskCompletionSource _changed = CreateSignal();
@@ -197,12 +475,15 @@ internal sealed class CopilotServerRelayRun
         string runId,
         CopilotServerRelayRunBinding binding,
         DateTimeOffset activeExpiresAtUtc,
-        Action<CopilotServerRelayRun> onCompleted)
+        Action<CopilotServerRelayRun> onCompleted,
+        Action<CopilotServerRelayRun>? onChanged = null,
+        bool startDeadlineTimer = true)
     {
         RunId = runId;
         Binding = binding;
         ActiveExpiresAtUtc = activeExpiresAtUtc;
         _onCompleted = onCompleted;
+        _onChanged = onChanged;
         var dueTime = activeExpiresAtUtc - DateTimeOffset.UtcNow;
         _deadlineTimer = new Timer(
             static state =>
@@ -221,9 +502,12 @@ internal sealed class CopilotServerRelayRun
             Timeout.InfiniteTimeSpan);
         try
         {
-            _ = _deadlineTimer.Change(
-                dueTime > TimeSpan.Zero ? dueTime : TimeSpan.Zero,
-                Timeout.InfiniteTimeSpan);
+            if (startDeadlineTimer)
+            {
+                _ = _deadlineTimer.Change(
+                    dueTime > TimeSpan.Zero ? dueTime : TimeSpan.Zero,
+                    Timeout.InfiniteTimeSpan);
+            }
         }
         catch
         {
@@ -253,6 +537,7 @@ internal sealed class CopilotServerRelayRun
     {
         ArgumentNullException.ThrowIfNull(candidate);
 
+        CopilotChatEvent mapped;
         lock (_gate)
         {
             if (_completed || _doneSeen)
@@ -270,7 +555,7 @@ internal sealed class CopilotServerRelayRun
 
             var toolCallTransition = ResolveToolCallTransition(candidate);
             var sequence = checked((long)_events.Count + 1);
-            var mapped = candidate with
+            mapped = candidate with
             {
                 RunId = RunId,
                 Sequence = sequence,
@@ -288,8 +573,10 @@ internal sealed class CopilotServerRelayRun
             }
             if (string.Equals(mapped.Type, "done", StringComparison.OrdinalIgnoreCase))
                 _doneSeen = true;
-            return mapped;
         }
+
+        NotifyChanged();
+        return mapped;
     }
 
     public void Fail(string message)
@@ -302,6 +589,7 @@ internal sealed class CopilotServerRelayRun
             if (normalized.Length > MaxFailureMessageLength)
                 normalized = normalized[..MaxFailureMessageLength];
 
+            var notify = false;
             lock (_gate)
             {
                 if (_completed || _doneSeen)
@@ -314,7 +602,12 @@ internal sealed class CopilotServerRelayRun
                 }
                 AppendTerminalCore(new CopilotChatEvent("done", Message: "completed"));
                 _doneSeen = true;
+
+                notify = true;
             }
+
+            if (notify)
+                NotifyChanged();
         }
         catch (Exception exception)
         {
@@ -383,6 +676,127 @@ internal sealed class CopilotServerRelayRun
     {
         lock (_gate)
             _replayExpiresAtUtc = expiresAtUtc;
+    }
+
+    internal CopilotServerRelayJournalRun CreateJournalSnapshot()
+    {
+        lock (_gate)
+        {
+            return new CopilotServerRelayJournalRun(
+                RunId,
+                Binding,
+                ActiveExpiresAtUtc,
+                _replayExpiresAtUtc,
+                _completed,
+                _events.ToArray());
+        }
+    }
+
+    internal static CopilotServerRelayRun RestoreCompleted(
+        string runId,
+        CopilotServerRelayRunBinding binding,
+        DateTimeOffset activeExpiresAtUtc,
+        IReadOnlyList<CopilotChatEvent> events)
+    {
+        var run = new CopilotServerRelayRun(
+            runId,
+            binding,
+            activeExpiresAtUtc,
+            static _ => { },
+            startDeadlineTimer: false);
+        run.RestoreEvents(events, completed: true);
+        return run;
+    }
+
+    internal static CopilotServerRelayRun RestoreInterrupted(
+        string runId,
+        CopilotServerRelayRunBinding binding,
+        DateTimeOffset activeExpiresAtUtc,
+        IReadOnlyList<CopilotChatEvent> events,
+        string message)
+    {
+        var run = new CopilotServerRelayRun(
+            runId,
+            binding,
+            activeExpiresAtUtc,
+            static _ => { },
+            startDeadlineTimer: false);
+        run.RestoreEvents(events, completed: false);
+        run.Fail(message);
+        run.Complete();
+        return run;
+    }
+
+    private void RestoreEvents(IReadOnlyList<CopilotChatEvent> events, bool completed)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        if (events.Count > MaxEvents)
+            throw new InvalidDataException("ServerRelay journal event count exceeds the bounded replay limit.");
+
+        lock (_gate)
+        {
+            foreach (var item in events)
+            {
+                if (item is null ||
+                    item.Sequence is not long sequence || sequence != _events.Count + 1 ||
+                    !string.Equals(item.RunId, RunId, StringComparison.Ordinal) ||
+                    !string.Equals(item.Cursor, CreateCursor(RunId, sequence), StringComparison.Ordinal))
+                    throw new InvalidDataException("ServerRelay journal contains an invalid event sequence.");
+
+                string type = item.Type.Trim();
+                if (_doneSeen || (_outcomeSeen && !string.Equals(type, "done", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException("ServerRelay journal contains an event after a terminal outcome.");
+                if (string.Equals(type, "done", StringComparison.OrdinalIgnoreCase) && !_outcomeSeen)
+                    throw new InvalidDataException("ServerRelay journal contains done before final/error.");
+                if (string.Equals(type, "final", StringComparison.OrdinalIgnoreCase) && _activeToolCallId is not null)
+                    throw new InvalidDataException("ServerRelay journal contains final before the active tool call completed.");
+
+                var transition = ResolveToolCallTransition(item);
+                int bytes = JsonSerializer.SerializeToUtf8Bytes(
+                    item,
+                    CopilotServerRelayJournalJsonContext.Default.CopilotChatEvent).Length;
+                if (bytes > MaxJournalBytes - _journalBytes)
+                    throw new InvalidDataException("ServerRelay journal event bytes exceed the bounded replay limit.");
+
+                _events.Add(item);
+                _journalBytes += bytes;
+                ApplyToolCallTransition(transition);
+                if (string.Equals(type, "final", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(type, "error", StringComparison.OrdinalIgnoreCase))
+                {
+                    _outcomeSeen = true;
+                    _activeToolCallId = null;
+                }
+                if (string.Equals(type, "done", StringComparison.OrdinalIgnoreCase))
+                    _doneSeen = true;
+            }
+
+            if (completed)
+            {
+                if (!_outcomeSeen || !_doneSeen)
+                    throw new InvalidDataException("Completed ServerRelay journal run has no final/error followed by done.");
+                _completed = true;
+                _deadlineTimer.Dispose();
+            }
+            else if (_doneSeen ||
+                _events.Count > MaxEvents - 2 ||
+                _journalBytes > MaxJournalBytes - TerminalReserveBytes)
+            {
+                throw new InvalidDataException("Interrupted ServerRelay journal run cannot safely append its terminal events.");
+            }
+        }
+    }
+
+    private void NotifyChanged()
+    {
+        try
+        {
+            _onChanged?.Invoke(this);
+        }
+        catch (Exception exception)
+        {
+            ReportFailure("ServerRelay run change callback failed.", exception);
+        }
     }
 
     public bool TryResolveCursor(string? cursor, out long afterSequence)
@@ -711,3 +1125,36 @@ internal enum CopilotServerRelayToolCallTransitionKind
     Retry,
     Complete,
 }
+
+/// <summary>
+/// ServerRelay durable journal document. It stores only bounded, already
+/// validated transport events; provider credentials and HTTP state never enter
+/// this file.
+/// </summary>
+internal sealed record CopilotServerRelayJournalDocument(
+    CopilotServerRelayJournalRun[] Runs,
+    CopilotServerRelayJournalTombstone[]? Tombstones = null);
+
+internal sealed record CopilotServerRelayJournalRun(
+    string RunId,
+    CopilotServerRelayRunBinding Binding,
+    DateTimeOffset ActiveExpiresAtUtc,
+    DateTimeOffset? ReplayExpiresAtUtc,
+    bool Completed,
+    CopilotChatEvent[] Events);
+
+internal sealed record CopilotServerRelayJournalTombstone(
+    string Owner,
+    string RunId,
+    DateTimeOffset ExpiresAtUtc);
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false)]
+[JsonSerializable(typeof(CopilotServerRelayJournalDocument))]
+[JsonSerializable(typeof(CopilotServerRelayJournalRun))]
+[JsonSerializable(typeof(CopilotServerRelayJournalTombstone))]
+[JsonSerializable(typeof(CopilotServerRelayRunBinding))]
+[JsonSerializable(typeof(CopilotChatEvent))]
+internal sealed partial class CopilotServerRelayJournalJsonContext : JsonSerializerContext;

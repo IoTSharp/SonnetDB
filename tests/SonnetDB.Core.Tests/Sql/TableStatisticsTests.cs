@@ -152,6 +152,38 @@ public sealed class TableStatisticsTests : IDisposable
     }
 
     [Fact]
+    public void CostPlanner_UsesIndexLogicalPagesForSelectiveCandidate()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE page_cost (id INT, status STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX ix_page_cost_status ON page_cost (status)");
+        TableStore store = db.Tables.Open("page_cost");
+        store.InsertMany(Enumerable.Range(1, 10_000)
+            .Select(id => (IReadOnlyList<object?>)new object?[]
+            {
+                (long)id,
+                id <= 100 ? "rare" : "common",
+            })
+            .ToArray());
+        _ = store.RefreshStatistics(new TableStatisticsRefreshOptions
+        {
+            LogicalPageBytes = 1_024,
+        });
+
+        IReadOnlyDictionary<string, object?> explain = Explain(
+            db,
+            "SELECT id FROM page_cost WHERE status = 'rare'");
+
+        Assert.Equal("secondary_index", explain["access_path"]);
+        long estimatedRows = Convert.ToInt64(explain["estimated_output_rows"]);
+        long estimatedReads = Convert.ToInt64(explain["estimated_logical_reads"]);
+        Assert.InRange(estimatedRows, 90, 110);
+        Assert.True(estimatedReads < estimatedRows,
+            $"index reads should be page-aware, rows={estimatedRows}, reads={estimatedReads}");
+        Assert.Contains("pages<=", (string)explain["candidate_plans"]!);
+    }
+
+    [Fact]
     public void ExplainExists_FreshStatisticsMatchesRuntimeCostPlan_WithoutScanningBusinessRows()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

@@ -71,6 +71,9 @@ public sealed record SqlExecutionOptions
     /// </summary>
     public string? QueryFingerprint { get; init; }
 
+    /// <summary>参数敏感运行时反馈指纹；仅由已绑定参数的 SQL 入口设置。</summary>
+    internal string? ParameterSensitiveQueryFingerprint { get; init; }
+
     /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
     internal SqlExecutionMetrics? Metrics { get; init; }
 

@@ -119,7 +119,13 @@ public static class SqlExecutor
 
         var statement = SqlParser.Parse(sql);
         statement = SqlParameterBinder.Bind(statement, parameters);
-        return ExecuteStatement(tsdb, databaseName, statement, controlPlane);
+        SqlExecutionOptions options = SqlExecutionOptions.Default with
+        {
+            ParameterSensitiveQueryFingerprint = parameters is null
+                ? null
+                : SqlStatementFingerprint.CreateParameterSensitive(statement),
+        };
+        return ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction: null, options);
     }
 
     /// <summary>
@@ -153,7 +159,13 @@ public static class SqlExecutor
             statement,
             controlPlane,
             transaction: null,
-            options with { QueryFingerprint = options.QueryFingerprint ?? SqlStatementFingerprint.Create(statement) });
+            options with
+            {
+                QueryFingerprint = options.QueryFingerprint ?? SqlStatementFingerprint.Create(statement),
+                ParameterSensitiveQueryFingerprint = parameters is null
+                    ? options.ParameterSensitiveQueryFingerprint
+                    : SqlStatementFingerprint.CreateParameterSensitive(statement),
+            });
     }
 
     /// <summary>
@@ -206,7 +218,12 @@ public static class SqlExecutor
             statement,
             controlPlane: null,
             transaction: null,
-            options);
+            options with
+            {
+                ParameterSensitiveQueryFingerprint = parameters is null
+                    ? options.ParameterSensitiveQueryFingerprint
+                    : SqlStatementFingerprint.CreateParameterSensitive(statement),
+            });
         return result as SelectExecutionResult
             ?? throw new InvalidOperationException("GQL 只读入口返回了非查询结果。");
     }
