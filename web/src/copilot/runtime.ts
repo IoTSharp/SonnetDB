@@ -52,6 +52,93 @@ export interface CopilotRuntimeRunOptions {
   runId?: string;
 }
 
+export type CopilotPendingRunMode = 'read-only' | 'read-write';
+export type CopilotPendingRunCloudMode =
+  | 'sql_assist'
+  | 'sql_analyze'
+  | 'db_maintenance'
+  | 'knowledge_qa';
+
+/**
+ * Non-secret state needed to replay a completed ServerRelay run after a page
+ * refresh. Message bodies, credentials and tool results are deliberately not
+ * persisted here; the conversation is reloaded from the authenticated server.
+ */
+export interface CopilotPendingServerRelayRun {
+  version: 1;
+  runId: string;
+  sessionId: string;
+  database: string;
+  requestFingerprint: string;
+  mode: CopilotPendingRunMode;
+  cloudMode: CopilotPendingRunCloudMode;
+  model?: string;
+  createdAtUtc: string;
+}
+
+export interface CopilotPendingRunStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export const CopilotPendingServerRelayRunStorageKey = 'sndb.copilot.pending-server-relay.v1';
+
+/** Calculate a stable SHA-256 fingerprint without retaining the request body. */
+export async function createCopilotRequestFingerprint(value: unknown): Promise<string | null> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return null;
+
+  const bytes = new TextEncoder().encode(stableStringify(value));
+  const digest = await subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((item) => item.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function savePendingServerRelayRun(
+  pending: CopilotPendingServerRelayRun,
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): boolean {
+  if (!isValidPendingServerRelayRun(pending) || !storage) return false;
+  try {
+    storage.setItem(CopilotPendingServerRelayRunStorageKey, JSON.stringify(pending));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadPendingServerRelayRun(
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): CopilotPendingServerRelayRun | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(CopilotPendingServerRelayRunStorageKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isValidPendingServerRelayRun(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingServerRelayRun(
+  expectedRunId?: string,
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): void {
+  if (!storage) return;
+  try {
+    if (expectedRunId) {
+      const pending = loadPendingServerRelayRun(storage);
+      if (pending && pending.runId !== expectedRunId) return;
+    }
+    storage.removeItem(CopilotPendingServerRelayRunStorageKey);
+  } catch {
+    // Disabled or quota-exhausted storage cannot be used for resume.
+  }
+}
+
 export class CopilotRuntimeContractError extends Error {
   constructor(
     public readonly code: string,
@@ -160,7 +247,7 @@ export class CopilotRuntime<TRequest, TEvent extends CopilotEventPayload> {
     const signal = options.signal ?? new AbortController().signal;
     throwIfAborted(signal);
 
-    const runId = options.runId?.trim() || createRunId();
+    const runId = options.runId?.trim() || createCopilotRunId();
     const readiness = await transport.probeReadiness(signal);
     throwIfAborted(signal);
     assertCopilotRuntimeReadiness(this.mode, readiness);
@@ -556,6 +643,48 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(sortJsonValue(value));
 }
 
+function isValidPendingServerRelayRun(value: unknown): value is CopilotPendingServerRelayRun {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<CopilotPendingServerRelayRun>;
+  if (candidate.version !== 1
+    || !isBoundedIdentifier(candidate.runId, 128)
+    || !isBoundedIdentifier(candidate.sessionId, 128)
+    || typeof candidate.database !== 'string'
+    || candidate.database.length > 128
+    || !/^[0-9a-f]{64}$/u.test(candidate.requestFingerprint ?? '')
+    || (candidate.mode !== 'read-only' && candidate.mode !== 'read-write')
+    || !isCloudMode(candidate.cloudMode)
+    || typeof candidate.createdAtUtc !== 'string'
+    || !Number.isFinite(Date.parse(candidate.createdAtUtc))) {
+    return false;
+  }
+  return candidate.model === undefined
+    || (typeof candidate.model === 'string' && candidate.model.length <= 256);
+}
+
+function isBoundedIdentifier(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= maxLength
+    && /^[A-Za-z0-9_-]+$/u.test(value);
+}
+
+function isCloudMode(value: unknown): value is CopilotPendingRunCloudMode {
+  return value === 'sql_assist'
+    || value === 'sql_analyze'
+    || value === 'db_maintenance'
+    || value === 'knowledge_qa';
+}
+
+function getSessionStorage(): CopilotPendingRunStorage | undefined {
+  if (typeof globalThis === 'undefined' || !('sessionStorage' in globalThis)) return undefined;
+  try {
+    return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function sortJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortJsonValue);
   if (value === null || typeof value !== 'object') return value;
@@ -568,7 +697,7 @@ function sortJsonValue(value: unknown): unknown {
   );
 }
 
-function createRunId(): string {
+export function createCopilotRunId(): string {
   const id = globalThis.crypto?.randomUUID?.();
   if (id) return `run_${id.replaceAll('-', '')}`;
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;

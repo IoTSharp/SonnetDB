@@ -471,6 +471,7 @@ internal static class DocumentVectorSearchExecutor
         => expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.Operand, row), cast.TargetType),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row)),
@@ -761,7 +762,9 @@ internal static class DocumentVectorSearchExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private static string FormatLiteralColumnName(LiteralExpression literal) => literal.Kind switch
     {

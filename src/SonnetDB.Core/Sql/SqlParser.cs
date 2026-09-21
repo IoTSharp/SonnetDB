@@ -219,6 +219,7 @@ public sealed class SqlParser
             TokenKind.KeywordRollback => ParseRollback(),
             TokenKind.KeywordInsert => ParseInsert(),
             TokenKind.KeywordImport => ParseImport(),
+            TokenKind.KeywordWith => ParseWithSelect(),
             TokenKind.KeywordSelect => ParseSelect(),
             TokenKind.KeywordDelete => ParseDelete(),
             TokenKind.KeywordTruncate => ParseTruncate(),
@@ -234,6 +235,59 @@ public sealed class SqlParser
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
             _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / WRITE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+        };
+    }
+
+    /// <summary>
+    /// 解析非递归公共表表达式：<c>WITH name [(column, ...)] AS (SELECT ...), ... SELECT ...</c>。
+    /// </summary>
+    private SelectStatement ParseWithSelect()
+    {
+        Expect(TokenKind.KeywordWith);
+        if (IsIdentifier("recursive"))
+            throw Error("WITH RECURSIVE 尚未支持；当前仅支持非递归 CTE");
+
+        var definitions = new List<CommonTableExpression>();
+        while (true)
+        {
+            string name = ExpectIdentifierName();
+            IReadOnlyList<string>? columns = null;
+            if (Current.Kind == TokenKind.LeftParen)
+            {
+                Advance();
+                var names = new List<string>();
+                if (Current.Kind != TokenKind.RightParen)
+                {
+                    while (true)
+                    {
+                        names.Add(ExpectIdentifierName());
+                        if (Current.Kind != TokenKind.Comma)
+                            break;
+                        Advance();
+                    }
+                }
+                Expect(TokenKind.RightParen);
+                if (names.Count == 0)
+                    throw Error("CTE 输出列名列表不能为空");
+                columns = names;
+            }
+
+            Expect(TokenKind.KeywordAs);
+            Expect(TokenKind.LeftParen);
+            SelectStatement query = ParseSelect();
+            Expect(TokenKind.RightParen);
+            definitions.Add(new CommonTableExpression(name, query, columns));
+
+            if (Current.Kind != TokenKind.Comma)
+                break;
+            Advance();
+        }
+
+        if (Current.Kind != TokenKind.KeywordSelect)
+            throw Error("WITH 后面必须是 SELECT 查询");
+        return ParseSelect() with
+        {
+            CommonTableExpressions = definitions,
         };
     }
 
@@ -1273,9 +1327,18 @@ public sealed class SqlParser
             {
                 Advance();
                 var constraintName = ExpectIdentifierName();
-                if (Current.Kind != TokenKind.KeywordCheck)
-                    throw Error("CREATE TABLE 的命名约束当前期望 CHECK");
-                checkConstraints.Add(ParseCheckConstraintClause(constraintName));
+                if (Current.Kind == TokenKind.KeywordForeign)
+                {
+                    foreignKeys.Add(ParseForeignKeyClause(constraintName));
+                }
+                else if (Current.Kind == TokenKind.KeywordCheck)
+                {
+                    checkConstraints.Add(ParseCheckConstraintClause(constraintName));
+                }
+                else
+                {
+                    throw Error("CREATE TABLE 的命名约束后面期望 FOREIGN KEY 或 CHECK");
+                }
             }
             else
             {
@@ -1304,7 +1367,9 @@ public sealed class SqlParser
     private TableColumnDefinition ParseTableColumnDefinition()
     {
         var columnName = ExpectColumnName();
-        var dataType = ParseTableDataType();
+        byte? decimalPrecision = null;
+        byte? decimalScale = null;
+        var dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
@@ -1370,6 +1435,8 @@ public sealed class SqlParser
 
         return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion)
         {
+            DecimalPrecision = decimalPrecision ?? 38,
+            DecimalScale = decimalScale ?? 28,
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
             ModbusMapping = modbusMapping,
@@ -1798,7 +1865,7 @@ public sealed class SqlParser
         return columns;
     }
 
-    private TableForeignKeyClause ParseForeignKeyClause()
+    private TableForeignKeyClause ParseForeignKeyClause(string? constraintName = null)
     {
         Expect(TokenKind.KeywordForeign);
         Expect(TokenKind.KeywordKey);
@@ -1829,7 +1896,10 @@ public sealed class SqlParser
             onDelete = ParseOnDeleteAction();
         }
 
-        return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete);
+        return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete)
+        {
+            Name = constraintName,
+        };
     }
 
     private TableCheckConstraintClause ParseCheckConstraintClause(string? constraintName)
@@ -1870,7 +1940,12 @@ public sealed class SqlParser
     }
 
     private SqlDataType ParseTableDataType()
+        => ParseTableDataType(out _, out _);
+
+    private SqlDataType ParseTableDataType(out byte? decimalPrecision, out byte? decimalScale)
     {
+        decimalPrecision = null;
+        decimalScale = null;
         if (Current.Kind == TokenKind.KeywordVector)
             throw Error("关系表 MVP 暂不支持 VECTOR 类型");
 
@@ -1878,14 +1953,43 @@ public sealed class SqlParser
         switch (token.Kind)
         {
             case TokenKind.KeywordFloat: Advance(); return SqlDataType.Float64;
+            case TokenKind.KeywordDecimal:
+            case TokenKind.KeywordNumeric:
+                Advance();
+                (decimalPrecision, decimalScale) = ParseDecimalSpec();
+                return SqlDataType.Decimal;
             case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
             case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
             case TokenKind.KeywordString: Advance(); return SqlDataType.String;
             case TokenKind.KeywordDateTime: Advance(); return SqlDataType.DateTime;
+            case TokenKind.KeywordTime: Advance(); return SqlDataType.Time;
             case TokenKind.KeywordBlob: Advance(); return SqlDataType.Blob;
             case TokenKind.KeywordJson: Advance(); return SqlDataType.Json;
-            default: throw Error("期望关系表数据类型 INT / FLOAT / BOOL / STRING / DATETIME / BLOB / JSON");
+            default: throw Error("期望关系表数据类型 INT / FLOAT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / BLOB / JSON");
         }
+    }
+
+    private (byte Precision, byte Scale) ParseDecimalSpec()
+    {
+        if (Current.Kind != TokenKind.LeftParen)
+            return (38, 28);
+
+        Advance();
+        if (Current.Kind != TokenKind.IntegerLiteral)
+            throw Error("DECIMAL/NUMERIC 精度必须是整数，例如 DECIMAL(18,4)");
+        long precision = Current.IntegerValue;
+        Advance();
+        Expect(TokenKind.Comma);
+        if (Current.Kind != TokenKind.IntegerLiteral)
+            throw Error("DECIMAL/NUMERIC 小数位数必须是整数，例如 DECIMAL(18,4)");
+        long scale = Current.IntegerValue;
+        Advance();
+        Expect(TokenKind.RightParen);
+        if (precision is < 1 or > 38)
+            throw Error("DECIMAL/NUMERIC 精度必须在 1..38 范围内");
+        if (scale < 0 || scale > precision)
+            throw Error("DECIMAL/NUMERIC 小数位数必须在 0..precision 范围内");
+        return ((byte)precision, (byte)scale);
     }
 
     private ColumnDefinition ParseColumnDefinition()
@@ -1990,11 +2094,18 @@ public sealed class SqlParser
         switch (token.Kind)
         {
             case TokenKind.KeywordFloat: Advance(); return SqlDataType.Float64;
+            case TokenKind.KeywordDecimal:
+            case TokenKind.KeywordNumeric:
+                Advance();
+                _ = ParseDecimalSpec();
+                return SqlDataType.Decimal;
             case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
             case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
             case TokenKind.KeywordString: Advance(); return SqlDataType.String;
+            case TokenKind.KeywordDateTime: Advance(); return SqlDataType.DateTime;
+            case TokenKind.KeywordTime: Advance(); return SqlDataType.Time;
             case TokenKind.KeywordGeoPoint: Advance(); return SqlDataType.GeoPoint;
-            default: throw Error("期望数据类型 FLOAT / INT / BOOL / STRING / GEOPOINT");
+            default: throw Error("期望数据类型 FLOAT / INT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / GEOPOINT");
         }
     }
 
@@ -2022,7 +2133,9 @@ public sealed class SqlParser
 
     private static bool IsDataTypeKeyword(TokenKind kind)
         => kind is TokenKind.KeywordFloat or TokenKind.KeywordInt
+                or TokenKind.KeywordDecimal or TokenKind.KeywordNumeric
                 or TokenKind.KeywordBool or TokenKind.KeywordString
+                or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordVector or TokenKind.KeywordGeoPoint;
 
     private VectorIndexSpec ParseVectorIndex()
@@ -2479,11 +2592,26 @@ public sealed class SqlParser
     private SelectStatement ParseSelect()
     {
         var statement = ParseSelectCore();
-        var unions = new List<SelectStatement>();
-        while (Current.Kind == TokenKind.KeywordUnion)
+        var setOperations = new List<SqlSetOperation>();
+        while (Current.Kind is TokenKind.KeywordUnion or TokenKind.KeywordIntersect or TokenKind.KeywordExcept)
         {
+            SqlSetOperationKind kind;
+            if (Current.Kind == TokenKind.KeywordUnion)
+                kind = SqlSetOperationKind.Union;
+            else if (Current.Kind == TokenKind.KeywordIntersect)
+                kind = SqlSetOperationKind.Intersect;
+            else
+                kind = SqlSetOperationKind.Except;
             Advance();
-            unions.Add(ParseSelectCore());
+            bool all = Current.Kind == TokenKind.KeywordAll;
+            if (all)
+            {
+                Advance();
+                if (kind != SqlSetOperationKind.Union)
+                    throw Error("INTERSECT/EXCEPT 暂不支持 ALL 修饰词");
+                kind = SqlSetOperationKind.UnionAll;
+            }
+            setOperations.Add(new SqlSetOperation(kind, ParseSelectCore()));
         }
 
         var orderByItems = ParseOptionalOrderBy();
@@ -2491,7 +2619,8 @@ public sealed class SqlParser
         var pagination = ParseOptionalPagination();
         return statement with
         {
-            Unions = unions,
+            Unions = setOperations.Count == 0 ? null : setOperations.Select(static operation => operation.Query).ToArray(),
+            SetOperations = setOperations,
             OrderBy = orderBy,
             OrderByItems = orderByItems,
             Pagination = pagination
@@ -3286,13 +3415,13 @@ public sealed class SqlParser
 
     private SqlExpression ParseComparison()
     {
-        var left = ParseAdditive();
+        var left = ParseBitwiseOr();
         while (true)
         {
             if (TryMapComparison(Current.Kind, out var op))
             {
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new BinaryExpression(op, left, right);
                 continue;
             }
@@ -3300,15 +3429,23 @@ public sealed class SqlParser
             if (Current.Kind == TokenKind.KeywordLike)
             {
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new BinaryExpression(SqlBinaryOperator.Like, left, right);
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordIlike)
+            {
+                Advance();
+                var right = ParseBitwiseOr();
+                left = BuildIlike(left, right);
                 continue;
             }
 
             if (Current.Kind == TokenKind.KeywordRegex)
             {
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new BinaryExpression(SqlBinaryOperator.Regex, left, right);
                 continue;
             }
@@ -3334,8 +3471,39 @@ public sealed class SqlParser
             {
                 Advance();
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new BinaryExpression(SqlBinaryOperator.NotLike, left, right);
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordNot
+                && _index + 1 < _tokens.Count
+                && _tokens[_index + 1].Kind == TokenKind.KeywordIlike)
+            {
+                Advance();
+                Advance();
+                var right = ParseBitwiseOr();
+                left = new UnaryExpression(SqlUnaryOperator.Not, BuildIlike(left, right));
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordBetween
+                || (Current.Kind == TokenKind.KeywordNot
+                    && _index + 1 < _tokens.Count
+                    && _tokens[_index + 1].Kind == TokenKind.KeywordBetween))
+            {
+                bool negated = Current.Kind == TokenKind.KeywordNot;
+                if (negated)
+                    Advance();
+                Advance();
+                var lower = ParseBitwiseOr();
+                Expect(TokenKind.KeywordAnd);
+                var upper = ParseBitwiseOr();
+                var between = new BinaryExpression(
+                    SqlBinaryOperator.And,
+                    new BinaryExpression(SqlBinaryOperator.GreaterThanOrEqual, left, lower),
+                    new BinaryExpression(SqlBinaryOperator.LessThanOrEqual, left, upper));
+                left = negated ? new UnaryExpression(SqlUnaryOperator.Not, between) : between;
                 continue;
             }
 
@@ -3345,7 +3513,7 @@ public sealed class SqlParser
             {
                 Advance();
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new BinaryExpression(SqlBinaryOperator.NotRegex, left, right);
                 continue;
             }
@@ -3366,12 +3534,42 @@ public sealed class SqlParser
             if (TryMapVectorDistance(Current.Kind, out var functionName))
             {
                 Advance();
-                var right = ParseAdditive();
+                var right = ParseBitwiseOr();
                 left = new FunctionCallExpression(functionName, new[] { left, right });
                 continue;
             }
 
             break;
+        }
+        return left;
+    }
+
+    private static SqlExpression BuildIlike(SqlExpression left, SqlExpression right)
+        => new BinaryExpression(
+            SqlBinaryOperator.Like,
+            new FunctionCallExpression("lower", new[] { left }),
+            new FunctionCallExpression("lower", new[] { right }));
+
+    private SqlExpression ParseBitwiseOr()
+    {
+        var left = ParseBitwiseAnd();
+        while (Current.Kind == TokenKind.BitwiseOr)
+        {
+            Advance();
+            var right = ParseBitwiseAnd();
+            left = new BinaryExpression(SqlBinaryOperator.BitwiseOr, left, right);
+        }
+        return left;
+    }
+
+    private SqlExpression ParseBitwiseAnd()
+    {
+        var left = ParseAdditive();
+        while (Current.Kind == TokenKind.BitwiseAnd)
+        {
+            Advance();
+            var right = ParseAdditive();
+            left = new BinaryExpression(SqlBinaryOperator.BitwiseAnd, left, right);
         }
         return left;
     }
@@ -3550,6 +3748,7 @@ public sealed class SqlParser
             case TokenKind.KeywordJson:
             case TokenKind.KeywordCollection:
             case TokenKind.KeywordMeasurement:
+            case TokenKind.KeywordLeft:
                 return ParseIdentifierOrFunctionCall();
             case TokenKind.KeywordExists:
                 return ParseExistsExpression();
@@ -3606,9 +3805,46 @@ public sealed class SqlParser
 
         if (Current.Kind == TokenKind.LeftParen)
         {
+            if (string.Equals(name, "cast", StringComparison.OrdinalIgnoreCase))
+                return ParseCastExpression();
             return ParseFunctionCallTail(name);
         }
         return new IdentifierExpression(name);
+    }
+
+    private CastExpression ParseCastExpression()
+    {
+        Expect(TokenKind.LeftParen);
+        SqlExpression operand = ParseExpression();
+        Expect(TokenKind.KeywordAs);
+        SqlDataType targetType = ParseCastDataType();
+        Expect(TokenKind.RightParen);
+        return new CastExpression(operand, targetType);
+    }
+
+    private SqlDataType ParseCastDataType()
+    {
+        var token = Current;
+        switch (token.Kind)
+        {
+            case TokenKind.KeywordFloat: Advance(); return SqlDataType.Float64;
+            case TokenKind.KeywordDecimal:
+            case TokenKind.KeywordNumeric:
+                Advance();
+                _ = ParseDecimalSpec();
+                return SqlDataType.Decimal;
+            case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
+            case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
+            case TokenKind.KeywordString: Advance(); return SqlDataType.String;
+            case TokenKind.KeywordDateTime: Advance(); return SqlDataType.DateTime;
+            case TokenKind.KeywordTime: Advance(); return SqlDataType.Time;
+            case TokenKind.KeywordBlob: Advance(); return SqlDataType.Blob;
+            case TokenKind.KeywordJson: Advance(); return SqlDataType.Json;
+            case TokenKind.KeywordVector: Advance(); return SqlDataType.Vector;
+            case TokenKind.KeywordGeoPoint: Advance(); return SqlDataType.GeoPoint;
+            default:
+                throw Error("CAST 的目标类型必须是 FLOAT / INT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / BLOB / JSON / VECTOR / GEOPOINT");
+        }
     }
 
     private SqlExpression ParsePointLiteralOrFunctionCall()
@@ -3679,6 +3915,12 @@ public sealed class SqlParser
     private SqlExpression ParseFunctionCallTail(string name)
     {
         Expect(TokenKind.LeftParen);
+        bool isDistinct = false;
+        if (Current.Kind == TokenKind.KeywordDistinct)
+        {
+            isDistinct = true;
+            Advance();
+        }
 
         // fn(*) 形式。其他位置的 * 作为普通函数参数保留给执行层解释，
         // 例如 match(ft_index, *, 'query')。
@@ -3686,16 +3928,25 @@ public sealed class SqlParser
             && _index + 1 < _tokens.Count
             && _tokens[_index + 1].Kind == TokenKind.RightParen)
         {
+            if (isDistinct)
+                throw Error("聚合 DISTINCT 不支持 '*' 参数");
             Advance();
             Expect(TokenKind.RightParen);
-            return new FunctionCallExpression(name, Array.Empty<SqlExpression>(), IsStar: true);
+            var star = new FunctionCallExpression(name, Array.Empty<SqlExpression>(), IsStar: true)
+            {
+                IsDistinct = isDistinct,
+            };
+            return ParseOptionalWindowSpecification(star);
         }
 
         // fn() 零参
         if (Current.Kind == TokenKind.RightParen)
         {
             Advance();
-            return new FunctionCallExpression(name, Array.Empty<SqlExpression>());
+            return ParseOptionalWindowSpecification(new FunctionCallExpression(name, Array.Empty<SqlExpression>())
+            {
+                IsDistinct = isDistinct,
+            });
         }
 
         var args = new List<SqlExpression>();
@@ -3706,7 +3957,40 @@ public sealed class SqlParser
             args.Add(ParseFunctionArgument());
         }
         Expect(TokenKind.RightParen);
-        return new FunctionCallExpression(name, args);
+        return ParseOptionalWindowSpecification(new FunctionCallExpression(name, args)
+        {
+            IsDistinct = isDistinct,
+        });
+    }
+
+    private SqlExpression ParseOptionalWindowSpecification(FunctionCallExpression function)
+    {
+        if (Current.Kind != TokenKind.KeywordOver)
+            return function;
+
+        Advance();
+        Expect(TokenKind.LeftParen);
+        var partitionBy = new List<SqlExpression>();
+        if (IsIdentifier("partition"))
+        {
+            Advance();
+            Expect(TokenKind.KeywordBy);
+            partitionBy.Add(ParseExpression());
+            while (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                partitionBy.Add(ParseExpression());
+            }
+        }
+
+        var orderBy = ParseOptionalOrderBy();
+        if (Current.Kind != TokenKind.RightParen)
+            throw Error("OVER 目前仅支持 PARTITION BY、ORDER BY 或空窗口规格");
+        Advance();
+        return function with
+        {
+            Over = new WindowSpecification(partitionBy, orderBy),
+        };
     }
 
     private SqlExpression ParseFunctionArgument()
@@ -4877,7 +5161,8 @@ public sealed class SqlParser
         {
             if (Current.Kind is TokenKind.KeywordInt or TokenKind.KeywordFloat
                 or TokenKind.KeywordBool or TokenKind.KeywordString
-                or TokenKind.KeywordDateTime or TokenKind.KeywordBlob or TokenKind.KeywordJson
+                or TokenKind.KeywordDateTime or TokenKind.KeywordTime
+                or TokenKind.KeywordBlob or TokenKind.KeywordJson
                 or TokenKind.KeywordVector)
             {
                 if (dataType is not null)

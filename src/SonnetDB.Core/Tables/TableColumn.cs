@@ -17,6 +17,12 @@ public sealed record TableColumn(
     int Ordinal,
     bool IsRowVersion = false)
 {
+    /// <summary>DECIMAL/NUMERIC 总精度；非 Decimal 列为 0。</summary>
+    public byte DecimalPrecision { get; init; }
+
+    /// <summary>DECIMAL/NUMERIC 小数位数；非 Decimal 列为 0。</summary>
+    public byte DecimalScale { get; init; }
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>

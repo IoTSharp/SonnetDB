@@ -6,7 +6,9 @@ public sealed record SchemaResponse(
     List<TableInfo>? Tables = null,
     List<DocumentCollectionInfo>? DocumentCollections = null,
     List<IndexLifecycleInfo>? Indexes = null,
-    BackupStatusInfo? BackupStatus = null);
+    BackupStatusInfo? BackupStatus = null,
+    List<ViewInfo>? Views = null,
+    List<MaterializedViewInfo>? MaterializedViews = null);
 
 /// <summary>一个 Measurement 的 schema 信息。</summary>
 public sealed record MeasurementInfo(string Name, List<ColumnInfo> Columns);
@@ -34,6 +36,25 @@ public sealed record TableInfo(
     DateTimeOffset CreatedUtc,
     List<TableForeignKeyInfo>? ForeignKeys = null);
 
+/// <summary>一个逻辑视图的 schema 信息。</summary>
+public sealed record ViewInfo(
+    string Name,
+    string DefinitionSql,
+    DateTimeOffset CreatedUtc);
+
+/// <summary>一个物化视图的 schema 与刷新状态摘要。</summary>
+public sealed record MaterializedViewInfo(
+    string Name,
+    string DefinitionSql,
+    long DefinitionVersion,
+    string Status,
+    long ActiveGeneration,
+    long RowCount,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? LastRefreshUtc,
+    DateTimeOffset? LastSuccessfulRefreshUtc,
+    string? Error);
+
 /// <summary>关系表列信息。</summary>
 public sealed record TableColumnInfo(
     string Name,
@@ -41,7 +62,9 @@ public sealed record TableColumnInfo(
     bool IsPrimaryKey,
     bool IsNullable,
     int Ordinal,
-    bool IsRowVersion = false)
+    bool IsRowVersion = false,
+    byte? DecimalPrecision = null,
+    byte? DecimalScale = null)
 {
     /// <summary>是否由数据库在插入时自动分配递增整数值。</summary>
     public bool IsAutoIncrement { get; init; }

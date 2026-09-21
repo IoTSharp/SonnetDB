@@ -27,6 +27,13 @@ internal static class SqlProjectionExpressionEvaluator
             case LiteralExpression or DurationLiteralExpression
                 or VectorLiteralExpression or GeoPointLiteralExpression:
                 return;
+            case CastExpression cast:
+                if (cast.TargetType is SqlDataType.Vector or SqlDataType.GeoPoint)
+                    throw new NotSupportedException($"CAST 当前不支持目标类型 {cast.TargetType}。" );
+                Validate(cast.Operand, identifierExists, context);
+                if (cast.Operand is LiteralExpression literal)
+                    _ = SqlCastOperations.Convert(EvaluateLiteral(literal), cast.TargetType);
+                return;
             case IdentifierExpression identifier:
                 if (!identifierExists(identifier))
                     throw new InvalidOperationException($"{context} 没有输出列 '{identifier.Name}'。");
@@ -81,6 +88,8 @@ internal static class SqlProjectionExpressionEvaluator
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(
+                Evaluate(cast.Operand, resolveIdentifier, context), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             VectorLiteralExpression vector => EvaluateVectorLiteral(vector),
             GeoPointLiteralExpression point => GeoPoint.Create(point.Lat, point.Lon),
@@ -312,7 +321,8 @@ internal static class SqlProjectionExpressionEvaluator
     /// </summary>
     private static bool IsArithmeticOperator(SqlBinaryOperator value) => value is
         SqlBinaryOperator.Add or SqlBinaryOperator.Subtract or SqlBinaryOperator.Multiply
-        or SqlBinaryOperator.Divide or SqlBinaryOperator.Modulo;
+        or SqlBinaryOperator.Divide or SqlBinaryOperator.Modulo
+        or SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr;
 
     /// <summary>
     /// 判断 SQL 逻辑连接运算符。

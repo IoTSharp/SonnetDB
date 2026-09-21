@@ -9,7 +9,13 @@ import {
 } from '../src/api/copilot';
 import {
   CopilotRuntime,
+  clearPendingServerRelayRun,
+  createCopilotRequestFingerprint,
+  loadPendingServerRelayRun,
+  savePendingServerRelayRun,
   resolveCopilotRuntimeMode,
+  type CopilotPendingRunStorage,
+  type CopilotPendingServerRelayRun,
   type CopilotRuntimeReadiness,
   type CopilotTransport,
   type CopilotTransportEvent,
@@ -92,6 +98,58 @@ test('ServerRelay runs through the common state machine and preserves current ev
   expect(requests[0].init?.redirect).toBe('error');
   expect(requests[1].init?.redirect).toBe('error');
   expect(JSON.parse(String(requests[1].init?.body))).toEqual({ ...request, runId });
+});
+
+test('ServerRelay pending marker is bounded, non-secret, and survives a completed-run refresh', async () => {
+  const storageValues = new Map<string, string>();
+  const storage: CopilotPendingRunStorage = {
+    getItem: (key) => storageValues.get(key) ?? null,
+    setItem: (key, value) => { storageValues.set(key, value); },
+    removeItem: (key) => { storageValues.delete(key); },
+  };
+  const requestBeforeRefresh = {
+    db: 'factory',
+    conversationId: 'sndb_conversation',
+    mode: 'read-only',
+    cloudMode: 'sql_assist',
+    messages: [
+      { role: 'user', content: 'show cpu' },
+    ],
+  };
+  const requestAfterServerCompletion = {
+    ...requestBeforeRefresh,
+    messages: [
+      ...requestBeforeRefresh.messages,
+      { role: 'assistant', content: 'cpu has usage' },
+    ],
+  };
+  const fingerprintBefore = await createCopilotRequestFingerprint(requestBeforeRefresh);
+  const fingerprintAfter = await createCopilotRequestFingerprint({
+    ...requestAfterServerCompletion,
+    messages: requestAfterServerCompletion.messages.slice(0, -1),
+  });
+  expect(fingerprintBefore).toBeTruthy();
+  expect(fingerprintAfter).toBe(fingerprintBefore);
+
+  const pending: CopilotPendingServerRelayRun = {
+    version: 1,
+    runId: 'run_refresh_replay',
+    sessionId: 'sndb_conversation',
+    database: 'factory',
+    requestFingerprint: fingerprintBefore!,
+    mode: 'read-only',
+    cloudMode: 'sql_assist',
+    createdAtUtc: new Date().toISOString(),
+  };
+  expect(savePendingServerRelayRun(pending, storage)).toBe(true);
+  const persisted = storageValues.values().next().value as string;
+  expect(persisted).not.toContain('Bearer');
+  expect(persisted).not.toContain('show cpu');
+  expect(loadPendingServerRelayRun(storage)).toEqual(pending);
+  clearPendingServerRelayRun('different-run', storage);
+  expect(loadPendingServerRelayRun(storage)).toEqual(pending);
+  clearPendingServerRelayRun(pending.runId, storage);
+  expect(loadPendingServerRelayRun(storage)).toBeNull();
 });
 
 test('ServerRelay resolves only the fixed endpoint on the active SonnetDB connection', () => {

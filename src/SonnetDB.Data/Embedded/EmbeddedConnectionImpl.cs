@@ -259,6 +259,36 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         return _tsdb.Tables.Catalog.Snapshot();
     }
 
+    internal ConnectionSchemaSnapshot SnapshotSchema()
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var views = _tsdb.Views.Catalog.Snapshot()
+            .Select(static definition => new ConnectionViewSchema(
+                definition.Name,
+                definition.DefinitionSql,
+                new DateTimeOffset(definition.CreatedAtUtcTicks, TimeSpan.Zero),
+                IsMaterialized: false))
+            .Concat(_tsdb.MaterializedViews.Catalog.Snapshot().Select(static definition => new ConnectionViewSchema(
+                definition.Name,
+                definition.DefinitionSql,
+                new DateTimeOffset(definition.CreatedAtUtcTicks, TimeSpan.Zero),
+                IsMaterialized: true)))
+            .OrderBy(static view => view.Name, StringComparer.Ordinal)
+            .ToArray();
+        var documents = _tsdb.Documents.Catalog.Snapshot()
+            .Select(static schema => new ConnectionDocumentCollectionSchema(
+                schema.Name,
+                new DateTimeOffset(schema.CreatedAtUtcTicks, TimeSpan.Zero),
+                schema.Indexes.Count,
+                schema.FullTextIndexes.Count,
+                schema.Validator is not null))
+            .ToArray();
+
+        return new ConnectionSchemaSnapshot(_tsdb.Tables.Catalog.Snapshot(), views, documents);
+    }
+
     public void RollbackTransaction(object transactionState)
     {
         if (_tsdb is null || _state != ConnectionState.Open)

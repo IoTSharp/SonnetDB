@@ -11,7 +11,10 @@ internal static class DeferredTriggerSafety
     // 明确列出没有外部回调的受支持函数；新增函数必须先审核其执行边界。
     private static readonly HashSet<string> PureFunctions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "abs", "round", "sqrt", "log", "coalesce", "concat", "lower", "upper", "regexp_like",
+        "abs", "round", "sqrt", "log", "coalesce", "concat", "lower", "upper",
+        "trim", "ltrim", "rtrim", "length", "char_length", "substring", "substr", "replace",
+        "left", "right", "starts_with", "startswith", "ends_with", "endswith", "contains",
+        "regexp_like",
         "json_value", "count", "sum", "min", "max", "avg", "first", "last",
         "stddev", "variance", "spread", "mode", "median", "percentile", "p50", "p90", "p95", "p99",
         "date_only", "date_part", "date_add", "date_add_datetime", "date_add_datetime_offset",

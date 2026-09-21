@@ -79,6 +79,20 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_CreateTableNamedForeignKey_ReturnsConstraintName()
+    {
+        var stmt = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE Device (Id INT, SiteId INT, PRIMARY KEY (Id), CONSTRAINT FK_Device_Site FOREIGN KEY (SiteId) REFERENCES Site (Id) ON DELETE CASCADE)"));
+
+        var foreignKey = Assert.Single(stmt.ForeignKeyClauses);
+        Assert.Equal("FK_Device_Site", foreignKey.Name);
+        Assert.Equal(["SiteId"], foreignKey.Columns);
+        Assert.Equal("Site", foreignKey.PrincipalTable);
+        Assert.Equal(["Id"], foreignKey.PrincipalColumns);
+        Assert.Equal(ForeignKeyAction.Cascade, foreignKey.OnDelete);
+    }
+
+    [Fact]
     public void Parse_CreateAndAlterTableCheckConstraint_ReturnsAst()
     {
         var create = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
@@ -511,6 +525,21 @@ public class SqlParserTests
         var okEq = Assert.IsType<BinaryExpression>(or.Right);
         Assert.Equal(SqlBinaryOperator.Equal, okEq.Operator);
         Assert.Equal(LiteralExpression.Bool(true), okEq.Right);
+    }
+
+    [Fact]
+    public void Parse_Select_BitwisePrecedenceAndParentheses_ReturnsAst()
+    {
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT 1 | 2 & 4 AS value, (1 | 2) & 4 AS grouped"));
+
+        var value = Assert.IsType<BinaryExpression>(statement.Projections[0].Expression);
+        Assert.Equal(SqlBinaryOperator.BitwiseOr, value.Operator);
+        Assert.Equal(SqlBinaryOperator.BitwiseAnd, Assert.IsType<BinaryExpression>(value.Right).Operator);
+
+        var grouped = Assert.IsType<BinaryExpression>(statement.Projections[1].Expression);
+        Assert.Equal(SqlBinaryOperator.BitwiseAnd, grouped.Operator);
+        Assert.Equal(SqlBinaryOperator.BitwiseOr, Assert.IsType<BinaryExpression>(grouped.Left).Operator);
     }
 
     [Fact]

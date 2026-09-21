@@ -47,7 +47,7 @@
 | 40 | 原生属性图数据库 | ✅（待真机验证） | #341~#367 编码、合同、Server/SDK/CLI/Studio parity、恢复边界、strict evaluator、自动化回归和本地文档已闭环；步骤 1~7 的实现与本地门禁均已关闭。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT journey、跨进程 kill/reopen 与 7 天生产证据统一后置到[真机验证待办](#真机验证待办)，不阻塞研发完成状态。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 与 #381 本地合同已收口；#375 自动刷新已移到有预算的后台并增加可观察状态，无偏有界采样、页感知成本和参数敏感反馈已实现并有本地回归。固定硬件、木垒同语料、7 天 mixed workload 与现场发布观察仍未执行。 |
 | 42 | 九域与规划器系统性能深化 | 🚧 | ✅ 九域矩阵、竞品入口和统一指标已建立；🟡 统计/CRC 本机切片、SQL 指标上界、三域读取 smoke、Rebirth 合同、M42 query norm 本地基准及 win-x64 AOT 已取证；🚧 九域容量闭环和 P0~P3 残余仍在推进；⏳ 固定 x64/ARM64、木垒同语料、168 小时与生产门禁未执行。 |
-| 43 | 十四套能力与生态发布总收口 | 🚧 | ✅ #382 总规划文档已落地；📋 #383~#402 按七个步骤推进证据索引、CDC/边缘同步、流处理、十四能力验收和生态入榜。既有缺口保留原 PR 归属；完整状态、依赖与顺序见[总里程碑文档](docs/roadmap-total-milestone.md)。 |
+| 43 | 十四套能力与生态发布总收口 | 🚧 | ✅ #382~#384：总规划、机器可读证据索引和中英文成熟度口径已落地；📋 #385~#402 按七个步骤推进 CDC/边缘同步、流处理、十四能力验收和生态入榜。既有缺口保留原 PR 归属；完整状态、依赖与顺序见[总里程碑文档](docs/roadmap-total-milestone.md)。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
@@ -55,8 +55,9 @@
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整 PR 清单见[总里程碑 D 节](docs/roadmap-total-milestone.md#d-沿用的既有-pr-主执行顺序)。
 
 1. **代码与功能补全：** #340 及后续仍有明确能力缺口的项目。#298/#300/#302~#326 的已完成代码不再进入队列，#310/#326 的独立旅程验收后置。
-2. **性能优化：** #375 与 M42 页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页和冷启动残余。
-3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #347~#367 → #373 → #376~#381；最后执行 M20/#136 七次 scheduled、M42 跨架构/168 小时和 M43 总验收及生态提交。
+外部 GitHub backlog 以 `GH-Issue #N` 标识，按 [GitHub Issues 路线快照](docs/github-issues-roadmap.md) 的 SQL 基础 → DML/并发/DDL → 模型/驱动/管理顺序纳入 M43 Step 2；不得与同号内部 PR 混淆。GH-Issue #171 已补非递归 `WITH` CTE 的单/多定义、FROM/IN/相关 EXISTS 展开；GH-Issue #178 已补 `UNION ALL`、`INTERSECT`、`EXCEPT` 集合运算；GH-Issue #172 已补 bounded ANSI `OVER`、`row_number()` 和既有窗口函数的显式时间排序；GH-Issue #173 已补跨执行器 `CAST(expr AS type)` 与支持类型边界；GH-Issue #174 已补有界常用字符串函数、NULL 传播和字符串/整数参数诊断；GH-Issue #175 已补有界 `date_diff` 与 invariant/strftime 日期格式化；GH-Issue #176 已补关系与时序聚合的 `DISTINCT` 输入去重和 `COUNT(DISTINCT *)` 拒绝；GH-Issue #179 已补 inclusive `BETWEEN` / `NOT BETWEEN` 与 invariant `ILIKE` / `NOT ILIKE`；GH-Issue #181 已补 `DECIMAL`/`NUMERIC` 精确解析、Decimal 算术、schema format v9 关系表持久化及嵌入式/远程 ADO.NET precision/scale 投影；GH-Issue #182 已补 bounded `TIME`/`TimeOnly` 关系列、ticks 持久化、参数绑定和嵌入式 ADO.NET 元数据，schema format 升至 v10；GH-Issue #192、#188 已有本地实现与定向回归，GH-Issue #185 已补统一 schema endpoint/ADO.NET 投影，GH-Issue #183 已补整数按位 `&` / `|` 的 lexer/parser 与关系 SELECT/WHERE/UPDATE 执行及文档，GH-Issue #186 已补 VECTOR 参数绑定、有限 `float[]` 校验及 REST/NDJSON 数组编解码，均保持 `implemented_pending_verification`，不等同于外部 issue 已关闭。
+2. **性能优化：** #375 与 M42 页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页和冷启动残余；外部 SQL issue 在对应 planner/执行合同完成后进入此队列的回归验证。
+3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #347~#367 → #373 → #376~#381；最后执行 M20/#136 七次 scheduled、M42 跨架构/168 小时和 M43 总验收及生态提交。外部 issue 的现场/发布证据按其 capability index 条目单独登记。
 
 测试用于证明每个实现合同，固定硬件、真机、nightly、长稳和外部对拍统一放在第 3 阶段，不改变前两阶段的代码顺序。
 
@@ -100,6 +101,7 @@ Parity 场景、适配器和 compose 已存在，但“完成”还需要：
 - ✅ workflow 已改为宿主 readiness 探测；restore、build、stack 或 test 失败仍生成带稳定 `gap_reason`、commit SHA 和门禁分类的 schema v2 summary，并保留容器诊断。
 - ✅ 2026-08-25～27 的三个 scheduled run 已让 `light` / `full` 完整 compose 在 CI 中健康启动，并实际完成 parity、reliability、summary、artifact 和发布步骤，不再只是 `docker compose config` 证据。
 - ✅ 新增只读 nightly evidence verifier，逐次校验双 profile artifact、完整 schema v2 字段与计数不变量、run/commit 绑定，并将每个 summary suite 与 `raw/<runId>/report.json` 一一对账；证据窗口下限固定为 7 次，只能向上扩大。离线 fixture 固定不足 7 次、混入失败、缺字段/原因、计数或 raw 对账不一致与七次成功合同。
+- ✅ 2026-09-21 修复 scheduled stack 的外部镜像阻断：将已撤下 Docker Hub namespace 的 MinIO pinned tag 切换到 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，新增 compose contract test 并接入 workflow；PowerShell 7 合同、Compose light config、实际 pull 和临时容器 healthcheck 均通过。修复只解决启动阻断，远程七次 scheduled 成功窗口仍未重跑。
 - ❌ scheduled workflow 连续 7 天成功率须不低于 95%。2026-09-05 读取的最近七次（08-30 至 09-05）全部 `failure`，有效成功为 0/7。[最新 run 33950712561](https://github.com/IoTSharp/SonnetDB/actions/runs/33950712561) 的 light/full 均在启动 stack 后未进入 Parity；light 容器日志定位为 MCP 输出 DTO 缺少 source-generated metadata。已补显式工具注册上下文，但尚未取得修复后的远程运行证据。[08-29 的 4/7](docs/benchmarks/m20-parity-nightly-evidence.md)仅保留为历史，不再代表当前窗口。
 - NATS、VictoriaMetrics 等第三方镜像的健康检查不得依赖镜像内不存在的 shell/wget；探活由宿主 workflow 或可用的原生命令完成。
 - 失败 run 必须保留容器日志、测试报告和 commit SHA，不能发布 `No summary was produced for this run.` 作为完成证据。
@@ -133,7 +135,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告；已冻结 `m27-copilot-eval-v1` verifier 和诚实的 `NOT_READY` fixture，真实 provider usage/质量门禁后续验证。 | ✅（待验证） |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
-| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；Web 统一 runtime、BrowserDirect 公网 transport 与本地 typed MCP tool-call loop 已落地。ServerRelay 现提供服务端稳定 run/tool-call ID、sequence/cursor；断线会停止本次 provider/SQL 工作并封闭为可重放的 interrupted 终态，不在后台继续生成。事件 journal 已在 `.system` 持久化，完成 run 可跨进程/重启按 cursor 只重放，进程重启时未完成 run 会 fail-closed 为 interrupted，不会接管或重复调用 provider；多实例正在执行中的实时接管仍不在合同内。Studio bridge 已完成 origin/header-token 收紧和 NativeWebHost 内存握手前置，但还不是 AI broker；可信 OAuth token 获取、已部署公网 continuation/CSP/CORS、StudioNative transport/系统凭据库和真实双网流程仍未接入。 | 🚧 |
+| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；Web 统一 runtime、BrowserDirect 公网 transport 与本地 typed MCP tool-call loop 已落地。ServerRelay 现提供服务端稳定 run/tool-call ID、sequence/cursor；断线会停止本次 provider/SQL 工作并封闭为可重放的 interrupted 终态，不在后台继续生成。事件 journal 已在 `.system` 持久化，完成 run 可跨进程/重启按 cursor 只重放，进程重启时未完成 run 会 fail-closed 为 interrupted，不会接管或重复调用 provider；Web 现仅在 ServerRelay 保存受限 pending marker，页面刷新后按 session/database/fingerprint 校验并从 sequence 1 重放，不保存 token、正文或工具结果；多实例正在执行中的实时接管仍不在合同内。Studio bridge 已完成 origin/header-token 收紧和 NativeWebHost 内存握手前置，但还不是 AI broker；可信 OAuth token 获取、已部署公网 continuation/CSP/CORS、StudioNative transport/系统凭据库和真实双网流程仍未接入。 | 🚧 |
 
 ### #340 — 双网客户端 Copilot
 
@@ -165,7 +167,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 - 自动化测试证明 SonnetDB token 从不发送到公网、外部 AI token 从不发送到数据库服务器，未知工具、合同版本不匹配和未批准数据出域均 fail closed。
 - 覆盖 CORS preflight、分片流解析、取消、断线续流、重复 tool call、客户端代理和四种本地/公网可用性组合；公网不可用时不得自动排队或重放包含数据库结果的请求。
 - 本地工具调用保留现有认证与 database grant，并有 SQL AST、系统库、行数、字节、时间和并发门禁；第一阶段不存在可绕过人工确认的写路径。
-- 页面刷新或 Studio 重连后可从 SonnetDB 服务端恢复会话；现有 `ServerRelay` 路径继续通过回归测试，客户端模式与服务端模式之间不得静默切换。
+- 页面刷新或 Studio 重连后可从 SonnetDB 服务端恢复会话；Web ServerRelay 页面刷新重放已具备受限 marker、fingerprint 校验和 sequence 1 完整重放回归，真实 Server 重启/浏览器联调及 Studio 重连仍待验证；客户端模式与服务端模式之间不得静默切换。
 
 验收要求：AI / Agent 文案不得替代多模型引擎的核心产品定位；本地关闭云端外发时仍有一条可运行路径；高风险写入必须经权限和人工确认；外部 Agent 只通过授权 MCP/HTTP 合同访问，不直读目录或系统表。
 
@@ -477,7 +479,7 @@ SELECT EXISTS (...)
 
 | 步骤 | PR | 交付 | 状态 |
 |---:|---|---|---|
-| 1 | #382~#384 | 总规划、十四能力证据索引、中英文成熟度口径。 | 🚧 #382 本地文档完成，#383/#384 待实施 |
+| 1 | #382~#384 | 总规划、十四能力证据索引、中英文成熟度口径。 | ✅ #382~#384 本地文档、机器索引和校验脚本完成；外部发布证据仍按后续步骤处理 |
 | 2 | D 节代码与功能补全、性能优化队列 | M35/M36/M27 功能缺口及 M41/M42 性能残余。 | 🚧 按主执行顺序推进 |
 | 2a | D 节后置验证与发布证据队列 | M19/M20/M25/M27/M29/M40/M41/M42 真机、nightly、容量和长稳验证。 | ⏳ 代码队列完成后执行 |
 | 3 | #385~#390 | CDC 合同、快照/增量衔接、离线同步、schema/冲突、客户端与故障验收。 | 📋 |

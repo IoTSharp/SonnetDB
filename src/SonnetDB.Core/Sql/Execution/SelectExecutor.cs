@@ -393,6 +393,15 @@ internal static class SelectExecutor
 
                 case FunctionCallExpression fn:
                     var kind = FunctionRegistry.GetFunctionKind(fn.Name);
+                    if (fn.IsDistinct && kind != FunctionKind.Aggregate)
+                        throw new InvalidOperationException($"函数 '{fn.Name}' 不支持 DISTINCT 修饰词。" );
+                    if (fn.Over is not null)
+                    {
+                        if (kind != FunctionKind.Window)
+                            throw new InvalidOperationException(
+                                $"函数 '{fn.Name}' 不是窗口函数，不能使用 OVER (...)。" );
+                        ValidateWindowSpecification(fn.Over, schema, fn.Name);
+                    }
                     if (kind == FunctionKind.Aggregate)
                     {
                         var aggColumnName = item.Alias ?? FormatFunctionColumnName(fn);
@@ -476,6 +485,27 @@ internal static class SelectExecutor
         return result;
     }
 
+    private static void ValidateWindowSpecification(
+        WindowSpecification specification,
+        MeasurementSchema schema,
+        string functionName)
+    {
+        if (specification.PartitionBy.Count != 0)
+            throw new NotSupportedException(
+                $"窗口函数 {functionName} 当前仅支持按 measurement series 分区；PARTITION BY 尚未支持。" );
+
+        foreach (OrderBySpec orderBy in specification.OrderBy)
+        {
+            if (orderBy.Expression is not IdentifierExpression { Name: var name }
+                || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase)
+                || orderBy.Direction != SortDirection.Ascending)
+            {
+                throw new NotSupportedException(
+                    $"窗口函数 {functionName} 当前仅支持 ORDER BY time ASC。" );
+            }
+        }
+    }
+
     /// <summary>
     /// 判断 measurement 投影中的标识符是否为 time 或已声明的 TAG/FIELD 列。
     /// </summary>
@@ -517,6 +547,16 @@ internal static class SelectExecutor
 
     private static string FormatFunctionColumnName(FunctionCallExpression fn)
     {
+        if (fn.IsDistinct)
+        {
+            if (fn.IsStar)
+                return $"{fn.Name.ToLowerInvariant()}(DISTINCT *)";
+            if (fn.Arguments.Count == 1 && fn.Arguments[0] is IdentifierExpression distinctId)
+                return $"{fn.Name.ToLowerInvariant()}(DISTINCT {distinctId.Name})";
+            if (fn.Arguments.Count == 1 && fn.Arguments[0] is LiteralExpression distinctLiteral)
+                return $"{fn.Name.ToLowerInvariant()}(DISTINCT {FormatLiteralColumnName(distinctLiteral)})";
+            return $"{fn.Name.ToLowerInvariant()}(DISTINCT)";
+        }
         if (fn.IsStar) return $"{fn.Name.ToLowerInvariant()}(*)";
         if (fn.Arguments.Count == 1 && fn.Arguments[0] is IdentifierExpression id)
             return $"{fn.Name.ToLowerInvariant()}({id.Name})";
@@ -801,7 +841,10 @@ internal static class SelectExecutor
             .Where(p => p.Kind == ProjectionKind.Field)
             .Select(p => p.Column!.Name)
             .Concat(GetScalarFieldDependencies(projections, schema))
-            .Concat(windowEvaluators.OfType<IWindowEvaluator>().Select(e => e.FieldName))
+            .Concat(windowEvaluators
+                .OfType<IWindowEvaluator>()
+                .Select(e => e.FieldName)
+                .Where(static name => !string.IsNullOrEmpty(name)))
             .Concat(where.GeoFilters.Select(f => f.FieldName))
             .Concat(GetResidualFieldDependencies(where.Residual, schema))
             .Distinct(StringComparer.Ordinal)
@@ -1203,6 +1246,10 @@ internal static class SelectExecutor
                     foreach (var fieldName in GetScalarFieldDependencies(arg, schema))
                         yield return fieldName;
                 yield break;
+            case CastExpression cast:
+                foreach (var fieldName in GetScalarFieldDependencies(cast.Operand, schema))
+                    yield return fieldName;
+                yield break;
             case UnaryExpression unary:
                 foreach (var fieldName in GetScalarFieldDependencies(unary.Operand, schema))
                     yield return fieldName;
@@ -1275,6 +1322,9 @@ internal static class SelectExecutor
                 yield break;
             case UnaryExpression unary:
                 foreach (var n in CollectIdentifierNames(unary.Operand)) yield return n;
+                yield break;
+            case CastExpression cast:
+                foreach (var n in CollectIdentifierNames(cast.Operand)) yield return n;
                 yield break;
             case IsNullExpression isNull:
                 foreach (var n in CollectIdentifierNames(isNull.Operand)) yield return n;
@@ -1605,7 +1655,9 @@ internal static class SelectExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private static double RequireDouble(object? value, string functionName)
     {
@@ -1932,7 +1984,7 @@ internal static class SelectExecutor
                         }
 
                         // count(field) 只需时间戳；其他聚合需要把字段值转为 double
-                        bool needsValue = spec.LegacyAggregator != Aggregator.Count;
+                        bool needsValue = spec.LegacyAggregator != Aggregator.Count || spec.IsDistinct;
                         if (!needsValue)
                         {
                             slots[specIdx].UpdateCount(dp.Timestamp);
@@ -2554,6 +2606,7 @@ internal static class SelectExecutor
         long bucketSizeMs)
     {
         return spec.IsExtended
+            && !spec.IsDistinct
             && bucketSizeMs <= 0
             && spec.FieldName is not null
             && spec.FieldType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
@@ -2565,6 +2618,7 @@ internal static class SelectExecutor
         WhereClause where)
     {
         if (spec.IsExtended
+            || spec.IsDistinct
             || spec.IsCountStar
             || where.Residual is not null
             || where.GeoFilters.Count != 0)
@@ -2650,14 +2704,14 @@ internal static class SelectExecutor
                     && fieldColumn?.DataType is FieldType.String or FieldType.Boolean);
             return requiresFieldValueAccumulator
                 ? new AggSpec(columnName, legacy, fieldName, fieldColumn?.DataType,
-                    ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema)
+                    ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema, IsDistinct: fn.IsDistinct)
                 : new AggSpec(columnName, legacy, fieldName, fieldColumn?.DataType,
-                    ExtendedFunction: null, ExtendedCall: null, Schema: null);
+                    ExtendedFunction: null, ExtendedCall: null, Schema: null, IsDistinct: fn.IsDistinct);
         }
 
         // 扩展聚合：保留函数与 AST 引用以便每个桶按需创建独立累加器。
         return new AggSpec(columnName, default, fieldName, fieldColumn?.DataType,
-            ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema);
+            ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema, IsDistinct: fn.IsDistinct);
     }
 
     private sealed record AggSpec(
@@ -2667,10 +2721,11 @@ internal static class SelectExecutor
         FieldType? FieldType,
         IAggregateFunction? ExtendedFunction,
         FunctionCallExpression? ExtendedCall,
-        MeasurementSchema? Schema)
+        MeasurementSchema? Schema,
+        bool IsDistinct)
     {
         public bool IsExtended => ExtendedFunction is not null;
-        public bool IsCountStar => !IsExtended && LegacyAggregator == Aggregator.Count && FieldName is null;
+        public bool IsCountStar => !IsExtended && !IsDistinct && LegacyAggregator == Aggregator.Count && FieldName is null;
     }
 
     /// <summary>每个 (bucket × spec) 的累加槽：legacy 走 <see cref="BucketState"/>，扩展聚合走累加器。</summary>
@@ -2679,11 +2734,13 @@ internal static class SelectExecutor
         private readonly AggSpec _spec;
         private BucketState _legacy = BucketState.Empty;
         private readonly IAggregateAccumulator? _extended;
+        private readonly HashSet<FieldValue>? _distinctValues;
 
         private AggSlot(AggSpec spec, IAggregateAccumulator? extended)
         {
             _spec = spec;
             _extended = extended;
+            _distinctValues = spec.IsDistinct ? new HashSet<FieldValue>() : null;
         }
 
         public static AggSlot Create(AggSpec spec)
@@ -2706,9 +2763,14 @@ internal static class SelectExecutor
 
         public void Update(long timestamp, FieldValue value, MeasurementColumn? col)
         {
+            if (_distinctValues is not null && !_distinctValues.Add(value))
+                return;
+
             if (_extended is null)
             {
-                _legacy = _legacy.Update(timestamp, FieldValueToDouble(value, col));
+                _legacy = _spec.LegacyAggregator == Aggregator.Count
+                    ? _legacy.Update(timestamp, 0d)
+                    : _legacy.Update(timestamp, FieldValueToDouble(value, col));
             }
             else
             {

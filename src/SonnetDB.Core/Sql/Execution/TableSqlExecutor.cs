@@ -81,9 +81,12 @@ internal static class TableSqlExecutor
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
+        var decimalDefinitions = new Dictionary<string, (byte Precision, byte Scale)>(StringComparer.Ordinal);
         foreach (var column in statement.Columns)
         {
             var dataType = MapTableColumnType(column.DataType);
+            if (dataType == TableColumnType.Decimal)
+                decimalDefinitions[column.Name] = (column.DecimalPrecision, column.DecimalScale);
             var isPrimaryKey = statement.PrimaryKey.Contains(column.Name, StringComparer.Ordinal);
             var isAutoIncrement = column.IsAutoIncrement;
             var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey && !isAutoIncrement;
@@ -113,7 +116,7 @@ internal static class TableSqlExecutor
 
         var foreignKeys = statement.ForeignKeyClauses
             .Select(static fk => new TableForeignKeyDefinition(
-                Name: string.Empty,
+                Name: fk.Name ?? string.Empty,
                 fk.Columns,
                 fk.PrincipalTable,
                 fk.PrincipalColumns,
@@ -138,7 +141,8 @@ internal static class TableSqlExecutor
             createdAtUtcTicks: 0,
             checkConstraints: checkConstraints,
             columnDefaults: columnDefaults,
-            autoIncrementColumns: autoIncrementColumns);
+            autoIncrementColumns: autoIncrementColumns,
+            decimalDefinitions: decimalDefinitions);
         ModbusTableBinding? modbusBinding = ModbusSqlExecutor.ResolveTableBinding(tsdb, statement, schema);
         tsdb.Tables.Create(schema);
         if (modbusBinding is null)
@@ -1534,6 +1538,11 @@ internal static class TableSqlExecutor
         {
             case LiteralExpression or DurationLiteralExpression:
                 return;
+            case CastExpression cast:
+                ValidateTableValueExpression(cast.Operand, schema, context);
+                if (IsConstantArithmeticExpression(cast.Operand))
+                    _ = SqlCastOperations.Convert(EvaluateScalar(cast.Operand, schema, Array.Empty<object?>()), cast.TargetType);
+                return;
             case IdentifierExpression identifier:
                 _ = schema.TryGetColumn(identifier.Name)
                     ?? throw new InvalidOperationException($"{context} 中引用了未知列 '{identifier.Name}'。");
@@ -1655,6 +1664,7 @@ internal static class TableSqlExecutor
         => expression switch
         {
             LiteralExpression or DurationLiteralExpression => true,
+            CastExpression cast => IsConstantArithmeticExpression(cast.Operand),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
                 IsConstantArithmeticExpression(unary.Operand),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) =>
@@ -2176,7 +2186,10 @@ internal static class TableSqlExecutor
             TableColumnType.Boolean => value is bool,
             TableColumnType.String or TableColumnType.Json => value is string,
             TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
+            TableColumnType.Time => value is TimeOnly or TimeSpan or string,
             TableColumnType.Blob => value is byte[],
+            TableColumnType.Decimal => value is
+                byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal,
             _ => false,
         };
 
@@ -2760,6 +2773,7 @@ internal static class TableSqlExecutor
         => expression switch
         {
             LiteralExpression or DurationLiteralExpression or MaterializedSubqueryValueExpression => true,
+            CastExpression cast => IsConstantPredicateExpression(cast.Operand),
             UnaryExpression unary => IsConstantPredicateExpression(unary.Operand),
             BinaryExpression binary => IsConstantPredicateExpression(binary.Left)
                 && IsConstantPredicateExpression(binary.Right),
@@ -4689,6 +4703,7 @@ internal static class TableSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.Operand, schema, row), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             MaterializedSubqueryValueExpression materialized => materialized.Value,
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
@@ -4840,6 +4855,7 @@ internal static class TableSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateDefaultExpression(cast.Operand), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
                 SqlScalarOperations.Negate(EvaluateDefaultExpression(unary.Operand)),
@@ -4875,6 +4891,8 @@ internal static class TableSqlExecutor
         {
             TableColumnType.Int64 => Convert.ToInt64(value, CultureInfo.InvariantCulture),
             TableColumnType.Float64 => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            TableColumnType.Decimal => Convert.ToDecimal(value, CultureInfo.InvariantCulture),
+            TableColumnType.Time => ConvertTimeValue(value, column),
             TableColumnType.Boolean => value is bool b
                 ? b
                 : throw TypeMismatch(column, value),
@@ -5036,6 +5054,21 @@ internal static class TableSqlExecutor
                 out var dto) => dto.UtcDateTime,
             _ => throw TypeMismatch(column, value),
         };
+    }
+
+    private static TimeOnly ConvertTimeValue(object value, TableColumn column)
+    {
+        if (value is TimeOnly time)
+            return time;
+        if (value is TimeSpan span && span >= TimeSpan.Zero && span < TimeSpan.FromDays(1))
+            return TimeOnly.FromTimeSpan(span);
+        if (value is string text
+            && TimeOnly.TryParse(text.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw TypeMismatch(column, value);
     }
 
     private static object ConvertBlobValue(object value, TableColumn column)
@@ -5393,6 +5426,11 @@ internal static class TableSqlExecutor
                     yield return identifier;
                 yield break;
 
+            case CastExpression cast:
+                foreach (var identifier in EnumerateIdentifierReferences(cast.Operand))
+                    yield return identifier;
+                yield break;
+
             case BinaryExpression binary:
                 foreach (var identifier in EnumerateIdentifierReferences(binary.Left))
                     yield return identifier;
@@ -5471,15 +5509,19 @@ internal static class TableSqlExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private static TableColumnType MapTableColumnType(SqlDataType type) => type switch
     {
         SqlDataType.Int64 => TableColumnType.Int64,
         SqlDataType.Float64 => TableColumnType.Float64,
+        SqlDataType.Decimal => TableColumnType.Decimal,
         SqlDataType.Boolean => TableColumnType.Boolean,
         SqlDataType.String => TableColumnType.String,
         SqlDataType.DateTime => TableColumnType.DateTime,
+        SqlDataType.Time => TableColumnType.Time,
         SqlDataType.Blob => TableColumnType.Blob,
         SqlDataType.Json => TableColumnType.Json,
         _ => throw new NotSupportedException($"关系表 MVP 暂不支持数据类型 {type}。"),
@@ -5489,9 +5531,11 @@ internal static class TableSqlExecutor
     {
         TableColumnType.Int64 => "int64",
         TableColumnType.Float64 => "float64",
+        TableColumnType.Decimal => "decimal",
         TableColumnType.Boolean => "boolean",
         TableColumnType.String => "string",
         TableColumnType.DateTime => "datetime",
+        TableColumnType.Time => "time",
         TableColumnType.Blob => "blob",
         TableColumnType.Json => "json",
         _ => type.ToString().ToLowerInvariant(),

@@ -23,11 +23,13 @@ internal static class SchemaEndpointHandler
         var measurements = BuildMeasurements(tsdb);
         var tables = BuildTables(tsdb);
         var documents = BuildDocuments(tsdb);
+        var views = BuildViews(tsdb);
+        var materializedViews = BuildMaterializedViews(tsdb);
         var indexes = BuildIndexes(measurements, tables, documents);
         var backupStatus = BuildBackupStatus(tsdb);
 
         return Results.Json(
-            new SchemaResponse(measurements, tables, documents, indexes, backupStatus),
+            new SchemaResponse(measurements, tables, documents, indexes, backupStatus, views, materializedViews),
             ServerJsonContext.Default.SchemaResponse);
     }
 
@@ -69,7 +71,9 @@ internal static class SchemaEndpointHandler
                     column.IsPrimaryKey,
                     column.IsNullable,
                     column.Ordinal,
-                    column.IsRowVersion)
+                    column.IsRowVersion,
+                    column.DecimalPrecision == 0 ? null : column.DecimalPrecision,
+                    column.DecimalScale == 0 ? null : column.DecimalScale)
                 {
                     IsAutoIncrement = column.IsAutoIncrement,
                     DefaultExpressionSql = column.DefaultExpressionSql,
@@ -156,6 +160,32 @@ internal static class SchemaEndpointHandler
 
         return result;
     }
+
+    private static List<ViewInfo> BuildViews(Tsdb tsdb)
+        => tsdb.Views.Catalog.Snapshot()
+            .Select(static definition => new ViewInfo(
+                definition.Name,
+                definition.DefinitionSql,
+                ToDateTimeOffset(definition.CreatedAtUtcTicks)))
+            .ToList();
+
+    private static List<MaterializedViewInfo> BuildMaterializedViews(Tsdb tsdb)
+        => tsdb.MaterializedViews.Catalog.Snapshot()
+            .Select(static definition => new MaterializedViewInfo(
+                definition.Name,
+                definition.DefinitionSql,
+                definition.DefinitionVersion,
+                definition.Status.ToString(),
+                definition.ActiveGeneration,
+                definition.RowCount,
+                ToDateTimeOffset(definition.CreatedAtUtcTicks),
+                OptionalDateTimeOffset(definition.LastRefreshAtUtcTicks),
+                OptionalDateTimeOffset(definition.LastSuccessfulRefreshAtUtcTicks),
+                definition.LastError))
+            .ToList();
+
+    private static DateTimeOffset? OptionalDateTimeOffset(long ticks)
+        => ticks == 0 ? null : ToDateTimeOffset(ticks);
 
     private static List<IndexLifecycleInfo> BuildIndexes(
         IReadOnlyList<MeasurementInfo> measurements,

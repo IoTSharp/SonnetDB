@@ -80,6 +80,7 @@ jobs:
         run: |
           ./tests/SonnetDB.Parity/scripts/test-summarize-parity.ps1
           ./tests/SonnetDB.Parity/scripts/test-verify-parity-nightly-evidence.ps1
+          ./tests/SonnetDB.Parity/scripts/test-compose-contract.ps1
 
       - name: Restore parity projects
         id: restore

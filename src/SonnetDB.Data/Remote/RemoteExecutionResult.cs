@@ -229,7 +229,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         JsonValueKind.False => false,
         JsonValueKind.String => element.GetString(),
         JsonValueKind.Number => ReadNumber(element),
-        JsonValueKind.Array => element.GetRawText(),
+        JsonValueKind.Array => ReadNumericArray(element),
         JsonValueKind.Object => TryReadGeoPoint(element, out var point) ? point : element.GetRawText(),
         _ => null,
     };
@@ -263,6 +263,20 @@ internal sealed class RemoteExecutionResult : IExecutionResult
 
         point = GeoPoint.Create(lat, lon);
         return true;
+    }
+
+    private static object ReadNumericArray(JsonElement element)
+    {
+        var vector = new float[element.GetArrayLength()];
+        int index = 0;
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Number || !item.TryGetSingle(out vector[index]))
+                return element.GetRawText();
+            index++;
+        }
+
+        return vector;
     }
 
     private static object ReadNumber(JsonElement element)

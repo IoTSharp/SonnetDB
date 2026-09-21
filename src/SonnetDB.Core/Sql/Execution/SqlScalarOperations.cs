@@ -9,7 +9,8 @@ namespace SonnetDB.Sql.Execution;
 internal static class SqlScalarOperations
 {
     /// <summary>
-    /// 计算二元算术表达式；整数加减乘模保留 Int64，除法与含浮点操作数的运算返回 Float64。
+    /// 计算二元算术表达式；整数加减乘模与按位运算保留 Int64，DECIMAL 输入保持 Decimal，
+    /// 其它含浮点操作数的运算返回 Float64。
     /// </summary>
     /// <param name="operatorValue">待执行的算术运算符。</param>
     /// <param name="left">左操作数。</param>
@@ -19,6 +20,21 @@ internal static class SqlScalarOperations
     {
         if (left is null || right is null)
             return null;
+
+        if (operatorValue is SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr)
+        {
+            if (!IsIntegral(left) || !IsIntegral(right))
+            {
+                throw new InvalidOperationException(
+                    $"运算符 {OperatorText(operatorValue)} 只支持整数操作数。");
+            }
+
+            long leftInteger = ToInt64(left);
+            long rightInteger = ToInt64(right);
+            return operatorValue == SqlBinaryOperator.BitwiseAnd
+                ? leftInteger & rightInteger
+                : leftInteger | rightInteger;
+        }
 
         if (!IsNumeric(left) || !IsNumeric(right))
         {
@@ -31,6 +47,12 @@ internal static class SqlScalarOperations
 
         if (operatorValue != SqlBinaryOperator.Divide && IsIntegral(left) && IsIntegral(right))
             return EvaluateIntegral(operatorValue, ToInt64(left), ToInt64(right));
+
+        if (left is decimal || right is decimal)
+            return EvaluateDecimal(
+                operatorValue,
+                Convert.ToDecimal(left, CultureInfo.InvariantCulture),
+                Convert.ToDecimal(right, CultureInfo.InvariantCulture));
 
         double leftValue = ToDouble(left);
         double rightValue = ToDouble(right);
@@ -61,6 +83,8 @@ internal static class SqlScalarOperations
         {
             if (IsIntegral(value))
                 return checked(-ToInt64(value));
+            if (value is decimal decimalValue)
+                return checked(-decimalValue);
             return -ToDouble(value);
         }
         catch (OverflowException ex)
@@ -89,6 +113,30 @@ internal static class SqlScalarOperations
         {
             throw new InvalidOperationException(
                 $"运算符 {OperatorText(operatorValue)} 的 Int64 运算发生溢出。", ex);
+        }
+    }
+
+    private static decimal EvaluateDecimal(SqlBinaryOperator operatorValue, decimal left, decimal right)
+    {
+        try
+        {
+            return operatorValue switch
+            {
+                SqlBinaryOperator.Add => checked(left + right),
+                SqlBinaryOperator.Subtract => checked(left - right),
+                SqlBinaryOperator.Multiply => checked(left * right),
+                SqlBinaryOperator.Divide => right == 0m
+                    ? throw new InvalidOperationException("运算符 / 的除数不能为 0。")
+                    : left / right,
+                SqlBinaryOperator.Modulo => right == 0m
+                    ? throw new InvalidOperationException("运算符 % 的除数不能为 0。")
+                    : left % right,
+                _ => throw new InvalidOperationException($"不支持的算术运算符 {operatorValue}。"),
+            };
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException("DECIMAL 运算发生溢出。", exception);
         }
     }
 
@@ -129,7 +177,9 @@ internal static class SqlScalarOperations
     /// 判断数值操作数是否为零，供除法与取模在计算前统一拒绝零除数。
     /// </summary>
     private static bool IsZero(object value)
-        => IsIntegral(value) ? ToInt64(value) == 0L : ToDouble(value) == 0d;
+        => value is decimal decimalValue
+            ? decimalValue == 0m
+            : IsIntegral(value) ? ToInt64(value) == 0L : ToDouble(value) == 0d;
 
     /// <summary>
     /// 返回面向错误消息的 SQL 运算符文本。
@@ -141,6 +191,8 @@ internal static class SqlScalarOperations
         SqlBinaryOperator.Multiply => "*",
         SqlBinaryOperator.Divide => "/",
         SqlBinaryOperator.Modulo => "%",
+        SqlBinaryOperator.BitwiseAnd => "&",
+        SqlBinaryOperator.BitwiseOr => "|",
         _ => value.ToString(),
     };
 }

@@ -14,7 +14,8 @@ namespace SonnetDB.Sql;
 /// <para>
 /// CLR 值 → 字面量的类型映射与旧 ADO <c>ParameterBinder.FormatLiteral</c> 语义一致：
 /// <c>DateTime</c>/<c>DateTimeOffset</c> → Unix 毫秒整数；<c>byte[]</c> → Base64 字符串字面量（BLOB 列自行解码）；
-/// <c>GeoPoint</c> → <see cref="GeoPointLiteralExpression"/>；数值/布尔/字符串/null 各归对应字面量。
+/// <c>GeoPoint</c> → <see cref="GeoPointLiteralExpression"/>；<c>float[]</c> / <c>Memory&lt;float&gt;</c> /
+/// <c>ReadOnlyMemory&lt;float&gt;</c> → <see cref="VectorLiteralExpression"/>；数值/布尔/字符串/null 各归对应字面量。
 /// </para>
 /// </summary>
 public static class SqlParameterBinder
@@ -84,11 +85,16 @@ public static class SqlParameterBinder
         var orderByItems = BindOrderBy(select.OrderByList, p);
         var joins = BindJoins(select.JoinClauses, p);
         var fromSubquery = select.FromSubquery is null ? null : BindSelect(select.FromSubquery, p);
-        var unions = select.UnionStatements.Select(union => BindSelect(union, p)).ToArray();
+        var setOperations = select.SetOperationList
+            .Select(operation => operation with { Query = BindSelect(operation.Query, p) })
+            .ToArray();
         var pagination = BindPagination(select.Pagination, p);
         var tableValuedFunction = select.TableValuedFunction is null
             ? null
             : (FunctionCallExpression)BindExpr(select.TableValuedFunction, p);
+        var ctes = select.CommonTableExpressions
+            .Select(cte => cte with { Query = BindSelect(cte.Query, p) })
+            .ToArray();
         GraphTableSource? graphTable = select.GraphTable is null
             ? null
             : select.GraphTable with
@@ -111,9 +117,11 @@ public static class SqlParameterBinder
             Join = null,
             Joins = joins,
             FromSubquery = fromSubquery,
-            Unions = unions,
+            Unions = setOperations.Length == 0 ? null : setOperations.Select(static operation => operation.Query).ToArray(),
+            SetOperations = setOperations,
             TableValuedFunction = tableValuedFunction,
             GraphTable = graphTable,
+            CommonTableExpressions = ctes,
         };
     }
 
@@ -264,6 +272,12 @@ public static class SqlParameterBinder
                 var operand = BindExpr(u.Operand, p);
                 return ReferenceEquals(operand, u.Operand) ? u : u with { Operand = operand };
 
+            case CastExpression cast:
+                var castOperand = BindExpr(cast.Operand, p);
+                return ReferenceEquals(castOperand, cast.Operand)
+                    ? cast
+                    : cast with { Operand = castOperand };
+
             case IsNullExpression n:
                 var nOperand = BindExpr(n.Operand, p);
                 return ReferenceEquals(nOperand, n.Operand) ? n : n with { Operand = nOperand };
@@ -280,7 +294,21 @@ public static class SqlParameterBinder
 
             case FunctionCallExpression f:
                 var args = BindExprList(f.Arguments, p);
-                return ReferenceEquals(args, f.Arguments) ? f : f with { Arguments = args };
+                WindowSpecification? over = f.Over;
+                if (over is not null)
+                {
+                    var partitionBy = BindExprList(over.PartitionBy, p);
+                    var orderBy = BindOrderBy(over.OrderBy, p);
+                    if (!ReferenceEquals(partitionBy, over.PartitionBy)
+                        || !ReferenceEquals(orderBy, over.OrderBy))
+                    {
+                        over = over with { PartitionBy = partitionBy, OrderBy = orderBy };
+                    }
+                }
+
+                return ReferenceEquals(args, f.Arguments) && ReferenceEquals(over, f.Over)
+                    ? f
+                    : f with { Arguments = args, Over = over };
 
             case NamedArgumentExpression na:
                 var naValue = BindExpr(na.Value, p);
@@ -368,6 +396,18 @@ public static class SqlParameterBinder
                 return LiteralExpression.Integer(new DateTimeOffset(utc).ToUnixTimeMilliseconds());
             case DateTimeOffset dto:
                 return LiteralExpression.Integer(dto.ToUnixTimeMilliseconds());
+            case TimeOnly time:
+                return LiteralExpression.String(time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
+            case TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1):
+                return LiteralExpression.String(TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
+            case TimeSpan:
+                throw new ArgumentOutOfRangeException(nameof(value), "TIME 参数必须落在 [00:00:00, 24:00:00) 范围内。");
+            case float[] vector:
+                return ToVectorLiteral(vector);
+            case Memory<float> vector:
+                return ToVectorLiteral(vector.Span);
+            case ReadOnlyMemory<float> vector:
+                return ToVectorLiteral(vector.Span);
             case byte[] bytes:
                 // BLOB：以 Base64 字符串字面量承载，BLOB 列执行时自行 Convert.FromBase64String 解码。
                 return LiteralExpression.String(Convert.ToBase64String(bytes));
@@ -379,5 +419,20 @@ public static class SqlParameterBinder
                 throw new NotSupportedException(
                     $"SQL 参数不支持 CLR 类型 {value.GetType().FullName}。");
         }
+    }
+
+    private static VectorLiteralExpression ToVectorLiteral(ReadOnlySpan<float> vector)
+    {
+        if (vector.Length == 0)
+            throw new ArgumentException("VECTOR 参数不能为空。", nameof(vector));
+
+        var components = new double[vector.Length];
+        for (int i = 0; i < vector.Length; i++)
+        {
+            if (!float.IsFinite(vector[i]))
+                throw new ArgumentException("VECTOR 参数只能包含有限浮点数。", nameof(vector));
+            components[i] = vector[i];
+        }
+        return new VectorLiteralExpression(components);
     }
 }

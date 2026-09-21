@@ -299,11 +299,12 @@ internal static class TableIndexCodec
             ? 1
             : column.DataType switch
             {
-                TableColumnType.Int64 or TableColumnType.DateTime => 1 + 8,
+                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time => 1 + 8,
                 TableColumnType.Float64 => 1 + 8,
                 TableColumnType.Boolean => 1 + 1,
                 TableColumnType.String or TableColumnType.Json => 1 + 4 + _utf8.GetByteCount((string)value),
                 TableColumnType.Blob => 1 + 4 + ((byte[])value).Length,
+                TableColumnType.Decimal => 1 + 4 + _utf8.GetByteCount(DecimalText(value)),
                 _ => throw new InvalidOperationException($"不支持的索引列类型 {column.DataType}。"),
             };
 
@@ -343,11 +344,18 @@ internal static class TableIndexCodec
             case TableColumnType.DateTime:
                 SortableScalarCodec.WriteTableLegacyDateTime(payload, ToUnixMilliseconds(value));
                 return 9;
+            case TableColumnType.Time:
+                SortableScalarCodec.WriteTableLegacyInt64(payload, ConvertTimeValue(value).Ticks);
+                return 9;
             case TableColumnType.String:
             case TableColumnType.Json:
                 return 1 + WriteLengthPrefixed(payload, _utf8.GetBytes((string)value));
             case TableColumnType.Blob:
                 return 1 + WriteLengthPrefixed(payload, (byte[])value);
+            case TableColumnType.Decimal:
+                return 1 + WriteLengthPrefixed(
+                    payload,
+                    _utf8.GetBytes(DecimalText(value)));
             default:
                 throw new InvalidOperationException($"不支持的索引列类型 {column.DataType}。");
         }
@@ -372,6 +380,10 @@ internal static class TableIndexCodec
         return 4 + bytes.Length;
     }
 
+    private static string DecimalText(object value)
+        => Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture)
+            .ToString("G29", System.Globalization.CultureInfo.InvariantCulture);
+
     private static long ToUnixMilliseconds(object value)
         => value switch
         {
@@ -381,6 +393,15 @@ internal static class TableIndexCodec
                 : dt).ToUnixTimeMilliseconds(),
             long ms => ms,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
+        };
+
+    private static TimeOnly ConvertTimeValue(object value)
+        => value switch
+        {
+            TimeOnly time => time,
+            TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1) => TimeOnly.FromTimeSpan(span),
+            string text when TimeOnly.TryParse(text.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed) => parsed,
+            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 TIME。"),
         };
 
     private static TableColumn ResolveJsonPathColumn(TableIndex index, TableSchema schema)

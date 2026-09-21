@@ -46,7 +46,7 @@ internal static class SqlStatementFingerprint
                     .Append(select.OrderByList.Count).Append('|')
                     .Append(select.Pagination is not null).Append('|')
                     .Append(select.Distinct).Append('|')
-                    .Append(select.UnionStatements.Count).Append('|')
+                    .Append(select.SetOperationList.Count).Append('|')
                     .Append(select.TableValuedFunction is not null).Append('|')
                     .Append(select.GraphTable is not null).Append('|');
                 if (select.FromSubquery is not null)
@@ -80,8 +80,11 @@ internal static class SqlStatementFingerprint
                 }
                 if (select.GraphTable is not null)
                     AppendGraphTable(builder, select.GraphTable);
-                foreach (SelectStatement union in select.UnionStatements)
-                    AppendStatement(builder, union);
+                foreach (SqlSetOperation operation in select.SetOperationList)
+                {
+                    builder.Append(operation.Kind).Append('|');
+                    AppendStatement(builder, operation.Query);
+                }
                 break;
             default:
                 builder.Append(statement.GetType().Name);
@@ -112,10 +115,25 @@ internal static class SqlStatementFingerprint
                 builder.Append(unary.Operator).Append('|');
                 AppendExpression(builder, unary.Operand);
                 break;
+            case CastExpression cast:
+                builder.Append(cast.TargetType).Append('|');
+                AppendExpression(builder, cast.Operand);
+                break;
             case FunctionCallExpression function:
-                builder.Append(function.Name).Append(':').Append(function.Arguments.Count).Append(':').Append(function.IsStar).Append('|');
+                builder.Append(function.Name).Append(':').Append(function.Arguments.Count).Append(':').Append(function.IsStar).Append(':').Append(function.IsDistinct).Append('|');
                 foreach (SqlExpression argument in function.Arguments)
                     AppendExpression(builder, argument);
+                if (function.Over is { } over)
+                {
+                    builder.Append("over:").Append(over.PartitionBy.Count).Append(':').Append(over.OrderBy.Count).Append('|');
+                    foreach (SqlExpression partition in over.PartitionBy)
+                        AppendExpression(builder, partition);
+                    foreach (OrderBySpec orderBy in over.OrderBy)
+                    {
+                        builder.Append(orderBy.Direction).Append('|');
+                        AppendExpression(builder, orderBy.Expression);
+                    }
+                }
                 break;
             case InExpression inExpression:
                 builder.Append(inExpression.Negated).Append(':').Append(inExpression.Values.Count).Append(':').Append(inExpression.Subquery is not null).Append('|');

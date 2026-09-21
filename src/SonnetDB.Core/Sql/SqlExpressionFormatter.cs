@@ -24,6 +24,11 @@ internal static class SqlExpressionFormatter
             case DurationLiteralExpression duration:
                 builder.Append(duration.Milliseconds.ToString(CultureInfo.InvariantCulture));
                 return;
+            case CastExpression cast:
+                builder.Append("CAST(");
+                Append(builder, cast.Operand);
+                builder.Append(" AS ").Append(DataTypeText(cast.TargetType)).Append(')');
+                return;
             case IdentifierExpression identifier:
                 if (!string.IsNullOrWhiteSpace(identifier.Qualifier))
                 {
@@ -64,6 +69,8 @@ internal static class SqlExpressionFormatter
             case FunctionCallExpression { IsStar: false } function:
                 AppendIdentifier(builder, function.Name);
                 builder.Append('(');
+                if (function.IsDistinct)
+                    builder.Append("DISTINCT ");
                 for (var i = 0; i < function.Arguments.Count; i++)
                 {
                     if (i > 0)
@@ -71,6 +78,35 @@ internal static class SqlExpressionFormatter
                     Append(builder, function.Arguments[i]);
                 }
                 builder.Append(')');
+                if (function.Over is { } over)
+                {
+                    builder.Append(" OVER (");
+                    if (over.PartitionBy.Count != 0)
+                    {
+                        builder.Append("PARTITION BY ");
+                        for (var i = 0; i < over.PartitionBy.Count; i++)
+                        {
+                            if (i > 0)
+                                builder.Append(", ");
+                            Append(builder, over.PartitionBy[i]);
+                        }
+                    }
+                    if (over.OrderBy.Count != 0)
+                    {
+                        if (over.PartitionBy.Count != 0)
+                            builder.Append(' ');
+                        builder.Append("ORDER BY ");
+                        for (var i = 0; i < over.OrderBy.Count; i++)
+                        {
+                            if (i > 0)
+                                builder.Append(", ");
+                            Append(builder, over.OrderBy[i].Expression);
+                            if (over.OrderBy[i].Direction == SortDirection.Descending)
+                                builder.Append(" DESC");
+                        }
+                    }
+                    builder.Append(')');
+                }
                 return;
             case CaseExpression caseExpression:
                 builder.Append("(CASE");
@@ -144,6 +180,23 @@ internal static class SqlExpressionFormatter
         SqlBinaryOperator.Multiply => "*",
         SqlBinaryOperator.Divide => "/",
         SqlBinaryOperator.Modulo => "%",
+        SqlBinaryOperator.BitwiseAnd => "&",
+        SqlBinaryOperator.BitwiseOr => "|",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static string DataTypeText(SqlDataType value) => value switch
+    {
+        SqlDataType.Float64 => "FLOAT",
+        SqlDataType.Int64 => "INT",
+        SqlDataType.Boolean => "BOOL",
+        SqlDataType.String => "STRING",
+        SqlDataType.Vector => "VECTOR",
+        SqlDataType.GeoPoint => "GEOPOINT",
+        SqlDataType.DateTime => "DATETIME",
+        SqlDataType.Time => "TIME",
+        SqlDataType.Blob => "BLOB",
+        SqlDataType.Json => "JSON",
+        _ => value.ToString().ToUpperInvariant(),
     };
 }

@@ -613,7 +613,49 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     public IReadOnlyList<TableSchema> SnapshotTables()
         => SnapshotTablesAsync(CancellationToken.None).GetAwaiter().GetResult();
 
+    internal ConnectionSchemaSnapshot SnapshotSchema()
+        => SnapshotSchemaAsync(CancellationToken.None).GetAwaiter().GetResult();
+
     private async Task<IReadOnlyList<TableSchema>> SnapshotTablesAsync(CancellationToken cancellationToken)
+    {
+        var body = await SnapshotSchemaResponseAsync(cancellationToken).ConfigureAwait(false);
+        return (body.Tables ?? [])
+            .Select(ToTableSchema)
+            .ToArray();
+    }
+
+    private async Task<ConnectionSchemaSnapshot> SnapshotSchemaAsync(CancellationToken cancellationToken)
+    {
+        var body = await SnapshotSchemaResponseAsync(cancellationToken).ConfigureAwait(false);
+        var views = (body.Views ?? [])
+            .Select(static view => new ConnectionViewSchema(
+                view.Name,
+                view.DefinitionSql,
+                view.CreatedUtc,
+                IsMaterialized: false))
+            .Concat((body.MaterializedViews ?? []).Select(static view => new ConnectionViewSchema(
+                view.Name,
+                view.DefinitionSql,
+                view.CreatedUtc,
+                IsMaterialized: true)))
+            .OrderBy(static view => view.Name, StringComparer.Ordinal)
+            .ToArray();
+        var documents = (body.DocumentCollections ?? [])
+            .Select(static collection => new ConnectionDocumentCollectionSchema(
+                collection.Name,
+                collection.CreatedUtc,
+                collection.JsonIndexes.Count,
+                collection.FullTextIndexes.Count,
+                collection.Validator is not null))
+            .ToArray();
+
+        return new ConnectionSchemaSnapshot(
+            (body.Tables ?? []).Select(ToTableSchema).ToArray(),
+            views,
+            documents);
+    }
+
+    private async Task<RemoteSchemaResponse> SnapshotSchemaResponseAsync(CancellationToken cancellationToken)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
@@ -632,9 +674,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .ConfigureAwait(false)
             ?? throw new InvalidDataException("SonnetDB schema response body is empty.");
 
-        return (body.Tables ?? [])
-            .Select(ToTableSchema)
-            .ToArray();
+        return body;
     }
 
     public void RollbackTransaction(object transactionState)
@@ -1231,6 +1271,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .Where(static column => column.IsAutoIncrement)
             .Select(static column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
+        var decimalDefinitions = table.Columns
+            .Where(static column => string.Equals(column.DataType, "DECIMAL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(column.DataType, "NUMERIC", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(column.DataType, "Decimal", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                static column => column.Name,
+                static column => (column.DecimalPrecision ?? (byte)38, column.DecimalScale ?? (byte)28),
+                StringComparer.Ordinal);
         var indexes = table.Indexes
             .Select(static index => new TableIndexDefinition(
                 index.Name,
@@ -1239,19 +1287,33 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 index.CreatedUtc.UtcDateTime.Ticks,
                 index.JsonPath))
             .ToArray();
+        var foreignKeys = (table.ForeignKeys ?? [])
+            .Select(static foreignKey => new TableForeignKeyDefinition(
+                foreignKey.Name,
+                foreignKey.Columns,
+                foreignKey.PrincipalTable,
+                foreignKey.PrincipalColumns,
+                ParseForeignKeyAction(foreignKey.OnDelete)))
+            .ToArray();
 
         return TableSchema.CreateWithDefaults(
             table.Name,
             columns,
             table.PrimaryKey,
             indexes,
-            foreignKeys: null,
+            foreignKeys: foreignKeys,
             rowVersionColumns: rowVersionColumns,
             createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks,
             checkConstraints: null,
             columnDefaults: defaults,
-            autoIncrementColumns: autoIncrementColumns);
+            autoIncrementColumns: autoIncrementColumns,
+            decimalDefinitions: decimalDefinitions);
     }
+
+    private static ForeignKeyAction ParseForeignKeyAction(string value)
+        => Enum.TryParse<ForeignKeyAction>(value, ignoreCase: true, out var action)
+            ? action
+            : ForeignKeyAction.NoAction;
 
     private static TableColumnType ParseTableColumnType(string value)
     {
@@ -1260,9 +1322,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             "INT" or "INT64" or "INTEGER" or "BIGINT" => TableColumnType.Int64,
             "FLOAT" or "FLOAT64" or "DOUBLE" or "REAL" => TableColumnType.Float64,
+            "DECIMAL" or "NUMERIC" => TableColumnType.Decimal,
             "BOOL" or "BOOLEAN" => TableColumnType.Boolean,
             "STRING" or "TEXT" => TableColumnType.String,
             "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
+            "TIME" or "TIMEONLY" => TableColumnType.Time,
             "BLOB" or "BINARY" => TableColumnType.Blob,
             "JSON" => TableColumnType.Json,
             _ => Enum.TryParse<TableColumnType>(value, ignoreCase: true, out var parsed)

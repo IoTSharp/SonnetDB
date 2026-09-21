@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Globalization;
 using SonnetDB.Data;
 using SonnetDB.Data.Embedded;
+using SonnetDB.Documents;
 using SonnetDB.Model;
 using SonnetDB.Sql.Execution;
 using Xunit;
@@ -448,6 +449,75 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal("ux_devices_name", index["INDEX_NAME"]);
         Assert.True((bool)index["IS_UNIQUE"]);
         Assert.Equal("name", index["COLUMN_NAME"]);
+    }
+
+    [Fact]
+    public void Connection_GetSchema_ReportsDecimalPrecisionAndScale()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE ledger (id INT, amount DECIMAL(18,4), PRIMARY KEY (id))");
+
+        var columns = c.GetSchema("Columns", [null, null, "ledger", "amount"]);
+        var amount = Assert.Single(columns.Rows.Cast<DataRow>());
+        Assert.Equal("DECIMAL", amount["DATA_TYPE"]);
+        Assert.Equal((short)18, amount["NUMERIC_PRECISION"]);
+        Assert.Equal((short)4, amount["NUMERIC_SCALE"]);
+    }
+
+    [Fact]
+    public void Connection_TimeColumn_ReportsTimeOnlyAndPreservesValue()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE schedule (id INT, starts TIME, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO schedule (id, starts) VALUES (1, '06:07:08.1234567')");
+
+        var columns = c.GetSchema("Columns", [null, null, "schedule", "starts"]);
+        var metadata = Assert.Single(columns.Rows.Cast<DataRow>());
+        Assert.Equal("TIME", metadata["DATA_TYPE"]);
+        Assert.Equal((short)7, metadata["NUMERIC_SCALE"]);
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT starts FROM schedule";
+        using var reader = cmd.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(typeof(TimeOnly), reader.GetFieldType(0));
+        Assert.Equal(new TimeOnly(6, 7, 8, 123).Add(TimeSpan.FromTicks(4567)), reader.GetValue(0));
+    }
+
+    [Fact]
+    public void Connection_GetSchema_ProjectsViewsForeignKeysAndDocumentCollections()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE sites (id INT, PRIMARY KEY (id))");
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, site_id INT, PRIMARY KEY (id), CONSTRAINT fk_devices_sites FOREIGN KEY (site_id) REFERENCES sites (id) ON DELETE SET NULL)");
+        ExecNonQuery(c, "CREATE VIEW active_devices AS SELECT id, site_id FROM devices");
+        c.UnderlyingTsdb!.Documents.Create(DocumentCollectionSchema.Create(
+            "events",
+            indexes: [new DocumentPathIndexDefinition("ix_events_type", "$.type")]));
+
+        var tables = c.GetSchema("Tables");
+        Assert.Contains(tables.Rows.Cast<DataRow>(), row =>
+            row["TABLE_NAME"] is "active_devices" && row["TABLE_TYPE"] is "VIEW");
+        Assert.Contains(tables.Rows.Cast<DataRow>(), row =>
+            row["TABLE_NAME"] is "events" && row["TABLE_TYPE"] is "DOCUMENT COLLECTION");
+
+        var views = c.GetSchema("Views", [null, null, "active_devices", null]);
+        var view = Assert.Single(views.Rows.Cast<DataRow>());
+        Assert.Equal("SELECT id, site_id FROM devices", view["VIEW_DEFINITION"]);
+        Assert.Equal("VIEW", view["TABLE_TYPE"]);
+
+        var foreignKeys = c.GetSchema("ForeignKeys", [null, null, "devices", "fk_devices_sites"]);
+        var foreignKey = Assert.Single(foreignKeys.Rows.Cast<DataRow>());
+        Assert.Equal("site_id", foreignKey["COLUMN_NAME"]);
+        Assert.Equal("sites", foreignKey["PRINCIPAL_TABLE_NAME"]);
+        Assert.Equal("SetNull", foreignKey["ON_DELETE"]);
+
+        var documents = c.GetSchema("DocumentCollections", [null, null, "events", null]);
+        var collection = Assert.Single(documents.Rows.Cast<DataRow>());
+        Assert.Equal("DOCUMENT COLLECTION", collection["TABLE_TYPE"]);
+        Assert.Equal(1, collection["JSON_INDEX_COUNT"]);
+        Assert.False((bool)collection["HAS_VALIDATOR"]);
+        Assert.Single(c.GetSchema("Documents", [null, null, "events", null]).Rows.Cast<DataRow>());
     }
 
     [Fact]

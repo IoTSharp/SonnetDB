@@ -54,6 +54,13 @@ public sealed record LiteralExpression(
     public static LiteralExpression String(string value) => new(SqlLiteralKind.String, StringValue: value);
 }
 
+/// <summary>显式类型转换表达式，例如 <c>CAST(value AS INT)</c>。</summary>
+/// <param name="Operand">待转换的表达式。</param>
+/// <param name="TargetType">目标 SQL 数据类型。</param>
+public sealed record CastExpression(
+    SqlExpression Operand,
+    SqlDataType TargetType) : SqlExpression;
+
 /// <summary>时间间隔字面量（单位毫秒），仅在 <c>time(...)</c> 与可能的时间运算上下文中出现。</summary>
 /// <param name="Milliseconds">已转换为毫秒的整数值。</param>
 public sealed record DurationLiteralExpression(long Milliseconds) : SqlExpression;
@@ -100,7 +107,25 @@ public sealed record StarExpression : SqlExpression
 public sealed record FunctionCallExpression(
     string Name,
     IReadOnlyList<SqlExpression> Arguments,
-    bool IsStar = false) : SqlExpression;
+    bool IsStar = false) : SqlExpression
+{
+    /// <summary>是否对聚合函数输入先去重（例如 <c>COUNT(DISTINCT value)</c>）。</summary>
+    public bool IsDistinct { get; init; }
+
+    /// <summary>可选 ANSI <c>OVER (...)</c> 窗口规格。</summary>
+    public WindowSpecification? Over { get; init; }
+}
+
+/// <summary>
+/// ANSI 窗口函数的 <c>OVER (...)</c> 规格。
+/// 当前首版支持空规格以及按 measurement 时间升序的显式排序；分区和窗口 frame
+/// 保留在 AST 中以便后续扩展，但执行层会对尚未支持的形状 fail closed。
+/// </summary>
+/// <param name="PartitionBy">可选分区表达式。</param>
+/// <param name="OrderBy">窗口内排序项。</param>
+public sealed record WindowSpecification(
+    IReadOnlyList<SqlExpression> PartitionBy,
+    IReadOnlyList<OrderBySpec> OrderBy);
 
 /// <summary>函数命名参数，例如 <c>source =&gt; docs</c>。</summary>
 /// <param name="Name">参数名。</param>

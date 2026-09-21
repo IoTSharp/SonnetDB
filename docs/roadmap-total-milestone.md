@@ -123,7 +123,7 @@ M14、M15~M18、M26~M30、M34 已交付 Agent UX、空间/轨迹、工具链、�
 | 14 | #324 | M36 | GPT-6 Astra / high | ✅ | SonnetMQ producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消与 graceful drain 已接入嵌入式/远程共享客户端并完成本地回归；nack/redelivery/DLQ 与 exactly-once 边界仍归 #325。 |
 | 15 | #325 | M36 | GPT-6 Astra / high | ✅（代码完成，远程/长期验证后置） | MQ nack/redelivery/max-delivery/DLQ、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断、`message-id` 有界去重窗口已覆盖 Core、嵌入式/远程客户端、HTTP、Frame 和高层 delivery；跨节点 exactly-once 不在合同内，远程和长期证据后置。 |
 | 16 | #326（代码） | M36 | GPT-6 Astra / high | ✅（代码完成，实例恢复/九模型现场验证后置） | VS Code Graph 最小浏览/查询入口和 instance MQ/consumer offset 一致快照/恢复已交付，Graph catalog、Explorer、`queryGraph` 模板和 smoke contract 已同步；单库包继续不包含 Server 实例 MQ，九模型真实用户任务 e2e 与现场恢复证据后置。 |
-| 17 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | ServerRelay durable journal 已支持完成 run 的跨进程/重启 cursor 重放，未完成 run 重启时 fail-closed；可信 OAuth/PKCE、正在执行中的多实例实时接管、StudioNative transport/系统凭据库和真实公网双网验证仍后置。 |
+| 17 | #340 | M27 | GPT-5.6 Sol / high | 🚧 | ServerRelay durable journal 已支持完成 run 的跨进程/重启 cursor 重放，未完成 run 重启时 fail-closed；Web ServerRelay 页面刷新现保存受限 pending marker 并按 fingerprint 从 sequence 1 重放，不保存 token/正文/工具结果；可信 OAuth/PKCE、正在执行中的多实例实时接管、StudioNative transport/系统凭据库和真实公网双网验证仍后置。 |
 | 18 | #375 | M41/M42 | GPT-5.6 Sol / high | 🟡 | 首 N 行采样偏差已修复，统计刷新使用确定性无偏有界采样并保留后台预算任务；页感知成本与参数敏感反馈已有本地代码合同和回归，固定硬件、生产尾延迟与现场验证后置。 |
 | 19 | M42 性能残余 | M42 | — | 🚧 | KV snapshot cold-miss single-flight、通用向量固定 K Top-N 与批量 cosine query norm 复用已交付本地代码/基准；Embedded I/O 预算、covering/index-only 扩展、大值复制、冷启动与 SQL 端到端结果内存，以及固定 x64/ARM64 和 168 小时门禁仍待完成。 |
 
@@ -164,7 +164,7 @@ M43 是总收口里程碑，不要求把所有实现集中在一个 PR，也不�
 |---:|---|---|---|
 | 1 | #382 | ✅ | 十四能力总规划文档已完成，保留结果摘要，不再进入待办。 |
 | 2 | 沿用 D 节“代码与功能补全”及“性能优化”队列 | 🚧 | 先关闭实现残余和性能缺口；已完成项不重做。 |
-| 2a | #383~#384 | 📋 | 先建立供新能力引用的稳定 ID 和边界索引；完整证据与公开成熟度在后置验证阶段冻结。 |
+| 2a | #383~#384 | ✅ 本地完成 | 已建立十四能力稳定 ID、入口/证据映射和中英文成熟度合同；完整证据与公开成熟度仍会在后置验证阶段更新。 |
 | 2b | D 节“后置验证、测试与论证”队列 | ⏳ | 代码和新能力完成后，集中执行真机、固定硬件、nightly、长稳和发布证据。 |
 | 3 | #385~#390 | 📋 待实施 | 先定义 CDC，再交付可恢复边缘同步；依赖 #383 和适用的恢复/权限合同。 |
 | 4 | #391~#395 | 📋 待实施 | 在可恢复事件源上交付订阅与流窗口，复用步骤 3 和现有 MQ。 |
@@ -177,8 +177,8 @@ M43 是总收口里程碑，不要求把所有实现集中在一个 PR，也不�
 | PR | 步骤 | 状态 | 单项交付 | 前置依赖与验收 |
 |---|---:|---|---|---|
 | #382 | 1 | ✅ 本地文档完成 | 十四能力总里程碑、状态图例、旧 PR 映射和执行顺序。 | 本文、ROADMAP 和 CHANGELOG 一致；不表示已经提交 GitHub PR。 |
-| #383 | 2a | 📋 | 十四能力机器可读证据索引。 | 依赖 #382；先冻结稳定 ID 和入口映射，完整报告字段在后置验证阶段补齐。 |
-| #384 | 2a | 📋 | 中英文公开能力与成熟度口径。 | 依赖 #383；公开材料随后置验证的证据状态更新，计划项与 Graph Beta 明示。 |
+| #383 | 2a | ✅ 本地完成 | 十四能力机器可读证据索引。 | 依赖 #382；`docs/audits/fourteen-capability-evidence-index.json` 冻结稳定 ID、入口、证据和边界，`eng/validate-fourteen-capability-index.ps1` 校验 14 项与路径。完整报告字段在后置验证阶段补齐。 |
+| #384 | 2a | ✅ 本地完成 | 中英文公开能力与成熟度口径。 | 依赖 #383；README、`docs/capability-maturity.md` 和路线图统一 `supported` / `partial` / `planned` / `not_planned` / `beta`，Graph Beta 与未验证边界明确。 |
 | #385 | 3 | 📋 | 版本化 CDC 合同及首批源适配范围。 | 依赖 #383；定义 source/event ID、顺序、schema 版本、删除事件、权限和续读令牌，列明各模型支持状态。 |
 | #386 | 3 | 📋 | CDC 全量快照与增量续读衔接。 | 依赖 #385；快照边界到增量无漏读，重复可识别；检查点持久化，源历史过期显式拒绝并要求重建。 |
 | #387 | 3 | 📋 | 单主到边缘的离线同步运行时。 | 依赖 #386；有界磁盘队列、背压、重试、幂等、断网重连与重启恢复；不重建现有协议采集器。 |
@@ -212,6 +212,19 @@ M43 是总收口里程碑，不要求把所有实现集中在一个 PR，也不�
 严格按 D 节第 1、2 组执行：M36 #311~#326 的代码切片已完成并转入真机验证待办，当前仍推进 M27 #340 及 M41/M42 的明确实现残余；随后集中完成固定硬件、远程 parity、nightly 和长期证据。M20 启动修复已在当前基线，#136 仅在步骤 2b 进行失败定位与 nightly 证据恢复。每个 PR 只交付一个范围，已完成切片不得重新包装为新任务。
 
 **退出条件：** D 节代码与功能补全、性能优化队列全部达到各自的实现合同；测试仅用于证明合同，不把测试或本地 smoke 单独计为功能完成。
+
+### 外部 GitHub Issues（2026-09-21 快照）
+
+GitHub 仓库当日公开快照包含 25 个 open issue、0 个 closed issue；标签和 milestone 均为空。完整编号、更新时间、标题、依赖和证据边界见 [`docs/github-issues-roadmap.md`](github-issues-roadmap.md) 与 [`docs/audits/github-issues-20260921.json`](audits/github-issues-20260921.json)。这些编号必须写成 `GH-Issue #N`，因为它们与内部 M/PR 编号重叠（例如 GH-Issue #174 不是内部 M25 #174，GH-Issue #185 不是 M27 Provider #185）。
+
+外部队列归入 M43 Step 2，按以下顺序推进：
+
+1. SQL 基础：GH-Issue #171 → #178 → #172 → #173 → #174 → #175 → #176 → #179 → #181 → #182 → #183 → #192；#189（`WITH RECURSIVE`）依赖 #171/#178。
+2. SQL DML、并发与 DDL：GH-Issue #177 → #191/#184 → #190 → #187 → #188。
+3. 模型、驱动与管理：GH-Issue #193 → #186 → #185；GH-Issue #180 可在元数据合同稳定后并行。
+4. GH-Issue #89/#91 只做现有 MCP/管理工作台入口复核；在取得独立证据前不得重复实现或标记 closed。
+
+每个外部 issue 必须单独绑定实现合同、确定性回归、AOT/协议影响（如适用）和 `PASS` / `NOT_READY` / `DEFERRED` 证据；快照中的 `open` 不是实现状态。
 
 #### 步骤 2a：⏳ 后置验证、测试与发布论证
 
@@ -270,11 +283,11 @@ DB-Engines 官方方法页说明，其分数综合网页搜索、Google Trends�
 
 M43 只有同时满足以下条件才可以标记完成：
 
-1. 📋 #383~#384：十四项能力的名称、分类和边界在中英文公开材料中一致。
+1. ✅ #383~#384：十四项能力的名称、分类和边界在中英文公开材料中一致；完整证据状态仍按后置验证更新。
 2. 📋 #326/#396：十四项能力都有真实入口和一条通过权限、失败、取消、重启及结果对账的 golden journey。
 3. 🟡 #352/#367：九个原生模型的生产状态分别可追踪，Graph 的 Beta 边界保持明确；外部发布证据待补。
 4. ❌ #136 / ⏳ #125/#174/#258/#381 与 M42：M20 成功窗口、固定硬件/跨架构/长稳报告和 M29 安装验收仍待归档；未执行项不能以 PASS 表示。
-5. 📋 #385~#395：流处理/订阅与 CDC/边缘同步/复制各自拥有版本化合同、恢复测试和明确拓扑。
+5. 📋 #385~#395：流处理/订阅与 CDC/边缘同步/复制各自拥有版本化合同、恢复测试和明确拓扑；GH-Issue 外部兼容队列必须按 Step 2 顺序单独闭环。
 6. 🚧 #185/#187/#298/#300/#302~#305/#340：AI/RAG 真实模型质量、延迟、成本、数据出域、删除同步和回滚边界已公开。
 7. ⏳ #398~#401：DBDB.io 已提交，DB-Engines 资料已提交或取得明确维护反馈；排名本身作为外部结果单独记录。
 8. 📋 #397/#402：证据报告、代码、文档和 release commit 绑定，且 Core 继续满足 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT 和 public API 中文 XML 文档约束。

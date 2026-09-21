@@ -4,6 +4,7 @@ import {
   CopilotRuntimeContractError,
   resolveCopilotRuntimeMode,
   type CopilotRuntimeReadiness,
+  type CopilotRuntimeRunOptions,
   type CopilotTransport,
   type CopilotTransportEvent,
 } from '@/copilot/runtime';
@@ -423,6 +424,7 @@ export async function* streamCopilotChat(
   signal?: AbortSignal,
   configuredMode?: unknown,
   browserDirectOptions?: BrowserDirectRuntimeRegistrationOptions,
+  runtimeOptions: Omit<CopilotRuntimeRunOptions, 'signal'> = {},
 ): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
   const mode = resolveCopilotRuntimeMode(configuredMode);
   const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = [];
@@ -432,7 +434,7 @@ export async function* streamCopilotChat(
     transports.push(createConfiguredBrowserDirectTransport(api, token, browserDirectOptions));
   }
   const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(mode, transports);
-  yield* runtime.run(request, { signal });
+  yield* runtime.run(request, { ...runtimeOptions, signal });
 }
 
 /** Resolve the relay endpoint solely from the active SonnetDB API client. */

@@ -62,6 +62,28 @@ internal static class SqlScalarComparer
 
     private static bool TryCompareTemporal(object left, object right, out int comparison)
     {
+        if (left is TimeOnly leftTime && right is TimeOnly rightTime)
+        {
+            comparison = leftTime.CompareTo(rightTime);
+            return true;
+        }
+
+        if (left is TimeOnly parsedLeftTime
+            && right is string rightTimeText
+            && TimeOnly.TryParse(rightTimeText.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedRightTime))
+        {
+            comparison = parsedLeftTime.CompareTo(parsedRightTime);
+            return true;
+        }
+
+        if (right is TimeOnly parsedRightOnly
+            && left is string leftTimeText
+            && TimeOnly.TryParse(leftTimeText.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedLeftOnly))
+        {
+            comparison = parsedLeftOnly.CompareTo(parsedRightOnly);
+            return true;
+        }
+
         var leftIsTemporal = TryGetUnixTimeMilliseconds(left, out var leftMilliseconds);
         var rightIsTemporal = TryGetUnixTimeMilliseconds(right, out var rightMilliseconds);
 

@@ -180,9 +180,15 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using var connection = OpenAdoSchemaMatrixConnection(mode);
         using (var ddl = connection.CreateCommand())
         {
-            ddl.CommandText = "CREATE TABLE schema_devices (id INT AUTO_INCREMENT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE schema_sites (id INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE TABLE schema_devices (id INT AUTO_INCREMENT, site_id INT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id), CONSTRAINT fk_schema_devices_sites FOREIGN KEY (site_id) REFERENCES schema_sites (id) ON DELETE SET NULL)";
             Assert.Equal(0, ddl.ExecuteNonQuery());
             ddl.CommandText = "CREATE UNIQUE INDEX ux_schema_devices_name ON schema_devices (name)";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE VIEW schema_devices_view AS SELECT id, name FROM schema_devices";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE DOCUMENT COLLECTION schema_docs";
             Assert.Equal(0, ddl.ExecuteNonQuery());
         }
 
@@ -199,7 +205,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
 
         var columns = connection.GetSchema("Columns", [null, null, "schema_devices", null]);
         Assert.Equal(
-            ["id", "name", "enabled", "version"],
+            ["id", "site_id", "name", "enabled", "version"],
             columns.Rows.Cast<DataRow>().Select(static row => (string)row["COLUMN_NAME"]).ToArray());
         Assert.Contains(
             columns.Rows.Cast<DataRow>(),
@@ -226,6 +232,21 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal("ux_schema_devices_name", index["INDEX_NAME"]);
         Assert.True((bool)index["IS_UNIQUE"]);
         Assert.Equal("name", index["COLUMN_NAME"]);
+
+        var views = connection.GetSchema("Views", [null, null, "schema_devices_view", null]);
+        var view = Assert.Single(views.Rows.Cast<DataRow>());
+        Assert.Equal("schema_devices_view", view["TABLE_NAME"]);
+        Assert.Equal("VIEW", view["TABLE_TYPE"]);
+
+        var foreignKeys = connection.GetSchema("ForeignKeys", [null, null, "schema_devices", "fk_schema_devices_sites"]);
+        var foreignKey = Assert.Single(foreignKeys.Rows.Cast<DataRow>());
+        Assert.Equal("site_id", foreignKey["COLUMN_NAME"]);
+        Assert.Equal("schema_sites", foreignKey["PRINCIPAL_TABLE_NAME"]);
+
+        var documents = connection.GetSchema("DocumentCollections", [null, null, "schema_docs", null]);
+        var document = Assert.Single(documents.Rows.Cast<DataRow>());
+        Assert.Equal("schema_docs", document["TABLE_NAME"]);
+        Assert.Equal("DOCUMENT COLLECTION", document["TABLE_TYPE"]);
     }
 
     [Fact]

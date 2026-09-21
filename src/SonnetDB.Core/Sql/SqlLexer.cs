@@ -26,7 +26,7 @@ public sealed class SqlLexer
     private static readonly SearchValues<char> _durationSuffixStarts = SearchValues.Create("numshd");
 
     private static readonly SearchValues<char> _operatorOrPunctuationStarts =
-        SearchValues.Create("()[]{},;.*+-/%=!<>");
+        SearchValues.Create("()[]{},;.*+-/%=!<>&|");
 
     private static readonly Dictionary<string, TokenKind> _keywords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -48,6 +48,10 @@ public sealed class SqlLexer
         ["select"] = TokenKind.KeywordSelect,
         ["distinct"] = TokenKind.KeywordDistinct,
         ["union"] = TokenKind.KeywordUnion,
+        ["intersect"] = TokenKind.KeywordIntersect,
+        ["except"] = TokenKind.KeywordExcept,
+        ["all"] = TokenKind.KeywordAll,
+        ["over"] = TokenKind.KeywordOver,
         ["from"] = TokenKind.KeywordFrom,
         ["join"] = TokenKind.KeywordJoin,
         ["inner"] = TokenKind.KeywordInner,
@@ -68,6 +72,8 @@ public sealed class SqlLexer
         ["or"] = TokenKind.KeywordOr,
         ["not"] = TokenKind.KeywordNot,
         ["like"] = TokenKind.KeywordLike,
+        ["ilike"] = TokenKind.KeywordIlike,
+        ["between"] = TokenKind.KeywordBetween,
         ["regex"] = TokenKind.KeywordRegex,
         ["regexp"] = TokenKind.KeywordRegex,
         ["rlike"] = TokenKind.KeywordRegex,
@@ -86,6 +92,8 @@ public sealed class SqlLexer
         ["tag"] = TokenKind.KeywordTag,
         ["field"] = TokenKind.KeywordField,
         ["float"] = TokenKind.KeywordFloat,
+        ["decimal"] = TokenKind.KeywordDecimal,
+        ["numeric"] = TokenKind.KeywordNumeric,
         ["int"] = TokenKind.KeywordInt,
         ["bool"] = TokenKind.KeywordBool,
         ["string"] = TokenKind.KeywordString,
@@ -240,6 +248,8 @@ public sealed class SqlLexer
             case '-': _position++; return new Token(TokenKind.Minus, "-", start);
             case '/': _position++; return new Token(TokenKind.Slash, "/", start);
             case '%': _position++; return new Token(TokenKind.Percent, "%", start);
+            case '&': _position++; return new Token(TokenKind.BitwiseAnd, "&", start);
+            case '|': _position++; return new Token(TokenKind.BitwiseOr, "|", start);
             case '=':
                 if (Peek(1) == '>')
                 {

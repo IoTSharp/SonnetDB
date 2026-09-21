@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "indexId": "sonnetdb-fourteen-capabilities",
+  "generatedFor": "M43 #383",
+  "statusContract": {
+    "supported": "The named slice has an implementation, an external entry point, and matching automated evidence.",
+    "partial": "Some implementation or validation exists, but the acceptance boundary is not closed.",
+    "planned": "The remaining implementation or execution is scheduled and is not delivered.",
+    "not_planned": "The capability is explicitly outside the current SonnetDB contract.",
+    "beta": "A bounded preview contract is available; production gates are not passed."
+  },
+  "capabilities": [
+    {
+      "id": "timeseries",
+      "name": "Time-series database",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M0-M13", "M19 #125", "M36 #314", "M36 #315", "M42"],
+      "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB.Data/TimeSeries", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md"],
+      "boundary": "High-cardinality, long-run, fixed-hardware and full recovery evidence remains open."
+    },
+    {
+      "id": "relational",
+      "name": "Relational SQL",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M6", "M37-M39", "M41 #375", "M42", "M43 GH-Issue #171", "M43 GH-Issue #172", "M43 GH-Issue #173", "M43 GH-Issue #174", "M43 GH-Issue #175", "M43 GH-Issue #176", "M43 GH-Issue #178", "M43 GH-Issue #179", "M43 GH-Issue #181", "M43 GH-Issue #182", "M43 GH-Issue #183", "M36 #311", "M36 #313"],
+      "entryPoints": ["src/SonnetDB.Core/Sql", "src/SonnetDB.Data", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/sql-reference.md", "tests/SonnetDB.Core.Tests/Sql/SqlExpressionExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlCastTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDecimalTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs", "tests/SonnetDB.Core.Tests/Ado/SndbAdoApiTests.cs", "tests/SonnetDB.Core.Tests/Query/Functions/FunctionRegistryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlStringFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDateFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlAggregateDistinctTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlBetweenIlikeTests.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "docs/audits/nine-model-local-journey-evidence-20260920.md"],
+      "boundary": "The SQL surface is a practical subset; GH-Issue #171 non-recursive CTE, #172 bounded ANSI OVER/row_number, #173 CAST across supported scalar/date/blob/json targets, #174 bounded common string functions, #175 bounded date difference/formatting, #176 single-field aggregate DISTINCT, #178 UNION ALL/INTERSECT/EXCEPT, #179 inclusive BETWEEN/ILIKE, #181 exact DECIMAL/NUMERIC relation values with bounded precision/scale and embedded/remote ADO.NET schema precision/scale projection, #182 bounded TIME/TimeOnly relation semantics, and #183 integer bitwise SELECT/WHERE/UPDATE semantics are locally covered. CTE output-column lists, recursive CTEs, VECTOR/GEOPOINT CAST targets, compound operator precedence, multi-expression/ordered-set/window DISTINCT, symmetric BETWEEN, locale-specific ILIKE collations, window PARTITION BY/frame semantics, TRIM dialect forms/collation and byte-length string semantics, locale/timezone calendar semantics, cross-day/24:00 TIME semantics, remote typed TIME/Frame parity, overflow/scale enforcement beyond System.Decimal, end-to-end large-result streaming and field tail-latency evidence remain open."
+    },
+    {
+      "id": "kv",
+      "name": "Persistent key-value",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M28", "M36 #316", "M36 #317"],
+      "entryPoints": ["src/SonnetDB.Core/Kv", "src/SonnetDB.Data/Kv", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/kv-atomic-contract.md", "docs/audits/kv-remote-closure-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Single-key atomic behavior is locally closed; large-keyspace remote parity, capacity and long-run evidence remain open."
+    },
+    {
+      "id": "document",
+      "name": "JSON document store",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M21", "M24", "M25 #174", "M32", "M36 #326"],
+      "entryPoints": ["src/SonnetDB.Core/Document", "src/SonnetDB.Data/Document", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/document-store.md", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
+      "boundary": "The documented single-node subset is supported; MongoDB wire compatibility and million/ten-million document capacity are out of scope or unverified."
+    },
+    {
+      "id": "fulltext",
+      "name": "Full-text search",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M23", "M24", "M35", "M36 #318", "M36 #319"],
+      "entryPoints": ["src/SonnetDB.Core/FullText", "src/SonnetDB.Data/FullText", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Typed search and index diagnostics exist; remote parity, fixed corpus quality and capacity evidence remain open."
+    },
+    {
+      "id": "vector",
+      "name": "Vector search",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M12", "M23", "M27", "M35 #298", "M36 #320", "M36 #321", "M42", "M43 GH-Issue #186"],
+      "entryPoints": ["src/SonnetDB.Core/Vector", "src/SonnetDB.Data/VectorData", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
+      "boundary": "Exact fallback, bounded Top-K, VECTOR parameter binding and REST/NDJSON float[] transport are locally implemented; Core 3/3 and Kestrel REST 2/2 pass. Remote Frame E2E, generic filtered ANN, Recall@K, quality and fixed-hardware evidence remain open."
+    },
+    {
+      "id": "object",
+      "name": "Object and content storage",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M24", "M29", "M35", "M36 #322", "M36 #323", "M42"],
+      "entryPoints": ["src/SonnetDB.Core/ObjectStorage", "src/SonnetDB.Data/ObjectStorage", "src/SonnetDB.Cli/ObjectTransferCommandRunner.cs"],
+      "evidence": ["docs/object-transfer-manager.md", "docs/audits/object-pagination-20260906.md", "docs/audits/object-transfer-validation-20260920.md"],
+      "boundary": "Bucket, version, range, multipart and transfer contracts exist; fixed-hardware, large-file crash recovery and complete backup evidence remain open."
+    },
+    {
+      "id": "mq",
+      "name": "Persistent log and message queue",
+      "category": "native_model",
+      "maturity": "partial",
+      "roadmap": ["M28", "M30", "M36 #324", "M36 #325", "M36 #326"],
+      "entryPoints": ["src/SonnetDB.Core/Mq", "src/SonnetDB.Data/Mq", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/mq-high-level-client.md", "docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Local replay, delivery governance and instance snapshots exist; distributed semantics, field recovery and exactly-once are not claimed."
+    },
+    {
+      "id": "graph",
+      "name": "Native property graph",
+      "category": "native_model",
+      "maturity": "beta",
+      "roadmap": ["M36 #326", "M40", "M42"],
+      "entryPoints": ["src/SonnetDB.Core/Graph", "src/SonnetDB.Data/Graph", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/native-graph-database-roadmap.md", "docs/m40-graph-367-production-gate.md", "docs/audits/nine-model-gap-catalog-20260905.json"],
+      "boundary": "Graph Beta is a bounded native contract; external semantic comparison, fixed hardware, AOT and long-run production gates are not passed."
+    },
+    {
+      "id": "geo",
+      "name": "Spatial, geography and trajectory",
+      "category": "cross_model",
+      "maturity": "partial",
+      "roadmap": ["M15-M17", "M30", "M34", "M43 #396"],
+      "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB/Endpoints", "web/src"],
+      "evidence": ["docs/roadmap-total-milestone.md", "docs/audits/nine-model-capability-evidence-20260905.md"],
+      "boundary": "Geospatial values and industrial entry points exist; cross-model permissions, scale and a complete real-device journey remain to be verified."
+    },
+    {
+      "id": "streaming",
+      "name": "Stream processing and subscriptions",
+      "category": "platform_capability",
+      "maturity": "planned",
+      "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
+      "entryPoints": ["src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/roadmap-total-milestone.md"],
+      "boundary": "Existing SSE, MQTT, CoAP, replay and outbox pieces are not a unified recoverable stream contract yet."
+    },
+    {
+      "id": "cdc",
+      "name": "CDC, edge synchronization and replication",
+      "category": "platform_capability",
+      "maturity": "planned",
+      "roadmap": ["M43 #385", "M43 #386", "M43 #387", "M43 #388", "M43 #389", "M43 #390"],
+      "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
+      "boundary": "Existing change feeds and protocol routes do not yet define a versioned CDC format, offline queue, conflict policy or replication topology."
+    },
+    {
+      "id": "ai-rag",
+      "name": "Multimodal AI and RAG",
+      "category": "platform_capability",
+      "maturity": "partial",
+      "roadmap": ["M14", "M27 #184", "M27 #185", "M27 #187", "M35 #302", "M35 #303", "M35 #304", "M35 #305"],
+      "entryPoints": ["src/SonnetDB.Cli/RagCommandRunner.cs", "src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/benchmarks/m27-provider-model-profile.md", "docs/rag-ingestion-core.md", "docs/rag-search-fusion.md"],
+      "boundary": "Provider, Copilot, image search and durable RAG contracts exist; real-model quality, cost and field recovery evidence remain open."
+    },
+    {
+      "id": "governance",
+      "name": "Governance, backup, recovery, observability and security",
+      "category": "platform_capability",
+      "maturity": "partial",
+      "roadmap": ["M8", "M17", "M19", "M20", "M27", "M29", "M39", "MM9", "M41", "M42", "M43 #397"],
+      "entryPoints": ["src/SonnetDB/Endpoints", "src/SonnetDB.Core", "src/SonnetDB.Cli"],
+      "evidence": ["docs/backup-restore.md", "docs/audits/2026-09-05_project-SonnetDB-report.md", "docs/audits/changelog-verification-20260905.md"],
+      "boundary": "Authorization, audit, health, metrics and database backup exist; full-model recovery, cross-architecture release and long-run evidence remain open."
+    }
+  ]
+}

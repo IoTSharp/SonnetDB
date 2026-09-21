@@ -1558,6 +1558,7 @@ public static class SqlExplainPlanner
             BinaryExpression { Operator: SqlBinaryOperator.Regex or SqlBinaryOperator.NotRegex } => true,
             BinaryExpression binary => ContainsRegex(binary.Left) || ContainsRegex(binary.Right),
             UnaryExpression unary => ContainsRegex(unary.Operand),
+            CastExpression cast => ContainsRegex(cast.Operand),
             IsNullExpression isNull => ContainsRegex(isNull.Operand),
             InExpression inExpression => ContainsRegex(inExpression.Value)
                 || inExpression.Values.Any(ContainsRegex),
@@ -1769,6 +1770,10 @@ public static class SqlExplainPlanner
                     fields.Add(column.Name);
                 return;
 
+            case CastExpression cast:
+                CollectProjectionFields(cast.Operand, schema, fields, ref hasAggregate, ref hasNonAggregate);
+                return;
+
             case FunctionCallExpression function:
                 var kind = FunctionRegistry.GetFunctionKind(function.Name);
                 switch (kind)
@@ -1794,7 +1799,10 @@ public static class SqlExplainPlanner
                         if (!FunctionRegistry.TryGetWindow(function.Name, out var windowFunction))
                             throw new InvalidOperationException($"未知窗口函数 '{function.Name}'。");
                         var evaluator = windowFunction.CreateEvaluator(function, schema);
-                        fields.Add(evaluator.FieldName);
+                        if (!string.IsNullOrEmpty(evaluator.FieldName))
+                            fields.Add(evaluator.FieldName);
+                        else if (schema.FieldColumns.FirstOrDefault() is { } driverField)
+                            fields.Add(driverField.Name);
                         return;
 
                     case FunctionKind.Unknown:
@@ -1851,6 +1859,11 @@ public static class SqlExplainPlanner
 
             case UnaryExpression unary:
                 foreach (var dependency in GetScalarFieldDependencies(unary.Operand))
+                    yield return dependency;
+                yield break;
+
+            case CastExpression cast:
+                foreach (var dependency in GetScalarFieldDependencies(cast.Operand))
                     yield return dependency;
                 yield break;
 

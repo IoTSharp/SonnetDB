@@ -8,13 +8,35 @@
 ## [Unreleased]
 ### Fixed
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
+- **M20 Parity scheduled 启动阻断**：Parity compose 将已无法从 Docker Hub 拉取的固定 MinIO 镜像切换为 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，并新增 `test-compose-contract.ps1` 接入 workflow，防止回退到失效 registry。PowerShell 7 合同、Compose 配置、实际镜像 pull 和临时 healthcheck 已通过；远程七次 scheduled 成功窗口仍待重跑。
+- 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
 
+- **GH-Issue #181 `DECIMAL` / `NUMERIC` 精确类型**：补齐有界 `DECIMAL(precision, scale)` / `NUMERIC` 解析、`System.Decimal` CAST 与算术，关系表使用 16-byte decimal payload 和 schema format v9 保存精确值；嵌入式/远程 ADO.NET `Columns` schema 投影声明的 precision/scale；`SqlDecimalTests` 5/5、`SqlCastTests` 9/9 通过，并新增 `DECIMAL(18,4)` 元数据回归。远程 Frame parity、超出 `System.Decimal` 的溢出/scale enforcement 与外部 issue 线程确认仍待执行。
+- **GH-Issue #182 `TIME` / `TimeOnly` 精确类型**：关系表支持 `TIME` DDL、`TimeOnly` ticks 的 8-byte 持久化、`TIME` CAST、`TimeOnly`/`TimeSpan` 参数绑定、当天范围比较和嵌入式 ADO.NET `TIME`/`TimeOnly` 元数据；schema format 升至 v10。`SqlTimeTests` 3/3、ADO TIME 回归 1/1 通过；`24:00:00`、跨日值和 DATETIME/DateTimeOffset 到 TIME 的隐式转换明确拒绝，远程 typed TIME/Frame parity 与外部 issue 线程确认仍待执行。
+- **M43 #383/#384 十四能力证据索引与成熟度口径**：新增 `docs/audits/fourteen-capability-evidence-index.json` 及 PowerShell 7 校验脚本，冻结十四项能力的稳定 ID、类别、路线图、真实入口、证据路径和边界；README 中英文与 `docs/capability-maturity.md` 统一 `supported` / `partial` / `planned` / `not_planned` / `beta` 状态合同，并明确 Graph Beta、单库备份不含实例级 SonnetMQ 及未验证证据边界。完整固定硬件、远程、恢复和长期证据仍按后续路线推进。
+- **M43 外部 GitHub issue 路线快照**：登记 2026-09-21 公开的 25 个 `GH-Issue`（#89、#91、#171~#193），记录更新时间、空 labels/milestone、编号冲突和 M43 Step 2 执行顺序；新增 `eng/validate-github-issues-snapshot.ps1` 防止刷新时漏项。外部 issue 仍为 open/待实现或已有入口待复核，不因登记而视为关闭。
+- **GH-Issue #192 SQL 数学标量函数**：新增 `ceil`/`ceiling`、`floor`、`exp`、`power`/`pow`，统一数值到 Float64，传播 NULL，保留 IEEE NaN/Infinity/域错误结果并对非数值参数返回明确错误；Core 函数、SELECT、参数化 WHERE、GROUP BY/HAVING 和 UPDATE 定向回归 95/95 通过。该实现仍需外部 issue 线程确认。
+- **GH-Issue #188 CREATE TABLE 命名 FOREIGN KEY**：`CONSTRAINT name FOREIGN KEY` 复用现有外键 catalog、schema、DROP 和重开持久化路径，保留旧构造/解构兼容；Parser 77/77、表执行 166/166 和命名/重复/缺列/重开定向回归通过。该实现仍需外部 issue 线程确认。
+- **GH-Issue #185 schema metadata projection**：Server schema response 与 Remote ADO.NET DTO/源生成上下文统一暴露 views、materialized views、foreign keys 和 document collections，补真实 schema endpoint 回归；本地 schema endpoint 5/5 与已有 embedded `GetSchema` projection 通过。远程跨版本 parity 和外部 issue 线程确认仍待执行。
+- **GH-Issue #183 SQL 整数按位运算**：词法器识别 `&` / `|`，解析器按“按位与高于按位或、两者低于比较”的优先级生成 AST；共享标量执行器支持 Int64 常量/列在 `SELECT`、`WHERE`、`UPDATE` 中计算并传播 `NULL`，对浮点、字符串等非整数返回稳定中文诊断。新增 lexer、AST 优先级、关系表投影/筛选/更新和错误边界回归；定向 Core 测试 158/158 通过。远程 ADO.NET/Frame parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码**：嵌入式和远程 ADO.NET 参数绑定均支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`，转换为 VECTOR 字面量并拒绝空/非有限向量；REST/NDJSON 行写入将向量编码为 JSON 数字数组，远程读取将纯数字数组恢复为 `float[]`，并补齐字段类型推断。新增嵌入式参数、边界、NDJSON writer/reader 与 REST 远程闭环回归；外部 issue 线程确认仍待执行。
+- **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。新增 5 个 Core 确定性回归。`WITH RECURSIVE` 及 CTE 输出列名列表明确保持未支持，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #178 SQL 集合运算**：新增 `UNION ALL`、`INTERSECT` 与 `EXCEPT` 的词法、解析和关系执行；保留既有 `UNION` 去重兼容语义，支持复合结果的排序/分页和稳定列数诊断。新增集合运算 Core 回归；当前按书写顺序求值，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #172 ANSI 窗口函数 `OVER`**：窗口函数调用现在可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。`PARTITION BY`、非时间/降序排序、`ROWS`/`RANGE` frame、关系表/JOIN 及远程 parity 保持明确未支持；新增 5 项 Core 解析、执行与 fail-closed 回归。
+- **GH-Issue #173 显式 `CAST(expr AS type)`**：新增专用 CAST AST、解析和参数绑定，并在 measurement、关系表、文档、JOIN、JSON 文件、混合搜索及向量搜索路径共享 `INT`/`FLOAT`/`BOOL`/`STRING`/`DATETIME`/`BLOB`/`JSON` 转换、NULL 传播和确定性错误语义；`VECTOR`/`GEOPOINT` 目标保持明确未支持。新增 9 项 Core 解析、字面量、列投影/筛选和边界回归，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #174 常用字符串函数**：FunctionRegistry 新增有界 `trim`/`ltrim`/`rtrim`、`length`/`char_length`、`substring`/`substr`、`replace`、`left`/`right` 与序数规则的 `starts_with`/`ends_with`/`contains`，并收紧 `lower`/`upper` 的字符串参数检查。除 `concat` 外按 SQL 习惯传播 NULL；位置从 1 开始，长度/字符数拒绝负值，非字符串和非整数参数返回确定性中文诊断。新增函数注册、NULL/边界与关系表 SELECT/WHERE 回归；TRIM 方言语法、排序规则、字节长度、远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #175 `date_diff` / 日期格式化**：新增有界 `date_diff`/`datediff` 与 `date_format`/`format_datetime`/`to_char`/`strftime` 标量函数，接受 DATETIME、DateTimeOffset 或 Unix 毫秒，传播 NULL，日期分量和格式字符串均有明确上限/诊断；strftime 支持常用 `%Y/%m/%d/%H/%i/%s/%f` 标记并统一 invariant 输出。新增函数注册、关系 SELECT/WHERE、格式边界和非法分量回归；locale/timezone database/calendar semantics 与远程 parity 仍待验证。
+- **GH-Issue #176 聚合 `DISTINCT`**：复用既有单字段聚合 AST/执行合同，在关系与 measurement 路径覆盖 `COUNT/SUM/AVG/MIN/MAX(DISTINCT field)` 的去重和 NULL 排除，并对 `COUNT(DISTINCT *)` 保持明确拒绝；新增 `SqlAggregateDistinctTests` 4 项回归。多表达式/排序集合/窗口 DISTINCT、远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #179 `BETWEEN` / `ILIKE`**：词法器和解析器新增 inclusive `BETWEEN` / `NOT BETWEEN` 及大小写不敏感 `ILIKE` / `NOT ILIKE`，范围谓词复用既有三值比较，ILIKE 复用 invariant `LOWER` + `LIKE` 通配符语义；新增关系过滤、NULL 排除和 parser 回归 3 项。对称范围、locale-specific collation、远程 parity 与外部 issue 线程确认仍待执行。
+
 - **M27 #340 ServerRelay 跨进程/重启续流 journal**：ServerRelay 事件日志现在可持久化到 `<DataRoot>/.system/copilot-relay-journal.json`，以 source-generated JSON 和原子替换写入；新 Server 进程可按 owner/database/request fingerprint 与 cursor 重放已完成 run。进程重启时未完成 run 会追加 `error`/`done` 的 interrupted 终态并只允许重放已有事件，绝不接管或重复调用 provider/本地工具；journal 使用单写者锁、有限 TTL 和有界 run/event 容量。新增完成 run 重启重放与未完成 run fail-closed 回归。跨多实例正在执行中的实时接管、可信 OAuth/PKCE、StudioNative broker 与真实公网部署仍不在本次合同内。
+
+- **M27 #340 Web 页面刷新 ServerRelay 重放**：CopilotDock 仅在 ServerRelay 模式保存受限 pending marker（runId、会话/数据库、SHA-256 请求 fingerprint 和非敏感模式元数据），不保存数据库/public token、消息正文或工具结果；刷新后重新加载服务端会话，去除本轮已追加的 assistant 尾部并从 sequence 1 重放完整 journal，fingerprint 不一致、unknown/expired/conflict 或安全存储/摘要不可用时清理并 fail closed。停止、登出和会话切换会清理 marker；BrowserDirect、StudioNative 与 Disabled 不共享该状态。Playwright marker/fingerprint 回归和 Web build 已通过，真实 Server 重启/浏览器联调仍待后置验证。
 
 - **M36 #311 统一新客户端合同代码收口**：Document、Graph、KV、MQ 和 Object 客户端的取消传播、目标/关联响应绑定、流式与批量边界已完成；Object SDK 的预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和写入禁止自动重放，以及 MQ `PublishMany` 的逐项物化和发送前取消传播均已落地。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。九模型 golden journey、工作台/SDK 端到端矩阵、远程恢复和长期证据转入独立验收任务。
 

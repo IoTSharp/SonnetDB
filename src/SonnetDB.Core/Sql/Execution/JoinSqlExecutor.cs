@@ -504,6 +504,7 @@ internal static class JoinSqlExecutor
         => expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.Operand, context), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => context.GetValue(identifier),
             FunctionCallExpression function => EvaluateFunction(function, context),
@@ -690,7 +691,9 @@ internal static class JoinSqlExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private sealed record JoinKeys(MeasurementColumn MeasurementTag, TableColumn TableColumn);
 

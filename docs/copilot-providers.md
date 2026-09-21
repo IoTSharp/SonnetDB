@@ -307,11 +307,16 @@ stable ID 的等价 JSON tool call/result 可以重放缓存结果，错名、�
 
 请求断开会取消 linked provider、Agent 与 SQL 工具执行，并把 journal 封闭为 interrupted
 `error` / `done`；服务端不会在请求丢失后另起后台 continuation。仍连接的客户端在 deadline、
-provider 异常或生产者截断时会从 journal 收到缺失的终态。该 journal 不持久化、不跨 Server
-进程或多实例共享；Web 当前也没有在页面刷新后以新 runtime 从非 1 sequence 恢复。因此这里
-只构成同进程 HTTP/流合同与重放证据，不构成跨刷新、进程重启或高可用续流证据。Dock 的停止、
-关闭、切换/删除会话、登出与组件卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会
-清除，并从服务端重新同步会话。
+provider 异常或生产者截断时会从 journal 收到缺失的终态。Server 现在把 journal 原子写入
+`<DataRoot>/.system/copilot-relay-journal.json`，通过单写者锁合并多个进程的完成快照；新
+进程可以按相同 owner/database/request fingerprint 重放已完成 run，重启时未完成 run 只会
+被封闭为 interrupted 终态，绝不接管 provider 或本地工具。该能力仍不是正在执行中的多实例
+实时接管或高可用共享 session；Web 现在仅在 ServerRelay 模式保存不含凭据、正文和工具结果的
+受限 pending marker，刷新后重新加载会话并从 sequence 1 重放，fingerprint 不一致或 run
+状态不可重放时 fail closed。因此这里构成“完成 run 的跨进程/重启重放 + 未完成 run
+fail-closed + 页面刷新受限重放”证据，不构成多实例实时续流或真实公网 continuation 证据。
+Dock 的停止、关闭、切换/删除会话、登出与组件卸载都会取消当前 AbortSignal；未收到完整终态的
+临时回答会清除，并从服务端重新同步会话。
 SQL 工具页签和最终回答中的 SQL 只在完整 `done` 验证后提交。SSE 解码覆盖 LF、CRLF、
 bare CR、跨行结束符分片、多行 data 与严格 JSON。
 BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳定 `tool_call` 收口，
@@ -320,7 +325,7 @@ BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳�
 缓存结果而不二次执行，同 ID 冲突在再次执行前拒绝；重复回放也计入 8 次 loop 上限。
 当前尚无可信 Device Flow/PKCE 获取入口，也没有已部署公网 continuation、CSP/CORS 或真实
 双网联调证据。Studio bridge 的内存握手/origin/header-token 安全前置已经完成，但 Studio Native
-AI broker、系统凭据库、外部 OAuth/BYOK、跨刷新续流和服务器无公网出口的真实 journey 仍保持未完成。
+AI broker、系统凭据库、外部 OAuth/BYOK、Studio 重连续流和服务器无公网出口的真实 journey 仍保持未完成。
 
 切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
 docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境

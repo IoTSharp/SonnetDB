@@ -40,8 +40,33 @@ public sealed class FunctionRegistryTests
     [InlineData("round")]
     [InlineData("sqrt")]
     [InlineData("log")]
+    [InlineData("ceil")]
+    [InlineData("ceiling")]
+    [InlineData("floor")]
+    [InlineData("exp")]
+    [InlineData("power")]
+    [InlineData("pow")]
     [InlineData("coalesce")]
     [InlineData("concat")]
+    [InlineData("trim")]
+    [InlineData("ltrim")]
+    [InlineData("rtrim")]
+    [InlineData("length")]
+    [InlineData("char_length")]
+    [InlineData("substring")]
+    [InlineData("substr")]
+    [InlineData("replace")]
+    [InlineData("left")]
+    [InlineData("right")]
+    [InlineData("starts_with")]
+    [InlineData("ends_with")]
+    [InlineData("contains")]
+    [InlineData("date_diff")]
+    [InlineData("datediff")]
+    [InlineData("date_format")]
+    [InlineData("format_datetime")]
+    [InlineData("strftime")]
+    [InlineData("to_char")]
     [InlineData("modbus_int32")]
     [InlineData("modbus_uint32")]
     [InlineData("modbus_float32")]
@@ -191,6 +216,151 @@ public sealed class FunctionRegistryTests
 
         Assert.Equal(1.23, round.Evaluate(new object?[] { 1.234, 2 }));
         Assert.Equal("fallback", coalesce.Evaluate(new object?[] { null, "fallback" }));
+    }
+
+    [Fact]
+    public void ScalarFunction_MathFunctions_ReturnExpectedResults()
+    {
+        var ceil = GetScalar("ceil");
+        var floor = GetScalar("floor");
+        var exp = GetScalar("exp");
+        var power = GetScalar("power");
+
+        Assert.Equal(-1d, ceil.Evaluate(new object?[] { -1.2d }));
+        Assert.Equal(-2d, floor.Evaluate(new object?[] { -1.2d }));
+        Assert.Equal(Math.E, Convert.ToDouble(exp.Evaluate(new object?[] { 1 }))!, 12);
+        Assert.Equal(1024d, power.Evaluate(new object?[] { 2, 10 }));
+        Assert.Equal(1024d, GetScalar("pow").Evaluate(new object?[] { 2, 10 }));
+    }
+
+    [Fact]
+    public void ScalarFunction_MathFunctions_PropagateNullAndPreserveIeeeResults()
+    {
+        Assert.Null(GetScalar("ceil").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("floor").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("exp").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("power").Evaluate(new object?[] { null, 2 }));
+        Assert.Null(GetScalar("power").Evaluate(new object?[] { 2, null }));
+
+        Assert.True(double.IsNaN(Convert.ToDouble(GetScalar("ceil").Evaluate(new object?[] { double.NaN }))));
+        Assert.Equal(double.NegativeInfinity, GetScalar("floor").Evaluate(new object?[] { double.NegativeInfinity }));
+        Assert.Equal(0d, GetScalar("exp").Evaluate(new object?[] { double.NegativeInfinity }));
+        Assert.Equal(double.PositiveInfinity, GetScalar("exp").Evaluate(new object?[] { 1000d }));
+        Assert.True(double.IsNaN(Convert.ToDouble(GetScalar("power").Evaluate(new object?[] { -1d, 0.5d }))));
+        Assert.Equal(double.PositiveInfinity, GetScalar("power").Evaluate(new object?[] { 10d, 309d }));
+    }
+
+    [Fact]
+    public void ScalarFunction_MathFunctions_RejectNonNumericArguments()
+    {
+        var power = GetScalar("power");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => power.Evaluate(new object?[] { "2", 10 }));
+
+        Assert.Contains("函数 power 需要数值参数", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScalarFunction_StringFunctions_ReturnExpectedResults()
+    {
+        Assert.Equal("hello", GetScalar("trim").Evaluate(new object?[] { "  hello  " }));
+        Assert.Equal("hello  ", GetScalar("ltrim").Evaluate(new object?[] { "  hello  " }));
+        Assert.Equal("  hello", GetScalar("rtrim").Evaluate(new object?[] { "  hello  " }));
+        Assert.Equal("hello", GetScalar("trim").Evaluate(new object?[] { "xxhellox", "x" }));
+        Assert.Equal(5L, GetScalar("length").Evaluate(new object?[] { "hello" }));
+        Assert.Equal(5L, GetScalar("char_length").Evaluate(new object?[] { "hello" }));
+        Assert.Equal("ell", GetScalar("substring").Evaluate(new object?[] { "hello", 2L, 3L }));
+        Assert.Equal("ello", GetScalar("substr").Evaluate(new object?[] { "hello", 2L }));
+        Assert.Equal("he", GetScalar("left").Evaluate(new object?[] { "hello", 2L }));
+        Assert.Equal("lo", GetScalar("right").Evaluate(new object?[] { "hello", 2L }));
+        Assert.Equal("hello", GetScalar("left").Evaluate(new object?[] { "hello", 100L }));
+        Assert.Equal("hello", GetScalar("replace").Evaluate(new object?[] { "hello", "x", "y" }));
+        Assert.Equal("heLLo", GetScalar("replace").Evaluate(new object?[] { "hello", "l", "L" }));
+        Assert.True((bool)GetScalar("starts_with").Evaluate(new object?[] { "hello", "he" })!);
+        Assert.True((bool)GetScalar("endswith").Evaluate(new object?[] { "hello", "lo" })!);
+        Assert.True((bool)GetScalar("contains").Evaluate(new object?[] { "hello", "ell" })!);
+    }
+
+    [Fact]
+    public void ScalarFunction_StringFunctions_PropagateNull()
+    {
+        Assert.Null(GetScalar("lower").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("trim").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("trim").Evaluate(new object?[] { "x", null }));
+        Assert.Null(GetScalar("length").Evaluate(new object?[] { null }));
+        Assert.Null(GetScalar("substring").Evaluate(new object?[] { null, 1L }));
+        Assert.Null(GetScalar("substring").Evaluate(new object?[] { "x", null }));
+        Assert.Null(GetScalar("replace").Evaluate(new object?[] { "x", null, "y" }));
+        Assert.Null(GetScalar("left").Evaluate(new object?[] { "x", null }));
+        Assert.Null(GetScalar("contains").Evaluate(new object?[] { "x", null }));
+    }
+
+    [Theory]
+    [InlineData("trim")]
+    [InlineData("substring")]
+    [InlineData("replace")]
+    [InlineData("left")]
+    [InlineData("right")]
+    public void ScalarFunction_StringFunctions_RejectNonStringArguments(string functionName)
+    {
+        object?[] args = functionName switch
+        {
+            "trim" => new object?[] { 1L },
+            "substring" => new object?[] { 1L, 1L },
+            "replace" => new object?[] { "x", 1L, "y" },
+            _ => new object?[] { 1L, 1L },
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => GetScalar(functionName).Evaluate(args));
+        Assert.Contains("需要字符串参数", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("substring", "start")]
+    [InlineData("left", "count")]
+    [InlineData("right", "count")]
+    public void ScalarFunction_StringFunctions_RejectInvalidIntegerArguments(
+        string functionName, string parameterName)
+    {
+        object?[] args = functionName == "substring"
+            ? new object?[] { "hello", 0L }
+            : new object?[] { "hello", -1L };
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => GetScalar(functionName).Evaluate(args));
+        Assert.Contains(parameterName, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScalarFunction_DateFunctions_ReturnExpectedResults()
+    {
+        var from = new DateTime(2026, 1, 2, 3, 4, 5, 123, DateTimeKind.Utc);
+        var to = from.AddDays(2).AddHours(3).AddMinutes(4).AddSeconds(5);
+
+        Assert.Equal(2L, GetScalar("date_diff").Evaluate(new object?[] { "day", from, to }));
+        Assert.Equal(2L, GetScalar("datediff").Evaluate(new object?[] { from, to, "day" }));
+        Assert.Equal(51L, GetScalar("date_diff").Evaluate(new object?[] { "hour", from, to }));
+        Assert.Equal("2026-01-04 06:08:10", GetScalar("date_format").Evaluate(
+            new object?[] { to, "yyyy-MM-dd HH:mm:ss" }));
+        Assert.Equal("2026-01-04", GetScalar("strftime").Evaluate(
+            new object?[] { "%Y-%m-%d", to }));
+    }
+
+    [Fact]
+    public void ScalarFunction_DateFunctions_PropagateNullAndRejectInvalidFormats()
+    {
+        Assert.Null(GetScalar("date_diff").Evaluate(new object?[] { "day", null, DateTime.UtcNow }));
+        Assert.Null(GetScalar("date_format").Evaluate(new object?[] { null, "yyyy" }));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            GetScalar("date_diff").Evaluate(new object?[] { "fortnight", DateTime.UtcNow, DateTime.UtcNow }));
+        Assert.Contains("不支持日期分量", exception.Message, StringComparison.Ordinal);
+
+        exception = Assert.Throws<InvalidOperationException>(() =>
+            GetScalar("date_format").Evaluate(new object?[] { DateTime.UtcNow, "%Q" }));
+        Assert.Contains("不支持日期格式标记", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

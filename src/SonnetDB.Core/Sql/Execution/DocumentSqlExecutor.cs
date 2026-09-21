@@ -1795,6 +1795,8 @@ internal static class DocumentSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(
+                EvaluateScalar(cast.Operand, row, matchScores), cast.TargetType),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row, matchScores),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row, matchScores)),
@@ -2155,7 +2157,9 @@ internal static class DocumentSqlExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private static bool ContainsMatchFunction(SqlExpression expression)
     {

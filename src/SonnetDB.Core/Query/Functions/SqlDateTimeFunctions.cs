@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace SonnetDB.Query.Functions;
 
@@ -76,6 +77,58 @@ internal static class SqlDateTimeFunctions
             var value => throw InvalidTemporalArgument("date_add", value),
         };
     }
+
+    internal static object? DateDiff(IReadOnlyList<object?> arguments)
+    {
+        if (arguments[0] is null || arguments[1] is null || arguments[2] is null)
+            return null;
+
+        string part;
+        object start;
+        object end;
+        if (arguments[0] is string)
+        {
+            part = RequirePart(arguments[0], "date_diff");
+            start = arguments[1]!;
+            end = arguments[2]!;
+        }
+        else if (arguments[2] is string)
+        {
+            // Accept the value-first spelling used by date_add for easy migration.
+            start = arguments[0]!;
+            end = arguments[1]!;
+            part = RequirePart(arguments[2], "date_diff");
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "函数 date_diff 需要日期分量字符串以及两个 DATETIME 或 Unix 毫秒参数。");
+        }
+
+        DateTimeOffset from = ToDateTimeOffset(start, "date_diff");
+        DateTimeOffset to = ToDateTimeOffset(end, "date_diff");
+        return part switch
+        {
+            "year" => to.Year - from.Year,
+            "quarter" => ((to.Year - from.Year) * 4) + ((to.Month - 1) / 3) - ((from.Month - 1) / 3),
+            "month" => ((to.Year - from.Year) * 12) + to.Month - from.Month,
+            "week" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerDay / 7,
+            "day" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerDay,
+            "hour" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerHour,
+            "minute" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerMinute,
+            "second" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerSecond,
+            "millisecond" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerMillisecond,
+            "microsecond" => (to.UtcDateTime - from.UtcDateTime).Ticks / TimeSpan.TicksPerMicrosecond,
+            "tick" => (to.UtcDateTime - from.UtcDateTime).Ticks,
+            _ => throw new InvalidOperationException($"函数 date_diff 不支持日期分量 '{part}'。"),
+        };
+    }
+
+    internal static object? DateFormat(IReadOnlyList<object?> arguments)
+        => FormatDateTime(arguments[0], arguments[1], "date_format");
+
+    internal static object? Strftime(IReadOnlyList<object?> arguments)
+        => FormatDateTime(arguments[1], arguments[0], "strftime");
 
     internal static object? DateAddDateTime(IReadOnlyList<object?> arguments)
     {
@@ -220,6 +273,80 @@ internal static class SqlDateTimeFunctions
             long unixMilliseconds => DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds).UtcDateTime,
             _ => throw InvalidTemporalArgument(functionName, value),
         };
+
+    private static DateTimeOffset ToDateTimeOffset(object value, string functionName)
+        => value switch
+        {
+            DateTimeOffset dateTimeOffset => dateTimeOffset,
+            DateTime dateTime => new DateTimeOffset(
+                dateTime.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                    : dateTime),
+            long unixMilliseconds => DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds),
+            _ => throw InvalidTemporalArgument(functionName, value),
+        };
+
+    private static object? FormatDateTime(object? valueArgument, object? formatArgument, string functionName)
+    {
+        if (valueArgument is null || formatArgument is null)
+            return null;
+        if (formatArgument is not string format || string.IsNullOrWhiteSpace(format))
+            throw new InvalidOperationException($"函数 {functionName} 的格式参数必须是非空字符串。");
+        if (format.Length > 128)
+            throw new InvalidOperationException($"函数 {functionName} 的格式参数不能超过 128 个字符。");
+
+        DateTimeOffset value = ToDateTimeOffset(valueArgument, functionName);
+        string dotnetFormat = ConvertFormat(format, functionName);
+        try
+        {
+            return value.ToString(dotnetFormat, CultureInfo.InvariantCulture);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException(
+                $"函数 {functionName} 的格式参数无效。", exception);
+        }
+    }
+
+    private static string ConvertFormat(string format, string functionName)
+    {
+        if (!format.Contains('%', StringComparison.Ordinal))
+            return format;
+
+        var converted = new StringBuilder(format.Length + 8);
+        for (int index = 0; index < format.Length; index++)
+        {
+            char current = format[index];
+            if (current != '%')
+            {
+                converted.Append(current);
+                continue;
+            }
+
+            if (++index >= format.Length)
+                throw new InvalidOperationException($"函数 {functionName} 的格式参数包含未完成的 % 标记。");
+            converted.Append(format[index] switch
+            {
+                '%' => "%",
+                'Y' => "yyyy",
+                'y' => "yy",
+                'm' => "MM",
+                'M' => "MMMM",
+                'd' => "dd",
+                'H' or 'k' => "HH",
+                'I' or 'h' => "hh",
+                'p' => "tt",
+                'i' => "mm",
+                'S' or 's' => "ss",
+                'f' => "ffffff",
+                'F' => "FFFFFFF",
+                _ => throw new InvalidOperationException(
+                    $"函数 {functionName} 不支持日期格式标记 '%{format[index]}'。"),
+            });
+        }
+
+        return converted.ToString();
+    }
 
     private static DateTime NormalizeUtc(DateTime value)
         => value.Kind == DateTimeKind.Unspecified

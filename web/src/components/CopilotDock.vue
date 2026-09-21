@@ -279,12 +279,21 @@ import {
   fetchCopilotModels,
   streamCopilotChat,
   type CopilotChatEvent,
+  type CopilotChatRequest,
   type CopilotCitation,
   type CopilotModelGroup,
   type CopilotMetricsSummary,
   type CopilotMessage,
 } from '@/api/copilot';
 import { pickStarters, type CopilotStarter } from '@/copilot/starters';
+import {
+  clearPendingServerRelayRun,
+  createCopilotRunId,
+  createCopilotRequestFingerprint,
+  loadPendingServerRelayRun,
+  savePendingServerRelayRun,
+  type CopilotPendingServerRelayRun,
+} from '@/copilot/runtime';
 
 const auth = useAuthStore();
 const sessions = useCopilotSessionsStore();
@@ -312,6 +321,7 @@ const running = ref(false);
 const usageSummary = ref<CopilotMetricsSummary | null>(null);
 const errorMsg = ref('');
 const abort = ref<AbortController | null>(null);
+const activeRunId = ref<string | null>(null);
 
 const msgContainer = ref<HTMLElement | null>(null);
 
@@ -823,10 +833,14 @@ async function loadModels(): Promise<void> {
 async function reloadCopilotState(): Promise<void> {
   try {
     await sessions.refresh(auth.api);
-    if (!sessions.currentId && sessions.recent.length > 0) {
+    const pending = loadPendingServerRelayRun();
+    if (pending && sessions.recent.some((session) => session.id === pending.sessionId)) {
+      await sessions.switchTo(auth.api, pending.sessionId);
+    } else if (!sessions.currentId && sessions.recent.length > 0) {
       await sessions.switchTo(auth.api, sessions.recent[0].id);
     }
     usageSummary.value = await fetchCopilotMetrics(auth.api);
+    await resumePendingServerRelay();
   } catch (error: unknown) {
     errorMsg.value = error instanceof Error ? error.message : String(error);
   }
@@ -1252,75 +1266,74 @@ function resolveCloudMode(message: string): CloudMode {
   return 'sql_assist';
 }
 
-async function send(): Promise<void> {
-  if (!prompt.value.trim() || running.value) return;
-  if (!auth.state?.token) return;
+interface CopilotRunExecution {
+  sessionId: string;
+  requestDb: string;
+  userText: string;
+  request: CopilotChatRequest;
+  isProvisioningRequest: boolean;
+  resume: boolean;
+  runId: string;
+}
 
-  const userText = prompt.value.trim();
-  const isProvisioningRequest = looksLikeProvisioningRequest(userText);
-  const provisioningDb = isProvisioningRequest ? inferProvisioningDatabaseName(userText) : '';
+function isServerRelayConfigured(): boolean {
+  const mode = import.meta.env.VITE_COPILOT_RUNTIME_MODE;
+  return !mode || mode === 'ServerRelay';
+}
 
-  // 数据库自动推断：优先 SQL Console 当前库，其次已知库列表第一个，最后留空让后端处理
-  let targetDb = effectiveDb.value || (dbs.value.length > 0 ? dbs.value[0] : '');
+async function executeCopilotRun(execution: CopilotRunExecution): Promise<void> {
+  if (!auth.state?.token || running.value) return;
 
-  // 无库场景下，建库意图允许直接走后端 provisioning；其它请求仍先引导建库。
-  if (!targetDb && !isProvisioningRequest) {
-    const created = await promptCreateDatabase();
-    if (!created) return;  // 用户取消或无权创建
-    targetDb = created;
+  const fingerprint = await createCopilotRequestFingerprint(execution.request);
+  if (!fingerprint) {
+    if (execution.resume) {
+      clearPendingServerRelayRun(execution.runId);
+      errorMsg.value = '当前浏览器不支持安全的 Copilot 续流校验，已拒绝恢复。';
+    }
+    return;
   }
 
-  const requestDb = provisioningDb || targetDb;
-
-  // 没有当前会话则先建一个；切换数据库时同步到当前会话。
-  const activeSession = sessions.current ?? await sessions.create(auth.api, requestDb);
-  if (requestDb && activeSession.db !== requestDb) {
-    activeSession.db = requestDb;
+  const pending: CopilotPendingServerRelayRun = {
+    version: 1,
+    runId: execution.runId,
+    sessionId: execution.sessionId,
+    database: execution.requestDb,
+    requestFingerprint: fingerprint,
+    mode: execution.request.mode ?? 'read-only',
+    cloudMode: execution.request.cloudMode ?? 'sql_assist',
+    ...(execution.request.model ? { model: execution.request.model } : {}),
+    createdAtUtc: new Date().toISOString(),
+  };
+  if (isServerRelayConfigured()) {
+    savePendingServerRelayRun(pending);
   }
-  const sessionId = activeSession.id;
 
-  const userMsg: CopilotMessage = { role: 'user', content: userText };
-  prompt.value = '';
-  errorMsg.value = '';
-  // 把 user 消息立即加到发起请求的会话；assistant 最终回复也会按同一个 sessionId 追加。
-  const requestSession = sessions.appendMessage(sessionId, requestDb, userMsg);
   streamBuffer.value = '';
   streamCitations.value = [];
   running.value = true;
+  activeRunId.value = execution.runId;
   await scrollToBottom();
 
   const ac = new AbortController();
   abort.value = ac;
   const ownsRun = () => abort.value === ac;
-
-  // M6: 构造请求载荷 = [可选 system 上下文] + 会话历史
-  const ctxMsg = buildContextMessage();
-  const requestMessages: CopilotMessage[] = ctxMsg
-    ? [ctxMsg, ...requestSession.messages]
-    : [...requestSession.messages];
-
   const stepLog: string[] = [];
   const pendingSqlEvents: CopilotChatEvent[] = [];
   let finalAnswer = '';
   let finalCitations: CopilotCitation[] = [];
-  let responseCommitted = false;
+  let responseCompleted = false;
   copilotToolTabs.clear();
   copilotSqlSeen.clear();
-  activeRequestDb.value = requestDb;
+  activeRequestDb.value = execution.requestDb;
   try {
     for await (const runtimeEvent of streamCopilotChat(
       auth.api,
       auth.state.token,
-      {
-        ...(requestDb ? { db: requestDb } : {}),
-        messages: requestMessages,
-        mode: permissionMode.value,
-        conversationId: sessionId,
-        cloudMode: resolveCloudMode(userText),
-        ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
-      },
+      execution.request,
       ac.signal,
       import.meta.env.VITE_COPILOT_RUNTIME_MODE,
+      undefined,
+      { runId: execution.runId },
     )) {
       const event = runtimeEvent.event;
       if (ac.signal.aborted || !ownsRun()) break;
@@ -1334,7 +1347,6 @@ async function send(): Promise<void> {
         errorMsg.value = event.message ?? 'Copilot 请求失败';
       } else if (event.message) {
         stepLog.push(event.message);
-        // 仅当尚无 final 时显示进度
         if (!finalAnswer) streamBuffer.value = stepLog.slice(-3).join('\n');
       }
       await scrollToBottom();
@@ -1342,45 +1354,159 @@ async function send(): Promise<void> {
     if (ac.signal.aborted || !ownsRun()) return;
     for (const event of pendingSqlEvents) syncCopilotSqlEvent(event);
     if (finalAnswer) syncFinalAnswerSql(finalAnswer);
-    if (finalAnswer) {
-      sessions.appendMessage(sessionId, requestDb, {
+    if (execution.resume) {
+      await sessions.reloadMessages(auth.api, execution.sessionId);
+    } else if (finalAnswer) {
+      sessions.appendMessage(execution.sessionId, execution.requestDb, {
         role: 'assistant',
         content: finalAnswer,
         ...(finalCitations.length > 0 ? { citations: finalCitations } : {}),
       });
-      streamBuffer.value = '';
-      streamCitations.value = [];
-      if (isProvisioningRequest) {
-        void reloadDbs();
-      }
-      responseCommitted = true;
     }
+    if (finalAnswer && execution.isProvisioningRequest) void reloadDbs();
+    responseCompleted = true;
+    errorMsg.value = '';
   } catch (e: unknown) {
     if (!ac.signal.aborted && ownsRun()) {
-      errorMsg.value = e instanceof Error ? e.message : String(e);
-    }
-  } finally {
-    if (ownsRun() && !responseCommitted) {
-      streamBuffer.value = '';
-      streamCitations.value = [];
-      try {
-        await sessions.reloadMessages(auth.api, sessionId);
-      } catch {
-        // 服务端会话暂不可读时不保留未确认的临时回答。
+      const messageText = e instanceof Error ? e.message : String(e);
+      errorMsg.value = messageText;
+      if (/relay_run_(unknown|expired|conflict)|relay_cursor_invalid|run 不存在|已超过绝对 TTL|绑定到不同|cursor/u.test(messageText)) {
+        clearPendingServerRelayRun(execution.runId);
       }
     }
+  } finally {
+    if (ownsRun() && !responseCompleted) {
+      streamBuffer.value = '';
+      streamCitations.value = [];
+      if (!execution.resume) {
+        try {
+          await sessions.reloadMessages(auth.api, execution.sessionId);
+        } catch {
+          // 服务端会话暂不可读时不保留未确认的临时回答。
+        }
+      }
+    }
+    if (responseCompleted) clearPendingServerRelayRun(execution.runId);
     if (ownsRun()) {
       running.value = false;
       abort.value = null;
+      activeRunId.value = null;
       activeRequestDb.value = '';
       await scrollToBottom();
     }
   }
 }
 
+async function send(): Promise<void> {
+  if (!prompt.value.trim() || running.value) return;
+  if (!auth.state?.token) return;
+
+  const userText = prompt.value.trim();
+  const isProvisioningRequest = looksLikeProvisioningRequest(userText);
+  const provisioningDb = isProvisioningRequest ? inferProvisioningDatabaseName(userText) : '';
+  let targetDb = effectiveDb.value || (dbs.value.length > 0 ? dbs.value[0] : '');
+  if (!targetDb && !isProvisioningRequest) {
+    const created = await promptCreateDatabase();
+    if (!created) return;
+    targetDb = created;
+  }
+
+  const requestDb = provisioningDb || targetDb;
+  const activeSession = sessions.current ?? await sessions.create(auth.api, requestDb);
+  if (requestDb && activeSession.db !== requestDb) activeSession.db = requestDb;
+  const sessionId = activeSession.id;
+  prompt.value = '';
+  errorMsg.value = '';
+  const requestSession = sessions.appendMessage(sessionId, requestDb, { role: 'user', content: userText });
+  const ctxMsg = buildContextMessage();
+  const requestMessages: CopilotMessage[] = ctxMsg
+    ? [ctxMsg, ...requestSession.messages]
+    : [...requestSession.messages];
+  const request: CopilotChatRequest = {
+    ...(requestDb ? { db: requestDb } : {}),
+    messages: requestMessages,
+    mode: permissionMode.value,
+    conversationId: sessionId,
+    cloudMode: resolveCloudMode(userText),
+    ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
+  };
+  await executeCopilotRun({
+    sessionId,
+    requestDb,
+    userText,
+    request,
+    isProvisioningRequest,
+    resume: false,
+    runId: createCopilotRunId(),
+  });
+}
+
+async function resumePendingServerRelay(): Promise<void> {
+  if (!isServerRelayConfigured() || running.value || !auth.state?.token) return;
+  const pending = loadPendingServerRelayRun();
+  if (!pending) return;
+  if (pending.sessionId !== sessions.currentId) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  const session = sessions.current;
+  if (!session || !session.messagesLoaded || session.db !== pending.database) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  const userText = [...session.messages].reverse().find((item) => item.role === 'user')?.content?.trim() ?? '';
+  if (!userText) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+  const latestUserIndex = [...session.messages]
+    .map((item, index) => ({ item, index }))
+    .reverse()
+    .find((entry) => entry.item.role === 'user')?.index;
+  if (latestUserIndex === undefined) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+  // A completed server run already appended its assistant answer. Rebuild the
+  // original request through the latest user message so the binding fingerprint
+  // remains identical without persisting message content in sessionStorage.
+  const requestHistory = session.messages.slice(0, latestUserIndex + 1);
+  const ctxMsg = buildContextMessage();
+  const requestMessages: CopilotMessage[] = ctxMsg
+    ? [ctxMsg, ...requestHistory]
+    : [...requestHistory];
+  const request: CopilotChatRequest = {
+    ...(pending.database ? { db: pending.database } : {}),
+    messages: requestMessages,
+    mode: pending.mode,
+    conversationId: pending.sessionId,
+    cloudMode: pending.cloudMode,
+    ...(pending.model ? { model: pending.model } : {}),
+  };
+  const fingerprint = await createCopilotRequestFingerprint(request);
+  if (fingerprint !== pending.requestFingerprint) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  errorMsg.value = '正在从已记录的 ServerRelay 结果恢复…';
+  await executeCopilotRun({
+    sessionId: pending.sessionId,
+    requestDb: pending.database,
+    userText,
+    request,
+    isProvisioningRequest: looksLikeProvisioningRequest(userText),
+    resume: true,
+    runId: pending.runId,
+  });
+}
+
 function cancelActiveRequest(): void {
   const controller = abort.value;
   if (controller && !controller.signal.aborted) controller.abort();
+  if (activeRunId.value) clearPendingServerRelayRun(activeRunId.value);
   streamBuffer.value = '';
   streamCitations.value = [];
 }

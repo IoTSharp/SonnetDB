@@ -122,6 +122,13 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         Assert.Equal("$.site", validatorRule.GetProperty("path").GetString());
         Assert.True(validatorRule.GetProperty("required").GetBoolean());
 
+        var view = Assert.Single(root.GetProperty("views").EnumerateArray());
+        Assert.Equal("active_devices", view.GetProperty("name").GetString());
+        Assert.Equal("SELECT id, site FROM devices", view.GetProperty("definitionSql").GetString());
+        var materializedView = Assert.Single(root.GetProperty("materializedViews").EnumerateArray());
+        Assert.Equal("cached_devices", materializedView.GetProperty("name").GetString());
+        Assert.Equal("SELECT id, site FROM devices", materializedView.GetProperty("definitionSql").GetString());
+
         var indexes = root.GetProperty("indexes").EnumerateArray().ToArray();
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "table:devices:idx_devices_site");
         Assert.Contains(indexes, index =>
@@ -400,6 +407,10 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
             "CREATE JSON INDEX idx_docs_site ON docs ('$.site')");
         await ExecuteSqlAsync(client, dbName,
             "CREATE FULLTEXT INDEX ft_docs_body ON docs ('$.body') USING unicode");
+        await ExecuteSqlAsync(client, dbName,
+            "CREATE VIEW active_devices AS SELECT id, site FROM devices");
+        await ExecuteSqlAsync(client, dbName,
+            "CREATE MATERIALIZED VIEW cached_devices AS SELECT id, site FROM devices");
     }
 
     private static async Task ExecuteSqlAsync(HttpClient client, string db, string sql)

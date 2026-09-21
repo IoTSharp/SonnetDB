@@ -1776,10 +1776,12 @@ public static class SqlExecutor
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
+        statement = CommonTableExpressionExpander.Expand(statement);
+
         if (tsdb.Views.Catalog.Count != 0)
             statement = ViewExpander.Expand(tsdb.Views.Catalog, statement);
 
-        if (statement.UnionStatements.Count != 0)
+        if (statement.SetOperationList.Count != 0)
             return ExecuteUnion(tsdb, statement);
 
         if (!statement.Distinct)
@@ -1787,7 +1789,7 @@ public static class SqlExecutor
 
         // 单表且排序键已在投影中的 DISTINCT 可安全下推到表执行器，按过滤→去重→Top-N 流式执行。
         // 隐藏排序列、JOIN、子查询等路径仍保留统一收敛点，避免改变 SQL 语义。
-        if (statement.UnionStatements.Count == 0
+        if (statement.SetOperationList.Count == 0
             && statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
             && !RelationalSelectExecutor.NeedsRelationalPath(statement)
@@ -1900,6 +1902,7 @@ public static class SqlExecutor
         var left = statement with
         {
             Unions = null,
+            SetOperations = Array.Empty<SqlSetOperation>(),
             OrderBy = null,
             OrderByItems = null,
             Pagination = null
@@ -1907,19 +1910,46 @@ public static class SqlExecutor
         var first = executeBranch(left);
         var rows = new List<IReadOnlyList<object?>>(first.Rows);
 
-        foreach (var union in statement.UnionStatements)
+        foreach (SqlSetOperation operation in statement.SetOperationList)
         {
-            var branch = executeBranch(union);
+            var branch = executeBranch(operation.Query);
             if (branch.Columns.Count != first.Columns.Count)
             {
                 throw new InvalidOperationException(
-                    $"UNION 分支列数不一致：期望 {first.Columns.Count} 列，实际 {branch.Columns.Count} 列。");
+                    $"集合运算分支列数不一致：期望 {first.Columns.Count} 列，实际 {branch.Columns.Count} 列。");
             }
 
-            rows.AddRange(branch.Rows);
+            switch (operation.Kind)
+            {
+                case SqlSetOperationKind.Union:
+                    rows = ApplyDistinct(new SelectExecutionResult(first.Columns, rows.Concat(branch.Rows).ToArray()))
+                        .Rows.ToList();
+                    break;
+                case SqlSetOperationKind.UnionAll:
+                    rows.AddRange(branch.Rows);
+                    break;
+                case SqlSetOperationKind.Intersect:
+                {
+                    var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
+                    rows = SqlBlockingOperators
+                        .DistinctRows(rows.Where(right.Contains), DistinctRowComparer.Instance)
+                        .ToList();
+                    break;
+                }
+                case SqlSetOperationKind.Except:
+                {
+                    var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
+                    rows = SqlBlockingOperators
+                        .DistinctRows(rows.Where(row => !right.Contains(row)), DistinctRowComparer.Instance)
+                        .ToList();
+                    break;
+                }
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(operation.Kind), operation.Kind, "未知集合运算。");
+            }
         }
 
-        var combined = ApplyDistinct(new SelectExecutionResult(first.Columns, rows));
+        var combined = new SelectExecutionResult(first.Columns, rows);
         return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
     }
 
@@ -2357,9 +2387,11 @@ public static class SqlExecutor
         {
             TableColumnType.Int64 => "int64",
             TableColumnType.Float64 => "float64",
+            TableColumnType.Decimal => "decimal",
             TableColumnType.Boolean => "boolean",
             TableColumnType.String => "string",
             TableColumnType.DateTime => "datetime",
+            TableColumnType.Time => "time",
             TableColumnType.Blob => "blob",
             TableColumnType.Json => "json",
             _ => type.ToString().ToLowerInvariant(),

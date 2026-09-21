@@ -70,6 +70,7 @@ internal static class TableKeyCodec
                 case TableColumnType.Int64:
                 case TableColumnType.Float64:
                 case TableColumnType.DateTime:
+                case TableColumnType.Time:
                     if (remaining < sizeof(long))
                         return false;
                     offset += sizeof(long);
@@ -82,6 +83,7 @@ internal static class TableKeyCodec
                 case TableColumnType.String:
                 case TableColumnType.Json:
                 case TableColumnType.Blob:
+                case TableColumnType.Decimal:
                     if (remaining < sizeof(int))
                         return false;
                     int length = BinaryPrimitives.ReadInt32BigEndian(encoded.Slice(offset, sizeof(int)));
@@ -100,8 +102,9 @@ internal static class TableKeyCodec
     private static int GetEncodedSize(TableColumn column, object value)
         => column.DataType switch
         {
-            TableColumnType.Int64 or TableColumnType.DateTime => 8,
+            TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time => 8,
             TableColumnType.Float64 => 8,
+            TableColumnType.Decimal => 4 + DecimalText(value).Length,
             TableColumnType.Boolean => 1,
             TableColumnType.String or TableColumnType.Json => 4 + _utf8.GetByteCount((string)value),
             TableColumnType.Blob => 4 + ((byte[])value).Length,
@@ -128,6 +131,12 @@ internal static class TableKeyCodec
             case TableColumnType.DateTime:
                 SortableScalarCodec.WriteTableLegacyDateTime(destination, ToUnixMilliseconds(value));
                 return;
+            case TableColumnType.Time:
+                SortableScalarCodec.WriteTableLegacyInt64(destination, ConvertTimeValue(value).Ticks);
+                return;
+            case TableColumnType.Decimal:
+                WriteLengthPrefixed(destination, _utf8.GetBytes(DecimalText(value)));
+                return;
             case TableColumnType.String:
             case TableColumnType.Json:
                 WriteLengthPrefixed(destination, _utf8.GetBytes((string)value));
@@ -143,6 +152,10 @@ internal static class TableKeyCodec
     private static void WriteLengthPrefixed(Span<byte> destination, byte[] bytes)
         => SortableScalarCodec.WriteTableLegacyLengthPrefixed(destination, bytes);
 
+    private static string DecimalText(object value)
+        => Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture)
+            .ToString("G29", System.Globalization.CultureInfo.InvariantCulture);
+
     private static long ToUnixMilliseconds(object value)
         => value switch
         {
@@ -152,5 +165,14 @@ internal static class TableKeyCodec
                 : dt).ToUnixTimeMilliseconds(),
             long ms => ms,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
+        };
+
+    private static TimeOnly ConvertTimeValue(object value)
+        => value switch
+        {
+            TimeOnly time => time,
+            TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1) => TimeOnly.FromTimeSpan(span),
+            string text when TimeOnly.TryParse(text.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed) => parsed,
+            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 TIME。"),
         };
 }
