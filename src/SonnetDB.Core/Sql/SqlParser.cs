@@ -2507,11 +2507,29 @@ public sealed class SqlParser
             Expect(TokenKind.RightParen);
         }
 
-        ExpectIdentifier("do", "ON CONFLICT 后面期望 DO NOTHING");
-        if (!IsIdentifier("nothing"))
-            throw Error("SonnetDB ON CONFLICT 子集仅支持 DO NOTHING");
+        ExpectIdentifier("do", "ON CONFLICT 后面期望 DO NOTHING 或 DO UPDATE");
+        if (IsIdentifier("nothing"))
+        {
+            Advance();
+            return new SqlOnConflictClause(targetColumns);
+        }
+
+        if (Current.Kind != TokenKind.KeywordUpdate && !IsIdentifier("update"))
+            throw Error("ON CONFLICT DO 后面期望 NOTHING 或 UPDATE");
+
         Advance();
-        return new SqlOnConflictClause(targetColumns);
+        Expect(TokenKind.KeywordSet);
+        var assignments = new List<UpdateAssignment> { ParseUpdateAssignment() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            assignments.Add(ParseUpdateAssignment());
+        }
+
+        return new SqlOnConflictClause(targetColumns, SqlOnConflictAction.DoUpdate)
+        {
+            UpdateAssignments = assignments,
+        };
     }
 
     private IReadOnlyList<string> ParseReturningColumns()
@@ -3308,6 +3326,9 @@ public sealed class SqlParser
             return ParseGraphUpdate();
         var table = ExpectIdentifierName();
         var tableAlias = ParseOptionalTableAlias();
+        var fromClauses = new List<JoinClause>();
+        while (ParseOptionalJoinClause() is { } updateJoin)
+            fromClauses.Add(updateJoin);
         Expect(TokenKind.KeywordSet);
 
         var assignments = new List<UpdateAssignment>
@@ -3320,9 +3341,27 @@ public sealed class SqlParser
             assignments.Add(ParseUpdateAssignment());
         }
 
+        if (Current.Kind == TokenKind.KeywordFrom)
+        {
+            Advance();
+            string fromTable = ExpectIdentifierName();
+            string fromAlias = ParseOptionalTableAlias() ?? fromTable;
+            fromClauses.Add(new JoinClause(
+                fromTable,
+                fromAlias,
+                LiteralExpression.Bool(true),
+                Subquery: null,
+                Kind: JoinKind.Inner));
+            while (ParseOptionalJoinClause() is { } updateJoin)
+                fromClauses.Add(updateJoin);
+        }
+
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
-        var statement = new UpdateStatement(table, assignments, where, tableAlias);
+        var statement = new UpdateStatement(table, assignments, where, tableAlias)
+        {
+            FromClauses = fromClauses,
+        };
         if (IsIdentifier("returning"))
         {
             Advance();

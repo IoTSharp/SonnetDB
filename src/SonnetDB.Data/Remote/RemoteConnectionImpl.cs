@@ -750,6 +750,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         InsertStatement statement,
         CancellationToken cancellationToken)
     {
+        if (statement.OnConflict is { Action: SqlOnConflictAction.DoUpdate })
+        {
+            throw new NotSupportedException(
+                "远程轻事务中的 INSERT ... ON CONFLICT DO UPDATE ... RETURNING 尚未支持；"
+                + "请在事务外执行，或使用 DO NOTHING。");
+        }
+
         IReadOnlyList<TableSchema> tables = await SnapshotTablesAsync(cancellationToken).ConfigureAwait(false);
         var schema = tables.FirstOrDefault(table => string.Equals(
                 table.Name,

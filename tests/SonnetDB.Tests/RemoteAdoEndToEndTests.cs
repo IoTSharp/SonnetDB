@@ -566,6 +566,32 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RemoteTransaction_InsertOnConflictDoUpdateReturning_IsRejectedUntilParity()
+    {
+        await using var c = new SndbConnection(RemoteConnString());
+        await c.OpenAsync();
+
+        await using (var ddl = c.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE tx_conflict_update (id INT, value INT, PRIMARY KEY (id))";
+            await ddl.ExecuteNonQueryAsync();
+            ddl.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, 10)";
+            await ddl.ExecuteNonQueryAsync();
+        }
+
+        await using var transaction = Assert.IsType<SndbTransaction>(await c.BeginTransactionAsync());
+        await using var command = c.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value";
+        await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
+        await transaction.RollbackAsync();
+
+        await using var select = c.CreateCommand();
+        select.CommandText = "SELECT value FROM tx_conflict_update WHERE id = 1";
+        Assert.Equal(10L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
+    }
+
+    [Fact]
     public async Task Remote_Transaction_CrossTableCommit_CommitsBothTables()
     {
         await using var c = new SndbConnection(RemoteConnString());

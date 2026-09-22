@@ -8,6 +8,7 @@
 ## [Unreleased]
 ### Fixed
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
+- 远程轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 现在 fail closed，避免客户端预览/重放路径把 `DO UPDATE` 静默降级为 `DO NOTHING` 并在提交时产生错误结果；完整远程 parity 仍待实现。
 - **M20 Parity scheduled 启动阻断**：Parity compose 将已无法从 Docker Hub 拉取的固定 MinIO 镜像切换为 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，并新增 `test-compose-contract.ps1` 接入 workflow，防止回退到失效 registry。PowerShell 7 合同、Compose 配置、实际镜像 pull 和临时 healthcheck 已通过；远程七次 scheduled 成功窗口仍待重跑。
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
@@ -16,10 +17,22 @@
 
 ### Added
 
+- **M20 Parity schema shape gate**：summarizer 现在要求 `scenarios` 与 `capabilityGaps` 真正为 JSON 数组；对象形状会生成 `parity_report_parse_failed` failing summary，并有对应负例回归。
+- **M43 #396 status contract gate**：能力索引校验同时拒绝空白状态描述，避免只存在键而没有可读合同。
+- **M36 #325/#326 MQ retention/dedup 修复**：tombstone/retention 截断会有界清理已不可读消息的 `message-id` 索引，同时保留 cutoff 及之后仍可读消息的去重语义；目录模式、单文件模式和重开回归均覆盖。该修复不改变日志格式、offset 或实例级备份边界。
+- **M36 #323 对象范围流长度修复**：`OpenRead` 返回的范围流现在保持稳定的 `Stream.Length`，不会随消费把总长度错误降为剩余长度；负范围长度显式拒绝，并补部分读取/读完后的合同回归。高变更率分页、固定硬件和跨进程恢复证据仍待执行。
+- **M36 #317 KV 命名空间有界游标**：新增 `KvNamespaceReadSnapshot` 与 `KvNamespaceRangeCursor`，将 prefix、起止边界、continuation、方向和页字节预算限定在命名空间内，并在返回页剥离物理前缀；游标持有独立快照租约，覆盖分页、隔离、重写稳定性和取消回归。大 keyspace 容量、远程 parity 与长期证据仍待执行。
+- **M20 Parity 失败证据加固**：nightly 七次窗口拒绝缺失或重复 `runId`；summarizer 对空/损坏或缺字段的 `report.json` 仍生成 schema v2 failing `summary.json`/Markdown，并记录结构化 `parity_report_parse_failed`，保留原始诊断链路。
+- **M43 Streaming 合同边界加固**：非整毫秒 `AllowedLateness` 现在 fail closed，避免持久化时静默截断；内存订阅读取信号使用固定次数检查并在异常通道状态下显式失败，新增精度与关闭回归。
+- **M43 #396 索引门禁加固**：能力证据/旅程索引校验拒绝绝对或越出仓库根目录的路径，要求完整状态契约、能力描述字段和五阶段唯一映射，并新增正负例合同测试。
+- **M43 #392~#395 Streaming 检查点文件存储首切片**：新增 `IStreamingSubscriptionCheckpointStore` 与 `FileStreamingSubscriptionCheckpointStore`，使用 source-generated JSON、SHA-256 订阅文件名、独占 lock 文件、revision 条件更新、临时文件原子替换和目录 fsync；损坏/截断内容、订阅错配、旧 revision，以及非初始 revision 下的缺失文件均 fail closed。该实现只保存已确认 checkpoint，不提供事件缓冲回放、分布式租约或 exactly-once。
+- **M43 #386~#390 CDC append-only spool 首切片**：新增固定 44 字节 little-endian 帧头、CRC32、分区 checkpoint 元数据、受限 append/replay/ack、原子截断和重开校验；metadata v2 在写帧前持久化 append high-watermark，并兼容读取 v1，确保掉电、partial tail、损坏帧、截断数据及 metadata 指向缺失未确认帧时 fail closed。快照/增量衔接、冲突解决、schema migration、复制拓扑、远程 parity 和固定硬件容量仍未完成。
 - **M43 #396 十四能力 golden-journey 索引门禁**：新增机器可读的十四能力 journey 索引，统一 `local_contract`、`remote_parity`、`recovery`、`fixed_hardware` 和 `long_run` 阶段及 `PASS`/`PARTIAL`/`NOT_READY`/`DEFERRED` 状态；增强 `validate-fourteen-capability-index.ps1` 检查入口、证据路径和每项能力的完整旅程映射。该索引只冻结验收边界，不把外部或固定硬件阶段标记为已完成。
 - **M43 #391 可恢复 Streaming 订阅合同首切片**：新增版本化订阅/检查点 DTO、source-generated JSON、事件时间 watermark、迟到事件 `Deliver`/`Drop`/`Reject` 策略，以及带有界 Channel 背压、取消、单 in-flight 批次、至少一次重投和显式 ACK 的嵌入式实现。检查点可由外部持久层恢复；本切片不宣称跨进程协调或 exactly-once，详见 [Streaming 订阅合同](docs/streaming-subscription-contract.md)。
 - **M43 #385 CDC 版本化事件合同首切片**：新增不可变 CDC 事件、schema/contract version、分区 checkpoint 和 insert/update/delete 语义；手写有界 UTF-8 JSON 编解码器拒绝未知字段、重复字段、未知版本/操作、无效 payload、深度和字节超限，并支持可取消的流读写。该切片只定义跨进程格式与边界，尚未提供离线队列、冲突解决或复制拓扑，详见 [CDC 合同](docs/cdc-contract.md)。
 
+- **GH-Issue #191 UPDATE 联接更新首切片**：关系表支持 `UPDATE ... JOIN ... SET ... WHERE ...` 与 `UPDATE ... SET ... FROM ... WHERE ...`；仅更新目标表，重复来源匹配按关系扫描顺序取首行，`RowsAffected`/`RETURNING` 按目标主键去重计数，支持 INNER/LEFT、参数绑定、来源只读和 `ROWVERSION` 递增，measurement/document 来源明确拒绝。新增重复匹配、空匹配、参数化 FROM 和 LEFT JOIN 回归；固定硬件、远程 parity 与多语句复杂联接仍待执行。
+- **GH-Issue #184 `ON CONFLICT DO UPDATE` 首切片**：关系表本地 Core 支持 `DO UPDATE SET`、`excluded.column`、默认值、显式事务、`RETURNING`、`ROWVERSION` 和重复赋值校验；事务候选行与直接执行路径统一生成版本值并在冲突判断前校验必填列。新增解析、直接/事务执行、约束和低层队列边界回归；远程轻事务 `RETURNING` 明确 fail closed，远程 parity、Frame 和外部 issue 线程确认仍待执行。
 - **GH-Issue #177 标准关系表 JOIN**：关系 SQL 新增 `RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`，保留声明顺序、SQL 三值 `ON` 条件、外连接 `NULL` 扩展和笛卡尔积语义；右/全外连接使用有界嵌套循环，既有 INNER/LEFT 的 hash、索引和 merge 计划保持不变，右侧未匹配行补发循环逐行检查取消。measurement JOIN 明确继续只支持单个 INNER JOIN，并对这三类标准连接返回稳定的不支持错误。新增解析、右侧/两侧未匹配、重复键和笛卡尔积回归；本轮定向 JOIN/解析测试 99/99 通过。固定硬件、远程 parity 和大规模笛卡尔积容量证据仍未执行。
 - **GH-Issue #180 JSON 标量/数组查询**：注册 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)`，关系表 JSON 列与 Document 集合共用 `JsonPath`/`JsonDocument` 实现，支持参数化 path、JSON `null` 与缺失区分、数组无序子集及对象字段子集。输入、path、嵌套深度、集合大小和对象属性/数组配对比较次数均有明确上限（每次 `json_contains` 最多 1,000,000 次结构比较），不使用反射序列化；新增关系/Document/NULL/非法输入/资源边界回归，定向测试 4/4 通过。远程 Frame/parity、复杂 JSON 索引下推和真实大语料性能仍待验证。
 - **GH-Issue #193 关系表 VECTOR/GEOPOINT 边界**：关系表 DDL 对 `VECTOR(dim)` 与 `GEOPOINT` 保持明确、稳定的拒绝错误，避免把 measurement/Document 专用类型误写成关系表已支持；新增解析器边界回归和 SQL 参考说明。跨模型 typed journey、远程 metadata parity 和完整关系列支持仍未承诺。

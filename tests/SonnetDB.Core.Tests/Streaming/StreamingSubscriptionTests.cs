@@ -79,6 +79,40 @@ public sealed class StreamingSubscriptionTests
     }
 
     [Fact]
+    public void Definition_RejectsSubMillisecondLatenessInsteadOfTruncating()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => StreamingSubscriptionDefinition.Create(
+            "sub-precision",
+            "events",
+            allowedLateness: TimeSpan.FromTicks(1)));
+    }
+
+    [Fact]
+    public async Task ReadBatch_WhenClosedBeforeRead_ReturnsNull()
+    {
+        var definition = StreamingSubscriptionDefinition.Create("sub-closed", "events");
+        await using var subscription = new InMemoryStreamingSubscription(definition);
+
+        await subscription.DisposeAsync();
+
+        Assert.Null(await subscription.ReadBatchAsync());
+    }
+
+    [Fact]
+    public async Task ReadBatch_WhenOpenAndEmpty_CancellationStopsWait()
+    {
+        var definition = StreamingSubscriptionDefinition.Create("sub-read-cancel", "events");
+        await using var subscription = new InMemoryStreamingSubscription(definition);
+        using var cancellation = new CancellationTokenSource();
+
+        Task<StreamingDeliveryBatch?> pending = subscription.ReadBatchAsync(cancellation.Token).AsTask();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => pending.WaitAsync(TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public async Task Publish_WhenBoundedBufferIsFull_CancellationStopsBackpressureWait()
     {
         var definition = StreamingSubscriptionDefinition.Create("sub-bounded", "events", batchSize: 1, capacity: 1);

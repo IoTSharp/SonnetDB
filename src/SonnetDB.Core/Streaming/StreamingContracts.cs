@@ -96,6 +96,14 @@ public sealed record StreamingSubscriptionDefinition(
         TimeSpan lateness = allowedLateness ?? TimeSpan.Zero;
         if (lateness < TimeSpan.Zero || lateness.TotalMilliseconds > long.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(allowedLateness), "允许迟到窗口必须为非负且可持久化为毫秒。");
+        if (lateness.Ticks % TimeSpan.TicksPerMillisecond != 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(allowedLateness),
+                "允许迟到窗口必须能精确表示为整数毫秒。");
+        }
+
+        long latenessMilliseconds = checked(lateness.Ticks / TimeSpan.TicksPerMillisecond);
 
         var definition = new StreamingSubscriptionDefinition(
             CurrentFormatVersion,
@@ -103,7 +111,7 @@ public sealed record StreamingSubscriptionDefinition(
             streamName,
             batchSize,
             capacity,
-            checked((long)lateness.TotalMilliseconds),
+            latenessMilliseconds,
             lateEventPolicy);
         definition.Validate();
         return definition;

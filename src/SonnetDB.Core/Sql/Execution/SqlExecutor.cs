@@ -2501,11 +2501,20 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
         {
+            if (update.FromClauses.Count != 0)
+                throw new NotSupportedException("UPDATE ... JOIN/FROM 当前仅支持关系表，document collection 不能作为联接更新目标。");
             if (update.ReturningColumns.Count != 0)
                 throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合更新。");
             return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
+        }
+
+        if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
+            && tsdb.Measurements.TryGet(update.TableName) is not null
+            && update.FromClauses.Count != 0)
+        {
+            throw new NotSupportedException("UPDATE ... JOIN/FROM 当前仅支持关系表，measurement 不能作为联接更新目标。");
         }
 
         if (tsdb.Tables.Catalog.TryGet(update.TableName) is null

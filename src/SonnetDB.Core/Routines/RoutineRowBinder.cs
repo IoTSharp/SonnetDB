@@ -28,6 +28,17 @@ internal static class RoutineRowBinder
                     .Select(expression => BindInsertValue(expression, context))
                     .ToArray())
                     .ToArray(),
+                OnConflict = insert.OnConflict is null
+                    ? null
+                    : insert.OnConflict with
+                    {
+                        UpdateAssignments = insert.OnConflict.UpdateAssignments
+                            .Select(assignment => assignment with
+                            {
+                                Value = BindExpression(assignment.Value, context),
+                            })
+                            .ToArray(),
+                    },
             },
             UpdateStatement update => update with
             {

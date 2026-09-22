@@ -118,8 +118,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
       "entryPoints": ["src/SonnetDB.Core/Streaming", "src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "docs/roadmap-total-milestone.md"],
-      "boundary": "A bounded embedded subscription contract with watermark, late-event policy, checkpoint restore and at-least-once redelivery is covered locally; persistent task operations, remote parity, cross-process recovery and distributed semantics remain open."
+      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "docs/roadmap-total-milestone.md"],
+      "boundary": "A bounded embedded subscription contract with watermark, late-event policy, file-backed conditional checkpoint persistence and at-least-once redelivery is covered locally; persistent task operations, remote parity, cross-process recovery and distributed semantics remain open."
     },
     {
       "id": "cdc",
@@ -128,8 +128,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #385", "M43 #386", "M43 #387", "M43 #388", "M43 #389", "M43 #390"],
       "entryPoints": ["src/SonnetDB.Core/Cdc", "src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
-      "boundary": "A bounded versioned CDC event format with schema/checkpoint metadata and strict UTF-8 codec is covered locally; snapshot/incremental handoff, offline queue, conflict policy, client routes and replication topology remain open."
+      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcEventSpoolTests.cs", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
+      "boundary": "A bounded versioned CDC event format with schema/checkpoint metadata, CRC-protected append-only spool and strict UTF-8 codec is covered locally; snapshot/incremental handoff, offline queue, conflict policy, client routes and replication topology remain open."
     },
     {
       "id": "ai-rag",

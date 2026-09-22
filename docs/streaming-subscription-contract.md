@@ -6,7 +6,11 @@
 
 `StreamingSubscriptionDefinition` 与 `StreamingSubscriptionCheckpoint` 都带 `FormatVersion`，当前版本为 `1`。`StreamingSubscriptionJson` 通过 source-generated `StreamingJsonContext` 序列化，不依赖反射 JSON 元数据。检查点包含订阅 ID、最近确认的流序号、确认时 watermark 和单调 `Revision`，可由外部 WAL/KV 以条件更新方式保存。
 
-重启时先从持久层读取定义和检查点，再使用构造函数创建新的内存订阅。恢复合同只保证检查点不会回退；事件流的回放、检查点原子写入和跨进程锁仍由上层存储负责。
+`AllowedLateness` 以整数毫秒持久化；创建定义时若 `TimeSpan` 含有无法整除为毫秒的 tick 会直接拒绝，避免恢复后静默改变窗口边界。
+
+重启时先从持久层读取定义和检查点，再使用构造函数创建新的内存订阅。`FileStreamingSubscriptionCheckpointStore` 提供一个可选的本地文件实现：按订阅 ID 派生稳定文件名，使用 source-generated JSON、临时文件 `Flush(true)`、原子替换和目录 fsync；每次写入都带 `expectedRevision` 条件，旧 revision、订阅 ID 不匹配、截断或损坏 JSON 会 fail closed。不同实例通过独占 `.lock` 文件串行化条件更新，锁等待和文件读取都受固定超时/取消边界约束。
+
+该文件存储只保存已确认检查点，不保存 Channel 中的事件、in-flight 批次或订阅定义；原子替换成功但目录 fsync 失败时提交结果可能未知，调用方必须重新读取或重开后再决定是否重试。事件流的回放、跨进程租约和 exactly-once 仍不在本合同内。
 
 ## 事件时间与迟到
 

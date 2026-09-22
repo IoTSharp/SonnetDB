@@ -22,6 +22,10 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("sonnetdb-parity-summary-" + [
 $reportRoot = Join-Path $testRoot "reports"
 $successOutput = Join-Path $testRoot "success"
 $failureOutput = Join-Path $testRoot "failure"
+$malformedReportRoot = Join-Path $testRoot "malformed-reports"
+$malformedOutput = Join-Path $testRoot "malformed-output"
+$invalidShapeReportRoot = Join-Path $testRoot "invalid-shape-reports"
+$invalidShapeOutput = Join-Path $testRoot "invalid-shape-output"
 
 try {
     New-Item -ItemType Directory -Force -Path (Join-Path $reportRoot "suite") | Out-Null
@@ -82,6 +86,47 @@ try {
     if (-not $failureMarkdown.Contains("stack_start_failed", [StringComparison]::Ordinal)) {
         throw "Markdown 汇总未包含结构化 gap_reason。"
     }
+
+    New-Item -ItemType Directory -Force -Path (Join-Path $malformedReportRoot "broken-suite") | Out-Null
+    "{ not valid json" | Set-Content -Path (Join-Path $malformedReportRoot "broken-suite/report.json") -Encoding utf8
+    $malformedRaised = $false
+    try {
+        & $summarizer `
+            -ReportRoot $malformedReportRoot `
+            -OutputDirectory $malformedOutput `
+            -Profile "test" `
+            -CommitSha "malformed-sha"
+    }
+    catch {
+        $malformedRaised = $true
+    }
+
+    Assert-Equal $true $malformedRaised "Malformed parity reports must fail the summarizer gate."
+    $malformedSummaryPath = Join-Path $malformedOutput "summary.json"
+    Assert-Equal $true (Test-Path -LiteralPath $malformedSummaryPath) "Malformed parity reports must still produce summary.json."
+    $malformed = Get-Content -Raw -Path $malformedSummaryPath | ConvertFrom-Json
+    Assert-Equal "failing" $malformed.status "Malformed parity reports must produce a failing summary."
+    Assert-Equal "parity_report_parse_failed" $malformed.gateFailures[0].gap_reason "Malformed report gap_reason 错误。"
+    $malformedMarkdown = Get-Content -Raw -Path (Join-Path $malformedOutput "summary.md")
+    if (-not $malformedMarkdown.Contains("parity_report_parse_failed", [StringComparison]::Ordinal)) {
+        throw "Malformed report Markdown 汇总未包含结构化 gap_reason。"
+    }
+
+    New-Item -ItemType Directory -Force -Path (Join-Path $invalidShapeReportRoot "shape-suite") | Out-Null
+    '{"runId":"shape","scenarios":{},"capabilityGaps":{}}' |
+        Set-Content -Path (Join-Path $invalidShapeReportRoot "shape-suite/report.json") -Encoding utf8
+    $invalidShapeRaised = $false
+    try {
+        & $summarizer -ReportRoot $invalidShapeReportRoot -OutputDirectory $invalidShapeOutput -Profile "test" -CommitSha "invalid-shape-sha"
+    }
+    catch {
+        $invalidShapeRaised = $true
+    }
+
+    Assert-Equal $true $invalidShapeRaised "Object-shaped parity fields must fail the summarizer gate."
+    $invalidShape = Get-Content -Raw -Path (Join-Path $invalidShapeOutput "summary.json") | ConvertFrom-Json
+    Assert-Equal "failing" $invalidShape.status "Object-shaped parity fields must produce a failing summary."
+    Assert-Equal "parity_report_parse_failed" $invalidShape.gateFailures[0].gap_reason "Object-shaped report gap_reason 错误。"
 
     Write-Host "Parity summary contract tests passed."
 }

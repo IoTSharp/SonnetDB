@@ -23,6 +23,22 @@ internal static class RelationalSelectExecutor
         => Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics: null));
 
     /// <summary>
+    /// 执行需要保留 JOIN 声明顺序的内部关系查询。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">待执行的 SELECT AST。</param>
+    /// <returns>关系查询结果。</returns>
+    internal static SelectExecutionResult ExecutePreservingJoinOrder(
+        Tsdb tsdb,
+        SelectStatement statement)
+        => Execute(
+            tsdb,
+            statement,
+            outerScope: null,
+            new SubqueryMemo(metrics: null),
+            preserveDeclaredJoinOrder: true);
+
+    /// <summary>
     /// 使用子查询执行指标运行关系查询，供回归测试和基准验证记忆化效果。
     /// </summary>
     /// <param name="tsdb">目标数据库。</param>
@@ -47,7 +63,8 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         SelectStatement statement,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        bool preserveDeclaredJoinOrder = false)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -75,7 +92,8 @@ internal static class RelationalSelectExecutor
 
         var inputPushdown = PlanRelationInputs(tsdb, statement, outerScope);
         Relation relation;
-        if (outerScope is null
+        if (!preserveDeclaredJoinOrder
+            && outerScope is null
             && statement.JoinClauses.Count >= 2
             && TryLoadJoinOrderSources(tsdb, statement, inputPushdown, memo, out Relation[] joinSources))
         {
@@ -125,7 +143,15 @@ internal static class RelationalSelectExecutor
                 SqlExecutor.ThrowIfCancellationRequested();
                 var join = statement.JoinClauses[joinIndex];
                 var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
-                relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
+                relation = Join(
+                    tsdb,
+                    relation,
+                    right,
+                    join.On,
+                    join.Kind,
+                    outerScope,
+                    memo,
+                    preserveDeclaredJoinOrder);
             }
         }
 
@@ -1981,8 +2007,12 @@ internal static class RelationalSelectExecutor
         SqlExpression on,
         JoinKind kind,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        bool preserveDeclaredJoinOrder = false)
     {
+        if (preserveDeclaredJoinOrder)
+            return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
+
         // RIGHT/FULL/CROSS 的输出保留规则与现有 Hash/Index/Merge 算子不同；
         // 先使用声明顺序嵌套循环，确保 NULL 扩展和重复键语义正确。
         if (kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)

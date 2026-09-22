@@ -1821,6 +1821,28 @@ public sealed partial class SonnetMqStore : IDisposable
             }
         }
 
+        private void RemoveMessageIdsBefore(long beforeOffset)
+        {
+            if (_messageIdOrder.Count == 0)
+                return;
+
+            // Rebuild rather than assuming queue ordering: replay can combine legacy and
+            // segmented logs, so retain every queue entry at or after the cutoff first.
+            var retained = new Queue<(string MessageId, long Offset)>(_messageIdOrder.Count);
+            foreach (var entry in _messageIdOrder)
+            {
+                if (entry.Offset >= beforeOffset)
+                    retained.Enqueue(entry);
+            }
+
+            foreach (var pair in _messageIds.Where(pair => pair.Value < beforeOffset).ToArray())
+                _messageIds.Remove(pair.Key);
+
+            _messageIdOrder.Clear();
+            foreach (var entry in retained)
+                _messageIdOrder.Enqueue(entry);
+        }
+
         /// <summary>
         /// 热尾 payload 超上限时从头部驱逐最老消息；始终至少保留最后一条（保证 keeping-up 消费者热路径）。
         /// 不可冷读的消息（legacy 日志来源，无段位置）被钉住不驱逐——驱逐它们将导致不可达。
@@ -1870,6 +1892,10 @@ public sealed partial class SonnetMqStore : IDisposable
                 _residentPayloadBytes -= removedBytes;
             }
             HotTailStartOffset = Messages.Count > 0 ? Messages[0].Offset : NextOffset;
+
+            // Retention makes offsets below the cutoff permanently unreadable. A dedup hit
+            // for one of those IDs would return a stale offset that can no longer be pulled.
+            RemoveMessageIdsBefore(beforeOffset);
 
             // 位置索引条目按「所属段被删除」清理（见 RemoveSegmentIndexEntries），此处不按 offset 删——
             // 稀疏采样下 cutoff 之上第一条冷消息可能仍需 cutoff 之下最近的锚点向前扫描定位。

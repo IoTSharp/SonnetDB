@@ -2277,18 +2277,21 @@ public sealed partial class SndbObjectStore
     private sealed class BoundedReadStream : Stream
     {
         private readonly Stream _inner;
+        private readonly long _length;
         private long _remaining;
 
         public BoundedReadStream(Stream inner, long length)
         {
             _inner = inner;
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            _length = length;
             _remaining = length;
         }
 
         public override bool CanRead => _inner.CanRead;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
-        public override long Length => _remaining;
+        public override long Length => _length;
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override int Read(byte[] buffer, int offset, int count)

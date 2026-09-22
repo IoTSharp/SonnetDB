@@ -529,34 +529,279 @@ internal static class TableSqlExecutor
         ValidateConflictTarget(schema, clause.TargetColumns);
         var store = tsdb.Tables.Open(schema.Name);
         var visibleRows = store.Scan().ToList();
-        var accepted = new List<object?[]>(valuesRows.Count);
+        var assignments = clause.Action == SqlOnConflictAction.DoUpdate
+            ? BindConflictAssignments(clause, schema)
+            : [];
+        var seenDoUpdatePrimaryKeys = clause.Action == SqlOnConflictAction.DoUpdate
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : null;
+        var mutations = new List<TableRowMutation>(valuesRows.Count);
+        var returningRows = new List<object?[]>(valuesRows.Count);
         foreach (var values in valuesRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
-            if (HasConflict(schema, clause.TargetColumns, values, visibleRows, accepted))
+            var conflict = FindConflictRow(schema, clause.TargetColumns, values, visibleRows);
+            if (conflict is null)
+            {
+                if (seenDoUpdatePrimaryKeys is not null)
+                {
+                    EnsureUniqueDoUpdateTarget(
+                        seenDoUpdatePrimaryKeys,
+                        TableKeyCodec.EncodePrimaryKey(schema, values));
+                }
+                ValidateRequiredColumns(schema, values);
+                var insertedValues = values.ToArray();
+                mutations.Add(new TableRowMutation(PrimaryKeyValues: null, insertedValues));
+                visibleRows.Add(new TableRow(
+                    insertedValues,
+                    TableKeyCodec.EncodePrimaryKey(schema, insertedValues)));
+                returningRows.Add(insertedValues);
+                continue;
+            }
+
+            if (clause.Action == SqlOnConflictAction.DoNothing)
                 continue;
 
-            ValidateRequiredColumns(schema, values);
-            accepted.Add(values);
+            EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);
+            var updatedValues = BuildConflictUpdateValues(
+                schema,
+                conflict,
+                values,
+                assignments);
+            var expectedRowVersion = ExtractRowVersion(schema, conflict.Values);
+            ApplyUpdateRowVersion(schema, updatedValues, expectedRowVersion);
+            ValidateRequiredColumns(schema, updatedValues);
+            mutations.Add(new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, conflict.Values),
+                updatedValues,
+                expectedRowVersion)
+            {
+                ExpectedRowState = TableRowCodec.Encode(schema, conflict.Values),
+            });
+            int conflictIndex = visibleRows.IndexOf(conflict);
+            visibleRows[conflictIndex] = new TableRow(updatedValues, conflict.PrimaryKey);
+            returningRows.Add(updatedValues);
         }
 
-        if (accepted.Count == 0)
+        if (mutations.Count == 0)
             return CreateInsertResult(schema.Name, 0, returningColumns, Array.Empty<object?[]>());
 
-        var mutations = accepted
-            .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
-            .ToArray();
         int inserted = tsdb.Tables.ApplyTransaction(
             new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
             {
                 [schema.Name] = mutations,
             });
-        object?[][] acceptedArray = accepted.ToArray();
         return CreateInsertResult(
             schema.Name,
             inserted,
             returningColumns,
-            acceptedArray);
+            returningRows);
+    }
+
+    private static BoundAssignment[] BindConflictAssignments(
+        SqlOnConflictClause clause,
+        TableSchema schema)
+    {
+        if (clause.Action != SqlOnConflictAction.DoUpdate)
+        {
+            if (clause.UpdateAssignments.Count != 0)
+                throw new InvalidOperationException("ON CONFLICT DO NOTHING 不允许 SET 赋值。");
+            return [];
+        }
+
+        if (clause.UpdateAssignments.Count == 0)
+            throw new InvalidOperationException("ON CONFLICT DO UPDATE 至少需要一项 SET 赋值。");
+
+        var assignments = new List<BoundAssignment>(clause.UpdateAssignments.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assignment in clause.UpdateAssignments)
+        {
+            if (!seen.Add(assignment.ColumnName))
+                throw new InvalidOperationException(
+                    $"ON CONFLICT DO UPDATE SET 中列 '{assignment.ColumnName}' 重复。");
+
+            var column = schema.TryGetColumn(assignment.ColumnName)
+                ?? throw new InvalidOperationException(
+                    $"table '{schema.Name}' 中不存在列 '{assignment.ColumnName}'。");
+            if (column.IsPrimaryKey)
+                throw new InvalidOperationException("ON CONFLICT DO UPDATE 不支持更新 PRIMARY KEY 列。");
+            if (column.IsRowVersion)
+                throw new InvalidOperationException(
+                    $"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
+            if (column.IsAutoIncrement)
+                throw new InvalidOperationException(
+                    $"AUTO_INCREMENT 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
+
+            if (assignment.Value is not DefaultValueExpression)
+            {
+                ValidateConflictExpressionQualifiers(assignment.Value, schema);
+                ValidateTableValueExpression(assignment.Value, schema, "ON CONFLICT DO UPDATE SET");
+            }
+
+            assignments.Add(new BoundAssignment(
+                column,
+                assignment.Value,
+                UsesDefault: assignment.Value is DefaultValueExpression));
+        }
+
+        return [.. assignments];
+    }
+
+    private static object?[] BuildConflictUpdateValues(
+        TableSchema schema,
+        TableRow conflict,
+        object?[] excludedValues,
+        IReadOnlyList<BoundAssignment> assignments)
+    {
+        var updatedValues = conflict.Values.ToArray();
+        foreach (var assignment in assignments)
+        {
+            var expression = BindExcludedReferences(assignment.Value, schema, excludedValues);
+            updatedValues[assignment.Column.Ordinal] = EvaluateAssignment(
+                assignment with { Value = expression },
+                schema,
+                conflict.Values);
+        }
+
+        return updatedValues;
+    }
+
+    private static SqlExpression BindExcludedReferences(
+        SqlExpression expression,
+        TableSchema schema,
+        IReadOnlyList<object?> excludedValues)
+        => expression switch
+        {
+            IdentifierExpression identifier
+                when string.Equals(identifier.Qualifier, "excluded", StringComparison.OrdinalIgnoreCase)
+                    => new MaterializedSubqueryValueExpression(
+                        excludedValues[(schema.TryGetColumn(identifier.Name)
+                            ?? throw new InvalidOperationException(
+                                $"ON CONFLICT DO UPDATE 引用了未知列 '{identifier.Name}'。"))
+                            .Ordinal]),
+            CastExpression cast => cast with
+            {
+                Operand = BindExcludedReferences(cast.Operand, schema, excludedValues),
+            },
+            UnaryExpression unary => unary with
+            {
+                Operand = BindExcludedReferences(unary.Operand, schema, excludedValues),
+            },
+            BinaryExpression binary => binary with
+            {
+                Left = BindExcludedReferences(binary.Left, schema, excludedValues),
+                Right = BindExcludedReferences(binary.Right, schema, excludedValues),
+            },
+            IsNullExpression isNull => isNull with
+            {
+                Operand = BindExcludedReferences(isNull.Operand, schema, excludedValues),
+            },
+            InExpression @in => @in with
+            {
+                Value = BindExcludedReferences(@in.Value, schema, excludedValues),
+                Values = @in.Values
+                    .Select(value => BindExcludedReferences(value, schema, excludedValues))
+                    .ToArray(),
+            },
+            CaseExpression @case => @case with
+            {
+                WhenClauses = @case.WhenClauses
+                    .Select(clause => clause with
+                    {
+                        Condition = BindExcludedReferences(clause.Condition, schema, excludedValues),
+                        Result = BindExcludedReferences(clause.Result, schema, excludedValues),
+                    })
+                    .ToArray(),
+                Else = @case.Else is null
+                    ? null
+                    : BindExcludedReferences(@case.Else, schema, excludedValues),
+            },
+            FunctionCallExpression function => function with
+            {
+                Arguments = function.Arguments
+                    .Select(argument => BindExcludedReferences(argument, schema, excludedValues))
+                    .ToArray(),
+            },
+            NamedArgumentExpression named => named with
+            {
+                Value = BindExcludedReferences(named.Value, schema, excludedValues),
+            },
+            _ => expression,
+        };
+
+    private static void ValidateConflictExpressionQualifiers(
+        SqlExpression expression,
+        TableSchema schema)
+    {
+        foreach (var identifier in EnumerateConflictIdentifiers(expression))
+        {
+            if (identifier.Qualifier is not null
+                && !string.Equals(identifier.Qualifier, "excluded", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"ON CONFLICT DO UPDATE 只允许无限定目标列或 excluded.column，实际为 '{identifier.Qualifier}.{identifier.Name}'。");
+            }
+
+            _ = schema.TryGetColumn(identifier.Name)
+                ?? throw new InvalidOperationException(
+                    $"ON CONFLICT DO UPDATE 引用了未知列 '{identifier.Name}'。");
+        }
+    }
+
+    private static IEnumerable<IdentifierExpression> EnumerateConflictIdentifiers(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case IdentifierExpression identifier:
+                yield return identifier;
+                yield break;
+            case CastExpression cast:
+                foreach (var identifier in EnumerateConflictIdentifiers(cast.Operand))
+                    yield return identifier;
+                yield break;
+            case UnaryExpression unary:
+                foreach (var identifier in EnumerateConflictIdentifiers(unary.Operand))
+                    yield return identifier;
+                yield break;
+            case BinaryExpression binary:
+                foreach (var identifier in EnumerateConflictIdentifiers(binary.Left))
+                    yield return identifier;
+                foreach (var identifier in EnumerateConflictIdentifiers(binary.Right))
+                    yield return identifier;
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var identifier in EnumerateConflictIdentifiers(isNull.Operand))
+                    yield return identifier;
+                yield break;
+            case InExpression @in:
+                foreach (var identifier in EnumerateConflictIdentifiers(@in.Value))
+                    yield return identifier;
+                foreach (var value in @in.Values)
+                    foreach (var identifier in EnumerateConflictIdentifiers(value))
+                        yield return identifier;
+                yield break;
+            case CaseExpression @case:
+                foreach (var clause in @case.WhenClauses)
+                {
+                    foreach (var identifier in EnumerateConflictIdentifiers(clause.Condition))
+                        yield return identifier;
+                    foreach (var identifier in EnumerateConflictIdentifiers(clause.Result))
+                        yield return identifier;
+                }
+                if (@case.Else is not null)
+                    foreach (var identifier in EnumerateConflictIdentifiers(@case.Else))
+                        yield return identifier;
+                yield break;
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                    foreach (var identifier in EnumerateConflictIdentifiers(argument))
+                        yield return identifier;
+                yield break;
+            case NamedArgumentExpression named:
+                foreach (var identifier in EnumerateConflictIdentifiers(named.Value))
+                    yield return identifier;
+                yield break;
+        }
     }
 
     private static void ValidateConflictTarget(TableSchema schema, IReadOnlyList<string> targetColumns)
@@ -574,6 +819,57 @@ internal static class TableSqlExecutor
             throw new InvalidOperationException(
                 $"ON CONFLICT 目标列 ({string.Join(", ", targetColumns)}) 必须对应主键或唯一索引。 ");
         }
+    }
+
+    private static TableRow? FindConflictRow(
+        TableSchema schema,
+        IReadOnlyList<string> targetColumns,
+        object?[] values,
+        IReadOnlyList<TableRow> rows)
+    {
+        if (targetColumns.Count != 0)
+        {
+            return rows.FirstOrDefault(row => ValuesMatch(schema, targetColumns, values, row.Values));
+        }
+
+        var primary = rows.FirstOrDefault(row => ValuesMatch(schema, schema.PrimaryKey, values, row.Values));
+        if (primary is not null)
+            return primary;
+
+        foreach (var index in schema.Indexes.Where(static index => index.IsUnique && string.IsNullOrWhiteSpace(index.JsonPath)))
+        {
+            var conflict = rows.FirstOrDefault(row => ValuesMatch(schema, index.Columns, values, row.Values));
+            if (conflict is not null)
+                return conflict;
+        }
+
+        return null;
+    }
+
+    private static bool ValuesMatch(
+        TableSchema schema,
+        IReadOnlyList<string> columns,
+        IReadOnlyList<object?> candidate,
+        IReadOnlyList<object?> existing)
+    {
+        if (columns.Count == 0)
+            return false;
+
+        foreach (var columnName in columns)
+        {
+            var column = schema.TryGetColumn(columnName)
+                ?? throw new InvalidOperationException(
+                    $"关系表 '{schema.Name}' 不存在冲突目标列 '{columnName}'。");
+            object? candidateValue = candidate[column.Ordinal];
+            object? existingValue = existing[column.Ordinal];
+            if (candidateValue is null || existingValue is null
+                || !SqlScalarComparer.ValuesEqual(candidateValue, existingValue))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool HasConflict(
@@ -690,6 +986,12 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        if (tsdb is null && statement.OnConflict is not null)
+        {
+            throw new NotSupportedException(
+                "事务队列中的 ON CONFLICT 需要数据库上下文来读取冲突行。");
+        }
+
         transitionBudget?.CheckRowCapacity(statement.Rows.Count);
 
         var bindings = BindInsertColumns(statement, schema);
@@ -707,11 +1009,20 @@ internal static class TableSqlExecutor
             }
 
             ApplyInsertDefaults(defaults, values);
+            // ON CONFLICT 的 excluded 行必须与直接执行路径一样包含数据库生成列，
+            // 并在冲突判断前完成候选行的约束校验。
+            ApplyInsertRowVersion(schema, values);
+            if (statement.OnConflict is not null)
+                ValidateRequiredColumns(schema, values);
             valuesRows.Add(values);
         }
 
+        BoundAssignment[] conflictAssignments = [];
         if (statement.OnConflict is { } conflictClause)
+        {
             ValidateConflictTarget(schema, conflictClause.TargetColumns);
+            conflictAssignments = BindConflictAssignments(conflictClause, schema);
+        }
 
         if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
         {
@@ -722,31 +1033,75 @@ internal static class TableSqlExecutor
                 transaction.RecordAutoIncrementReservation(schema.Name, generation);
         }
 
-        if (statement.OnConflict is { } conflict)
-        {
-            if (tsdb is null)
-                throw new NotSupportedException("带 ON CONFLICT 的关系表 INSERT 需要数据库事务上下文。");
-
-            var store = tsdb.Tables.Open(schema.Name);
-            var visibleRows = transaction.TryGetBufferedMutations(schema.Name, out var buffered)
-                ? ApplyMutationOverlay(schema, store.Scan(), buffered)
-                : store.Scan();
-
-            valuesRows = FilterConflictRows(schema, conflict, visibleRows, valuesRows);
-        }
-
+        var store = tsdb is null ? null : tsdb.Tables.Open(schema.Name);
+        List<TableRow> visibleRows = statement.OnConflict is null
+            ? []
+            : transaction.TryGetBufferedMutations(schema.Name, out var buffered)
+                ? ApplyMutationOverlay(schema, store!.Scan(), buffered).ToList()
+                : store!.Scan().ToList();
         var mutations = new List<TableRowMutation>(valuesRows.Count);
         var rowChanges = new List<TableRowChange>(valuesRows.Count);
+        var returningRows = new List<object?[]>(valuesRows.Count);
+        var seenDoUpdatePrimaryKeys = statement.OnConflict?.Action == SqlOnConflictAction.DoUpdate
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : null;
         foreach (var values in valuesRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
+            TableRow? conflict = statement.OnConflict is null
+                ? null
+                : FindConflictRow(schema, statement.OnConflict.TargetColumns, values, visibleRows);
+            if (conflict is null)
+            {
+                if (seenDoUpdatePrimaryKeys is not null)
+                {
+                    EnsureUniqueDoUpdateTarget(
+                        seenDoUpdatePrimaryKeys,
+                        TableKeyCodec.EncodePrimaryKey(schema, values));
+                }
+                if (tsdb is not null && triggers is not null)
+                    SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, null, values, transaction);
+                ValidateRequiredColumns(schema, values);
+                transitionBudget?.Add(null, values);
+                var insertedValues = values.ToArray();
+                mutations.Add(new TableRowMutation(PrimaryKeyValues: null, insertedValues));
+                rowChanges.Add(new TableRowChange(schema, OldValues: null, insertedValues));
+                returningRows.Add(insertedValues);
+                if (statement.OnConflict is not null)
+                {
+                    visibleRows.Add(new TableRow(
+                        insertedValues,
+                        TableKeyCodec.EncodePrimaryKey(schema, insertedValues)));
+                }
+                continue;
+            }
+
+            if (statement.OnConflict!.Action == SqlOnConflictAction.DoNothing)
+                continue;
+
+            EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);
+            var updatedValues = BuildConflictUpdateValues(
+                schema,
+                conflict,
+                values,
+                conflictAssignments);
             if (tsdb is not null && triggers is not null)
-                SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, null, values, transaction);
-            ApplyInsertRowVersion(schema, values);
-            ValidateRequiredColumns(schema, values);
-            transitionBudget?.Add(null, values);
-            mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
-            rowChanges.Add(new TableRowChange(schema, OldValues: null, values));
+                SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, conflict.Values, updatedValues, transaction);
+            var expectedRowVersion = ExtractRowVersion(schema, conflict.Values);
+            ApplyUpdateRowVersion(schema, updatedValues, expectedRowVersion);
+            ValidateRequiredColumns(schema, updatedValues);
+            transitionBudget?.Add(conflict.Values, updatedValues);
+            mutations.Add(new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, conflict.Values),
+                updatedValues,
+                expectedRowVersion)
+            {
+                ExpectedRowState = TableRowCodec.Encode(schema, conflict.Values),
+            });
+            rowChanges.Add(new TableRowChange(schema, conflict.Values, updatedValues));
+            returningRows.Add(updatedValues);
+            int conflictIndex = visibleRows.IndexOf(conflict);
+            visibleRows[conflictIndex] = new TableRow(updatedValues, conflict.PrimaryKey);
         }
 
         // 整条 INSERT 的所有行都转换、校验成功后再写缓冲，避免后续行失败留下部分插入。
@@ -754,7 +1109,18 @@ internal static class TableSqlExecutor
             transaction.AddOrMergeTableMutation(schema, mutation);
 
         changes = rowChanges;
-        return CreateInsertResult(schema.Name, mutations.Count, returningColumns, valuesRows);
+        return CreateInsertResult(schema.Name, mutations.Count, returningColumns, returningRows);
+    }
+
+    private static void EnsureUniqueDoUpdateTarget(
+        HashSet<string>? seenPrimaryKeys,
+        ReadOnlySpan<byte> primaryKey)
+    {
+        if (seenPrimaryKeys is null || seenPrimaryKeys.Add(Convert.ToHexString(primaryKey)))
+            return;
+
+        throw new InvalidOperationException(
+            "ON CONFLICT DO UPDATE 同一语句内不能重复命中同一主键。");
     }
 
     private static TableColumn[] BindReturningColumns(InsertStatement statement, TableSchema schema)
@@ -985,6 +1351,18 @@ internal static class TableSqlExecutor
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         MutationAliasValidator.Validate(statement);
+        if (statement.FromClauses.Count != 0)
+        {
+            // UPDATE ... JOIN/FROM 使用统一关系快照执行；重复来源匹配在执行器中按目标主键去重。
+            return tsdb.Tables.ExecuteLocked(() => ExecuteJoinUpdate(
+                tsdb,
+                statement,
+                schema,
+                triggers: null,
+                transitionBudget: null,
+                transaction: null,
+                out _));
+        }
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1105,6 +1483,23 @@ internal static class TableSqlExecutor
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         MutationAliasValidator.Validate(statement);
+        if (statement.FromClauses.Count != 0)
+        {
+            if (transaction.TryGetBufferedMutations(schema.Name, out _))
+            {
+                throw new NotSupportedException(
+                    "UPDATE ... JOIN/FROM 当前不支持同一轻事务中先缓冲目标表变更；请将联接更新作为事务中的首次目标表写入。");
+            }
+
+            return ExecuteJoinUpdate(
+                tsdb,
+                statement,
+                schema,
+                triggers,
+                transitionBudget,
+                transaction,
+                out changes);
+        }
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
@@ -1172,6 +1567,192 @@ internal static class TableSqlExecutor
 
         changes = rowChanges;
         return CreateRowsAffectedResult(schema.Name, mutations.Count, "update", returningColumns, returningRows);
+    }
+
+    /// <summary>
+    /// 执行关系表联接 UPDATE。关系结果按声明顺序产生；同一目标主键的重复来源匹配只采用首行，
+    /// 因而 RowsAffected 与 RETURNING 均按目标行计数。
+    /// </summary>
+    private static RowsAffectedExecutionResult ExecuteJoinUpdate(
+        Tsdb tsdb,
+        UpdateStatement statement,
+        TableSchema schema,
+        IReadOnlyList<TriggerDefinition>? triggers,
+        TriggerTransitionBudget? transitionBudget,
+        SqlTransactionContext? transaction,
+        out IReadOnlyList<TableRowChange> changes)
+    {
+        ValidateJoinUpdate(statement, tsdb, schema);
+        var assignments = BindJoinAssignments(statement, schema);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
+        var targetAlias = statement.TableAlias ?? statement.TableName;
+        var projections = new List<SelectItem>(schema.Columns.Count + assignments.Length);
+        foreach (var column in schema.Columns)
+        {
+            projections.Add(new SelectItem(
+                new IdentifierExpression(column.Name, targetAlias),
+                column.Name));
+        }
+
+        for (int index = 0; index < assignments.Length; index++)
+        {
+            SqlExpression value = assignments[index].UsesDefault
+                ? LiteralExpression.Null()
+                : assignments[index].Value;
+            projections.Add(new SelectItem(value, $"__update_value_{index}"));
+        }
+
+        var select = new SelectStatement(
+            projections,
+            schema.Name,
+            statement.Where,
+            Array.Empty<SqlExpression>(),
+            TableAlias: targetAlias,
+            Joins: statement.FromClauses);
+        var selected = RelationalSelectExecutor.ExecutePreservingJoinOrder(tsdb, select);
+        var store = tsdb.Tables.Open(schema.Name);
+        var mutations = new List<TableRowMutation>();
+        var rowChanges = new List<TableRowChange>();
+        var returningRows = new List<object?[]>();
+        var seenTargets = new HashSet<string>(StringComparer.Ordinal);
+        int targetColumnCount = schema.Columns.Count;
+
+        foreach (IReadOnlyList<object?> resultRow in selected.Rows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            var oldValues = resultRow.Take(targetColumnCount).ToArray();
+            string key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, oldValues));
+            if (!seenTargets.Add(key))
+                continue;
+
+            var newValues = oldValues.ToArray();
+            for (int index = 0; index < assignments.Length; index++)
+            {
+                var assignment = assignments[index];
+                object? value;
+                if (assignment.UsesDefault)
+                {
+                    value = TryEvaluateColumnDefault(assignment.Column, out var defaultValue)
+                        ? defaultValue
+                        : null;
+                }
+                else
+                {
+                    value = resultRow[targetColumnCount + index];
+                }
+
+                newValues[assignment.Column.Ordinal] = ConvertTableValue(value, assignment.Column);
+            }
+
+            if (triggers is not null)
+            {
+                ArgumentNullException.ThrowIfNull(transaction);
+                SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, oldValues, newValues, transaction);
+            }
+            ValidateRequiredColumns(schema, newValues);
+            var expectedRowVersion = ExtractRowVersion(schema, oldValues);
+            ApplyUpdateRowVersion(schema, newValues, expectedRowVersion);
+            var mutation = new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, oldValues),
+                newValues,
+                expectedRowVersion)
+            {
+                ExpectedRowState = TableRowCodec.Encode(schema, oldValues),
+            };
+            mutations.Add(mutation);
+            transitionBudget?.Add(oldValues, newValues);
+            rowChanges.Add(new TableRowChange(schema, oldValues, newValues));
+            if (returningColumns.Length != 0)
+                returningRows.Add(newValues);
+        }
+
+        // 联接更新沿用普通 UPDATE 的 ROWVERSION 乐观并发合同：
+        // 若主键存在但版本谓词已过期，即使联接结果为空也必须报告冲突。
+        ThrowIfStaleRowVersionPredicate(schema, store, statement.Where, mutations.Count);
+
+        if (transaction is null)
+        {
+            _ = tsdb.Tables.ApplyTransaction(
+                new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+                {
+                    [schema.Name] = mutations,
+                });
+        }
+        else
+        {
+            foreach (var mutation in mutations)
+                transaction.AddOrMergeTableMutation(schema, mutation);
+        }
+
+        changes = rowChanges;
+        return CreateRowsAffectedResult(schema.Name, mutations.Count, "update", returningColumns, returningRows);
+    }
+
+    private static void ValidateJoinUpdate(UpdateStatement statement, Tsdb tsdb, TableSchema targetSchema)
+    {
+        if (statement.FromClauses.Count == 0)
+            throw new InvalidOperationException("UPDATE 联接更新至少需要一个 FROM/JOIN 来源。");
+
+        var schemas = new Dictionary<string, TableSchema>(StringComparer.OrdinalIgnoreCase)
+        {
+            [statement.TableAlias ?? statement.TableName] = targetSchema,
+        };
+        foreach (var from in statement.FromClauses)
+        {
+            if (from.Subquery is not null)
+                throw new NotSupportedException("UPDATE ... JOIN/FROM 暂不支持子查询来源。");
+            if (from.Kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
+                throw new NotSupportedException("UPDATE ... JOIN/FROM 仅支持 INNER JOIN 与 LEFT JOIN。");
+            var sourceSchema = tsdb.Tables.Catalog.TryGet(from.TableName)
+                ?? throw new NotSupportedException(
+                    $"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
+            if (!schemas.TryAdd(from.Alias, sourceSchema))
+                throw new InvalidOperationException($"UPDATE 联接别名 '{from.Alias}' 重复。");
+        }
+
+        bool IdentifierExists(IdentifierExpression identifier)
+        {
+            if (identifier.Qualifier is { } qualifier)
+            {
+                return schemas.TryGetValue(qualifier, out var qualifiedSchema)
+                    && qualifiedSchema.TryGetColumn(identifier.Name) is not null;
+            }
+
+            return schemas.Values.Any(schema => schema.TryGetColumn(identifier.Name) is not null);
+        }
+
+        foreach (var assignment in statement.Assignments)
+        {
+            if (assignment.Value is not DefaultValueExpression)
+                SqlProjectionExpressionEvaluator.Validate(assignment.Value, IdentifierExists, "UPDATE JOIN SET");
+        }
+        SqlProjectionExpressionEvaluator.Validate(statement.Where, IdentifierExists, "UPDATE JOIN WHERE");
+        foreach (var from in statement.FromClauses)
+            SqlProjectionExpressionEvaluator.Validate(from.On, IdentifierExists, "UPDATE JOIN ON");
+    }
+
+    private static JoinBoundAssignment[] BindJoinAssignments(UpdateStatement statement, TableSchema schema)
+    {
+        var assignments = new List<JoinBoundAssignment>(statement.Assignments.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assignment in statement.Assignments)
+        {
+            if (!seen.Add(assignment.ColumnName))
+                throw new InvalidOperationException($"UPDATE SET 中列 '{assignment.ColumnName}' 重复。");
+            var column = schema.TryGetColumn(assignment.ColumnName)
+                ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{assignment.ColumnName}'。");
+            if (column.IsPrimaryKey)
+                throw new InvalidOperationException("关系表联接 UPDATE 不支持更新 PRIMARY KEY 列。");
+            if (column.IsRowVersion)
+                throw new InvalidOperationException($"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
+            if (column.IsAutoIncrement)
+                throw new InvalidOperationException($"AUTO_INCREMENT 列 '{column.Name}' 由数据库自动维护，不允许 UPDATE 显式赋值。");
+            assignments.Add(new JoinBoundAssignment(
+                column,
+                assignment.Value,
+                assignment.Value is DefaultValueExpression));
+        }
+        return [.. assignments];
     }
 
     public static RowsAffectedExecutionResult QueueDelete(SqlTransactionContext transaction, Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -5561,6 +6142,8 @@ internal static class TableSqlExecutor
         => new($"列 '{column.Name}' 期望 {column.DataType}，实际值类型为 {value.GetType().Name}。");
 
     private sealed record BoundAssignment(TableColumn Column, SqlExpression Value, bool UsesDefault);
+
+    private sealed record JoinBoundAssignment(TableColumn Column, SqlExpression Value, bool UsesDefault);
 
     private sealed record BoundColumnDefault(TableColumn Column, SqlExpression Expression);
 

@@ -8,6 +8,7 @@ namespace SonnetDB.Streaming;
 /// </summary>
 public sealed class InMemoryStreamingSubscription : IAsyncDisposable
 {
+    private const int MaxReadAvailabilityChecks = 2;
     private readonly object _stateGate = new();
     private readonly Channel<StreamingEvent> _channel;
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -155,8 +156,13 @@ public sealed class InMemoryStreamingSubscription : IAsyncDisposable
                 }
             }
 
-            while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            for (int availabilityCheck = 0;
+                availabilityCheck < MaxReadAvailabilityChecks;
+                availabilityCheck++)
             {
+                if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                    return null;
+
                 var events = new List<StreamingEvent>(Definition.BatchSize);
                 while (events.Count < Definition.BatchSize && _channel.Reader.TryRead(out StreamingEvent? value))
                     events.Add(value);
@@ -179,7 +185,8 @@ public sealed class InMemoryStreamingSubscription : IAsyncDisposable
                 }
             }
 
-            return null;
+            throw new InvalidOperationException(
+                "Streaming 读取通道在有数据信号后未能在有界次数内提供事件。");
         }
         finally
         {

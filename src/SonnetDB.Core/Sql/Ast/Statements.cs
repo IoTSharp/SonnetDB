@@ -674,17 +674,27 @@ public enum SqlOnConflictAction
 {
     /// <summary>冲突行跳过，不产生写入或错误。</summary>
     DoNothing,
+    /// <summary>冲突行按 <c>DO UPDATE SET</c> 赋值并原子替换。</summary>
+    DoUpdate,
 }
 
 /// <summary>
-/// SonnetDB 原生 <c>ON CONFLICT [(column, ...)] DO NOTHING</c> 子集。
+/// SonnetDB 原生 <c>ON CONFLICT [(column, ...)] DO NOTHING</c> /
+/// <c>DO UPDATE SET column = expression</c> 子集。
 /// 空目标列表示匹配任一主键或唯一索引。
 /// </summary>
 /// <param name="TargetColumns">冲突目标列；为空时匹配任一唯一约束。</param>
 /// <param name="Action">冲突处理动作。</param>
 public sealed record SqlOnConflictClause(
     IReadOnlyList<string> TargetColumns,
-    SqlOnConflictAction Action = SqlOnConflictAction.DoNothing);
+    SqlOnConflictAction Action = SqlOnConflictAction.DoNothing)
+{
+    /// <summary>
+    /// <c>DO UPDATE SET</c> 的赋值列表；<c>DO NOTHING</c> 时必须为空。
+    /// 赋值表达式可用 <c>excluded.column</c> 引用本次候选行。
+    /// </summary>
+    public IReadOnlyList<UpdateAssignment> UpdateAssignments { get; init; } = Array.Empty<UpdateAssignment>();
+}
 
 /// <summary>
 /// 非递归 <c>WITH name AS (SELECT ...)</c> 公共表表达式。
@@ -1072,18 +1082,28 @@ public sealed record DeleteStatement(
 public sealed record TruncateTableStatement(string TableName) : SqlStatement;
 
 /// <summary>
-/// <c>UPDATE table [AS alias] SET col = expr [, ...] WHERE expr</c>。
+/// <c>UPDATE table [AS alias] [JOIN ...] SET col = expr [, ...] [FROM ...] WHERE expr</c>。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
 /// <param name="Assignments">SET 子句中的列赋值列表。</param>
 /// <param name="Where">WHERE 表达式（必填）。</param>
 /// <param name="TableAlias">目标表可选别名。</param>
+/// <param name="FromClauses">可选的关系表联接来源；每个目标行最多按首个匹配来源更新一次。</param>
 public sealed record UpdateStatement(
     string TableName,
     IReadOnlyList<UpdateAssignment> Assignments,
     SqlExpression Where,
     string? TableAlias = null) : SqlStatement
 {
+    /// <summary>
+    /// UPDATE 联接来源。首项可以来自 <c>UPDATE ... JOIN</c> 或 <c>FROM</c>，后续项为链式 JOIN。
+    /// 关系表联接只读，不会改写来源表；重复来源匹配按关系执行顺序取首行，目标行只计一次。
+    /// </summary>
+    public IReadOnlyList<JoinClause> FromClauses { get; init; } = Array.Empty<JoinClause>();
+
+    /// <summary>UPDATE 联接来源的兼容别名。</summary>
+    public IReadOnlyList<JoinClause> From => FromClauses;
+
     /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
 }

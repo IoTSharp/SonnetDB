@@ -136,8 +136,33 @@ public static class SqlParameterBinder
                 changed = true;
             rows.Add(boundRow);
         }
+        SqlOnConflictClause? conflict = insert.OnConflict;
+        if (conflict is not null)
+        {
+            var assignments = conflict.UpdateAssignments
+                .Select(assignment =>
+                {
+                    var boundValue = BindExpr(assignment.Value, p);
+                    if (ReferenceEquals(boundValue, assignment.Value))
+                        return assignment;
+                    changed = true;
+                    return assignment with { Value = boundValue };
+                })
+                .ToArray();
+            if (!ReferenceEquals(assignments, conflict.UpdateAssignments))
+            {
+                conflict = conflict with { UpdateAssignments = assignments };
+                changed = true;
+            }
+        }
+
         return changed || insert.Query is not null
-            ? insert with { Rows = rows, Query = insert.Query is null ? null : BindSelect(insert.Query, p) }
+            ? insert with
+            {
+                Rows = rows,
+                Query = insert.Query is null ? null : BindSelect(insert.Query, p),
+                OnConflict = conflict,
+            }
             : insert;
     }
 
@@ -163,7 +188,20 @@ public static class SqlParameterBinder
         if (!ReferenceEquals(where, update.Where))
             changed = true;
 
-        return changed ? update with { Assignments = assignments, Where = where } : update;
+        var fromClauses = new JoinClause[update.FromClauses.Count];
+        for (int i = 0; i < fromClauses.Length; i++)
+        {
+            var join = update.FromClauses[i];
+            var boundOn = BindExpr(join.On, p);
+            fromClauses[i] = ReferenceEquals(boundOn, join.On)
+                ? join
+                : join with { On = boundOn };
+            changed |= !ReferenceEquals(boundOn, join.On);
+        }
+
+        return changed
+            ? update with { Assignments = assignments, Where = where, FromClauses = fromClauses }
+            : update;
     }
 
     private static IReadOnlyList<SelectItem> BindProjections(IReadOnlyList<SelectItem> projections, SqlParameters p)
