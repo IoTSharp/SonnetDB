@@ -2,6 +2,7 @@
   "schemaVersion": "1.0",
   "indexId": "sonnetdb-fourteen-capabilities",
   "generatedFor": "M43 #383",
+  "journeyIndex": "docs/audits/fourteen-capability-journey-index.json",
   "statusContract": {
     "supported": "The named slice has an implementation, an external entry point, and matching automated evidence.",
     "partial": "Some implementation or validation exists, but the acceptance boundary is not closed.",
@@ -46,7 +47,7 @@
       "category": "native_model",
       "maturity": "partial",
       "roadmap": ["M21", "M24", "M25 #174", "M32", "M36 #326"],
-      "entryPoints": ["src/SonnetDB.Core/Document", "src/SonnetDB.Data/Document", "src/SonnetDB/Endpoints"],
+      "entryPoints": ["src/SonnetDB.Core/Documents", "src/SonnetDB.Data/Documents", "src/SonnetDB/Endpoints"],
       "evidence": ["docs/document-store.md", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
       "boundary": "The documented single-node subset is supported; MongoDB wire compatibility and million/ten-million document capacity are out of scope or unverified."
     },
@@ -96,7 +97,7 @@
       "category": "native_model",
       "maturity": "beta",
       "roadmap": ["M36 #326", "M40", "M42"],
-      "entryPoints": ["src/SonnetDB.Core/Graph", "src/SonnetDB.Data/Graph", "src/SonnetDB/Endpoints"],
+      "entryPoints": ["src/SonnetDB.Core/Graphs", "src/SonnetDB.Data/Graphs", "src/SonnetDB/Endpoints"],
       "evidence": ["docs/native-graph-database-roadmap.md", "docs/m40-graph-367-production-gate.md", "docs/audits/nine-model-gap-catalog-20260905.json"],
       "boundary": "Graph Beta is a bounded native contract; external semantic comparison, fixed hardware, AOT and long-run production gates are not passed."
     },
@@ -114,21 +115,21 @@
       "id": "streaming",
       "name": "Stream processing and subscriptions",
       "category": "platform_capability",
-      "maturity": "planned",
+      "maturity": "partial",
       "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
-      "entryPoints": ["src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/roadmap-total-milestone.md"],
-      "boundary": "Existing SSE, MQTT, CoAP, replay and outbox pieces are not a unified recoverable stream contract yet."
+      "entryPoints": ["src/SonnetDB.Core/Streaming", "src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "docs/roadmap-total-milestone.md"],
+      "boundary": "A bounded embedded subscription contract with watermark, late-event policy, checkpoint restore and at-least-once redelivery is covered locally; persistent task operations, remote parity, cross-process recovery and distributed semantics remain open."
     },
     {
       "id": "cdc",
       "name": "CDC, edge synchronization and replication",
       "category": "platform_capability",
-      "maturity": "planned",
+      "maturity": "partial",
       "roadmap": ["M43 #385", "M43 #386", "M43 #387", "M43 #388", "M43 #389", "M43 #390"],
-      "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
-      "boundary": "Existing change feeds and protocol routes do not yet define a versioned CDC format, offline queue, conflict policy or replication topology."
+      "entryPoints": ["src/SonnetDB.Core/Cdc", "src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
+      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
+      "boundary": "A bounded versioned CDC event format with schema/checkpoint metadata and strict UTF-8 codec is covered locally; snapshot/incremental handoff, offline queue, conflict policy, client routes and replication topology remain open."
     },
     {
       "id": "ai-rag",

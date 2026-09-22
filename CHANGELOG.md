@@ -16,6 +16,10 @@
 
 ### Added
 
+- **M43 #396 十四能力 golden-journey 索引门禁**：新增机器可读的十四能力 journey 索引，统一 `local_contract`、`remote_parity`、`recovery`、`fixed_hardware` 和 `long_run` 阶段及 `PASS`/`PARTIAL`/`NOT_READY`/`DEFERRED` 状态；增强 `validate-fourteen-capability-index.ps1` 检查入口、证据路径和每项能力的完整旅程映射。该索引只冻结验收边界，不把外部或固定硬件阶段标记为已完成。
+- **M43 #391 可恢复 Streaming 订阅合同首切片**：新增版本化订阅/检查点 DTO、source-generated JSON、事件时间 watermark、迟到事件 `Deliver`/`Drop`/`Reject` 策略，以及带有界 Channel 背压、取消、单 in-flight 批次、至少一次重投和显式 ACK 的嵌入式实现。检查点可由外部持久层恢复；本切片不宣称跨进程协调或 exactly-once，详见 [Streaming 订阅合同](docs/streaming-subscription-contract.md)。
+- **M43 #385 CDC 版本化事件合同首切片**：新增不可变 CDC 事件、schema/contract version、分区 checkpoint 和 insert/update/delete 语义；手写有界 UTF-8 JSON 编解码器拒绝未知字段、重复字段、未知版本/操作、无效 payload、深度和字节超限，并支持可取消的流读写。该切片只定义跨进程格式与边界，尚未提供离线队列、冲突解决或复制拓扑，详见 [CDC 合同](docs/cdc-contract.md)。
+
 - **GH-Issue #177 标准关系表 JOIN**：关系 SQL 新增 `RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`，保留声明顺序、SQL 三值 `ON` 条件、外连接 `NULL` 扩展和笛卡尔积语义；右/全外连接使用有界嵌套循环，既有 INNER/LEFT 的 hash、索引和 merge 计划保持不变，右侧未匹配行补发循环逐行检查取消。measurement JOIN 明确继续只支持单个 INNER JOIN，并对这三类标准连接返回稳定的不支持错误。新增解析、右侧/两侧未匹配、重复键和笛卡尔积回归；本轮定向 JOIN/解析测试 99/99 通过。固定硬件、远程 parity 和大规模笛卡尔积容量证据仍未执行。
 - **GH-Issue #180 JSON 标量/数组查询**：注册 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)`，关系表 JSON 列与 Document 集合共用 `JsonPath`/`JsonDocument` 实现，支持参数化 path、JSON `null` 与缺失区分、数组无序子集及对象字段子集。输入、path、嵌套深度、集合大小和对象属性/数组配对比较次数均有明确上限（每次 `json_contains` 最多 1,000,000 次结构比较），不使用反射序列化；新增关系/Document/NULL/非法输入/资源边界回归，定向测试 4/4 通过。远程 Frame/parity、复杂 JSON 索引下推和真实大语料性能仍待验证。
 - **GH-Issue #193 关系表 VECTOR/GEOPOINT 边界**：关系表 DDL 对 `VECTOR(dim)` 与 `GEOPOINT` 保持明确、稳定的拒绝错误，避免把 measurement/Document 专用类型误写成关系表已支持；新增解析器边界回归和 SQL 参考说明。跨模型 typed journey、远程 metadata parity 和完整关系列支持仍未承诺。
