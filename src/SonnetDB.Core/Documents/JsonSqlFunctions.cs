@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
@@ -283,35 +284,7 @@ internal static class JsonSqlFunctions
                 if (candidate.ValueKind == JsonValueKind.Array)
                 {
                     EnsureCollectionBudget(candidate, functionName);
-                    JsonElement[] targetItems = target.EnumerateArray().ToArray();
-                    bool[] matched = new bool[targetItems.Length];
-                    foreach (JsonElement candidateItem in candidate.EnumerateArray())
-                    {
-                        bool found = false;
-                        for (int index = 0; index < targetItems.Length; index++)
-                        {
-                            if (!matched[index]
-                                && ContainsElement(
-                                    targetItems[index],
-                                    candidateItem,
-                                    depth + 1,
-                                    allowObjectFieldName: false,
-                                    functionName,
-                                    comparisonBudget))
-                            {
-                                matched[index] = true;
-                                found = true;
-                                break;
-                            }
-                        }
-
-                        if (!found)
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
+                    return ContainsArraySubset(target, candidate, depth, functionName, comparisonBudget);
                 }
 
                 return target.EnumerateArray().Any(item =>
@@ -362,6 +335,91 @@ internal static class JsonSqlFunctions
             default:
                 return JsonElementsEqual(target, candidate, depth, functionName, comparisonBudget);
         }
+    }
+
+    // 对象子集等匹配可能重叠，贪心选择首个目标会错误拒绝存在一一映射的候选数组。
+    // 按需广度优先寻找增广路径；不保存 O(N*M) 比较图，也不按数组长度递归调用。
+    private static bool ContainsArraySubset(
+        JsonElement target,
+        JsonElement candidate,
+        int depth,
+        string functionName,
+        ComparisonBudget comparisonBudget)
+    {
+        int candidateCount = candidate.GetArrayLength();
+        int targetCount = target.GetArrayLength();
+        if (candidateCount == 0)
+            return true;
+        if (candidateCount > targetCount)
+            return false;
+
+        JsonElement[] targetItems = target.EnumerateArray().ToArray();
+        JsonElement[] candidateItems = candidate.EnumerateArray().ToArray();
+        int[] targetOwners = new int[targetCount];
+        int[] candidateTargets = new int[candidateCount];
+        int[] visitedTargets = new int[targetCount];
+        int[] parentCandidates = new int[targetCount];
+        int[] queue = new int[candidateCount];
+        Array.Fill(targetOwners, -1);
+        Array.Fill(candidateTargets, -1);
+
+        for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
+        {
+            int visit = candidateIndex + 1;
+            int queued = 1;
+            int availableTarget = -1;
+            queue[0] = candidateIndex;
+            for (int cursor = 0; cursor < queued && availableTarget < 0; cursor++)
+            {
+                int currentCandidate = queue[cursor];
+                for (int targetIndex = 0; targetIndex < targetCount; targetIndex++)
+                {
+                    // 已访问槽位的扫描也消耗预算，避免密集匹配留下无计数的二次循环。
+                    comparisonBudget.Consume(functionName);
+                    if (visitedTargets[targetIndex] == visit
+                        || !ContainsElement(
+                            targetItems[targetIndex],
+                            candidateItems[currentCandidate],
+                            depth + 1,
+                            allowObjectFieldName: false,
+                            functionName,
+                            comparisonBudget))
+                    {
+                        continue;
+                    }
+
+                    visitedTargets[targetIndex] = visit;
+                    parentCandidates[targetIndex] = currentCandidate;
+                    int owner = targetOwners[targetIndex];
+                    if (owner < 0)
+                    {
+                        availableTarget = targetIndex;
+                        break;
+                    }
+
+                    // 每个已匹配候选恰好拥有一个目标，每个目标本轮最多访问一次。
+                    queue[queued++] = owner;
+                }
+            }
+
+            if (availableTarget < 0)
+                return false;
+
+            // 增广链至多经过当前已处理的候选数；只有 JSON 嵌套使用原有深度限制。
+            for (int hop = 0; hop <= candidateIndex; hop++)
+            {
+                comparisonBudget.Consume(functionName);
+                int owner = parentCandidates[availableTarget];
+                int previousTarget = candidateTargets[owner];
+                targetOwners[availableTarget] = owner;
+                candidateTargets[owner] = availableTarget;
+                if (previousTarget < 0)
+                    break;
+                availableTarget = previousTarget;
+            }
+        }
+
+        return true;
     }
 
     private static bool JsonElementsEqual(
@@ -522,6 +580,8 @@ internal static class JsonSqlFunctions
 
         internal void Consume(string functionName)
         {
+            if ((_used & 255) == 0)
+                SqlExecutor.ThrowIfCancellationRequested();
             if (_used >= _limit)
             {
                 throw new InvalidOperationException(

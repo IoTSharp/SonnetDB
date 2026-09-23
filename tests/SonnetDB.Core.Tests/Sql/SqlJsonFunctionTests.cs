@@ -171,4 +171,33 @@ public sealed class SqlJsonFunctionTests : IDisposable
             contains.Evaluate([objectTarget, "$", objectCandidate]));
         Assert.Contains("比较次数超过", objectComparison.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>重叠的对象/数组候选须重新分配目标，且重复候选仍需不同目标元素。</summary>
+    [Theory]
+    [InlineData("[{\"a\":1,\"b\":2},{\"a\":1}]", "[{\"a\":1},{\"a\":1,\"b\":2}]", true)]
+    [InlineData("[{\"a\":1},{\"a\":1,\"b\":2}]", "[{\"a\":1},{\"a\":1,\"b\":2}]", true)]
+    [InlineData("[{\"a\":1,\"b\":2},{\"a\":1}]", "[{\"a\":1,\"b\":2},{\"a\":1}]", true)]
+    [InlineData("[{\"a\":1,\"b\":2},{\"a\":1}]", "[{\"a\":1,\"b\":2},{\"a\":1,\"b\":2}]", false)]
+    [InlineData("[{\"a\":1},{\"b\":2},{\"b\":2}]", "[{\"a\":1},{\"a\":1},{\"b\":2}]", false)]
+    [InlineData("[{\"a\":1,\"b\":1},{\"b\":1,\"c\":1},{\"a\":1}]", "[{\"a\":1},{\"b\":1},{\"c\":1}]", true)]
+    [InlineData("[[1,2],[1]]", "[[1],[1,2]]", true)]
+    [InlineData("[null,{\"x\":null}]", "[{\"x\":null},null]", true)]
+    [InlineData("[null]", "[null,null]", false)]
+    public void JsonContains_OverlappingArrayCandidates_FindsDistinctAssignment(string target, string candidate, bool expected)
+    {
+        Assert.True(FunctionRegistry.TryGetScalar("json_contains", out var contains));
+        Assert.Equal(expected, contains.Evaluate([target, "$", candidate]));
+    }
+
+    /// <summary>128 元素增广链使用有界迭代，不把数组长度计作 JSON 嵌套或递归栈深度。</summary>
+    [Fact]
+    public void JsonContains_LongReassignmentChain_CompletesWithinComparisonBudget()
+    {
+        Assert.True(FunctionRegistry.TryGetScalar("json_contains", out var contains));
+        string target = "[" + string.Join(',', Enumerable.Range(0, 127)
+            .Select(index => $"{{\"p{index}\":true,\"p{index + 1}\":true}}")) + ",{\"p0\":true}]";
+        string candidate = "[" + string.Join(',', Enumerable.Range(0, 128)
+            .Select(index => $"{{\"p{index}\":true}}")) + "]";
+        Assert.Equal(true, contains.Evaluate([target, "$", candidate]));
+    }
 }
