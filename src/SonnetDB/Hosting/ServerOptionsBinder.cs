@@ -56,6 +56,17 @@ internal static class ServerOptionsBinder
     /// <param name="options">待补齐的服务器选项。</param>
     public static void ApplyDefaults(ServerOptions options)
     {
+        if (!string.IsNullOrWhiteSpace(options.Copilot.ServerRelayJournalPath))
+        {
+            if (!Path.IsPathFullyQualified(options.Copilot.ServerRelayJournalPath))
+                throw new InvalidOperationException("Copilot.ServerRelayJournalPath 必须是绝对文件路径。");
+            options.Copilot.ServerRelayJournalPath = Path.GetFullPath(options.Copilot.ServerRelayJournalPath);
+        }
+        else
+        {
+            options.Copilot.ServerRelayJournalPath = null;
+        }
+
         if (options.Copilot.Docs.Roots.Count == 0)
             options.Copilot.Docs.Roots.AddRange(DefaultCopilotDocsRoots);
 

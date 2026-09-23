@@ -190,8 +190,10 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<CopilotServerRelayRunStore>(sp =>
         {
             var systemDirectory = GetSystemDirectory(sp);
+            var copilot = sp.GetRequiredService<IOptions<ServerOptions>>().Value.Copilot;
             return new CopilotServerRelayRunStore(
-                journalPath: Path.Combine(systemDirectory, "copilot-relay-journal.json"));
+                journalPath: copilot.ServerRelayJournalPath
+                    ?? Path.Combine(systemDirectory, "copilot-relay-journal.json"));
         });
 
         // PR #64：文档摄入与检索（Knowledge 库 __copilot__）。

@@ -833,6 +833,7 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
             var created = first.Attach("relay-interrupted", cursor: null, binding);
             var run = Assert.IsType<CopilotServerRelayRun>(created.Run);
             run.Publish(new CopilotChatEvent("start", Message: "started"));
+            first.Dispose();
 
             var restarted = new CopilotServerRelayRunStore(journalPath: journalPath);
             var attached = restarted.Attach("relay-interrupted", cursor: null, binding);
@@ -868,6 +869,48 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
 
             Assert.Equal(CopilotServerRelayAttachStatus.Expired, attached.Status);
             Assert.Null(attached.Run);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_JournalWithWhitespaceDatabaseName_FailsClosed()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-whitespace-db-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        File.WriteAllText(
+            journalPath,
+            """
+            {"runs":[{"runId":"relay-whitespace-db","binding":{"owner":"owner","databaseName":"  ","requestFingerprint":"fingerprint"},"activeExpiresAtUtc":"2030-01-01T00:00:00Z","replayExpiresAtUtc":"2030-01-01T00:10:00Z","completed":true,"events":[]}]}
+            """);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => new CopilotServerRelayRunStore(journalPath: journalPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_JournalRunAndTombstoneShareIdentity_FailsClosed()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-identity-conflict-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        File.WriteAllText(
+            journalPath,
+            """
+            {"runs":[{"runId":"relay-conflict","binding":{"owner":"owner","databaseName":"test","requestFingerprint":"fingerprint"},"activeExpiresAtUtc":"2030-01-01T00:00:00Z","replayExpiresAtUtc":"2030-01-01T00:10:00Z","completed":true,"events":[]}],"tombstones":[{"owner":"owner","runId":"relay-conflict","expiresAtUtc":"2030-01-01T00:10:00Z"}]}
+            """);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => new CopilotServerRelayRunStore(journalPath: journalPath));
         }
         finally
         {

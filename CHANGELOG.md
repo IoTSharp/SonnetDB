@@ -17,6 +17,8 @@
 
 ### Added
 
+- **M27 #340 ServerRelay 多实例本地合同完成（2026-09-23，2026-09-24 最终复验）**：共享 journal 的单执行者 lease、跨实例活跃事件跟随、owner 丢失后的唯一 `error/done` 封闭、损坏/重复/超限 journal fail-closed、dispose/取消回收及绝对路径配置接线已交付。保留未选库的合法控制面 binding，修复锁超时后的 lease/活动槽位泄漏及 Dispose 回调重入。Server Release 0 warning/0 error，最终定向 119/119；两个独立 DataRoot 的最新 Server 进程 smoke 通过 live follow、hard-kill failure seal、稳定失败重放和 cleanup（provider 6 次、planner 4 次、answer 2 次）。真实 IdP、部署双网、模型质量及 provider 透明续跑不在本项范围，见 [闭环报告](docs/audits/relay-multi-instance-closure-20260923.md)。
+
 - **M27 #340 StudioNative 本地合同完成（2026-09-23）**：交付固定 HTTPS 公网 broker、Windows Credential Manager、原生短期 runtime token 输入、Web transport、只读 typed MCP continuation 与连接/取消/断开/到期清理。修复最终回答重复显示，并以有界精确 JSON 指纹消除嵌套内存膨胀、长零串回溯和大整数/重复键重放误判。新增宿主 39、Web/协议 26 项用例；完整 Studio 56/56、Native 专项 26/26、主 Web 161 通过，13 项模式限定用例已在专项覆盖，2 项缺目标配置的既有真实 KV 用例未执行。生产构建通过。见[验收报告](docs/audits/m27-studio-native-closure-20260923.md)；桌面 OAuth 获取、真实 WebView2/provider/双网现场、多实例接管及整个 M27 仍独立保留。
 
 - **GH-Issue #196 参数化 measurement JOIN 完成（2026-09-23）**：执行器消费规范化 JOIN 和完整排序列表，修复嵌入式绑定后排序/分页结果偏差；支持隐藏 FIELD 和混合方向多键排序。聚合/分组在 SELECT 与 EXPLAIN 扫描前一致拒绝，新增六个 `DataSourceInformation` 模型能力字段及 Provider 预检合同。新增 36 项用例，最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。FreeSql 发布、旧 Server 协商和固定硬件门禁独立保留。

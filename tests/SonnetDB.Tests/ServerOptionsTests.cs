@@ -9,6 +9,41 @@ namespace SonnetDB.Tests;
 public sealed class ServerOptionsTests
 {
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Bind_EmptyRelayJournalPath_PreservesDefault(string? path)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Copilot:ServerRelayJournalPath"] = path,
+        }).Build();
+        Assert.Null(ServerOptionsBinder.Bind(configuration).Copilot.ServerRelayJournalPath);
+    }
+
+    [Fact]
+    public void Bind_AbsoluteRelayJournalPath_PreservesSharedJournalConfiguration()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "relay-shared", "journal.json");
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Copilot:ServerRelayJournalPath"] = path,
+        }).Build();
+        Assert.Equal(Path.GetFullPath(path), ServerOptionsBinder.Bind(configuration).Copilot.ServerRelayJournalPath);
+    }
+
+    [Fact]
+    public void Bind_RelativeRelayJournalPath_RejectsAmbiguousInstancePaths()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Copilot:ServerRelayJournalPath"] = "shared/journal.json",
+        }).Build();
+        Assert.Contains("绝对文件路径", Assert.Throws<InvalidOperationException>(() =>
+            ServerOptionsBinder.Bind(configuration)).Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("0", 1, 1, 1)]
     [InlineData("999999999", 100000, 134217728, 120000)]
     [InlineData("256", 256, 256, 256)]
