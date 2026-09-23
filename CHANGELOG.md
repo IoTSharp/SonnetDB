@@ -17,6 +17,10 @@
 
 ### Added
 
+- **M27 #340 BrowserDirect OAuth/PKCE 获取入口闭环（2026-09-23）**：新增受信 HTTPS Authorization Code + S256 登录、固定匿名 callback、一次性 state/issuer/source/origin 校验和仅内存短期凭据；CopilotDock 提供连接/取消/断开，登出、身份改变、模式切换、到期和销毁阻断迟到凭据。补齐生产 HTML 与 Vite 的 Referrer 限制、默认 E2E fixture 配置和有界进程清理。新增 56 项回归（OAuth 核心 43、真实浏览器 12、模式切换 1），Web 完整套件 148 通过、2 项既有真实 KV 用例因缺少目标配置跳过；完整请求头强化后 OAuth 12/12 再次通过，生产构建通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署后的双网、StudioNative 和多实例接管仍未完成。
+
+- **GH-Issue #177/#180/#193 功能闭环（2026-09-23）**：标准关系 JOIN、JSON 标量/数组查询和关系表 VECTOR/GEOPOINT 产品边界（选项 2）完成；新增 77 项用例，最终 Release 回归 358/358 通过（Core 194、真实 Server/SDK 164）。补齐 JOIN 能力标志及 `DataTypes` 模型支持字段，修复规范化 measurement JOIN/EXPLAIN 分派、明确拒绝时序外连接，并修复 `json_contains` 重叠数组候选的顺序依赖，保留有界匹配与取消。完整合同、索引协作和证据见[闭环报告](docs/audits/sql-provider-closure-20260923.md)；GitHub issue 远程状态仍为 open，固定硬件与发布门禁独立保留。
+
 - **M20 Parity schema shape gate**：summarizer 现在要求 `scenarios` 与 `capabilityGaps` 真正为 JSON 数组；对象形状会生成 `parity_report_parse_failed` failing summary，并有对应负例回归。
 - **M43 #396 status contract gate**：能力索引校验同时拒绝空白状态描述，避免只存在键而没有可读合同。
 - **M36 #325/#326 MQ retention/dedup 修复**：tombstone/retention 截断会有界清理已不可读消息的 `message-id` 索引，同时保留 cutoff 及之后仍可读消息的去重语义；目录模式、单文件模式和重开回归均覆盖。该修复不改变日志格式、offset 或实例级备份边界。

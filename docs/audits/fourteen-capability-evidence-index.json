@@ -26,9 +26,9 @@
       "name": "Relational SQL",
       "category": "native_model",
       "maturity": "partial",
-      "roadmap": ["M6", "M37-M39", "M41 #375", "M42", "M43 GH-Issue #171", "M43 GH-Issue #172", "M43 GH-Issue #173", "M43 GH-Issue #174", "M43 GH-Issue #175", "M43 GH-Issue #176", "M43 GH-Issue #178", "M43 GH-Issue #179", "M43 GH-Issue #181", "M43 GH-Issue #182", "M43 GH-Issue #183", "M36 #311", "M36 #313"],
+      "roadmap": ["M6", "M37-M39", "M41 #375", "M42", "M43 GH-Issue #171", "M43 GH-Issue #172", "M43 GH-Issue #173", "M43 GH-Issue #174", "M43 GH-Issue #175", "M43 GH-Issue #176", "M43 GH-Issue #177", "M43 GH-Issue #178", "M43 GH-Issue #179", "M43 GH-Issue #181", "M43 GH-Issue #182", "M43 GH-Issue #183", "M36 #311", "M36 #313"],
       "entryPoints": ["src/SonnetDB.Core/Sql", "src/SonnetDB.Data", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/sql-reference.md", "tests/SonnetDB.Core.Tests/Sql/SqlExpressionExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlCastTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDecimalTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs", "tests/SonnetDB.Core.Tests/Ado/SndbAdoApiTests.cs", "tests/SonnetDB.Core.Tests/Query/Functions/FunctionRegistryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlStringFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDateFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlAggregateDistinctTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlBetweenIlikeTests.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "docs/audits/nine-model-local-journey-evidence-20260920.md"],
+      "evidence": ["docs/sql-reference.md", "docs/standard-join-contract.md", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Core.Tests/Sql/RelationalStandardJoinTests.cs", "tests/SonnetDB.Tests/RemoteStandardJoinTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlExpressionExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlCastTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDecimalTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs", "tests/SonnetDB.Core.Tests/Ado/SndbAdoApiTests.cs", "tests/SonnetDB.Core.Tests/Query/Functions/FunctionRegistryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlStringFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDateFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlAggregateDistinctTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlBetweenIlikeTests.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "docs/audits/nine-model-local-journey-evidence-20260920.md"],
       "boundary": "The SQL surface is a practical subset; GH-Issue #171 non-recursive CTE, #172 bounded ANSI OVER/row_number, #173 CAST across supported scalar/date/blob/json targets, #174 bounded common string functions, #175 bounded date difference/formatting, #176 single-field aggregate DISTINCT, #178 UNION ALL/INTERSECT/EXCEPT, #179 inclusive BETWEEN/ILIKE, #181 exact DECIMAL/NUMERIC relation values with bounded precision/scale and embedded/remote ADO.NET schema precision/scale projection, #182 bounded TIME/TimeOnly relation semantics, and #183 integer bitwise SELECT/WHERE/UPDATE semantics are locally covered. CTE output-column lists, recursive CTEs, VECTOR/GEOPOINT CAST targets, compound operator precedence, multi-expression/ordered-set/window DISTINCT, symmetric BETWEEN, locale-specific ILIKE collations, window PARTITION BY/frame semantics, TRIM dialect forms/collation and byte-length string semantics, locale/timezone calendar semantics, cross-day/24:00 TIME semantics, remote typed TIME/Frame parity, overflow/scale enforcement beyond System.Decimal, end-to-end large-result streaming and field tail-latency evidence remain open."
     },
     {
@@ -46,9 +46,9 @@
       "name": "JSON document store",
       "category": "native_model",
       "maturity": "partial",
-      "roadmap": ["M21", "M24", "M25 #174", "M32", "M36 #326"],
+      "roadmap": ["M21", "M24", "M25 #174", "M32", "M36 #326", "M43 GH-Issue #180"],
       "entryPoints": ["src/SonnetDB.Core/Documents", "src/SonnetDB.Data/Documents", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/document-store.md", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
+      "evidence": ["docs/document-store.md", "docs/json-query-contract.md", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Tests/RemoteJsonFunctionTests.cs", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
       "boundary": "The documented single-node subset is supported; MongoDB wire compatibility and million/ten-million document capacity are out of scope or unverified."
     },
     {
@@ -106,9 +106,9 @@
       "name": "Spatial, geography and trajectory",
       "category": "cross_model",
       "maturity": "partial",
-      "roadmap": ["M15-M17", "M30", "M34", "M43 #396"],
+      "roadmap": ["M15-M17", "M23 GH-Issue #193", "M30", "M34", "M43 #396"],
       "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB/Endpoints", "web/src"],
-      "evidence": ["docs/roadmap-total-milestone.md", "docs/audits/nine-model-capability-evidence-20260905.md"],
+      "evidence": ["docs/roadmap-total-milestone.md", "docs/relation-type-boundary.md", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Tests/RemoteRelationTypeBoundaryTests.cs", "docs/audits/nine-model-capability-evidence-20260905.md"],
       "boundary": "Geospatial values and industrial entry points exist; cross-model permissions, scale and a complete real-device journey remain to be verified."
     },
     {
