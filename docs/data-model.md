@@ -88,6 +88,10 @@ field 是真正随时间变化的观测值。当前支持：
 - `INT`
 - `BOOL`
 - `STRING`
+- `VECTOR(N)`（固定维度浮点向量）
+- `GEOPOINT`（WGS84 纬度/经度）
+
+`VECTOR(N)` 与 `GEOPOINT` 是 measurement FIELD 类型，关系表列不支持。关系表与 FIELD 的完整类型范围、ADO.NET 能力元数据和替代建模方式见[类型矩阵与关系实体替代模型]({{ site.docs_baseurl | default: '/help' }}/relation-type-boundary/)。
 
 同一个 measurement 中，field 的名称和类型应该尽量保持稳定。写入路径支持受控的 schema 演进：缺失的 tag / field 会自动追加，`INT` 字段后续遇到 `FLOAT` 值时会提升为 `FLOAT`；已经是 `FLOAT` 的字段再写入整数会在入库前转成浮点保存。其它类型漂移仍会被拒绝。
 

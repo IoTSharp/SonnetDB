@@ -145,7 +145,7 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
-- 关系表当前明确支持 `INT`、`FLOAT`、`DECIMAL/NUMERIC`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB` 和 `JSON`；`VECTOR(dim)` 与 `GEOPOINT` 在关系表 DDL 中会稳定拒绝。VECTOR/GEOPOINT 仍可用于 measurement 或 Document/Vector 专用入口，不能把关系表拒绝边界解释为跨模型 typed journey 已完成。
+- `VECTOR(dim)` 与 `GEOPOINT` 只作为 measurement 的 `FIELD` SQL 类型提供，不支持关系表 `CREATE TABLE`、`ALTER TABLE ADD COLUMN` 或 `ALTER COLUMN ... TYPE`；这些声明会确定性拒绝且不创建半成品表/列。文档集合 JSON 数组和专用向量 API 不构成关系类型支持。ADO.NET `GetSchema("DataTypes")` 通过 `SupportsRelationalColumn=false`、`SupportsMeasurementField=true` 明示这两个类型的边界；该表是 SDK 本地能力元数据，不是远端版本协商。完整[类型矩阵与官方关系实体替代模型]({{ site.docs_baseurl | default: '/help' }}/relation-type-boundary/)给出标量经纬度加显式 JSON 载荷，以及关系主数据加 companion measurement 两种建模方式；ORM 不得静默改为 JSON 或时序字段。
 - 普通列可声明 `DEFAULT <expr>`；默认表达式支持字面量、常量算术和内置标量函数，不能引用列、参数、聚合或子查询。`ROWVERSION` 列不能声明默认值。
 - `INSERT` 省略带默认值的列，或在 `VALUES` 对应位置写 `DEFAULT` 时，会在每一行写入时求值并应用目标列的默认表达式；显式写入 `NULL` 不会改用默认值。目标列没有声明显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`：可空列成功，非空列由现有约束拒绝。
 - `INSERT INTO table DEFAULT VALUES` 会为每个非 `ROWVERSION` 列使用其默认值；没有显式默认值的列产生隐式 `NULL`。`UPDATE table SET column = DEFAULT WHERE ...` 会按每个命中行重新求值默认表达式，轻事务路径保持相同语义。
@@ -625,7 +625,7 @@ WHERE guid IN (
 
 ### 关系表 JOIN
 
-关系表查询支持 `INNER JOIN`、`LEFT JOIN`、`RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`。连接两侧可以是关系表、关系视图、物化视图或可解析为关系行的派生表；连接结果仍按关系查询的列投影、谓词和分页规则执行。
+关系表查询支持 `INNER JOIN`、`LEFT JOIN`、`RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`。连接两侧可以是关系表、关系视图、物化视图或可解析为关系行的派生表；连接结果仍按关系查询的列投影、谓词和分页规则执行。列冲突、结果类型、NULL 排序及 ORM 能力发现见[标准 JOIN 合同]({{ site.docs_baseurl | default: '/help' }}/standard-join-contract/)。
 
 ```sql
 SELECT d.id, d.name, s.name AS site_name
@@ -761,7 +761,7 @@ FROM devices;
 - `json_exists(json, path)` 返回 path 是否存在；path 指向 JSON `null` 时仍返回 `TRUE`，path 缺失返回 `FALSE`。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
 - `json_array_length(json, path)` 返回 path 指向数组的元素数（`BIGINT`）；path 缺失或指向 JSON `null` 时返回 SQL `NULL`，指向非数组值时返回执行错误。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
 - `json_contains(json, path, candidate)` 判断 path 结果是否包含候选值。候选字符串按普通 SQL 字符串比较；以 `{` 或 `[` 开头的字符串会按 JSON 对象或数组解析。数组候选按无序子集匹配，对象候选按字段子集匹配；对对象传入普通字符串还可判断字段名是否存在。path 缺失或指向 JSON `null` 返回 `FALSE`，任一参数为 `NULL` 返回 SQL `NULL`。
-- 这些函数只接受字符串 JSON/path（候选值可为 SQL 标量），并在解析前后执行固定资源边界：JSON 文本最多 8 MiB、path 最多 1024 个字符和 64 个片段、嵌套/比较深度最多 64 层、单个数组或对象最多 100,000 个元素/字段；每次 `json_contains` 最多执行 1,000,000 次结构比较，避免数组子集匹配退化为无界笛卡尔扫描。超限或 JSON/path 无效会返回执行错误，不会静默截断。
+- 这些函数只接受字符串 JSON/path（候选值可为 SQL 标量），并执行固定资源边界：JSON 文本最多 8,388,608 个 UTF-16 字符，path 最多 1024 个字符和 64 个片段，嵌套/比较深度最多 64 层，被计算长度或参与包含比较的单个数组/对象最多 100,000 个元素/字段；每次 `json_contains` 最多执行 1,000,000 次匹配扫描与结构比较。超限或 JSON/path 无效会返回执行错误，不会静默截断。完整的候选编码、NULL、重复元素、访问容器预算和 JSON path 索引可用条件见[JSON 查询合同]({{ site.docs_baseurl | default: '/help' }}/json-query-contract/)。
 - `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 不提供 MongoDB wire/Driver 兼容 API 或跨文档复杂事务；集合 validator 支持 SonnetDB 自有 required/type/range/enum/pattern 子集。

@@ -404,7 +404,10 @@ public sealed class TsdbAdoApiTests : IDisposable
 
         var dataSource = c.GetSchema(DbMetaDataCollectionNames.DataSourceInformation);
         Assert.Equal("SonnetDB", dataSource.Rows[0][DbMetaDataColumnNames.DataSourceProductName]);
-        Assert.Equal((int)SupportedJoinOperators.Inner, dataSource.Rows[0][DbMetaDataColumnNames.SupportedJoinOperators]);
+        Assert.Equal(
+            (int)(SupportedJoinOperators.Inner | SupportedJoinOperators.LeftOuter
+                | SupportedJoinOperators.RightOuter | SupportedJoinOperators.FullOuter),
+            dataSource.Rows[0][DbMetaDataColumnNames.SupportedJoinOperators]);
 
         var dataTypes = c.GetSchema(DbMetaDataCollectionNames.DataTypes);
         Assert.Contains(

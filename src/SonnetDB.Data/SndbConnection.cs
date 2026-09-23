@@ -4,6 +4,7 @@ using System.Globalization;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
+using SonnetDB.Model;
 using SonnetDB.Tables;
 
 namespace SonnetDB.Data;
@@ -421,7 +422,8 @@ public sealed class SndbConnection : DbConnection
             IdentifierCase.Sensitive,
             ";",
             "^'([^']|'')*'$",
-            SupportedJoinOperators.Inner);
+            SupportedJoinOperators.Inner | SupportedJoinOperators.LeftOuter
+                | SupportedJoinOperators.RightOuter | SupportedJoinOperators.FullOuter);
 
         return table;
     }
@@ -702,6 +704,9 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("MinimumScale", typeof(short));
         table.Columns.Add("LiteralPrefix", typeof(string));
         table.Columns.Add("LiteralSuffix", typeof(string));
+        // 扩展标准 ADO 列而不改变其含义；类型存在不等于可作为关系表列。
+        table.Columns.Add("SupportsRelationalColumn", typeof(bool));
+        table.Columns.Add("SupportsMeasurementField", typeof(bool));
 
         AddDataType(
             table,
@@ -713,13 +718,17 @@ public sealed class SndbConnection : DbConnection
             fixedLength: true,
             autoIncrementable: true);
         AddDataType(table, "FLOAT", DbType.Double, typeof(double), 15, searchable: true, fixedLength: true, maximumScale: 15);
-        AddDataType(table, "DECIMAL", DbType.Decimal, typeof(decimal), 38, searchable: true, fixedLength: true, maximumScale: 38);
+        AddDataType(table, "DECIMAL", DbType.Decimal, typeof(decimal), 38, searchable: true, fixedLength: true, maximumScale: 38, supportsMeasurementField: false);
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
-        AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true);
-        AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7);
-        AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true);
-        AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
+        AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
+        AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
+        AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true, supportsMeasurementField: false);
+        AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'", supportsMeasurementField: false);
+        AddDataType(table, "VECTOR", DbType.Object, typeof(float[]), int.MaxValue, searchable: false,
+            supportsRelationalColumn: false, bestMatch: false, createFormat: "VECTOR({0})", createParameters: "dimension");
+        AddDataType(table, "GEOPOINT", DbType.Object, typeof(GeoPoint), 16, searchable: false, fixedLength: true,
+            supportsRelationalColumn: false, bestMatch: false);
         return table;
     }
 
@@ -757,17 +766,22 @@ public sealed class SndbConnection : DbConnection
         bool autoIncrementable = false,
         short maximumScale = 0,
         string literalPrefix = "",
-        string literalSuffix = "")
+        string literalSuffix = "",
+        bool supportsRelationalColumn = true,
+        bool supportsMeasurementField = true,
+        bool bestMatch = true,
+        string? createFormat = null,
+        string createParameters = "")
     {
         table.Rows.Add(
             typeName,
             (int)dbType,
             columnSize,
-            typeName,
-            string.Empty,
+            createFormat ?? typeName,
+            createParameters,
             runtimeType.FullName ?? runtimeType.Name,
             autoIncrementable,
-            true,
+            bestMatch,
             caseSensitive,
             fixedLength,
             maximumScale != 0,
@@ -779,7 +793,9 @@ public sealed class SndbConnection : DbConnection
             maximumScale,
             (short)0,
             literalPrefix,
-            literalSuffix);
+            literalSuffix,
+            supportsRelationalColumn,
+            supportsMeasurementField);
     }
 
     private static string NormalizeVersion(string version)
