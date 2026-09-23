@@ -1,6 +1,6 @@
 # GitHub Issues Roadmap Snapshot
 
-The current source is the live GitHub read-back [`github-issues-20260923.json`](audits/github-issues-20260923.json): 30 tracked issues, 20 closed and 10 open, including newly observed GH-Issue #194–#198. The original [`2026-09-21 snapshot`](audits/github-issues-20260921.json) remains historical evidence. Closed issues retain the scope and remaining boundaries recorded at their closure; no whole-milestone, hardware or production completion is inferred.
+The current source is the live GitHub read-back [`github-issues-20260923.json`](audits/github-issues-20260923.json): 30 tracked issues, 21 closed and 9 open, including newly observed GH-Issue #194–#198. The original [`2026-09-21 snapshot`](audits/github-issues-20260921.json) remains historical evidence. Closed issues retain the scope and remaining boundaries recorded at their closure; no whole-milestone, hardware or production completion is inferred.
 
 `GH-Issue #N` always means the external GitHub issue. Internal roadmap work items keep their existing `#N` notation. The numbers overlap (for example, GH-Issue #174 is a string-function request while internal M25 #174 is Document capacity), so the prefix is required in roadmap and changelog text.
 
@@ -17,7 +17,7 @@ The queue belongs to M43 Step 2, after the current M27 #340 implementation resid
 
 ## Current Status
 
-The current closed set is GH-Issue #89, #91, #171–#183, #185, #186, #188, #192 and #193. The remaining open set is #184, #187, #189, #190, #191 and #194–#198. Earlier bounded closures retain their original evidence and pending parity limitations below. The live snapshot records actual GitHub state separately from implementation scope.
+The current closed set is GH-Issue #89, #91, #171–#183, #185, #186, #188, #192, #193 and #196. The remaining open set is #184, #187, #189, #190, #191, #194, #195, #197 and #198. Earlier bounded closures retain their original evidence and pending parity limitations below. The live snapshot records actual GitHub state separately from implementation scope.
 
 On 2026-09-23, GH-Issue #177, #180 and #193 completed embedded, real REST, HTTP/2 Frame and model-boundary acceptance, with 358/358 passing regressions. Code was pushed through `6ca5ce7a939a7b62db2e82a37f1ae4d2827b43c3`, then all three issues were closed as `completed` and read back from GitHub. See [`sql-provider-closure-20260923.md`](audits/sql-provider-closure-20260923.md). Fixed-hardware, production, long-run and external database comparison evidence remain separate roadmap work.
 
@@ -25,7 +25,6 @@ On 2026-09-23, GH-Issue #177, #180 and #193 completed embedded, real REST, HTTP/
 |---|---|
 | GH-Issue #194 | UPDATE/DELETE RETURNING values, trigger/generated-column timing, rollback and synchronous/asynchronous metadata across protocols. |
 | GH-Issue #195 | INSERT SELECT projection/type rules, conflicts, identity/RETURNING, transactions and cross-protocol acceptance. |
-| GH-Issue #196 | Parameterized measurement-to-relation JOIN, discoverable capability boundaries and synchronous/asynchronous embedded/REST/Frame evidence. |
 | GH-Issue #197 | Existing INSERT RETURNING ordering, generated values, affected counts, errors and cross-protocol compatibility; distinguish main from released 3.1.0. |
 | GH-Issue #198 | Arbitrary precision support or explicit Int64/string boundary, deterministic overflow rejection, query semantics and ADO metadata. |
 
@@ -62,5 +61,7 @@ GH-Issue #184 evidence boundary: `PASS` for the local Core relation-table contra
 GH-Issue #191 evidence boundary: `PASS` for the local Core relation-table contract covering `UPDATE ... JOIN` and `UPDATE ... FROM` with INNER/LEFT sources, parameter binding, target-primary-key de-duplication, declaration-order first-source selection, `RETURNING`, and `ROWVERSION` increments. Measurement/document targets and non-supported join forms fail closed. Remote parity, trigger-heavy and multi-join workflows, fixed-hardware evidence and external issue-thread confirmation remain pending.
 
 GH-Issue #193 is **complete and closed under the issue's product-boundary option 2** as of 2026-09-23. The type matrix, SQL reference and SDK-local `GetSchema("DataTypes")` identify VECTOR/GEOPOINT as measurement FIELD types, and the [official relation alternatives](relation-type-boundary.md) are documented and exercised. Fifteen integration cases verify CREATE/ALTER rejection without partial schemas, local capability metadata, real relation directory queries and typed FIELD/alternative-model SELECTs across embedded, REST and HTTP/2 Frame. This does not add native relation VECTOR/GEOPOINT columns.
+
+GH-Issue #196 is **complete and closed** as of 2026-09-23. Normalized JOIN and ORDER BY fields preserve bound measurement-to-relation INNER queries, hidden FIELD sorting, mixed-direction multiple keys and pagination. Six `DataSourceInformation` fields let Providers reject unsupported shapes before generating SQL; SELECT/EXPLAIN aggregation diagnostics are independent of data presence. The final Core 212/212 and Server/SDK 182/182 regressions include 36 new dedicated cases. Code was pushed in `5bbdc39041e724ced37e8e297f02a323311e7f40` before closure and state read-back. See the [contract and evidence](audits/measurement-join-196-closure-20260923.md); this does not claim a FreeSql release or compatibility negotiation with old servers.
 
 The external issue list is intentionally separate from the existing nine-model gap catalog and from the internal PR sequence #382~#402. Closed scopes retain the issue URL, commit, test command and remaining boundary here and in the capability evidence index. #177/#180/#193 have completed functional delivery and verified issue closure; #184/#191 and new requests retain their documented acceptance work.

@@ -1,6 +1,6 @@
 # GH-Issue #196：measurement-to-relation 参数化 JOIN 合同与验收
 
-本交付修复 measurement JOIN 执行器与参数绑定器使用不同 AST 字段的问题，并给出可由 Provider 生成 SQL 前检查的模型能力。**功能合同已完成：最终 Release 回归 394/394 通过，0 失败、0 跳过。** 专用新增 Core 18 项、嵌入式及真实远程 18 项均通过；GitHub 关闭状态以实时快照为准。
+本交付修复 measurement JOIN 执行器与参数绑定器使用不同 AST 字段的问题，并给出可由 Provider 生成 SQL 前检查的模型能力。**功能合同已完成：最终 Release 回归 394/394 通过，0 失败、0 跳过。** 专用新增 Core 18 项、嵌入式及真实远程 18 项均通过。代码已推送至 `5bbdc39041e724ced37e8e297f02a323311e7f40`；GitHub issue 于 2026-09-23 06:12:39 UTC 按 `completed` 关闭，并独立读回核实，见[实时快照](github-issues-20260923.json)。
 
 ## 问题与修复
 

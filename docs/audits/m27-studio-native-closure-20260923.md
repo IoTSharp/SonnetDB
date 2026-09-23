@@ -2,6 +2,8 @@
 
 **状态：✅ `COMPLETED_LOCAL_CONTRACT`。** Windows Studio 的原生 AI broker、系统凭据库、前端 transport、连接界面和 typed MCP continuation 已完成实现、专项验收及完整 Web 回归。宿主测试 56/56、StudioNative 与共享协议专项 26/26、主 Web 套件 161 项通过，生产 Web 构建通过。不会将本地合同扩大为真实公网或整个 M27 已完成。
 
+实现与专门测试提交：`cc90d431`；路线图和 issue 状态随后单独同步，避免把已关闭 SQL issue 与 M27 整体状态混为一谈。
+
 ## 交付范围
 
 - 宿主 manifest 发布 `copilot.nativeBroker.v1`。六个固定操作沿用精确 Origin 与 bridge header token 校验，拒绝查询参数、入站 Authorization、控制操作 body 和任意代理目标。公网只能使用宿主明确批准的 HTTPS 地址，禁止重定向和 cookie。
@@ -25,7 +27,7 @@
 
 主 Web 套件的 15 项跳过包括 13 项只在 StudioNative 模式运行的界面测试，已全部在上面的独立专项通过；另外 2 项是既有真实 KV 用例，因没有目标 URL/token/database 未执行，不计为 PASS。两次 Web 运行中的 13 项共享协议测试重叠，不能将运行次数累加为新增用例。本次新增 39 个宿主用例和 26 个 Web/协议用例。
 
-原始产物位于 `artifacts/roadmap-closure-20260923/`，不提交构建产物。早期失败日志保留用于追溯，不能代替表内最终报告。最终 source/evidence SHA-256 清单与任务进程清理记录在同一目录单独归档。
+原始产物位于 `artifacts/roadmap-closure-20260923/`，不提交构建产物。早期失败日志保留用于追溯，不能代替表内最终报告。最终 source/evidence SHA-256 清单为 `continuation-manifest.json`，任务进程清理记录为 `continuation-cleanup.json`；之前的 `source-manifest.json` 保留前一轮验收时的历史哈希。
 
 复现（外层使用有界执行器，PowerShell 7）：
 

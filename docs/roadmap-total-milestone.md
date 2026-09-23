@@ -65,13 +65,17 @@ SonnetDB 当前公开定位为九种原生数据模型，加上空间/轨迹、�
 
 | 顺序 | 范围 | 状态 | 只保留的工作 |
 |---:|---|---|---|
-| 1 | M27 #340 | 🚧 | StudioNative broker/凭据库、多实例实时接管、真实 IdP、已部署公网 continuation/CSP/CORS 和真实双网流程；BrowserDirect OAuth/PKCE 获取入口已完成。 |
+| 1 | M27 #340 | 🚧 | 多实例实时接管、真实 IdP、已部署公网 continuation/CSP/CORS、真实双网和 StudioNative 实机旅程；BrowserDirect OAuth/PKCE 与 StudioNative 宿主本地合同已完成。 |
 | 2 | M41 #375 | 🟡 | 统计后台任务、页感知成本和参数反馈已有本地合同；固定硬件、生产尾延迟和统一语料报告待执行。 |
 | 3 | M42 残余 | 🚧 | KV state 并发读预算切片已完成；仍保留 covering/index-only 扩展、大值复制、冷启动、SQL 结果内存及跨架构性能门禁。 |
 | 4 | M35 #298/#302/#303/#305 | 🟡/🚧 | 真实模型质量、Recall@K/nDCG、成本、容量、回滚和固定硬件证据；合同 fixture 不计语义质量。 |
 | 5 | M36 #310/#311/#326 验收 | 🚧/⏳ | 九模型最小样例、SDK/API/Workbench/CLI 矩阵、真实跨端 e2e、远程恢复与备份旅程。 |
 
 ✅ GH-Issue #177/#180/#193 已退出实现队列：2026-09-23 完成原始功能需求及嵌入式、真实 REST/HTTP2 Frame 验收（358/358），随后推送并核实 GitHub `closed/completed`，见[闭环报告](audits/sql-provider-closure-20260923.md)。#180 的索引协作已通过 EXPLAIN 验证，专用包含索引下推/大语料性能列为额外优化；部署和固定硬件证据独立保留。新增 GH-Issue #194～#198 已纳入[外部队列](github-issues-roadmap.md)。
+
+✅ GH-Issue #196 已完成并关闭：补齐参数化 measurement JOIN、规范化多键排序与分页、模型能力发现和提前拒绝；最终 Core 212/212、真实 Server/SDK 182/182，交付 `5bbdc390` 已推送，见[验收报告](audits/measurement-join-196-closure-20260923.md)。#194/#195/#197/#198 仍按原范围保留待办。
+
+✅ M27 #340 的 StudioNative 宿主本地合同已完成：Windows 凭据库、固定 broker、原生 token 输入、前端 transport 与工具 continuation，Studio 56/56、Native 专项 26/26、Web 主套件 161 通过及生产构建通过，见[验收报告](audits/m27-studio-native-closure-20260923.md)。模式限定 13 项另已通过，真实 KV 2 项未配置；桌面 OAuth、真实 WebView2/provider/双网现场与多实例接管保留独立范围。
 
 ✅ M27 #340 的 BrowserDirect OAuth/PKCE 获取入口已完成：可信配置、生产页面、内存凭据生命周期及受控 Chrome 验收已闭环；Web 148 通过、2 项既有真实 KV 测试跳过，完整请求头强化后 OAuth 12/12 再验通过。见[验收报告](audits/m27-browser-oauth-closure-20260923.md)。该入口不再作为未实现任务派单，M27 的其它代码与外部环境范围继续保留。
 
