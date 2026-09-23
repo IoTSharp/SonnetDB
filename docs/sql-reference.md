@@ -627,6 +627,8 @@ WHERE guid IN (
 
 关系表查询支持 `INNER JOIN`、`LEFT JOIN`、`RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`。连接两侧可以是关系表、关系视图、物化视图或可解析为关系行的派生表；连接结果仍按关系查询的列投影、谓词和分页规则执行。列冲突、结果类型、NULL 排序及 ORM 能力发现见[标准 JOIN 合同]({{ site.docs_baseurl | default: '/help' }}/standard-join-contract/)。
 
+measurement 与关系表只支持单个 `INNER JOIN`、TAG 与关系列的等值 ON；WHERE、标量投影、多键排序和分页支持参数绑定。ON 参数/附加谓词、外连接、多 JOIN 和聚合须由 Provider 生成前按 `DataSourceInformation` 的 `MeasurementJoin*` 字段检查。详见 [GH-Issue #196 合同与验收](audits/measurement-join-196-closure-20260923.md)。
+
 ```sql
 SELECT d.id, d.name, s.name AS site_name
 FROM devices AS d

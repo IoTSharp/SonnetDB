@@ -17,6 +17,8 @@
 
 ### Added
 
+- **GH-Issue #196 参数化 measurement JOIN 完成（2026-09-23）**：执行器消费规范化 JOIN 和完整排序列表，修复嵌入式绑定后排序/分页结果偏差；支持隐藏 FIELD 和混合方向多键排序。聚合/分组在 SELECT 与 EXPLAIN 扫描前一致拒绝，新增六个 `DataSourceInformation` 模型能力字段及 Provider 预检合同。新增 36 项用例，最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。FreeSql 发布、旧 Server 协商和固定硬件门禁独立保留。
+
 - **M27 #340 BrowserDirect OAuth/PKCE 获取入口闭环（2026-09-23）**：新增受信 HTTPS Authorization Code + S256 登录、固定匿名 callback、一次性 state/issuer/source/origin 校验和仅内存短期凭据；CopilotDock 提供连接/取消/断开，登出、身份改变、模式切换、到期和销毁阻断迟到凭据。补齐生产 HTML 与 Vite 的 Referrer 限制、默认 E2E fixture 配置和有界进程清理。新增 56 项回归（OAuth 核心 43、真实浏览器 12、模式切换 1），Web 完整套件 148 通过、2 项既有真实 KV 用例因缺少目标配置跳过；完整请求头强化后 OAuth 12/12 再次通过，生产构建通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署后的双网、StudioNative 和多实例接管仍未完成。
 
 - **GH-Issue #177/#180/#193 功能闭环（2026-09-23）**：标准关系 JOIN、JSON 标量/数组查询和关系表 VECTOR/GEOPOINT 产品边界（选项 2）完成；新增 77 项用例，最终 Release 回归 358/358 通过（Core 194、真实 Server/SDK 164）。补齐 JOIN 能力标志及 `DataTypes` 模型支持字段，修复规范化 measurement JOIN/EXPLAIN 分派、明确拒绝时序外连接，并修复 `json_contains` 重叠数组候选的顺序依赖，保留有界匹配与取消。完整合同、索引协作和证据见[闭环报告](docs/audits/sql-provider-closure-20260923.md)；交付已推送，三个 GitHub issue 已按 completed 关闭并读回核实；固定硬件与发布门禁独立保留。

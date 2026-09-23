@@ -404,6 +404,14 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add(DbMetaDataColumnNames.StatementSeparatorPattern, typeof(string));
         table.Columns.Add(DbMetaDataColumnNames.StringLiteralPattern, typeof(string));
         table.Columns.Add(DbMetaDataColumnNames.SupportedJoinOperators, typeof(SupportedJoinOperators));
+        // 模型专属能力独立于关系表 SupportedJoinOperators；供 Provider 在生成 SQL 前检查。
+        // 这些值描述本地 SDK 合同，不进行远程 Server 版本协商。
+        table.Columns.Add("MeasurementJoinKinds", typeof(string));
+        table.Columns.Add("MeasurementJoinMaxTables", typeof(int));
+        table.Columns.Add("MeasurementJoinOnPredicate", typeof(string));
+        table.Columns.Add("MeasurementJoinParameterLocations", typeof(string));
+        table.Columns.Add("MeasurementJoinSupportsAggregates", typeof(bool));
+        table.Columns.Add("MeasurementJoinSupportsPagination", typeof(bool));
 
         table.Rows.Add(
             "\\.",
@@ -423,7 +431,13 @@ public sealed class SndbConnection : DbConnection
             ";",
             "^'([^']|'')*'$",
             SupportedJoinOperators.Inner | SupportedJoinOperators.LeftOuter
-                | SupportedJoinOperators.RightOuter | SupportedJoinOperators.FullOuter);
+                | SupportedJoinOperators.RightOuter | SupportedJoinOperators.FullOuter,
+            "INNER",
+            1,
+            "measurement_tag_equals_relation_column",
+            "projection,where,pagination",
+            false,
+            true);
 
         return table;
     }
