@@ -45,6 +45,8 @@ type ConnectionsStore = ReturnType<typeof useConnectionsStore>;
 type SqlConsoleStore = ReturnType<typeof useSqlConsoleStore>;
 type WorkbenchHistoryStore = ReturnType<typeof useWorkbenchHistoryStore>;
 
+const consolePreviewMaxRows = 10_000;
+
 export interface SqlExecutionOptions {
   auth: AuthStore;
   connections: ConnectionsStore;
@@ -232,15 +234,15 @@ export function useSqlExecution(options: SqlExecutionOptions) {
           abortIfContextChanged();
           controller.signal.throwIfAborted();
           if (transactionBatch && statementIndex === 0) {
-            batchResults = await execDataSqlBatch(api, executionDb.value, statements.map((item) => ({ sql: item.sql })), controller.signal);
+            batchResults = await execDataSqlBatch(api, executionDb.value, statements.map((item) => ({ sql: item.sql, previewMaxRows: consolePreviewMaxRows })), controller.signal);
           }
           rs = transactionBatch
             ? batchResults?.[statementIndex] ?? buildClientErrorResultSet('incomplete_sql_response', 'SQL 事务批次响应缺少语句结果，不能确认提交状态。')
             : statement.meta
             ? await executeMetaCommand(statement.sql, executionDb, controller.signal)
             : (executionDb.value === CONTROL_PLANE_KEY
-              ? await execControlPlaneSql(api, statement.sql, undefined, controller.signal)
-              : await execDataSql(api, executionDb.value, statement.sql, undefined, controller.signal));
+              ? await execControlPlaneSql(api, statement.sql, undefined, controller.signal, consolePreviewMaxRows)
+              : await execDataSql(api, executionDb.value, statement.sql, undefined, controller.signal, consolePreviewMaxRows));
         } catch (error) {
           rs = buildClientErrorResultSet(
             controller.signal.aborted ? 'sql_execution_cancelled' : 'sql_transport_error',
@@ -269,6 +271,7 @@ export function useSqlExecution(options: SqlExecutionOptions) {
         okCount += 1;
         if (rs.end) {
           totalElapsed += rs.end.elapsedMs;
+          if (rs.end.truncated) message.warning(summarizeSqlResult(rs));
         }
 
         if (!controller.signal.aborted && !statement.meta && isDatabaseCatalogMutating(statement.sql)) {
@@ -287,6 +290,9 @@ export function useSqlExecution(options: SqlExecutionOptions) {
       ];
       if (failCount > 0) {
         summaryParts.push(`失败 ${failCount}`);
+      }
+      if (collected.some((item) => item.result.end?.truncated)) {
+        summaryParts.push('包含截断预览，结果不完整');
       }
       summaryParts.push(`合计 ${totalElapsed.toFixed(2)} ms`);
       const summary = summaryParts.join(' · ');

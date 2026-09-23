@@ -741,7 +741,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
             .ConfigureAwait(false);
         return MaterializedExecutionResult.FromSelect(
-            new SelectExecutionResult(preview.Columns, preview.Rows),
+            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
             preview.RecordsAffected);
     }
 
@@ -768,6 +768,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string previewSql = BuildInsertSql(statement, returningAllColumns: true);
         var preview = await ExecuteTransactionPreviewAsync(transaction, previewSql, cancellationToken)
             .ConfigureAwait(false);
+        if (preview.Truncated)
+            throw new InvalidDataException("远程事务 INSERT RETURNING 预览不完整，不能据此构造提交语句。");
         if (preview.Columns.Count != schema.Columns.Count
             || !preview.Columns.SequenceEqual(schema.Columns.Select(static column => column.Name), StringComparer.Ordinal))
         {
@@ -788,7 +790,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return MaterializedExecutionResult.FromSelect(
             new SelectExecutionResult(
                 returningColumns.Select(static column => column.Name).ToArray(),
-                projectedRows),
+                projectedRows) { Truncated = preview.Truncated },
             preview.RecordsAffected);
     }
 
@@ -801,7 +803,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .ConfigureAwait(false);
         transaction.Add(sql);
         return MaterializedExecutionResult.FromSelect(
-            new SelectExecutionResult(preview.Columns, preview.Rows),
+            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
             preview.RecordsAffected);
     }
 
@@ -946,6 +948,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var readingRows = false;
         var sawResult = false;
         var recordsAffected = -1;
+        var truncated = false;
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -999,6 +1002,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     {
                         recordsAffected = recordsAffectedProperty.GetInt32();
                     }
+                    truncated = RemoteExecutionResult.ReadTruncated(root);
                     readingRows = false;
                     sawResult = true;
                     break;
@@ -1008,7 +1012,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 
-        return new TransactionPreviewResult(columns, rows, recordsAffected);
+        return new TransactionPreviewResult(columns, rows, recordsAffected, truncated);
     }
 
     private static TableColumn[] ResolveReturningColumns(InsertStatement statement, TableSchema schema)
@@ -1174,7 +1178,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private sealed record TransactionPreviewResult(
         IReadOnlyList<string> Columns,
         IReadOnlyList<IReadOnlyList<object?>> Rows,
-        int RecordsAffected);
+        int RecordsAffected,
+        bool Truncated);
 
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {

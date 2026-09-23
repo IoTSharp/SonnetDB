@@ -58,6 +58,9 @@ internal sealed class ResultEndLine
 
     [JsonPropertyName("elapsedMilliseconds")]
     public double ElapsedMilliseconds { get; set; }
+
+    [JsonPropertyName("truncated")]
+    public bool Truncated { get; set; }
 }
 
 /// <summary>

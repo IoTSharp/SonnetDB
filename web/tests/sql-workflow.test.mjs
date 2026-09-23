@@ -66,6 +66,7 @@ async function loadWorkflow() {
   return {
     useSqlExecution: entry.namespace.useSqlExecution,
     sqlApi: modules.get(resolve(sourceRoot, 'api/sql.ts')).namespace,
+    summarizeSqlResult: modules.get(resolve(sourceRoot, 'utils/sqlWorkbench.ts')).namespace.summarizeSqlResult,
     ref, computed, flush, dispose: () => disposers.forEach((callback) => callback()),
   };
 }
@@ -125,7 +126,7 @@ async function fixture(sql = 'SELECT 1; SELECT 2') {
     auth, connections, sqlConsole: store, workbenchHistory: { record: (entry) => history.push(entry) },
     activeTab: active, targetDb: runtime.computed({ get: () => active.value.db, set: (db) => { active.value.db = db; } }),
     sql: runtime.computed({ get: () => active.value.sql, set: (value) => { active.value.sql = value; } }),
-    databases: runtime.ref(['alpha', 'beta']), selectedMeasurement: runtime.ref(null), message: {},
+    databases: runtime.ref(['alpha', 'beta']), selectedMeasurement: runtime.ref(null), message: { warning() {} },
     reloadDbs: async () => {}, loadSchema: async () => {}, setWorkbenchTool() {},
   });
   return { ...runtime, tabs, active, auth, connections, calls, history, execution, complete: (value) => complete(value) };
@@ -236,4 +237,31 @@ test('A transaction failure stops result mapping and preserves the server error'
   assert.equal(f.calls.length, 1);
   assert.equal(f.tabs[0].results.length, 2);
   assert.equal(f.tabs[0].results[1].result.error.code, 'constraint_error');
+});
+
+test('SQL preview metadata distinguishes truncated, complete and malformed results', { timeout: 5000 }, async () => {
+  const { sqlApi, summarizeSqlResult } = await loadWorkflow();
+  assert.equal(sqlApi.parseNdjson(ndjson(meta, [1], { ...end, truncated: true })).end.truncated, true);
+  assert.equal(sqlApi.parseNdjson(ndjson(meta, [1], end)).end.truncated, false);
+  assert.equal(sqlApi.parseNdjson(ndjson(meta, [1], { ...end, truncated: 'false' })).error.code, 'invalid_sql_response');
+  const requests = [];
+  const api = { post: async (_url, payload) => { requests.push(payload); return response(); } };
+  await sqlApi.execDataSql(api, 'alpha', 'SELECT 1');
+  await sqlApi.execDataSql(api, 'alpha', 'SELECT 1', {}, undefined, 2);
+  assert.equal(requests[0].previewMaxRows, undefined);
+  assert.equal(requests[1].previewMaxRows, 2);
+  const preview = sqlApi.parseNdjson(ndjson(meta, [1], { ...end, recordsAffected: 3, truncated: true }));
+  assert.match(summarizeSqlResult(preview), /affected 3/);
+  assert.match(summarizeSqlResult(preview), /2.00 ms/);
+  assert.equal(summarizeSqlResult({ ...preview, error: { message: 'Transport failed' } }), 'Transport failed');
+});
+
+test('SQL console explicitly requests preview and labels incomplete rows', { timeout: 5000 }, async () => {
+  const f = await fixture('SELECT 1');
+  const running = f.execution.run();
+  assert.equal(f.calls[0].body.previewMaxRows, 10_000);
+  f.complete({ ...response(), data: ndjson(meta, [1], { ...end, truncated: true }) });
+  await running;
+  assert.equal(f.tabs[0].results[0].result.end.truncated, true);
+  assert.match(f.tabs[0].summary, /结果不完整/);
 });

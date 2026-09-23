@@ -273,6 +273,12 @@ public sealed class SqlExecutionResourceOptions
     /// <summary>过程累计结果行数预算，包含 INSERT RETURNING，默认 10000。</summary>
     public int MaxRoutineResultRows { get; set; } = 10_000;
 
+    /// <summary>
+    /// REST SQL 显式预览请求的最大行数，默认 10000；
+    /// 未请求预览时保留完整结果语义。
+    /// </summary>
+    public int MaxResultRows { get; set; } = 10_000;
+
     /// <summary>每条调用链同时存活的 transition set 行数上限。</summary>
     public int MaxTriggerTransitionRows { get; set; } = 100_000;
 

@@ -161,6 +161,7 @@ internal static class ServerOptionsBinder
         options.MaxRoutineStatements = Math.Clamp(options.MaxRoutineStatements, 1, 100_000);
         options.MaxRoutineDepth = Math.Clamp(options.MaxRoutineDepth, 1, 32);
         options.MaxRoutineResultRows = Math.Clamp(options.MaxRoutineResultRows, 1, 100_000);
+        options.MaxResultRows = Math.Clamp(options.MaxResultRows, 1, 1_000_000);
         options.MaxTriggerTransitionRows = Math.Clamp(options.MaxTriggerTransitionRows, 1, 100_000);
         options.MaxTriggerTransitionBytes = Math.Clamp(options.MaxTriggerTransitionBytes, 1, 128L * 1024 * 1024);
         options.MaxDeferredTriggerInvocations = Math.Clamp(options.MaxDeferredTriggerInvocations, 1, 100_000);

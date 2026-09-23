@@ -102,12 +102,24 @@ internal static class SqlEndpointHandler
     {
         ArgumentNullException.ThrowIfNull(controlPlane);
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
+        var resultBounds = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
 
         metrics.RecordSqlRequest();
         var sw = Stopwatch.StartNew();
+
+        int? previewMaxRows;
+        try
+        {
+            previewMaxRows = ResolvePreviewMaxRows(request, resultBounds);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            await WriteErrorAsync(context, "bad_request", ex.Message).ConfigureAwait(false);
+            return;
+        }
 
         SqlStatement parsed;
         try
@@ -157,7 +169,7 @@ internal static class SqlEndpointHandler
             return;
         }
 
-        object result;
+        object? result;
         try
         {
             result = SqlExecutor.ExecuteControlPlaneStatement(executable, controlPlane);
@@ -177,12 +189,13 @@ internal static class SqlEndpointHandler
             return;
         }
 
+        result = SqlResultBounds.Apply(result, previewMaxRows);
         if (result is SelectExecutionResult sel)
         {
             long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
             metrics.AddReturnedRows(rowCount);
             var elapsed = sw.Elapsed.TotalMilliseconds;
-            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed, sel.Truncated).ConfigureAwait(false);
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, elapsed, rowCount, -1, failed: false);
         }
         else
@@ -272,6 +285,7 @@ internal static class SqlEndpointHandler
                 SqlExecutionMetricsSnapshot? executionSnapshot = null;
                 try
                 {
+                    int? previewMaxRows = ResolvePreviewMaxRows(stmt, routineOptions);
                     executable = BindParameters(parsed, stmt);
 
                     if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
@@ -321,6 +335,7 @@ internal static class SqlEndpointHandler
                                 Metrics = executionMetrics,
                             }),
                     };
+                    result = SqlResultBounds.Apply(result, previewMaxRows);
                     executionSnapshot = executionMetrics?.Complete();
                     if (result is SqlTransactionContext started)
                         transaction = started;
@@ -334,7 +349,7 @@ internal static class SqlEndpointHandler
                                 long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
                                 metrics.AddReturnedRows(rowCount);
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed, sel.Truncated).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -357,7 +372,8 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(rowCount);
                                 }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed,
+                                    ins.Returning?.Truncated ?? false).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -379,7 +395,8 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(rowCount);
                                 }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: del.TombstonesAdded, elapsed,
+                                    del.Returning?.Truncated ?? false).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, del.TombstonesAdded, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -401,7 +418,8 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(rowCount);
                                 }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: affected.RowsAffected, elapsed,
+                                    affected.Returning?.Truncated ?? false).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, affected.RowsAffected, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -481,6 +499,14 @@ internal static class SqlEndpointHandler
         }
     }
 
+    private static int? ResolvePreviewMaxRows(SqlRequest request, SqlExecutionResourceOptions options)
+    {
+        if (request.PreviewMaxRows is not { } requested)
+            return null;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requested);
+        return Math.Min(requested, options.MaxResultRows);
+    }
+
     private static SqlStatement BindParameters(SqlStatement statement, SqlRequest request)
     {
         if (request.Parameters is null || request.Parameters.Count == 0)
@@ -526,6 +552,7 @@ internal static class SqlEndpointHandler
         long count = 0;
         for (int r = 0; r < result.Rows.Count; r++)
         {
+            context.RequestAborted.ThrowIfCancellationRequested();
             await using (var rowWriter = new Utf8JsonWriter(body, options))
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r]);
@@ -537,10 +564,16 @@ internal static class SqlEndpointHandler
         return count;
     }
 
-    private static async Task WriteEndAsync(HttpContext context, JsonWriterOptions options, long rowCount, int recordsAffected, double elapsedMs)
+    private static async Task WriteEndAsync(
+        HttpContext context,
+        JsonWriterOptions options,
+        long rowCount,
+        int recordsAffected,
+        double elapsedMs,
+        bool truncated = false)
     {
         var body = context.Response.BodyWriter;
-        var end = new ResultEnd("end", rowCount, recordsAffected, elapsedMs);
+        var end = new ResultEnd("end", rowCount, recordsAffected, elapsedMs) { Truncated = truncated };
         await using (var w = new Utf8JsonWriter(body, options))
         {
             JsonSerializer.Serialize(w, end, ServerJsonContext.Default.ResultEnd);

@@ -17,6 +17,8 @@
 
 ### Added
 
+- **M42 显式 SQL 结果预览合同完成（2026-09-24）**：REST `previewMaxRows` 按请求与配置上限返回前 N 行，`end.truncated`、公开 `SndbDataReader.Truncated` 和 Web 控制台摘要显示不完整状态；默认查询、Frame 协议及公共记录主构造保持兼容。RETURNING 影响数、提交/回滚和写前参数校验经真实端点验证，损坏/断流结果不视为完整成功。专项 Core/ADO 16、Server 12、Web 11 项通过；连同已有回归，Core 87/87，Server 两轮共 197 个不同用例最终通过。服务端仍先全量物化，不宣称执行 heap、字节预算或首行延迟闭环。见 [合同](docs/benchmarks/m42-sql-result-bounds.md)与[原始证据](docs/audits/roadmap-closure-evidence-20260924/validation.json)。
+
 - **M27 #340 ServerRelay 多实例本地合同完成（2026-09-23，2026-09-24 最终复验）**：共享 journal 的单执行者 lease、跨实例活跃事件跟随、owner 丢失后的唯一 `error/done` 封闭、损坏/重复/超限 journal fail-closed、dispose/取消回收及绝对路径配置接线已交付。保留未选库的合法控制面 binding，修复锁超时后的 lease/活动槽位泄漏及 Dispose 回调重入。Server Release 0 warning/0 error，最终定向 119/119；两个独立 DataRoot 的最新 Server 进程 smoke 通过 live follow、hard-kill failure seal、稳定失败重放和 cleanup（provider 6 次、planner 4 次、answer 2 次）。真实 IdP、部署双网、模型质量及 provider 透明续跑不在本项范围，见 [闭环报告](docs/audits/relay-multi-instance-closure-20260923.md)。
 
 - **M42 覆盖索引读取切片完成（2026-09-23）**：普通二级索引支持连续等值前缀及其后的 Int64/Datetime 有符号范围 index-only scan，加入严格值解码、快照/取消边界、事务 overlay 回退和旧入口兼容。Core Release 定向回归 42/42 通过；固定架构、统一语料、冷启动、SQL 结果内存和 168 小时门禁仍按路线图保留，见 [基准与边界](docs/benchmarks/m42-covered-index-scans.md)。

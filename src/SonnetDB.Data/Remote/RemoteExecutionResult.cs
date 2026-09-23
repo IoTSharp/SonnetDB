@@ -26,8 +26,11 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly string[] _columns;
     private object?[] _currentRow;
     private bool _ended;
+    private long _rowsRead;
 
     public int RecordsAffected { get; private set; }
+
+    public bool Truncated { get; private set; }
 
     public IReadOnlyList<string> Columns => _columns;
 
@@ -50,7 +53,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (line is null)
             {
                 _ended = true;
-                return false;
+                throw new InvalidDataException("远程 SQL 响应缺少 end 标记，不能确认结果完整。");
             }
             if (line.Length == 0) continue;
 
@@ -70,7 +73,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (line is null)
             {
                 _ended = true;
-                return false;
+                throw new InvalidDataException("远程 SQL 响应缺少 end 标记，不能确认结果完整。");
             }
             if (line.Length == 0) continue;
 
@@ -109,6 +112,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                 throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
             for (int i = 0; i < n; i++)
                 _currentRow[i] = ReadScalar(root[i]);
+            _rowsRead++;
             return true;
         }
 
@@ -119,8 +123,14 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                 var type = typeProp.GetString();
                 if (type == "end")
                 {
+                    if (!root.TryGetProperty("rowCount", out var rowCount)
+                        || rowCount.ValueKind != JsonValueKind.Number
+                        || !rowCount.TryGetInt64(out long reportedRows)
+                        || reportedRows != _rowsRead)
+                        throw new InvalidDataException("远程 SQL end 行数与实际结果不一致。");
                     if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
                         RecordsAffected = ra.GetInt32();
+                    Truncated = ReadTruncated(root);
                     _ended = true;
                     return false;
                 }
@@ -155,6 +165,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         {
             string[] columns = Array.Empty<string>();
             int recordsAffected = -1;
+            bool pendingTruncated = false;
             bool sawMeta = false;
             bool ended = false;
 
@@ -199,7 +210,9 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                     {
                         if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
                             recordsAffected = ra.GetInt32();
+                        bool truncated = ReadTruncated(root);
                         ended = true;
+                        pendingTruncated = truncated;
                         break;
                     }
                 }
@@ -208,7 +221,11 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (!sawMeta && !ended)
                 throw new InvalidDataException("远程响应缺少 meta 或 end 行。");
 
-            var result = new RemoteExecutionResult(response, stream, reader, columns);
+            var result = new RemoteExecutionResult(response, stream, reader, columns)
+            {
+                Truncated = pendingTruncated,
+                _ended = ended,
+            };
             if (ended)
                 result.RecordsAffected = recordsAffected;
             return result;
@@ -220,6 +237,15 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             response.Dispose();
             throw;
         }
+    }
+
+    internal static bool ReadTruncated(JsonElement root)
+    {
+        if (!root.TryGetProperty("truncated", out var truncated))
+            return false;
+        if (truncated.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new InvalidDataException("远程 SQL 截断标记必须是布尔值。");
+        return truncated.GetBoolean();
     }
 
     internal static object? ReadScalar(JsonElement element) => element.ValueKind switch

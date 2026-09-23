@@ -7,7 +7,11 @@ namespace SonnetDB.Contracts;
 /// </summary>
 /// <param name="Sql">要执行的 SQL 文本。</param>
 /// <param name="Parameters">可选命名参数集合（支持基础标量：bool/long/double/string/null）。</param>
-public sealed record SqlRequest(string Sql, IReadOnlyDictionary<string, JsonElementValue>? Parameters = null);
+public sealed record SqlRequest(string Sql, IReadOnlyDictionary<string, JsonElementValue>? Parameters = null)
+{
+    /// <summary>显式请求有界预览的最大行数；为空时返回完整结果。</summary>
+    public int? PreviewMaxRows { get; init; }
+}
 
 /// <summary>
 /// 批量 SQL 提交请求体。所有语句按顺序、单事务语义执行。
@@ -76,7 +80,11 @@ public sealed record ResultMeta(string Type, IReadOnlyList<string> Columns);
 /// <param name="RowCount">本次结果集行数。</param>
 /// <param name="RecordsAffected">受影响的行数（非 SELECT 时有效；SELECT 始终为 -1）。</param>
 /// <param name="ElapsedMilliseconds">服务端执行耗时（毫秒）。</param>
-public sealed record ResultEnd(string Type, long RowCount, int RecordsAffected, double ElapsedMilliseconds);
+public sealed record ResultEnd(string Type, long RowCount, int RecordsAffected, double ElapsedMilliseconds)
+{
+    /// <summary>结果是否为显式请求的不完整预览。</summary>
+    public bool Truncated { get; init; }
+}
 
 /// <summary>
 /// CREATE DATABASE 请求体。

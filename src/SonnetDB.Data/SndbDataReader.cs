@@ -61,6 +61,11 @@ public sealed class SndbDataReader : DbDataReader
     /// <inheritdoc />
     public override int RecordsAffected => _result.RecordsAffected;
 
+    /// <summary>
+    /// 结果是否为不完整预览；远端 NDJSON 读取器在消费完成标记后确定此值。
+    /// </summary>
+    public bool Truncated => _result.Truncated;
+
     /// <inheritdoc />
     public override bool GetBoolean(int ordinal) => Convert.ToBoolean(GetValue(ordinal), CultureInfo.InvariantCulture);
 

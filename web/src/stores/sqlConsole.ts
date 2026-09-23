@@ -105,6 +105,7 @@ function normalizeResultEnd(end: unknown): SqlResultSet['end'] {
       : typeof value.elapsedMilliseconds === 'number'
         ? value.elapsedMilliseconds
         : 0,
+    truncated: value.truncated === true,
   };
 }
 
