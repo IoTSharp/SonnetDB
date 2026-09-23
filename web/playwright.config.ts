@@ -14,12 +14,18 @@ export default defineConfig({
     baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: process.env.SONNETDB_E2E_VIDEO === 'off' ? 'off' : 'retain-on-failure',
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 1000 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1600, height: 1000 },
+        ...(process.env.SONNETDB_E2E_EXECUTABLE_PATH
+          ? { launchOptions: { executablePath: process.env.SONNETDB_E2E_EXECUTABLE_PATH } }
+          : {}),
+      },
     },
   ],
 });

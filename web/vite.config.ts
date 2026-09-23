@@ -72,6 +72,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: Number.parseInt(env.DEV_SERVER_PORT ?? '5173', 10),
       strictPort: true,
+      // OAuth callback query parameters must not reach Vite's injected client
+      // before the HTML referrer meta tag is parsed.
+      headers: { 'Referrer-Policy': 'no-referrer' },
       https: useHttps ? {
         cert: fs.readFileSync(certFilePath),
         key: fs.readFileSync(keyFilePath),

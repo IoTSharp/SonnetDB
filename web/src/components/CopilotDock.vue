@@ -82,6 +82,23 @@
       />
     </section>
 
+    <section v-if="isBrowserDirect" class="copilot-dock__public-auth" data-testid="copilot-public-auth">
+      <div class="copilot-dock__public-auth-row">
+        <span class="copilot-dock__model-label">AI 服务</span>
+        <n-text depth="3" role="status" aria-live="polite" data-testid="copilot-public-auth-status">
+          {{ !browserDirectOAuthReady ? '尚未配置' : browserDirectConnected ? '已连接' : '未连接' }}
+        </n-text>
+        <template v-if="browserDirectOAuthReady">
+          <n-button v-if="browserDirectConnected" size="tiny" data-testid="copilot-public-disconnect" @click="disconnectBrowserDirect">断开</n-button>
+          <template v-else>
+            <n-button size="tiny" type="primary" secondary :loading="browserDirectConnecting" :disabled="running || browserDirectConnecting" data-testid="copilot-public-connect" @click="connectBrowserDirect">连接 AI 服务</n-button>
+            <n-button v-if="browserDirectConnecting" size="tiny" data-testid="copilot-public-cancel" @click="disconnectBrowserDirect">取消</n-button>
+          </template>
+        </template>
+      </div>
+      <n-text v-if="browserDirectAuthMessage" type="error" role="alert" class="copilot-dock__public-auth-message">{{ browserDirectAuthMessage }}</n-text>
+    </section>
+
     <!-- M7: 权限模式选择 -->
     <section class="copilot-dock__perm">
       <!-- 只读模式：点击 tag 展开内联确认，避免 popconfirm teleport 被遮挡 -->
@@ -252,7 +269,7 @@
         </n-text>
         <n-space size="small" :wrap="false">
           <n-button v-if="running" size="tiny" type="error" ghost @click="stop">停止</n-button>
-          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running" @click="send">发送</n-button>
+          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running || !browserDirectCanSend" @click="send">发送</n-button>
         </n-space>
       </n-space>
     </footer>
@@ -294,6 +311,15 @@ import {
   savePendingServerRelayRun,
   type CopilotPendingServerRelayRun,
 } from '@/copilot/runtime';
+import {
+  clearBrowserDirectAccessToken,
+  subscribeBrowserDirectCredentialChanges,
+} from '@/copilot/browserDirectEntry';
+import {
+  createConfiguredBrowserDirectOAuthClient,
+  getConfiguredBrowserDirectOAuthReadiness,
+  type BrowserDirectOAuthClient,
+} from '@/copilot/browserDirectOAuth';
 
 const auth = useAuthStore();
 const sessions = useCopilotSessionsStore();
@@ -322,6 +348,84 @@ const usageSummary = ref<CopilotMetricsSummary | null>(null);
 const errorMsg = ref('');
 const abort = ref<AbortController | null>(null);
 const activeRunId = ref<string | null>(null);
+
+const isBrowserDirect = computed(() => import.meta.env.VITE_COPILOT_RUNTIME_MODE === 'BrowserDirect');
+const browserDirectOAuthReady = isBrowserDirect.value
+  && getConfiguredBrowserDirectOAuthReadiness().status === 'ready';
+const browserDirectConnected = ref(false);
+const browserDirectConnecting = ref(false);
+const browserDirectAuthMessage = ref('');
+const browserDirectCanSend = computed(() => !isBrowserDirect.value
+  || (browserDirectOAuthReady && browserDirectConnected.value && !browserDirectConnecting.value));
+let browserDirectOAuthClient: BrowserDirectOAuthClient | null = null;
+let browserDirectExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+let browserDirectAuthAttempt = 0;
+let dockDisposed = false;
+
+const unsubscribeBrowserDirectCredential = subscribeBrowserDirectCredentialChanges((expiresAtUtc) => {
+  if (browserDirectExpiryTimer !== undefined) clearTimeout(browserDirectExpiryTimer);
+  browserDirectExpiryTimer = undefined;
+  browserDirectConnected.value = expiresAtUtc !== null;
+  if (expiresAtUtc !== null) {
+    const remaining = Date.parse(expiresAtUtc) - Date.now();
+    browserDirectExpiryTimer = setTimeout(() => {
+      clearBrowserDirectAccessToken();
+      browserDirectAuthMessage.value = 'AI 服务连接已到期，请重新连接。';
+    }, Math.max(0, remaining));
+  } else if (isBrowserDirect.value) {
+    cancelActiveRequest();
+  }
+});
+
+async function connectBrowserDirect(): Promise<void> {
+  if (!isBrowserDirect.value || !browserDirectOAuthReady || browserDirectConnecting.value
+    || running.value || !auth.state?.token) return;
+  const attempt = ++browserDirectAuthAttempt;
+  browserDirectAuthMessage.value = '';
+  browserDirectConnecting.value = true;
+  try {
+    browserDirectOAuthClient ??= createConfiguredBrowserDirectOAuthClient();
+    // The database credential is only a deny-list value; OAuth never transmits it.
+    await browserDirectOAuthClient.signIn(auth.state.token);
+    if (dockDisposed || attempt !== browserDirectAuthAttempt) return;
+    browserDirectAuthMessage.value = '';
+  } catch (error: unknown) {
+    if (dockDisposed || attempt !== browserDirectAuthAttempt) return;
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String(error.code) : '';
+    browserDirectAuthMessage.value = code === 'browser_direct_oauth_not_ready'
+      ? 'AI 服务尚未配置，请联系管理员。'
+      : code === 'browser_direct_oauth_cancelled'
+        ? '连接已取消。'
+        : code.includes('popup')
+          ? '未能完成授权，请允许登录窗口后重试。'
+          : code.includes('timeout') || code === 'browser_direct_oauth_expired'
+            ? '连接超时，请重试。'
+            : '未能连接 AI 服务，请重新授权。';
+  } finally {
+    if (attempt === browserDirectAuthAttempt) browserDirectConnecting.value = false;
+  }
+}
+
+function disconnectBrowserDirect(): void {
+  browserDirectAuthAttempt++;
+  browserDirectConnecting.value = false;
+  browserDirectAuthMessage.value = '';
+  cancelActiveRequest();
+  if (browserDirectOAuthClient) browserDirectOAuthClient.logout();
+  else clearBrowserDirectAccessToken();
+}
+
+watch(() => auth.state, (identity, previous) => {
+  if (identity?.token !== previous?.token || identity?.tokenId !== previous?.tokenId
+    || identity?.username !== previous?.username || identity?.isSuperuser !== previous?.isSuperuser) {
+    disconnectBrowserDirect();
+  }
+}, { flush: 'sync' });
+
+watch(isBrowserDirect, (enabled) => {
+  if (!enabled) disconnectBrowserDirect();
+}, { flush: 'sync' });
 
 const msgContainer = ref<HTMLElement | null>(null);
 
@@ -1400,6 +1504,11 @@ async function executeCopilotRun(execution: CopilotRunExecution): Promise<void> 
 async function send(): Promise<void> {
   if (!prompt.value.trim() || running.value) return;
   if (!auth.state?.token) return;
+  if (!browserDirectCanSend.value) {
+    browserDirectAuthMessage.value = browserDirectOAuthReady
+      ? '请先连接 AI 服务。' : 'AI 服务尚未配置，请联系管理员。';
+    return;
+  }
 
   const userText = prompt.value.trim();
   const isProvisioningRequest = looksLikeProvisioningRequest(userText);
@@ -1626,6 +1735,12 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  dockDisposed = true;
+  disconnectBrowserDirect();
+  browserDirectOAuthClient?.dispose();
+  browserDirectOAuthClient = null;
+  unsubscribeBrowserDirectCredential();
+  if (browserDirectExpiryTimer !== undefined) clearTimeout(browserDirectExpiryTimer);
   cancelActiveRequest();
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
@@ -1633,6 +1748,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.copilot-dock__public-auth {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e8edf2;
+  font-size: 12px;
+}
+.copilot-dock__public-auth-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.copilot-dock__public-auth-message {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
 .copilot-fab {
   position: fixed;
   right: 24px;

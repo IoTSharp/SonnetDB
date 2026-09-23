@@ -28,18 +28,41 @@ dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --filter "Fu
 - 观察（2026-09-23 12:09 +08:00）：`status=LOCAL_ONLY`、`serverRestart=PASS_LOCAL_ONLY`、`browserRefresh=NOT_RUN`；Server/provider loopback 端口为 `60637/60243`，首轮/重放事件均为 `start,retrieval,final,done`，sequence 均为 `1,2,3,4`，首轮 journal `completed=true`，重放 payload/final answer 与首轮一致，provider `calls=2/plannerCalls=1/answerCalls=1`，两次 Server PID 不同（本次分别为 `71840`、`51232`），Server 直接派生的 `conhost.exe` 也完成身份核对和回收。
 - 证据边界：Release DLL SHA-256 为 `C5F412D57FAB6FD48F8551F4BBBCD966286AEB40BE6E3BC395ADB4890282D6E9`，smoke 脚本 SHA-256 为 `80194C2E4C572389AC7EEF3F0B493AEF1FED45887504441E3EFF4243A49BA6B6`；原始 stdout 未保留为仓库 artifact，机器硬件、磁盘和资源指标也未采集。因此该记录只是可复现的本机未归档 smoke，不满足固定硬件或发布证据门禁。
 
+## 2026-09-23 BrowserDirect OAuth/PKCE 获取入口（已完成）
+
+本轮已补齐可信配置到页面入口的 Authorization Code + PKCE S256 实现，状态为
+`COMPLETED_LOCAL_CONTRACT`；生产构建通过，Web 完整套件 148 通过、2 项既有真实 KV 测试跳过，完整请求头强化后 OAuth 12/12 复验通过。命令、产物与证据边界见[验收报告](m27-browser-oauth-closure-20260923.md)。
+此前“没有 authorization endpoint、verifier/challenge、redirect 校验或 token exchange”的描述已不适用。
+
+| 已落地范围 | 代码证据 | 验收边界 |
+|---|---|---|
+| 可信 HTTPS 公共客户端、PKCE S256、随机一次性 state 与 RFC 9207 `iss` 校验 | `web/src/copilot/browserDirectOAuth.ts` | 显式批准 issuer/authorization/token origins；固定同源 `/admin/copilot/oauth/callback`，不接受 query/hash 配置；真实 IdP 尚待部署验证。 |
+| popup source/origin、callback 清 query、token exchange 与迟到响应拒绝 | `browserDirectOAuth.ts`、`web/src/views/CopilotOAuthCallbackView.vue`、`web/src/router/index.ts` | callback 独立匿名放行，不触发数据库 setup/login；IdP CORS、宿主 CSP 与 COOP 必须在实际部署验证。 |
+| 页面连接/断开/取消、到期、身份变化和销毁清理 | `web/src/components/CopilotDock.vue`、`web/src/copilot/browserDirectEntry.ts` | 配置不足只显示“尚未配置”；access token 仅在内存，UI 只见 expiry；数据库 token 只作本地同值拒绝，不进入 OAuth 请求。 |
+| 资源和生命周期边界 | `browserDirectOAuth.ts` | 交易 5 分钟、exchange 30 秒、token 最长 2 小时、响应最多 64 KiB/1024 分片；不请求/保存/使用 refresh token，不支持 client secret、Device Flow 或 implicit grant。 |
+
+公开环境变量表、IdP 注册与部署前提见 [Copilot Provider 的 BrowserDirect OAuth/PKCE 登录](../copilot-providers.md#browserdirect-oauthpkce-登录)。
+回归入口为 `web/e2e/copilot-oauth-core.spec.ts`、`web/e2e/copilot-oauth.spec.ts`；受控 IdP/HTTPS fixture
+只证明对应协议和浏览器合同。测试报告必须分别写明是否实际覆盖 CopilotDock 按钮、生产 callback 页面、
+真实 IdP、生产 CSP/CORS/COOP 和双网，不能把一类结果提升为另一类证据。
+
+现有内存凭据清理已贯穿授权客户端：取消交易、断开或退出后，迟到 token 响应必须 fail closed；
+数据库 token/tokenId/用户名/权限身份变化清理原授权，模式切离与组件销毁也不保留凭据。刷新页面要重新
+授权，这不是 BrowserDirect 自动续流或持久登录能力。Web 公共客户端入口不构成 StudioNative broker、
+系统凭据库或外部宿主 OAuth 的交付，M27 #340 仍保留下面的代码与现场边界。
+
 ## 仍明确未实现的代码/产品边界
 
 这些不是本轮适合盲补的“小修复”，因为每项都需要外部身份、部署拓扑或桌面宿主合同；当前代码应继续 fail closed：
 
-1. 可信 OAuth/OIDC Device Flow 或 PKCE 获取入口。仓库只有 Cloud Token/refresh-token 配置和现有登录态，没有 authorization endpoint、code verifier/challenge、redirect 校验或 token exchange。相关文档应保持 `NOT_READY`，不能把内存 token provider 或模拟公网 endpoint 当成 OAuth 证据。
-2. StudioNative Copilot transport / AI broker / 系统凭据库。`web/src/api/studioNativeBridge.ts` 只提供 loopback bridge 的 manifest、文件、连接库和 managed-server 操作；`StudioNative` runtime 尚未注册 transport。现有握手已将 endpoint/token 从 URL、query 和 storage 移除，这属于安全前置，不等于 AI broker 已交付。
-3. 页面刷新后的自动续流现已补齐最小安全切片：Web 只在 ServerRelay 保存 `runId`、session/database、请求 fingerprint 及非敏感模式元数据，刷新后加载服务端会话并从 sequence 1 重放；fingerprint 不一致、run unknown/expired/conflict 或不支持安全 SHA-256 时清理 marker 并 fail closed。该切片不保存正文、Bearer/public token 或工具结果，也不覆盖 BrowserDirect/StudioNative。
-4. 正在执行中的多实例实时接管与高可用共享 session。journal 使用文件锁合并完成快照；新进程不会接管旧进程仍在执行的 provider/工具，符合当前 fail-closed 合同。把它升级为实时接管需要 provider lease、所有权租约、取消转移、跨实例事件订阅和故障注入，不应在本切片中猜测实现。
+1. StudioNative Copilot transport / AI broker / 系统凭据库。`web/src/api/studioNativeBridge.ts` 只提供 loopback bridge 的 manifest、文件、连接库和 managed-server 操作；`StudioNative` runtime 尚未注册 transport。现有握手已将 endpoint/token 从 URL、query 和 storage 移除，这属于安全前置，不等于 AI broker 已交付。
+2. 正在执行中的多实例实时接管与高可用共享 session。journal 使用文件锁合并完成快照；新进程不会接管旧进程仍在执行的 provider/工具，符合当前 fail-closed 合同。把它升级为实时接管需要 provider lease、所有权租约、取消转移、跨实例事件订阅和故障注入，不应在本切片中猜测实现。
 
 ## 下一项可执行切片
 
-优先级仍为 M27 #340。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地；下一步应单独拆部署后的浏览器刷新联调证据，再进入 OAuth/PKCE 或 StudioNative broker：
+优先级仍为 M27 #340。上述 BrowserDirect OAuth/PKCE 获取入口已完成实现与本地验收，后续把
+真实 IdP/双网/部署后浏览器刷新与 StudioNative broker 按各自验收边界推进，不能重新把 PKCE 入口派成
+未实现任务。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地：
 
 - 仅 `ServerRelay` 模式允许自动恢复；`BrowserDirect`、`StudioNative` 和 `Disabled` 不共享该状态。
 - 只在发送请求前保存受限的 `runId`、会话 ID、数据库名和请求 fingerprint；不保存数据库 Bearer、public token、消息正文或工具结果。
@@ -47,8 +70,8 @@ dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --filter "Fu
 - 恢复成功必须再次看到唯一 `final/error` 与 `done`；`relay_run_unknown`、`relay_run_expired`、binding conflict 或任意 fingerprint 不一致都清理 pending 状态并 fail closed。
 - 仅在完整 `done` 后删除 pending marker；停止、登出、会话切换/删除和组件卸载清理 marker，避免旧请求在新会话中重放。
 
-现有自动化已覆盖存储字段边界、assistant 追加后 fingerprint 重建和 build；本机真实 Server 进程切换与 `.system` journal 重放已有 `LOCAL_ONLY` smoke，仍需部署后的浏览器刷新联调确认 Web host/auth 行为。OAuth/PKCE 和 StudioNative broker 不应与该本地证据混做。
+现有自动化已覆盖存储字段边界、assistant 追加后 fingerprint 重建和 build；本机真实 Server 进程切换与 `.system` journal 重放已有 `LOCAL_ONLY` smoke，仍需部署后的浏览器刷新联调确认 Web host/auth 行为。该历史 smoke 不覆盖本轮 OAuth/PKCE 入口，也不覆盖 StudioNative broker。
 
 ## 现场/发布证据（不计作代码缺口）
 
-真实双网联调、公网 continuation/CSP/CORS、无公网出口的本地旅程、Studio 干净安装/WebView2、真实 provider 质量/成本以及固定硬件/长期窗口仍按 M27 和真机验证待办执行。它们不能由上述 73 个本地测试替代，也不应把 `PASS` 写入当前路线图。
+真实 IdP 注册及 RFC 9207 `iss`、token endpoint CORS、popup COOP、真实双网联调、公网 continuation/CSP/CORS、无公网出口的本地旅程、Studio 干净安装/WebView2、真实 provider 质量/成本以及固定硬件/长期窗口仍按 M27 和真机验证待办执行。它们不能由上述 73 个历史本地测试或本轮受控 OAuth fixture 替代；真实环境尚未执行的项目保持 `NOT_READY`/`DEFERRED`，不能写为 `PASS`。

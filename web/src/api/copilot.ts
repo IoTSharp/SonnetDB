@@ -9,6 +9,7 @@ import {
   type CopilotTransportEvent,
 } from '@/copilot/runtime';
 import {
+  clearBrowserDirectAccessToken,
   createConfiguredBrowserDirectTransport,
   type BrowserDirectRuntimeRegistrationOptions,
 } from '@/copilot/browserDirectEntry';
@@ -427,6 +428,7 @@ export async function* streamCopilotChat(
   runtimeOptions: Omit<CopilotRuntimeRunOptions, 'signal'> = {},
 ): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
   const mode = resolveCopilotRuntimeMode(configuredMode);
+  if (mode !== 'BrowserDirect') clearBrowserDirectAccessToken();
   const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = [];
   if (mode === 'ServerRelay') {
     transports.push(new ServerRelayCopilotTransport(api, token));

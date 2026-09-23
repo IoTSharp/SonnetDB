@@ -16,6 +16,7 @@ const GrantsView = () => import('@/views/GrantsView.vue');
 const TokensView = () => import('@/views/TokensView.vue');
 const AiSettingsView = () => import('@/views/AiSettingsView.vue');
 const CopilotTestView = () => import('@/views/CopilotTestView.vue');
+const CopilotOAuthCallbackView = () => import('@/views/CopilotOAuthCallbackView.vue');
 const RagManagementView = () => import('@/views/RagManagementView.vue');
 const ModbusView = () => import('@/views/ModbusView.vue');
 
@@ -32,6 +33,7 @@ const router = createRouter({
     { path: '/admin/setup', name: 'setup', component: SetupView, meta: { anon: true } },
     { path: '/admin/login', name: 'login', component: LoginView, meta: { anon: true } },
     { path: '/admin/auto-login', name: 'auto-login', component: AutoLoginView, meta: { anon: true } },
+    { path: '/admin/copilot/oauth/callback', name: 'copilot-oauth-callback', component: CopilotOAuthCallbackView, meta: { anon: true } },
 
     // 管理后台主壳
     {
@@ -60,6 +62,9 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  // A dedicated popup callback must not load database credentials or setup state.
+  if (to.name === 'copilot-oauth-callback') return true;
+
   const auth = useAuthStore();
   const setup = useSetupStore();
 
