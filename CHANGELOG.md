@@ -77,7 +77,9 @@
 
 - **M27 #340 ServerRelay 跨进程/重启续流 journal**：ServerRelay 事件日志现在可持久化到 `<DataRoot>/.system/copilot-relay-journal.json`，以 source-generated JSON 和原子替换写入；新 Server 进程可按 owner/database/request fingerprint 与 cursor 重放已完成 run。进程重启时未完成 run 会追加 `error`/`done` 的 interrupted 终态并只允许重放已有事件，绝不接管或重复调用 provider/本地工具；journal 使用单写者锁、有限 TTL 和有界 run/event 容量。新增完成 run 重启重放与未完成 run fail-closed 回归。跨多实例正在执行中的实时接管、可信 OAuth/PKCE、StudioNative broker 与真实公网部署仍不在本次合同内。
 
-- **M27 #340 Web 页面刷新 ServerRelay 重放**：CopilotDock 仅在 ServerRelay 模式保存受限 pending marker（runId、会话/数据库、SHA-256 请求 fingerprint 和非敏感模式元数据），不保存数据库/public token、消息正文或工具结果；刷新后重新加载服务端会话，去除本轮已追加的 assistant 尾部并从 sequence 1 重放完整 journal，fingerprint 不一致、unknown/expired/conflict 或安全存储/摘要不可用时清理并 fail closed。停止、登出和会话切换会清理 marker；BrowserDirect、StudioNative 与 Disabled 不共享该状态。Playwright marker/fingerprint 回归和 Web build 已通过，真实 Server 重启/浏览器联调仍待后置验证。
+- **M27 #340 Web 页面刷新 ServerRelay 重放**：CopilotDock 仅在 ServerRelay 模式保存受限 pending marker（runId、会话/数据库、SHA-256 请求 fingerprint 和非敏感模式元数据），不保存数据库/public token、消息正文或工具结果；刷新后重新加载服务端会话，去除本轮已追加的 assistant 尾部并从 sequence 1 重放完整 journal，fingerprint 不一致、unknown/expired/conflict 或安全存储/摘要不可用时清理并 fail closed。停止、登出和会话切换会清理 marker；BrowserDirect、StudioNative 与 Disabled 不共享该状态。Playwright marker/fingerprint 回归、Web build 和本机 Server 重启 smoke 已通过，部署后的浏览器刷新联调仍待后置验证。
+
+- **M27 #340 本机 ServerRelay 重启 smoke**：新增 PowerShell 7 loopback 脚本，使用真实 Server 进程切换、普通临时数据库和 durable journal 验证按 `runId` 重放；首轮 mock provider 仅调用 planner/answer 各一次，重启后保持 `calls=2`，事件序列均为 `start,retrieval,final,done`。报告固定为 `LOCAL_ONLY` / `serverRestart=PASS_LOCAL_ONLY` / `browserRefresh=NOT_RUN`，不覆盖 OAuth/PKCE、公网、StudioNative 或真实模型质量/成本。
 
 - **M36 #311 统一新客户端合同代码收口**：Document、Graph、KV、MQ 和 Object 客户端的取消传播、目标/关联响应绑定、流式与批量边界已完成；Object SDK 的预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和写入禁止自动重放，以及 MQ `PublishMany` 的逐项物化和发送前取消传播均已落地。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。九模型 golden journey、工作台/SDK 端到端矩阵、远程恢复和长期证据转入独立验收任务。
 
@@ -85,7 +87,7 @@
 
 - **M41 #375 统计无偏采样**：关系统计刷新在受限样本预算下遍历完整快照并按稳定序列做确定性均匀选样，避免只取主键前缀导致尾部数据缺失；新增尾部样本回归与基准。
 
-- **M41 #375 页感知成本与参数敏感反馈**：索引候选的逻辑读估算按持久化索引页密度缩放，并在 `EXPLAIN` 候选摘要中公开页上界；参数化 SQL 的运行时行数反馈增加绑定值摘要隔离，避免倾斜参数污染同形状查询的后续规划。新增页成本和参数反馈隔离回归。
+- **M41 #375 页感知成本与参数敏感反馈**：fresh statistics 的索引候选逻辑读估算按持久化索引页密度拆分 root/tree seek、连续 leaf span 并在索引总页数处封顶，`EXPLAIN` 候选摘要公开 `seek`/`leaf`/`pages` 上界；统计缺失或过期时仍按既有启发式回退。参数化 SQL 的运行时行数反馈增加绑定值摘要隔离，避免倾斜参数污染同形状查询的后续规划。新增页成本 helper 的窄/宽/空输入边界、缺失统计回退和参数反馈隔离回归；空输入的 root-only seek 是 helper 合同，不等于生产 planner 已证明物理 miss leaf 读取；cache state、随机叶页物理 I/O、固定硬件与统一语料尾延迟仍后置。
 
 - **M42 向量批量余弦 query norm 复用**：批量 CPU scorer 现在每次扫描只计算一次查询向量范数平方，再复用到每个候选行；保留零向量、NaN、维度错误、裁剪和距离排序语义。新增逐行差分/边界回归与 BenchmarkDotNet 基线；固定 x64、ARM64 和 168 小时生产门禁仍待现场执行，详见 [M42 query norm 报告](docs/benchmarks/m42-vector-query-norm.md)。
 

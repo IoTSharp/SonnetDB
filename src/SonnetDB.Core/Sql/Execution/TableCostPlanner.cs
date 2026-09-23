@@ -19,8 +19,19 @@ internal sealed record TableAccessCostEstimate(
     string? FallbackReason,
     TableIndexAccessPlan? IndexPlan);
 
+/// <summary>单个索引候选的确定性页访问估算。</summary>
+internal readonly record struct TableIndexPageCostEstimate(
+    long RootSeekPages,
+    long LeafRangePages,
+    long LogicalReads,
+    bool UsedFallback);
+
 internal static class TableCostPlanner
 {
+    private const int MinimumIndexFanout = 2;
+    private const int MaximumIndexFanout = 256;
+    private const int MaximumIndexTreeLevels = 32;
+
     internal static TableAccessCostEstimate Estimate(
         TableStore store,
         TableSchema schema,
@@ -92,23 +103,22 @@ internal static class TableCostPlanner
         }
 
         IReadOnlyList<TableIndexAccessPlan> candidates = TableSqlExecutor.CollectIndexAccessPlans(schema, where);
-        var estimates = new List<(TableIndexAccessPlan Plan, long Rows, long Reads, double Cost)>(candidates.Count);
+        var estimates = new List<IndexCandidateEstimate>(candidates.Count);
         foreach (TableIndexAccessPlan candidate in candidates)
         {
             long rows = EstimateIndexRows(store.RowCount, schema, candidate, statistics);
             TableIndexStatistics? indexStatistics = statistics.TryGetIndex(candidate.Index.Name);
-            double averageEntryWidth = indexStatistics?.AverageEntryWidth ?? statistics.AverageRowWidth;
-            // Index candidates are page-oriented. Counting every matching row
-            // as a logical read ignores the persisted index density and makes a
-            // selective index look needlessly expensive. Keep row processing in
-            // the cost term, but expose the estimated leaf pages as reads.
-            long reads = EstimateIndexLogicalReads(
+            double averageEntryWidth = indexStatistics?.AverageEntryWidth ?? double.NaN;
+            if (!double.IsFinite(averageEntryWidth) || averageEntryWidth <= 0)
+                averageEntryWidth = statistics.AverageRowWidth;
+            if (!double.IsFinite(averageEntryWidth) || averageEntryWidth <= 0)
+                averageEntryWidth = 1;
+            TableIndexPageCostEstimate pageCost = EstimateIndexPageCost(
                 rows,
-                indexStatistics);
-            double cost = 4
-                + reads * 0.5
-                + rows * (1 + averageEntryWidth / 4096d);
-            estimates.Add((candidate, rows, reads, cost));
+                indexStatistics,
+                statistics.LogicalPageBytes);
+            double cost = EstimateIndexCost(rows, pageCost.LogicalReads, averageEntryWidth);
+            estimates.Add(new IndexCandidateEstimate(candidate, rows, pageCost, cost));
         }
 
         var best = estimates
@@ -125,7 +135,10 @@ internal static class TableCostPlanner
             estimates.Select(estimate =>
                 $"{(ReferenceEquals(estimate.Plan, best.Plan) && best.Cost <= scanCost ? "*" : string.Empty)}"
                 + $"{FormatAccessPath(estimate.Plan)}:{estimate.Plan.Index.Name} rows<={estimate.Rows}"
-                + $" pages<={estimate.Reads}"
+                + $" seek<={estimate.PageCost.RootSeekPages}"
+                + $" leaf<={estimate.PageCost.LeafRangePages}"
+                + $" pages<={estimate.PageCost.LogicalReads}"
+                + (estimate.PageCost.UsedFallback ? " fallback=index_page_stats_unavailable" : string.Empty)
                 + $" cost={estimate.Cost.ToString("F2", CultureInfo.InvariantCulture)}"));
 
         if (scanCost < best.Cost)
@@ -149,7 +162,7 @@ internal static class TableCostPlanner
             FormatAccessPath(best.Plan),
             best.Plan.Index.Name,
             best.Rows,
-            best.Reads,
+            best.PageCost.LogicalReads,
             statistics.AverageRowWidth,
             best.Cost,
             "refreshed",
@@ -233,23 +246,110 @@ internal static class TableCostPlanner
             ? statistics.LogicalPageCount
             : Math.Max(1, rows);
 
-    private static long EstimateIndexLogicalReads(
+    internal static TableIndexPageCostEstimate EstimateIndexPageCost(
         long estimatedRows,
-        TableIndexStatistics? statistics)
+        TableIndexStatistics? statistics,
+        int logicalPageBytes)
+    {
+        if (statistics is not { RowCount: > 0, LogicalPageCount: > 0 }
+            || logicalPageBytes <= 0
+            || !double.IsFinite(statistics.AverageEntryWidth)
+            || statistics.AverageEntryWidth <= 0)
+        {
+            return new TableIndexPageCostEstimate(
+                RootSeekPages: 0,
+                LeafRangePages: Math.Max(1, estimatedRows),
+                LogicalReads: Math.Max(1, estimatedRows),
+                UsedFallback: true);
+        }
+
+        long rowCount = statistics.RowCount;
+        long totalPages = statistics.LogicalPageCount;
+        long boundedRows = Math.Clamp(estimatedRows, 0, rowCount);
+        long leafRangePages = EstimateLeafRangePages(boundedRows, rowCount, totalPages);
+        long rootSeekPages = EstimateRootSeekPages(
+            totalPages,
+            statistics.AverageEntryWidth,
+            logicalPageBytes);
+        long logicalReads = SaturatingAdd(rootSeekPages, leafRangePages);
+        logicalReads = Math.Clamp(logicalReads, 1, totalPages);
+        return new TableIndexPageCostEstimate(
+            rootSeekPages,
+            leafRangePages,
+            logicalReads,
+            UsedFallback: false);
+    }
+
+    internal static double EstimateIndexCost(long estimatedRows, long logicalReads, double averageEntryWidth)
+    {
+        long rows = Math.Max(0, estimatedRows);
+        long reads = Math.Max(0, logicalReads);
+        double width = double.IsFinite(averageEntryWidth) && averageEntryWidth > 0
+            ? averageEntryWidth
+            : 1;
+        double rowCost = rows * (1d + width / 4096d);
+        if (!double.IsFinite(rowCost))
+            return double.MaxValue;
+
+        double cost = 4d + reads * 0.5d + rowCost;
+        return double.IsFinite(cost) ? cost : double.MaxValue;
+    }
+
+    private static long EstimateLeafRangePages(
+        long estimatedRows,
+        long rowCount,
+        long totalPages)
     {
         if (estimatedRows <= 0)
-            return 1;
-        if (statistics is not { RowCount: > 0, LogicalPageCount: > 0 })
-            return Math.Max(1, estimatedRows);
+            // Zero denotes an empty estimated matching span; the physical
+            // terminal-leaf miss probe is intentionally outside this helper.
+            return 0;
 
-        // Scale observed index pages by the estimated matching rows. The clamp
-        // prevents a rounded sample from producing more pages than the index
-        // contains.
-        long pages = (long)Math.Ceiling(
-            (double)estimatedRows * statistics.LogicalPageCount / statistics.RowCount);
-        pages = Math.Clamp(pages, 1, statistics.LogicalPageCount);
-        return pages;
+        double scaledPages = (double)estimatedRows * totalPages / rowCount;
+        if (!double.IsFinite(scaledPages) || scaledPages >= long.MaxValue)
+            return totalPages;
+
+        long pages = Math.Max(1, (long)Math.Ceiling(scaledPages));
+        return Math.Clamp(pages, 1, totalPages);
     }
+
+    private static long EstimateRootSeekPages(
+        long totalPages,
+        double averageEntryWidth,
+        int logicalPageBytes)
+    {
+        double entriesPerPageValue = logicalPageBytes / Math.Max(1d, averageEntryWidth);
+        if (!double.IsFinite(entriesPerPageValue) || entriesPerPageValue < MinimumIndexFanout)
+            entriesPerPageValue = MinimumIndexFanout;
+
+        long fanout = Math.Clamp(
+            (long)Math.Floor(entriesPerPageValue),
+            MinimumIndexFanout,
+            MaximumIndexFanout);
+        long levelPages = totalPages;
+        int levels = 1;
+        for (int level = 0; level < MaximumIndexTreeLevels && levelPages > 1; level++)
+        {
+            levelPages = CeilingDivide(levelPages, fanout);
+            levels++;
+        }
+
+        // Leaf pages are charged separately; only internal/root pages belong
+        // to the seek component. A one-page index therefore costs one leaf read.
+        return Math.Max(0, levels - 1);
+    }
+
+    private static long CeilingDivide(long value, long divisor)
+        => value / divisor + (value % divisor == 0 ? 0 : 1);
+
+    private static long SaturatingAdd(long left, long right)
+        => right > long.MaxValue - left ? long.MaxValue : left + right;
+
+    private readonly record struct IndexCandidateEstimate(
+        TableIndexAccessPlan Plan,
+        long Rows,
+        TableIndexPageCostEstimate PageCost,
+        double Cost);
 
     private static double EstimateScanCost(long rows, TableStatistics? statistics)
     {

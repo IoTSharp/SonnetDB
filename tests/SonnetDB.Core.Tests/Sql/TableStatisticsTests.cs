@@ -180,7 +180,107 @@ public sealed class TableStatisticsTests : IDisposable
         Assert.InRange(estimatedRows, 90, 110);
         Assert.True(estimatedReads < estimatedRows,
             $"index reads should be page-aware, rows={estimatedRows}, reads={estimatedReads}");
+        Assert.Contains("seek<=", (string)explain["candidate_plans"]!);
+        Assert.Contains("leaf<=", (string)explain["candidate_plans"]!);
         Assert.Contains("pages<=", (string)explain["candidate_plans"]!);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_NarrowEqualityIncludesTreeSeekAndLeafSpan()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        TableIndexPageCostEstimate estimate = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 1,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(2, estimate.RootSeekPages);
+        Assert.Equal(1, estimate.LeafRangePages);
+        Assert.Equal(3, estimate.LogicalReads);
+        Assert.False(estimate.UsedFallback);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_WideRangeScalesLeafSpanAndCapsAtIndex()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        TableIndexPageCostEstimate narrow = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 1,
+            statistics,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate wide = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 5_000,
+            statistics,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate full = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 10_000,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.True(wide.LeafRangePages > narrow.LeafRangePages);
+        Assert.Equal(50, wide.LeafRangePages);
+        Assert.Equal(52, wide.LogicalReads);
+        Assert.Equal(100, full.LogicalReads);
+        Assert.InRange(full.LogicalReads, 1, statistics.LogicalPageCount);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_ZeroEstimatedRows_ChargesOnlyTreeSeekByHelperContract()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        // This helper contract models an empty leaf span; production row
+        // estimation keeps a non-empty-table lower bound of one row.
+        TableIndexPageCostEstimate estimate = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 0,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(2, estimate.RootSeekPages);
+        Assert.Equal(0, estimate.LeafRangePages);
+        Assert.Equal(2, estimate.LogicalReads);
+        Assert.False(estimate.UsedFallback);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_MissingOrInvalidStatisticsFallsBackToRows()
+    {
+        TableIndexPageCostEstimate missing = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 7,
+            statistics: null,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate invalid = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 7,
+            new TableIndexStatistics("ix_page_cost", 10_000, 100, double.NaN),
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(new TableIndexPageCostEstimate(0, 7, 7, true), missing);
+        Assert.Equal(new TableIndexPageCostEstimate(0, 7, 7, true), invalid);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexCost_InvalidOrHugeWidthsRemainFinite()
+    {
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, double.NaN)));
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, double.PositiveInfinity)));
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, -1)));
+        Assert.Equal(
+            double.MaxValue,
+            TableCostPlanner.EstimateIndexCost(long.MaxValue, long.MaxValue, double.MaxValue));
     }
 
     [Fact]
