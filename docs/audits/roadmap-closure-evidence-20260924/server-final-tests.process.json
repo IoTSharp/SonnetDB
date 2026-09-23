@@ -1,0 +1,7 @@
+{
+  "ProcessId": 20104,
+  "ParentProcessId": 18160,
+  "CreationDate": "2026-09-24T00:33:57.726722+08:00",
+  "ExecutablePath": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\artifacts --filter FullyQualifiedName~CopilotServerRelayMultiInstanceTests|FullyQualifiedName~CopilotServerRelayMultiHostTests|FullyQualifiedName~CopilotChatEndpointTests|FullyQualifiedName~CopilotServerRelayContractTests|FullyQualifiedName~CopilotInfrastructureTests|FullyQualifiedName~ServerOptionsTests|FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~ServerEndToEndTests|FullyQualifiedName~RemoteAdoEndToEndTests --logger trx;LogFileName=server-final.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\results --nologo --disable-build-servers -m:1 -p:UseSharedCompilation=false /warnaserror"
+}

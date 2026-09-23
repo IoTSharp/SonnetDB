@@ -1,0 +1,22 @@
+(node:78008) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:78008) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+✔ SQL parser rejects damaged, empty and incomplete results without discarding completed batches (298.2634ms)
+✔ Switching tabs aborts an approved batch and preserves original history and result ownership (97.7419ms)
+✔ Connection changes stop later statements even when the HTTP adapter completes after cancellation (78.628ms)
+✔ USE changes only the executing context and keeps its following statements valid (76.1964ms)
+✔ Disposal cancels pending HTTP and a duplicate run cannot dispatch a second batch (68.5556ms)
+✔ An approval from another connection or authentication state cannot execute (118.6303ms)
+✔ A single-database transaction uses one batch HTTP request and maps each result (106.9667ms)
+✔ Mixed-database and savepoint transaction scripts are rejected before sending (236.0785ms)
+✔ A transaction failure stops result mapping and preserves the server error (94.7208ms)
+✔ SQL preview metadata distinguishes truncated, complete and malformed results (51.5793ms)
+✔ SQL console explicitly requests preview and labels incomplete rows (122.2976ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2115.7858

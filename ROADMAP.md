@@ -32,7 +32,7 @@
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已归档。 |
 | 25 | Document 验收与发布治理 | 🟡 | verifier 已完成；million/ten-million 固定硬件与 attestation 待执行。 |
 | 26 | 连接器路线 | ✅ | C ABI、多语言入口和 release workflow 已归档。 |
-| 27 | AI / Agent 数据访问与治理 | 🚧 | MCP、工业 Demo、在线 provider 和 ONNX profile 有代码；真实模型质量、成本、双网和 Studio broker仍缺。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | MCP、工业 Demo、在线 provider、ONNX profile 和 M27 #340 ServerRelay 多实例本地合同已有代码与回归；真实模型质量、成本、双网和 Studio broker仍缺。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | 本地 P0~P5 与 SDK 补口已归档。 |
 | 29 | 多模型统一管理工作台 | 🟡 | Web/Studio/VS Code、bundle/MSI 和宿主合同已完成；干净 Windows 安装、WebView2、升级/卸载及端口冲突待真机。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已归档。 |
@@ -47,7 +47,7 @@
 | 39 | SQL 触发器第二版 | ✅ | #333~#339 研发闭环；生产混合负载和长期 SLO列入真机计划。 |
 | 40 | 原生属性图数据库 | 🟡 | #341~#367 步骤 1~7 本地闭环；外部对拍、固定硬件、AOT、Couplet 和 7 天 gate 待真机。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 本地合同完成；#373/#375~#381 发布证据和统一语料待补。 |
-| 42 | 九域与规划器系统性能深化 | 🚧 | 统计/CRC、SQL 指标、KV/向量局部切片已完成；九域容量、跨架构、168 小时和生产门禁未执行。 |
+| 42 | 九域与规划器系统性能深化 | 🚧 | 统计/CRC、SQL 指标、KV/向量局部切片、覆盖索引读取及显式 REST/Web 结果预览已完成；SQL 执行器内存、九域容量、跨架构、冷启动、168 小时和生产门禁未闭环。 |
 | 43 | 十四套能力与生态发布总收口 | 🚧 | #382~#384 已完成；#385~#395 已有首批本地合同（CDC 编解码与 append/replay/ack spool、订阅与文件 checkpoint），#396 已有索引门禁，#385~#402 的远程拓扑、旅程、报告和生态资料仍在队列。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已归档。 |
 
@@ -55,7 +55,7 @@
 
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整当前队列见[总里程碑 D 节](docs/roadmap-total-milestone.md#existing-pr-execution-order)。
 
-1. **代码与功能补全：** M27 #340 的多实例实时接管与双网部署残余（BrowserDirect OAuth/PKCE 与 StudioNative 宿主本地合同已完成）；M35 #298/#302/#303/#305 的真实模型与质量门禁实现；M36 #310/#311/#326 的旅程工具和跨端缺口；M41 #375 与 M42 的冷启动、向量和结果内存残余（KV state 读预算切片已完成）。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收、推送并关闭，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)。新增 GH-Issue #194～#198 已纳入[当前外部队列](docs/github-issues-roadmap.md)。
+1. **代码与功能补全：** M27 #340 的真实 IdP、双网部署与现场旅程残余（ServerRelay 多实例本地合同、BrowserDirect OAuth/PKCE 与 StudioNative 宿主本地合同已完成）；M35 #298/#302/#303/#305 的真实模型与质量门禁实现；M36 #310/#311/#326 的旅程工具和跨端缺口；M41 #375 与 M42 的冷启动、向量和结果内存残余（KV state 读预算及覆盖索引读取切片已完成）。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收、推送并关闭，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)。新增 GH-Issue #194～#198 已纳入[当前外部队列](docs/github-issues-roadmap.md)。
 2. **性能优化：** 统一语料下的页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页、covering/index-only 和受控并行边界；保持正确性、事务、取消和恢复合同。
 3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #352/#367 → #373/#381 → M42；最后执行 M20 七次 scheduled、M43 总验收和生态提交。固定硬件、真机、nightly、长稳和外部对拍都属于本阶段。
 
@@ -139,6 +139,9 @@ M43 只保留未实施或待外部动作的队列：
 - ✅ M27 #340 BrowserDirect OAuth/PKCE 获取入口：实现、界面、构建和受控 Chrome 验收完成；Web 148 通过、2 项既有真实 KV 测试跳过，强化完整请求头检查后 OAuth 12/12 复验通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署与 StudioNative 未计作完成。
 - ✅ GH-Issue #177/#180/#193 已验收、推送并关闭：标准关系 JOIN、JSON 标量/数组查询及关系 VECTOR/GEOPOINT 产品边界（选项 2），Core 194/194、真实服务及客户端 164/164；见 [2026-09-23 验收](docs/audits/sql-provider-closure-20260923.md)。不代表整体 M27/M41/M43 或固定硬件门禁完成。
 - ✅ M27 #340 StudioNative 宿主本地合同：固定 broker、系统凭据库、原生短期 token 输入及 Web 聊天/工具 continuation 已完成；Studio 56/56、Native 专项 26/26、Web 主套件 161 通过（模式限定 13 项另已通过，真实 KV 2 项未配置），生产构建通过。见[验收报告](docs/audits/m27-studio-native-closure-20260923.md)。真实 WebView2/provider/双网现场及多实例接管不计完成。
+- ✅ M27 #340 ServerRelay 多实例本地合同：共享 journal、单执行者 lease、活跃事件续流、owner-loss 稳定失败重放、配置接线和双独立 Server 进程 smoke 已完成；2026-09-24 最终复验 119/119，补齐空数据库、锁超时回收及 Dispose 重入回归，本机 smoke `PASS_LOCAL_ONLY`。真实 IdP、部署双网、provider 透明续跑和生产 HA 仍不计完成。见[闭环报告](docs/audits/relay-multi-instance-closure-20260923.md)。
+- ✅ M42 覆盖索引读取切片：普通索引连续等值前缀/Int64-DATETIME 范围 index-only scan、严格解码、稳定快照、取消和回表边界已完成；Core 42/42。固定架构、统一语料、冷启动、结果内存和 168 小时门禁仍待验证。见[切片报告](docs/benchmarks/m42-covered-index-scans.md)。
+- ✅ M42 SQL 显式预览合同：REST 请求 opt-in、RETURNING 完整影响数、事务提交/回滚、ADO 截断状态和 Web 提示已完成；专项 Core/ADO 16、真实端点 12、Web 11 项通过。普通 REST、Frame 和嵌入式仍返回完整结果。SQL-002 执行器内存、字节预算和首行延迟仍未完成，见[合同与证据](docs/benchmarks/m42-sql-result-bounds.md)。
 - ✅ GH-Issue #196 已验收、推送并关闭：参数化 measurement INNER JOIN、多键排序与分页、Provider 能力预检合同；最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。当前跟踪外部队列 21 项关闭、9 项开放。
 - M0~M13、M15~M18、M21、M23、M24、M26、M28、M30、M31、M33、M34、M37~M39、MM9：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21)；M14 Copilot 继续按 M27 未闭环队列推进。
 - M35 #297、#299~#301、#304、#306~#309；M36 #311~#326 代码范围；M40 #341~#367 步骤 1~7；M41 #368~#380 本地合同：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21) 和各专页。

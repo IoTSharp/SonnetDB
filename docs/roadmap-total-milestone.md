@@ -65,9 +65,9 @@ SonnetDB 当前公开定位为九种原生数据模型，加上空间/轨迹、�
 
 | 顺序 | 范围 | 状态 | 只保留的工作 |
 |---:|---|---|---|
-| 1 | M27 #340 | 🚧 | 多实例实时接管、真实 IdP、已部署公网 continuation/CSP/CORS、真实双网和 StudioNative 实机旅程；BrowserDirect OAuth/PKCE 与 StudioNative 宿主本地合同已完成。 |
+| 1 | M27 #340 | 🟡 | 共享 journal 的多实例活跃跟随、单执行者 lease、owner-loss fail-closed、配置接线和双进程产品 smoke 已完成；真实 IdP、已部署公网 continuation/CSP/CORS、真实双网和 StudioNative 实机旅程仍待现场，provider 透明续跑不在当前接口合同。 |
 | 2 | M41 #375 | 🟡 | 统计后台任务、页感知成本和参数反馈已有本地合同；固定硬件、生产尾延迟和统一语料报告待执行。 |
-| 3 | M42 残余 | 🚧 | KV state 并发读预算切片已完成；仍保留 covering/index-only 扩展、大值复制、冷启动、SQL 结果内存及跨架构性能门禁。 |
+| 3 | M42 残余 | 🚧 | KV state 并发读预算、covering/index-only 读取及显式 REST/Web SQL 预览合同已完成；仍保留大值复制、冷启动、SQL 执行器内存/字节预算及跨架构性能门禁。[2026-09-24 预览验收](benchmarks/m42-sql-result-bounds.md)不代表 SQL-002 整项完成。 |
 | 4 | M35 #298/#302/#303/#305 | 🟡/🚧 | 真实模型质量、Recall@K/nDCG、成本、容量、回滚和固定硬件证据；合同 fixture 不计语义质量。 |
 | 5 | M36 #310/#311/#326 验收 | 🚧/⏳ | 九模型最小样例、SDK/API/Workbench/CLI 矩阵、真实跨端 e2e、远程恢复与备份旅程。 |
 

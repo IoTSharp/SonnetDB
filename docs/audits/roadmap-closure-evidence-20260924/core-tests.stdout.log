@@ -1,0 +1,15 @@
+  正在确定要还原的项目…
+  已还原 D:\source\SonnetDB\src\SonnetDB.Cli\SonnetDB.Cli.csproj (用时 355 毫秒)。
+  已还原 D:\source\SonnetDB\tests\SonnetDB.Core.Tests\SonnetDB.Core.Tests.csproj (用时 355 毫秒)。
+  4 个项目(共 6 个)是最新的，无法还原。
+  SonnetDB.Core -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  SonnetDB.Data -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.Cli -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Cli\release\SonnetDB.Cli.dll
+  SonnetDB.Caching.Distributed -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.Caching.EasyCaching -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Core.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll
+C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+结果文件: C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\results\core.trx
+
+已通过! - 失败:     0，通过:    87，已跳过:     0，总计:    87，持续时间: 18 s - SonnetDB.Core.Tests.dll (net10.0)

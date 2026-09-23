@@ -1,0 +1,180 @@
+{
+  "recordedAtUtc": "2026-09-23T16:39:55.0586369+00:00",
+  "baseCommit": "1be0b502d382b9e9b1e987df3339a7dfce29b85c",
+  "workingTreeChanges": true,
+  "core": {
+    "sqlBounds": 3,
+    "covering": 42,
+    "failed": 0,
+    "commandTimeout": 29,
+    "skipped": 0,
+    "adoPreview": 13,
+    "passed": 87
+  },
+  "server": {
+    "relayAndConfiguration": 119,
+    "failedFinal": 0,
+    "passedDistinct": 197,
+    "sqlPreview": 12,
+    "skipped": 0,
+    "existingSqlFrameRestAdo": 66,
+    "firstRun": {
+      "failed": 12,
+      "passed": 185,
+      "reason": "New fixture used unsupported inline PRIMARY KEY; corrected to table-level PRIMARY KEY, no production change."
+    },
+    "rerun": {
+      "trx": "sql-preview.trx",
+      "failed": 0,
+      "passed": 12
+    }
+  },
+  "web": {
+    "productionBuild": "PASS",
+    "typecheck": "PASS",
+    "warning": "Existing large chunks (>500 kB)",
+    "testsPassed": 11,
+    "testsFailed": 0
+  },
+  "relaySmoke": {
+    "cleanup": "PASS",
+    "scriptSha256": "426456B1BCC2255DC65E3870540CC351EF3173F6E53A69DD3C512A6405056058",
+    "serverSha256": "AB2F34D227B96AB223900337A4AC0197122CB65679526C5FBCD70BD9FE8E0B20",
+    "status": "PASS_LOCAL_ONLY"
+  },
+  "sourceHashes": [
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SelectExecutionResult.cs",
+      "sha256": "1C2666CF28069097C69B845726D6AEEEF42EF149A4FF9C0D1D70BA9530B7C8AA"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlResultBounds.cs",
+      "sha256": "7EFB8F9172B349E4BD7F33BC2A8C88F9255680A8931A84720D4A7F11E773487B"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "D0B0DDA32FF501828A2B4295DF6EEB8866621F82A89D0EFB19C7B8017A0F30AC"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableIndexCodec.cs",
+      "sha256": "F826DD278FCF78221A0785711FAA795C818C8CF71DBED449B77FEF6A7BE77C10"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableStore.cs",
+      "sha256": "6D62D2715FF99B498960652392DB33823023B1408FDCFF117C14C8BD2DDE98E8"
+    },
+    {
+      "path": "src/SonnetDB.Data/Embedded/MaterializedExecutionResult.cs",
+      "sha256": "847F38A307BDDCBF7E24BA27968D1873404747567E0AB6279612A34D9B9376C6"
+    },
+    {
+      "path": "src/SonnetDB.Data/Internal/IConnectionImpl.cs",
+      "sha256": "E50CF319DFCFBAB5C73D0324F9393E3715A760B0BAA98596F43F8F75B08609F8"
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/Dtos.cs",
+      "sha256": "3D23D225E31763850ED624E0130C45546DA191D00D301BF4EB4067CCB6078A2A"
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+      "sha256": "B0B0E052CD21946C9D36038AE642B63EDA2E71819A01E4FEE46B7FADAEFDC27F"
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+      "sha256": "92D59ADC6BA8AF531A81C9ECC544639D86F36D30A7DB02B7B26894DD383D7F0B"
+    },
+    {
+      "path": "src/SonnetDB.Data/SndbDataReader.cs",
+      "sha256": "6DB81459BDECEB8B8466F7C978AF1375BF7C30DBF1D2AB0D0690FA43DD664BAB"
+    },
+    {
+      "path": "src/SonnetDB/Configuration/CopilotOptions.cs",
+      "sha256": "6A5DE783769A1DAB28E5BF1BC87DC71F0FA960548461C1798FEF21E38B11F93C"
+    },
+    {
+      "path": "src/SonnetDB/Configuration/ServerOptions.cs",
+      "sha256": "6AF7F3D4EA426D245DA5994BDCD1C4C230E74F4BD0E54B0F68E39BAF6A8E6307"
+    },
+    {
+      "path": "src/SonnetDB/Contracts/Dtos.cs",
+      "sha256": "D25AC18B8714FE8C2B351CBF2B9BF28DE5603FAD2602B686F70BD3C4A953EAC1"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/CopilotServerRelayRunStore.cs",
+      "sha256": "0A2054D858212F3B0C9E7A405E7C4FA3B85AB1124C597137FEF5AE39B1C91B18"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "087391DB6EDDBDC6C389B0DA10C98BF6761C8DC427EFECD640C8857DC12173A2"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/ServerOptionsBinder.cs",
+      "sha256": "AFDC2B6871365AEF17187E6867B362E5B82A766B4367B1D09B177B5CD1B820AB"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/SonnetDbServiceRegistration.cs",
+      "sha256": "16ABBC120C63BBDF9838D31D6E799C9CA92794967CFA9E5B92FC361CDE206F50"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Ado/SndbResultPreviewTests.cs",
+      "sha256": "280A3F340F0F55A0BC3EE91E47813095E1B806B9A6B68CE68821783B4DF18671"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/RelationalCoveredIndexTests.cs",
+      "sha256": "A9BC2E02432469E65DDCA2EA5037F0F6FF533F6AB16542C6204976419835A9D0"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlResultBoundsTests.cs",
+      "sha256": "8B9602152324500CE92EE82311F2847912CA026EB62556E5CEBB45BB6026C93D"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Tables/TableCoveredIndexTests.cs",
+      "sha256": "90EC7D09DF21F719461A0F8FFA984289C585FD56FF01E8071F907BFAAFC2A6AF"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/Copilot/CopilotServerRelayMultiHostTests.cs",
+      "sha256": "E354879014D80A6ED45258D1A756B1E30FE6526ADF73A1210B2250713239E447"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/Copilot/CopilotServerRelayMultiInstanceTests.cs",
+      "sha256": "AAA999672B8C86372923C6E3F7A1405B24F4BF754BB9E7FA9FCD6096AA16952A"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/Copilot/scripts/test-m27-server-relay-multi-instance.ps1",
+      "sha256": "426456B1BCC2255DC65E3870540CC351EF3173F6E53A69DD3C512A6405056058"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/CopilotChatEndpointTests.cs",
+      "sha256": "D259D9550E17B680B6A45B842CE6E944CC15697D4C4A5ECFB771583EB34AF743"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/ServerOptionsTests.cs",
+      "sha256": "3FC2BEC0E6970CDF4BFE922F89CDCD21303BEDFD31117869663E4D763BDF2831"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SqlResultBoundsEndpointTests.cs",
+      "sha256": "6B5598ABA4D5833093A84447EAB6D5FBF575B2C1603D0D6FFA367DC0B42A1999"
+    },
+    {
+      "path": "web/src/api/sql.ts",
+      "sha256": "2ADEBD2EF9AC7B94C55B47C9A99542DC2B61A83CC3880CB1F049027A2168068B"
+    },
+    {
+      "path": "web/src/composables/useSqlExecution.ts",
+      "sha256": "6F1D8D8163CA42552026CE07AE7B6C0D72E54628977480B4D2BF35B3232E309D"
+    },
+    {
+      "path": "web/src/stores/sqlConsole.ts",
+      "sha256": "767C09BBF4F8A1C01CE01DA1713C666ED32D7D5C7C54E866B8ABD63159A7AA75"
+    },
+    {
+      "path": "web/src/utils/sqlWorkbench.ts",
+      "sha256": "65E369C9EB65ECCACE0140AC4E3853563A71A47421624BFD0A77C0AF4A1152AF"
+    },
+    {
+      "path": "web/tests/sql-workflow.test.mjs",
+      "sha256": "4BB7F1F88894072DC67E26FC50C1FC2B0614EB94DC08873EF03B891911E11918"
+    }
+  ],
+  "externalGates": "NOT_RUN"
+}

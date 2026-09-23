@@ -1,0 +1,6 @@
+{
+  "PID": 77204,
+  "StartedUtc": "2026-09-23T16:29:34.3089809Z",
+  "CommandLine": "\"C:\\Program Files\\nodejs\\node.exe\" node_modules/vue-tsc/bin/vue-tsc.js --noEmit",
+  "ParentProcessId": 54944
+}

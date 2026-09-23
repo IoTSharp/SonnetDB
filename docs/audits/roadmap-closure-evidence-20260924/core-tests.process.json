@@ -1,0 +1,7 @@
+{
+  "ProcessId": 26720,
+  "ParentProcessId": 65384,
+  "CreationDate": "2026-09-24T00:32:01.802306+08:00",
+  "ExecutablePath": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\artifacts --filter FullyQualifiedName~TableCoveredIndexTests|FullyQualifiedName~RelationalCoveredIndexTests|FullyQualifiedName~RelationalInputPushdownTests|FullyQualifiedName~TableIndexEntryKeyLengthTests|FullyQualifiedName~SqlResultBoundsTests|FullyQualifiedName~SndbResultPreviewTests|FullyQualifiedName~SndbCommandTimeoutTests --logger trx;LogFileName=core.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\results --nologo --disable-build-servers -m:1 -p:UseSharedCompilation=false /warnaserror"
+}

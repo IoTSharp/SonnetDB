@@ -1,0 +1,6 @@
+{
+  "PID": 61164,
+  "StartedUtc": "2026-09-23T16:33:06.635793Z",
+  "CommandLine": "\"C:\\Program Files\\nodejs\\node.exe\" node_modules/vite/bin/vite.js build --outDir C:/Users/mysti/AppData/Local/Temp/sonnetdb-final-20260924/web-dist --emptyOutDir",
+  "ParentProcessId": 34716
+}
