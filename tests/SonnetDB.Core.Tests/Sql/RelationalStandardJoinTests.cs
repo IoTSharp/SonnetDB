@@ -96,6 +96,44 @@ public sealed class RelationalStandardJoinTests : IDisposable
             result.Rows.Select(static row => $"{row[0]}:{row[1]}").Distinct(StringComparer.Ordinal).Count());
     }
 
+    /// <summary>规范化 AST 后执行和 EXPLAIN 都保留 measurement 的标准外连接拒绝边界。</summary>
+    [Theory]
+    [InlineData("LEFT")]
+    [InlineData("RIGHT")]
+    [InlineData("FULL")]
+    [InlineData("CROSS")]
+    public void ExecuteAndExplain_MeasurementStandardJoin_RejectWithModelDiagnostic(string kind)
+    {
+        using var database = CreateDatabase();
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT samples (source TAG, value FIELD FLOAT)");
+        string predicate = kind == "CROSS" ? string.Empty : " ON s.source = r.id";
+        string sql = $"SELECT r.id FROM samples s {kind} JOIN right_rows r{predicate}";
+        var execute = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database, sql));
+        var explain = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database, "EXPLAIN " + sql));
+        Assert.Contains("当前仅支持关系表 FROM", execute.Message, StringComparison.Ordinal);
+        Assert.Equal(execute.Message, explain.Message);
+    }
+
+    /// <summary>读取规范化 JOIN 列表仍能执行原有 INNER measurement 维表的匹配行路径。</summary>
+    [Fact]
+    public void Execute_MeasurementInnerJoinWithParameter_PreservesSupportedPath()
+    {
+        using var database = CreateDatabase();
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT samples (source TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(database, "CREATE TABLE sources (id STRING, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(database, "INSERT INTO sources (id, name) VALUES ('a', 'source-a')");
+        SqlExecutor.Execute(database, "INSERT INTO samples (time, source, value) VALUES (1000, 'a', 1.5)");
+        const string sql = "SELECT s.time, r.name FROM samples s INNER JOIN sources r ON s.source = r.id WHERE s.source = @source";
+        var parameters = new SqlParameters().AddNamed("source", "a");
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, databaseName: null, sql, parameters, controlPlane: null));
+        Assert.Equal(new object?[] { 1000L, "source-a" }, Assert.Single(result.Rows));
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, databaseName: null, "EXPLAIN " + sql, parameters, controlPlane: null));
+        Assert.Contains(explain.Rows, static row => Equals(row[0], "statement_type")
+            && Equals(row[1], "select_join"));
+    }
+
     private Tsdb CreateDatabase()
     {
         var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

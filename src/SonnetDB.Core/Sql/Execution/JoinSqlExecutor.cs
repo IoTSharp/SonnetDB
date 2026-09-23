@@ -20,11 +20,7 @@ internal static class JoinSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var join = statement.Join
-            ?? throw new InvalidOperationException("内部错误：JOIN 执行器要求 SELECT 包含 JOIN 子句。");
-        if (join.Kind is not (JoinKind.Inner or JoinKind.Left))
-            throw new InvalidOperationException(
-                "RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN 仍限定为 INNER/LEFT。各自的 NULL 扩展语义尚未接入时序路径。");
+        var join = GetSupportedJoin(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
         if (statement.GroupBy.Count != 0)
@@ -112,11 +108,7 @@ internal static class JoinSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var join = statement.Join
-            ?? throw new InvalidOperationException("内部错误：JOIN Explain 要求 SELECT 包含 JOIN 子句。");
-        if (join.Kind is not (JoinKind.Inner or JoinKind.Left))
-            throw new InvalidOperationException(
-                "RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN Explain 仍限定为 INNER/LEFT。");
+        var join = GetSupportedJoin(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
 
@@ -178,6 +170,19 @@ internal static class JoinSqlExecutor
         var tableColumn = scope.TableSchema.TryGetColumn(tableRef.Name)
             ?? throw new InvalidOperationException($"JOIN ON 引用了未知 table 列 '{tableRef.Name}'。");
         return new JoinKeys(measurementColumn, tableColumn);
+    }
+
+    private static JoinClause GetSupportedJoin(SelectStatement statement)
+    {
+        // 参数绑定及 CTE 展开会清空旧 Join 属性；统一读取兼容新旧 AST 的 JoinClauses。
+        IReadOnlyList<JoinClause> joins = statement.JoinClauses;
+        if (joins.Count != 1)
+            throw new InvalidOperationException("measurement JOIN 当前仅支持一个关系维表。");
+        JoinClause join = joins[0];
+        if (join.Kind != JoinKind.Inner)
+            throw new InvalidOperationException(
+                "LEFT/RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN 当前仅支持单个 INNER JOIN。");
+        return join;
     }
 
     internal static CrossModelFilterPlan PlanFilters(SqlExpression? where, JoinScope scope)

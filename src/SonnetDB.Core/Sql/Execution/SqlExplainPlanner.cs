@@ -1058,7 +1058,7 @@ public static class SqlExplainPlanner
             };
         }
 
-        if (statement.Join is not null)
+        if (statement.JoinClauses.Count != 0)
         {
             var joinPlan = JoinSqlExecutor.ExplainPlan(tsdb, statement);
             return new SqlExplainExecutionResult(
