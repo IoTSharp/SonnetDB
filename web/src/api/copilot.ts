@@ -1,4 +1,5 @@
 import type { AxiosInstance } from 'axios';
+import { createConfiguredStudioNativeTransport } from '../copilot/studioNative';
 import {
   CopilotRuntime,
   CopilotRuntimeContractError,
@@ -434,6 +435,8 @@ export async function* streamCopilotChat(
     transports.push(new ServerRelayCopilotTransport(api, token));
   } else if (mode === 'BrowserDirect') {
     transports.push(createConfiguredBrowserDirectTransport(api, token, browserDirectOptions));
+  } else if (mode === 'StudioNative') {
+    transports.push(await createConfiguredStudioNativeTransport(api, token));
   }
   const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(mode, transports);
   yield* runtime.run(request, { ...runtimeOptions, signal });

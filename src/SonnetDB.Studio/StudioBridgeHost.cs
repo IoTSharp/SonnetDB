@@ -22,6 +22,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     private readonly StudioHostOptions _options;
     private readonly StudioConnectionLibrary _connections;
     private readonly StudioManagedServerHost _managedServer;
+    private readonly StudioCopilotBroker _copilot;
     private readonly string _trustedStudioOrigin;
     private string _selectedDataRoot;
     private string _selectedManagedServerUrl;
@@ -31,7 +32,8 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     /// 创建 Studio bridge。
     /// </summary>
     /// <param name="options">Studio 启动参数。</param>
-    public StudioBridgeHost(StudioHostOptions options)
+    /// <param name="copilot">可选的原生 Copilot broker。</param>
+    public StudioBridgeHost(StudioHostOptions options, StudioCopilotBroker? copilot = null)
     {
         _options = options;
         Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
@@ -39,6 +41,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         _trustedStudioOrigin = GetOrigin(options.ServerUrl);
         _connections = new StudioConnectionLibrary(options.ConnectionLibraryPath, options.ManagedServerUrl);
         _managedServer = new StudioManagedServerHost(options.ServerExecutable, options.KeepManagedServer);
+        _copilot = copilot ?? new StudioCopilotBroker();
         _selectedDataRoot = options.DataRoot;
         _selectedManagedServerUrl = options.ManagedServerUrl;
     }
@@ -76,6 +79,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         app.Use(ValidateBridgeOriginAsync);
         app.UseCors(policy => policy
             .WithOrigins(_trustedStudioOrigin)
+            .WithExposedHeaders(StudioCopilotBroker.ContractHeader)
             .AllowAnyMethod()
             .AllowAnyHeader());
         app.Use(AuthorizeBridgeRequestAsync);
@@ -92,6 +96,12 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         group.MapGet("/server/status", WriteServerStatusAsync);
         group.MapPost("/server/start", StartServerAsync);
         group.MapPost("/server/stop", StopServerAsync);
+        group.MapGet("/copilot/status", context => _copilot.HandleAsync(context, "status", Token));
+        group.MapPost("/copilot/connect", context => _copilot.HandleAsync(context, "connect", Token));
+        group.MapPost("/copilot/disconnect", context => _copilot.HandleAsync(context, "disconnect", Token));
+        group.MapGet("/copilot/readiness", context => _copilot.HandleAsync(context, "readiness", Token));
+        group.MapPost("/copilot/chat", context => _copilot.HandleAsync(context, "chat", Token));
+        group.MapPost("/copilot/continue", context => _copilot.HandleAsync(context, "continue", Token));
 
         _app = app;
         await app.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -107,13 +117,17 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_app is not null)
+        _copilot.Dispose();
+        try
         {
-            await _app.StopAsync().ConfigureAwait(false);
-            await _app.DisposeAsync().ConfigureAwait(false);
+            if (_app is not null)
+            {
+                using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                try { await _app.StopAsync(shutdown.Token).ConfigureAwait(false); }
+                finally { await _app.DisposeAsync().ConfigureAwait(false); }
+            }
         }
-
-        await _managedServer.DisposeAsync().ConfigureAwait(false);
+        finally { await _managedServer.DisposeAsync().ConfigureAwait(false); }
     }
 
     private async Task AuthorizeBridgeRequestAsync(HttpContext context, RequestDelegate next)
@@ -324,6 +338,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
                 "server.managedLocal",
                 "menu.desktopActions",
                 "menu.native",
+                "copilot.nativeBroker.v1",
             ],
             StudioDesktopActions.ManifestItems,
             status);

@@ -265,7 +265,7 @@ M27 #340 的 Web 首切片把 CopilotDock 接到统一 client runtime。构建�
 `StudioNative` 或 `Disabled`；省略时为保持现有部署兼容而固定使用 `ServerRelay`，
 不会依据一次探活在模式之间切换。
 
-`ServerRelay` 与 `BrowserDirect` transport 已注册到真实聊天入口。ServerRelay 先通过当前活动 SonnetDB API 客户端检查
+`ServerRelay`、`BrowserDirect` 与 `StudioNative` transport 已注册到真实聊天入口。ServerRelay 先通过当前活动 SonnetDB API 客户端检查
 本地 `/healthz`，把客户端公网 readiness 明确标记为 `not-required`，再将数据库
 Bearer Token 发送到同一活动连接派生出的固定 `/v1/copilot/chat/stream` 端点。
 请求使用 `credentials: omit` 和 `redirect: error`，readiness 与携带数据库 Token/消息/页面上下文的
@@ -276,8 +276,15 @@ BrowserDirect 只接受 `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` 指定的 
 TTL 不超过两小时；与数据库 token 同值、缺配置、缺 token、过期或登出时均 fail closed，
 不会静默回退到 ServerRelay。Studio bridge 已把 endpoint/token 从 URL、query 和浏览器
 storage 移除，改由 NativeWebHost request/event 仅注入当前 WebView 内存；loopback HTTP
-还要求配置的 Studio origin 与 header token，并拒绝 query token。该前置不构成
-StudioNative transport 或系统凭据库，相关模式在 AI broker 和凭据边界完成前仍稳定拒绝。
+还要求配置的 Studio origin 与 header token，并拒绝 query token。
+
+`StudioNative` 使用宿主 manifest 的 `copilot.nativeBroker.v1`，通过固定
+status/connect/disconnect/readiness/chat/continue 操作访问原生 broker。宿主原生窗口输入已有的
+短期公网 runtime token，在 readiness 验证后保存到 Windows Credential Manager；凭据不返回
+WebView。固定 HTTPS 出口只来自宿主批准配置，缺配置、缺宿主或失效凭据保持不可用。页面显式
+开启工具出域并指定只读工具名单后，复用 typed MCP 与逐字 continuation 合同。完整配置、资源限制、
+凭据生命周期及验证边界见 [StudioNative 合同](studio-copilot-contract.md)。原生 token 输入不等于
+桌面 OAuth 获取、真实公网 provider 或双网现场验收。
 
 BrowserDirect 本地工具出域还必须把
 `VITE_COPILOT_BROWSER_DIRECT_ALLOW_DATA_EGRESS` 精确设为 `true`，并在

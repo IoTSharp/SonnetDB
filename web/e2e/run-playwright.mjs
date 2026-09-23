@@ -9,6 +9,10 @@ if (!/^\d{1,5}$/u.test(port) || Number(port) < 1 || Number(port) > 65535) {
 }
 const baseUrl = `http://127.0.0.1:${port}`;
 const forwardedArgs = process.argv.slice(2);
+const fixtureRuntime = process.env.SONNETDB_E2E_RUNTIME ?? 'BrowserDirect';
+if (!['BrowserDirect', 'StudioNative'].includes(fixtureRuntime)) {
+  throw new Error('SONNETDB_E2E_RUNTIME must be BrowserDirect or StudioNative.');
+}
 const cancellation = new AbortController();
 const maximumRun = setTimeout(() => cancellation.abort(new Error('E2E run exceeded 15 minutes.')), 15 * 60_000);
 const cancel = () => cancellation.abort(new Error('E2E run cancelled.'));
@@ -19,7 +23,9 @@ const children = [];
 // Non-secret .test identity-provider fixtures. These variables belong only to
 // the Vite child; normal builds and Node-side contract tests retain their env.
 const fixtureEnvironment = {
-  VITE_COPILOT_RUNTIME_MODE: 'BrowserDirect',
+  VITE_COPILOT_RUNTIME_MODE: fixtureRuntime,
+  VITE_COPILOT_STUDIO_NATIVE_ALLOW_DATA_EGRESS: 'true',
+  VITE_COPILOT_STUDIO_NATIVE_ALLOWED_TOOLS: 'list_measurements',
   VITE_COPILOT_OAUTH_ISSUER: 'https://idp.oauth.test',
   VITE_COPILOT_OAUTH_AUTHORIZATION_ENDPOINT: 'https://idp.oauth.test/authorize',
   VITE_COPILOT_OAUTH_TOKEN_ENDPOINT: 'https://idp.oauth.test/token',

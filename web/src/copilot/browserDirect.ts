@@ -6,9 +6,10 @@ import {
   type CopilotTransport,
   type CopilotTransportEvent,
 } from './runtime';
-import type { BrowserDirectLocalToolCall, BrowserDirectLocalToolLoop } from './browserDirectMcp';
+import type { BrowserDirectLocalToolLoop } from './browserDirectMcp';
+import { BrowserDirectContractVersion, streamPublicCopilotProtocol, type PublicCopilotRequest, type BrowserDirectContinuation } from './publicRuntimeProtocol';
 
-export const BrowserDirectContractVersion = 'm27-browser-direct-v1' as const;
+export { BrowserDirectContractVersion } from './publicRuntimeProtocol';
 
 export interface BrowserDirectAccessTokenProvider {
   /** Return a short-lived public-client token from memory. */
@@ -23,32 +24,6 @@ export interface BrowserDirectCopilotTransportOptions<TRequest = unknown> {
   locationHref?: string;
   localToolLoop?: BrowserDirectLocalToolLoop<TRequest>;
   maximumToolCalls?: number;
-}
-
-interface BrowserDirectRequest<TRequest> {
-  contractVersion: typeof BrowserDirectContractVersion;
-  runId: string;
-  request: TRequest;
-  continuation?: BrowserDirectContinuation;
-}
-
-interface BrowserDirectContinuation {
-  previousCursor: string;
-  toolCallId: string;
-  toolName: string;
-  toolResult: string;
-}
-
-interface ExpectedToolResult {
-  toolCallId: string;
-  toolName: string;
-  toolResult: string;
-}
-
-interface CompletedLocalToolCall {
-  fingerprint: string;
-  toolArguments?: string;
-  toolResult: string;
 }
 
 /**
@@ -155,120 +130,13 @@ implements CopilotTransport<TRequest, TEvent> {
     if (!token) {
       throw contractError('browser_direct_token_missing', 'BrowserDirect 公网登录尚未完成。');
     }
-    let continuation: BrowserDirectContinuation | undefined;
-    let expectedToolResult: ExpectedToolResult | undefined;
-    let toolLoopCount = 0;
-    const completedToolCalls = new Map<string, CompletedLocalToolCall>();
-
-    while (true) {
-      const response = await this.startPublicSegment(token, runId, request, continuation, signal);
-      const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
-      const isNdjson = contentType.startsWith('application/x-ndjson');
-      const isSse = contentType.startsWith('text/event-stream');
-      if (!isNdjson && !isSse) {
-        throw contractError(
-          'browser_direct_content_type_invalid',
-          `BrowserDirect 公网端点返回了无效 Content-Type：${contentType || '(missing)'}。`,
-        );
-      }
-
-      let pendingToolCall: BrowserDirectLocalToolCall | undefined;
-      for await (const value of readEventRecords(response, isSse, signal)) {
-        if (pendingToolCall) {
-          throw contractError(
-            'browser_direct_event_after_tool_call',
-            'BrowserDirect 公网段在 tool_call 后仍返回事件，已拒绝执行本地工具。',
-          );
-        }
-        const candidate = parseTransportEvent<TEvent>(value);
-        if (expectedToolResult) {
-          requireExpectedToolResult(candidate, expectedToolResult);
-          expectedToolResult = undefined;
-        }
-
-        if (candidate.event.type === 'tool_call') {
-          const localToolCall = requireLocalToolCall(candidate);
-          const completed = completedToolCalls.get(localToolCall.toolCallId);
-          if (completed) {
-            if (completed.fingerprint !== fingerprintToolCall(localToolCall)) {
-              throw contractError(
-                'browser_direct_tool_call_conflict',
-                `BrowserDirect toolCallId ${localToolCall.toolCallId} 被用于不同工具或参数。`,
-              );
-            }
-            // The public replay remains bounded and must receive another exact
-            // echo. Normalize arguments back to the first envelope so the common
-            // state machine can advance sequence/cursor and suppress the replay.
-            pendingToolCall = localToolCall;
-            yield normalizeReplayEvent(candidate, completed.toolArguments);
-            continue;
-          }
-          pendingToolCall = localToolCall;
-        }
-        yield candidate;
-      }
-
-      if (expectedToolResult) {
-        throw contractError(
-          'browser_direct_tool_result_missing',
-          `BrowserDirect 公网 continuation 未回显 toolCallId ${expectedToolResult.toolCallId} 的结果。`,
-        );
-      }
-      if (!pendingToolCall) return;
-      if (!this.localToolLoop) {
-        throw contractError(
-          'browser_direct_local_tool_loop_unavailable',
-          'BrowserDirect 本地 MCP tool-call loop 尚未配置。',
-        );
-      }
-
-      // Replayed calls count toward the public loop budget even when their local
-      // result is reused. This bounds a provider that keeps requesting replay.
-      toolLoopCount += 1;
-      if (toolLoopCount > this.maximumToolCalls) {
-        throw contractError(
-          'browser_direct_tool_call_budget_exceeded',
-          'BrowserDirect 本地工具循环次数超过单轮预算（重复回放也计数）。',
-        );
-      }
-
-      const fingerprint = fingerprintToolCall(pendingToolCall);
-      const completed = completedToolCalls.get(pendingToolCall.toolCallId);
-      let toolResult: string;
-      if (completed) {
-        if (completed.fingerprint !== fingerprint) {
-          throw contractError(
-            'browser_direct_tool_call_conflict',
-            `BrowserDirect toolCallId ${pendingToolCall.toolCallId} 被用于不同工具或参数。`,
-          );
-        }
-        toolResult = completed.toolResult;
-      } else {
-        toolResult = await this.localToolLoop.callTool(request, pendingToolCall, signal);
-        completedToolCalls.set(pendingToolCall.toolCallId, {
-          fingerprint,
-          ...(pendingToolCall.toolArguments !== undefined
-            ? { toolArguments: pendingToolCall.toolArguments }
-            : {}),
-          toolResult,
-        });
-      }
-      continuation = {
-        previousCursor: pendingToolCall.cursor,
-        toolCallId: pendingToolCall.toolCallId,
-        toolName: pendingToolCall.toolName,
-        toolResult,
-      };
-      // The local result is untrusted opaque data. The public runtime must echo
-      // the exact payload as a tool_result before it may continue the run.
-      expectedToolResult = {
-        toolCallId: pendingToolCall.toolCallId,
-        toolName: pendingToolCall.toolName,
-        toolResult,
-      };
-    }
+    yield* streamPublicCopilotProtocol<TRequest, TEvent>(
+      runId, request, signal,
+      (payload, segmentSignal) => this.startPublicSegment(token, payload.runId, payload.request, payload.continuation, segmentSignal),
+      this.localToolLoop,
+      this.maximumToolCalls,
+    );
   }
-
   private async startPublicSegment(
     token: string,
     runId: string,
@@ -291,7 +159,7 @@ implements CopilotTransport<TRequest, TEvent> {
           runId,
           request,
           ...(continuation ? { continuation } : {}),
-        } satisfies BrowserDirectRequest<TRequest>),
+        } satisfies PublicCopilotRequest<TRequest>),
         signal,
         credentials: 'omit',
         redirect: 'error',
@@ -342,86 +210,6 @@ implements CopilotTransport<TRequest, TEvent> {
     if (!required) return null;
     throw contractError('browser_direct_token_missing', 'BrowserDirect 公网登录尚未完成。');
   }
-}
-
-function requireLocalToolCall<TEvent extends CopilotEventPayload>(
-  candidate: CopilotTransportEvent<TEvent>,
-): BrowserDirectLocalToolCall & { cursor: string } {
-  const toolCallId = candidate.toolCallId?.trim();
-  const toolName = candidate.event.toolName?.trim();
-  if (!toolCallId || !toolName) {
-    throw contractError('browser_direct_tool_call_invalid', 'BrowserDirect tool_call 缺少 toolCallId 或 toolName。');
-  }
-  return {
-    cursor: candidate.cursor,
-    toolCallId,
-    toolName,
-    ...(candidate.event.toolArguments !== undefined
-      ? { toolArguments: candidate.event.toolArguments }
-      : {}),
-  };
-}
-
-function requireExpectedToolResult<TEvent extends CopilotEventPayload>(
-  candidate: CopilotTransportEvent<TEvent>,
-  expected: ExpectedToolResult,
-): void {
-  if (candidate.event.type === 'tool_result'
-    && candidate.toolCallId === expected.toolCallId
-    && candidate.event.toolName === expected.toolName
-    && candidate.event.toolResult === expected.toolResult) {
-    return;
-  }
-  throw contractError(
-    'browser_direct_tool_result_mismatch',
-    `BrowserDirect 公网 continuation 未逐字回显 toolCallId ${expected.toolCallId} 的本地结果。`,
-  );
-}
-
-function normalizeReplayEvent<TEvent extends CopilotEventPayload>(
-  candidate: CopilotTransportEvent<TEvent>,
-  toolArguments: string | undefined,
-): CopilotTransportEvent<TEvent> {
-  return {
-    ...candidate,
-    event: {
-      ...candidate.event,
-      toolArguments,
-    },
-  };
-}
-
-function fingerprintToolCall(call: BrowserDirectLocalToolCall): string {
-  let argumentsValue: unknown;
-  try {
-    argumentsValue = JSON.parse(call.toolArguments?.trim() || '{}');
-  } catch {
-    throw contractError(
-      'browser_direct_tool_arguments_invalid',
-      `BrowserDirect 本地工具 ${call.toolName} 的参数不是有效 JSON。`,
-    );
-  }
-  if (!isRecord(argumentsValue)) {
-    throw contractError(
-      'browser_direct_tool_arguments_invalid',
-      `BrowserDirect 本地工具 ${call.toolName} 的参数必须是 JSON object。`,
-    );
-  }
-  return stableStringify({ toolName: call.toolName, arguments: argumentsValue });
-}
-
-function stableStringify(value: unknown): string {
-  return JSON.stringify(sortJsonValue(value));
-}
-
-function sortJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJsonValue);
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, sortJsonValue(value[key])]),
-  );
 }
 
 export function resolveApprovedPublicBaseUrl(
@@ -489,75 +277,6 @@ function resolveLocalEndpoint(api: AxiosInstance, path: string, locationHref: st
     );
   }
   return endpoint.href;
-}
-
-async function* readEventRecords(
-  response: Response,
-  sse: boolean,
-  signal: AbortSignal,
-): AsyncGenerator<unknown, void, unknown> {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw contractError('browser_direct_stream_missing', 'BrowserDirect 公网响应缺少可读流。');
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r\n|\n|\r/u);
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const record = parseEventLine(line, sse);
-        if (record !== null) yield record;
-      }
-    }
-    buffer += decoder.decode();
-    const record = parseEventLine(buffer, sse);
-    if (record !== null) yield record;
-  } catch (error) {
-    rethrowIfAborted(signal, error);
-    throw error;
-  } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      // The abort signal may already have closed the response stream.
-    }
-    reader.releaseLock();
-  }
-}
-
-function parseEventLine(line: string, sse: boolean): unknown | null {
-  let payload = line.trim();
-  if (!payload || (sse && payload.startsWith(':'))) return null;
-  if (sse) {
-    if (!payload.startsWith('data:')) return null;
-    payload = payload.slice('data:'.length).trimStart();
-    if (!payload || payload === '[DONE]') return null;
-  }
-  try {
-    return JSON.parse(payload);
-  } catch {
-    throw contractError('browser_direct_event_invalid', 'BrowserDirect 公网端点返回了无效 JSON 事件。');
-  }
-}
-
-function parseTransportEvent<TEvent extends CopilotEventPayload>(value: unknown): CopilotTransportEvent<TEvent> {
-  if (!isRecord(value)
-    || typeof value.runId !== 'string'
-    || typeof value.sequence !== 'number'
-    || typeof value.cursor !== 'string'
-    || !isRecord(value.event)) {
-    throw contractError(
-      'browser_direct_envelope_invalid',
-      'BrowserDirect 公网事件缺少 runId、sequence、cursor 或 event。',
-    );
-  }
-  return value as unknown as CopilotTransportEvent<TEvent>;
 }
 
 async function readJsonRecord(response: Response): Promise<Record<string, unknown> | null> {

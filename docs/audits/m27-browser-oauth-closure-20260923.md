@@ -1,6 +1,6 @@
 # M27 #340 BrowserDirect OAuth/PKCE 验收（2026-09-23）
 
-**状态：✅ `COMPLETED_LOCAL_CONTRACT`。** 本报告只验收 Web 公共客户端的 Authorization Code + PKCE 获取入口。`StudioNative` broker、系统凭据库、多实例实时接管、真实 IdP 和已部署双网环境仍是独立待办；不以受控身份服务替代生产验收。
+**状态：✅ `COMPLETED_LOCAL_CONTRACT`。** 本报告只验收 Web 公共客户端的 Authorization Code + PKCE 获取入口。StudioNative broker 与系统凭据库后续已有[独立本地验收](m27-studio-native-closure-20260923.md)；多实例实时接管、真实 IdP 和已部署双网环境仍独立待办，不以受控身份服务替代生产验收。
 
 ## 交付合同
 

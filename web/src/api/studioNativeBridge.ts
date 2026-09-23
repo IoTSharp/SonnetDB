@@ -1,3 +1,5 @@
+import { BrowserDirectContractVersion, type PublicCopilotRequest } from '../copilot/publicRuntimeProtocol';
+
 const BridgeBootstrapRequestHandler = 'studio.bridge.bootstrap.request';
 const BridgeBootstrapEvent = 'nativeWeb:studio.bridge.bootstrap';
 const LegacyBridgeStorageKeys = [
@@ -124,6 +126,23 @@ export interface StudioNativeBridgeClient {
   getServerStatus(): Promise<StudioManagedServerStatus>;
   startServer(options?: { dataRoot?: string; url?: string }): Promise<StudioManagedServerStatus>;
   stopServer(options?: { dataRoot?: string; url?: string }): Promise<StudioManagedServerStatus>;
+  getCopilotStatus(signal?: AbortSignal): Promise<StudioCopilotStatus>;
+  connectCopilot(signal?: AbortSignal): Promise<StudioCopilotStatus>;
+  disconnectCopilot(signal?: AbortSignal): Promise<StudioCopilotStatus>;
+  probeCopilotReadiness(signal: AbortSignal): Promise<Response>;
+  startCopilotChat<TRequest>(payload: PublicCopilotRequest<TRequest>, signal: AbortSignal): Promise<Response>;
+  continueCopilotChat<TRequest>(payload: PublicCopilotRequest<TRequest>, signal: AbortSignal): Promise<Response>;
+}
+
+/** Non-secret native credential availability; the host never returns the credential. */
+export interface StudioCopilotStatus {
+  contractVersion: typeof BrowserDirectContractVersion;
+  configured: boolean;
+  connected: boolean;
+  publicBaseUrl: string | null;
+  expiresAtUtc: string | null;
+  canceled: boolean;
+  error: string | null;
 }
 
 let cachedClient: StudioNativeBridgeClient | null | undefined;
@@ -169,6 +188,35 @@ export function subscribeStudioDesktopActions(
 }
 
 function createClient(config: { baseUrl: string; token: string }): StudioNativeBridgeClient {
+  const copilotRequest = async (path: string, init: RequestInit, timeoutMs: number): Promise<Response> => {
+    const signal = AbortSignal.any([...(init.signal ? [init.signal] : []), AbortSignal.timeout(timeoutMs)]);
+    // Only fixed methods below can call this closure. Neither credential nor
+    // arbitrary destination/headers can be supplied by a model or web caller.
+    return fetch(`${config.baseUrl}/copilot/${path}`, {
+      method: init.method ?? 'GET',
+      ...(init.body ? { body: init.body } : {}),
+      headers: {
+        'X-SonnetDB-Studio-Bridge-Token': config.token,
+        'X-SonnetDB-Copilot-Contract': BrowserDirectContractVersion,
+        Accept: 'application/json, application/x-ndjson, text/event-stream',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      signal, credentials: 'omit', redirect: 'error',
+    });
+  };
+  const copilotStatus = async (path: 'status' | 'connect' | 'disconnect', signal?: AbortSignal): Promise<StudioCopilotStatus> => {
+    const response = await copilotRequest(path, {
+      method: path === 'status' ? 'GET' : 'POST', signal,
+    }, path === 'connect' ? 120_000 : 5_000);
+    if (!response.ok || response.redirected) throw new Error('Studio AI 服务连接失败。');
+    const value = await response.json() as StudioCopilotStatus;
+    if (value.contractVersion !== BrowserDirectContractVersion || typeof value.configured !== 'boolean'
+      || typeof value.connected !== 'boolean' || typeof value.canceled !== 'boolean'
+      || (value.connected && (!value.expiresAtUtc || !Number.isFinite(Date.parse(value.expiresAtUtc))))) {
+      throw new Error('Studio AI 服务状态合同不匹配。');
+    }
+    return value;
+  };
   const request = async <T>(path: string, init: RequestInit = {}, timeoutMs = 5000): Promise<T> => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -182,7 +230,9 @@ function createClient(config: { baseUrl: string; token: string }): StudioNativeB
       const response = await fetch(`${config.baseUrl}${path}`, {
         ...init,
         headers,
-        signal: controller.signal,
+        signal: AbortSignal.any([...(init.signal ? [init.signal] : []), controller.signal]),
+        credentials: 'omit',
+        redirect: 'error',
       });
       if (!response.ok) {
         throw new Error(`Studio bridge request failed: ${response.status}`);
@@ -211,6 +261,12 @@ function createClient(config: { baseUrl: string; token: string }): StudioNativeB
 
   return {
     manifest: placeholderManifest(),
+    getCopilotStatus: (signal) => copilotStatus('status', signal),
+    connectCopilot: (signal) => copilotStatus('connect', signal),
+    disconnectCopilot: (signal) => copilotStatus('disconnect', signal),
+    probeCopilotReadiness: (signal) => copilotRequest('readiness', { signal }, 10_000),
+    startCopilotChat: (payload, signal) => copilotRequest('chat', { method: 'POST', body: JSON.stringify(payload), signal }, 120_000),
+    continueCopilotChat: (payload, signal) => copilotRequest('continue', { method: 'POST', body: JSON.stringify(payload), signal }, 120_000),
     refreshManifest: () => request<StudioBridgeManifest>('/manifest', {}, 3000),
     loadConnections: () => request<StudioConnectionLibrarySnapshot>('/connections'),
     saveConnections: (snapshot) => request<StudioConnectionLibrarySnapshot>('/connections', {

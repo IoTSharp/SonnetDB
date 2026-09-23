@@ -82,21 +82,21 @@
       />
     </section>
 
-    <section v-if="isBrowserDirect" class="copilot-dock__public-auth" data-testid="copilot-public-auth">
+    <section v-if="isBrowserDirect || isStudioNative" class="copilot-dock__public-auth" data-testid="copilot-public-auth">
       <div class="copilot-dock__public-auth-row">
         <span class="copilot-dock__model-label">AI 服务</span>
         <n-text depth="3" role="status" aria-live="polite" data-testid="copilot-public-auth-status">
-          {{ !browserDirectOAuthReady ? '尚未配置' : browserDirectConnected ? '已连接' : '未连接' }}
+          {{ !publicAuthReady ? '尚未配置' : publicConnected ? '已连接' : '未连接' }}
         </n-text>
-        <template v-if="browserDirectOAuthReady">
-          <n-button v-if="browserDirectConnected" size="tiny" data-testid="copilot-public-disconnect" @click="disconnectBrowserDirect">断开</n-button>
+        <template v-if="publicAuthReady">
+          <n-button v-if="publicConnected" size="tiny" data-testid="copilot-public-disconnect" @click="disconnectPublicService">断开</n-button>
           <template v-else>
-            <n-button size="tiny" type="primary" secondary :loading="browserDirectConnecting" :disabled="running || browserDirectConnecting" data-testid="copilot-public-connect" @click="connectBrowserDirect">连接 AI 服务</n-button>
-            <n-button v-if="browserDirectConnecting" size="tiny" data-testid="copilot-public-cancel" @click="disconnectBrowserDirect">取消</n-button>
+            <n-button size="tiny" type="primary" secondary :loading="publicConnecting" :disabled="running || publicConnecting || nativeDisconnecting" data-testid="copilot-public-connect" @click="connectPublicService">连接 AI 服务</n-button>
+            <n-button v-if="publicConnecting" size="tiny" data-testid="copilot-public-cancel" @click="disconnectPublicService">取消</n-button>
           </template>
         </template>
       </div>
-      <n-text v-if="browserDirectAuthMessage" type="error" role="alert" class="copilot-dock__public-auth-message">{{ browserDirectAuthMessage }}</n-text>
+      <n-text v-if="publicAuthMessage" type="error" role="alert" class="copilot-dock__public-auth-message">{{ publicAuthMessage }}</n-text>
     </section>
 
     <!-- M7: 权限模式选择 -->
@@ -108,8 +108,8 @@
           type="success"
           :bordered="false"
           style="cursor: pointer"
-          title="点击切换为读写模式"
-          @click="permConfirmVisible = !permConfirmVisible"
+          :title="isStudioNative ? 'Studio AI 服务仅允许只读查询' : '点击切换为读写模式'"
+          @click="!isStudioNative && (permConfirmVisible = !permConfirmVisible)"
         >只读模式</n-tag>
         <!-- 内联确认条：直接渲染在 dock 内，不 teleport，不会被遮挡 -->
         <transition name="perm-confirm">
@@ -269,7 +269,7 @@
         </n-text>
         <n-space size="small" :wrap="false">
           <n-button v-if="running" size="tiny" type="error" ghost @click="stop">停止</n-button>
-          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running || !browserDirectCanSend" @click="send">发送</n-button>
+          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running || !publicCanSend" @click="send">发送</n-button>
         </n-space>
       </n-space>
     </footer>
@@ -320,6 +320,8 @@ import {
   getConfiguredBrowserDirectOAuthReadiness,
   type BrowserDirectOAuthClient,
 } from '@/copilot/browserDirectOAuth';
+import { getStudioNativeBridge, type StudioNativeBridgeClient, type StudioCopilotStatus } from '@/api/studioNativeBridge';
+import { StudioNativeCopilotCapability } from '@/copilot/studioNative';
 
 const auth = useAuthStore();
 const sessions = useCopilotSessionsStore();
@@ -350,13 +352,27 @@ const abort = ref<AbortController | null>(null);
 const activeRunId = ref<string | null>(null);
 
 const isBrowserDirect = computed(() => import.meta.env.VITE_COPILOT_RUNTIME_MODE === 'BrowserDirect');
+const isStudioNative = computed(() => import.meta.env.VITE_COPILOT_RUNTIME_MODE === 'StudioNative');
 const browserDirectOAuthReady = isBrowserDirect.value
   && getConfiguredBrowserDirectOAuthReadiness().status === 'ready';
 const browserDirectConnected = ref(false);
 const browserDirectConnecting = ref(false);
 const browserDirectAuthMessage = ref('');
-const browserDirectCanSend = computed(() => !isBrowserDirect.value
-  || (browserDirectOAuthReady && browserDirectConnected.value && !browserDirectConnecting.value));
+const nativeConfigured = ref(false);
+const nativeConnected = ref(false);
+const nativeConnecting = ref(false);
+const nativeDisconnecting = ref(false);
+const nativeAuthMessage = ref('');
+const publicAuthReady = computed(() => isStudioNative.value ? nativeConfigured.value : browserDirectOAuthReady);
+const publicConnected = computed(() => isStudioNative.value ? nativeConnected.value : browserDirectConnected.value);
+const publicConnecting = computed(() => isStudioNative.value ? nativeConnecting.value : browserDirectConnecting.value);
+const publicAuthMessage = computed(() => isStudioNative.value ? nativeAuthMessage.value : browserDirectAuthMessage.value);
+const publicCanSend = computed(() => (!isBrowserDirect.value && !isStudioNative.value)
+  || (publicAuthReady.value && publicConnected.value && !publicConnecting.value && !nativeDisconnecting.value));
+let nativeBridge: StudioNativeBridgeClient | null = null;
+let nativeAuthAbort: AbortController | null = null;
+let nativeAuthAttempt = 0;
+let nativeExpiryTimer: ReturnType<typeof setTimeout> | undefined;
 let browserDirectOAuthClient: BrowserDirectOAuthClient | null = null;
 let browserDirectExpiryTimer: ReturnType<typeof setTimeout> | undefined;
 let browserDirectAuthAttempt = 0;
@@ -416,10 +432,95 @@ function disconnectBrowserDirect(): void {
   else clearBrowserDirectAccessToken();
 }
 
+function applyNativeStatus(status: StudioCopilotStatus): void {
+  if (nativeExpiryTimer !== undefined) clearTimeout(nativeExpiryTimer);
+  nativeExpiryTimer = undefined;
+  nativeConfigured.value = status.configured;
+  const remaining = status.expiresAtUtc ? Date.parse(status.expiresAtUtc) - Date.now() : 0;
+  nativeConnected.value = status.connected && remaining > 0 && remaining <= 2 * 60 * 60 * 1000;
+  if (nativeConnected.value) {
+    nativeExpiryTimer = setTimeout(() => {
+      void disconnectStudioNative();
+      nativeAuthMessage.value = 'AI 服务连接已到期，请重新连接。';
+    }, remaining);
+  }
+}
+
+async function initializeStudioNative(): Promise<void> {
+  if (!isStudioNative.value) return;
+  const attempt = ++nativeAuthAttempt;
+  try {
+    nativeBridge = await getStudioNativeBridge();
+    if (dockDisposed || attempt !== nativeAuthAttempt) {
+      // Bootstrap may finish after identity change/unmount, before the regular
+      // cleanup had a bridge. Retire the late host credential as well.
+      if (nativeBridge?.manifest.capabilities.includes(StudioNativeCopilotCapability)) {
+        await nativeBridge.disconnectCopilot();
+      }
+      return;
+    }
+    if (!nativeBridge?.manifest.capabilities.includes(StudioNativeCopilotCapability)) return;
+    const status = await nativeBridge.getCopilotStatus();
+    if (dockDisposed || attempt !== nativeAuthAttempt) return;
+    applyNativeStatus(status);
+  } catch {
+    if (!dockDisposed && attempt === nativeAuthAttempt) nativeAuthMessage.value = '无法连接 Studio AI 服务，请重新打开窗口。';
+  }
+}
+
+async function connectStudioNative(): Promise<void> {
+  if (!nativeBridge || !nativeConfigured.value || nativeConnecting.value || nativeDisconnecting.value
+    || running.value || !auth.state?.token) return;
+  const attempt = ++nativeAuthAttempt;
+  const controller = new AbortController();
+  nativeAuthAbort = controller;
+  nativeConnecting.value = true;
+  nativeAuthMessage.value = '';
+  try {
+    const status = await nativeBridge.connectCopilot(controller.signal);
+    if (dockDisposed || attempt !== nativeAuthAttempt) return;
+    applyNativeStatus(status);
+    nativeAuthMessage.value = status.canceled ? '连接已取消。'
+      : status.error || !nativeConnected.value ? '未能连接 AI 服务，请在 Studio 授权窗口中重试。' : '';
+  } catch {
+    if (!dockDisposed && attempt === nativeAuthAttempt) nativeAuthMessage.value = '未能连接 AI 服务，请在 Studio 授权窗口中重试。';
+  } finally {
+    if (attempt === nativeAuthAttempt) { nativeConnecting.value = false; nativeAuthAbort = null; }
+  }
+}
+
+async function disconnectStudioNative(): Promise<void> {
+  ++nativeAuthAttempt;
+  nativeAuthAbort?.abort();
+  nativeAuthAbort = null;
+  nativeConnecting.value = false;
+  nativeConnected.value = false;
+  nativeAuthMessage.value = '';
+  if (nativeExpiryTimer !== undefined) clearTimeout(nativeExpiryTimer);
+  nativeExpiryTimer = undefined;
+  cancelActiveRequest();
+  if (!nativeBridge || nativeDisconnecting.value) return;
+  nativeDisconnecting.value = true;
+  try { await nativeBridge.disconnectCopilot(); }
+  catch { if (!dockDisposed) nativeAuthMessage.value = '未能确认 AI 服务已断开，请关闭 Studio 窗口。'; }
+  finally { nativeDisconnecting.value = false; }
+}
+
+function connectPublicService(): void {
+  if (isStudioNative.value) void connectStudioNative();
+  else void connectBrowserDirect();
+}
+
+function disconnectPublicService(): void {
+  if (isStudioNative.value) void disconnectStudioNative();
+  else disconnectBrowserDirect();
+}
+
 watch(() => auth.state, (identity, previous) => {
   if (identity?.token !== previous?.token || identity?.tokenId !== previous?.tokenId
     || identity?.username !== previous?.username || identity?.isSuperuser !== previous?.isSuperuser) {
     disconnectBrowserDirect();
+    if (isStudioNative.value) void disconnectStudioNative();
   }
 }, { flush: 'sync' });
 
@@ -1492,6 +1593,8 @@ async function executeCopilotRun(execution: CopilotRunExecution): Promise<void> 
     }
     if (responseCompleted) clearPendingServerRelayRun(execution.runId);
     if (ownsRun()) {
+      streamBuffer.value = '';
+      streamCitations.value = [];
       running.value = false;
       abort.value = null;
       activeRunId.value = null;
@@ -1504,9 +1607,11 @@ async function executeCopilotRun(execution: CopilotRunExecution): Promise<void> 
 async function send(): Promise<void> {
   if (!prompt.value.trim() || running.value) return;
   if (!auth.state?.token) return;
-  if (!browserDirectCanSend.value) {
-    browserDirectAuthMessage.value = browserDirectOAuthReady
+  if (!publicCanSend.value) {
+    const hint = publicAuthReady.value
       ? '请先连接 AI 服务。' : 'AI 服务尚未配置，请联系管理员。';
+    if (isStudioNative.value) nativeAuthMessage.value = hint;
+    else browserDirectAuthMessage.value = hint;
     return;
   }
 
@@ -1732,10 +1837,12 @@ watch(() => auth.isAuthenticated, (val) => {
 
 onMounted(() => {
   // 不主动 open，只在用户点击 FAB 时才请求接口，避免未启用 Copilot 时报 409。
+  void initializeStudioNative();
 });
 
 onBeforeUnmount(() => {
   dockDisposed = true;
+  if (isStudioNative.value) void disconnectStudioNative();
   disconnectBrowserDirect();
   browserDirectOAuthClient?.dispose();
   browserDirectOAuthClient = null;

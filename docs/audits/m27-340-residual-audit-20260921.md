@@ -51,18 +51,17 @@ dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --filter "Fu
 授权，这不是 BrowserDirect 自动续流或持久登录能力。Web 公共客户端入口不构成 StudioNative broker、
 系统凭据库或外部宿主 OAuth 的交付，M27 #340 仍保留下面的代码与现场边界。
 
+## 2026-09-23 StudioNative 宿主通道
+
+StudioNative transport、六个固定 broker 操作、Windows Credential Manager、原生短期 token 输入与 Dock 生命周期已实现。宿主完整测试 56/56，Native 浏览器/共享协议专项 26/26，生产构建通过；配置及准确边界见[合同](../studio-copilot-contract.md)和[本轮验收](m27-studio-native-closure-20260923.md)。缺少宿主、批准目标或有效凭据时仍保持不可用。此项不再列为缺失代码；真实原生窗口、WebView2、provider 与双网部署仍需现场证据。
+
 ## 仍明确未实现的代码/产品边界
 
-这些不是本轮适合盲补的“小修复”，因为每项都需要外部身份、部署拓扑或桌面宿主合同；当前代码应继续 fail closed：
-
-1. StudioNative Copilot transport / AI broker / 系统凭据库。`web/src/api/studioNativeBridge.ts` 只提供 loopback bridge 的 manifest、文件、连接库和 managed-server 操作；`StudioNative` runtime 尚未注册 transport。现有握手已将 endpoint/token 从 URL、query 和 storage 移除，这属于安全前置，不等于 AI broker 已交付。
-2. 正在执行中的多实例实时接管与高可用共享 session。journal 使用文件锁合并完成快照；新进程不会接管旧进程仍在执行的 provider/工具，符合当前 fail-closed 合同。把它升级为实时接管需要 provider lease、所有权租约、取消转移、跨实例事件订阅和故障注入，不应在本切片中猜测实现。
+正在执行中的多实例实时接管与高可用共享 session。journal 使用文件锁合并完成快照；新进程不会接管旧进程仍在执行的 provider/工具，符合当前 fail-closed 合同。升级为实时接管需要 provider lease、所有权租约、取消转移、跨实例事件订阅和故障注入，不能以已完成重放替代。
 
 ## 下一项可执行切片
 
-优先级仍为 M27 #340。上述 BrowserDirect OAuth/PKCE 获取入口已完成实现与本地验收，后续把
-真实 IdP/双网/部署后浏览器刷新与 StudioNative broker 按各自验收边界推进，不能重新把 PKCE 入口派成
-未实现任务。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地：
+优先级仍为 M27 #340。BrowserDirect OAuth/PKCE 获取入口与 StudioNative 本地宿主合同已完成实现和专项验收；后续推进多实例实时接管，以及真实 IdP/双网/部署后浏览器刷新和 StudioNative 现场旅程，不重复派已完成代码。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地：
 
 - 仅 `ServerRelay` 模式允许自动恢复；`BrowserDirect`、`StudioNative` 和 `Disabled` 不共享该状态。
 - 只在发送请求前保存受限的 `runId`、会话 ID、数据库名和请求 fingerprint；不保存数据库 Bearer、public token、消息正文或工具结果。

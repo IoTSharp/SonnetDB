@@ -17,6 +17,8 @@
 
 ### Added
 
+- **M27 #340 StudioNative 本地合同完成（2026-09-23）**：交付固定 HTTPS 公网 broker、Windows Credential Manager、原生短期 runtime token 输入、Web transport、只读 typed MCP continuation 与连接/取消/断开/到期清理。修复最终回答重复显示，并以有界精确 JSON 指纹消除嵌套内存膨胀、长零串回溯和大整数/重复键重放误判。新增宿主 39、Web/协议 26 项用例；完整 Studio 56/56、Native 专项 26/26、主 Web 161 通过，13 项模式限定用例已在专项覆盖，2 项缺目标配置的既有真实 KV 用例未执行。生产构建通过。见[验收报告](docs/audits/m27-studio-native-closure-20260923.md)；桌面 OAuth 获取、真实 WebView2/provider/双网现场、多实例接管及整个 M27 仍独立保留。
+
 - **GH-Issue #196 参数化 measurement JOIN 完成（2026-09-23）**：执行器消费规范化 JOIN 和完整排序列表，修复嵌入式绑定后排序/分页结果偏差；支持隐藏 FIELD 和混合方向多键排序。聚合/分组在 SELECT 与 EXPLAIN 扫描前一致拒绝，新增六个 `DataSourceInformation` 模型能力字段及 Provider 预检合同。新增 36 项用例，最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。FreeSql 发布、旧 Server 协商和固定硬件门禁独立保留。
 
 - **M27 #340 BrowserDirect OAuth/PKCE 获取入口闭环（2026-09-23）**：新增受信 HTTPS Authorization Code + S256 登录、固定匿名 callback、一次性 state/issuer/source/origin 校验和仅内存短期凭据；CopilotDock 提供连接/取消/断开，登出、身份改变、模式切换、到期和销毁阻断迟到凭据。补齐生产 HTML 与 Vite 的 Referrer 限制、默认 E2E fixture 配置和有界进程清理。新增 56 项回归（OAuth 核心 43、真实浏览器 12、模式切换 1），Web 完整套件 148 通过、2 项既有真实 KV 用例因缺少目标配置跳过；完整请求头强化后 OAuth 12/12 再次通过，生产构建通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署后的双网、StudioNative 和多实例接管仍未完成。
