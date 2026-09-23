@@ -1020,53 +1020,69 @@ public sealed partial class TableStore : IDisposable
     }
 
     /// <summary>
-    /// 对完整普通索引等值键执行 index-only scan。返回行只填充索引列，
+    /// 对普通索引等值前缀或范围执行 index-only scan。返回行只填充索引列，
     /// 调用方必须证明谓词和所需列均被该索引覆盖。
     /// </summary>
-    internal IEnumerable<TableRow> EnumerateCoveredIndexEquality(
+    internal IEnumerable<TableRow> EnumerateCoveredIndex(
         TableIndex index,
         IReadOnlyList<object?> indexColumnValues,
-        int? limit = null)
+        TableIndexRange? range = null,
+        int? limit = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(indexColumnValues);
         if (!string.IsNullOrWhiteSpace(index.JsonPath)
-            || indexColumnValues.Count != index.Columns.Count)
+            || indexColumnValues.Count > index.Columns.Count)
         {
-            throw new ArgumentException("Index-only scan 需要普通索引的完整等值键。", nameof(indexColumnValues));
+            throw new ArgumentException("Index-only scan 需要普通索引的连续等值前缀。", nameof(indexColumnValues));
         }
+        cancellationToken.ThrowIfCancellationRequested();
         if (limit is <= 0)
             yield break;
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
+        if (range is not null
+            && (indexColumnValues.Count >= index.Columns.Count
+                || !string.Equals(index.Columns[indexColumnValues.Count], range.Column.Name, StringComparison.Ordinal)
+                || range.Column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime)))
+        {
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+        }
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(
             index,
             indexColumnValues,
             tableSnapshot.Schema)
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值键无法编码。");
-        using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
-        {
-            Prefix = prefix,
-            PageSize = 256,
-        });
+        byte[] indexNamePrefix = TableIndexCodec.EncodeLookupPrefix(index, [], tableSnapshot.Schema)!;
+        IReadOnlyList<TableIndexKeyRange> keyRanges = range is null
+            ? [new(prefix, TableIndexCodec.GetPrefixSuccessor(prefix))]
+            : BuildSignedKeyRanges(index, indexColumnValues, range, tableSnapshot.Schema);
         int emitted = 0;
-        while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
+        foreach (TableIndexKeyRange keyRange in keyRanges)
         {
-            IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
-            if (page.Count == 0)
-                yield break;
-            foreach (KvEntry entry in page)
+            using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
             {
-                if (limit is int && emitted >= limit.Value)
-                    yield break;
-                var values = new object?[tableSnapshot.Schema.Columns.Count];
-                for (int indexOrdinal = 0; indexOrdinal < index.Columns.Count; indexOrdinal++)
+                Prefix = prefix,
+                StartInclusive = keyRange.StartInclusive,
+                EndExclusive = keyRange.EndExclusive,
+                PageSize = 256,
+            });
+            while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
+            {
+                IReadOnlyList<KvEntry> page = cursor.ReadNextPage(cancellationToken);
+                if (page.Count == 0)
+                    break;
+                foreach (KvEntry entry in page)
                 {
-                    TableColumn column = tableSnapshot.Schema.TryGetColumn(index.Columns[indexOrdinal])!;
-                    values[column.Ordinal] = indexColumnValues[indexOrdinal];
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (limit is int && emitted >= limit.Value)
+                        yield break;
+                    object?[] values = TableIndexCodec.DecodeCoveredValues(
+                        index, tableSnapshot.Schema, entry.Key.Span, entry.Value.Span, indexNamePrefix);
+                    emitted++;
+                    yield return new TableRow(values, entry.Value.ToArray());
                 }
-                emitted++;
-                yield return new TableRow(values, entry.Value.ToArray());
             }
         }
     }
@@ -1126,6 +1142,7 @@ public sealed partial class TableStore : IDisposable
                 KvEntry? payload = snapshot.GetEntry(rowKey);
                 if (payload is not null)
                 {
+                    RowDecodedTestHook?.Invoke(1);
                     yield return new TableRow(
                         TableRowCodec.Decode(schema, payload.Value.Span),
                         entry.Value.ToArray());
@@ -1158,12 +1175,20 @@ public sealed partial class TableStore : IDisposable
                     continue;
 
                 emitted++;
+                RowDecodedTestHook?.Invoke(emitted);
                 yield return new TableRow(
                     TableRowCodec.Decode(schema, payload.Value.Span),
                     entry.Value.ToArray());
             }
         }
     }
+
+    /// <summary>兼容旧的完整等值覆盖扫描入口。</summary>
+    internal IEnumerable<TableRow> EnumerateCoveredIndexEquality(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit = null)
+        => EnumerateCoveredIndex(index, indexColumnValues, range: null, limit: limit);
 
     /// <summary>
     /// 按范围索引的物理区间惰性读取候选行；不改变范围值的逻辑排序语义。
@@ -1272,6 +1297,7 @@ public sealed partial class TableStore : IDisposable
                         continue;
 
                     emitted++;
+                    RowDecodedTestHook?.Invoke(emitted);
                     yield return new TableRow(
                         TableRowCodec.Decode(schema, payload.Value.Span),
                         entry.Value.ToArray());

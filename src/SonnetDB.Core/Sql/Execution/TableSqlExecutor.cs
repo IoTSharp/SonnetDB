@@ -2852,9 +2852,11 @@ internal static class TableSqlExecutor
         {
             if (CanUseCoveringIndexOnly(schema, where, indexPlan, requiredColumns))
             {
-                candidates = store.EnumerateCoveredIndexEquality(
+                candidates = store.EnumerateCoveredIndex(
                     indexPlan.Index,
-                    indexPlan.EqualityPrefixValues);
+                    indexPlan.EqualityPrefixValues,
+                    indexPlan.Range,
+                    cancellationToken: SqlQueryResources.Current?.CancellationToken ?? default);
                 actualAccessPath = "secondary_index_only";
             }
             else
@@ -2908,10 +2910,11 @@ internal static class TableSqlExecutor
         IReadOnlySet<string>? requiredColumns)
         => requiredColumns is not null
             && string.IsNullOrWhiteSpace(plan.Index.JsonPath)
-            && plan.IsFullEquality
             && IsWhereFullyCoveredByIndexPlan(where, schema, plan)
             && requiredColumns.All(column =>
-                plan.Index.Columns.Contains(column, StringComparer.OrdinalIgnoreCase));
+                plan.Index.Columns.Contains(column, StringComparer.OrdinalIgnoreCase)
+                // 既有 DECIMAL 索引使用 G29 文本，无法还原行值的 scale（例如 CAST AS STRING）。
+                && schema.TryGetColumn(column)?.DataType != TableColumnType.Decimal);
 
     /// <summary>
     /// 为单表 EXISTS 生成与实际候选读取共用的访问计划。
