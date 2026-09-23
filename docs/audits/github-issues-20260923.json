@@ -1,0 +1,498 @@
+{
+  "schemaVersion": "2.0",
+  "observedAtUtc": "2026-09-23T05:42:07.7652255Z",
+  "repository": "IoTSharp/SonnetDB",
+  "historicalSnapshot": "docs/audits/github-issues-20260921.json",
+  "deliveredCommit": "6ca5ce7a939a7b62db2e82a37f1ae4d2827b43c3",
+  "query": {
+    "state": "all",
+    "trackedIds": [
+      89,
+      91,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198
+    ],
+    "trackedCount": 30,
+    "openCount": 10,
+    "closedCount": 20,
+    "pagesRead": 2,
+    "pageSize": 100,
+    "excludesPullRequests": true
+  },
+  "completedThisUpdate": [
+    {
+      "id": 177,
+      "implementationCommit": "bfb33fe9",
+      "capabilityCommit": "d39962ab",
+      "evidence": "docs/audits/sql-provider-closure-20260923.md",
+      "corePassed": 9,
+      "integrationPassed": 23
+    },
+    {
+      "id": 180,
+      "implementationCommit": "36dd4ccd",
+      "evidence": "docs/audits/sql-provider-closure-20260923.md",
+      "corePassed": 14,
+      "integrationPassed": 24
+    },
+    {
+      "id": 193,
+      "implementationCommit": "d39962ab",
+      "evidence": "docs/audits/sql-provider-closure-20260923.md",
+      "integrationPassed": 15,
+      "option": "2: documented product boundary and official alternatives"
+    }
+  ],
+  "issues": [
+    {
+      "id": 89,
+      "title": "feat(area): 给 SonnetDB 增加 MCP Server 设计文档：先定义只读 SQL、Schema、Measurement、Vector Search 四类工具。",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/89",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:24Z",
+      "updatedAt": "2026-09-21T12:52:24Z",
+      "route": "existing-surface-review",
+      "roadmap": [
+        "M27 #183",
+        "M43 Step 2 review"
+      ]
+    },
+    {
+      "id": 91,
+      "title": "feat(area): 嵌入式的使用方式有没有什么办法能够查看和管理数据库",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/91",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:27Z",
+      "updatedAt": "2026-09-21T12:52:27Z",
+      "route": "existing-surface-review",
+      "roadmap": [
+        "M24",
+        "M29",
+        "M43 Step 2 review"
+      ]
+    },
+    {
+      "id": 171,
+      "title": "[SQL] 支持非递归 WITH ... AS (...) 公共表表达式",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/171",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:50:28Z",
+      "updatedAt": "2026-09-21T12:50:28Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 172,
+      "title": "[SQL] 支持关系表 ANSI 窗口函数 OVER(...)",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/172",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:43Z",
+      "updatedAt": "2026-09-21T12:51:43Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 173,
+      "title": "[SQL] 支持 CAST(expr AS type) 和明确的类型转换规则",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/173",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:46Z",
+      "updatedAt": "2026-09-21T12:51:46Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 174,
+      "title": "[SQL] 补齐关系表常用字符串函数",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/174",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:48Z",
+      "updatedAt": "2026-09-21T12:51:48Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 175,
+      "title": "[SQL] 提供明确的 date_diff 和日期格式化能力",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/175",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:51Z",
+      "updatedAt": "2026-09-21T12:51:52Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 176,
+      "title": "[SQL] 支持关系查询的聚合 DISTINCT",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/176",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:54Z",
+      "updatedAt": "2026-09-21T12:51:54Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 177,
+      "title": "[SQL] 扩展标准连接类型",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/177",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-23T05:39:51Z",
+      "updatedAt": "2026-09-23T05:39:51Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 #378",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 178,
+      "title": "[SQL] 扩展 UNION ALL、INTERSECT 和 EXCEPT 集合运算",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/178",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:51:58Z",
+      "updatedAt": "2026-09-21T12:51:58Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 179,
+      "title": "[SQL] 补齐常用谓词 BETWEEN 和 ILIKE",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/179",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:01Z",
+      "updatedAt": "2026-09-21T12:52:01Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 180,
+      "title": "[SQL] 扩展 JSON 标量与数组查询能力",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/180",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-23T05:40:04Z",
+      "updatedAt": "2026-09-23T05:40:04Z",
+      "route": "model-driver-management",
+      "roadmap": [
+        "M32 Document",
+        "M36",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 181,
+      "title": "[SQL] 支持关系表精确 DECIMAL/NUMERIC 类型",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/181",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:04Z",
+      "updatedAt": "2026-09-21T12:52:04Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 182,
+      "title": "[SQL] 支持关系表 TIME 类型及明确的仅时间值语义",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/182",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:07Z",
+      "updatedAt": "2026-09-21T12:52:07Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 183,
+      "title": "[SQL] 支持关系 SQL 整数按位与/或运算符 &、|",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/183",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:10Z",
+      "updatedAt": "2026-09-21T12:52:10Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 184,
+      "title": "[SQL] 补齐 ON CONFLICT DO UPDATE 以支持关系表原子 UPSERT",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/184",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-20T05:51:49Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": "M43 Step 2"
+    },
+    {
+      "id": 185,
+      "title": "[ADO.NET] 补齐 GetSchema 对视图、外键和文档集合的统一元数据投影",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/185",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:12Z",
+      "updatedAt": "2026-09-21T12:52:12Z",
+      "route": "model-driver-management",
+      "roadmap": [
+        "M26 connectors",
+        "M29 management",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 186,
+      "title": "[ADO.NET] 支持 VECTOR 参数及远程 float[] 结果的统一编解码合同",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/186",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:15Z",
+      "updatedAt": "2026-09-21T12:52:15Z",
+      "route": "model-driver-management",
+      "roadmap": [
+        "M23 vector",
+        "M26 connectors",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 187,
+      "title": "[DDL] 支持关系表主键、AUTO_INCREMENT 和 ROWVERSION 的安全演进",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/187",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-20T05:51:52Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M36 relational journey",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 188,
+      "title": "[DDL] 支持 CREATE TABLE 中命名 FOREIGN KEY 约束",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/188",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:17Z",
+      "updatedAt": "2026-09-21T12:52:17Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M36 relational journey",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 189,
+      "title": "[SQL] 在非递归 CTE 基础上支持 WITH RECURSIVE",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/189",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-20T05:53:01Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 190,
+      "title": "[SQL] 支持 SELECT ... FOR UPDATE 或明确关系表行锁合同",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/190",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-20T05:53:02Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M28 concurrency",
+        "M41",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 191,
+      "title": "[SQL] 支持 UPDATE ... JOIN 并明确重复匹配和受影响行语义",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/191",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-20T05:53:03Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 #378",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 192,
+      "title": "[SQL] 补齐 ceil、floor、exp、power 数学标量函数及数值合同",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/192",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-21T12:52:20Z",
+      "updatedAt": "2026-09-21T12:52:20Z",
+      "route": "sql-foundation",
+      "roadmap": [
+        "M43 Step 2",
+        "M41 SQL planner"
+      ]
+    },
+    {
+      "id": 193,
+      "title": "[类型] 明确关系表 VECTOR/GEOPOINT 的产品边界或提供完整支持合同",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/193",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-09-23T05:40:16Z",
+      "updatedAt": "2026-09-23T05:40:16Z",
+      "route": "model-driver-management",
+      "roadmap": [
+        "M23 vector/geo",
+        "M36 relational journey",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 194,
+      "title": "[SQL] 支持 UPDATE ... RETURNING 与 DELETE ... RETURNING",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/194",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-22T16:32:46Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 SQL planner",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 195,
+      "title": "[SQL] 支持 INSERT ... SELECT 查询插入",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/195",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-22T16:32:47Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 SQL planner",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 196,
+      "title": "[SQL] 修复时序测量与关系表 JOIN 的参数绑定执行",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/196",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-22T16:32:48Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 SQL planner",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 197,
+      "title": "[ADO.NET] 固化 INSERT ... RETURNING 的跨协议结果合同",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/197",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-22T16:32:50Z",
+      "route": "sql-dml-concurrency-ddl",
+      "roadmap": [
+        "M41 SQL planner",
+        "M43 Step 2"
+      ]
+    },
+    {
+      "id": 198,
+      "title": "[类型] 支持 BigInteger 或明确任意精度整数边界",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/198",
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "updatedAt": "2026-09-22T16:32:51Z",
+      "route": "model-driver-management",
+      "roadmap": [
+        "M26 connectors",
+        "M43 Step 2"
+      ]
+    }
+  ],
+  "evidenceBoundary": "Live GitHub states were read back after pushing the delivered commit and closing 177/180/193 as completed. Earlier closures retain their historically documented bounded contracts. No production, fixed-hardware, NativeAOT publish or whole-milestone completion is inferred."
+}

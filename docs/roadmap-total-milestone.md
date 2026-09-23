@@ -71,7 +71,7 @@ SonnetDB 当前公开定位为九种原生数据模型，加上空间/轨迹、�
 | 4 | M35 #298/#302/#303/#305 | 🟡/🚧 | 真实模型质量、Recall@K/nDCG、成本、容量、回滚和固定硬件证据；合同 fixture 不计语义质量。 |
 | 5 | M36 #310/#311/#326 验收 | 🚧/⏳ | 九模型最小样例、SDK/API/Workbench/CLI 矩阵、真实跨端 e2e、远程恢复与备份旅程。 |
 
-✅ GH-Issue #177/#180/#193 已退出实现队列：2026-09-23 完成原始功能需求及嵌入式、真实 REST/HTTP2 Frame 验收（358/358），见[闭环报告](audits/sql-provider-closure-20260923.md)。#180 的索引协作已通过 EXPLAIN 验证，专用包含索引下推/大语料性能列为额外优化；GitHub 线程关闭、部署和固定硬件证据不由本地 PASS 自动完成。
+✅ GH-Issue #177/#180/#193 已退出实现队列：2026-09-23 完成原始功能需求及嵌入式、真实 REST/HTTP2 Frame 验收（358/358），随后推送并核实 GitHub `closed/completed`，见[闭环报告](audits/sql-provider-closure-20260923.md)。#180 的索引协作已通过 EXPLAIN 验证，专用包含索引下推/大语料性能列为额外优化；部署和固定硬件证据独立保留。新增 GH-Issue #194～#198 已纳入[外部队列](github-issues-roadmap.md)。
 
 ✅ M27 #340 的 BrowserDirect OAuth/PKCE 获取入口已完成：可信配置、生产页面、内存凭据生命周期及受控 Chrome 验收已闭环；Web 148 通过、2 项既有真实 KV 测试跳过，完整请求头强化后 OAuth 12/12 再验通过。见[验收报告](audits/m27-browser-oauth-closure-20260923.md)。该入口不再作为未实现任务派单，M27 的其它代码与外部环境范围继续保留。
 

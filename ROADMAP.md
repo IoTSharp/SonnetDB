@@ -55,7 +55,7 @@
 
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整当前队列见[总里程碑 D 节](docs/roadmap-total-milestone.md#existing-pr-execution-order)。
 
-1. **代码与功能补全：** M27 #340 的 StudioNative、多实例接管与双网部署残余（BrowserDirect OAuth/PKCE 获取入口已完成）；M35 #298/#302/#303/#305 的真实模型与质量门禁实现；M36 #310/#311/#326 的旅程工具和跨端缺口；M41 #375 与 M42 的冷启动、向量和结果内存残余（KV state 读预算切片已完成）。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)；GitHub 线程关闭仍是单独的外部动作。
+1. **代码与功能补全：** M27 #340 的 StudioNative、多实例接管与双网部署残余（BrowserDirect OAuth/PKCE 获取入口已完成）；M35 #298/#302/#303/#305 的真实模型与质量门禁实现；M36 #310/#311/#326 的旅程工具和跨端缺口；M41 #375 与 M42 的冷启动、向量和结果内存残余（KV state 读预算切片已完成）。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收、推送并关闭，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)。新增 GH-Issue #194～#198 已纳入[当前外部队列](docs/github-issues-roadmap.md)。
 2. **性能优化：** 统一语料下的页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页、covering/index-only 和受控并行边界；保持正确性、事务、取消和恢复合同。
 3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #352/#367 → #373/#381 → M42；最后执行 M20 七次 scheduled、M43 总验收和生态提交。固定硬件、真机、nightly、长稳和外部对拍都属于本阶段。
 
@@ -137,7 +137,7 @@ M43 只保留未实施或待外部动作的队列：
 完成项不在本文件重复展开：
 
 - ✅ M27 #340 BrowserDirect OAuth/PKCE 获取入口：实现、界面、构建和受控 Chrome 验收完成；Web 148 通过、2 项既有真实 KV 测试跳过，强化完整请求头检查后 OAuth 12/12 复验通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署与 StudioNative 未计作完成。
-- ✅ GH-Issue #177/#180/#193 功能交付：标准关系 JOIN、JSON 标量/数组查询及关系 VECTOR/GEOPOINT 产品边界（选项 2），Core 194/194、真实服务及客户端 164/164；见 [2026-09-23 验收](docs/audits/sql-provider-closure-20260923.md)。不代表整体 M27/M41/M43、固定硬件或 GitHub 线程已完成。
+- ✅ GH-Issue #177/#180/#193 已验收、推送并关闭：标准关系 JOIN、JSON 标量/数组查询及关系 VECTOR/GEOPOINT 产品边界（选项 2），Core 194/194、真实服务及客户端 164/164；见 [2026-09-23 验收](docs/audits/sql-provider-closure-20260923.md)。不代表整体 M27/M41/M43 或固定硬件门禁完成。
 - M0~M13、M15~M18、M21、M23、M24、M26、M28、M30、M31、M33、M34、M37~M39、MM9：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21)；M14 Copilot 继续按 M27 未闭环队列推进。
 - M35 #297、#299~#301、#304、#306~#309；M36 #311~#326 代码范围；M40 #341~#367 步骤 1~7；M41 #368~#380 本地合同：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21) 和各专页。
 - 历史正文仅用于追溯；若历史文档与当前实现冲突，以代码、可执行测试和本文件的证据边界为准。

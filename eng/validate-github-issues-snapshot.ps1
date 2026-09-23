@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $SnapshotPath = (Join-Path $PSScriptRoot '..\docs\audits\github-issues-20260921.json')
+    [string] $SnapshotPath = (Join-Path $PSScriptRoot '..\docs\audits\github-issues-20260923.json')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +11,50 @@ if (-not [IO.File]::Exists($resolvedSnapshotPath)) {
 
 $snapshot = Get-Content -Raw -LiteralPath $resolvedSnapshotPath | ConvertFrom-Json
 $issues = @($snapshot.issues)
+if ($snapshot.schemaVersion -eq '2.0') {
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    if ($issues.Count -lt 1 -or $issues.Count -gt 100) { throw 'Expected 1..100 tracked issue records.' }
+    if ($snapshot.repository -ne 'IoTSharp/SonnetDB' -or $snapshot.deliveredCommit -notmatch '^[0-9a-f]{40}$') {
+        throw 'Snapshot must identify the repository and full delivered commit.'
+    }
+    if ($snapshot.query.excludesPullRequests -ne $true -or $snapshot.query.trackedCount -ne $issues.Count) {
+        throw 'Tracked count or pull request exclusion is invalid.'
+    }
+    $expectedIds = @(@(89, 91) + @(171..198) | Sort-Object)
+    if (Compare-Object $expectedIds @($issues.id | Sort-Object)) { throw 'Tracked issue IDs are incomplete or duplicated.' }
+    if (Compare-Object $expectedIds @($snapshot.query.trackedIds | Sort-Object)) { throw 'Query issue IDs do not match the records.' }
+    $open = @($issues | Where-Object state -eq 'open')
+    $closed = @($issues | Where-Object state -eq 'closed')
+    if ($open.Count + $closed.Count -ne $issues.Count -or $open.Count -ne $snapshot.query.openCount -or $closed.Count -ne $snapshot.query.closedCount) {
+        throw 'Live state counts do not match the issue records.'
+    }
+    foreach ($issue in $issues) {
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'Snapshot validation exceeded 30 seconds.' }
+        if ($issue.url -ne "https://github.com/IoTSharp/SonnetDB/issues/$($issue.id)" -or [string]::IsNullOrWhiteSpace($issue.title) -or @($issue.roadmap).Count -lt 1) {
+            throw "Issue $($issue.id) lacks its URL, title or roadmap mapping."
+        }
+        if ($issue.state -eq 'closed' -and ($issue.stateReason -ne 'completed' -or -not $issue.closedAt)) {
+            throw "Closed issue $($issue.id) has no completion timestamp/reason."
+        }
+        if ($issue.state -eq 'open' -and $null -ne $issue.closedAt) { throw "Open issue $($issue.id) has a closure timestamp." }
+    }
+    $completed = @($snapshot.completedThisUpdate)
+    if ($completed.Count -lt 3 -or $completed.Count -gt $issues.Count) { throw 'Invalid completed scope count.' }
+    $seen = @{}
+    foreach ($delivery in $completed) {
+        if ([DateTime]::UtcNow -gt $deadline) { throw 'Snapshot validation exceeded 30 seconds.' }
+        if ($seen.ContainsKey($delivery.id)) { throw "Duplicate completed scope $($delivery.id)." }
+        $seen[$delivery.id] = $true
+        $issue = $issues | Where-Object id -eq $delivery.id
+        if ($issue.state -ne 'closed' -or $delivery.implementationCommit -notmatch '^[0-9a-f]{8,40}$' -or $delivery.integrationPassed -lt 1) {
+            throw "Completed scope $($delivery.id) lacks closed state, commit or integration evidence."
+        }
+        $evidencePath = Join-Path (Join-Path $PSScriptRoot '..') $delivery.evidence
+        if (-not [IO.File]::Exists($evidencePath)) { throw "Missing evidence for issue $($delivery.id)." }
+    }
+    Write-Output "Validated $($issues.Count) live issue records: $($closed.Count) closed, $($open.Count) open in $resolvedSnapshotPath"
+    return
+}
 if ($snapshot.schemaVersion -ne '1.0') { throw "Unsupported schemaVersion: $($snapshot.schemaVersion)" }
 if ($snapshot.query.openCount -ne 25 -or $snapshot.query.closedCount -ne 0) {
     throw "Unexpected GitHub issue counts: open=$($snapshot.query.openCount), closed=$($snapshot.query.closedCount)"
