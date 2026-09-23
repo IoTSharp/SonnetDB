@@ -48,7 +48,7 @@ public sealed class ServerOptionsTests
         Assert.Equal(
             SqlMemoryOptions.Default.ParallelWorkerMemoryBytes,
             options.SqlExecution.ParallelWorkerMemoryBytes);
-        Assert.Equal(4, options.RelationalTableWarmupConcurrency);
+        Assert.Equal(1, options.RelationalTableWarmupConcurrency);
         Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
         Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
         Assert.Equal(1024, options.Mqtt.Sparkplug.RebirthQueueCapacity);

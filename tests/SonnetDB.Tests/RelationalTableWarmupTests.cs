@@ -73,6 +73,28 @@ public sealed class RelationalTableWarmupTests
 
         Assert.Equal(HealthStatus.Healthy, result.Status);
         Assert.Equal("已预热 1 个数据库中的 7 张关系表。", result.Description);
+        Assert.Equal("Completed", result.Data["phase"]);
+        Assert.Equal(7, result.Data["completedTables"]);
+    }
+
+    /// <summary>预热进行中 readiness 必须公开有界的数据库和关系表进度。</summary>
+    [Fact]
+    public async Task HealthCheck_DuringWarmup_ReportsProgress()
+    {
+        var state = new RelationalTableWarmupState();
+        state.MarkRunning(totalDatabaseCount: 2, totalTableCount: 5);
+        state.MarkDatabaseStarted("production");
+        state.MarkTableWarmed("production", "weights");
+        var healthCheck = new RelationalTableWarmupHealthCheck(state);
+
+        HealthCheckResult result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Contains("已完成 1/5 张表", result.Description);
+        Assert.Equal("Running", result.Data["phase"]);
+        Assert.Equal(2, result.Data["totalDatabases"]);
+        Assert.Equal(1, result.Data["completedTables"]);
+        Assert.Equal("weights", result.Data["currentTable"]);
     }
 
     /// <summary>任一关系表冷开失败时必须保留原因并阻断 readiness。</summary>

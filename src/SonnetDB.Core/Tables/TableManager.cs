@@ -1111,6 +1111,17 @@ public sealed partial class TableManager : IDisposable
     public IReadOnlyList<string> WarmUpAll(
         CancellationToken cancellationToken = default,
         int maxDegreeOfParallelism = 1)
+        => WarmUpAll(cancellationToken, maxDegreeOfParallelism, onTableWarmed: null);
+
+    /// <summary>按指定并发冷开全部关系表，并向调用方报告已经完成的单表。</summary>
+    /// <param name="cancellationToken">在两张表之间停止后续预热的取消令牌。</param>
+    /// <param name="maxDegreeOfParallelism">不同关系表允许同时执行冷开的最大数量。</param>
+    /// <param name="onTableWarmed">完成回调；管理器锁仍被持有，不得重入表操作，且并行模式下须线程安全。</param>
+    /// <returns>本轮确认已打开的关系表名称。</returns>
+    public IReadOnlyList<string> WarmUpAll(
+        CancellationToken cancellationToken,
+        int maxDegreeOfParallelism,
+        Action<string>? onTableWarmed)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDegreeOfParallelism);
         lock (_schemaSync)
@@ -1139,6 +1150,8 @@ public sealed partial class TableManager : IDisposable
                         cancellationToken.ThrowIfCancellationRequested();
                         WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
                         _ = OpenStoreLocked(schema);
+                        // 逐表报告进度，调用方可以在长冷开期间更新 readiness；回调不应重入表管理器。
+                        onTableWarmed?.Invoke(schema.Name);
                     }
                     return warmedTables;
                 }
@@ -1164,6 +1177,9 @@ public sealed partial class TableManager : IDisposable
                                 store.Dispose();
                                 throw new InvalidOperationException($"table '{schema.Name}' 被重复安排启动预热。");
                             }
+
+                            // 并行模式下回调可能并发执行，调用方必须自行保证回调状态线程安全。
+                            onTableWarmed?.Invoke(schema.Name);
                         });
 
                     foreach (TableSchema schema in unopenedSchemas)

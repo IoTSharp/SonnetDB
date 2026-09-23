@@ -16,9 +16,9 @@ public sealed class ServerOptions
     public bool AutoLoadExistingDatabases { get; set; } = true;
 
     /// <summary>
-    /// 启动时可并行冷开的关系表数量。不同表使用独立 KV 目录，默认四并发利用多核并限制恢复峰值。
+    /// 启动时可并行冷开的关系表数量。默认串行逐表恢复，优先限制恢复期的内存和 WAL 峰值。
     /// </summary>
-    public int RelationalTableWarmupConcurrency { get; set; } = 4;
+    public int RelationalTableWarmupConcurrency { get; set; } = 1;
 
     /// <summary>
     /// Bearer token → 角色映射。允许的角色：<c>admin</c>、<c>readwrite</c>、<c>readonly</c>。
