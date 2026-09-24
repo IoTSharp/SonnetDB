@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -9,7 +10,9 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
+using SonnetDB.Contracts;
 using SonnetDB.Data;
+using SonnetDB.Json;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -124,6 +127,65 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Contains(h2Requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
         Assert.Contains(h2Requests, r => r.Path == "/v1/frame");
         Assert.All(h2Requests, r => Assert.Equal("HTTP/2", r.Protocol));
+    }
+
+    [Fact]
+    public async Task RecursiveCte_RestNdjsonAndFrameHttp2_ReturnSameParameterizedRows()
+    {
+        using var rest = new SndbConnection(ConnectionString(_http11Url, "rest"));
+        rest.Open();
+        using (var setup = rest.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE recursive_devices (id INT, parent_id INT, PRIMARY KEY (id))";
+            setup.ExecuteNonQuery();
+            setup.CommandText = "INSERT INTO recursive_devices (id, parent_id) VALUES (1, NULL), (2, 1), (3, 1), (4, 2)";
+            Assert.Equal(4, setup.ExecuteNonQuery());
+        }
+
+        const string query = """
+            WITH RECURSIVE device_tree (id, depth) AS (
+                SELECT id, 0 AS depth FROM recursive_devices WHERE id = @root
+                UNION ALL
+                SELECT child.id, device_tree.depth + 1 AS depth
+                FROM recursive_devices AS child JOIN device_tree ON child.parent_id = device_tree.id
+            )
+            SELECT id, depth FROM device_tree ORDER BY id DESC LIMIT 2
+            """;
+        foreach (string protocol in new[] { "rest", "frame-http2" })
+        {
+            string url = protocol == "rest" ? _http11Url : _frameH2Url;
+            using var connection = new SndbConnection(ConnectionString(url, protocol));
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = query;
+            command.Parameters.AddWithValue("@root", 1L);
+            using var reader = command.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(4L, reader.GetInt64(0));
+            Assert.Equal(2L, reader.GetInt64(1));
+            Assert.True(reader.Read());
+            Assert.Equal(3L, reader.GetInt64(0));
+            Assert.Equal(1L, reader.GetInt64(1));
+            Assert.False(reader.Read());
+        }
+
+        using var http = new HttpClient { BaseAddress = new Uri(_http11Url) };
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+        using var response = await http.PostAsync(
+            $"/v1/db/{DatabaseName}/sql",
+            JsonContent.Create(new SqlRequest(query.Replace("@root", "1", StringComparison.Ordinal)),
+                ServerJsonContext.Default.SqlRequest));
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("application/x-ndjson", response.Content.Headers.ContentType?.MediaType);
+        string[] lines = (await response.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, lines.Length); // meta, two rows, end
+        Assert.Contains("[4,2]", lines[1], StringComparison.Ordinal);
+        Assert.Contains("[3,1]", lines[2], StringComparison.Ordinal);
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        Assert.Contains(_requests, request => request.LocalPort == h2Port
+            && request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
     /// <summary>Frame HTTP/2 远程连接在事务内外均返回 INSERT、UPDATE、DELETE 的真实影响行数。</summary>

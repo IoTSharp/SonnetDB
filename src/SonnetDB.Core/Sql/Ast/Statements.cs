@@ -765,6 +765,9 @@ public sealed record SelectStatement(
     public IReadOnlyList<CommonTableExpression> CommonTableExpressions { get; init; } =
         Array.Empty<CommonTableExpression>();
 
+    /// <summary>WITH RECURSIVE 是否启用有界递归求值。</summary>
+    public bool IsRecursive { get; init; }
+
     /// <summary>当前 SELECT 后续的 UNION/INTERSECT/EXCEPT 分支。</summary>
     public IReadOnlyList<SqlSetOperation> SetOperations { get; init; } =
         Array.Empty<SqlSetOperation>();

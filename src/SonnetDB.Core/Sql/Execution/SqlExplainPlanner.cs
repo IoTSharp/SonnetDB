@@ -297,6 +297,7 @@ public static class SqlExplainPlanner
                 databaseName,
                 tsdb,
                 describeModbusTable.Name),
+            SelectStatement { IsRecursive: true } select => RecursiveCteExecutor.Explain(databaseName, select),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
                 "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]。"),

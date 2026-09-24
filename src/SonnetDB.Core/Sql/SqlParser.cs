@@ -239,13 +239,14 @@ public sealed class SqlParser
     }
 
     /// <summary>
-    /// 解析非递归公共表表达式：<c>WITH name [(column, ...)] AS (SELECT ...), ... SELECT ...</c>。
+    /// 解析公共表表达式：<c>WITH [RECURSIVE] name [(column, ...)] AS (SELECT ...), ... SELECT ...</c>。
     /// </summary>
     private SelectStatement ParseWithSelect()
     {
         Expect(TokenKind.KeywordWith);
-        if (IsIdentifier("recursive"))
-            throw Error("WITH RECURSIVE 尚未支持；当前仅支持非递归 CTE");
+        bool recursive = IsIdentifier("recursive");
+        if (recursive)
+            Advance();
 
         var definitions = new List<CommonTableExpression>();
         while (true)
@@ -288,6 +289,7 @@ public sealed class SqlParser
         return ParseSelect() with
         {
             CommonTableExpressions = definitions,
+            IsRecursive = recursive,
         };
     }
 
@@ -5620,6 +5622,7 @@ public sealed class SqlParser
         SqlStatement statement = Current.Kind switch
         {
             TokenKind.KeywordSelect => ParseSelect(),
+            TokenKind.KeywordWith => ParseWithSelect(),
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),

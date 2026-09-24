@@ -1776,6 +1776,9 @@ public static class SqlExecutor
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
+        if (statement.IsRecursive)
+            return RecursiveCteExecutor.Execute(tsdb, statement);
+
         statement = CommonTableExpressionExpander.Expand(statement);
 
         if (tsdb.Views.Catalog.Count != 0)
@@ -2024,6 +2027,8 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
     {
+        if (RecursiveCteScope.Find(statement.Measurement) is not null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
         if (TriggerTransitionTables.FindSchema(statement.Measurement) is not null)
             return RelationalSelectExecutor.Execute(tsdb, statement);
         if (GraphSqlExecutor.IsGraphSelect(statement))

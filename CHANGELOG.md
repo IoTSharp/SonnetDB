@@ -16,6 +16,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- **GH-Issue #189 `WITH RECURSIVE` 基础切片**：支持单个递归 CTE 的 `anchor UNION [ALL] recursive_member` 分层求值、按声明顺序引用普通 CTE、显式输出列、参数、最终排序/分页及环去重；提供 64 层、单轮 10 万候选行、累计 10 万结果行/约 32 MiB 的拒绝边界，`EXPLAIN` 报告工作表与限制。JOIN 建表侧及普通 CTE 派生表的峰值内存硬门禁仍待实现。
 
 - **M42 显式 SQL 结果预览合同完成（2026-09-24）**：REST `previewMaxRows` 按请求与配置上限返回前 N 行，`end.truncated`、公开 `SndbDataReader.Truncated` 和 Web 控制台摘要显示不完整状态；默认查询、Frame 协议及公共记录主构造保持兼容。RETURNING 影响数、提交/回滚和写前参数校验经真实端点验证，损坏/断流结果不视为完整成功。专项 Core/ADO 16、Server 12、Web 11 项通过；连同已有回归，Core 87/87，Server 两轮共 197 个不同用例最终通过。服务端仍先全量物化，不宣称执行 heap、字节预算或首行延迟闭环。见 [合同](docs/benchmarks/m42-sql-result-bounds.md)与[原始证据](docs/audits/roadmap-closure-evidence-20260924/validation.json)。
 

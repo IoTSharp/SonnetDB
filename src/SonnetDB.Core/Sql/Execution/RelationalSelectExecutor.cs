@@ -1801,6 +1801,8 @@ internal static class RelationalSelectExecutor
         if (statement.FromSubquery is not null)
             return LoadSubquery(tsdb, statement.FromSubquery, alias);
 
+        if (RecursiveCteScope.Find(statement.Measurement) is { } recursiveSource)
+            return LoadRecursiveSource(recursiveSource, alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(statement.Measurement) is { } transitionSchema)
             return LoadTransitionTable(statement.Measurement, alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
@@ -1820,6 +1822,8 @@ internal static class RelationalSelectExecutor
         if (join.Subquery is not null)
             return LoadSubquery(tsdb, join.Subquery, join.Alias);
 
+        if (RecursiveCteScope.Find(join.TableName) is { } recursiveSource)
+            return LoadRecursiveSource(recursiveSource, join.Alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(join.TableName) is { } transitionSchema)
             return LoadTransitionTable(join.TableName, join.Alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
@@ -1834,6 +1838,17 @@ internal static class RelationalSelectExecutor
         => new(schema.Columns.Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType)).ToArray(),
             SonnetDB.Routines.TriggerTransitionTables.Read(name),
             new RelationalJoinInputEstimate(100_000, Math.Max(1, schema.Columns.Count * 32)));
+
+    private static Relation LoadRecursiveSource(SelectExecutionResult source, string alias)
+    {
+        var columns = source.Columns.Select(name => new RelColumn(alias, name, name)).ToArray();
+        return new Relation(
+            columns,
+            source.Rows.Select(static row => row.ToArray()),
+            new RelationalJoinInputEstimate(
+                source.Rows.Count,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
+    }
 
     private static Relation LoadTable(
         Tsdb tsdb,
@@ -5328,7 +5343,7 @@ internal static class RelationalSelectExecutor
         }
     }
 
-    private static bool ContainsSubquery(SelectStatement statement)
+    internal static bool ContainsSubquery(SelectStatement statement)
     {
         foreach (var item in statement.Projections)
             if (ContainsSubquery(item.Expression))

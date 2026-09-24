@@ -1270,10 +1270,29 @@ ORDER BY d.id;
 
 当前边界：
 
-- 仅支持 `WITH ... AS (SELECT ...)`，不支持 `WITH RECURSIVE` 或递归自引用；递归查询属于后续 GH-Issue #189。
+- 非递归 `WITH ... AS (SELECT ...)` 仍不支持输出列名列表或自引用；递归形式见下一节。
 - CTE 名称按声明顺序解析，后一个 CTE 可以引用前一个 CTE；重复名称会被拒绝。
 - `WITH name (column, ...) AS (...)` 的输出列重命名尚未支持，请在 CTE 的 `SELECT` 投影中使用 `AS` 别名。
 - CTE 不新增独立 planner，继续复用 `FROM (SELECT ...)`、关系 JOIN 以及 `IN` / `EXISTS` 子查询的现有执行和相关性语义。
+
+### 有界递归公共表表达式 `WITH RECURSIVE`
+
+一个递归 CTE 可按 `anchor UNION ALL recursive_member` 逐层遍历关系表。`UNION ALL` 保留重复行；`UNION` 对全部已见行去重，可使包含环的图收敛：
+
+```sql
+WITH RECURSIVE device_tree (id, depth) AS (
+    SELECT id, 0 AS depth FROM devices WHERE id = 1
+    UNION ALL
+    SELECT child.id, device_tree.depth + 1 AS depth
+    FROM devices AS child
+    JOIN device_tree ON child.parent_id = device_tree.id
+)
+SELECT id, depth FROM device_tree ORDER BY id;
+```
+
+递归成员每轮只读取上一层结果；最终 SELECT 读取所有层。支持空 anchor、分支、参数绑定、最终结果排序和分页。同一 `WITH RECURSIVE` 中可在递归定义之前或之后声明普通 CTE；前置普通 CTE 可供 anchor 和递归成员引用，后置普通 CTE 可读取最终递归结果，名称按声明顺序解析。CTE 输出列名列表的列数必须与 anchor 和递归成员一致，非空值的列类型必须保持一致。每个查询最多展开 64 层、累计保留 100,000 行和约 32 MiB 行数据；每轮候选输出最多 100,000 行，超限时报错，不返回部分结果。`EXPLAIN` 报告递归工作表及这些上限。
+
+当前只支持一个递归 CTE 定义，以及恰好一次直接自引用的普通 SELECT/JOIN/WHERE 递归成员；不支持互递归、成员内子查询、聚合、DISTINCT、ORDER BY 或分页。递归定义内也不能排序或分页；应在最终 SELECT 指定。`UNION ALL` 遇到环会达到上限并报错；需要收敛时使用 `UNION` 或在递归成员中限制访问条件。每轮候选上限通过结果分页提前探测；JOIN 建表侧与普通 CTE 派生表可能在分页前物化，字节数上限也在候选结果返回后检查。因此上述限制不是单轮执行峰值内存承诺，仍须遵守实例级资源治理与调用方超时。
 
 ### SELECT 集合运算
 
@@ -1288,7 +1307,7 @@ SELECT id FROM managed_devices
 ORDER BY id;
 ```
 
-`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。递归 CTE、`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
+`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
 
 分页子句（兼容两种风格）：
 
