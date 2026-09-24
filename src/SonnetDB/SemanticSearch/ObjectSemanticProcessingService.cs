@@ -5,13 +5,10 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.ObjectStorage;
 
@@ -23,7 +20,6 @@ namespace SonnetDB.SemanticSearch;
 internal sealed class ObjectSemanticProcessingService : BackgroundService
 {
     internal const string ThumbnailBucket = "sonnetdb-semantic-thumbnails";
-    private const int MaxDecodedPixels = 100_000_000;
     private readonly Channel<WorkItem> _queue;
     private readonly ConcurrentDictionary<WorkItem, byte> _scheduled = new();
     private readonly ConcurrentDictionary<string, DateTimeOffset> _cooldowns = new(StringComparer.OrdinalIgnoreCase);
@@ -119,7 +115,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             bucketOptions.ThumbnailMaxWidth,
             bucketOptions.ThumbnailMaxHeight,
             bucketOptions.ThumbnailQuality,
-            _options.Profile,
+            _semanticImages.EmbeddingProfile,
             "pending",
             Attempts: 0,
             Error: null,
@@ -208,7 +204,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             ThumbnailMaxWidth: 320,
             ThumbnailMaxHeight: 320,
             ThumbnailQuality: 80,
-            _options.Profile,
+            _semanticImages.EmbeddingProfile,
             "pending",
             Attempts: 0,
             Error: null,
@@ -502,6 +498,8 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             job = job with
             {
                 Status = "processing",
+                // 恢复升级前的摄取任务时，记录本次实际使用的预处理 profile。
+                Profile = job.Operation == "upsert" ? _semanticImages.EmbeddingProfile : job.Profile,
                 Attempts = job.Attempts + 1,
                 Error = null,
                 UpdatedUtc = DateTimeOffset.UtcNow,
@@ -607,7 +605,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
 
     /// <summary>输入尺寸、格式和解码内容错误没有重试价值；存储损坏不会归入输入错误。</summary>
     internal static bool IsPermanentInputFailure(Exception exception)
-        => exception is PermanentObjectInputException or UnknownImageFormatException or InvalidImageContentException;
+        => exception is PermanentObjectInputException or ImageInputException;
 
     /// <summary>根据对象当前版本与桶开关执行幂等缩略图、索引写入或清理。</summary>
     private async Task<SemanticObjectProcessingJob> ProcessCoreAsync(
@@ -672,6 +670,8 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             };
         }
 
+        if (!SemanticImageCodec.IsSupportedContentType(current.ContentType))
+            throw new ImageInputException("对象图片媒体类型不受支持；支持 PNG、JPEG、WebP、GIF、BMP、ICO、TIFF。");
         if (current.SizeBytes > _options.MaxImageBytes)
             throw new PermanentObjectInputException($"图片超过语义处理上限 {_options.MaxImageBytes} 字节。");
 
@@ -740,42 +740,13 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
     }
 
     /// <summary>先识别尺寸再解码单帧，避免超大像素输入先分配整图内存。</summary>
-    private static async Task<byte[]> CreateThumbnailAsync(
+    private static Task<byte[]> CreateThumbnailAsync(
         ReadOnlyMemory<byte> encodedImage,
         int maxWidth,
         int maxHeight,
         int quality,
         CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var imageInfo = Image.Identify(encodedImage.ToArray())
-            ?? throw new PermanentObjectInputException("无法识别图片格式。");
-        if ((long)imageInfo.Width * imageInfo.Height > MaxDecodedPixels)
-            throw new PermanentObjectInputException($"图片像素数不能超过 {MaxDecodedPixels}。");
-        using Image image = Image.Load(encodedImage.Span);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        image.Mutate(operation => operation.AutoOrient());
-        double scale = Math.Min(1d, Math.Min((double)maxWidth / image.Width, (double)maxHeight / image.Height));
-        if (scale < 1d)
-        {
-            int width = Math.Max(1, (int)Math.Round(image.Width * scale));
-            int height = Math.Max(1, (int)Math.Round(image.Height * scale));
-            image.Mutate(operation => operation.Resize(new ResizeOptions
-            {
-                Size = new Size(width, height),
-                Mode = ResizeMode.Stretch,
-                Sampler = KnownResamplers.Lanczos3,
-            }));
-        }
-
-        using var output = new MemoryStream();
-        await image.SaveAsWebpAsync(
-            output,
-            new WebpEncoder { Quality = quality },
-            cancellationToken).ConfigureAwait(false);
-        return output.ToArray();
-    }
+        => Task.FromResult(SemanticImageCodec.CreateThumbnail(encodedImage, maxWidth, maxHeight, quality, cancellationToken));
 
     /// <summary>已排队或已生成当前版本时去重，保留显式 force 重跑能力。</summary>
     private bool IsAlreadyScheduledOrDerived(
@@ -793,7 +764,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             && existing.ThumbnailMaxWidth == bucketOptions.ThumbnailMaxWidth
             && existing.ThumbnailMaxHeight == bucketOptions.ThumbnailMaxHeight
             && existing.ThumbnailQuality == bucketOptions.ThumbnailQuality
-            && string.Equals(existing.Profile, _options.Profile, StringComparison.Ordinal);
+            && string.Equals(existing.Profile, _semanticImages.EmbeddingProfile, StringComparison.Ordinal);
         if (matchesCurrentOptions && existing!.Status is "pending" or "processing" or "retry")
             return true;
 

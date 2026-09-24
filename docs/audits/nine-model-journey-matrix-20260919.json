@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 2,
+  "scope": "M36 #310/#311 repeatable local minimum-journey evidence and closure prerequisites",
+  "claimBoundary": "Each partial entry names an executable, local small-data test slice and the steps it actually covers. These are not embedded-to-server-to-client closure journeys, installation, backup/restore, fixed-hardware, remote Parity, or production-gate evidence.",
+  "journeyStateContract": {
+    "partial": "At least one named and repeatable local small-data journey slice has executed. Its coveredSteps are the only closure steps claimed; it is not evidence that every required closure step, recovery, backup/restore, or production gate has passed.",
+    "not_executed": "No M36 closure journey covering the required closure steps has executed for this model; source inspection and local contract tests do not change that state."
+  },
+  "evidenceContract": {
+    "source_audit": "The named source path was inspected only; it is not an executed test or a real Server journey.",
+    "local_core": "A local embedded/Core contract test exists; it does not prove a Server, recovery, installation, or production journey.",
+    "local_server": "A local self-hosted Server contract exists; it is not remote Parity, field recovery, installation, or production evidence.",
+    "local_aot_process": "A local Native AOT process check exists; it is not remote Parity, installation, or production evidence.",
+    "browser_real_server": "A browser E2E runs against a local real Server; it is not a clean desktop installation, remote Parity, or production gate."
+  },
+  "localEvidenceContract": {
+    "testPath": "Repository-relative xUnit source path for the executable local evidence.",
+    "testMethod": "The named xUnit test method must occur in testPath and be runnable by FullyQualifiedName filtering.",
+    "coveredSteps": "Only requiredClosureSteps listed here are asserted by this local slice. Omitted steps remain open.",
+    "execution": "The verification command runs only local test code and fixture data. Passing it is not a claim about a remote service, real provider, fixed hardware, installation, backup/restore, or production."
+  },
+  "latestLocalExecution": {
+    "executedOn": "2026-09-20",
+    "claimBoundary": "These are direct local xUnit runs in the current working tree. They are repeatability evidence for the named test slices only, not a replacement for remote Parity, a clean installation, fixed-hardware evidence, or production acceptance.",
+    "runs": [
+      {
+        "id": "core-minimum-journeys",
+        "project": "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "configuration": "Release --no-restore --no-build",
+        "status": "passed",
+        "passed": 23,
+        "failed": 0,
+        "scope": "Exact local methods named by the non-KV executedLocalEvidence entries."
+      },
+      {
+        "id": "kv-protocol-journeys",
+        "project": "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "configuration": "Release --no-restore",
+        "status": "failed",
+        "passed": 8,
+        "failed": 3,
+        "scope": "AtomicOperations_WithGoldenJourney_PreserveValuesVersionsAndNamespace, AtomicOperations_WithReadOnlyToken_ReturnForbiddenWithoutMutation, and AtomicOperations_AfterOrderlyRestart_RecoverCommittedStateAndContinueVersions across embedded, REST, HTTP/2 Frame, and auto protocols.",
+        "failureBoundary": "All three frame-http2 cases failed before model-operation verification because RequestVersionExact could not establish an HTTP/2 connection. REST, embedded, and auto cases passed in this run; they do not close the failed exact HTTP/2 Frame path.",
+        "failureCode": "frame_transport_error"
+      }
+    ]
+  },
+  "requiredClosureSteps": [
+    "same_seed_fixture",
+    "embedded",
+    "server",
+    "sdk_or_api",
+    "workbench_or_cli",
+    "permission_denied",
+    "paging_or_subscription",
+    "cancellation_or_failure",
+    "reopen",
+    "backup_restore",
+    "result_reconciliation"
+  ],
+  "models": [
+    {
+      "id": "timeseries",
+      "journeyState": "partial",
+      "gapIds": ["TS-001", "JOURNEY-001", "CAPACITY-001"],
+      "samplePath": null,
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/TimeSeries/SndbTimeSeriesClientTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/TimeSeries/SndbTimeSeriesClientTests.cs", "testMethod": "EmbeddedWriter_ConvertsPrecisionAndReturnsPerItemErrors", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SndbTimeSeriesClientTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/TimeSeries/SndbTimeSeriesClientTests.cs", "testMethod": "Writer_CancelledBeforeEnqueueDoesNotAcceptWork", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SndbTimeSeriesClientTests" }
+      ],
+      "claimBoundary": "This is a local embedded writer and cancellation slice only; server, permissions, paging, reopen, remote parity, field recovery, capacity, and a complete journey remain open.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Engine/Tsdb.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/IngestionEndpoints.cs" },
+        "sdk": { "state": "partial", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/TimeSeries/SndbTimeSeriesClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/MeasurementWorkbench.vue" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "relational",
+      "journeyState": "partial",
+      "gapIds": ["SQL-001", "SQL-002", "SQL-003", "JOURNEY-001"],
+      "samplePath": "demo.sql",
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorTableTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorTableTests.cs", "testMethod": "InsertSelectUpdateDelete_TableRows_WorkEndToEnd", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SqlExecutorTableTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorTableTests.cs", "testMethod": "CreateShowDescribeTable_PersistsAcrossReopen", "coveredSteps": ["same_seed_fixture", "embedded", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SqlExecutorTableTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorTableTests.cs", "testMethod": "Insert_DuplicatePrimaryKey_Throws", "coveredSteps": ["same_seed_fixture", "embedded", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SqlExecutorTableTests" }
+      ],
+      "claimBoundary": "These are local SQL table slices; they do not establish cross-keyspace crash atomicity, server permissions, bounded browser results, backup/restore, or a real workbench journey.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Tables/TableStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/SqlEndpoints.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/SndbConnection.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/RelationalTableWorkbench.vue" },
+        "cli": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "kv",
+      "journeyState": "partial",
+      "gapIds": ["KV-001", "KV-002", "JOURNEY-001"],
+      "samplePath": "samples/SonnetDB.KvQuickstart/Program.cs",
+      "localPrerequisitePath": "tests/SonnetDB.Tests/KvAtomicJourneyTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Tests/KvAtomicJourneyTests.cs", "testMethod": "AtomicOperations_WithGoldenJourney_PreserveValuesVersionsAndNamespace", "coveredSteps": ["same_seed_fixture", "embedded", "server", "sdk_or_api", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~KvAtomicJourneyTests" },
+        { "testPath": "tests/SonnetDB.Tests/KvAtomicJourneyTests.cs", "testMethod": "AtomicOperations_WithReadOnlyToken_ReturnForbiddenWithoutMutation", "coveredSteps": ["same_seed_fixture", "server", "sdk_or_api", "permission_denied", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~KvAtomicJourneyTests" },
+        { "testPath": "tests/SonnetDB.Tests/KvAtomicJourneyTests.cs", "testMethod": "AtomicOperations_AfterOrderlyRestart_RecoverCommittedStateAndContinueVersions", "coveredSteps": ["same_seed_fixture", "embedded", "server", "sdk_or_api", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~KvAtomicJourneyTests" }
+      ],
+      "claimBoundary": "Only the single-key atomic subset has historical local Native AOT reopen and real-server/browser evidence. In the 2026-09-20 local protocol run, all selected frame-http2 cases failed with frame_transport_error before operation verification; that exact Frame path is failed/NOT_READY and is not replaced by REST or auto success. This remains neither a nine-model closure, remote Parity window, backup proof, nor production gate.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Kv/KvKeyspace.cs" },
+        "serverApi": { "state": "implemented", "evidence": "local_server", "sourcePath": "tests/SonnetDB.Tests/KvAtomicHttpContractTests.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_aot_process", "sourcePath": "src/SonnetDB.Data/Kv/SndbKvClient.Atomic.cs" },
+        "workbench": { "state": "implemented", "evidence": "browser_real_server", "sourcePath": "web/e2e/kv-atomic-real.spec.ts" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "document",
+      "journeyState": "partial",
+      "gapIds": ["JOURNEY-001", "CAPACITY-001"],
+      "samplePath": "samples/SonnetDB.DocumentQuickstart/Program.cs",
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/Documents/SndbDocumentClientTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/Documents/SndbDocumentClientTests.cs", "testMethod": "DocumentClient_EmbeddedCrudAndDistinct_RoundTrips", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SndbDocumentClientTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Documents/SndbDocumentClientTests.cs", "testMethod": "DocumentClient_FindPageAsync_WithCursor_ReturnsBatches", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "paging_or_subscription", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SndbDocumentClientTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Documents/SndbDocumentClientTests.cs", "testMethod": "DocumentClient_EmbeddedCancellation_IsObservedBeforeMutation", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SndbDocumentClientTests" }
+      ],
+      "claimBoundary": "These local document slices do not demonstrate server permissions, change-feed reconnect, import resume, deep paging, backup recovery, or capacity.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/DocumentEndpoints.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/Documents/SndbDocumentClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/DocumentCollectionWorkbench.vue" },
+        "cli": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Cli/DocumentImportCommandRunner.cs" }
+      }
+    },
+    {
+      "id": "fulltext",
+      "journeyState": "partial",
+      "gapIds": ["FT-001", "JOURNEY-001"],
+      "samplePath": null,
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/FullText/Core/FullTextSettingsDiagnosticsTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/FullText/Core/PersistentFullTextIndexTests.cs", "testMethod": "Index_persists_documents_and_restores_after_reopen", "coveredSteps": ["same_seed_fixture", "embedded", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~PersistentFullTextIndexTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/FullText/Core/PersistentFullTextIndexTests.cs", "testMethod": "Delete_tombstone_survives_reopen", "coveredSteps": ["same_seed_fixture", "embedded", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~PersistentFullTextIndexTests" }
+      ],
+      "claimBoundary": "These local index persistence slices do not establish a server/SDK/workbench journey, permissions, a fixed multilingual relevance corpus, lifecycle failure journey, or production search quality.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/FullText/SndbFullTextClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/FullTextSearchWorkbench.vue" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "vector",
+      "journeyState": "partial",
+      "gapIds": ["VECTOR-001", "VECTOR-002", "AI-001", "JOURNEY-001"],
+      "samplePath": null,
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/Ado/SonnetDBVectorDataTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/Ado/SonnetDBVectorDataTests.cs", "testMethod": "UpsertGetSearchAndFilter_RoundTripsDocumentRecords", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "paging_or_subscription", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetDBVectorDataTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Ado/SonnetDBVectorLifecycleTests.cs", "testMethod": "GetIndexHealthAsync_Reopen_DoesNotOpenOrRebuildDerivedIndex", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetDBVectorLifecycleTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Ado/SonnetDBVectorLifecycleTests.cs", "testMethod": "Lifecycle_PreCancelled_DoesNotOpenConnection", "coveredSteps": ["same_seed_fixture", "sdk_or_api", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetDBVectorLifecycleTests" }
+      ],
+      "claimBoundary": "Synthetic vectors and local lifecycle slices are not target-model quality, Recall@K, remote lifecycle, server permissions, or fixed-hardware evidence.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Documents/Vector/DocumentVectorIndexStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs" },
+        "sdk": { "state": "partial", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/VectorData/SonnetDBVectorStore.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/VectorSearchWorkbench.vue" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "object",
+      "journeyState": "partial",
+      "gapIds": ["OBJECT-001", "OBJECT-002", "JOURNEY-001"],
+      "samplePath": null,
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/ObjectStorage/SndbObjectClientContractTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/ObjectStorage/ObjectPaginationTests.cs", "testMethod": "ListObjects_EmbeddedSdk_PreservesGroupingAndCancellation", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "paging_or_subscription", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ObjectPaginationTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/ObjectStorage/ObjectPaginationTests.cs", "testMethod": "ListObjects_ReopenAndSharedFacades_KeepLatestIndexAtomic", "coveredSteps": ["same_seed_fixture", "embedded", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~ObjectPaginationTests" }
+      ],
+      "claimBoundary": "These embedded pagination slices do not prove conditional server paths, transfer resume, checksums, large-file memory, real-server recovery, backup/restore, or capacity.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/ObjectStorage/SndbObjectStore.cs" },
+        "serverApi": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Handlers/ObjectStorageEndpointHandler.cs" },
+        "sdk": { "state": "partial", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/ObjectStorage/SndbObjectStorageClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/ObjectBucketWorkbench.vue" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/ObjectTransferCommandRunner.cs" }
+      }
+    },
+    {
+      "id": "mq",
+      "journeyState": "partial",
+      "gapIds": ["MQ-001", "MQ-002", "MQ-003", "JOURNEY-001"],
+      "samplePath": "samples/SonnetDB.IndustrialDiagnostics/Program.cs",
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/Mq/SonnetMqAckBoundaryTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/Mq/SonnetMqStoreTests.cs", "testMethod": "Publish_ThenPull_ReturnsMessagesInOffsetOrder", "coveredSteps": ["same_seed_fixture", "embedded", "paging_or_subscription", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetMqStoreTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Mq/SonnetMqStoreTests.cs", "testMethod": "Open_WithExistingLog_ReplaysMessagesAndAcks", "coveredSteps": ["same_seed_fixture", "embedded", "reopen", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetMqStoreTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Mq/SonnetMqStoreTests.cs", "testMethod": "WaitForMessages_Cancellation_Throws", "coveredSteps": ["same_seed_fixture", "embedded", "paging_or_subscription", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SonnetMqStoreTests" }
+      ],
+      "claimBoundary": "These local MQ store slices do not prove a Server client, permissions, consumer drain, redelivery, DLQ, instance snapshot/restore, or broker-backed production delivery.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Mq/SonnetMqStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/MessageQueueEndpoints.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/Mq/SndbMqClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/SonnetMqWorkbench.vue" },
+        "cli": { "state": "partial", "evidence": "source_audit", "sourcePath": "src/SonnetDB.Cli/CliApplication.cs" }
+      }
+    },
+    {
+      "id": "graph",
+      "journeyState": "partial",
+      "gapIds": ["GRAPH-001", "GRAPH-002", "UI-001", "JOURNEY-001"],
+      "samplePath": null,
+      "localPrerequisitePath": "tests/SonnetDB.Core.Tests/Graphs/GraphOperationsClientTests.cs",
+      "executedLocalEvidence": [
+        { "testPath": "tests/SonnetDB.Core.Tests/Graphs/GraphOperationsClientTests.cs", "testMethod": "EmbeddedOperations_ExposeSharedContractsAndPersistentApprovalAudit", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~GraphOperationsClientTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Graphs/GraphOperationsClientTests.cs", "testMethod": "GraphClient_PageAdaptersKeepResultsBoundedAndPreserveOrder", "coveredSteps": ["same_seed_fixture", "embedded", "sdk_or_api", "paging_or_subscription", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~GraphOperationsClientTests" },
+        { "testPath": "tests/SonnetDB.Core.Tests/Graphs/GraphOperationsClientTests.cs", "testMethod": "GraphClient_CancelledOperationsStopBeforeOpeningSnapshot", "coveredSteps": ["same_seed_fixture", "sdk_or_api", "cancellation_or_failure", "result_reconciliation"], "execution": "dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~GraphOperationsClientTests" }
+      ],
+      "claimBoundary": "Graph remains M40 Beta scope. These local client slices do not move Graph engine, server permissions, production-gate, recovery, backup/restore, or cross-client acceptance into M36.",
+      "surfaces": {
+        "embeddedApi": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Core/Graphs/GraphStore.cs" },
+        "serverApi": { "state": "implemented", "evidence": "source_audit", "sourcePath": "src/SonnetDB/Endpoints/Routes/GraphEndpoints.cs" },
+        "sdk": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Data/Graphs/SndbGraphClient.cs" },
+        "workbench": { "state": "implemented", "evidence": "source_audit", "sourcePath": "web/src/components/GraphWorkbench.vue" },
+        "cli": { "state": "implemented", "evidence": "local_core", "sourcePath": "src/SonnetDB.Cli/GraphCommandRunner.cs" }
+      }
+    }
+  ]
+}

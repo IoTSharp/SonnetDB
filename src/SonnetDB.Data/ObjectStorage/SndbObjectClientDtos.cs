@@ -97,6 +97,20 @@ internal sealed record MultipartPartResponse(int PartNumber, long SizeBytes, str
 
 internal sealed record MultipartCompleteRequest(IReadOnlyList<int> PartNumbers);
 
+internal sealed record TransferManifest(
+    string Bucket,
+    string Key,
+    string UploadId,
+    long Length,
+    string Sha256,
+    int PartSizeBytes,
+    string ContentType,
+    Dictionary<string, string> Metadata,
+    Dictionary<string, string> Tags,
+    TransferManifestPart[] Parts);
+
+internal sealed record TransferManifestPart(int PartNumber, long SizeBytes, string ETag, string Sha256);
+
 internal sealed record PresignedObjectUrlCreateRequest(string Method, int ExpiresMinutes);
 
 internal sealed record PresignedObjectUrlResponse(
@@ -220,6 +234,8 @@ internal sealed record ObjectAuditListResponse(
 [JsonSerializable(typeof(MultipartUploadCreateResponse))]
 [JsonSerializable(typeof(MultipartPartResponse))]
 [JsonSerializable(typeof(MultipartCompleteRequest))]
+[JsonSerializable(typeof(TransferManifest))]
+[JsonSerializable(typeof(TransferManifestPart))]
 [JsonSerializable(typeof(PresignedObjectUrlCreateRequest))]
 [JsonSerializable(typeof(PresignedObjectUrlResponse))]
 [JsonSerializable(typeof(ObjectBucketPolicyRequest))]

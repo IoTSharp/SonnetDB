@@ -22,6 +22,7 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal((await client.fetchSetupStatus()).needsSetup, false);
   assert.deepEqual(await client.listDatabases(), { databases: ['factory'] });
   assert.equal((await client.fetchSchema('factory')).tables?.[0]?.name, 'orders');
+  assert.equal((await client.fetchGraphs('factory'))[0]?.name, 'topology');
   assert.equal((await client.findDocuments('factory', 'device_profiles', {
     filter: { path: '$.status', op: 'eq', value: 'online' },
     limit: 25,
@@ -54,7 +55,7 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal(sql.end?.rowCount, 1);
   assert.equal((await client.ingestBulk('factory', 'sensor_readings', 'lp', Buffer.from('value=1 1'))).written, 1);
 
-  assert.equal(requests.length, 19);
+  assert.equal(requests.length, 20);
   assert.ok(requests.every((entry) => entry.endsWith('Bearer smoke-token')));
 });
 
@@ -72,6 +73,9 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, reque
       documentCollections: [],
       indexes: [],
     });
+  }
+  if (path === '/v1/db/factory/graphs') {
+    return writeJson(response, [{ name: 'topology', storageId: '00000000-0000-0000-0000-000000000001', recordFormatVersion: 1 }]);
   }
   if (path === '/v1/db/factory/documents/device_profiles/find') {
     return writeJson(response, {

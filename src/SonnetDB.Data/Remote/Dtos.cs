@@ -58,6 +58,9 @@ internal sealed class ResultEndLine
 
     [JsonPropertyName("elapsedMilliseconds")]
     public double ElapsedMilliseconds { get; set; }
+
+    [JsonPropertyName("truncated")]
+    public bool Truncated { get; set; }
 }
 
 /// <summary>
@@ -89,7 +92,10 @@ internal sealed class BulkIngestResponseBody
 
 internal sealed record RemoteSchemaResponse(
     List<RemoteMeasurementInfo> Measurements,
-    List<RemoteTableInfo>? Tables = null);
+    List<RemoteTableInfo>? Tables = null,
+    List<RemoteDocumentCollectionInfo>? DocumentCollections = null,
+    List<RemoteViewInfo>? Views = null,
+    List<RemoteMaterializedViewInfo>? MaterializedViews = null);
 
 internal sealed record RemoteMeasurementInfo(
     string Name,
@@ -113,7 +119,74 @@ internal sealed record RemoteTableInfo(
     List<RemoteTableColumnInfo> Columns,
     List<string> PrimaryKey,
     List<RemoteTableIndexInfo> Indexes,
+    DateTimeOffset CreatedUtc,
+    List<RemoteTableForeignKeyInfo>? ForeignKeys = null);
+
+internal sealed record RemoteTableForeignKeyInfo(
+    string Name,
+    List<string> Columns,
+    string PrincipalTable,
+    List<string> PrincipalColumns,
+    string OnDelete);
+
+internal sealed record RemoteViewInfo(
+    string Name,
+    string DefinitionSql,
     DateTimeOffset CreatedUtc);
+
+internal sealed record RemoteMaterializedViewInfo(
+    string Name,
+    string DefinitionSql,
+    long DefinitionVersion,
+    string Status,
+    long ActiveGeneration,
+    long RowCount,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? LastRefreshUtc,
+    DateTimeOffset? LastSuccessfulRefreshUtc,
+    string? Error);
+
+internal sealed record RemoteDocumentCollectionInfo(
+    string Name,
+    List<RemoteDocumentJsonIndexInfo> JsonIndexes,
+    List<RemoteDocumentFullTextIndexInfo> FullTextIndexes,
+    DateTimeOffset CreatedUtc,
+    RemoteDocumentValidatorInfo? Validator = null);
+
+internal sealed record RemoteDocumentJsonIndexInfo(
+    string Name,
+    string Path,
+    DateTimeOffset CreatedUtc,
+    bool Rebuildable,
+    List<string>? Paths = null,
+    bool IsUnique = false,
+    bool IsSparse = false,
+    bool IsPartial = false,
+    string? PartialFilter = null,
+    bool IsTtl = false,
+    long? TtlSeconds = null);
+
+internal sealed record RemoteDocumentFullTextIndexInfo(
+    string Name,
+    List<string> Fields,
+    string Tokenizer,
+    DateTimeOffset CreatedUtc,
+    bool IncludedInBackup,
+    bool Rebuildable);
+
+internal sealed record RemoteDocumentValidatorInfo(
+    List<RemoteDocumentValidatorRuleInfo> Rules,
+    string ValidationAction = "error");
+
+internal sealed record RemoteDocumentValidatorRuleInfo(
+    string Path,
+    bool Required = false,
+    string? Type = null,
+    List<string>? Types = null,
+    double? Minimum = null,
+    double? Maximum = null,
+    List<System.Text.Json.JsonElement>? Enum = null,
+    string? Pattern = null);
 
 internal sealed record RemoteTableColumnInfo(
     string Name,
@@ -122,7 +195,9 @@ internal sealed record RemoteTableColumnInfo(
     bool IsNullable,
     int Ordinal,
     bool IsRowVersion = false,
-    string? DefaultExpressionSql = null)
+    string? DefaultExpressionSql = null,
+    byte? DecimalPrecision = null,
+    byte? DecimalScale = null)
 {
     public bool IsAutoIncrement { get; init; }
 }

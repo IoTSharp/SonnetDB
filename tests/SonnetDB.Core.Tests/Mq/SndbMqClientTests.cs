@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text;
 using SonnetDB.Data.Mq;
 using Xunit;
@@ -53,9 +54,93 @@ public sealed class SndbMqClientTests : IDisposable
         Assert.Equal("v", messages[1].Headers["k"]);
     }
 
+    [Fact]
+    public async Task ResetOffsetAsync_Embedded_ChangesConsumerPosition()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        await client.PublishManyAsync("events.reset", [
+            new SndbMqPublishEntry("a"u8.ToArray()),
+            new SndbMqPublishEntry("b"u8.ToArray()),
+        ]);
+
+        Assert.Equal(2, await client.ResetOffsetAsync("events.reset", "workers", SndbMqOffsetResetMode.Latest));
+        Assert.Empty(await client.PullAsync("events.reset", "workers"));
+        Assert.Equal(0, await client.ResetOffsetAsync("events.reset", "workers", SndbMqOffsetResetMode.Earliest));
+        Assert.Equal("a", Encoding.UTF8.GetString((await client.PullAsync("events.reset", "workers"))[0].Payload));
+    }
+
+    [Fact]
+    public async Task PublishAsync_PreCanceled_DoesNotAppendMessage()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PublishAsync("events.cancel", [1], cancellationToken: canceled.Token));
+
+        Assert.Empty(await client.PullAsync("events.cancel", "workers", cancellationToken: CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PublishManyAsync_PreCanceled_DoesNotAppendMessage()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PublishManyAsync("events.cancel-batch", [new SndbMqPublishEntry(new byte[] { 1 })], canceled.Token));
+
+        Assert.Empty(await client.PullAsync("events.cancel-batch", "workers"));
+    }
+
+    [Fact]
+    public async Task PublishManyAsync_CanceledDuringBatchMaterialization_DoesNotAppendMessage()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+        using var cancellation = new CancellationTokenSource();
+        var messages = new CancelOnIndexList(cancellation, [
+            new SndbMqPublishEntry(new byte[] { 1 }),
+            new SndbMqPublishEntry(new byte[] { 2 }),
+            new SndbMqPublishEntry(new byte[] { 3 }),
+        ]);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PublishManyAsync("events.cancel-during-materialization", messages, cancellation.Token));
+
+        Assert.Empty(await client.PullAsync("events.cancel-during-materialization", "workers"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
+    }
+
+    private sealed class CancelOnIndexList(
+        CancellationTokenSource cancellation,
+        SndbMqPublishEntry[] entries) : IReadOnlyList<SndbMqPublishEntry>
+    {
+        public int Count => entries.Length;
+
+        public SndbMqPublishEntry this[int index]
+        {
+            get
+            {
+                if (index == 1)
+                    cancellation.Cancel();
+                return entries[index];
+            }
+        }
+
+        public IEnumerator<SndbMqPublishEntry> GetEnumerator()
+            => ((IEnumerable<SndbMqPublishEntry>)entries).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

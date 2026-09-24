@@ -15,12 +15,12 @@ SonnetDB Server 可以使用 SigLIP2 把文本和图片编码到同一个向量�
 | 环节 | 实现 |
 | --- | --- |
 | 文本 tokenizer | `Microsoft.ML.Tokenizers` 的 SentencePiece Unigram，lowercase、EOS、64 token 右侧 padding |
-| 图片预处理 | ImageSharp 解码，EXIF auto-orient，双线性缩放到 `224x224`，RGB `[0,255]` 映射到 `[-1,1]` |
+| 图片预处理 | SkiaSharp 解码、托管 TiffLibrary 补充 TIFF；处理 EXIF 方向，双线性缩放到 `224x224`，RGB `[0,255]` 映射到 `[-1,1]` |
 | 模型推理 | ONNX Runtime CPU provider，启用全图优化和 MLAS CPU SIMD |
 | 原始图片 | 当前数据库的内部 Object Bucket `sonnetdb-semantic-images` |
 | 元数据与向量 | 按 embedding profile 隔离的内部 Document Collection 与持久化向量字段 |
 | Bucket 异步摄取 | KV 持久化任务 + 256 容量 Channel，支持退避重试、取消、背压补偿和重启恢复 |
-| 缩略图 | ImageSharp 生成 WebP，Lanczos3 等比缩放，保存在内部 Bucket `sonnetdb-semantic-thumbnails` |
+| 缩略图 | SkiaSharp 生成单帧 WebP，Mitchell cubic 等比缩小且不放大，保存在内部 Bucket `sonnetdb-semantic-thumbnails` |
 | 默认 ANN | `auto`：受支持 RID 使用 USearch，否则使用 SonnetDB 纯托管 HNSW |
 
 USearch 是可丢弃、可从 Document 向量重建的内存加速层，不是第二份权威数据。即使 USearch 加载失败，图片与向量仍完整保留，搜索可回退到 managed HNSW。当前过滤 ANN 只由 managed HNSW 实现；`Backend=usearch` 且 `FallbackToManaged=false` 时，带过滤的查询返回 503，而不是静默切换后端。
@@ -77,6 +77,8 @@ models/siglip2-base-patch16-224/
 ```
 
 `Profile` 是向量兼容边界。更换模型、量化方案或预处理语义时，应使用新的 profile 名称。SonnetDB 会创建新的 profile 隔离索引，避免把不兼容向量混入旧索引；旧 profile 的索引和对象不会被自动删除。
+
+本地 SigLIP2 provider 会自动为有效 profile 添加 `:skia-rgba-v1`，隔离从 ImageSharp 迁移后的预处理结果。已有桶图片需要 Backfill，直接摄取的图片需要重新提交；支持格式收敛为 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，详见[迁移说明](image-codecs.md)。
 
 ## REST API
 
@@ -182,7 +184,7 @@ GET  /v1/db/{db}/images/{id}/thumbnail
 
 任务状态包括 `pending`、`processing`、`retry`、`completed`、`failed`、`superseded` 和 `cancelled`，失败最多指数退避重试 5 次。覆盖同一对象时旧版本任务会标记为 `superseded`；普通删除、批量删除和生命周期过期都会异步清理语义文档、ANN 记录和缩略图。生命周期响应额外返回实际过期对象的 `key`、`versionId`、`contentType` 以及 `semanticCleanupJobs`，retention 或 legal hold 跳过的对象不会排入清理任务。
 
-只开启 `thumbnailEnabled` 时不要求语义 provider 就绪。缩略图不会放大小图，最大解码像素数为 100,000,000。
+只开启 `thumbnailEnabled` 时不要求语义 provider 就绪。缩略图不会放大小图，最大解码像素数为 16,000,000；该上限用于防止压缩图片在解码时产生过大的临时内存峰值。
 
 ### metadata/tag 过滤与 explain
 
@@ -264,7 +266,7 @@ dotnet run --project samples/SonnetDB.SemanticImages -- `
 
 ## Native AOT 与平台边界
 
-应用代码、JSON 合同、tokenizer 和图片预处理均通过 SonnetDB 的 AOT analyzer 构建。ONNX Runtime CPU provider 仍包含平台原生推理库；“可由 Native AOT 程序调用”不等于“纯 C# 推理”。
+应用代码、JSON 合同、tokenizer 和图片预处理启用 SonnetDB 的 AOT analyzer。SkiaSharp 与 ONNX Runtime CPU provider 都包含平台原生库，由发布过程携带；托管 TIFF 解码器不需要额外本机安装。每个正式 RID 还需通过链接实际图片处理器的 NativeAOT 编解码探针，不能仅凭 analyzer 通过判断部署成功。
 
 `Cloud.Unum.USearch 2.26.0` 当前 NuGet 原生资产范围为：
 

@@ -28,6 +28,36 @@ public sealed record SndbMqStats(
     long NextOffset,
     IReadOnlyDictionary<string, long> ConsumerOffsets);
 
+/// <summary>消费者拒绝消息后的结果。</summary>
+public sealed record SndbMqNackResult(
+    long NextOffset,
+    int DeliveryAttempt,
+    bool DeadLettered,
+    long? DeadLetterOffset);
+
+/// <summary>Topic 投递治理诊断。</summary>
+public sealed record SndbMqDiagnostics(
+    string Topic,
+    long NextOffset,
+    long EarliestOffset,
+    IReadOnlyDictionary<string, long> ConsumerLag,
+    long PendingRedeliveryCount,
+    long DeadLetterCount,
+    string? LastDiscardReason);
+
+/// <summary>消费者组 offset 重置目标。</summary>
+public enum SndbMqOffsetResetMode : byte
+{
+    /// <summary>当前 retention 最早 offset。</summary>
+    Earliest = 0,
+    /// <summary>Topic 当前末尾。</summary>
+    Latest = 1,
+    /// <summary>UTC ticks 时间定位。</summary>
+    Time = 2,
+    /// <summary>显式 offset。</summary>
+    Explicit = 3,
+}
+
 /// <summary>
 /// SonnetDB MQ 批量发布条目。
 /// </summary>
@@ -62,8 +92,31 @@ internal sealed record MqAckRequest(string ConsumerGroup, long Offset);
 
 internal sealed record MqAckResponse(string Topic, string ConsumerGroup, long NextOffset);
 
+internal sealed record MqNackRequest(string ConsumerGroup, long Offset, string? Reason = null);
+
+internal sealed record MqNackResponse(
+    string Topic,
+    string ConsumerGroup,
+    long NextOffset,
+    int DeliveryAttempt,
+    bool DeadLettered,
+    long? DeadLetterOffset);
+
+internal sealed record MqOffsetResetRequest(string ConsumerGroup, byte Mode, long Value = 0);
+
+internal sealed record MqOffsetResetResponse(string Topic, string ConsumerGroup, long NextOffset);
+
 internal sealed record MqStatsResponse(
     string Topic,
     long MessageCount,
     long NextOffset,
     Dictionary<string, long> ConsumerOffsets);
+
+internal sealed record MqDiagnosticsResponse(
+    string Topic,
+    long NextOffset,
+    long EarliestOffset,
+    Dictionary<string, long> ConsumerLag,
+    long PendingRedeliveryCount,
+    long DeadLetterCount,
+    string? LastDiscardReason);

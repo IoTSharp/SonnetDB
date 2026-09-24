@@ -207,7 +207,10 @@ internal static class FrameEndpointHandler
 
         if (header.Service == (byte)FrameService.Mq)
         {
-            if (header.Op is < (byte)MqFrameOp.Publish or > (byte)MqFrameOp.Ack)
+            if (header.Op < (byte)MqFrameOp.Publish
+                || (header.Op > (byte)MqFrameOp.Ack
+                    && header.Op != (byte)MqFrameOp.Nack
+                    && header.Op != (byte)MqFrameOp.OffsetReset))
             {
                 errorCode = "unsupported_op";
                 return $"mq service 不支持 op {header.Op}。";
@@ -754,6 +757,40 @@ internal static class FrameEndpointHandler
                     long nextOffset = mqStore.Ack(
                         SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
                     MqFrameCodec.EncodeAckResponse(writer, header.StreamId, nextOffset);
+                    return;
+                }
+
+            case MqFrameOp.Nack:
+                {
+                    MqNackFrameRequest request = MqFrameCodec.DecodeNackRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                        return;
+                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                    {
+                        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "nack 需包含 consumerGroup。");
+                        return;
+                    }
+
+                    SonnetMqNackResult result = mqStore.Nack(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset, request.Reason);
+                    MqFrameCodec.EncodeNackResponse(writer, header.StreamId, result);
+                    return;
+                }
+
+            case MqFrameOp.OffsetReset:
+                {
+                    MqOffsetResetFrameRequest request = MqFrameCodec.DecodeOffsetResetRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                        return;
+                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                    {
+                        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "offset reset 需包含 consumerGroup。");
+                        return;
+                    }
+
+                    long nextOffset = mqStore.ResetConsumerOffset(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Mode, request.Value);
+                    MqFrameCodec.EncodeOffsetResetResponse(writer, header.StreamId, nextOffset);
                     return;
                 }
 

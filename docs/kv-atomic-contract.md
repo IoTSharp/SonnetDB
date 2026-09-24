@@ -46,6 +46,10 @@ Console.WriteLine($"missing={repeated.PreviousEntry is null}, version={repeated.
 
 namespace 是 `name + ":" + key` 的前缀视图，root 使用空名称；不是权限或事务隔离边界。SDK 返回的 entry key 是局部 key。严格 UTF-8 拒绝未配对 surrogate；合成 key 必须非空、最多 64 KiB，namespace 的字节和分隔符计入预算。非空 namespace 允许空局部 key。Core 默认 value 上限 16 MiB，HTTP 请求和 Frame payload 另受宿主/协议整体上限约束；不是大对象传输接口。需要 JSON 时只能显式提供 source-generated `JsonTypeInfo<T>`。
 
+### 命名空间范围游标
+
+Core 的 `KvNamespace.AcquireReadSnapshot()` 和 `OpenRangeCursor(...)` 提供命名空间内的稳定只读分页。`Prefix`、`StartInclusive`、`EndExclusive`、`AfterKey` 都使用局部 key，底层会在同一快照上加前缀并在返回页剥离物理前缀；`PageSize` 与 `MaxPageBytes` 始终是硬上限。游标持有独立快照租约，因此释放外层快照或并发写入不会改变已打开游标的可见版本。取消会终止游标，不能把同一游标当作可重试的分页令牌；需要继续读取时应从新的快照和明确的 `AfterKey` 重新开始。该切片覆盖本地命名空间隔离和分页合同，不替代大 keyspace 容量、远程 parity 或长期恢复证据。
+
 ## REST v1
 
 以下均为 `POST /v1/db/{db}/kv/{keyspace}/{action}`，key 已包含 namespace 前缀。value 为 Base64，空值为 `""`，null 无效。
@@ -89,4 +93,4 @@ SDK 的 KV 写禁用发送后的 Frame -> REST 回落，KV HTTP handler 禁用�
 
 ## 验收边界
 
-当前实现与本地证据见 [KV 远程验证记录](audits/kv-remote-closure-20260905.md)。M36 #317 的大 keyspace cursor/pipeline/诊断、九模型 #310/#311 的其余子集、M20 light/full 与七天窗口、备份和生产门禁分别验收。
+当前实现与本地证据见 [KV 远程验证记录](audits/kv-remote-closure-20260905.md)。M36 #317 的大 keyspace 容量、pipeline/诊断和远程 parity、九模型 #310/#311 的其余子集、M20 light/full 与七天窗口、备份和生产门禁分别验收。

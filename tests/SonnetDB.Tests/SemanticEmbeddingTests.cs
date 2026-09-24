@@ -8,8 +8,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
@@ -208,11 +206,8 @@ public sealed class SemanticEmbeddingTests : IDisposable
     [Fact]
     public async Task EmbedStoredObject_TiffAboveNewObjectLimit_PreservesExistingImageLimit()
     {
-        using var image = new Image<Rgb24>(2, 2, new Rgb24(50, 100, 150));
-        using var content = new MemoryStream();
-        await image.SaveAsTiffAsync(content, _deadline.Token);
-        byte[] bytes = content.ToArray();
-        content.Position = 0;
+        byte[] bytes = ImageTestFixtures.CreateTiff();
+        using var content = new MemoryStream(bytes, writable: false);
         var store = new SndbObjectStore(_db);
         store.CreateBucket("images");
         var source = await store.PutObjectAsync("images", "camera.tiff", content, "image/tiff", cancellationToken: _deadline.Token);

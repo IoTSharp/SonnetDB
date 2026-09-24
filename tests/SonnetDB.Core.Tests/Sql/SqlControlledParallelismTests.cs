@@ -305,6 +305,65 @@ public sealed class SqlControlledParallelismTests : IDisposable
         Assert.NotEqual(first, distinct);
         Assert.NotEqual(first, having);
         Assert.NotEqual(first, union);
+
+        var parameterized = SqlParser.Parse("SELECT value FROM cpu WHERE value = ?");
+        string firstValue = SqlStatementFingerprint.CreateParameterSensitive(
+            SqlParameterBinder.Bind(parameterized, new SqlParameters().AddPositional(1)));
+        string secondValue = SqlStatementFingerprint.CreateParameterSensitive(
+            SqlParameterBinder.Bind(parameterized, new SqlParameters().AddPositional(999)));
+        Assert.NotEqual(firstValue, secondValue);
+    }
+
+    /// <summary>参数化运行时反馈按绑定值隔离，避免一个倾斜值污染另一个参数计划。</summary>
+    [Fact]
+    public void RuntimeFeedback_ParameterizedValuesRemainIsolated()
+    {
+        using Tsdb database = OpenDatabase();
+        var parameterized = SqlParser.Parse("SELECT value FROM cpu WHERE value = ?");
+        string shape = SqlStatementFingerprint.Create(parameterized);
+        string firstValue = SqlStatementFingerprint.CreateParameterSensitive(
+            SqlParameterBinder.Bind(parameterized, new SqlParameters().AddPositional(1)));
+        string secondValue = SqlStatementFingerprint.CreateParameterSensitive(
+            SqlParameterBinder.Bind(parameterized, new SqlParameters().AddPositional(999)));
+
+        using (SqlQueryResources.EnterRoot(database, SqlExecutionOptions.Default with
+        {
+            QueryFingerprint = shape,
+            ParameterSensitiveQueryFingerprint = firstValue,
+        }))
+        {
+            SqlQueryResources.Current!.RecordEstimatedRows(100);
+            SqlQueryResources.Current.RecordActualRows(1);
+        }
+
+        // A second execution must continue using the value-specific correction;
+        // recording the corrected estimate itself would dilute the ratio toward
+        // one and lose the parameter-sensitive signal.
+        using (SqlQueryResources.EnterRoot(database, SqlExecutionOptions.Default with
+        {
+            QueryFingerprint = shape,
+            ParameterSensitiveQueryFingerprint = firstValue,
+        }))
+        {
+            SqlQueryResources.Current!.RecordEstimatedRows(100);
+            SqlQueryResources.Current.RecordActualRows(1);
+        }
+
+        using (SqlQueryResources.EnterRoot(database, SqlExecutionOptions.Default with
+        {
+            QueryFingerprint = shape,
+            ParameterSensitiveQueryFingerprint = secondValue,
+        }))
+        {
+            SqlQueryResources.Current!.RecordEstimatedRows(100);
+            SqlQueryResources.Current.RecordActualRows(100);
+        }
+
+        Assert.True(database.SqlRuntimeFeedback.TryGet(firstValue, out SqlRuntimeFeedbackSnapshot first));
+        Assert.True(database.SqlRuntimeFeedback.TryGet(secondValue, out SqlRuntimeFeedbackSnapshot second));
+        Assert.Equal(0.01, first.ActualToEstimatedRatio, precision: 6);
+        Assert.Equal(2, first.SampleCount);
+        Assert.Equal(1, second.ActualToEstimatedRatio, precision: 6);
     }
 
     private Tsdb CreateMeasurementDatabase()

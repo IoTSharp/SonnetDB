@@ -12,6 +12,7 @@ export interface SqlEnd {
   rowCount: number;
   recordsAffected: number;
   elapsedMs: number;
+  truncated?: boolean;
 }
 
 /** SQL ndjson 流的 error 行（异常时附加）。 */
@@ -52,6 +53,7 @@ export type SqlParameters = Record<string, SqlParameterValue>;
 export interface SqlStatementRequest {
   sql: string;
   parameters?: SqlParameters;
+  previewMaxRows?: number;
 }
 
 /**
@@ -105,6 +107,7 @@ export function parseNdjsonResults(body: string): SqlResultSet[] {
         if (!Number.isSafeInteger(o.rowCount) || Number(o.rowCount) < 0
           || !Number.isSafeInteger(o.recordsAffected) || Number(o.recordsAffected) < -1
           || typeof elapsedMs !== 'number' || !Number.isFinite(elapsedMs) || elapsedMs < 0
+          || (o.truncated !== undefined && typeof o.truncated !== 'boolean')
           || o.rowCount !== result.rows.length) {
           result.error = { code: 'invalid_sql_response', message: 'SQL 完成标记无效或返回行数不完整。' };
           results.push(result);
@@ -119,6 +122,7 @@ export function parseNdjsonResults(body: string): SqlResultSet[] {
             : typeof o.elapsedMilliseconds === 'number'
               ? o.elapsedMilliseconds
               : 0,
+          truncated: o.truncated === true,
         };
         results.push(result);
         result = emptyResultSet();
@@ -158,8 +162,9 @@ export async function execControlPlaneSql(
   sql: string,
   parameters?: SqlParameters,
   signal?: AbortSignal,
+  previewMaxRows?: number,
 ): Promise<SqlResultSet> {
-  return doExec(api, '/v1/sql', { sql, parameters }, signal);
+  return doExec(api, '/v1/sql', { sql, parameters, previewMaxRows }, signal);
 }
 
 /**
@@ -171,8 +176,9 @@ export async function execDataSql(
   sql: string,
   parameters?: SqlParameters,
   signal?: AbortSignal,
+  previewMaxRows?: number,
 ): Promise<SqlResultSet> {
-  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters }, signal);
+  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters, previewMaxRows }, signal);
 }
 
 /**
@@ -285,7 +291,7 @@ function hasResultContent(result: SqlResultSet): boolean {
 
 function normalizeSqlStatementPayload(payload: SqlStatementRequest): SqlStatementRequest {
   if (payload.parameters && Object.keys(payload.parameters).length === 0) {
-    return { sql: payload.sql };
+    return { sql: payload.sql, ...(payload.previewMaxRows !== undefined ? { previewMaxRows: payload.previewMaxRows } : {}) };
   }
   return payload;
 }

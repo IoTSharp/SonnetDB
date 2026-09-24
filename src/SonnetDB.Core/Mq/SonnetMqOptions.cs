@@ -106,4 +106,21 @@ public sealed record SonnetMqOptions
     /// </para>
     /// </summary>
     public long HotTailMaxBytes { get; init; } = 64L * 1024L * 1024L;
+
+    /// <summary>
+    /// 单个消费者组对同一消息允许的最大投递次数。达到上限后，消息会被发布到死信 Topic 并推进消费组位点。
+    /// 小于等于零表示不自动转入死信（仅记录 nack）。
+    /// </summary>
+    public int MaxDeliveryAttempts { get; init; } = 5;
+
+    /// <summary>
+    /// 死信 Topic 后缀。默认将 <c>events</c> 的死信发布到 <c>events.dlq</c>。
+    /// </summary>
+    public string DeadLetterTopicSuffix { get; init; } = ".dlq";
+
+    /// <summary>
+    /// 按消息头 <c>message-id</c> 去重时保留的最近带 ID 消息数。零表示关闭去重。
+    /// 去重命中返回原消息 offset，不追加新的日志记录；窗口在重开后从持久消息尾部恢复。
+    /// </summary>
+    public int MessageIdDeduplicationWindow { get; init; } = 100_000;
 }

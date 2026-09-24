@@ -56,6 +56,17 @@ internal static class ServerOptionsBinder
     /// <param name="options">待补齐的服务器选项。</param>
     public static void ApplyDefaults(ServerOptions options)
     {
+        if (!string.IsNullOrWhiteSpace(options.Copilot.ServerRelayJournalPath))
+        {
+            if (!Path.IsPathFullyQualified(options.Copilot.ServerRelayJournalPath))
+                throw new InvalidOperationException("Copilot.ServerRelayJournalPath 必须是绝对文件路径。");
+            options.Copilot.ServerRelayJournalPath = Path.GetFullPath(options.Copilot.ServerRelayJournalPath);
+        }
+        else
+        {
+            options.Copilot.ServerRelayJournalPath = null;
+        }
+
         if (options.Copilot.Docs.Roots.Count == 0)
             options.Copilot.Docs.Roots.AddRange(DefaultCopilotDocsRoots);
 
@@ -150,6 +161,7 @@ internal static class ServerOptionsBinder
         options.MaxRoutineStatements = Math.Clamp(options.MaxRoutineStatements, 1, 100_000);
         options.MaxRoutineDepth = Math.Clamp(options.MaxRoutineDepth, 1, 32);
         options.MaxRoutineResultRows = Math.Clamp(options.MaxRoutineResultRows, 1, 100_000);
+        options.MaxResultRows = Math.Clamp(options.MaxResultRows, 1, 1_000_000);
         options.MaxTriggerTransitionRows = Math.Clamp(options.MaxTriggerTransitionRows, 1, 100_000);
         options.MaxTriggerTransitionBytes = Math.Clamp(options.MaxTriggerTransitionBytes, 1, 128L * 1024 * 1024);
         options.MaxDeferredTriggerInvocations = Math.Clamp(options.MaxDeferredTriggerInvocations, 1, 100_000);

@@ -65,6 +65,12 @@ public sealed record KvOptions
     /// <summary>单个 value 的最大字节数，默认 16 MB。</summary>
     public int MaxValueBytes { get; init; } = 16 * 1024 * 1024;
 
+    /// <summary>
+    /// 同一嵌入式数据库内 KV state 文件允许并发进行的 RandomAccess 读数，默认 8。
+    /// 必须为正数；等待许可的读操作观察调用方取消，不占用 keyspace 写锁。
+    /// </summary>
+    public int MaxConcurrentStateReads { get; init; } = KvDiskReadBudget.DefaultMaxConcurrentReads;
+
     /// <summary>单次前缀扫描的默认最大返回行数。</summary>
     public int DefaultScanLimit { get; init; } = 1024;
 

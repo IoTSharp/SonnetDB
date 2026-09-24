@@ -1,0 +1,17 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  SonnetDB.Core -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  CoAP.NET -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\CoAP.NET\release\CoAP.NET.dll
+  CoAP.NET.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\CoAP.NET.SourceGeneration\release\CoAP.NET.SourceGeneration.dll
+  MQTTnet.AspNetCore.Routing.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\MQTTnet.AspNetCore.Routing.SourceGeneration\release\MQTTnet.AspNetCore.Routing.SourceGeneration.dll
+  MQTTnet.AspNetCore.Routing -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\MQTTnet.AspNetCore.Routing\release_net10.0\MQTTnet.AspNetCore.Routing.dll
+  SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB\release\SonnetDB.dll
+  SonnetDB.Data -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.Caching.Distributed -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.Caching.EasyCaching -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll
+C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+结果文件: C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\results\sql-preview.trx
+
+已通过! - 失败:     0，通过:    12，已跳过:     0，总计:    12，持续时间: 6 s - SonnetDB.Tests.dll (net10.0)

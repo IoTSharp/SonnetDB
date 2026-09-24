@@ -47,6 +47,31 @@ public sealed class TableStatisticsTests : IDisposable
     }
 
     [Fact]
+    public void RefreshStatistics_BoundedSample_UsesRowsAcrossEntireSnapshot()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE sampled (id INT, value INT, PRIMARY KEY (id))");
+        TableStore store = db.Tables.Open("sampled");
+        store.InsertMany(Enumerable.Range(1, 200)
+            .Select(id => (IReadOnlyList<object?>)new object?[] { (long)id, (long)id })
+            .ToArray());
+
+        TableStatistics statistics = store.RefreshStatistics(new TableStatisticsRefreshOptions
+        {
+            MaxSampleRows = 20,
+            HistogramBucketCount = 1,
+            MaxHistogramSamples = 20,
+        });
+
+        Assert.Equal(200L, statistics.RowCount);
+        Assert.Equal(20, statistics.SampledRows);
+        Assert.Equal(0.1, statistics.SampleRate, precision: 6);
+        TableHistogramBucket bucket = Assert.Single(statistics.TryGetColumn("value")!.Histogram);
+        Assert.True(bucket.Int64UpperBound.GetValueOrDefault() > 20,
+            $"bounded sample must include rows beyond the first page; upper bound={bucket.Int64UpperBound}");
+    }
+
+    [Fact]
     public void Explain_ReadsStatisticsMetadata_WithoutScanningBusinessRows()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
@@ -124,6 +149,138 @@ public sealed class TableStatisticsTests : IDisposable
         var nonSelective = Explain(db, "SELECT id FROM cost_events WHERE status = 'common'");
         Assert.Equal("table_scan", nonSelective["access_path"]);
         Assert.Equal("cost_model_table_scan", nonSelective["fallback_reason"]);
+    }
+
+    [Fact]
+    public void CostPlanner_UsesIndexLogicalPagesForSelectiveCandidate()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE page_cost (id INT, status STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX ix_page_cost_status ON page_cost (status)");
+        TableStore store = db.Tables.Open("page_cost");
+        store.InsertMany(Enumerable.Range(1, 10_000)
+            .Select(id => (IReadOnlyList<object?>)new object?[]
+            {
+                (long)id,
+                id <= 100 ? "rare" : "common",
+            })
+            .ToArray());
+        _ = store.RefreshStatistics(new TableStatisticsRefreshOptions
+        {
+            LogicalPageBytes = 1_024,
+        });
+
+        IReadOnlyDictionary<string, object?> explain = Explain(
+            db,
+            "SELECT id FROM page_cost WHERE status = 'rare'");
+
+        Assert.Equal("secondary_index", explain["access_path"]);
+        long estimatedRows = Convert.ToInt64(explain["estimated_output_rows"]);
+        long estimatedReads = Convert.ToInt64(explain["estimated_logical_reads"]);
+        Assert.InRange(estimatedRows, 90, 110);
+        Assert.True(estimatedReads < estimatedRows,
+            $"index reads should be page-aware, rows={estimatedRows}, reads={estimatedReads}");
+        Assert.Contains("seek<=", (string)explain["candidate_plans"]!);
+        Assert.Contains("leaf<=", (string)explain["candidate_plans"]!);
+        Assert.Contains("pages<=", (string)explain["candidate_plans"]!);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_NarrowEqualityIncludesTreeSeekAndLeafSpan()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        TableIndexPageCostEstimate estimate = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 1,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(2, estimate.RootSeekPages);
+        Assert.Equal(1, estimate.LeafRangePages);
+        Assert.Equal(3, estimate.LogicalReads);
+        Assert.False(estimate.UsedFallback);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_WideRangeScalesLeafSpanAndCapsAtIndex()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        TableIndexPageCostEstimate narrow = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 1,
+            statistics,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate wide = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 5_000,
+            statistics,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate full = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 10_000,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.True(wide.LeafRangePages > narrow.LeafRangePages);
+        Assert.Equal(50, wide.LeafRangePages);
+        Assert.Equal(52, wide.LogicalReads);
+        Assert.Equal(100, full.LogicalReads);
+        Assert.InRange(full.LogicalReads, 1, statistics.LogicalPageCount);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_ZeroEstimatedRows_ChargesOnlyTreeSeekByHelperContract()
+    {
+        var statistics = new TableIndexStatistics(
+            "ix_page_cost",
+            RowCount: 10_000,
+            LogicalPageCount: 100,
+            AverageEntryWidth: 64);
+
+        // This helper contract models an empty leaf span; production row
+        // estimation keeps a non-empty-table lower bound of one row.
+        TableIndexPageCostEstimate estimate = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 0,
+            statistics,
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(2, estimate.RootSeekPages);
+        Assert.Equal(0, estimate.LeafRangePages);
+        Assert.Equal(2, estimate.LogicalReads);
+        Assert.False(estimate.UsedFallback);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexPageCost_MissingOrInvalidStatisticsFallsBackToRows()
+    {
+        TableIndexPageCostEstimate missing = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 7,
+            statistics: null,
+            logicalPageBytes: 1_024);
+        TableIndexPageCostEstimate invalid = TableCostPlanner.EstimateIndexPageCost(
+            estimatedRows: 7,
+            new TableIndexStatistics("ix_page_cost", 10_000, 100, double.NaN),
+            logicalPageBytes: 1_024);
+
+        Assert.Equal(new TableIndexPageCostEstimate(0, 7, 7, true), missing);
+        Assert.Equal(new TableIndexPageCostEstimate(0, 7, 7, true), invalid);
+    }
+
+    [Fact]
+    public void CostPlanner_IndexCost_InvalidOrHugeWidthsRemainFinite()
+    {
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, double.NaN)));
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, double.PositiveInfinity)));
+        Assert.True(double.IsFinite(TableCostPlanner.EstimateIndexCost(100, 3, -1)));
+        Assert.Equal(
+            double.MaxValue,
+            TableCostPlanner.EstimateIndexCost(long.MaxValue, long.MaxValue, double.MaxValue));
     }
 
     [Fact]

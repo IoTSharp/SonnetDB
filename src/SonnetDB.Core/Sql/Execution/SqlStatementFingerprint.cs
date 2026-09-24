@@ -15,6 +15,22 @@ internal static class SqlStatementFingerprint
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
+    /// <summary>
+    /// 为运行时反馈生成参数敏感指纹。只返回不可逆摘要，不把绑定值写入指标、目录或日志。
+    /// </summary>
+    internal static string CreateParameterSensitive(SqlStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        string shape = Create(statement);
+        // The bound AST's record representation is used only as hash input. The
+        // value-independent shape fingerprint remains the public metrics key;
+        // this second key prevents a skewed value from contaminating another
+        // parameter value's runtime feedback.
+        string boundShape = statement.ToString() ?? statement.GetType().Name;
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(shape + "|" + boundShape)));
+    }
+
     private static void AppendStatement(StringBuilder builder, SqlStatement statement)
     {
         builder.Append(statement.GetType().Name).Append('|');
@@ -30,7 +46,7 @@ internal static class SqlStatementFingerprint
                     .Append(select.OrderByList.Count).Append('|')
                     .Append(select.Pagination is not null).Append('|')
                     .Append(select.Distinct).Append('|')
-                    .Append(select.UnionStatements.Count).Append('|')
+                    .Append(select.SetOperationList.Count).Append('|')
                     .Append(select.TableValuedFunction is not null).Append('|')
                     .Append(select.GraphTable is not null).Append('|');
                 if (select.FromSubquery is not null)
@@ -64,8 +80,11 @@ internal static class SqlStatementFingerprint
                 }
                 if (select.GraphTable is not null)
                     AppendGraphTable(builder, select.GraphTable);
-                foreach (SelectStatement union in select.UnionStatements)
-                    AppendStatement(builder, union);
+                foreach (SqlSetOperation operation in select.SetOperationList)
+                {
+                    builder.Append(operation.Kind).Append('|');
+                    AppendStatement(builder, operation.Query);
+                }
                 break;
             default:
                 builder.Append(statement.GetType().Name);
@@ -96,10 +115,25 @@ internal static class SqlStatementFingerprint
                 builder.Append(unary.Operator).Append('|');
                 AppendExpression(builder, unary.Operand);
                 break;
+            case CastExpression cast:
+                builder.Append(cast.TargetType).Append('|');
+                AppendExpression(builder, cast.Operand);
+                break;
             case FunctionCallExpression function:
-                builder.Append(function.Name).Append(':').Append(function.Arguments.Count).Append(':').Append(function.IsStar).Append('|');
+                builder.Append(function.Name).Append(':').Append(function.Arguments.Count).Append(':').Append(function.IsStar).Append(':').Append(function.IsDistinct).Append('|');
                 foreach (SqlExpression argument in function.Arguments)
                     AppendExpression(builder, argument);
+                if (function.Over is { } over)
+                {
+                    builder.Append("over:").Append(over.PartitionBy.Count).Append(':').Append(over.OrderBy.Count).Append('|');
+                    foreach (SqlExpression partition in over.PartitionBy)
+                        AppendExpression(builder, partition);
+                    foreach (OrderBySpec orderBy in over.OrderBy)
+                    {
+                        builder.Append(orderBy.Direction).Append('|');
+                        AppendExpression(builder, orderBy.Expression);
+                    }
+                }
                 break;
             case InExpression inExpression:
                 builder.Append(inExpression.Negated).Append(':').Append(inExpression.Values.Count).Append(':').Append(inExpression.Subquery is not null).Append('|');

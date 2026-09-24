@@ -119,6 +119,70 @@ public sealed record SndbObjectReadResult(
 }
 
 /// <summary>
+/// 对象条件写入的前置条件。
+/// </summary>
+/// <param name="IfMatch">当前对象必须匹配的 ETag 列表；匹配任一强 ETag 即可，<c>*</c> 表示必须存在当前对象，弱 ETag 不匹配，空值表示不检查。</param>
+/// <param name="IfNoneMatch">当前对象必须不存在；对应 HTTP <c>If-None-Match: *</c>。可与 <paramref name="IfMatch"/> 同时指定。</param>
+public sealed record SndbObjectWriteCondition(string? IfMatch = null, bool IfNoneMatch = false)
+{
+    /// <summary>
+    /// HTTP PUT 的非通配符 <c>If-None-Match</c> ETag 列表；匹配任一弱 ETag 时前置条件不满足。不得包含通配符，也不得与 <see cref="IfNoneMatch"/> 同时指定。
+    /// </summary>
+    public string? IfNoneMatchEtags { get; init; }
+
+    /// <summary>
+    /// 使用 If-Match、通配符 If-None-Match 和 ETag 列表创建写入前置条件。
+    /// </summary>
+    /// <param name="IfMatch">当前对象必须匹配的 ETag 列表。</param>
+    /// <param name="IfNoneMatch">是否要求当前对象不存在。</param>
+    /// <param name="IfNoneMatchEtags">当前对象不得匹配的 ETag 列表。</param>
+    public SndbObjectWriteCondition(string? IfMatch, bool IfNoneMatch, string? IfNoneMatchEtags)
+        : this(IfMatch, IfNoneMatch)
+    {
+        this.IfNoneMatchEtags = IfNoneMatchEtags;
+    }
+}
+
+/// <summary>
+/// 对象条件读取的前置条件。
+/// </summary>
+/// <param name="IfMatch">当前对象必须匹配的 ETag 列表；<c>*</c> 表示任意当前对象。对象不存在时该条件不满足。</param>
+/// <param name="IfNoneMatch">当前对象不得匹配的 ETag；使用 <c>*</c> 可表示任意当前对象。</param>
+/// <param name="IfModifiedSince">对象未在该时间后修改时不返回内容。</param>
+/// <param name="IfUnmodifiedSince">对象在该时间后修改时拒绝读取。</param>
+public sealed record SndbObjectReadCondition(
+    string? IfMatch = null,
+    string? IfNoneMatch = null,
+    DateTimeOffset? IfModifiedSince = null,
+    DateTimeOffset? IfUnmodifiedSince = null);
+
+/// <summary>
+/// 条件读取的结果状态。
+/// </summary>
+public enum SndbObjectConditionalReadStatus
+{
+    /// <summary>对象不存在。</summary>
+    NotFound,
+    /// <summary>条件不满足，未返回对象内容。</summary>
+    NotModified,
+    /// <summary>写前条件不满足。</summary>
+    PreconditionFailed,
+    /// <summary>条件满足，已返回对象内容。</summary>
+    Success,
+}
+
+/// <summary>
+/// 条件对象读取结果。
+/// </summary>
+/// <param name="Status">条件读取状态。</param>
+/// <param name="Read">成功时的内容读取结果，其余状态为 <see langword="null"/>。</param>
+/// <param name="Info">可选的对象元数据。嵌入式存储会在已找到对象的条件结果中提供；远程传输在未返回完整元数据时为 <see langword="null"/>。</param>
+public sealed record SndbObjectConditionalReadResult(
+    SndbObjectConditionalReadStatus Status,
+    SndbObjectReadResult? Read,
+    SndbObjectInfo? Info = null);
+
+/// <summary>
 /// Multipart upload 会话摘要。
 /// </summary>
 public sealed record SndbMultipartUploadInfo(

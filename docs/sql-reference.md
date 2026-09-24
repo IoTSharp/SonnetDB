@@ -19,15 +19,50 @@ SELECT value + 1 AS next_value, (high - low) * 0.5 AS adjusted FROM readings;
 UPDATE counters SET value = value + 1 WHERE id = 1;
 ```
 
-- 支持二元 `+`、`-`、`*`、`/`、`%` 和一元 `+`、`-`；优先级为一元运算 > 乘除取模 > 加减，括号可显式改变顺序。
+- 支持二元 `+`、`-`、`*`、`/`、`%`、整数按位 `&` / `|` 和一元 `+`、`-`；优先级为一元运算 > 乘除取模 > 加减 > 按位与 `&` > 按位或 `|`，括号可显式改变顺序。
 - 整数加、减、乘、取模保留 `Int64`；任一操作数为浮点时返回 `Float64`；除法始终返回 `Float64`，所以 `5 / 2` 返回 `2.5`。
+- `DECIMAL` / `NUMERIC` 操作数保持 `System.Decimal` 精度；`DECIMAL(p,s)` 的精度范围为 `1..38` 且 `0 <= s <= p`，省略括号时使用 `(38,28)`。关系表中的值以 16 字节 decimal payload 持久化，schema format v9 保存声明的 precision/scale；超出 Decimal 范围或声明精度/小数位无效时拒绝执行。
+- 按位 `&` / `|` 只接受整数操作数并返回 `Int64`，任一操作数为 `NULL` 时结果为 `NULL`；浮点、字符串或其他非整数操作数会返回包含“只支持整数操作数”的中文执行错误。
 - 任一算术操作数为 `NULL` 时结果为 `NULL`。除数或模数为 `0` 时抛出执行错误，不返回 `Infinity` / `NaN`。
 - `+` 只做数值加法，不把字符串隐式转成数字，也不做字符串拼接。字符串连接使用 `concat(...)`；其中 `NULL` 参数按空字符串处理。
 - 支持聚合结果外包算术或标量函数，例如 `count(*) + 1`、`round(avg(value) + 0.25, 2)`；关系表、measurement 和 document collection 查询遵循同一规则。
-- 普通关系表和 measurement 投影还支持 searched `CASE WHEN`、比较、`AND` / `OR` / `NOT`、`IS [NOT] NULL` 及不含子查询的 `IN` / `NOT IN`，并按 SQL 三值逻辑保留 `UNKNOWN`；BOOL 列也可在 `UPDATE SET` 右值中直接接收这类谓词结果。
+- 普通关系表和 measurement 投影还支持 searched `CASE WHEN`、比较、inclusive `BETWEEN` / `NOT BETWEEN`、`LIKE` / `ILIKE`、`AND` / `OR` / `NOT`、`IS [NOT] NULL` 及不含子查询的 `IN` / `NOT IN`，并按 SQL 三值逻辑保留 `UNKNOWN`；BOOL 列也可在 `UPDATE SET` 右值中直接接收这类谓词结果。
 - 支持无 `FROM` 的常量表达式查询，例如 `SELECT 2 * 5 + 1`，便于探活和计算。
 - 相同基础投影语义也适用于 JOIN、JSON 虚拟表、向量/混合搜索、`INFORMATION_SCHEMA` 以及内置 `forecast(...)` / `knn(...)` 表值函数。
 - `a++`、`a--`、`a += 1`、`a -= 1` 不是 SQL 赋值语法，不支持；应写 `SET a = a + 1`。`SET a = +2` 合法，但含义只是把正数 `2` 赋给 `a`。
+
+### 显式类型转换 `CAST`
+
+使用 `CAST(expr AS type)` 进行显式转换。当前支持 `INT`、`FLOAT`、`DECIMAL`/`NUMERIC`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB` 和 `JSON`：
+
+```sql
+SELECT CAST('42' AS INT), CAST(1 AS STRING), CAST(1704067200000 AS DATETIME);
+SELECT CAST('9007199254740993.125' AS DECIMAL(20,3));
+SELECT CAST('12:34:56.1234567' AS TIME);
+SELECT CAST(text_value AS INT) FROM values_table WHERE CAST(text_value AS INT) > 0;
+```
+
+`NULL` 转换到任一已支持目标类型仍为 `NULL`。`DECIMAL` / `NUMERIC` 转换保持十进制值，不经过 `Float64`；括号中的 precision/scale 仅用于校验目标声明，未声明时使用 `(38,28)`。`TIME` 只接受不带日期/时区的 `HH:mm[:ss[.fffffff]]` 文本、`TimeOnly` 或小于 24 小时的 `TimeSpan`，以 ticks 精度保存；`24:00:00`、负值、跨日值以及 `DATETIME`/`DateTimeOffset` 到 `TIME` 的隐式取时钟转换均拒绝。整数转换使用不变量格式并截断有限浮点的小数部分；布尔转换接受 `TRUE`/`FALSE` 或数值 `0`/`1`；`DATETIME` 输入可以是 UTC/ISO-8601 文本或 Unix 毫秒，结果统一为 UTC；`BLOB` 的字符串输入按 UTF-8 编码，`JSON` 当前保留字符串文本。格式错误、溢出、非有限浮点和非法布尔值会返回执行错误。`VECTOR` 与 `GEOPOINT` 作为 CAST 目标暂不支持，不会隐式构造对应模型值。
+
+### 关系表 `TIME`
+
+关系表列可声明 `TIME`，返回 CLR `TimeOnly`，并按 `TimeOnly.Ticks` 以 8 字节持久化；schema format v10 兼容读取旧版 schema。取值范围为 `[00:00:00, 24:00:00)`，支持 7 位小数秒。`ORDER BY`、等值/范围谓词使用当天的时间顺序，不携带日期或时区；跨日区间、`24:00:00` 和远程协议中无法携带列类型的 typed `TIME` 恢复暂不属于合同。
+
+### ANSI 窗口函数 `OVER`
+
+时序 measurement 查询支持显式 ANSI 窗口规格，并复用每个 series 的时间升序行流：
+
+```sql
+SELECT time,
+       row_number() OVER (ORDER BY time ASC) AS row_no,
+       running_sum(value) OVER () AS running_total
+FROM readings
+ORDER BY time;
+```
+
+当前合同包括空 `OVER ()`、`OVER (ORDER BY time ASC)` 以及 `row_number()`（必须带 `OVER`）。已有 `difference`、`running_sum`、`moving_average` 等时序窗口函数也可以使用显式规格；省略 `OVER` 的旧语法保持兼容。每个 measurement series 天然构成一个分区，因此 `row_number()` 会在每个 series 从 1 重新编号。
+
+为保持结果确定且避免隐式重排，当前明确拒绝 `PARTITION BY`、非 `time` 或降序排序，以及 `ROWS`/`RANGE` frame 子句；关系表、JOIN、文档集合和向量搜索路径仍不支持窗口投影。上述形状会返回稳定的“不支持”或解析错误，不会静默退化为另一种窗口语义。
 
 关系表单条 `UPDATE` 还遵循以下规则：
 
@@ -106,10 +141,11 @@ CREATE TABLE devices (
 规则：
 
 - 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
-- 支持类型：`INT`、`FLOAT`、`BOOL`、`STRING`、`DATETIME`、`BLOB`、`JSON`。
+- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；省略 `(p,s)` 时默认为 `(38,28)`。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
+- `VECTOR(dim)` 与 `GEOPOINT` 只作为 measurement 的 `FIELD` SQL 类型提供，不支持关系表 `CREATE TABLE`、`ALTER TABLE ADD COLUMN` 或 `ALTER COLUMN ... TYPE`；这些声明会确定性拒绝且不创建半成品表/列。文档集合 JSON 数组和专用向量 API 不构成关系类型支持。ADO.NET `GetSchema("DataTypes")` 通过 `SupportsRelationalColumn=false`、`SupportsMeasurementField=true` 明示这两个类型的边界；该表是 SDK 本地能力元数据，不是远端版本协商。完整[类型矩阵与官方关系实体替代模型]({{ site.docs_baseurl | default: '/help' }}/relation-type-boundary/)给出标量经纬度加显式 JSON 载荷，以及关系主数据加 companion measurement 两种建模方式；ORM 不得静默改为 JSON 或时序字段。
 - 普通列可声明 `DEFAULT <expr>`；默认表达式支持字面量、常量算术和内置标量函数，不能引用列、参数、聚合或子查询。`ROWVERSION` 列不能声明默认值。
 - `INSERT` 省略带默认值的列，或在 `VALUES` 对应位置写 `DEFAULT` 时，会在每一行写入时求值并应用目标列的默认表达式；显式写入 `NULL` 不会改用默认值。目标列没有声明显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`：可空列成功，非空列由现有约束拒绝。
 - `INSERT INTO table DEFAULT VALUES` 会为每个非 `ROWVERSION` 列使用其默认值；没有显式默认值的列产生隐式 `NULL`。`UPDATE table SET column = DEFAULT WHERE ...` 会按每个命中行重新求值默认表达式，轻事务路径保持相同语义。
@@ -134,6 +170,8 @@ CREATE TABLE devices (
 SELECT DATE_ONLY(installed_at),
        DATE_PART('year', installed_at),
        DATE_ADD(installed_at, 7, 'day'),
+       DATE_DIFF('day', installed_at, CURRENT_UTC_DATETIME()),
+       DATE_FORMAT(installed_at, 'yyyy-MM-dd HH:mm:ss'),
        TO_UNIX_MILLISECONDS(installed_at)
 FROM devices
 WHERE installed_at <= CURRENT_UTC_DATETIME();
@@ -143,6 +181,8 @@ WHERE installed_at <= CURRENT_UTC_DATETIME();
 - `DATE_ONLY(value)` 返回日期零点。
 - `DATE_PART(part, value)` 支持 `year`、`quarter`、`month`、`day`、`day_of_year`、`day_of_week`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`nanosecond`；`day_of_week` 与 .NET 一致，星期日为 `0`。
 - `DATE_ADD(value, amount, part)` 支持 `year`、`month`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`；`year`、`month`、`tick` 要求整数增量。
+- `DATE_DIFF(part, start, end)`（兼容 `DATE_DIFF(start, end, part)`）返回两个时间之间按指定分量截断的有符号整数；支持 `year`、`quarter`、`month`、`week`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`。`DATEDIFF` 为同义别名。
+- `DATE_FORMAT(value, format)` / `FORMAT_DATETIME(value, format)` / `TO_CHAR(value, format)` 使用 invariant .NET 日期格式；`STRFTIME(format, value)` 额外支持 `%Y`、`%m`、`%d`、`%H`、`%i`、`%s`、`%f` 等常用标记。格式字符串最多 128 个字符，未知 `%` 标记会拒绝。
 - `TO_UNIX_MILLISECONDS(value)` / `TO_UNIX_SECONDS(value)` 返回 Unix 时间。
 - 日期函数接受 `DATETIME` 或 Unix 毫秒；输入为 `NULL` 时结果为 `NULL`。时序分桶仍使用 `GROUP BY time(1m)` 等语法，不使用 `DATE_TRUNC`。
 
@@ -583,6 +623,34 @@ WHERE guid IN (
 - 关系表 `UPDATE` / `DELETE` 的 `WHERE` 支持非相关 `IN (SELECT ...)`；子查询必须只返回一列，可使用参数、`JOIN`、派生表、`UNION`、`ORDER BY` 和分页。结果会在修改目标行前物化，并保持 `IN` / `NOT IN` 对 `NULL` 和空集的三值逻辑。
 - 写操作的 `IN` 子查询当前只接受普通关系表或 measurement 来源，不支持 document、vector/hybrid search、表值函数或引用待修改外层行的相关子查询。轻事务中如果目标表已有缓冲写，也会明确拒绝对该表执行带 `IN` 子查询的后续 `UPDATE` / `DELETE`，避免子查询看到不一致视图。
 
+### 关系表 JOIN
+
+关系表查询支持 `INNER JOIN`、`LEFT JOIN`、`RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`。连接两侧可以是关系表、关系视图、物化视图或可解析为关系行的派生表；连接结果仍按关系查询的列投影、谓词和分页规则执行。列冲突、结果类型、NULL 排序及 ORM 能力发现见[标准 JOIN 合同]({{ site.docs_baseurl | default: '/help' }}/standard-join-contract/)。
+
+measurement 与关系表只支持单个 `INNER JOIN`、TAG 与关系列的等值 ON；WHERE、标量投影、多键排序和分页支持参数绑定。ON 参数/附加谓词、外连接、多 JOIN 和聚合须由 Provider 生成前按 `DataSourceInformation` 的 `MeasurementJoin*` 字段检查。详见 [GH-Issue #196 合同与验收](audits/measurement-join-196-closure-20260923.md)。
+
+```sql
+SELECT d.id, d.name, s.name AS site_name
+FROM devices AS d
+RIGHT JOIN sites AS s ON d.site_id = s.id;
+
+SELECT d.id, s.id AS site_id
+FROM devices AS d
+FULL JOIN sites AS s ON d.site_id = s.id;
+
+SELECT d.id, r.retry_count
+FROM devices AS d
+CROSS JOIN retry_policies AS r;
+```
+
+当前语义与限制：
+
+- `RIGHT JOIN` 保留右侧的全部行；没有匹配的左侧列填充 `NULL`。`FULL JOIN` 保留两侧全部行，未匹配的一侧填充 `NULL`。`CROSS JOIN` 不使用连接谓词，返回两侧行的笛卡尔积；两侧任一为空时结果为空。
+- `RIGHT` / `FULL` 的未匹配行和匹配行按 `FROM` 中的声明顺序处理；同一查询不会为了选择算法而重排结果的声明顺序。`CROSS JOIN` 也按左侧行、再按右侧行的声明顺序产生结果。
+- `RIGHT JOIN` 和 `FULL JOIN` 当前使用有界的声明顺序嵌套循环，并保留 SQL `NULL` 扩展语义；`INNER` / `LEFT` 的 hash、索引和 merge 计划仍可按现有条件选择。`CROSS JOIN` 使用恒真连接条件，不应当用来替代缺失的过滤条件。
+- `ON` 连接条件使用 SQL 三值逻辑：条件为 `UNKNOWN`（包括连接列为 `NULL`）不算匹配；外连接随后按上述规则产生 `NULL` 扩展行。`WHERE` 在外连接完成后执行，因此对补出的列直接过滤可能把外连接结果收窄为内连接结果。
+- 单条语句仍受关系查询的行、内存和取消预算约束；笛卡尔积可能快速增长，应在 `WHERE`、`LIMIT` 或更窄的输入上使用它。
+
 ### 关系表轻事务
 
 `SqlExecutor.ExecuteScript(...)` 和服务端 `/sql/batch` 支持关系表小批量 DML 轻事务：
@@ -633,7 +701,7 @@ LIMIT 100;
 
 当前限制：
 
-- 不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN`。
+- measurement JOIN 仍只支持 `measurement INNER JOIN relation` 的单个内连接；不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN` / `CROSS JOIN`，也不把关系表 JOIN 扩展为 measurement 的外连接或笛卡尔积。
 - 不支持 measurement 与 measurement JOIN、table 与 table JOIN、多表 JOIN、子查询 JOIN。
 - JOIN 查询暂不支持聚合、`GROUP BY` 或窗口函数。
 
@@ -675,6 +743,16 @@ DROP JSON INDEX idx_device_type ON device_docs;
 DROP DOCUMENT COLLECTION device_docs;
 ```
 
+JSON 标量函数也可用于关系表的 `JSON` 列；path 可以使用 SQL 参数：
+
+```sql
+SELECT id,
+       json_exists(metadata, @path) AS has_path,
+       json_array_length(metadata, '$.tags') AS tag_count,
+       json_contains(metadata, '$.tags', @tag) AS has_tag
+FROM devices;
+```
+
 当前行为：
 
 - 文档集合固定暴露 `id` 和 `document` / `json` 两个伪列；`SELECT *` 展开为 `id, document`。
@@ -682,6 +760,10 @@ DROP DOCUMENT COLLECTION device_docs;
 - SQL `UPDATE` 使用 `SET document = '<json>'` 做整体替换；局部更新操作符通过 Document HTTP API 或 `SndbDocumentClient.UpdateOneAsync/UpdateManyAsync` 调用。
 - 单条 SQL `UPDATE` / `DELETE` 会先完成候选规划，再用一个 KV 原子 batch 提交；取消、校验失败或批次预算拒绝不会留下部分修改。该 batch 受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制，超限时会在追加 WAL 前整体拒绝；引擎不会为绕过限制自动拆批，因为拆批会破坏语句原子性。
 - `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
+- `json_exists(json, path)` 返回 path 是否存在；path 指向 JSON `null` 时仍返回 `TRUE`，path 缺失返回 `FALSE`。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
+- `json_array_length(json, path)` 返回 path 指向数组的元素数（`BIGINT`）；path 缺失或指向 JSON `null` 时返回 SQL `NULL`，指向非数组值时返回执行错误。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
+- `json_contains(json, path, candidate)` 判断 path 结果是否包含候选值。候选字符串按普通 SQL 字符串比较；以 `{` 或 `[` 开头的字符串会按 JSON 对象或数组解析。数组候选按无序子集匹配，对象候选按字段子集匹配；对对象传入普通字符串还可判断字段名是否存在。path 缺失或指向 JSON `null` 返回 `FALSE`，任一参数为 `NULL` 返回 SQL `NULL`。
+- 这些函数只接受字符串 JSON/path（候选值可为 SQL 标量），并执行固定资源边界：JSON 文本最多 8,388,608 个 UTF-16 字符，path 最多 1024 个字符和 64 个片段，嵌套/比较深度最多 64 层，被计算长度或参与包含比较的单个数组/对象最多 100,000 个元素/字段；每次 `json_contains` 最多执行 1,000,000 次匹配扫描与结构比较。超限或 JSON/path 无效会返回执行错误，不会静默截断。完整的候选编码、NULL、重复元素、访问容器预算和 JSON path 索引可用条件见[JSON 查询合同]({{ site.docs_baseurl | default: '/help' }}/json-query-contract/)。
 - `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 不提供 MongoDB wire/Driver 兼容 API 或跨文档复杂事务；集合 validator 支持 SonnetDB 自有 required/type/range/enum/pattern 子集。
@@ -1151,11 +1233,62 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - `SELECT *` 会展开为 `time + 所有 tag 列 + 所有 field 列`。
 - 支持字面量投影（如 `SELECT 1 ... LIMIT 1`），会按匹配到的时间轴返回常量列。
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
-- 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`regexp_like`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
+- 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`trim`、`ltrim`、`rtrim`、`length` / `char_length`、`substring` / `substr`、`replace`、`left`、`right`、`starts_with` / `ends_with` / `contains`、`regexp_like`、`date_diff` / `datediff`、`date_format` / `format_datetime` / `strftime` / `to_char`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
+- 字符串函数对字符串参数使用 Ordinal 规则；除 `concat` 将 NULL 参数视为空字符串外，字符串参数或位置/长度参数为 NULL 时返回 NULL。`substring` 使用从 1 开始的位置，省略长度时截取到末尾；位置必须大于等于 1，长度和 `left` / `right` 的字符数不能为负数。`length` 返回 .NET UTF-16 字符数（`long`），不是 UTF-8 字节数。
+
+常用字符串函数示例：
+
+```sql
+SELECT trim(label) AS clean_label,
+       substring(label, 1, 12) AS prefix,
+       replace(label, '-', '_') AS normalized,
+       length(label) AS label_length
+FROM devices
+WHERE starts_with(label, 'pump-') AND contains(label, 'east')
+```
 - 标量函数可嵌套并接收算术表达式参数；算术表达式也可直接作为顶层投影。
 - 支持 `FROM measurement [AS] alias` 单表别名，以及 `alias.column` / `alias."Column"` 限定列名；执行前会校验限定符必须匹配当前别名。
 - `coalesce(...)` 只会在当前结果行存在时参与求值；它不会额外扩展原始查询的时间轴。
 - 结果按时间升序返回。
+
+### 非递归公共表表达式 `WITH`
+
+关系查询支持一个或多个非递归 CTE。CTE 按声明顺序展开为现有派生表执行路径，
+因此可以在主查询或 `IN` / `EXISTS` 子查询中使用，也可以让后一个 CTE 引用前一个 CTE：
+
+```sql
+WITH west AS (
+    SELECT id FROM devices WHERE region = 'west'
+), selected AS (
+    SELECT id FROM west WHERE id > 100
+)
+SELECT d.id
+FROM devices AS d
+WHERE d.id IN (SELECT id FROM selected)
+ORDER BY d.id;
+```
+
+当前边界：
+
+- 仅支持 `WITH ... AS (SELECT ...)`，不支持 `WITH RECURSIVE` 或递归自引用；递归查询属于后续 GH-Issue #189。
+- CTE 名称按声明顺序解析，后一个 CTE 可以引用前一个 CTE；重复名称会被拒绝。
+- `WITH name (column, ...) AS (...)` 的输出列重命名尚未支持，请在 CTE 的 `SELECT` 投影中使用 `AS` 别名。
+- CTE 不新增独立 planner，继续复用 `FROM (SELECT ...)`、关系 JOIN 以及 `IN` / `EXISTS` 子查询的现有执行和相关性语义。
+
+### SELECT 集合运算
+
+关系查询支持 `UNION`、`UNION ALL`、`INTERSECT` 和 `EXCEPT`。各分支必须返回相同的列数；复合结果可以在最后一个分支之后使用统一的 `ORDER BY`、`LIMIT` 或 `OFFSET/FETCH`：
+
+```sql
+SELECT id FROM active_devices
+UNION ALL
+SELECT id FROM recently_seen
+INTERSECT
+SELECT id FROM managed_devices
+ORDER BY id;
+```
+
+`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。递归 CTE、`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
 
 分页子句（兼容两种风格）：
 
@@ -1236,6 +1369,8 @@ SELECT round(avg(usage) + 0.25, 2) AS adjusted_average FROM cpu WHERE host = 'se
 
 > `count(*)` 计的是**行/时刻**数：同一 series 下多个 field 列写在同一时间戳算作一行，不同时间戳（含只写了部分 field 的稀疏行）取并集去重。多 series 场景下不同 series 的同一时间戳属于不同的行。`count(field)` 则只计该 field 列有值的时刻数。
 
+标准聚合支持单字段 `DISTINCT` 输入：`count(DISTINCT field)`、`sum(DISTINCT field)`、`avg(DISTINCT field)`、`min(DISTINCT field)` 和 `max(DISTINCT field)` 会在每个查询结果/时间桶中先按 SQL 值相等规则去重，再忽略 `NULL` 求值；`COUNT(DISTINCT *)` 明确拒绝。多表达式 DISTINCT、排序集合聚合和窗口 DISTINCT 不在当前合同内。
+
 ### `GROUP BY time(...)`
 
 按时间桶聚合：
@@ -1289,6 +1424,8 @@ WHERE time >= now() - 30d
 - tag 等值条件，例如 `host = 'server-01'`
 - `time` 的范围比较，例如 `time >= 1713676800000 AND time < 1713763200000`，或者 `time >= now() - 1d AND time < now() + 1d`
 - 多个条件使用 `AND` 连接
+- 关系表和 measurement 过滤支持 `value BETWEEN lower AND upper` / `NOT BETWEEN`（上下界 inclusive；任一边或 value 为 `NULL` 时结果为 `UNKNOWN`）。
+- 字符串过滤支持 `ILIKE` / `NOT ILIKE`，使用 invariant、OrdinalIgnoreCase 规则并保留 `%` / `_` / `\\` LIKE 通配符语义。
 
 当前不建议在生产示例中使用：
 

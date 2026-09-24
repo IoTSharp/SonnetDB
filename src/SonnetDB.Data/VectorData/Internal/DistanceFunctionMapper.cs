@@ -21,4 +21,16 @@ internal static class DistanceFunctionMapper
                 $"SonnetDB VectorData 暂不支持 DistanceFunction = '{distanceFunction}'。"),
         };
     }
+
+    public static double ToVectorDataScore(string? distanceFunction, double distance)
+        => distanceFunction switch
+        {
+            DistanceFunction.CosineSimilarity => 1d - distance,
+            DistanceFunction.DotProductSimilarity => -distance,
+            _ => distance,
+        };
+
+    public static bool IsHigherScoreBetter(string? distanceFunction)
+        => distanceFunction is DistanceFunction.CosineSimilarity
+            or DistanceFunction.DotProductSimilarity;
 }

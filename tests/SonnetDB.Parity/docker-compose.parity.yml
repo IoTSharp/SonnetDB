@@ -26,18 +26,12 @@ volumes:
   ch-data:
   mongo-data:
 
-secrets:
-  sixlabors-license:
-    environment: SixLaborsLicenseKey
-
 services:
   # ── 轻量栈（light + full） ─────────────────────────────────────────────
   sonnetdb:
     build:
       context: ../..
       dockerfile: src/SonnetDB/Dockerfile
-      secrets:
-        - sixlabors-license
     image: iotsharp/sonnetdb:parity
     networks: [parity-net]
     ports:
@@ -89,7 +83,9 @@ services:
     profiles: [light, full]
 
   minio:
-    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    # MinIO's Docker Hub namespace is no longer pullable for this pinned tag.
+    # Keep the immutable tag while using the upstream Quay registry.
+    image: quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z
     command: server /data --console-address ":9001"
     networks: [parity-net]
     ports:
@@ -235,13 +231,10 @@ services:
   harness:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src
-    secrets:
-      - sixlabors-license
     volumes:
       - ../..:/src
     networks: [parity-net]
     environment:
-      SixLaborsLicenseFile: /run/secrets/sixlabors-license
       BACKEND: ${BACKEND:-sonnetdb,postgres}
       PARITY_PG_HOST: postgres
       PARITY_PG_PORT: "5432"

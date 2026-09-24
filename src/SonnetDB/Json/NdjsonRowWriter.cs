@@ -86,6 +86,9 @@ public static class NdjsonRowWriter
             case DateTimeOffset dto:
                 writer.WriteStringValue(dto);
                 break;
+            case TimeOnly time:
+                writer.WriteStringValue(time.ToString("HH:mm:ss.fffffff", System.Globalization.CultureInfo.InvariantCulture));
+                break;
             case Guid g:
                 writer.WriteStringValue(g);
                 break;
@@ -95,9 +98,35 @@ public static class NdjsonRowWriter
             case byte[] bytes:
                 writer.WriteBase64StringValue(bytes);
                 break;
+            case float[] vector:
+                WriteVector(writer, vector);
+                break;
+            case Memory<float> vector:
+                WriteVector(writer, vector.Span);
+                break;
+            case ReadOnlyMemory<float> vector:
+                WriteVector(writer, vector.Span);
+                break;
             default:
                 writer.WriteStringValue(value.ToString());
                 break;
         }
+    }
+
+    private static void WriteVector(Utf8JsonWriter writer, ReadOnlySpan<float> vector)
+    {
+        if (vector.Length == 0)
+            throw new InvalidDataException("VECTOR 结果不能为空。");
+
+        writer.WriteStartArray();
+        for (int i = 0; i < vector.Length; i++)
+        {
+            float value = vector[i];
+            if (float.IsFinite(value))
+                writer.WriteNumberValue(value);
+            else
+                throw new InvalidDataException("VECTOR 结果只能包含有限浮点数。");
+        }
+        writer.WriteEndArray();
     }
 }

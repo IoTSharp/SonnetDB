@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using SonnetDB.Catalog;
+using SonnetDB.Documents;
 using SonnetDB.Model;
 using SonnetDB.Query.Functions.Aggregates;
 using SonnetDB.Query.Functions.Control;
@@ -142,10 +143,34 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("round", 1, 2, EvaluateRound),
         new BuiltInScalarFunction("sqrt", 1, 1, static args => Math.Sqrt(RequireDouble(args[0], "sqrt"))),
         new BuiltInScalarFunction("log", 1, 2, EvaluateLog),
+        new BuiltInScalarFunction("ceil", 1, 1, EvaluateCeil),
+        new BuiltInScalarFunction("ceiling", 1, 1, EvaluateCeiling),
+        new BuiltInScalarFunction("floor", 1, 1, EvaluateFloor),
+        new BuiltInScalarFunction("exp", 1, 1, EvaluateExp),
+        new BuiltInScalarFunction("power", 2, 2, EvaluatePower),
+        new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
-        new BuiltInScalarFunction("lower", 1, 1, static args => args[0]?.ToString()?.ToLowerInvariant()),
-        new BuiltInScalarFunction("upper", 1, 1, static args => args[0]?.ToString()?.ToUpperInvariant()),
+        new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),
+        new BuiltInScalarFunction("upper", 1, 1, EvaluateUpper),
+        new BuiltInScalarFunction("trim", 1, 2, EvaluateTrim),
+        new BuiltInScalarFunction("ltrim", 1, 2, EvaluateLTrim),
+        new BuiltInScalarFunction("rtrim", 1, 2, EvaluateRTrim),
+        new BuiltInScalarFunction("length", 1, 1, EvaluateLength),
+        new BuiltInScalarFunction("char_length", 1, 1, EvaluateLength),
+        new BuiltInScalarFunction("substring", 2, 3, EvaluateSubstring),
+        new BuiltInScalarFunction("substr", 2, 3, EvaluateSubstring),
+        new BuiltInScalarFunction("replace", 3, 3, EvaluateReplace),
+        new BuiltInScalarFunction("left", 2, 2, EvaluateLeft),
+        new BuiltInScalarFunction("right", 2, 2, EvaluateRight),
+        new BuiltInScalarFunction("starts_with", 2, 2, EvaluateStartsWith),
+        new BuiltInScalarFunction("startswith", 2, 2, EvaluateStartsWith),
+        new BuiltInScalarFunction("ends_with", 2, 2, EvaluateEndsWith),
+        new BuiltInScalarFunction("endswith", 2, 2, EvaluateEndsWith),
+        new BuiltInScalarFunction("contains", 2, 2, EvaluateContains),
+        new BuiltInScalarFunction("json_exists", 2, 2, JsonSqlFunctions.Exists),
+        new BuiltInScalarFunction("json_array_length", 2, 2, JsonSqlFunctions.ArrayLength),
+        new BuiltInScalarFunction("json_contains", 3, 3, JsonSqlFunctions.Contains),
         new BuiltInScalarFunction("regexp_like", 2, 3, static args =>
             RegexPatternMatcher.IsMatch(args[0], args[1], args.Count == 3 ? args[2] : null)),
         new BuiltInScalarFunction("current_datetime", 0, 0, SqlDateTimeFunctions.CurrentDateTime),
@@ -155,6 +180,12 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("date_only", 1, 1, SqlDateTimeFunctions.DateOnly),
         new BuiltInScalarFunction("date_part", 2, 2, SqlDateTimeFunctions.DatePart),
         new BuiltInScalarFunction("date_add", 3, 3, SqlDateTimeFunctions.DateAdd),
+        new BuiltInScalarFunction("date_diff", 3, 3, SqlDateTimeFunctions.DateDiff),
+        new BuiltInScalarFunction("datediff", 3, 3, SqlDateTimeFunctions.DateDiff),
+        new BuiltInScalarFunction("date_format", 2, 2, SqlDateTimeFunctions.DateFormat),
+        new BuiltInScalarFunction("format_datetime", 2, 2, SqlDateTimeFunctions.DateFormat),
+        new BuiltInScalarFunction("strftime", 2, 2, SqlDateTimeFunctions.Strftime),
+        new BuiltInScalarFunction("to_char", 2, 2, SqlDateTimeFunctions.DateFormat),
         new BuiltInScalarFunction("date_add_datetime", 3, 3, SqlDateTimeFunctions.DateAddDateTime),
         new BuiltInScalarFunction("date_add_datetime_offset", 3, 3, SqlDateTimeFunctions.DateAddDateTimeOffset),
         new BuiltInScalarFunction("to_unix_milliseconds", 1, 1, SqlDateTimeFunctions.ToUnixTimeMilliseconds),
@@ -220,6 +251,7 @@ public static class FunctionRegistry
         // Tier 4 — 异常 / 变点检测（PR #55）
         new AnomalyFunction(),
         new ChangepointFunction(),
+        new RowNumberFunction(),
     ];
 
     private static IReadOnlyDictionary<string, TFunction> CreateFunctionsByName<TFunction>(TFunction[] functions)
@@ -264,6 +296,59 @@ public static class FunctionRegistry
         return Math.Log(value, newBase);
     }
 
+    /// <summary>
+    /// 计算向上取整；NULL 继续传播，数值结果统一为 Float64。
+    /// </summary>
+    private static object? EvaluateCeil(IReadOnlyList<object?> args)
+    {
+        double? value = RequireNullableDouble(args[0], "ceil");
+        return value is null ? null : Math.Ceiling(value.Value);
+    }
+
+    private static object? EvaluateCeiling(IReadOnlyList<object?> args)
+    {
+        double? value = RequireNullableDouble(args[0], "ceiling");
+        return value is null ? null : Math.Ceiling(value.Value);
+    }
+
+    /// <summary>
+    /// 计算向下取整；NULL 继续传播，数值结果统一为 Float64。
+    /// </summary>
+    private static object? EvaluateFloor(IReadOnlyList<object?> args)
+    {
+        double? value = RequireNullableDouble(args[0], "floor");
+        return value is null ? null : Math.Floor(value.Value);
+    }
+
+    /// <summary>
+    /// 计算自然指数；NULL 继续传播，NaN、无穷和溢出遵循 IEEE-754 的 Math.Exp 结果。
+    /// </summary>
+    private static object? EvaluateExp(IReadOnlyList<object?> args)
+    {
+        double? value = RequireNullableDouble(args[0], "exp");
+        return value is null ? null : Math.Exp(value.Value);
+    }
+
+    /// <summary>
+    /// 计算幂；任一参数为 NULL 时返回 NULL，域错误和溢出遵循 IEEE-754 的 Math.Pow 结果。
+    /// </summary>
+    private static object? EvaluatePower(IReadOnlyList<object?> args)
+    {
+        return EvaluatePower(args, "power");
+    }
+
+    private static object? EvaluatePow(IReadOnlyList<object?> args)
+        => EvaluatePower(args, "pow");
+
+    private static object? EvaluatePower(IReadOnlyList<object?> args, string functionName)
+    {
+        double? @base = RequireNullableDouble(args[0], functionName);
+        double? exponent = RequireNullableDouble(args[1], functionName);
+        return @base is null || exponent is null
+            ? null
+            : Math.Pow(@base.Value, exponent.Value);
+    }
+
     private static object? EvaluateCoalesce(IReadOnlyList<object?> args)
     {
         foreach (var arg in args)
@@ -281,6 +366,151 @@ public static class FunctionRegistry
     private static object EvaluateConcat(IReadOnlyList<object?> args)
         => string.Concat(args.Select(static value =>
             Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty));
+
+    private static object? EvaluateLower(IReadOnlyList<object?> args)
+    {
+        string? value = RequireNullableString(args[0], "lower");
+        return value?.ToLowerInvariant();
+    }
+
+    private static object? EvaluateUpper(IReadOnlyList<object?> args)
+    {
+        string? value = RequireNullableString(args[0], "upper");
+        return value?.ToUpperInvariant();
+    }
+
+    private static object? EvaluateTrim(IReadOnlyList<object?> args)
+        => EvaluateTrim(args, "trim", static value => value.Trim());
+
+    private static object? EvaluateLTrim(IReadOnlyList<object?> args)
+        => EvaluateTrim(args, "ltrim", static value => value.TrimStart());
+
+    private static object? EvaluateRTrim(IReadOnlyList<object?> args)
+        => EvaluateTrim(args, "rtrim", static value => value.TrimEnd());
+
+    private static object? EvaluateTrim(
+        IReadOnlyList<object?> args,
+        string functionName,
+        Func<string, string> defaultTrim)
+    {
+        string? value = RequireNullableString(args[0], functionName);
+        if (value is null)
+            return null;
+
+        if (args.Count == 1)
+            return defaultTrim(value);
+
+        string? trimCharacters = RequireNullableString(args[1], functionName);
+        if (trimCharacters is null)
+            return null;
+
+        char[] characters = trimCharacters.ToCharArray();
+        return functionName switch
+        {
+            "trim" => value.Trim(characters),
+            "ltrim" => value.TrimStart(characters),
+            "rtrim" => value.TrimEnd(characters),
+            _ => throw new InvalidOperationException($"未知字符串裁剪函数 {functionName}。"),
+        };
+    }
+
+    private static object? EvaluateLength(IReadOnlyList<object?> args)
+    {
+        string? value = RequireNullableString(args[0], "length");
+        return value is null ? null : (long)value.Length;
+    }
+
+    private static object? EvaluateSubstring(IReadOnlyList<object?> args)
+    {
+        const string functionName = "substring";
+        string? value = RequireNullableString(args[0], functionName);
+        long? start = RequireNullableInt64(args[1], functionName, "start");
+        if (value is null || start is null)
+            return null;
+        if (start < 1)
+            throw new InvalidOperationException("函数 substring 的 start 参数必须大于等于 1。");
+
+        long? requestedLength = args.Count == 3
+            ? RequireNullableInt64(args[2], functionName, "length")
+            : null;
+        if (requestedLength < 0)
+            throw new InvalidOperationException("函数 substring 的 length 参数不能为负数。");
+
+        long offset = start.Value - 1;
+        if (offset >= value.Length)
+            return string.Empty;
+
+        int startIndex = (int)offset;
+        if (requestedLength is null)
+            return value[startIndex..];
+
+        int count = (int)Math.Min(requestedLength.Value, value.Length - startIndex);
+        return value.Substring(startIndex, count);
+    }
+
+    private static object? EvaluateReplace(IReadOnlyList<object?> args)
+    {
+        const string functionName = "replace";
+        string? value = RequireNullableString(args[0], functionName);
+        string? search = RequireNullableString(args[1], functionName);
+        string? replacement = RequireNullableString(args[2], functionName);
+        if (value is null || search is null || replacement is null)
+            return null;
+
+        // SQL REPLACE with an empty search expression is a no-op; this also avoids
+        // the surprising insertion behavior of .NET String.Replace for empty values.
+        return search.Length == 0
+            ? value
+            : value.Replace(search, replacement, StringComparison.Ordinal);
+    }
+
+    private static object? EvaluateLeft(IReadOnlyList<object?> args)
+        => EvaluateSlice(args, "left", takeFromLeft: true);
+
+    private static object? EvaluateRight(IReadOnlyList<object?> args)
+        => EvaluateSlice(args, "right", takeFromLeft: false);
+
+    private static object? EvaluateSlice(
+        IReadOnlyList<object?> args,
+        string functionName,
+        bool takeFromLeft)
+    {
+        string? value = RequireNullableString(args[0], functionName);
+        long? count = RequireNullableInt64(args[1], functionName, "count");
+        if (value is null || count is null)
+            return null;
+        if (count < 0)
+            throw new InvalidOperationException($"函数 {functionName} 的 count 参数不能为负数。");
+        if (count == 0)
+            return string.Empty;
+
+        int length = (int)Math.Min(count.Value, value.Length);
+        return takeFromLeft
+            ? value[..length]
+            : value[^length..];
+    }
+
+    private static object? EvaluateStartsWith(IReadOnlyList<object?> args)
+        => EvaluateStringPredicate(args, "starts_with", static (value, pattern) =>
+            value.StartsWith(pattern, StringComparison.Ordinal));
+
+    private static object? EvaluateEndsWith(IReadOnlyList<object?> args)
+        => EvaluateStringPredicate(args, "ends_with", static (value, pattern) =>
+            value.EndsWith(pattern, StringComparison.Ordinal));
+
+    private static object? EvaluateContains(IReadOnlyList<object?> args)
+        => EvaluateStringPredicate(args, "contains", static (value, pattern) =>
+            value.Contains(pattern, StringComparison.Ordinal));
+
+    private static object? EvaluateStringPredicate(
+        IReadOnlyList<object?> args,
+        string functionName,
+        Func<string, string, bool> predicate)
+    {
+        string? value = RequireNullableString(args[0], functionName);
+        string? pattern = RequireNullableString(args[1], functionName);
+        return value is null || pattern is null ? null : predicate(value, pattern);
+    }
 
     private static object? EvaluateCosineDistance(IReadOnlyList<object?> args)
     {
@@ -442,6 +672,53 @@ public static class FunctionRegistry
         };
     }
 
+    /// <summary>
+    /// 将 SQL 数值参数转换为 Float64；NULL 由调用方按标量函数合同传播。
+    /// </summary>
+    private static double? RequireNullableDouble(object? value, string functionName)
+        => value is null ? null : RequireDouble(value, functionName);
+
+    private static string? RequireNullableString(object? value, string functionName)
+    {
+        return value switch
+        {
+            null => null,
+            string text => text,
+            _ => throw new InvalidOperationException($"函数 {functionName} 需要字符串参数。"),
+        };
+    }
+
+    private static long RequireInt64(object? value, string functionName, string parameterName)
+    {
+        return value switch
+        {
+            byte b => b,
+            sbyte sb => sb,
+            short s => s,
+            ushort us => us,
+            int i => i,
+            uint ui => ui,
+            long l => l,
+            ulong ul when ul <= long.MaxValue => (long)ul,
+            float f when float.IsFinite(f) && f == MathF.Truncate(f)
+                && f >= long.MinValue && f <= long.MaxValue => (long)f,
+            double d when double.IsFinite(d) && d == Math.Truncate(d)
+                && d >= long.MinValue && d <= long.MaxValue => (long)d,
+            decimal m when decimal.Truncate(m) == m
+                && m >= long.MinValue && m <= long.MaxValue => (long)m,
+            null => throw new InvalidOperationException(
+                $"函数 {functionName} 的 {parameterName} 参数不能为 NULL。"),
+            _ => throw new InvalidOperationException(
+                $"函数 {functionName} 的 {parameterName} 参数需要整数。"),
+        };
+    }
+
+    private static long? RequireNullableInt64(
+        object? value,
+        string functionName,
+        string parameterName)
+        => value is null ? null : RequireInt64(value, functionName, parameterName);
+
     private static ReadOnlySpan<float> RequireVector(object? value, string functionName)
     {
         return value switch
@@ -510,6 +787,9 @@ public static class FunctionRegistry
             ArgumentNullException.ThrowIfNull(call);
             ArgumentNullException.ThrowIfNull(schema);
 
+            if (call.IsDistinct && call.IsStar)
+                throw new InvalidOperationException("聚合 DISTINCT 不支持 '*' 参数。" );
+
             if (call.IsStar)
             {
                 if (!_allowsStarArgument)
@@ -522,6 +802,8 @@ public static class FunctionRegistry
                 && call.Arguments.Count == 1
                 && call.Arguments[0] is LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: 1 })
             {
+                if (call.IsDistinct)
+                    throw new InvalidOperationException("COUNT(DISTINCT 1) 当前不支持；请指定 FIELD 列。" );
                 return null;
             }
 

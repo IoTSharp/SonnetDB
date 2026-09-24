@@ -33,9 +33,10 @@ internal static class RemoteHttpClientFactory
         string? username,
         string? password,
         string? token,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        bool allowAutoRedirect = true)
     {
-        var handler = CreateHandler(TimeSpan.FromSeconds(30));
+        var handler = CreateHandler(TimeSpan.FromSeconds(30), allowAutoRedirect);
         return CreateClient(baseAddress, username, password, token, timeout, handler, disposeHandler: true);
     }
 

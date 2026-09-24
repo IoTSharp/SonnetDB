@@ -44,6 +44,10 @@ SonnetDB 的核心价值是**统一**：九种数据模型保留各自的原生�
 
 关系型 SQL 是一个实用子集，覆盖常见查询、聚合、JOIN、事务和多模型扩展，但不是完整的 SQL 标准实现。原生属性图的 Graph Beta 名称描述当前功能范围，不表示正式 Beta 语义/容量 gate 已通过，也不代表完整 GQL、Cypher 或 Neo4j 兼容；固定硬件、外部语义对拍和长稳生产门禁仍未完成。各能力的成熟度以对应的专题文档为准。
 
+### 十四项能力与成熟度
+
+九种原生数据模型之外，SonnetDB 还把空间/轨迹、流处理/订阅、CDC/边缘同步、多模态 AI/RAG 和治理/恢复/观测列为五项平台能力，共十四项能力。每项能力的稳定 ID、真实入口、路线图归属、证据路径和当前边界见[机器可读证据索引](docs/audits/fourteen-capability-evidence-index.json)。公开状态只使用 `supported`、`partial`、`planned`、`not_planned` 和 `beta`；完整定义见[能力成熟度口径](docs/capability-maturity.md)。`beta` 只表示有限合同可用，不表示生产门禁已经通过。
+
 ## ⚡ 通用二进制帧协议
 
 3.0 在 HTTP/2 之上落地了一套覆盖七个基础数据面服务（消息队列、时序、SQL、向量、KV、对象、文档）的**通用二进制帧协议**。这些服务共享同一条高吞吐通道：时序批量写以列式紧凑二进制直传，SQL 结果以列式分块回传，向量检索的查询向量以原生 f32 二进制承载。SQL 分块限制的是响应编码缓冲；当前端点仍先取得完整的 `SelectExecutionResult.Rows`，大结果集的执行和结果内存会随数据量增长，尚不具备从执行器到客户端的全链路有界流式读取。当前 Graph Beta 又由 M40 #351 在同一端点追加 `service=8` 的受限单跳 `Expand`；原生属性图同时通过 API 和 SQL/PGQ 接入，其余图操作仍按各自 API/SQL 边界执行。REST 接口完整保留作兼容，客户端可通过连接串 `Protocol` 选项在 `auto` / `frame-http2` / `rest` 之间自由切换。
@@ -245,7 +249,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 
 ## 📊 基准与可靠性
 
-性能数字请以 [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) 和各报告的环境、命令与原始样本为准。**已有报告包括本机嵌入式测试和同机容器对照，只能说明各自工作负载的结果，不代表生产部署性能。** [九域性能报告](docs/benchmarks/system-performance-20260901.md) 仍将固定硬件、ARM64、生产同语料和七天混合负载证据标为 `NOT_RUN`。
+性能数字请以 [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) 和各报告的环境、命令与原始样本为准。**已有报告包括本机嵌入式测试和同机容器对照，只能说明各自工作负载的结果，不代表生产部署性能。** [历史九域性能报告](docs/benchmarks/system-performance-20260901.md) 的原始证据已撤回，其中数字不能作为当前性能结论；固定硬件、ARM64、生产同语料和七天混合负载仍待重新取证。
 
 - 嵌入式写入、范围查询、时间窗口聚合、向量召回和地理空间查询都有独立 benchmark。
 - 时序 WAL 落盘强度分三级（进程内缓冲 / OS page cache / 每批 fsync）；segment 默认在发布前执行 fsync，时序 Delete 无条件同步 WAL。持久性取决于配置、操作系统及存储设备的落盘保证，现有崩溃恢复测试不构成任意断电或介质故障下零丢失的承诺；详见[架构总览](docs/architecture.md)与[近期性能与可靠性变更](docs/performance-reliability-updates.md)。

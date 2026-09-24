@@ -1,13 +1,16 @@
 import type { AxiosInstance } from 'axios';
+import { createConfiguredStudioNativeTransport } from '../copilot/studioNative';
 import {
   CopilotRuntime,
   CopilotRuntimeContractError,
   resolveCopilotRuntimeMode,
   type CopilotRuntimeReadiness,
+  type CopilotRuntimeRunOptions,
   type CopilotTransport,
   type CopilotTransportEvent,
 } from '@/copilot/runtime';
 import {
+  clearBrowserDirectAccessToken,
   createConfiguredBrowserDirectTransport,
   type BrowserDirectRuntimeRegistrationOptions,
 } from '@/copilot/browserDirectEntry';
@@ -423,16 +426,20 @@ export async function* streamCopilotChat(
   signal?: AbortSignal,
   configuredMode?: unknown,
   browserDirectOptions?: BrowserDirectRuntimeRegistrationOptions,
+  runtimeOptions: Omit<CopilotRuntimeRunOptions, 'signal'> = {},
 ): AsyncGenerator<CopilotTransportEvent<CopilotChatEvent>, void, unknown> {
   const mode = resolveCopilotRuntimeMode(configuredMode);
+  if (mode !== 'BrowserDirect') clearBrowserDirectAccessToken();
   const transports: Array<CopilotTransport<CopilotChatRequest, CopilotChatEvent>> = [];
   if (mode === 'ServerRelay') {
     transports.push(new ServerRelayCopilotTransport(api, token));
   } else if (mode === 'BrowserDirect') {
     transports.push(createConfiguredBrowserDirectTransport(api, token, browserDirectOptions));
+  } else if (mode === 'StudioNative') {
+    transports.push(await createConfiguredStudioNativeTransport(api, token));
   }
   const runtime = new CopilotRuntime<CopilotChatRequest, CopilotChatEvent>(mode, transports);
-  yield* runtime.run(request, { signal });
+  yield* runtime.run(request, { ...runtimeOptions, signal });
 }
 
 /** Resolve the relay endpoint solely from the active SonnetDB API client. */

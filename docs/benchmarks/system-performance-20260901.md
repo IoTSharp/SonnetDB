@@ -1,10 +1,12 @@
 # SonnetDB 九域与规划器系统性能闭环（2026-09-01）
 
+> **证据已撤回（2026-09-18）：** `artifacts/system-performance-20260901` 中的原始报告已删除。本文仅保留历史方法与实施记录，其中的性能数字、PASS 状态和结论不再作为有效性能证据或验收依据；后续须重新采集并核验。
+
 > **证据边界：** 本轮有本机 x64 smoke、自动化正确性、win-x64 Native AOT CLI/Server 发布及 CLI 实际执行证据；Native AOT Server 启动、固定硬件 x64、ARM64、木垒同语料、七天 mixed workload 与生产发布门禁均为 ⏳ `NOT_RUN`。本文不把开发机短跑换算为容量或生产 SLO，也没有连接、修改或重启木垒生产。
 
 > **产品口径说明：** 本报告的证据采集基线早于本轮门面文案更新；文中“README 的八种数据模型”等表述是该历史基线的事实记录，不代表当前公开定位。当前门面将原生属性图列为第九种模型的 Graph Beta；这不会改变本报告中固定硬件、外部语义对拍、Native AOT、168 小时和生产门禁均为 `NOT_RUN` 的结论。
 
-机器可读结果见 [`../../artifacts/system-performance-20260901/system-performance-report.json`](../../artifacts/system-performance-20260901/system-performance-report.json)，紧凑摘要见 [`../../artifacts/system-performance-20260901/system-performance-report.md`](../../artifacts/system-performance-20260901/system-performance-report.md)。
+原机器可读报告与紧凑摘要已撤回，不再提供下载或引用。
 
 状态图例：✅ 已完成并在声明范围内验证；🟡 本机或配置级完成，外部门禁待验证；🚧 只完成部分切片或仍有实现残余；⏳ 尚未执行；❌ 已执行但未通过或未产出有效样本；➖ 不适用或有意不采用。表情不替代 `PASS`、`NOT_RUN` 等机器状态码。
 
@@ -170,9 +172,9 @@ P50 有升有降，3 次样本不足以解释性能差异；此处只能认定�
 
 ### 残余风险
 
-1. `TableCostPlanner.Estimate` 对 `RowCount >= 1024` 的首个业务读可同步调用 `TryAutomaticStatisticsRefresh()`。当前方法在调用线程扫描快照并写统计状态，可能把全表采样和 WAL/状态写入首查尾延迟。P0 应改为 coalesced background refresh；前台继续使用旧统计或启发式计划，并暴露 refresh queued/running/failed。
+1. 自动统计刷新已移出首个业务读：`TableCostPlanner.Estimate` 只复用已有统计或启发式估计，并调度每数据库合并的 bounded background refresh；Core 回归覆盖 queued/running/failed/cancelled/reopen 与同序列发布保护。固定硬件下的混合负载尾延迟和真实 I/O 竞争仍需后置验证。
 2. 统计采样读取主键顺序的前 N 行。直方图内部 reservoir 不能消除“外层只取前 N 主键”的分布偏差。P1 需要确定性 block/systematic/reservoir 采样，并用 skew corpus 报告基数误差和计划选择。
-3. 当前窄索引查找成本包含 `0.5 * full index logical pages`，会系统性高估小范围 seek。P1 应使用树高、触达叶页、候选范围与 cache 状态估算，仍保留 scan 回退。
+3. fresh statistics 路径的本地页成本模型现在按统计索引密度估算确定性的 root/tree seek 与连续 leaf range/span，并在总页数处封顶；统计缺失或过期时仍走既有启发式。空估计的 root-only seek 目前只由 helper 边界合同覆盖，生产 planner 对未知 equality/range 仍使用至少一行的有界启发式。仍缺真实 cache state、随机叶页分布和物理 I/O 校准，生产尾延迟不能由该启发式替代。
 4. runtime feedback 只按规范化 SQL fingerprint 滚动平均 estimated/actual，最多 1,024 项；不同参数选择率会混在一起。它目前只适合并行准入修正，不应直接成为物理计划选择依据。参数敏感计划需要 plan identity、参数/选择率 bucket、aging 和有限 cache。
 5. covering/index-only 仍以完整等值为主；range/prefix/IN 的投影覆盖属于 P2。扩大前必须保留 residual、NULL、visibility 和事务 overlay 检查。
 
@@ -281,10 +283,10 @@ SqlLexer Frozen 候选已尝试运行，但在 BenchmarkDotNet 内部 120 秒 bu
 
 | 优先级 | 状态 | 项目 | 当前证据 | 完成门禁 |
 | --- | --- | --- | --- | --- |
-| P0 | 🚧 | 把自动统计刷新移出首个业务读 | `TableCostPlanner` 可同步触发全表采样 | coalesced background job；前台使用旧统计/启发式；取消、失败、reopen、同计划差分 |
+| P0 | 🟡 | 把自动统计刷新移出首个业务读 | 本地已验证 coalesced background job；前台复用旧统计/启发式 | 固定硬件混合负载尾延迟、真实 I/O 竞争和发布证据 |
 | P0 | 🟡 配置完成；执行 ⏳ | ARM64 可执行/AOT 门禁 | `linux-arm64` CI 已配置但真实 run/artifact 尚无 | 执行 publish/start/first query；SIMD/CRC/scalar 差分；真实指令记录 |
 | P1 | 🚧 | 无偏统计采样 | 外层取 PK 顺序前 N 行 | skew corpus 上基数误差和 plan-choice 门禁 |
-| P1 | 🚧 | 页感知索引成本 | 窄查承担半个完整索引 logical pages | tree height/leaf range/cache-aware reads；计划回归 |
+| P1 | 🟡 | 页感知索引成本 | 本地已覆盖 root/tree seek、leaf range/span 和总页封顶 | cache-aware/随机叶页物理读校准；固定语料计划回归与尾延迟 |
 | P1 | 🚧 | 参数敏感计划与反馈 | fingerprint 滚动平均混合参数选择率 | 参数/选择率 bucket、plan identity、aging、bounded cache、fallback |
 | P1 | 🚧 | Embedded I/O 预算 | RandomAccess 无独立 semaphore | per-db queue/permit/cancel/metrics，在 NVMe 与 ARM64 标定饱和点 |
 | P1 | 🚧 | 向量 query norm 复用 | batch cosine 可逐 row 重算 query norm | 一次预计算；zero/NaN/dimension 差分；brute/HNSW benchmark |
@@ -357,30 +359,27 @@ Findings：F-001（E-001/E-002，高置信）确认采集基线与八模型历�
 # 统计刷新
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*TableStatisticsRefresh*' `
-  --artifacts artifacts/system-performance-20260901/repro/statistics/bdn
+  --artifacts artifacts/performance-repro/statistics/bdn
 
 # IEEE CRC32
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*VectorCrc32*' `
-  --artifacts artifacts/system-performance-20260901/repro/crc32/bdn
+  --artifacts artifacts/performance-repro/crc32/bdn
 
 # KV / Document / Object 独立模型
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --filter '*KvModel*' '*DocumentModel*' '*ObjectStorageModel*' `
-  --artifacts artifacts/system-performance-20260901/repro/model-smoke/bdn
+  --artifacts artifacts/performance-repro/model-smoke/bdn
 
 # KV / Document / Object 逐请求尾延迟
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --model-read-latency-evidence --quick `
-  --output artifacts/system-performance-20260901/repro/model-read-latency
+  --output artifacts/performance-repro/model-read-latency
 
 # M41 quick，只验证本地查询/报告合同
 dotnet run -c Release --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -- `
   --m41-baseline-evidence --quick `
-  --output artifacts/system-performance-20260901/repro/m41/evidence
-
-# 机器可读报告语法
-Get-Content -LiteralPath artifacts/system-performance-20260901/system-performance-report.json -Raw | Test-Json
+  --output artifacts/performance-repro/m41/evidence
 ```
 
-任何复跑都应写入新目录，不能覆盖本报告引用的 before/after 原始 artifact。
+任何复跑都应写入新目录，重新记录 commit、环境、命令与原始样本；不能沿用已撤回报告的验证状态。

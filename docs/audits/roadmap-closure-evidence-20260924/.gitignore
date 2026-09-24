@@ -1,0 +1,3 @@
+# Retain this acceptance run's raw test and build evidence.
+!*.trx
+!*.log

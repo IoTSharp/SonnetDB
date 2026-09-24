@@ -20,10 +20,12 @@ internal static class SqlRagResourceScope
     {
         if (IsActive && RagReservedResourceNames.IsReserved(name))
             throw new InvalidOperationException("RAG 内部资源只能通过授权治理入口访问，不能通过 SQL 访问。");
+        if (IsActive && FaceReservedResourceNames.IsReserved(name))
+            throw new InvalidOperationException("人脸内部资源只能通过授权生物特征入口访问，不能通过 SQL 访问。");
     }
 
     internal static bool IsVisible(string name)
-        => !IsActive || !RagReservedResourceNames.IsReserved(name);
+        => !IsActive || (!RagReservedResourceNames.IsReserved(name) && !FaceReservedResourceNames.IsReserved(name));
 
     private sealed class Scope(int previous) : IDisposable
     {

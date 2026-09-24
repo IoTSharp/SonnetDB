@@ -4,6 +4,7 @@ using System.Globalization;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
+using SonnetDB.Model;
 using SonnetDB.Tables;
 
 namespace SonnetDB.Data;
@@ -29,6 +30,9 @@ public sealed class SndbConnection : DbConnection
     private const string TablesCollectionName = "Tables";
     private const string ColumnsCollectionName = "Columns";
     private const string IndexesCollectionName = "Indexes";
+    private const string ViewsCollectionName = "Views";
+    private const string ForeignKeysCollectionName = "ForeignKeys";
+    private const string DocumentCollectionsCollectionName = "DocumentCollections";
 
     private string _connectionString = string.Empty;
     private SndbConnectionStringBuilder _builder = new();
@@ -191,6 +195,12 @@ public sealed class SndbConnection : DbConnection
             return BuildColumnsSchema(restrictionValues: null);
         if (string.Equals(collectionName, IndexesCollectionName, StringComparison.OrdinalIgnoreCase))
             return BuildIndexesSchema(restrictionValues: null);
+        if (string.Equals(collectionName, ViewsCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildViewsSchema(restrictionValues: null);
+        if (string.Equals(collectionName, ForeignKeysCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildForeignKeysSchema(restrictionValues: null);
+        if (IsDocumentCollectionsCollection(collectionName))
+            return BuildDocumentCollectionsSchema(restrictionValues: null);
 
         throw new ArgumentException($"SonnetDB provider metadata collection '{collectionName}' is not supported.", nameof(collectionName));
     }
@@ -205,6 +215,12 @@ public sealed class SndbConnection : DbConnection
             return BuildColumnsSchema(restrictionValues);
         if (string.Equals(collectionName, IndexesCollectionName, StringComparison.OrdinalIgnoreCase))
             return BuildIndexesSchema(restrictionValues);
+        if (string.Equals(collectionName, ViewsCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildViewsSchema(restrictionValues);
+        if (string.Equals(collectionName, ForeignKeysCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildForeignKeysSchema(restrictionValues);
+        if (IsDocumentCollectionsCollection(collectionName))
+            return BuildDocumentCollectionsSchema(restrictionValues);
 
         return GetSchema(collectionName);
     }
@@ -362,6 +378,9 @@ public sealed class SndbConnection : DbConnection
         table.Rows.Add(TablesCollectionName, 4, 1);
         table.Rows.Add(ColumnsCollectionName, 4, 1);
         table.Rows.Add(IndexesCollectionName, 4, 2);
+        table.Rows.Add(ViewsCollectionName, 4, 1);
+        table.Rows.Add(ForeignKeysCollectionName, 4, 2);
+        table.Rows.Add(DocumentCollectionsCollectionName, 4, 1);
         return table;
     }
 
@@ -385,6 +404,14 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add(DbMetaDataColumnNames.StatementSeparatorPattern, typeof(string));
         table.Columns.Add(DbMetaDataColumnNames.StringLiteralPattern, typeof(string));
         table.Columns.Add(DbMetaDataColumnNames.SupportedJoinOperators, typeof(SupportedJoinOperators));
+        // 模型专属能力独立于关系表 SupportedJoinOperators；供 Provider 在生成 SQL 前检查。
+        // 这些值描述本地 SDK 合同，不进行远程 Server 版本协商。
+        table.Columns.Add("MeasurementJoinKinds", typeof(string));
+        table.Columns.Add("MeasurementJoinMaxTables", typeof(int));
+        table.Columns.Add("MeasurementJoinOnPredicate", typeof(string));
+        table.Columns.Add("MeasurementJoinParameterLocations", typeof(string));
+        table.Columns.Add("MeasurementJoinSupportsAggregates", typeof(bool));
+        table.Columns.Add("MeasurementJoinSupportsPagination", typeof(bool));
 
         table.Rows.Add(
             "\\.",
@@ -403,7 +430,14 @@ public sealed class SndbConnection : DbConnection
             IdentifierCase.Sensitive,
             ";",
             "^'([^']|'')*'$",
-            SupportedJoinOperators.Inner);
+            SupportedJoinOperators.Inner | SupportedJoinOperators.LeftOuter
+                | SupportedJoinOperators.RightOuter | SupportedJoinOperators.FullOuter,
+            "INNER",
+            1,
+            "measurement_tag_equals_relation_column",
+            "projection,where,pagination",
+            false,
+            true);
 
         return table;
     }
@@ -418,7 +452,8 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("CREATED_UTC", typeof(DateTime));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
-        foreach (var schema in SnapshotTables())
+        var snapshot = SnapshotSchema();
+        foreach (var schema in snapshot.Tables)
         {
             if (!MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
@@ -429,6 +464,30 @@ public sealed class SndbConnection : DbConnection
                 schema.Name,
                 "BASE TABLE",
                 new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc));
+        }
+        foreach (var view in snapshot.Views)
+        {
+            if (!MatchesRestriction(view.Name, tableNameRestriction))
+                continue;
+
+            table.Rows.Add(
+                Database,
+                string.Empty,
+                view.Name,
+                view.IsMaterialized ? "MATERIALIZED VIEW" : "VIEW",
+                view.CreatedUtc.UtcDateTime);
+        }
+        foreach (var collection in snapshot.DocumentCollections)
+        {
+            if (!MatchesRestriction(collection.Name, tableNameRestriction))
+                continue;
+
+            table.Rows.Add(
+                Database,
+                string.Empty,
+                collection.Name,
+                "DOCUMENT COLLECTION",
+                collection.CreatedUtc.UtcDateTime);
         }
 
         return table;
@@ -454,7 +513,7 @@ public sealed class SndbConnection : DbConnection
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var columnNameRestriction = Restriction(restrictionValues, 3);
-        foreach (var schema in SnapshotTables())
+        foreach (var schema in SnapshotSchema().Tables)
         {
             if (!MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
@@ -474,8 +533,8 @@ public sealed class SndbConnection : DbConnection
                     column.IsNullable,
                     FormatTableColumnType(column.DataType),
                     GetCharacterMaximumLength(column.DataType),
-                    GetNumericPrecision(column.DataType),
-                    GetNumericScale(column.DataType),
+                    GetNumericPrecision(column),
+                    GetNumericScale(column),
                     column.IsPrimaryKey,
                     column.IsRowVersion,
                     column.IsAutoIncrement);
@@ -500,7 +559,7 @@ public sealed class SndbConnection : DbConnection
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var indexNameRestriction = Restriction(restrictionValues, 3);
-        foreach (var schema in SnapshotTables())
+        foreach (var schema in SnapshotSchema().Tables)
         {
             if (!MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
@@ -529,6 +588,113 @@ public sealed class SndbConnection : DbConnection
         return table;
     }
 
+    private DataTable BuildViewsSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(ViewsCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("VIEW_DEFINITION", typeof(string));
+        table.Columns.Add("TABLE_TYPE", typeof(string));
+        table.Columns.Add("CREATED_UTC", typeof(DateTime));
+
+        var nameRestriction = Restriction(restrictionValues, 2);
+        foreach (var view in SnapshotSchema().Views)
+        {
+            if (!MatchesRestriction(view.Name, nameRestriction))
+                continue;
+
+            table.Rows.Add(
+                Database,
+                string.Empty,
+                view.Name,
+                view.DefinitionSql,
+                view.IsMaterialized ? "MATERIALIZED VIEW" : "VIEW",
+                view.CreatedUtc.UtcDateTime);
+        }
+
+        return table;
+    }
+
+    private DataTable BuildForeignKeysSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(ForeignKeysCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("CONSTRAINT_NAME", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("COLUMN_NAME", typeof(string));
+        table.Columns.Add("ORDINAL_POSITION", typeof(int));
+        table.Columns.Add("PRINCIPAL_TABLE_NAME", typeof(string));
+        table.Columns.Add("PRINCIPAL_COLUMN_NAME", typeof(string));
+        table.Columns.Add("ON_DELETE", typeof(string));
+
+        var tableNameRestriction = Restriction(restrictionValues, 2);
+        var constraintRestriction = Restriction(restrictionValues, 3);
+        foreach (var schema in SnapshotSchema().Tables)
+        {
+            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+                continue;
+
+            foreach (var foreignKey in schema.ForeignKeys)
+            {
+                if (!MatchesRestriction(foreignKey.Name, constraintRestriction))
+                    continue;
+
+                for (var i = 0; i < foreignKey.Columns.Count; i++)
+                {
+                    var principalColumn = i < foreignKey.PrincipalColumns.Count
+                        ? foreignKey.PrincipalColumns[i]
+                        : string.Empty;
+                    table.Rows.Add(
+                        Database,
+                        string.Empty,
+                        foreignKey.Name,
+                        schema.Name,
+                        foreignKey.Columns[i],
+                        i + 1,
+                        foreignKey.PrincipalTable,
+                        principalColumn,
+                        foreignKey.OnDelete.ToString());
+                }
+            }
+        }
+
+        return table;
+    }
+
+    private DataTable BuildDocumentCollectionsSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(DocumentCollectionsCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("TABLE_TYPE", typeof(string));
+        table.Columns.Add("JSON_INDEX_COUNT", typeof(int));
+        table.Columns.Add("FULLTEXT_INDEX_COUNT", typeof(int));
+        table.Columns.Add("HAS_VALIDATOR", typeof(bool));
+        table.Columns.Add("CREATED_UTC", typeof(DateTime));
+
+        var nameRestriction = Restriction(restrictionValues, 2);
+        foreach (var collection in SnapshotSchema().DocumentCollections)
+        {
+            if (!MatchesRestriction(collection.Name, nameRestriction))
+                continue;
+
+            table.Rows.Add(
+                Database,
+                string.Empty,
+                collection.Name,
+                "DOCUMENT COLLECTION",
+                collection.JsonIndexCount,
+                collection.FullTextIndexCount,
+                collection.HasValidator,
+                collection.CreatedUtc.UtcDateTime);
+        }
+
+        return table;
+    }
+
     private static DataTable BuildDataTypesSchema()
     {
         var table = CreateSchemaTable(DbMetaDataCollectionNames.DataTypes);
@@ -552,6 +718,9 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("MinimumScale", typeof(short));
         table.Columns.Add("LiteralPrefix", typeof(string));
         table.Columns.Add("LiteralSuffix", typeof(string));
+        // 扩展标准 ADO 列而不改变其含义；类型存在不等于可作为关系表列。
+        table.Columns.Add("SupportsRelationalColumn", typeof(bool));
+        table.Columns.Add("SupportsMeasurementField", typeof(bool));
 
         AddDataType(
             table,
@@ -563,11 +732,17 @@ public sealed class SndbConnection : DbConnection
             fixedLength: true,
             autoIncrementable: true);
         AddDataType(table, "FLOAT", DbType.Double, typeof(double), 15, searchable: true, fixedLength: true, maximumScale: 15);
+        AddDataType(table, "DECIMAL", DbType.Decimal, typeof(decimal), 38, searchable: true, fixedLength: true, maximumScale: 38, supportsMeasurementField: false);
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
-        AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true);
-        AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true);
-        AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
+        AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
+        AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
+        AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true, supportsMeasurementField: false);
+        AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'", supportsMeasurementField: false);
+        AddDataType(table, "VECTOR", DbType.Object, typeof(float[]), int.MaxValue, searchable: false,
+            supportsRelationalColumn: false, bestMatch: false, createFormat: "VECTOR({0})", createParameters: "dimension");
+        AddDataType(table, "GEOPOINT", DbType.Object, typeof(GeoPoint), 16, searchable: false, fixedLength: true,
+            supportsRelationalColumn: false, bestMatch: false);
         return table;
     }
 
@@ -578,8 +753,8 @@ public sealed class SndbConnection : DbConnection
         foreach (var word in new[]
         {
             "ALTER", "BEGIN", "BOOL", "COMMIT", "CREATE", "DATABASE", "DELETE", "DROP",
-            "FLOAT", "FROM", "GROUP", "INDEX", "INSERT", "INT", "JOIN", "JSON", "KEY",
-            "NULL", "PRIMARY", "ROLLBACK", "SELECT", "SET", "STRING", "TABLE", "UPDATE", "WHERE",
+            "DECIMAL", "FLOAT", "FROM", "GROUP", "INDEX", "INSERT", "INT", "JOIN", "JSON", "KEY", "NUMERIC",
+            "NULL", "PRIMARY", "ROLLBACK", "SELECT", "SET", "STRING", "TABLE", "TIME", "UPDATE", "WHERE",
         }.Order(StringComparer.Ordinal))
         {
             table.Rows.Add(word);
@@ -605,17 +780,22 @@ public sealed class SndbConnection : DbConnection
         bool autoIncrementable = false,
         short maximumScale = 0,
         string literalPrefix = "",
-        string literalSuffix = "")
+        string literalSuffix = "",
+        bool supportsRelationalColumn = true,
+        bool supportsMeasurementField = true,
+        bool bestMatch = true,
+        string? createFormat = null,
+        string createParameters = "")
     {
         table.Rows.Add(
             typeName,
             (int)dbType,
             columnSize,
-            typeName,
-            string.Empty,
+            createFormat ?? typeName,
+            createParameters,
             runtimeType.FullName ?? runtimeType.Name,
             autoIncrementable,
-            true,
+            bestMatch,
             caseSensitive,
             fixedLength,
             maximumScale != 0,
@@ -627,7 +807,9 @@ public sealed class SndbConnection : DbConnection
             maximumScale,
             (short)0,
             literalPrefix,
-            literalSuffix);
+            literalSuffix,
+            supportsRelationalColumn,
+            supportsMeasurementField);
     }
 
     private static string NormalizeVersion(string version)
@@ -637,13 +819,25 @@ public sealed class SndbConnection : DbConnection
         return "1.0.0";
     }
 
-    private IReadOnlyList<TableSchema> SnapshotTables()
+    private ConnectionSchemaSnapshot SnapshotSchema()
     {
         if (_impl is null || _impl.State != ConnectionState.Open)
-            return Array.Empty<TableSchema>();
+            return ConnectionSchemaSnapshot.Empty;
 
-        return _impl.SnapshotTables();
+        return _impl switch
+        {
+            EmbeddedConnectionImpl embedded => embedded.SnapshotSchema(),
+            RemoteConnectionImpl remote => remote.SnapshotSchema(),
+            _ => new ConnectionSchemaSnapshot(_impl.SnapshotTables(), [], []),
+        };
     }
+
+    private IReadOnlyList<TableSchema> SnapshotTables()
+        => SnapshotSchema().Tables;
+
+    private static bool IsDocumentCollectionsCollection(string collectionName)
+        => string.Equals(collectionName, DocumentCollectionsCollectionName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(collectionName, "Documents", StringComparison.OrdinalIgnoreCase);
 
     private static string? Restriction(string?[]? restrictionValues, int index)
         => restrictionValues is not null && restrictionValues.Length > index
@@ -661,6 +855,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.Boolean => "BOOL",
         TableColumnType.String => "STRING",
         TableColumnType.DateTime => "DATETIME",
+        TableColumnType.Time => "TIME",
         TableColumnType.Blob => "BLOB",
         TableColumnType.Json => "JSON",
         _ => type.ToString().ToUpperInvariant(),
@@ -671,13 +866,21 @@ public sealed class SndbConnection : DbConnection
             ? int.MaxValue
             : -1;
 
-    private static short GetNumericPrecision(TableColumnType type) => type switch
+    private static short GetNumericPrecision(TableColumn column) => column.DataType switch
     {
         TableColumnType.Int64 => 19,
         TableColumnType.Float64 => 15,
+        TableColumnType.Decimal => column.DecimalPrecision,
+        TableColumnType.Time => 7,
         _ => 0,
     };
 
-    private static short GetNumericScale(TableColumnType type)
-        => type == TableColumnType.Float64 ? (short)15 : (short)0;
+    private static short GetNumericScale(TableColumn column)
+        => column.DataType switch
+        {
+            TableColumnType.Float64 => 15,
+            TableColumnType.Decimal => column.DecimalScale,
+            TableColumnType.Time => 7,
+            _ => 0,
+        };
 }

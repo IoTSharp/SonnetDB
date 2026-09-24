@@ -25,4 +25,10 @@ public enum TableColumnType : byte
 
     /// <summary>JSON 文本。</summary>
     Json = 7,
+
+    /// <summary>固定精度十进制数，使用 System.Decimal 精确保存。</summary>
+    Decimal = 8,
+
+    /// <summary>仅时间值，使用 TimeOnly ticks 精确保存。</summary>
+    Time = 9,
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
@@ -686,5 +687,146 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.Equal("operations", remoteError.ParamName);
         Assert.Contains("不能为空", embeddedError.Message, StringComparison.Ordinal);
         Assert.Contains("不能为空", remoteError.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DocumentClient_EmbeddedCancellation_IsObservedBeforeMutation()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            client.CreateCollectionAsync("devices", cancellationToken: cancellation.Token));
+
+        Assert.Equal("created", await client.CreateCollectionAsync("devices"));
+    }
+
+    [Fact]
+    public async Task DocumentClient_RemoteBatchTooLarge_PreservesStableItemErrorAndId()
+    {
+        using var handler = new StubHandler((request, _) =>
+        {
+            Assert.Equal("v1/db/test-db/documents/devices/insert-many", request.RequestUri!.AbsolutePath.TrimStart('/'));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.RequestEntityTooLarge)
+            {
+                Content = new StringContent(
+                    "{\"collection\":\"devices\",\"inserted\":0,\"matched\":0,\"modified\":0,\"deleted\":0,\"errors\":[{\"index\":1,\"id\":\"bad\",\"code\":\"batch_too_large\",\"message\":\"too large\"}]}",
+                    System.Text.Encoding.UTF8,
+                    "application/json"),
+            });
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = "http://localhost/test-db",
+            Protocol = SndbTransportProtocol.Rest,
+        }.ConnectionString, http);
+
+        var result = await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("first", "{\"value\":1}"),
+            new KeyValuePair<string, string>("bad", "{\"value\":2}"),
+        ]);
+
+        var error = Assert.Single(result.Errors!);
+        Assert.Equal(SndbDocumentWriteErrorCodes.BatchTooLarge, error.Code);
+        Assert.Equal(1, error.Index);
+        Assert.Equal("bad", error.Id);
+        Assert.True(result.HasErrors);
+    }
+
+    [Fact]
+    public async Task DocumentClient_RemoteResponseTargetMismatch_IsRejected()
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"collection\":\"other\",\"inserted\":1,\"matched\":0,\"modified\":0,\"deleted\":0}",
+                System.Text.Encoding.UTF8,
+                "application/json"),
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = "http://localhost/test-db",
+            Protocol = SndbTransportProtocol.Rest,
+        }.ConnectionString, http);
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            client.InsertOneAsync("devices", "dev-1", "{\"value\":1}"));
+        Assert.Contains("target mismatch", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AggregateAsync_WithPreCanceledToken_DoesNotOpenCollectionOrSendRequest(bool remote)
+    {
+        int requests = 0;
+        using var http = new HttpClient(new StubHandler((_, _) =>
+        {
+            requests++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }));
+        using var client = remote
+            ? new SndbDocumentClient("Data Source=http://localhost/test-db;Protocol=Rest", http)
+            : new SndbDocumentClient(new SndbConnectionStringBuilder { DataSource = _root }.ConnectionString);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.AggregateAsync(
+            "missing", [new SndbDocumentAggregateStage(Limit: 1)], cancellation.Token));
+
+        Assert.Equal(0, requests);
+    }
+
+    [Fact]
+    public async Task DropCollectionAsync_CancellationDuringErrorBodyRead_PropagatesCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var body = new CancelingReadStream(cancellation);
+        using var http = new HttpClient(new StubHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StreamContent(body) })));
+        using var client = new SndbDocumentClient("Data Source=http://localhost/test-db;Protocol=Rest", http);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.DropCollectionAsync("devices", cancellation.Token));
+
+        Assert.True(body.ReadStarted);
+        Assert.True(cancellation.IsCancellationRequested);
+    }
+
+    private sealed class CancelingReadStream(CancellationTokenSource cancellation) : Stream
+    {
+        public bool ReadStarted { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ReadStarted = true;
+            cancellation.Cancel();
+            return ValueTask.FromCanceled<int>(cancellationToken);
+        }
+    }
+
+    private sealed class StubHandler(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+            => responder(request, cancellationToken);
     }
 }

@@ -102,12 +102,24 @@ internal static class SqlEndpointHandler
     {
         ArgumentNullException.ThrowIfNull(controlPlane);
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
+        var resultBounds = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
 
         metrics.RecordSqlRequest();
         var sw = Stopwatch.StartNew();
+
+        int? previewMaxRows;
+        try
+        {
+            previewMaxRows = ResolvePreviewMaxRows(request, resultBounds);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            await WriteErrorAsync(context, "bad_request", ex.Message).ConfigureAwait(false);
+            return;
+        }
 
         SqlStatement parsed;
         try
@@ -118,7 +130,7 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
             return;
         }
 
@@ -153,11 +165,11 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "bind").ConfigureAwait(false);
             return;
         }
 
-        object result;
+        object? result;
         try
         {
             result = SqlExecutor.ExecuteControlPlaneStatement(executable, controlPlane);
@@ -173,16 +185,17 @@ internal static class SqlEndpointHandler
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            await WriteSqlErrorAsync(context, "sql_error", ex, "execute").ConfigureAwait(false);
             return;
         }
 
+        result = SqlResultBounds.Apply(result, previewMaxRows);
         if (result is SelectExecutionResult sel)
         {
             long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
             metrics.AddReturnedRows(rowCount);
             var elapsed = sw.Elapsed.TotalMilliseconds;
-            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed, sel.Truncated).ConfigureAwait(false);
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, elapsed, rowCount, -1, failed: false);
         }
         else
@@ -232,7 +245,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         queueWaitMs: queueWaitMs);
-                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
                     return;
                 }
 
@@ -272,6 +285,7 @@ internal static class SqlEndpointHandler
                 SqlExecutionMetricsSnapshot? executionSnapshot = null;
                 try
                 {
+                    int? previewMaxRows = ResolvePreviewMaxRows(stmt, routineOptions);
                     executable = BindParameters(parsed, stmt);
 
                     if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
@@ -321,6 +335,7 @@ internal static class SqlEndpointHandler
                                 Metrics = executionMetrics,
                             }),
                     };
+                    result = SqlResultBounds.Apply(result, previewMaxRows);
                     executionSnapshot = executionMetrics?.Complete();
                     if (result is SqlTransactionContext started)
                         transaction = started;
@@ -334,7 +349,7 @@ internal static class SqlEndpointHandler
                                 long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
                                 metrics.AddReturnedRows(rowCount);
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed, sel.Truncated).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -357,7 +372,8 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(rowCount);
                                 }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed,
+                                    ins.Returning?.Truncated ?? false).ConfigureAwait(false);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
@@ -372,9 +388,16 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                long rowCount = 0;
+                                if (del.Returning is { } returning)
+                                {
+                                    rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false,
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: del.TombstonesAdded, elapsed,
+                                    del.Returning?.Truncated ?? false).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, del.TombstonesAdded, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
                             }
@@ -388,9 +411,16 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                long rowCount = 0;
+                                if (affected.Returning is { } returning)
+                                {
+                                    rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
-                                await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false,
+                                await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: affected.RowsAffected, elapsed,
+                                    affected.Returning?.Truncated ?? false).ConfigureAwait(false);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, affected.RowsAffected, failed: false,
                                     executionSnapshot, queueWaitMs);
                                 break;
                             }
@@ -427,7 +457,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, ex.ErrorCode, ex, "execute").ConfigureAwait(false);
                     return;
                 }
                 catch (RoutineExecutionException ex)
@@ -435,7 +465,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, ex.Code, ex, "execute").ConfigureAwait(false);
                     return;
                 }
                 catch (ModbusWriteException ex)
@@ -451,7 +481,7 @@ internal static class SqlEndpointHandler
                     metrics.RecordSqlError();
                     RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
-                    await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+                    await WriteSqlErrorAsync(context, "sql_error", ex, "execute").ConfigureAwait(false);
                     return;
                 }
             }
@@ -467,6 +497,14 @@ internal static class SqlEndpointHandler
             if (transaction is { IsCompleted: false })
                 SqlExecutor.ExecuteStatement(tsdb, databaseName, new RollbackTransactionStatement(), null, transaction);
         }
+    }
+
+    private static int? ResolvePreviewMaxRows(SqlRequest request, SqlExecutionResourceOptions options)
+    {
+        if (request.PreviewMaxRows is not { } requested)
+            return null;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requested);
+        return Math.Min(requested, options.MaxResultRows);
     }
 
     private static SqlStatement BindParameters(SqlStatement statement, SqlRequest request)
@@ -514,6 +552,7 @@ internal static class SqlEndpointHandler
         long count = 0;
         for (int r = 0; r < result.Rows.Count; r++)
         {
+            context.RequestAborted.ThrowIfCancellationRequested();
             await using (var rowWriter = new Utf8JsonWriter(body, options))
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r]);
@@ -525,10 +564,16 @@ internal static class SqlEndpointHandler
         return count;
     }
 
-    private static async Task WriteEndAsync(HttpContext context, JsonWriterOptions options, long rowCount, int recordsAffected, double elapsedMs)
+    private static async Task WriteEndAsync(
+        HttpContext context,
+        JsonWriterOptions options,
+        long rowCount,
+        int recordsAffected,
+        double elapsedMs,
+        bool truncated = false)
     {
         var body = context.Response.BodyWriter;
-        var end = new ResultEnd("end", rowCount, recordsAffected, elapsedMs);
+        var end = new ResultEnd("end", rowCount, recordsAffected, elapsedMs) { Truncated = truncated };
         await using (var w = new Utf8JsonWriter(body, options))
         {
             JsonSerializer.Serialize(w, end, ServerJsonContext.Default.ResultEnd);
@@ -537,7 +582,21 @@ internal static class SqlEndpointHandler
         await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
-    private static async Task WriteErrorAsync(HttpContext context, string code, string message)
+    private static Task WriteSqlErrorAsync(
+        HttpContext context,
+        string transportCode,
+        Exception exception,
+        string operation)
+    {
+        SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
+        return WriteErrorAsync(context, transportCode, detail.Message, detail);
+    }
+
+    private static async Task WriteErrorAsync(
+        HttpContext context,
+        string code,
+        string message,
+        SqlErrorInfo? sqlError = null)
     {
         // 若响应尚未开始：用 4xx 状态码
         if (!context.Response.HasStarted)
@@ -553,7 +612,12 @@ internal static class SqlEndpointHandler
                 _ => StatusCodes.Status400BadRequest,
             };
             context.Response.ContentType = "application/json; charset=utf-8";
-            var err = new ErrorResponse(code, message);
+            var err = new ErrorResponse(
+                code,
+                message,
+                sqlError?.Code,
+                sqlError?.Position,
+                sqlError?.Hint);
             await JsonSerializer.SerializeAsync(context.Response.Body, err, ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
             return;
         }
@@ -562,7 +626,10 @@ internal static class SqlEndpointHandler
         var body = context.Response.BodyWriter;
         await using (var w = new Utf8JsonWriter(body, new JsonWriterOptions { Indented = false }))
         {
-            JsonSerializer.Serialize(w, new ErrorResponse(code, message), ServerJsonContext.Default.ErrorResponse);
+            JsonSerializer.Serialize(
+                w,
+                new ErrorResponse(code, message, sqlError?.Code, sqlError?.Position, sqlError?.Hint),
+                ServerJsonContext.Default.ErrorResponse);
         }
         await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
         await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);

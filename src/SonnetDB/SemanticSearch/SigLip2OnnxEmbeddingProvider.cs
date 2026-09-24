@@ -1,9 +1,6 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.ML.Tokenizers;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 using SonnetDB.Configuration;
 
 namespace SonnetDB.SemanticSearch;
@@ -32,7 +29,7 @@ public sealed class SigLip2OnnxEmbeddingProvider : IMultimodalEmbeddingProvider,
         string? reason = ValidateConfiguration(options);
         Info = new MultimodalEmbeddingProviderInfo(
             "siglip2-onnx",
-            options.Profile,
+            $"{options.Profile}:{SemanticImageCodec.PreprocessingVersion}",
             options.Dimensions,
             reason is null,
             reason)
@@ -85,7 +82,7 @@ public sealed class SigLip2OnnxEmbeddingProvider : IMultimodalEmbeddingProvider,
 
         EnsureReady();
         cancellationToken.ThrowIfCancellationRequested();
-        float[] pixels = PreprocessImage(image.Span);
+        float[] pixels = SemanticImageCodec.Preprocess(image, _options.ImageSize, cancellationToken);
         var tensor = new DenseTensor<float>(pixels, [1, 3, _options.ImageSize, _options.ImageSize]);
         float[] embedding = RunEncoder(
             EnsureVisionSession(),
@@ -242,39 +239,6 @@ public sealed class SigLip2OnnxEmbeddingProvider : IMultimodalEmbeddingProvider,
         var output = outputs.FirstOrDefault(value => string.Equals(value.Name, outputName, StringComparison.Ordinal))
             ?? throw new InvalidDataException($"ONNX 推理结果缺少输出 tensor '{outputName}'。");
         return output.AsEnumerable<float>().ToArray();
-    }
-
-    private float[] PreprocessImage(ReadOnlySpan<byte> encodedImage)
-    {
-        using Image<Rgb24> image = Image.Load<Rgb24>(encodedImage);
-        image.Mutate(operation => operation
-            .AutoOrient()
-            .Resize(new ResizeOptions
-            {
-                Size = new Size(_options.ImageSize, _options.ImageSize),
-                Mode = ResizeMode.Stretch,
-                Sampler = KnownResamplers.Triangle,
-            }));
-
-        int planeSize = checked(_options.ImageSize * _options.ImageSize);
-        var pixels = new float[checked(planeSize * 3)];
-        image.ProcessPixelRows(accessor =>
-        {
-            for (int y = 0; y < accessor.Height; y++)
-            {
-                Span<Rgb24> row = accessor.GetRowSpan(y);
-                for (int x = 0; x < row.Length; x++)
-                {
-                    int offset = y * _options.ImageSize + x;
-                    Rgb24 pixel = row[x];
-                    // SigLIP2 配置 mean/std 均为 0.5，等价于把 [0,255] 映射到 [-1,1]。
-                    pixels[offset] = pixel.R / 127.5f - 1f;
-                    pixels[planeSize + offset] = pixel.G / 127.5f - 1f;
-                    pixels[planeSize * 2 + offset] = pixel.B / 127.5f - 1f;
-                }
-            }
-        });
-        return pixels;
     }
 
     private float[] NormalizeAndValidate(float[] embedding)

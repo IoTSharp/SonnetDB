@@ -235,5 +235,7 @@ internal static partial class SonnetDbEndpoints
                 stats.NearestExpiresAtUtc);
             await Results.Json(response, ServerJsonContext.Default.KvStatsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
+
+        MapKvDiagnosticsEndpoints(app, registry, grants);
     }
 }

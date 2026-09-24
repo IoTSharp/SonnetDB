@@ -58,6 +58,63 @@ public sealed class SonnetMqStoreTests : IDisposable
     }
 
     [Fact]
+    public void Publish_WithDuplicateMessageId_ReturnsOriginalOffsetWithoutAppending()
+    {
+        using var store = SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = _root,
+            MessageIdDeduplicationWindow = 8,
+            RetentionInterval = TimeSpan.Zero,
+        });
+
+        var headers = new Dictionary<string, string> { ["message-id"] = "evt-1" };
+        Assert.Equal(0, store.Publish("events", "first"u8, new SonnetMqPublishOptions(headers)));
+        Assert.Equal(0, store.Publish("events", "duplicate"u8, new SonnetMqPublishOptions(headers)));
+
+        var message = Assert.Single(store.Pull("events", 0, 10));
+        Assert.Equal("first", Encoding.UTF8.GetString(message.Payload));
+        Assert.Equal(1, store.GetStats("events").NextOffset);
+    }
+
+    [Fact]
+    public void Publish_DuplicateMessageId_ReusesOffsetAfterReopen()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            MessageIdDeduplicationWindow = 8,
+            RetentionInterval = TimeSpan.Zero,
+        };
+        var headers = new Dictionary<string, string> { ["message-id"] = "evt-1" };
+        using (var store = SonnetMqStore.Open(options))
+            Assert.Equal(0, store.Publish("events", "first"u8, new SonnetMqPublishOptions(headers)));
+
+        using var reopened = SonnetMqStore.Open(options);
+        Assert.Equal(0, reopened.Publish("events", "duplicate"u8, new SonnetMqPublishOptions(headers)));
+        Assert.Equal(1, reopened.GetStats("events").NextOffset);
+    }
+
+    [Fact]
+    public void Publish_MessageIdOutsideWindow_AppendsNewMessage()
+    {
+        using var store = SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = _root,
+            MessageIdDeduplicationWindow = 1,
+            RetentionInterval = TimeSpan.Zero,
+        });
+
+        Assert.Equal(0, store.Publish("events", "first"u8, new SonnetMqPublishOptions(
+            new Dictionary<string, string> { ["message-id"] = "evt-1" })));
+        Assert.Equal(1, store.Publish("events", "second"u8, new SonnetMqPublishOptions(
+            new Dictionary<string, string> { ["message-id"] = "evt-2" })));
+        Assert.Equal(2, store.Publish("events", "reused"u8, new SonnetMqPublishOptions(
+            new Dictionary<string, string> { ["message-id"] = "evt-1" })));
+
+        Assert.Equal(3, store.GetStats("events").NextOffset);
+    }
+
+    [Fact]
     public void Pull_FromOffset_ReturnsMessagesAtOrAfterOffset()
     {
         using var store = Open(offsetIndexStride: 2);

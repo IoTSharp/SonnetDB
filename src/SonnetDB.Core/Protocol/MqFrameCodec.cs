@@ -6,7 +6,7 @@ using SonnetMQ;
 namespace SonnetDB.Protocol;
 
 /// <summary>
-/// MQ service（<see cref="FrameService.Mq"/>）四个 opcode 的帧体编解码。
+/// MQ service（<see cref="FrameService.Mq"/>）各 opcode 的帧体编解码。
 /// 解码结果中的字节字段是输入缓冲上的零拷贝视图，仅在缓冲存活期内有效
 /// （服务端在 PipeReader AdvanceTo 之前处理完毕；store 的 Publish 内部自行拷贝）。
 /// </summary>
@@ -392,6 +392,150 @@ public static class MqFrameCodec
     public static long DecodeAckResponse(ReadOnlySpan<byte> payload)
         => DecodeVarUInt64Response(payload);
 
+    // ────────────────────────────── nack (op=7) ──────────────────────────────
+
+    /// <summary>编码 nack 请求帧：db, topic, consumerGroup, offset, reason。</summary>
+    public static void EncodeNackRequest(
+        IBufferWriter<byte> writer,
+        uint streamId,
+        string db,
+        string topic,
+        string consumerGroup,
+        long offset,
+        string? reason)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        int payloadLength = SpanWriter.MeasureVarString(db)
+            + SpanWriter.MeasureVarString(topic)
+            + SpanWriter.MeasureVarString(consumerGroup)
+            + SpanWriter.MeasureVarUInt64((ulong)offset)
+            + SpanWriter.MeasureVarString(reason ?? string.Empty);
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.Nack, (byte)FrameFlags.None, streamId),
+            payloadLength,
+            (ref SpanWriter meta) =>
+            {
+                meta.WriteVarString(db);
+                meta.WriteVarString(topic);
+                meta.WriteVarString(consumerGroup);
+                meta.WriteVarUInt64((ulong)offset);
+                meta.WriteVarString(reason ?? string.Empty);
+            });
+    }
+
+    /// <summary>解码 nack 请求帧。</summary>
+    public static MqNackFrameRequest DecodeNackRequest(ReadOnlyMemory<byte> payload)
+    {
+        var reader = new SpanReader(payload.Span);
+        string db = ReadName(ref reader, "db");
+        string topic = ReadName(ref reader, "topic");
+        string consumerGroup = ReadName(ref reader, "consumerGroup");
+        long offset = ReadOffset(ref reader);
+        string reason = ReadBoundedString(ref reader, 4096, "reason");
+        return new MqNackFrameRequest(db, topic, consumerGroup, offset, string.IsNullOrEmpty(reason) ? null : reason);
+    }
+
+    /// <summary>编码 nack 响应帧。</summary>
+    public static void EncodeNackResponse(IBufferWriter<byte> writer, uint streamId, SonnetMqNackResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.NextOffset < 0 || result.DeliveryAttempt <= 0
+            || (result.DeadLettered && result.DeadLetterOffset is null or < 0))
+            throw new ArgumentException("nack 结果包含无效 offset 或投递次数。", nameof(result));
+        int payloadLength = SpanWriter.MeasureVarUInt64((ulong)result.NextOffset)
+            + SpanWriter.MeasureVarUInt32((uint)result.DeliveryAttempt)
+            + 1
+            + (result.DeadLettered ? SpanWriter.MeasureVarUInt64((ulong)result.DeadLetterOffset!.Value) : 0);
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.Nack, (byte)FrameFlags.Response, streamId),
+            payloadLength,
+            (ref SpanWriter meta) =>
+            {
+                meta.WriteVarUInt64((ulong)result.NextOffset);
+                meta.WriteVarUInt32((uint)result.DeliveryAttempt);
+                meta.WriteByte(result.DeadLettered ? (byte)1 : (byte)0);
+                if (result.DeadLettered)
+                    meta.WriteVarUInt64((ulong)result.DeadLetterOffset!.Value);
+            });
+    }
+
+    /// <summary>解码 nack 响应帧。</summary>
+    public static SonnetMqNackResult DecodeNackResponse(ReadOnlySpan<byte> payload)
+    {
+        var reader = new SpanReader(payload);
+        long nextOffset = ReadOffset(ref reader);
+        uint attempt = reader.ReadVarUInt32();
+        if (attempt == 0 || attempt > int.MaxValue)
+            throw new FrameFormatException("nack deliveryAttempt 非法。");
+        byte deadLettered = reader.ReadByte();
+        if (deadLettered > 1)
+            throw new FrameFormatException("nack deadLettered 标记非法。");
+        long? deadLetterOffset = deadLettered == 1 ? ReadOffset(ref reader) : null;
+        return new SonnetMqNackResult(nextOffset, (int)attempt, deadLettered == 1, deadLetterOffset);
+    }
+
+    // ────────────────────────────── offset reset (op=8) ──────────────────────────────
+
+    /// <summary>编码消费者组 offset 重置请求帧。</summary>
+    public static void EncodeOffsetResetRequest(
+        IBufferWriter<byte> writer,
+        uint streamId,
+        string db,
+        string topic,
+        string consumerGroup,
+        byte mode,
+        long value)
+    {
+        if (mode > (byte)SonnetMqOffsetResetMode.Explicit)
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        if (mode == (byte)SonnetMqOffsetResetMode.Time || mode == (byte)SonnetMqOffsetResetMode.Explicit)
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+        int payloadLength = SpanWriter.MeasureVarString(db)
+            + SpanWriter.MeasureVarString(topic)
+            + SpanWriter.MeasureVarString(consumerGroup)
+            + 1
+            + SpanWriter.MeasureVarUInt64((ulong)value);
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.OffsetReset, (byte)FrameFlags.None, streamId),
+            payloadLength,
+            (ref SpanWriter meta) =>
+            {
+                meta.WriteVarString(db);
+                meta.WriteVarString(topic);
+                meta.WriteVarString(consumerGroup);
+                meta.WriteByte(mode);
+                meta.WriteVarUInt64((ulong)value);
+            });
+    }
+
+    /// <summary>解码消费者组 offset 重置请求帧。</summary>
+    public static MqOffsetResetFrameRequest DecodeOffsetResetRequest(ReadOnlyMemory<byte> payload)
+    {
+        var reader = new SpanReader(payload.Span);
+        string db = ReadName(ref reader, "db");
+        string topic = ReadName(ref reader, "topic");
+        string consumerGroup = ReadName(ref reader, "consumerGroup");
+        byte mode = reader.ReadByte();
+        if (mode > (byte)SonnetMqOffsetResetMode.Explicit)
+            throw new FrameFormatException($"offset reset mode {mode} 非法。");
+        long value = ReadOffset(ref reader);
+        return new MqOffsetResetFrameRequest(db, topic, consumerGroup, (SonnetMqOffsetResetMode)mode, value);
+    }
+
+    /// <summary>编码 offset reset 响应帧。</summary>
+    public static void EncodeOffsetResetResponse(IBufferWriter<byte> writer, uint streamId, long nextOffset)
+        => EncodeVarUInt64Response(writer, (byte)MqFrameOp.OffsetReset, streamId, (ulong)nextOffset);
+
+    /// <summary>解码 offset reset 响应帧。</summary>
+    public static long DecodeOffsetResetResponse(ReadOnlySpan<byte> payload)
+        => DecodeVarUInt64Response(payload);
+
     // ────────────────────────────── subscribe (op=5) ──────────────────────────────
 
     /// <summary>
@@ -657,6 +801,22 @@ public readonly record struct MqAckFrameRequest(
     string Topic,
     string ConsumerGroup,
     long Offset);
+
+/// <summary>nack 请求帧解码结果。</summary>
+public readonly record struct MqNackFrameRequest(
+    string Db,
+    string Topic,
+    string ConsumerGroup,
+    long Offset,
+    string? Reason);
+
+/// <summary>offset reset 请求帧解码结果。</summary>
+public readonly record struct MqOffsetResetFrameRequest(
+    string Db,
+    string Topic,
+    string ConsumerGroup,
+    SonnetMqOffsetResetMode Mode,
+    long Value);
 
 /// <summary>订阅起始位点模式（#236）。</summary>
 public enum MqSubscribeStartMode : byte

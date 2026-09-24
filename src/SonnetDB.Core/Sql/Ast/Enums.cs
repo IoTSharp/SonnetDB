@@ -38,6 +38,8 @@ public enum SqlDataType
 {
     /// <summary>64 位双精度浮点。</summary>
     Float64,
+    /// <summary>固定精度十进制数；关系表使用 System.Decimal 精确保存。</summary>
+    Decimal,
     /// <summary>64 位有符号整数。</summary>
     Int64,
     /// <summary>布尔值。</summary>
@@ -54,6 +56,8 @@ public enum SqlDataType
     Blob,
     /// <summary>JSON 文本；关系表 MVP 中以字符串形式存储和返回。</summary>
     Json,
+    /// <summary>仅时间值；关系表中按 TimeOnly ticks 持久化，不包含日期或时区。</summary>
+    Time,
 }
 
 /// <summary>SQL 层支持的二元运算符。</summary>
@@ -93,6 +97,10 @@ public enum SqlBinaryOperator
     Divide,
     /// <summary>取模。</summary>
     Modulo,
+    /// <summary>整数按位与；任一操作数为 NULL 时返回 NULL。</summary>
+    BitwiseAnd,
+    /// <summary>整数按位或；任一操作数为 NULL 时返回 NULL。</summary>
+    BitwiseOr,
 }
 
 /// <summary>SQL 层支持的一元运算符。</summary>

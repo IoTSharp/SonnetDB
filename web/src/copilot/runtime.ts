@@ -52,6 +52,93 @@ export interface CopilotRuntimeRunOptions {
   runId?: string;
 }
 
+export type CopilotPendingRunMode = 'read-only' | 'read-write';
+export type CopilotPendingRunCloudMode =
+  | 'sql_assist'
+  | 'sql_analyze'
+  | 'db_maintenance'
+  | 'knowledge_qa';
+
+/**
+ * Non-secret state needed to replay a completed ServerRelay run after a page
+ * refresh. Message bodies, credentials and tool results are deliberately not
+ * persisted here; the conversation is reloaded from the authenticated server.
+ */
+export interface CopilotPendingServerRelayRun {
+  version: 1;
+  runId: string;
+  sessionId: string;
+  database: string;
+  requestFingerprint: string;
+  mode: CopilotPendingRunMode;
+  cloudMode: CopilotPendingRunCloudMode;
+  model?: string;
+  createdAtUtc: string;
+}
+
+export interface CopilotPendingRunStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export const CopilotPendingServerRelayRunStorageKey = 'sndb.copilot.pending-server-relay.v1';
+
+/** Calculate a stable SHA-256 fingerprint without retaining the request body. */
+export async function createCopilotRequestFingerprint(value: unknown): Promise<string | null> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return null;
+
+  const bytes = new TextEncoder().encode(stableStringify(value));
+  const digest = await subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((item) => item.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function savePendingServerRelayRun(
+  pending: CopilotPendingServerRelayRun,
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): boolean {
+  if (!isValidPendingServerRelayRun(pending) || !storage) return false;
+  try {
+    storage.setItem(CopilotPendingServerRelayRunStorageKey, JSON.stringify(pending));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadPendingServerRelayRun(
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): CopilotPendingServerRelayRun | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(CopilotPendingServerRelayRunStorageKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isValidPendingServerRelayRun(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingServerRelayRun(
+  expectedRunId?: string,
+  storage: CopilotPendingRunStorage | undefined = getSessionStorage(),
+): void {
+  if (!storage) return;
+  try {
+    if (expectedRunId) {
+      const pending = loadPendingServerRelayRun(storage);
+      if (pending && pending.runId !== expectedRunId) return;
+    }
+    storage.removeItem(CopilotPendingServerRelayRunStorageKey);
+  } catch {
+    // Disabled or quota-exhausted storage cannot be used for resume.
+  }
+}
+
 export class CopilotRuntimeContractError extends Error {
   constructor(
     public readonly code: string,
@@ -160,7 +247,7 @@ export class CopilotRuntime<TRequest, TEvent extends CopilotEventPayload> {
     const signal = options.signal ?? new AbortController().signal;
     throwIfAborted(signal);
 
-    const runId = options.runId?.trim() || createRunId();
+    const runId = options.runId?.trim() || createCopilotRunId();
     const readiness = await transport.probeReadiness(signal);
     throwIfAborted(signal);
     assertCopilotRuntimeReadiness(this.mode, readiness);
@@ -414,88 +501,138 @@ function replayJsonFingerprint(value: unknown): ReplayJsonFingerprint {
   }
 
   try {
-    return ['json', new JsonReplayCanonicalizer(value).canonicalize()];
-  } catch {
+    return ['json', canonicalizeCopilotJson(value)];
+  } catch (error) {
+    if (error instanceof CopilotRuntimeContractError) throw error;
     // The server accepts byte-identical non-JSON payload replays before attempting
     // semantic JSON comparison. Keep the same exact, fail-closed fallback here.
     return ['text', value];
   }
 }
 
+type CanonicalJson =
+  | readonly ['null']
+  | readonly ['boolean', boolean]
+  | readonly ['string' | 'number', string]
+  | readonly ['array', CanonicalJson[]]
+  | readonly ['object', Array<readonly [string, CanonicalJson]>];
+
+const MaximumReplayJsonDepth = 64;
+const MaximumReplayJsonNodes = 16_384;
+const MaximumReplayJsonCharacters = 1024 * 1024;
+const MaximumCanonicalMilliseconds = 5_000;
+
+/** Bounded, precise JSON fingerprint preserving duplicate-key order and decimal numbers. */
+export function canonicalizeCopilotJson(value: string, limits: {
+  maximumDepth?: number;
+  maximumNodes?: number;
+  maximumCharacters?: number;
+} = {}): string {
+  const maximumDepth = limits.maximumDepth ?? MaximumReplayJsonDepth;
+  const maximumNodes = limits.maximumNodes ?? MaximumReplayJsonNodes;
+  const maximumCharacters = limits.maximumCharacters ?? MaximumReplayJsonCharacters;
+  if (!Number.isSafeInteger(maximumDepth) || maximumDepth < 1 || maximumDepth > MaximumReplayJsonDepth
+    || !Number.isSafeInteger(maximumNodes) || maximumNodes < 1 || maximumNodes > MaximumReplayJsonNodes
+    || !Number.isSafeInteger(maximumCharacters) || maximumCharacters < 1 || maximumCharacters > MaximumReplayJsonCharacters) {
+    throw contractError('runtime_json_budget_invalid', 'Copilot JSON 预算无效。');
+  }
+  return new JsonReplayCanonicalizer(value, maximumDepth, maximumNodes, maximumCharacters).canonicalize();
+}
+
 class JsonReplayCanonicalizer {
   private offset = 0;
+  private nodes = 0;
+  private readonly deadline = performance.now() + MaximumCanonicalMilliseconds;
 
-  constructor(private readonly input: string) {}
+  constructor(
+    private readonly input: string,
+    private readonly maximumDepth: number,
+    private readonly maximumNodes: number,
+    private readonly maximumCharacters: number,
+  ) {}
 
   canonicalize(): string {
+    if (this.input.length > this.maximumCharacters) this.rejectBudget();
+    this.checkDeadline();
     this.skipWhitespace();
-    const value = this.parseValue();
+    const value = this.parseValue(0);
     this.skipWhitespace();
     if (this.offset !== this.input.length) throw new Error('Trailing JSON content.');
-    return value;
+    // Serialize once. Repeatedly serializing a serialized child causes
+    // exponentially repeated escaping for a small deeply nested input.
+    const canonical = JSON.stringify(value);
+    this.checkDeadline();
+    return canonical;
   }
 
-  private parseValue(): string {
+  private parseValue(depth: number): CanonicalJson {
+    this.nodes += 1;
+    if (depth > this.maximumDepth || this.nodes > this.maximumNodes) this.rejectBudget();
+    this.checkDeadline();
     const token = this.input[this.offset];
-    if (token === '{') return this.parseObject();
-    if (token === '[') return this.parseArray();
-    if (token === '"') return JSON.stringify(['string', this.parseString()]);
+    if (token === '{') return this.parseObject(depth);
+    if (token === '[') return this.parseArray(depth);
+    if (token === '"') return ['string', this.parseString()];
     if (token === 't') return this.parseLiteral('true', ['boolean', true]);
     if (token === 'f') return this.parseLiteral('false', ['boolean', false]);
     if (token === 'n') return this.parseLiteral('null', ['null']);
     if (token === '-' || (token !== undefined && token >= '0' && token <= '9')) {
-      return JSON.stringify(['number', this.parseNumber()]);
+      return ['number', this.parseNumber()];
     }
     throw new Error('Invalid JSON value.');
   }
 
-  private parseObject(): string {
+  private parseObject(depth: number): CanonicalJson {
     this.offset += 1;
     this.skipWhitespace();
-    const entries: Array<{ key: string; value: string; ordinal: number }> = [];
-    if (this.consume('}')) return JSON.stringify(['object', []]);
+    const entries: Array<{ key: string; value: CanonicalJson; ordinal: number }> = [];
+    if (this.consume('}')) return ['object', []];
 
-    while (true) {
+    for (let property = 0; property < this.maximumNodes; property += 1) {
       if (this.input[this.offset] !== '"') throw new Error('Invalid JSON property name.');
       const key = this.parseString();
       this.skipWhitespace();
       this.expect(':');
       this.skipWhitespace();
-      entries.push({ key, value: this.parseValue(), ordinal: entries.length });
+      entries.push({ key, value: this.parseValue(depth + 1), ordinal: entries.length });
       this.skipWhitespace();
-      if (this.consume('}')) break;
+      if (this.consume('}')) {
+        entries.sort((left, right) => {
+          if (left.key < right.key) return -1;
+          if (left.key > right.key) return 1;
+          return left.ordinal - right.ordinal;
+        });
+        return ['object', entries.map(({ key, value }) => [key, value] as const)];
+      }
       this.expect(',');
       this.skipWhitespace();
     }
 
-    entries.sort((left, right) => {
-      if (left.key < right.key) return -1;
-      if (left.key > right.key) return 1;
-      return left.ordinal - right.ordinal;
-    });
-    return JSON.stringify(['object', entries.map(({ key, value }) => [key, value])]);
+    return this.rejectBudget();
   }
 
-  private parseArray(): string {
+  private parseArray(depth: number): CanonicalJson {
     this.offset += 1;
     this.skipWhitespace();
-    const items: string[] = [];
-    if (this.consume(']')) return JSON.stringify(['array', items]);
+    const items: CanonicalJson[] = [];
+    if (this.consume(']')) return ['array', items];
 
-    while (true) {
-      items.push(this.parseValue());
+    for (let index = 0; index < this.maximumNodes; index += 1) {
+      items.push(this.parseValue(depth + 1));
       this.skipWhitespace();
-      if (this.consume(']')) break;
+      if (this.consume(']')) return ['array', items];
       this.expect(',');
       this.skipWhitespace();
     }
-    return JSON.stringify(['array', items]);
+    return this.rejectBudget();
   }
 
   private parseString(): string {
     const start = this.offset;
     this.offset += 1;
+    let scanned = 0;
     while (this.offset < this.input.length) {
+      if ((scanned++ & 255) === 0) this.checkDeadline();
       const code = this.input.charCodeAt(this.offset);
       if (code < 0x20) throw new Error('Invalid JSON string.');
       if (code === 0x22) {
@@ -512,29 +649,44 @@ class JsonReplayCanonicalizer {
   private parseNumber(): string {
     const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?/u
       .exec(this.input.slice(this.offset));
+    this.checkDeadline();
     if (!match) throw new Error('Invalid JSON number.');
     this.offset += match[0].length;
 
     const fraction = match[3] ?? '';
     let digits = `${match[2]}${fraction}`.replace(/^0+/u, '');
+    if ((match[4]?.length ?? 0) > 512) this.rejectBudget();
     if (!digits) return '0e0';
 
     let exponent = BigInt(match[4] ?? '0') - BigInt(fraction.length);
-    while (digits.endsWith('0')) {
-      digits = digits.slice(0, -1);
-      exponent += 1n;
+    let significantEnd = digits.length;
+    for (let scanned = 0; scanned < digits.length; scanned += 1) {
+      if ((scanned & 255) === 0) this.checkDeadline();
+      if (digits.charCodeAt(significantEnd - 1) !== 0x30) break;
+      significantEnd -= 1;
     }
+    exponent += BigInt(digits.length - significantEnd);
+    digits = digits.slice(0, significantEnd);
     return `${match[1]}${digits}e${exponent.toString()}`;
   }
 
-  private parseLiteral(literal: string, canonical: readonly unknown[]): string {
+  private parseLiteral(literal: string, canonical: CanonicalJson): CanonicalJson {
     if (!this.input.startsWith(literal, this.offset)) throw new Error('Invalid JSON literal.');
     this.offset += literal.length;
-    return JSON.stringify(canonical);
+    return canonical;
+  }
+
+  private rejectBudget(): never {
+    throw contractError('runtime_tool_payload_budget_exceeded', 'Copilot 工具 JSON 超过深度、节点、文本或处理时间预算。');
+  }
+
+  private checkDeadline(): void {
+    if (performance.now() > this.deadline) this.rejectBudget();
   }
 
   private skipWhitespace(): void {
     while (this.offset < this.input.length) {
+      if ((this.offset & 255) === 0) this.checkDeadline();
       const code = this.input.charCodeAt(this.offset);
       if (code !== 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) return;
       this.offset += 1;
@@ -553,22 +705,80 @@ class JsonReplayCanonicalizer {
 }
 
 function stableStringify(value: unknown): string {
-  return JSON.stringify(sortJsonValue(value));
+  const budget = {
+    remaining: MaximumReplayJsonNodes, deadline: performance.now() + MaximumCanonicalMilliseconds,
+  };
+  const fingerprint = JSON.stringify(sortJsonValue(value, 0, budget));
+  if (performance.now() > budget.deadline) {
+    throw contractError('runtime_event_budget_exceeded', 'Copilot 事件超过处理时间预算。');
+  }
+  return fingerprint;
 }
 
-function sortJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJsonValue);
+function isValidPendingServerRelayRun(value: unknown): value is CopilotPendingServerRelayRun {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<CopilotPendingServerRelayRun>;
+  if (candidate.version !== 1
+    || !isBoundedIdentifier(candidate.runId, 128)
+    || !isBoundedIdentifier(candidate.sessionId, 128)
+    || typeof candidate.database !== 'string'
+    || candidate.database.length > 128
+    || !/^[0-9a-f]{64}$/u.test(candidate.requestFingerprint ?? '')
+    || (candidate.mode !== 'read-only' && candidate.mode !== 'read-write')
+    || !isCloudMode(candidate.cloudMode)
+    || typeof candidate.createdAtUtc !== 'string'
+    || !Number.isFinite(Date.parse(candidate.createdAtUtc))) {
+    return false;
+  }
+  return candidate.model === undefined
+    || (typeof candidate.model === 'string' && candidate.model.length <= 256);
+}
+
+function isBoundedIdentifier(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= maxLength
+    && /^[A-Za-z0-9_-]+$/u.test(value);
+}
+
+function isCloudMode(value: unknown): value is CopilotPendingRunCloudMode {
+  return value === 'sql_assist'
+    || value === 'sql_analyze'
+    || value === 'db_maintenance'
+    || value === 'knowledge_qa';
+}
+
+function getSessionStorage(): CopilotPendingRunStorage | undefined {
+  if (typeof globalThis === 'undefined' || !('sessionStorage' in globalThis)) return undefined;
+  try {
+    return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function sortJsonValue(value: unknown, depth: number, budget: { remaining: number; deadline: number }): unknown {
+  budget.remaining -= 1;
+  if (depth > MaximumReplayJsonDepth || budget.remaining < 0 || performance.now() > budget.deadline) {
+    throw contractError('runtime_event_budget_exceeded', 'Copilot 事件超过深度、节点或处理时间预算。');
+  }
+  if (Array.isArray(value)) {
+    if (value.length > budget.remaining) {
+      throw contractError('runtime_event_budget_exceeded', 'Copilot 事件超过节点预算。');
+    }
+    return value.map((item) => sortJsonValue(item, depth + 1, budget));
+  }
   if (value === null || typeof value !== 'object') return value;
 
   const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length > budget.remaining) throw contractError('runtime_event_budget_exceeded', 'Copilot 事件超过节点预算。');
   return Object.fromEntries(
-    Object.keys(record)
-      .sort()
-      .map((key) => [key, sortJsonValue(record[key])]),
+    keys.sort().map((key) => [key, sortJsonValue(record[key], depth + 1, budget)]),
   );
 }
 
-function createRunId(): string {
+export function createCopilotRunId(): string {
   const id = globalThis.crypto?.randomUUID?.();
   if (id) return `run_${id.replaceAll('-', '')}`;
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;

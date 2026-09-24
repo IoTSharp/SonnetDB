@@ -71,6 +71,8 @@ internal static class TableRowCodec
         {
             TableColumnType.Int64 => 8,
             TableColumnType.Float64 => 8,
+            TableColumnType.Decimal => 16,
+            TableColumnType.Time => 8,
             TableColumnType.Boolean => 1,
             TableColumnType.DateTime => 8,
             TableColumnType.String or TableColumnType.Json => 4 + _utf8.GetByteCount((string)value),
@@ -87,6 +89,13 @@ internal static class TableRowCodec
                 return;
             case TableColumnType.Float64:
                 writer.WriteDouble(Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture));
+                return;
+            case TableColumnType.Decimal:
+                foreach (int part in decimal.GetBits(Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture)))
+                    writer.WriteInt32(part);
+                return;
+            case TableColumnType.Time:
+                writer.WriteInt64(ConvertTimeValue(value).Ticks);
                 return;
             case TableColumnType.Boolean:
                 writer.WriteByte((bool)value ? (byte)1 : (byte)0);
@@ -112,6 +121,8 @@ internal static class TableRowCodec
         {
             TableColumnType.Int64 => reader.ReadInt64(),
             TableColumnType.Float64 => reader.ReadDouble(),
+            TableColumnType.Decimal => ReadDecimal(ref reader),
+            TableColumnType.Time => TimeOnly.FromTimeSpan(TimeSpan.FromTicks(reader.ReadInt64())),
             TableColumnType.Boolean => reader.ReadByte() != 0,
             TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(reader.ReadInt64()).UtcDateTime,
             TableColumnType.String => ReadString(ref reader),
@@ -127,6 +138,23 @@ internal static class TableRowCodec
         writer.WriteInt32(byteCount);
         int written = _utf8.GetBytes(value, writer.FreeSpan);
         writer.Advance(written);
+    }
+
+    private static decimal ReadDecimal(ref SpanReader reader)
+    {
+        try
+        {
+            return new decimal([
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+            ]);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException("Table row: invalid decimal payload.", exception);
+        }
     }
 
     private static string ReadString(ref SpanReader reader)
@@ -162,5 +190,16 @@ internal static class TableRowCodec
             long ms => ms,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
         };
+    }
+
+    private static TimeOnly ConvertTimeValue(object value)
+    {
+        if (value is TimeOnly time)
+            return time;
+        if (value is TimeSpan span && span >= TimeSpan.Zero && span < TimeSpan.FromDays(1))
+            return TimeOnly.FromTimeSpan(span);
+        if (value is string text && TimeOnly.TryParse(text.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
+            return parsed;
+        throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 TIME。");
     }
 }

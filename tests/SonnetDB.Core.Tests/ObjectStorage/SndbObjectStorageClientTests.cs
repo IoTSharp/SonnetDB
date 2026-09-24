@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using SonnetDB.Data;
 using SonnetDB.Data.ObjectStorage;
 using SonnetDB.ObjectStorage;
 
@@ -10,6 +11,106 @@ public sealed class SndbObjectStorageClientTests
 {
     private const string ConnectionString =
         "Data Source=sonnetdb+http://object-client.test/testdb;Protocol=rest;Timeout=30";
+
+    /// <summary>
+    /// 验证远程条件读取传递 If-None-Match，并将 304 保留为显式状态而非缺失对象。
+    /// </summary>
+    [Fact]
+    public async Task OpenReadConditionalAsync_RemoteNotModified_ReturnsNotModified()
+    {
+        HttpRequestMessage? captured = null;
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            captured = request;
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
+        }));
+
+        var result = await client.OpenReadConditionalAsync(
+            "media",
+            "video.bin",
+            new SndbObjectReadCondition(IfNoneMatch: "\"etag\""));
+
+        Assert.Equal(SndbObjectConditionalReadStatus.NotModified, result.Status);
+        Assert.Null(result.Read);
+        Assert.Equal("\"etag\"", captured?.Headers.IfNoneMatch.Single().Tag);
+    }
+
+    /// <summary>
+    /// 验证远程条件写入可同时传递 If-Match 和非通配符 If-None-Match ETag 列表。
+    /// </summary>
+    [Fact]
+    public async Task PutObjectConditionalAsync_RemoteEtagList_TransmitsBothConditions()
+    {
+        HttpRequestMessage? captured = null;
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            captured = request;
+            return new HttpResponseMessage(HttpStatusCode.PreconditionFailed);
+        }));
+
+        await Assert.ThrowsAsync<SndbServerException>(() => client.PutObjectConditionalAsync(
+            "media",
+            "video.bin",
+            new MemoryStream([1]),
+            new SndbObjectWriteCondition("\"current\"") { IfNoneMatchEtags = "\"stale\", W/\"weak\"" }));
+
+        Assert.Equal("\"current\"", captured?.Headers.IfMatch.ToString());
+        Assert.Equal("\"stale\", W/\"weak\"", captured?.Headers.IfNoneMatch.ToString());
+    }
+
+    /// <summary>
+    /// 验证成功条件读取直接持有首个响应内容，避免再发起版本化内容读取。
+    /// </summary>
+    [Fact]
+    public async Task OpenReadConditionalAsync_RemoteSuccess_ReusesConditionalResponseContent()
+    {
+        var conditionalResponse = new TrackingResponseMessage(HttpStatusCode.OK);
+        conditionalResponse.Headers.TryAddWithoutValidation("x-amz-version-id", "version-1");
+        conditionalResponse.Content = new ByteArrayContent([1, 2, 3]);
+        int requestCount = 0;
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            requestCount++;
+            Assert.Equal(1, requestCount);
+            return conditionalResponse;
+        }));
+
+        var result = await client.OpenReadConditionalAsync(
+            "media",
+            "video.bin",
+            new SndbObjectReadCondition(IfMatch: "*"));
+
+        Assert.Equal(1, requestCount);
+        Assert.Equal(SndbObjectConditionalReadStatus.Success, result.Status);
+        var read = Assert.IsType<SndbObjectReadResult>(result.Read);
+        await using (read.Content)
+        {
+            using var actual = new MemoryStream();
+            await read.Content.CopyToAsync(actual);
+            Assert.Equal(new byte[] { 1, 2, 3 }, actual.ToArray());
+        }
+        Assert.True(conditionalResponse.IsDisposed);
+    }
+
+    /// <summary>
+    /// 验证条件读取无法创建内容流时释放首个 HTTP 响应。
+    /// </summary>
+    [Fact]
+    public async Task OpenReadConditionalAsync_ReadStreamCreationFailure_DisposesResponse()
+    {
+        var expected = new IOException("simulated conditional response stream failure");
+        var response = new TrackingResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ThrowingStreamContent(expected),
+        };
+        using var client = CreateClient(new StubHandler(_ => response));
+
+        IOException actual = await Assert.ThrowsAsync<IOException>(
+            () => client.OpenReadConditionalAsync("media", "video.bin", new SndbObjectReadCondition()));
+
+        Assert.Same(expected, actual);
+        Assert.True(response.IsDisposed);
+    }
 
     /// <summary>
     /// 验证 206 未声明 Content-Length 时使用 Content-Range 推导分段长度。

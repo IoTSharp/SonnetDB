@@ -51,6 +51,99 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void CreateTable_NamedForeignKey_EnforcesAndPersistsNameAcrossReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, """
+                CREATE TABLE devices (
+                    id INT,
+                    site_id INT,
+                    PRIMARY KEY (id),
+                    CONSTRAINT FK_devices_sites FOREIGN KEY (site_id) REFERENCES sites (id)
+                )
+                """);
+
+            var schema = db.Tables.Catalog.TryGet("devices")!;
+            var foreignKey = Assert.Single(schema.ForeignKeys);
+            Assert.Equal("FK_devices_sites", foreignKey.Name);
+
+            SqlExecutor.Execute(db, "INSERT INTO sites (id) VALUES (1)");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (10, 1)");
+            var ex = Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (11, 404)"));
+            Assert.Equal(TableConstraintException.ForeignKeyViolation, ex.ErrorCode);
+            Assert.Equal("FK_devices_sites", ex.ConstraintName);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var schema = reopened.Tables.Catalog.TryGet("devices")!;
+            var foreignKey = Assert.Single(schema.ForeignKeys);
+            Assert.Equal("FK_devices_sites", foreignKey.Name);
+
+            var ex = Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(reopened, "INSERT INTO devices (id, site_id) VALUES (12, 404)"));
+            Assert.Equal(TableConstraintException.ForeignKeyViolation, ex.ErrorCode);
+            Assert.Equal("FK_devices_sites", ex.ConstraintName);
+
+            SqlExecutor.Execute(reopened, "ALTER TABLE devices DROP CONSTRAINT FK_devices_sites");
+            Assert.Empty(reopened.Tables.Catalog.TryGet("devices")!.ForeignKeys);
+        }
+    }
+
+    [Fact]
+    public void CreateTable_NamedForeignKey_RejectsDuplicateNameAndUnknownColumn()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE regions (id INT, PRIMARY KEY (id))");
+
+        var duplicate = Assert.Throws<ArgumentException>(() => SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                site_id INT,
+                region_id INT,
+                PRIMARY KEY (id),
+                CONSTRAINT FK_devices_parent FOREIGN KEY (site_id) REFERENCES sites (id),
+                CONSTRAINT FK_devices_parent FOREIGN KEY (region_id) REFERENCES regions (id)
+            )
+            """));
+        Assert.Contains("FK_devices_parent", duplicate.Message, StringComparison.Ordinal);
+        Assert.Null(db.Tables.Catalog.TryGet("devices"));
+
+        var unknownColumn = Assert.Throws<ArgumentException>(() => SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                PRIMARY KEY (id),
+                CONSTRAINT FK_devices_site FOREIGN KEY (missing_site_id) REFERENCES sites (id)
+            )
+            """));
+        Assert.Contains("missing_site_id", unknownColumn.Message, StringComparison.Ordinal);
+        Assert.Null(db.Tables.Catalog.TryGet("devices"));
+    }
+
+    [Fact]
+    public void CreateTable_NamedForeignKey_MissingPrincipalTablePreservesExistingErrorSemantics()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                site_id INT,
+                PRIMARY KEY (id),
+                CONSTRAINT FK_devices_missing_site FOREIGN KEY (site_id) REFERENCES missing_sites (id)
+            )
+            """);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (1, 404)"));
+        Assert.Contains("FK_devices_missing_site", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("missing_sites", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ParseCreateIndex_ReturnsAst()
     {
         var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(

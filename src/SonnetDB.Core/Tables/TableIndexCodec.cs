@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Storage.Codecs;
@@ -8,6 +9,7 @@ namespace SonnetDB.Tables;
 internal static class TableIndexCodec
 {
     private static readonly Encoding _utf8 = Encoding.UTF8;
+    private static readonly Encoding _strictUtf8 = new UTF8Encoding(false, true);
 
     public static byte[] EncodeIndexPrefix(TableIndex index, IReadOnlyList<object?> rowValues, TableSchema schema)
         => TryEncodeIndexPrefix(index, rowValues, schema)
@@ -294,16 +296,129 @@ internal static class TableIndexCodec
     public static byte[] EncodeIndexEntryValue(ReadOnlySpan<byte> primaryKey)
         => primaryKey.ToArray();
 
+    /// <summary>解码普通索引项中的列值；保持既有索引布局，并校验完整项与主键后缀。</summary>
+    internal static object?[] DecodeCoveredValues(
+        TableIndex index,
+        TableSchema schema,
+        ReadOnlySpan<byte> entryKey,
+        ReadOnlySpan<byte> primaryKey,
+        ReadOnlySpan<byte> indexNamePrefix)
+    {
+        if (!string.IsNullOrWhiteSpace(index.JsonPath)
+            || !entryKey.StartsWith(indexNamePrefix)
+            || !TableKeyCodec.IsEncodedPrimaryKey(schema, primaryKey))
+        {
+            throw new InvalidDataException("Table index: invalid covered entry header or primary key.");
+        }
+
+        int offset = indexNamePrefix.Length;
+        var values = new object?[schema.Columns.Count];
+        foreach (string columnName in index.Columns)
+        {
+            TableColumn column = schema.TryGetColumn(columnName)
+                ?? throw new InvalidDataException("Table index: unknown covered column.");
+            EnsureCoveredBytes(entryKey, offset, 1);
+            byte present = entryKey[offset++];
+            values[column.Ordinal] = present switch
+            {
+                0 => null,
+                1 => ReadCoveredValue(entryKey, ref offset, column.DataType),
+                _ => throw new InvalidDataException("Table index: invalid null marker."),
+            };
+        }
+
+        if (!index.IsUnique)
+        {
+            EnsureCoveredBytes(entryKey, offset, sizeof(int));
+            int length = BinaryPrimitives.ReadInt32BigEndian(entryKey[offset..]);
+            offset += sizeof(int);
+            if (length != primaryKey.Length || !entryKey[offset..].SequenceEqual(primaryKey))
+                throw new InvalidDataException("Table index: primary key suffix mismatch.");
+            offset += length;
+        }
+        if (offset != entryKey.Length)
+            throw new InvalidDataException("Table index: trailing bytes in covered entry.");
+        return values;
+    }
+
+    private static object ReadCoveredValue(ReadOnlySpan<byte> source, ref int offset, TableColumnType type)
+    {
+        if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.Time)
+        {
+            EnsureCoveredBytes(source, offset, sizeof(long));
+            long bits = BinaryPrimitives.ReadInt64BigEndian(source[offset..]);
+            offset += sizeof(long);
+            try
+            {
+                return type switch
+                {
+                    TableColumnType.Int64 => bits,
+                    TableColumnType.Float64 => BitConverter.Int64BitsToDouble(bits),
+                    TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(bits).UtcDateTime,
+                    _ => new TimeOnly(bits),
+                };
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new InvalidDataException("Table index: invalid temporal value.", exception);
+            }
+        }
+        if (type == TableColumnType.Boolean)
+        {
+            EnsureCoveredBytes(source, offset, 1);
+            byte value = source[offset++];
+            return value switch
+            {
+                0 => false,
+                1 => true,
+                _ => throw new InvalidDataException("Table index: invalid Boolean value."),
+            };
+        }
+
+        EnsureCoveredBytes(source, offset, sizeof(int));
+        int length = BinaryPrimitives.ReadInt32BigEndian(source[offset..]);
+        offset += sizeof(int);
+        EnsureCoveredBytes(source, offset, length);
+        ReadOnlySpan<byte> payload = source.Slice(offset, length);
+        offset += length;
+        if (type == TableColumnType.Blob)
+            return payload.ToArray();
+        string text;
+        try
+        {
+            text = _strictUtf8.GetString(payload);
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw new InvalidDataException("Table index: covered text is not valid UTF-8.", exception);
+        }
+        if (type is TableColumnType.String or TableColumnType.Json)
+            return text;
+        if (type == TableColumnType.Decimal
+            && decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal valueDecimal))
+        {
+            return valueDecimal;
+        }
+        throw new InvalidDataException("Table index: invalid covered scalar value.");
+    }
+
+    private static void EnsureCoveredBytes(ReadOnlySpan<byte> source, int offset, int length)
+    {
+        if (length < 0 || length > source.Length - offset)
+            throw new InvalidDataException("Table index: truncated covered value.");
+    }
+
     private static int GetEncodedValueSize(TableColumn column, object? value)
         => value is null
             ? 1
             : column.DataType switch
             {
-                TableColumnType.Int64 or TableColumnType.DateTime => 1 + 8,
+                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time => 1 + 8,
                 TableColumnType.Float64 => 1 + 8,
                 TableColumnType.Boolean => 1 + 1,
                 TableColumnType.String or TableColumnType.Json => 1 + 4 + _utf8.GetByteCount((string)value),
                 TableColumnType.Blob => 1 + 4 + ((byte[])value).Length,
+                TableColumnType.Decimal => 1 + 4 + _utf8.GetByteCount(DecimalText(value)),
                 _ => throw new InvalidOperationException($"不支持的索引列类型 {column.DataType}。"),
             };
 
@@ -343,11 +458,18 @@ internal static class TableIndexCodec
             case TableColumnType.DateTime:
                 SortableScalarCodec.WriteTableLegacyDateTime(payload, ToUnixMilliseconds(value));
                 return 9;
+            case TableColumnType.Time:
+                SortableScalarCodec.WriteTableLegacyInt64(payload, ConvertTimeValue(value).Ticks);
+                return 9;
             case TableColumnType.String:
             case TableColumnType.Json:
                 return 1 + WriteLengthPrefixed(payload, _utf8.GetBytes((string)value));
             case TableColumnType.Blob:
                 return 1 + WriteLengthPrefixed(payload, (byte[])value);
+            case TableColumnType.Decimal:
+                return 1 + WriteLengthPrefixed(
+                    payload,
+                    _utf8.GetBytes(DecimalText(value)));
             default:
                 throw new InvalidOperationException($"不支持的索引列类型 {column.DataType}。");
         }
@@ -372,6 +494,10 @@ internal static class TableIndexCodec
         return 4 + bytes.Length;
     }
 
+    private static string DecimalText(object value)
+        => Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture)
+            .ToString("G29", System.Globalization.CultureInfo.InvariantCulture);
+
     private static long ToUnixMilliseconds(object value)
         => value switch
         {
@@ -381,6 +507,15 @@ internal static class TableIndexCodec
                 : dt).ToUnixTimeMilliseconds(),
             long ms => ms,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
+        };
+
+    private static TimeOnly ConvertTimeValue(object value)
+        => value switch
+        {
+            TimeOnly time => time,
+            TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1) => TimeOnly.FromTimeSpan(span),
+            string text when TimeOnly.TryParse(text.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed) => parsed,
+            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 TIME。"),
         };
 
     private static TableColumn ResolveJsonPathColumn(TableIndex index, TableSchema schema)

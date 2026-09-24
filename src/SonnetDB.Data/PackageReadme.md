@@ -98,6 +98,29 @@ public sealed class KnowledgeRecord
 
 `measurement` 仍用于时序数据和时序 `VECTOR(N)` 列；通用 VectorData collection 不默认映射到 measurement，避免把非时序记录强行绑定到时间轴。
 
+## SonnetMQ 高层客户端
+
+`SonnetDB.Data.Mq` 提供 producer/consumer builder，统一支持嵌入式和远程 MQ。producer 的 `MaxInFlight` 和 consumer 的 `Prefetch` 都是有界值；consumer 同时提供 `PullAsync`/`PushAsync` 异步枚举、manual/auto ACK、取消和 graceful drain。
+
+```csharp
+using var mq = new SndbMqClient("Data Source=./demo-data;Mode=Embedded");
+await using var producer = mq.Producer("events").MaxInFlight(4).Build();
+await producer.PublishAsync(new byte[] { 1, 2, 3 });
+await producer.DrainAsync();
+
+await using var consumer = mq.Consumer("events", "workers")
+    .Prefetch(32)
+    .ManualAck()
+    .Build();
+await foreach (var delivery in consumer.PullAsync(cancellationToken))
+{
+    await HandleAsync(delivery.Message, cancellationToken);
+    await delivery.AckAsync(cancellationToken);
+}
+```
+
+该高层入口复用现有 publish/pull/ack 合同，不提供 nack、redelivery、DLQ 或 exactly-once；详见 [MQ 高层客户端](../../docs/mq-high-level-client.md)。
+
 ## Document Store
 
 `SonnetDB.Data.Documents` 提供嵌入式与远程共用的 `SndbDocumentClient`。类型化 builder 会生成 SonnetDB 自有 Document DTO，不要求手写 filter 操作符或构造 `JsonElement`；它不表示 MongoDB Driver 或 wire protocol 兼容。

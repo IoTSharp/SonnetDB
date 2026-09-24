@@ -64,10 +64,15 @@ class InMemoryBrowserDirectCredential implements BrowserDirectAccessTokenProvide
     this.expiresAtMilliseconds = null;
   }
 
+  getExpiresAtUtc(): string | null {
+    if (this.expiresAtMilliseconds !== null && this.expiresAtMilliseconds <= Date.now()) this.clear();
+    return this.expiresAtMilliseconds === null ? null : new Date(this.expiresAtMilliseconds).toISOString();
+  }
+
   async getAccessToken(signal: AbortSignal): Promise<string | null> {
     throwIfAborted(signal);
     if (this.expiresAtMilliseconds !== null && Date.now() >= this.expiresAtMilliseconds) {
-      this.clear();
+      clearBrowserDirectAccessToken();
       return null;
     }
     return this.accessToken;
@@ -75,15 +80,62 @@ class InMemoryBrowserDirectCredential implements BrowserDirectAccessTokenProvide
 }
 
 const browserDirectCredential = new InMemoryBrowserDirectCredential();
+const credentialClearHandlers = new Set<() => void>();
+const credentialChangeListeners = new Set<(expiresAtUtc: string | null) => void>();
+const MaximumCredentialObservers = 32;
 
 /** Inject a short-lived BrowserDirect public token into process memory only. */
 export function setBrowserDirectAccessToken(accessToken: string, expiresAtUtc: string): void {
-  browserDirectCredential.setAccessToken(accessToken, expiresAtUtc);
+  try {
+    browserDirectCredential.setAccessToken(accessToken, expiresAtUtc);
+  } finally {
+    notifyBrowserDirectCredentialChanges();
+  }
 }
 
 /** Clear the in-memory BrowserDirect public token, including on database logout. */
 export function clearBrowserDirectAccessToken(): void {
-  browserDirectCredential.clear();
+  try {
+    for (const cancel of [...credentialClearHandlers]) {
+      try { cancel(); } catch { /* Credential removal must survive a stale subscriber. */ }
+    }
+  } finally {
+    browserDirectCredential.clear();
+    notifyBrowserDirectCredentialChanges();
+  }
+}
+
+/** Register an in-memory OAuth cancellation hook, also invoked by database logout. */
+export function registerBrowserDirectCredentialClearHandler(handler: () => void): () => void {
+  if (credentialClearHandlers.size >= MaximumCredentialObservers) {
+    throw contractError('browser_direct_observer_limit', 'AI 服务连接数已达上限，请关闭多余窗口后重试。');
+  }
+  credentialClearHandlers.add(handler);
+  return () => { credentialClearHandlers.delete(handler); };
+}
+
+/** Observe only credential availability/expiry; the public access token is never exposed. */
+export function subscribeBrowserDirectCredentialChanges(
+  listener: (expiresAtUtc: string | null) => void,
+): () => void {
+  if (credentialChangeListeners.size >= MaximumCredentialObservers) {
+    throw contractError('browser_direct_observer_limit', 'AI 服务连接数已达上限，请关闭多余窗口后重试。');
+  }
+  credentialChangeListeners.add(listener);
+  try {
+    listener(browserDirectCredential.getExpiresAtUtc());
+  } catch (error) {
+    credentialChangeListeners.delete(listener);
+    throw error;
+  }
+  return () => { credentialChangeListeners.delete(listener); };
+}
+
+function notifyBrowserDirectCredentialChanges(): void {
+  const expiry = browserDirectCredential.getExpiresAtUtc();
+  for (const listener of [...credentialChangeListeners]) {
+    try { listener(expiry); } catch { /* UI observers cannot prevent credential cleanup. */ }
+  }
 }
 
 /**

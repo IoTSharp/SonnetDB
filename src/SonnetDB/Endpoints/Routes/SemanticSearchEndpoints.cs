@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ML.OnnxRuntime;
-using SixLabors.ImageSharp;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
 using SonnetDB.Exceptions;
@@ -424,9 +423,7 @@ internal static partial class SonnetDbEndpoints
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool IsSemanticBadRequest(Exception exception)
-        => exception is ArgumentException
-            or UnknownImageFormatException
-            or InvalidImageContentException;
+        => exception is ArgumentException or ImageInputException;
 
     private static bool IsSemanticProviderFailure(Exception exception)
         => exception is InvalidOperationException

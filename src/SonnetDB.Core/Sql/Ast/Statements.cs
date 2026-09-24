@@ -95,6 +95,7 @@ public enum ForeignKeyAction
 }
 
 /// <summary>关系表表级外键声明。</summary>
+/// <param name="Name">外键约束名；未命名时为空，由表 schema 自动生成。</param>
 /// <param name="Columns">本表外键列名。</param>
 /// <param name="PrincipalTable">被引用表名。</param>
 /// <param name="PrincipalColumns">被引用列名；第一版要求等于被引用表主键。</param>
@@ -103,7 +104,11 @@ public sealed record TableForeignKeyClause(
     IReadOnlyList<string> Columns,
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
-    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction);
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
+{
+    /// <summary>外键约束名；未命名时为空。</summary>
+    public string? Name { get; init; }
+}
 
 /// <summary>关系表表级检查约束声明。</summary>
 /// <param name="Name">约束名；未命名时为空。</param>
@@ -452,6 +457,12 @@ public sealed record TableColumnDefinition(
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     bool IsRowVersion = false)
 {
+    /// <summary>DECIMAL/NUMERIC 的总精度；未声明时使用 38。</summary>
+    public byte DecimalPrecision { get; init; } = 38;
+
+    /// <summary>DECIMAL/NUMERIC 的小数位数；未声明时使用 28。</summary>
+    public byte DecimalScale { get; init; } = 28;
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>
@@ -653,7 +664,66 @@ public sealed record InsertStatement(
     /// 空集合表示未声明 <c>RETURNING</c>。
     /// </summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+
+    /// <summary>可选的 SonnetDB 原生冲突处理子句。</summary>
+    public SqlOnConflictClause? OnConflict { get; init; }
 }
+
+/// <summary>关系表 INSERT 的有限冲突处理动作。</summary>
+public enum SqlOnConflictAction
+{
+    /// <summary>冲突行跳过，不产生写入或错误。</summary>
+    DoNothing,
+    /// <summary>冲突行按 <c>DO UPDATE SET</c> 赋值并原子替换。</summary>
+    DoUpdate,
+}
+
+/// <summary>
+/// SonnetDB 原生 <c>ON CONFLICT [(column, ...)] DO NOTHING</c> /
+/// <c>DO UPDATE SET column = expression</c> 子集。
+/// 空目标列表示匹配任一主键或唯一索引。
+/// </summary>
+/// <param name="TargetColumns">冲突目标列；为空时匹配任一唯一约束。</param>
+/// <param name="Action">冲突处理动作。</param>
+public sealed record SqlOnConflictClause(
+    IReadOnlyList<string> TargetColumns,
+    SqlOnConflictAction Action = SqlOnConflictAction.DoNothing)
+{
+    /// <summary>
+    /// <c>DO UPDATE SET</c> 的赋值列表；<c>DO NOTHING</c> 时必须为空。
+    /// 赋值表达式可用 <c>excluded.column</c> 引用本次候选行。
+    /// </summary>
+    public IReadOnlyList<UpdateAssignment> UpdateAssignments { get; init; } = Array.Empty<UpdateAssignment>();
+}
+
+/// <summary>
+/// 非递归 <c>WITH name AS (SELECT ...)</c> 公共表表达式。
+/// </summary>
+/// <param name="Name">CTE 名称。</param>
+/// <param name="Query">CTE 查询定义。</param>
+/// <param name="ColumnNames">可选输出列名列表；当前执行层要求使用查询自身的列名。</param>
+public sealed record CommonTableExpression(
+    string Name,
+    SelectStatement Query,
+    IReadOnlyList<string>? ColumnNames = null);
+
+/// <summary>SELECT 集合运算的语义。</summary>
+public enum SqlSetOperationKind
+{
+    /// <summary>合并并去重。</summary>
+    Union,
+    /// <summary>合并并保留重复行。</summary>
+    UnionAll,
+    /// <summary>只保留两侧共有的行并去重。</summary>
+    Intersect,
+    /// <summary>保留左侧存在而右侧不存在的行并去重。</summary>
+    Except,
+}
+
+/// <summary>一个后续 SELECT 集合分支。</summary>
+/// <param name="Kind">集合运算语义。</param>
+/// <param name="Query">右侧 SELECT 查询。</param>
+public sealed record SqlSetOperation(SqlSetOperationKind Kind, SelectStatement Query);
 
 /// <summary>
 /// <c>SELECT projections FROM measurement [JOIN table ON expr] [WHERE expr] [GROUP BY expr, ...]</c>。
@@ -671,7 +741,7 @@ public sealed record InsertStatement(
 /// <param name="Join">可选 JOIN 子句；兼容旧调用方，等价于 <see cref="Joins"/> 第一项。</param>
 /// <param name="FromSubquery">FROM 子句若为子查询则非 <c>null</c>。</param>
 /// <param name="Joins">JOIN 子句列表；为空集合时表示无 JOIN。</param>
-/// <param name="Unions">后续 UNION SELECT 分支；所有分支列数必须一致，结果默认去重。</param>
+/// <param name="Unions">兼容旧 API 的 UNION 分支；新代码请使用 <see cref="SetOperations"/>。</param>
 public sealed record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
     string Measurement,
@@ -689,6 +759,16 @@ public sealed record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>
+    /// 当前 SELECT 前置的非递归公共表表达式；解析后由执行入口展开为现有派生表节点。
+    /// </summary>
+    public IReadOnlyList<CommonTableExpression> CommonTableExpressions { get; init; } =
+        Array.Empty<CommonTableExpression>();
+
+    /// <summary>当前 SELECT 后续的 UNION/INTERSECT/EXCEPT 分支。</summary>
+    public IReadOnlyList<SqlSetOperation> SetOperations { get; init; } =
+        Array.Empty<SqlSetOperation>();
+
     /// <summary>
     /// 使用 3.0.1 的位置参数合同创建 SELECT 语句。
     /// </summary>
@@ -797,8 +877,15 @@ public sealed record SelectStatement(
     public IReadOnlyList<OrderBySpec> OrderByList =>
         OrderByItems ?? (OrderBy is null ? Array.Empty<OrderBySpec>() : new[] { OrderBy });
 
-    /// <summary>当前 SELECT 后续的 UNION 分支。</summary>
-    public IReadOnlyList<SelectStatement> UnionStatements => Unions ?? Array.Empty<SelectStatement>();
+    /// <summary>当前 SELECT 后续的集合运算分支（兼容旧 UNION AST）。</summary>
+    public IReadOnlyList<SelectStatement> UnionStatements => SetOperationList.Select(static operation => operation.Query).ToArray();
+
+    /// <summary>标准化后的集合运算分支；旧调用方构造的 Unions 按 UNION 处理。</summary>
+    public IReadOnlyList<SqlSetOperation> SetOperationList => SetOperations.Count != 0
+        ? SetOperations
+        : (Unions ?? Array.Empty<SelectStatement>())
+            .Select(static query => new SqlSetOperation(SqlSetOperationKind.Union, query))
+            .ToArray();
 
     /// <summary>
     /// FROM 子句中的 SQL/PGQ <c>GRAPH_TABLE</c> 固定模式源；为保持既有构造器兼容而使用 init 属性扩展。
@@ -856,11 +943,11 @@ public sealed record GraphTableSource(
 }
 
 /// <summary>
-/// <c>[INNER|LEFT] JOIN table [AS] alias ON expr</c> 子句。
+/// <c>[INNER|LEFT|RIGHT|FULL|CROSS] JOIN table [AS] alias [ON expr]</c> 子句。
 /// </summary>
 /// <param name="TableName">被 JOIN 的关系表名。</param>
 /// <param name="Alias">关系表别名；未显式声明时为 <paramref name="TableName"/>。</param>
-/// <param name="On">ON 条件表达式；MM4 第一版要求是 measurement tag 与 table 列之间的等值比较。</param>
+/// <param name="On">ON 条件表达式；CROSS JOIN 使用恒真表达式。</param>
 public sealed record JoinClause(
     string TableName,
     string Alias,
@@ -874,7 +961,13 @@ public enum JoinKind
     /// <summary>内连接。</summary>
     Inner,
     /// <summary>左外连接。</summary>
-    Left
+    Left,
+    /// <summary>右外连接。</summary>
+    Right,
+    /// <summary>全外连接。</summary>
+    Full,
+    /// <summary>笛卡尔连接。</summary>
+    Cross,
 }
 
 /// <summary>排序方向。</summary>
@@ -978,24 +1071,42 @@ public sealed record TimeBucketSpec(long BucketSizeMs);
 /// <param name="Where">WHERE 表达式（必填）。</param>
 public sealed record DeleteStatement(
     string Measurement,
-    SqlExpression Where) : SqlStatement;
+    SqlExpression Where) : SqlStatement
+{
+    /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
+    public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+}
 
 /// <summary><c>TRUNCATE TABLE name</c> generation 快速清表。</summary>
 /// <param name="TableName">目标关系表名称。</param>
 public sealed record TruncateTableStatement(string TableName) : SqlStatement;
 
 /// <summary>
-/// <c>UPDATE table [AS alias] SET col = expr [, ...] WHERE expr</c>。
+/// <c>UPDATE table [AS alias] [JOIN ...] SET col = expr [, ...] [FROM ...] WHERE expr</c>。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
 /// <param name="Assignments">SET 子句中的列赋值列表。</param>
 /// <param name="Where">WHERE 表达式（必填）。</param>
 /// <param name="TableAlias">目标表可选别名。</param>
+/// <param name="FromClauses">可选的关系表联接来源；每个目标行最多按首个匹配来源更新一次。</param>
 public sealed record UpdateStatement(
     string TableName,
     IReadOnlyList<UpdateAssignment> Assignments,
     SqlExpression Where,
-    string? TableAlias = null) : SqlStatement;
+    string? TableAlias = null) : SqlStatement
+{
+    /// <summary>
+    /// UPDATE 联接来源。首项可以来自 <c>UPDATE ... JOIN</c> 或 <c>FROM</c>，后续项为链式 JOIN。
+    /// 关系表联接只读，不会改写来源表；重复来源匹配按关系执行顺序取首行，目标行只计一次。
+    /// </summary>
+    public IReadOnlyList<JoinClause> FromClauses { get; init; } = Array.Empty<JoinClause>();
+
+    /// <summary>UPDATE 联接来源的兼容别名。</summary>
+    public IReadOnlyList<JoinClause> From => FromClauses;
+
+    /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
+    public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>UPDATE SET 子句中的一个列赋值。</summary>
 /// <param name="ColumnName">列名。</param>

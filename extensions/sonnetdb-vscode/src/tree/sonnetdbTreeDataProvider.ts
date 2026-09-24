@@ -6,6 +6,7 @@ import {
   ConnectionProbeResult,
   DocumentCollectionInfo,
   FullTextIndexStat,
+  GraphInfo,
   IndexLifecycleInfo,
   KvEntryResponse,
   MeasurementInfo,
@@ -34,6 +35,7 @@ export type TreeNode =
   | { kind: 'kvEntry'; profile: SonnetDbConnectionProfile; database: string; keyspace: string; entry: KvEntryResponse }
   | { kind: 'vectorIndex'; profile: SonnetDbConnectionProfile; database: string; index: VectorIndexStat }
   | { kind: 'fullTextIndex'; profile: SonnetDbConnectionProfile; database: string; index: FullTextIndexStat }
+  | { kind: 'graph'; profile: SonnetDbConnectionProfile; database: string; graph: GraphInfo }
   | { kind: 'mqTopic'; profile: SonnetDbConnectionProfile; database: string; topic: MqTopicInfo }
   | { kind: 'mqMessage'; profile: SonnetDbConnectionProfile; database: string; topic: string; message: MqMessageResponse }
   | { kind: 'objectBucket'; profile: SonnetDbConnectionProfile; database: string; bucket: ObjectBucketInfo }
@@ -48,6 +50,7 @@ type SchemaSection =
   | 'kv'
   | 'vector'
   | 'fulltext'
+  | 'graphs'
   | 'mq'
   | 'objects'
   | 'backup';
@@ -57,6 +60,7 @@ interface DatabaseExplorerSnapshot {
   kvKeyspaces: string[];
   vectorIndexes: VectorIndexStat[];
   fullTextIndexes: FullTextIndexStat[];
+  graphs: GraphInfo[];
   mqTopics: MqTopicInfo[];
   objectBuckets: ObjectBucketInfo[];
   errors: Partial<Record<SchemaSection, string>>;
@@ -221,6 +225,19 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
         };
         return item;
       }
+      case 'graph': {
+        const item = new vscode.TreeItem(element.graph.name, vscode.TreeItemCollapsibleState.None);
+        item.description = `Graph Beta · v${element.graph.recordFormatVersion}`;
+        item.contextValue = 'graph';
+        item.iconPath = new vscode.ThemeIcon('share');
+        item.command = {
+          command: 'sonnetdb.queryGraph',
+          title: 'Query Graph',
+          arguments: [element],
+        };
+        item.tooltip = `${element.graph.name}\nStorage: ${element.graph.storageId}`;
+        return item;
+      }
       case 'mqTopic': {
         const item = new vscode.TreeItem(element.topic.topic, vscode.TreeItemCollapsibleState.Collapsed);
         item.description = `${element.topic.messageCount} messages · next ${element.topic.nextOffset}`;
@@ -351,10 +368,11 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
       const token = await this.getToken(profile);
       const client = new SonnetDbClient(profile.baseUrl, token);
       const schema = await client.fetchSchema(database);
-      const [kv, vector, fulltext, mq, objects] = await Promise.all([
+      const [kv, vector, fulltext, graphs, mq, objects] = await Promise.all([
         safe(() => client.fetchKvKeyspaces(database), []),
         safe(() => client.fetchVectorIndexes(database), []),
         safe(() => client.fetchFullTextIndexes(database), []),
+        safe(() => client.fetchGraphs(database), []),
         safe(() => client.fetchMqTopics(database), []),
         safe(() => client.fetchObjectBuckets(database), []),
       ]);
@@ -364,17 +382,19 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
         kvKeyspaces: kv.value,
         vectorIndexes: vector.value,
         fullTextIndexes: fulltext.value,
+        graphs: graphs.value,
         mqTopics: mq.value,
         objectBuckets: objects.value,
         errors: {
           kv: kv.error,
           vector: vector.error,
           fulltext: fulltext.error,
+          graphs: graphs.error,
           mq: mq.error,
           objects: objects.error,
         },
       };
-      const sections: SchemaSection[] = ['measurements', 'tables', 'documents', 'indexes', 'kv', 'vector', 'fulltext', 'mq', 'objects', 'backup'];
+      const sections: SchemaSection[] = ['measurements', 'tables', 'documents', 'indexes', 'kv', 'vector', 'fulltext', 'graphs', 'mq', 'objects', 'backup'];
       return sections.map((section) => ({ kind: 'section', profile, database, section, snapshot }));
     } catch (error) {
       return [{
@@ -519,6 +539,13 @@ function getSectionChildren(section: Extract<TreeNode, { kind: 'section' }>): Tr
         database: section.database,
         index,
       }));
+    case 'graphs':
+      return section.snapshot.graphs.map((graph) => ({
+        kind: 'graph',
+        profile: section.profile,
+        database: section.database,
+        graph,
+      }));
     case 'mq':
       return section.snapshot.mqTopics.map((topic) => ({
         kind: 'mqTopic',
@@ -552,6 +579,7 @@ function getSectionCounts(snapshot: DatabaseExplorerSnapshot): Record<SchemaSect
     kv: snapshot.kvKeyspaces.length,
     vector: snapshot.vectorIndexes.length,
     fulltext: snapshot.fullTextIndexes.length,
+    graphs: snapshot.graphs.length,
     mq: snapshot.mqTopics.length,
     objects: snapshot.objectBuckets.length,
     backup: snapshot.schema.backupStatus ? 1 : 0,
@@ -567,6 +595,7 @@ function sectionLabel(section: SchemaSection): string {
     case 'kv': return 'KV Keyspaces';
     case 'vector': return 'Vector Indexes';
     case 'fulltext': return 'FullText Indexes';
+    case 'graphs': return 'Graphs';
     case 'mq': return 'MQ Topics';
     case 'objects': return 'Object Buckets';
     case 'backup': return 'Backup';
@@ -582,6 +611,7 @@ function sectionIcon(section: SchemaSection): string {
     case 'kv': return 'key';
     case 'vector': return 'symbol-array';
     case 'fulltext': return 'whole-word';
+    case 'graphs': return 'share';
     case 'mq': return 'broadcast';
     case 'objects': return 'package';
     case 'backup': return 'archive';

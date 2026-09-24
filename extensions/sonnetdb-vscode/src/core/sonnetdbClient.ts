@@ -12,6 +12,7 @@ import {
   FullTextIndexStatResponse,
   FullTextSearchPreviewRequest,
   FullTextSearchPreviewResponse,
+  GraphInfo,
   HealthResponse,
   KvKeyspaceListResponse,
   KvScanCursorRequest,
@@ -54,6 +55,14 @@ export class SonnetDbClient {
 
   public async fetchSchema(database: string): Promise<SchemaResponse> {
     return this.getJson<SchemaResponse>(`/v1/db/${encodeURIComponent(database)}/schema`);
+  }
+
+  /** List native Graph catalogs for a database. */
+  public async fetchGraphs(database: string): Promise<GraphInfo[]> {
+    const response = await this.getJson<GraphInfo[]>(
+      `/v1/db/${encodeURIComponent(database)}/graphs`,
+    );
+    return Array.isArray(response) ? response : [];
   }
 
   public async findDocuments(

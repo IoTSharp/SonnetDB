@@ -29,6 +29,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Test-ObjectProperty {
+    param(
+        [object] $InputObject,
+        [string] $Name
+    )
+
+    return $null -ne $InputObject -and $null -ne $InputObject.PSObject.Properties[$Name]
+}
+
+function Test-JsonArrayValue {
+    param([object] $Value)
+
+    return $null -ne $Value -and $Value -is [array]
+}
+
 function Test-PerformanceOnlyScenario {
     param([object] $Scenario)
 
@@ -97,7 +112,45 @@ $failures = New-Object System.Collections.Generic.List[object]
 $performanceWarnings = New-Object System.Collections.Generic.List[object]
 
 foreach ($file in $reportFiles) {
-    $report = Get-Content -Raw -Path $file.FullName | ConvertFrom-Json
+    $source = Resolve-Path -Relative $file.FullName
+    try {
+        $report = Get-Content -Raw -Path $file.FullName | ConvertFrom-Json
+        if ($null -eq $report) {
+            throw "report.json is empty"
+        }
+        if (-not (Test-ObjectProperty $report "runId") -or [string]::IsNullOrWhiteSpace([string]$report.runId)) {
+            throw "report.json is missing a non-empty runId"
+        }
+        if (-not (Test-ObjectProperty $report "scenarios") -or -not (Test-JsonArrayValue $report.scenarios)) {
+            throw "report.json is missing a scenarios array"
+        }
+        if (-not (Test-ObjectProperty $report "capabilityGaps") -or -not (Test-JsonArrayValue $report.capabilityGaps)) {
+            throw "report.json is missing a capabilityGaps array"
+        }
+    }
+    catch {
+        $suiteName = [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($file.FullName))
+        if ([string]::IsNullOrWhiteSpace($suiteName)) {
+            $suiteName = "unparsed-report"
+        }
+        Add-GateFailure `
+            $failures `
+            "infrastructure" `
+            $suiteName `
+            "parity-report" `
+            "Unable to parse parity report '$source': $($_.Exception.Message)" `
+            "parity_report_parse_failed"
+        $suiteRows.Add([ordered]@{
+            suite = $suiteName
+            total = 0
+            passed = 0
+            skipped = 0
+            failed = 0
+            source = $source
+        })
+        continue
+    }
+
     $suiteName = [string]$report.runId
     $script:RequiredByScenario = @{}
     foreach ($gap in $report.capabilityGaps) {
@@ -158,7 +211,7 @@ foreach ($file in $reportFiles) {
         passed = $suitePass
         skipped = $suiteSkip
         failed = $suiteFail
-        source = Resolve-Path -Relative $file.FullName
+        source = $source
     })
 }
 

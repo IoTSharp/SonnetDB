@@ -144,6 +144,14 @@ public sealed partial class SndbObjectStore
     /// <summary>
     /// 写入对象。
     /// </summary>
+    /// <param name="bucket">对象桶名称。</param>
+    /// <param name="key">对象键。</param>
+    /// <param name="content">待写入内容流。</param>
+    /// <param name="contentType">对象内容类型。</param>
+    /// <param name="metadata">对象元数据。</param>
+    /// <param name="tags">对象标签。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>新对象版本的元数据。</returns>
     public async Task<SndbObjectInfo> PutObjectAsync(
         string bucket,
         string key,
@@ -153,18 +161,43 @@ public sealed partial class SndbObjectStore
         IReadOnlyDictionary<string, string>? tags = null,
         CancellationToken cancellationToken = default)
     {
+        return await PutObjectCoreAsync(
+            bucket,
+            key,
+            content,
+            contentType,
+            metadata,
+            tags,
+            cancellationToken,
+            condition: null).ConfigureAwait(false);
+    }
+
+    private async Task<SndbObjectInfo> PutObjectCoreAsync(
+        string bucket,
+        string key,
+        Stream content,
+        string? contentType,
+        IReadOnlyDictionary<string, string>? metadata,
+        IReadOnlyDictionary<string, string>? tags,
+        CancellationToken cancellationToken,
+        SndbObjectWriteCondition? condition)
+    {
         ValidateObjectKey(key);
         ArgumentNullException.ThrowIfNull(content);
 
         string normalizedContentType = NormalizeContentType(contentType);
         Dictionary<string, string> normalizedMetadata = NormalizeMap(metadata);
         Dictionary<string, string> normalizedTags = NormalizeMap(tags);
+        ValidateWriteCondition(condition);
         var bucketMutation = GetBucketMutationState(bucket);
         long initialBucketVersion;
         lock (bucketMutation.Gate)
         {
             // 记录本次写入所属 bucket 的 KV 版本，防止删除后同名重建造成 ABA 发布。
             initialBucketVersion = GetRequiredBucketEntry(bucket).Version;
+            // 在接收上传正文前快速拒绝显然无法满足的条件；发布前仍会在同一把锁下复核。
+            if (condition is not null)
+                EnsureWriteConditionUnderLock(bucket, key, condition);
         }
 
         string versionId = CreateVersionId();
@@ -194,6 +227,8 @@ public sealed partial class SndbObjectStore
                         "bucket_recreated",
                         $"Bucket '{bucket}' was deleted and recreated while the object was being written.");
                 }
+                if (condition is not null)
+                    EnsureWriteConditionUnderLock(bucket, key, condition);
                 EnsureQuotaAllowsDelta(bucket, size, additionalObjectVersions: 1);
                 File.Move(temporaryPath, storagePath, overwrite: false);
                 finalFileMoved = true;
@@ -2242,18 +2277,21 @@ public sealed partial class SndbObjectStore
     private sealed class BoundedReadStream : Stream
     {
         private readonly Stream _inner;
+        private readonly long _length;
         private long _remaining;
 
         public BoundedReadStream(Stream inner, long length)
         {
             _inner = inner;
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
+            _length = length;
             _remaining = length;
         }
 
         public override bool CanRead => _inner.CanRead;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
-        public override long Length => _remaining;
+        public override long Length => _length;
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override int Read(byte[] buffer, int offset, int count)

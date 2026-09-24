@@ -102,6 +102,19 @@ try {
     Assert-ContainsCode $manualRun.issues "run_event_not_scheduled" "Manual runs must not count as nightly evidence."
     Assert-Equal "NOT_READY" $manual.status "A manual run in the evidence window must keep the gate NOT_READY."
 
+    $duplicateRunFixture = Copy-Fixture $baseFixture
+    $duplicateRunFixture.runs[1].runId = $duplicateRunFixture.runs[0].runId
+    $duplicateRunFixture.runs[1].url = $duplicateRunFixture.runs[0].url
+    foreach ($profileName in @("light", "full")) {
+        $duplicateRunFixture.runs[1].profiles.PSObject.Properties[$profileName].Value.summary.runId = $duplicateRunFixture.runs[0].runId
+    }
+    $duplicateRun = Invoke-FixtureCase $duplicateRunFixture "duplicate-run-id" $testRoot $verifier
+    Assert-Equal "NOT_READY" $duplicateRun.status "Duplicate scheduled run IDs must keep the evidence window NOT_READY."
+    Assert-ContainsCode $duplicateRun.issues "duplicate_scheduled_run_id" "Duplicate scheduled run IDs must be reported at the window level."
+    foreach ($duplicateReport in @($duplicateRun.runs | Where-Object runId -eq "33071879124")) {
+        Assert-ContainsCode $duplicateReport.issues "run_id_duplicate" "Every duplicate scheduled run must be marked invalid."
+    }
+
     $defaultFailureRaised = $false
     try {
         & $verifier -FixturePath $fixturePath -OutputPath (Join-Path $testRoot "must-fail.json")

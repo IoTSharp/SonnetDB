@@ -794,6 +794,131 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ServerRelayRunStore_PersistsCompletedRunForRestartReplay()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-journal-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        var binding = new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint");
+        try
+        {
+            var first = new CopilotServerRelayRunStore(journalPath: journalPath);
+            var created = first.Attach("relay-persisted", cursor: null, binding);
+            var run = Assert.IsType<CopilotServerRelayRun>(created.Run);
+            run.Publish(new CopilotChatEvent("final", Answer: "persisted answer"));
+            run.Complete();
+
+            var restarted = new CopilotServerRelayRunStore(journalPath: journalPath);
+            var attached = restarted.Attach("relay-persisted", cursor: null, binding);
+            Assert.Equal(CopilotServerRelayAttachStatus.Attached, attached.Status);
+            Assert.NotNull(attached.Run);
+            var events = await ReadRelayEventsAsync(attached.Run!);
+            Assert.Equal(["final", "done"], events.Select(static item => item.Type));
+            Assert.Equal("persisted answer", events[0].Answer);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task ServerRelayRunStore_RestartSealsUnfinishedRunWithoutProviderContinuation()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-interrupted-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        var binding = new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint");
+        try
+        {
+            var first = new CopilotServerRelayRunStore(journalPath: journalPath);
+            var created = first.Attach("relay-interrupted", cursor: null, binding);
+            var run = Assert.IsType<CopilotServerRelayRun>(created.Run);
+            run.Publish(new CopilotChatEvent("start", Message: "started"));
+            first.Dispose();
+
+            var restarted = new CopilotServerRelayRunStore(journalPath: journalPath);
+            var attached = restarted.Attach("relay-interrupted", cursor: null, binding);
+            Assert.Equal(CopilotServerRelayAttachStatus.Attached, attached.Status);
+            var events = await ReadRelayEventsAsync(attached.Run!);
+            Assert.Equal(["start", "error", "done"], events.Select(static item => item.Type));
+            Assert.Contains("重启", events[1].Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_InvalidJournalRun_IsolatedWithTombstone()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-invalid-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        File.WriteAllText(
+            journalPath,
+            """
+            {"runs":[{"runId":"relay-invalid","binding":{"owner":"owner","databaseName":"test","requestFingerprint":"fingerprint"},"activeExpiresAtUtc":"2030-01-01T00:00:00Z","replayExpiresAtUtc":"2030-01-01T00:10:00Z","completed":true,"events":[{"type":"final","runId":"relay-invalid","sequence":2,"cursor":"relay-invalid:2","answer":"bad"}]}]}
+            """);
+
+        try
+        {
+            var store = new CopilotServerRelayRunStore(journalPath: journalPath);
+            var attached = store.Attach(
+                "relay-invalid",
+                cursor: null,
+                new CopilotServerRelayRunBinding("owner", DatabaseName, "fingerprint"));
+
+            Assert.Equal(CopilotServerRelayAttachStatus.Expired, attached.Status);
+            Assert.Null(attached.Run);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_JournalWithWhitespaceDatabaseName_FailsClosed()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-whitespace-db-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        File.WriteAllText(
+            journalPath,
+            """
+            {"runs":[{"runId":"relay-whitespace-db","binding":{"owner":"owner","databaseName":"  ","requestFingerprint":"fingerprint"},"activeExpiresAtUtc":"2030-01-01T00:00:00Z","replayExpiresAtUtc":"2030-01-01T00:10:00Z","completed":true,"events":[]}]}
+            """);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => new CopilotServerRelayRunStore(journalPath: journalPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ServerRelayRunStore_JournalRunAndTombstoneShareIdentity_FailsClosed()
+    {
+        var directory = CreateTempDirectory("sndb-copilot-relay-identity-conflict-");
+        var journalPath = Path.Combine(directory, "relay.json");
+        File.WriteAllText(
+            journalPath,
+            """
+            {"runs":[{"runId":"relay-conflict","binding":{"owner":"owner","databaseName":"test","requestFingerprint":"fingerprint"},"activeExpiresAtUtc":"2030-01-01T00:00:00Z","replayExpiresAtUtc":"2030-01-01T00:10:00Z","completed":true,"events":[]}],"tombstones":[{"owner":"owner","runId":"relay-conflict","expiresAtUtc":"2030-01-01T00:10:00Z"}]}
+            """);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => new CopilotServerRelayRunStore(journalPath: journalPath));
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void ServerRelayRun_WhenDonePrecedesOutcome_RejectsEvent()
     {
         var store = new CopilotServerRelayRunStore();

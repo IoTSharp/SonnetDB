@@ -10,6 +10,7 @@ public sealed class KvKeyspaceManager : IDisposable
     private readonly object _sync = new();
     private readonly Dictionary<string, KvKeyspace> _opened = new(StringComparer.Ordinal);
     private readonly KvOptions _options;
+    private readonly KvDiskReadBudget _diskReadBudget;
     private bool _disposed;
 
     /// <summary>
@@ -22,6 +23,7 @@ public sealed class KvKeyspaceManager : IDisposable
         ArgumentNullException.ThrowIfNull(rootDirectory);
         RootDirectory = rootDirectory;
         _options = options ?? KvOptions.Default;
+        _diskReadBudget = new KvDiskReadBudget(_options.MaxConcurrentStateReads);
         Directory.CreateDirectory(KeyspacesDirectory);
     }
 
@@ -48,7 +50,7 @@ public sealed class KvKeyspaceManager : IDisposable
                 return existing;
 
             string root = Path.Combine(KeyspacesDirectory, name);
-            var keyspace = KvKeyspace.Open(name, root, _options);
+            var keyspace = KvKeyspace.Open(name, root, _options, _diskReadBudget);
             _opened[name] = keyspace;
             return keyspace;
         }
@@ -199,9 +201,20 @@ public sealed class KvKeyspaceManager : IDisposable
                 return;
 
             _disposed = true;
-            foreach (var keyspace in _opened.Values)
-                keyspace.Dispose();
-            _opened.Clear();
+            try
+            {
+                foreach (var keyspace in _opened.Values)
+                    keyspace.Dispose();
+            }
+            finally
+            {
+                _opened.Clear();
+                // The manager owns the shared permit pool.  Disk states keep
+                // their state references until deferred readers/checkpoints finish,
+                // so disposal marks the owner released and lets the pool close
+                // only after those references and permits drain.
+                _diskReadBudget.Dispose();
+            }
         }
     }
 
@@ -244,7 +257,7 @@ public sealed class KvKeyspaceManager : IDisposable
             }
 
             if (!_opened.TryGetValue(name!, out var existing) || existing.IsDisposed)
-                _opened[name!] = KvKeyspace.Open(name!, directory, _options);
+                _opened[name!] = KvKeyspace.Open(name!, directory, _options, _diskReadBudget);
         }
     }
 

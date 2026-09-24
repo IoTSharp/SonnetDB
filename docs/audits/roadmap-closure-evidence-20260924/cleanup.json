@@ -1,0 +1,13 @@
+{
+  "recordedAtUtc": "2026-09-23T16:44:11.6031701+00:00",
+  "status": "TEMP_DIRECTORIES_RETAINED_POLICY_BLOCKED",
+  "matchingTaskProcesses": 0,
+  "retainedDirectories": [
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-bound-verification",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-20260923",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\m27-multi-c1ea7dc3bf8a4f7c8a0cb84d8aad0dc8"
+  ],
+  "reason": "Automatic approval rejected recursive removal, including an explicit literal task directory: blocked by policy. No more detailed reason was supplied.",
+  "removedInThisCleanup": []
+}

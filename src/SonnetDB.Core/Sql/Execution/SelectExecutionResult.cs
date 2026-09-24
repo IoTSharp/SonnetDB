@@ -17,4 +17,27 @@
 /// <param name="Rows">数据行（每行长度等于 <see cref="Columns"/> 数量）。</param>
 public sealed record SelectExecutionResult(
     IReadOnlyList<string> Columns,
-    IReadOnlyList<IReadOnlyList<object?>> Rows);
+    IReadOnlyList<IReadOnlyList<object?>> Rows)
+{
+    /// <summary>结果是否为不完整的有界预览。</summary>
+    public bool Truncated { get; init; }
+
+    /// <summary>
+    /// 返回限制行数后的结果预览。原结果超过限制时，返回结果的
+    /// <see cref="Truncated"/> 为 <see langword="true"/>；否则保留原结果实例。
+    /// </summary>
+    /// <param name="maxRows">允许返回的最大行数。</param>
+    /// <returns>有界结果预览。</returns>
+    public SelectExecutionResult TakeRows(int maxRows)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxRows);
+        if (Rows.Count <= maxRows)
+            return this;
+
+        return this with
+        {
+            Rows = Rows.Take(maxRows).ToArray(),
+            Truncated = true,
+        };
+    }
+}

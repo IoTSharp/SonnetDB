@@ -9,4 +9,10 @@
 public sealed record DeleteExecutionResult(
     string Measurement,
     int SeriesAffected,
-    int TombstonesAdded);
+    int TombstonesAdded)
+{
+    /// <summary>
+    /// 关系表 <c>DELETE ... RETURNING</c> 产生的结果集；时序与普通删除为 <see langword="null"/>。
+    /// </summary>
+    public SelectExecutionResult? Returning { get; init; }
+}

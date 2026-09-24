@@ -116,7 +116,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             InsertExecutionResult { Returning: { } returning } insert =>
                 MaterializedExecutionResult.FromSelect(returning, insert.RowsInserted),
             InsertExecutionResult insert => MaterializedExecutionResult.NonQuery(insert.RowsInserted),
+            DeleteExecutionResult { Returning: { } returning } delete =>
+                MaterializedExecutionResult.FromSelect(returning, delete.TombstonesAdded),
             DeleteExecutionResult delete => MaterializedExecutionResult.NonQuery(delete.TombstonesAdded),
+            RowsAffectedExecutionResult { Returning: { } returning } affected =>
+                MaterializedExecutionResult.FromSelect(returning, affected.RowsAffected),
             RowsAffectedExecutionResult affected => MaterializedExecutionResult.NonQuery(affected.RowsAffected),
             null => MaterializedExecutionResult.NonQuery(0),
             _ => MaterializedExecutionResult.NonQuery(0),
@@ -253,6 +257,36 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
 
         return _tsdb.Tables.Catalog.Snapshot();
+    }
+
+    internal ConnectionSchemaSnapshot SnapshotSchema()
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var views = _tsdb.Views.Catalog.Snapshot()
+            .Select(static definition => new ConnectionViewSchema(
+                definition.Name,
+                definition.DefinitionSql,
+                new DateTimeOffset(definition.CreatedAtUtcTicks, TimeSpan.Zero),
+                IsMaterialized: false))
+            .Concat(_tsdb.MaterializedViews.Catalog.Snapshot().Select(static definition => new ConnectionViewSchema(
+                definition.Name,
+                definition.DefinitionSql,
+                new DateTimeOffset(definition.CreatedAtUtcTicks, TimeSpan.Zero),
+                IsMaterialized: true)))
+            .OrderBy(static view => view.Name, StringComparer.Ordinal)
+            .ToArray();
+        var documents = _tsdb.Documents.Catalog.Snapshot()
+            .Select(static schema => new ConnectionDocumentCollectionSchema(
+                schema.Name,
+                new DateTimeOffset(schema.CreatedAtUtcTicks, TimeSpan.Zero),
+                schema.Indexes.Count,
+                schema.FullTextIndexes.Count,
+                schema.Validator is not null))
+            .ToArray();
+
+        return new ConnectionSchemaSnapshot(_tsdb.Tables.Catalog.Snapshot(), views, documents);
     }
 
     public void RollbackTransaction(object transactionState)

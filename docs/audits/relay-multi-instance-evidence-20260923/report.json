@@ -1,0 +1,35 @@
+{
+  "status": "PASS_LOCAL_ONLY",
+  "liveOwnerFollowing": "PASS",
+  "hardKillFailureSeal": "PASS",
+  "stableFailureReplay": "PASS",
+  "independentDataRoots": true,
+  "sharedJournal": "C:\\Users\\mysti\\AppData\\Local\\Temp\\m27-multi-cfad25e7466b4fb1ace433ef076217e8\\shared\\relay.json",
+  "serverDll": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-20260923-server\\bin\\SonnetDB\\release\\SonnetDB.dll",
+  "serverSha256": "4FCF95A8E18135E78558FEF0A919C66CE685503F6F8214FEF063AEA708109BCC",
+  "scriptSha256": "426456B1BCC2255DC65E3870540CC351EF3173F6E53A69DD3C512A6405056058",
+  "providerCalls": 6,
+  "plannerCalls": 4,
+  "answerCalls": 2,
+  "toolPairsPerRun": 1,
+  "realModel": "NOT_RUN",
+  "deployedHa": "NOT_RUN",
+  "providerFailureResume": "UNSUPPORTED_FAIL_CLOSED",
+  "processes": [
+    {
+      "pid": 79620,
+      "parentPid": 25456,
+      "created": "09/23/2026 23:43:22",
+      "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-20260923-server\\bin\\SonnetDB\\release\\SonnetDB.dll --contentRoot D:\\source\\SonnetDB --M27:SmokeOwner m27-multi-cfad25e7466b4fb1ace433ef076217e8 --Kestrel:Endpoints:Http:Url http://127.0.0.1:56264 --Kestrel:Endpoints:FrameH2:Url http://127.0.0.1:0"
+    },
+    {
+      "pid": 45372,
+      "parentPid": 25456,
+      "created": "09/23/2026 23:43:23",
+      "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-20260923-server\\bin\\SonnetDB\\release\\SonnetDB.dll --contentRoot D:\\source\\SonnetDB --M27:SmokeOwner m27-multi-cfad25e7466b4fb1ace433ef076217e8 --Kestrel:Endpoints:Http:Url http://127.0.0.1:56266 --Kestrel:Endpoints:FrameH2:Url http://127.0.0.1:0"
+    }
+  ],
+  "recordedAtUtc": "2026-09-23T15:43:38.2887356+00:00",
+  "cleanup": "PASS",
+  "cleanupErrors": []
+}

@@ -166,11 +166,11 @@ public sealed class SonnetMqAckBoundaryTests : IDisposable
                 Assert.Single(Directory.EnumerateDirectories(_root).Take(2))).Take(2));
         byte[] log = File.ReadAllBytes(logPath);
 
-        // v1 ACK header is followed by topic and consumer-group bytes, with no payload.
+        // v2 ACK header is followed by topic and consumer-group bytes, with no payload.
         int recordLength = 36 + Encoding.UTF8.GetByteCount(Topic) + Encoding.UTF8.GetByteCount(ConsumerGroup);
         ReadOnlySpan<byte> record = log.AsSpan(log.Length - recordLength);
         Assert.Equal(0x514D_4E53U, BinaryPrimitives.ReadUInt32LittleEndian(record));
-        Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(record[4..]));
+        Assert.Equal(2, BinaryPrimitives.ReadUInt16LittleEndian(record[4..]));
         Assert.Equal(2, record[6]);
         Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(record[16..]));
         Assert.Equal(expectedOffset, BinaryPrimitives.ReadInt64LittleEndian(record[20..]));

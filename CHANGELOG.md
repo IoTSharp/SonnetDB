@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 本项目所有重要变更将记录在此文件中。
 格式遵循 [Keep a Changelog 1.1.0](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer 2.0.0](https://semver.org/lang/zh-CN/)。
@@ -6,10 +6,159 @@
 本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
 
 ## [Unreleased]
+### Fixed
+- 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
+- 远程轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 现在 fail closed，避免客户端预览/重放路径把 `DO UPDATE` 静默降级为 `DO NOTHING` 并在提交时产生错误结果；完整远程 parity 仍待实现。
+- **M20 Parity scheduled 启动阻断**：Parity compose 将已无法从 Docker Hub 拉取的固定 MinIO 镜像切换为 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，并新增 `test-compose-contract.ps1` 接入 workflow，防止回退到失效 registry。PowerShell 7 合同、Compose 配置、实际镜像 pull 和临时 healthcheck 已通过；远程七次 scheduled 成功窗口仍待重跑。
+- 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
+
+### Changed
+- **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
 
+- **M42 显式 SQL 结果预览合同完成（2026-09-24）**：REST `previewMaxRows` 按请求与配置上限返回前 N 行，`end.truncated`、公开 `SndbDataReader.Truncated` 和 Web 控制台摘要显示不完整状态；默认查询、Frame 协议及公共记录主构造保持兼容。RETURNING 影响数、提交/回滚和写前参数校验经真实端点验证，损坏/断流结果不视为完整成功。专项 Core/ADO 16、Server 12、Web 11 项通过；连同已有回归，Core 87/87，Server 两轮共 197 个不同用例最终通过。服务端仍先全量物化，不宣称执行 heap、字节预算或首行延迟闭环。见 [合同](docs/benchmarks/m42-sql-result-bounds.md)与[原始证据](docs/audits/roadmap-closure-evidence-20260924/validation.json)。
+
+- **M27 #340 ServerRelay 多实例本地合同完成（2026-09-23，2026-09-24 最终复验）**：共享 journal 的单执行者 lease、跨实例活跃事件跟随、owner 丢失后的唯一 `error/done` 封闭、损坏/重复/超限 journal fail-closed、dispose/取消回收及绝对路径配置接线已交付。保留未选库的合法控制面 binding，修复锁超时后的 lease/活动槽位泄漏及 Dispose 回调重入。Server Release 0 warning/0 error，最终定向 119/119；两个独立 DataRoot 的最新 Server 进程 smoke 通过 live follow、hard-kill failure seal、稳定失败重放和 cleanup（provider 6 次、planner 4 次、answer 2 次）。真实 IdP、部署双网、模型质量及 provider 透明续跑不在本项范围，见 [闭环报告](docs/audits/relay-multi-instance-closure-20260923.md)。
+
+- **M42 覆盖索引读取切片完成（2026-09-23）**：普通二级索引支持连续等值前缀及其后的 Int64/Datetime 有符号范围 index-only scan，加入严格值解码、快照/取消边界、事务 overlay 回退和旧入口兼容。Core Release 定向回归 42/42 通过；固定架构、统一语料、冷启动、SQL 结果内存和 168 小时门禁仍按路线图保留，见 [基准与边界](docs/benchmarks/m42-covered-index-scans.md)。
+
+- **M27 #340 StudioNative 本地合同完成（2026-09-23）**：交付固定 HTTPS 公网 broker、Windows Credential Manager、原生短期 runtime token 输入、Web transport、只读 typed MCP continuation 与连接/取消/断开/到期清理。修复最终回答重复显示，并以有界精确 JSON 指纹消除嵌套内存膨胀、长零串回溯和大整数/重复键重放误判。新增宿主 39、Web/协议 26 项用例；完整 Studio 56/56、Native 专项 26/26、主 Web 161 通过，13 项模式限定用例已在专项覆盖，2 项缺目标配置的既有真实 KV 用例未执行。生产构建通过。见[验收报告](docs/audits/m27-studio-native-closure-20260923.md)；桌面 OAuth 获取、真实 WebView2/provider/双网现场、多实例接管及整个 M27 仍独立保留。
+
+- **GH-Issue #196 参数化 measurement JOIN 完成（2026-09-23）**：执行器消费规范化 JOIN 和完整排序列表，修复嵌入式绑定后排序/分页结果偏差；支持隐藏 FIELD 和混合方向多键排序。聚合/分组在 SELECT 与 EXPLAIN 扫描前一致拒绝，新增六个 `DataSourceInformation` 模型能力字段及 Provider 预检合同。新增 36 项用例，最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。FreeSql 发布、旧 Server 协商和固定硬件门禁独立保留。
+
+- **M27 #340 BrowserDirect OAuth/PKCE 获取入口闭环（2026-09-23）**：新增受信 HTTPS Authorization Code + S256 登录、固定匿名 callback、一次性 state/issuer/source/origin 校验和仅内存短期凭据；CopilotDock 提供连接/取消/断开，登出、身份改变、模式切换、到期和销毁阻断迟到凭据。补齐生产 HTML 与 Vite 的 Referrer 限制、默认 E2E fixture 配置和有界进程清理。新增 56 项回归（OAuth 核心 43、真实浏览器 12、模式切换 1），Web 完整套件 148 通过、2 项既有真实 KV 用例因缺少目标配置跳过；完整请求头强化后 OAuth 12/12 再次通过，生产构建通过。见[验收报告](docs/audits/m27-browser-oauth-closure-20260923.md)；真实 IdP、部署后的双网、StudioNative 和多实例接管仍未完成。
+
+- **GH-Issue #177/#180/#193 功能闭环（2026-09-23）**：标准关系 JOIN、JSON 标量/数组查询和关系表 VECTOR/GEOPOINT 产品边界（选项 2）完成；新增 77 项用例，最终 Release 回归 358/358 通过（Core 194、真实 Server/SDK 164）。补齐 JOIN 能力标志及 `DataTypes` 模型支持字段，修复规范化 measurement JOIN/EXPLAIN 分派、明确拒绝时序外连接，并修复 `json_contains` 重叠数组候选的顺序依赖，保留有界匹配与取消。完整合同、索引协作和证据见[闭环报告](docs/audits/sql-provider-closure-20260923.md)；交付已推送，三个 GitHub issue 已按 completed 关闭并读回核实；固定硬件与发布门禁独立保留。
+
+- **M20 Parity schema shape gate**：summarizer 现在要求 `scenarios` 与 `capabilityGaps` 真正为 JSON 数组；对象形状会生成 `parity_report_parse_failed` failing summary，并有对应负例回归。
+- **M43 #396 status contract gate**：能力索引校验同时拒绝空白状态描述，避免只存在键而没有可读合同。
+- **M36 #325/#326 MQ retention/dedup 修复**：tombstone/retention 截断会有界清理已不可读消息的 `message-id` 索引，同时保留 cutoff 及之后仍可读消息的去重语义；目录模式、单文件模式和重开回归均覆盖。该修复不改变日志格式、offset 或实例级备份边界。
+- **M36 #323 对象范围流长度修复**：`OpenRead` 返回的范围流现在保持稳定的 `Stream.Length`，不会随消费把总长度错误降为剩余长度；负范围长度显式拒绝，并补部分读取/读完后的合同回归。高变更率分页、固定硬件和跨进程恢复证据仍待执行。
+- **M36 #317 KV 命名空间有界游标**：新增 `KvNamespaceReadSnapshot` 与 `KvNamespaceRangeCursor`，将 prefix、起止边界、continuation、方向和页字节预算限定在命名空间内，并在返回页剥离物理前缀；游标持有独立快照租约，覆盖分页、隔离、重写稳定性和取消回归。大 keyspace 容量、远程 parity 与长期证据仍待执行。
+- **M20 Parity 失败证据加固**：nightly 七次窗口拒绝缺失或重复 `runId`；summarizer 对空/损坏或缺字段的 `report.json` 仍生成 schema v2 failing `summary.json`/Markdown，并记录结构化 `parity_report_parse_failed`，保留原始诊断链路。
+- **M43 Streaming 合同边界加固**：非整毫秒 `AllowedLateness` 现在 fail closed，避免持久化时静默截断；内存订阅读取信号使用固定次数检查并在异常通道状态下显式失败，新增精度与关闭回归。
+- **M43 #396 索引门禁加固**：能力证据/旅程索引校验拒绝绝对或越出仓库根目录的路径，要求完整状态契约、能力描述字段和五阶段唯一映射，并新增正负例合同测试。
+- **M43 #392~#395 Streaming 检查点文件存储首切片**：新增 `IStreamingSubscriptionCheckpointStore` 与 `FileStreamingSubscriptionCheckpointStore`，使用 source-generated JSON、SHA-256 订阅文件名、独占 lock 文件、revision 条件更新、临时文件原子替换和目录 fsync；损坏/截断内容、订阅错配、旧 revision，以及非初始 revision 下的缺失文件均 fail closed。该实现只保存已确认 checkpoint，不提供事件缓冲回放、分布式租约或 exactly-once。
+- **M43 #386~#390 CDC append-only spool 首切片**：新增固定 44 字节 little-endian 帧头、CRC32、分区 checkpoint 元数据、受限 append/replay/ack、原子截断和重开校验；metadata v2 在写帧前持久化 append high-watermark，并兼容读取 v1，确保掉电、partial tail、损坏帧、截断数据及 metadata 指向缺失未确认帧时 fail closed。快照/增量衔接、冲突解决、schema migration、复制拓扑、远程 parity 和固定硬件容量仍未完成。
+- **M43 #396 十四能力 golden-journey 索引门禁**：新增机器可读的十四能力 journey 索引，统一 `local_contract`、`remote_parity`、`recovery`、`fixed_hardware` 和 `long_run` 阶段及 `PASS`/`PARTIAL`/`NOT_READY`/`DEFERRED` 状态；增强 `validate-fourteen-capability-index.ps1` 检查入口、证据路径和每项能力的完整旅程映射。该索引只冻结验收边界，不把外部或固定硬件阶段标记为已完成。
+- **M43 #391 可恢复 Streaming 订阅合同首切片**：新增版本化订阅/检查点 DTO、source-generated JSON、事件时间 watermark、迟到事件 `Deliver`/`Drop`/`Reject` 策略，以及带有界 Channel 背压、取消、单 in-flight 批次、至少一次重投和显式 ACK 的嵌入式实现。检查点可由外部持久层恢复；本切片不宣称跨进程协调或 exactly-once，详见 [Streaming 订阅合同](docs/streaming-subscription-contract.md)。
+- **M43 #385 CDC 版本化事件合同首切片**：新增不可变 CDC 事件、schema/contract version、分区 checkpoint 和 insert/update/delete 语义；手写有界 UTF-8 JSON 编解码器拒绝未知字段、重复字段、未知版本/操作、无效 payload、深度和字节超限，并支持可取消的流读写。该切片只定义跨进程格式与边界，尚未提供离线队列、冲突解决或复制拓扑，详见 [CDC 合同](docs/cdc-contract.md)。
+
+- **GH-Issue #191 UPDATE 联接更新首切片**：关系表支持 `UPDATE ... JOIN ... SET ... WHERE ...` 与 `UPDATE ... SET ... FROM ... WHERE ...`；仅更新目标表，重复来源匹配按关系扫描顺序取首行，`RowsAffected`/`RETURNING` 按目标主键去重计数，支持 INNER/LEFT、参数绑定、来源只读和 `ROWVERSION` 递增，measurement/document 来源明确拒绝。新增重复匹配、空匹配、参数化 FROM 和 LEFT JOIN 回归；固定硬件、远程 parity 与多语句复杂联接仍待执行。
+- **GH-Issue #184 `ON CONFLICT DO UPDATE` 首切片**：关系表本地 Core 支持 `DO UPDATE SET`、`excluded.column`、默认值、显式事务、`RETURNING`、`ROWVERSION` 和重复赋值校验；事务候选行与直接执行路径统一生成版本值并在冲突判断前校验必填列。新增解析、直接/事务执行、约束和低层队列边界回归；远程轻事务 `RETURNING` 明确 fail closed，远程 parity、Frame 和外部 issue 线程确认仍待执行。
+- **GH-Issue #177 标准关系表 JOIN**：关系 SQL 新增 `RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`，保留声明顺序、SQL 三值 `ON` 条件、外连接 `NULL` 扩展和笛卡尔积语义；右/全外连接使用有界嵌套循环，既有 INNER/LEFT 的 hash、索引和 merge 计划保持不变，右侧未匹配行补发循环逐行检查取消。measurement JOIN 明确继续只支持单个 INNER JOIN，并对这三类标准连接返回稳定的不支持错误。新增解析、右侧/两侧未匹配、重复键和笛卡尔积回归；本轮定向 JOIN/解析测试 99/99 通过。固定硬件、远程 parity 和大规模笛卡尔积容量证据仍未执行。
+- **GH-Issue #180 JSON 标量/数组查询**：注册 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)`，关系表 JSON 列与 Document 集合共用 `JsonPath`/`JsonDocument` 实现，支持参数化 path、JSON `null` 与缺失区分、数组无序子集及对象字段子集。输入、path、嵌套深度、集合大小和对象属性/数组配对比较次数均有明确上限（每次 `json_contains` 最多 1,000,000 次结构比较），不使用反射序列化；新增关系/Document/NULL/非法输入/资源边界回归，定向测试 4/4 通过。远程 Frame/parity、复杂 JSON 索引下推和真实大语料性能仍待验证。
+- **GH-Issue #193 关系表 VECTOR/GEOPOINT 边界**：关系表 DDL 对 `VECTOR(dim)` 与 `GEOPOINT` 保持明确、稳定的拒绝错误，避免把 measurement/Document 专用类型误写成关系表已支持；新增解析器边界回归和 SQL 参考说明。跨模型 typed journey、远程 metadata parity 和完整关系列支持仍未承诺。
+- **M42 KV state 独立磁盘读预算**：`KvOptions.MaxConcurrentStateReads`（默认 8）在同一嵌入式数据库的 keyspace 之间共享有界 RandomAccess 许可；等待观察取消，不持有 keyspace 写锁，完成读字节与等待时延接入 `SonnetDbMeter`，峰值并发和取消次数保留为预算对象内部统计并由测试断言。补齐 manager/standalone keyspace、checkpoint、游标和延迟释放的预算引用生命周期，异常/取消路径释放许可；新增 3 项预算并发、取消、生命周期回归，KV state/游标回归 15/15 通过。该预算不替代固定 x64/ARM64、冷启动、恢复或 168 小时 I/O 门禁，均保留在真机验证计划。
+
+<a id="roadmap-completed-archive-2026-09-21"></a>
+
+#### 路线图完成项归档（2026-09-21）
+
+本节接收 `docs/roadmap-total-milestone.md` 中已经完成实现、入口、自动化回归和本地门禁的明细；路线图只保留仍有未闭环实现或待执行证据的项目。下表是归档索引，既有同编号的详细变更仍以本文件本节及后续条目为准：
+
+| 归档范围 | 已完成内容 | 仍保留的边界 |
+|---|---|---|
+| M0~M13、M15~M18、M21、M23、M24、M26、M28、M30、M31、M33、M34、M37~M39、MM9 | 存储/查询/Server、函数与向量底座、空间与 Copilot UX、Document 管理、连接器、协议接入、Modbus、视图/触发器和第一批备份恢复的代码与本地回归已交付。 | 固定硬件、部署安装、生产混合负载和长期 SLO 仍按 [真机验证待办](ROADMAP.md#真机验证待办) 执行；M14 Copilot 和其他未闭环项不在本归档内；本条不表示生产 PASS。 |
+| M35 #297、#299~#301、#304、#306~#309 | 语义内容清单、持久摄取/重启恢复、provider 治理、图文检索、媒体片段和专业视觉的合同与嵌入式入口已完成。 | #298/#303 的检索质量，#302/#305 的真实模型、容量、回滚和固定硬件证据仍为 `NOT_READY`/`DEFERRED`，详见 [M35 证据合同](docs/m35-filtered-search-budgets.md)。 |
+| M36 #311~#326（代码范围） | 九模型客户端取消/目标绑定、时序/KV/全文/向量/对象/MQ typed API、传输与实例恢复代码、Server/SDK/CLI/Studio 合同和本地回归已完成。 | #310/#311/#326 的九模型 golden journey、远程 parity、跨进程恢复、容量和长期证据仍在独立验收队列，详见 [总路线图](docs/roadmap-total-milestone.md)。 |
+| M40 #341~#367（步骤 1~7） | Native Graph Preview/Beta 的存储、SQL/PGQ、planner、恢复、运维面、strict evaluator 和本地自动化门禁已闭环。 | Neo4j/PostgreSQL 对拍、LDBC/Graphalytics、固定硬件、Native AOT、Couplet C2~C4、kill/reopen 和 7 天 mixed workload 只在现场计划中执行；Graph 继续标为 Beta。 |
+| M41 #368~#380（本地合同） | 规划器可观测性、EXISTS/OR/Top-N 快路径、谓词/投影下推、快照、统计、成本、JOIN、spill 和受控并行的代码及差分回归已完成。 | #373、#375~#380 的固定 x64/ARM64、统一语料、生产尾延迟和 7 天报告仍待执行；不能用本机短跑替代发布证据。 |
+| M43 #382~#384 | 十四能力机器索引、中英文成熟度口径和证据边界已落地。 | #385~#402 的 CDC、流处理、用户旅程、发布汇总和外部榜单仍按未完成队列推进；外部提交不由本归档自动完成。 |
+
+归档依据与当前状态以 [ROADMAP.md](ROADMAP.md)、[总里程碑](docs/roadmap-total-milestone.md) 和 [历史路线图](docs/roadmap-history.md) 为准。`✅` 仅表示相应代码/文档范围完成；任何 `🟡`、`🚧`、`⏳`、`❌` 或 `DEFERRED` 的现场、远程、容量、质量和长期证据均未被本次归档提升为 PASS。
+
+- **标准 JOIN 语义切片（本轮工作树验证）**：关系表解析与执行新增 `RIGHT JOIN`、`FULL JOIN`、`CROSS JOIN`，保持 NULL 扩展与笛卡尔积语义；measurement 路径继续明确拒绝这三类 JOIN。`dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~RelationalStandardJoinTests"`：4/4 PASS；兼容回归 `dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~RelationalJoinAlgorithmTests|FullyQualifiedName~SqlParserTests"`：95/95 PASS。以上为本轮工作树验证，不代表远程 CI、固定硬件或真机证据。
+
+- **GH-Issue #181 `DECIMAL` / `NUMERIC` 精确类型**：补齐有界 `DECIMAL(precision, scale)` / `NUMERIC` 解析、`System.Decimal` CAST 与算术，关系表使用 16-byte decimal payload 和 schema format v9 保存精确值；嵌入式/远程 ADO.NET `Columns` schema 投影声明的 precision/scale；`SqlDecimalTests` 5/5、`SqlCastTests` 9/9 通过，并新增 `DECIMAL(18,4)` 元数据回归。远程 Frame parity、超出 `System.Decimal` 的溢出/scale enforcement 与外部 issue 线程确认仍待执行。
+- **GH-Issue #182 `TIME` / `TimeOnly` 精确类型**：关系表支持 `TIME` DDL、`TimeOnly` ticks 的 8-byte 持久化、`TIME` CAST、`TimeOnly`/`TimeSpan` 参数绑定、当天范围比较和嵌入式 ADO.NET `TIME`/`TimeOnly` 元数据；schema format 升至 v10。`SqlTimeTests` 3/3、ADO TIME 回归 1/1 通过；`24:00:00`、跨日值和 DATETIME/DateTimeOffset 到 TIME 的隐式转换明确拒绝，远程 typed TIME/Frame parity 与外部 issue 线程确认仍待执行。
+- **M43 #383/#384 十四能力证据索引与成熟度口径**：新增 `docs/audits/fourteen-capability-evidence-index.json` 及 PowerShell 7 校验脚本，冻结十四项能力的稳定 ID、类别、路线图、真实入口、证据路径和边界；README 中英文与 `docs/capability-maturity.md` 统一 `supported` / `partial` / `planned` / `not_planned` / `beta` 状态合同，并明确 Graph Beta、单库备份不含实例级 SonnetMQ 及未验证证据边界。完整固定硬件、远程、恢复和长期证据仍按后续路线推进。
+- **M43 外部 GitHub issue 路线与闭环状态**：登记 2026-09-21 公开的 25 个 `GH-Issue`（#89、#91、#171~#193），并记录历史快照、当前提交 `9c4de6e9`、17 个 `closed_implemented_scope` 和 8 个仍 open 的条目；新增 `eng/validate-github-issues-snapshot.ps1` 防止状态集合漂移。关闭仅表示对应有界合同已实现、测试、评论并交付，不替代远程 parity、固定硬件或生产证据。
+- **GH-Issue #192 SQL 数学标量函数**：新增 `ceil`/`ceiling`、`floor`、`exp`、`power`/`pow`，统一数值到 Float64，传播 NULL，保留 IEEE NaN/Infinity/域错误结果并对非数值参数返回明确错误；Core 函数、SELECT、参数化 WHERE、GROUP BY/HAVING 和 UPDATE 定向回归 95/95 通过。该实现仍需外部 issue 线程确认。
+- **GH-Issue #188 CREATE TABLE 命名 FOREIGN KEY**：`CONSTRAINT name FOREIGN KEY` 复用现有外键 catalog、schema、DROP 和重开持久化路径，保留旧构造/解构兼容；Parser 77/77、表执行 166/166 和命名/重复/缺列/重开定向回归通过。该实现仍需外部 issue 线程确认。
+- **GH-Issue #185 schema metadata projection**：Server schema response 与 Remote ADO.NET DTO/源生成上下文统一暴露 views、materialized views、foreign keys 和 document collections，补真实 schema endpoint 回归；本地 schema endpoint 5/5 与已有 embedded `GetSchema` projection 通过。远程跨版本 parity 和外部 issue 线程确认仍待执行。
+- **GH-Issue #183 SQL 整数按位运算**：词法器识别 `&` / `|`，解析器按“按位与高于按位或、两者低于比较”的优先级生成 AST；共享标量执行器支持 Int64 常量/列在 `SELECT`、`WHERE`、`UPDATE` 中计算并传播 `NULL`，对浮点、字符串等非整数返回稳定中文诊断。新增 lexer、AST 优先级、关系表投影/筛选/更新和错误边界回归；定向 Core 测试 158/158 通过。远程 ADO.NET/Frame parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码**：嵌入式和远程 ADO.NET 参数绑定均支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`，转换为 VECTOR 字面量并拒绝空/非有限向量；REST/NDJSON 行写入将向量编码为 JSON 数字数组，远程读取将纯数字数组恢复为 `float[]`，并补齐字段类型推断。新增嵌入式参数、边界、NDJSON writer/reader 与 REST 远程闭环回归；外部 issue 线程确认仍待执行。
+- **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。新增 5 个 Core 确定性回归。`WITH RECURSIVE` 及 CTE 输出列名列表明确保持未支持，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #178 SQL 集合运算**：新增 `UNION ALL`、`INTERSECT` 与 `EXCEPT` 的词法、解析和关系执行；保留既有 `UNION` 去重兼容语义，支持复合结果的排序/分页和稳定列数诊断。新增集合运算 Core 回归；当前按书写顺序求值，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #172 ANSI 窗口函数 `OVER`**：窗口函数调用现在可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。`PARTITION BY`、非时间/降序排序、`ROWS`/`RANGE` frame、关系表/JOIN 及远程 parity 保持明确未支持；新增 5 项 Core 解析、执行与 fail-closed 回归。
+- **GH-Issue #173 显式 `CAST(expr AS type)`**：新增专用 CAST AST、解析和参数绑定，并在 measurement、关系表、文档、JOIN、JSON 文件、混合搜索及向量搜索路径共享 `INT`/`FLOAT`/`BOOL`/`STRING`/`DATETIME`/`BLOB`/`JSON` 转换、NULL 传播和确定性错误语义；`VECTOR`/`GEOPOINT` 目标保持明确未支持。新增 9 项 Core 解析、字面量、列投影/筛选和边界回归，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #174 常用字符串函数**：FunctionRegistry 新增有界 `trim`/`ltrim`/`rtrim`、`length`/`char_length`、`substring`/`substr`、`replace`、`left`/`right` 与序数规则的 `starts_with`/`ends_with`/`contains`，并收紧 `lower`/`upper` 的字符串参数检查。除 `concat` 外按 SQL 习惯传播 NULL；位置从 1 开始，长度/字符数拒绝负值，非字符串和非整数参数返回确定性中文诊断。新增函数注册、NULL/边界与关系表 SELECT/WHERE 回归；TRIM 方言语法、排序规则、字节长度、远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #175 `date_diff` / 日期格式化**：新增有界 `date_diff`/`datediff` 与 `date_format`/`format_datetime`/`to_char`/`strftime` 标量函数，接受 DATETIME、DateTimeOffset 或 Unix 毫秒，传播 NULL，日期分量和格式字符串均有明确上限/诊断；strftime 支持常用 `%Y/%m/%d/%H/%i/%s/%f` 标记并统一 invariant 输出。新增函数注册、关系 SELECT/WHERE、格式边界和非法分量回归；locale/timezone database/calendar semantics 与远程 parity 仍待验证。
+- **GH-Issue #176 聚合 `DISTINCT`**：复用既有单字段聚合 AST/执行合同，在关系与 measurement 路径覆盖 `COUNT/SUM/AVG/MIN/MAX(DISTINCT field)` 的去重和 NULL 排除，并对 `COUNT(DISTINCT *)` 保持明确拒绝；新增 `SqlAggregateDistinctTests` 4 项回归。多表达式/排序集合/窗口 DISTINCT、远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #179 `BETWEEN` / `ILIKE`**：词法器和解析器新增 inclusive `BETWEEN` / `NOT BETWEEN` 及大小写不敏感 `ILIKE` / `NOT ILIKE`，范围谓词复用既有三值比较，ILIKE 复用 invariant `LOWER` + `LIKE` 通配符语义；新增关系过滤、NULL 排除和 parser 回归 3 项。对称范围、locale-specific collation、远程 parity 与外部 issue 线程确认仍待执行。
+
+- **M27 #340 ServerRelay 跨进程/重启续流 journal**：ServerRelay 事件日志现在可持久化到 `<DataRoot>/.system/copilot-relay-journal.json`，以 source-generated JSON 和原子替换写入；新 Server 进程可按 owner/database/request fingerprint 与 cursor 重放已完成 run。进程重启时未完成 run 会追加 `error`/`done` 的 interrupted 终态并只允许重放已有事件，绝不接管或重复调用 provider/本地工具；journal 使用单写者锁、有限 TTL 和有界 run/event 容量。新增完成 run 重启重放与未完成 run fail-closed 回归。跨多实例正在执行中的实时接管、可信 OAuth/PKCE、StudioNative broker 与真实公网部署仍不在本次合同内。
+
+- **M27 #340 Web 页面刷新 ServerRelay 重放**：CopilotDock 仅在 ServerRelay 模式保存受限 pending marker（runId、会话/数据库、SHA-256 请求 fingerprint 和非敏感模式元数据），不保存数据库/public token、消息正文或工具结果；刷新后重新加载服务端会话，去除本轮已追加的 assistant 尾部并从 sequence 1 重放完整 journal，fingerprint 不一致、unknown/expired/conflict 或安全存储/摘要不可用时清理并 fail closed。停止、登出和会话切换会清理 marker；BrowserDirect、StudioNative 与 Disabled 不共享该状态。Playwright marker/fingerprint 回归、Web build 和本机 Server 重启 smoke 已通过，部署后的浏览器刷新联调仍待后置验证。
+
+- **M27 #340 本机 ServerRelay 重启 smoke**：新增 PowerShell 7 loopback 脚本，使用真实 Server 进程切换、普通临时数据库和 durable journal 验证按 `runId` 重放；首轮 mock provider 仅调用 planner/answer 各一次，重启后保持 `calls=2`，事件序列均为 `start,retrieval,final,done`。报告固定为 `LOCAL_ONLY` / `serverRestart=PASS_LOCAL_ONLY` / `browserRefresh=NOT_RUN`，不覆盖 OAuth/PKCE、公网、StudioNative 或真实模型质量/成本。
+
+- **M36 #311 统一新客户端合同代码收口**：Document、Graph、KV、MQ 和 Object 客户端的取消传播、目标/关联响应绑定、流式与批量边界已完成；Object SDK 的预取消、JSON 正文期限、分页/批量校验、multipart 目标绑定和写入禁止自动重放，以及 MQ `PublishMany` 的逐项物化和发送前取消传播均已落地。Core/Server 回归、Data 显式 AOT/trim 分析和 win-x64 NativeAOT publish 已通过。九模型 golden journey、工作台/SDK 端到端矩阵、远程恢复和长期证据转入独立验收任务。
+
+- **M36 #321 向量精确扫描 Top-K 有界化**：通用 `vector_search` 在默认距离升序且无/可预筛选元数据过滤时使用固定大小堆保留候选，继续执行完整扫描、取消传播、维度校验和稳定距离/ID 排序；涉及距离/分数谓词或自定义排序时保留完整候选集路径。新增过滤后与残余谓词差分回归，避免将有界扫描误报为 ANN 或 Recall 证据。
+
+- **M41 #375 统计无偏采样**：关系统计刷新在受限样本预算下遍历完整快照并按稳定序列做确定性均匀选样，避免只取主键前缀导致尾部数据缺失；新增尾部样本回归与基准。
+
+- **M41 #375 页感知成本与参数敏感反馈**：fresh statistics 的索引候选逻辑读估算按持久化索引页密度拆分 root/tree seek、连续 leaf span 并在索引总页数处封顶，`EXPLAIN` 候选摘要公开 `seek`/`leaf`/`pages` 上界；统计缺失或过期时仍按既有启发式回退。参数化 SQL 的运行时行数反馈增加绑定值摘要隔离，避免倾斜参数污染同形状查询的后续规划。新增页成本 helper 的窄/宽/空输入边界、缺失统计回退和参数反馈隔离回归；空输入的 root-only seek 是 helper 合同，不等于生产 planner 已证明物理 miss leaf 读取；cache state、随机叶页物理 I/O、固定硬件与统一语料尾延迟仍后置。
+
+- **M42 向量批量余弦 query norm 复用**：批量 CPU scorer 现在每次扫描只计算一次查询向量范数平方，再复用到每个候选行；保留零向量、NaN、维度错误、裁剪和距离排序语义。新增逐行差分/边界回归与 BenchmarkDotNet 基线；固定 x64、ARM64 和 168 小时生产门禁仍待现场执行，详见 [M42 query norm 报告](docs/benchmarks/m42-vector-query-norm.md)。
+
+- **M42 KV 快照 single-flight**：冷缓存快照覆盖层构建增加进程内 single-flight，重复并发读者复用同一份复制/排序结果，保留预算校验、磁盘租约和取消/释放语义；新增并发回归。
+
+- **M36 #326 VS Code Graph Explorer 与实例恢复**：连接树新增 Graph Beta 目录与节点，展示记录格式和存储标识，提供有界 `queryGraph` SQL 模板入口；同时补充实例级 SonnetMQ/consumer offset 一致快照与恢复，Graph catalog 查询、激活事件、菜单和 smoke contract 已同步。
+
+- **M36 #325 SonnetMQ 投递失败治理初始切片**：核心队列和共享客户端新增 `Nack`/重投计数、最大投递次数、死信 Topic、拒绝原因与 lag/重投诊断；拒绝记录可随日志重开恢复，达到上限后自动附带原 Topic/offset 头转入 `<topic>.dlq`。远程 HTTP、Frame 和高层 delivery 已接入，消息 ID 去重窗口见下方补充。
+
+- **M36 #325 SonnetMQ offset reset**：消费者组支持 earliest/latest/time/explicit 四种有界重置目标，重置记录写入队列日志并在重开后恢复；HTTP、Frame、嵌入式和共享客户端保持相同的 retention 裁剪语义。为增加 nack/offset-reset 记录，SonnetMQ 日志版本从 1 升至 2，同时继续读取版本 1；消息 ID 去重窗口见同一 Unreleased 段落的补充条目。
+- **M36 #325 SonnetMQ message-id 去重窗口**：新增可配置的有界 `message-id` 去重窗口（默认 100,000，设为 0 可关闭），重复消息复用原 offset 且不追加日志；批量发布和日志重开均保持同一语义，超长或缺失 ID 不启用去重。远程/跨节点 exactly-once 与长期证据仍不在合同内。
+- **M36 #326 SonnetMQ 实例快照与恢复**：新增一致性实例级 snapshot/restore，快照期间阻断会改变队列状态的操作，刷新并复制目录模式或单文件模式日志，生成 source-generated manifest 和 SHA-256 校验；恢复先校验并写入 staging，再原子发布。该合同覆盖消息头、consumer offset 和重开后继续发布，但不改变单库备份不包含 Server `.system/mq` 的边界，现场恢复证据后置。
+- SonnetMQ 日志格式版本升级为 v2 以容纳 nack 与 offset-reset 记录；读取端继续兼容 v1 历史消息与确认记录。
+
+- **M36 #324 SonnetMQ 高层客户端切片**：新增 producer/consumer builder；producer 以 `MaxInFlight` 提供有界并发与 `DrainAsync`；consumer 提供有界 prefetch、push/pull `IAsyncEnumerable`、manual/auto ACK、取消和 drain。该切片复用现有 publish/pull/ack 合同，仍不包含 nack/redelivery/DLQ（见 #325），也不宣称 exactly-once 或分布式消费组能力。详见 [MQ 高层客户端](docs/mq-high-level-client.md)。
+
+- **M36 #322 Object Transfer Manager**：新增 `SndbObjectTransferManager`，提供固定缓冲的流式上传/下载、自动 multipart 阈值、分片有界并发、校验和、仅对幂等分片的安全重试、原子恢复清单、取消清理、批量逐对象结果和传输进度；complete/普通 PUT 在发送后保持未知结果边界。详见 [对象传输说明](docs/object-transfer-manager.md)。
+
+- **2026-09-19 Terra/Luna 并行收口切片**：M36 #311 新增 MQ `PublishMany` 逐项物化与发送前取消传播；#323 新增对象条件读写（含强/弱 ETag 列表、HTTP 秒精度、缺失对象 `If-Match` 412 和条件 PUT 优先级）、continuation cursor、`sndb cp` 文件流和 `sync --dry-run`，并提供明确保持 `DEFERRED` 的高变更率分页预检；M36 #310/#311 新增九模型 journey 机器可读矩阵；M36 #314 修复 writer 释放期间等待入队的稳定异常合同；M27 #184 增加带 token 的本机 Server/MQTT journey 并保持真实 provider 为 `NOT_READY`；M29 #258 增加外部健康 Server 不被 Studio 接管及托管目标切换回归。M19/M25/M41 的固定硬件和长期证据仍按 verifier 保持 `NOT_READY`/`DEFERRED`。
+
+- **M36 #311 Object 客户端合同**：对象 SDK 所有异步入口先检查取消，REST JSON 成功/错误正文共用请求期限并释放响应；校验分页目标/数量/token、批量删除原始 key 和逐项错误，嵌入式/REST multipart 操作绑定 upload ID 的 bucket/key。对象写入禁自动 HTTP 跳转与发送后 Frame→REST 重放；返回对象内容流后的读取取消仍由调用方管理，传输管理保留 #322。Core 定向回归、Data 显式 AOT/trim 分析、Server Kestrel 回归和 win-x64 NativeAOT publish 均通过，见 [合同](docs/object-client-contract.md)。
+
+- **M36 #314 时序写入批次接收上限**：新增 `MaxBatchPoints`（默认 8192，上限 65536），在入队前有界枚举并整体拒绝超限输入；接收许可限制同时物化的生产者数量，等待许可及枚举期间传播取消，空批次同样检查取消与释放状态。保留现有逐项结果、分块传输和 drain；超过默认上限的调用需拆批或显式提高上限。见[接收合同](docs/timeseries-write-admission.md)，远程 parity 与容量证据仍后置。
+
+- **M36 #315 时序建模与数据预检合同**：补齐嵌入式 builder 的真实 measurement schema、series/tag 基数、实际 retention 配置与有界原始点质量预检，复用现有 `QueryEngine` 的快照、墓碑和合并路径；对段租约、MemTable 全桶排序、候选块解码、索引和墓碑设置预算，超额明确未检查。公开 source-generated JSON 保留采样完整性和真实计数，新增取消、预算、非有限值、schema 不符、TTL 边界和持久化重开回归。远程入口、真实服务 parity、现场恢复和容量证据仍待独立验收，见[合同](docs/timeseries-query-preflight.md)。
+
+- **M36 #321 已加载向量图安全重建切片**：VectorData 和 Core 新增显式进程内 HNSW 图重建操作，从既有持久向量 KV 分页构建候选图，成功后替换，取消/失败保留旧图；真实处理计数和终态无需等待索引锁读取，原始异常通过完成任务传播，进度 DTO 使用 source-generated JSON。构建期间索引读写与释放串行化，不修复主文档/持久 KV；远程 lifecycle、通用执行解释及 Recall/固定硬件报告仍待完成。
+
 - **M27 木垒现场 provider smoke 记录**：补充 2026-09-18 ARM64 现场的内部 Tomur `/v1/models` 与 35B 有界短对话证据；该记录只证明 provider 可达和一次短答，不替代真实语义质量、工具闭环或长期性能门禁。
+
+- **M36 #321 VectorData 生命周期预检首切片**：新增嵌入式实际 catalog 的维度、度量、有限数值/余弦非零预检；复用 M35 持久 RAG generation 完整 profile 并检查 L2 单位范数与 generation 身份，普通集合明确 `profile_unbound`。新增只观察已加载向量图的轻量 health，不扫描主数据、不触发索引加载/重建，诊断 DTO 使用公开 source-generated JSON。安全重建进度、远程 lifecycle、执行路径解释及 Recall 报告仍未完成；合同 fixture 不计真实模型质量证据。
+
+- **M36 #315 时序 Query API 初始切片**：新增复用现有 `QueryEngine` 的 range/aggregate/window/gap-fill builder、方向与 limit、取消传播、有界补桶和 TSQ001-004 静态诊断；完整 schema/cardinality/retention/坏点预检与远程证据仍后置。
+
+- **M36 #318 FullText 类型化 Search API**：新增嵌入式/远程统一 typed Search，复用 query kind、Document filter 与稳定分页；服务端提供 score/id 排序、facet、高亮、matched terms/offsets 和版本化 BM25 score metadata，HTTP JSON 全部走 source-generated context。新增分页与命中元数据合同测试；全文设置、analyzer diff、relevance explain 和 rebuild progress 仍由 #319 负责。
+
+- **M36 #319 FullText 设置与诊断**：全文索引新增 searchable/filterable/sortable 字段、synonym/stopword 与 typo policy，嵌入式和远程客户端提供 analyzer diff、BM25 relevance explain 及同步 rebuild status；新增 settings/analyzer-diff/relevance-explain/rebuild 管理端点和 source-generated JSON。文档 schema 格式升级至 v7，保留 v1-v6 读取并在加载时补齐默认设置；新增 Core 与 Server 合同回归，固定硬件和远程容量证据仍后置。
+
+- **M36 #320 VectorData 高层 Search API**：新增继承 VectorData 标准选项的 SonnetDB typed search，支持 filter、score threshold、skip、include vectors、exact/accurate scan、fast/balanced/accurate preset，以及有界顺序 batch 查询；batch 默认最多 1024 个查询并传播取消。新增向量阈值、精确扫描和批量顺序回归；#321 的 dimension/profile preflight、index health、ANN/scan explain 与 recall report 仍后置。
+
+- **M36 #317 KV 大 keyspace 工作流初始切片**：新增稳定快照异步 range cursor 与远程 continuation cursor，提供有界页、取消和逐条异步枚举；新增带 bounded Channel 背压的 KV pipeline，按输入顺序返回逐项成功/失败/取消结果；新增容量、TTL 和进程内热点 key 诊断及 source-generated REST 契约。大规模远程 parity、固定硬件容量和长期证据仍后置。
+
+- **M36 #314 时序类型化 Write API 初始切片**：`SonnetDB.Data.TimeSeries` 提供 fluent Point builder、纳秒/微秒/毫秒/秒精度换算、批量与显式 flush、bounded Channel 背压、逐项结果、取消传播和 dispose drain；嵌入式路径直接复用 `Tsdb.WriteMany`，远程路径支持列式 Frame 与 REST Line Protocol，Frame 传输失败禁止自动回落，重试默认关闭且显式开启时由调用方承担幂等责任。新增 builder、精度、嵌入式同步 flush、逐项错误、预取消和 drain 回归；Data Release 构建 0 警告 0 错误。远程现场 parity 与容量证据仍后置。
+
+- **M36 #313 SQL 开发诊断**：解析异常补充稳定 `code`、`operation`、字符 `position` 和不泄露请求内容的 `hint`，执行/约束/取消/超时异常提供统一 `SqlErrorMapper`；`EXPLAIN ANALYZE` 返回实际行数、候选/检查/移除行数、耗时、访问路径、回退原因、锁等待、WAL fsync、spill 与峰值内存，并复用根调用的取消令牌和截止时间。SQL REST 错误响应保留原传输码，同时附加可选诊断字段。新增诊断与取消回归，Core/Data/Server Release 构建均 0 警告 0 错误；Frame 传输错误码和完整生产现场证据仍按各自门禁保留边界。
+
+- **M36 #312 SQL 高频 DML**：关系表支持 `UPDATE/DELETE ... RETURNING`，并新增 SonnetDB-native `INSERT ... ON CONFLICT [(columns)] DO NOTHING` 子集；冲突目标必须匹配主键或唯一索引，跳过行和 `RETURNING` 顺序稳定，事务预览、嵌入式 ADO.NET 与 REST SQL 均返回结果集。新增 6 项专用 Core 回归及 177 项组合 SQL 回归通过；`DO UPDATE`、文档/时序模型 `RETURNING` 和完整 PostgreSQL 方言不在本切片范围。
+
+- **M36 #311 共享客户端合同切片**：Document、Graph、KV、MQ 客户端统一预取消、目标/关联响应校验、远程请求禁自动跳转，NDJSON 采用响应头后流式读取并对损坏行 fail-closed；补充有界分页、批量 key/offset 校验、MQ 发送后禁止 HTTP 回退和 Graph 分页 API。新增 33 项客户端合同测试与 Data Release 构建通过；九模型 golden journey、完整工作台/SDK 矩阵和现场恢复证据仍后置。
+
+- **M35 #309 车辆外观与车牌精确检索合同**：新增复用 Document、path index、对象桶与现有 WAL 的 `VehicleObservationStore`，支持外部检测/OCR/embedding 导入、跨来源稳定观察 ID、车牌版本化标准化精确查询、车辆外观有界 Top-K、删除和重开恢复；补齐 profile 漂移、对象版本/ETag/hash、新鲜度、取消及候选/向量预算校验。21 项专用测试通过；Core 不运行 OCR 或视觉模型，真实质量、容量和远程治理仍后置，见 [车辆观察合同](docs/vehicle-observation-search.md)。
+
+- **M35 #308 人员外观与动作查询合同**：新增按 ReID、步态、姿态、动作隔离的预计算候选 SDK，复用 #306 固定来源目标，要求完整 profile、显式用途/授权、持久审计、有界候选/向量预算和取消；步态/动作强制视频来源，结果使用跨来源稳定候选 ID。仅提供精确候选查询，不运行模型、不登记身份；20 项专用测试通过，mAP/CMC/precision/recall、真实模型和固定硬件证据仍后置，见 [人员外观查询](docs/person-appearance-search.md)。
+
+- **M35 #307 受治理的人脸模板与比较合同**：新增默认关闭的 `FaceRecognitionStore`，支持独立用途/操作授权、先同步审计后访问、原子终态审计、固定对象版本新鲜度检查、1:1 验证、有限 1:N 候选、导出、来源/主体删除和保留期清理；通用 REST、Frame、SQL 和管理列表拒绝保留 keyspace。14 项 Core 合同测试和语义回归通过；真实模型 FAR/FRR/TAR、远程入口和物理擦除仍后置，见 [人脸合同](docs/face-recognition.md)。
+
+- **M35 #306 视觉派生模型**：新增固定原对象身份的 `VisualDerivedTarget`、归一化区域、同视频版本 track 与完整 detector profile，提供有界、可取消的结构化校验和公开 source-generated JSON；拒绝来源混版、越界坐标与错误轨迹引用，比较完整 profile 兼容性。包含来源、预算、取消与 JSON 合同回归；检测器执行、持久化宿主和真实模型质量仍由后续独立能力承担，见 [视觉派生合同](docs/visual-derived-content.md)。
 
 - **M35 #305 RAG 治理与恢复闭环**：新增受治理的摄取状态、重建/续跑/丢弃和有界退休代生成清理 API；Admin REST 与 Web 管理页提供 CAS、审计、配置隔离和失败结果边界。备份/恢复保留源对象清单与 pending generation，可从中断处继续并支持模型 profile 换代；SQL、REST、Frame 与管理目录隐藏内部 RAG 资源，SDK 访问保持可用。新增对象版本绑定、备份恢复、删除派生集合重建和资源隔离合同测试；10k/100k 容量、真实模型质量与固定硬件证据继续后置，详见 [RAG 治理说明](docs/rag-governance.md)。
 
@@ -50,7 +199,7 @@
 
 - **M39 SQL 例程生产加固**：关系表触发器支持 `ALTER TRIGGER ... ENABLE/DISABLE/RENAME TO/FOLLOWS/PRECEDES` 及创建时显式顺序；新增只读 `EXPLAIN PROCEDURE/TRIGGER`、`SHOW ROUTINE AUDIT/STATS`、按定义过滤及 AOT 兼容 JSON 审计导出。远程 REST/Frame 统一传递服务端配置的例程资源预算。例程目录独立版本升级为 v2，继续读取 v1，旧引擎拒绝 v2；主数据文件和 KV/WAL 格式未改变。
 
-- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；完整 #323、#322、M36 和生产门禁仍独立验收。
+- **M36 #323 / OBJECT-001 对象有界分页**：`ListObjects` 复用对象元数据 KV/WAL 的原始 key ordinal 派生索引，普通 PUT、multipart 完成、删除标记与生命周期替换原子维护索引；对象元数据按需启用有序内存覆盖层，消除每页全桶解码和排序。Core/SDK/HTTP 增加 delimiter/common-prefix 与取消传递，保留旧 API 和普通 v1 continuation；物理候选超预算返回明确错误且不推进令牌，旧库和缺失完成标记按有界页可取消重建。JSON 保持 source generation，未修改原文件格式。测试、复杂度与恢复限制见[证据](docs/audits/object-pagination-20260906.md)；固定硬件、完整传输和生产门禁仍独立验收。
 
 - **M36 #316 KV 远程原子合同**：REST/Frame/`SndbKvClient` 和 Web 工作台接通 Always/NX/XX、原子 get-and-set/delete，保留旧值存在性、空字节数组、版本与精确 UTC TTL；既有 CAS/expire/persist/TTL 复用同一 Core 合同。新增取消重载、稳定错误/关联头、Frame 扩展 opcode、浏览器十进制版本字段、[约 20 行成功样例及合同](docs/kv-atomic-contract.md)和 Native AOT 可运行 Quickstart。工作台审批绑定原目标、连接及凭据，区分未应用、部分成功和未知结果，并修复窄屏表单/结果入口。本切片已通过本地验证，完整九模型 #310/#311、#317 和 M20/生产门禁仍单独验收；[证据](docs/audits/kv-remote-closure-20260905.md)区分 mock、真实 Kestrel、原生进程、浏览器与远程 CI。
 
@@ -84,7 +233,7 @@
 
 - **M19 #125 固定目标硬件容量证据合同**：生态专项报告补充 commit、机器/磁盘快照与目标硬件声明；新增四档默认参数 verifier 和 PowerShell 合同测试。`maintenance-chaos` 以写前序列预留和 progress 确认范围避免 kill 竞态复用序列；Core 新增 CRC 保护的 `SDBFPUB` Pending/Committed publication marker，在 checkpoint/WAL 不一致、marker 损坏或未发布 artifact 无法清理时 fail closed；补齐跨进程 root lease、schema/batch admission 与 Dispose 竞态边界，以及非空损坏 Segment 的 fail-closed 恢复检查。未提供固定目标机认证或使用缩规模时统一保持 `NOT_READY`，不构成容量发布证据；受控 `Process.Kill` 不等同于掉电或物理耐久性证明。
 
-- **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件统一保持 `NOT_READY`，不能冒充百万/千万发布证据。
+- **M25 #174 Document 容量证据合同**：DocumentSoak 报告升级为 schema v2，绑定 HEAD commit、数据卷容量/磁盘型号和固定目标硬件清单；新增只读 verifier 与 PowerShell 契约测试。verifier 现在要求调用方提供预期 commit SHA/目标机 ID 做身份比对，但由于尚无受保护 CI artifact bundle 或独立可核验 attestation，完整自声明报告也只能是 `reportStatus=PASS`、`status=NOT_READY`、`releaseDecision=DEFERRED`、`releaseEvidence=false`；quick/缩规模、失败运行、缺失阶段、无效 commit、缺失磁盘规格或未认证目标硬件同样不能冒充百万/千万发布证据。
 
 - **M27 #183 MCP typed contract**：现有九个只读 MCP 工具现在通过 `tools/list` 发布真实业务 input/output JSON Schema，并在成功结果与三个 JSON resource 中携带 `contractVersion: "1.0"`；所有工具显式声明只读、非破坏、幂等与 closed-world annotation。失败继续以首个纯文本块兼容旧客户端，同时增加 source-generated JSON 错误块及稳定 `invalid_argument`、`invalid_sql`、`read_only_violation`、`measurement_not_found`、`skill_not_found`、`provider_unavailable`、`request_cancelled`、`operation_failed` code。新增端到端合同/权限/错误测试和 extend-only 兼容测试，并以 `docs/mcp-contract.md` 冻结参数、返回、权限、错误及 1.x 版本规则；未新增工具。
 
@@ -99,6 +248,10 @@
 - **跨模型 generation 原子发布合同**：新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、查询 `DatabaseGenerationQueryLease`、generation-bound opaque cursor 与 lease-aware retired cleanup。发布会先校验并 checkpoint generation 独占的 KV、Document 及其全部 FullText 派生资源，再以内部 durable KV 条件批次一次写入 descriptor、resource ownership 和 active revision；不持久化或暴露 staging，也不要求上层建立第二提交日志。新增 A/B reopen、publish 前后故障注入、双 lease 并发清理、cursor continuation/stale/tamper、取消/异常释放、真实 Document+FullText 不混代、backup/restore、公共 API 与独立 NuGet package consumer 回归。Couplet source lane 已消费最新源码并完成 generation/query、database-root 单 owner 和 cursor terminal cleanup 本地接线；默认固定 package lane 继续承担独立兼容基线。真实跨进程竞争、hard-kill CAS、双客户端及容量门禁仍未通过，`CG-005` 保持 verifying。
 
 ### Changed
+
+- **D 节后置证据口径修正**：将总里程碑最终完成判定中关于 M19/M25/M29/M41 与 M42 的固定硬件、跨架构、长稳和安装验收表述改为“仍待归档”，与各项 `NOT_READY`/`DEFERRED` 门禁及 ROADMAP 待验证状态一致。
+
+- **M35 #301 图片库与无密钥构建迁移**：移除 SixLabors.ImageSharp，Server/测试/图片样例改用 SkiaSharp 4.152.1 与托管 TiffLibrary 0.6.65；明确支持 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，停止声明其他格式。图片输入统一像素上限、EXIF 方向和永久失败分类，缩略图改用单帧 WebP/Mitchell cubic；本地 SigLIP2 有效 profile 自动加 `:skia-rgba-v1`，已有图片需重新摄取，旧向量和原图保留。移除 CI/Docker/Parity 的构建许可注入，增加实际依赖禁入与三 RID NativeAOT 图片运行门禁，固定上游声明随发布物分发。数据库文件格式不变；格式与索引迁移见[说明](docs/image-codecs.md)，真实模型质量与 Parity/nightly 证据仍独立验收。
 
 - **ImageSharp 4.1.1 构建许可（PR #131）**：升级 Server 图片依赖，并为引用 Server 的 CI、CodeQL、证据测试与发布流程接入 Six Labors 社区许可证 secret；Docker 与 Parity 构建通过 BuildKit 临时挂载许可证，本地支持绝对路径配置，许可证文件不进入 Git 或镜像构建上下文。保留包内签名校验，外部 fork 不获得仓库 secret。
 
@@ -143,6 +296,20 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **CI 格式检查**：修正 M35/M36 合同、SDK 和测试中的初始化器换行、多余空格及 `using` 顺序，补齐完整格式检查报告中的问题；不改变运行行为。
+
+- **Graph 证据进程清理测试**：launcher 先退出时为剩余进程组增加受剩余期限约束的轮询间隔，避免 50 次轮询在 5 秒期限前快速耗尽；保留父进程退出后完整清理的原有时限和断言。
+
+- **M36 #311 Graph HTTP/2 流式回退**：过滤扩展的 NDJSON 请求继承客户端 HTTP 版本与版本策略，避免 `frame-http2` 连接向仅支持 HTTP/2 的端点发送 HTTP/1.1 并返回 400；补充请求协议回归。
+
+- **M36 #320 VectorData Native AOT 过滤修复**：过滤常量使用固定委托类型与表达式解释器求值，消除动态集合调用链的 IL2026/IL3050，保留捕获变量、字段映射与参数化过滤语义；新增捕获变量变更后的动态集合查询回归。
+
+- **M36 #311 Graph 流式读取收尾**：远程 NDJSON 使用贯穿响应头与完整正文枚举的统一连接超时，继续响应调用方取消，失败响应在抛错前释放；新增超时、取消、HTTP 失败、正常结束及提前退出的 5 项回归，Graph 客户端 9/9 通过，并修复测试 fixture 三个后缀临时目录的回收。与 Document/VectorData 合并的 Release 回归共 39/39 通过；真实远程与九模型恢复证据仍单独验收。
+
+- **M36 #320 VectorData 空批次取消**：同步与异步批量向量查询在枚举输入前检查取消，空批次不再把已取消请求当作成功；新增两项回归，确认保留调用方取消令牌且不枚举输入、不打开连接或执行查询。
+
+- **M36 #311 Document 取消合同补全**：`AggregateAsync` 在访问集合或发送请求前检查取消，错误响应正文读取只处理 JSON 格式错误并继续传播取消/IO 异常。新增嵌入式/远程预取消和错误体读取中取消的 3 项回归，Document 客户端定向测试 25/25 通过；完整九模型旅程仍单独验收。
 
 - **M35 #305 RAG 目录持久化修复**：普通 SQL 创建、删除文档集合或变更索引时，保存完整文档目录，避免 SQL 可见性过滤遗漏内部 RAG 集合并导致重启后查询失败；公开目录仍隐藏保留资源。新增已发布 RAG 经普通 SQL schema 变更、关闭重开后继续检索的回归测试。
 
@@ -189,6 +356,10 @@
 - **Testcontainers Docker 构建上下文**：为 Server Dockerfile 增加专属 `Dockerfile.dockerignore`，匹配 Testcontainers 4.14.0 从 Dockerfile 目录读取 ignore 文件的行为，避免 IoTSharp 集成测试把 `artifacts`、`bin`、`obj` 等并发变化的构建输出打入临时 tar；新增真实归档回归验证必要源码保留且构建输出全部排除。
 
 - **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并恢复 `3.0.1` 的 `TokenKind` 数值，不通过 suppression 隐藏破坏性变更。由于 `3.1.0` 已发布另一套枚举数值，后续版本必须先明确兼容策略，不能把当前修复直接视为同时兼容 `3.0.1` 与 `3.1.0` 的 patch。
+
+### Removed
+
+- 按用户要求删除 `artifacts/system-performance-20260901` 的 JSON 与 Markdown 报告，撤回其性能证据地位；历史说明、README 和 ROADMAP 同步标明不能作为当前性能或验收依据。
 
 ## [3.1.0] - 2026-08-24
 

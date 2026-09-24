@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 8;
+    private const int _formatVersion = 10;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -165,8 +165,10 @@ public static class TableSchemaCodec
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
+        var decimalDefinitions = new Dictionary<string, (byte Precision, byte Scale)>(StringComparer.Ordinal);
         var primaryKey = new List<string>();
         Span<byte> flags = stackalloc byte[2];
+        Span<byte> decimalSpec = stackalloc byte[2];
         for (int i = 0; i < columnCount; i++)
         {
             string columnName = ReadString(source, crc, $"table {tableIndex} column {i} name");
@@ -182,6 +184,12 @@ public static class TableSchemaCodec
             bool isRowVersion = version >= 4 && (flags[1] & 0b0000_0100) != 0;
             bool isAutoIncrement = version >= 8 && (flags[1] & 0b0000_1000) != 0;
             columns.Add((columnName, type, isNullable));
+            if (version >= 9 && type == TableColumnType.Decimal)
+            {
+                ReadExactSpan(source, decimalSpec, $"table {tableIndex} column {i} decimal spec");
+                crc.Append(decimalSpec);
+                decimalDefinitions[columnName] = (decimalSpec[0], decimalSpec[1]);
+            }
             if (version >= 7)
             {
                 string defaultExpressionSql = ReadString(
@@ -249,7 +257,8 @@ public static class TableSchemaCodec
             createdAt,
             checkConstraints,
             columnDefaults,
-            autoIncrementColumns);
+            autoIncrementColumns,
+            decimalDefinitions);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -295,6 +304,8 @@ public static class TableSchemaCodec
                 throw new InvalidDataException($"Table '{schema.Name}' 的列 '{schema.Columns[i].Name}' 名称过长。");
             columnNameLengths[i] = length;
             totalSize += 2 + length + 2;
+            if (schema.Columns[i].DataType == TableColumnType.Decimal)
+                totalSize += 2;
             totalSize += CheckedStringSize(
                 schema.Columns[i].DefaultExpressionSql ?? string.Empty,
                 $"Table '{schema.Name}' 的列 '{schema.Columns[i].Name}' 默认表达式过长。");
@@ -382,6 +393,11 @@ public static class TableSchemaCodec
                 if (column.IsAutoIncrement)
                     flags |= 0b0000_1000;
                 writer.WriteByte(flags);
+                if (column.DataType == TableColumnType.Decimal)
+                {
+                    writer.WriteByte(column.DecimalPrecision == 0 ? (byte)38 : column.DecimalPrecision);
+                    writer.WriteByte(column.DecimalScale);
+                }
                 WriteString(
                     ref writer,
                     column.DefaultExpressionSql ?? string.Empty,

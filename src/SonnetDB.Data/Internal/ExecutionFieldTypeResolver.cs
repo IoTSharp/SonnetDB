@@ -18,9 +18,11 @@ internal enum ExecutionFieldTypeKind
     Boolean,
     DateTime,
     DateTimeOffset,
+    TimeOnly,
     Guid,
     GeoPoint,
     ByteArray,
+    Vector,
 }
 
 internal static class ExecutionFieldTypeResolver
@@ -41,9 +43,13 @@ internal static class ExecutionFieldTypeResolver
             bool => ExecutionFieldTypeKind.Boolean,
             DateTime => ExecutionFieldTypeKind.DateTime,
             DateTimeOffset => ExecutionFieldTypeKind.DateTimeOffset,
+            TimeOnly => ExecutionFieldTypeKind.TimeOnly,
             Guid => ExecutionFieldTypeKind.Guid,
             GeoPoint => ExecutionFieldTypeKind.GeoPoint,
             byte[] => ExecutionFieldTypeKind.ByteArray,
+            float[] => ExecutionFieldTypeKind.Vector,
+            Memory<float> => ExecutionFieldTypeKind.Vector,
+            ReadOnlyMemory<float> => ExecutionFieldTypeKind.Vector,
             _ => ExecutionFieldTypeKind.Object,
         };
     }
@@ -64,9 +70,11 @@ internal static class ExecutionFieldTypeResolver
             ExecutionFieldTypeKind.Boolean => typeof(bool),
             ExecutionFieldTypeKind.DateTime => typeof(DateTime),
             ExecutionFieldTypeKind.DateTimeOffset => typeof(DateTimeOffset),
+            ExecutionFieldTypeKind.TimeOnly => typeof(TimeOnly),
             ExecutionFieldTypeKind.Guid => typeof(Guid),
             ExecutionFieldTypeKind.GeoPoint => typeof(GeoPoint),
             ExecutionFieldTypeKind.ByteArray => typeof(byte[]),
+            ExecutionFieldTypeKind.Vector => typeof(float[]),
             _ => typeof(object),
         };
     }

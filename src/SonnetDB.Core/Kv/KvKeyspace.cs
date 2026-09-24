@@ -85,8 +85,12 @@ public sealed partial class KvKeyspace : IDisposable
     private const int MaxOptimisticSequenceFactoryInvalidations = 8;
     internal const string LifecycleLockFileName = "keyspace.lock";
     private readonly object _sync = new();
+    // 冷缓存 miss 时只允许一个调用者复制、排序并发布覆盖层；其余读者在门闩内复用结果。
+    private readonly SemaphoreSlim _snapshotOverlayBuildGate = new(1, 1);
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
+    private readonly KvDiskReadBudget _diskReadBudget;
+    private readonly bool _ownsDiskReadBudget;
     private KvOrderedOverlay _values;
     private Dictionary<byte[], KvValueEntry>? _frozenValues;
     private SnapshotOverlayCache? _snapshotOverlayCache;
@@ -115,13 +119,17 @@ public sealed partial class KvKeyspace : IDisposable
         long lastSequence,
         long generation,
         KvWalFile wal,
-        FileStream lifecycleLease)
+        FileStream lifecycleLease,
+        KvDiskReadBudget diskReadBudget,
+        bool ownsDiskReadBudget)
     {
         Name = name;
         RootDirectory = rootDirectory;
         _options = options;
         _values = new KvOrderedOverlay(values);
         _diskState = diskState;
+        _diskReadBudget = diskReadBudget;
+        _ownsDiskReadBudget = ownsDiskReadBudget;
         _lastSequence = lastSequence;
         _generation = generation;
         _wal = wal;
@@ -243,6 +251,9 @@ public sealed partial class KvKeyspace : IDisposable
     internal Action<KvCheckpointPhase>? CheckpointTestHook { get; set; }
 
     internal Action? WriteBackpressureTestHook { get; set; }
+
+    /// <summary>在快照覆盖层 single-flight 建锁后触发的测试钩子。</summary>
+    internal Action? SnapshotOverlayBuildEnteredTestHook { get; set; }
 
     internal Action? GenerationSaveTestHook { get; set; }
 
@@ -383,7 +394,11 @@ public sealed partial class KvKeyspace : IDisposable
         ValidateValue(value, _options);
     }
 
-    internal static KvKeyspace Open(string name, string rootDirectory, KvOptions options)
+    internal static KvKeyspace Open(
+        string name,
+        string rootDirectory,
+        KvOptions options,
+        KvDiskReadBudget? diskReadBudget = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(rootDirectory);
@@ -395,13 +410,24 @@ public sealed partial class KvKeyspace : IDisposable
         Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
 
         FileStream lifecycleLease = AcquireLifecycleLease(rootDirectory);
+        KvDiskReadBudget? ownedDiskReadBudget = null;
         try
         {
-            return OpenWithLifecycleLease(name, rootDirectory, options, lifecycleLease);
+            ownedDiskReadBudget = diskReadBudget is null
+                ? new KvDiskReadBudget(options.MaxConcurrentStateReads)
+                : null;
+            return OpenWithLifecycleLease(
+                name,
+                rootDirectory,
+                options,
+                lifecycleLease,
+                diskReadBudget ?? ownedDiskReadBudget!,
+                ownsDiskReadBudget: ownedDiskReadBudget is not null);
         }
         catch
         {
             lifecycleLease.Dispose();
+            ownedDiskReadBudget?.Dispose();
             throw;
         }
     }
@@ -418,13 +444,15 @@ public sealed partial class KvKeyspace : IDisposable
         string name,
         string rootDirectory,
         KvOptions options,
-        FileStream lifecycleLease)
+        FileStream lifecycleLease,
+        KvDiskReadBudget diskReadBudget,
+        bool ownsDiskReadBudget)
     {
 
         KvGenerationMetadata generationMetadata = KvGenerationFile.LoadMetadata(rootDirectory);
         long durableGeneration = generationMetadata.Generation;
         long recoveredResetSequence = generationMetadata.ResetSequence;
-        var state = LoadLatestState(rootDirectory, durableGeneration);
+        var state = LoadLatestState(rootDirectory, durableGeneration, diskReadBudget);
         long lastSequence = state.Sequence;
         bool awaitingGenerationBoundary = durableGeneration > 0 && state.Sequence == 0;
         bool legacyResetWal = false;
@@ -562,7 +590,9 @@ public sealed partial class KvKeyspace : IDisposable
                 lastSequence,
                 state.Generation,
                 wal,
-                lifecycleLease);
+                lifecycleLease,
+                diskReadBudget,
+                ownsDiskReadBudget);
             keyspace.EnsureCleanupManifestLocked();
             lock (keyspace._sync)
                 keyspace.ScheduleAutoCheckpointLocked(force: sealedWalPaths.Count > 0 || upgradedLegacyWalWithRecords);
@@ -702,6 +732,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup);
         return entry?.Value.ToArray();
     }
@@ -715,6 +746,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup);
         return entry is null
             ? null
@@ -735,6 +767,7 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(key);
         byte[] lookup = EncodeUtf8Key(key, _options);
+        RecordRead(lookup);
         KvValueEntry? entry = ReadVisibleEntry(lookup, cancellationToken);
         return entry is null
             ? null
@@ -2043,60 +2076,74 @@ public sealed partial class KvKeyspace : IDisposable
         KeyValuePair<byte[], KvValueEntry>[] frozenValues;
         Dictionary<byte[], KvValueEntry> mutableSource;
         Dictionary<byte[], KvValueEntry>? frozenSource;
-        KvDiskStateLease? diskLease;
+        KvDiskStateLease? diskLease = null;
         long sequence;
         DateTimeOffset readTimestampUtc;
-        bool cacheHit;
-
-        long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        // 先走无等待的热路径。冷 miss 才进入 single-flight 门闩，避免并发查询重复复制和排序同一覆盖层。
+        while (true)
         {
-            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
-            ThrowIfDisposed();
-            int maximumEntries = _options.MaxSnapshotOverlayEntries;
-            if (maximumEntries <= 0)
+            long lockWait = SonnetDbMeter.StartLockWaitTiming();
+            lock (_sync)
             {
-                throw new InvalidOperationException(
-                    "KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
-            }
-            long overlayEntryCount = (long)_values.Count + (_frozenValues?.Count ?? 0);
-            if (overlayEntryCount > maximumEntries)
-            {
-                throw new InvalidOperationException(
-                    $"KV read snapshot rejected because the mutable and frozen overlays contain " +
-                    $"{overlayEntryCount} entries in total, " +
-                    $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
+                SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                ThrowIfDisposed();
+                ValidateSnapshotOverlayBudgetLocked();
+                mutableSource = _values;
+                frozenSource = _frozenValues;
+                sequence = _lastSequence;
+                SnapshotOverlayCache? cache = _snapshotOverlayCache;
+                if (cache is not null
+                    && cache.Sequence == sequence
+                    && ReferenceEquals(cache.MutableSource, mutableSource)
+                    && ReferenceEquals(cache.FrozenSource, frozenSource))
+                {
+                    mutableValues = cache.MutableValues;
+                    frozenValues = cache.FrozenValues;
+                    _snapshotOverlayCacheHitCount++;
+                    diskLease = _diskState?.AcquireLease();
+                    readTimestampUtc = DateTimeOffset.UtcNow;
+                    return new KvReadSnapshot(new KvReadSnapshotState(
+                        mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
+                }
             }
 
-            mutableSource = _values;
-            frozenSource = _frozenValues;
-            sequence = _lastSequence;
-            SnapshotOverlayCache? cache = _snapshotOverlayCache;
-            cacheHit = cache is not null
-                && cache.Sequence == sequence
-                && ReferenceEquals(cache.MutableSource, mutableSource)
-                && ReferenceEquals(cache.FrozenSource, frozenSource);
-            if (cacheHit)
+            _snapshotOverlayBuildGate.Wait();
+            try
             {
-                mutableValues = cache!.MutableValues;
-                frozenValues = cache.FrozenValues;
-                _snapshotOverlayCacheHitCount++;
-            }
-            else
-            {
-                // 键和值对象在发布后不可变；这里只复制字典条目，排序完成后可由同版本查询安全共享。
-                mutableValues = mutableSource.ToArray();
-                frozenValues = frozenSource?.ToArray() ?? [];
-                _snapshotOverlayCacheBuildCount++;
-            }
-            diskLease = _diskState?.AcquireLease();
-            readTimestampUtc = DateTimeOffset.UtcNow;
-        }
+                SnapshotOverlayBuildEnteredTestHook?.Invoke();
+                // 等待期间其他调用者可能已经发布缓存；重新检查后即可复用。
+                lockWait = SonnetDbMeter.StartLockWaitTiming();
+                lock (_sync)
+                {
+                    SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                    ThrowIfDisposed();
+                    ValidateSnapshotOverlayBudgetLocked();
+                    mutableSource = _values;
+                    frozenSource = _frozenValues;
+                    sequence = _lastSequence;
+                    SnapshotOverlayCache? cache = _snapshotOverlayCache;
+                    if (cache is not null
+                        && cache.Sequence == sequence
+                        && ReferenceEquals(cache.MutableSource, mutableSource)
+                        && ReferenceEquals(cache.FrozenSource, frozenSource))
+                    {
+                        mutableValues = cache.MutableValues;
+                        frozenValues = cache.FrozenValues;
+                        _snapshotOverlayCacheHitCount++;
+                        diskLease = _diskState?.AcquireLease();
+                        readTimestampUtc = DateTimeOffset.UtcNow;
+                        return new KvReadSnapshot(new KvReadSnapshotState(
+                            mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
+                    }
 
-        try
-        {
-            if (!cacheHit)
-            {
+                    // 键和值对象在发布后不可变；这里只复制字典条目，排序完成后可由同版本查询安全共享。
+                    mutableValues = mutableSource.ToArray();
+                    frozenValues = frozenSource?.ToArray() ?? [];
+                    diskLease = _diskState?.AcquireLease();
+                    readTimestampUtc = DateTimeOffset.UtcNow;
+                    _snapshotOverlayCacheBuildCount++;
+                }
+
                 Array.Sort(
                     mutableValues,
                     static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
@@ -2109,19 +2156,36 @@ public sealed partial class KvKeyspace : IDisposable
                     sequence,
                     mutableValues,
                     frozenValues);
+                return new KvReadSnapshot(new KvReadSnapshotState(
+                    mutableValues, frozenValues, diskLease, sequence, readTimestampUtc));
             }
-            var state = new KvReadSnapshotState(
-                mutableValues,
-                frozenValues,
-                diskLease,
-                sequence,
-                readTimestampUtc);
-            return new KvReadSnapshot(state);
+            catch
+            {
+                diskLease?.Dispose();
+                throw;
+            }
+            finally
+            {
+                _snapshotOverlayBuildGate.Release();
+            }
         }
-        catch
+    }
+
+    private void ValidateSnapshotOverlayBudgetLocked()
+    {
+        int maximumEntries = _options.MaxSnapshotOverlayEntries;
+        if (maximumEntries <= 0)
         {
-            diskLease?.Dispose();
-            throw;
+            throw new InvalidOperationException(
+                "KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
+        }
+        long overlayEntryCount = (long)_values.Count + (_frozenValues?.Count ?? 0);
+        if (overlayEntryCount > maximumEntries)
+        {
+            throw new InvalidOperationException(
+                $"KV read snapshot rejected because the mutable and frozen overlays contain " +
+                $"{overlayEntryCount} entries in total, " +
+                $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
         }
     }
 
@@ -2728,6 +2792,19 @@ public sealed partial class KvKeyspace : IDisposable
             failure = ex;
         }
 
+        try
+        {
+            if (_ownsDiskReadBudget)
+                _diskReadBudget.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
         if (failure is not null)
             ExceptionDispatchInfo.Capture(failure).Throw();
     }
@@ -2777,7 +2854,10 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
-    private static KvStateSnapshot LoadLatestState(string rootDirectory, long generation)
+    private static KvStateSnapshot LoadLatestState(
+        string rootDirectory,
+        long generation,
+        KvDiskReadBudget diskReadBudget)
     {
         var candidates = new List<(long Sequence, bool IsSegment, string Path)>();
         AddStateCandidates(candidates, SnapshotsDirectory(rootDirectory), "*.SDBKVSNP", isSegment: false);
@@ -2794,7 +2874,7 @@ public sealed partial class KvKeyspace : IDisposable
             .OrderByDescending(static x => x.Sequence)
             .ThenByDescending(static x => x.IsSegment))
         {
-            var diskState = KvStateFile.OpenDiskState(candidate.Path);
+            var diskState = KvStateFile.OpenDiskState(candidate.Path, diskReadBudget);
             if (diskState.Generation == generation)
             {
                 return new KvStateSnapshot(
@@ -3039,7 +3119,7 @@ public sealed partial class KvKeyspace : IDisposable
             SonnetDB.Wal.DirectoryFsync.FlushRequired(
                 Path.GetDirectoryName(statePath) ?? string.Empty);
             CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterStateSavedBeforePublish);
-            openedState = KvStateFile.OpenDiskState(statePath);
+            openedState = KvStateFile.OpenDiskState(statePath, _diskReadBudget);
             openedState.ValidateAllEntries();
 
             bool invalidated;
@@ -3905,7 +3985,7 @@ public sealed partial class KvKeyspace : IDisposable
     /// </summary>
     private KvValueEntry? ReadVisibleEntry(byte[] key, CancellationToken cancellationToken)
     {
-        KvDiskStateLease? diskLease;
+        KvDiskStateLease? diskLease = null;
         DateTimeOffset readTimestampUtc;
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         using (EnterAtomicWriteLock(cancellationToken))
@@ -3935,7 +4015,7 @@ public sealed partial class KvKeyspace : IDisposable
 
         using (diskLease)
         {
-            KvValueEntry? diskEntry = diskLease.State.Get(key);
+            KvValueEntry? diskEntry = diskLease.State.Get(key, cancellationToken);
             if (diskEntry is null)
                 return null;
             if (!diskEntry.IsExpired(readTimestampUtc))
@@ -4223,7 +4303,7 @@ public sealed partial class KvKeyspace : IDisposable
                 {
                     yield return new KeyValuePair<byte[], KvValueEntry>(
                         diskEntry.Key,
-                        readDiskValues ? diskState!.Read(diskEntry) : diskEntry.ToValueEntry());
+                        readDiskValues ? diskState!.Read(diskEntry, cancellationToken) : diskEntry.ToValueEntry());
                 }
                 hasDisk = disk.MoveNext();
                 continue;
@@ -4250,7 +4330,7 @@ public sealed partial class KvKeyspace : IDisposable
             {
                 yield return new KeyValuePair<byte[], KvValueEntry>(
                     currentDisk.Key,
-                    readDiskValues ? diskState!.Read(currentDisk) : currentDisk.ToValueEntry());
+                    readDiskValues ? diskState!.Read(currentDisk, cancellationToken) : currentDisk.ToValueEntry());
             }
             hasDisk = disk.MoveNext();
         }
@@ -4312,7 +4392,7 @@ public sealed partial class KvKeyspace : IDisposable
         {
             try
             {
-                using var state = KvStateFile.OpenDiskState(path);
+                using var state = KvStateFile.OpenDiskState(path, _diskReadBudget);
                 if (state.Generation < _generation)
                     files.Add(Path.GetRelativePath(RootDirectory, path));
             }

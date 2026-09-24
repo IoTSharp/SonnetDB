@@ -1,0 +1,101 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  SonnetDB.Core -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  CoAP.NET -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\CoAP.NET\release\CoAP.NET.dll
+  CoAP.NET.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\CoAP.NET.SourceGeneration\release\CoAP.NET.SourceGeneration.dll
+  MQTTnet.AspNetCore.Routing.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\MQTTnet.AspNetCore.Routing.SourceGeneration\release\MQTTnet.AspNetCore.Routing.SourceGeneration.dll
+  MQTTnet.AspNetCore.Routing -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\MQTTnet.AspNetCore.Routing\release_net10.0\MQTTnet.AspNetCore.Routing.dll
+  SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB\release\SonnetDB.dll
+  SonnetDB.Data -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.Caching.Distributed -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.Caching.EasyCaching -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll
+C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\artifacts\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.AdoQuery_WithoutPreviewRequest_PreservesCompleteResults(asynchronous: False) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.AdoQuery_WithoutPreviewRequest_PreservesCompleteResults(asynchronous: True) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.InvalidPreviewBound_RejectsBeforeExecutingWrite(requested: 0) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.InvalidPreviewBound_RejectsBeforeExecutingWrite(requested: -1) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.RestQuery_WithPreviewRequest_AppliesCallerAndServerBounds(requested: 1, expected: 1) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.RestQuery_WithPreviewRequest_AppliesCallerAndServerBounds(requested: 100, expected: 2) [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.RestQuery_WithoutPreviewRequest_PreservesCompleteResults [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.FrameQuery_WithoutPreviewNegotiation_PreservesOriginalEndPayload [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.RestQuery_WithExactPreviewSize_ReportsCompleteResults [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.BatchTruncatedSelect_DoesNotPreventCommit [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.BatchTruncatedSelect_LaterFailureRollsBackAndStopsBatch [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+  失败 SonnetDB.Tests.SqlResultBoundsEndpointTests.ReturningPreview_DoesNotChangeWriteCountOrPersistedRows [1 ms]
+  错误消息:
+   System.Net.Http.HttpRequestException : Response status code does not indicate success: 400 (Bad Request).
+  堆栈跟踪:
+     at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.ExecuteAsync(String sql, Nullable`1 previewMaxRows) in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 222
+   at SonnetDB.Tests.SqlResultBoundsEndpointTests.InitializeAsync() in D:\source\SonnetDB\tests\SonnetDB.Tests\SqlResultBoundsEndpointTests.cs:line 40
+结果文件: C:\Users\mysti\AppData\Local\Temp\sonnetdb-final-20260924\results\server-final.trx
+
+失败!  - 失败:    12，通过:   185，已跳过:     0，总计:   197，持续时间: 47 s - SonnetDB.Tests.dll (net10.0)

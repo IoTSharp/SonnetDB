@@ -112,9 +112,35 @@ internal static class ParameterBinder
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
                 : dt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
             DateTimeOffset dto => dto.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+            TimeOnly time => "'" + time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
+            TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1)
+                => "'" + TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
+            TimeSpan => throw new ArgumentOutOfRangeException(nameof(value), "TIME 参数必须落在 [00:00:00, 24:00:00) 范围内。"),
             GeoPoint p => string.Create(CultureInfo.InvariantCulture, $"POINT({p.Lat:R}, {p.Lon:R})"),
+            float[] vector => FormatVectorLiteral(vector),
+            Memory<float> vector => FormatVectorLiteral(vector.Span),
+            ReadOnlyMemory<float> vector => FormatVectorLiteral(vector.Span),
             _ => throw new NotSupportedException(
                 $"不支持的参数类型 '{value.GetType().FullName}'。"),
         };
+    }
+
+    private static string FormatVectorLiteral(ReadOnlySpan<float> vector)
+    {
+        if (vector.Length == 0)
+            throw new ArgumentException("VECTOR 参数不能为空。", nameof(vector));
+
+        var builder = new StringBuilder(vector.Length * 8 + 2);
+        builder.Append('[');
+        for (int i = 0; i < vector.Length; i++)
+        {
+            if (!float.IsFinite(vector[i]))
+                throw new ArgumentException("VECTOR 参数只能包含有限浮点数。", nameof(vector));
+            if (i != 0)
+                builder.Append(", ");
+            builder.Append(vector[i].ToString("R", CultureInfo.InvariantCulture));
+        }
+        builder.Append(']');
+        return builder.ToString();
     }
 }

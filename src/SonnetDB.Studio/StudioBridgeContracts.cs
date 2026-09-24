@@ -153,4 +153,10 @@ internal sealed record StudioManagedServerStatus(
 [JsonSerializable(typeof(StudioSelectDirectoryResult))]
 [JsonSerializable(typeof(StudioManagedServerRequest))]
 [JsonSerializable(typeof(StudioManagedServerStatus))]
+[JsonSerializable(typeof(StudioCopilotCredential))]
+[JsonSerializable(typeof(StudioCopilotStatus))]
+[JsonSerializable(typeof(StudioCopilotError))]
+[JsonSerializable(typeof(StudioCopilotReadiness))]
+[JsonSerializable(typeof(StudioCopilotContinuation))]
+[JsonSerializable(typeof(StudioCopilotStreamRequest))]
 internal sealed partial class StudioBridgeJsonContext : JsonSerializerContext;

@@ -1,0 +1,35 @@
+{
+  "status": "PASS_LOCAL_ONLY",
+  "liveOwnerFollowing": "PASS",
+  "hardKillFailureSeal": "PASS",
+  "stableFailureReplay": "PASS",
+  "independentDataRoots": true,
+  "sharedJournal": "C:\\Users\\mysti\\AppData\\Local\\Temp\\m27-multi-c1ea7dc3bf8a4f7c8a0cb84d8aad0dc8\\shared\\relay.json",
+  "serverDll": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\artifacts\\bin\\SonnetDB\\release\\SonnetDB.dll",
+  "serverSha256": "AB2F34D227B96AB223900337A4AC0197122CB65679526C5FBCD70BD9FE8E0B20",
+  "scriptSha256": "426456B1BCC2255DC65E3870540CC351EF3173F6E53A69DD3C512A6405056058",
+  "providerCalls": 6,
+  "plannerCalls": 4,
+  "answerCalls": 2,
+  "toolPairsPerRun": 1,
+  "realModel": "NOT_RUN",
+  "deployedHa": "NOT_RUN",
+  "providerFailureResume": "UNSUPPORTED_FAIL_CLOSED",
+  "processes": [
+    {
+      "pid": 15488,
+      "parentPid": 80640,
+      "created": "09/24/2026 00:36:55",
+      "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\artifacts\\bin\\SonnetDB\\release\\SonnetDB.dll --contentRoot D:\\source\\SonnetDB --M27:SmokeOwner m27-multi-c1ea7dc3bf8a4f7c8a0cb84d8aad0dc8 --Kestrel:Endpoints:Http:Url http://127.0.0.1:58506 --Kestrel:Endpoints:FrameH2:Url http://127.0.0.1:0"
+    },
+    {
+      "pid": 68168,
+      "parentPid": 80640,
+      "created": "09/24/2026 00:36:55",
+      "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-final-20260924\\artifacts\\bin\\SonnetDB\\release\\SonnetDB.dll --contentRoot D:\\source\\SonnetDB --M27:SmokeOwner m27-multi-c1ea7dc3bf8a4f7c8a0cb84d8aad0dc8 --Kestrel:Endpoints:Http:Url http://127.0.0.1:58507 --Kestrel:Endpoints:FrameH2:Url http://127.0.0.1:0"
+    }
+  ],
+  "recordedAtUtc": "2026-09-23T16:37:04.0091977+00:00",
+  "cleanup": "PASS",
+  "cleanupErrors": []
+}

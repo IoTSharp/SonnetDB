@@ -50,10 +50,16 @@ public sealed class CpuTensorPrimitivesScorer : IBatchScorer
                 nameof(dataset));
         }
 
+        float queryNormSquared = metric == Metric.Cosine
+            ? Distance.NormSquared(query)
+            : 0f;
+
         for (int i = 0; i < n; i++)
         {
             ReadOnlySpan<float> row = dataset.Slice(i * dim, dim);
-            scores[i] = Distance.Compute(query, row, metric);
+            scores[i] = metric == Metric.Cosine
+                ? Distance.CosineWithQueryNormSquared(query, queryNormSquared, row)
+                : Distance.Compute(query, row, metric);
         }
     }
 }

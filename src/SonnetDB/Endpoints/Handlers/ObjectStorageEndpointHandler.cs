@@ -163,18 +163,19 @@ internal static class ObjectStorageEndpointHandler
             if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("delete"))
             {
                 var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectDeleteManyRequest).ConfigureAwait(false);
-                if (request is null)
+                var keys = request?.Keys;
+                if (keys is null)
                 {
-                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "DeleteObjects request body is required.").ConfigureAwait(false);
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "DeleteObjects request body must contain keys.").ConfigureAwait(false);
                     return;
                 }
 
-                var previous = request.Keys
+                var previous = keys
                     .Distinct(StringComparer.Ordinal)
                     .Select(key => store.HeadObject(bucket, key))
                     .Where(static info => info is not null)
                     .ToDictionary(static info => info!.Key, static info => info!, StringComparer.Ordinal);
-                var deleted = store.DeleteObjects(bucket, request.Keys);
+                var deleted = store.DeleteObjects(bucket, keys);
                 foreach (var item in deleted.Deleted)
                 {
                     if (item.ErrorCode is null && previous.Remove(item.Key, out var info))
@@ -388,14 +389,33 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsPut(ctx.Request.Method))
             {
-                var info = await store.PutObjectAsync(
-                    bucket,
-                    key,
-                    ctx.Request.Body,
-                    ctx.Request.ContentType,
-                    ReadMetadataHeaders(ctx),
-                    ReadTagsFromHeader(ctx),
-                    ctx.RequestAborted).ConfigureAwait(false);
+                if (!TryGetWriteCondition(ctx, out SndbObjectWriteCondition? condition, out string conditionErrorCode, out string conditionErrorMessage))
+                {
+                    await WriteErrorAsync(
+                        ctx,
+                        StatusCodes.Status400BadRequest,
+                        conditionErrorCode,
+                        conditionErrorMessage).ConfigureAwait(false);
+                    return;
+                }
+                var info = condition is null
+                    ? await store.PutObjectAsync(
+                        bucket,
+                        key,
+                        ctx.Request.Body,
+                        ctx.Request.ContentType,
+                        ReadMetadataHeaders(ctx),
+                        ReadTagsFromHeader(ctx),
+                        ctx.RequestAborted).ConfigureAwait(false)
+                    : await store.PutObjectConditionalAsync(
+                        bucket,
+                        key,
+                        ctx.Request.Body,
+                        condition,
+                        ctx.Request.ContentType,
+                        ReadMetadataHeaders(ctx),
+                        ReadTagsFromHeader(ctx),
+                        ctx.RequestAborted).ConfigureAwait(false);
                 EnqueueObjectProcessing(ctx, tsdb, info);
                 WriteObjectHeaders(ctx, info);
                 await Results.Json(ToObjectResponse(info), ServerJsonContext.Default.ObjectInfoResponse).ExecuteAsync(ctx).ConfigureAwait(false);
@@ -404,11 +424,32 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsHead(ctx.Request.Method))
             {
+                var condition = GetReadCondition(ctx);
                 var info = store.HeadObject(bucket, key, ctx.Request.Query["versionId"].ToString());
                 if (info is null)
                 {
-                    ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+                    // RFC 9110: 缺失目标资源不能满足 If-Match（包括通配符）。
+                    ctx.Response.StatusCode = condition is { IfMatch.Length: > 0 }
+                        ? StatusCodes.Status412PreconditionFailed
+                        : StatusCodes.Status404NotFound;
                     return;
+                }
+
+                if (condition is not null)
+                {
+                    SndbObjectConditionalReadStatus status = SndbObjectStore.EvaluateReadCondition(info, condition);
+                    if (status == SndbObjectConditionalReadStatus.NotModified)
+                    {
+                        WriteObjectHeaders(ctx, info);
+                        ctx.Response.StatusCode = StatusCodes.Status304NotModified;
+                        return;
+                    }
+                    if (status == SndbObjectConditionalReadStatus.PreconditionFailed)
+                    {
+                        WriteObjectHeaders(ctx, info);
+                        ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed;
+                        return;
+                    }
                 }
 
                 WriteObjectHeaders(ctx, info);
@@ -420,7 +461,36 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsGet(ctx.Request.Method))
             {
-                var result = store.OpenRead(bucket, key, ParseRange(ctx.Request.Headers.Range), ctx.Request.Query["versionId"].ToString());
+                SndbObjectReadResult? result;
+                var condition = GetReadCondition(ctx);
+                if (condition is null)
+                {
+                    result = store.OpenRead(bucket, key, ParseRange(ctx.Request.Headers.Range), ctx.Request.Query["versionId"].ToString());
+                }
+                else
+                {
+                    var conditional = store.OpenReadConditional(
+                        bucket,
+                        key,
+                        condition,
+                        ParseRange(ctx.Request.Headers.Range),
+                        ctx.Request.Query["versionId"].ToString());
+                    if (conditional.Status == SndbObjectConditionalReadStatus.NotModified)
+                    {
+                        if (conditional.Info is not null)
+                            WriteObjectHeaders(ctx, conditional.Info);
+                        ctx.Response.StatusCode = StatusCodes.Status304NotModified;
+                        return;
+                    }
+                    if (conditional.Status == SndbObjectConditionalReadStatus.PreconditionFailed)
+                    {
+                        if (conditional.Info is not null)
+                            WriteObjectHeaders(ctx, conditional.Info);
+                        ctx.Response.StatusCode = StatusCodes.Status412PreconditionFailed;
+                        return;
+                    }
+                    result = conditional.Read;
+                }
                 if (result is null)
                 {
                     await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "object_not_found", $"Object '{bucket}/{key}' was not found.").ConfigureAwait(false);
@@ -502,16 +572,16 @@ internal static class ObjectStorageEndpointHandler
         string key,
         string uploadId)
     {
+        var session = store.GetMultipartUpload(uploadId);
+        if (!string.Equals(session.Upload.Bucket, bucket, StringComparison.Ordinal)
+            || !string.Equals(session.Upload.Key, key, StringComparison.Ordinal))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "multipart_not_found", "Multipart upload does not match the requested object.").ConfigureAwait(false);
+            return;
+        }
+
         if (HttpMethods.IsGet(ctx.Request.Method))
         {
-            var session = store.GetMultipartUpload(uploadId);
-            if (!string.Equals(session.Upload.Bucket, bucket, StringComparison.Ordinal)
-                || !string.Equals(session.Upload.Key, key, StringComparison.Ordinal))
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "multipart_not_found", "Multipart upload does not match the requested object.").ConfigureAwait(false);
-                return;
-            }
-
             await Results.Json(ToMultipartSessionResponse(session), ServerJsonContext.Default.MultipartUploadSessionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
             return;
         }
@@ -563,10 +633,13 @@ internal static class ObjectStorageEndpointHandler
         if (ctx.Request.ContentLength != 0)
             request = await ReadJsonAsync(ctx, ServerJsonContext.Default.MultipartUploadCreateRequest).ConfigureAwait(false);
 
+        // SDK 初始化请求的正文是 JSON；不能将该传输媒体类型误作最终对象的内容类型。
+        string? contentType = request?.ContentType ?? (request is null ? ctx.Request.ContentType : null);
+
         var upload = store.InitiateMultipartUpload(
             bucket,
             key,
-            request?.ContentType ?? ctx.Request.ContentType,
+            contentType,
             request?.Metadata ?? ReadMetadataHeaders(ctx),
             request?.Tags ?? ReadTagsFromHeader(ctx),
             request?.ExpiresHours is > 0 ? TimeSpan.FromHours(request.ExpiresHours.Value) : null);
@@ -729,7 +802,7 @@ internal static class ObjectStorageEndpointHandler
         foreach (var header in ctx.Request.Headers)
         {
             if (header.Key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase))
-                result[header.Key["x-amz-meta-".Length..]] = header.Value.ToString();
+                result[header.Key["x-amz-meta-".Length..].ToLowerInvariant()] = header.Value.ToString();
         }
 
         return result;
@@ -766,6 +839,97 @@ internal static class ObjectStorageEndpointHandler
     {
         var tags = ReadTagsFromHeader(ctx);
         return tags.Count == 0 ? null : tags;
+    }
+
+    private static bool TryGetWriteCondition(
+        HttpContext ctx,
+        out SndbObjectWriteCondition? condition,
+        out string errorCode,
+        out string errorMessage)
+    {
+        string? ifMatch = ctx.Request.Headers.IfMatch.ToString();
+        string? ifNoneMatch = ctx.Request.Headers.IfNoneMatch.ToString();
+        bool requireAbsent = string.Equals(ifNoneMatch, "*", StringComparison.Ordinal);
+        if (!string.IsNullOrEmpty(ifNoneMatch) && !requireAbsent && ContainsEntityTagWildcard(ifNoneMatch))
+        {
+            condition = null;
+            errorCode = "unsupported_if_none_match";
+            errorMessage = "Object PUT cannot combine an If-None-Match wildcard with ETag values.";
+            return false;
+        }
+
+        condition = string.IsNullOrEmpty(ifMatch) && string.IsNullOrEmpty(ifNoneMatch)
+            ? null
+            : new SndbObjectWriteCondition(ifMatch, requireAbsent, requireAbsent ? null : ifNoneMatch);
+        errorCode = string.Empty;
+        errorMessage = string.Empty;
+        return true;
+    }
+
+    private static bool ContainsEntityTagWildcard(string value)
+    {
+        int candidateStart = 0;
+        bool inQuotes = false;
+        bool escaped = false;
+        for (int index = 0; index < value.Length; index++)
+        {
+            char character = value[index];
+            if (inQuotes)
+            {
+                if (escaped)
+                    escaped = false;
+                else if (character == '\\')
+                    escaped = true;
+                else if (character == '"')
+                    inQuotes = false;
+            }
+            else if (character == '"')
+            {
+                inQuotes = true;
+            }
+            else if (character == ',')
+            {
+                if (value[candidateStart..index].Trim() == "*")
+                    return true;
+
+                candidateStart = index + 1;
+            }
+        }
+
+        return value[candidateStart..].Trim() == "*";
+    }
+
+    private static SndbObjectReadCondition? GetReadCondition(HttpContext ctx)
+    {
+        string? ifMatch = ctx.Request.Headers.IfMatch.ToString();
+        string? ifNoneMatch = ctx.Request.Headers.IfNoneMatch.ToString();
+        DateTimeOffset? ifModifiedSince = null;
+        DateTimeOffset? ifUnmodifiedSince = null;
+        if (ctx.Request.Headers.TryGetValue("If-Modified-Since", out var modifiedValues)
+            && DateTimeOffset.TryParse(
+                modifiedValues.ToString(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var modifiedParsed))
+        {
+            ifModifiedSince = modifiedParsed;
+        }
+        if (ctx.Request.Headers.TryGetValue("If-Unmodified-Since", out var values)
+            && DateTimeOffset.TryParse(
+                values.ToString(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var parsed))
+        {
+            ifUnmodifiedSince = parsed;
+        }
+
+        return string.IsNullOrEmpty(ifMatch)
+            && string.IsNullOrEmpty(ifNoneMatch)
+            && ifModifiedSince is null
+            && ifUnmodifiedSince is null
+            ? null
+            : new SndbObjectReadCondition(ifMatch, ifNoneMatch, ifModifiedSince, ifUnmodifiedSince);
     }
 
     private static SndbObjectRange? ParseRange(string? rangeHeader)
@@ -836,6 +1000,7 @@ internal static class ObjectStorageEndpointHandler
     private static void WriteObjectHeaders(HttpContext ctx, SndbObjectInfo info)
     {
         ctx.Response.Headers.ETag = info.ETag;
+        ctx.Response.Headers.LastModified = info.UpdatedUtc.ToUniversalTime().ToString("R", CultureInfo.InvariantCulture);
         ctx.Response.Headers["x-amz-version-id"] = info.VersionId;
         ctx.Response.Headers["x-amz-meta-sha256"] = info.Sha256;
         ctx.Response.Headers["x-amz-delete-marker"] = info.IsDeleteMarker ? "true" : "false";
@@ -1076,6 +1241,9 @@ internal static class ObjectStorageEndpointHandler
         {
             case SndbObjectStorageException ex when ex.Code == "object_list_scan_budget_exceeded":
                 task = WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, ex.Code, ex.Message);
+                return true;
+            case SndbObjectStorageException ex when ex.Code == "object_precondition_failed":
+                task = WriteErrorAsync(ctx, StatusCodes.Status412PreconditionFailed, ex.Code, ex.Message);
                 return true;
             case SndbObjectStorageException ex when ex.Code.EndsWith("_not_found", StringComparison.Ordinal):
                 task = WriteErrorAsync(ctx, StatusCodes.Status404NotFound, ex.Code, ex.Message);

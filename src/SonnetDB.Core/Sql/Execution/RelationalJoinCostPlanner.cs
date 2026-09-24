@@ -55,11 +55,14 @@ internal static class RelationalJoinCostPlanner
         RelationalJoinInputEstimate left,
         RelationalJoinInputEstimate right)
     {
-        long rows = kind == JoinKind.Left
-            ? left.Rows
-            : left.Rows == 0 || right.Rows == 0
-                ? 0
-                : Math.Max(left.Rows, right.Rows);
+        long rows = kind switch
+        {
+            JoinKind.Left => left.Rows,
+            JoinKind.Right => right.Rows,
+            JoinKind.Full => Math.Max(left.Rows, right.Rows),
+            JoinKind.Cross => SaturatingMultiply(left.Rows, right.Rows),
+            _ => left.Rows == 0 || right.Rows == 0 ? 0 : Math.Max(left.Rows, right.Rows),
+        };
         double width = SaturatingAdd(left.RowWidth, right.RowWidth);
         return new RelationalJoinInputEstimate(rows, width);
     }
@@ -142,5 +145,12 @@ internal static class RelationalJoinCostPlanner
     {
         double sum = left + right;
         return double.IsFinite(sum) ? sum : double.MaxValue;
+    }
+
+    private static long SaturatingMultiply(long left, long right)
+    {
+        if (left <= 0 || right <= 0)
+            return 0;
+        return left > long.MaxValue / right ? long.MaxValue : left * right;
     }
 }

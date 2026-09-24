@@ -624,8 +624,12 @@ internal static class SqlRoutineRuntime
                     throw DependencyError($"trigger '{triggerName}' 的 WHEN 不允许子查询。");
                 break;
             case FunctionCallExpression function:
-                if (restricted && function.Name.ToLowerInvariant() is not ("lower" or "upper" or "coalesce"))
-                    throw DependencyError("BEFORE 赋值仅允许 LOWER、UPPER、COALESCE 内置函数，禁止 UDF 或外部调用。");
+                if (restricted && function.Name.ToLowerInvariant() is not
+                    ("lower" or "upper" or "coalesce" or "trim" or "ltrim" or "rtrim"
+                    or "length" or "char_length" or "substring" or "substr" or "replace"
+                    or "left" or "right" or "starts_with" or "startswith" or "ends_with"
+                    or "endswith" or "contains"))
+                    throw DependencyError("BEFORE 赋值仅允许无外部副作用的字符串函数和 LOWER、UPPER、COALESCE，禁止 UDF 或外部调用。");
                 foreach (var argument in function.Arguments)
                     ValidateWhenExpression(argument, schema, triggerName, restricted);
                 break;

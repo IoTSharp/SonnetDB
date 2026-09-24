@@ -34,6 +34,9 @@ internal sealed class SemanticImageSearchService : IDisposable
     private readonly USearchSemanticIndexRegistry _usearch;
     private readonly ILogger<SemanticImageSearchService> _logger;
 
+    /// <summary>实际 provider 的向量兼容标识，包含本地图片预处理版本。</summary>
+    internal string EmbeddingProfile => _provider.Info.Profile;
+
     public SemanticImageSearchService(
         IOptions<ServerOptions> options,
         IMultimodalEmbeddingProvider provider,
@@ -1308,8 +1311,8 @@ internal sealed class SemanticImageSearchService : IDisposable
     private static void ValidateContentType(string contentType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
-        if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Content-Type 必须是 image/*。", nameof(contentType));
+        if (!SemanticImageCodec.IsSupportedContentType(contentType))
+            throw new ArgumentException("Content-Type 必须是受支持的 PNG、JPEG、WebP、GIF、BMP、ICO 或 TIFF 图片媒体类型。", nameof(contentType));
     }
 
     private static string NormalizeBackend(string? backend)

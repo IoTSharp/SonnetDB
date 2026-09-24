@@ -116,7 +116,19 @@ public sealed class M41PerformanceBaselineReportTests : IDisposable
         Assert.Equal(M41ProductionCloseoutStatus.Pass, report.LocalCloseout);
         Assert.Equal(M41ProductionCloseoutStatus.Deferred, report.ReleaseDecision);
         Assert.Contains(report.LocalChecks, static check => check.Id == "m41_baseline_contract");
-        Assert.NotEmpty(report.DeferredValidations);
+        Assert.Equal(
+            [
+                "backup_restore_deployment",
+                "field_concurrency_transactions",
+                "fixed_hardware_x64_arm64",
+                "mulei_same_corpus",
+                "native_aot_target_rids",
+                "process_crash_replay",
+                "seven_day_mixed_workload",
+            ],
+            report.DeferredValidations
+                .Select(static validation => validation.Id)
+                .Order(StringComparer.Ordinal));
         Assert.All(
             report.DeferredValidations,
             static validation => Assert.Equal(M41ProductionCloseoutStatus.Deferred, validation.Status));

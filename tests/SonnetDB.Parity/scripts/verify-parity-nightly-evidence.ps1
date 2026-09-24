@@ -620,19 +620,39 @@ function Test-ParityNightlyEvidence {
     )
 
     $runs = @($InputRuns | Sort-Object { Get-RunSortValue $_ } -Descending | Select-Object -First $RunCount)
+    $runIdCounts = @{}
+    foreach ($run in $runs) {
+        $runId = [string]$run.runId
+        if (-not [string]::IsNullOrWhiteSpace($runId)) {
+            if ($runIdCounts.ContainsKey($runId)) {
+                $runIdCounts[$runId]++
+            }
+            else {
+                $runIdCounts[$runId] = 1
+            }
+        }
+    }
+
     $runReports = New-Object System.Collections.Generic.List[object]
     $reportIssues = New-Object System.Collections.Generic.List[object]
 
     foreach ($run in $runs) {
         $runIssues = New-Object System.Collections.Generic.List[object]
+        $runId = [string]$run.runId
+        if ([string]::IsNullOrWhiteSpace($runId)) {
+            $runIssues.Add([ordered]@{ code = "run_id_missing"; message = "A scheduled run does not record a runId." })
+        }
+        elseif ($runIdCounts[$runId] -gt 1) {
+            $runIssues.Add([ordered]@{ code = "run_id_duplicate"; message = "Scheduled runId '$runId' occurs more than once in the evidence window." })
+        }
         if ([string]$run.event -ne "schedule") {
-            $runIssues.Add([ordered]@{ code = "run_event_not_scheduled"; message = "Run $($run.runId) was not triggered by schedule." })
+            $runIssues.Add([ordered]@{ code = "run_event_not_scheduled"; message = "Run $runId was not triggered by schedule." })
         }
         if ([string]$run.conclusion -ne "success") {
-            $runIssues.Add([ordered]@{ code = "run_conclusion_not_success"; message = "Run $($run.runId) concluded '$($run.conclusion)'." })
+            $runIssues.Add([ordered]@{ code = "run_conclusion_not_success"; message = "Run $runId concluded '$($run.conclusion)'." })
         }
         if ([string]::IsNullOrWhiteSpace([string]$run.commitSha)) {
-            $runIssues.Add([ordered]@{ code = "run_commit_missing"; message = "Run $($run.runId) does not record a commit SHA." })
+            $runIssues.Add([ordered]@{ code = "run_commit_missing"; message = "Run $runId does not record a commit SHA." })
         }
 
         try {
@@ -640,7 +660,7 @@ function Test-ParityNightlyEvidence {
         }
         catch {
             $createdAt = [DateTimeOffset]::MinValue
-            $runIssues.Add([ordered]@{ code = "run_timestamp_invalid"; message = "Run $($run.runId) has an invalid createdAtUtc value." })
+            $runIssues.Add([ordered]@{ code = "run_timestamp_invalid"; message = "Run $runId has an invalid createdAtUtc value." })
         }
 
         $profiles = @(
@@ -664,6 +684,14 @@ function Test-ParityNightlyEvidence {
         $reportIssues.Add([ordered]@{
             code = "insufficient_scheduled_runs"
             message = "Found $($runs.Count) completed scheduled runs; $RunCount are required."
+        })
+    }
+
+    $duplicateRunIds = @($runIdCounts.GetEnumerator() | Where-Object { $_.Value -gt 1 } | ForEach-Object { [string]$_.Key })
+    if ($duplicateRunIds.Count -gt 0) {
+        $reportIssues.Add([ordered]@{
+            code = "duplicate_scheduled_run_id"
+            message = "The evidence window contains duplicate scheduled runId values: $($duplicateRunIds -join ', ')."
         })
     }
 

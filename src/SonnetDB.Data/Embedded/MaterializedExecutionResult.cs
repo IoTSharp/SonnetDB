@@ -17,11 +17,13 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
     private MaterializedExecutionResult(
         IReadOnlyList<string> columns,
         IReadOnlyList<IReadOnlyList<object?>> rows,
-        int recordsAffected)
+        int recordsAffected,
+        bool truncated)
     {
         Columns = columns;
         _rows = rows;
         RecordsAffected = recordsAffected;
+        Truncated = truncated;
         _columnTypes = new ExecutionFieldTypeKind[columns.Count];
         for (int c = 0; c < columns.Count; c++)
         {
@@ -38,6 +40,8 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
     }
 
     public int RecordsAffected { get; }
+
+    public bool Truncated { get; }
 
     public IReadOnlyList<string> Columns { get; }
 
@@ -69,8 +73,8 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
     public static MaterializedExecutionResult FromSelect(
         SelectExecutionResult result,
         int recordsAffected = -1)
-        => new(result.Columns, result.Rows, recordsAffected);
+        => new(result.Columns, result.Rows, recordsAffected, result.Truncated);
 
     public static MaterializedExecutionResult NonQuery(int recordsAffected)
-        => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected);
+        => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected, truncated: false);
 }

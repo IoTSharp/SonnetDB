@@ -51,9 +51,11 @@
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
-    <!-- M35：SigLIP2 的 SentencePiece tokenizer 与纯托管图片预处理；Core 仍保持零第三方依赖。 -->
+    <!-- M35：图片处理保持在 Server；Skia 原生资产随包分发，TIFF 使用托管解码器。 -->
     <PackageReference Include="Microsoft.ML.Tokenizers" />
-    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="TiffLibrary" />
     <!-- USearch 仅作为受平台限制的可选派生 ANN 后端，不替代默认的托管 HNSW。 -->
     <PackageReference Include="Cloud.Unum.USearch" />
     <PackageReference Include="Snappier" />
@@ -141,4 +143,5 @@
     </ItemGroup>
   </Target>
 
+  <Import Project="../../eng/image-codec-notices.targets" />
 </Project>

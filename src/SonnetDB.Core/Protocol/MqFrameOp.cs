@@ -25,4 +25,10 @@ public enum MqFrameOp : byte
 
     /// <summary>取消订阅（#236，仅双工端点）。按 streamId 定位订阅；响应（Response 位）确认。</summary>
     Unsubscribe = 6,
+
+    /// <summary>拒绝投递并请求重投或死信。</summary>
+    Nack = 7,
+
+    /// <summary>重置消费者组 offset。</summary>
+    OffsetReset = 8,
 }

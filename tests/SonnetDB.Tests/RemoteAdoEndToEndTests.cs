@@ -180,9 +180,15 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using var connection = OpenAdoSchemaMatrixConnection(mode);
         using (var ddl = connection.CreateCommand())
         {
-            ddl.CommandText = "CREATE TABLE schema_devices (id INT AUTO_INCREMENT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE schema_sites (id INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE TABLE schema_devices (id INT AUTO_INCREMENT, site_id INT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id), CONSTRAINT fk_schema_devices_sites FOREIGN KEY (site_id) REFERENCES schema_sites (id) ON DELETE SET NULL)";
             Assert.Equal(0, ddl.ExecuteNonQuery());
             ddl.CommandText = "CREATE UNIQUE INDEX ux_schema_devices_name ON schema_devices (name)";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE VIEW schema_devices_view AS SELECT id, name FROM schema_devices";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE DOCUMENT COLLECTION schema_docs";
             Assert.Equal(0, ddl.ExecuteNonQuery());
         }
 
@@ -199,7 +205,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
 
         var columns = connection.GetSchema("Columns", [null, null, "schema_devices", null]);
         Assert.Equal(
-            ["id", "name", "enabled", "version"],
+            ["id", "site_id", "name", "enabled", "version"],
             columns.Rows.Cast<DataRow>().Select(static row => (string)row["COLUMN_NAME"]).ToArray());
         Assert.Contains(
             columns.Rows.Cast<DataRow>(),
@@ -226,6 +232,21 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal("ux_schema_devices_name", index["INDEX_NAME"]);
         Assert.True((bool)index["IS_UNIQUE"]);
         Assert.Equal("name", index["COLUMN_NAME"]);
+
+        var views = connection.GetSchema("Views", [null, null, "schema_devices_view", null]);
+        var view = Assert.Single(views.Rows.Cast<DataRow>());
+        Assert.Equal("schema_devices_view", view["TABLE_NAME"]);
+        Assert.Equal("VIEW", view["TABLE_TYPE"]);
+
+        var foreignKeys = connection.GetSchema("ForeignKeys", [null, null, "schema_devices", "fk_schema_devices_sites"]);
+        var foreignKey = Assert.Single(foreignKeys.Rows.Cast<DataRow>());
+        Assert.Equal("site_id", foreignKey["COLUMN_NAME"]);
+        Assert.Equal("schema_sites", foreignKey["PRINCIPAL_TABLE_NAME"]);
+
+        var documents = connection.GetSchema("DocumentCollections", [null, null, "schema_docs", null]);
+        var document = Assert.Single(documents.Rows.Cast<DataRow>());
+        Assert.Equal("schema_docs", document["TABLE_NAME"]);
+        Assert.Equal("DOCUMENT COLLECTION", document["TABLE_TYPE"]);
     }
 
     [Fact]
@@ -448,6 +469,76 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(2, reader.RecordsAffected);
     }
 
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_UpdateDeleteReturning_EmbeddedAndRemote_ReturnsRowsAndRecordsAffected(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE dml_returning (id INT, value INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using (var seed = connection.CreateCommand())
+        {
+            seed.CommandText = "INSERT INTO dml_returning (id, value) VALUES (1, 10), (2, 20)";
+            Assert.Equal(2, seed.ExecuteNonQuery());
+        }
+
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE dml_returning SET value = value + 1 WHERE id >= 1 RETURNING id, value";
+            using var reader = update.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal(11L, reader.GetInt64(1));
+            Assert.True(reader.Read());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.Equal(21L, reader.GetInt64(1));
+            Assert.False(reader.Read());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        using var delete = connection.CreateCommand();
+        delete.CommandText = "DELETE FROM dml_returning WHERE id = 1 RETURNING id, value";
+        using var deleted = delete.ExecuteReader();
+        Assert.True(deleted.Read());
+        Assert.Equal(1L, deleted.GetInt64(0));
+        Assert.Equal(11L, deleted.GetInt64(1));
+        Assert.False(deleted.Read());
+        Assert.Equal(1, deleted.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_InsertOnConflictReturning_EmbeddedAndRemote_SkipsConflicts(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE conflict_returning (id INT, value INT, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using (var seed = connection.CreateCommand())
+        {
+            seed.CommandText = "INSERT INTO conflict_returning (id, value) VALUES (1, 10)";
+            Assert.Equal(1, seed.ExecuteNonQuery());
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO conflict_returning (id, value) VALUES (1, 99), (2, 20) ON CONFLICT (id) DO NOTHING RETURNING id, value";
+        using var reader = insert.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.Equal(20L, reader.GetInt64(1));
+        Assert.False(reader.Read());
+        Assert.Equal(1, reader.RecordsAffected);
+    }
+
     [Fact]
     public async Task Remote_Transaction_CommitsViaSqlBatch()
     {
@@ -472,6 +563,32 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         }
 
         Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(c, "tx_devices"));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_InsertOnConflictDoUpdateReturning_IsRejectedUntilParity()
+    {
+        await using var c = new SndbConnection(RemoteConnString());
+        await c.OpenAsync();
+
+        await using (var ddl = c.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE tx_conflict_update (id INT, value INT, PRIMARY KEY (id))";
+            await ddl.ExecuteNonQueryAsync();
+            ddl.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, 10)";
+            await ddl.ExecuteNonQueryAsync();
+        }
+
+        await using var transaction = Assert.IsType<SndbTransaction>(await c.BeginTransactionAsync());
+        await using var command = c.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value";
+        await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
+        await transaction.RollbackAsync();
+
+        await using var select = c.CreateCommand();
+        select.CommandText = "SELECT value FROM tx_conflict_update WHERE id = 1";
+        Assert.Equal(10L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
     }
 
     [Fact]

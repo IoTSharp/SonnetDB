@@ -25,8 +25,10 @@
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.10.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
-    <!-- ImageSharp 4.x 构建需要 Six Labors 许可证，配置见 docs/build-license.md。 -->
-    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
+    <!-- 图片处理不需要许可证激活或构建密钥；Linux 原生资产不依赖 Fontconfig。 -->
+    <PackageVersion Include="SkiaSharp" Version="4.152.1" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
+    <PackageVersion Include="TiffLibrary" Version="0.6.65" />
     <!-- 2.26.2 在 linux-x64 原生初始化时触发 SIGILL；保留真实 native 探针通过的 2.26.0。 -->
     <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.1" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />

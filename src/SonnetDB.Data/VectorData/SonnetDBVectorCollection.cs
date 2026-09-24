@@ -207,11 +207,15 @@ public sealed class SonnetDBVectorCollection<TKey, TRecord> : VectorStoreCollect
         var where = options?.Filter is null
             ? SqlWhereClause.Empty
             : LinqSqlFilterTranslator.Translate(options.Filter, _mapper);
+        int skip = options?.Skip ?? 0;
+        if (skip < 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "VectorData SearchAsync 的 Skip 不能为负数。");
+        int requestedTop = checked(top + skip);
         var sql =
             $"SELECT id, document, vector_distance() AS distance FROM vector_search(" +
             $"source => '{SqlVectorStoreHelpers.EscapeSqlString(Name)}', " +
             $"vector_field => '{SqlVectorStoreHelpers.EscapeSqlString(_mapper.VectorJsonPath)}', " +
-            $"vector => {query}, k => {top}, metric => '{metric}')" +
+            $"vector => {query}, k => {requestedTop}, metric => '{metric}')" +
             (where.Sql.Length == 0 ? string.Empty : " WHERE " + where.Sql);
 
         await using var cmd = _connection.CreateCommand();
@@ -220,13 +224,26 @@ public sealed class SonnetDBVectorCollection<TKey, TRecord> : VectorStoreCollect
             cmd.Parameters.AddWithValue(parameter.Name, parameter.Value);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        int skipped = 0;
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var id = reader.GetString(0);
             var json = reader.GetString(1);
             var distance = Convert.ToDouble(reader.GetValue(2), System.Globalization.CultureInfo.InvariantCulture);
+            var score = DistanceFunctionMapper.ToVectorDataScore(_mapper.DistanceFunction, distance);
+            if (options?.ScoreThreshold is double threshold
+                && (DistanceFunctionMapper.IsHigherScoreBetter(_mapper.DistanceFunction)
+                    ? score < threshold
+                    : score > threshold))
+                continue;
+            if (skipped < skip)
+            {
+                skipped++;
+                continue;
+            }
+
             var record = _mapper.FromJson(id, json, includeVector: options?.IncludeVectors == true);
-            yield return new VectorSearchResult<TRecord>(record, distance);
+            yield return new VectorSearchResult<TRecord>(record, score);
         }
     }
 

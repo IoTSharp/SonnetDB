@@ -18,7 +18,7 @@ public static class DocumentCollectionSchemaCodec
     private static readonly byte[] _magic = "SDBDOCv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int FormatVersion = 6;
+    private const int FormatVersion = 7;
     private const int MinFormatVersion = 1;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
@@ -151,7 +151,10 @@ public static class DocumentCollectionSchemaCodec
                     fields[fieldIndex] = ReadString(source, crc, $"collection {collectionIndex} fulltext index {i} field {fieldIndex}");
 
                 long indexCreatedAt = ReadInt64(source, crc, $"collection {collectionIndex} fulltext index {i} createdAt");
-                fullTextIndexes.Add(new DocumentFullTextIndexDefinition(indexName, Array.AsReadOnly(fields), tokenizer, indexCreatedAt));
+                DocumentFullTextIndexSettings? settings = version >= 7
+                    ? ReadFullTextSettings(source, crc, collectionIndex, i)
+                    : null;
+                fullTextIndexes.Add(new DocumentFullTextIndexDefinition(indexName, Array.AsReadOnly(fields), tokenizer, indexCreatedAt, settings));
             }
         }
 
@@ -317,6 +320,7 @@ public static class DocumentCollectionSchemaCodec
             foreach (string field in index.Fields)
                 WriteString(body, field);
             WriteInt64(body, index.CreatedAtUtcTicks);
+            WriteFullTextSettings(body, index.Settings, index.Fields);
         }
 
         WriteValidator(body, schema.Validator);
@@ -423,6 +427,82 @@ public static class DocumentCollectionSchemaCodec
                 WriteString(destination, value);
             WriteNullableString(destination, rule.Pattern);
         }
+    }
+
+    private static DocumentFullTextIndexSettings ReadFullTextSettings(
+        Stream source,
+        Crc32 crc,
+        int collectionIndex,
+        int indexIndex)
+    {
+        string Prefix(string name) => $"collection {collectionIndex} fulltext index {indexIndex} {name}";
+        static string[] ReadStringList(Stream source, Crc32 crc, string description)
+        {
+            int count = ReadUInt16(source, crc, description + " count");
+            var values = new string[count];
+            for (int i = 0; i < count; i++)
+                values[i] = ReadString(source, crc, description + " item");
+            return values;
+        }
+
+        IReadOnlyList<string> searchable = ReadStringList(source, crc, Prefix("searchableFields"));
+        IReadOnlyList<string> filterable = ReadStringList(source, crc, Prefix("filterableFields"));
+        IReadOnlyList<string> sortable = ReadStringList(source, crc, Prefix("sortableFields"));
+        int synonymCount = ReadUInt16(source, crc, Prefix("synonyms count"));
+        var synonyms = new Dictionary<string, string>(synonymCount, StringComparer.Ordinal);
+        for (int i = 0; i < synonymCount; i++)
+        {
+            string key = ReadString(source, crc, Prefix("synonym key"));
+            string value = ReadString(source, crc, Prefix("synonym value"));
+            synonyms[key] = value;
+        }
+
+        IReadOnlyList<string> stopWords = ReadStringList(source, crc, Prefix("stopWords"));
+        byte enabled = ReadByte(source, crc, Prefix("typo enabled"));
+        if (enabled is not (0 or 1))
+            throw new InvalidDataException("DocumentCollectionSchema: invalid fulltext typo enabled marker.");
+        int shortEdits = checked((int)ReadInt64(source, crc, Prefix("typo short edits")));
+        int mediumEdits = checked((int)ReadInt64(source, crc, Prefix("typo medium edits")));
+        int longEdits = checked((int)ReadInt64(source, crc, Prefix("typo long edits")));
+        return new DocumentFullTextIndexSettings(
+            searchable,
+            filterable,
+            sortable,
+            synonyms,
+            stopWords,
+            new DocumentFullTextTypoPolicy(enabled == 1, shortEdits, mediumEdits, longEdits));
+    }
+
+    private static void WriteFullTextSettings(
+        Stream destination,
+        DocumentFullTextIndexSettings settings,
+        IReadOnlyList<string> indexFields)
+    {
+        static void WriteStringList(Stream destination, IReadOnlyList<string> values, string description)
+        {
+            WriteUInt16(destination, values.Count, description + " count");
+            foreach (string value in values)
+                WriteString(destination, value);
+        }
+
+        DocumentFullTextIndexSettings normalized = settings.Normalize(indexFields);
+        WriteStringList(destination, normalized.SearchableFields!, "Document fulltext searchable field");
+        WriteStringList(destination, normalized.FilterableFields!, "Document fulltext filterable field");
+        WriteStringList(destination, normalized.SortableFields!, "Document fulltext sortable field");
+        IReadOnlyDictionary<string, string> synonyms = normalized.Synonyms ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        WriteUInt16(destination, synonyms.Count, "Document fulltext synonym");
+        foreach (var pair in synonyms.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        {
+            WriteString(destination, pair.Key);
+            WriteString(destination, pair.Value);
+        }
+
+        WriteStringList(destination, normalized.StopWords ?? [], "Document fulltext stopword");
+        DocumentFullTextTypoPolicy typo = normalized.TypoPolicy ?? DocumentFullTextTypoPolicy.Default;
+        destination.WriteByte(typo.Enabled ? (byte)1 : (byte)0);
+        WriteInt64(destination, typo.ShortTokenMaxEdits);
+        WriteInt64(destination, typo.MediumTokenMaxEdits);
+        WriteInt64(destination, typo.LongTokenMaxEdits);
     }
 
     private static void WritePartialFilter(Stream destination, DocumentIndexPartialFilter? filter)

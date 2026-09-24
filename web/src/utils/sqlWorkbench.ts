@@ -164,7 +164,7 @@ export function summarizeSqlResult(result: SqlResultSet): string {
   if (!result.end) return result.hasColumns ? `${result.rows.length} rows` : 'Statement executed.';
   const parts: string[] = [];
   if (result.hasColumns) {
-    parts.push(`${result.end.rowCount} rows`);
+    parts.push(result.end.truncated ? `预览 ${result.end.rowCount} 行，结果已截断` : `${result.end.rowCount} rows`);
   }
   if (result.end.recordsAffected >= 0) {
     parts.push(`affected ${result.end.recordsAffected}`);

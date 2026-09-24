@@ -157,6 +157,28 @@ public sealed class KvNamespace
     public byte[]? Get(string key) => _keyspace.Get(Qualify(key));
 
     /// <summary>
+    /// 取得命名空间内的稳定只读快照。
+    /// </summary>
+    /// <returns>
+    /// 固定当前版本与 UTC 读取时刻的快照；快照创建的范围游标只返回命名空间内的本地 key。
+    /// </returns>
+    public KvNamespaceReadSnapshot AcquireReadSnapshot()
+        => new(_keyspace.AcquireReadSnapshot(), _prefix);
+
+    /// <summary>
+    /// 打开命名空间内按 key 字节序分页读取的稳定范围游标。
+    /// </summary>
+    /// <param name="options">
+    /// 命名空间相对的范围、方向、页条目数与页字节预算；为空时扫描该命名空间的全部 key。
+    /// </param>
+    /// <returns>自动持有独立快照租约的命名空间游标。</returns>
+    public KvNamespaceRangeCursor OpenRangeCursor(KvRangeScanOptions? options = null)
+    {
+        using KvNamespaceReadSnapshot snapshot = AcquireReadSnapshot();
+        return snapshot.OpenRangeCursor(options);
+    }
+
+    /// <summary>
     /// 原子读取命名空间内 key 的旧记录并写入新值。
     /// </summary>
     /// <param name="key">命名空间内的字符串 key。</param>

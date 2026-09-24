@@ -133,6 +133,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     .GetResult();
             }
 
+            if (IsReturningDml(sql))
+            {
+                return ExecuteTransactionalReturningDmlRequestAsync(
+                        transaction,
+                        sql,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
             if (IsTransactionalRowCountDml(sql))
             {
                 return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, CancellationToken.None)
@@ -184,6 +194,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
             if (TryParseReturningInsert(sql, out var insert))
                 return ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken);
+
+            if (IsReturningDml(sql))
+                return ExecuteTransactionalReturningDmlRequestAsync(transaction, sql, cancellationToken);
 
             if (IsTransactionalRowCountDml(sql))
                 return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, cancellationToken);
@@ -286,6 +299,20 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         statement = null!;
         return false;
+    }
+
+    private static bool IsReturningDml(string sql)
+    {
+        try
+        {
+            return SqlParser.Parse(sql) is
+                UpdateStatement { ReturningColumns.Count: > 0 } or
+                DeleteStatement { ReturningColumns.Count: > 0 };
+        }
+        catch (SqlParseException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -586,7 +613,49 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     public IReadOnlyList<TableSchema> SnapshotTables()
         => SnapshotTablesAsync(CancellationToken.None).GetAwaiter().GetResult();
 
+    internal ConnectionSchemaSnapshot SnapshotSchema()
+        => SnapshotSchemaAsync(CancellationToken.None).GetAwaiter().GetResult();
+
     private async Task<IReadOnlyList<TableSchema>> SnapshotTablesAsync(CancellationToken cancellationToken)
+    {
+        var body = await SnapshotSchemaResponseAsync(cancellationToken).ConfigureAwait(false);
+        return (body.Tables ?? [])
+            .Select(ToTableSchema)
+            .ToArray();
+    }
+
+    private async Task<ConnectionSchemaSnapshot> SnapshotSchemaAsync(CancellationToken cancellationToken)
+    {
+        var body = await SnapshotSchemaResponseAsync(cancellationToken).ConfigureAwait(false);
+        var views = (body.Views ?? [])
+            .Select(static view => new ConnectionViewSchema(
+                view.Name,
+                view.DefinitionSql,
+                view.CreatedUtc,
+                IsMaterialized: false))
+            .Concat((body.MaterializedViews ?? []).Select(static view => new ConnectionViewSchema(
+                view.Name,
+                view.DefinitionSql,
+                view.CreatedUtc,
+                IsMaterialized: true)))
+            .OrderBy(static view => view.Name, StringComparer.Ordinal)
+            .ToArray();
+        var documents = (body.DocumentCollections ?? [])
+            .Select(static collection => new ConnectionDocumentCollectionSchema(
+                collection.Name,
+                collection.CreatedUtc,
+                collection.JsonIndexes.Count,
+                collection.FullTextIndexes.Count,
+                collection.Validator is not null))
+            .ToArray();
+
+        return new ConnectionSchemaSnapshot(
+            (body.Tables ?? []).Select(ToTableSchema).ToArray(),
+            views,
+            documents);
+    }
+
+    private async Task<RemoteSchemaResponse> SnapshotSchemaResponseAsync(CancellationToken cancellationToken)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
@@ -605,9 +674,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .ConfigureAwait(false)
             ?? throw new InvalidDataException("SonnetDB schema response body is empty.");
 
-        return (body.Tables ?? [])
-            .Select(ToTableSchema)
-            .ToArray();
+        return body;
     }
 
     public void RollbackTransaction(object transactionState)
@@ -674,7 +741,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
             .ConfigureAwait(false);
         return MaterializedExecutionResult.FromSelect(
-            new SelectExecutionResult(preview.Columns, preview.Rows),
+            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
             preview.RecordsAffected);
     }
 
@@ -683,6 +750,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         InsertStatement statement,
         CancellationToken cancellationToken)
     {
+        if (statement.OnConflict is { Action: SqlOnConflictAction.DoUpdate })
+        {
+            throw new NotSupportedException(
+                "远程轻事务中的 INSERT ... ON CONFLICT DO UPDATE ... RETURNING 尚未支持；"
+                + "请在事务外执行，或使用 DO NOTHING。");
+        }
+
         IReadOnlyList<TableSchema> tables = await SnapshotTablesAsync(cancellationToken).ConfigureAwait(false);
         var schema = tables.FirstOrDefault(table => string.Equals(
                 table.Name,
@@ -694,6 +768,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string previewSql = BuildInsertSql(statement, returningAllColumns: true);
         var preview = await ExecuteTransactionPreviewAsync(transaction, previewSql, cancellationToken)
             .ConfigureAwait(false);
+        if (preview.Truncated)
+            throw new InvalidDataException("远程事务 INSERT RETURNING 预览不完整，不能据此构造提交语句。");
         if (preview.Columns.Count != schema.Columns.Count
             || !preview.Columns.SequenceEqual(schema.Columns.Select(static column => column.Name), StringComparer.Ordinal))
         {
@@ -714,7 +790,20 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return MaterializedExecutionResult.FromSelect(
             new SelectExecutionResult(
                 returningColumns.Select(static column => column.Name).ToArray(),
-                projectedRows),
+                projectedRows) { Truncated = preview.Truncated },
+            preview.RecordsAffected);
+    }
+
+    private async Task<IExecutionResult> ExecuteTransactionalReturningDmlRequestAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
+            .ConfigureAwait(false);
+        transaction.Add(sql);
+        return MaterializedExecutionResult.FromSelect(
+            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
             preview.RecordsAffected);
     }
 
@@ -859,6 +948,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var readingRows = false;
         var sawResult = false;
         var recordsAffected = -1;
+        var truncated = false;
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -912,6 +1002,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     {
                         recordsAffected = recordsAffectedProperty.GetInt32();
                     }
+                    truncated = RemoteExecutionResult.ReadTruncated(root);
                     readingRows = false;
                     sawResult = true;
                     break;
@@ -921,7 +1012,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 
-        return new TransactionPreviewResult(columns, rows, recordsAffected);
+        return new TransactionPreviewResult(columns, rows, recordsAffected, truncated);
     }
 
     private static TableColumn[] ResolveReturningColumns(InsertStatement statement, TableSchema schema)
@@ -975,6 +1066,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 }
                 sql.Append(')');
             }
+        }
+
+        if (statement.OnConflict is { } conflict)
+        {
+            sql.Append(" ON CONFLICT");
+            if (conflict.TargetColumns.Count != 0)
+            {
+                sql.Append(" (");
+                for (int i = 0; i < conflict.TargetColumns.Count; i++)
+                {
+                    if (i > 0)
+                        sql.Append(", ");
+                    AppendIdentifier(sql, conflict.TargetColumns[i]);
+                }
+
+                sql.Append(')');
+            }
+
+            sql.Append(" DO NOTHING");
         }
 
         if (returningAllColumns)
@@ -1068,7 +1178,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private sealed record TransactionPreviewResult(
         IReadOnlyList<string> Columns,
         IReadOnlyList<IReadOnlyList<object?>> Rows,
-        int RecordsAffected);
+        int RecordsAffected,
+        bool Truncated);
 
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {
@@ -1172,6 +1283,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .Where(static column => column.IsAutoIncrement)
             .Select(static column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
+        var decimalDefinitions = table.Columns
+            .Where(static column => string.Equals(column.DataType, "DECIMAL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(column.DataType, "NUMERIC", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(column.DataType, "Decimal", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                static column => column.Name,
+                static column => (column.DecimalPrecision ?? (byte)38, column.DecimalScale ?? (byte)28),
+                StringComparer.Ordinal);
         var indexes = table.Indexes
             .Select(static index => new TableIndexDefinition(
                 index.Name,
@@ -1180,19 +1299,33 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 index.CreatedUtc.UtcDateTime.Ticks,
                 index.JsonPath))
             .ToArray();
+        var foreignKeys = (table.ForeignKeys ?? [])
+            .Select(static foreignKey => new TableForeignKeyDefinition(
+                foreignKey.Name,
+                foreignKey.Columns,
+                foreignKey.PrincipalTable,
+                foreignKey.PrincipalColumns,
+                ParseForeignKeyAction(foreignKey.OnDelete)))
+            .ToArray();
 
         return TableSchema.CreateWithDefaults(
             table.Name,
             columns,
             table.PrimaryKey,
             indexes,
-            foreignKeys: null,
+            foreignKeys: foreignKeys,
             rowVersionColumns: rowVersionColumns,
             createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks,
             checkConstraints: null,
             columnDefaults: defaults,
-            autoIncrementColumns: autoIncrementColumns);
+            autoIncrementColumns: autoIncrementColumns,
+            decimalDefinitions: decimalDefinitions);
     }
+
+    private static ForeignKeyAction ParseForeignKeyAction(string value)
+        => Enum.TryParse<ForeignKeyAction>(value, ignoreCase: true, out var action)
+            ? action
+            : ForeignKeyAction.NoAction;
 
     private static TableColumnType ParseTableColumnType(string value)
     {
@@ -1201,9 +1334,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             "INT" or "INT64" or "INTEGER" or "BIGINT" => TableColumnType.Int64,
             "FLOAT" or "FLOAT64" or "DOUBLE" or "REAL" => TableColumnType.Float64,
+            "DECIMAL" or "NUMERIC" => TableColumnType.Decimal,
             "BOOL" or "BOOLEAN" => TableColumnType.Boolean,
             "STRING" or "TEXT" => TableColumnType.String,
             "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
+            "TIME" or "TIMEONLY" => TableColumnType.Time,
             "BLOB" or "BINARY" => TableColumnType.Blob,
             "JSON" => TableColumnType.Json,
             _ => Enum.TryParse<TableColumnType>(value, ignoreCase: true, out var parsed)

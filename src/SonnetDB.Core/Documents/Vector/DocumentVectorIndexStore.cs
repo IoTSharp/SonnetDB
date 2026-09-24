@@ -13,11 +13,20 @@ namespace SonnetDB.Documents.Vector;
 /// </summary>
 public sealed class DocumentVectorIndexStore : IDisposable
 {
+    private static readonly System.Text.UTF8Encoding _strictUtf8 = new(false, true);
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private readonly DocumentVectorIndex _definition;
     private readonly JsonPath _path;
     private HnswIndex<string> _graph;
+    private int _graphRebuildActive;
+    private bool _disposed;
+
+    /// <summary>测试候选图完成后、发布前的取消与并发生命周期边界。</summary>
+    internal Action? GraphRebuildPreparedTestHook { get; set; }
+
+    /// <summary>测试已调度操作取得索引锁之前的释放边界。</summary>
+    internal Action? GraphRebuildStartingTestHook { get; set; }
 
     private DocumentVectorIndexStore(KvKeyspace keyspace, DocumentVectorIndex definition)
     {
@@ -29,6 +38,14 @@ public sealed class DocumentVectorIndexStore : IDisposable
 
     /// <summary>向量索引声明。</summary>
     public DocumentVectorIndex Definition => _definition;
+
+    /// <summary>读取已加载图的有效向量数，不扫描持久化 KV 或主文档。</summary>
+    /// <returns>当前图的运行状态；该状态不证明主数据一致性或召回质量。</returns>
+    public DocumentVectorIndexHealth GetHealth()
+    {
+        lock (_sync)
+            return new(_definition, "loaded", _graph.Count);
+    }
 
     /// <summary>当前索引的向量数量。</summary>
     public int Count
@@ -127,6 +144,117 @@ public sealed class DocumentVectorIndexStore : IDisposable
     }
 
     /// <summary>
+    /// 从既有持久向量 KV 重建已加载 HNSW 图；失败或发布前取消保留旧图，不改写 KV 或扫描主文档。
+    /// 构建期间持有索引锁，搜索、写入、删除和释放等待；同一索引不接受重叠图重建。
+    /// </summary>
+    /// <param name="cancellationToken">协作取消令牌；等待索引锁、每页和每个向量之间检查，发布后取消不回滚。</param>
+    /// <returns>可独立读取进度并等待完成的进程内操作。</returns>
+    public DocumentVectorGraphRebuildOperation StartGraphRebuild(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        if (Interlocked.CompareExchange(ref _graphRebuildActive, 1, 0) != 0)
+            throw new InvalidOperationException("此向量索引已有图重建操作。");
+        try
+        {
+            return new(_definition.Name, operation => RebuildGraph(operation, cancellationToken));
+        }
+        catch
+        {
+            Volatile.Write(ref _graphRebuildActive, 0);
+            throw;
+        }
+    }
+
+    private void RebuildGraph(DocumentVectorGraphRebuildOperation operation, CancellationToken token)
+    {
+        bool entered = false;
+        HnswIndex<string>? candidate = null;
+        long scanned = 0;
+        long indexed = 0;
+        try
+        {
+            operation.Update("waiting_lock", scanned, indexed);
+            GraphRebuildStartingTestHook?.Invoke();
+            do
+            {
+                token.ThrowIfCancellationRequested();
+                entered = Monitor.TryEnter(_sync, millisecondsTimeout: 50);
+            } while (!entered);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            token.ThrowIfCancellationRequested();
+            operation.Update("snapshotting", scanned, indexed);
+            using var snapshot = _keyspace.AcquireReadSnapshot();
+            using var cursor = snapshot.OpenRangeCursor(new() { PageSize = 256, MaxPageBytes = 4 * 1024 * 1024 });
+            candidate = CreateEmptyGraph();
+            operation.Update("building", scanned, indexed);
+            while (!cursor.IsExhausted)
+            {
+                foreach (var entry in cursor.ReadNextPage(token))
+                {
+                    token.ThrowIfCancellationRequested();
+                    scanned++;
+                    if (entry.Value.Length != (long)_definition.Dimensions * sizeof(float))
+                        throw new InvalidDataException("持久向量的字节长度与索引维度不一致。");
+                    var vector = MemoryMarshal.Cast<byte, float>(entry.Value.Span).ToArray();
+                    double squaredNorm = 0;
+                    foreach (float component in vector)
+                    {
+                        if (!float.IsFinite(component))
+                            throw new InvalidDataException("持久向量包含非有限数值。");
+                        squaredNorm += (double)component * component;
+                    }
+                    if (_definition.Metric == KnnMetric.Cosine && squaredNorm == 0)
+                        throw new InvalidDataException("持久余弦向量具有零范数。");
+                    string id;
+                    try
+                    {
+                        id = _strictUtf8.GetString(entry.Key.Span);
+                    }
+                    catch (System.Text.DecoderFallbackException exception)
+                    {
+                        throw new InvalidDataException("持久向量的文档标识不是有效 UTF-8。", exception);
+                    }
+                    candidate.Add(id, vector);
+                    indexed++;
+                    operation.Update("building", scanned, indexed);
+                }
+            }
+            GraphRebuildPreparedTestHook?.Invoke();
+            token.ThrowIfCancellationRequested();
+            operation.Update("publishing", scanned, indexed);
+            HnswIndex<string> previous = _graph;
+            _graph = candidate;
+            candidate = null;
+            previous.Dispose();
+            operation.Update("completed", scanned, indexed);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            operation.Update("canceled", scanned, indexed, "operation_canceled");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            string code = exception switch
+            {
+                InvalidDataException => "invalid_vector_data",
+                IOException => "storage_error",
+                ObjectDisposedException => "index_disposed",
+                _ => "graph_rebuild_failed",
+            };
+            operation.Update("failed", scanned, indexed, code);
+            throw;
+        }
+        finally
+        {
+            candidate?.Dispose();
+            if (entered) Monitor.Exit(_sync);
+            Volatile.Write(ref _graphRebuildActive, 0);
+        }
+    }
+
+    /// <summary>
     /// 用 ANN 图对查询向量做近邻搜索。
     /// </summary>
     /// <param name="query">查询向量。</param>
@@ -204,6 +332,8 @@ public sealed class DocumentVectorIndexStore : IDisposable
     {
         lock (_sync)
         {
+            if (_disposed) return;
+            Volatile.Write(ref _disposed, true);
             _graph.Dispose();
             _keyspace.Dispose();
         }

@@ -27,4 +27,11 @@
     <ProjectReference Include="..\..\extensions\SonnetDB.Caching.EasyCaching\SonnetDB.Caching.EasyCaching.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SonnetDB.RepositoryRoot</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

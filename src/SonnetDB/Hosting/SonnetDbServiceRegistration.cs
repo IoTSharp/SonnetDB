@@ -10,6 +10,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Copilot;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
+using SonnetDB.Endpoints;
 using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.LineProtocolUdp;
@@ -186,6 +187,14 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<ICopilotCloudGatewayClient, CopilotCloudGatewayClient>();
         builder.Services.AddSingleton<CopilotLocalToolExecutor>();
         builder.Services.AddSingleton<CopilotStateStore>();
+        builder.Services.AddSingleton<CopilotServerRelayRunStore>(sp =>
+        {
+            var systemDirectory = GetSystemDirectory(sp);
+            var copilot = sp.GetRequiredService<IOptions<ServerOptions>>().Value.Copilot;
+            return new CopilotServerRelayRunStore(
+                journalPath: copilot.ServerRelayJournalPath
+                    ?? Path.Combine(systemDirectory, "copilot-relay-journal.json"));
+        });
 
         // PR #64：文档摄入与检索（Knowledge 库 __copilot__）。
         // 当前在线 Copilot 流程已切到 ai.sonnetdb.com，下面的本地索引服务仅保留为兼容/手动诊断能力。

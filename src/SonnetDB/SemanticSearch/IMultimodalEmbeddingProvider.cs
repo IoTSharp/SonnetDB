@@ -19,7 +19,7 @@ public interface IMultimodalEmbeddingProvider
     /// <summary>
     /// 为已编码的图片字节生成归一化向量。
     /// </summary>
-    /// <param name="image">PNG、JPEG、WebP 等 ImageSharp 支持的图片字节。</param>
+    /// <param name="image">PNG、JPEG、WebP、GIF、BMP、ICO 或 TIFF 图片字节。</param>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>L2 归一化后的 embedding。</returns>
     ValueTask<float[]> EmbedImageAsync(ReadOnlyMemory<byte> image, CancellationToken cancellationToken = default);

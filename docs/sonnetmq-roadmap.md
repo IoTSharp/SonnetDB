@@ -36,13 +36,15 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是在单�
 
 - Topic 级保留策略：按大小、时间、已确认 offset 清理。
 - 死信队列：消费者多次失败后转入 `<topic>.dlq`。
+- `message-id` 有界去重窗口，实例级日志/consumer offset 一致快照与校验恢复。
 - 管理端展示 topic、lag、consumer group、磁盘占用与最近错误。
-- 备份恢复与校验工具纳入 SonnetDB 统一维护命令。
+- 单库备份继续保持与 Server 实例 MQ 分离；实例快照恢复由 SonnetMQ 合同独立维护。
 
 ## 验收清单
 
 - 多消费者组互不影响 offset。
 - 服务重启后消息和 ack 位置可恢复。
+- 快照恢复后消息头、consumer offset 和后续发布保持一致。
 - 上层应用可用 `SonnetDB.Data` 发布和消费消息。
 - ReadOnly token 不可 publish/ack，ReadWrite token 可 publish/ack/pull。
 - 本地核心库不引入第三方运行时依赖，不使用 `unsafe`。

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="TiffLibrary" />
+    <Compile Include="../../../src/SonnetDB/SemanticSearch/SemanticImageCodec.cs" Link="SemanticImageCodec.cs" />
+    <Compile Include="../../../src/SonnetDB/Exceptions/ImageInputException.cs" Link="ImageInputException.cs" />
+    <Compile Include="../../../tests/SonnetDB.Tests/ImageTestFixtures.cs" Link="ImageTestFixtures.cs" />
+  </ItemGroup>
+  <Import Project="../../image-codec-notices.targets" />
+</Project>

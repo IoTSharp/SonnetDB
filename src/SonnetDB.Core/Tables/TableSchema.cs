@@ -171,7 +171,8 @@ public sealed class TableSchema
         long createdAtUtcTicks,
         IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
         IReadOnlyDictionary<string, string?>? columnDefaults,
-        IReadOnlySet<string>? autoIncrementColumns)
+        IReadOnlySet<string>? autoIncrementColumns,
+        IReadOnlyDictionary<string, (byte Precision, byte Scale)>? decimalDefinitions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
@@ -237,6 +238,22 @@ public sealed class TableSchema
                 column.IsNullable && !isAutoIncrement,
                 i,
                 isRowVersion);
+            if (column.DataType == TableColumnType.Decimal)
+            {
+                (byte Precision, byte Scale) definition = decimalDefinitions is not null
+                    && decimalDefinitions.TryGetValue(column.Name, out var configuredDecimal)
+                    ? configuredDecimal
+                    : ((byte)38, (byte)28);
+                if (definition.Precision is < 1 or > 38 || definition.Scale > definition.Precision)
+                    throw new ArgumentException(
+                        $"关系表 '{name}' 的 DECIMAL 列 '{column.Name}' 精度/小数位无效。",
+                        nameof(decimalDefinitions));
+                tableColumn = tableColumn with
+                {
+                    DecimalPrecision = definition.Precision,
+                    DecimalScale = definition.Scale,
+                };
+            }
             if (isAutoIncrement)
                 tableColumn = tableColumn with { IsAutoIncrement = true };
             if (defaultExpressionSql is not null)

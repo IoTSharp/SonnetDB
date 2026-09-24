@@ -48,8 +48,12 @@ public enum TokenKind
     Minus,
     Slash,
     Percent,
+    /// <summary><c>&amp;</c>：整数按位与；使用追加值保持既有 token 数值不变。</summary>
+    BitwiseAnd = 142,
+    /// <summary><c>|</c>：整数按位或；使用追加值保持既有 token 数值不变。</summary>
+    BitwiseOr = 143,
     /// <summary><c>=&gt;</c>：函数命名参数分隔符。</summary>
-    Arrow,
+    Arrow = 28,
 
     // 关键字
     KeywordCreate,
@@ -138,6 +142,10 @@ public enum TokenKind
     KeywordTag,
     KeywordField,
     KeywordFloat,
+    /// <summary>DECIMAL/NUMERIC 关系表列声明。</summary>
+    KeywordDecimal,
+    /// <summary>NUMERIC 是 DECIMAL 的 SQL 兼容别名。</summary>
+    KeywordNumeric,
     KeywordInt,
     KeywordBool,
     KeywordString,
@@ -235,4 +243,23 @@ public enum TokenKind
     LeftBrace = 140,
     /// <summary><c>}</c>：Graph path 有界量词结束符。</summary>
     RightBrace = 141,
+
+    /// <summary><c>INTERSECT</c> 集合交集。</summary>
+    KeywordIntersect = 144,
+    /// <summary><c>EXCEPT</c> 集合差集。</summary>
+    KeywordExcept = 145,
+    /// <summary><c>ALL</c> 集合运算保留重复行修饰词。</summary>
+    KeywordAll = 146,
+    /// <summary>OVER（ANSI 窗口函数规格）。</summary>
+    KeywordOver = 147,
+    /// <summary>BETWEEN 范围谓词。</summary>
+    KeywordBetween = 148,
+    /// <summary>ILIKE 大小写不敏感字符串模式匹配。</summary>
+    KeywordIlike = 149,
+    /// <summary>RIGHT JOIN 右外连接修饰词。</summary>
+    KeywordRight = 150,
+    /// <summary>FULL JOIN 全外连接修饰词。</summary>
+    KeywordFull = 151,
+    /// <summary>CROSS JOIN 笛卡尔连接修饰词。</summary>
+    KeywordCross = 152,
 }

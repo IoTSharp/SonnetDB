@@ -23,6 +23,22 @@ internal static class RelationalSelectExecutor
         => Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics: null));
 
     /// <summary>
+    /// 执行需要保留 JOIN 声明顺序的内部关系查询。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">待执行的 SELECT AST。</param>
+    /// <returns>关系查询结果。</returns>
+    internal static SelectExecutionResult ExecutePreservingJoinOrder(
+        Tsdb tsdb,
+        SelectStatement statement)
+        => Execute(
+            tsdb,
+            statement,
+            outerScope: null,
+            new SubqueryMemo(metrics: null),
+            preserveDeclaredJoinOrder: true);
+
+    /// <summary>
     /// 使用子查询执行指标运行关系查询，供回归测试和基准验证记忆化效果。
     /// </summary>
     /// <param name="tsdb">目标数据库。</param>
@@ -47,7 +63,8 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         SelectStatement statement,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        bool preserveDeclaredJoinOrder = false)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -75,7 +92,8 @@ internal static class RelationalSelectExecutor
 
         var inputPushdown = PlanRelationInputs(tsdb, statement, outerScope);
         Relation relation;
-        if (outerScope is null
+        if (!preserveDeclaredJoinOrder
+            && outerScope is null
             && statement.JoinClauses.Count >= 2
             && TryLoadJoinOrderSources(tsdb, statement, inputPushdown, memo, out Relation[] joinSources))
         {
@@ -125,7 +143,15 @@ internal static class RelationalSelectExecutor
                 SqlExecutor.ThrowIfCancellationRequested();
                 var join = statement.JoinClauses[joinIndex];
                 var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
-                relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
+                relation = Join(
+                    tsdb,
+                    relation,
+                    right,
+                    join.On,
+                    join.Kind,
+                    outerScope,
+                    memo,
+                    preserveDeclaredJoinOrder);
             }
         }
 
@@ -605,7 +631,16 @@ internal static class RelationalSelectExecutor
             SqlExpression predicate = declaredOrderFallback
                 ? statement.JoinClauses[step - 1].On
                 : predicates[step - 1];
-            if (TryPlanHashJoin(relation, right, predicate, out List<JoinKeyPair> explainKeys, out _))
+            if (kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
+            {
+                plans.Add(CreateNestedLoopPlan(
+                    step,
+                    kind,
+                    relation.Estimate,
+                    right.Estimate,
+                    "outer_or_cross_join_requires_declared_order"));
+            }
+            else if (TryPlanHashJoin(relation, right, predicate, out List<JoinKeyPair> explainKeys, out _))
             {
                 JoinExecutionPlan executionPlan = ChooseJoinExecutionPlan(
                     relation,
@@ -1279,6 +1314,10 @@ internal static class RelationalSelectExecutor
             UnaryExpression unary => unary with
             {
                 Operand = NormalizeInputExpression(unary.Operand, input),
+            },
+            CastExpression cast => cast with
+            {
+                Operand = NormalizeInputExpression(cast.Operand, input),
             },
             BinaryExpression binary => binary with
             {
@@ -1968,8 +2007,17 @@ internal static class RelationalSelectExecutor
         SqlExpression on,
         JoinKind kind,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        bool preserveDeclaredJoinOrder = false)
     {
+        if (preserveDeclaredJoinOrder)
+            return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
+
+        // RIGHT/FULL/CROSS 的输出保留规则与现有 Hash/Index/Merge 算子不同；
+        // 先使用声明顺序嵌套循环，确保 NULL 扩展和重复键语义正确。
+        if (kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
+            return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
+
         // #215：等值连接走哈希连接（O(N+M)），替换全物化嵌套循环笛卡尔积（O(N×M)）。
         // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
         // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
@@ -2031,27 +2079,47 @@ internal static class RelationalSelectExecutor
         IEnumerable<object?[]> JoinRows()
         {
             object?[][] rightRows = right.Rows.ToArray();
+            bool preserveRight = kind is JoinKind.Right or JoinKind.Full;
+            bool preserveLeft = kind is JoinKind.Left or JoinKind.Full;
+            bool[] rightMatched = preserveRight ? new bool[rightRows.Length] : Array.Empty<bool>();
             foreach (object?[] leftRow in left.Rows)
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 var matched = false;
-                foreach (object?[] rightRow in rightRows)
+                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
+                    object?[] rightRow = rightRows[rightIndex];
                     var row = new object?[leftRow.Length + rightRow.Length];
                     Array.Copy(leftRow, row, leftRow.Length);
                     Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
                     if (EvaluateBoolean(tsdb, on, columns, row, outerScope, memo))
                     {
                         matched = true;
+                        if (preserveRight)
+                            rightMatched[rightIndex] = true;
                         yield return row;
                     }
                 }
 
-                if (!matched && kind == JoinKind.Left)
+                if (!matched && preserveLeft)
                 {
                     var row = new object?[leftRow.Length + right.Columns.Count];
                     Array.Copy(leftRow, row, leftRow.Length);
+                    yield return row;
+                }
+            }
+
+            if (preserveRight)
+            {
+                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (rightMatched[rightIndex])
+                        continue;
+
+                    var row = new object?[left.Columns.Count + right.Columns.Count];
+                    Array.Copy(rightRows[rightIndex], 0, row, left.Columns.Count, right.Columns.Count);
                     yield return row;
                 }
             }
@@ -3341,6 +3409,7 @@ internal static class RelationalSelectExecutor
             LiteralExpression or DurationLiteralExpression or SubqueryExpression or ExistsExpression => true,
             IdentifierExpression identifier => TryResolveInRelation(relation, identifier) is not null,
             UnaryExpression unary => CanEvaluateAgainstRelation(unary.Operand, relation),
+            CastExpression cast => CanEvaluateAgainstRelation(cast.Operand, relation),
             BinaryExpression binary => CanEvaluateAgainstRelation(binary.Left, relation)
                 && CanEvaluateAgainstRelation(binary.Right, relation),
             IsNullExpression isNull => CanEvaluateAgainstRelation(isNull.Operand, relation),
@@ -3950,9 +4019,18 @@ internal static class RelationalSelectExecutor
         if (name == "count")
         {
             if (fn.IsStar)
+            {
+                if (fn.IsDistinct)
+                    throw new InvalidOperationException("COUNT(DISTINCT *) 当前不支持；请指定列名。" );
                 return (long)rows.Count;
+            }
             RequireArgumentCount(fn, 1);
-            return rows.LongCount(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo) is not null);
+            var countValues = rows
+                .Select(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo))
+                .Where(static value => value is not null);
+            return fn.IsDistinct
+                ? countValues.Distinct(SqlDistinctValueComparer.Instance).LongCount()
+                : countValues.LongCount();
         }
 
         RequireArgumentCount(fn, 1);
@@ -3960,6 +4038,8 @@ internal static class RelationalSelectExecutor
             .Select(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo))
             .Where(static value => value is not null)
             .ToArray();
+        if (fn.IsDistinct)
+            rawValues = rawValues.Distinct(SqlDistinctValueComparer.Instance).ToArray();
 
         // 保留整数类型：当调用方已确认所有非空输入跨整个结果集都是 byte/short/int/long 时，
         // sum/min/max 在所有组上一致返回 long——与 Postgres 等关系库一致，避免同列异质类型
@@ -3974,6 +4054,37 @@ internal static class RelationalSelectExecutor
                 "max" => longs.Max(),
                 _ => throw new InvalidOperationException($"unreachable: integral aggregate {name}"),
             };
+        }
+
+        // AVG over the legacy integral types has historically returned Double.
+        // Keep that contract while DECIMAL columns continue through the exact path below.
+        if (allIntegralInput && name == "avg")
+            return rawValues.Length == 0
+                ? null
+                : rawValues.Select(static value => Convert.ToDouble(value, CultureInfo.InvariantCulture)).Average();
+
+        if (rawValues.Length > 0
+            && rawValues.All(static value => IsExactNumeric(value))
+            && (name is "sum" or "min" or "max" or "avg"))
+        {
+            decimal[] decimals = rawValues
+                .Select(static value => Convert.ToDecimal(value, CultureInfo.InvariantCulture))
+                .ToArray();
+            try
+            {
+                return name switch
+                {
+                    "sum" => decimals.Aggregate(0m, static (sum, value) => checked(sum + value)),
+                    "min" => decimals.Min(),
+                    "max" => decimals.Max(),
+                    "avg" => decimals.Aggregate(0m, static (sum, value) => checked(sum + value)) / decimals.Length,
+                    _ => throw new InvalidOperationException($"unreachable: decimal aggregate {name}"),
+                };
+            }
+            catch (OverflowException exception)
+            {
+                throw new InvalidOperationException("DECIMAL 聚合发生溢出。", exception);
+            }
         }
 
         var values = rawValues
@@ -4250,6 +4361,8 @@ internal static class RelationalSelectExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(
+                EvaluateScalar(tsdb, cast.Operand, columns, row, outerScope, memo), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => GetColumnValue(columns, row, identifier, outerScope),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo)),
@@ -4310,6 +4423,8 @@ internal static class RelationalSelectExecutor
         RelationalScope? outerScope = null,
         SubqueryMemo? memo = null)
     {
+        if (function.IsDistinct)
+            throw new InvalidOperationException($"函数 '{function.Name}' 不支持 DISTINCT 修饰词。" );
         if (IsAggregateFunction(function.Name))
             throw new InvalidOperationException($"聚合函数 '{function.Name}' 只能出现在聚合投影中。");
 
@@ -5147,6 +5262,7 @@ internal static class RelationalSelectExecutor
             FunctionCallExpression function when IsAggregateFunction(function.Name) => true,
             FunctionCallExpression function => function.Arguments.Any(ContainsAggregate),
             UnaryExpression unary => ContainsAggregate(unary.Operand),
+            CastExpression cast => ContainsAggregate(cast.Operand),
             BinaryExpression binary => ContainsAggregate(binary.Left) || ContainsAggregate(binary.Right),
             CaseExpression caseExpression => caseExpression.WhenClauses.Any(when =>
                     ContainsAggregate(when.Condition) || ContainsAggregate(when.Result))
@@ -5174,6 +5290,10 @@ internal static class RelationalSelectExecutor
                 yield break;
             case UnaryExpression unary:
                 foreach (var aggregate in EnumerateAggregateCalls(unary.Operand))
+                    yield return aggregate;
+                yield break;
+            case CastExpression cast:
+                foreach (var aggregate in EnumerateAggregateCalls(cast.Operand))
                     yield return aggregate;
                 yield break;
             case BinaryExpression binary:
@@ -5233,6 +5353,7 @@ internal static class RelationalSelectExecutor
             SubqueryExpression => true,
             ExistsExpression => true,
             UnaryExpression unary => ContainsSubquery(unary.Operand),
+            CastExpression cast => ContainsSubquery(cast.Operand),
             IsNullExpression isNull => ContainsSubquery(isNull.Operand),
             BinaryExpression binary => ContainsSubquery(binary.Left) || ContainsSubquery(binary.Right),
             InExpression inExpression => inExpression.Subquery is not null
@@ -5282,7 +5403,9 @@ internal static class RelationalSelectExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private static object? EvaluateLiteral(LiteralExpression literal) => literal.Kind switch
     {
@@ -5316,8 +5439,49 @@ internal static class RelationalSelectExecutor
         long or ulong or
         float or double or decimal;
 
+    private static bool IsExactNumeric(object? value) => value is
+        byte or sbyte or short or ushort or int or uint or long or ulong or decimal;
+
     private static bool ValuesEqual(object? left, object? right)
         => SqlScalarComparer.ValuesEqual(left, right);
+
+    private sealed class SqlDistinctValueComparer : IEqualityComparer<object?>
+    {
+        public static SqlDistinctValueComparer Instance { get; } = new();
+
+        public new bool Equals(object? x, object? y) => SqlScalarComparer.ValuesEqual(x, y);
+
+        public int GetHashCode(object? value)
+        {
+            if (value is null)
+                return 0;
+            if (value is byte[] bytes)
+            {
+                var hash = new HashCode();
+                hash.Add(typeof(byte[]));
+                foreach (byte item in bytes)
+                    hash.Add(item);
+                return hash.ToHashCode();
+            }
+            if (value is float[] vector)
+            {
+                var hash = new HashCode();
+                hash.Add(typeof(float[]));
+                foreach (float item in vector)
+                    hash.Add(item);
+                return hash.ToHashCode();
+            }
+            if (IsNumeric(value))
+                return Convert.ToDouble(value, CultureInfo.InvariantCulture).GetHashCode();
+            if (value is DateTime dateTime)
+                return new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                    : dateTime.ToUniversalTime()).ToUnixTimeMilliseconds().GetHashCode();
+            if (value is DateTimeOffset dateTimeOffset)
+                return dateTimeOffset.ToUnixTimeMilliseconds().GetHashCode();
+            return value.GetHashCode();
+        }
+    }
 
     private static int? CompareScalar(object? left, object? right)
         => SqlScalarComparer.Compare(left, right);
@@ -5332,6 +5496,14 @@ internal static class RelationalSelectExecutor
 
     private static string FormatFunctionColumnName(FunctionCallExpression function)
     {
+        if (function.IsDistinct)
+        {
+            if (function.IsStar)
+                return $"{function.Name.ToLowerInvariant()}(DISTINCT *)";
+            if (function.Arguments.Count == 1 && function.Arguments[0] is IdentifierExpression distinctIdentifier)
+                return $"{function.Name.ToLowerInvariant()}(DISTINCT {distinctIdentifier.Name})";
+            return $"{function.Name.ToLowerInvariant()}(DISTINCT)";
+        }
         if (function.IsStar)
             return $"{function.Name.ToLowerInvariant()}(*)";
         if (function.Arguments.Count == 1 && function.Arguments[0] is IdentifierExpression identifier)

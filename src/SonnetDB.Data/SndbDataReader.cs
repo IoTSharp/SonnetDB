@@ -61,6 +61,11 @@ public sealed class SndbDataReader : DbDataReader
     /// <inheritdoc />
     public override int RecordsAffected => _result.RecordsAffected;
 
+    /// <summary>
+    /// 结果是否为不完整预览；远端 NDJSON 读取器在消费完成标记后确定此值。
+    /// </summary>
+    public bool Truncated => _result.Truncated;
+
     /// <inheritdoc />
     public override bool GetBoolean(int ordinal) => Convert.ToBoolean(GetValue(ordinal), CultureInfo.InvariantCulture);
 
@@ -565,11 +570,14 @@ public sealed class SndbDataReader : DbDataReader
                                 ? (short)15
                                 : fieldType == typeof(decimal)
                                     ? (short)29
+                                    : fieldType == typeof(TimeOnly)
+                                        ? (short)7
                                     : (short)0;
 
     private static short GetNumericScale(Type fieldType)
         => fieldType == typeof(float) || fieldType == typeof(double) || fieldType == typeof(decimal)
             ? (short)15
+            : fieldType == typeof(TimeOnly) ? (short)7
             : (short)0;
 
     private static DbType GetProviderType(Type fieldType)
@@ -585,6 +593,7 @@ public sealed class SndbDataReader : DbDataReader
         if (fieldType == typeof(decimal)) return DbType.Decimal;
         if (fieldType == typeof(DateTime)) return DbType.DateTime;
         if (fieldType == typeof(DateTimeOffset)) return DbType.DateTimeOffset;
+        if (fieldType == typeof(TimeOnly)) return DbType.Time;
         if (fieldType == typeof(Guid)) return DbType.Guid;
         if (fieldType == typeof(byte[])) return DbType.Binary;
         return DbType.Object;

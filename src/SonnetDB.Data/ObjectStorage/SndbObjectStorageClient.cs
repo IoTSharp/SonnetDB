@@ -15,7 +15,7 @@ namespace SonnetDB.Data.ObjectStorage;
 /// <summary>
 /// SonnetDB 对象桶客户端，统一支持嵌入式与远程 SonnetDB。
 /// </summary>
-public sealed class SndbObjectStorageClient : IDisposable
+public sealed partial class SndbObjectStorageClient : IDisposable
 {
     /// <summary>帧 put 内容字节上限：单帧 payload 上限扣除元数据头空间（db/bucket/key/contentType/maps/varints）。</summary>
     private const long MaxFrameContentBytes = FrameHeader.MaxFramePayloadBytes - (64 * 1024);
@@ -89,10 +89,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<IReadOnlyList<SndbBucketInfo>> ListBucketsAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).ListBuckets();
 
-        using var response = await _http!.GetAsync($"v1/db/{Uri.EscapeDataString(_database)}/s3", cancellationToken)
+        using var response = await _http!.GetAsync($"v1/db/{Uri.EscapeDataString(_database)}/s3", HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -109,6 +110,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketInfo> CreateBucketAsync(string bucket, string? purpose = null, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).CreateBucket(bucket, purpose);
 
@@ -127,11 +129,12 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetSemanticOptions(bucket);
 
         using var response = await _http!
-            .GetAsync(BucketUrl(bucket) + "?semantic", cancellationToken)
+            .GetAsync(BucketUrl(bucket) + "?semantic", HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -155,6 +158,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
         {
             return new SndbObjectStore(_embedded).SetSemanticOptions(
@@ -191,6 +195,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<bool> DeleteBucketAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).DeleteBucket(bucket);
 
@@ -217,6 +222,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return await new SndbObjectStore(_embedded).PutObjectAsync(bucket, key, content, contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
 
@@ -228,7 +234,7 @@ public sealed class SndbObjectStorageClient : IDisposable
             {
                 var w = new ArrayBufferWriter<byte>();
                 ObjectFrameCodec.EncodePutRequest(w, 1, _database, bucket, key, buffered, contentType, metadata, tags);
-                var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+                var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken, allowFallback: false).ConfigureAwait(false);
                 if (frame is { } f)
                 {
                     ObjectPutFrameResult result = ObjectFrameCodec.DecodePutResponse(f.Payload);
@@ -247,7 +253,7 @@ public sealed class SndbObjectStorageClient : IDisposable
                         tags ?? EmptyMap);
                 }
 
-                // 传输级回落：复用已缓冲字节走 REST。
+                // 并发只读探测可能在发送前已选择 REST；发送后的失败由帧通道抛出，不能重放写入。
                 return await PutObjectRestAsync(bucket, key, new MemoryStream(buffered), contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -308,7 +314,8 @@ public sealed class SndbObjectStorageClient : IDisposable
         string? delimiter, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        cancellationToken.ThrowIfCancellationRequested();
+        using var deadline = BeginOperation(ref cancellationToken);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxKeys);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).ListObjects(bucket, prefix, maxKeys, continuationToken, delimiter, cancellationToken);
 
@@ -322,11 +329,12 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (!string.IsNullOrEmpty(delimiter))
             url += "&delimiter=" + Uri.EscapeDataString(delimiter);
 
-        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectListResponse, cancellationToken).ConfigureAwait(false);
+        ValidateObjectPage(body, bucket, prefix, maxKeys, continuationToken, delimiter);
         return new SndbObjectListResult(
             body.Bucket,
             body.Prefix,
@@ -350,6 +358,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).ListObjectVersions(bucket, key);
 
@@ -357,7 +366,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (!string.IsNullOrWhiteSpace(key))
             url += "&key=" + Uri.EscapeDataString(key);
 
-        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -374,6 +383,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbObjectInfo?> HeadObjectAsync(string bucket, string key, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).HeadObject(bucket, key);
 
@@ -403,6 +413,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     /// <summary>
     /// 读取对象。
     /// </summary>
+    /// <remarks>取消和连接超时覆盖打开操作。返回内容流后，调用方负责向读取方法传入取消令牌，并释放内容流。</remarks>
     public async Task<SndbObjectReadResult?> OpenReadAsync(
         string bucket,
         string key,
@@ -410,6 +421,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).OpenRead(bucket, key, range);
 
@@ -431,12 +443,14 @@ public sealed class SndbObjectStorageClient : IDisposable
     /// <param name="key">原始对象 key。</param>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>缩略图读取结果；缩略图不可用时返回 <see langword="null"/>。</returns>
+    /// <remarks>取消和连接超时覆盖打开操作。返回内容流后，调用方负责向读取方法传入取消令牌，并释放内容流。</remarks>
     public async Task<SndbObjectReadResult?> OpenThumbnailAsync(
         string bucket,
         string key,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return null;
 
@@ -522,28 +536,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         string querySuffix = "")
     {
         using var request = CreateRequest(HttpMethod.Get, ObjectUrl(bucket, key) + querySuffix);
-        if (range.HasValue)
-        {
-            long start = range.Value.Offset;
-            long? length = range.Value.Length;
-            if (range.Value.IsSuffix)
-            {
-                // suffix Range 必须保留为 bytes=-N，不能把起点误编码为零。
-                if (!length.HasValue || length.Value <= 0)
-                    throw new ArgumentOutOfRangeException(nameof(range), "suffix Range 长度必须大于零。");
-                request.Headers.Range = new RangeHeaderValue(null, length.Value);
-            }
-            else if (length.HasValue)
-            {
-                if (start < 0 || length.Value <= 0 || length.Value - 1 > long.MaxValue - start)
-                    throw new ArgumentOutOfRangeException(nameof(range), "对象读取范围超出整数边界。");
-                request.Headers.Range = new RangeHeaderValue(start, start + length.Value - 1);
-            }
-            else
-            {
-                request.Headers.Range = new RangeHeaderValue(start, null);
-            }
-        }
+        AddRangeHeader(request, range);
 
         HttpResponseMessage? response = await _http!.SendAsync(
                 request,
@@ -557,35 +550,7 @@ public sealed class SndbObjectStorageClient : IDisposable
             if (!response.IsSuccessStatusCode)
                 throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
-            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            bool isRangeResponse = response.StatusCode == System.Net.HttpStatusCode.PartialContent;
-            ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
-            long responseLength = response.Content.Headers.ContentLength
-                ?? (isRangeResponse ? ResolveContentRangeLength(contentRange) : 0);
-            // 以服务端实际响应为准；代理忽略 Range 并返回 200 时，偏移必须回到零且总长度取完整响应长度。
-            long responseOffset = isRangeResponse ? contentRange?.From ?? range?.Offset ?? 0 : 0;
-            long totalLength = isRangeResponse ? contentRange?.Length ?? 0 : responseLength;
-            var info = new SndbObjectInfo(
-                bucket,
-                key,
-                response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
-                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
-                totalLength > 0 ? totalLength : responseLength,
-                response.Headers.ETag?.Tag ?? string.Empty,
-                response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
-                false,
-                DateTimeOffset.MinValue,
-                DateTimeOffset.MinValue,
-                new Dictionary<string, string>(),
-                new Dictionary<string, string>());
-
-            var result = new SndbObjectReadResult(
-                info,
-                new ResponseOwnedStream(response, stream),
-                responseOffset,
-                responseLength,
-                isRangeResponse,
-                totalLength);
+            var result = await CreateReadResultAsync(response, bucket, key, range, cancellationToken).ConfigureAwait(false);
             // 从这里开始由结果流接管 response，finally 不再释放成功返回的响应。
             response = null;
             return result;
@@ -594,6 +559,70 @@ public sealed class SndbObjectStorageClient : IDisposable
         {
             response?.Dispose();
         }
+    }
+
+    private static void AddRangeHeader(HttpRequestMessage request, SndbObjectRange? range)
+    {
+        if (!range.HasValue)
+            return;
+
+        long start = range.Value.Offset;
+        long? length = range.Value.Length;
+        if (range.Value.IsSuffix)
+        {
+            // suffix Range 必须保留为 bytes=-N，不能把起点误编码为零。
+            if (!length.HasValue || length.Value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(range), "suffix Range 长度必须大于零。");
+            request.Headers.Range = new RangeHeaderValue(null, length.Value);
+        }
+        else if (length.HasValue)
+        {
+            if (start < 0 || length.Value <= 0 || length.Value - 1 > long.MaxValue - start)
+                throw new ArgumentOutOfRangeException(nameof(range), "对象读取范围超出整数边界。");
+            request.Headers.Range = new RangeHeaderValue(start, start + length.Value - 1);
+        }
+        else
+        {
+            request.Headers.Range = new RangeHeaderValue(start, null);
+        }
+    }
+
+    private static async Task<SndbObjectReadResult> CreateReadResultAsync(
+        HttpResponseMessage response,
+        string bucket,
+        string key,
+        SndbObjectRange? range,
+        CancellationToken cancellationToken)
+    {
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        bool isRangeResponse = response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+        ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
+        long responseLength = response.Content.Headers.ContentLength
+            ?? (isRangeResponse ? ResolveContentRangeLength(contentRange) : 0);
+        // 以服务端实际响应为准；代理忽略 Range 并返回 200 时，偏移必须回到零且总长度取完整响应长度。
+        long responseOffset = isRangeResponse ? contentRange?.From ?? range?.Offset ?? 0 : 0;
+        long totalLength = isRangeResponse ? contentRange?.Length ?? 0 : responseLength;
+        var info = new SndbObjectInfo(
+            bucket,
+            key,
+            response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
+            response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
+            totalLength > 0 ? totalLength : responseLength,
+            response.Headers.ETag?.Tag ?? string.Empty,
+            response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
+            false,
+            DateTimeOffset.MinValue,
+            DateTimeOffset.MinValue,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>());
+
+        return new SndbObjectReadResult(
+            info,
+            new ResponseOwnedStream(response, stream),
+            responseOffset,
+            responseLength,
+            isRangeResponse,
+            totalLength);
     }
 
     /// <summary>
@@ -607,6 +636,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return await new SndbObjectStore(_embedded).CopyObjectAsync(sourceBucket, sourceKey, destinationBucket, destinationKey, cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -624,6 +654,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task DeleteObjectAsync(string bucket, string key, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
         {
             new SndbObjectStore(_embedded).DeleteObject(bucket, key);
@@ -643,6 +674,10 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
+        ArgumentNullException.ThrowIfNull(keys);
+        // 固定发送项，避免调用方在 await 期间改写列表而让结果校验绑定到另一批 key。
+        keys = keys.ToArray();
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).DeleteObjects(bucket, keys);
 
@@ -652,6 +687,17 @@ public sealed class SndbObjectStorageClient : IDisposable
             SndbObjectClientJsonContext.Default.ObjectDeleteManyRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectDeleteManyResponse, cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(body.Bucket, bucket, StringComparison.Ordinal)
+            || body.Deleted is null || body.Deleted.Length != keys.Count)
+            throw new InvalidDataException("Object delete response does not match the requested batch; verify the original target before retrying.");
+        for (int index = 0; index < keys.Count; index++)
+        {
+            var item = body.Deleted[index];
+            if (item is null || !string.Equals(item.Key, keys[index], StringComparison.Ordinal)
+                || (string.IsNullOrEmpty(item.ErrorCode) && (!item.DeleteMarker || string.IsNullOrWhiteSpace(item.VersionId)))
+                || (!string.IsNullOrEmpty(item.ErrorCode) && item.DeleteMarker))
+                throw new InvalidDataException("Object delete response contains an invalid item; verify the original target before retrying.");
+        }
         return new SndbObjectDeleteManyResult(
             body.Bucket,
             body.Deleted.Select(static item => new SndbObjectDeleteResult(
@@ -672,6 +718,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetObjectTags(bucket, key, tags);
 
@@ -689,10 +736,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketPolicyInfo> GetPolicyAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetPolicy(bucket);
 
-        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?policy", cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?policy", HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -705,6 +753,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketPolicyInfo> SetPolicyAsync(string bucket, string? policyJson, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetPolicy(bucket, policyJson);
 
@@ -722,10 +771,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketLifecycleInfo> GetLifecycleAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetLifecycle(bucket);
 
-        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?lifecycle", cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?lifecycle", HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -743,6 +793,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetLifecycle(bucket, expireCurrentAfterDays, expireNoncurrentAfterDays, expireDeleteMarkerAfterDays);
 
@@ -760,12 +811,12 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketLifecycleApplyResult> ApplyLifecycleAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).ApplyLifecycle(bucket);
 
-        using var response = await _http!.PostAsync(BucketUrl(bucket) + "?lifecycle", content: null, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        using var request = CreateRequest(HttpMethod.Post, BucketUrl(bucket) + "?lifecycle");
+        using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
 
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLifecycleApplyResponse, cancellationToken).ConfigureAwait(false);
         return new SndbBucketLifecycleApplyResult(
@@ -791,10 +842,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketRetentionInfo> GetRetentionAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetRetention(bucket);
 
-        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?retention", cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?retention", HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -811,6 +863,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetRetention(bucket, retainCurrentForDays, retainNoncurrentForDays);
 
@@ -828,10 +881,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketQuotaInfo> GetQuotaAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetQuota(bucket);
 
-        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?quota", cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?quota", HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -848,6 +902,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetQuota(bucket, maxSizeBytes, maxObjectVersions);
 
@@ -865,10 +920,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     public async Task<SndbBucketStatsInfo> GetStatsAsync(string bucket, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetStats(bucket);
 
-        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?stats", cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?stats", HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -885,6 +941,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).ListAudit(bucket, keyPrefix, maxEntries);
 
@@ -894,7 +951,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (!string.IsNullOrWhiteSpace(keyPrefix))
             url += "&prefix=" + Uri.EscapeDataString(keyPrefix.TrimStart('/'));
 
-        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -921,6 +978,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).GetLegalHold(bucket, key, versionId);
 
@@ -928,7 +986,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (!string.IsNullOrWhiteSpace(versionId))
             url += "&versionId=" + Uri.EscapeDataString(versionId);
 
-        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        using var response = await _http!.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
@@ -947,6 +1005,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).SetLegalHold(bucket, key, enabled, reason, versionId);
 
@@ -974,6 +1033,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).InitiateMultipartUpload(bucket, key, contentType, metadata, tags);
 
@@ -983,6 +1043,9 @@ public sealed class SndbObjectStorageClient : IDisposable
             SndbObjectClientJsonContext.Default.MultipartUploadCreateRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.MultipartUploadCreateResponse, cancellationToken).ConfigureAwait(false);
+        ValidateObjectTarget(body.Bucket, body.Key, bucket, key);
+        if (string.IsNullOrWhiteSpace(body.UploadId))
+            throw new InvalidDataException("Multipart response does not contain an upload ID.");
         return new SndbMultipartUploadInfo(body.Bucket, body.Key, body.UploadId, body.ContentType, body.InitiatedUtc, body.ExpiresUtc, body.Metadata, body.Tags);
     }
 
@@ -998,8 +1061,9 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
-            return await new SndbObjectStore(_embedded).UploadPartAsync(uploadId, partNumber, content, cancellationToken).ConfigureAwait(false);
+            return await GetMultipartStore(bucket, key, uploadId).UploadPartAsync(uploadId, partNumber, content, cancellationToken).ConfigureAwait(false);
 
         using var request = CreateRequest(
             HttpMethod.Put,
@@ -1007,6 +1071,8 @@ public sealed class SndbObjectStorageClient : IDisposable
             new StreamContent(content));
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.MultipartPartResponse, cancellationToken).ConfigureAwait(false);
+        if (body.PartNumber != partNumber || body.SizeBytes < 0 || string.IsNullOrWhiteSpace(body.ETag))
+            throw new InvalidDataException("Multipart response does not match the requested part.");
         return new SndbMultipartPartInfo(body.PartNumber, body.SizeBytes, body.ETag, body.Sha256);
     }
 
@@ -1021,15 +1087,18 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
-            return await new SndbObjectStore(_embedded).CompleteMultipartUploadAsync(uploadId, partNumbers, cancellationToken).ConfigureAwait(false);
+            return await GetMultipartStore(bucket, key, uploadId).CompleteMultipartUploadAsync(uploadId, partNumbers, cancellationToken).ConfigureAwait(false);
 
         using var response = await PostJsonAsync(
             ObjectUrl(bucket, key) + "?uploadId=" + Uri.EscapeDataString(uploadId),
             new MultipartCompleteRequest(partNumbers),
             SndbObjectClientJsonContext.Default.MultipartCompleteRequest,
             cancellationToken).ConfigureAwait(false);
-        return ToInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectInfoResponse, cancellationToken).ConfigureAwait(false));
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectInfoResponse, cancellationToken).ConfigureAwait(false);
+        ValidateObjectTarget(body.Bucket, body.Key, bucket, key);
+        return ToInfo(body);
     }
 
     /// <summary>
@@ -1042,9 +1111,10 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
         {
-            new SndbObjectStore(_embedded).AbortMultipartUpload(uploadId);
+            GetMultipartStore(bucket, key, uploadId).AbortMultipartUpload(uploadId);
             return;
         }
 
@@ -1065,6 +1135,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
             throw new NotSupportedException("嵌入式对象存储不支持 HTTP 预签名 URL。");
 
@@ -1117,13 +1188,13 @@ public sealed class SndbObjectStorageClient : IDisposable
                 _builder.Username,
                 _builder.Password,
                 _builder.Token,
-                TimeSpan.FromSeconds(_builder.Timeout))
+                TimeSpan.FromSeconds(_builder.Timeout), allowAutoRedirect: false)
             : RemoteHttpClientFactory.Create(
                 baseAddress,
                 _builder.Username,
                 _builder.Password,
                 _builder.Token,
-                TimeSpan.FromSeconds(_builder.Timeout));
+                TimeSpan.FromSeconds(_builder.Timeout), allowAutoRedirect: false);
         ConfigureRemoteClient(httpClient, protocol);
     }
 
@@ -1173,15 +1244,8 @@ public sealed class SndbObjectStorageClient : IDisposable
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
-        using var content = JsonContent.Create(value, typeInfo);
-        var response = await _http!.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
-            response.Dispose();
-            throw error;
-        }
-        return response;
+        using var request = CreateRequest(HttpMethod.Post, url, JsonContent.Create(value, typeInfo));
+        return await SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<HttpResponseMessage> PutJsonAsync<T>(
@@ -1190,27 +1254,24 @@ public sealed class SndbObjectStorageClient : IDisposable
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
-        using var content = JsonContent.Create(value, typeInfo);
-        var response = await _http!.PutAsync(url, content, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
-            response.Dispose();
-            throw error;
-        }
-        return response;
+        using var request = CreateRequest(HttpMethod.Put, url, JsonContent.Create(value, typeInfo));
+        return await SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
-            response.Dispose();
-            throw error;
+            if (!response.IsSuccessStatusCode)
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+            return response;
         }
-        return response;
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     private static async Task<T> ReadJsonAsync<T>(
@@ -1225,28 +1286,16 @@ public sealed class SndbObjectStorageClient : IDisposable
 
     private static async Task<SndbServerException> BuildHttpErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        string body = string.Empty;
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var error = await JsonSerializer.DeserializeAsync(stream, RemoteJsonContext.Default.ServerErrorBody, cancellationToken).ConfigureAwait(false);
+            if (error is not null && !string.IsNullOrWhiteSpace(error.Error) && !string.IsNullOrWhiteSpace(error.Message))
+                return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
-        catch
+        catch (JsonException)
         {
-        }
-
-        if (!string.IsNullOrWhiteSpace(body))
-        {
-            try
-            {
-                var error = JsonSerializer.Deserialize(body, RemoteJsonContext.Default.ServerErrorBody);
-                if (error is not null)
-                    return new SndbServerException(error.Error, error.Message, response.StatusCode);
-            }
-            catch
-            {
-            }
-
-            return new SndbServerException("http_error", body.Trim(), response.StatusCode);
+            // 非 JSON 代理错误不作为服务端合同，也不把任意正文泄露到异常消息。
         }
 
         return new SndbServerException("http_error", response.ReasonPhrase ?? "SonnetDB HTTP error.", response.StatusCode);
@@ -1322,6 +1371,78 @@ public sealed class SndbObjectStorageClient : IDisposable
         new(body.Bucket, body.Key, body.VersionId, body.Enabled, body.Reason, body.UpdatedUtc);
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private SndbObjectStore GetMultipartStore(string bucket, string key, string uploadId)
+    {
+        var store = new SndbObjectStore(_embedded!);
+        var upload = store.GetMultipartUpload(uploadId).Upload;
+        if (!string.Equals(upload.Bucket, bucket, StringComparison.Ordinal)
+            || !string.Equals(upload.Key, key, StringComparison.Ordinal))
+            throw new SndbObjectStorageException("multipart_not_found", "Multipart upload does not match the requested object.");
+        return store;
+    }
+
+    private static void ValidateObjectTarget(string actualBucket, string actualKey, string bucket, string key)
+    {
+        if (!string.Equals(actualBucket, bucket, StringComparison.Ordinal)
+            || !string.Equals(actualKey, key, StringComparison.Ordinal))
+            throw new InvalidDataException("Object response does not match the requested target; verify the original target before retrying.");
+    }
+
+    private static void ValidateObjectPage(ObjectListResponse body, string bucket, string? prefix,
+        int maxKeys, string? continuationToken, string? delimiter)
+    {
+        string normalizedPrefix = prefix?.TrimStart('/') ?? string.Empty;
+        string? normalizedDelimiter = string.IsNullOrEmpty(delimiter) ? null : delimiter;
+        string? normalizedToken = string.IsNullOrWhiteSpace(continuationToken) ? null : continuationToken;
+        // REST 已有 10,000 上限；保留现有服务端限制，不把更小页面误判为完整结果。
+        int expectedMaxKeys = Math.Min(maxKeys, 10_000);
+        if (!string.Equals(body.Bucket, bucket, StringComparison.Ordinal)
+            || !string.Equals(body.Prefix, normalizedPrefix, StringComparison.Ordinal)
+            || !string.Equals(body.Delimiter, normalizedDelimiter, StringComparison.Ordinal)
+            || !string.Equals(string.IsNullOrWhiteSpace(body.ContinuationToken) ? null : body.ContinuationToken, normalizedToken, StringComparison.Ordinal)
+            || body.MaxKeys != expectedMaxKeys || body.Objects is null || body.CommonPrefixes is null
+            || (long)body.Objects.Length + body.CommonPrefixes.Length > expectedMaxKeys
+            || body.IsTruncated != !string.IsNullOrWhiteSpace(body.NextContinuationToken)
+            || (body.IsTruncated && (body.Objects.Length + body.CommonPrefixes.Length == 0
+                || string.Equals(body.NextContinuationToken, normalizedToken, StringComparison.Ordinal))))
+            throw new InvalidDataException("Object page does not match the requested target, limit or continuation state.");
+
+        string? previous = null;
+        foreach (var item in body.Objects)
+        {
+            if (item is null || string.IsNullOrWhiteSpace(item.Key) || !string.Equals(item.Bucket, bucket, StringComparison.Ordinal)
+                || !item.Key.StartsWith(normalizedPrefix, StringComparison.Ordinal) || item.IsDeleteMarker
+                || (previous is not null && string.CompareOrdinal(previous, item.Key) >= 0)
+                || (normalizedDelimiter is not null && item.Key.IndexOf(normalizedDelimiter, normalizedPrefix.Length, StringComparison.Ordinal) >= 0))
+                throw new InvalidDataException("Object page contains an invalid, unordered or duplicate object.");
+            previous = item.Key;
+        }
+
+        previous = null;
+        foreach (var common in body.CommonPrefixes)
+        {
+            if (normalizedDelimiter is null || common is null || !common.StartsWith(normalizedPrefix, StringComparison.Ordinal)
+                || common.Length < normalizedPrefix.Length + normalizedDelimiter.Length
+                || common.IndexOf(normalizedDelimiter, normalizedPrefix.Length, StringComparison.Ordinal) != common.Length - normalizedDelimiter.Length
+                || (previous is not null && string.CompareOrdinal(previous, common) >= 0))
+                throw new InvalidDataException("Object page contains an invalid, unordered or duplicate common prefix.");
+            previous = common;
+        }
+    }
+
+    private CancellationTokenSource? BeginOperation(ref CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+            return null;
+
+        // ResponseHeadersRead 之后 HttpClient.Timeout 不再覆盖正文；保留整个操作的同一期限。
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(_builder.Timeout));
+        cancellationToken = deadline.Token;
+        return deadline;
+    }
 
     /// <summary>
     /// 尝试把内容缓冲成字节数组以走单帧 put：可 seek 且长度在帧上限内才缓冲；否则返回 null 走 REST 流式。

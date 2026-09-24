@@ -9,6 +9,12 @@ public sealed record SqlExecutionOptions
     /// <summary>取消令牌。</summary>
     public CancellationToken CancellationToken { get; init; }
 
+    /// <summary>
+    /// 可选的绝对执行截止时间（UTC）。到达截止时间后，SQL 执行按取消处理；调用方仍可通过
+    /// <see cref="CancellationToken"/> 提前取消。该属性只约束当前调用，不改变事务持久化后的恢复语义。
+    /// </summary>
+    public DateTimeOffset? DeadlineUtc { get; init; }
+
     /// <summary>审计调用方标识；不记录参数值或行数据。</summary>
     public string Caller { get; init; } = "embedded";
 
@@ -65,6 +71,9 @@ public sealed record SqlExecutionOptions
     /// </summary>
     public string? QueryFingerprint { get; init; }
 
+    /// <summary>参数敏感运行时反馈指纹；仅由已绑定参数的 SQL 入口设置。</summary>
+    internal string? ParameterSensitiveQueryFingerprint { get; init; }
+
     /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
     internal SqlExecutionMetrics? Metrics { get; init; }
 
@@ -88,5 +97,27 @@ public sealed record SqlExecutionOptions
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
         if (ParallelismMinRows is { } minRows)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minRows);
+    }
+
+    /// <summary>
+    /// 创建把调用方取消令牌和绝对截止时间合并起来的有界令牌源。
+    /// </summary>
+    /// <returns>需要由调用方释放的令牌源；没有截止时间时返回 <see langword="null"/>。</returns>
+    internal CancellationTokenSource? CreateDeadlineSource()
+    {
+        if (DeadlineUtc is not { } deadline)
+            return null;
+
+        var source = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
+        TimeSpan remaining = deadline - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+            source.Cancel();
+        else if (remaining > TimeSpan.FromMilliseconds(int.MaxValue))
+            // CancellationTokenSource 的计时器接受 int 毫秒；超长绝对期限先设置
+            // 最大可表示的单次预算，执行循环仍会在每次入口重新检查绝对期限。
+            source.CancelAfter(int.MaxValue);
+        else
+            source.CancelAfter(remaining);
+        return source;
     }
 }

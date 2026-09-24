@@ -1,3 +1,4 @@
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 
@@ -17,7 +18,8 @@ internal static class RoutineExpressionEvaluator
             UnaryExpression { Operator: SqlUnaryOperator.Not } unary => NegateBoolean(EvaluateBoolean(unary.Operand)),
             BinaryExpression binary when binary.Operator is
                 SqlBinaryOperator.Add or SqlBinaryOperator.Subtract or SqlBinaryOperator.Multiply or
-                SqlBinaryOperator.Divide or SqlBinaryOperator.Modulo =>
+                SqlBinaryOperator.Divide or SqlBinaryOperator.Modulo or
+                SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr =>
                 SqlScalarOperations.EvaluateArithmetic(binary.Operator, Evaluate(binary.Left), Evaluate(binary.Right)),
             BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or =>
                 EvaluateLogical(binary),
@@ -138,6 +140,12 @@ internal static class RoutineExpressionEvaluator
     {
         if (function.IsStar)
             throw new InvalidOperationException($"例程常量函数 {function.Name}(*) 非法。");
+        if (IsStringFunction(function.Name)
+            && FunctionRegistry.TryGetScalar(function.Name, out var stringFunction))
+        {
+            var arguments = function.Arguments.Select(Evaluate).ToArray();
+            return stringFunction.Evaluate(arguments);
+        }
         if (string.Equals(function.Name, "lower", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 1)
             return Evaluate(function.Arguments[0])?.ToString()?.ToLowerInvariant();
@@ -157,6 +165,12 @@ internal static class RoutineExpressionEvaluator
         }
         throw new InvalidOperationException($"例程常量表达式不支持函数 '{function.Name}'。");
     }
+
+    private static bool IsStringFunction(string name)
+        => name.ToLowerInvariant() is
+            "lower" or "upper" or "trim" or "ltrim" or "rtrim" or "length" or "char_length"
+            or "substring" or "substr" or "replace" or "left" or "right" or "starts_with"
+            or "startswith" or "ends_with" or "endswith" or "contains";
 
     private static bool? NegateBoolean(bool? value)
         => value is null ? null : !value.Value;

@@ -265,7 +265,7 @@ M27 #340 的 Web 首切片把 CopilotDock 接到统一 client runtime。构建�
 `StudioNative` 或 `Disabled`；省略时为保持现有部署兼容而固定使用 `ServerRelay`，
 不会依据一次探活在模式之间切换。
 
-`ServerRelay` 与 `BrowserDirect` transport 已注册到真实聊天入口。ServerRelay 先通过当前活动 SonnetDB API 客户端检查
+`ServerRelay`、`BrowserDirect` 与 `StudioNative` transport 已注册到真实聊天入口。ServerRelay 先通过当前活动 SonnetDB API 客户端检查
 本地 `/healthz`，把客户端公网 readiness 明确标记为 `not-required`，再将数据库
 Bearer Token 发送到同一活动连接派生出的固定 `/v1/copilot/chat/stream` 端点。
 请求使用 `credentials: omit` 和 `redirect: error`，readiness 与携带数据库 Token/消息/页面上下文的
@@ -276,8 +276,15 @@ BrowserDirect 只接受 `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` 指定的 
 TTL 不超过两小时；与数据库 token 同值、缺配置、缺 token、过期或登出时均 fail closed，
 不会静默回退到 ServerRelay。Studio bridge 已把 endpoint/token 从 URL、query 和浏览器
 storage 移除，改由 NativeWebHost request/event 仅注入当前 WebView 内存；loopback HTTP
-还要求配置的 Studio origin 与 header token，并拒绝 query token。该前置不构成
-StudioNative transport 或系统凭据库，相关模式在 AI broker 和凭据边界完成前仍稳定拒绝。
+还要求配置的 Studio origin 与 header token，并拒绝 query token。
+
+`StudioNative` 使用宿主 manifest 的 `copilot.nativeBroker.v1`，通过固定
+status/connect/disconnect/readiness/chat/continue 操作访问原生 broker。宿主原生窗口输入已有的
+短期公网 runtime token，在 readiness 验证后保存到 Windows Credential Manager；凭据不返回
+WebView。固定 HTTPS 出口只来自宿主批准配置，缺配置、缺宿主或失效凭据保持不可用。页面显式
+开启工具出域并指定只读工具名单后，复用 typed MCP 与逐字 continuation 合同。完整配置、资源限制、
+凭据生命周期及验证边界见 [StudioNative 合同](studio-copilot-contract.md)。原生 token 输入不等于
+桌面 OAuth 获取、真实公网 provider 或双网现场验收。
 
 BrowserDirect 本地工具出域还必须把
 `VITE_COPILOT_BROWSER_DIRECT_ALLOW_DATA_EGRESS` 精确设为 `true`，并在
@@ -307,20 +314,92 @@ stable ID 的等价 JSON tool call/result 可以重放缓存结果，错名、�
 
 请求断开会取消 linked provider、Agent 与 SQL 工具执行，并把 journal 封闭为 interrupted
 `error` / `done`；服务端不会在请求丢失后另起后台 continuation。仍连接的客户端在 deadline、
-provider 异常或生产者截断时会从 journal 收到缺失的终态。该 journal 不持久化、不跨 Server
-进程或多实例共享；Web 当前也没有在页面刷新后以新 runtime 从非 1 sequence 恢复。因此这里
-只构成同进程 HTTP/流合同与重放证据，不构成跨刷新、进程重启或高可用续流证据。Dock 的停止、
-关闭、切换/删除会话、登出与组件卸载都会取消当前 AbortSignal；未收到完整终态的临时回答会
-清除，并从服务端重新同步会话。
+provider 异常或生产者截断时会从 journal 收到缺失的终态。Server 现在把 journal 原子写入
+`<DataRoot>/.system/copilot-relay-journal.json`，通过单写者锁合并多个进程的完成快照；新
+进程可以按相同 owner/database/request fingerprint 重放已完成 run，重启时未完成 run 只会
+被封闭为 interrupted 终态，绝不接管 provider 或本地工具。该能力仍不是正在执行中的多实例
+实时接管或高可用共享 session；Web 现在仅在 ServerRelay 模式保存不含凭据、正文和工具结果的
+受限 pending marker，刷新后重新加载会话并从 sequence 1 重放，fingerprint 不一致或 run
+状态不可重放时 fail closed。因此这里构成“完成 run 的跨进程/重启重放 + 未完成 run
+fail-closed + 页面刷新受限重放”证据，不构成多实例实时续流或真实公网 continuation 证据。
+Dock 的停止、关闭、切换/删除会话、登出与组件卸载都会取消当前 AbortSignal；未收到完整终态的
+临时回答会清除，并从服务端重新同步会话。
 SQL 工具页签和最终回答中的 SQL 只在完整 `done` 验证后提交。SSE 解码覆盖 LF、CRLF、
 bare CR、跨行结束符分片、多行 data 与严格 JSON。
 BrowserDirect 已接入本地 typed MCP tool-call loop。公网段必须以稳定 `tool_call` 收口，
 本地成功结果只作为结构化、不可信数据发送到构造时已批准的固定公网 endpoint；下一段首事件
 必须逐字回显对应 `tool_result`，否则 fail closed。同 `toolCallId` 同规范化参数复用单次运行内
 缓存结果而不二次执行，同 ID 冲突在再次执行前拒绝；重复回放也计入 8 次 loop 上限。
-当前尚无可信 Device Flow/PKCE 获取入口，也没有已部署公网 continuation、CSP/CORS 或真实
-双网联调证据。Studio bridge 的内存握手/origin/header-token 安全前置已经完成，但 Studio Native
-AI broker、系统凭据库、外部 OAuth/BYOK、跨刷新续流和服务器无公网出口的真实 journey 仍保持未完成。
+BrowserDirect 已完成下述 Authorization Code + PKCE 登录入口及[本地验收](audits/m27-browser-oauth-closure-20260923.md)，
+不能据此宣称真实 IdP、已部署公网 continuation、CSP/CORS 或双网联调已经通过。
+Studio bridge 的内存握手/origin/header-token 安全前置已经完成，但 Studio Native AI broker、
+系统凭据库、宿主 OAuth/BYOK、Studio 重连续流和服务器无公网出口的真实 journey 仍保持未完成。
+
+### BrowserDirect OAuth/PKCE 登录
+
+`web/src/copilot/browserDirectOAuth.ts` 实现公共客户端 Authorization Code + PKCE S256。
+在 `VITE_COPILOT_RUNTIME_MODE=BrowserDirect` 且可信配置完整时，CopilotDock 展示“连接 AI 服务”，
+通过用户点击打开授权窗口；连接后可“断开”，授权过程中可“取消”。配置缺失、非 HTTPS 或
+不符合信任边界时仅显示“尚未配置”，不会展示手填公网 token 的替代入口。
+
+以下均为 **Web 构建时的非秘密配置**，不是 Server `Copilot:Chat` 配置，也不能包含 client secret：
+
+| 环境变量 | 是否必需 | 合同 |
+|---|---|---|
+| `VITE_COPILOT_RUNTIME_MODE` | 是 | 显式设置 `BrowserDirect`；默认仍为 `ServerRelay`。 |
+| `VITE_COPILOT_OAUTH_ISSUER` | 是 | 可信 issuer 的 HTTPS URL；授权响应 `iss` 必须与此字符串精确相同，包括路径和尾部 `/`。 |
+| `VITE_COPILOT_OAUTH_AUTHORIZATION_ENDPOINT` | 是 | 已批准的 HTTPS 授权地址；只使用 `response_type=code` 与 `code_challenge_method=S256`。 |
+| `VITE_COPILOT_OAUTH_TOKEN_ENDPOINT` | 是 | 已批准的 HTTPS token exchange 地址；浏览器以无凭据的表单 POST 交换 code。 |
+| `VITE_COPILOT_OAUTH_CLIENT_ID` | 是 | 为此 Web 应用注册的公共客户端 ID；不使用客户端密码。 |
+| `VITE_COPILOT_OAUTH_REDIRECT_URI` | 是 | 与当前 Web 应用相同 HTTPS origin，路径固定为 `/admin/copilot/oauth/callback`；在 IdP 中精确注册。 |
+| `VITE_COPILOT_OAUTH_APPROVED_ORIGINS` | 是 | 逗号分隔的 HTTPS origin，最多 16 项；必须覆盖 issuer、authorization endpoint 和 token endpoint 的 origin。每项不带路径或尾部 `/`。 |
+| `VITE_COPILOT_OAUTH_SCOPES` | 否 | 空格分隔，最多 32 项；只请求部署所需权限，明确拒绝 `offline_access`。 |
+| `VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL` | 是 | BrowserDirect AI Runtime 的 HTTPS 地址；不是 OAuth 授权端点。 |
+| `VITE_COPILOT_BROWSER_DIRECT_APPROVED_ORIGINS` | 是 | 单独批准 AI Runtime 的 origin；不与 OAuth origin 列表互相替代。 |
+
+OAuth issuer、授权、交换和 redirect URL 均不得带用户名/密码、已有 query 或 hash；不通过
+discovery 自动扩大允许的端点。配置缺失会保持 `NOT_READY`。下面的域名仅示意两个独立信任边界：
+
+```dotenv
+VITE_COPILOT_RUNTIME_MODE=BrowserDirect
+VITE_COPILOT_OAUTH_ISSUER=https://identity.example.com/
+VITE_COPILOT_OAUTH_AUTHORIZATION_ENDPOINT=https://identity.example.com/oauth/authorize
+VITE_COPILOT_OAUTH_TOKEN_ENDPOINT=https://identity.example.com/oauth/token
+VITE_COPILOT_OAUTH_CLIENT_ID=sonnetdb-web
+VITE_COPILOT_OAUTH_REDIRECT_URI=https://admin.example.com/admin/copilot/oauth/callback
+VITE_COPILOT_OAUTH_APPROVED_ORIGINS=https://identity.example.com
+VITE_COPILOT_OAUTH_SCOPES=copilot
+VITE_COPILOT_BROWSER_DIRECT_PUBLIC_BASE_URL=https://ai.example.com/copilot/
+VITE_COPILOT_BROWSER_DIRECT_APPROVED_ORIGINS=https://ai.example.com
+```
+
+IdP 必须支持公共客户端 PKCE S256，以及 **RFC 9207 授权响应 issuer 参数 `iss`**；只有 code/state
+而没有 `iss` 的响应会被拒绝。token endpoint 必须允许该应用 origin 的浏览器跨域 POST，并返回可被
+浏览器读取的 JSON；请求使用 `credentials: omit`、`redirect: error`、`cache: no-store` 与
+`referrerPolicy: no-referrer`，不发送数据库 Authorization、Cookie 或 client secret。公网 AI Runtime
+仍须单独满足 readiness、流式 POST 与 continuation 的 CORS 合同。宿主 CSP 的 `connect-src`
+需要显式允许批准的交换地址与 AI Runtime；本地测试不等于生产 CSP/CORS 已配置。
+
+授权依赖真实 popup 的 `window.opener` 和精确 `MessageEvent.source` 校验。宿主与 IdP 的
+Cross-Origin-Opener-Policy 必须允许这条授权窗口关联；隔离 opener 的 `COOP: same-origin` 等策略
+会使流程失败，应在部署时验证兼容的 popup 策略，而不是去掉 source/origin 校验。callback 是独立
+匿名页面，不加载数据库 setup/login 流程；它先从当前地址历史中清掉 code/state query，再只向固定
+应用 origin 的 opener 发送授权响应并关闭窗口。回调页不接收 access token，不把它写入 URL、
+postMessage、日志、localStorage 或 sessionStorage；页面也不显示 IdP 返回的原始错误内容。
+
+每次交易使用独立随机 state 和 verifier，绝对期限为 **5 分钟**；单次 token exchange 期限为
+**30 秒**，响应最多 **64 KiB / 1024 个分片**。只接受 `token_type=Bearer`、正整数 `expires_in`
+且有效期不超过 **2 小时**的 access token。code/state/issuer、popup source/origin、返回路径均须通过
+校验，一次回调消费一次交易；登出或取消后的迟到响应不能恢复凭据。
+
+access token 仅交给既有 BrowserDirect 内存凭据提供器，UI 只接收到期时间；数据库 token 只在本地
+用于拒绝同值凭据，绝不参与 OAuth 请求。到期、断开、数据库身份变化、退出登录、切离 BrowserDirect
+或组件销毁都会清凭据并取消在途授权。刷新页面需要重新连接。该入口不支持 Device Flow、implicit grant、
+refresh token、`offline_access` 或 client secret；即使 IdP 返回 refresh token，也不保存或使用。
+
+对应回归入口为 `web/e2e/copilot-oauth-core.spec.ts` 与 `web/e2e/copilot-oauth.spec.ts`；
+生产构建通过，Web 完整套件 148 通过、2 项既有真实 KV 测试跳过，强化完整请求头检查后 OAuth 12/12 复验通过。受控 HTTPS/IdP fixture、实际 UI 点击、真实 IdP 和部署后双网
+证据必须分别标识，不能互相替代；M27 #340 和 StudioNative 不因这个入口落地而整体完成。
 
 切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
 docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境

@@ -18,6 +18,14 @@ public sealed class CopilotOptions
     public bool InternalOnly { get; set; }
 
     /// <summary>
+    /// ServerRelay 事件日志的可选绝对文件路径。为空时使用 DataRoot 下的默认系统日志。
+    /// 多实例续流可共享此文件及其锁目录，但各实例必须使用独立 DataRoot；
+    /// 此设置不共享数据库、会话或 provider 执行状态，也不提供故障后的透明重试。
+    /// 文件系统必须支持跨进程独占文件锁和同目录原子替换。
+    /// </summary>
+    public string? ServerRelayJournalPath { get; set; }
+
+    /// <summary>
     /// Embedding provider 配置。
     /// </summary>
     public CopilotEmbeddingOptions Embedding { get; set; } = new();

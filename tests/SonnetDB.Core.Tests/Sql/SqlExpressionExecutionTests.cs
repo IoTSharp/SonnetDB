@@ -73,6 +73,52 @@ public sealed class SqlExpressionExecutionTests : IDisposable
     }
 
     /// <summary>
+    /// 验证整数按位与/或的词法、优先级、NULL 传播，以及关系表 SELECT、WHERE、UPDATE 全路径。
+    /// </summary>
+    [Fact]
+    public void BitwiseIntegerOperators_SelectWhereAndUpdate_UseStableSemantics()
+    {
+        using var database = Tsdb.Open(Options());
+        var constants = Select(database,
+            "SELECT 6 & 3 AS and_value, 6 | 3 AS or_value, 1 | 2 & 4 AS precedence, NULL & 1 AS missing");
+        Assert.Equal(new object?[] { 2L, 7L, 1L, null }, constants.Rows.Single());
+
+        SqlExecutor.Execute(database,
+            "CREATE TABLE bit_values (id INT, flags INT, decimal_value FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO bit_values (id, flags, decimal_value) VALUES (1, 6, 1.5), (2, NULL, 2.5), (3, 5, NULL)");
+
+        var projected = Select(database,
+            "SELECT id, flags & 3 AS masked, flags | 1 AS enabled FROM bit_values ORDER BY id");
+        Assert.Equal(new object?[] { 1L, 2L, 7L }, projected.Rows[0]);
+        Assert.Equal(new object?[] { 2L, null, null }, projected.Rows[1]);
+        Assert.Equal(new object?[] { 3L, 1L, 5L }, projected.Rows[2]);
+
+        var filtered = Select(database, "SELECT id FROM bit_values WHERE flags & 1 = 0");
+        Assert.Equal(new object?[] { 1L }, filtered.Rows.Single());
+
+        SqlExecutor.Execute(database, "UPDATE bit_values SET flags = flags | 1 WHERE flags IS NOT NULL");
+        var updated = Select(database, "SELECT id, flags FROM bit_values ORDER BY id");
+        Assert.Equal(new object?[] { 1L, 7L }, updated.Rows[0]);
+        Assert.Equal(new object?[] { 2L, null }, updated.Rows[1]);
+        Assert.Equal(new object?[] { 3L, 5L }, updated.Rows[2]);
+    }
+
+    /// <summary>
+    /// 验证按位运算拒绝浮点和字符串操作数，并返回包含运算符的稳定中文诊断。
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT 1.5 & 1")]
+    [InlineData("SELECT '1' | 1")]
+    public void BitwiseIntegerOperators_NonIntegerOperand_ThrowsStableError(string sql)
+    {
+        using var database = Tsdb.Open(Options());
+
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database, sql));
+        Assert.Contains("只支持整数操作数", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 验证显式 concat 可用于字符串连接，避免依赖加号的非标准隐式转换。
     /// </summary>
     [Fact]

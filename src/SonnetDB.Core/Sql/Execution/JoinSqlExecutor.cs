@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
@@ -20,12 +21,10 @@ internal static class JoinSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var join = statement.Join
-            ?? throw new InvalidOperationException("内部错误：JOIN 执行器要求 SELECT 包含 JOIN 子句。");
+        var join = GetSupportedJoin(statement);
+        ValidateQueryShape(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
-        if (statement.GroupBy.Count != 0)
-            throw new InvalidOperationException("MM4 JOIN 第一版暂不支持 GROUP BY。");
 
         var measurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
             ?? throw new InvalidOperationException(
@@ -50,10 +49,12 @@ internal static class JoinSqlExecutor
         var tableHash = BuildTableHash(tableSchema, joinKeys.TableColumn, tableRows);
 
         var projections = BuildProjections(statement.Projections, scope);
+        // 参数绑定会清空旧 OrderBy 属性；字段加载、逐行取值及排序均消费完整规范化列表。
+        IReadOnlyList<OrderBySpec> orderBy = statement.OrderByList;
         var measurementFields = CollectRequiredMeasurementFields(
             projections,
             filterPlan.ResidualExpression,
-            statement.OrderBy,
+            orderBy,
             scope);
 
         var rows = new List<ResultRow>();
@@ -86,15 +87,15 @@ internal static class JoinSqlExecutor
                     for (int i = 0; i < projections.Count; i++)
                         output[i] = EvaluateProjection(projections[i], context);
 
-                    object? orderValue = statement.OrderBy is null
-                        ? null
-                        : EvaluateScalar(statement.OrderBy.Expression, context);
-                    rows.Add(new ResultRow(output, orderValue));
+                    var orderValues = new object?[orderBy.Count];
+                    for (int i = 0; i < orderValues.Length; i++)
+                        orderValues[i] = EvaluateScalar(orderBy[i].Expression, context);
+                    rows.Add(new ResultRow(output, orderValues));
                 }
             }
         }
 
-        var orderedRows = ApplyOrderBy(rows, statement.OrderBy)
+        var orderedRows = ApplyOrderBy(rows, orderBy)
             .Select(static row => row.Values)
             .Cast<IReadOnlyList<object?>>()
             .ToList();
@@ -109,8 +110,8 @@ internal static class JoinSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var join = statement.Join
-            ?? throw new InvalidOperationException("内部错误：JOIN Explain 要求 SELECT 包含 JOIN 子句。");
+        var join = GetSupportedJoin(statement);
+        ValidateQueryShape(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
 
@@ -172,6 +173,76 @@ internal static class JoinSqlExecutor
         var tableColumn = scope.TableSchema.TryGetColumn(tableRef.Name)
             ?? throw new InvalidOperationException($"JOIN ON 引用了未知 table 列 '{tableRef.Name}'。");
         return new JoinKeys(measurementColumn, tableColumn);
+    }
+
+    private static JoinClause GetSupportedJoin(SelectStatement statement)
+    {
+        // 参数绑定及 CTE 展开会清空旧 Join 属性；统一读取兼容新旧 AST 的 JoinClauses。
+        IReadOnlyList<JoinClause> joins = statement.JoinClauses;
+        if (joins.Count != 1)
+            throw new InvalidOperationException("measurement JOIN 当前仅支持一个关系维表。");
+        JoinClause join = joins[0];
+        if (join.Kind != JoinKind.Inner)
+            throw new InvalidOperationException(
+                "LEFT/RIGHT/FULL/CROSS JOIN 当前仅支持关系表 FROM；measurement JOIN 当前仅支持单个 INNER JOIN。");
+        return join;
+    }
+
+    private static void ValidateQueryShape(SelectStatement statement)
+    {
+        if (statement.GroupBy.Count != 0)
+            throw new InvalidOperationException("MM4 JOIN 第一版暂不支持 GROUP BY。");
+        if (statement.Having is not null)
+            throw new InvalidOperationException("measurement JOIN 当前不支持 HAVING 或聚合函数。");
+
+        // 在读取任何行之前检查嵌套表达式并拒绝聚合；SELECT、空输入与 EXPLAIN 使用同一合同。
+        var pending = new Stack<SqlExpression>(statement.Projections.Select(static item => item.Expression));
+        if (statement.Where is not null) pending.Push(statement.Where);
+        foreach (var orderBy in statement.OrderByList) pending.Push(orderBy.Expression);
+        long started = Stopwatch.GetTimestamp();
+        const int maximumNodes = 65_536;
+        for (int visited = 0; pending.Count > 0; visited++)
+        {
+            if (visited >= maximumNodes || Stopwatch.GetElapsedTime(started) > TimeSpan.FromSeconds(5))
+                throw new InvalidOperationException("measurement JOIN 表达式超过有界校验预算。");
+            SqlExecutor.ThrowIfCancellationRequested();
+            switch (pending.Pop())
+            {
+                case FunctionCallExpression function:
+                    if (FunctionRegistry.TryGetAggregate(function.Name, out _))
+                        throw new InvalidOperationException("measurement JOIN 当前不支持聚合函数。");
+                    foreach (var argument in function.Arguments) pending.Push(argument);
+                    break;
+                case CastExpression cast:
+                    pending.Push(cast.Operand);
+                    break;
+                case UnaryExpression unary:
+                    pending.Push(unary.Operand);
+                    break;
+                case BinaryExpression binary:
+                    pending.Push(binary.Left);
+                    pending.Push(binary.Right);
+                    break;
+                case IsNullExpression isNull:
+                    pending.Push(isNull.Operand);
+                    break;
+                case CaseExpression conditional:
+                    foreach (var clause in conditional.WhenClauses)
+                    {
+                        pending.Push(clause.Condition);
+                        pending.Push(clause.Result);
+                    }
+                    if (conditional.Else is not null) pending.Push(conditional.Else);
+                    break;
+                case InExpression contains:
+                    pending.Push(contains.Value);
+                    foreach (var value in contains.Values) pending.Push(value);
+                    break;
+                case NamedArgumentExpression named:
+                    pending.Push(named.Value);
+                    break;
+            }
+        }
     }
 
     internal static CrossModelFilterPlan PlanFilters(SqlExpression? where, JoinScope scope)
@@ -330,7 +401,7 @@ internal static class JoinSqlExecutor
     private static IReadOnlyList<string> CollectRequiredMeasurementFields(
         IReadOnlyList<Projection> projections,
         SqlExpression? residualWhere,
-        OrderBySpec? orderBy,
+        IReadOnlyList<OrderBySpec> orderBy,
         JoinScope scope)
     {
         var fields = new HashSet<string>(StringComparer.Ordinal);
@@ -356,7 +427,7 @@ internal static class JoinSqlExecutor
             }
         }
 
-        foreach (var expression in EnumerateOptionalExpressions(residualWhere, orderBy?.Expression))
+        foreach (var expression in EnumerateOptionalExpressions(residualWhere).Concat(orderBy.Select(static item => item.Expression)))
         {
             foreach (var identifier in EnumerateIdentifiers(expression))
             {
@@ -504,6 +575,7 @@ internal static class JoinSqlExecutor
         => expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.Operand, context), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => context.GetValue(identifier),
             FunctionCallExpression function => EvaluateFunction(function, context),
@@ -537,14 +609,26 @@ internal static class JoinSqlExecutor
         return SqlScalarOperations.EvaluateArithmetic(binary.Operator, left, right);
     }
 
-    private static IEnumerable<ResultRow> ApplyOrderBy(List<ResultRow> rows, OrderBySpec? orderBy)
+    private static IEnumerable<ResultRow> ApplyOrderBy(List<ResultRow> rows, IReadOnlyList<OrderBySpec> orderBy)
     {
-        if (orderBy is null)
+        if (orderBy.Count == 0)
             return rows;
 
-        return orderBy.Direction == SortDirection.Descending
-            ? rows.OrderByDescending(static row => row.OrderValue, ScalarComparer.Instance).ToArray()
-            : rows.OrderBy(static row => row.OrderValue, ScalarComparer.Instance).ToArray();
+        IOrderedEnumerable<ResultRow>? ordered = null;
+        for (int index = 0; index < orderBy.Count; index++)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            int keyIndex = index;
+            bool descending = orderBy[index].Direction == SortDirection.Descending;
+            ordered = ordered is null
+                ? descending
+                    ? rows.OrderByDescending(row => row.OrderValues[keyIndex], ScalarComparer.Instance)
+                    : rows.OrderBy(row => row.OrderValues[keyIndex], ScalarComparer.Instance)
+                : descending
+                    ? ordered.ThenByDescending(row => row.OrderValues[keyIndex], ScalarComparer.Instance)
+                    : ordered.ThenBy(row => row.OrderValues[keyIndex], ScalarComparer.Instance);
+        }
+        return ordered!.ToArray();
     }
 
     private static SelectExecutionResult ApplyPagination(SelectExecutionResult result, PaginationSpec? pagination)
@@ -690,7 +774,9 @@ internal static class JoinSqlExecutor
         SqlBinaryOperator.Subtract or
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
-        SqlBinaryOperator.Modulo;
+        SqlBinaryOperator.Modulo or
+        SqlBinaryOperator.BitwiseAnd or
+        SqlBinaryOperator.BitwiseOr;
 
     private sealed record JoinKeys(MeasurementColumn MeasurementTag, TableColumn TableColumn);
 
@@ -731,7 +817,7 @@ internal static class JoinSqlExecutor
         Constant,
     }
 
-    private readonly record struct ResultRow(IReadOnlyList<object?> Values, object? OrderValue);
+    private readonly record struct ResultRow(IReadOnlyList<object?> Values, object?[] OrderValues);
 
     private readonly record struct JoinKey(string Value);
 

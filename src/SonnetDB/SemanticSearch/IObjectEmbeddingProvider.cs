@@ -27,8 +27,7 @@ public sealed class MultimodalObjectEmbeddingProvider : IObjectEmbeddingProvider
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly IReadOnlyList<string> SupportedTypes = Array.AsReadOnly(
-        SixLabors.ImageSharp.Configuration.Default.ImageFormats
-            .SelectMany(static format => format.MimeTypes)
+        SemanticImageCodec.ContentTypes
             .Concat(["text/plain", "text/markdown"])
             .Select(static mediaType => mediaType.ToLowerInvariant())
             .Distinct(StringComparer.Ordinal)

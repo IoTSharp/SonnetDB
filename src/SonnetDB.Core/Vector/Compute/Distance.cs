@@ -59,8 +59,51 @@ public static class Distance
             return 1f;
         }
 
+        return CosineWithQueryNormSquaredCore(a, NormSquared(a), b);
+    }
+
+    /// <summary>
+    /// 使用已预计算的查询向量范数平方计算余弦距离。
+    /// </summary>
+    /// <param name="query">查询向量。</param>
+    /// <param name="queryNormSquared">查询向量的 L2 范数平方；必须与 <paramref name="query"/> 对应。</param>
+    /// <param name="candidate">候选向量。</param>
+    /// <returns>余弦距离；任一零向量返回 1。</returns>
+    /// <remarks>
+    /// 该重载供批量候选扫描复用查询范数，避免对每个候选重复读取查询向量。
+    /// 范数平方应使用 <see cref="NormSquared(ReadOnlySpan{float})"/> 计算，且不应为负数。
+    /// </remarks>
+    /// <exception cref="ArgumentException">当查询向量与候选向量维度不一致时抛出。</exception>
+    public static float CosineWithQueryNormSquared(
+        ReadOnlySpan<float> query,
+        float queryNormSquared,
+        ReadOnlySpan<float> candidate)
+    {
+        ThrowIfLengthMismatch(query, candidate);
+        return CosineWithQueryNormSquaredCore(query, queryNormSquared, candidate);
+    }
+
+    /// <summary>
+    /// 计算向量的 L2 范数平方，供批量余弦扫描缓存查询范数。
+    /// </summary>
+    /// <param name="value">输入向量。</param>
+    /// <returns>向量各分量平方和。</returns>
+    public static float NormSquared(ReadOnlySpan<float> value)
+        => value.Length == 0 ? 0f : TensorPrimitives.Dot(value, value);
+
+    private static float CosineWithQueryNormSquaredCore(
+        ReadOnlySpan<float> query,
+        float queryNormSquared,
+        ReadOnlySpan<float> candidate)
+    {
+        if (query.Length == 0)
+        {
+            return 1f;
+        }
+
         // 自行计算以处理零向量边界条件，TensorPrimitives.CosineSimilarity 在零向量时会产生 NaN。
-        (float dot, float normASq, float normBSq) = DotAndNorms(a, b);
+        (float dot, float normBSq) = DotAndNorm(query, candidate);
+        float normASq = queryNormSquared;
         float denom = MathF.Sqrt(normASq) * MathF.Sqrt(normBSq);
         if (denom <= float.Epsilon)
         {
@@ -259,39 +302,36 @@ public static class Distance
         return sum;
     }
 
-    private static (float Dot, float NormASq, float NormBSq) DotAndNorms(
-        ReadOnlySpan<float> a, ReadOnlySpan<float> b)
+    private static (float Dot, float NormBSq) DotAndNorm(
+        ReadOnlySpan<float> query, ReadOnlySpan<float> candidate)
     {
         int i = 0;
-        float dot = 0f, na = 0f, nb = 0f;
+        float dot = 0f, normB = 0f;
 
-        if (System.Numerics.Vector.IsHardwareAccelerated && a.Length >= Vector<float>.Count)
+        if (System.Numerics.Vector.IsHardwareAccelerated && query.Length >= Vector<float>.Count)
         {
             int width = Vector<float>.Count;
-            int simdEnd = a.Length - (a.Length % width);
+            int simdEnd = query.Length - (query.Length % width);
             Vector<float> vDot = Vector<float>.Zero;
-            Vector<float> vNa = Vector<float>.Zero;
-            Vector<float> vNb = Vector<float>.Zero;
+            Vector<float> vNormB = Vector<float>.Zero;
             for (; i < simdEnd; i += width)
             {
-                Vector<float> va = new(a.Slice(i, width));
-                Vector<float> vb = new(b.Slice(i, width));
-                vDot += va * vb;
-                vNa += va * va;
-                vNb += vb * vb;
+                Vector<float> vQuery = new(query.Slice(i, width));
+                Vector<float> vCandidate = new(candidate.Slice(i, width));
+                vDot += vQuery * vCandidate;
+                vNormB += vCandidate * vCandidate;
             }
+
             dot = System.Numerics.Vector.Sum(vDot);
-            na = System.Numerics.Vector.Sum(vNa);
-            nb = System.Numerics.Vector.Sum(vNb);
+            normB = System.Numerics.Vector.Sum(vNormB);
         }
 
-        for (; i < a.Length; i++)
+        for (; i < query.Length; i++)
         {
-            dot += a[i] * b[i];
-            na += a[i] * a[i];
-            nb += b[i] * b[i];
+            dot += query[i] * candidate[i];
+            normB += candidate[i] * candidate[i];
         }
 
-        return (dot, na, nb);
+        return (dot, normB);
     }
 }

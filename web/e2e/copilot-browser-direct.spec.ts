@@ -12,7 +12,9 @@ import {
 } from '../src/copilot/browserDirectMcp';
 import {
   clearBrowserDirectAccessToken,
+  registerBrowserDirectCredentialClearHandler,
   setBrowserDirectAccessToken,
+  subscribeBrowserDirectCredentialChanges,
 } from '../src/copilot/browserDirectEntry';
 import { CopilotRuntime, type CopilotTransportEvent } from '../src/copilot/runtime';
 import {
@@ -173,6 +175,47 @@ test('database logout clears the in-memory BrowserDirect public token', async ()
     } else {
       Reflect.deleteProperty(globalThis, 'localStorage');
     }
+  }
+});
+
+test('leaving BrowserDirect clears credentials and cancels authentication before the next public probe', async () => {
+  test.setTimeout(10_000);
+  const expiry = futureExpiry();
+  setBrowserDirectAccessToken('public-access-token', expiry);
+  let cancellations = 0;
+  const observedExpiry: Array<string | null> = [];
+  const unsubscribeCancel = registerBrowserDirectCredentialClearHandler(() => { cancellations++; });
+  const unsubscribeExpiry = subscribeBrowserDirectCredentialChanges((value) => { observedExpiry.push(value); });
+  const deadline = AbortSignal.timeout(5_000);
+  try {
+    await expect(collect(streamCopilotChat(
+      fakeApi('https://db.internal'), 'database-token', Request, deadline, 'Disabled',
+    ))).rejects.toMatchObject({ code: 'runtime_disabled' });
+    expect(cancellations).toBe(1);
+    expect(observedExpiry).toEqual([expiry, null]);
+
+    const requests: string[] = [];
+    await expect(collect(streamCopilotChat(
+      fakeApi('https://db.internal'),
+      'database-token',
+      Request,
+      deadline,
+      'BrowserDirect',
+      {
+        publicBaseUrl: 'https://ai.example.com',
+        approvedPublicOrigins: ['https://ai.example.com'],
+        locationHref: 'https://studio.local/app',
+        fetchImpl: async (input) => {
+          requests.push(String(input));
+          return Response.json({ status: 'ok' });
+        },
+      },
+    ))).rejects.toMatchObject({ code: 'runtime_public_unavailable' });
+    expect(requests).toEqual(['https://db.internal/healthz']);
+    expect(cancellations).toBe(1);
+  } finally {
+    unsubscribeCancel();
+    unsubscribeExpiry();
   }
 });
 

@@ -13,6 +13,10 @@ interface ImportMetaEnv {
   readonly VITE_COPILOT_BROWSER_DIRECT_ALLOWED_TOOLS?: string;
   /** 单个 typed MCP 结果允许发送到公网的最大 UTF-8 字节数。 */
   readonly VITE_COPILOT_BROWSER_DIRECT_MAX_RESULT_BYTES?: string;
+  /** StudioNative 只在显式批准后将白名单 MCP 查询结果交给原生宿主。 */
+  readonly VITE_COPILOT_STUDIO_NATIVE_ALLOW_DATA_EGRESS?: string;
+  /** StudioNative 允许出域的只读 MCP 工具名，多个值用逗号分隔。 */
+  readonly VITE_COPILOT_STUDIO_NATIVE_ALLOWED_TOOLS?: string;
 }
 
 interface ImportMeta {

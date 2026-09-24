@@ -1168,6 +1168,45 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>使用指定全文索引分析文本。</summary>
+    /// <param name="index">全文索引声明。</param><param name="text">待分析文本。</param>
+    /// <returns>经过索引设置处理的词元。</returns>
+    public IReadOnlyList<SonnetDB.FullText.Tokenization.Token> AnalyzeFullText(DocumentFullTextIndex index, string text)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(text);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).Analyze(text);
+    }
+
+    /// <summary>解释指定全文索引对文档的相关性评分。</summary>
+    /// <param name="index">全文索引声明。</param><param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param><param name="documentId">文档 ID。</param>
+    /// <param name="mode">检索模式。</param><param name="queryKind">查询组合方式。</param>
+    /// <returns>相关性解释。</returns>
+    public SonnetDB.FullText.DocumentFullTextRelevanceExplanation ExplainFullText(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        string documentId,
+        SonnetDB.FullText.FullTextSearchMode mode,
+        SonnetDB.FullText.FullTextQueryKind queryKind)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).Explain(field, queryText, documentId, mode, queryKind);
+    }
+
+    /// <summary>读取指定全文索引的重建任务状态。</summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <returns>最近一次重建状态。</returns>
+    public SonnetDB.FullText.DocumentFullTextRebuildProgress GetFullTextRebuildProgress(DocumentFullTextIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).RebuildProgress;
+    }
+
     internal int RebuildFullTextIndex(DocumentFullTextIndex index, string indexDirectory)
     {
         ArgumentNullException.ThrowIfNull(index);
@@ -1244,6 +1283,34 @@ public sealed partial class DocumentCollectionStore : IDisposable
         {
             PurgeExpiredDocumentsLocked();
             return OpenVectorStoreLocked(index, rebuildIfMissing: true)?.Count ?? 0;
+        }
+    }
+
+    /// <summary>读取已加载向量图状态；不会隐式打开、重建索引或清理过期文档。</summary>
+    /// <param name="index">当前集合的索引声明。</param>
+    /// <returns>已加载图状态；尚未加载时返回 not_loaded。</returns>
+    public DocumentVectorIndexHealth GetVectorIndexHealth(DocumentVectorIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            DocumentVectorIndex current = _schema.TryGetVectorIndex(index.Name)
+                ?? throw new InvalidOperationException($"向量索引 '{index.Name}' 不存在。");
+            return _vectorStores.TryGetValue(index.Name, out var store)
+                ? store.GetHealth() with { Definition = current }
+                : new(current, "not_loaded", null);
+        }
+    }
+
+    internal DocumentVectorGraphRebuildOperation StartVectorGraphRebuild(string indexName, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            token.ThrowIfCancellationRequested();
+            if (!_vectorStores.TryGetValue(indexName, out var store))
+                throw new InvalidOperationException("图重建要求向量索引已经加载，请先显式打开集合。");
+            return store.StartGraphRebuild(token);
         }
     }
 

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "indexId": "sonnetdb-fourteen-capability-journeys",
+  "generatedFor": "M43 #396",
+  "statusContract": {
+    "PASS": "The bounded stage has a deterministic local or remote automated check.",
+    "PARTIAL": "A bounded check exists, but the stage still has an explicit acceptance gap.",
+    "NOT_READY": "The required implementation or test entry point is not delivered.",
+    "DEFERRED": "The stage is deliberately reserved for an external, fixed-hardware, or long-run plan."
+  },
+  "stages": ["local_contract", "remote_parity", "recovery", "fixed_hardware", "long_run"],
+  "journeys": [
+    { "id": "timeseries", "local_contract": "PASS", "remote_parity": "DEFERRED", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "relational", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "kv", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "document", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "fulltext", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "vector", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "object", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "mq", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "graph", "local_contract": "PASS", "remote_parity": "DEFERRED", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "geo", "local_contract": "PARTIAL", "remote_parity": "DEFERRED", "recovery": "DEFERRED", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "streaming", "local_contract": "PASS", "remote_parity": "NOT_READY", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "cdc", "local_contract": "PASS", "remote_parity": "NOT_READY", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "ai-rag", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
+    { "id": "governance", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" }
+  ]
+}

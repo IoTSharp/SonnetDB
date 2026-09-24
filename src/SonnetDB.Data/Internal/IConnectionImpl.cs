@@ -74,6 +74,9 @@ internal interface IExecutionResult : IDisposable
     /// <summary>受影响行数。INSERT/DELETE 为非负整数；SELECT 为 -1；DDL 通常为 0。</summary>
     int RecordsAffected { get; }
 
+    /// <summary>结果是否因 Server/Frame 传输行数预算而被截断。</summary>
+    bool Truncated => false;
+
     /// <summary>列名（SELECT 才有；非 SELECT 返回空数组）。</summary>
     IReadOnlyList<string> Columns { get; }
 

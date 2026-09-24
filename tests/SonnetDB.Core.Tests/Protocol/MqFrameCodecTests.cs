@@ -7,7 +7,7 @@ using Xunit;
 namespace SonnetDB.Core.Tests.Protocol;
 
 /// <summary>
-/// <see cref="MqFrameCodec"/> 四个 opcode 的编解码测试。
+/// <see cref="MqFrameCodec"/> MQ opcode 的编解码测试。
 /// </summary>
 public sealed class MqFrameCodecTests
 {
@@ -182,6 +182,49 @@ public sealed class MqFrameCodecTests
         var responseWriter = new ArrayBufferWriter<byte>();
         MqFrameCodec.EncodeAckResponse(responseWriter, 3, 43);
         Assert.Equal(43, MqFrameCodec.DecodeAckResponse(ParseSingleFrame(responseWriter, out _).Span));
+    }
+
+    [Fact]
+    public void Nack_RoundTrip_WithAndWithoutDeadLetter()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeNackRequest(writer, 4, "demo", "topic-a", "group-1", 42, "invalid payload");
+
+        MqNackFrameRequest request = MqFrameCodec.DecodeNackRequest(ParseSingleFrame(writer, out FrameHeader header));
+        Assert.Equal((byte)MqFrameOp.Nack, header.Op);
+        Assert.Equal("demo", request.Db);
+        Assert.Equal("topic-a", request.Topic);
+        Assert.Equal("group-1", request.ConsumerGroup);
+        Assert.Equal(42, request.Offset);
+        Assert.Equal("invalid payload", request.Reason);
+
+        var responseWriter = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeNackResponse(responseWriter, 4, new SonnetMqNackResult(42, 2, false, null));
+        SonnetMqNackResult retry = MqFrameCodec.DecodeNackResponse(ParseSingleFrame(responseWriter, out _).Span);
+        Assert.Equal(new SonnetMqNackResult(42, 2, false, null), retry);
+
+        responseWriter = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeNackResponse(responseWriter, 4, new SonnetMqNackResult(43, 5, true, 7));
+        SonnetMqNackResult deadLetter = MqFrameCodec.DecodeNackResponse(ParseSingleFrame(responseWriter, out _).Span);
+        Assert.Equal(new SonnetMqNackResult(43, 5, true, 7), deadLetter);
+    }
+
+    [Fact]
+    public void OffsetReset_RoundTrip()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeOffsetResetRequest(writer, 9, "demo", "topic-a", "group-1", (byte)SonnetMqOffsetResetMode.Explicit, 42);
+        MqOffsetResetFrameRequest request = MqFrameCodec.DecodeOffsetResetRequest(ParseSingleFrame(writer, out FrameHeader header));
+        Assert.Equal((byte)MqFrameOp.OffsetReset, header.Op);
+        Assert.Equal("demo", request.Db);
+        Assert.Equal("topic-a", request.Topic);
+        Assert.Equal("group-1", request.ConsumerGroup);
+        Assert.Equal(SonnetMqOffsetResetMode.Explicit, request.Mode);
+        Assert.Equal(42, request.Value);
+
+        var responseWriter = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeOffsetResetResponse(responseWriter, 9, 42);
+        Assert.Equal(42, MqFrameCodec.DecodeOffsetResetResponse(ParseSingleFrame(responseWriter, out _).Span));
     }
 
     // ────────────────────────────── subscribe / unsubscribe (#236) ──────────────────────────────

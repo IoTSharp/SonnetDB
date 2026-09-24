@@ -3,8 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SonnetDB.Configuration;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
@@ -238,10 +237,11 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         var failure = fixture.Service.GetStatus("images", _db, "captures", "bad.png")!;
         Assert.Equal("failed", failure.Status);
         Assert.Equal(1, failure.Attempts);
-        using var source = new Image<Rgba32>(64, 64);
-        using var goodBytes = new MemoryStream();
-        await source.SaveAsPngAsync(goodBytes, _deadline.Token);
-        goodBytes.Position = 0;
+        using var source = new SKBitmap(64, 64);
+        source.Erase(SKColors.Transparent);
+        using var image = SKImage.FromBitmap(source);
+        using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var goodBytes = new MemoryStream(png.ToArray(), writable: false);
         var good = await objects.PutObjectAsync("captures", "good.png", goodBytes, "image/png", cancellationToken: _deadline.Token);
         Assert.NotNull(fixture.Service.EnqueueIfEnabled("images", _db, good));
         await fixture.Service.ProcessNextForTestAsync(_deadline.Token);
@@ -249,8 +249,75 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         var thumbnail = fixture.Service.OpenThumbnail(_db, "captures", "good.png");
         Assert.NotNull(thumbnail);
         await using (thumbnail.Content)
-        using (var decoded = await Image.LoadAsync(thumbnail.Content, _deadline.Token))
+        {
+            using var thumbnailBytes = new MemoryStream();
+            await thumbnail.Content.CopyToAsync(thumbnailBytes, _deadline.Token);
+            using var decoded = SKBitmap.Decode(thumbnailBytes.ToArray());
+            Assert.NotNull(decoded);
             Assert.InRange(decoded.Width, 1, 32);
+        }
+    }
+
+    /// <summary>仅启用 embedding 时，真实解码错误与不支持媒体类型也必须首次永久失败。</summary>
+    [Theory]
+    [InlineData("image/png", 1)]
+    [InlineData("image/x-exr", 0)]
+    public async Task ProcessAsync_SemanticOnlyInvalidImage_FailsWithoutRetry(string contentType, int providerCalls)
+    {
+        var provider = new DecodingProvider();
+        using var fixture = CreateService(provider: provider);
+        var objects = new SndbObjectStore(_db);
+        objects.CreateBucket("captures");
+        objects.SetSemanticOptions("captures", true, false, 32, 32, 80);
+        using var input = new MemoryStream([1, 2, 3]);
+        var source = await objects.PutObjectAsync("captures", "bad-image", input, contentType,
+            cancellationToken: _deadline.Token);
+        var pending = fixture.Service.EnqueueIfEnabled("images", _db, source);
+        Assert.NotNull(pending);
+        await fixture.Service.ProcessNextForTestAsync(_deadline.Token);
+        var job = new ObjectProcessingJobStore(_db).Read(pending.JobId, _deadline.Token)!.Job;
+        Assert.Equal("failed", job.Status);
+        Assert.Equal(1, job.Attempts);
+        Assert.Null(job.NextAttemptUtc);
+        Assert.Equal(providerCalls, provider.ImageCalls);
+        Assert.Empty(new ObjectProcessingJobStore(_db).ReadDue(DateTimeOffset.UtcNow.AddHours(1), 8, _deadline.Token));
+        var audit = new SemanticEmbeddingAuditStore(_db).Read(10, null, _deadline.Token).Entries;
+        if (providerCalls > 0)
+            Assert.Equal("semantic_invalid_input", Assert.Single(audit).ErrorCode);
+        else
+            Assert.Empty(audit);
+    }
+
+    /// <summary>升级前持久化的待处理任务恢复后记录实际执行的新 profile。</summary>
+    [Fact]
+    public async Task RecoverDueJobs_PreviousProfile_RecordsActualProviderProfile()
+    {
+        var objects = new SndbObjectStore(_db);
+        objects.CreateBucket("captures");
+        objects.SetSemanticOptions("captures", true, false, 32, 32, 80);
+        using var input = new MemoryStream(ImageTestFixtures.CreateTiff(), writable: false);
+        var source = await objects.PutObjectAsync("captures", "camera.tiff", input, "image/tiff",
+            cancellationToken: _deadline.Token);
+        string jobId;
+        using (var previous = CreateService(provider: new DecodingProvider("previous-profile")))
+        {
+            var pending = previous.Service.EnqueueIfEnabled("images", _db, source);
+            Assert.NotNull(pending);
+            jobId = pending.JobId;
+        }
+        var jobs = new ObjectProcessingJobStore(_db);
+        Assert.Equal("previous-profile", jobs.Read(jobId, _deadline.Token)!.Job.Profile);
+        var provider = new DecodingProvider();
+        using var restarted = CreateService(provider: provider);
+        restarted.Service.RecoverDueJobs(_deadline.Token);
+        await restarted.Service.ProcessNextForTestAsync(_deadline.Token);
+        var completed = jobs.Read(jobId, _deadline.Token)!.Job;
+        Assert.Equal("completed", completed.Status);
+        Assert.Equal(provider.Info.Profile, completed.Profile);
+        Assert.Equal(1, provider.ImageCalls);
+        var audit = Assert.Single(new SemanticEmbeddingAuditStore(_db).Read(10, null, _deadline.Token).Entries);
+        Assert.Equal("succeeded", audit.Status);
+        Assert.Equal(provider.Info.Profile, audit.Profile);
     }
 
     /// <summary>应用配置可直接绑定并收紧资源边界，不依赖部署环境变量。</summary>
@@ -272,17 +339,19 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
     }
 
     /// <summary>构造可手动单步运行的后台服务，未启动线程、模型或监听端口。</summary>
-    private ServiceFixture CreateService(int queueCapacity = 8)
+    private ServiceFixture CreateService(int queueCapacity = 8, IMultimodalEmbeddingProvider? provider = null)
     {
         var options = Options.Create(new ServerOptions
         {
             SemanticSearch = new SemanticSearchOptions
             {
+                Enabled = provider is not null,
+                Backend = "managed",
                 ObjectProcessing = new ObjectProcessingOptions { QueueCapacity = queueCapacity, RecoveryBudgetMilliseconds = 5_000 },
             },
         });
         var indexes = new USearchSemanticIndexRegistry(NullLogger<USearchSemanticIndexRegistry>.Instance);
-        var images = new SemanticImageSearchService(options, new UnusedProvider(), indexes, NullLogger<SemanticImageSearchService>.Instance);
+        var images = new SemanticImageSearchService(options, provider ?? new UnusedProvider(), indexes, NullLogger<SemanticImageSearchService>.Instance);
         return new ServiceFixture(new ObjectSemanticProcessingService(_registry, images, options,
             NullLogger<ObjectSemanticProcessingService>.Instance), images, indexes);
     }
@@ -328,5 +397,24 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         /// <summary>缩略图路径不应调用图片模型。</summary>
         public ValueTask<float[]> EmbedImageAsync(ReadOnlyMemory<byte> image, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("缩略图不应调用 embedding。");
+    }
+
+    /// <summary>执行真实图片预处理后返回固定向量，仅验证调度与异常合同，不表示模型质量。</summary>
+    private sealed class DecodingProvider(string profile = "test:skia-rgba-v1") : IMultimodalEmbeddingProvider
+    {
+        /// <summary>声明用于调度测试的本地向量空间。</summary>
+        public MultimodalEmbeddingProviderInfo Info { get; } = new("decode-only", profile, 2, true) { IsLocal = true };
+        /// <summary>记录图片入口调用次数。</summary>
+        public int ImageCalls { get; private set; }
+        /// <summary>该测试不应触发文本模型。</summary>
+        public ValueTask<float[]> EmbedTextAsync(string text, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("图片调度不应调用文本 embedding。");
+        /// <summary>执行真实预处理，成功后返回仅用于调度测试的固定向量。</summary>
+        public ValueTask<float[]> EmbedImageAsync(ReadOnlyMemory<byte> image, CancellationToken cancellationToken = default)
+        {
+            ImageCalls++;
+            _ = SemanticImageCodec.Preprocess(image, 2, cancellationToken);
+            return ValueTask.FromResult(new[] { 1f, 0f });
+        }
     }
 }

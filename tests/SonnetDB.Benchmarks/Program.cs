@@ -28,6 +28,8 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
 //   dotnet run -c Release -- --model-read-latency-evidence --quick --output artifacts/model-read-latency （KV/Document/Object 请求级 P50/P95/P99）
+//   dotnet run -c Release -- --m36-object-validation-evidence --quick --output artifacts/m36-object-validation （#323 本机预检，不是固定硬件容量通过）
+//   dotnet run -c Release -- --m36-verify-object-validation <report> （验证 #323 本机预检报告边界）
 //   dotnet run -c Release -- --m27-local-onnx-evidence --model <path> --tokenizer <path> --profile <path> --corpus <path> --environment <name> --intra-op-threads <n> --inter-op-threads <n>
 //   dotnet run -c Release -- --m27-verify-local-onnx <report> [--require-ready]
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
@@ -300,6 +302,40 @@ if (args.Contains("--model-read-latency-evidence", StringComparer.OrdinalIgnoreC
     Console.WriteLine(
         $"model-read-latency={report.Status} output={outputDirectory} "
         + $"mode={report.Mode} samples={report.SampleCount} operations={report.Operations.Count}");
+    return;
+}
+
+if (args.Contains("--m36-object-validation-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m36-object-validation"));
+    bool quick = args.Contains("--quick", StringComparer.OrdinalIgnoreCase);
+    using var timeout = new CancellationTokenSource(quick ? TimeSpan.FromMinutes(2) : TimeSpan.FromMinutes(15));
+    ObjectM36ValidationReport report = await ObjectM36ValidationEvidenceRunner.RunAsync(
+        outputDirectory,
+        quick,
+        timeout.Token).ConfigureAwait(false);
+    Console.WriteLine(
+        $"m36-object-validation={report.LocalPrecheck} output={outputDirectory} mode={report.Mode} "
+        + $"fixed-hardware={report.FixedHardware} capacity={report.Capacity} release={report.ReleaseDecision}");
+    return;
+}
+
+if (args.Contains("--m36-verify-object-validation", StringComparer.OrdinalIgnoreCase))
+{
+    string? reportPath = ReadOption(args, "--m36-verify-object-validation");
+    if (string.IsNullOrWhiteSpace(reportPath) || reportPath.StartsWith("--", StringComparison.Ordinal))
+    {
+        Console.Error.WriteLine("--m36-verify-object-validation requires a report path.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    ObjectM36ValidationVerification verification = ObjectM36ValidationEvidenceRunner.Verify(reportPath);
+    Console.WriteLine($"m36-object-validation-verification={(verification.IsValid ? "PASS" : "FAIL")} failures={verification.Failures.Count}");
+    foreach (string failure in verification.Failures)
+        Console.Error.WriteLine(failure);
+    if (!verification.IsValid)
+        Environment.ExitCode = 1;
     return;
 }
 

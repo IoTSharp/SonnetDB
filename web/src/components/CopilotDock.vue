@@ -82,6 +82,23 @@
       />
     </section>
 
+    <section v-if="isBrowserDirect || isStudioNative" class="copilot-dock__public-auth" data-testid="copilot-public-auth">
+      <div class="copilot-dock__public-auth-row">
+        <span class="copilot-dock__model-label">AI 服务</span>
+        <n-text depth="3" role="status" aria-live="polite" data-testid="copilot-public-auth-status">
+          {{ !publicAuthReady ? '尚未配置' : publicConnected ? '已连接' : '未连接' }}
+        </n-text>
+        <template v-if="publicAuthReady">
+          <n-button v-if="publicConnected" size="tiny" data-testid="copilot-public-disconnect" @click="disconnectPublicService">断开</n-button>
+          <template v-else>
+            <n-button size="tiny" type="primary" secondary :loading="publicConnecting" :disabled="running || publicConnecting || nativeDisconnecting" data-testid="copilot-public-connect" @click="connectPublicService">连接 AI 服务</n-button>
+            <n-button v-if="publicConnecting" size="tiny" data-testid="copilot-public-cancel" @click="disconnectPublicService">取消</n-button>
+          </template>
+        </template>
+      </div>
+      <n-text v-if="publicAuthMessage" type="error" role="alert" class="copilot-dock__public-auth-message">{{ publicAuthMessage }}</n-text>
+    </section>
+
     <!-- M7: 权限模式选择 -->
     <section class="copilot-dock__perm">
       <!-- 只读模式：点击 tag 展开内联确认，避免 popconfirm teleport 被遮挡 -->
@@ -91,8 +108,8 @@
           type="success"
           :bordered="false"
           style="cursor: pointer"
-          title="点击切换为读写模式"
-          @click="permConfirmVisible = !permConfirmVisible"
+          :title="isStudioNative ? 'Studio AI 服务仅允许只读查询' : '点击切换为读写模式'"
+          @click="!isStudioNative && (permConfirmVisible = !permConfirmVisible)"
         >只读模式</n-tag>
         <!-- 内联确认条：直接渲染在 dock 内，不 teleport，不会被遮挡 -->
         <transition name="perm-confirm">
@@ -252,7 +269,7 @@
         </n-text>
         <n-space size="small" :wrap="false">
           <n-button v-if="running" size="tiny" type="error" ghost @click="stop">停止</n-button>
-          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running" @click="send">发送</n-button>
+          <n-button size="tiny" type="primary" :disabled="!prompt.trim() || running || !publicCanSend" @click="send">发送</n-button>
         </n-space>
       </n-space>
     </footer>
@@ -279,12 +296,32 @@ import {
   fetchCopilotModels,
   streamCopilotChat,
   type CopilotChatEvent,
+  type CopilotChatRequest,
   type CopilotCitation,
   type CopilotModelGroup,
   type CopilotMetricsSummary,
   type CopilotMessage,
 } from '@/api/copilot';
 import { pickStarters, type CopilotStarter } from '@/copilot/starters';
+import {
+  clearPendingServerRelayRun,
+  createCopilotRunId,
+  createCopilotRequestFingerprint,
+  loadPendingServerRelayRun,
+  savePendingServerRelayRun,
+  type CopilotPendingServerRelayRun,
+} from '@/copilot/runtime';
+import {
+  clearBrowserDirectAccessToken,
+  subscribeBrowserDirectCredentialChanges,
+} from '@/copilot/browserDirectEntry';
+import {
+  createConfiguredBrowserDirectOAuthClient,
+  getConfiguredBrowserDirectOAuthReadiness,
+  type BrowserDirectOAuthClient,
+} from '@/copilot/browserDirectOAuth';
+import { getStudioNativeBridge, type StudioNativeBridgeClient, type StudioCopilotStatus } from '@/api/studioNativeBridge';
+import { StudioNativeCopilotCapability } from '@/copilot/studioNative';
 
 const auth = useAuthStore();
 const sessions = useCopilotSessionsStore();
@@ -312,6 +349,184 @@ const running = ref(false);
 const usageSummary = ref<CopilotMetricsSummary | null>(null);
 const errorMsg = ref('');
 const abort = ref<AbortController | null>(null);
+const activeRunId = ref<string | null>(null);
+
+const isBrowserDirect = computed(() => import.meta.env.VITE_COPILOT_RUNTIME_MODE === 'BrowserDirect');
+const isStudioNative = computed(() => import.meta.env.VITE_COPILOT_RUNTIME_MODE === 'StudioNative');
+const browserDirectOAuthReady = isBrowserDirect.value
+  && getConfiguredBrowserDirectOAuthReadiness().status === 'ready';
+const browserDirectConnected = ref(false);
+const browserDirectConnecting = ref(false);
+const browserDirectAuthMessage = ref('');
+const nativeConfigured = ref(false);
+const nativeConnected = ref(false);
+const nativeConnecting = ref(false);
+const nativeDisconnecting = ref(false);
+const nativeAuthMessage = ref('');
+const publicAuthReady = computed(() => isStudioNative.value ? nativeConfigured.value : browserDirectOAuthReady);
+const publicConnected = computed(() => isStudioNative.value ? nativeConnected.value : browserDirectConnected.value);
+const publicConnecting = computed(() => isStudioNative.value ? nativeConnecting.value : browserDirectConnecting.value);
+const publicAuthMessage = computed(() => isStudioNative.value ? nativeAuthMessage.value : browserDirectAuthMessage.value);
+const publicCanSend = computed(() => (!isBrowserDirect.value && !isStudioNative.value)
+  || (publicAuthReady.value && publicConnected.value && !publicConnecting.value && !nativeDisconnecting.value));
+let nativeBridge: StudioNativeBridgeClient | null = null;
+let nativeAuthAbort: AbortController | null = null;
+let nativeAuthAttempt = 0;
+let nativeExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+let browserDirectOAuthClient: BrowserDirectOAuthClient | null = null;
+let browserDirectExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+let browserDirectAuthAttempt = 0;
+let dockDisposed = false;
+
+const unsubscribeBrowserDirectCredential = subscribeBrowserDirectCredentialChanges((expiresAtUtc) => {
+  if (browserDirectExpiryTimer !== undefined) clearTimeout(browserDirectExpiryTimer);
+  browserDirectExpiryTimer = undefined;
+  browserDirectConnected.value = expiresAtUtc !== null;
+  if (expiresAtUtc !== null) {
+    const remaining = Date.parse(expiresAtUtc) - Date.now();
+    browserDirectExpiryTimer = setTimeout(() => {
+      clearBrowserDirectAccessToken();
+      browserDirectAuthMessage.value = 'AI 服务连接已到期，请重新连接。';
+    }, Math.max(0, remaining));
+  } else if (isBrowserDirect.value) {
+    cancelActiveRequest();
+  }
+});
+
+async function connectBrowserDirect(): Promise<void> {
+  if (!isBrowserDirect.value || !browserDirectOAuthReady || browserDirectConnecting.value
+    || running.value || !auth.state?.token) return;
+  const attempt = ++browserDirectAuthAttempt;
+  browserDirectAuthMessage.value = '';
+  browserDirectConnecting.value = true;
+  try {
+    browserDirectOAuthClient ??= createConfiguredBrowserDirectOAuthClient();
+    // The database credential is only a deny-list value; OAuth never transmits it.
+    await browserDirectOAuthClient.signIn(auth.state.token);
+    if (dockDisposed || attempt !== browserDirectAuthAttempt) return;
+    browserDirectAuthMessage.value = '';
+  } catch (error: unknown) {
+    if (dockDisposed || attempt !== browserDirectAuthAttempt) return;
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String(error.code) : '';
+    browserDirectAuthMessage.value = code === 'browser_direct_oauth_not_ready'
+      ? 'AI 服务尚未配置，请联系管理员。'
+      : code === 'browser_direct_oauth_cancelled'
+        ? '连接已取消。'
+        : code.includes('popup')
+          ? '未能完成授权，请允许登录窗口后重试。'
+          : code.includes('timeout') || code === 'browser_direct_oauth_expired'
+            ? '连接超时，请重试。'
+            : '未能连接 AI 服务，请重新授权。';
+  } finally {
+    if (attempt === browserDirectAuthAttempt) browserDirectConnecting.value = false;
+  }
+}
+
+function disconnectBrowserDirect(): void {
+  browserDirectAuthAttempt++;
+  browserDirectConnecting.value = false;
+  browserDirectAuthMessage.value = '';
+  cancelActiveRequest();
+  if (browserDirectOAuthClient) browserDirectOAuthClient.logout();
+  else clearBrowserDirectAccessToken();
+}
+
+function applyNativeStatus(status: StudioCopilotStatus): void {
+  if (nativeExpiryTimer !== undefined) clearTimeout(nativeExpiryTimer);
+  nativeExpiryTimer = undefined;
+  nativeConfigured.value = status.configured;
+  const remaining = status.expiresAtUtc ? Date.parse(status.expiresAtUtc) - Date.now() : 0;
+  nativeConnected.value = status.connected && remaining > 0 && remaining <= 2 * 60 * 60 * 1000;
+  if (nativeConnected.value) {
+    nativeExpiryTimer = setTimeout(() => {
+      void disconnectStudioNative();
+      nativeAuthMessage.value = 'AI 服务连接已到期，请重新连接。';
+    }, remaining);
+  }
+}
+
+async function initializeStudioNative(): Promise<void> {
+  if (!isStudioNative.value) return;
+  const attempt = ++nativeAuthAttempt;
+  try {
+    nativeBridge = await getStudioNativeBridge();
+    if (dockDisposed || attempt !== nativeAuthAttempt) {
+      // Bootstrap may finish after identity change/unmount, before the regular
+      // cleanup had a bridge. Retire the late host credential as well.
+      if (nativeBridge?.manifest.capabilities.includes(StudioNativeCopilotCapability)) {
+        await nativeBridge.disconnectCopilot();
+      }
+      return;
+    }
+    if (!nativeBridge?.manifest.capabilities.includes(StudioNativeCopilotCapability)) return;
+    const status = await nativeBridge.getCopilotStatus();
+    if (dockDisposed || attempt !== nativeAuthAttempt) return;
+    applyNativeStatus(status);
+  } catch {
+    if (!dockDisposed && attempt === nativeAuthAttempt) nativeAuthMessage.value = '无法连接 Studio AI 服务，请重新打开窗口。';
+  }
+}
+
+async function connectStudioNative(): Promise<void> {
+  if (!nativeBridge || !nativeConfigured.value || nativeConnecting.value || nativeDisconnecting.value
+    || running.value || !auth.state?.token) return;
+  const attempt = ++nativeAuthAttempt;
+  const controller = new AbortController();
+  nativeAuthAbort = controller;
+  nativeConnecting.value = true;
+  nativeAuthMessage.value = '';
+  try {
+    const status = await nativeBridge.connectCopilot(controller.signal);
+    if (dockDisposed || attempt !== nativeAuthAttempt) return;
+    applyNativeStatus(status);
+    nativeAuthMessage.value = status.canceled ? '连接已取消。'
+      : status.error || !nativeConnected.value ? '未能连接 AI 服务，请在 Studio 授权窗口中重试。' : '';
+  } catch {
+    if (!dockDisposed && attempt === nativeAuthAttempt) nativeAuthMessage.value = '未能连接 AI 服务，请在 Studio 授权窗口中重试。';
+  } finally {
+    if (attempt === nativeAuthAttempt) { nativeConnecting.value = false; nativeAuthAbort = null; }
+  }
+}
+
+async function disconnectStudioNative(): Promise<void> {
+  ++nativeAuthAttempt;
+  nativeAuthAbort?.abort();
+  nativeAuthAbort = null;
+  nativeConnecting.value = false;
+  nativeConnected.value = false;
+  nativeAuthMessage.value = '';
+  if (nativeExpiryTimer !== undefined) clearTimeout(nativeExpiryTimer);
+  nativeExpiryTimer = undefined;
+  cancelActiveRequest();
+  if (!nativeBridge || nativeDisconnecting.value) return;
+  nativeDisconnecting.value = true;
+  try { await nativeBridge.disconnectCopilot(); }
+  catch { if (!dockDisposed) nativeAuthMessage.value = '未能确认 AI 服务已断开，请关闭 Studio 窗口。'; }
+  finally { nativeDisconnecting.value = false; }
+}
+
+function connectPublicService(): void {
+  if (isStudioNative.value) void connectStudioNative();
+  else void connectBrowserDirect();
+}
+
+function disconnectPublicService(): void {
+  if (isStudioNative.value) void disconnectStudioNative();
+  else disconnectBrowserDirect();
+}
+
+watch(() => auth.state, (identity, previous) => {
+  if (identity?.token !== previous?.token || identity?.tokenId !== previous?.tokenId
+    || identity?.username !== previous?.username || identity?.isSuperuser !== previous?.isSuperuser) {
+    disconnectBrowserDirect();
+    if (isStudioNative.value) void disconnectStudioNative();
+  }
+}, { flush: 'sync' });
+
+watch(isBrowserDirect, (enabled) => {
+  if (!enabled) disconnectBrowserDirect();
+}, { flush: 'sync' });
 
 const msgContainer = ref<HTMLElement | null>(null);
 
@@ -823,10 +1038,14 @@ async function loadModels(): Promise<void> {
 async function reloadCopilotState(): Promise<void> {
   try {
     await sessions.refresh(auth.api);
-    if (!sessions.currentId && sessions.recent.length > 0) {
+    const pending = loadPendingServerRelayRun();
+    if (pending && sessions.recent.some((session) => session.id === pending.sessionId)) {
+      await sessions.switchTo(auth.api, pending.sessionId);
+    } else if (!sessions.currentId && sessions.recent.length > 0) {
       await sessions.switchTo(auth.api, sessions.recent[0].id);
     }
     usageSummary.value = await fetchCopilotMetrics(auth.api);
+    await resumePendingServerRelay();
   } catch (error: unknown) {
     errorMsg.value = error instanceof Error ? error.message : String(error);
   }
@@ -1252,75 +1471,74 @@ function resolveCloudMode(message: string): CloudMode {
   return 'sql_assist';
 }
 
-async function send(): Promise<void> {
-  if (!prompt.value.trim() || running.value) return;
-  if (!auth.state?.token) return;
+interface CopilotRunExecution {
+  sessionId: string;
+  requestDb: string;
+  userText: string;
+  request: CopilotChatRequest;
+  isProvisioningRequest: boolean;
+  resume: boolean;
+  runId: string;
+}
 
-  const userText = prompt.value.trim();
-  const isProvisioningRequest = looksLikeProvisioningRequest(userText);
-  const provisioningDb = isProvisioningRequest ? inferProvisioningDatabaseName(userText) : '';
+function isServerRelayConfigured(): boolean {
+  const mode = import.meta.env.VITE_COPILOT_RUNTIME_MODE;
+  return !mode || mode === 'ServerRelay';
+}
 
-  // 数据库自动推断：优先 SQL Console 当前库，其次已知库列表第一个，最后留空让后端处理
-  let targetDb = effectiveDb.value || (dbs.value.length > 0 ? dbs.value[0] : '');
+async function executeCopilotRun(execution: CopilotRunExecution): Promise<void> {
+  if (!auth.state?.token || running.value) return;
 
-  // 无库场景下，建库意图允许直接走后端 provisioning；其它请求仍先引导建库。
-  if (!targetDb && !isProvisioningRequest) {
-    const created = await promptCreateDatabase();
-    if (!created) return;  // 用户取消或无权创建
-    targetDb = created;
+  const fingerprint = await createCopilotRequestFingerprint(execution.request);
+  if (!fingerprint) {
+    if (execution.resume) {
+      clearPendingServerRelayRun(execution.runId);
+      errorMsg.value = '当前浏览器不支持安全的 Copilot 续流校验，已拒绝恢复。';
+    }
+    return;
   }
 
-  const requestDb = provisioningDb || targetDb;
-
-  // 没有当前会话则先建一个；切换数据库时同步到当前会话。
-  const activeSession = sessions.current ?? await sessions.create(auth.api, requestDb);
-  if (requestDb && activeSession.db !== requestDb) {
-    activeSession.db = requestDb;
+  const pending: CopilotPendingServerRelayRun = {
+    version: 1,
+    runId: execution.runId,
+    sessionId: execution.sessionId,
+    database: execution.requestDb,
+    requestFingerprint: fingerprint,
+    mode: execution.request.mode ?? 'read-only',
+    cloudMode: execution.request.cloudMode ?? 'sql_assist',
+    ...(execution.request.model ? { model: execution.request.model } : {}),
+    createdAtUtc: new Date().toISOString(),
+  };
+  if (isServerRelayConfigured()) {
+    savePendingServerRelayRun(pending);
   }
-  const sessionId = activeSession.id;
 
-  const userMsg: CopilotMessage = { role: 'user', content: userText };
-  prompt.value = '';
-  errorMsg.value = '';
-  // 把 user 消息立即加到发起请求的会话；assistant 最终回复也会按同一个 sessionId 追加。
-  const requestSession = sessions.appendMessage(sessionId, requestDb, userMsg);
   streamBuffer.value = '';
   streamCitations.value = [];
   running.value = true;
+  activeRunId.value = execution.runId;
   await scrollToBottom();
 
   const ac = new AbortController();
   abort.value = ac;
   const ownsRun = () => abort.value === ac;
-
-  // M6: 构造请求载荷 = [可选 system 上下文] + 会话历史
-  const ctxMsg = buildContextMessage();
-  const requestMessages: CopilotMessage[] = ctxMsg
-    ? [ctxMsg, ...requestSession.messages]
-    : [...requestSession.messages];
-
   const stepLog: string[] = [];
   const pendingSqlEvents: CopilotChatEvent[] = [];
   let finalAnswer = '';
   let finalCitations: CopilotCitation[] = [];
-  let responseCommitted = false;
+  let responseCompleted = false;
   copilotToolTabs.clear();
   copilotSqlSeen.clear();
-  activeRequestDb.value = requestDb;
+  activeRequestDb.value = execution.requestDb;
   try {
     for await (const runtimeEvent of streamCopilotChat(
       auth.api,
       auth.state.token,
-      {
-        ...(requestDb ? { db: requestDb } : {}),
-        messages: requestMessages,
-        mode: permissionMode.value,
-        conversationId: sessionId,
-        cloudMode: resolveCloudMode(userText),
-        ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
-      },
+      execution.request,
       ac.signal,
       import.meta.env.VITE_COPILOT_RUNTIME_MODE,
+      undefined,
+      { runId: execution.runId },
     )) {
       const event = runtimeEvent.event;
       if (ac.signal.aborted || !ownsRun()) break;
@@ -1334,7 +1552,6 @@ async function send(): Promise<void> {
         errorMsg.value = event.message ?? 'Copilot 请求失败';
       } else if (event.message) {
         stepLog.push(event.message);
-        // 仅当尚无 final 时显示进度
         if (!finalAnswer) streamBuffer.value = stepLog.slice(-3).join('\n');
       }
       await scrollToBottom();
@@ -1342,45 +1559,168 @@ async function send(): Promise<void> {
     if (ac.signal.aborted || !ownsRun()) return;
     for (const event of pendingSqlEvents) syncCopilotSqlEvent(event);
     if (finalAnswer) syncFinalAnswerSql(finalAnswer);
-    if (finalAnswer) {
-      sessions.appendMessage(sessionId, requestDb, {
+    if (execution.resume) {
+      await sessions.reloadMessages(auth.api, execution.sessionId);
+    } else if (finalAnswer) {
+      sessions.appendMessage(execution.sessionId, execution.requestDb, {
         role: 'assistant',
         content: finalAnswer,
         ...(finalCitations.length > 0 ? { citations: finalCitations } : {}),
       });
-      streamBuffer.value = '';
-      streamCitations.value = [];
-      if (isProvisioningRequest) {
-        void reloadDbs();
-      }
-      responseCommitted = true;
     }
+    if (finalAnswer && execution.isProvisioningRequest) void reloadDbs();
+    responseCompleted = true;
+    errorMsg.value = '';
   } catch (e: unknown) {
     if (!ac.signal.aborted && ownsRun()) {
-      errorMsg.value = e instanceof Error ? e.message : String(e);
-    }
-  } finally {
-    if (ownsRun() && !responseCommitted) {
-      streamBuffer.value = '';
-      streamCitations.value = [];
-      try {
-        await sessions.reloadMessages(auth.api, sessionId);
-      } catch {
-        // 服务端会话暂不可读时不保留未确认的临时回答。
+      const messageText = e instanceof Error ? e.message : String(e);
+      errorMsg.value = messageText;
+      if (/relay_run_(unknown|expired|conflict)|relay_cursor_invalid|run 不存在|已超过绝对 TTL|绑定到不同|cursor/u.test(messageText)) {
+        clearPendingServerRelayRun(execution.runId);
       }
     }
+  } finally {
+    if (ownsRun() && !responseCompleted) {
+      streamBuffer.value = '';
+      streamCitations.value = [];
+      if (!execution.resume) {
+        try {
+          await sessions.reloadMessages(auth.api, execution.sessionId);
+        } catch {
+          // 服务端会话暂不可读时不保留未确认的临时回答。
+        }
+      }
+    }
+    if (responseCompleted) clearPendingServerRelayRun(execution.runId);
     if (ownsRun()) {
+      streamBuffer.value = '';
+      streamCitations.value = [];
       running.value = false;
       abort.value = null;
+      activeRunId.value = null;
       activeRequestDb.value = '';
       await scrollToBottom();
     }
   }
 }
 
+async function send(): Promise<void> {
+  if (!prompt.value.trim() || running.value) return;
+  if (!auth.state?.token) return;
+  if (!publicCanSend.value) {
+    const hint = publicAuthReady.value
+      ? '请先连接 AI 服务。' : 'AI 服务尚未配置，请联系管理员。';
+    if (isStudioNative.value) nativeAuthMessage.value = hint;
+    else browserDirectAuthMessage.value = hint;
+    return;
+  }
+
+  const userText = prompt.value.trim();
+  const isProvisioningRequest = looksLikeProvisioningRequest(userText);
+  const provisioningDb = isProvisioningRequest ? inferProvisioningDatabaseName(userText) : '';
+  let targetDb = effectiveDb.value || (dbs.value.length > 0 ? dbs.value[0] : '');
+  if (!targetDb && !isProvisioningRequest) {
+    const created = await promptCreateDatabase();
+    if (!created) return;
+    targetDb = created;
+  }
+
+  const requestDb = provisioningDb || targetDb;
+  const activeSession = sessions.current ?? await sessions.create(auth.api, requestDb);
+  if (requestDb && activeSession.db !== requestDb) activeSession.db = requestDb;
+  const sessionId = activeSession.id;
+  prompt.value = '';
+  errorMsg.value = '';
+  const requestSession = sessions.appendMessage(sessionId, requestDb, { role: 'user', content: userText });
+  const ctxMsg = buildContextMessage();
+  const requestMessages: CopilotMessage[] = ctxMsg
+    ? [ctxMsg, ...requestSession.messages]
+    : [...requestSession.messages];
+  const request: CopilotChatRequest = {
+    ...(requestDb ? { db: requestDb } : {}),
+    messages: requestMessages,
+    mode: permissionMode.value,
+    conversationId: sessionId,
+    cloudMode: resolveCloudMode(userText),
+    ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
+  };
+  await executeCopilotRun({
+    sessionId,
+    requestDb,
+    userText,
+    request,
+    isProvisioningRequest,
+    resume: false,
+    runId: createCopilotRunId(),
+  });
+}
+
+async function resumePendingServerRelay(): Promise<void> {
+  if (!isServerRelayConfigured() || running.value || !auth.state?.token) return;
+  const pending = loadPendingServerRelayRun();
+  if (!pending) return;
+  if (pending.sessionId !== sessions.currentId) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  const session = sessions.current;
+  if (!session || !session.messagesLoaded || session.db !== pending.database) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  const userText = [...session.messages].reverse().find((item) => item.role === 'user')?.content?.trim() ?? '';
+  if (!userText) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+  const latestUserIndex = [...session.messages]
+    .map((item, index) => ({ item, index }))
+    .reverse()
+    .find((entry) => entry.item.role === 'user')?.index;
+  if (latestUserIndex === undefined) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+  // A completed server run already appended its assistant answer. Rebuild the
+  // original request through the latest user message so the binding fingerprint
+  // remains identical without persisting message content in sessionStorage.
+  const requestHistory = session.messages.slice(0, latestUserIndex + 1);
+  const ctxMsg = buildContextMessage();
+  const requestMessages: CopilotMessage[] = ctxMsg
+    ? [ctxMsg, ...requestHistory]
+    : [...requestHistory];
+  const request: CopilotChatRequest = {
+    ...(pending.database ? { db: pending.database } : {}),
+    messages: requestMessages,
+    mode: pending.mode,
+    conversationId: pending.sessionId,
+    cloudMode: pending.cloudMode,
+    ...(pending.model ? { model: pending.model } : {}),
+  };
+  const fingerprint = await createCopilotRequestFingerprint(request);
+  if (fingerprint !== pending.requestFingerprint) {
+    clearPendingServerRelayRun(pending.runId);
+    return;
+  }
+
+  errorMsg.value = '正在从已记录的 ServerRelay 结果恢复…';
+  await executeCopilotRun({
+    sessionId: pending.sessionId,
+    requestDb: pending.database,
+    userText,
+    request,
+    isProvisioningRequest: looksLikeProvisioningRequest(userText),
+    resume: true,
+    runId: pending.runId,
+  });
+}
+
 function cancelActiveRequest(): void {
   const controller = abort.value;
   if (controller && !controller.signal.aborted) controller.abort();
+  if (activeRunId.value) clearPendingServerRelayRun(activeRunId.value);
   streamBuffer.value = '';
   streamCitations.value = [];
 }
@@ -1497,9 +1837,17 @@ watch(() => auth.isAuthenticated, (val) => {
 
 onMounted(() => {
   // 不主动 open，只在用户点击 FAB 时才请求接口，避免未启用 Copilot 时报 409。
+  void initializeStudioNative();
 });
 
 onBeforeUnmount(() => {
+  dockDisposed = true;
+  if (isStudioNative.value) void disconnectStudioNative();
+  disconnectBrowserDirect();
+  browserDirectOAuthClient?.dispose();
+  browserDirectOAuthClient = null;
+  unsubscribeBrowserDirectCredential();
+  if (browserDirectExpiryTimer !== undefined) clearTimeout(browserDirectExpiryTimer);
   cancelActiveRequest();
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
@@ -1507,6 +1855,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.copilot-dock__public-auth {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e8edf2;
+  font-size: 12px;
+}
+.copilot-dock__public-auth-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.copilot-dock__public-auth-message {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
 .copilot-fab {
   position: fixed;
   right: 24px;

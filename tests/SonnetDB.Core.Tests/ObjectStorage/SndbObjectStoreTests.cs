@@ -95,6 +95,35 @@ public sealed class SndbObjectStoreTests : IDisposable
     }
 
     /// <summary>
+    /// 验证范围读取流的 Length 表示固定范围长度，而不是随消费递减的剩余长度。
+    /// </summary>
+    [Fact]
+    public async Task OpenRead_ContentLength_RemainsStableAfterPartialAndCompleteReads()
+    {
+        byte[] expected = Encoding.UTF8.GetBytes("0123456789");
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory });
+        var store = new SndbObjectStore(db);
+        store.CreateBucket("test-bucket");
+        await store.PutObjectAsync(
+            "test-bucket",
+            "videos/stable-length.bin",
+            new MemoryStream(expected, writable: false));
+
+        var readResult = Assert.IsType<SndbObjectReadResult>(
+            store.OpenRead("test-bucket", "videos/stable-length.bin", new SndbObjectRange(3, 4)));
+        await using var content = readResult.Content;
+        Assert.Equal(4, content.Length);
+
+        byte[] buffer = new byte[2];
+        Assert.Equal(2, await content.ReadAsync(buffer));
+        Assert.Equal(4, content.Length);
+        Assert.Equal(2, await content.ReadAsync(buffer));
+        Assert.Equal(4, content.Length);
+        Assert.Equal(0, await content.ReadAsync(buffer));
+        Assert.Equal(4, content.Length);
+    }
+
+    /// <summary>
     /// 验证六参数构造函数、可选参数默认值和六元素解构保持可用。
     /// </summary>
     [Fact]

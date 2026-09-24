@@ -7,8 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data.ObjectStorage;
@@ -214,6 +213,48 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         {
             Assert.Empty(json.RootElement.GetProperty("uploads").EnumerateArray());
         }
+    }
+
+    [Fact]
+    public async Task ObjectStorage_SdkMultipartWithoutContentType_UsesObjectDefault()
+    {
+        using var client = CreateClient();
+        const string bucket = "sdk-multipart-default-content-type";
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(
+                $"/v1/db/objects/s3/{bucket}",
+                new ObjectBucketCreateRequest("backup"),
+                ServerJsonContext.Default.ObjectBucketCreateRequest)).StatusCode);
+
+        var connectionString = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objects;Token={AdminToken};Timeout=30;Protocol=rest";
+        using var objectClient = new SndbObjectStorageClient(connectionString);
+        var upload = await objectClient.InitiateMultipartUploadAsync(bucket, "daily/default.bin");
+
+        Assert.Equal("application/octet-stream", upload.ContentType);
+    }
+
+    [Fact]
+    public async Task ObjectStorage_DeleteObjectsWithNullKeys_ReturnsBadRequest()
+    {
+        using var client = CreateClient();
+        const string bucket = "delete-objects-null-keys";
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(
+                $"/v1/db/objects/s3/{bucket}",
+                new ObjectBucketCreateRequest("artifact"),
+                ServerJsonContext.Default.ObjectBucketCreateRequest)).StatusCode);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/v1/db/objects/s3/{bucket}?delete")
+        {
+            Content = new StringContent("{\"keys\":null}", Encoding.UTF8, "application/json"),
+        };
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("bad_request", body.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]
@@ -481,11 +522,12 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
                 ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
 
         byte[] encoded;
-        using (var image = new Image<Rgb24>(48, 24, new Rgb24(10, 120, 220)))
-        using (var output = new MemoryStream())
+        using (var bitmap = new SKBitmap(48, 24))
         {
-            image.SaveAsPng(output);
-            encoded = output.ToArray();
+            bitmap.Erase(new SKColor(10, 120, 220));
+            using var image = SKImage.FromBitmap(bitmap);
+            using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+            encoded = png.ToArray();
         }
 
         using var content = new ByteArrayContent(encoded);
