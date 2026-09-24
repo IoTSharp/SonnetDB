@@ -615,6 +615,8 @@ WHERE guid IN (
 
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `INSERT ... RETURNING` 在同一语句中返回成功插入后的列值；`RETURNING *` 按表 schema 顺序返回全部列。未知列会在写入前报错，不留下部分数据。
+- `INSERT ... VALUES ... ON CONFLICT (主键或唯一索引列) DO UPDATE SET column = excluded.column [WHERE predicate] [RETURNING ...]` 对冲突目标行执行原子更新。`excluded` 指当前候选行，未限定列名指冲突前目标行；可在 `WHERE` 同时引用两者。谓词为 FALSE 或 NULL 时不更新、不返回该行，且不计入受影响行数。多行语句按输入顺序返回成功插入或更新的行；同一语句重复更新同一目标行会整句拒绝。`ROWVERSION` 更新由引擎递增，候选行的默认值与自动生成列在冲突检查前确定。远程轻事务中的 `DO UPDATE ... RETURNING` 仍明确拒绝，不能据事务预览结果宣称远程提交一致性（GH-Issue #184）。
+- 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前主线提供 `DO NOTHING` 及上述受限 `DO UPDATE`。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配；未实现远程轻事务 `DO UPDATE ... RETURNING` 前，不将此能力标为完整 Provider UPSERT 兼容。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。

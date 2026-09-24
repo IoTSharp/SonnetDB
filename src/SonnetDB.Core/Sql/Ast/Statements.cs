@@ -694,6 +694,9 @@ public sealed record SqlOnConflictClause(
     /// 赋值表达式可用 <c>excluded.column</c> 引用本次候选行。
     /// </summary>
     public IReadOnlyList<UpdateAssignment> UpdateAssignments { get; init; } = Array.Empty<UpdateAssignment>();
+
+    /// <summary>冲突行更新前求值的可选谓词；仅真值会产生 UPDATE。</summary>
+    public SqlExpression? UpdateWhere { get; init; }
 }
 
 /// <summary>

@@ -532,6 +532,7 @@ internal static class TableSqlExecutor
         var assignments = clause.Action == SqlOnConflictAction.DoUpdate
             ? BindConflictAssignments(clause, schema)
             : [];
+        ValidateConflictUpdateWhere(clause, schema);
         var seenDoUpdatePrimaryKeys = clause.Action == SqlOnConflictAction.DoUpdate
             ? new HashSet<string>(StringComparer.Ordinal)
             : null;
@@ -560,6 +561,9 @@ internal static class TableSqlExecutor
             }
 
             if (clause.Action == SqlOnConflictAction.DoNothing)
+                continue;
+
+            if (!ConflictUpdateWhereMatches(clause, schema, conflict, values))
                 continue;
 
             EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);
@@ -646,6 +650,27 @@ internal static class TableSqlExecutor
 
         return [.. assignments];
     }
+
+    private static void ValidateConflictUpdateWhere(SqlOnConflictClause clause, TableSchema schema)
+    {
+        if (clause.UpdateWhere is not { } where)
+            return;
+        if (clause.Action != SqlOnConflictAction.DoUpdate)
+            throw new InvalidOperationException("ON CONFLICT DO NOTHING 不允许 WHERE 条件。");
+        ValidateConflictExpressionQualifiers(where, schema);
+        ValidateTablePredicate(where, schema, "ON CONFLICT DO UPDATE WHERE");
+    }
+
+    private static bool ConflictUpdateWhereMatches(
+        SqlOnConflictClause clause,
+        TableSchema schema,
+        TableRow conflict,
+        object?[] excludedValues)
+        => clause.UpdateWhere is null
+            || EvaluateWhere(
+                BindExcludedReferences(clause.UpdateWhere, schema, excludedValues),
+                schema,
+                conflict.Values);
 
     private static object?[] BuildConflictUpdateValues(
         TableSchema schema,
@@ -1022,6 +1047,7 @@ internal static class TableSqlExecutor
         {
             ValidateConflictTarget(schema, conflictClause.TargetColumns);
             conflictAssignments = BindConflictAssignments(conflictClause, schema);
+            ValidateConflictUpdateWhere(conflictClause, schema);
         }
 
         if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
@@ -1077,6 +1103,9 @@ internal static class TableSqlExecutor
             }
 
             if (statement.OnConflict!.Action == SqlOnConflictAction.DoNothing)
+                continue;
+
+            if (!ConflictUpdateWhereMatches(statement.OnConflict, schema, conflict, values))
                 continue;
 
             EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);

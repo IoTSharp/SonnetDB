@@ -154,6 +154,15 @@ public static class SqlParameterBinder
                 conflict = conflict with { UpdateAssignments = assignments };
                 changed = true;
             }
+            if (conflict.UpdateWhere is not null)
+            {
+                var boundWhere = BindExpr(conflict.UpdateWhere, p);
+                if (!ReferenceEquals(boundWhere, conflict.UpdateWhere))
+                {
+                    conflict = conflict with { UpdateWhere = boundWhere };
+                    changed = true;
+                }
+            }
         }
 
         return changed || insert.Query is not null

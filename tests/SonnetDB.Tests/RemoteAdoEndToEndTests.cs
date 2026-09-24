@@ -591,6 +591,77 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(10L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
     }
 
+    [Theory]
+    [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (2, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    [InlineData("INSERT INTO tx_upsert_guard (value) VALUES (20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    public async Task RemoteTransaction_UpsertReturningRejectedBeforeQueue_KeepsEarlierWrite(string upsertSql)
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_upsert_guard (id INT AUTO_INCREMENT, value INT, rv INT ROWVERSION, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO tx_upsert_guard (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "INSERT INTO tx_upsert_guard (id, value) VALUES (3, 30)";
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+            command.CommandText = upsertSql;
+            var error = await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
+            Assert.Contains("DO UPDATE", error.Message);
+            await transaction.CommitAsync();
+            command.Transaction = null;
+        }
+
+        command.CommandText = "SELECT id, value, rv FROM tx_upsert_guard ORDER BY id";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new long[] { 1L, 10L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new long[] { 3L, 30L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task Remote_InsertOnConflictDoUpdateWhere_ReportsAffectedRowsAndReturning()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE conditional_upsert (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 9), (2, 20) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.Equal(20L, reader.GetInt64(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 12) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal(12L, reader.GetInt64(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+    }
+
     [Fact]
     public async Task Remote_Transaction_CrossTableCommit_CommitsBothTables()
     {

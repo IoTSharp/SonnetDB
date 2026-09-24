@@ -2517,6 +2517,9 @@ public sealed class SqlParser
         if (Current.Kind != TokenKind.KeywordUpdate && !IsIdentifier("update"))
             throw Error("ON CONFLICT DO 后面期望 NOTHING 或 UPDATE");
 
+        if (targetColumns.Count == 0)
+            throw Error("ON CONFLICT DO UPDATE 必须指定主键或唯一索引目标列");
+
         Advance();
         Expect(TokenKind.KeywordSet);
         var assignments = new List<UpdateAssignment> { ParseUpdateAssignment() };
@@ -2526,9 +2529,17 @@ public sealed class SqlParser
             assignments.Add(ParseUpdateAssignment());
         }
 
+        SqlExpression? updateWhere = null;
+        if (Current.Kind == TokenKind.KeywordWhere)
+        {
+            Advance();
+            updateWhere = ParseExpression();
+        }
+
         return new SqlOnConflictClause(targetColumns, SqlOnConflictAction.DoUpdate)
         {
             UpdateAssignments = assignments,
+            UpdateWhere = updateWhere,
         };
     }
 

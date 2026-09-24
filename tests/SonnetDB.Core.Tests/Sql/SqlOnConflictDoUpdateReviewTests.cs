@@ -36,6 +36,14 @@ public sealed class SqlOnConflictDoUpdateReviewTests : IDisposable
     }
 
     [Fact]
+    public void ParseDoUpdate_WithoutConflictTarget_RejectsExplicitly()
+    {
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            "INSERT INTO items (id, value) VALUES (1, 20) "
+            + "ON CONFLICT DO UPDATE SET value = excluded.value"));
+    }
+
+    [Fact]
     public void ExecuteDoUpdate_UsesExcludedValueAndReturnsUpdatedRow()
     {
         using var db = Open();
@@ -69,6 +77,88 @@ public sealed class SqlOnConflictDoUpdateReviewTests : IDisposable
         Assert.Equal([new object?[] { 1L, 21L }], result.Returning!.Rows);
         var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id, value FROM items"));
         Assert.Equal([new object?[] { 1L, 21L }], row.Rows);
+    }
+
+    [Fact]
+    public void ExecuteDoUpdate_WithWhere_UpdatesOnlyMatchingConflicts()
+    {
+        using var db = Open();
+        CreateItemsTable(db);
+        SqlExecutor.Execute(db, "INSERT INTO items (id, value) VALUES (1, 10), (2, 20)");
+
+        var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db,
+            "INSERT INTO items (id, value) VALUES (1, 11), (2, 19), (3, 30) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value"));
+
+        Assert.Equal(2, result.RowsInserted);
+        Assert.Equal(
+            [new object?[] { 1L, 11L }, new object?[] { 3L, 30L }],
+            result.Returning!.Rows);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, value FROM items ORDER BY id"));
+        Assert.Equal(
+            [new object?[] { 1L, 11L }, new object?[] { 2L, 20L }, new object?[] { 3L, 30L }],
+            rows.Rows);
+    }
+
+    [Fact]
+    public void ExecuteDoUpdate_WithParameterizedWhere_BindsPredicate()
+    {
+        using var db = Open();
+        CreateItemsTable(db);
+        SqlExecutor.Execute(db, "INSERT INTO items (id, value) VALUES (1, 10)");
+
+        var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "INSERT INTO items (id, value) VALUES (@id, @value) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE value < @limit RETURNING id, value",
+            new SqlParameters().AddNamed("id", 1L).AddNamed("value", 22L).AddNamed("limit", 11L)));
+
+        Assert.Equal(1, result.RowsInserted);
+        Assert.Equal([new object?[] { 1L, 22L }], result.Returning!.Rows);
+    }
+
+    [Fact]
+    public void ExecuteDoUpdate_WithWhereInTransaction_SkipsAndUpdatesBufferedRows()
+    {
+        using var db = Open();
+        CreateItemsTable(db);
+        SqlExecutor.Execute(db, "INSERT INTO items (id, value) VALUES (1, 10)");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO items (id, value) VALUES (1, 9)
+                ON CONFLICT (id) DO UPDATE SET value = excluded.value
+                WHERE excluded.value > value RETURNING id, value;
+            INSERT INTO items (id, value) VALUES (1, 12)
+                ON CONFLICT (id) DO UPDATE SET value = excluded.value
+                WHERE excluded.value > value RETURNING id, value;
+            COMMIT;
+            """);
+
+        Assert.Empty(Assert.IsType<InsertExecutionResult>(results[1]).Returning!.Rows);
+        Assert.Equal([new object?[] { 1L, 12L }],
+            Assert.IsType<InsertExecutionResult>(results[2]).Returning!.Rows);
+        Assert.Equal([new object?[] { 1L, 12L }],
+            Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, value FROM items")).Rows);
+    }
+
+    [Fact]
+    public void ExecuteDoUpdate_WithInvalidWhere_RejectsBeforeUnrelatedInsert()
+    {
+        using var db = Open();
+        CreateItemsTable(db);
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "INSERT INTO items (id, value) VALUES (1, 10) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE other.value > 0"));
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM items")).Rows);
     }
 
     [Fact]
