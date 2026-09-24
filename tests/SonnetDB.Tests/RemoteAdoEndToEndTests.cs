@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -7,6 +8,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.Data.Remote;
 using SonnetDB.Model;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -509,6 +511,153 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(11L, deleted.GetInt64(1));
         Assert.False(deleted.Read());
         Assert.Equal(1, deleted.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void UpdateDeleteReturning_ParameterizedCompositeKey_UsesConsistentAdoResults(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_composite (tenant INT, id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (tenant, id))";
+        Assert.Equal(0, command.ExecuteNonQuery());
+        command.CommandText = "INSERT INTO returning_composite (tenant, id, value) VALUES (1, 1, 10), (1, 2, 20), (2, 1, 30)";
+        Assert.Equal(3, command.ExecuteNonQuery());
+
+        command.CommandText = "UPDATE returning_composite SET value = value + 1 WHERE tenant = @tenant RETURNING tenant, id, value, rv";
+        command.Parameters.AddWithValue("@tenant", 1L);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal(["tenant", "id", "value", "rv"], Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 1L, 11L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 2L, 21L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(reader.Read());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "UPDATE returning_composite SET value = value + 1 WHERE tenant = @tenant AND id = @id RETURNING value";
+        command.Parameters.AddWithValue("@tenant", 2L);
+        command.Parameters.AddWithValue("@id", 1L);
+        Assert.Equal(31L, Assert.IsType<long>(command.ExecuteScalar()));
+
+        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING value";
+        Assert.Equal(31L, Assert.IsType<long>(command.ExecuteScalar()));
+        Assert.Equal(0, command.ExecuteNonQuery());
+
+        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING tenant, id";
+        using var empty = command.ExecuteReader();
+        Assert.Equal(["tenant", "id"], Enumerable.Range(0, empty.FieldCount).Select(empty.GetName));
+        Assert.False(empty.Read());
+        Assert.Equal(0, empty.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task UpdateDeleteReturning_AsyncTransactionRollback_PreservesStoredRows(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_rollback (id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO returning_rollback (id, value) VALUES (1, 10), (2, 20)";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE returning_rollback SET value = value + 1 WHERE id = 1 RETURNING id, value, rv";
+            await using (var updated = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await updated.ReadAsync());
+                Assert.Equal(1L, updated.GetInt64(0));
+                Assert.Equal(11L, updated.GetInt64(1));
+                Assert.Equal(2L, updated.GetInt64(2));
+                Assert.False(await updated.ReadAsync());
+                Assert.Equal(1, updated.RecordsAffected);
+            }
+
+            command.CommandText = "DELETE FROM returning_rollback WHERE id = 2 RETURNING id, value, rv";
+            Assert.Equal(2L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+            await transaction.RollbackAsync();
+            command.Transaction = null;
+        }
+
+        command.CommandText = "SELECT id, value, rv FROM returning_rollback ORDER BY id";
+        await using var persisted = await command.ExecuteReaderAsync();
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal([1L, 10L, 1L], Enumerable.Range(0, persisted.FieldCount).Select(persisted.GetInt64));
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal([2L, 20L, 1L], Enumerable.Range(0, persisted.FieldCount).Select(persisted.GetInt64));
+        Assert.False(await persisted.ReadAsync());
+    }
+
+    [Fact]
+    public async Task RemoteNdjson_UpdateDeleteReturning_ReportsColumnsRowsCountsAndConstraintCode()
+    {
+        using var connection = OpenRemote();
+        using var setup = connection.CreateCommand();
+        setup.CommandText = "CREATE TABLE returning_wire (id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (id), CHECK (value >= 0))";
+        Assert.Equal(0, setup.ExecuteNonQuery());
+        setup.CommandText = "INSERT INTO returning_wire (id, value) VALUES (1, 10)";
+        Assert.Equal(1, setup.ExecuteNonQuery());
+
+        using var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
+
+        async Task<JsonDocument[]> ExecuteRawAsync(string sql)
+        {
+            using var request = new StringContent(JsonSerializer.Serialize(new { sql }),
+                System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync($"/v1/db/{_dbName}/sql", request);
+            response.EnsureSuccessStatusCode();
+            string text = await response.Content.ReadAsStringAsync();
+            return text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(static line => JsonDocument.Parse(line))
+                .ToArray();
+        }
+
+        var update = await ExecuteRawAsync("UPDATE returning_wire SET value = 11 WHERE id = 1 RETURNING id, value, rv");
+        try
+        {
+            Assert.Equal("meta", update[0].RootElement.GetProperty("type").GetString());
+            Assert.Equal(["id", "value", "rv"], update[0].RootElement.GetProperty("columns")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(11L, update[1].RootElement[1].GetInt64());
+            Assert.Equal(2L, update[1].RootElement[2].GetInt64());
+            Assert.Equal(1, update[2].RootElement.GetProperty("recordsAffected").GetInt32());
+            Assert.Equal(1, update[2].RootElement.GetProperty("rowCount").GetInt32());
+        }
+        finally
+        {
+            foreach (var document in update) document.Dispose();
+        }
+
+        var empty = await ExecuteRawAsync("DELETE FROM returning_wire WHERE id = 404 RETURNING id, value");
+        try
+        {
+            Assert.Equal(2, empty.Length);
+            Assert.Equal(["id", "value"], empty[0].RootElement.GetProperty("columns")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(0, empty[1].RootElement.GetProperty("recordsAffected").GetInt32());
+            Assert.Equal(0, empty[1].RootElement.GetProperty("rowCount").GetInt32());
+        }
+        finally
+        {
+            foreach (var document in empty) document.Dispose();
+        }
+
+        using var invalid = connection.CreateCommand();
+        invalid.CommandText = "UPDATE returning_wire SET value = -1 WHERE id = 1 RETURNING id, value";
+        var error = Assert.Throws<SndbServerException>(() => invalid.ExecuteNonQuery());
+        Assert.Equal(TableConstraintException.CheckViolation, error.Error);
+        using var verify = connection.CreateCommand();
+        verify.CommandText = "SELECT value FROM returning_wire WHERE id = 1";
+        Assert.Equal(11L, Assert.IsType<long>(verify.ExecuteScalar()));
     }
 
     [Theory]

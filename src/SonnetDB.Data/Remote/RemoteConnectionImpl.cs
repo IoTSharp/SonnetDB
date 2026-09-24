@@ -949,6 +949,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var sawResult = false;
         var recordsAffected = -1;
         var truncated = false;
+        int resultIndex = 0;
+        int targetResultIndex = transaction.Statements.Count + 1;
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -986,29 +988,40 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (typeProperty.GetString())
             {
                 case "meta":
-                    if (sawResult || readingRows)
-                        throw new InvalidDataException("远程事务预览响应包含多个结果集。");
-                    columns = root.TryGetProperty("columns", out var columnsProperty)
-                        && columnsProperty.ValueKind == JsonValueKind.Array
-                            ? columnsProperty.EnumerateArray()
-                                .Select(static column => column.GetString() ?? string.Empty)
-                                .ToArray()
-                            : [];
-                    readingRows = true;
-                    break;
-                case "end" when readingRows:
-                    if (root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
-                        && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+                    if (resultIndex == targetResultIndex)
                     {
-                        recordsAffected = recordsAffectedProperty.GetInt32();
+                        if (sawResult || readingRows)
+                            throw new InvalidDataException("远程事务目标语句返回了多个结果集。");
+                        columns = root.TryGetProperty("columns", out var columnsProperty)
+                            && columnsProperty.ValueKind == JsonValueKind.Array
+                                ? columnsProperty.EnumerateArray()
+                                    .Select(static column => column.GetString() ?? string.Empty)
+                                    .ToArray()
+                                : [];
+                        readingRows = true;
                     }
-                    truncated = RemoteExecutionResult.ReadTruncated(root);
-                    readingRows = false;
-                    sawResult = true;
+                    break;
+                case "end":
+                    if (resultIndex == targetResultIndex)
+                    {
+                        if (!readingRows)
+                            throw new InvalidDataException("远程事务目标语句缺少结果列元信息。");
+                        if (root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
+                            && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            recordsAffected = recordsAffectedProperty.GetInt32();
+                        }
+                        truncated = RemoteExecutionResult.ReadTruncated(root);
+                        readingRows = false;
+                        sawResult = true;
+                    }
+                    resultIndex++;
                     break;
             }
         }
 
+        if (resultIndex != statements.Count)
+            throw new InvalidDataException("远程事务预览响应结果数与请求语句数不一致。");
         if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 

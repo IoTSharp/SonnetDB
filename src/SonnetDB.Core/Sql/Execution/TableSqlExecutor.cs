@@ -1300,47 +1300,55 @@ internal static class TableSqlExecutor
             return new RowsAffectedExecutionResult(schema.Name, truncated, "delete_generation");
         }
 
-        int deleted = 0;
-        var returningRows = new List<object?[]>();
-        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
+        // 用户函数可能回入 SQL；此路径在锁外求值，提交时依赖行状态校验。
+        return ContainsUserScalarFunction(tsdb.Functions, where)
+            ? ExecuteBoundDelete()
+            : tsdb.Tables.ExecuteLocked(ExecuteBoundDelete);
+
+        RowsAffectedExecutionResult ExecuteBoundDelete()
         {
-            if (returningColumns.Length != 0)
+            var returningRows = new List<object?[]>();
+            var store = tsdb.Tables.Open(schema.Name);
+            if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
             {
-                var row = tsdb.Tables.Open(schema.Name).Scan()
-                    .FirstOrDefault(candidate => ExtractPrimaryKeyValues(schema, candidate.Values).SequenceEqual(keyValues));
-                if (row is not null)
+                var row = store.GetByPrimaryKey(keyValues);
+                if (row is null)
+                    return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, returningRows);
+                var mutation = new TableRowMutation(keyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) };
+                if (returningColumns.Length != 0)
+                    returningRows.Add(row.Values.ToArray());
+                _ = tsdb.Tables.ApplyTransaction(
+                    new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+                    {
+                        [schema.Name] = [mutation],
+                    });
+                return CreateRowsAffectedResult(schema.Name, 1, "delete", returningColumns, returningRows);
+            }
+
+            var mutations = new List<TableRowMutation>();
+            var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+            RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
+            foreach (var row in candidateRows)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
+                    continue;
+
+                var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
+                mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+                if (returningColumns.Length != 0)
                     returningRows.Add(row.Values.ToArray());
             }
-            deleted = tsdb.Tables.ApplyTransaction(
+
+            _ = tsdb.Tables.ApplyTransaction(
                 new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
                 {
-                    [schema.Name] = [new TableRowMutation(keyValues, NewValues: null)],
+                    [schema.Name] = mutations,
                 });
-            return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
+            return CreateRowsAffectedResult(schema.Name, mutations.Count, "delete", returningColumns, returningRows);
         }
-
-        var store = tsdb.Tables.Open(schema.Name);
-        var mutations = new List<TableRowMutation>();
-        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
-        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
-        foreach (var row in candidateRows)
-        {
-            SqlExecutor.ThrowIfCancellationRequested();
-            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
-                continue;
-
-            var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
-            mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values)));
-            if (returningColumns.Length != 0)
-                returningRows.Add(row.Values.ToArray());
-        }
-
-        deleted = tsdb.Tables.ApplyTransaction(
-            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
-            {
-                [schema.Name] = mutations,
-            });
-        return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
     }
 
     public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement)

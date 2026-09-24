@@ -682,6 +682,26 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
         Assert.Contains("只读", message);
     }
 
+    [Theory]
+    [InlineData("UPDATE sf_returning SET value = 20 WHERE id = 1 RETURNING id, value")]
+    [InlineData("DELETE FROM sf_returning WHERE id = 1 RETURNING id, value")]
+    public async Task Query_WriteReturningStatement_RejectedWithoutMutation(string sql)
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_returning (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_returning (id, value) VALUES (1, 10)");
+
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 54, _dbName, sql);
+        var frame = Assert.Single(await PostFramesAsync(admin, writer.WrittenMemory.ToArray()));
+        Assert.True(frame.Header.IsError);
+        Assert.Equal("bad_request", FrameCodec.ReadErrorPayload(frame.Payload).Code);
+
+        var (_, rows, _, _) = await QueryFrameAsync(admin,
+            "SELECT id, value FROM sf_returning", streamId: 55);
+        Assert.Equal(new object?[] { 1L, 10L }, Assert.Single(rows));
+    }
+
     [Fact]
     public async Task Query_ControlPlaneStatement_RejectedBadRequest()
     {

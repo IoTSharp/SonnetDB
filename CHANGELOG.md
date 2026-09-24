@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- **GH-Issue #194 UPDATE/DELETE RETURNING 合同**：直接 DELETE 以已读取行的完整前像与版本参与提交校验，避免并发变更后返回陈旧行；级联删除只计目标表受影响行。远程轻事务预览按批内语句位置解析连续 RETURNING 结果，并覆盖关系表触发器、ROWVERSION、复合键、回滚及 ADO/REST/Frame 边界。
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
 - 远程轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 现在 fail closed，避免客户端预览/重放路径把 `DO UPDATE` 静默降级为 `DO NOTHING` 并在提交时产生错误结果；完整远程 parity 仍待实现。
 - **M20 Parity scheduled 启动阻断**：Parity compose 将已无法从 Docker Hub 拉取的固定 MinIO 镜像切换为 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，并新增 `test-compose-contract.ps1` 接入 workflow，防止回退到失效 registry。PowerShell 7 合同、Compose 配置、实际镜像 pull 和临时 healthcheck 已通过；远程七次 scheduled 成功窗口仍待重跑。
