@@ -616,6 +616,7 @@ WHERE guid IN (
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `INSERT ... RETURNING` 在同一语句中返回成功插入后的列值；`RETURNING *` 按表 schema 顺序返回全部列。未知列会在写入前报错，不留下部分数据。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。

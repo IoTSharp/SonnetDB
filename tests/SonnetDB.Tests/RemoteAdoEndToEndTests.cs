@@ -7,6 +7,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.Data.Remote;
 using SonnetDB.Model;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -563,6 +564,175 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         }
 
         Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(c, "tx_devices"));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void UpdateJoin_MultiTableWithTrigger_EmbeddedAndRemoteReturnSameFinalImage(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_jobs (tenant INT, id INT, source_id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_sources (tenant INT, id INT, value INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_factors (tenant INT, id INT, delta INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_audit (tenant INT, id INT, value INT, rv INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_jobs (tenant, id, source_id, value) VALUES (1, 1, 10, 0), (2, 1, 10, 0)";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_sources (tenant, id, value) VALUES (1, 10, 20), (2, 10, 50)";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_factors (tenant, id, delta) VALUES (1, 10, 3), (2, 10, 7)";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TRIGGER join_normalize BEFORE UPDATE ON join_jobs FOR EACH ROW LANGUAGE SQL AS BEGIN SET NEW.value = NEW.value + 1; END";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TRIGGER join_track AFTER UPDATE ON join_jobs FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO join_audit (tenant, id, value, rv) VALUES (NEW.tenant, NEW.id, NEW.value, NEW.rv); END";
+        command.ExecuteNonQuery();
+
+        command.CommandText = """
+            UPDATE join_jobs AS j
+            JOIN join_sources AS s ON j.tenant = s.tenant AND j.source_id = s.id
+            JOIN join_factors AS f ON s.tenant = f.tenant AND s.id = f.id
+            SET value = s.value + f.delta
+            WHERE j.tenant = @tenant
+            RETURNING tenant, id, value, rv
+            """;
+        command.Parameters.AddWithValue("@tenant", 1L);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal(["tenant", "id", "value", "rv"], Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 1L, 24L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(reader.Read());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT value, rv FROM join_audit WHERE tenant = 1 AND id = 1";
+        using (var audit = command.ExecuteReader())
+        {
+            Assert.True(audit.Read());
+            Assert.Equal(24L, audit.GetInt64(0));
+            Assert.Equal(2L, audit.GetInt64(1));
+            Assert.False(audit.Read());
+        }
+        command.CommandText = "SELECT value, rv FROM join_jobs WHERE tenant = 2 AND id = 1";
+        using var untouched = command.ExecuteReader();
+        Assert.True(untouched.Read());
+        Assert.Equal(0L, untouched.GetInt64(0));
+        Assert.Equal(1L, untouched.GetInt64(1));
+        Assert.False(untouched.Read());
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task UpdateJoin_AsyncTransactions_RollBackThenCommitAcrossModes(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_tx_targets (id INT, source_id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_tx_sources (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_tx_targets (id, source_id, value) VALUES (1, 10, 0), (2, 20, 0)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_tx_sources (id, value) VALUES (10, 31), (20, 42)";
+        await command.ExecuteNonQueryAsync();
+
+        const string updateSql = "UPDATE join_tx_targets AS t SET value = s.value FROM join_tx_sources AS s WHERE t.source_id = s.id AND t.id = @id RETURNING id, value";
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = updateSql;
+            command.Parameters.AddWithValue("@id", 1L);
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(31L, reader.GetInt64(1));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.RollbackAsync();
+            command.Transaction = null;
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT value FROM join_tx_targets WHERE id = 1";
+        Assert.Equal(0L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = updateSql;
+            command.Parameters.AddWithValue("@id", 2L);
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(42L, reader.GetInt64(1));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.CommitAsync();
+            command.Transaction = null;
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT id, value FROM join_tx_targets ORDER BY id";
+        await using var persisted = await command.ExecuteReaderAsync();
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal(0L, persisted.GetInt64(1));
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal(42L, persisted.GetInt64(1));
+        Assert.False(await persisted.ReadAsync());
+    }
+
+    [Fact]
+    public async Task UpdateJoin_RemoteUniqueAndForeignKeyFailures_LeaveAllTargetsUnchanged()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_parents (id INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_checked (id INT, code INT, parent_id INT, PRIMARY KEY (id), FOREIGN KEY (parent_id) REFERENCES join_parents (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE UNIQUE INDEX ux_join_checked_code ON join_checked (code)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_changes (id INT, code INT, parent_id INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_parents (id) VALUES (1)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_checked (id, code, parent_id) VALUES (1, 10, 1), (2, 20, 1)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_changes (id, code, parent_id) VALUES (1, 30, 1), (2, 30, 1)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "UPDATE join_checked AS t JOIN join_changes AS s ON t.id = s.id SET code = s.code WHERE t.id >= 1 RETURNING id, code";
+        var unique = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteReaderAsync());
+        Assert.Equal(TableConstraintException.UniqueViolation, unique.Error);
+        await AssertOriginalRowsAsync();
+
+        command.CommandText = "UPDATE join_changes SET code = 40, parent_id = 999 WHERE id = 2";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "UPDATE join_checked AS t JOIN join_changes AS s ON t.id = s.id SET code = s.code, parent_id = s.parent_id WHERE t.id >= 1 RETURNING id, code";
+        var foreignKey = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteReaderAsync());
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, foreignKey.Error);
+        await AssertOriginalRowsAsync();
+
+        async Task AssertOriginalRowsAsync()
+        {
+            command.CommandText = "SELECT id, code, parent_id FROM join_checked ORDER BY id";
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([1L, 10L, 1L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([2L, 20L, 1L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(await reader.ReadAsync());
+        }
     }
 
     [Fact]

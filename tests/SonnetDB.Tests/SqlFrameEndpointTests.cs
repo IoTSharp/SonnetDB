@@ -683,6 +683,28 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpdateJoin_RestMutation_FrameReadSeesCommittedTargetOnly()
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_join_targets (id INT, source_id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_join_sources (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_join_targets (id, source_id, value) VALUES (1, 10, 0), (2, 20, 0)");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_join_sources (id, value) VALUES (10, 31), (20, 42)");
+        await ExecRestSqlAsync(admin, "UPDATE sf_join_targets AS t SET value = s.value FROM sf_join_sources AS s WHERE t.source_id = s.id AND t.id = 1");
+
+        var (_, targets, targetCount, _) = await QueryFrameAsync(readOnly,
+            "SELECT id, value FROM sf_join_targets ORDER BY id", streamId: 56);
+        Assert.Equal(2, targetCount);
+        Assert.Equal(new object?[] { 1L, 31L }, targets[0]);
+        Assert.Equal(new object?[] { 2L, 0L }, targets[1]);
+        var (_, sources, _, _) = await QueryFrameAsync(readOnly,
+            "SELECT id, value FROM sf_join_sources ORDER BY id", streamId: 57);
+        Assert.Equal(new object?[] { 10L, 31L }, sources[0]);
+        Assert.Equal(new object?[] { 20L, 42L }, sources[1]);
+    }
+
+    [Fact]
     public async Task Query_ControlPlaneStatement_RejectedBadRequest()
     {
         using var admin = CreateClient();
