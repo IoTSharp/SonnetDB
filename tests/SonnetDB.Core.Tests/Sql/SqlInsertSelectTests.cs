@@ -203,6 +203,22 @@ public sealed class SqlInsertSelectTests : IDisposable
     }
 
     [Fact]
+    public void InsertSelect_SingleSourceRowWithinByteLimit_IsNotChargedTwice()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "INSERT INTO source_rows (id) VALUES (1)");
+
+        var inserted = Assert.IsType<InsertExecutionResult>(Execute(db,
+            "INSERT INTO target_rows (id) SELECT id FROM source_rows RETURNING id",
+            options: new SqlExecutionOptions { MaxTriggerTransitionBytes = 160 }));
+
+        Assert.Equal(1, inserted.RowsInserted);
+        Assert.Equal(1L, Assert.Single(inserted.Returning!.Rows)[0]);
+    }
+
+    [Fact]
     public void InsertSelect_JoinAggregateIntermediateLimit_RejectsBeforeTargetWrite()
     {
         using var db = Open();

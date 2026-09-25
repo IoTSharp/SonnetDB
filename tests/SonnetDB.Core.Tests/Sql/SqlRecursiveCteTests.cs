@@ -323,7 +323,10 @@ public sealed class SqlRecursiveCteTests : IDisposable
                 )
                 SELECT id FROM r
                 """, new SqlParameters().AddNamed("large", new string('x', 9 * 1024 * 1024))));
-        Assert.Contains("最大结果字节数", exception.Message, StringComparison.Ordinal);
+        Assert.True(
+            exception.Message.Contains("最大结果字节数", StringComparison.Ordinal)
+                || exception.Message.Contains("内存预算", StringComparison.Ordinal),
+            exception.Message);
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 

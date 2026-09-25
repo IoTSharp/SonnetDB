@@ -2738,7 +2738,6 @@ public static class SqlExecutor
         foreach (var row in result.Rows)
         {
             budget.Add(null, row);
-            sourceBudget.Retain(row);
             rows.Add(row.Select(static value => value is decimal exact
                 ? LiteralExpression.String(exact.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 : SqlParameterBinder.ToLiteral(value)).ToArray());
