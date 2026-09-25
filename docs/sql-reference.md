@@ -1211,6 +1211,10 @@ CREATE MEASUREMENT IF NOT EXISTS cpu (
 - 如果某个时间点没有写入某个 field，查询该列时结果为 `NULL`；这表示“该时间点未记录该字段”，不是 schema 约束失败。
 - measurement 不支持关系表 DML 的 `DEFAULT` 形式；`VALUES(DEFAULT)` 与 `DEFAULT VALUES` 会明确拒绝。表达缺值时请省略该 field，或在应用侧写入具体值；显式 `NULL` 也不是 field 的默认值。
 
+ADO.NET `VECTOR(N)` 参数使用 `float[]`、`Memory<float>` 或 `ReadOnlyMemory<float>`；`DbType` 与 `GetSchemaTable().ProviderType` 为 `DbType.Object`，结果的 `GetValue()` 为 `float[]`，`GetFieldType()` 和 `GetSchemaTable().DataType` 为 `typeof(float[])`。各元素是有限的 IEEE 754 float32，空数组和 NaN/Infinity 在客户端拒绝；维度与 `VECTOR(N)` 不一致时服务端报 `sql_error`，消息包含“维度不匹配”。`null`/`DBNull.Value` 绑定为 SQL `NULL`；measurement 的 VECTOR 写入要求非空向量，缺值应省略该字段，并与同点其他 field 一起查询以取得 `DBNull.Value`。`centroid(VECTOR)` 也返回 `float[]`。
+
+嵌入式参数直接绑定为向量字面量；REST/NDJSON 与 `Protocol=frame-http2` ADO 写入将有限向量格式化为 SQL 数值数组。HTTP/2 ADO 写入经 `/v1/db/{db}/sql`，原生 `/v1/frame` SQL 端点只读。只读 Frame 请求支持 float32 little-endian VECTOR 命名参数，结果使用 VECTOR 值标记；Frame 单请求 payload 上限为 132 MiB，SQL 文本上限为 1 MiB。ADO 写入的向量会先展开为 SQL 文本，因此还受该路径请求体与服务端资源限制约束；大向量应按目标服务的请求预算验证，不存在独立的 ADO VECTOR 维度硬上限。measurement 当前不支持 `UPDATE ... SET embedding = @vector`，关系表也不支持 VECTOR 列；修改时序向量应按应用所需时间点写入/删除语义处理，不能将 INSERT/KNN 的参数支持理解为 UPDATE 支持。
+
 ### `INSERT INTO ... VALUES`
 
 ```sql

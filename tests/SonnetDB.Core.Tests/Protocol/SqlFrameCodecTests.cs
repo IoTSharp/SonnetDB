@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Numerics;
 using SonnetDB.Exceptions;
 using SonnetDB.Model;
@@ -94,6 +95,38 @@ public sealed class SqlFrameCodecTests
         Assert.Equal("你好 world", s);
         Assert.True(parameters.TryResolve(-1, "n", out object? n));
         Assert.Null(n);
+    }
+
+    [Fact]
+    public void QueryRequest_VectorParameter_RoundTripsFloat32AndRejectsInvalidValues()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        float[] large = Enumerable.Range(0, 4096).Select(i => i / 4096f).ToArray();
+        SqlFrameCodec.EncodeQueryRequest(writer, 1, "db", "SELECT * FROM knn(docs, embedding, @query, 1)",
+            new Dictionary<string, object?> { ["query"] = new ReadOnlyMemory<float>(large) });
+
+        SqlQueryFrameRequest request = SqlFrameCodec.DecodeQueryRequest(ParseSingleFrame(writer, out _));
+        Assert.True(request.Parameters!.TryResolve(-1, "query", out object? value));
+        Assert.Equal(large, Assert.IsType<float[]>(value));
+
+        Assert.Throws<ArgumentException>(() => SqlFrameCodec.EncodeQueryRequest(new ArrayBufferWriter<byte>(),
+            1, "db", "SELECT @query", new Dictionary<string, object?> { ["query"] = Array.Empty<float>() }));
+        Assert.Throws<ArgumentException>(() => SqlFrameCodec.EncodeQueryRequest(new ArrayBufferWriter<byte>(),
+            1, "db", "SELECT @query", new Dictionary<string, object?> { ["query"] = new float[] { float.NaN } }));
+        Assert.Throws<ArgumentException>(() => SqlFrameCodec.EncodeQueryRequest(new ArrayBufferWriter<byte>(),
+            1, "db", "SELECT @query", new Dictionary<string, object?> { ["query"] = new float[] { float.PositiveInfinity } }));
+
+        var one = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(one, 1, "db", "SELECT @query",
+            new Dictionary<string, object?> { ["query"] = new float[] { 1f } });
+        byte[] malformed = one.WrittenMemory.ToArray();
+        Assert.Equal(new byte[] { 0, 0, 128, 63 }, malformed[^4..]);
+        BinaryPrimitives.WriteInt32LittleEndian(malformed.AsSpan(^4), BitConverter.SingleToInt32Bits(float.NaN));
+        Assert.Throws<FrameFormatException>(() => SqlFrameCodec.DecodeQueryRequest(
+            malformed.AsSpan(FrameHeader.Size)));
+        malformed[^5] = 0;
+        Assert.Throws<FrameFormatException>(() => SqlFrameCodec.DecodeQueryRequest(
+            malformed.AsSpan(FrameHeader.Size)));
     }
 
     [Fact]
