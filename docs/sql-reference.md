@@ -1291,23 +1291,24 @@ WHERE starts_with(label, 'pump-') AND contains(label, 'east')
 因此可以在主查询或 `IN` / `EXISTS` 子查询中使用，也可以让后一个 CTE 引用前一个 CTE：
 
 ```sql
-WITH west AS (
+WITH west (device_id) AS (
     SELECT id FROM devices WHERE region = 'west'
-), selected AS (
-    SELECT id FROM west WHERE id > 100
+), selected (device_id) AS (
+    SELECT device_id FROM west WHERE device_id > 100
 )
 SELECT d.id
 FROM devices AS d
-WHERE d.id IN (SELECT id FROM selected)
+WHERE d.id IN (SELECT device_id FROM selected)
 ORDER BY d.id;
 ```
 
 当前边界：
 
-- 非递归 `WITH ... AS (SELECT ...)` 仍不支持输出列名列表或自引用；递归形式见下一节。
+- 非递归 `WITH ... AS (SELECT ...)` 不支持自引用；递归形式见下一节。
 - CTE 名称按声明顺序解析，后一个 CTE 可以引用前一个 CTE；重复名称会被拒绝。
-- `WITH name (column, ...) AS (...)` 的输出列重命名尚未支持，请在 CTE 的 `SELECT` 投影中使用 `AS` 别名。
+- 可用 `WITH name (column, ...) AS (...)` 按位置重命名输出列；列数必须等于查询结果列数，列名不区分大小写且不得重复。即使查询返回空行也校验列数。重命名发生在 CTE 自身排序、分页和集合运算之后；后续 CTE、JOIN、`IN` 与 `EXISTS` 使用新列名。
 - CTE 不新增独立 planner，继续复用 `FROM (SELECT ...)`、关系 JOIN 以及 `IN` / `EXISTS` 子查询的现有执行和相关性语义。
+- measurement 和文档 SELECT 可作为 CTE 来源；不支持的来源/查询组合仍遵守各自 SELECT 执行路径的限制。跨服务端 REST/Frame parity 未在此处声明。
 
 ### 有界递归公共表表达式 `WITH RECURSIVE`
 
