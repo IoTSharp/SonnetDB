@@ -1,4 +1,3 @@
-using System.Text;
 using SonnetDB.Engine;
 using SonnetDB.Sql.Ast;
 
@@ -260,20 +259,7 @@ internal static class RecursiveCteExecutor
             : type;
 
     private static long EstimateBytes(IReadOnlyList<object?> row)
-    {
-        long bytes = 24 + row.Count * 8L;
-        foreach (object? value in row)
-        {
-            bytes += value switch
-            {
-                string text => Encoding.UTF8.GetByteCount(text),
-                byte[] data => data.Length,
-                null => 0,
-                _ => 16,
-            };
-        }
-        return bytes;
-    }
+        => SqlSpillRowCodec.EstimateRowBytes(row);
 }
 
 /// <summary>约束递归分支在 SELECT 和 JOIN 阻塞算子中留存的行。</summary>

@@ -55,6 +55,24 @@ public sealed class SqlRecursiveCteTests : IDisposable
     }
 
     [Fact]
+    public void Execute_NullAnchorColumn_PreservesNullAcrossFrontier()
+    {
+        using var db = OpenTree();
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            WITH RECURSIVE r (id, parent_id) AS (
+                SELECT id, parent_id FROM devices WHERE id = 1
+                UNION ALL
+                SELECT child.id, child.parent_id
+                FROM devices AS child JOIN r ON child.parent_id = r.id
+            )
+            SELECT id, parent_id FROM r ORDER BY id
+            """));
+        Assert.Equal(4, result.Rows.Count);
+        Assert.Null(result.Rows[0][1]);
+        Assert.Equal(1L, result.Rows[1][1]);
+    }
+
+    [Fact]
     public void Execute_EmptyAnchorWithWrongMemberWidth_ReportsColumnError()
     {
         using var db = OpenTree();
@@ -138,6 +156,27 @@ public sealed class SqlRecursiveCteTests : IDisposable
             SELECT id FROM reach ORDER BY id
             """));
         Assert.Equal([1L, 2L], result.Rows.Select(row => Assert.IsType<long>(row[0])));
+    }
+
+    [Fact]
+    public void Execute_DuplicatePaths_UnionAllKeepsDuplicatesAndUnionRemovesThem()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE edges (route INT, source INT, target INT, PRIMARY KEY (route))");
+        SqlExecutor.Execute(db, "INSERT INTO edges (route, source, target) VALUES (1, 1, 2), (2, 1, 2)");
+        const string sql = """
+            WITH RECURSIVE r (id) AS (
+                SELECT 1 AS id
+                UNION ALL
+                SELECT edges.target FROM edges JOIN r ON edges.source = r.id
+            )
+            SELECT id FROM r ORDER BY id
+            """;
+        var all = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
+        var distinct = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            sql.Replace("UNION ALL", "UNION", StringComparison.Ordinal)));
+        Assert.Equal([1L, 2L, 2L], all.Rows.Select(row => Assert.IsType<long>(row[0])));
+        Assert.Equal([1L, 2L], distinct.Rows.Select(row => Assert.IsType<long>(row[0])));
     }
 
     [Fact]
@@ -269,6 +308,25 @@ public sealed class SqlRecursiveCteTests : IDisposable
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 
+    [Fact]
+    public void Execute_AlternatingWideRows_RejectsAtCumulativeStringBudget()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            db, null, """
+                WITH RECURSIVE r (id, payload) AS (
+                    SELECT 0 AS id, '' AS payload
+                    UNION ALL
+                    SELECT r.id + 1 AS id,
+                        CASE WHEN r.id = 0 OR r.id = 2 THEN @large ELSE '' END AS payload
+                    FROM r WHERE r.id < 3
+                )
+                SELECT id FROM r
+                """, new SqlParameters().AddNamed("large", new string('x', 9 * 1024 * 1024))));
+        Assert.Contains("最大结果字节数", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
     [Theory]
     [InlineData("WITH RECURSIVE r (a, b) AS (SELECT 1 AS a UNION ALL SELECT a FROM r) SELECT a FROM r", "输出列数")]
     [InlineData("WITH RECURSIVE r (a) AS (SELECT 1 AS a UNION ALL SELECT 'x' AS a FROM r) SELECT a FROM r", "类型不一致")]
@@ -300,6 +358,16 @@ public sealed class SqlRecursiveCteTests : IDisposable
         var exception = Assert.Throws<RoutineExecutionException>(() => SqlExecutor.Execute(
             db, null, TreeSql, null, null, new SqlExecutionOptions { CancellationToken = cancellation.Token }));
         Assert.IsType<OperationCanceledException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void Execute_ExpiredDeadline_ThrowsTimeout()
+    {
+        using var db = OpenTree();
+        var exception = Assert.Throws<RoutineExecutionException>(() => SqlExecutor.Execute(
+            db, null, TreeSql, null, null,
+            new SqlExecutionOptions { DeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(-1) }));
+        Assert.IsType<TimeoutException>(exception.InnerException);
     }
 
     private Tsdb OpenTree()
