@@ -51,7 +51,21 @@ SELECT CAST(text_value AS INT) FROM values_table WHERE CAST(text_value AS INT) >
 
 ### ANSI 窗口函数 `OVER`
 
-时序 measurement 查询支持显式 ANSI 窗口规格，并复用每个 series 的时间升序行流：
+关系表查询支持 `row_number()`、`count`、`sum`、`avg`、`min`、`max` 的 ANSI `OVER` 规格：
+
+```sql
+SELECT id, tenant_id,
+       row_number() OVER (PARTITION BY tenant_id ORDER BY created_at, id) AS row_no,
+       count(*) OVER (PARTITION BY tenant_id) AS tenant_count,
+       sum(value) OVER (PARTITION BY tenant_id ORDER BY created_at) AS running_total
+FROM devices ORDER BY id;
+```
+
+`PARTITION BY` 可包含多个关系行标量表达式；省略时全结果集是一个分区。窗口按 `WHERE` 过滤后的行计算，最终 `ORDER BY`、`LIMIT` 和 `OFFSET` 在窗口求值之后生效。`row_number()` 必须指定窗口内 `ORDER BY`；多个排序项和升降序均可使用。升序排序时 NULL 在前，降序时在后。排序键完全相同的行按本次关系输入顺序编号，该顺序不是跨执行保证；需要稳定编号时把唯一键加入窗口排序。
+
+无窗口 `ORDER BY` 的聚合为每行返回完整分区的聚合结果。指定排序时使用默认 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 语义，相同排序键的所有同行共享同一个累计结果。`COUNT(*)` 计入 NULL 行，`COUNT(expr)` 忽略 NULL；其他聚合沿用关系聚合的 NULL、Int64 与 DECIMAL 语义。空输入返回零行。当前仅支持顶层窗口投影，不支持窗口函数嵌套表达式、与普通聚合/`GROUP BY`/`HAVING` 同层混用或显式 `ROWS`/`RANGE` frame。执行会物化过滤后的关系行并按窗口分区排序；有序累计聚合逐 peer 前缀复算，最坏为 O(n²)，不适用于大分区低延迟工作负载。
+
+时序 measurement 查询也支持显式 ANSI 窗口规格，并复用每个 series 的时间升序行流：
 
 ```sql
 SELECT time,
@@ -61,9 +75,9 @@ FROM readings
 ORDER BY time;
 ```
 
-当前合同包括空 `OVER ()`、`OVER (ORDER BY time ASC)` 以及 `row_number()`（必须带 `OVER`）。已有 `difference`、`running_sum`、`moving_average` 等时序窗口函数也可以使用显式规格；省略 `OVER` 的旧语法保持兼容。每个 measurement series 天然构成一个分区，因此 `row_number()` 会在每个 series 从 1 重新编号。
+measurement 合同包括空 `OVER ()`、`OVER (ORDER BY time ASC)` 以及 `row_number()`（必须带 `OVER`）。已有 `difference`、`running_sum`、`moving_average` 等时序窗口函数也可以使用显式规格；省略 `OVER` 的旧语法保持兼容。每个 measurement series 天然构成一个分区，因此 `row_number()` 会在每个 series 从 1 重新编号。
 
-为保持结果确定且避免隐式重排，当前明确拒绝 `PARTITION BY`、非 `time` 或降序排序，以及 `ROWS`/`RANGE` frame 子句；关系表、JOIN、文档集合和向量搜索路径仍不支持窗口投影。上述形状会返回稳定的“不支持”或解析错误，不会静默退化为另一种窗口语义。
+measurement 路径仍拒绝 `PARTITION BY`、非 `time` 或降序排序，以及 `ROWS`/`RANGE` frame 子句。关系表与 measurement 窗口各自独立；文档集合和向量搜索路径不支持窗口投影。上述不支持形状返回错误，不会静默退化为另一种窗口语义。
 
 关系表单条 `UPDATE` 还遵循以下规则：
 

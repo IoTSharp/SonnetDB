@@ -29,6 +29,7 @@
 ### Added
 - GH-Issue #174 补齐标准 `position(search IN value)` 字符串位置函数，按 Ordinal/UTF-16 返回 1 基位置，未命中为 0，并覆盖 NULL、空串与 Unicode 回归。
 - **GH-Issue #171 非递归 CTE 输出列名列表**：`WITH name (column, ...) AS (...)` 按位置重命名查询结果列，支持后续 CTE、JOIN、聚合、参数化 `IN`/`EXISTS` 与排序/分页；空结果仍校验列宽，重复列名被拒绝。关系、时序和文档来源以及嵌入式 ADO 名称/Int64 类型有定向回归；远程协议 parity 仍待验证。
+- **GH-Issue #172 关系表 ANSI 窗口补全**：`ROW_NUMBER`、`COUNT`、`SUM`、`AVG`、`MIN`、`MAX` 支持关系表 `OVER (PARTITION BY ... ORDER BY ...)`；多列分区、升降序、多列排序、NULL、同序键 peer 的默认累计帧及最终分页有确定性回归。`ROW_NUMBER` 要求显式窗口排序，显式 `ROWS`/`RANGE` frame 和同层普通聚合混用明确拒绝；关系窗口保留物化与有序前缀复算的性能边界。
 - **GH-Issue #184 远程事务会话**：新增凭据与数据库绑定的有界服务端 SQL 轻事务会话，支持跨 ADO 调用的实际待提交 `DO UPDATE ... RETURNING`、只读终态查询、幂等提交/回滚回读、2 分钟租约与自动回滚；活动会话上限 128，终态缓存上限 8192。真实 Kestrel 覆盖参数、条件跳过、多行/生成键、事务可见性、并发提交冲突、回滚、凭据隔离和租约过期。会话仍是单实例内存状态；部署路由、重启时未知提交结果及已发布包验收仍需单独证据。
 - **GH-Issue #189 `WITH RECURSIVE` 基础切片**：支持单个递归 CTE 的 `anchor UNION [ALL] recursive_member` 分层求值、按声明顺序引用普通 CTE、显式输出列、参数、最终排序/分页及环去重；提供 64 层、单轮 10 万候选行、累计 10 万结果行/约 32 MiB 的拒绝边界，`EXPLAIN` 报告工作表与限制。关系 SELECT 投影、JOIN 构建侧和普通 CTE 派生表新增逐行预算拒绝及取消检查；实际 CLR 堆峰值硬门禁仍待验证。
 
@@ -97,7 +98,7 @@
 - **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码**：嵌入式和远程 ADO.NET 参数绑定均支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`，转换为 VECTOR 字面量并拒绝空/非有限向量；REST/NDJSON 行写入将向量编码为 JSON 数字数组，远程读取将纯数字数组恢复为 `float[]`，并补齐字段类型推断。新增嵌入式参数、边界、NDJSON writer/reader 与 REST 远程闭环回归；外部 issue 线程确认仍待执行。
 - **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。初始交付新增 5 个 Core 确定性回归；输出列名列表由上方后续条目补齐。有界 `WITH RECURSIVE` 由 #189 跟踪，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #178 SQL 集合运算**：新增 `UNION ALL`、`INTERSECT` 与 `EXCEPT` 的词法、解析和关系执行；保留既有 `UNION` 去重兼容语义，支持复合结果的排序/分页和稳定列数诊断。新增集合运算 Core 回归；当前按书写顺序求值，远程 parity 与外部 issue 线程确认仍待执行。
-- **GH-Issue #172 ANSI 窗口函数 `OVER`**：窗口函数调用现在可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。`PARTITION BY`、非时间/降序排序、`ROWS`/`RANGE` frame、关系表/JOIN 及远程 parity 保持明确未支持；新增 5 项 Core 解析、执行与 fail-closed 回归。
+- **GH-Issue #172 ANSI 窗口函数 `OVER` 初版**：窗口函数调用可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。该初版当时未覆盖关系表、`PARTITION BY`、非时间/降序排序及显式 frame；新增 5 项 Core 解析、执行与 fail-closed 回归。关系表后续实现见本段新增条目。
 - **GH-Issue #173 显式 `CAST(expr AS type)`**：新增专用 CAST AST、解析和参数绑定，并在 measurement、关系表、文档、JOIN、JSON 文件、混合搜索及向量搜索路径共享 `INT`/`FLOAT`/`BOOL`/`STRING`/`DATETIME`/`BLOB`/`JSON` 转换、NULL 传播和确定性错误语义；`VECTOR`/`GEOPOINT` 目标保持明确未支持。新增 9 项 Core 解析、字面量、列投影/筛选和边界回归，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #174 常用字符串函数**：FunctionRegistry 新增有界 `trim`/`ltrim`/`rtrim`、`length`/`char_length`、`substring`/`substr`、`replace`、`left`/`right` 与序数规则的 `starts_with`/`ends_with`/`contains`，并收紧 `lower`/`upper` 的字符串参数检查。除 `concat` 外按 SQL 习惯传播 NULL；位置从 1 开始，长度/字符数拒绝负值，非字符串和非整数参数返回确定性中文诊断。新增函数注册、NULL/边界与关系表 SELECT/WHERE 回归；TRIM 方言语法、排序规则、字节长度、远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #175 `date_diff` / 日期格式化**：新增有界 `date_diff`/`datediff` 与 `date_format`/`format_datetime`/`to_char`/`strftime` 标量函数，接受 DATETIME、DateTimeOffset 或 Unix 毫秒，传播 NULL，日期分量和格式字符串均有明确上限/诊断；strftime 支持常用 `%Y/%m/%d/%H/%i/%s/%f` 标记并统一 invariant 输出。新增函数注册、关系 SELECT/WHERE、格式边界和非法分量回归；locale/timezone database/calendar semantics 与远程 parity 仍待验证。
