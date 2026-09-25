@@ -5996,6 +5996,7 @@ internal static class TableSqlExecutor
                 continue;
             }
 
+            RecursiveCteBranchBudget.Current?.Retain(row);
             selected.Add(row);
             if (selected.Count >= take)
                 break;

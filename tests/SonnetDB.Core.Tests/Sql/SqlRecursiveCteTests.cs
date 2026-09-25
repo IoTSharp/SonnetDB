@@ -181,6 +181,94 @@ public sealed class SqlRecursiveCteTests : IDisposable
         Assert.IsType<OperationCanceledException>(exception.InnerException);
     }
 
+    [Fact]
+    public void Execute_RecursiveNestedLoopJoinWideBuild_RejectsBeforeMaterialization()
+    {
+        using var db = OpenWideTable();
+        const string sql = """
+                WITH RECURSIVE r (payload) AS (
+                    SELECT 'root' AS payload
+                    UNION ALL
+                    SELECT w.payload FROM r JOIN wide AS w ON w.id > 0 WHERE r.payload = 'root'
+                )
+                SELECT payload FROM r
+                """;
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            db, null, sql, null, null,
+            new SqlExecutionOptions { BlockingOperatorMemoryLimitBytes = 16 * 1024 }));
+        Assert.Contains("单轮阻塞算子超过当前查询或数据库的内存预算", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db, null, sql, null, null,
+            new SqlExecutionOptions { BlockingOperatorMemoryLimitBytes = 256 * 1024 }));
+        Assert.Equal(4, result.Rows.Count);
+        Assert.Equal("root", result.Rows[0][0]);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    [Fact]
+    public void Execute_RecursiveOrdinaryCteWideSubquery_RejectsBeforeClone()
+    {
+        using var db = OpenWideTable();
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            db, null, """
+                WITH RECURSIVE base AS (SELECT id, payload FROM wide), r (payload) AS (
+                    SELECT 'root' AS payload
+                    UNION ALL
+                    SELECT b.payload FROM r JOIN base AS b ON b.id > 0 WHERE r.payload = 'root'
+                )
+                SELECT payload FROM r
+                """, null, null,
+            new SqlExecutionOptions { BlockingOperatorMemoryLimitBytes = 16 * 1024 }));
+        Assert.Contains("单轮阻塞算子超过当前查询或数据库的内存预算", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    [Fact]
+    public void Retain_WideRowAndCancellation_RejectBeforeKeepingMoreRows()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        using var cancellation = new CancellationTokenSource();
+        using var resources = SqlQueryResources.EnterRoot(db,
+            new SqlExecutionOptions { CancellationToken = cancellation.Token });
+        using var budget = RecursiveCteBranchBudget.Enter();
+
+        var wide = new object?[] { new string('x', 17 * 1024 * 1024) };
+        var exception = Assert.Throws<InvalidOperationException>(() => budget.Retain(wide));
+        Assert.Contains("单轮阻塞算子保留字节数超过上限", exception.Message, StringComparison.Ordinal);
+
+        budget.Retain(["first"]);
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => budget.Retain(["second"]));
+    }
+
+    [Fact]
+    public void Retain_ConcurrentRows_EnforcesSingleQueryBudget()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        int accepted = 0;
+        using (SqlQueryResources.EnterRoot(db,
+            new SqlExecutionOptions { BlockingOperatorMemoryLimitBytes = 16 * 1024 }))
+        using (var budget = RecursiveCteBranchBudget.Enter())
+        {
+            Parallel.For(0, 32, _ =>
+            {
+                try
+                {
+                    budget.Retain([new string('x', 1024)]);
+                    Interlocked.Increment(ref accepted);
+                }
+                catch (InvalidOperationException)
+                {
+                    // 预算拒绝是此并发测试的预期结果。
+                }
+            });
+            Assert.Equal(7, accepted);
+        }
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
     [Theory]
     [InlineData("WITH RECURSIVE r (a, b) AS (SELECT 1 AS a UNION ALL SELECT a FROM r) SELECT a FROM r", "输出列数")]
     [InlineData("WITH RECURSIVE r (a) AS (SELECT 1 AS a UNION ALL SELECT 'x' AS a FROM r) SELECT a FROM r", "类型不一致")]
@@ -219,6 +307,20 @@ public sealed class SqlRecursiveCteTests : IDisposable
         var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
         SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, parent_id INT, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO devices (id, parent_id) VALUES (1, NULL), (2, 1), (3, 1), (4, 2)");
+        return db;
+    }
+
+    private Tsdb OpenWideTable()
+    {
+        var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE wide (id INT, payload STRING, PRIMARY KEY (id))");
+        string payload = new('x', 4096);
+        for (int id = 1; id <= 3; id++)
+        {
+            SqlExecutor.Execute(db, null,
+                "INSERT INTO wide (id, payload) VALUES (@id, @payload)",
+                new SqlParameters().AddNamed("id", id).AddNamed("payload", payload));
+        }
         return db;
     }
 
