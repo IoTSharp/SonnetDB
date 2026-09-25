@@ -35,6 +35,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(IReadOnlyDictionary<string, JsonElementValue>))]
 [JsonSerializable(typeof(ErrorResponse))]
 [JsonSerializable(typeof(ResultMeta))]
+[JsonSerializable(typeof(ResultColumnSchema))]
 [JsonSerializable(typeof(ResultEnd))]
 [JsonSerializable(typeof(ModbusWriteAuditEntry))]
 [JsonSerializable(typeof(ModbusEndpointWriteEvent))]

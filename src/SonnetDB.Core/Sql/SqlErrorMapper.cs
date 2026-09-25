@@ -36,6 +36,11 @@ public static class SqlErrorMapper
                 constraint.Message,
                 operation,
                 hint: constraint.Hint ?? fallbackHint),
+            SndbParameterTypeException parameterType => new SqlErrorInfo(
+                parameterType.Code,
+                parameterType.Message,
+                operation,
+                hint: fallbackHint ?? "将整数显式转换为有符号 Int64，或作为 STRING 保存。"),
             OperationCanceledException => new SqlErrorInfo(
                 SqlErrorCodes.Cancelled,
                 exception.Message,

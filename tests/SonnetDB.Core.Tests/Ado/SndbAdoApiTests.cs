@@ -380,7 +380,7 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal(0, schema.Rows[0][SchemaTableColumn.ColumnOrdinal]);
         Assert.Equal(typeof(long), schema.Rows[0][SchemaTableColumn.DataType]);
         Assert.Equal((int)DbType.Int64, schema.Rows[0][SchemaTableColumn.ProviderType]);
-        Assert.True((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
+        Assert.False((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
         Assert.Equal(c.Database, schema.Rows[0][SchemaTableOptionalColumn.BaseCatalogName]);
 
         Assert.Equal("name", schema.Rows[1][SchemaTableColumn.ColumnName]);

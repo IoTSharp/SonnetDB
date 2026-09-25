@@ -1,4 +1,6 @@
 using System.Data;
+using System.Data.Common;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -7,6 +9,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.Data.Remote;
 using SonnetDB.Model;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -147,6 +150,50 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(2000L, r.GetInt64(0));
         Assert.False(r.Read());
         Assert.Equal(-1, r.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("auto")]
+    public void Remote_Int64Boundary_RoundTripsAndReportsAdoMetadata(string protocol)
+    {
+        using var connection = new SndbConnection(RemoteConnString() + ";Protocol=" + protocol);
+        connection.Open();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TABLE int64_boundary (id INT, exact_text STRING, PRIMARY KEY (id))";
+            command.ExecuteNonQuery();
+            command.CommandText = "INSERT INTO int64_boundary (id, exact_text) VALUES "
+                + "(-9223372036854775808, '9223372036854775808'), "
+                + "(9007199254740993, '9007199254740993'), "
+                + "(9223372036854775807, '9223372036854775807')";
+            Assert.Equal(3, command.ExecuteNonQuery());
+        }
+
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT id, exact_text FROM int64_boundary ORDER BY id";
+        using var reader = query.ExecuteReader();
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.Equal(nameof(Int64), reader.GetDataTypeName(0));
+        var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+        Assert.Equal((short)19, schema.Rows[0][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((int)DbType.Int64, schema.Rows[0][SchemaTableColumn.ProviderType]);
+        Assert.Equal(typeof(string), reader.GetFieldType(1));
+        Assert.True(reader.Read());
+        Assert.Equal(long.MinValue, reader.GetInt64(0));
+        Assert.True(reader.Read());
+        Assert.Equal(9007199254740993L, reader.GetInt64(0));
+        Assert.Equal("9007199254740993", reader.GetString(1));
+        Assert.True(reader.Read());
+        Assert.Equal(long.MaxValue, reader.GetInt64(0));
+        Assert.False(reader.Read());
+
+        using var decimalQuery = connection.CreateCommand();
+        decimalQuery.CommandText = "SELECT CAST('18446744073709551616' AS DECIMAL)";
+        using var decimalReader = decimalQuery.ExecuteReader();
+        Assert.Equal(typeof(decimal), decimalReader.GetFieldType(0));
+        Assert.True(decimalReader.Read());
+        Assert.Equal(18446744073709551616m, decimalReader.GetDecimal(0));
     }
 
     [Fact]
@@ -472,6 +519,457 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     [Theory]
     [InlineData("embedded")]
     [InlineData("remote")]
+    public void UpdateDeleteReturning_ParameterizedCompositeKey_UsesConsistentAdoResults(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_composite (tenant INT, id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (tenant, id))";
+        Assert.Equal(0, command.ExecuteNonQuery());
+        command.CommandText = "INSERT INTO returning_composite (tenant, id, value) VALUES (1, 1, 10), (1, 2, 20), (2, 1, 30)";
+        Assert.Equal(3, command.ExecuteNonQuery());
+
+        command.CommandText = "UPDATE returning_composite SET value = value + 1 WHERE tenant = @tenant RETURNING tenant, id, value, rv";
+        command.Parameters.AddWithValue("@tenant", 1L);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal(["tenant", "id", "value", "rv"], Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 1L, 11L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 2L, 21L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(reader.Read());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "UPDATE returning_composite SET value = value + 1 WHERE tenant = @tenant AND id = @id RETURNING value";
+        command.Parameters.AddWithValue("@tenant", 2L);
+        command.Parameters.AddWithValue("@id", 1L);
+        Assert.Equal(31L, Assert.IsType<long>(command.ExecuteScalar()));
+
+        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING value";
+        Assert.Equal(31L, Assert.IsType<long>(command.ExecuteScalar()));
+        Assert.Equal(0, command.ExecuteNonQuery());
+
+        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING tenant, id";
+        using var empty = command.ExecuteReader();
+        Assert.Equal(["tenant", "id"], Enumerable.Range(0, empty.FieldCount).Select(empty.GetName));
+        Assert.False(empty.Read());
+        Assert.Equal(0, empty.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task UpdateDeleteReturning_AsyncTransactionRollback_PreservesStoredRows(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_rollback (id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO returning_rollback (id, value) VALUES (1, 10), (2, 20)";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE returning_rollback SET value = value + 1 WHERE id = 1 RETURNING id, value, rv";
+            await using (var updated = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await updated.ReadAsync());
+                Assert.Equal(1L, updated.GetInt64(0));
+                Assert.Equal(11L, updated.GetInt64(1));
+                Assert.Equal(2L, updated.GetInt64(2));
+                Assert.False(await updated.ReadAsync());
+                Assert.Equal(1, updated.RecordsAffected);
+            }
+
+            command.CommandText = "DELETE FROM returning_rollback WHERE id = 2 RETURNING id, value, rv";
+            Assert.Equal(2L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+            await transaction.RollbackAsync();
+            command.Transaction = null;
+        }
+
+        command.CommandText = "SELECT id, value, rv FROM returning_rollback ORDER BY id";
+        await using var persisted = await command.ExecuteReaderAsync();
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal([1L, 10L, 1L], Enumerable.Range(0, persisted.FieldCount).Select(persisted.GetInt64));
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal([2L, 20L, 1L], Enumerable.Range(0, persisted.FieldCount).Select(persisted.GetInt64));
+        Assert.False(await persisted.ReadAsync());
+    }
+
+    [Fact]
+    public async Task RemoteNdjson_UpdateDeleteReturning_ReportsColumnsRowsCountsAndConstraintCode()
+    {
+        using var connection = OpenRemote();
+        using var setup = connection.CreateCommand();
+        setup.CommandText = "CREATE TABLE returning_wire (id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (id), CHECK (value >= 0))";
+        Assert.Equal(0, setup.ExecuteNonQuery());
+        setup.CommandText = "INSERT INTO returning_wire (id, value) VALUES (1, 10)";
+        Assert.Equal(1, setup.ExecuteNonQuery());
+
+        using var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
+
+        async Task<JsonDocument[]> ExecuteRawAsync(string sql)
+        {
+            using var request = new StringContent(JsonSerializer.Serialize(new { sql }),
+                System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync($"/v1/db/{_dbName}/sql", request);
+            response.EnsureSuccessStatusCode();
+            string body = await response.Content.ReadAsStringAsync();
+            return body.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(static line => JsonDocument.Parse(line))
+                .ToArray();
+        }
+
+        var update = await ExecuteRawAsync("UPDATE returning_wire SET value = 11 WHERE id = 1 RETURNING id, value, rv");
+        try
+        {
+            Assert.Equal("meta", update[0].RootElement.GetProperty("type").GetString());
+            Assert.Equal(["id", "value", "rv"], update[0].RootElement.GetProperty("columns")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(11L, update[1].RootElement[1].GetInt64());
+            Assert.Equal(2L, update[1].RootElement[2].GetInt64());
+            Assert.Equal(1, update[2].RootElement.GetProperty("recordsAffected").GetInt32());
+            Assert.Equal(1, update[2].RootElement.GetProperty("rowCount").GetInt32());
+        }
+        finally
+        {
+            foreach (var document in update) document.Dispose();
+        }
+
+        var empty = await ExecuteRawAsync("DELETE FROM returning_wire WHERE id = 404 RETURNING id, value");
+        try
+        {
+            Assert.Equal(2, empty.Length);
+            Assert.Equal(["id", "value"], empty[0].RootElement.GetProperty("columns")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(0, empty[1].RootElement.GetProperty("recordsAffected").GetInt32());
+            Assert.Equal(0, empty[1].RootElement.GetProperty("rowCount").GetInt32());
+        }
+        finally
+        {
+            foreach (var document in empty) document.Dispose();
+        }
+
+        using var invalid = connection.CreateCommand();
+        invalid.CommandText = "UPDATE returning_wire SET value = -1 WHERE id = 1 RETURNING id, value";
+        var error = Assert.Throws<SndbServerException>(() => invalid.ExecuteNonQuery());
+        Assert.Equal(TableConstraintException.CheckViolation, error.Error);
+        using var verify = connection.CreateCommand();
+        verify.CommandText = "SELECT value FROM returning_wire WHERE id = 1";
+        Assert.Equal(11L, Assert.IsType<long>(verify.ExecuteScalar()));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("rest")]
+    [InlineData("auto")]
+    public void InsertReturning_DeclaredSchemaAndEmptyBatch_AgreeAcrossAdoModes(string mode)
+    {
+        using var connection = mode == "embedded"
+            ? OpenAdoSchemaMatrixConnection("embedded")
+            : new SndbConnection(RemoteConnString() + ";Protocol=" + mode);
+        if (mode != "embedded") connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_contract (id INT AUTO_INCREMENT, name STRING NOT NULL DEFAULT 'generated', version INT ROWVERSION, note STRING NULL, PRIMARY KEY (id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE returning_empty_source (name STRING, PRIMARY KEY (name))";
+        command.ExecuteNonQuery();
+
+        command.CommandText = "INSERT INTO returning_contract (name) VALUES ('pump'), ('fan') RETURNING id, name, version, note";
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal(["id", "name", "version", "note"],
+                Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray());
+            Assert.Equal([typeof(long), typeof(string), typeof(long), typeof(string)],
+                Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+            var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+            Assert.Equal([false, false, false, true],
+                schema.Rows.Cast<DataRow>().Select(row => (bool)row[SchemaTableColumn.AllowDBNull]).ToArray());
+            Assert.True((bool)schema.Rows[0][SchemaTableColumn.IsKey]);
+            Assert.True((bool)schema.Rows[0][SchemaTableOptionalColumn.IsAutoIncrement]);
+            Assert.True((bool)schema.Rows[2]["IsRowVersion"]);
+            Assert.True(reader.Read());
+            Assert.Equal([1L, "pump", 1L, DBNull.Value],
+                Enumerable.Range(0, reader.FieldCount).Select(reader.GetValue).ToArray());
+            Assert.True(reader.Read());
+            Assert.Equal([2L, "fan", 1L, DBNull.Value],
+                Enumerable.Range(0, reader.FieldCount).Select(reader.GetValue).ToArray());
+            Assert.False(reader.Read());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        command.CommandText = "INSERT INTO returning_contract (name) SELECT name FROM returning_empty_source RETURNING id, name, version, note";
+        using (var empty = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.Equal(typeof(string), empty.GetFieldType(3));
+            Assert.Equal([false, false, false, true],
+                Assert.IsType<DataTable>(empty.GetSchemaTable()).Rows.Cast<DataRow>()
+                    .Select(row => (bool)row[SchemaTableColumn.AllowDBNull]).ToArray());
+            Assert.False(empty.Read());
+            Assert.Equal(0, empty.RecordsAffected);
+        }
+        Assert.Null(command.ExecuteScalar());
+        Assert.Equal(0, command.ExecuteNonQuery());
+
+        command.CommandText = "INSERT INTO returning_contract (name) VALUES (@name) RETURNING id";
+        command.Parameters.AddWithValue("@name", "valve");
+        Assert.Equal(3L, Assert.IsType<long>(command.ExecuteScalar()));
+        command.Parameters["@name"].Value = "meter";
+        Assert.Equal(1, command.ExecuteNonQuery());
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task InsertReturning_AsyncScalarNonQueryAndRollback_PreserveAffectedRows(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_async_contract (id INT AUTO_INCREMENT, name STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "INSERT INTO returning_async_contract (name) VALUES (@name) RETURNING id";
+        command.Parameters.AddWithValue("@name", "first");
+        Assert.Equal(1L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+        command.Parameters["@name"].Value = "second";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.Parameters["@name"].Value = "rolled-back";
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(3L, reader.GetInt64(0));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.RollbackAsync();
+        }
+
+        command.Transaction = null;
+        command.Parameters.Clear();
+        command.CommandText = "SELECT COUNT(*) FROM returning_async_contract";
+        Assert.Equal(2L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task InsertReturning_DuplicateCompositeKey_ReportsStableCodeWithoutPartialWrite(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE returning_composite_contract (tenant INT, id INT, name STRING, PRIMARY KEY (tenant, id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO returning_composite_contract (tenant, id, name) VALUES (1, 1, 'original') RETURNING tenant, id";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO returning_composite_contract (tenant, id, name) VALUES (2, 1, 'partial'), (1, 1, 'duplicate') RETURNING tenant, id";
+        var error = await Record.ExceptionAsync(() => command.ExecuteNonQueryAsync());
+        Assert.NotNull(error);
+        if (mode == "embedded")
+            Assert.Equal(TableConstraintException.UniqueViolation, Assert.IsType<TableConstraintException>(error).ErrorCode);
+        else
+            Assert.Equal(TableConstraintException.UniqueViolation, Assert.IsType<SndbServerException>(error).Error);
+
+        command.CommandText = "SELECT COUNT(*) FROM returning_composite_contract";
+        Assert.Equal(1L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_InsertSelectReturning_EmbeddedAndRemote_PreservesDecimalAndGeneratedId(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE source_rows (id INT, amount DECIMAL(20,6), PRIMARY KEY (id))";
+            ddl.ExecuteNonQuery();
+            ddl.CommandText = "CREATE TABLE target_rows (id INT AUTO_INCREMENT, amount DECIMAL(20,6), PRIMARY KEY (id))";
+            ddl.ExecuteNonQuery();
+        }
+
+        using (var seed = connection.CreateCommand())
+        {
+            seed.CommandText = "INSERT INTO source_rows (id, amount) VALUES (1, '9007199254740993.125000')";
+            Assert.Equal(1, seed.ExecuteNonQuery());
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO target_rows (amount) SELECT amount FROM source_rows RETURNING id, amount";
+        using var reader = insert.ExecuteReader();
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.Equal(9007199254740993.125000m, reader.GetDecimal(1));
+        Assert.False(reader.Read());
+        Assert.Equal(1, reader.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task InsertSelect_AsyncEmptyAndDuplicateCompositeKey_PreservesRowsAndErrorCode(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE copy_contract_source (site INT, id INT, value INT, PRIMARY KEY (site, id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE copy_contract_target (site INT, id INT, value INT, PRIMARY KEY (site, id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO copy_contract_target (site, id, value) "
+            + "SELECT site, id, value FROM copy_contract_source RETURNING site, id, value";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(3, empty.FieldCount);
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.False(await empty.ReadAsync());
+            Assert.Equal(0, empty.RecordsAffected);
+        }
+        Assert.Null(await command.ExecuteScalarAsync());
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO copy_contract_source (site, id, value) VALUES (1, 1, 11), (1, 2, 12)";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO copy_contract_target (site, id, value) VALUES (1, 2, 99)";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO copy_contract_target (site, id, value) "
+            + "SELECT site, id, value FROM copy_contract_source ORDER BY id RETURNING site, id, value";
+
+        var error = await Record.ExceptionAsync(() => command.ExecuteNonQueryAsync());
+        Assert.NotNull(error);
+        if (mode == "embedded")
+            Assert.Equal(TableConstraintException.UniqueViolation, Assert.IsType<TableConstraintException>(error).ErrorCode);
+        else
+            Assert.Equal(TableConstraintException.UniqueViolation, Assert.IsType<SndbServerException>(error).Error);
+
+        command.CommandText = "SELECT id, value FROM copy_contract_target ORDER BY id";
+        await using var remaining = await command.ExecuteReaderAsync();
+        Assert.True(await remaining.ReadAsync());
+        Assert.Equal(2L, remaining.GetInt64(0));
+        Assert.Equal(99L, remaining.GetInt64(1));
+        Assert.False(await remaining.ReadAsync());
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task InsertSelect_SameTableAsync_UsesPreInsertSourceSnapshot(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE copy_contract_same_table (id INT, value STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO copy_contract_same_table (id, value) VALUES (1, 'first'), (2, 'second')";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO copy_contract_same_table (id, value) "
+            + "SELECT id + @shift, value FROM copy_contract_same_table ORDER BY id RETURNING id, value";
+        command.Parameters.AddWithValue("@shift", 10L);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(11L, reader.GetInt64(0));
+            Assert.Equal("first", reader.GetString(1));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(12L, reader.GetInt64(0));
+            Assert.Equal("second", reader.GetString(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(2, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT COUNT(*) FROM copy_contract_same_table";
+        Assert.Equal(4L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task Select_EmptyAndAllNullRows_KeepDeclaredTypesAndAggregateSchema(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE typed_select_rows (id INT, value INT NULL, amount DECIMAL(20,6) NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO typed_select_rows (id, value, amount) VALUES (1, NULL, NULL)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "SELECT id AS key_alias, value AS nullable_alias FROM typed_select_rows WHERE id = 404";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.Equal(typeof(long), empty.GetFieldType(1));
+            var schema = Assert.IsType<DataTable>(empty.GetSchemaTable());
+            Assert.False((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
+            Assert.True((bool)schema.Rows[0][SchemaTableColumn.IsKey]);
+            Assert.True((bool)schema.Rows[1][SchemaTableColumn.AllowDBNull]);
+            Assert.False(await empty.ReadAsync());
+        }
+
+        command.CommandText = "SELECT value AS nullable_alias FROM typed_select_rows";
+        await using (var allNull = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(long), allNull.GetFieldType(0));
+            Assert.True(await allNull.ReadAsync());
+            Assert.Equal(DBNull.Value, allNull.GetValue(0));
+            Assert.False(await allNull.ReadAsync());
+        }
+
+        command.CommandText = "SELECT COUNT(*) AS total, MIN(value) AS minimum, "
+            + "AVG(amount) AS average, SUM(value) AS summed FROM typed_select_rows WHERE id = 404";
+        await using var aggregate = await command.ExecuteReaderAsync();
+        Assert.Equal([typeof(long), typeof(long), typeof(decimal), typeof(long)],
+            Enumerable.Range(0, aggregate.FieldCount).Select(aggregate.GetFieldType).ToArray());
+        Assert.True(await aggregate.ReadAsync());
+        Assert.Equal(0L, aggregate.GetInt64(0));
+        Assert.Equal(DBNull.Value, aggregate.GetValue(1));
+        Assert.Equal(DBNull.Value, aggregate.GetValue(2));
+        Assert.Equal(DBNull.Value, aggregate.GetValue(3));
+        Assert.False(await aggregate.ReadAsync());
+    }
+
+    [Fact]
+    public async Task Rest_DateTimeTimeAndBlob_SelectValuesMatchDeclaredTypes()
+    {
+        await using var connection = new SndbConnection(RemoteConnString() + ";Protocol=rest");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE rest_typed_values (id INT, occurred_at DATETIME NULL, starts TIME NULL, payload BLOB NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO rest_typed_values (id, occurred_at, starts, payload) VALUES "
+            + "(1, '2026-09-25T12:34:56Z', '23:59:59.1234567', 'AP9h'), (2, NULL, NULL, NULL)";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "SELECT occurred_at, starts, payload FROM rest_typed_values ORDER BY id";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.Equal([typeof(DateTime), typeof(TimeOnly), typeof(byte[])],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new DateTime(2026, 9, 25, 12, 34, 56, DateTimeKind.Utc),
+            Assert.IsType<DateTime>(reader.GetValue(0)));
+        Assert.Equal(new TimeOnly(23, 59, 59, 123).Add(TimeSpan.FromTicks(4567)),
+            Assert.IsType<TimeOnly>(reader.GetValue(1)));
+        Assert.Equal(new byte[] { 0, 255, 97 }, Assert.IsType<byte[]>(reader.GetValue(2)));
+        Assert.Equal(3, reader.GetBytes(2, 0, null, 0, 0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal([typeof(DateTime), typeof(TimeOnly), typeof(byte[])],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        Assert.All(Enumerable.Range(0, reader.FieldCount), ordinal => Assert.Equal(DBNull.Value, reader.GetValue(ordinal)));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
     public void ExecuteReader_UpdateDeleteReturning_EmbeddedAndRemote_ReturnsRowsAndRecordsAffected(string mode)
     {
         using var connection = OpenAdoSchemaMatrixConnection(mode);
@@ -565,6 +1063,175 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(c, "tx_devices"));
     }
 
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void UpdateJoin_MultiTableWithTrigger_EmbeddedAndRemoteReturnSameFinalImage(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_jobs (tenant INT, id INT, source_id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_sources (tenant INT, id INT, value INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_factors (tenant INT, id INT, delta INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TABLE join_audit (tenant INT, id INT, value INT, rv INT, PRIMARY KEY (tenant, id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_jobs (tenant, id, source_id, value) VALUES (1, 1, 10, 0), (2, 1, 10, 0)";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_sources (tenant, id, value) VALUES (1, 10, 20), (2, 10, 50)";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO join_factors (tenant, id, delta) VALUES (1, 10, 3), (2, 10, 7)";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TRIGGER join_normalize BEFORE UPDATE ON join_jobs FOR EACH ROW LANGUAGE SQL AS BEGIN SET NEW.value = NEW.value + 1; END";
+        command.ExecuteNonQuery();
+        command.CommandText = "CREATE TRIGGER join_track AFTER UPDATE ON join_jobs FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO join_audit (tenant, id, value, rv) VALUES (NEW.tenant, NEW.id, NEW.value, NEW.rv); END";
+        command.ExecuteNonQuery();
+
+        command.CommandText = """
+            UPDATE join_jobs AS j
+            JOIN join_sources AS s ON j.tenant = s.tenant AND j.source_id = s.id
+            JOIN join_factors AS f ON s.tenant = f.tenant AND s.id = f.id
+            SET value = s.value + f.delta
+            WHERE j.tenant = @tenant
+            RETURNING tenant, id, value, rv
+            """;
+        command.Parameters.AddWithValue("@tenant", 1L);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal(["tenant", "id", "value", "rv"], Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+            Assert.True(reader.Read());
+            Assert.Equal([1L, 1L, 24L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(reader.Read());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT value, rv FROM join_audit WHERE tenant = 1 AND id = 1";
+        using (var audit = command.ExecuteReader())
+        {
+            Assert.True(audit.Read());
+            Assert.Equal(24L, audit.GetInt64(0));
+            Assert.Equal(2L, audit.GetInt64(1));
+            Assert.False(audit.Read());
+        }
+        command.CommandText = "SELECT value, rv FROM join_jobs WHERE tenant = 2 AND id = 1";
+        using var untouched = command.ExecuteReader();
+        Assert.True(untouched.Read());
+        Assert.Equal(0L, untouched.GetInt64(0));
+        Assert.Equal(1L, untouched.GetInt64(1));
+        Assert.False(untouched.Read());
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task UpdateJoin_AsyncTransactions_RollBackThenCommitAcrossModes(string mode)
+    {
+        await using var connection = OpenAdoSchemaMatrixConnection(mode);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_tx_targets (id INT, source_id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_tx_sources (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_tx_targets (id, source_id, value) VALUES (1, 10, 0), (2, 20, 0)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_tx_sources (id, value) VALUES (10, 31), (20, 42)";
+        await command.ExecuteNonQueryAsync();
+
+        const string updateSql = "UPDATE join_tx_targets AS t SET value = s.value FROM join_tx_sources AS s WHERE t.source_id = s.id AND t.id = @id RETURNING id, value";
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = updateSql;
+            command.Parameters.AddWithValue("@id", 1L);
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(31L, reader.GetInt64(1));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.RollbackAsync();
+            command.Transaction = null;
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT value FROM join_tx_targets WHERE id = 1";
+        Assert.Equal(0L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = updateSql;
+            command.Parameters.AddWithValue("@id", 2L);
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(42L, reader.GetInt64(1));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.CommitAsync();
+            command.Transaction = null;
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT id, value FROM join_tx_targets ORDER BY id";
+        await using var persisted = await command.ExecuteReaderAsync();
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal(0L, persisted.GetInt64(1));
+        Assert.True(await persisted.ReadAsync());
+        Assert.Equal(42L, persisted.GetInt64(1));
+        Assert.False(await persisted.ReadAsync());
+    }
+
+    [Fact]
+    public async Task UpdateJoin_RemoteUniqueAndForeignKeyFailures_LeaveAllTargetsUnchanged()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE join_parents (id INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_checked (id INT, code INT, parent_id INT, PRIMARY KEY (id), FOREIGN KEY (parent_id) REFERENCES join_parents (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE UNIQUE INDEX ux_join_checked_code ON join_checked (code)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE join_changes (id INT, code INT, parent_id INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_parents (id) VALUES (1)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_checked (id, code, parent_id) VALUES (1, 10, 1), (2, 20, 1)";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO join_changes (id, code, parent_id) VALUES (1, 30, 1), (2, 30, 1)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "UPDATE join_checked AS t JOIN join_changes AS s ON t.id = s.id SET code = s.code WHERE t.id >= 1 RETURNING id, code";
+        var unique = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteReaderAsync());
+        Assert.Equal(TableConstraintException.UniqueViolation, unique.Error);
+        await AssertOriginalRowsAsync();
+
+        command.CommandText = "UPDATE join_changes SET code = 40, parent_id = 999 WHERE id = 2";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "UPDATE join_checked AS t JOIN join_changes AS s ON t.id = s.id SET code = s.code, parent_id = s.parent_id WHERE t.id >= 1 RETURNING id, code";
+        var foreignKey = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteReaderAsync());
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, foreignKey.Error);
+        await AssertOriginalRowsAsync();
+
+        async Task AssertOriginalRowsAsync()
+        {
+            command.CommandText = "SELECT id, code, parent_id FROM join_checked ORDER BY id";
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([1L, 10L, 1L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([2L, 20L, 1L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(await reader.ReadAsync());
+        }
+    }
+
     [Fact]
     public async Task RemoteTransaction_InsertOnConflictDoUpdateReturning_IsRejectedUntilParity()
     {
@@ -589,6 +1256,77 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         await using var select = c.CreateCommand();
         select.CommandText = "SELECT value FROM tx_conflict_update WHERE id = 1";
         Assert.Equal(10L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
+    }
+
+    [Theory]
+    [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (2, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    [InlineData("INSERT INTO tx_upsert_guard (value) VALUES (20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
+    public async Task RemoteTransaction_UpsertReturningRejectedBeforeQueue_KeepsEarlierWrite(string upsertSql)
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_upsert_guard (id INT AUTO_INCREMENT, value INT, rv INT ROWVERSION, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO tx_upsert_guard (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "INSERT INTO tx_upsert_guard (id, value) VALUES (3, 30)";
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+            command.CommandText = upsertSql;
+            var error = await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
+            Assert.Contains("DO UPDATE", error.Message);
+            await transaction.CommitAsync();
+            command.Transaction = null;
+        }
+
+        command.CommandText = "SELECT id, value, rv FROM tx_upsert_guard ORDER BY id";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new long[] { 1L, 10L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new long[] { 3L, 30L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task Remote_InsertOnConflictDoUpdateWhere_ReportsAffectedRowsAndReturning()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE conditional_upsert (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 9), (2, 20) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.Equal(20L, reader.GetInt64(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+
+        command.CommandText = "INSERT INTO conditional_upsert (id, value) VALUES (1, 12) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal(12L, reader.GetInt64(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
     }
 
     [Fact]

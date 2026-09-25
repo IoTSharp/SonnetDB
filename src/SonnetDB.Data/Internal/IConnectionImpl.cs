@@ -95,4 +95,13 @@ internal interface IExecutionResult : IDisposable
     /// </summary>
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicFields)]
     Type GetFieldType(int ordinal);
+
+    /// <summary>返回可用的声明列属性；未携带 schema 的结果返回 null。</summary>
+    ExecutionColumnMetadata? GetColumnMetadata(int ordinal) => null;
 }
+
+internal readonly record struct ExecutionColumnMetadata(
+    bool IsNullable,
+    bool IsKey,
+    bool IsAutoIncrement,
+    bool IsRowVersion);

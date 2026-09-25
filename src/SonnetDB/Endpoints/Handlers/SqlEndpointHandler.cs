@@ -14,6 +14,7 @@ using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Modbus;
+using SonnetDB.Model;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -541,7 +542,63 @@ internal static class SqlEndpointHandler
         var body = context.Response.BodyWriter;
 
         // 1) meta 行
-        var meta = new ResultMeta("meta", result.Columns);
+        var columnTypes = new string[result.Columns.Count];
+        ResultColumnSchema[]? columnSchemas = result.ColumnSchema is not null || result.ColumnInfo is not null
+            ? new ResultColumnSchema[result.Columns.Count]
+            : null;
+        for (int column = 0; column < columnTypes.Length; column++)
+        {
+            if (result.ColumnSchema is { } declaredColumns)
+            {
+                var declared = declaredColumns[column];
+                columnTypes[column] = ToColumnTypeCode(declared.DataType);
+                columnSchemas![column] = new ResultColumnSchema(
+                    columnTypes[column],
+                    declared.IsNullable,
+                    declared.IsPrimaryKey,
+                    declared.IsAutoIncrement,
+                    declared.IsRowVersion);
+                continue;
+            }
+
+            var info = result.ColumnInfo?[column];
+            if (info?.DataType is { } declaredType)
+            {
+                columnTypes[column] = ToColumnTypeCode(declaredType);
+                columnSchemas![column] = new ResultColumnSchema(
+                    columnTypes[column],
+                    info.IsNullable ?? true,
+                    info.IsKey,
+                    info.IsAutoIncrement,
+                    info.IsRowVersion);
+                continue;
+            }
+
+            string? sampledType = null;
+            for (int row = 0; row < result.Rows.Count; row++)
+            {
+                var value = result.Rows[row][column];
+                if (value is null)
+                    continue;
+                string currentType = ToRuntimeColumnTypeCode(value);
+                if (sampledType is not null && sampledType != currentType)
+                {
+                    sampledType = "object";
+                    break;
+                }
+                sampledType = currentType;
+            }
+            columnTypes[column] = sampledType ?? "object";
+            if (columnSchemas is not null)
+                columnSchemas[column] = new ResultColumnSchema(
+                    columnTypes[column], true, false, false, false);
+        }
+
+        var meta = new ResultMeta("meta", result.Columns)
+        {
+            ColumnTypes = columnTypes,
+            ColumnSchemas = columnSchemas,
+        };
         await using (var metaWriter = new Utf8JsonWriter(body, options))
         {
             JsonSerializer.Serialize(metaWriter, meta, ServerJsonContext.Default.ResultMeta);
@@ -563,6 +620,30 @@ internal static class SqlEndpointHandler
 
         return count;
     }
+
+    private static string ToColumnTypeCode(TableColumnType type) => type switch
+    {
+        TableColumnType.Int64 => "int64",
+        TableColumnType.Float64 => "float64",
+        TableColumnType.Decimal => "decimal",
+        TableColumnType.Boolean => "boolean",
+        TableColumnType.DateTime => "datetime",
+        TableColumnType.Time => "time",
+        TableColumnType.Blob => "blob",
+        _ => "string",
+    };
+
+    private static string ToRuntimeColumnTypeCode(object value) => value switch
+    {
+        long or int or short or byte or sbyte or ushort or uint => "int64",
+        float or double => "float64",
+        decimal => "decimal",
+        bool => "boolean",
+        string or DateTime or DateTimeOffset or TimeOnly or Guid or byte[] => "string",
+        GeoPoint => "geopoint",
+        float[] or Memory<float> or ReadOnlyMemory<float> => "vector",
+        _ => "object",
+    };
 
     private static async Task WriteEndAsync(
         HttpContext context,

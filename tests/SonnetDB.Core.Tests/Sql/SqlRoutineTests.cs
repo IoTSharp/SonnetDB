@@ -5,6 +5,7 @@ using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -111,7 +112,7 @@ public sealed class SqlRoutineTests : IDisposable
 
         var failed = Assert.Throws<RoutineExecutionException>(() =>
             SqlExecutor.Execute(database, "CALL duplicate_device(1)"));
-        Assert.Equal(RoutineErrorCodes.ExecutionFailed, failed.Code);
+        Assert.Equal(TableConstraintException.UniqueViolation, failed.Code);
         Assert.Empty(Select(database, "SELECT * FROM devices").Rows);
 
         var call = SqlParser.Parse("CALL duplicate_device(2)");
@@ -457,7 +458,7 @@ public sealed class SqlRoutineTests : IDisposable
 
         var triggerFailure = Assert.Throws<RoutineExecutionException>(() =>
             SqlExecutor.Execute(database, "INSERT INTO events (id) VALUES (1)"));
-        Assert.Equal(RoutineErrorCodes.ExecutionFailed, triggerFailure.Code);
+        Assert.Equal(TableConstraintException.UniqueViolation, triggerFailure.Code);
         Assert.Empty(Select(database, "SELECT * FROM events").Rows);
         Assert.Empty(Select(database, "SELECT * FROM event_audit").Rows);
 
@@ -468,7 +469,7 @@ public sealed class SqlRoutineTests : IDisposable
         Assert.Equal("trigger", triggerAudit.Kind);
         Assert.Equal("fail_event", triggerAudit.Name);
         Assert.False(triggerAudit.Succeeded);
-        Assert.Equal(RoutineErrorCodes.ExecutionFailed, triggerAudit.ErrorCode);
+        Assert.Equal(TableConstraintException.UniqueViolation, triggerAudit.ErrorCode);
     }
 
     private static SelectExecutionResult Select(Tsdb database, string sql)

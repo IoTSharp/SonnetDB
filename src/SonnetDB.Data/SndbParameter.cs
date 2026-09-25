@@ -1,5 +1,7 @@
 ﻿using System.Data;
 using System.Data.Common;
+using System.Numerics;
+using SonnetDB.Exceptions;
 
 namespace SonnetDB.Data;
 
@@ -11,6 +13,7 @@ namespace SonnetDB.Data;
 /// </summary>
 public sealed class SndbParameter : DbParameter
 {
+    private object? _value;
     /// <summary>构造一个空参数。</summary>
     public SndbParameter() { }
 
@@ -45,7 +48,20 @@ public sealed class SndbParameter : DbParameter
     public override bool SourceColumnNullMapping { get; set; }
 
     /// <inheritdoc />
-    public override object? Value { get; set; }
+    public override object? Value
+    {
+        get => _value;
+        set
+        {
+            if (value is BigInteger)
+            {
+                throw new SndbParameterTypeException(
+                    SndbParameterTypeException.BigIntegerUnsupportedCode,
+                    "BigInteger 参数不受支持；请在应用层检查有符号 Int64 范围后转换为 long，或转换为 string 并存入 STRING 列。");
+            }
+            _value = value;
+        }
+    }
 
     /// <inheritdoc />
     public override void ResetDbType() => DbType = DbType.Object;

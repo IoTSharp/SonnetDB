@@ -59,6 +59,74 @@ public sealed class SndbResultPreviewTests
         Assert.False(reader.Truncated);
     }
 
+    [Fact]
+    public async Task RemoteResult_LegacyMetaWithoutColumnSchema_UsesValueTypeAndNullableFallback()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"]}
+            [42]
+            {"type":"end","rowCount":1,"recordsAffected":1}
+            """);
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.True((bool)reader.GetSchemaTable().Rows[0][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+        Assert.False(await reader.ReadAsync());
+        Assert.Equal(1, reader.RecordsAffected);
+    }
+
+    [Fact]
+    public async Task RemoteResult_ExplicitObjectColumnType_RemainsObjectAcrossRows()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["sum"],"columnTypes":["object"]}
+            [1]
+            [1.5]
+            {"type":"end","rowCount":2,"recordsAffected":-1}
+            """);
+
+        Assert.Equal(typeof(object), reader.GetFieldType(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.Equal(typeof(object), reader.GetFieldType(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(1.5, reader.GetDouble(0));
+        Assert.Equal(typeof(object), reader.GetFieldType(0));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Fact]
+    public async Task RemoteResult_LegacyMetaWithoutTypes_InfersEachCurrentRow()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["value"]}
+            [1]
+            [1.5]
+            {"type":"end","rowCount":2,"recordsAffected":-1}
+            """);
+
+        Assert.Equal(typeof(object), reader.GetFieldType(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(typeof(double), reader.GetFieldType(0));
+        Assert.False(await reader.ReadAsync());
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("[{\"dataType\":\"int64\",\"isNullable\":\"false\",\"isKey\":true,\"isAutoIncrement\":true,\"isRowVersion\":false}]")]
+    public async Task RemoteResult_InvalidColumnSchema_RejectsMeta(string schemas)
+    {
+        var body = $"{{\"type\":\"meta\",\"columns\":[\"id\"],\"columnSchemas\":{schemas}}}\n"
+            + "{\"type\":\"end\",\"rowCount\":0,\"recordsAffected\":0}";
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            RemoteExecutionResult.CreateAsync(response, stream, CancellationToken.None));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

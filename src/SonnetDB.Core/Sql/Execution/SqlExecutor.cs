@@ -486,6 +486,7 @@ public static class SqlExecutor
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
             DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(tsdb, dropVectorIndex),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
+            AlterTableAlterPrimaryKeyStatement alterPrimaryKey => TableSqlExecutor.ExecuteAlterTablePrimaryKey(tsdb, alterPrimaryKey),
             AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(tsdb, alterColumn),
             AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(tsdb, alterAddForeignKey),
             AlterTableAddCheckConstraintStatement alterAddCheckConstraint => TableSqlExecutor.ExecuteAlterTableAddCheckConstraint(tsdb, alterAddCheckConstraint),
@@ -686,6 +687,7 @@ public static class SqlExecutor
             or CreateFullTextIndexStatement
             or CreateDocumentVectorIndexStatement
             or AlterTableAddColumnStatement
+            or AlterTableAlterPrimaryKeyStatement
             or AlterTableAlterColumnStatement
             or AlterTableAddForeignKeyStatement
             or AlterTableAddCheckConstraintStatement
@@ -1776,6 +1778,9 @@ public static class SqlExecutor
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
+        if (statement.IsRecursive)
+            return RecursiveCteExecutor.Execute(tsdb, statement);
+
         statement = CommonTableExpressionExpander.Expand(statement);
 
         if (tsdb.Views.Catalog.Count != 0)
@@ -1817,17 +1822,17 @@ public static class SqlExecutor
             .ToList();
         return deduped.Count == result.Rows.Count
             ? result
-            : new SelectExecutionResult(result.Columns, deduped);
+            : result with { Rows = deduped };
     }
 
     private static SelectExecutionResult ApplyResultPagination(SelectExecutionResult result, PaginationSpec pagination)
     {
         int offset = pagination.Offset;
         if (offset >= result.Rows.Count)
-            return new SelectExecutionResult(result.Columns, []);
+            return result with { Rows = [] };
         var skipped = result.Rows.Skip(offset);
         var taken = pagination.Fetch is { } fetch ? skipped.Take(fetch) : skipped;
-        return new SelectExecutionResult(result.Columns, taken.ToArray());
+        return result with { Rows = taken.ToArray() };
     }
 
     /// <summary>
@@ -2024,6 +2029,8 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
     {
+        if (RecursiveCteScope.Find(statement.Measurement) is not null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
         if (TriggerTransitionTables.FindSchema(statement.Measurement) is not null)
             return RelationalSelectExecutor.Execute(tsdb, statement);
         if (GraphSqlExecutor.IsGraphSelect(statement))
@@ -2720,7 +2727,9 @@ public static class SqlExecutor
         foreach (var row in result.Rows)
         {
             budget.Add(null, row);
-            rows.Add(row.Select(SqlParameterBinder.ToLiteral).ToArray());
+            rows.Add(row.Select(static value => value is decimal exact
+                ? LiteralExpression.String(exact.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                : SqlParameterBinder.ToLiteral(value)).ToArray());
         }
         return statement with { Query = null, Rows = rows };
     }

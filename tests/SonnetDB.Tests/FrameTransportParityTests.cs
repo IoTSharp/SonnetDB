@@ -298,10 +298,9 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     }
 
     [Fact]
-    public void AdoSql_DateTimeColumn_FramePathReturnsRicherType()
+    public void AdoSql_DateTimeColumn_RestAndFrameReturnDateTime()
     {
-        // 记录在案的类型差异（docs/frame-protocol.md）：DATETIME 列在帧路径返回 DateTime、
-        // REST NDJSON 路径返回 ISO 字符串。写与建表走 REST，只读 SELECT 分别验证两传输的类型。
+        // 写与建表走 REST，分别验证两种读取传输的关系列类型。
         using (var c = new SndbConnection(ExactTransportConnString("rest")))
         {
             c.Open();
@@ -330,7 +329,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             sel.CommandText = "SELECT at FROM evt WHERE id = 1";
             using var r = sel.ExecuteReader();
             Assert.True(r.Read());
-            Assert.IsType<string>(r.GetValue(0)); // REST NDJSON 字符串
+            Assert.IsType<DateTime>(r.GetValue(0));
         }
     }
 

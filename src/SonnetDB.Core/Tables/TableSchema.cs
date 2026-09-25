@@ -389,7 +389,9 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            Columns.Where(static c => c.DataType == TableColumnType.Decimal)
+                .ToDictionary(static c => c.Name, static c => (c.DecimalPrecision, c.DecimalScale), StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -555,6 +557,23 @@ public sealed class TableSchema
         TableColumnType dataType,
         bool isNullable,
         string? defaultExpressionSql)
+        => WithAddedColumn(name, dataType, isNullable, defaultExpressionSql, false, false);
+
+    /// <summary>返回添加引擎生成列后的新 schema。</summary>
+    /// <param name="name">新增列名。</param>
+    /// <param name="dataType">新增列类型。</param>
+    /// <param name="isNullable">是否允许空值。</param>
+    /// <param name="defaultExpressionSql">默认表达式文本。</param>
+    /// <param name="isRowVersion">是否为版本列。</param>
+    /// <param name="isAutoIncrement">是否为自增列。</param>
+    /// <returns>通过校验的新 schema。</returns>
+    public TableSchema WithAddedColumn(
+        string name,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql,
+        bool isRowVersion,
+        bool isAutoIncrement)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (_columnsByName.ContainsKey(name))
@@ -570,16 +589,39 @@ public sealed class TableSchema
         return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable))
-                .Append((name, dataType, isNullable))
+                .Append((name, dataType, isNullable && !isRowVersion && !isAutoIncrement))
                 .ToArray(),
             PrimaryKey,
+            IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            isRowVersion ? RowVersionColumnNames().Append(name).ToHashSet(StringComparer.Ordinal) : RowVersionColumnNames(),
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions(),
+            defaults,
+            isAutoIncrement ? AutoIncrementColumnNames().Append(name).ToHashSet(StringComparer.Ordinal) : AutoIncrementColumnNames(),
+            Columns.Where(static c => c.DataType == TableColumnType.Decimal)
+                .ToDictionary(static c => c.Name, static c => (c.DecimalPrecision, c.DecimalScale), StringComparer.Ordinal));
+    }
+
+    /// <summary>返回重定义主键后的新 schema。</summary>
+    /// <param name="primaryKey">目标主键列名。</param>
+    /// <returns>通过校验的新 schema。</returns>
+    public TableSchema WithPrimaryKey(IReadOnlyList<string> primaryKey)
+    {
+        ArgumentNullException.ThrowIfNull(primaryKey);
+        return CreateWithDefaults(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            primaryKey,
             IndexDefinitions(),
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            defaults,
-            AutoIncrementColumnNames());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames(),
+            Columns.Where(static c => c.DataType == TableColumnType.Decimal)
+                .ToDictionary(static c => c.Name, static c => (c.DecimalPrecision, c.DecimalScale), StringComparer.Ordinal));
     }
 
     /// <summary>

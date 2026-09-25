@@ -239,13 +239,14 @@ public sealed class SqlParser
     }
 
     /// <summary>
-    /// 解析非递归公共表表达式：<c>WITH name [(column, ...)] AS (SELECT ...), ... SELECT ...</c>。
+    /// 解析公共表表达式：<c>WITH [RECURSIVE] name [(column, ...)] AS (SELECT ...), ... SELECT ...</c>。
     /// </summary>
     private SelectStatement ParseWithSelect()
     {
         Expect(TokenKind.KeywordWith);
-        if (IsIdentifier("recursive"))
-            throw Error("WITH RECURSIVE 尚未支持；当前仅支持非递归 CTE");
+        bool recursive = IsIdentifier("recursive");
+        if (recursive)
+            Advance();
 
         var definitions = new List<CommonTableExpression>();
         while (true)
@@ -288,6 +289,7 @@ public sealed class SqlParser
         return ParseSelect() with
         {
             CommonTableExpressions = definitions,
+            IsRecursive = recursive,
         };
     }
 
@@ -1787,11 +1789,22 @@ public sealed class SqlParser
         var isRowVersion = false;
         var isAutoIncrement = false;
         ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion, ref isAutoIncrement);
-        if (isRowVersion)
-            throw Error("ALTER TABLE ADD COLUMN 当前不支持新增 ROWVERSION 列");
-        if (isAutoIncrement)
-            throw Error("ALTER TABLE ADD COLUMN 当前不支持新增 AUTO_INCREMENT 列");
-        return new AlterTableAddColumnStatement(tableName, columnName, dataType, nullability, defaultExpression);
+        if (isRowVersion && dataType != SqlDataType.Int64)
+            throw Error("ROWVERSION 列必须使用 INT 类型");
+        if (isAutoIncrement && dataType != SqlDataType.Int64)
+            throw Error("AUTO_INCREMENT 列必须使用 INT 类型");
+        if (isRowVersion && isAutoIncrement)
+            throw Error("AUTO_INCREMENT 与 ROWVERSION 不能声明在同一列上");
+        if (isRowVersion && defaultExpression is not null)
+            throw Error("ROWVERSION 列不允许声明 DEFAULT");
+        if (isAutoIncrement && defaultExpression is not null)
+            throw Error("AUTO_INCREMENT 列不允许声明 DEFAULT");
+        if (isRowVersion && nullability == ColumnNullability.Nullable)
+            throw Error("ROWVERSION 列不允许声明 NULL");
+        if (isAutoIncrement && nullability == ColumnNullability.Nullable)
+            throw Error("AUTO_INCREMENT 列不允许声明 NULL");
+        return new AlterTableAddColumnStatement(
+            tableName, columnName, dataType, nullability, defaultExpression, isRowVersion, isAutoIncrement);
     }
 
     private void ParseTableColumnModifiers(
@@ -2517,6 +2530,9 @@ public sealed class SqlParser
         if (Current.Kind != TokenKind.KeywordUpdate && !IsIdentifier("update"))
             throw Error("ON CONFLICT DO 后面期望 NOTHING 或 UPDATE");
 
+        if (targetColumns.Count == 0)
+            throw Error("ON CONFLICT DO UPDATE 必须指定主键或唯一索引目标列");
+
         Advance();
         Expect(TokenKind.KeywordSet);
         var assignments = new List<UpdateAssignment> { ParseUpdateAssignment() };
@@ -2526,9 +2542,17 @@ public sealed class SqlParser
             assignments.Add(ParseUpdateAssignment());
         }
 
+        SqlExpression? updateWhere = null;
+        if (Current.Kind == TokenKind.KeywordWhere)
+        {
+            Advance();
+            updateWhere = ParseExpression();
+        }
+
         return new SqlOnConflictClause(targetColumns, SqlOnConflictAction.DoUpdate)
         {
             UpdateAssignments = assignments,
+            UpdateWhere = updateWhere,
         };
     }
 
@@ -2637,6 +2661,17 @@ public sealed class SqlParser
         var orderByItems = ParseOptionalOrderBy();
         var orderBy = orderByItems.Count > 0 ? orderByItems[0] : null;
         var pagination = ParseOptionalPagination();
+        if (Current.Kind == TokenKind.KeywordFor
+            || IsIdentifier("nowait")
+            || IsIdentifier("skip"))
+        {
+            throw new SqlParseException(
+                "SELECT 锁定读（FOR UPDATE / NOWAIT / SKIP LOCKED）当前不受支持。",
+                Current.Position,
+                SqlErrorCodes.LockingReadUnsupported,
+                "select_locking_read",
+                "改用 ROWVERSION 列读取旧版本，并在 UPDATE/DELETE 的 WHERE 中携带该版本；版本冲突或目标行消失时重读并重试整个事务。");
+        }
         return statement with
         {
             Unions = setOperations.Count == 0 ? null : setOperations.Select(static operation => operation.Query).ToArray(),
@@ -3013,7 +3048,10 @@ public sealed class SqlParser
             return ExpectIdentifierName();
         }
 
-        if (Current.Kind == TokenKind.IdentifierLiteral)
+        if (Current.Kind == TokenKind.IdentifierLiteral
+            && !IsIdentifier("returning")
+            && !IsIdentifier("nowait")
+            && !IsIdentifier("skip"))
         {
             var alias = Current.Text;
             Advance();
@@ -3235,7 +3273,7 @@ public sealed class SqlParser
             Advance();
             alias = ExpectColumnName();
         }
-        else if (Current.Kind == TokenKind.IdentifierLiteral)
+        else if (Current.Kind == TokenKind.IdentifierLiteral && !IsIdentifier("returning"))
         {
             // 可选的 alias（无 AS）；只接受一个标识符（避免吞掉后续子句关键字）
             alias = Current.Text;
@@ -3737,6 +3775,11 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.Minus)
         {
             Advance();
+            if (Current.Kind == TokenKind.Int64MinMagnitudeLiteral)
+            {
+                Advance();
+                return LiteralExpression.Integer(long.MinValue);
+            }
             // 一元 +/- 链会自递归绕过 ParseExpression，单独计入深度以防 `------x` 撑爆栈。
             EnterExpression();
             try
@@ -5155,6 +5198,8 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordAlter)
         {
             Advance();
+            if (Current.Kind == TokenKind.KeywordPrimary)
+                return new AlterTableAlterPrimaryKeyStatement(tableName, ParsePrimaryKeyClause());
             return ParseAlterTableAlterColumn(tableName);
         }
 
@@ -5167,6 +5212,9 @@ public sealed class SqlParser
             if (Current.Kind == TokenKind.KeywordCheck)
                 return ParseAlterTableAddCheckConstraint(tableName, constraintName: null);
 
+            if (Current.Kind == TokenKind.KeywordPrimary)
+                return new AlterTableAlterPrimaryKeyStatement(tableName, ParsePrimaryKeyClause());
+
             if (IsIdentifier("constraint"))
             {
                 Advance();
@@ -5175,7 +5223,10 @@ public sealed class SqlParser
                     return ParseAlterTableAddForeignKey(tableName, constraintName);
                 if (Current.Kind == TokenKind.KeywordCheck)
                     return ParseAlterTableAddCheckConstraint(tableName, constraintName);
-                throw Error("ALTER TABLE ADD CONSTRAINT 后面期望 FOREIGN KEY 或 CHECK");
+                if (Current.Kind == TokenKind.KeywordPrimary)
+                    return new AlterTableAlterPrimaryKeyStatement(
+                        tableName, ParsePrimaryKeyClause(), constraintName);
+                throw Error("ALTER TABLE ADD CONSTRAINT 后面期望 PRIMARY KEY、FOREIGN KEY 或 CHECK");
             }
 
             return ParseAlterTableAddColumn(tableName);
@@ -5620,6 +5671,7 @@ public sealed class SqlParser
         SqlStatement statement = Current.Kind switch
         {
             TokenKind.KeywordSelect => ParseSelect(),
+            TokenKind.KeywordWith => ParseWithSelect(),
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),

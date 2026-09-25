@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Data.Internal;
 using SonnetDB.Model;
@@ -24,6 +25,9 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly Stream _stream;
     private readonly StreamReader _reader;
     private readonly string[] _columns;
+    private readonly ExecutionFieldTypeKind[] _columnTypes;
+    private readonly ExecutionColumnMetadata[]? _columnMetadata;
+    private readonly bool _inferMissingColumnTypes;
     private object?[] _currentRow;
     private bool _ended;
     private long _rowsRead;
@@ -34,12 +38,17 @@ internal sealed class RemoteExecutionResult : IExecutionResult
 
     public IReadOnlyList<string> Columns => _columns;
 
-    private RemoteExecutionResult(HttpResponseMessage response, Stream stream, StreamReader reader, string[] columns)
+    private RemoteExecutionResult(HttpResponseMessage response, Stream stream, StreamReader reader,
+        string[] columns, ExecutionFieldTypeKind[] columnTypes,
+        ExecutionColumnMetadata[]? columnMetadata, bool inferMissingColumnTypes)
     {
         _response = response;
         _stream = stream;
         _reader = reader;
         _columns = columns;
+        _columnTypes = columnTypes;
+        _columnMetadata = columnMetadata;
+        _inferMissingColumnTypes = inferMissingColumnTypes;
         _currentRow = new object?[columns.Length];
         RecordsAffected = -1; // SELECT 默认；非 SELECT 在末行被覆盖
     }
@@ -89,9 +98,13 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicFields)]
     public Type GetFieldType(int ordinal)
     {
-        var v = _currentRow[ordinal];
-        return ExecutionFieldTypeResolver.GetRuntimeType(ExecutionFieldTypeResolver.Resolve(v));
+        var kind = _columnTypes[ordinal];
+        if (kind == ExecutionFieldTypeKind.Object && _inferMissingColumnTypes)
+            kind = ExecutionFieldTypeResolver.Resolve(_currentRow[ordinal]);
+        return ExecutionFieldTypeResolver.GetRuntimeType(kind);
     }
+
+    public ExecutionColumnMetadata? GetColumnMetadata(int ordinal) => _columnMetadata?[ordinal];
 
     public void Dispose()
     {
@@ -111,7 +124,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (n != _columns.Length)
                 throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
             for (int i = 0; i < n; i++)
-                _currentRow[i] = ReadScalar(root[i]);
+                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i]);
             _rowsRead++;
             return true;
         }
@@ -164,6 +177,9 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         try
         {
             string[] columns = Array.Empty<string>();
+            ExecutionFieldTypeKind[] columnTypes = Array.Empty<ExecutionFieldTypeKind>();
+            ExecutionColumnMetadata[]? columnMetadata = null;
+            bool inferMissingColumnTypes = true;
             int recordsAffected = -1;
             bool pendingTruncated = false;
             bool sawMeta = false;
@@ -200,6 +216,37 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                             foreach (var c in colsProp.EnumerateArray())
                                 list.Add(c.GetString() ?? string.Empty);
                             columns = [.. list];
+                            columnTypes = new ExecutionFieldTypeKind[columns.Length];
+                            if (root.TryGetProperty("columnTypes", out var typesProp))
+                            {
+                                inferMissingColumnTypes = false;
+                                if (typesProp.ValueKind != JsonValueKind.Array
+                                    || typesProp.GetArrayLength() != columns.Length)
+                                    throw new InvalidDataException("远程 SQL meta 列类型与列名数量不一致。");
+                                for (int i = 0; i < columnTypes.Length; i++)
+                                    columnTypes[i] = ReadColumnType(typesProp[i]);
+                            }
+                            if (root.TryGetProperty("columnSchemas", out var schemasProp))
+                            {
+                                inferMissingColumnTypes = false;
+                                if (schemasProp.ValueKind != JsonValueKind.Array
+                                    || schemasProp.GetArrayLength() != columns.Length)
+                                    throw new InvalidDataException("远程 SQL meta 列 schema 与列名数量不一致。");
+                                columnMetadata = new ExecutionColumnMetadata[columns.Length];
+                                for (int i = 0; i < columnMetadata.Length; i++)
+                                {
+                                    var schema = schemasProp[i];
+                                    if (schema.ValueKind != JsonValueKind.Object
+                                        || !schema.TryGetProperty("dataType", out var dataType))
+                                        throw new InvalidDataException("远程 SQL meta 列 schema 缺少 dataType。");
+                                    columnTypes[i] = ReadColumnType(dataType);
+                                    columnMetadata[i] = new ExecutionColumnMetadata(
+                                        ReadSchemaBoolean(schema, "isNullable"),
+                                        ReadSchemaBoolean(schema, "isKey"),
+                                        ReadSchemaBoolean(schema, "isAutoIncrement"),
+                                        ReadSchemaBoolean(schema, "isRowVersion"));
+                                }
+                            }
                         }
 
                         // 非 SELECT：columns 为空，紧接着应是 end；继续循环消费 end。
@@ -221,7 +268,8 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (!sawMeta && !ended)
                 throw new InvalidDataException("远程响应缺少 meta 或 end 行。");
 
-            var result = new RemoteExecutionResult(response, stream, reader, columns)
+            var result = new RemoteExecutionResult(response, stream, reader,
+                columns, columnTypes, columnMetadata, inferMissingColumnTypes)
             {
                 Truncated = pendingTruncated,
                 _ended = ended,
@@ -259,6 +307,48 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         JsonValueKind.Object => TryReadGeoPoint(element, out var point) ? point : element.GetRawText(),
         _ => null,
     };
+
+    internal static object? ReadScalar(JsonElement element, string? columnType)
+        => columnType switch
+        {
+            "decimal" => ReadDecimal(element),
+            "datetime" => ReadTypedScalar(element, ExecutionFieldTypeKind.DateTime),
+            "time" => ReadTypedScalar(element, ExecutionFieldTypeKind.TimeOnly),
+            "blob" => ReadTypedScalar(element, ExecutionFieldTypeKind.ByteArray),
+            _ => ReadScalar(element),
+        };
+
+    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return null;
+        if (type == ExecutionFieldTypeKind.Decimal)
+            return ReadDecimal(element);
+        if (type == ExecutionFieldTypeKind.DateTime)
+        {
+            if (element.ValueKind == JsonValueKind.String && element.TryGetDateTime(out var dateTime))
+                return dateTime;
+            throw new InvalidDataException("远程 SQL DATETIME 值不是有效的时间戳。");
+        }
+        if (type == ExecutionFieldTypeKind.TimeOnly)
+        {
+            if (element.ValueKind == JsonValueKind.String
+                && TimeOnly.TryParse(element.GetString(), CultureInfo.InvariantCulture, out var time))
+                return time;
+            throw new InvalidDataException("远程 SQL TIME 值不是有效的时间值。");
+        }
+        if (type == ExecutionFieldTypeKind.ByteArray)
+        {
+            if (element.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("远程 SQL BLOB 值不是 Base64 文本。");
+            try { return element.GetBytesFromBase64(); }
+            catch (FormatException exception)
+            {
+                throw new InvalidDataException("远程 SQL BLOB 值不是有效的 Base64 文本。", exception);
+            }
+        }
+        return ReadScalar(element);
+    }
 
     private static bool TryReadGeoPoint(JsonElement element, out GeoPoint point)
     {
@@ -308,8 +398,51 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private static object ReadNumber(JsonElement element)
     {
         if (element.TryGetInt64(out var i64)) return i64;
+        var raw = element.GetRawText();
+        if (raw.IndexOfAny('.', 'e', 'E') < 0)
+            throw new InvalidDataException($"远程 SQL 整数超出 Int64 范围：{raw}。请使用 STRING 列保存任意精度整数。");
         if (element.TryGetDouble(out var d)) return d;
         // 兜底：原始文本
-        return element.GetRawText();
+        return raw;
+    }
+
+    private static object? ReadDecimal(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return null;
+        if (element.ValueKind != JsonValueKind.Number || !element.TryGetDecimal(out var value))
+            throw new InvalidDataException("远程 SQL DECIMAL 值无法无损解析。");
+        return value;
+    }
+
+    private static ExecutionFieldTypeKind ReadColumnType(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.String)
+            throw new InvalidDataException("远程 SQL meta 列类型必须是字符串。");
+        return element.GetString() switch
+        {
+            "int64" => ExecutionFieldTypeKind.Int64,
+            "float64" => ExecutionFieldTypeKind.Double,
+            "decimal" => ExecutionFieldTypeKind.Decimal,
+            "boolean" => ExecutionFieldTypeKind.Boolean,
+            "string" => ExecutionFieldTypeKind.String,
+            "datetime" => ExecutionFieldTypeKind.DateTime,
+            "datetimeoffset" => ExecutionFieldTypeKind.DateTimeOffset,
+            "time" => ExecutionFieldTypeKind.TimeOnly,
+            "guid" => ExecutionFieldTypeKind.Guid,
+            "geopoint" => ExecutionFieldTypeKind.GeoPoint,
+            "blob" => ExecutionFieldTypeKind.ByteArray,
+            "vector" => ExecutionFieldTypeKind.Vector,
+            "object" => ExecutionFieldTypeKind.Object,
+            _ => throw new InvalidDataException("远程 SQL meta 包含不支持的列类型。"),
+        };
+    }
+
+    private static bool ReadSchemaBoolean(JsonElement schema, string name)
+    {
+        if (!schema.TryGetProperty(name, out var property)
+            || property.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new InvalidDataException($"远程 SQL meta 列 schema 的 {name} 必须是布尔值。");
+        return property.GetBoolean();
     }
 }

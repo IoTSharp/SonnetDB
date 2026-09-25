@@ -453,7 +453,9 @@ public sealed partial class TableManager : IDisposable
             dataType,
             isNullable,
             defaultValue,
-            defaultExpressionSql: null);
+            defaultExpressionSql: null,
+            isRowVersion: false,
+            isAutoIncrement: false);
 
     /// <summary>向关系表追加一列，并保留可持久化的默认表达式文本。</summary>
     internal void AlterTableAddColumn(
@@ -462,7 +464,9 @@ public sealed partial class TableManager : IDisposable
         TableColumnType dataType,
         bool isNullable,
         object? defaultValue,
-        string? defaultExpressionSql)
+        string? defaultExpressionSql,
+        bool isRowVersion,
+        bool isAutoIncrement)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -473,16 +477,62 @@ public sealed partial class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                var updated = current.WithAddedColumn(columnName, dataType, isNullable, defaultExpressionSql);
+                var updated = current.WithAddedColumn(
+                    columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement);
                 var store = OpenStoreLocked(current);
+                long nextAutoIncrement = 0;
                 ApplySchemaTransformLocked(current, updated, store, (_, row) =>
                 {
                     var values = new object?[updated.Columns.Count];
                     for (var i = 0; i < row.Values.Count; i++)
                         values[i] = row.Values[i];
-                    values[^1] = defaultValue;
+                    values[^1] = isAutoIncrement
+                        ? checked(++nextAutoIncrement)
+                        : isRowVersion ? 1L : defaultValue;
                     return values;
                 });
+            }
+    }
+
+    /// <summary>空表重定义主键；已有行或被外键引用时拒绝变更。</summary>
+    internal void AlterTablePrimaryKey(
+        string tableName,
+        IReadOnlyList<string> columns,
+        string? constraintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentNullException.ThrowIfNull(columns);
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                if (constraintName is not null
+                    && !string.Equals(constraintName, "pk_" + tableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new TableConstraintException(
+                        TableConstraintException.SchemaEvolutionUnsupported,
+                        tableName,
+                        constraintName,
+                        "当前主键元数据仅支持约定名称 pk_<table>，不能持久化自定义约束名。");
+                }
+                var updated = current.WithPrimaryKey(columns);
+                var store = OpenStoreLocked(current);
+                if (store.RowCount != 0)
+                    throw new TableConstraintException(
+                        TableConstraintException.SchemaEvolutionUnsupported,
+                        tableName,
+                        constraintName,
+                        "ALTER TABLE 修改 PRIMARY KEY 仅支持空表；已有行需要显式迁移。");
+                if (HasInboundForeignKeyLocked(tableName))
+                    throw new TableConstraintException(
+                        TableConstraintException.SchemaEvolutionUnsupported,
+                        tableName,
+                        constraintName,
+                        "ALTER TABLE 修改 PRIMARY KEY 前必须先移除引用该表的外键。");
+                ApplyMetadataSchemaLocked(current, updated, store);
             }
     }
 

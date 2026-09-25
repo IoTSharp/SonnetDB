@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Numerics;
+using SonnetDB.Exceptions;
 using SonnetDB.Model;
 using SonnetDB.Protocol;
 using SonnetDB.Sql;
@@ -13,6 +15,39 @@ namespace SonnetDB.Core.Tests.Protocol;
 /// </summary>
 public sealed class SqlFrameCodecTests
 {
+    [Fact]
+    public void QueryRequest_BigInteger_RejectsWithStableCode()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        var error = Assert.Throws<SndbParameterTypeException>(() => SqlFrameCodec.EncodeQueryRequest(
+            writer, 1, "db", "SELECT @value",
+            new Dictionary<string, object?> { ["value"] = BigInteger.One }));
+        Assert.Equal(SndbParameterTypeException.BigIntegerUnsupportedCode, error.Code);
+    }
+
+    [Fact]
+    public void RowsFrame_DecimalAndInt64_RoundTripWithoutFloatConversion()
+    {
+        var rows = MakeRows(
+            [long.MinValue, 18446744073709551616m],
+            [long.MaxValue, 9007199254740993.125m]);
+
+        object?[][] decoded = RoundTripRows(rows, 2);
+        Assert.Equal(long.MinValue, Assert.IsType<long>(decoded[0][0]));
+        Assert.Equal(long.MaxValue, Assert.IsType<long>(decoded[1][0]));
+        Assert.Equal(18446744073709551616m, Assert.IsType<decimal>(decoded[0][1]));
+        Assert.Equal(9007199254740993.125m, Assert.IsType<decimal>(decoded[1][1]));
+    }
+
+    [Fact]
+    public void RowsFrame_UnsignedBeyondInt64_RejectsBeforeEncoding()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        var rows = MakeRows([9223372036854775808UL]);
+        var error = Assert.Throws<InvalidDataException>(() =>
+            SqlFrameCodec.EncodeQueryRowsFrame(writer, 1, rows, 0, 1, 1));
+        Assert.Contains("Int64", error.Message, StringComparison.Ordinal);
+    }
     // ────────────────────────────── query 请求 ──────────────────────────────
 
     [Fact]

@@ -78,6 +78,15 @@ internal static class TableSqlExecutor
             }
         }
 
+        if (statement.PrimaryKey.Count == 0)
+        {
+            throw new TableConstraintException(
+                TableConstraintException.SchemaEvolutionUnsupported,
+                statement.Name,
+                null,
+                "关系表当前必须在 CREATE TABLE 时声明 PRIMARY KEY；无主键 rowstore 不受支持。");
+        }
+
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
@@ -267,7 +276,8 @@ internal static class TableSqlExecutor
         SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
 
         var dataType = MapTableColumnType(statement.DataType);
-        var isNullable = statement.Nullability != ColumnNullability.NotNull;
+        var isNullable = statement.Nullability != ColumnNullability.NotNull
+            && !statement.IsRowVersion && !statement.IsAutoIncrement;
         object? defaultValue = null;
         string? defaultExpressionSql = null;
         if (statement.DefaultExpression is not null)
@@ -276,7 +286,7 @@ internal static class TableSqlExecutor
             defaultExpressionSql = ValidateAndFormatDefault(statement.DefaultExpression, tempColumn);
             defaultValue = EvaluateAndConvertDefault(statement.DefaultExpression, tempColumn);
         }
-        else if (!isNullable)
+        else if (!isNullable && !statement.IsRowVersion && !statement.IsAutoIncrement)
         {
             throw new InvalidOperationException("ALTER TABLE ADD COLUMN 添加 NOT NULL 列时必须提供 DEFAULT。");
         }
@@ -287,8 +297,22 @@ internal static class TableSqlExecutor
             dataType,
             isNullable,
             defaultValue,
-            defaultExpressionSql);
+            defaultExpressionSql,
+            statement.IsRowVersion,
+            statement.IsAutoIncrement);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTablePrimaryKey(
+        Tsdb tsdb,
+        AlterTableAlterPrimaryKeyStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+        tsdb.Tables.AlterTablePrimaryKey(
+            statement.TableName, statement.Columns, statement.ConstraintName);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_primary_key");
     }
 
     public static RowsAffectedExecutionResult ExecuteAlterTableAlterColumn(
@@ -532,6 +556,7 @@ internal static class TableSqlExecutor
         var assignments = clause.Action == SqlOnConflictAction.DoUpdate
             ? BindConflictAssignments(clause, schema)
             : [];
+        ValidateConflictUpdateWhere(clause, schema);
         var seenDoUpdatePrimaryKeys = clause.Action == SqlOnConflictAction.DoUpdate
             ? new HashSet<string>(StringComparer.Ordinal)
             : null;
@@ -560,6 +585,9 @@ internal static class TableSqlExecutor
             }
 
             if (clause.Action == SqlOnConflictAction.DoNothing)
+                continue;
+
+            if (!ConflictUpdateWhereMatches(clause, schema, conflict, values))
                 continue;
 
             EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);
@@ -646,6 +674,27 @@ internal static class TableSqlExecutor
 
         return [.. assignments];
     }
+
+    private static void ValidateConflictUpdateWhere(SqlOnConflictClause clause, TableSchema schema)
+    {
+        if (clause.UpdateWhere is not { } where)
+            return;
+        if (clause.Action != SqlOnConflictAction.DoUpdate)
+            throw new InvalidOperationException("ON CONFLICT DO NOTHING 不允许 WHERE 条件。");
+        ValidateConflictExpressionQualifiers(where, schema);
+        ValidateTablePredicate(where, schema, "ON CONFLICT DO UPDATE WHERE");
+    }
+
+    private static bool ConflictUpdateWhereMatches(
+        SqlOnConflictClause clause,
+        TableSchema schema,
+        TableRow conflict,
+        object?[] excludedValues)
+        => clause.UpdateWhere is null
+            || EvaluateWhere(
+                BindExcludedReferences(clause.UpdateWhere, schema, excludedValues),
+                schema,
+                conflict.Values);
 
     private static object?[] BuildConflictUpdateValues(
         TableSchema schema,
@@ -1022,6 +1071,7 @@ internal static class TableSqlExecutor
         {
             ValidateConflictTarget(schema, conflictClause.TargetColumns);
             conflictAssignments = BindConflictAssignments(conflictClause, schema);
+            ValidateConflictUpdateWhere(conflictClause, schema);
         }
 
         if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
@@ -1077,6 +1127,9 @@ internal static class TableSqlExecutor
             }
 
             if (statement.OnConflict!.Action == SqlOnConflictAction.DoNothing)
+                continue;
+
+            if (!ConflictUpdateWhereMatches(statement.OnConflict, schema, conflict, values))
                 continue;
 
             EnsureUniqueDoUpdateTarget(seenDoUpdatePrimaryKeys, conflict.PrimaryKey.Span);
@@ -1166,7 +1219,13 @@ internal static class TableSqlExecutor
             rows[r] = row;
         }
 
-        return result with { Returning = new SelectExecutionResult(columns, rows) };
+        return result with
+        {
+            Returning = new SelectExecutionResult(columns, rows)
+            {
+                ColumnSchema = returningColumns.ToArray(),
+            },
+        };
     }
 
     private static RowsAffectedExecutionResult CreateRowsAffectedResult(
@@ -1241,9 +1300,13 @@ internal static class TableSqlExecutor
             : statement.OrderByList.Count == 0
                 ? ApplyPagination(columns, projected, statement.Pagination)
                 : ApplyOrderByAndPagination(columns, projected, statement.OrderByList, statement.Pagination);
-        return hiddenOrderColumns.Length == 0
+        var visible = hiddenOrderColumns.Length == 0
             ? ordered
             : RemoveHiddenOrderColumns(ordered, projections.Length);
+        return visible with
+        {
+            ColumnInfo = projections.Select(ResolveProjectionColumnInfo).ToArray(),
+        };
     }
 
     /// <summary>
@@ -1300,47 +1363,55 @@ internal static class TableSqlExecutor
             return new RowsAffectedExecutionResult(schema.Name, truncated, "delete_generation");
         }
 
-        int deleted = 0;
-        var returningRows = new List<object?[]>();
-        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
+        // 用户函数可能回入 SQL；此路径在锁外求值，提交时依赖行状态校验。
+        return ContainsUserScalarFunction(tsdb.Functions, where)
+            ? ExecuteBoundDelete()
+            : tsdb.Tables.ExecuteLocked(ExecuteBoundDelete);
+
+        RowsAffectedExecutionResult ExecuteBoundDelete()
         {
-            if (returningColumns.Length != 0)
+            var returningRows = new List<object?[]>();
+            var store = tsdb.Tables.Open(schema.Name);
+            if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
             {
-                var row = tsdb.Tables.Open(schema.Name).Scan()
-                    .FirstOrDefault(candidate => ExtractPrimaryKeyValues(schema, candidate.Values).SequenceEqual(keyValues));
-                if (row is not null)
+                var row = store.GetByPrimaryKey(keyValues);
+                if (row is null)
+                    return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, returningRows);
+                var mutation = new TableRowMutation(keyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) };
+                if (returningColumns.Length != 0)
+                    returningRows.Add(row.Values.ToArray());
+                _ = tsdb.Tables.ApplyTransaction(
+                    new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+                    {
+                        [schema.Name] = [mutation],
+                    });
+                return CreateRowsAffectedResult(schema.Name, 1, "delete", returningColumns, returningRows);
+            }
+
+            var mutations = new List<TableRowMutation>();
+            var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+            RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
+            foreach (var row in candidateRows)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
+                    continue;
+
+                var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
+                mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+                if (returningColumns.Length != 0)
                     returningRows.Add(row.Values.ToArray());
             }
-            deleted = tsdb.Tables.ApplyTransaction(
+
+            _ = tsdb.Tables.ApplyTransaction(
                 new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
                 {
-                    [schema.Name] = [new TableRowMutation(keyValues, NewValues: null)],
+                    [schema.Name] = mutations,
                 });
-            return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
+            return CreateRowsAffectedResult(schema.Name, mutations.Count, "delete", returningColumns, returningRows);
         }
-
-        var store = tsdb.Tables.Open(schema.Name);
-        var mutations = new List<TableRowMutation>();
-        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
-        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
-        foreach (var row in candidateRows)
-        {
-            SqlExecutor.ThrowIfCancellationRequested();
-            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
-                continue;
-
-            var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
-            mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values)));
-            if (returningColumns.Length != 0)
-                returningRows.Add(row.Values.ToArray());
-        }
-
-        deleted = tsdb.Tables.ApplyTransaction(
-            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
-            {
-                [schema.Name] = mutations,
-            });
-        return CreateRowsAffectedResult(schema.Name, deleted, "delete", returningColumns, returningRows);
     }
 
     public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement)
@@ -5120,6 +5191,36 @@ internal static class TableSqlExecutor
             ProjectionKind.Expression => EvaluateScalar(projection.ExpressionValue!, schema, row),
             _ => throw new InvalidOperationException("未知关系表投影类型。"),
         };
+
+    private static SelectColumnInfo ResolveProjectionColumnInfo(Projection projection)
+    {
+        if (projection.Column is { } column)
+        {
+            return new SelectColumnInfo(
+                column.DataType,
+                column.IsNullable,
+                column.IsPrimaryKey,
+                column.IsAutoIncrement,
+                column.IsRowVersion);
+        }
+
+        if (projection.Kind != ProjectionKind.Constant)
+            return new SelectColumnInfo(null);
+
+        object? value = projection.ConstantValue;
+        return new SelectColumnInfo(value switch
+        {
+            long or int or short or byte => TableColumnType.Int64,
+            float or double => TableColumnType.Float64,
+            decimal => TableColumnType.Decimal,
+            bool => TableColumnType.Boolean,
+            string => TableColumnType.String,
+            DateTime or DateTimeOffset => TableColumnType.DateTime,
+            TimeOnly => TableColumnType.Time,
+            byte[] => TableColumnType.Blob,
+            _ => null,
+        }, value is null);
+    }
 
     internal static bool EvaluateWhere(SqlExpression? expression, TableSchema schema, IReadOnlyList<object?> row)
     {

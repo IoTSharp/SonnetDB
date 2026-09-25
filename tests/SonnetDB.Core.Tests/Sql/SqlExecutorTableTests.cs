@@ -510,8 +510,9 @@ public sealed class SqlExecutorTableTests : IDisposable
         SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'a')");
 
-        Assert.Throws<InvalidOperationException>(() =>
+        var error = Assert.Throws<TableConstraintException>(() =>
             SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'b')"));
+        Assert.Equal(TableConstraintException.UniqueViolation, error.ErrorCode);
     }
 
     [Fact]

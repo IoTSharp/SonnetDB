@@ -2,6 +2,7 @@
 using System.Data.Common;
 using SonnetDB.Data.Internal;
 using SonnetDB.Exceptions;
+using SonnetDB.Sql;
 
 namespace SonnetDB.Data;
 
@@ -372,8 +373,26 @@ public sealed class SndbCommand : DbCommand
         // 嵌入式走 Core AST 值绑定（防注入 + 复用解析缓存）；远程仍在其 impl 内按需绑定。
         if (IsSqlTransactionControl(_commandText))
             throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
+        RejectUnsupportedLockingRead(_commandText);
         return await impl.ExecuteAsync(_commandText, _parameters, behavior, transactionState, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private static void RejectUnsupportedLockingRead(string sql)
+    {
+        if (!sql.Contains("for", StringComparison.OrdinalIgnoreCase)
+            && !sql.Contains("nowait", StringComparison.OrdinalIgnoreCase)
+            && !sql.Contains("skip", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            _ = SqlParser.Parse(sql);
+        }
+        catch (SqlParseException exception) when (exception.Code != SqlErrorCodes.LockingReadUnsupported)
+        {
+            // 其它 SQL 诊断仍由对应连接实现报告。
+        }
     }
 
     private static bool IsSqlTransactionControl(string sql)

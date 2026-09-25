@@ -63,9 +63,13 @@ public static class NdjsonRowWriter
             case long i64:
                 writer.WriteNumberValue(i64);
                 break;
-            case ulong u64:
-                writer.WriteNumberValue(u64);
+            case ulong u64 when u64 <= long.MaxValue:
+                writer.WriteNumberValue((long)u64);
                 break;
+            case ulong:
+                throw new InvalidDataException("NDJSON 整数超出 Int64 范围；请使用 STRING 保存任意精度整数。");
+            case System.Numerics.BigInteger:
+                throw new InvalidDataException("NDJSON 不支持 BigInteger；请检查 Int64 范围后转换为 long，或转换为 string。");
             case float f32:
                 if (float.IsFinite(f32)) writer.WriteNumberValue(f32);
                 else writer.WriteNullValue();

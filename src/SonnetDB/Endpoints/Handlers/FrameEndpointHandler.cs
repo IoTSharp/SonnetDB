@@ -510,7 +510,7 @@ internal static class FrameEndpointHandler
 
             // 流式回写：meta → rows × N → end。meta 与首块合并，最后一块与 end 合并；
             // 仅在确认还有后续块时中途 flush，既保留大结果反压，也避免小结果多次微小刷新。
-            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns);
+            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns, select.ColumnInfo);
 
             int position = 0;
             while (position < select.Rows.Count)

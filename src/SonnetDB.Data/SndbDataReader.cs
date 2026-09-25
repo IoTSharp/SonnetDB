@@ -271,6 +271,7 @@ public sealed class SndbDataReader : DbDataReader
         for (int ordinal = 0; ordinal < FieldCount; ordinal++)
         {
             var fieldType = GetFieldType(ordinal);
+            var columnMetadata = _result.GetColumnMetadata(ordinal);
             var row = table.NewRow();
             row[SchemaTableColumn.ColumnName] = GetName(ordinal);
             row[SchemaTableColumn.ColumnOrdinal] = ordinal;
@@ -280,12 +281,12 @@ public sealed class SndbDataReader : DbDataReader
             row[SchemaTableColumn.DataType] = fieldType;
             row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
             row[SchemaTableColumn.IsLong] = fieldType == typeof(byte[]) || fieldType == typeof(string);
-            row[SchemaTableColumn.AllowDBNull] = true;
+            row[SchemaTableColumn.AllowDBNull] = columnMetadata?.IsNullable ?? true;
             row["IsReadOnly"] = false;
-            row["IsRowVersion"] = false;
+            row["IsRowVersion"] = columnMetadata?.IsRowVersion ?? false;
             row[SchemaTableColumn.IsUnique] = false;
-            row[SchemaTableColumn.IsKey] = false;
-            row[SchemaTableOptionalColumn.IsAutoIncrement] = false;
+            row[SchemaTableColumn.IsKey] = columnMetadata?.IsKey ?? false;
+            row[SchemaTableOptionalColumn.IsAutoIncrement] = columnMetadata?.IsAutoIncrement ?? false;
             row[SchemaTableOptionalColumn.BaseCatalogName] = _connection?.Database ?? string.Empty;
             row[SchemaTableColumn.BaseSchemaName] = string.Empty;
             row[SchemaTableColumn.BaseTableName] = string.Empty;

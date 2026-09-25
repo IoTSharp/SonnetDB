@@ -3,6 +3,7 @@ using SonnetDB.Engine;
 using SonnetDB.Exceptions;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -135,7 +136,7 @@ public sealed class SqlTriggerV2BaselineTests : IDisposable
         var failure = Assert.Throws<RoutineExecutionException>(() =>
             Execute(database, "UPDATE jobs SET state = 'open' WHERE id = 1"));
 
-        Assert.Equal(RoutineErrorCodes.ExecutionFailed, failure.Code);
+        Assert.Equal(TableConstraintException.UniqueViolation, failure.Code);
         Assert.Equal("closed", Select(database, "SELECT state FROM jobs WHERE id = 1").Rows.Single()[0]);
         Assert.Single(Select(database, "SELECT * FROM transition_guard").Rows);
     }
@@ -159,7 +160,7 @@ public sealed class SqlTriggerV2BaselineTests : IDisposable
         var failure = Assert.Throws<RoutineExecutionException>(() =>
             Execute(database, "INSERT INTO orders (id, status) VALUES (1, 'new'), (2, 'new'), (3, 'new')"));
 
-        Assert.Equal(RoutineErrorCodes.ExecutionFailed, failure.Code);
+        Assert.Equal(TableConstraintException.UniqueViolation, failure.Code);
         Assert.Empty(Select(database, "SELECT * FROM orders").Rows);
         Assert.Single(Select(database, "SELECT * FROM audit_outbox").Rows);
         Assert.All(

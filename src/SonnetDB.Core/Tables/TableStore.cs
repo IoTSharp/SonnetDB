@@ -1598,6 +1598,11 @@ public sealed partial class TableStore : IDisposable
                 .Select(entry => (Key: entry.Key.ToArray(), Value: entry.Value.ToArray()))
                 .ToArray();
             var transformedRows = new List<(byte[] Key, byte[] Value)>(originalPayloads.Length);
+            bool startsAutoIncrement = previous.AutoIncrementColumn is null
+                && schema.AutoIncrementColumn is { };
+            byte[]? priorAutoIncrementState = startsAutoIncrement
+                ? _keyspace.Get(_autoIncrementStateKey) : null;
+            long autoIncrementHighWater = 0;
             var payloadsApplied = false;
 
             try
@@ -1609,6 +1614,13 @@ public sealed partial class TableStore : IDisposable
                     var values = transform(previous, row);
                     ValidateRow(schema, values);
                     validate?.Invoke(schema, values);
+                    if (startsAutoIncrement)
+                    {
+                        var column = schema.AutoIncrementColumn!;
+                        autoIncrementHighWater = Math.Max(
+                            autoIncrementHighWater,
+                            ToAutoIncrementValue(values[column.Ordinal]!, column.Name));
+                    }
 
                     var transformedPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
                     if (!transformedPrimaryKey.AsSpan().SequenceEqual(primaryKey))
@@ -1617,14 +1629,21 @@ public sealed partial class TableStore : IDisposable
                     transformedRows.Add((entry.Key, TableRowCodec.Encode(schema, values)));
                 }
 
-                _keyspace.ApplyBatch(transformedRows
+                var mutations = transformedRows
                     .Select(static row => KvBatchMutation.Put(row.Key, row.Value))
-                    .ToArray());
+                    .ToList();
+                if (startsAutoIncrement)
+                {
+                    Span<byte> highWater = stackalloc byte[sizeof(long)];
+                    BinaryPrimitives.WriteInt64LittleEndian(highWater, autoIncrementHighWater);
+                    mutations.Add(KvBatchMutation.Put(_autoIncrementStateKey, highWater.ToArray()));
+                }
+                _keyspace.ApplyBatch(mutations);
                 payloadsApplied = true;
 
                 _schema = schema;
                 RebuildIndexesLocked();
-                return () => RestoreSchemaTransform(previous, originalPayloads);
+                return () => RestoreSchemaTransform(previous, originalPayloads, startsAutoIncrement, priorAutoIncrementState);
             }
             catch
             {
@@ -1632,6 +1651,7 @@ public sealed partial class TableStore : IDisposable
                 {
                     foreach (var entry in originalPayloads)
                         _keyspace.Put(entry.Key, entry.Value);
+                    RestoreAutoIncrementState(startsAutoIncrement, priorAutoIncrementState);
                     _schema = previous;
                     RebuildIndexesLocked();
                 }
@@ -1640,15 +1660,30 @@ public sealed partial class TableStore : IDisposable
         }
     }
 
-    private void RestoreSchemaTransform(TableSchema schema, IReadOnlyList<(byte[] Key, byte[] Value)> payloads)
+    private void RestoreSchemaTransform(
+        TableSchema schema,
+        IReadOnlyList<(byte[] Key, byte[] Value)> payloads,
+        bool restoreAutoIncrementState,
+        byte[]? priorAutoIncrementState)
     {
         lock (_sync)
         {
             foreach (var entry in payloads)
                 _keyspace.Put(entry.Key, entry.Value);
+            RestoreAutoIncrementState(restoreAutoIncrementState, priorAutoIncrementState);
             _schema = schema;
             RebuildIndexesLocked();
         }
+    }
+
+    private void RestoreAutoIncrementState(bool restore, byte[]? priorState)
+    {
+        if (!restore)
+            return;
+        if (priorState is null)
+            _keyspace.Delete(_autoIncrementStateKey);
+        else
+            _keyspace.Put(_autoIncrementStateKey, priorState);
     }
 
     private void LoadStatisticsLocked()
@@ -2369,11 +2404,17 @@ public sealed partial class TableStore : IDisposable
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             string rowKeyText = Convert.ToHexString(rowKey);
             if (!pendingRowKeys.Add(rowKeyText))
+            {
+                if (isInsert)
+                    throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                        schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中主键已存在。");
                 throw new InvalidOperationException($"轻事务中同一行被多次修改：table '{schema.Name}'。");
+            }
 
             var oldRow = TryGetByRowKeyLocked(schema, rowKey);
             if (isInsert && oldRow is not null)
-                throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
+                throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                    schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中主键已存在。");
             ValidateRowVersion(schema, mutation, oldRow);
             if (mutation.ExpectedRowState is { } expectedState
                 && (oldRow is null || !expectedState.AsSpan().SequenceEqual(TableRowCodec.Encode(schema, oldRow.Values))))

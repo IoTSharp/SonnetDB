@@ -482,14 +482,28 @@ public sealed record TableColumnDefinition(
 }
 
 /// <summary>
-/// <c>ALTER TABLE table ADD COLUMN col TYPE [NULL|NOT NULL] [DEFAULT expr]</c>。
+/// <c>ALTER TABLE table ADD COLUMN col TYPE [NULL|NOT NULL] [DEFAULT expr|ROWVERSION|AUTO_INCREMENT]</c>。
 /// </summary>
 public sealed record AlterTableAddColumnStatement(
     string TableName,
     string ColumnName,
     SqlDataType DataType,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
-    SqlExpression? DefaultExpression = null) : SqlStatement;
+    SqlExpression? DefaultExpression = null,
+    bool IsRowVersion = false,
+    bool IsAutoIncrement = false) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table ADD [CONSTRAINT name] PRIMARY KEY (column [, ...])</c>
+/// 或 <c>ALTER TABLE table ALTER PRIMARY KEY (...)</c>；仅允许空表重定义。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="Columns">目标主键列名。</param>
+/// <param name="ConstraintName">可选的主键约束名。</param>
+public sealed record AlterTableAlterPrimaryKeyStatement(
+    string TableName,
+    IReadOnlyList<string> Columns,
+    string? ConstraintName = null) : SqlStatement;
 
 /// <summary>
 /// <c>ALTER TABLE table ALTER [COLUMN] col [TYPE type|SET DATA TYPE type] [NULL|NOT NULL] [SET|DROP DEFAULT]</c>。
@@ -694,6 +708,9 @@ public sealed record SqlOnConflictClause(
     /// 赋值表达式可用 <c>excluded.column</c> 引用本次候选行。
     /// </summary>
     public IReadOnlyList<UpdateAssignment> UpdateAssignments { get; init; } = Array.Empty<UpdateAssignment>();
+
+    /// <summary>冲突行更新前求值的可选谓词；仅真值会产生 UPDATE。</summary>
+    public SqlExpression? UpdateWhere { get; init; }
 }
 
 /// <summary>
@@ -764,6 +781,9 @@ public sealed record SelectStatement(
     /// </summary>
     public IReadOnlyList<CommonTableExpression> CommonTableExpressions { get; init; } =
         Array.Empty<CommonTableExpression>();
+
+    /// <summary>WITH RECURSIVE 是否启用有界递归求值。</summary>
+    public bool IsRecursive { get; init; }
 
     /// <summary>当前 SELECT 后续的 UNION/INTERSECT/EXCEPT 分支。</summary>
     public IReadOnlyList<SqlSetOperation> SetOperations { get; init; } =

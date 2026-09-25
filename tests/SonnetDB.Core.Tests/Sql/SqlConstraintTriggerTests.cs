@@ -62,7 +62,8 @@ public sealed class SqlConstraintTriggerTests : IDisposable
             """);
         var transaction = Assert.IsType<SqlTransactionContext>(Execute(db, "BEGIN"));
         Execute(db, "INSERT INTO source_rows (id) VALUES (1)", transaction);
-        Assert.Throws<InvalidOperationException>(() => Execute(db, "COMMIT", transaction));
+        var error = Assert.Throws<TableConstraintException>(() => Execute(db, "COMMIT", transaction));
+        Assert.Equal(TableConstraintException.UniqueViolation, error.ErrorCode);
         Assert.True(transaction.IsCompleted);
         Assert.Empty(Select(db, "SELECT * FROM source_rows").Rows);
         Assert.Single(Select(db, "SELECT * FROM audit_rows").Rows);

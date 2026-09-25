@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
 using SonnetDB.Model;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Internal;
 
@@ -27,6 +28,19 @@ internal enum ExecutionFieldTypeKind
 
 internal static class ExecutionFieldTypeResolver
 {
+    public static ExecutionFieldTypeKind Resolve(TableColumnType type) => type switch
+    {
+        TableColumnType.Int64 => ExecutionFieldTypeKind.Int64,
+        TableColumnType.Float64 => ExecutionFieldTypeKind.Double,
+        TableColumnType.Decimal => ExecutionFieldTypeKind.Decimal,
+        TableColumnType.Boolean => ExecutionFieldTypeKind.Boolean,
+        TableColumnType.String or TableColumnType.Json => ExecutionFieldTypeKind.String,
+        TableColumnType.DateTime => ExecutionFieldTypeKind.DateTime,
+        TableColumnType.Time => ExecutionFieldTypeKind.TimeOnly,
+        TableColumnType.Blob => ExecutionFieldTypeKind.ByteArray,
+        _ => ExecutionFieldTypeKind.Object,
+    };
+
     public static ExecutionFieldTypeKind Resolve(object? value)
     {
         return value switch

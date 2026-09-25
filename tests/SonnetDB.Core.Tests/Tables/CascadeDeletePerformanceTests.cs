@@ -117,8 +117,9 @@ public sealed class CascadeDeletePerformanceTests : IDisposable
             ["guard_rows"] = [new TableRowMutation(PrimaryKeyValues: null, [1L])],
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        var error = Assert.Throws<TableConstraintException>(() =>
             db.Tables.ApplyTransaction(mutations, new CascadeDeleteExecutionMetrics()));
+        Assert.Equal(TableConstraintException.UniqueViolation, error.ErrorCode);
 
         Assert.Single(Assert.IsType<SelectExecutionResult>(
             SqlExecutor.Execute(db, "SELECT id FROM parents")).Rows);

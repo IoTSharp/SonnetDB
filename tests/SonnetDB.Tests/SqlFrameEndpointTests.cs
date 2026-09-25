@@ -683,6 +683,177 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Query_InsertReturning_RejectedWithoutWriting()
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_returning_reject (id INT, PRIMARY KEY (id))");
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 44, _dbName,
+            "INSERT INTO sf_returning_reject (id) VALUES (1) RETURNING id");
+        var frames = await PostFramesAsync(admin, writer.WrittenMemory.ToArray());
+
+        Assert.Single(frames);
+        Assert.True(frames[0].Header.IsError);
+        Assert.Equal(44u, frames[0].Header.StreamId);
+        (string code, string message) = FrameCodec.ReadErrorPayload(frames[0].Payload);
+        Assert.Equal("bad_request", code);
+        Assert.Contains("只读", message);
+        (_, List<object?[]> rows, _, _) = await QueryFrameAsync(admin, "SELECT id FROM sf_returning_reject");
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task Rest_InsertSelectReturning_StreamsDeclaredMetaRowsAndEmptyResult()
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_copy_source (id INT, name STRING, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_copy_target (id INT AUTO_INCREMENT, name STRING, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin,
+            "INSERT INTO sf_copy_source (id, name) VALUES (1, 'first'), (2, 'second')");
+
+        using var response = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "INSERT INTO sf_copy_target (name) SELECT name FROM sf_copy_source ORDER BY id RETURNING id, name"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        string[] lines = (await response.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, lines.Length);
+        using (var meta = JsonDocument.Parse(lines[0]))
+        {
+            Assert.Equal("meta", meta.RootElement.GetProperty("type").GetString());
+            string[] expectedColumns = ["id", "name"];
+            Assert.Equal(expectedColumns, meta.RootElement.GetProperty("columns")
+                .EnumerateArray().Select(static value => value.GetString()!).ToArray());
+            Assert.Equal("int64", meta.RootElement.GetProperty("columnTypes")[0].GetString());
+            var idSchema = meta.RootElement.GetProperty("columnSchemas")[0];
+            Assert.False(idSchema.GetProperty("isNullable").GetBoolean());
+            Assert.True(idSchema.GetProperty("isAutoIncrement").GetBoolean());
+        }
+        using (var first = JsonDocument.Parse(lines[1]))
+        using (var second = JsonDocument.Parse(lines[2]))
+        {
+            Assert.Equal(1L, first.RootElement[0].GetInt64());
+            Assert.Equal("first", first.RootElement[1].GetString());
+            Assert.Equal(2L, second.RootElement[0].GetInt64());
+            Assert.Equal("second", second.RootElement[1].GetString());
+        }
+        using (var end = JsonDocument.Parse(lines[3]))
+        {
+            Assert.Equal(2, end.RootElement.GetProperty("rowCount").GetInt32());
+            Assert.Equal(2, end.RootElement.GetProperty("recordsAffected").GetInt32());
+        }
+
+        using var emptyResponse = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "INSERT INTO sf_copy_target (name) SELECT name FROM sf_copy_source WHERE id > 100 RETURNING id, name"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.OK, emptyResponse.StatusCode);
+        string[] emptyLines = (await emptyResponse.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, emptyLines.Length);
+        using var emptyMeta = JsonDocument.Parse(emptyLines[0]);
+        using var emptyEnd = JsonDocument.Parse(emptyLines[1]);
+        Assert.Equal("int64", emptyMeta.RootElement.GetProperty("columnSchemas")[0]
+            .GetProperty("dataType").GetString());
+        Assert.Equal(0, emptyEnd.RootElement.GetProperty("rowCount").GetInt32());
+        Assert.Equal(0, emptyEnd.RootElement.GetProperty("recordsAffected").GetInt32());
+    }
+
+    [Fact]
+    public async Task Rest_EmptyAndAllNullSelect_StreamsDeclaredColumnTypes()
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin,
+            "CREATE TABLE sf_typed_select (id INT, value INT NULL, amount DECIMAL(20,6) NULL, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin,
+            "INSERT INTO sf_typed_select (id, value, amount) VALUES (1, NULL, NULL)");
+
+        using var empty = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "SELECT id AS key_alias, value AS nullable_alias FROM sf_typed_select WHERE id = 404"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.OK, empty.StatusCode);
+        string[] emptyLines = (await empty.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, emptyLines.Length);
+        using (var meta = JsonDocument.Parse(emptyLines[0]))
+        {
+            Assert.Equal("int64", meta.RootElement.GetProperty("columnTypes")[0].GetString());
+            Assert.Equal("int64", meta.RootElement.GetProperty("columnTypes")[1].GetString());
+            Assert.True(meta.RootElement.GetProperty("columnSchemas")[0].GetProperty("isKey").GetBoolean());
+            Assert.False(meta.RootElement.GetProperty("columnSchemas")[0].GetProperty("isNullable").GetBoolean());
+            Assert.True(meta.RootElement.GetProperty("columnSchemas")[1].GetProperty("isNullable").GetBoolean());
+        }
+
+        using var allNull = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "SELECT value AS nullable_alias FROM sf_typed_select"),
+                ServerJsonContext.Default.SqlRequest));
+        string[] nullLines = (await allNull.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(3, nullLines.Length);
+        using var nullMeta = JsonDocument.Parse(nullLines[0]);
+        using var nullRow = JsonDocument.Parse(nullLines[1]);
+        Assert.Equal("int64", nullMeta.RootElement.GetProperty("columnTypes")[0].GetString());
+        Assert.Equal(JsonValueKind.Null, nullRow.RootElement[0].ValueKind);
+
+        using var aggregate = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "SELECT COUNT(*) AS total, MIN(value) AS minimum, SUM(value) AS summed "
+                + "FROM sf_typed_select WHERE id = 404"),
+                ServerJsonContext.Default.SqlRequest));
+        string[] aggregateLines = (await aggregate.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var aggregateMeta = JsonDocument.Parse(aggregateLines[0]);
+        Assert.Equal(3, aggregateMeta.RootElement.GetProperty("columnTypes").GetArrayLength());
+        Assert.All(aggregateMeta.RootElement.GetProperty("columnTypes").EnumerateArray(),
+            type => Assert.Equal("int64", type.GetString()));
+    }
+
+    [Theory]
+    [InlineData("UPDATE sf_returning SET value = 20 WHERE id = 1 RETURNING id, value")]
+    [InlineData("DELETE FROM sf_returning WHERE id = 1 RETURNING id, value")]
+    public async Task Query_WriteReturningStatement_RejectedWithoutMutation(string sql)
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_returning (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_returning (id, value) VALUES (1, 10)");
+
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 54, _dbName, sql);
+        var frame = Assert.Single(await PostFramesAsync(admin, writer.WrittenMemory.ToArray()));
+        Assert.True(frame.Header.IsError);
+        Assert.Equal("bad_request", FrameCodec.ReadErrorPayload(frame.Payload).Code);
+
+        var (_, rows, _, _) = await QueryFrameAsync(admin,
+            "SELECT id, value FROM sf_returning", streamId: 55);
+        Assert.Equal(new object?[] { 1L, 10L }, Assert.Single(rows));
+    }
+
+    [Fact]
+    public async Task UpdateJoin_RestMutation_FrameReadSeesCommittedTargetOnly()
+    {
+        using var admin = CreateClient();
+        using var readOnly = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_join_targets (id INT, source_id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_join_sources (id INT, value INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_join_targets (id, source_id, value) VALUES (1, 10, 0), (2, 20, 0)");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_join_sources (id, value) VALUES (10, 31), (20, 42)");
+        await ExecRestSqlAsync(admin, "UPDATE sf_join_targets AS t SET value = s.value FROM sf_join_sources AS s WHERE t.source_id = s.id AND t.id = 1");
+
+        var (_, targets, targetCount, _) = await QueryFrameAsync(readOnly,
+            "SELECT id, value FROM sf_join_targets ORDER BY id", streamId: 56);
+        Assert.Equal(2, targetCount);
+        Assert.Equal(new object?[] { 1L, 31L }, targets[0]);
+        Assert.Equal(new object?[] { 2L, 0L }, targets[1]);
+        var (_, sources, _, _) = await QueryFrameAsync(readOnly,
+            "SELECT id, value FROM sf_join_sources ORDER BY id", streamId: 57);
+        Assert.Equal(new object?[] { 10L, 31L }, sources[0]);
+        Assert.Equal(new object?[] { 20L, 42L }, sources[1]);
+    }
+
+    [Fact]
     public async Task Query_ControlPlaneStatement_RejectedBadRequest()
     {
         using var admin = CreateClient();

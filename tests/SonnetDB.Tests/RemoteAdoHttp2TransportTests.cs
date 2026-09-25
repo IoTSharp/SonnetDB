@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Buffers;
 using System.Data;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Numerics;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -9,7 +12,12 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
+using SonnetDB.Contracts;
 using SonnetDB.Data;
+using SonnetDB.Exceptions;
+using SonnetDB.Json;
+using SonnetDB.Protocol;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -126,6 +134,163 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.All(h2Requests, r => Assert.Equal("HTTP/2", r.Protocol));
     }
 
+    [Fact]
+    public async Task RecursiveCte_RestNdjsonAndFrameHttp2_ReturnSameParameterizedRows()
+    {
+        using var rest = new SndbConnection(ConnectionString(_http11Url, "rest"));
+        rest.Open();
+        using (var setup = rest.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE recursive_devices (id INT, parent_id INT, PRIMARY KEY (id))";
+            setup.ExecuteNonQuery();
+            setup.CommandText = "INSERT INTO recursive_devices (id, parent_id) VALUES (1, NULL), (2, 1), (3, 1), (4, 2)";
+            Assert.Equal(4, setup.ExecuteNonQuery());
+        }
+
+        const string query = """
+            WITH RECURSIVE device_tree (id, depth) AS (
+                SELECT id, 0 AS depth FROM recursive_devices WHERE id = @root
+                UNION ALL
+                SELECT child.id, device_tree.depth + 1 AS depth
+                FROM recursive_devices AS child JOIN device_tree ON child.parent_id = device_tree.id
+            )
+            SELECT id, depth FROM device_tree ORDER BY id DESC LIMIT 2
+            """;
+        foreach (string protocol in new[] { "rest", "frame-http2" })
+        {
+            string url = protocol == "rest" ? _http11Url : _frameH2Url;
+            using var connection = new SndbConnection(ConnectionString(url, protocol));
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = query;
+            command.Parameters.AddWithValue("@root", 1L);
+            using var reader = command.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(4L, reader.GetInt64(0));
+            Assert.Equal(2L, reader.GetInt64(1));
+            Assert.True(reader.Read());
+            Assert.Equal(3L, reader.GetInt64(0));
+            Assert.Equal(1L, reader.GetInt64(1));
+            Assert.False(reader.Read());
+        }
+
+        using var http = new HttpClient { BaseAddress = new Uri(_http11Url) };
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+        using var response = await http.PostAsync(
+            $"/v1/db/{DatabaseName}/sql",
+            JsonContent.Create(new SqlRequest(query.Replace("@root", "1", StringComparison.Ordinal)),
+                ServerJsonContext.Default.SqlRequest));
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("application/x-ndjson", response.Content.Headers.ContentType?.MediaType);
+        string[] lines = (await response.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, lines.Length); // meta, two rows, end
+        Assert.Contains("[4,2]", lines[1], StringComparison.Ordinal);
+        Assert.Contains("[3,1]", lines[2], StringComparison.Ordinal);
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        Assert.Contains(_requests, request => request.LocalPort == h2Port
+            && request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
+    public async Task FrameHttp2_Int64Boundary_AsyncReadAndBigIntegerPreflight()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_int64_boundary (id INT, exact_text STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO h2_int64_boundary (id, exact_text) VALUES "
+            + "(-9223372036854775808, '9223372036854775808'), "
+            + "(9223372036854775807, '9223372036854775807')";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "SELECT id, exact_text FROM h2_int64_boundary ORDER BY id";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(long.MinValue, reader.GetInt64(0));
+            Assert.Equal(typeof(long), reader.GetFieldType(0));
+            Assert.Equal("9223372036854775808", reader.GetString(1));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(long.MaxValue, reader.GetInt64(0));
+            Assert.False(await reader.ReadAsync());
+        }
+
+        command.CommandText = "SELECT @value";
+        var requestsBeforeBinding = _requests.Count;
+        var error = Assert.Throws<SndbParameterTypeException>(() =>
+            command.Parameters.AddWithValue("@value", BigInteger.Parse("9223372036854775808")));
+        Assert.Equal(SndbParameterTypeException.BigIntegerUnsupportedCode, error.Code);
+        Assert.Equal(requestsBeforeBinding, _requests.Count);
+        Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
+    public async Task FrameHttp2_InsertReturning_AsyncTransactionRollbackKeepsGeneratedSchema()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_returning_contract (id INT AUTO_INCREMENT, name STRING NOT NULL DEFAULT 'generated', version INT ROWVERSION, note STRING NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "INSERT INTO h2_returning_contract (name) VALUES (@name) RETURNING id, name, version, note";
+            command.Parameters.AddWithValue("@name", "pump");
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                Assert.Equal(typeof(long), reader.GetFieldType(0));
+                Assert.Equal(typeof(string), reader.GetFieldType(3));
+                var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+                Assert.False((bool)schema.Rows[0][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+                Assert.True((bool)schema.Rows[0][System.Data.Common.SchemaTableOptionalColumn.IsAutoIncrement]);
+                Assert.True((bool)schema.Rows[2]["IsRowVersion"]);
+                Assert.True((bool)schema.Rows[3][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(1L, reader.GetInt64(0));
+                Assert.Equal("pump", reader.GetString(1));
+                Assert.Equal(1L, reader.GetInt64(2));
+                Assert.Equal(DBNull.Value, reader.GetValue(3));
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(1, reader.RecordsAffected);
+            }
+            await transaction.RollbackAsync();
+        }
+
+        command.Transaction = null;
+        command.Parameters.Clear();
+        command.CommandText = "SELECT COUNT(*) FROM h2_returning_contract";
+        Assert.Equal(0L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+        Assert.Contains(_requests, request => request.Path == $"/v1/db/{DatabaseName}/sql" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
+    public async Task FrameHttp2_InsertReturning_AsyncMethodsAndCompositeKeyErrorStayConsistent()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_returning_composite (tenant INT, id INT, name STRING, PRIMARY KEY (tenant, id))";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "INSERT INTO h2_returning_composite (tenant, id, name) VALUES (1, 1, 'first') RETURNING id";
+        Assert.Equal(1L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+        command.CommandText = "INSERT INTO h2_returning_composite (tenant, id, name) VALUES (1, 2, 'second') RETURNING id";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO h2_returning_composite (tenant, id, name) VALUES (2, 1, 'partial'), (1, 1, 'duplicate') RETURNING id";
+        var error = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteNonQueryAsync());
+        Assert.Equal(TableConstraintException.UniqueViolation, error.Error);
+
+        command.CommandText = "SELECT COUNT(*) FROM h2_returning_composite";
+        Assert.Equal(2L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+        Assert.Contains(_requests, request => request.Path == $"/v1/db/{DatabaseName}/sql" && request.Protocol == "HTTP/2");
+    }
+
     /// <summary>Frame HTTP/2 远程连接在事务内外均返回 INSERT、UPDATE、DELETE 的真实影响行数。</summary>
     [Fact]
     public async Task FrameHttp2_DmlRecordsAffected_IsConsistentInsideAndOutsideTransaction()
@@ -156,6 +321,147 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         ObservedRequest[] h2Requests = _requests.Where(request => request.LocalPort == h2Port).ToArray();
         Assert.Contains(h2Requests, request => request.Path == $"/v1/db/{DatabaseName}/sql/batch");
         Assert.All(h2Requests, request => Assert.Equal("HTTP/2", request.Protocol));
+    }
+
+    [Fact]
+    public async Task FrameHttp2_InsertSelectAsync_BindsParametersAndReturnsGeneratedRows()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE copy_source (id INT, value STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE TABLE copy_target (id INT AUTO_INCREMENT, value STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO copy_source (id, value) VALUES (1, 'first'), (2, 'second')";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO copy_target (value) "
+            + "SELECT value FROM copy_source WHERE id >= @min ORDER BY id RETURNING id, value";
+        command.Parameters.AddWithValue("@min", 2L);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal("second", reader.GetString(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT id, value FROM copy_target";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("second", reader.GetString(1));
+            Assert.False(await reader.ReadAsync());
+        }
+
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 51, DatabaseName,
+            "INSERT INTO copy_target (value) SELECT value FROM copy_source RETURNING id");
+        using var http = new HttpClient();
+        using var frameRequest = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_frameH2Url), "/v1/frame"))
+        {
+            Version = HttpVersion.Version20,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Content = new ByteArrayContent(writer.WrittenMemory.ToArray()),
+        };
+        frameRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+        frameRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-sonnetdb-frame");
+        using var frameResponse = await http.SendAsync(frameRequest);
+        Assert.Equal(HttpStatusCode.OK, frameResponse.StatusCode);
+        Assert.Equal(HttpVersion.Version20, frameResponse.Version);
+        ReadOnlySequence<byte> buffer = new(await frameResponse.Content.ReadAsByteArrayAsync());
+        Assert.True(FrameCodec.TryReadFrame(ref buffer, out var header, out var payload));
+        Assert.True(header.IsError);
+        (string code, _) = FrameCodec.ReadErrorPayload(payload.ToArray());
+        Assert.Equal("bad_request", code);
+        Assert.False(FrameCodec.TryReadFrame(ref buffer, out _, out _));
+
+        command.CommandText = "SELECT COUNT(*) FROM copy_target";
+        Assert.Equal(1L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        ObservedRequest[] requests = _requests.Where(request => request.LocalPort == h2Port).ToArray();
+        Assert.Contains(requests, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        Assert.Contains(requests, request => request.Path == "/v1/frame");
+        Assert.All(requests, request => Assert.Equal("HTTP/2", request.Protocol));
+    }
+
+    [Fact]
+    public async Task FrameHttp2_EmptyAndAllNullSelect_UsesDeclaredMetaBeforeRows()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_typed_select (id INT, value INT NULL, amount DECIMAL(20,6) NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO h2_typed_select (id, value, amount) VALUES (1, NULL, NULL)";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "SELECT id AS key_alias, value AS nullable_alias FROM h2_typed_select WHERE id = 404";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.Equal(typeof(long), empty.GetFieldType(1));
+            var schema = Assert.IsType<DataTable>(empty.GetSchemaTable());
+            Assert.True((bool)schema.Rows[0][System.Data.Common.SchemaTableColumn.IsKey]);
+            Assert.False((bool)schema.Rows[0][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+            Assert.True((bool)schema.Rows[1][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+            Assert.False(await empty.ReadAsync());
+        }
+
+        command.CommandText = "SELECT value AS nullable_alias FROM h2_typed_select";
+        await using (var allNull = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(long), allNull.GetFieldType(0));
+            Assert.True(await allNull.ReadAsync());
+            Assert.Equal(DBNull.Value, allNull.GetValue(0));
+            Assert.False(await allNull.ReadAsync());
+        }
+
+        command.CommandText = "SELECT COUNT(*) AS total, MIN(value) AS minimum, "
+            + "AVG(amount) AS average, SUM(value) AS summed FROM h2_typed_select WHERE id = 404";
+        await using var aggregate = await command.ExecuteReaderAsync();
+        Assert.Equal([typeof(long), typeof(long), typeof(decimal), typeof(long)],
+            Enumerable.Range(0, aggregate.FieldCount).Select(aggregate.GetFieldType).ToArray());
+        Assert.True(await aggregate.ReadAsync());
+        Assert.Equal(0L, aggregate.GetInt64(0));
+        Assert.Equal(DBNull.Value, aggregate.GetValue(1));
+        Assert.False(await aggregate.ReadAsync());
+        Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
+    public async Task FrameHttp2_DateTimeTimeAndBlob_SelectValuesMatchDeclaredTypes()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_typed_values (id INT, occurred_at DATETIME NULL, starts TIME NULL, payload BLOB NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO h2_typed_values (id, occurred_at, starts, payload) VALUES "
+            + "(1, '2026-09-25T12:34:56Z', '23:59:59.1234567', 'AP9h'), (2, NULL, NULL, NULL)";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "SELECT occurred_at, starts, payload FROM h2_typed_values ORDER BY id";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.Equal([typeof(DateTime), typeof(TimeOnly), typeof(byte[])],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(new DateTime(2026, 9, 25, 12, 34, 56, DateTimeKind.Utc),
+            Assert.IsType<DateTime>(reader.GetValue(0)));
+        Assert.Equal(new TimeOnly(23, 59, 59, 123).Add(TimeSpan.FromTicks(4567)),
+            Assert.IsType<TimeOnly>(reader.GetValue(1)));
+        Assert.Equal(new byte[] { 0, 255, 97 }, Assert.IsType<byte[]>(reader.GetValue(2)));
+        Assert.Equal(3, reader.GetBytes(2, 0, null, 0, 0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal([typeof(DateTime), typeof(TimeOnly), typeof(byte[])],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        Assert.All(Enumerable.Range(0, reader.FieldCount), ordinal => Assert.Equal(DBNull.Value, reader.GetValue(ordinal)));
+        Assert.False(await reader.ReadAsync());
+        Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
     [Theory]

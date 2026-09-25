@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -338,6 +339,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private static IExecutionResult BuildSqlResult(IReadOnlyList<FrameMessage> frames)
     {
         string[] columns = [];
+        SelectColumnInfo[]? columnInfo = null;
         var rows = new List<IReadOnlyList<object?>>();
 
         foreach (FrameMessage frame in frames)
@@ -346,11 +348,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
             {
                 case SqlQueryChunkKind.Meta:
-                    columns = SqlFrameCodec.DecodeQueryMetaFrame(frame.Payload);
+                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload);
                     break;
                 case SqlQueryChunkKind.Rows:
                     foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload))
+                    {
+                        if (columnInfo is not null)
+                        {
+                            for (int column = 0; column < row.Length; column++)
+                            {
+                                if (columnInfo[column].DataType != TableColumnType.Time || row[column] is not string text)
+                                    continue;
+                                if (!TimeOnly.TryParseExact(text, "HH:mm:ss.fffffff", CultureInfo.InvariantCulture,
+                                        DateTimeStyles.None, out var time))
+                                    throw new InvalidDataException("SQL Frame TIME 值不是有效的时间值。");
+                                row[column] = time;
+                            }
+                        }
                         rows.Add(row);
+                    }
                     break;
                 case SqlQueryChunkKind.End:
                     _ = SqlFrameCodec.DecodeQueryEndFrame(frame.Payload);
@@ -358,7 +374,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             }
         }
 
-        return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows));
+        return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows)
+        {
+            ColumnInfo = columnInfo,
+        });
     }
 
     private static async Task<SndbServerException> BuildHttpErrorAsync(
@@ -790,7 +809,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return MaterializedExecutionResult.FromSelect(
             new SelectExecutionResult(
                 returningColumns.Select(static column => column.Name).ToArray(),
-                projectedRows) { Truncated = preview.Truncated },
+                projectedRows)
+            {
+                Truncated = preview.Truncated,
+                ColumnSchema = returningColumns,
+            },
             preview.RecordsAffected);
     }
 
@@ -944,11 +967,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
         string[] columns = [];
+        string[]? columnTypes = null;
         var rows = new List<IReadOnlyList<object?>>();
         var readingRows = false;
         var sawResult = false;
         var recordsAffected = -1;
         var truncated = false;
+        int resultIndex = 0;
+        int targetResultIndex = transaction.Statements.Count + 1;
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -960,7 +986,12 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             var root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Array && readingRows)
             {
-                rows.Add(root.EnumerateArray().Select(RemoteExecutionResult.ReadScalar).ToArray());
+                if (root.GetArrayLength() != columns.Length)
+                    throw new InvalidDataException("远程事务预览行列数与 meta 不一致。");
+                var values = new object?[columns.Length];
+                for (int i = 0; i < values.Length; i++)
+                    values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i]);
+                rows.Add(values);
                 continue;
             }
 
@@ -986,29 +1017,49 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (typeProperty.GetString())
             {
                 case "meta":
-                    if (sawResult || readingRows)
-                        throw new InvalidDataException("远程事务预览响应包含多个结果集。");
-                    columns = root.TryGetProperty("columns", out var columnsProperty)
-                        && columnsProperty.ValueKind == JsonValueKind.Array
-                            ? columnsProperty.EnumerateArray()
-                                .Select(static column => column.GetString() ?? string.Empty)
-                                .ToArray()
-                            : [];
-                    readingRows = true;
-                    break;
-                case "end" when readingRows:
-                    if (root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
-                        && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+                    if (resultIndex == targetResultIndex)
                     {
-                        recordsAffected = recordsAffectedProperty.GetInt32();
+                        if (sawResult || readingRows)
+                            throw new InvalidDataException("远程事务目标语句返回了多个结果集。");
+                        columns = root.TryGetProperty("columns", out var columnsProperty)
+                            && columnsProperty.ValueKind == JsonValueKind.Array
+                                ? columnsProperty.EnumerateArray()
+                                    .Select(static column => column.GetString() ?? string.Empty)
+                                    .ToArray()
+                                : [];
+                        if (root.TryGetProperty("columnTypes", out var typesProperty))
+                        {
+                            if (typesProperty.ValueKind != JsonValueKind.Array
+                                || typesProperty.GetArrayLength() != columns.Length)
+                                throw new InvalidDataException("远程事务预览列类型与列名数量不一致。");
+                            columnTypes = typesProperty.EnumerateArray()
+                                .Select(static type => type.GetString() ?? string.Empty)
+                                .ToArray();
+                        }
+                        readingRows = true;
                     }
-                    truncated = RemoteExecutionResult.ReadTruncated(root);
-                    readingRows = false;
-                    sawResult = true;
+                    break;
+                case "end":
+                    if (resultIndex == targetResultIndex)
+                    {
+                        if (!readingRows)
+                            throw new InvalidDataException("远程事务目标语句缺少结果列元信息。");
+                        if (root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
+                            && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            recordsAffected = recordsAffectedProperty.GetInt32();
+                        }
+                        truncated = RemoteExecutionResult.ReadTruncated(root);
+                        readingRows = false;
+                        sawResult = true;
+                    }
+                    resultIndex++;
                     break;
             }
         }
 
+        if (resultIndex != statements.Count)
+            throw new InvalidDataException("远程事务预览响应结果数与请求语句数不一致。");
         if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 

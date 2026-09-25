@@ -71,7 +71,27 @@ public sealed record ErrorResponse(
 /// </summary>
 /// <param name="Type">固定为 <c>"meta"</c>。</param>
 /// <param name="Columns">列名列表。</param>
-public sealed record ResultMeta(string Type, IReadOnlyList<string> Columns);
+public sealed record ResultMeta(string Type, IReadOnlyList<string> Columns)
+{
+    /// <summary>按列顺序排列的 SQL 结果类型；旧客户端可忽略，未知类型为 object。</summary>
+    public IReadOnlyList<string>? ColumnTypes { get; init; }
+
+    /// <summary>关系表 RETURNING 的声明列属性；普通查询不提供。</summary>
+    public IReadOnlyList<ResultColumnSchema>? ColumnSchemas { get; init; }
+}
+
+/// <summary>关系表 RETURNING 列的 NDJSON 声明元数据。</summary>
+/// <param name="DataType">传输后 ADO 值的类型码。</param>
+/// <param name="IsNullable">列是否允许 NULL。</param>
+/// <param name="IsKey">列是否属于主键。</param>
+/// <param name="IsAutoIncrement">列是否自动生成整数键。</param>
+/// <param name="IsRowVersion">列是否为 ROWVERSION。</param>
+public sealed record ResultColumnSchema(
+    string DataType,
+    bool IsNullable,
+    bool IsKey,
+    bool IsAutoIncrement,
+    bool IsRowVersion);
 
 /// <summary>
 /// SQL 流式响应的尾部统计（ndjson 最后一行）。

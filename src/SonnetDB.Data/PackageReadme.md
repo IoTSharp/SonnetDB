@@ -46,6 +46,14 @@ while (reader.Read())
 }
 ```
 
+## 整数精度边界
+
+SQL `INT` 使用有符号 64 位整数，范围为 `-9223372036854775808` 至 `9223372036854775807`。超范围的整数字面量、整数运算及向 `INT` 的显式转换会报错；参数中的超范围 `ulong` 同样不能作为 `INT` 使用。需要保存更长整数的原文时使用 `STRING` 列并以字符串参数传入，此时比较和排序按字符串语义执行；如需有限范围的精确十进制运算，可显式转换为 `DECIMAL`，它不等同于任意精度整数。
+
+ADO 参数不直接接受 `System.Numerics.BigInteger`，包括其数值恰好在 Int64 范围内的情况。赋值或 `AddWithValue` 时抛出 `SndbParameterTypeException`，稳定 `Code` 为 `big_integer_unsupported`；应用层须先检查范围再显式转为 `long`，超范围值转为不丢精度的字符串。这项检查发生在嵌入式、HTTP 和帧协议共同的 ADO 参数入口，早于 SQL 绑定或网络请求。
+
+嵌入式与远程读取器的 `INT` 值都返回 `long`。结果包含非 NULL 整数行时，`GetFieldType()` 为 `typeof(long)`，`GetSchemaTable()` 报告 `DbType.Int64` 和十进制精度 19；REST 流会在首行前提供推断出的类型。空结果或整列为 NULL 时，现有查询结果未携带声明列类型，读取器可能报告 `object`。远程协议拒绝超出 Int64 的裸 JSON 整数，不会把它悄悄降为 `double`；`STRING` 列保留原文。
+
 ## Microsoft.Extensions.VectorData
 
 `SonnetDB.Data.VectorData` 提供 `Microsoft.Extensions.VectorData` adapter。默认情况下，一个 VectorData collection 会映射为 SonnetDB `DOCUMENT COLLECTION`：record key 存为文档 `id`，数据字段和向量字段存入 JSON document，向量搜索通过 `vector_search(...)` 读取 JSON number array。

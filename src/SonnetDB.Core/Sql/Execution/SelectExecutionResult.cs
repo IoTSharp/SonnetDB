@@ -22,6 +22,12 @@ public sealed record SelectExecutionResult(
     /// <summary>结果是否为不完整的有界预览。</summary>
     public bool Truncated { get; init; }
 
+    /// <summary>关系表 RETURNING 投影的声明列 schema；普通 SELECT 未提供时为 null。</summary>
+    public IReadOnlyList<SonnetDB.Tables.TableColumn>? ColumnSchema { get; init; }
+
+    /// <summary>普通 SELECT 的逐列声明信息；未知投影类型保留为 null。</summary>
+    public IReadOnlyList<SelectColumnInfo>? ColumnInfo { get; init; }
+
     /// <summary>
     /// 返回限制行数后的结果预览。原结果超过限制时，返回结果的
     /// <see cref="Truncated"/> 为 <see langword="true"/>；否则保留原结果实例。

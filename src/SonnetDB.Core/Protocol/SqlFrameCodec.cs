@@ -1,7 +1,10 @@
 using System.Buffers;
+using SonnetDB.Exceptions;
 using SonnetDB.IO;
 using SonnetDB.Model;
 using SonnetDB.Sql;
+using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Protocol;
 
@@ -127,6 +130,7 @@ public static class SqlFrameCodec
     private static long MeasureParameterValue(object? value) => value switch
     {
         null => 0,
+        System.Numerics.BigInteger => throw UnsupportedBigInteger(),
         long or int or short or sbyte or byte or ushort or uint => 8,
         double or float => 8,
         bool => 1,
@@ -141,6 +145,8 @@ public static class SqlFrameCodec
             case null:
                 writer.WriteByte((byte)SqlValueKind.Null);
                 break;
+            case System.Numerics.BigInteger:
+                throw UnsupportedBigInteger();
             case long or int or short or sbyte or byte or ushort or uint:
                 writer.WriteByte((byte)SqlValueKind.Int64);
                 writer.WriteInt64(Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture));
@@ -184,20 +190,32 @@ public static class SqlFrameCodec
     public static void EncodeQueryMetaFrame(IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns)
         => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query, streamId, columns);
 
+    /// <summary>编码带关系结果声明类型的 SQL meta 帧；旧格式可传 null。</summary>
+    public static void EncodeQueryMetaFrame(
+        IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns,
+        IReadOnlyList<SelectColumnInfo>? columnInfo)
+        => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, columns, columnInfo);
+
     /// <summary>
     /// meta 帧编码内核：块布局固定，帧头 service/op 由调用方指定
     /// （sql query 与 vector search 共用同一响应块词汇表）。
     /// </summary>
     internal static void EncodeMetaFrameCore(
-        IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns)
+        IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns,
+        IReadOnlyList<SelectColumnInfo>? columnInfo = null)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count > MaxColumnCount)
             throw new ArgumentException($"列数 {columns.Count} 超过上限 {MaxColumnCount}。", nameof(columns));
+        if (columnInfo is not null && columnInfo.Count != columns.Count)
+            throw new ArgumentException("声明列信息与列名数量不一致。", nameof(columnInfo));
 
         long payloadLength = 1 + SpanWriter.MeasureVarUInt32((uint)columns.Count);
         for (int i = 0; i < columns.Count; i++)
             payloadLength += SpanWriter.MeasureVarString(columns[i]);
+        if (columnInfo is not null)
+            payloadLength += 1 + 2L * columns.Count;
         if (payloadLength > FrameHeader.MaxFramePayloadBytes)
             throw new ArgumentException($"帧 payload 长度 {payloadLength} 超过上限 {FrameHeader.MaxFramePayloadBytes}。");
 
@@ -210,6 +228,24 @@ public static class SqlFrameCodec
         w.WriteVarUInt32((uint)columns.Count);
         for (int i = 0; i < columns.Count; i++)
             w.WriteVarString(columns[i]);
+        if (columnInfo is not null)
+        {
+            w.WriteByte(1);
+            foreach (var info in columnInfo)
+            {
+                w.WriteByte(info.DataType is { } type ? (byte)type : (byte)0);
+                byte flags = 0;
+                if (info.IsNullable is { } nullable)
+                {
+                    flags |= 0x10;
+                    if (nullable) flags |= 0x01;
+                }
+                if (info.IsKey) flags |= 0x02;
+                if (info.IsAutoIncrement) flags |= 0x04;
+                if (info.IsRowVersion) flags |= 0x08;
+                w.WriteByte(flags);
+            }
+        }
         writer.Advance(FrameHeader.Size + (int)payloadLength);
     }
 
@@ -217,6 +253,11 @@ public static class SqlFrameCodec
     /// 解码 meta 响应帧体，返回列名数组。
     /// </summary>
     public static string[] DecodeQueryMetaFrame(ReadOnlySpan<byte> payload)
+        => DecodeQueryMetaFrameWithInfo(payload).Columns;
+
+    /// <summary>解码 SQL meta 帧的列名和可选声明列信息；旧帧返回 null 信息。</summary>
+    public static (string[] Columns, SelectColumnInfo[]? ColumnInfo) DecodeQueryMetaFrameWithInfo(
+        ReadOnlySpan<byte> payload)
     {
         var reader = new SpanReader(payload);
         RequireChunkKind(ref reader, SqlQueryChunkKind.Meta);
@@ -229,9 +270,35 @@ public static class SqlFrameCodec
         var columns = new string[columnCount];
         for (int i = 0; i < columns.Length; i++)
             columns[i] = ReadBoundedString(ref reader, "列名", MaxNameBytes);
+        SelectColumnInfo[]? columnInfo = null;
+        if (reader.Remaining != 0)
+        {
+            if (reader.ReadByte() != 1 || reader.Remaining != 2 * columns.Length)
+                throw new FrameFormatException("meta 帧体声明列信息长度或版本无效。");
+            columnInfo = new SelectColumnInfo[columns.Length];
+            for (int i = 0; i < columns.Length; i++)
+            {
+                byte typeCode = reader.ReadByte();
+                byte flags = reader.ReadByte();
+                TableColumnType? type = typeCode switch
+                {
+                    0 => null,
+                    >= 1 and <= 9 => (TableColumnType)typeCode,
+                    _ => throw new FrameFormatException("meta 帧体包含不支持的声明列类型。"),
+                };
+                if ((flags & ~0x1F) != 0)
+                    throw new FrameFormatException("meta 帧体包含不支持的声明列标记。");
+                columnInfo[i] = new SelectColumnInfo(
+                    type,
+                    (flags & 0x10) == 0 ? null : (flags & 0x01) != 0,
+                    (flags & 0x02) != 0,
+                    (flags & 0x04) != 0,
+                    (flags & 0x08) != 0);
+            }
+        }
         if (reader.Remaining != 0)
             throw new FrameFormatException("meta 帧体尾部有多余字节。");
-        return columns;
+        return (columns, columnInfo);
     }
 
     // ────────────────────────────── rows 响应帧 ──────────────────────────────
@@ -578,7 +645,7 @@ public static class SqlFrameCodec
     }
 
     /// <summary>
-    /// 值类型归类（与 <c>NdjsonRowWriter</c> 的覆盖面对齐）：整型族 → Int64，浮点族 → Float64，
+    /// 值类型归类（与 <c>NdjsonRowWriter</c> 的覆盖面对齐）：整型族 → Int64，浮点族 → Float64，DECIMAL 保持精确，
     /// <see cref="Guid"/> 与未识别类型 → String（ToString 回退）。整型与浮点混列不合并（走 variant），
     /// 避免大 long → double 的精度损失。
     /// </summary>
@@ -586,8 +653,11 @@ public static class SqlFrameCodec
     {
         bool => SqlValueKind.Boolean,
         byte or sbyte or short or ushort or int or uint or long => SqlValueKind.Int64,
-        ulong u => u <= long.MaxValue ? SqlValueKind.Int64 : SqlValueKind.Float64,
-        float or double or decimal => SqlValueKind.Float64,
+        ulong u => u <= long.MaxValue ? SqlValueKind.Int64 : throw new InvalidDataException(
+            "SQL 帧整数超出 Int64 范围；请使用 STRING 保存任意精度整数。"),
+        System.Numerics.BigInteger => throw UnsupportedBigInteger(),
+        float or double => SqlValueKind.Float64,
+        decimal => SqlValueKind.Decimal,
         string => SqlValueKind.String,
         DateTime or DateTimeOffset => SqlValueKind.Timestamp,
         byte[] => SqlValueKind.Bytes,
@@ -601,7 +671,8 @@ public static class SqlFrameCodec
         SqlValueKind.Int64 or SqlValueKind.Float64 or SqlValueKind.Timestamp => 8,
         SqlValueKind.Boolean => 1,
         SqlValueKind.GeoPoint => 16,
-        SqlValueKind.String => SpanWriter.MeasureVarString(value as string ?? value.ToString() ?? string.Empty),
+        SqlValueKind.String => SpanWriter.MeasureVarString(FormatStringValue(value)),
+        SqlValueKind.Decimal => SpanWriter.MeasureVarString(((decimal)value).ToString(System.Globalization.CultureInfo.InvariantCulture)),
         SqlValueKind.Bytes => SpanWriter.MeasureVarUInt32((uint)((byte[])value).Length) + ((byte[])value).Length,
         SqlValueKind.Vector => SpanWriter.MeasureVarUInt32((uint)((float[])value).Length) + 4L * ((float[])value).Length,
         _ => throw new ArgumentException($"不支持的值类型标记 {kind}。"),
@@ -621,7 +692,10 @@ public static class SqlFrameCodec
                 writer.WriteByte((bool)value ? (byte)1 : (byte)0);
                 break;
             case SqlValueKind.String:
-                writer.WriteVarString(value as string ?? value.ToString() ?? string.Empty);
+                writer.WriteVarString(FormatStringValue(value));
+                break;
+            case SqlValueKind.Decimal:
+                writer.WriteVarString(((decimal)value).ToString(System.Globalization.CultureInfo.InvariantCulture));
                 break;
             case SqlValueKind.Bytes:
                 {
@@ -652,6 +726,13 @@ public static class SqlFrameCodec
         }
     }
 
+    private static string FormatStringValue(object value) => value switch
+    {
+        TimeOnly time => time.ToString("HH:mm:ss.fffffff", System.Globalization.CultureInfo.InvariantCulture),
+        string text => text,
+        _ => value.ToString() ?? string.Empty,
+    };
+
     private static object ReadValue(ref SpanReader reader, byte tag)
     {
         switch ((SqlValueKind)tag)
@@ -664,6 +745,14 @@ public static class SqlFrameCodec
                 return ReadBooleanByte(ref reader);
             case SqlValueKind.String:
                 return reader.ReadVarString();
+            case SqlValueKind.Decimal:
+                {
+                    var text = reader.ReadVarString();
+                    if (!decimal.TryParse(text, System.Globalization.NumberStyles.Number,
+                            System.Globalization.CultureInfo.InvariantCulture, out var number))
+                        throw new FrameFormatException("Decimal 帧值不是有效的十进制数。");
+                    return number;
+                }
             case SqlValueKind.Bytes:
                 {
                     uint length = reader.ReadVarUInt32();
@@ -705,6 +794,10 @@ public static class SqlFrameCodec
         _ => throw new ArgumentException($"不支持的时间类型 {value.GetType().Name}。"),
     };
 
+    private static SndbParameterTypeException UnsupportedBigInteger()
+        => new(SndbParameterTypeException.BigIntegerUnsupportedCode,
+            "BigInteger 不受 SQL 帧协议支持；请检查 Int64 范围后转换为 long，或转换为 string。");
+
     // ────────────────────────────── 共享辅助 ──────────────────────────────
 
     /// <summary>
@@ -729,7 +822,7 @@ public static class SqlFrameCodec
 
     private static void RequireValueKind(byte kind)
     {
-        if (kind is < (byte)SqlValueKind.Int64 or > (byte)SqlValueKind.GeoPoint)
+        if (kind is < (byte)SqlValueKind.Int64 or > (byte)SqlValueKind.Decimal)
             throw new FrameFormatException($"列值类型标记 {kind} 非法。");
     }
 
@@ -803,6 +896,9 @@ public enum SqlValueKind : byte
 
     /// <summary>地理点（f64 lat + f64 lon）。</summary>
     GeoPoint = 8,
+
+    /// <summary>精确十进制（InvariantCulture varstr）。</summary>
+    Decimal = 9,
 }
 
 /// <summary>

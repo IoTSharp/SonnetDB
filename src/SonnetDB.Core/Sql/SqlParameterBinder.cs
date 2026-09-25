@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Numerics;
+using SonnetDB.Exceptions;
 using SonnetDB.Model;
 using SonnetDB.Sql.Ast;
 
@@ -153,6 +155,15 @@ public static class SqlParameterBinder
             {
                 conflict = conflict with { UpdateAssignments = assignments };
                 changed = true;
+            }
+            if (conflict.UpdateWhere is not null)
+            {
+                var boundWhere = BindExpr(conflict.UpdateWhere, p);
+                if (!ReferenceEquals(boundWhere, conflict.UpdateWhere))
+                {
+                    conflict = conflict with { UpdateWhere = boundWhere };
+                    changed = true;
+                }
             }
         }
 
@@ -422,6 +433,10 @@ public static class SqlParameterBinder
                 return LiteralExpression.Integer(l);
             case ulong ul:
                 return LiteralExpression.Integer(checked((long)ul));
+            case BigInteger:
+                throw new SndbParameterTypeException(
+                    SndbParameterTypeException.BigIntegerUnsupportedCode,
+                    "BigInteger 参数不受支持；请在应用层检查有符号 Int64 范围后转换为 long，或转换为 string 并存入 STRING 列。");
             case float f:
                 return LiteralExpression.Float(f);
             case double d:

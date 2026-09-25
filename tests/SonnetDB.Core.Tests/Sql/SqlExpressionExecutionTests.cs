@@ -2,6 +2,7 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -862,8 +863,9 @@ public sealed class SqlExpressionExecutionTests : IDisposable
         TableSqlExecutor.QueueInsert(insertThenInsert, Assert.IsType<InsertStatement>(SqlParser.Parse(
             "INSERT INTO tx_duplicate_mutations (id, value) VALUES (2, 21)")), schema);
         Assert.Equal(2, insertThenInsert.SnapshotTableMutations()[schema.Name].Count);
-        Assert.Throws<InvalidOperationException>(() =>
+        var insertError = Assert.Throws<TableConstraintException>(() =>
             TableSqlExecutor.CommitTransaction(database, insertThenInsert));
+        Assert.Equal(TableConstraintException.UniqueViolation, insertError.ErrorCode);
 
         var updateThenInsert = new SqlTransactionContext();
         TableSqlExecutor.QueueUpdate(updateThenInsert, database, Assert.IsType<UpdateStatement>(SqlParser.Parse(
@@ -871,8 +873,9 @@ public sealed class SqlExpressionExecutionTests : IDisposable
         TableSqlExecutor.QueueInsert(updateThenInsert, Assert.IsType<InsertStatement>(SqlParser.Parse(
             "INSERT INTO tx_duplicate_mutations (id, value) VALUES (1, 12)")), schema);
         Assert.Equal(2, updateThenInsert.SnapshotTableMutations()[schema.Name].Count);
-        Assert.Throws<InvalidOperationException>(() =>
+        var updateError = Assert.Throws<TableConstraintException>(() =>
             TableSqlExecutor.CommitTransaction(database, updateThenInsert));
+        Assert.Equal(TableConstraintException.UniqueViolation, updateError.ErrorCode);
 
         var rows = Select(database,
             "SELECT id, value FROM tx_duplicate_mutations ORDER BY id").Rows;

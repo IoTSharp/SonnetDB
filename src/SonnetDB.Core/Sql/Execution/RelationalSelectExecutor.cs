@@ -190,7 +190,8 @@ internal static class RelationalSelectExecutor
                 memo);
         }
 
-        (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) projected =
+        (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows,
+            IReadOnlyList<SelectColumnInfo> ColumnInfo) projected =
             ProjectRawRows(tsdb, statement, relation, outerScope, memo);
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
         {
@@ -198,11 +199,15 @@ internal static class RelationalSelectExecutor
                 projected.Columns,
                 projected.Rows,
                 statement.OrderByList,
-                statement.Pagination);
+                statement.Pagination) with { ColumnInfo = projected.ColumnInfo };
         }
         if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
-            return new SelectExecutionResult(projected.Columns, projected.Rows.ToArray());
-        return ApplyPagination(projected.Columns, projected.Rows, statement.Pagination);
+            return new SelectExecutionResult(projected.Columns, projected.Rows.ToArray())
+            {
+                ColumnInfo = projected.ColumnInfo,
+            };
+        return ApplyPagination(projected.Columns, projected.Rows, statement.Pagination)
+            with { ColumnInfo = projected.ColumnInfo };
     }
 
     /// <summary>
@@ -1801,6 +1806,8 @@ internal static class RelationalSelectExecutor
         if (statement.FromSubquery is not null)
             return LoadSubquery(tsdb, statement.FromSubquery, alias);
 
+        if (RecursiveCteScope.Find(statement.Measurement) is { } recursiveSource)
+            return LoadRecursiveSource(recursiveSource, alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(statement.Measurement) is { } transitionSchema)
             return LoadTransitionTable(statement.Measurement, alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
@@ -1820,6 +1827,8 @@ internal static class RelationalSelectExecutor
         if (join.Subquery is not null)
             return LoadSubquery(tsdb, join.Subquery, join.Alias);
 
+        if (RecursiveCteScope.Find(join.TableName) is { } recursiveSource)
+            return LoadRecursiveSource(recursiveSource, join.Alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(join.TableName) is { } transitionSchema)
             return LoadTransitionTable(join.TableName, join.Alias, transitionSchema);
         var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
@@ -1834,6 +1843,17 @@ internal static class RelationalSelectExecutor
         => new(schema.Columns.Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType)).ToArray(),
             SonnetDB.Routines.TriggerTransitionTables.Read(name),
             new RelationalJoinInputEstimate(100_000, Math.Max(1, schema.Columns.Count * 32)));
+
+    private static Relation LoadRecursiveSource(SelectExecutionResult source, string alias)
+    {
+        var columns = source.Columns.Select(name => new RelColumn(alias, name, name)).ToArray();
+        return new Relation(
+            columns,
+            source.Rows.Select(static row => row.ToArray()),
+            new RelationalJoinInputEstimate(
+                source.Rows.Count,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
+    }
 
     private static Relation LoadTable(
         Tsdb tsdb,
@@ -3372,7 +3392,8 @@ internal static class RelationalSelectExecutor
         }
     }
 
-    private static (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) ProjectRawRows(
+    private static (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows,
+        IReadOnlyList<SelectColumnInfo> ColumnInfo) ProjectRawRows(
         Tsdb tsdb,
         SelectStatement statement,
         Relation relation,
@@ -3380,7 +3401,8 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var projections = BuildRawProjections(statement.Projections, relation);
-        return (projections.Select(static projection => projection.Name).ToArray(), ProjectRows());
+        return (projections.Select(static projection => projection.Name).ToArray(), ProjectRows(),
+            projections.Select(projection => InferSelectColumnInfo(projection.Expression, relation.Columns)).ToArray());
 
         IEnumerable<IReadOnlyList<object?>> ProjectRows()
         {
@@ -3572,7 +3594,21 @@ internal static class RelationalSelectExecutor
             rows.Add(output);
         }
 
-        return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows);
+        var columnInfo = projections.Select(projection => InferSelectColumnInfo(
+            projection.Expression, relation.Columns)).ToArray();
+        for (int column = 0; column < projections.Count; column++)
+        {
+            if (projections[column].Aggregate?.Function.Name.Equals("sum", StringComparison.OrdinalIgnoreCase) == true
+                && columnInfo[column].DataType == TableColumnType.Int64
+                && rows.Any(row => row[column] is double))
+            {
+                columnInfo[column] = new SelectColumnInfo(null, true);
+            }
+        }
+        return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows)
+        {
+            ColumnInfo = columnInfo,
+        };
     }
 
     /// <summary>
@@ -4005,6 +4041,82 @@ internal static class RelationalSelectExecutor
         return result;
     }
 
+    private static SelectColumnInfo InferSelectColumnInfo(
+        SqlExpression expression, IReadOnlyList<RelColumn> columns)
+    {
+        if (expression is IdentifierExpression identifier)
+        {
+            RelColumn? match = null;
+            foreach (var column in columns)
+            {
+                if (!NameEquals(column.Name, identifier.Name)
+                    || identifier.Qualifier is not null
+                        && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                    continue;
+                if (match is not null)
+                    return new SelectColumnInfo(null);
+                match = column;
+            }
+            return new SelectColumnInfo(match?.StaticType);
+        }
+
+        if (expression is LiteralExpression literal)
+        {
+            return new SelectColumnInfo(literal.Kind switch
+            {
+                SqlLiteralKind.Integer => TableColumnType.Int64,
+                SqlLiteralKind.Float => TableColumnType.Float64,
+                SqlLiteralKind.Boolean => TableColumnType.Boolean,
+                SqlLiteralKind.String => TableColumnType.String,
+                _ => null,
+            }, literal.Kind == SqlLiteralKind.Null);
+        }
+
+        if (expression is CastExpression cast)
+        {
+            return new SelectColumnInfo(cast.TargetType switch
+            {
+                SqlDataType.Int64 => TableColumnType.Int64,
+                SqlDataType.Float64 => TableColumnType.Float64,
+                SqlDataType.Decimal => TableColumnType.Decimal,
+                SqlDataType.Boolean => TableColumnType.Boolean,
+                SqlDataType.String => TableColumnType.String,
+                SqlDataType.DateTime => TableColumnType.DateTime,
+                SqlDataType.Time => TableColumnType.Time,
+                SqlDataType.Blob => TableColumnType.Blob,
+                SqlDataType.Json => TableColumnType.Json,
+                _ => null,
+            }, InferSelectColumnInfo(cast.Operand, columns).IsNullable);
+        }
+
+        if (expression is IsNullExpression)
+            return new SelectColumnInfo(TableColumnType.Boolean, false);
+
+        if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
+        {
+            string name = function.Name.ToLowerInvariant();
+            if (name == "count")
+                return new SelectColumnInfo(TableColumnType.Int64, false);
+            var inputType = function.Arguments.Count == 1
+                ? InferSelectColumnInfo(function.Arguments[0], columns).DataType
+                : null;
+            return name switch
+            {
+                "min" or "max" => new SelectColumnInfo(inputType, true),
+                "avg" => new SelectColumnInfo(
+                    inputType == TableColumnType.Decimal
+                        ? TableColumnType.Decimal : TableColumnType.Float64, true),
+                "sum" when inputType is TableColumnType.Decimal or TableColumnType.Float64
+                    => new SelectColumnInfo(inputType, true),
+                "sum" when inputType == TableColumnType.Int64
+                    => new SelectColumnInfo(TableColumnType.Int64, true),
+                _ => new SelectColumnInfo(null, true),
+            };
+        }
+
+        return new SelectColumnInfo(null);
+    }
+
     private static object? EvaluateAggregate(
         Tsdb tsdb,
         AggregateSpec aggregate,
@@ -4040,6 +4152,9 @@ internal static class RelationalSelectExecutor
             .ToArray();
         if (fn.IsDistinct)
             rawValues = rawValues.Distinct(SqlDistinctValueComparer.Instance).ToArray();
+
+        if (rawValues.Length == 0)
+            return null;
 
         // 保留整数类型：当调用方已确认所有非空输入跨整个结果集都是 byte/short/int/long 时，
         // sum/min/max 在所有组上一致返回 long——与 Postgres 等关系库一致，避免同列异质类型
@@ -5086,7 +5201,7 @@ internal static class RelationalSelectExecutor
             pagination?.Offset ?? 0,
             pagination?.Fetch,
             SqlSpillCodecs.ReadOnlyRows);
-        return new SelectExecutionResult(result.Columns, rows);
+        return result with { Rows = rows };
     }
 
     private static SelectExecutionResult ApplyOrderByAndPagination(
@@ -5226,13 +5341,14 @@ internal static class RelationalSelectExecutor
             return result;
         int offset = pagination.Offset;
         if (offset >= result.Rows.Count)
-            return new SelectExecutionResult(result.Columns, []);
+            return result with { Rows = [] };
         int take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
-            return new SelectExecutionResult(result.Columns, []);
-        return new SelectExecutionResult(
-            result.Columns,
-            result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray());
+            return result with { Rows = [] };
+        return result with
+        {
+            Rows = result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray(),
+        };
     }
 
     private static SelectExecutionResult ApplyPagination(
@@ -5328,7 +5444,7 @@ internal static class RelationalSelectExecutor
         }
     }
 
-    private static bool ContainsSubquery(SelectStatement statement)
+    internal static bool ContainsSubquery(SelectStatement statement)
     {
         foreach (var item in statement.Projections)
             if (ContainsSubquery(item.Expression))
