@@ -533,6 +533,12 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using (var reader = command.ExecuteReader())
         {
             Assert.Equal(["tenant", "id", "value", "rv"], Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+            Assert.Equal([typeof(long), typeof(long), typeof(long), typeof(long)],
+                Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType));
+            var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+            Assert.True((bool)schema.Rows[0][SchemaTableColumn.IsKey]);
+            Assert.True((bool)schema.Rows[1][SchemaTableColumn.IsKey]);
+            Assert.True((bool)schema.Rows[3]["IsRowVersion"]);
             Assert.True(reader.Read());
             Assert.Equal([1L, 1L, 11L, 2L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
             Assert.True(reader.Read());
@@ -551,9 +557,14 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(31L, Assert.IsType<long>(command.ExecuteScalar()));
         Assert.Equal(0, command.ExecuteNonQuery());
 
-        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING tenant, id";
+        command.CommandText = "DELETE FROM returning_composite WHERE tenant = @tenant AND id = @id RETURNING tenant, id, value";
         using var empty = command.ExecuteReader();
-        Assert.Equal(["tenant", "id"], Enumerable.Range(0, empty.FieldCount).Select(empty.GetName));
+        Assert.Equal(["tenant", "id", "value"], Enumerable.Range(0, empty.FieldCount).Select(empty.GetName));
+        Assert.Equal([typeof(long), typeof(long), typeof(long)],
+            Enumerable.Range(0, empty.FieldCount).Select(empty.GetFieldType));
+        var emptySchema = Assert.IsType<DataTable>(empty.GetSchemaTable());
+        Assert.Equal([false, false, true],
+            emptySchema.Rows.Cast<DataRow>().Select(row => (bool)row[SchemaTableColumn.AllowDBNull]));
         Assert.False(empty.Read());
         Assert.Equal(0, empty.RecordsAffected);
     }
@@ -630,6 +641,10 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             Assert.Equal("meta", update[0].RootElement.GetProperty("type").GetString());
             Assert.Equal(["id", "value", "rv"], update[0].RootElement.GetProperty("columns")
                 .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(["int64", "int64", "int64"], update[0].RootElement.GetProperty("columnTypes")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.True(update[0].RootElement.GetProperty("columnSchemas")[2]
+                .GetProperty("isRowVersion").GetBoolean());
             Assert.Equal(11L, update[1].RootElement[1].GetInt64());
             Assert.Equal(2L, update[1].RootElement[2].GetInt64());
             Assert.Equal(1, update[2].RootElement.GetProperty("recordsAffected").GetInt32());
@@ -646,6 +661,10 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             Assert.Equal(2, empty.Length);
             Assert.Equal(["id", "value"], empty[0].RootElement.GetProperty("columns")
                 .EnumerateArray().Select(static column => column.GetString()));
+            Assert.Equal(["int64", "int64"], empty[0].RootElement.GetProperty("columnTypes")
+                .EnumerateArray().Select(static column => column.GetString()));
+            Assert.True(empty[0].RootElement.GetProperty("columnSchemas")[1]
+                .GetProperty("isNullable").GetBoolean());
             Assert.Equal(0, empty[1].RootElement.GetProperty("recordsAffected").GetInt32());
             Assert.Equal(0, empty[1].RootElement.GetProperty("rowCount").GetInt32());
         }

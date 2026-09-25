@@ -269,6 +269,43 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FrameHttp2_UpdateDeleteReturning_EmptyResultsKeepDeclaredSchema()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_update_delete_schema (id INT, note STRING NULL, rv INT ROWVERSION, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO h2_update_delete_schema (id, note) VALUES (1, 'before')";
+        await command.ExecuteNonQueryAsync();
+
+        command.CommandText = "UPDATE h2_update_delete_schema SET note = 'after' WHERE id = 1 RETURNING id, note, rv";
+        await using (var updated = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal([typeof(long), typeof(string), typeof(long)],
+                Enumerable.Range(0, updated.FieldCount).Select(updated.GetFieldType));
+            Assert.True((bool)Assert.IsType<DataTable>(updated.GetSchemaTable()).Rows[2]["IsRowVersion"]);
+            Assert.True(await updated.ReadAsync());
+            Assert.Equal("after", updated.GetString(1));
+            Assert.Equal(2L, updated.GetInt64(2));
+            Assert.False(await updated.ReadAsync());
+            Assert.Equal(1, updated.RecordsAffected);
+        }
+
+        command.CommandText = "DELETE FROM h2_update_delete_schema WHERE id = 404 RETURNING id, note, rv";
+        await using var empty = await command.ExecuteReaderAsync();
+        Assert.Equal([typeof(long), typeof(string), typeof(long)],
+            Enumerable.Range(0, empty.FieldCount).Select(empty.GetFieldType));
+        var schema = Assert.IsType<DataTable>(empty.GetSchemaTable());
+        Assert.False((bool)schema.Rows[0][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+        Assert.True((bool)schema.Rows[1][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+        Assert.True((bool)schema.Rows[2]["IsRowVersion"]);
+        Assert.False(await empty.ReadAsync());
+        Assert.Equal(0, empty.RecordsAffected);
+        Assert.Contains(_requests, request => request.Path == $"/v1/db/{DatabaseName}/sql" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
     public async Task FrameHttp2_InsertReturning_AsyncMethodsAndCompositeKeyErrorStayConsistent()
     {
         await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));

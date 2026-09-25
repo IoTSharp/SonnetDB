@@ -1249,7 +1249,13 @@ internal static class TableSqlExecutor
             rows[rowIndex] = projected;
         }
 
-        return result with { Returning = new SelectExecutionResult(columns, rows) };
+        return result with
+        {
+            Returning = new SelectExecutionResult(columns, rows)
+            {
+                ColumnSchema = returningColumns.ToArray(),
+            },
+        };
     }
 
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)

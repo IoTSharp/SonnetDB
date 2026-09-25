@@ -8,6 +8,7 @@
 ## [Unreleased]
 ### Fixed
 - **GH-Issue #191 UPDATE JOIN 索引路径**：保持非唯一来源按声明顺序取首行；唯一主键或唯一索引匹配改用索引嵌套循环，LEFT JOIN 未命中行及受影响目标行数保持不变。
+- **GH-Issue #194 UPDATE/DELETE RETURNING 合同**：直接 DELETE 以已读取行的完整前像与版本参与提交校验，避免并发变更后返回陈旧行；级联删除只计目标表受影响行。远程轻事务预览按批内语句位置解析连续 RETURNING 结果；空结果也保留声明列类型、可空性、主键和 ROWVERSION 元数据，覆盖嵌入式 ADO、REST NDJSON 与 HTTP/2 ADO 写入回落。
 - GH-Issue #198 明确 SQL `INT` 的有符号 Int64 边界，拒绝溢出字面量、运算及 CLR `BigInteger` 参数；REST/NDJSON 保留整数精度，Frame 为 DECIMAL 增加精确值标签。普通关系 SELECT 的空结果与全 NULL 列通过嵌入式、REST 和 Frame ADO 保留声明类型，DATETIME/TIME/BLOB 值经真实远程协议往返；旧 Frame 客户端协商仍待完成。
 - GH-Issue #197 统一 `INSERT ... RETURNING` 的生成列、顺序、受影响行数、空结果和嵌入式/远程 ADO 元数据，重复复合主键返回稳定唯一约束错误码；HTTP/2 ADO 写入使用 REST 回落，原生 Frame 仍只读。首次完整发布版本待标签确定，已发布 3.1.0 不含本次合同。
 - GH-Issue #190 为不支持的 `SELECT FOR UPDATE`、`NOWAIT`、`SKIP LOCKED` 提供稳定错误码与 ADO/REST 拒绝合同；乐观并发使用 `ROWVERSION`，不承诺行锁语义。
