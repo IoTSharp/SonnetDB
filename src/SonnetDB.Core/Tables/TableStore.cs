@@ -1770,6 +1770,8 @@ public sealed partial class TableStore : IDisposable
 
     private void ApplyAutoIncrementLocked(TableSchema schema, IReadOnlyList<object?[]> rows)
     {
+        if (rows.Count > 0 && schema.PrimaryKey.Count == 0)
+            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
         var column = schema.AutoIncrementColumn;
         if (column is null || rows.Count == 0)
             return;
@@ -1796,6 +1798,8 @@ public sealed partial class TableStore : IDisposable
         TableSchema schema,
         IReadOnlyList<(object?[] Values, bool AllocateMissing)> rows)
     {
+        if (rows.Count > 0 && schema.PrimaryKey.Count == 0)
+            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
         var column = schema.AutoIncrementColumn;
         if (column is null || rows.Count == 0)
             return;

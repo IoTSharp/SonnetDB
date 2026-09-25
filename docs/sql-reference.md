@@ -248,7 +248,8 @@ ALTER TABLE devices ADD CONSTRAINT pk_devices PRIMARY KEY (id);
 
 - `ADD COLUMN ... AUTO_INCREMENT` 对已有行按旧主键编码顺序分配从 `1` 开始的值；新插入行从现有最大值加一继续。序列高水位与回填行在同一 KV batch 持久化，正常关闭并重开后继续增长。每张表只能有一个 `INT AUTO_INCREMENT`；显式 `NULL`、`DEFAULT`、`ROWVERSION` 组合及非 `INT` 类型被拒绝。
 - `ADD COLUMN ... ROWVERSION` 把已有行初始化为 `1`，后续 `UPDATE` 自动加一；每张表只能有一个 `INT ROWVERSION`，且该列不可空、不可声明默认值或手动赋值。
-- `ADD [CONSTRAINT pk_<table>] PRIMARY KEY (...)` 和 `ALTER PRIMARY KEY (...)` 仅支持空表。复合主键可用；有任意存量行、入站外键或自定义约束名时返回 `table_schema_evolution_unsupported`。已有行需要在事务外创建带目标主键的新表、分批回填并验证唯一性及约束，再切换应用访问；当前没有原子切换协议。所有关系表在 `CREATE TABLE` 时仍要求主键，不能用无主键表作为迁移起点。
+- `CREATE TABLE` 可暂不声明主键，形成仅供 schema 演进的无主键空表；该表可以查询和追加列，但补齐主键前任何行写入均以 `table_schema_evolution_unsupported` 拒绝，不分配身份序列。上述 `CREATE TABLE devices (code STRING NOT NULL)` 后追加 `id`、主键与 `version` 的路线可执行；补齐主键后才能开始写入。
+- `ADD [CONSTRAINT pk_<table>] PRIMARY KEY (...)` 和 `ALTER PRIMARY KEY (...)` 仅支持空表。复合主键可用；有任意存量行、入站外键或自定义约束名时返回 `table_schema_evolution_unsupported`。已有行需要在事务外创建带目标主键的新表、分批回填并验证唯一性及约束，再切换应用访问；当前没有原子切换协议。
 - 生成列追加复用行改写和索引重建路径，保留既有默认值、CHECK 和外键约束；DDL 不允许放在活动轻事务中。行改写受单个 KV batch 预算限制，并沿用上述进程终止/掉电非原子性边界。成功后新 schema 对新的 `DESCRIBE TABLE` 和 ADO.NET `GetSchema("Columns")` 读取可见；失败不更新 catalog。
 
 已有表还可追加或删除外键和检查约束。追加约束前会扫描存量行；任一行违反约束时 DDL 失败且 catalog 保持原状。

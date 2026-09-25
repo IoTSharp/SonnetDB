@@ -180,17 +180,68 @@ public sealed class SqlSafeDdlEvolutionTests : IDisposable
     }
 
     [Fact]
-    public void CreateTable_WithoutPrimaryKey_ProvidesStableMigrationDiagnostic()
+    public void CreateTable_WithoutPrimaryKey_EvolvesThroughGeneratedColumnsAndPrimaryKey()
+    {
+        using (var db = Open())
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (code STRING NOT NULL)");
+            Assert.Empty(db.Tables.Catalog.TryGet("devices")!.PrimaryKey);
+            var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
+                db, "INSERT INTO devices (code) VALUES ('blocked')"));
+            Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
+            Assert.Equal(error.ErrorCode, SqlErrorMapper.Map(error, "insert").Code);
+            Assert.Empty(Select(db, "SELECT code FROM devices").Rows);
+        }
+
+        using (var db = Open())
+        {
+            SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN id INT AUTO_INCREMENT");
+            var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
+                db, "INSERT INTO devices (code) VALUES ('blocked')"));
+            Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
+            SqlExecutor.Execute(db, "ALTER TABLE devices ADD CONSTRAINT pk_devices PRIMARY KEY (id)");
+            SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN version INT ROWVERSION");
+            SqlExecutor.Execute(db, "INSERT INTO devices (code) VALUES ('first'), ('second')");
+            Assert.Equal([1L, 2L], Select(db, "SELECT id FROM devices ORDER BY id")
+                .Rows.Select(static row => (long)row[0]!).ToArray());
+            SqlExecutor.Execute(db, "UPDATE devices SET code = 'updated' WHERE id = 1 AND version = 1");
+        }
+
+        using var reopened = Open();
+        var schema = reopened.Tables.Catalog.TryGet("devices")!;
+        Assert.Equal(["id"], schema.PrimaryKey);
+        Assert.True(schema.TryGetColumn("id")!.IsAutoIncrement);
+        Assert.True(schema.TryGetColumn("version")!.IsRowVersion);
+        Assert.Equal([2L, 1L], Select(reopened, "SELECT version FROM devices ORDER BY id")
+            .Rows.Select(static row => (long)row[0]!).ToArray());
+        SqlExecutor.Execute(reopened, "INSERT INTO devices (code) VALUES ('third')");
+        Assert.Equal(3L, Assert.Single(Select(reopened, "SELECT id FROM devices WHERE code = 'third'").Rows)[0]);
+    }
+
+    [Fact]
+    public void AlterPrimaryKey_OnKeylessTable_RollsBackFailedChangeAndPreservesConstraints()
     {
         using var db = Open();
-        var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-            db, "CREATE TABLE devices (code STRING NOT NULL)"));
+        SqlExecutor.Execute(db, """
+            CREATE TABLE draft (
+                code STRING NOT NULL,
+                name STRING DEFAULT 'base',
+                CONSTRAINT ck_name CHECK (name <> 'bad'))
+            """);
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ix_draft_name ON draft (name)");
 
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
-        var mapped = SqlErrorMapper.Map(error, "create_table");
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, mapped.Code);
-        Assert.False(string.IsNullOrWhiteSpace(mapped.Hint));
-        Assert.Null(db.Tables.Catalog.TryGet("devices"));
+        Assert.Throws<ArgumentException>(() => SqlExecutor.Execute(
+            db, "ALTER TABLE draft ALTER PRIMARY KEY (missing)"));
+        Assert.Empty(db.Tables.Catalog.TryGet("draft")!.PrimaryKey);
+        Assert.Single(db.Tables.Catalog.TryGet("draft")!.Indexes);
+        Assert.Single(db.Tables.Catalog.TryGet("draft")!.CheckConstraints);
+
+        SqlExecutor.Execute(db, "ALTER TABLE draft ALTER PRIMARY KEY (code)");
+        SqlExecutor.Execute(db, "INSERT INTO draft (code) VALUES ('one')");
+        Assert.Equal("base", Assert.Single(Select(db, "SELECT name FROM draft").Rows)[0]);
+        var check = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
+            db, "INSERT INTO draft (code, name) VALUES ('two', 'bad')"));
+        Assert.Equal(TableConstraintException.CheckViolation, check.ErrorCode);
     }
 
     private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });
