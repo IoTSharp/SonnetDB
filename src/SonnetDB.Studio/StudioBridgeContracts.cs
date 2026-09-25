@@ -118,6 +118,9 @@ internal sealed record StudioSelectDirectoryResult(bool Canceled, string? Path, 
 /// </summary>
 internal sealed record StudioManagedServerRequest(string? DataRoot, string? Url);
 
+/// <summary>打开已有嵌入式数据库目录的请求。</summary>
+internal sealed record StudioOpenEmbeddedDatabaseRequest(string? Path);
+
 /// <summary>
 /// 托管本地 SonnetDB Server 运行状态。
 /// </summary>
@@ -128,7 +131,9 @@ internal sealed record StudioManagedServerStatus(
     int? ProcessId,
     string Url,
     string DataRoot,
-    string? Error);
+    string? Error,
+    string? MountedDatabasePath = null,
+    string? MountedDatabaseName = null);
 
 /// <summary>
 /// Studio bridge 使用 source-generated JSON，避免反射序列化入口。
@@ -152,6 +157,7 @@ internal sealed record StudioManagedServerStatus(
 [JsonSerializable(typeof(StudioSelectDirectoryRequest))]
 [JsonSerializable(typeof(StudioSelectDirectoryResult))]
 [JsonSerializable(typeof(StudioManagedServerRequest))]
+[JsonSerializable(typeof(StudioOpenEmbeddedDatabaseRequest))]
 [JsonSerializable(typeof(StudioManagedServerStatus))]
 [JsonSerializable(typeof(StudioCopilotCredential))]
 [JsonSerializable(typeof(StudioCopilotStatus))]

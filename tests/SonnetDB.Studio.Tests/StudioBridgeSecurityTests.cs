@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using NativeWebHost;
 using Xunit;
@@ -54,6 +55,17 @@ public sealed class StudioBridgeSecurityTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(TrustedOrigin, Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
+    [Fact]
+    public async Task OpenEmbeddedDatabase_WithoutPath_ReturnsBadRequest()
+    {
+        await using var fixture = await BridgeFixture.StartAsync();
+        using var request = fixture.CreateRequest(HttpMethod.Post, "/server/open-embedded", TrustedOrigin, includeTokenHeader: true);
+        request.Content = new StringContent("{\"path\":\"\"}", Encoding.UTF8, "application/json");
+        using var response = await fixture.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

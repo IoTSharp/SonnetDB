@@ -29,6 +29,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- GH-Issue #91 Studio 可选择已有嵌入式数据库目录，由本地 Server 显式挂载并切换工作台；挂载库禁止通过 Server 删除数据库接口移除。保留原 DataRoot 启动路径，切换失败恢复先前托管 Server。
 - GH-Issue #174 补齐标准 `position(search IN value)` 字符串位置函数，按 Ordinal/UTF-16 返回 1 基位置，未命中为 0，并覆盖 NULL、空串与 Unicode 回归。
 - **GH-Issue #171 非递归 CTE 输出列名列表**：`WITH name (column, ...) AS (...)` 按位置重命名查询结果列，支持后续 CTE、JOIN、聚合、参数化 `IN`/`EXISTS` 与排序/分页；空结果仍校验列宽，重复列名被拒绝。关系、时序和文档来源以及嵌入式 ADO 名称/Int64 类型有定向回归；远程协议 parity 仍待验证。
 - **GH-Issue #172 关系表 ANSI 窗口补全**：`ROW_NUMBER`、`COUNT`、`SUM`、`AVG`、`MIN`、`MAX` 支持关系表 `OVER (PARTITION BY ... ORDER BY ...)`；多列分区、升降序、多列排序、NULL、同序键 peer 的默认累计帧及最终分页有确定性回归。`ROW_NUMBER` 要求显式窗口排序，显式 `ROWS`/`RANGE` frame 和同层普通聚合混用明确拒绝；关系窗口保留物化与有序前缀复算的性能边界。

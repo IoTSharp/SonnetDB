@@ -101,6 +101,8 @@ export interface StudioManagedServerStatus {
   url: string;
   dataRoot: string;
   error: string | null;
+  mountedDatabasePath?: string | null;
+  mountedDatabaseName?: string | null;
 }
 
 export interface StudioNativeBridgeClient {
@@ -125,6 +127,7 @@ export interface StudioNativeBridgeClient {
   selectDirectory(options?: { title?: string; initialPath?: string }): Promise<StudioSelectDirectoryResult>;
   getServerStatus(): Promise<StudioManagedServerStatus>;
   startServer(options?: { dataRoot?: string; url?: string }): Promise<StudioManagedServerStatus>;
+  openEmbeddedDatabase(path: string): Promise<StudioManagedServerStatus>;
   stopServer(options?: { dataRoot?: string; url?: string }): Promise<StudioManagedServerStatus>;
   getCopilotStatus(signal?: AbortSignal): Promise<StudioCopilotStatus>;
   connectCopilot(signal?: AbortSignal): Promise<StudioCopilotStatus>;
@@ -325,6 +328,10 @@ function createClient(config: { baseUrl: string; token: string }): StudioNativeB
         dataRoot: options.dataRoot ?? null,
         url: options.url ?? null,
       }),
+    }, 15000),
+    openEmbeddedDatabase: (path) => request<StudioManagedServerStatus>('/server/open-embedded', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
     }, 15000),
     stopServer: (options = {}) => request<StudioManagedServerStatus>('/server/stop', {
       method: 'POST',

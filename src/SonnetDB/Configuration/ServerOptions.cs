@@ -16,6 +16,16 @@ public sealed class ServerOptions
     public bool AutoLoadExistingDatabases { get; set; } = true;
 
     /// <summary>
+    /// 可选的已有嵌入式数据库目录。指定时只挂载这一目录，控制面仍位于 <see cref="DataRoot"/>。
+    /// </summary>
+    public string? MountedDatabasePath { get; set; }
+
+    /// <summary>
+    /// 已挂载嵌入式数据库在 Server 中显示的名称。
+    /// </summary>
+    public string? MountedDatabaseName { get; set; }
+
+    /// <summary>
     /// 启动时可并行冷开的关系表数量。默认串行逐表恢复，优先限制恢复期的内存和 WAL 峰值。
     /// </summary>
     public int RelationalTableWarmupConcurrency { get; set; } = 1;

@@ -21,6 +21,7 @@ public sealed partial class TsdbRegistry : IDisposable
     private static partial Regex DatabaseNameRegex();
 
     private readonly ConcurrentDictionary<string, Tsdb> _databases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _mountedDatabaseNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _sync = new();
     private readonly string _dataRoot;
     private readonly EventBroadcaster? _broadcaster;
@@ -94,6 +95,15 @@ public sealed partial class TsdbRegistry : IDisposable
         return names;
     }
 
+    /// <summary>判断数据库是否从外部嵌入式目录挂载。</summary>
+    /// <param name="name">数据库名称。</param>
+    /// <returns>外部挂载时为 true。</returns>
+    public bool IsMounted(string name)
+    {
+        lock (_sync)
+            return _mountedDatabaseNames.Contains(name);
+    }
+
     /// <summary>
     /// 校验数据库名是否合法。
     /// </summary>
@@ -161,6 +171,32 @@ public sealed partial class TsdbRegistry : IDisposable
         }
     }
 
+    /// <summary>
+    /// 挂载已有的嵌入式数据库目录；该目录不会由 Server 的删除数据库操作移除。
+    /// </summary>
+    /// <param name="name">对外显示的数据库名。</param>
+    /// <param name="path">已有嵌入式数据库的绝对目录。</param>
+    public void MountExisting(string name, string path)
+    {
+        EnsureNotDisposed();
+        if (!IsValidName(name))
+            throw new ArgumentException("挂载数据库名称无效。", nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        if (!Directory.Exists(fullPath)
+            || (!File.Exists(TsdbPaths.CatalogPath(fullPath))
+                && !File.Exists(Path.Combine(TsdbPaths.WalDir(fullPath), TsdbPaths.ActiveWalFileName))))
+            throw new DirectoryNotFoundException($"已有 SonnetDB 数据库目录无效：{fullPath}");
+
+        lock (_sync)
+        {
+            if (_databases.ContainsKey(name))
+                throw new InvalidOperationException($"数据库名称已存在：{name}");
+            _databases[name] = OpenDatabase(fullPath);
+            _mountedDatabaseNames.Add(name);
+        }
+    }
+
     /// <summary>使用注册表冻结的存储与 SQL 资源配置打开一个数据库实例。</summary>
     /// <param name="path">数据库目录绝对路径。</param>
     /// <returns>已打开的数据库实例。</returns>
@@ -181,6 +217,8 @@ public sealed partial class TsdbRegistry : IDisposable
         EnsureNotDisposed();
         lock (_sync)
         {
+            if (_mountedDatabaseNames.Contains(name))
+                return false;
             if (!_databases.TryRemove(name, out var instance))
                 return false;
             instance.Dispose();

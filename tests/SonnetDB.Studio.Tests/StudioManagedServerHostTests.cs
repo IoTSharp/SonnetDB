@@ -1,12 +1,52 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using SonnetDB.Engine;
+using SonnetDB.Sql.Execution;
 using Xunit;
 
 namespace SonnetDB.Studio.Tests;
 
 public sealed class StudioManagedServerHostTests
 {
+    [Fact]
+    public async Task StartEmbeddedAsync_WithExistingDatabase_MountsItAndRejectsInvalidSwitch()
+    {
+        var root = CreateDataRoot();
+        var databasePath = Path.Combine(root, "source", "inspection");
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = databasePath }))
+            SqlExecutor.Execute(database, "CREATE TABLE inspections (id INT, PRIMARY KEY (id))");
+
+        var controlRoot = Path.Combine(root, "control");
+        await using var host = new StudioManagedServerHost(GetServerExecutable(), keepRunningOnExit: false);
+        var url = CreateLoopbackUrl();
+        var opened = await host.StartEmbeddedAsync(databasePath, controlRoot, url, CancellationToken.None);
+
+        Assert.True(opened.Healthy, opened.Error);
+        Assert.True(opened.StartedByStudio);
+        Assert.Equal("inspection", opened.MountedDatabaseName);
+        Assert.Equal(Path.GetFullPath(databasePath), opened.MountedDatabasePath);
+
+        var rejected = await host.StartEmbeddedAsync(Path.Combine(root, "missing"), controlRoot, url, CancellationToken.None);
+        Assert.NotNull(rejected.Error);
+        Assert.Equal(opened.ProcessId, rejected.ProcessId);
+        Assert.Equal(opened.MountedDatabasePath, rejected.MountedDatabasePath);
+
+        var lockedPath = Path.Combine(root, "source", "locked");
+        using (var locked = Tsdb.Open(new TsdbOptions { RootDirectory = lockedPath }))
+        {
+            var failedSwitch = await host.StartEmbeddedAsync(lockedPath, controlRoot, url, CancellationToken.None);
+            Assert.True(failedSwitch.Healthy, failedSwitch.Error);
+            Assert.True(failedSwitch.StartedByStudio);
+            Assert.NotNull(failedSwitch.Error);
+            Assert.Equal(opened.MountedDatabasePath, failedSwitch.MountedDatabasePath);
+        }
+
+        var stopped = await host.StopAsync(controlRoot, url, CancellationToken.None);
+        Assert.False(stopped.StartedByStudio);
+        Directory.Delete(root, recursive: true);
+    }
+
     [Fact]
     public async Task StartAsync_WhenExecutableIsMissing_ReturnsDiagnosticWithoutRunning()
     {

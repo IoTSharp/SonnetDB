@@ -310,6 +310,14 @@ export const useConnectionsStore = defineStore('connections', () => {
     return status;
   }
 
+  async function openStudioEmbeddedDatabase(path: string): Promise<StudioManagedServerStatus | null> {
+    if (!studioBridge.value) return null;
+    const status = await studioBridge.value.openEmbeddedDatabase(path);
+    studioManagedServerStatus.value = status;
+    if (status.url) setManagedLocalBaseUrl(status.url);
+    return status;
+  }
+
   async function stopStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
     if (!studioBridge.value) return null;
     const status = await studioBridge.value.stopServer({
@@ -395,6 +403,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     connectStudioBridge,
     refreshStudioServerStatus,
     startStudioManagedServer,
+    openStudioEmbeddedDatabase,
     stopStudioManagedServer,
     selectStudioDirectory,
   };
