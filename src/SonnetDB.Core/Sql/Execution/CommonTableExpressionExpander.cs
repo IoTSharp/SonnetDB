@@ -31,16 +31,17 @@ internal static class CommonTableExpressionExpander
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(cte.Name);
             ArgumentNullException.ThrowIfNull(cte.Query);
-            if (cte.ColumnNames is { Count: > 0 })
-            {
-                throw new NotSupportedException(
-                    "CTE 输出列名列表尚未支持；请使用 SELECT 投影别名声明输出列名。");
-            }
+            if (cte.ColumnNames is { } names
+                && names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count)
+                throw new InvalidOperationException("CTE 输出列名不能重复。");
 
             if (definitions.ContainsKey(cte.Name))
                 throw new InvalidOperationException($"CTE 名称重复：'{cte.Name}'。");
 
-            definitions.Add(cte.Name, ExpandSelect(cte.Query, definitions));
+            definitions.Add(cte.Name, ExpandSelect(cte.Query, definitions) with
+            {
+                CteOutputColumnNames = cte.ColumnNames,
+            });
         }
 
         SelectStatement? fromSubquery = statement.FromSubquery is null

@@ -1787,10 +1787,10 @@ public static class SqlExecutor
             statement = ViewExpander.Expand(tsdb.Views.Catalog, statement);
 
         if (statement.SetOperationList.Count != 0)
-            return ExecuteUnion(tsdb, statement);
+            return ApplyCteOutputColumnNames(ExecuteUnion(tsdb, statement), statement.CteOutputColumnNames);
 
         if (!statement.Distinct)
-            return ExecuteSelectDispatch(tsdb, statement);
+            return ApplyCteOutputColumnNames(ExecuteSelectDispatch(tsdb, statement), statement.CteOutputColumnNames);
 
         // 单表且排序键已在投影中的 DISTINCT 可安全下推到表执行器，按过滤→去重→Top-N 流式执行。
         // 隐藏排序列、JOIN、子查询等路径仍保留统一收敛点，避免改变 SQL 语义。
@@ -1801,7 +1801,8 @@ public static class SqlExecutor
             && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } distinctSchema
             && TableSqlExecutor.CanStreamDistinct(statement, distinctSchema))
         {
-            return TableSqlExecutor.ExecuteSelect(tsdb, statement, distinctSchema);
+            return ApplyCteOutputColumnNames(
+                TableSqlExecutor.ExecuteSelect(tsdb, statement, distinctSchema), statement.CteOutputColumnNames);
         }
 
         // DISTINCT 在单一收敛点去重，覆盖 measurement / 关系 / 文档等所有 SELECT 路径。
@@ -1812,7 +1813,20 @@ public static class SqlExecutor
         var pagination = statement.Pagination;
         var dispatched = pagination is null ? statement : statement with { Pagination = null };
         var result = ApplyDistinct(ExecuteSelectDispatch(tsdb, dispatched));
-        return pagination is null ? result : ApplyResultPagination(result, pagination);
+        return ApplyCteOutputColumnNames(
+            pagination is null ? result : ApplyResultPagination(result, pagination), statement.CteOutputColumnNames);
+    }
+
+    private static SelectExecutionResult ApplyCteOutputColumnNames(
+        SelectExecutionResult result,
+        IReadOnlyList<string>? names)
+    {
+        if (names is null)
+            return result;
+        if (names.Count != result.Columns.Count)
+            throw new InvalidOperationException(
+                $"CTE 输出列数不一致：声明 {names.Count} 列，查询返回 {result.Columns.Count} 列。");
+        return result with { Columns = names.ToArray() };
     }
 
     private static SelectExecutionResult ApplyDistinct(SelectExecutionResult result)
@@ -1908,6 +1922,7 @@ public static class SqlExecutor
         {
             Unions = null,
             SetOperations = Array.Empty<SqlSetOperation>(),
+            CteOutputColumnNames = null,
             OrderBy = null,
             OrderByItems = null,
             Pagination = null

@@ -25,6 +25,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- **GH-Issue #171 非递归 CTE 输出列名列表**：`WITH name (column, ...) AS (...)` 按位置重命名查询结果列，支持后续 CTE、JOIN、聚合、参数化 `IN`/`EXISTS` 与排序/分页；空结果仍校验列宽，重复列名被拒绝。关系、时序和文档来源以及嵌入式 ADO 名称/Int64 类型有定向回归；远程协议 parity 仍待验证。
 - **GH-Issue #184 远程事务会话**：新增凭据与数据库绑定的有界服务端 SQL 轻事务会话，支持跨 ADO 调用的实际待提交 `DO UPDATE ... RETURNING`、只读终态查询、幂等提交/回滚回读、2 分钟租约与自动回滚；活动会话上限 128，终态缓存上限 8192。真实 Kestrel 覆盖参数、条件跳过、多行/生成键、事务可见性、并发提交冲突、回滚、凭据隔离和租约过期。会话仍是单实例内存状态；部署路由、重启时未知提交结果及已发布包验收仍需单独证据。
 - **GH-Issue #189 `WITH RECURSIVE` 基础切片**：支持单个递归 CTE 的 `anchor UNION [ALL] recursive_member` 分层求值、按声明顺序引用普通 CTE、显式输出列、参数、最终排序/分页及环去重；提供 64 层、单轮 10 万候选行、累计 10 万结果行/约 32 MiB 的拒绝边界，`EXPLAIN` 报告工作表与限制。关系 SELECT 投影、JOIN 构建侧和普通 CTE 派生表新增逐行预算拒绝及取消检查；实际 CLR 堆峰值硬门禁仍待验证。
 
@@ -91,7 +92,7 @@
 - **GH-Issue #185 schema metadata projection**：Server schema response 与 Remote ADO.NET DTO/源生成上下文统一暴露 views、materialized views、foreign keys 和 document collections，补真实 schema endpoint 回归；本地 schema endpoint 5/5 与已有 embedded `GetSchema` projection 通过。远程跨版本 parity 和外部 issue 线程确认仍待执行。
 - **GH-Issue #183 SQL 整数按位运算**：词法器识别 `&` / `|`，解析器按“按位与高于按位或、两者低于比较”的优先级生成 AST；共享标量执行器支持 Int64 常量/列在 `SELECT`、`WHERE`、`UPDATE` 中计算并传播 `NULL`，对浮点、字符串等非整数返回稳定中文诊断。新增 lexer、AST 优先级、关系表投影/筛选/更新和错误边界回归；定向 Core 测试 158/158 通过。远程 ADO.NET/Frame parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码**：嵌入式和远程 ADO.NET 参数绑定均支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`，转换为 VECTOR 字面量并拒绝空/非有限向量；REST/NDJSON 行写入将向量编码为 JSON 数字数组，远程读取将纯数字数组恢复为 `float[]`，并补齐字段类型推断。新增嵌入式参数、边界、NDJSON writer/reader 与 REST 远程闭环回归；外部 issue 线程确认仍待执行。
-- **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。新增 5 个 Core 确定性回归。`WITH RECURSIVE` 及 CTE 输出列名列表明确保持未支持，远程 parity 与外部 issue 线程确认仍待执行。
+- **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。初始交付新增 5 个 Core 确定性回归；输出列名列表由上方后续条目补齐。有界 `WITH RECURSIVE` 由 #189 跟踪，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #178 SQL 集合运算**：新增 `UNION ALL`、`INTERSECT` 与 `EXCEPT` 的词法、解析和关系执行；保留既有 `UNION` 去重兼容语义，支持复合结果的排序/分页和稳定列数诊断。新增集合运算 Core 回归；当前按书写顺序求值，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #172 ANSI 窗口函数 `OVER`**：窗口函数调用现在可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。`PARTITION BY`、非时间/降序排序、`ROWS`/`RANGE` frame、关系表/JOIN 及远程 parity 保持明确未支持；新增 5 项 Core 解析、执行与 fail-closed 回归。
 - **GH-Issue #173 显式 `CAST(expr AS type)`**：新增专用 CAST AST、解析和参数绑定，并在 measurement、关系表、文档、JOIN、JSON 文件、混合搜索及向量搜索路径共享 `INT`/`FLOAT`/`BOOL`/`STRING`/`DATETIME`/`BLOB`/`JSON` 转换、NULL 传播和确定性错误语义；`VECTOR`/`GEOPOINT` 目标保持明确未支持。新增 9 项 Core 解析、字面量、列投影/筛选和边界回归，远程 parity 与外部 issue 线程确认仍待执行。

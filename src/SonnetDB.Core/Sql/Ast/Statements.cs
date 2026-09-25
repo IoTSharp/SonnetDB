@@ -718,7 +718,7 @@ public sealed record SqlOnConflictClause(
 /// </summary>
 /// <param name="Name">CTE 名称。</param>
 /// <param name="Query">CTE 查询定义。</param>
-/// <param name="ColumnNames">可选输出列名列表；当前执行层要求使用查询自身的列名。</param>
+/// <param name="ColumnNames">可选输出列名列表，按查询结果列的位置重命名。</param>
 public sealed record CommonTableExpression(
     string Name,
     SelectStatement Query,
@@ -781,6 +781,9 @@ public sealed record SelectStatement(
     /// </summary>
     public IReadOnlyList<CommonTableExpression> CommonTableExpressions { get; init; } =
         Array.Empty<CommonTableExpression>();
+
+    /// <summary>普通 CTE 查询在自身求值完成后应用的输出列名。</summary>
+    internal IReadOnlyList<string>? CteOutputColumnNames { get; init; }
 
     /// <summary>WITH RECURSIVE 是否启用有界递归求值。</summary>
     public bool IsRecursive { get; init; }
