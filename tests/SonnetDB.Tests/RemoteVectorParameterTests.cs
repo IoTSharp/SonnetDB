@@ -117,7 +117,7 @@ public sealed class RemoteVectorParameterTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Remote_Rest_VectorUpdateWithoutReplacementContract_RejectsAndPreservesValue()
+    public void Remote_Rest_VectorUpdate_ReplacesValue()
     {
         using var connection = new SndbConnection(
             $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{DatabaseName};Token={AdminToken};Protocol=rest;Timeout=30");
@@ -134,16 +134,14 @@ public sealed class RemoteVectorParameterTests : IAsyncLifetime
         {
             update.CommandText = "UPDATE docs SET embedding = @embedding WHERE source = 'a'";
             update.Parameters.AddWithValue("@embedding", new float[] { 0f, 1f, 0f });
-            var error = Assert.Throws<SndbServerException>(() => update.ExecuteNonQuery());
-            Assert.Equal("sql_error", error.Error);
-            Assert.Contains("measurement UPDATE 尚不支持", error.ServerMessage, StringComparison.Ordinal);
+            Assert.Equal(1, update.ExecuteNonQuery());
         }
 
         using var select = connection.CreateCommand();
         select.CommandText = "SELECT embedding FROM docs WHERE source = 'a'";
         using var reader = select.ExecuteReader();
         Assert.True(reader.Read());
-        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(reader.GetValue(0)));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(reader.GetValue(0)));
         Assert.False(reader.Read());
     }
 }

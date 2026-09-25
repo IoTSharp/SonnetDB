@@ -1,10 +1,14 @@
 using System.Data;
 using System.Data.Common;
 using System.Text.Json;
+using SonnetDB.Backup;
 using SonnetDB.Data;
 using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
+using SonnetDB.Engine.Compaction;
+using SonnetDB.Engine.Retention;
+using SonnetDB.Kv;
 using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Sql;
@@ -50,33 +54,482 @@ public sealed class SqlVectorParameterTests : IDisposable
     }
 
     [Fact]
-    public void Embedded_VectorUpdateWithoutReplacementContract_RejectsAndPreservesPointAndKnn()
+    public void Embedded_VectorUpdate_ReplacesRawSqlAndKnnAndRecovers()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            var updated = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+                database,
+                databaseName: null,
+                "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
+                new SqlParameters().AddNamed("embedding", new float[] { 0f, 1f, 0f })));
+            Assert.Equal(1, updated.RowsAffected);
+            Assert.Equal(0, Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+                database, "UPDATE docs SET embedding = [0,0,1] WHERE source = 'missing'"))
+                .RowsAffected);
+            AssertUpdated(database);
+            database.FlushNow();
+            AssertUpdated(database);
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        AssertUpdated(reopened);
+    }
+
+    private static void AssertUpdated(Tsdb database)
+    {
+        var seriesId = SeriesId.Compute(new SeriesKey("docs",
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["source"] = "a" }));
+        var point = Assert.Single(database.Query.Execute(new PointQuery(
+            seriesId, "embedding", new TimeRange(1000, 1000))));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, point.Value.AsVector().ToArray());
+
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+
+        var knn = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM knn(docs, embedding, [1,0,0], 1)"));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(Assert.Single(knn.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_MultipleRowsAndValidation_AreAtomic()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES "
+            + "(1000, 'a', [1,0,0]), (2000, 'a', [1,0,0]), (3000, 'b', [0,0,1])");
+
+        Assert.Contains("维度不匹配", Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            database, "UPDATE docs SET embedding = [1,2] WHERE source = 'a'"))
+            .Message, StringComparison.Ordinal);
+        Assert.Contains("NULL", Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            database, "UPDATE docs SET embedding = NULL WHERE source = 'a'"))
+            .Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() => SqlExecutor.Execute(
+            database, null, "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
+            new SqlParameters().AddNamed("embedding", new float[] { float.NaN, 0f, 0f })));
+        Assert.Equal(0, database.VectorReplacements.Count);
+
+        var updated = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            database, null, "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
+            new SqlParameters().AddNamed("embedding", new float[] { 0f, 1f, 0f })));
+        Assert.Equal(2, updated.RowsAffected);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT time, source, embedding FROM docs ORDER BY time")).Rows;
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(rows[0][2]));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(rows[1][2]));
+        Assert.Equal(new float[] { 0f, 0f, 1f }, Assert.IsType<float[]>(rows[2][2]));
+
+        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])"));
+        SqlExecutor.Execute(database, "DELETE FROM docs WHERE source = 'a' AND time = 1000");
+        Assert.Equal(1, database.VectorReplacements.Count);
+        var remaining = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT time, embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(2000L, Assert.Single(remaining.Rows)[0]);
+
+        Assert.True(database.DropMeasurement("docs"));
+        Assert.Equal(0, database.VectorReplacements.Count);
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (2000, 'a', [1,0,0])");
+        var recreated = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 1f, 0f, 0f },
+            Assert.IsType<float[]>(Assert.Single(recreated.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_SparseTargetAndFieldPredicate_RejectBeforeCommit()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database,
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3), score FIELD FLOAT)");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, score) VALUES (2000, 'a', 1.0)");
+
+        Assert.Contains("缺少原 VECTOR FIELD", Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"))
+            .Message, StringComparison.Ordinal);
+        Assert.Contains("TAG 和 time", Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE score > 0"))
+            .Message, StringComparison.Ordinal);
+        Assert.Equal(0, database.VectorReplacements.Count);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            "SELECT embedding FROM docs WHERE source = 'a' AND time = 1000"));
+        Assert.Equal(new float[] { 1f, 0f, 0f },
+            Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_CompactionAndReopen_KeepOnlyReplacementVisible()
+    {
+        var baseOptions = new TsdbOptions
+        {
+            RootDirectory = _root,
+            Compaction = new CompactionPolicy { Enabled = false },
+        };
+        using (var database = Tsdb.Open(baseOptions))
+        {
+            SqlExecutor.Execute(database,
+                "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3) WITH INDEX hnsw(m=4, ef=8))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            database.FlushNow();
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (2000, 'b', [0,0,1])");
+            database.FlushNow();
+            Assert.True(database.Segments.SegmentCount >= 2);
+            SqlExecutor.Execute(database, null,
+                "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
+                new SqlParameters().AddNamed("embedding", new float[] { 0f, 1f, 0f }));
+            AssertUpdated(database);
+        }
+
+        var compactOptions = baseOptions with
+        {
+            Compaction = new CompactionPolicy
+            {
+                Enabled = true,
+                MinTierSize = 2,
+                PollInterval = TimeSpan.FromMilliseconds(100),
+            },
+        };
+        using (var compacted = Tsdb.Open(compactOptions))
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < deadline && compacted.Segments.SegmentCount > 1)
+                Thread.Sleep(100);
+            Assert.Equal(1, compacted.Segments.SegmentCount);
+            AssertUpdated(compacted);
+        }
+
+        using var reopened = Tsdb.Open(baseOptions);
+        AssertUpdated(reopened);
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_RecoveryAcrossPages_RestoresEveryReplacement()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            string values = string.Join(", ", Enumerable.Range(1, 65)
+                .Select(i => $"({i}, 'a', [1,0,0])"));
+            SqlExecutor.Execute(database, $"INSERT INTO docs (time, source, embedding) VALUES {values}");
+            Assert.Equal(65, Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"))
+                .RowsAffected);
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal(65, reopened.VectorReplacements.Count);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT time, embedding FROM docs WHERE source = 'a' ORDER BY time")).Rows;
+        Assert.Equal(65, rows.Count);
+        Assert.All(rows, row => Assert.Equal(new float[] { 0f, 1f, 0f },
+            Assert.IsType<float[]>(row[1])));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_TooManyRows_RejectsBeforeChangingAnyPoint()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        string values = string.Join(", ", Enumerable.Range(1, 257)
+            .Select(i => $"({i}, 'a', [1,0,0])"));
+        SqlExecutor.Execute(database, $"INSERT INTO docs (time, source, embedding) VALUES {values}");
+
+        Assert.Contains("最多修改 256 行", Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(database, "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"))
+            .Message, StringComparison.Ordinal);
+        Assert.Equal(0, database.VectorReplacements.Count);
+        var series = Assert.Single(database.Catalog.Find("docs",
+            new Dictionary<string, string> { ["source"] = "a" }));
+        Assert.All(database.Query.Execute(new PointQuery(series.Id, "embedding", TimeRange.All)),
+            point => Assert.Equal(new float[] { 1f, 0f, 0f }, point.Value.AsVector().ToArray()));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_WalSyncFailure_RejectsReadsUntilReopen()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0]), (2000, 'a', [1,0,0])");
+            database.VectorReplacements.WalSyncTestHook = () => throw new IOException("injected sync failure");
+            Assert.Throws<IOException>(() => SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"));
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "SELECT embedding FROM docs WHERE source = 'a'"));
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,0,1] WHERE source = 'a'"));
+            database.VectorReplacements.WalSyncTestHook = null;
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            reopened, "SELECT time, embedding FROM docs WHERE source = 'a' ORDER BY time"));
+        Assert.Equal(2, selected.Rows.Count);
+        Assert.All(selected.Rows, row =>
+            Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(row[1])));
+    }
+
+    [Fact]
+    public void Embedded_VectorDelete_CleanupFailure_FencesReadsUntilReopen()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+
+            database.Keyspaces.OpenMeasurementVectorReplacements().Dispose();
+            Assert.Throws<ObjectDisposedException>(() => SqlExecutor.Execute(database,
+                "DELETE FROM docs WHERE source = 'a' AND time = 1000"));
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "SELECT embedding FROM docs WHERE source = 'a'"));
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT embedding FROM docs WHERE source = 'a'")).Rows);
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_WalBudgetRejectsBeforeAppend_LeavesDatabaseReadable()
+    {
+        using var database = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = new KvOptions { MaxWalBytes = KvWalFile.HeaderSize },
+        });
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+
+        Assert.Throws<IOException>(() => SqlExecutor.Execute(database,
+            "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"));
+        Assert.Equal(0, database.VectorReplacements.Count);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 1f, 0f, 0f },
+            Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_ByteBudgetRejectsBeforeWal_LeavesStoreEmpty()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var targets = Enumerable.Range(0, 33)
+            .Select(i => (SeriesId: 1UL, Timestamp: (long)i)).ToArray();
+        var vector = FieldValue.FromVector(new float[1_048_576]);
+
+        Assert.Contains("字节", Assert.Throws<InvalidOperationException>(() =>
+            database.VectorReplacements.ReplaceMany(targets, "embedding", vector))
+            .Message, StringComparison.Ordinal);
+        Assert.Equal(0, database.VectorReplacements.Count);
+        Assert.False(Directory.Exists(database.Keyspaces.MeasurementVectorReplacementDirectory));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_LegacyNamedUserKeyspace_RemainsIndependent()
+    {
+        const string legacyName = "_Measurement-Vector-Replacements";
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            database.Keyspaces.Open(legacyName).Put("owner", [42]);
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+            Assert.Equal([42], database.Keyspaces.Open(legacyName).Get("owner"));
+            Assert.Contains(legacyName, database.Keyspaces.List());
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal([42], reopened.Keyspaces.Open(legacyName).Get("owner"));
+        AssertUpdated(reopened);
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_DropAndRecreateAfterReopen_DoesNotApplyOldReplacement()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+            Assert.True(database.DropMeasurement("docs"));
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+        SqlExecutor.Execute(reopened, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(reopened,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [0,0,1])");
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 0f, 0f, 1f },
+            Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_RetentionDrop_ReclaimsReplacementAndRecovers()
+    {
+        long now = 1000;
+        var options = new TsdbOptions
+        {
+            RootDirectory = _root,
+            Compaction = new CompactionPolicy { Enabled = false },
+            Retention = new RetentionPolicy
+            {
+                Enabled = true,
+                TtlInTimestampUnits = 1000,
+                NowFn = () => Volatile.Read(ref now),
+                PollInterval = TimeSpan.FromHours(24),
+            },
+        };
+        using (var database = Tsdb.Open(options))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (100, 'a', [1,0,0])");
+            database.FlushNow();
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+            Assert.Equal(1, database.VectorReplacements.Count);
+
+            Volatile.Write(ref now, 5000);
+            Assert.True(database.Retention!.RunOnce().DroppedSegments > 0);
+            Assert.Equal(0, database.VectorReplacements.Count);
+            Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+                database, "SELECT embedding FROM docs")).Rows);
+        }
+
+        using var reopened = Tsdb.Open(options with { Retention = RetentionPolicy.Default });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+    }
+
+    [Fact]
+    public void Embedded_VectorRetention_CleanupFailure_FencesReadsUntilReopen()
+    {
+        long now = 1000;
+        var options = new TsdbOptions
+        {
+            RootDirectory = _root,
+            Compaction = new CompactionPolicy { Enabled = false },
+            Retention = new RetentionPolicy
+            {
+                Enabled = true,
+                TtlInTimestampUnits = 1000,
+                NowFn = () => Volatile.Read(ref now),
+                PollInterval = TimeSpan.FromHours(24),
+            },
+        };
+        using (var database = Tsdb.Open(options))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (100, 'a', [1,0,0])");
+            database.FlushNow();
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+
+            database.Keyspaces.OpenMeasurementVectorReplacements().Dispose();
+            Volatile.Write(ref now, 5000);
+            Assert.Throws<ObjectDisposedException>(() => database.Retention!.RunOnce());
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "SELECT embedding FROM docs WHERE source = 'a'"));
+        }
+
+        using var reopened = Tsdb.Open(options with { Retention = RetentionPolicy.Default });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT embedding FROM docs WHERE source = 'a'")).Rows);
+    }
+
+    [Fact]
+    public async Task Embedded_VectorUpdate_ConcurrentKnn_DistanceMatchesReturnedVector()
     {
         using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
         SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
         SqlExecutor.Execute(database,
             "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+        SqlExecutor.Execute(database,
+            "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
 
-        var error = Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(
-            database,
-            databaseName: null,
-            "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
-            new SqlParameters().AddNamed("embedding", new float[] { 0f, 1f, 0f })));
-        Assert.Contains("measurement UPDATE 尚不支持", error.Message, StringComparison.Ordinal);
+        var writer = Task.Run(() =>
+        {
+            for (int i = 0; i < 100; i++)
+                SqlExecutor.Execute(database, i % 2 == 0
+                    ? "UPDATE docs SET embedding = [1,0,0] WHERE source = 'a'"
+                    : "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+        });
+        var reader = Task.Run(() =>
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+                    "SELECT distance, embedding FROM knn(docs, embedding, [1,0,0], 1)"));
+                var row = Assert.Single(result.Rows);
+                var vector = Assert.IsType<float[]>(row[1]);
+                Assert.Equal(1d - vector[0], Assert.IsType<double>(row[0]), 6);
+            }
+        });
+        await Task.WhenAll(writer, reader).WaitAsync(TimeSpan.FromSeconds(30));
+    }
 
-        var seriesId = SeriesId.Compute(new SeriesKey("docs",
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["source"] = "a" }));
-        var point = Assert.Single(database.Query.Execute(new PointQuery(
-            seriesId, "embedding", new TimeRange(1000, 1000))));
-        Assert.Equal(new float[] { 1f, 0f, 0f }, point.Value.AsVector().ToArray());
+    [Fact]
+    public void Embedded_VectorUpdate_DeleteThenBackupRestore_DoesNotReviveOldVector()
+    {
+        string source = Path.Combine(_root, "source");
+        string backup = Path.Combine(_root, "backup");
+        string restored = Path.Combine(_root, "restored");
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = source }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0]), (2000, 'b', [0,0,1])");
+            database.FlushNow();
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+            SqlExecutor.Execute(database,
+                "DELETE FROM docs WHERE source = 'a' AND time = 1000");
+            _ = new BackupService().Create(database,
+                new BackupCreateOptions { DestinationDirectory = backup });
+        }
 
-        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
-            database, "SELECT embedding FROM docs WHERE source = 'a'"));
-        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
-
+        _ = new BackupService().Restore(new BackupRestoreOptions
+        {
+            BackupDirectory = backup,
+            TargetDirectory = restored,
+        });
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = restored });
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            reopened, "SELECT time, embedding FROM docs ORDER BY time")).Rows;
+        Assert.Equal(2000L, Assert.Single(rows)[0]);
         var knn = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
-            database, "SELECT embedding FROM knn(docs, embedding, [1,0,0], 1)"));
-        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(Assert.Single(knn.Rows)[0]));
+            reopened, "SELECT time FROM knn(docs, embedding, [1,0,0], 2)"));
+        Assert.Equal(2000L, Assert.Single(knn.Rows)[0]);
     }
 
     [Fact]

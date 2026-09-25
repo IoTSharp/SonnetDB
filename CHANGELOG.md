@@ -8,7 +8,6 @@
 ## [Unreleased]
 ### Fixed
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
-- GH-Issue #186 在 measurement `UPDATE` 分派时明确拒绝，说明当前点追加、墓碑和 KNN 尚无原子替换合同；嵌入式、REST 与 HTTP/2 ADO 回归确认拒绝后旧向量不变。参数化 VECTOR UPDATE 仍未实现，Issue 保持开放。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
 - GH-Issue #189 将递归累计行的字符串内存估算改为保守 UTF-16 大小，避免 ASCII 字符串按 UTF-8 长度低估 32 MiB 工作表预算；补充交替宽行、截止时间、NULL 与重复路径回归。该预算仍不代表 CLR 堆峰值硬上限。
@@ -30,6 +29,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，清理失败冻结替换读写直到重开裁剪。替换值与 series/field 命中索引同快照发布，避免 KNN 候选多时逐条扫描替换记录；内部存储与旧用户 keyspace 隔离。嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
 - GH-Issue #178 增补混合集合表达式回归：覆盖 `UNION ALL` 重复行、连续及多组 `INTERSECT`、同级左结合、空分支、统一排序分页、派生表分组和 `NULL` 多列比较；保留现有 parser/executor 实现。
 - 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读，记录 26 条已关闭、#91/#184/#186/#197 四条开放及各自剩余验收；同步路线图状态，避免把历史快照当作当前状态。
 - GH-Issue #91 Studio 可选择已有嵌入式数据库目录，由本地 Server 显式挂载并切换工作台；挂载库禁止通过 Server 删除数据库接口移除。保留原 DataRoot 启动路径，切换失败恢复先前托管 Server。

@@ -57,7 +57,9 @@ internal static class KnnExecutor
         int k,
         KnnMetric metric,
         TimeRange timeRange,
-        TombstoneTable? tombstones)
+        TombstoneTable? tombstones,
+        MeasurementVectorReplacementStore? replacements = null,
+        QueryEngine? queryEngine = null)
     {
         ArgumentNullException.ThrowIfNull(memTables);
         ArgumentNullException.ThrowIfNull(segmentIndex);
@@ -83,6 +85,19 @@ internal static class KnnExecutor
             () => new List<(double Dist, long Ts, ulong Sid)>(),
             (series, _, localCandidates) =>
             {
+                if (replacements?.HasSeriesField(series.Id, vectorField) == true)
+                {
+                    if (queryEngine is null)
+                        throw new InvalidOperationException("VECTOR 替换记录需要可见点查询器。");
+                    foreach (var point in queryEngine.Execute(new PointQuery(series.Id, vectorField, timeRange)))
+                    {
+                        double distance = VectorDistance.Compute(
+                            metric, queryVector.Span, point.Value.AsVector().Span);
+                        localCandidates.Add((distance, point.Timestamp, series.Id));
+                    }
+                    return localCandidates;
+                }
+
                 // 1. 扫描全部 MemTable（active + sealing）
                 foreach (var memTable in memTables)
                     ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, localCandidates);

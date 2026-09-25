@@ -128,6 +128,17 @@ public sealed class RetentionWorker : IDisposable
                 TryDelete(TsdbPaths.VectorIndexPathForSegment(reader.Path));
                 TryDelete(TsdbPaths.AggregateIndexPathForSegment(reader.Path));
             }
+
+            // 段移除已由 manifest 提交；释放不再有原始点的 VECTOR 替换配额。
+            try
+            {
+                _owner.PruneStaleVectorReplacements();
+            }
+            catch (Exception ex)
+            {
+                _owner.VectorReplacements.Invalidate(ex);
+                throw;
+            }
         }
 
         sw.Stop();

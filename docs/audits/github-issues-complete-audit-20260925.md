@@ -21,7 +21,7 @@
 | [#183](https://github.com/IoTSharp/SonnetDB/issues/183) | closed/completed | 关系 SQL 整数位运算，专项 158/158。 | [路线图验收](../github-issues-roadmap.md) |
 | [#184](https://github.com/IoTSharp/SonnetDB/issues/184) | **open** | 原子 UPSERT 与远程事务会话已在源码；正式包兼容和部署中的多实例/重启/丢失提交响应尚未验收。 | [会话审计](github-issue-184-remote-session-20260925.md)、[发布草稿](issue-184-197-release-readiness-20260925.md) |
 | [#185](https://github.com/IoTSharp/SonnetDB/issues/185) | closed/completed | GetSchema 对视图、外键和文档集合的统一投影。 | [线上关闭](https://github.com/IoTSharp/SonnetDB/issues/185) |
-| [#186](https://github.com/IoTSharp/SonnetDB/issues/186) | **open/reopened** | VECTOR INSERT、读取和 KNN 参数已通；measurement VECTOR UPDATE 尚无持久原子替换与 raw/KNN 一致语义。 | [VECTOR 审计](github-issue-186-frame-vector-20260925.md) |
+| [#186](https://github.com/IoTSharp/SonnetDB/issues/186) | **open/reopened（该次线上回读）** | 当时 VECTOR INSERT、读取和 KNN 参数已通，UPDATE 尚缺；后续独立工作树已实现有界持久替换并完成定向本机验证，尚未证明合入或发布。 | [VECTOR 审计与后续工作树核查](github-issue-186-frame-vector-20260925.md) |
 | [#187](https://github.com/IoTSharp/SonnetDB/issues/187) | closed/completed | 无主键空表的安全演进、主键/自增/ROWVERSION 的有界路径。 | [DDL 审计](github-issue-187-ddl-evolution-20260925.md) |
 | [#188](https://github.com/IoTSharp/SonnetDB/issues/188) | closed/completed | CREATE TABLE 命名外键约束的线上验收范围。 | [线上关闭](https://github.com/IoTSharp/SonnetDB/issues/188) |
 | [#189](https://github.com/IoTSharp/SonnetDB/issues/189) | closed/completed | 有界递归 CTE、拒绝超预算、REST/Frame 读取；严格 CLR 堆峰值不是关闭声明。 | [递归审计](github-issue-189-recursive-cte-20260925.md) |
@@ -35,4 +35,4 @@
 | [#197](https://github.com/IoTSharp/SonnetDB/issues/197) | **open** | INSERT RETURNING 主线跨协议合同已测；首次正式发布版本、包安装与兼容门禁未完成。 | [结果合同](github-issue-197-insert-returning-20260925.md)、[发布草稿](issue-184-197-release-readiness-20260925.md) |
 | [#198](https://github.com/IoTSharp/SonnetDB/issues/198) | closed/completed | 明确 Int64/STRING 边界、溢出拒绝及 ADO/Frame v2 元数据协商。 | [整数边界审计](github-issue-198-int64-boundary-20260925.md) |
 
-本机对 #91 的完整 Studio 测试在恢复 NuGet 资产后为 58/58；早先使用 `--no-restore` 的首次运行因输出目录没有 `System.IO.Hashing` 10.0.12 而为 57/58，不能计作通过。#184/#197 的首次完整正式发布仍未发生，最新公开 Release 为 `v3.1.0`；#186 的 UPDATE 尚未交付。四条开放 Issue 均保持开放，直至其各自剩余验收有真实证据。
+本机对 #91 的完整 Studio 测试在恢复 NuGet 资产后为 58/58；早先使用 `--no-restore` 的首次运行因输出目录没有 `System.IO.Hashing` 10.0.12 而为 57/58，不能计作通过。#184/#197 的首次完整正式发布仍未发生，最新公开 Release 为 `v3.1.0`；#186 的 UPDATE 后续仅在独立工作树实现，合入/发布仍未交付。四条开放 Issue 均保持开放，直至其各自剩余验收有真实证据。

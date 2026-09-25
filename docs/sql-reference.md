@@ -1213,7 +1213,7 @@ CREATE MEASUREMENT IF NOT EXISTS cpu (
 
 ADO.NET `VECTOR(N)` 参数使用 `float[]`、`Memory<float>` 或 `ReadOnlyMemory<float>`；`DbType` 与 `GetSchemaTable().ProviderType` 为 `DbType.Object`，结果的 `GetValue()` 为 `float[]`，`GetFieldType()` 和 `GetSchemaTable().DataType` 为 `typeof(float[])`。各元素是有限的 IEEE 754 float32，空数组和 NaN/Infinity 在客户端拒绝；维度与 `VECTOR(N)` 不一致时服务端报 `sql_error`，消息包含“维度不匹配”。`null`/`DBNull.Value` 绑定为 SQL `NULL`；measurement 的 VECTOR 写入要求非空向量，缺值应省略该字段，并与同点其他 field 一起查询以取得 `DBNull.Value`。`centroid(VECTOR)` 也返回 `float[]`。
 
-嵌入式参数直接绑定为向量字面量；REST/NDJSON 与 `Protocol=frame-http2` ADO 写入将有限向量格式化为 SQL 数值数组。HTTP/2 ADO 写入经 `/v1/db/{db}/sql`，原生 `/v1/frame` SQL 端点只读。只读 Frame 请求支持 float32 little-endian VECTOR 命名参数，结果使用 VECTOR 值标记；Frame 单请求 payload 上限为 132 MiB，SQL 文本上限为 1 MiB。ADO 写入的向量会先展开为 SQL 文本，因此还受该路径请求体与服务端资源限制约束；大向量应按目标服务的请求预算验证，不存在独立的 ADO VECTOR 维度硬上限。measurement 当前不支持 `UPDATE ... SET embedding = @vector`，关系表也不支持 VECTOR 列；修改时序向量应按应用所需时间点写入/删除语义处理，不能将 INSERT/KNN 的参数支持理解为 UPDATE 支持。
+嵌入式参数直接绑定为向量字面量；REST/NDJSON 与 `Protocol=frame-http2` ADO 写入将有限向量格式化为 SQL 数值数组。HTTP/2 ADO 写入经 `/v1/db/{db}/sql`，原生 `/v1/frame` SQL 端点只读。只读 Frame 请求支持 float32 little-endian VECTOR 命名参数，结果使用 VECTOR 值标记；Frame 单请求 payload 上限为 132 MiB，SQL 文本上限为 1 MiB。ADO 写入的向量会先展开为 SQL 文本，因此还受该路径请求体与服务端资源限制约束；大向量应按目标服务的请求预算验证，不存在独立的 ADO VECTOR 维度硬上限。measurement 的 `UPDATE ... SET embedding = @vector` 仅支持已有 VECTOR FIELD 点与 TAG/time 条件，单句最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量（不是 CLR 堆峰值硬上限）；稀疏目标行和字段残差明确拒绝，同键 INSERT 在替换后也明确拒绝。关系表仍不支持 VECTOR 列；原生 Frame SQL 写入仍只读。
 
 ### `INSERT INTO ... VALUES`
 

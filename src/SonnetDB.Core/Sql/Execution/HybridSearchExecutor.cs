@@ -181,6 +181,17 @@ internal static class HybridSearchExecutor
         CrossModelFilterPlan filterPlan,
         RelationFilterPlan? relationPlan)
     {
+        lock (tsdb.VectorReplacements.SyncRoot)
+            return ScoreMeasurementKnowledgeRowsCore(tsdb, schema, options, filterPlan, relationPlan);
+    }
+
+    private static IReadOnlyList<KnowledgeHybridRow> ScoreMeasurementKnowledgeRowsCore(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        MeasurementKnowledgeOptions options,
+        CrossModelFilterPlan filterPlan,
+        RelationFilterPlan? relationPlan)
+    {
         var matchedSeries = tsdb.Catalog.Find(schema.Name, filterPlan.MeasurementWhere.TagFilter).ToList();
         if (relationPlan is not null)
             matchedSeries = matchedSeries
@@ -208,7 +219,9 @@ internal static class HybridSearchExecutor
                 options.MeasurementCandidateLimit,
                 options.Metric,
                 filterPlan.MeasurementWhere.TimeRange,
-                tsdb.Tombstones);
+                tsdb.Tombstones,
+                tsdb.VectorReplacements,
+                tsdb.Query);
         }
         if (knnResults.Count == 0)
             return [];

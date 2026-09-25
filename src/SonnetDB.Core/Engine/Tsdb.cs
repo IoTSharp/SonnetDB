@@ -52,6 +52,7 @@ public sealed class Tsdb : IDisposable
     // 取得 schema 锁、但暂时停在测试 hook 的 DDL 可能被错误地拒绝。
     private long _schemaMutationAdmissionState;
     private readonly MeasurementBatchLedger _measurementBatchLedger;
+    private MeasurementVectorReplacementStore? _vectorReplacements;
     // 锁序固定为 _schemaSync（外）→ _writeSync / 各模型 manager（内）。
     // 隐式 measurement 建立、跨模型 DDL 与备份均持有 schema 锁，保证名称检查和发布不可交错。
     private readonly object _schemaSync = new();
@@ -156,6 +157,9 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>查询执行器：合并 MemTable 与多个 Segment 的候选 Block，提供原始点查询与聚合查询。</summary>
     public QueryEngine Query { get; }
+
+    internal MeasurementVectorReplacementStore VectorReplacements =>
+        _vectorReplacements ?? throw new InvalidOperationException("VECTOR 替换记录尚未初始化。");
 
     /// <summary>
     /// 用户自定义函数（UDF）注册表；可通过其 <c>RegisterScalar</c> /
@@ -604,6 +608,11 @@ public sealed class Tsdb : IDisposable
             // 追加 WAL replay 中 checkpoint 之后的 Delete 记录
             foreach (var del in result.DeleteRecords)
                 tsdb.Tombstones.Add(new Tombstone(del.SeriesId, del.FieldName, del.FromTimestamp, del.ToTimestamp, del.Lsn));
+
+            tsdb._vectorReplacements = new MeasurementVectorReplacementStore(
+                tsdb._keyspaces, catalog, measurements);
+            tsdb.Query.SetVectorReplacementStore(tsdb._vectorReplacements);
+            tsdb.PruneStaleVectorReplacements();
 
             // 重写一遍 manifest（合并 manifest + WAL replay 的结果）
             TombstoneManifestCodec.Save(tombstoneManifestPath, tsdb.Tombstones.All);
@@ -1158,6 +1167,7 @@ public sealed class Tsdb : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             ThrowIfWriteLifecycleClosing();
             ThrowIfFlushRecoveryFault();
+            _vectorReplacements?.EnsureHealthy();
 
             long lsn = _walSet!.AppendDelete(seriesId, fieldName, fromTimestamp, toTimestamp);
             var tomb = new Tombstone(seriesId, fieldName, fromTimestamp, toTimestamp, lsn);
@@ -1169,6 +1179,23 @@ public sealed class Tsdb : IDisposable
             // buffered 的 Delete 记录丢失、周期 manifest 又未 checkpoint 时，已落段的被删数据会"复活"
             // （比丢写更危险）。删除频率远低于写入，强制 fsync 代价可接受；group-commit 会批处理并发删除。#194
             walSync = _walGroupCommit.Prepare(_walSet!);
+            if (_vectorReplacements?.HasSeriesField(seriesId, fieldName) == true)
+            {
+                // 跨 WAL 顺序：墓碑先同步，再清理 KV。期间禁止 UPDATE/保留清理
+                // 观察到尚未持久化的墓碑，否则崩溃后可能显露旧向量。
+                walSync.Wait();
+                try
+                {
+                    _vectorReplacements.RemoveCovered(seriesId, fieldName, fromTimestamp, toTimestamp);
+                }
+                catch (Exception ex)
+                {
+                    // 墓碑已持久化；即使 KV 在追加前拒绝，也须重开裁剪残留替换记录。
+                    _vectorReplacements.Invalidate(ex);
+                    throw;
+                }
+                walSync = default;
+            }
         }
 
         walSync.Wait();
@@ -1221,6 +1248,7 @@ public sealed class Tsdb : IDisposable
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
                 EnsureViewNameAvailable(schema.Name, "measurement");
+                _vectorReplacements?.EnsureHealthy();
                 Measurements.Add(schema);
 
                 // 立即把全量 schema 集合原子写入磁盘，确保 CREATE 语义具备崩溃安全性
@@ -1292,6 +1320,7 @@ public sealed class Tsdb : IDisposable
                     ObjectDisposedException.ThrowIf(_disposed, this);
                     ThrowIfWriteLifecycleClosing();
                     ThrowIfFlushRecoveryFault();
+                    _vectorReplacements?.EnsureHealthy();
                     EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
                     if (!Measurements.Contains(name))
@@ -1313,6 +1342,17 @@ public sealed class Tsdb : IDisposable
 
                     _catalogDirty = true;
                     PersistCatalogCheckpointLocked();
+
+                    try
+                    {
+                        _vectorReplacements?.RemoveSeries(removedSeriesIds);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 目录删除已经持久化；禁止同名重建，重开时按已删除目录清理残留。
+                        _vectorReplacements?.Invalidate(ex);
+                        throw;
+                    }
 
                     return true;
                 }
@@ -2117,6 +2157,15 @@ public sealed class Tsdb : IDisposable
     {
         var entry = Catalog.GetOrAdd(point);
 
+        foreach (var fieldName in point.Fields.Keys)
+        {
+            if (_vectorReplacements?.TryGet(entry.Id, fieldName, point.Timestamp, out _) == true)
+            {
+                throw new NotSupportedException(
+                    $"字段 '{fieldName}' 的时序点已经 VECTOR UPDATE；同键 INSERT 当前不支持，避免覆盖值与原始点分叉。");
+            }
+        }
+
         // 若是本进程首次写入该 series，向 WAL 追加 CreateSeries 记录
         if (_seriesWithWalRecord.Add(entry.Id))
         {
@@ -2142,6 +2191,30 @@ public sealed class Tsdb : IDisposable
                 MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
             }
         }
+    }
+
+    internal TResult ExecuteMeasurementWrite<TResult>(Func<TResult> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        lock (_schemaSync)
+            lock (_maintenanceSync)
+                lock (_writeSync)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    ThrowIfWriteLifecycleClosing();
+                    ThrowIfFlushRecoveryFault();
+                    // 替换值写入独立 KV WAL 前，先持久化其依赖的原始时序点与 CreateSeries。
+                    _walSet!.Sync();
+                    return operation();
+                }
+    }
+
+    internal void PruneStaleVectorReplacements()
+    {
+        lock (_writeSync)
+            _vectorReplacements?.PruneStale((seriesId, fieldName, timestamp) =>
+                Query.Execute(new PointQuery(seriesId, fieldName,
+                    new TimeRange(timestamp, timestamp))).Any());
     }
 
     /// <summary>
@@ -2267,6 +2340,7 @@ public sealed class Tsdb : IDisposable
 
     private Point EnsureMeasurementSchemaLocked(Point point, bool persistImmediately)
     {
+        _vectorReplacements?.EnsureHealthy();
         var schema = Measurements.TryGet(point.Measurement);
         if (schema is null)
         {
