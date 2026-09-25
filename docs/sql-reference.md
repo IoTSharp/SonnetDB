@@ -646,7 +646,7 @@ WHERE guid IN (
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `INSERT ... RETURNING` 在同一语句中返回成功插入后的列值；`RETURNING *` 按表 schema 顺序返回全部列。未知列会在写入前报错，不留下部分数据。
 - `INSERT ... VALUES ... ON CONFLICT (主键或唯一索引列) DO UPDATE SET column = excluded.column [WHERE predicate] [RETURNING ...]` 对冲突目标行执行原子更新。`excluded` 指当前候选行，未限定列名指冲突前目标行；可在 `WHERE` 同时引用两者。谓词为 FALSE 或 NULL 时不更新、不返回该行，且不计入受影响行数。多行语句按输入顺序返回成功插入或更新的行；同一语句重复更新同一目标行会整句拒绝。`ROWVERSION` 更新由引擎递增，候选行的默认值与自动生成列在冲突检查前确定。
-- 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。本分支的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；合入 `main` 后也要等实际发布才能成为包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
+- 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。当前 `main` 的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；实际发布前不能作为已发布包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
 - 会话存放于单个 Server 进程内；跨实例路由需固定到创建会话的实例。服务端重启会丢失未提交缓冲及终态缓存，未收到提交响应时须按会话 ID 查询终态，若服务端不可达或缓存已过期则结果未知。已发布包和 FreeSql Provider 仍需按实际版本与部署形态单独验收。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
 - 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
