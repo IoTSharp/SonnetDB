@@ -761,6 +761,61 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Rest_InsertReturning_ValuesExposeGeneratedRowsAndAtomicConstraintError()
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin,
+            "CREATE TABLE sf_generated_returning (id INT AUTO_INCREMENT, name STRING NOT NULL DEFAULT 'generated', rv INT ROWVERSION, note STRING NULL, PRIMARY KEY (id))");
+
+        using var response = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "INSERT INTO sf_generated_returning (note) VALUES (NULL), ('second') RETURNING id, name, rv, note"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        string[] lines = (await response.Content.ReadAsStringAsync())
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, lines.Length);
+        using var meta = JsonDocument.Parse(lines[0]);
+        Assert.Equal(["id", "name", "rv", "note"], meta.RootElement.GetProperty("columns")
+            .EnumerateArray().Select(static column => column.GetString()!).ToArray());
+        Assert.Equal(["int64", "string", "int64", "string"], meta.RootElement.GetProperty("columnTypes")
+            .EnumerateArray().Select(static column => column.GetString()!).ToArray());
+        var schemas = meta.RootElement.GetProperty("columnSchemas");
+        Assert.True(schemas[0].GetProperty("isKey").GetBoolean());
+        Assert.True(schemas[0].GetProperty("isAutoIncrement").GetBoolean());
+        Assert.False(schemas[1].GetProperty("isNullable").GetBoolean());
+        Assert.True(schemas[2].GetProperty("isRowVersion").GetBoolean());
+        Assert.True(schemas[3].GetProperty("isNullable").GetBoolean());
+        using var first = JsonDocument.Parse(lines[1]);
+        using var second = JsonDocument.Parse(lines[2]);
+        Assert.Equal(1L, first.RootElement[0].GetInt64());
+        Assert.Equal("generated", first.RootElement[1].GetString());
+        Assert.Equal(1L, first.RootElement[2].GetInt64());
+        Assert.Equal(JsonValueKind.Null, first.RootElement[3].ValueKind);
+        Assert.Equal(2L, second.RootElement[0].GetInt64());
+        Assert.Equal("generated", second.RootElement[1].GetString());
+        Assert.Equal(1L, second.RootElement[2].GetInt64());
+        Assert.Equal("second", second.RootElement[3].GetString());
+        using var end = JsonDocument.Parse(lines[3]);
+        Assert.Equal(2, end.RootElement.GetProperty("rowCount").GetInt32());
+        Assert.Equal(2, end.RootElement.GetProperty("recordsAffected").GetInt32());
+
+        using var duplicate = await admin.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest(
+                "INSERT INTO sf_generated_returning (id, note) VALUES (3, 'partial'), (1, 'duplicate') RETURNING id"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+        using var error = JsonDocument.Parse(await duplicate.Content.ReadAsStringAsync());
+        Assert.Equal(TableConstraintException.UniqueViolation,
+            error.RootElement.GetProperty("error").GetString());
+        var (_, rows, _, _) = await QueryFrameAsync(admin,
+            "SELECT id FROM sf_generated_returning ORDER BY id");
+        Assert.Collection(rows,
+            row => Assert.Equal(1L, row[0]),
+            row => Assert.Equal(2L, row[0]));
+    }
+
+    [Fact]
     public async Task Rest_EmptyAndAllNullSelect_StreamsDeclaredColumnTypes()
     {
         using var admin = CreateClient();
