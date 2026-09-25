@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   DOTNET_NOLOGO: true
@@ -17,37 +17,8 @@ env:
   NUGET_XMLDOC_MODE: skip
 
 jobs:
-  apply-issue-184-patch:
-    name: Apply issue 184 patch
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/issue-184-commit-readback'
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Apply, verify and commit patch
-        shell: bash
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          git apply --recount --check .github/issue-184-commit-readback.patch
-          git apply --recount .github/issue-184-commit-readback.patch
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm .github/issue-184-commit-readback.patch
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix(ado): recover remote commit outcome via terminal readback"
-          git push origin "HEAD:${HEAD_BRANCH}"
-
   build-and-test:
     name: Build & Test (${{ matrix.os }})
-    if: github.event_name != 'pull_request' || github.head_ref != 'fix/issue-184-commit-readback'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -96,7 +67,6 @@ jobs:
 
   format-check:
     name: Format Check
-    if: github.event_name != 'pull_request' || github.head_ref != 'fix/issue-184-commit-readback'
     runs-on: ubuntu-latest
 
     steps:
@@ -116,7 +86,6 @@ jobs:
 
   aot-publish:
     name: AOT Publish (${{ matrix.os }})
-    if: github.event_name != 'pull_request' || github.head_ref != 'fix/issue-184-commit-readback'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
