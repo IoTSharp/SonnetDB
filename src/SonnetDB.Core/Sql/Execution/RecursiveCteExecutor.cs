@@ -30,7 +30,7 @@ internal static class RecursiveCteExecutor
         string[] columns;
         Type?[] types;
         IReadOnlyList<IReadOnlyList<object?>> frontier;
-        using (RecursiveCteBranchBudget.Enter())
+        using (SqlRowRetentionBudget.EnterRecursive())
         {
             SelectExecutionResult anchorResult = ProbeBranch(tsdb, anchor, MaxCandidateRowsPerRound);
             columns = ResolveColumns(definition, anchorResult.Columns);
@@ -53,7 +53,7 @@ internal static class RecursiveCteExecutor
             int candidateLimit = distinct
                 ? MaxCandidateRowsPerRound
                 : Math.Min(MaxCandidateRowsPerRound, MaxRows - rows.Count);
-            using (RecursiveCteBranchBudget.Enter())
+            using (SqlRowRetentionBudget.EnterRecursive())
             {
                 SelectExecutionResult next = ProbeBranch(tsdb, member, candidateLimit);
                 if (next.Columns.Count != columns.Length)
@@ -66,7 +66,7 @@ internal static class RecursiveCteExecutor
         using var finalScope = RecursiveCteScope.Enter(
             definition.Name,
             new SelectExecutionResult(columns, rows));
-        using var finalBudget = RecursiveCteBranchBudget.Enter();
+        using var finalBudget = SqlRowRetentionBudget.EnterRecursive();
         return SqlExecutor.ExecuteSelect(tsdb, statement with
         {
             IsRecursive = false,
@@ -273,47 +273,6 @@ internal static class RecursiveCteExecutor
             };
         }
         return bytes;
-    }
-}
-
-/// <summary>约束递归分支在 SELECT 和 JOIN 阻塞算子中留存的行。</summary>
-internal sealed class RecursiveCteBranchBudget : IDisposable
-{
-    private static readonly AsyncLocal<RecursiveCteBranchBudget?> CurrentSlot = new();
-    private readonly RecursiveCteBranchBudget? _previous;
-    private readonly SqlQueryResources.SqlOperatorMemoryReservation? _reservation;
-    private readonly Lock _sync = new();
-    private long _bytes;
-
-    private RecursiveCteBranchBudget()
-    {
-        _previous = CurrentSlot.Value;
-        _reservation = SqlQueryResources.Current?.CreateReservation();
-        CurrentSlot.Value = this;
-    }
-
-    internal static RecursiveCteBranchBudget? Current => CurrentSlot.Value;
-
-    internal static RecursiveCteBranchBudget Enter() => new();
-
-    internal void Retain(IReadOnlyList<object?> row)
-    {
-        SqlExecutor.ThrowIfCancellationRequested();
-        long bytes = SqlSpillRowCodec.EstimateRowBytes(row);
-        lock (_sync)
-        {
-            if (bytes > RecursiveCteExecutor.MaxBytes - _bytes)
-                throw new InvalidOperationException("递归 CTE 单轮阻塞算子保留字节数超过上限。");
-            if (_reservation is not null && !_reservation.TryReserve(bytes))
-                throw new InvalidOperationException("递归 CTE 单轮阻塞算子超过当前查询或数据库的内存预算。");
-            _bytes += bytes;
-        }
-    }
-
-    public void Dispose()
-    {
-        CurrentSlot.Value = _previous;
-        _reservation?.Dispose();
     }
 }
 

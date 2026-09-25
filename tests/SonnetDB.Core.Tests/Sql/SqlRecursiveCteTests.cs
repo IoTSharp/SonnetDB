@@ -232,7 +232,7 @@ public sealed class SqlRecursiveCteTests : IDisposable
         using var cancellation = new CancellationTokenSource();
         using var resources = SqlQueryResources.EnterRoot(db,
             new SqlExecutionOptions { CancellationToken = cancellation.Token });
-        using var budget = RecursiveCteBranchBudget.Enter();
+        using var budget = SqlRowRetentionBudget.EnterRecursive();
 
         var wide = new object?[] { new string('x', 17 * 1024 * 1024) };
         var exception = Assert.Throws<InvalidOperationException>(() => budget.Retain(wide));
@@ -250,7 +250,7 @@ public sealed class SqlRecursiveCteTests : IDisposable
         int accepted = 0;
         using (SqlQueryResources.EnterRoot(db,
             new SqlExecutionOptions { BlockingOperatorMemoryLimitBytes = 16 * 1024 }))
-        using (var budget = RecursiveCteBranchBudget.Enter())
+        using (var budget = SqlRowRetentionBudget.EnterRecursive())
         {
             Parallel.For(0, 32, _ =>
             {

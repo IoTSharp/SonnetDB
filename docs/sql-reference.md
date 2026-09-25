@@ -466,7 +466,7 @@ END;
 - 快照只含本条语句实际影响的行，保留该语句改写前/最终改写后的配对数据，包含 BEFORE 的修改及生成后的 ROWVERSION。它不包含同事务其他语句或后续触发器链的修改。没有隐式行序保证；有顺序需求时使用 ORDER BY。
 - 别名仅在所属触发器 body 内可见，嵌套触发器隔离并在返回后恢复调用方快照；不能作为 INSERT/UPDATE/DELETE 目标。可用于 SELECT 聚合、JOIN、子查询，以及 `INSERT INTO table (columns) SELECT ...`。UPDATE 赋值支持非相关的单列标量子查询，返回多行时报错；INSERT 的查询取值使用 `INSERT SELECT`，不支持 `VALUES (子查询)`。语句级触发器不提供 OLD/NEW 行变量或行级 WHEN，过滤放在查询内。
 - transition set 复用事务持有的不可变行图像，不额外复制整个 OLD/NEW 集合。默认调用链同时存活的集合最多 100,000 行（UPDATE 一对计一行）、64 MiB 保守内存估算，包含嵌套集合；超过任一上限返回 `trigger_transition_limit` 并撤销本条语句。此版本采用硬上限拒绝，不将 transition set 溢写到磁盘。
-- 关系表 INSERT SELECT 的输出也受上述行数/字节预算约束，整条 INSERT 只触发一次；聚合/JOIN/排序沿用 SQL 阻塞算子独立内存治理。它不扩展到 measurement 或 Document 写入。
+- 关系表 INSERT SELECT 的源查询在普通表扫描、关系 JOIN/聚合/子查询、UNION 结果收集及外排归并输出时，按 `MaxTriggerTransitionRows` / `MaxTriggerTransitionBytes` 检查保留行数与估算字节；阻塞算子内存上限同时收紧到该字节预算。超限在目标写入前以 `trigger_transition_limit` 拒绝，整条 INSERT 只触发一次。多阶段保留会重复计数，因而可能保守拒绝；非关系源执行器和 UDF 内部分配不受此估算预算约束。它不扩展到 measurement 或 Document 写入。
 
 #### 受控 BEFORE（#336）
 

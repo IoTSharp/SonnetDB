@@ -169,7 +169,10 @@ internal sealed class SqlQueryResources : IDisposable
         while (true)
         {
             long current = Volatile.Read(ref _reservedBytes);
-            if (bytes > _queryLimitBytes - current)
+            long activeLimit = Math.Min(
+                _queryLimitBytes,
+                SqlRowRetentionBudget.Current?.OperatorLimitBytes ?? long.MaxValue);
+            if (bytes > activeLimit - current)
                 return false;
             if (Interlocked.CompareExchange(ref _reservedBytes, current + bytes, current) != current)
                 continue;
