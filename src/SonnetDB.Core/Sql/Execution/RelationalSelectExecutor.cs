@@ -11,7 +11,7 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>
 /// 关系型 SELECT 执行器，覆盖关系表 JOIN、FROM 子查询和关系表聚合。
 /// </summary>
-internal static class RelationalSelectExecutor
+internal static partial class RelationalSelectExecutor
 {
     /// <summary>
     /// 执行顶层关系 SELECT，并为本次查询创建统一的子查询记忆表。
@@ -170,6 +170,11 @@ internal static class RelationalSelectExecutor
             };
         }
 
+        bool hasWindow = ContainsWindow(statement.Projections);
+        if (hasWindow && (ContainsAggregate(statement.Projections)
+            || statement.GroupBy.Count > 0 || statement.Having is not null))
+            throw new NotSupportedException("关系表窗口函数当前不能与普通聚合、GROUP BY 或 HAVING 混用。");
+
         if (ContainsAggregate(statement.Projections)
             || statement.GroupBy.Count > 0
             || statement.Having is not null)
@@ -186,14 +191,16 @@ internal static class RelationalSelectExecutor
                 tsdb,
                 relation,
                 statement.OrderByList,
-                statement.Pagination,
+                hasWindow ? null : statement.Pagination,
                 outerScope,
                 memo);
         }
 
         (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows,
             IReadOnlyList<SelectColumnInfo> ColumnInfo) projected =
-            ProjectRawRows(tsdb, statement, relation, outerScope, memo);
+            hasWindow
+                ? ProjectWindowRows(tsdb, statement, relation, outerScope, memo)
+                : ProjectRawRows(tsdb, statement, relation, outerScope, memo);
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
         {
             return ApplyOrderByAndPagination(
@@ -203,10 +210,11 @@ internal static class RelationalSelectExecutor
                 statement.Pagination) with { ColumnInfo = projected.ColumnInfo };
         }
         if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
-            return new SelectExecutionResult(projected.Columns, RetainBranchRows(projected.Rows).ToArray())
-            {
-                ColumnInfo = projected.ColumnInfo,
-            };
+            return ApplyPagination(
+                new SelectExecutionResult(projected.Columns, RetainBranchRows(projected.Rows).ToArray())
+                {
+                    ColumnInfo = projected.ColumnInfo,
+                }, hasWindow ? statement.Pagination : null);
         return ApplyPagination(projected.Columns, projected.Rows, statement.Pagination)
             with { ColumnInfo = projected.ColumnInfo };
     }
@@ -561,6 +569,7 @@ internal static class RelationalSelectExecutor
             || statement.GroupBy.Count != 0
             || statement.Having is not null
             || ContainsAggregate(statement.Projections)
+            || ContainsWindow(statement.Projections)
             || ContainsSubquery(statement);
     }
 
@@ -5458,7 +5467,7 @@ internal static class RelationalSelectExecutor
     private static bool ContainsAggregate(SqlExpression expression)
         => expression switch
         {
-            FunctionCallExpression function when IsAggregateFunction(function.Name) => true,
+            FunctionCallExpression function when function.Over is null && IsAggregateFunction(function.Name) => true,
             FunctionCallExpression function => function.Arguments.Any(ContainsAggregate),
             UnaryExpression unary => ContainsAggregate(unary.Operand),
             CastExpression cast => ContainsAggregate(cast.Operand),
