@@ -169,7 +169,7 @@ internal static class RoutineExpressionEvaluator
     private static bool IsStringFunction(string name)
         => name.ToLowerInvariant() is
             "lower" or "upper" or "trim" or "ltrim" or "rtrim" or "length" or "char_length"
-            or "substring" or "substr" or "replace" or "left" or "right" or "starts_with"
+            or "substring" or "substr" or "position" or "replace" or "left" or "right" or "starts_with"
             or "startswith" or "ends_with" or "endswith" or "contains";
 
     private static bool? NegateBoolean(bool? value)

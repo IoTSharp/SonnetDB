@@ -66,4 +66,45 @@ public sealed class SqlStringFunctionTests : IDisposable
             SqlExecutor.Execute(database, "SELECT left(value, -1) FROM invalid_strings"));
         Assert.Contains("count 参数不能为负数", exception.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Position_StandardSyntax_UsesOneBasedUtf16OffsetsAndNullPropagation()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database,
+            "CREATE TABLE strings (id INT, value STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(database, "INSERT INTO strings (id, value) VALUES "
+            + "(1, '😀ab'), (2, ''), (3, NULL)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, """
+            SELECT id, position('ab' IN value) AS found,
+                   position('' IN value) AS empty_search,
+                   position('missing' IN value) AS absent
+            FROM strings ORDER BY id
+            """));
+
+        Assert.Equal(new object?[] { 1L, 3L, 1L, 0L }, result.Rows[0]);
+        Assert.Equal(new object?[] { 2L, 0L, 1L, 0L }, result.Rows[1]);
+        Assert.Equal(new object?[] { 3L, null, null, null }, result.Rows[2]);
+    }
+
+    [Fact]
+    public void Position_DocumentAndMeasurement_UsesSharedStringSemantics()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE DOCUMENT COLLECTION notes");
+        SqlExecutor.Execute(database,
+            "INSERT INTO notes (id, document) VALUES ('n1', '{\"label\":\"ab中文\"}')");
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT metrics (host TAG, value FIELD INT)");
+        SqlExecutor.Execute(database,
+            "INSERT INTO metrics (time, host, value) VALUES (1000, 'ab中文', 1)");
+
+        var documents = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            "SELECT position('中文' IN json_value(document, '$.label')) FROM notes"));
+        var measurements = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            "SELECT position('中文' IN host) FROM metrics"));
+
+        Assert.Equal(3L, Assert.Single(documents.Rows)[0]);
+        Assert.Equal(3L, Assert.Single(measurements.Rows)[0]);
+    }
 }

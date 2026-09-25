@@ -160,6 +160,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("char_length", 1, 1, EvaluateLength),
         new BuiltInScalarFunction("substring", 2, 3, EvaluateSubstring),
         new BuiltInScalarFunction("substr", 2, 3, EvaluateSubstring),
+        new BuiltInScalarFunction("position", 2, 2, EvaluatePosition),
         new BuiltInScalarFunction("replace", 3, 3, EvaluateReplace),
         new BuiltInScalarFunction("left", 2, 2, EvaluateLeft),
         new BuiltInScalarFunction("right", 2, 2, EvaluateRight),
@@ -462,6 +463,15 @@ public static class FunctionRegistry
         return search.Length == 0
             ? value
             : value.Replace(search, replacement, StringComparison.Ordinal);
+    }
+
+    private static object? EvaluatePosition(IReadOnlyList<object?> args)
+    {
+        string? search = RequireNullableString(args[0], "position");
+        string? value = RequireNullableString(args[1], "position");
+        return search is null || value is null
+            ? null
+            : (long)value.IndexOf(search, StringComparison.Ordinal) + 1;
     }
 
     private static object? EvaluateLeft(IReadOnlyList<object?> args)

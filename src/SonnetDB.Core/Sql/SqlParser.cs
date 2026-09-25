@@ -4042,6 +4042,17 @@ public sealed class SqlParser
             Advance();
         }
 
+        if (name.Equals("position", StringComparison.OrdinalIgnoreCase))
+        {
+            if (isDistinct)
+                throw Error("POSITION 不支持 DISTINCT 参数");
+            var search = ParseBitwiseOr();
+            Expect(TokenKind.KeywordIn);
+            var value = ParseExpression();
+            Expect(TokenKind.RightParen);
+            return new FunctionCallExpression(name, new[] { search, value });
+        }
+
         // fn(*) 形式。其他位置的 * 作为普通函数参数保留给执行层解释，
         // 例如 match(ft_index, *, 'query')。
         if (Current.Kind == TokenKind.Star

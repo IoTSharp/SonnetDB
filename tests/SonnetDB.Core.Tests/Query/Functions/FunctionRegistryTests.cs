@@ -55,6 +55,7 @@ public sealed class FunctionRegistryTests
     [InlineData("char_length")]
     [InlineData("substring")]
     [InlineData("substr")]
+    [InlineData("position")]
     [InlineData("replace")]
     [InlineData("left")]
     [InlineData("right")]

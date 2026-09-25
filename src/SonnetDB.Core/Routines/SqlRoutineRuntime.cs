@@ -626,7 +626,7 @@ internal static class SqlRoutineRuntime
             case FunctionCallExpression function:
                 if (restricted && function.Name.ToLowerInvariant() is not
                     ("lower" or "upper" or "coalesce" or "trim" or "ltrim" or "rtrim"
-                    or "length" or "char_length" or "substring" or "substr" or "replace"
+                    or "length" or "char_length" or "substring" or "substr" or "position" or "replace"
                     or "left" or "right" or "starts_with" or "startswith" or "ends_with"
                     or "endswith" or "contains"))
                     throw DependencyError("BEFORE 赋值仅允许无外部副作用的字符串函数和 LOWER、UPPER、COALESCE，禁止 UDF 或外部调用。");

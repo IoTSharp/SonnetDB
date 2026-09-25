@@ -12,7 +12,7 @@ internal static class DeferredTriggerSafety
     private static readonly HashSet<string> PureFunctions = new(StringComparer.OrdinalIgnoreCase)
     {
         "abs", "round", "sqrt", "log", "coalesce", "concat", "lower", "upper",
-        "trim", "ltrim", "rtrim", "length", "char_length", "substring", "substr", "replace",
+        "trim", "ltrim", "rtrim", "length", "char_length", "substring", "substr", "position", "replace",
         "left", "right", "starts_with", "startswith", "ends_with", "endswith", "contains",
         "regexp_like",
         "json_value", "json_exists", "json_array_length", "json_contains",
