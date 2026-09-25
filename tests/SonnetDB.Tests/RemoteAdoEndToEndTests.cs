@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.Data.Remote;
+using SonnetDB.Hosting;
 using SonnetDB.Model;
 using SonnetDB.Tables;
 using Xunit;
@@ -1233,7 +1234,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RemoteTransaction_InsertOnConflictDoUpdateReturning_IsRejectedUntilParity()
+    public async Task RemoteTransaction_InsertOnConflictDoUpdateReturning_CommitsReturnedRow()
     {
         await using var c = new SndbConnection(RemoteConnString());
         await c.OpenAsync();
@@ -1249,20 +1250,210 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         await using var transaction = Assert.IsType<SndbTransaction>(await c.BeginTransactionAsync());
         await using var command = c.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value";
-        await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
-        await transaction.RollbackAsync();
+        command.CommandText = "INSERT INTO tx_conflict_update (id, value) VALUES (1, @incoming) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value "
+            + "WHERE excluded.value > value RETURNING id, value";
+        command.Parameters.AddWithValue("@incoming", 20L);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal(20L, reader.GetInt64(1));
+            Assert.False(await reader.ReadAsync());
+            Assert.Equal(1, reader.RecordsAffected);
+        }
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue("@incoming", 15L);
+        await using (var skipped = await command.ExecuteReaderAsync())
+        {
+            Assert.False(await skipped.ReadAsync());
+            Assert.Equal(0, skipped.RecordsAffected);
+        }
+
+        await using (var outside = new SndbConnection(RemoteConnString()))
+        {
+            await outside.OpenAsync();
+            await using var before = outside.CreateCommand();
+            before.CommandText = "SELECT value FROM tx_conflict_update WHERE id = 1";
+            Assert.Equal(10L, Assert.IsType<long>(await before.ExecuteScalarAsync()));
+        }
+        await transaction.CommitAsync();
 
         await using var select = c.CreateCommand();
         select.CommandText = "SELECT value FROM tx_conflict_update WHERE id = 1";
-        Assert.Equal(10L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
+        Assert.Equal(20L, Assert.IsType<long>(await select.ExecuteScalarAsync()));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_UpsertReturning_ConcurrentUpdateRejectsCommitWithoutReplay()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var concurrent = new SndbConnection(RemoteConnString());
+        await concurrent.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_upsert_race (id INT, value INT, rv INT ROWVERSION, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO tx_upsert_race (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        await using var transaction = await connection.BeginTransactionAsync();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO tx_upsert_race (id, value) VALUES (1, 20) "
+            + "ON CONFLICT (id) DO UPDATE SET value = value + excluded.value RETURNING value, rv";
+        await using (var result = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await result.ReadAsync());
+            Assert.Equal(30L, result.GetInt64(0));
+            Assert.Equal(2L, result.GetInt64(1));
+            Assert.False(await result.ReadAsync());
+        }
+
+        await using (var other = concurrent.CreateCommand())
+        {
+            other.CommandText = "UPDATE tx_upsert_race SET value = 100 WHERE id = 1";
+            Assert.Equal(1, await other.ExecuteNonQueryAsync());
+        }
+        await Assert.ThrowsAsync<SndbServerException>(() => transaction.CommitAsync());
+        command.Transaction = null;
+        command.CommandText = "SELECT value, rv FROM tx_upsert_race WHERE id = 1";
+        await using var final = await command.ExecuteReaderAsync();
+        Assert.True(await final.ReadAsync());
+        Assert.Equal(100L, final.GetInt64(0));
+        Assert.Equal(2L, final.GetInt64(1));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_UpsertReturning_RollbackDiscardsUpdate()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_upsert_rollback (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO tx_upsert_rollback (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        await using var transaction = await connection.BeginTransactionAsync();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO tx_upsert_rollback (id, value) VALUES (1, 20) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING value";
+        await using (var result = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await result.ReadAsync());
+            Assert.Equal(20L, result.GetInt64(0));
+            Assert.False(await result.ReadAsync());
+        }
+        await transaction.RollbackAsync();
+        command.Transaction = null;
+        command.CommandText = "SELECT value FROM tx_upsert_rollback WHERE id = 1";
+        Assert.Equal(10L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_SessionId_BindsCredentialAndCommitIsIdempotent()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_session_guard (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+
+        using var admin = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        admin.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
+        using var reader = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        reader.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _readOnlyToken);
+        var route = $"/v1/db/{_dbName}/sql/transactions";
+        using var begin = await admin.PostAsync(route, null);
+        begin.EnsureSuccessStatusCode();
+        await using var body = await begin.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(body);
+        var id = document.RootElement.GetProperty("id").GetString();
+        Assert.NotNull(id);
+        var sessionRoute = route + "/" + id;
+
+        using (var active = await admin.GetAsync(sessionRoute))
+        {
+            active.EnsureSuccessStatusCode();
+            Assert.Contains("\"state\":\"active\"", await active.Content.ReadAsStringAsync());
+        }
+
+        using (var denied = await reader.PostAsync(sessionRoute + "/sql", new StringContent(
+            "{\"sql\":\"SELECT * FROM tx_session_guard\"}",
+            System.Text.Encoding.UTF8, "application/json")))
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, denied.StatusCode);
+
+        using (var insert = await admin.PostAsync(sessionRoute + "/sql", new StringContent(
+            "{\"sql\":\"INSERT INTO tx_session_guard (id, value) VALUES (1, 10)\"}",
+            System.Text.Encoding.UTF8, "application/json")))
+        {
+            insert.EnsureSuccessStatusCode();
+            Assert.Contains("\"recordsAffected\":1", await insert.Content.ReadAsStringAsync());
+        }
+
+        using (var commit = await admin.PostAsync(sessionRoute + "/commit", null))
+        {
+            commit.EnsureSuccessStatusCode();
+            Assert.Contains("\"type\":\"end\"", await commit.Content.ReadAsStringAsync());
+        }
+        using (var retry = await admin.PostAsync(sessionRoute + "/commit", null))
+            Assert.Equal(System.Net.HttpStatusCode.NoContent, retry.StatusCode);
+        using (var status = await admin.GetAsync(sessionRoute))
+        {
+            status.EnsureSuccessStatusCode();
+            Assert.Contains("\"state\":\"commit\"", await status.Content.ReadAsStringAsync());
+        }
+        using (var rollback = await admin.PostAsync(sessionRoute + "/rollback", null))
+            Assert.Equal(System.Net.HttpStatusCode.Conflict, rollback.StatusCode);
+
+        command.CommandText = "SELECT value FROM tx_session_guard WHERE id = 1";
+        Assert.Equal(10L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_ExpiredSession_RollsBackBufferedUpsert()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE tx_session_expiry (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO tx_session_expiry (id, value) VALUES (1, 10)";
+        await command.ExecuteNonQueryAsync();
+
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet(_dbName, out var database));
+        var sessions = _app.Services.GetRequiredService<SqlTransactionSessions>();
+        Assert.True(sessions.TryCreate(database, _dbName, "Bearer " + _adminToken, out var session));
+        Assert.NotNull(session);
+
+        using var admin = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        admin.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
+        var route = $"/v1/db/{_dbName}/sql/transactions/{session.Id}";
+        using (var upsert = await admin.PostAsync(route + "/sql", new StringContent(
+            "{\"sql\":\"INSERT INTO tx_session_expiry (id, value) VALUES (1, 20) "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING value\"}",
+            System.Text.Encoding.UTF8, "application/json")))
+        {
+            upsert.EnsureSuccessStatusCode();
+            Assert.Contains("[20]", await upsert.Content.ReadAsStringAsync());
+        }
+
+        session.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+        using (var expired = await admin.GetAsync(route))
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, expired.StatusCode);
+
+        command.CommandText = "SELECT value FROM tx_session_expiry WHERE id = 1";
+        Assert.Equal(10L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
     }
 
     [Theory]
     [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (1, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
     [InlineData("INSERT INTO tx_upsert_guard (id, value) VALUES (2, 20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
     [InlineData("INSERT INTO tx_upsert_guard (value) VALUES (20) ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value, rv")]
-    public async Task RemoteTransaction_UpsertReturningRejectedBeforeQueue_KeepsEarlierWrite(string upsertSql)
+    public async Task RemoteTransaction_UpsertReturning_AppliesWithEarlierWrite(string upsertSql)
     {
         await using var connection = new SndbConnection(RemoteConnString());
         await connection.OpenAsync();
@@ -1278,8 +1469,13 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             command.CommandText = "INSERT INTO tx_upsert_guard (id, value) VALUES (3, 30)";
             Assert.Equal(1, await command.ExecuteNonQueryAsync());
             command.CommandText = upsertSql;
-            var error = await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteReaderAsync());
-            Assert.Contains("DO UPDATE", error.Message);
+            await using (var returningReader = await command.ExecuteReaderAsync())
+            {
+                Assert.True(await returningReader.ReadAsync());
+                Assert.Equal(20L, returningReader.GetInt64(1));
+                Assert.False(await returningReader.ReadAsync());
+                Assert.Equal(1, returningReader.RecordsAffected);
+            }
             await transaction.CommitAsync();
             command.Transaction = null;
         }
@@ -1287,9 +1483,23 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         command.CommandText = "SELECT id, value, rv FROM tx_upsert_guard ORDER BY id";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        Assert.Equal(new long[] { 1L, 10L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        Assert.Equal(new long[] { 1L, upsertSql.Contains("VALUES (1,", StringComparison.Ordinal) ? 20L : 10L,
+            upsertSql.Contains("VALUES (1,", StringComparison.Ordinal) ? 2L : 1L },
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        bool updatesExisting = upsertSql.Contains("VALUES (1,", StringComparison.Ordinal);
+        bool generatedIdentity = upsertSql.Contains("(value) VALUES", StringComparison.Ordinal);
+        if (!updatesExisting && !generatedIdentity)
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(new long[] { 2L, 20L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        }
         Assert.True(await reader.ReadAsync());
         Assert.Equal(new long[] { 3L, 30L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        if (generatedIdentity)
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(new long[] { 4L, 20L, 1L }, Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+        }
         Assert.False(await reader.ReadAsync());
     }
 

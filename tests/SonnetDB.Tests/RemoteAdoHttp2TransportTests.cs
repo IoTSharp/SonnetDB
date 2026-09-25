@@ -319,7 +319,11 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
 
         int h2Port = new Uri(_frameH2Url).Port;
         ObservedRequest[] h2Requests = _requests.Where(request => request.LocalPort == h2Port).ToArray();
-        Assert.Contains(h2Requests, request => request.Path == $"/v1/db/{DatabaseName}/sql/batch");
+        Assert.Contains(h2Requests, request => request.Path == $"/v1/db/{DatabaseName}/sql/transactions");
+        Assert.Contains(h2Requests, request => request.Path.StartsWith(
+            $"/v1/db/{DatabaseName}/sql/transactions/", StringComparison.Ordinal)
+            && request.Path.EndsWith("/sql", StringComparison.Ordinal));
+        Assert.Contains(h2Requests, request => request.Path.EndsWith("/commit", StringComparison.Ordinal));
         Assert.All(h2Requests, request => Assert.Equal("HTTP/2", request.Protocol));
     }
 

@@ -12,17 +12,18 @@
 - GH-Issue #197 统一 `INSERT ... RETURNING` 的生成列、顺序、受影响行数、空结果和嵌入式/远程 ADO 元数据，重复复合主键返回稳定唯一约束错误码；HTTP/2 ADO 写入使用 REST 回落，原生 Frame 仍只读。首次完整发布版本待标签确定，已发布 3.1.0 不含本次合同。
 - GH-Issue #190 为不支持的 `SELECT FOR UPDATE`、`NOWAIT`、`SKIP LOCKED` 提供稳定错误码与 ADO/REST 拒绝合同；乐观并发使用 `ROWVERSION`，不承诺行锁语义。
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
-- 远程轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 现在 fail closed，避免客户端预览/重放路径把 `DO UPDATE` 静默降级为 `DO NOTHING` 并在提交时产生错误结果；完整远程 parity 仍待实现。
+- 旧版远程 Server 无会话端点时，轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 保持 fail closed，避免客户端预览/重放产生错误结果。
 - **M20 Parity scheduled 启动阻断**：Parity compose 将已无法从 Docker Hub 拉取的固定 MinIO 镜像切换为 `quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z`，并新增 `test-compose-contract.ps1` 接入 workflow，防止回退到失效 registry。PowerShell 7 合同、Compose 配置、实际镜像 pull 和临时 healthcheck 已通过；远程七次 scheduled 成功窗口仍待重跑。
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
 - GH-Issue #187 为受限 `ALTER TABLE` 补引擎生成列和空表主键重定义，保留回填、持久化与拒绝旧行/外键引用的边界；真实客户端定向验证已完成，完整 DDL 迁移仍待独立验收。
 - GH-Issue #195 的 `INSERT ... SELECT` 路径保留 DECIMAL 精度、同表源快照和参数化 JOIN/聚合结果；空集、复合键冲突、异步 ADO、原始 REST/NDJSON 及 HTTP/2 Frame 只读拒绝均有定向取证。源 SELECT 的峰值物化内存不由插入过渡预算约束；首次发布版本仍待确定。
-- GH-Issue #184 的关系表 `ON CONFLICT DO UPDATE` 新增可参数化 `WHERE` 谓词，条件不命中时不写入、不计数且不产生 `RETURNING` 行；嵌入式和事务 Core 路径及远程请求路径已覆盖。远程轻事务的命中、未命中及自动生成主键 `RETURNING` 均在入队前拒绝并经真实服务验证；跨 ADO 调用保持同一服务端事务的协议仍待实现。
+- GH-Issue #184 的关系表 `ON CONFLICT DO UPDATE` 新增可参数化 `WHERE` 谓词，条件不命中时不写入、不计数且不产生 `RETURNING` 行；嵌入式和事务 Core 路径及远程请求路径已覆盖。当前源码的远程轻事务通过服务端会话执行 `RETURNING`，不再预览并重放 `DO UPDATE`；旧 Server 仍在入队前拒绝。
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- **GH-Issue #184 远程事务会话**：新增凭据与数据库绑定的有界服务端 SQL 轻事务会话，支持跨 ADO 调用的实际待提交 `DO UPDATE ... RETURNING`、只读终态查询、幂等提交/回滚回读、2 分钟租约与自动回滚；活动会话上限 128，终态缓存上限 8192。真实 Kestrel 覆盖参数、条件跳过、多行/生成键、事务可见性、并发提交冲突、回滚、凭据隔离和租约过期。会话仍是单实例内存状态；部署路由、重启时未知提交结果及已发布包验收仍需单独证据。
 - **GH-Issue #189 `WITH RECURSIVE` 基础切片**：支持单个递归 CTE 的 `anchor UNION [ALL] recursive_member` 分层求值、按声明顺序引用普通 CTE、显式输出列、参数、最终排序/分页及环去重；提供 64 层、单轮 10 万候选行、累计 10 万结果行/约 32 MiB 的拒绝边界，`EXPLAIN` 报告工作表与限制。JOIN 建表侧及普通 CTE 派生表的峰值内存硬门禁仍待实现。
 
 - **M42 显式 SQL 结果预览合同完成（2026-09-24）**：REST `previewMaxRows` 按请求与配置上限返回前 N 行，`end.truncated`、公开 `SndbDataReader.Truncated` 和 Web 控制台摘要显示不完整状态；默认查询、Frame 协议及公共记录主构造保持兼容。RETURNING 影响数、提交/回滚和写前参数校验经真实端点验证，损坏/断流结果不视为完整成功。专项 Core/ADO 16、Server 12、Web 11 项通过；连同已有回归，Core 87/87，Server 两轮共 197 个不同用例最终通过。服务端仍先全量物化，不宣称执行 heap、字节预算或首行延迟闭环。见 [合同](docs/benchmarks/m42-sql-result-bounds.md)与[原始证据](docs/audits/roadmap-closure-evidence-20260924/validation.json)。
@@ -54,7 +55,7 @@
 - **M43 #385 CDC 版本化事件合同首切片**：新增不可变 CDC 事件、schema/contract version、分区 checkpoint 和 insert/update/delete 语义；手写有界 UTF-8 JSON 编解码器拒绝未知字段、重复字段、未知版本/操作、无效 payload、深度和字节超限，并支持可取消的流读写。该切片只定义跨进程格式与边界，尚未提供离线队列、冲突解决或复制拓扑，详见 [CDC 合同](docs/cdc-contract.md)。
 
 - **GH-Issue #191 UPDATE 联接更新与追加验收**：关系表支持 `UPDATE ... JOIN ... SET ... WHERE ...` 与 `UPDATE ... SET ... FROM ... WHERE ...`；仅更新目标表，重复来源匹配按关系扫描顺序取首行，`RowsAffected`/`RETURNING` 按目标主键去重计数，支持 INNER/LEFT、参数绑定、来源只读和 `ROWVERSION` 递增，measurement/document 来源明确拒绝。追加多表链、触发器、NULL/复合键、唯一/FK 整句回滚和嵌入式/真实远程 ADO 异步事务及 REST/Frame 回读验收；固定硬件与部署后长时间运行仍待执行。
-- **GH-Issue #184 `ON CONFLICT DO UPDATE` 首切片**：关系表本地 Core 支持 `DO UPDATE SET`、`excluded.column`、默认值、显式事务、`RETURNING`、`ROWVERSION` 和重复赋值校验；事务候选行与直接执行路径统一生成版本值并在冲突判断前校验必填列。新增解析、直接/事务执行、约束和低层队列边界回归；远程轻事务 `RETURNING` 明确 fail closed，远程 parity、Frame 和外部 issue 线程确认仍待执行。
+- **GH-Issue #184 `ON CONFLICT DO UPDATE` 首切片**：关系表本地 Core 支持 `DO UPDATE SET`、`excluded.column`、默认值、显式事务、`RETURNING`、`ROWVERSION` 和重复赋值校验；事务候选行与直接执行路径统一生成版本值并在冲突判断前校验必填列。新增解析、直接/事务执行、约束和低层队列边界回归；初始远程实现对事务 `RETURNING` 保持 fail closed，后续会话协议见本节新增条目。
 - **GH-Issue #177 标准关系表 JOIN**：关系 SQL 新增 `RIGHT JOIN`、`FULL JOIN` 和 `CROSS JOIN`，保留声明顺序、SQL 三值 `ON` 条件、外连接 `NULL` 扩展和笛卡尔积语义；右/全外连接使用有界嵌套循环，既有 INNER/LEFT 的 hash、索引和 merge 计划保持不变，右侧未匹配行补发循环逐行检查取消。measurement JOIN 明确继续只支持单个 INNER JOIN，并对这三类标准连接返回稳定的不支持错误。新增解析、右侧/两侧未匹配、重复键和笛卡尔积回归；本轮定向 JOIN/解析测试 99/99 通过。固定硬件、远程 parity 和大规模笛卡尔积容量证据仍未执行。
 - **GH-Issue #180 JSON 标量/数组查询**：注册 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)`，关系表 JSON 列与 Document 集合共用 `JsonPath`/`JsonDocument` 实现，支持参数化 path、JSON `null` 与缺失区分、数组无序子集及对象字段子集。输入、path、嵌套深度、集合大小和对象属性/数组配对比较次数均有明确上限（每次 `json_contains` 最多 1,000,000 次结构比较），不使用反射序列化；新增关系/Document/NULL/非法输入/资源边界回归，定向测试 4/4 通过。远程 Frame/parity、复杂 JSON 索引下推和真实大语料性能仍待验证。
 - **GH-Issue #193 关系表 VECTOR/GEOPOINT 边界**：关系表 DDL 对 `VECTOR(dim)` 与 `GEOPOINT` 保持明确、稳定的拒绝错误，避免把 measurement/Document 专用类型误写成关系表已支持；新增解析器边界回归和 SQL 参考说明。跨模型 typed journey、远程 metadata parity 和完整关系列支持仍未承诺。

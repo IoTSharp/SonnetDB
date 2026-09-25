@@ -1952,6 +1952,7 @@ internal static class TableSqlExecutor
             throw;
         }
 
+        transaction.WasCommitted = true;
         transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: true);
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", affected, "commit");
