@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SonnetDB.Studio\SonnetDB.Studio.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
   </ItemGroup>
 
 </Project>

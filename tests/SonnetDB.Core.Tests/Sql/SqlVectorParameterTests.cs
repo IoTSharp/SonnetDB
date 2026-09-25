@@ -220,6 +220,29 @@ public sealed class SqlVectorParameterTests : IDisposable
     }
 
     [Fact]
+    public void Embedded_VectorUpdate_RecoveryAcrossPages_RestoresEveryReplacement()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            string values = string.Join(", ", Enumerable.Range(1, 65)
+                .Select(i => $"({i}, 'a', [1,0,0])"));
+            SqlExecutor.Execute(database, $"INSERT INTO docs (time, source, embedding) VALUES {values}");
+            Assert.Equal(65, Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'"))
+                .RowsAffected);
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal(65, reopened.VectorReplacements.Count);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT time, embedding FROM docs WHERE source = 'a' ORDER BY time")).Rows;
+        Assert.Equal(65, rows.Count);
+        Assert.All(rows, row => Assert.Equal(new float[] { 0f, 1f, 0f },
+            Assert.IsType<float[]>(row[1])));
+    }
+
+    [Fact]
     public void Embedded_VectorUpdate_TooManyRows_RejectsBeforeChangingAnyPoint()
     {
         using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
@@ -283,6 +306,21 @@ public sealed class SqlVectorParameterTests : IDisposable
             "SELECT embedding FROM docs WHERE source = 'a'"));
         Assert.Equal(new float[] { 1f, 0f, 0f },
             Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdate_ByteBudgetRejectsBeforeWal_LeavesStoreEmpty()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var targets = Enumerable.Range(0, 33)
+            .Select(i => (SeriesId: 1UL, Timestamp: (long)i)).ToArray();
+        var vector = FieldValue.FromVector(new float[1_048_576]);
+
+        Assert.Contains("字节", Assert.Throws<InvalidOperationException>(() =>
+            database.VectorReplacements.ReplaceMany(targets, "embedding", vector))
+            .Message, StringComparison.Ordinal);
+        Assert.Equal(0, database.VectorReplacements.Count);
+        Assert.False(Directory.Exists(database.Keyspaces.MeasurementVectorReplacementDirectory));
     }
 
     [Fact]

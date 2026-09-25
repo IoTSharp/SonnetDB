@@ -7,7 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
-- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，重开时校验失效记录。内部存储与旧用户 keyspace 隔离；嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
+- GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
 - GH-Issue #189 将递归累计行的字符串内存估算改为保守 UTF-16 大小，避免 ASCII 字符串按 UTF-8 长度低估 32 MiB 工作表预算；补充交替宽行、截止时间、NULL 与重复路径回归。该预算仍不代表 CLR 堆峰值硬上限。
@@ -22,12 +22,17 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 首个候选 `4.0.0` 打包不再拿 `3.0.1` 当作 API 兼容基线，仍保留 NuGet 包验证；3.x 候选继续因公开 API 破坏而失败。`4.0.1` 前必须将包基线更新为正式发布的 `4.0.0`。新增独立 NuGet 消费程序核对新旧客户端的 `INSERT RETURNING` 与事务 UPSERT，见 [发布门槛取证](docs/audits/issue-184-197-release-readiness-20260925.md)。
 - GH-Issue #187 允许无主键空表作为 schema 演进起点，在补齐主键前以稳定错误码拒绝行写入；原有生成列回填、空表主键重定义、默认值/CHECK/索引及嵌入式与远程 ADO 元数据路径均有定向验证。已有数据的主键变更、影子表原子切换和掉电原子性仍未实现。
 - GH-Issue #195 的 `INSERT ... SELECT` 路径保留 DECIMAL 精度、同表源快照和参数化 JOIN/聚合结果；空集、复合键冲突、异步 ADO、原始 REST/NDJSON 及 HTTP/2 Frame 只读拒绝均有定向取证。关系源查询在结果收集、JOIN/聚合/子查询保留和外排归并输出前检查行数/估算字节预算，超限以 `trigger_transition_limit` 拒绝且不写目标表；非关系源及 UDF 内部分配仍不属于该估算预算，首次发布版本待确定。
 - GH-Issue #184 的关系表 `ON CONFLICT DO UPDATE` 新增可参数化 `WHERE` 谓词，条件不命中时不写入、不计数且不产生 `RETURNING` 行；嵌入式和事务 Core 路径及远程请求路径已覆盖。当前源码的远程轻事务通过服务端会话执行 `RETURNING`，不再预览并重放 `DO UPDATE`；旧 Server 仍在入队前拒绝。
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，重开时分页校验失效记录。内部存储与旧用户 keyspace 隔离；嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
+- 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读，记录 26 条已关闭、#91/#184/#186/#197 四条开放及各自剩余验收；同步路线图状态，避免把历史快照当作当前状态。
+- GH-Issue #91 Studio 可选择已有嵌入式数据库目录，由本地 Server 显式挂载并切换工作台；挂载库禁止通过 Server 删除数据库接口移除。保留原 DataRoot 启动路径，切换失败恢复先前托管 Server。
+- 为 GH-Issue #184/#197 增加共用的首次完整 SQL DML 合同发布就绪草稿，提议在完成兼容性与发版门禁后以 `4.0.0` 发布，并明确已发布 `3.1.0`、未发布主线、HTTP/2 REST 回落和原生 Frame 只读边界；草稿不代表已经发版。
 - GH-Issue #174 补齐标准 `position(search IN value)` 字符串位置函数，按 Ordinal/UTF-16 返回 1 基位置，未命中为 0，并覆盖 NULL、空串与 Unicode 回归。
 - **GH-Issue #171 非递归 CTE 输出列名列表**：`WITH name (column, ...) AS (...)` 按位置重命名查询结果列，支持后续 CTE、JOIN、聚合、参数化 `IN`/`EXISTS` 与排序/分页；空结果仍校验列宽，重复列名被拒绝。关系、时序和文档来源以及嵌入式 ADO 名称/Int64 类型有定向回归；远程协议 parity 仍待验证。
 - **GH-Issue #172 关系表 ANSI 窗口补全**：`ROW_NUMBER`、`COUNT`、`SUM`、`AVG`、`MIN`、`MAX` 支持关系表 `OVER (PARTITION BY ... ORDER BY ...)`；多列分区、升降序、多列排序、NULL、同序键 peer 的默认累计帧及最终分页有确定性回归。`ROW_NUMBER` 要求显式窗口排序，显式 `ROWS`/`RANGE` frame 和同层普通聚合混用明确拒绝；关系窗口保留物化与有序前缀复算的性能边界。

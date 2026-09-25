@@ -86,11 +86,11 @@ dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --verbosity qu
 
 ## 独立工作树完成核查（仍未合入/发布）
 
-`codex/issue-186-vector-update` 后续修复了上述四项阻断，测的是该独立工作树，不是 `main` 或发布包：
+`codex/issue-186-vector-update` 后续修复了上述四项阻断，测的是吸收本机 `main` 后的独立工作树，不是远程 `main` 或发布包：
 
-1. 逻辑替换键固定为 `(SeriesId, FIELD, timestamp)`；多行目标先校验再写同一 KV WAL batch。原始时序 WAL 先同步，替换 WAL 后同步；提交结果不确定时冻结替换读写，重开按 WAL 恢复。单句最多 256 行，活替换记录最多 4096 条。当前只替换已有 VECTOR 点；WHERE 只接受 TAG/time 条件，稀疏目标行、字段残差、NULL、非有限值、维度错误、超额和不支持的事务/JOIN/RETURNING/GEO 在提交前拒绝；已替换的同键 INSERT 明确拒绝。
+1. 逻辑替换键固定为 `(SeriesId, FIELD, timestamp)`；多行目标先校验再写同一 KV WAL batch。原始时序 WAL 先同步，替换 WAL 后同步；提交结果不确定时冻结替换读写，重开按 WAL 恢复。单句最多 256 行，活替换记录最多 4096 条及 128 MiB 估算字节量（不是 CLR 堆峰值硬上限）。当前只替换已有 VECTOR 点；WHERE 只接受 TAG/time 条件，稀疏目标行、字段残差、NULL、非有限值、维度错误、超额和不支持的事务/JOIN/RETURNING/GEO 在提交前拒绝；已替换的同键 INSERT 明确拒绝。
 2. `DELETE` 涉及替换记录时在写锁内先同步墓碑 WAL、再清理替换 KV；DROP 在目录持久删除后清理系列替换，清理失败则禁止同名重建直到重开；Retention 在段移除持久提交后清理。重开在完成时序 WAL/墓碑恢复后复查替换记录，仅保留仍有原始可见点的项。Compaction 保留逻辑覆盖，备份包含内部 KV 检查点。
 3. 内部 KV 位于 `kv/internal/measurement-vector-replacements`，与已有 `kv/keyspaces/<用户名称>` 分离，包括 Windows 不区分大小写路径上的旧用户 keyspace。KNN 与 hybrid search 从候选评分到字段回填持有同一替换版本，避免返回的 `distance` 与 VECTOR FIELD 属于不同 UPDATE 版本。
-4. 实测定向 Core `SqlVectorParameterTests` 17/17；真实 REST 与 HTTP/2 ADO `RemoteAdoHttp2TransportTests|RemoteVectorParameterTests` 18/18；子进程在 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三种数据库重开校验均通过。备份恢复、Flush/Compaction、同步故障、预算拒绝、Retention、DROP 同名重建、旧用户 keyspace、稀疏目标拒绝与并发 KNN 均有定向测试。完整 Core 首轮 5250/5251，唯一失败为 `KvAtomicRestResponseTests` 的 `set-conditional` 用例，单独复验 4/4 通过；不得将首轮写成全绿。
+4. 吸收当前本机 `main` 后，定向 Core `SqlVectorParameterTests` 19/19（含累计字节预算和 65 条分页恢复）、真实 REST 与 HTTP/2 ADO `RemoteAdoHttp2TransportTests|RemoteVectorParameterTests` 18/18；子进程在 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三种数据库重开校验均通过。备份恢复、Flush/Compaction、同步故障、预算拒绝、Retention、DROP 同名重建、旧用户 keyspace、稀疏目标拒绝与并发 KNN 均有定向测试；最终代码的 win-x64 Server NativeAOT publish `/warnaserror` 退出 0。完整 Core 首轮 5250/5251，唯一失败为 `KvAtomicRestResponseTests` 的 `set-conditional` 用例，单独复验 4/4 通过；吸收本机 `main` 后第二、三轮均为 5258/5259，唯一失败为 `KvRedirectTests.Create_WithMixedRedirectPolicies_IsolatesCachedHandlers`，单独复验 2/2 通过。这三轮均不得记为全绿；最后的 128 MiB 预算及分页恢复修改只执行了定向 Core 和 AOT，未重跑完整 Core。
 
 原生 SQL Frame 请求仍只读；`Protocol=frame-http2` 的 ADO 写入仍走 REST 回落。轻事务、JOIN/FROM、RETURNING、GEO/字段残差谓词、稀疏目标补列、NULL VECTOR 与关系表 VECTOR UPDATE 不在本切片支持范围内。GitHub Issue 仍须以合入和线上回读状态为准。

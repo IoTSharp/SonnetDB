@@ -15,6 +15,8 @@ internal sealed class MeasurementVectorReplacementStore
 {
     internal const int MaxReplacements = 4096;
     internal const int MaxRowsPerUpdate = 256;
+    internal const long MaxReplacementBytes = 128L * 1024 * 1024;
+    private const int RecoveryPageSize = 64;
     private const byte KeyVersion = 1;
     private const byte ValueVersion = 1;
 
@@ -35,31 +37,42 @@ internal sealed class MeasurementVectorReplacementStore
             return;
 
         _keyspace = keyspaces.OpenMeasurementVectorReplacements();
-        var entries = _keyspace.ScanPrefix([KeyVersion], MaxReplacements + 1);
-        if (entries.Count > MaxReplacements)
-            throw new InvalidDataException("measurement VECTOR 替换记录超过恢复上限。");
-
-        var loaded = new Dictionary<(ulong, string, long), FieldValue>(entries.Count);
+        var loaded = new Dictionary<(ulong, string, long), FieldValue>();
         var stale = new List<KvBatchMutation>();
-        foreach (var entry in entries)
+        long loadedBytes = 0;
+        int scanned = 0;
+        byte[] afterKey = [];
+        while (true)
         {
-            var key = DecodeKey(entry.Key.Span);
-            SeriesEntry? series = catalog.TryGet(key.SeriesId);
-            MeasurementColumn? column = series is null
-                ? null
-                : measurements.TryGet(series.Measurement)?.TryGetColumn(key.FieldName);
-            if (column is null)
+            var entries = _keyspace.ScanPrefixAfter([], afterKey, RecoveryPageSize);
+            if (entries.Count == 0)
+                break;
+            foreach (var entry in entries)
             {
-                stale.Add(KvBatchMutation.Delete(entry.Key.ToArray()));
-                continue;
-            }
-            if (column.DataType != FieldType.Vector)
-                throw new InvalidDataException("measurement VECTOR 替换记录与 schema 类型不一致。");
+                if (++scanned > MaxReplacements)
+                    throw new InvalidDataException("measurement VECTOR 替换记录超过恢复上限。");
+                var key = DecodeKey(entry.Key.Span);
+                SeriesEntry? series = catalog.TryGet(key.SeriesId);
+                MeasurementColumn? column = series is null
+                    ? null
+                    : measurements.TryGet(series.Measurement)?.TryGetColumn(key.FieldName);
+                if (column is null)
+                {
+                    stale.Add(KvBatchMutation.Delete(entry.Key.ToArray()));
+                    continue;
+                }
+                if (column.DataType != FieldType.Vector)
+                    throw new InvalidDataException("measurement VECTOR 替换记录与 schema 类型不一致。");
 
-            var value = DecodeValue(entry.Value.Span);
-            if (value.VectorDimension != column.VectorDimension)
-                throw new InvalidDataException("measurement VECTOR 替换记录与 schema 维度不一致。");
-            loaded.Add(key, value);
+                var value = DecodeValue(entry.Value.Span);
+                if (value.VectorDimension != column.VectorDimension)
+                    throw new InvalidDataException("measurement VECTOR 替换记录与 schema 维度不一致。");
+                loadedBytes += EstimateBytes(key, value);
+                if (loadedBytes > MaxReplacementBytes)
+                    throw new InvalidDataException("measurement VECTOR 替换记录超过恢复字节预算。");
+                loaded.Add(key, value);
+            }
+            afterKey = entries[^1].Key.ToArray();
         }
 
         _values = loaded;
@@ -168,16 +181,28 @@ internal sealed class MeasurementVectorReplacementStore
             ThrowIfWriteFaulted();
             var current = Volatile.Read(ref _values);
             var next = new Dictionary<(ulong, string, long), FieldValue>(current);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                var key = (targets[i].SeriesId, fieldName, targets[i].Timestamp);
+                next[key] = value;
+            }
+            if (next.Count > MaxReplacements)
+                throw new InvalidOperationException($"measurement VECTOR 替换记录最多保留 {MaxReplacements} 项。");
+            long nextBytes = 0;
+            foreach (var entry in next)
+            {
+                nextBytes += EstimateBytes(entry.Key, entry.Value);
+                if (nextBytes > MaxReplacementBytes)
+                    throw new InvalidOperationException($"measurement VECTOR 替换记录最多保留 {MaxReplacementBytes} 字节。");
+            }
+
             var batch = new KvBatchMutation[targets.Count];
             var encodedValue = EncodeValue(value);
             for (int i = 0; i < targets.Count; i++)
             {
                 var key = (targets[i].SeriesId, fieldName, targets[i].Timestamp);
-                next[key] = value;
                 batch[i] = KvBatchMutation.Put(EncodeKey(key), encodedValue);
             }
-            if (next.Count > MaxReplacements)
-                throw new InvalidOperationException($"measurement VECTOR 替换记录最多保留 {MaxReplacements} 项。");
 
             _keyspace ??= _keyspaces.OpenMeasurementVectorReplacements();
             try
@@ -193,6 +218,12 @@ internal sealed class MeasurementVectorReplacementStore
             Volatile.Write(ref _values, next);
         }
     }
+
+    private static long EstimateBytes(
+        (ulong SeriesId, string FieldName, long Timestamp) key,
+        FieldValue value)
+        => 64L + Encoding.UTF8.GetByteCount(key.FieldName)
+            + (long)value.VectorDimension * sizeof(float);
 
     private void ThrowIfWriteFaulted()
     {

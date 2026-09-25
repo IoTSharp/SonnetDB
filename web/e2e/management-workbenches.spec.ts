@@ -695,6 +695,19 @@ test('Studio bridge exposes native server controls and disk connection library',
   if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'studio-bridge');
 });
 
+test('Studio opens an existing embedded database directory from the workspace', async ({ page }) => {
+  await mockStudioBridge(page);
+  await page.goto('/admin/app/sql');
+
+  await page.getByTitle('配置本地 Server').click();
+  const request = page.waitForRequest((item) => item.url().endsWith('/server/open-embedded'));
+  await page.getByRole('button', { name: '打开已有嵌入式数据库' }).click();
+
+  expect((await request).postDataJSON()).toEqual({ path: 'D:\\SonnetDB\\factory-data' });
+  await expect(page.locator('.native-server-settings')).toContainText('D:\\SonnetDB\\factory-data');
+  await expect(page.locator('.connection-button')).toContainText('Managed Local');
+});
+
 test('Studio desktop menu actions drive the shared SQL workbench', async ({ page }) => {
   await mockStudioBridge(page);
   await page.goto('/admin/app/sql');
@@ -976,6 +989,13 @@ async function mockStudioBridge(page: Page): Promise<void> {
     }
     if (path.endsWith('/dialogs/select-directory')) {
       return json(route, { canceled: false, path: 'D:\\SonnetDB\\factory-data', error: null });
+    }
+    if (path.endsWith('/server/open-embedded')) {
+      return json(route, {
+        ...status,
+        mountedDatabasePath: 'D:\\SonnetDB\\factory-data',
+        mountedDatabaseName: database,
+      });
     }
     return json(route, status);
   });

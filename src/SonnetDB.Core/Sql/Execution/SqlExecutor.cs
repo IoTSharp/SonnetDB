@@ -1904,7 +1904,7 @@ public static class SqlExecutor
             null => null,
             byte or sbyte or short or ushort or int or uint or long => Convert.ToInt64(value, CultureInfo.InvariantCulture),
             ulong u => u <= long.MaxValue ? (long)u : (double)u,
-            float or double or decimal => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            float or double => Convert.ToDouble(value, CultureInfo.InvariantCulture),
             _ => value,
         };
     }
@@ -1928,6 +1928,10 @@ public static class SqlExecutor
             Pagination = null
         };
         var first = executeBranch(left);
+        using var setMemory = SqlQueryResources.Current?.CreateReservation();
+        var columnTypes = new TableColumnType?[first.Columns.Count];
+        ValidateBranchTypes(first, columnTypes);
+        ReserveRows(first.Rows);
         var rows = new List<IReadOnlyList<object?>>();
         AddRows(first.Rows);
         List<IReadOnlyList<object?>> intersectGroup = rows;
@@ -1941,9 +1945,12 @@ public static class SqlExecutor
                 throw new InvalidOperationException(
                     $"集合运算分支列数不一致：期望 {first.Columns.Count} 列，实际 {branch.Columns.Count} 列。");
             }
+            ValidateBranchTypes(branch, columnTypes);
+            ReserveRows(branch.Rows);
 
             if (operation.Kind == SqlSetOperationKind.Intersect)
             {
+                ReserveSet((long)intersectGroup.Count + branch.Rows.Count);
                 var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
                 intersectGroup = SqlBlockingOperators
                     .DistinctRows(intersectGroup.Where(right.Contains), DistinctRowComparer.Instance)
@@ -1964,7 +1971,10 @@ public static class SqlExecutor
         else
             rows = intersectGroup;
 
-        var combined = new SelectExecutionResult(first.Columns, rows);
+        var combined = new SelectExecutionResult(first.Columns, rows)
+        {
+            ColumnInfo = columnTypes.Select(static type => new SelectColumnInfo(type)).ToArray(),
+        };
         return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
 
         void ApplyLowerPrecedence(SqlSetOperationKind kind, IReadOnlyList<IReadOnlyList<object?>> rightRows)
@@ -1972,6 +1982,7 @@ public static class SqlExecutor
             switch (kind)
             {
                 case SqlSetOperationKind.Union:
+                    ReserveSet((long)rows.Count + rightRows.Count);
                     AddRows(rightRows);
                     rows = ApplyDistinct(new SelectExecutionResult(first.Columns, rows)).Rows.ToList();
                     break;
@@ -1980,6 +1991,7 @@ public static class SqlExecutor
                     break;
                 case SqlSetOperationKind.Except:
                 {
+                    ReserveSet((long)rows.Count + rightRows.Count);
                     var right = new HashSet<IReadOnlyList<object?>>(rightRows, DistinctRowComparer.Instance);
                     rows = SqlBlockingOperators
                         .DistinctRows(rows.Where(row => !right.Contains(row)), DistinctRowComparer.Instance)
@@ -1998,6 +2010,61 @@ public static class SqlExecutor
                 SqlRowRetentionBudget.Current?.Retain(row);
                 rows.Add(row);
             }
+        }
+
+        void ReserveRows(IEnumerable<IReadOnlyList<object?>> source)
+        {
+            foreach (IReadOnlyList<object?> row in source)
+            {
+                ThrowIfCancellationRequested();
+                if (setMemory is not null && !setMemory.TryReserve(SqlSpillRowCodec.EstimateRowBytes(row)))
+                    throw new InvalidOperationException("集合运算保留行超出当前查询或数据库的内存预算。");
+            }
+        }
+
+        void ReserveSet(long count)
+        {
+            if (setMemory is not null && count > 0 && !setMemory.TryReserve(checked(count * 32)))
+                throw new InvalidOperationException("集合运算哈希集合超出当前查询或数据库的内存预算。");
+        }
+    }
+
+    private static void ValidateBranchTypes(
+        SelectExecutionResult branch,
+        TableColumnType?[] columnTypes)
+    {
+        for (int index = 0; index < columnTypes.Length; index++)
+        {
+            TableColumnType? branchType = branch.ColumnInfo is { } info && index < info.Count
+                ? info[index].DataType : null;
+            if (branchType is null)
+            {
+                foreach (IReadOnlyList<object?> row in branch.Rows)
+                {
+                    if (row[index] is not { } value)
+                        continue;
+                    TableColumnType? actual = value switch
+                    {
+                        byte or sbyte or short or ushort or int or uint or long => TableColumnType.Int64,
+                        float or double => TableColumnType.Float64,
+                        decimal => TableColumnType.Decimal,
+                        bool => TableColumnType.Boolean,
+                        string => TableColumnType.String,
+                        DateTime or DateTimeOffset => TableColumnType.DateTime,
+                        TimeOnly => TableColumnType.Time,
+                        byte[] => TableColumnType.Blob,
+                        _ => null,
+                    };
+                    if (actual is null)
+                        throw new InvalidOperationException($"集合运算第 {index + 1} 列不支持值类型 {value.GetType().Name}。");
+                    if (branchType is not null && branchType != actual)
+                        throw new InvalidOperationException($"集合运算第 {index + 1} 列的分支类型不一致：{branchType} 与 {actual}。");
+                    branchType = actual;
+                }
+            }
+            if (columnTypes[index] is { } expected && branchType is { } actualType && expected != actualType)
+                throw new InvalidOperationException($"集合运算第 {index + 1} 列的分支类型不一致：{expected} 与 {actualType}。请显式 CAST 为同一类型。");
+            columnTypes[index] ??= branchType;
         }
     }
 
@@ -2036,7 +2103,7 @@ public static class SqlExecutor
             pagination?.Offset ?? 0,
             pagination?.Fetch,
             SqlSpillCodecs.ReadOnlyRows);
-        return new SelectExecutionResult(result.Columns, rows);
+        return result with { Rows = rows };
     }
 
     private sealed class UnionResultRowComparer(

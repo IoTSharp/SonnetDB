@@ -51,6 +51,10 @@ internal static partial class SonnetDbEndpoints
                 return ForbiddenResult("仅 admin 可删除数据库。");
             if (!TsdbRegistry.IsValidName(db))
                 return BadRequestResult($"非法数据库名 '{db}'。");
+            if (registry.IsMounted(db))
+                return Results.Json(new DatabaseOperationResponse(db, "mounted"),
+                    ServerJsonContext.Default.DatabaseOperationResponse,
+                    statusCode: StatusCodes.Status409Conflict);
             var dropped = registry.Drop(db);
             return Results.Json(new DatabaseOperationResponse(db, dropped ? "dropped" : "not_found"),
                 ServerJsonContext.Default.DatabaseOperationResponse,

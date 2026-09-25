@@ -445,7 +445,7 @@ CREATE TABLE cpu (...);                         -- 时序数据应改为 CREATE 
 SELECT host, avg(usage) FROM cpu GROUP BY host; -- 当前不支持按 tag GROUP BY
 SELECT time_bucket(time, '1m'), avg(usage) ...; -- 当前公开语法不是这套
 SELECT LAG(usage) OVER (ORDER BY time) ...;     -- 当前不支持 OVER(...)
-UPDATE cpu SET usage = 1.0 WHERE ...;           -- UPDATE 仅支持关系表，不支持 measurement
+UPDATE cpu SET usage = 1.0 WHERE ...;           -- measurement 普通数值 FIELD 不支持 UPDATE；已有 VECTOR FIELD 可按 TAG/time 条件更新
 ```
 
 如果你拿不准当前能力边界：

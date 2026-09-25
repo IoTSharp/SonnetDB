@@ -1,6 +1,6 @@
 # GitHub Issues Roadmap Snapshot
 
-The [2026-09-25 GitHub read-back](audits/github-pr-queue-20260925.md) initially found nine open issues: #184, #187, #189, #190, #191, #194, #195, #197 and #198. The [combined validation](audits/online-pr-issue-integration-20260925.md) records each issue and the seven dependency PRs, which Dependabot closed as superseded after their exact version changes reached `main`. The [`2026-09-23 JSON snapshot`](audits/github-issues-20260923.json) and [`2026-09-21 snapshot`](audits/github-issues-20260921.json) remain historical evidence. Local implementation does not by itself change issue state; closed issues retain the scope and remaining boundaries recorded at their closure, without implying whole-milestone, hardware or production completion.
+The [2026-09-25 GitHub read-back](audits/github-pr-queue-20260925.md) initially found nine open issues: #184, #187, #189, #190, #191, #194, #195, #197 and #198. The [current 30-issue read-back](audits/github-issues-complete-audit-20260925.md) supersedes that initial state: 26 closed and four open (#91, #184, #186 and #197). The [combined validation](audits/online-pr-issue-integration-20260925.md) records earlier implementation and seven dependency PRs, which Dependabot closed as superseded after their exact version changes reached `main`. The [`2026-09-23 JSON snapshot`](audits/github-issues-20260923.json) and [`2026-09-21 snapshot`](audits/github-issues-20260921.json) remain historical evidence. Local implementation does not by itself change issue state; closed issues retain the scope and remaining boundaries recorded at their closure, without implying whole-milestone, hardware or production completion.
 
 `GH-Issue #N` always means the external GitHub issue. Internal roadmap work items keep their existing `#N` notation. The numbers overlap (for example, GH-Issue #174 is a string-function request while internal M25 #174 is Document capacity), so the prefix is required in roadmap and changelog text.
 
@@ -9,7 +9,7 @@ The [2026-09-25 GitHub read-back](audits/github-pr-queue-20260925.md) initially 
 1. **SQL foundation:** GH-Issue #171 -> #178 -> #172 -> #173 -> #174 -> #175 -> #176 -> #179 -> #181 -> #182 -> #183 -> #192. GH-Issue #189 (`WITH RECURSIVE`) follows #171 and #178.
 2. **SQL DML, concurrency and DDL:** GH-Issue #177 -> #191/#184 -> #190; then #187 -> #188 after catalog and metadata contracts are fixed.
 3. **Model, driver and management boundaries:** GH-Issue #193 -> #186 -> #185 -> #180.
-4. **Existing-surface review:** GH-Issue #89 and #91 were mapped to existing M27/M29 entry points, reviewed against the delivered contracts, and closed with their remaining deployment evidence retained in the roadmap; no duplicate implementation is planned.
+4. **Existing-surface review:** GH-Issue #89 is closed for its MCP design-document scope. GH-Issue #91 was reopened: Studio now mounts an existing embedded database, but clean offline Windows installation and WebView2 first-run evidence remain open.
 
 New requests retain those dependency groups: GH-Issue #196 follows #177's normalized JOIN repair; #194 and #197 cover DML result contracts alongside #184/#191; #195 follows their insertion, transaction and RETURNING semantics; #198 belongs to model/driver boundaries. Independent acceptance work may run in parallel, but issue state changes require completed implementation and verification.
 
@@ -17,21 +17,20 @@ The queue belongs to M43 Step 2, after the current M27 #340 implementation resid
 
 ## Current Status
 
-The live repository has 30 Issues: 25 closed with `state_reason=completed` and five open. The current closed set is GH-Issue #89, #91, #171–#183, #185–#188, #190–#194 and #196. The remaining open set is #184, #189, #195, #197 and #198. GH-Issue #187, #190, #191 and #194 were completed and closed on 2026-09-25 after evidence comments and GitHub state read-back. Earlier bounded closures retain their original evidence and pending parity limitations below. The live snapshot records actual GitHub state separately from implementation scope.
+The authenticated GitHub read-back on 2026-09-25 found 30 Issues: 26 closed with `state_reason=completed` and four open. The closed set is GH-Issue #89, #171–#183, #185, #187–#196 and #198; the open set is #91, #184, #186 and #197. The [per-issue audit](audits/github-issues-complete-audit-20260925.md) records the evidence and remaining gates. Earlier bounded closure notes below describe their evidence at that time; references to pending external confirmation in those historical notes are superseded by the current GitHub state.
 
 On 2026-09-23, GH-Issue #177, #180 and #193 completed embedded, real REST, HTTP/2 Frame and model-boundary acceptance, with 358/358 passing regressions. Code was pushed through `6ca5ce7a939a7b62db2e82a37f1ae4d2827b43c3`, then all three issues were closed as `completed` and read back from GitHub. See [`sql-provider-closure-20260923.md`](audits/sql-provider-closure-20260923.md). Fixed-hardware, production, long-run and external database comparison evidence remain separate roadmap work.
 
 | Open request | Required closure scope |
 |---|---|
+| GH-Issue #91 | Clean offline Windows MSI/WebView2 installation and first-run evidence for the existing embedded-database Studio workflow. |
 | GH-Issue #184 | Remote session is implemented on `main`; release version and deployed failure/recovery evidence remain. |
-| GH-Issue #189 | Recursive CTE strict peak-memory gate beyond conservative row admission. |
-| GH-Issue #195 | INSERT SELECT projection/type rules, conflicts, identity/RETURNING, transactions and cross-protocol acceptance. |
-| GH-Issue #197 | Existing INSERT RETURNING ordering, generated values, affected counts, errors and cross-protocol compatibility; distinguish main from released 3.1.0. |
-| GH-Issue #198 | Arbitrary precision support or explicit Int64/string boundary, deterministic overflow rejection, query semantics and ADO metadata. |
+| GH-Issue #186 | Parameterized measurement VECTOR UPDATE with one consistent raw/SQL/KNN replacement and recovery contract. |
+| GH-Issue #197 | Main-source result behavior is tested; the first complete released version, installed-package and compatibility evidence remain. Published 3.1.0 is not sufficient. |
 
 GH-Issue #171 evidence boundary: the 2026-09-25 follow-up supports ordered output-column lists for non-recursive CTEs, including JOIN, aggregation, parameterized `IN`/`EXISTS`, ordering/pagination, set operations and relation/measurement/document sources. Empty-result width mismatch and duplicate names fail explicitly; embedded ADO preserves the renamed name and Int64 type. The dedicated `SqlCteTests` regression passed 13/13. Bounded `WITH RECURSIVE` is tracked separately under #189. Remote parity and the external issue-thread follow-up remain pending. See [the #171 audit](audits/github-issue-171-cte-columns-20260925.md).
 
-GH-Issue #178 evidence boundary: `PASS` for local Core parsing and execution of `UNION ALL`, `INTERSECT`, and `EXCEPT`, including deterministic `ORDER BY` results and column-count diagnostics; the dedicated `SqlSetOperationTests` regression covers duplicate preservation and set difference/intersection. Compound operators are currently evaluated left-to-right; remote parity and external issue-thread confirmation remain pending.
+GH-Issue #178 evidence boundary: local Core parsing and execution covers `UNION ALL`, `INTERSECT`, and `EXCEPT`, including standard `INTERSECT` precedence, final sorting/pagination, input order for unordered `UNION ALL`, `NULL`/duplicate/multicolumn equality, column-count and type diagnostics, and bounded set-state admission. The set operator rejects when its estimated retained rows or hash state exceed the query/database memory budget; it does not spill and does not claim a hard CLR heap peak bound. Remote parity and external issue-thread confirmation remain separate.
 
 GH-Issue #172 evidence boundary: measurement 的 `OVER ()`、`OVER (ORDER BY time ASC)`、`row_number()` 与已有时序窗口保持原合同。后续独立实现为关系表 `ROW_NUMBER`、`COUNT/SUM/AVG/MIN/MAX` 增加多列表达式 `PARTITION BY`、多列升降序窗口排序、无排序全分区聚合及 peer-aware 默认累计帧；关系窗口及嵌入式 ADO 回归 11/11 已通过，完整 Core 回归结果见 [专项审计](audits/issue-172-window-20260925.md)。显式 `ROWS`/`RANGE` frame、嵌套窗口表达式、同层普通聚合混用仍拒绝；有序累计聚合最坏 O(n²)。远程协议尚未取证。这是本地分支证据，须合并并回读远端后才能更新线上 issue 线程。
 

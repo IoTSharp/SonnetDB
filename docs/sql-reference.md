@@ -1213,7 +1213,7 @@ CREATE MEASUREMENT IF NOT EXISTS cpu (
 
 ADO.NET `VECTOR(N)` 参数使用 `float[]`、`Memory<float>` 或 `ReadOnlyMemory<float>`；`DbType` 与 `GetSchemaTable().ProviderType` 为 `DbType.Object`，结果的 `GetValue()` 为 `float[]`，`GetFieldType()` 和 `GetSchemaTable().DataType` 为 `typeof(float[])`。各元素是有限的 IEEE 754 float32，空数组和 NaN/Infinity 在客户端拒绝；维度与 `VECTOR(N)` 不一致时服务端报 `sql_error`，消息包含“维度不匹配”。`null`/`DBNull.Value` 绑定为 SQL `NULL`；measurement 的 VECTOR 写入要求非空向量，缺值应省略该字段，并与同点其他 field 一起查询以取得 `DBNull.Value`。`centroid(VECTOR)` 也返回 `float[]`。
 
-嵌入式参数直接绑定为向量字面量；REST/NDJSON 与 `Protocol=frame-http2` ADO 写入将有限向量格式化为 SQL 数值数组。HTTP/2 ADO 写入经 `/v1/db/{db}/sql`，原生 `/v1/frame` SQL 端点只读。只读 Frame 请求支持 float32 little-endian VECTOR 命名参数，结果使用 VECTOR 值标记；Frame 单请求 payload 上限为 132 MiB，SQL 文本上限为 1 MiB。ADO 写入的向量会先展开为 SQL 文本，因此还受该路径请求体与服务端资源限制约束；大向量应按目标服务的请求预算验证，不存在独立的 ADO VECTOR 维度硬上限。measurement 当前不支持 `UPDATE ... SET embedding = @vector`，关系表也不支持 VECTOR 列；修改时序向量应按应用所需时间点写入/删除语义处理，不能将 INSERT/KNN 的参数支持理解为 UPDATE 支持。
+嵌入式参数直接绑定为向量字面量；REST/NDJSON 与 `Protocol=frame-http2` ADO 写入将有限向量格式化为 SQL 数值数组。HTTP/2 ADO 写入经 `/v1/db/{db}/sql`，原生 `/v1/frame` SQL 端点只读。只读 Frame 请求支持 float32 little-endian VECTOR 命名参数，结果使用 VECTOR 值标记；Frame 单请求 payload 上限为 132 MiB，SQL 文本上限为 1 MiB。ADO 写入的向量会先展开为 SQL 文本，因此还受该路径请求体与服务端资源限制约束；大向量应按目标服务的请求预算验证，不存在独立的 ADO VECTOR 维度硬上限。measurement 的 `UPDATE ... SET embedding = @vector` 仅支持已有 VECTOR FIELD 点与 TAG/time 条件，单句最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量（不是 CLR 堆峰值硬上限）；稀疏目标行和字段残差明确拒绝，同键 INSERT 在替换后也明确拒绝。关系表仍不支持 VECTOR 列；原生 Frame SQL 写入仍只读。
 
 ### `INSERT INTO ... VALUES`
 
@@ -1362,6 +1362,10 @@ ORDER BY id;
 ```
 
 `UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。`INTERSECT` 优先于 `UNION` / `EXCEPT`，同优先级运算从左到右应用。`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
+
+`UNION ALL` 在没有最终 `ORDER BY` 时按分支书写顺序保留各分支的行顺序；有最终排序时以排序结果为准。`INTERSECT` 和 `EXCEPT` 按整行逐列比较，两个 `NULL` 在集合去重中视为相等。结果列名取第一个分支；各分支列数必须相同，声明类型或可推断的非 `NULL` 值类型必须逐列相同。`NULL` 可与任意已知列类型组合；不同类型请显式 `CAST` 为同一类型，避免隐式数值转换造成精度损失。空结果分支也按声明类型检查。
+
+集合运算的保留行及去重/交差所用哈希集合受查询或数据库的阻塞算子内存预算约束；超限时报错，不返回部分结果，此路径不使用 spill。预算根据行值与集合结构估算，在分支执行完成后对结果准入，并不是 CLR 堆峰值硬上限；分支扫描与表达式计算仍受各自执行路径的资源约束。
 
 分页子句（兼容两种风格）：
 
