@@ -78,15 +78,6 @@ internal static class TableSqlExecutor
             }
         }
 
-        if (statement.PrimaryKey.Count == 0)
-        {
-            throw new TableConstraintException(
-                TableConstraintException.SchemaEvolutionUnsupported,
-                statement.Name,
-                null,
-                "关系表当前必须在 CREATE TABLE 时声明 PRIMARY KEY；无主键 rowstore 不受支持。");
-        }
-
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);

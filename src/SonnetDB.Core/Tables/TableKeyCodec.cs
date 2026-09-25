@@ -28,6 +28,7 @@ internal static class TableKeyCodec
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(keyValues);
+        EnsurePrimaryKeyForWrite(schema);
         if (keyValues.Count != schema.PrimaryKey.Count)
             throw new ArgumentException("主键值数量与 PRIMARY KEY 列数量不一致。", nameof(keyValues));
 
@@ -58,6 +59,8 @@ internal static class TableKeyCodec
     public static bool IsEncodedPrimaryKey(TableSchema schema, ReadOnlySpan<byte> encoded)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        if (schema.PrimaryKey.Count == 0)
+            return false;
 
         int offset = 0;
         foreach (string columnName in schema.PrimaryKey)
@@ -97,6 +100,17 @@ internal static class TableKeyCodec
         }
 
         return offset == encoded.Length;
+    }
+
+    internal static void EnsurePrimaryKeyForWrite(TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        if (schema.PrimaryKey.Count == 0)
+            throw new TableConstraintException(
+                TableConstraintException.SchemaEvolutionUnsupported,
+                schema.Name,
+                null,
+                $"table '{schema.Name}' 是无主键空表；写入前请先使用 ALTER TABLE 添加 PRIMARY KEY。");
     }
 
     private static int GetEncodedSize(TableColumn column, object value)

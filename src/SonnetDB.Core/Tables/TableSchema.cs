@@ -59,7 +59,7 @@ public sealed class TableSchema
     /// </summary>
     /// <param name="name">表名。</param>
     /// <param name="columns">列定义。</param>
-    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="primaryKey">主键列名；空集合表示仅供迁移的无主键空表。</param>
     /// <param name="indexes">二级索引声明。</param>
     /// <param name="foreignKeys">外键声明。</param>
     /// <param name="rowVersionColumns">乐观并发版本列名。</param>
@@ -90,7 +90,7 @@ public sealed class TableSchema
     /// </summary>
     /// <param name="name">表名。</param>
     /// <param name="columns">列定义。</param>
-    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="primaryKey">主键列名；空集合表示仅供迁移的无主键空表。</param>
     /// <param name="indexes">二级索引声明。</param>
     /// <param name="foreignKeys">外键声明。</param>
     /// <param name="rowVersionColumns">乐观并发版本列名。</param>
@@ -119,7 +119,7 @@ public sealed class TableSchema
     /// </summary>
     /// <param name="name">表名。</param>
     /// <param name="columns">列定义。</param>
-    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="primaryKey">主键列名；空集合表示仅供迁移的无主键空表。</param>
     /// <param name="indexes">二级索引声明。</param>
     /// <param name="foreignKeys">外键声明。</param>
     /// <param name="rowVersionColumns">乐观并发版本列名。</param>
@@ -153,7 +153,7 @@ public sealed class TableSchema
     /// </summary>
     /// <param name="name">表名。</param>
     /// <param name="columns">列定义。</param>
-    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="primaryKey">主键列名；空集合表示仅供迁移的无主键空表。</param>
     /// <param name="indexes">二级索引定义。</param>
     /// <param name="foreignKeys">外键定义。</param>
     /// <param name="rowVersionColumns">乐观并发版本列名。</param>
@@ -180,9 +180,6 @@ public sealed class TableSchema
 
         if (columns.Count == 0)
             throw new ArgumentException("关系表至少需要 1 个列。", nameof(columns));
-        if (primaryKey.Count == 0)
-            throw new ArgumentException("关系表 MVP 要求声明 PRIMARY KEY。", nameof(primaryKey));
-
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var autoIncrementSet = autoIncrementColumns is null
             ? new HashSet<string>(StringComparer.Ordinal)
