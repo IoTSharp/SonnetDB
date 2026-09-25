@@ -1,0 +1,66 @@
+{
+  "version": "4.0.0-issue197.1",
+  "sourceCommit": "630096355a740e6cda46188b406a899345a196f6",
+  "serverSha256": "DED826A226E71E79F295F4B0B8131B601C3A5479553AD508ABFA30F7B0B30832",
+  "baselineVersion": "3.1.0",
+  "baselineRequested": true,
+  "checks": [
+    {
+      "name": "candidate-embedded",
+      "scope": "full",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate-rest",
+      "scope": "full",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate-auto",
+      "scope": "full",
+      "status": "PASS"
+    },
+    {
+      "name": "candidate-frame-http2",
+      "scope": "full",
+      "status": "PASS"
+    },
+    {
+      "name": "new-client-old-server-rest",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    },
+    {
+      "name": "old-client-new-server-rest",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    },
+    {
+      "name": "new-client-old-server-auto",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    },
+    {
+      "name": "old-client-new-server-auto",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    },
+    {
+      "name": "new-client-old-server-frame-http2",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    },
+    {
+      "name": "old-client-new-server-frame-http2",
+      "scope": "legacy-values-only",
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS",
+  "SonnetDB-packageSha256": "F095E901D916D3F19246926A39E3BB342DAF45BCC74E4A845DA3413CC0074BAB",
+  "SonnetDB.Core-packageSha256": "1DB0FF455AD3C3843E2808325155513CA3BE5CF72522D72BFCE941FDE5E367DA",
+  "baselineOrigin": "https://github.com/IoTSharp/SonnetDB/releases/download/v3.1.0/sonnetdb-full-3.1.0-win-x64.zip",
+  "baselineArchiveSha256": "9E3BB438708185A8B6D308915068FA40AFEA0CC20399B95046A4C80BF003AD06",
+  "baselineServerSha256": "C638340E04469F60F1AA44AD5C0D9D329DF2DC54931B5D3695A6907A4FAA7E06",
+  "finishedUtc": "2026-09-25T16:49:02.4453143Z"
+}

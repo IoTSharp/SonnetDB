@@ -2,6 +2,8 @@
 
 Status: **draft, not a release announcement**. Source snapshot: `a9dc71d05ad79e908a0bd6b79f00801ec017d741` on 2026-09-25. The last published GitHub release and local tag are [`v3.1.0`](https://github.com/IoTSharp/SonnetDB/releases/tag/v3.1.0), at `10ec6a44ae1c6fdfa2b3a98c40b08a9dbb6acb60`. No `v4.0.0` tag or package is asserted here.
 
+Follow-up for #197: the [2026-09-26 package contract audit](issue-197-package-contract-20260926.md) records the expanded installed-package matrix and the official old Server bundle. The [4.0.0 candidate release notes](../releases/4.0.0.md) define the bounded INSERT RETURNING version contract. Neither follow-up closes #184's deployment gates or asserts a public release.
+
 This single readiness note covers the version boundary shared by [GH-Issue #184](https://github.com/IoTSharp/SonnetDB/issues/184) and [GH-Issue #197](https://github.com/IoTSharp/SonnetDB/issues/197). Their implementations, tests and closure decisions remain separate. The common release question must have one answer so that an ORM does not combine capabilities from incompatible packages.
 
 ## Version decision

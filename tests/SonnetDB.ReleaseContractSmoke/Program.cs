@@ -1,7 +1,13 @@
 using SonnetDB.Data;
 
-if (args.Length != 2 || args[0] is not ("legacy" or "current" or "old-server"))
-    throw new ArgumentException("Usage: <legacy|current|old-server> <connection-string>");
+if (args.Length != 2 || args[0] is not ("legacy" or "current" or "old-server" or "insert-returning" or "insert-legacy"))
+    throw new ArgumentException("Usage: <legacy|current|old-server|insert-returning|insert-legacy> <connection-string>");
+
+if (args[0] is "insert-returning" or "insert-legacy")
+{
+    await InsertReturningContract.RunAsync(args[1], fullContract: args[0] == "insert-returning");
+    return;
+}
 
 var scenario = args[0];
 var table = "release_contract_" + Guid.NewGuid().ToString("N")[..12];

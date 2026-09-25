@@ -23,8 +23,6 @@ jobs:
   nuget:
     name: NuGet Packages
     runs-on: ubuntu-latest
-    env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -55,17 +53,6 @@ jobs:
         with:
           name: nuget-packages
           path: artifacts/release/nuget/*
-
-      - name: Publish to NuGet.org
-        if: startsWith(github.ref, 'refs/tags/v') && env.NUGET_API_KEY != ''
-        shell: pwsh
-        run: |
-          Get-ChildItem -LiteralPath artifacts/release/nuget -Filter *.nupkg | ForEach-Object {
-            dotnet nuget push $_.FullName `
-              --api-key $env:NUGET_API_KEY `
-              --source https://api.nuget.org/v3/index.json `
-              --skip-duplicate
-          }
 
   bundles:
     name: Release Bundles (${{ matrix.rid }})
@@ -114,9 +101,35 @@ jobs:
           dotnet tool install --tool-path ./.tools wix --version 5.0.2
           Add-Content -Path $env:GITHUB_PATH -Value (Resolve-Path ./.tools)
 
+      - name: Download candidate NuGet packages
+        uses: actions/download-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/release/nuget
+
       - name: Build bundles and installers
         shell: pwsh
         run: ./eng/release.ps1 -Tasks bundles,installers -Version '${{ needs.nuget.outputs.version }}' -Rid '${{ matrix.rid }}' -BuildAdminUi
+
+      - name: Verify installed INSERT RETURNING contract and published compatibility
+        shell: pwsh
+        run: |
+          $executable = if ($IsWindows) { 'SonnetDB.exe' } else { 'SonnetDB' }
+          ./eng/verify-insert-returning-package.ps1 `
+            -Version '${{ needs.nuget.outputs.version }}' `
+            -PackageSource artifacts/release/nuget `
+            -ServerPath "artifacts/release/publish/${{ matrix.rid }}/server/$executable" `
+            -OutputRoot 'artifacts/release-contract/${{ matrix.rid }}' `
+            -VerifyPublishedBaseline
+
+      - name: Upload INSERT RETURNING contract evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: insert-returning-contract-${{ matrix.rid }}
+          path: |
+            artifacts/release-contract/**/result.json
+            artifacts/release-contract/**/*.log
 
       - name: Verify Studio release artifacts
         if: matrix.rid == 'win-x64'
@@ -142,12 +155,41 @@ jobs:
             artifacts/release/installers/${{ matrix.rid }}/*.rpm
             artifacts/release/installers/${{ matrix.rid }}/*.sha256
 
+  publish-nuget:
+    name: Publish verified NuGet packages
+    runs-on: ubuntu-latest
+    needs: [nuget, bundles]
+    if: startsWith(github.ref, 'refs/tags/v')
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/verified-nuget
+      - name: Publish to NuGet.org after both platform contracts pass
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) { throw 'NUGET_API_KEY is required for a tagged release.' }
+          Get-ChildItem -LiteralPath artifacts/verified-nuget -Filter *.nupkg | ForEach-Object {
+            dotnet nuget push $_.FullName `
+              --api-key $env:NUGET_API_KEY `
+              --source https://api.nuget.org/v3/index.json `
+              --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "NuGet publish failed: $($_.Name)" }
+          }
+
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs:
       - nuget
       - bundles
+      - publish-nuget
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:

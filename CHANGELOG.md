@@ -30,6 +30,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
+- GH-Issue #197 增加隔离缓存、精确版本和包 SHA-256 核对的安装包消费者验收，覆盖嵌入式、REST、Auto、HTTP/2 ADO 的完整 INSERT RETURNING 合同及官方 3.1.0 新旧端兼容矩阵；Publish workflow 改为 Windows/Linux 合同通过后再推送同批 NuGet 包，保留机器可读证据。新增 4.0.0 候选说明；尚未打标签或正式发布。
 - GH-Issue #186 在 PR #201 合入有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，清理失败冻结替换读写直到重开裁剪。替换值与 series/field 命中索引同快照发布，避免 KNN 候选多时逐条扫描替换记录；内部存储与旧用户 keyspace 隔离。嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；Issue 已关闭，但此条不代表正式发布。
 - GH-Issue #178 增补混合集合表达式回归：覆盖 `UNION ALL` 重复行、连续及多组 `INTERSECT`、同级左结合、空分支、统一排序分页、派生表分组和 `NULL` 多列比较；保留现有 parser/executor 实现。
 - 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读；初次记录 26 条已关闭、#91/#184/#186/#197 四条开放，后续 PR #201 合入并关闭 #186，回读为 27 条已关闭、#91/#184/#197 三条开放；同步路线图状态。
