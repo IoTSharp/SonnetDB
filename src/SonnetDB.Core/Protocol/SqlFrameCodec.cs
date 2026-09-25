@@ -10,7 +10,7 @@ namespace SonnetDB.Protocol;
 
 /// <summary>
 /// sql service（<see cref="FrameService.Sql"/>）流式查询 opcode 的帧体编解码（M28 P5b #238）。
-/// 请求帧 = db + sql 文本 + 可选命名标量参数；响应为**同 streamId 的帧序列**：
+/// 请求帧 = db + sql 文本 + 可选命名标量或 VECTOR 参数；响应为**同 streamId 的帧序列**：
 /// meta 帧（列名）→ 0..N 个 rows 帧（列式二进制行块）→ end 帧（行数 + 耗时），
 /// 服务端逐块编码逐块 flush，响应缓冲内存上界 = 单块，消灭全量 JSON 物化与数字文本税。
 /// rows 帧按块内逐列推断值类型：单一类型列走稠密定宽/紧凑编码（可选 null 位图），
@@ -55,7 +55,7 @@ public static class SqlFrameCodec
     // ────────────────────────────── query (op=1) 请求 ──────────────────────────────
 
     /// <summary>
-    /// 编码查询请求帧：db, sql, 可选命名标量参数（null/long/double/bool/string，
+    /// 编码查询请求帧：db, sql, 可选命名标量或 VECTOR 参数（null/long/double/bool/string/float[]，
     /// 经 <see cref="SqlParameterBinder"/> 绑定 <c>@name</c> / <c>:name</c> 占位符）。
     /// </summary>
     public static void EncodeQueryRequest(
@@ -141,8 +141,21 @@ public static class SqlFrameCodec
         double or float => 8,
         bool => 1,
         string s => SpanWriter.MeasureVarString(s),
-        _ => throw new ArgumentException($"不支持的参数值类型 {value.GetType().Name}（仅 null/long/double/bool/string）。"),
+        float[] vector => MeasureVectorParameter(vector),
+        Memory<float> vector => MeasureVectorParameter(vector.Span),
+        ReadOnlyMemory<float> vector => MeasureVectorParameter(vector.Span),
+        _ => throw new ArgumentException($"不支持的参数值类型 {value.GetType().Name}。"),
     };
+
+    private static long MeasureVectorParameter(ReadOnlySpan<float> vector)
+    {
+        if (vector.IsEmpty)
+            throw new ArgumentException("VECTOR 参数不能为空。", nameof(vector));
+        foreach (float value in vector)
+            if (!float.IsFinite(value))
+                throw new ArgumentException("VECTOR 参数只能包含有限浮点数。", nameof(vector));
+        return SpanWriter.MeasureVarUInt32((uint)vector.Length) + 4L * vector.Length;
+    }
 
     private static void WriteParameterValue(ref SpanWriter writer, object? value)
     {
@@ -169,9 +182,26 @@ public static class SqlFrameCodec
                 writer.WriteByte((byte)SqlValueKind.String);
                 writer.WriteVarString(s);
                 break;
+            case float[] vector:
+                WriteVectorParameter(ref writer, vector);
+                break;
+            case Memory<float> vector:
+                WriteVectorParameter(ref writer, vector.Span);
+                break;
+            case ReadOnlyMemory<float> vector:
+                WriteVectorParameter(ref writer, vector.Span);
+                break;
             default:
-                throw new ArgumentException($"不支持的参数值类型 {value.GetType().Name}（仅 null/long/double/bool/string）。");
+                throw new ArgumentException($"不支持的参数值类型 {value.GetType().Name}。");
         }
+    }
+
+    private static void WriteVectorParameter(ref SpanWriter writer, ReadOnlySpan<float> vector)
+    {
+        writer.WriteByte((byte)SqlValueKind.Vector);
+        writer.WriteVarUInt32((uint)vector.Length);
+        foreach (float value in vector)
+            writer.WriteSingle(value);
     }
 
     private static object? ReadParameterValue(ref SpanReader reader)
@@ -184,8 +214,24 @@ public static class SqlFrameCodec
             SqlValueKind.Float64 => reader.ReadDouble(),
             SqlValueKind.Boolean => ReadBooleanByte(ref reader),
             SqlValueKind.String => reader.ReadVarString(),
-            _ => throw new FrameFormatException($"参数值类型标记 {tag} 非法（仅 0=null/1=int64/2=float64/3=bool/4=string）。"),
+            SqlValueKind.Vector => ReadVectorParameter(ref reader),
+            _ => throw new FrameFormatException($"参数值类型标记 {tag} 非法。"),
         };
+    }
+
+    private static float[] ReadVectorParameter(ref SpanReader reader)
+    {
+        uint dimension = reader.ReadVarUInt32();
+        if (dimension == 0 || 4L * dimension > reader.Remaining)
+            throw new FrameFormatException($"VECTOR 参数维度 {dimension} 非法或超过帧体剩余长度。");
+        float[] vector = new float[(int)dimension];
+        for (int i = 0; i < vector.Length; i++)
+        {
+            vector[i] = reader.ReadSingle();
+            if (!float.IsFinite(vector[i]))
+                throw new FrameFormatException("VECTOR 参数只能包含有限浮点数。");
+        }
+        return vector;
     }
 
     // ────────────────────────────── meta 响应帧 ──────────────────────────────
@@ -732,7 +778,8 @@ public static class SqlFrameCodec
                 {
                     var vector = (float[])value;
                     writer.WriteVarUInt32((uint)vector.Length);
-                    writer.WriteStructs<float>(vector);
+                    foreach (float component in vector)
+                        writer.WriteSingle(component);
                     break;
                 }
             case SqlValueKind.GeoPoint:
@@ -793,7 +840,10 @@ public static class SqlFrameCodec
                     uint dim = reader.ReadVarUInt32();
                     if (4L * dim > reader.Remaining)
                         throw new FrameFormatException($"Vector 维度 {dim} 超出帧体剩余长度。");
-                    return reader.ReadStructs<float>((int)dim).ToArray();
+                    var vector = new float[(int)dim];
+                    for (int i = 0; i < vector.Length; i++)
+                        vector[i] = reader.ReadSingle();
+                    return vector;
                 }
             case SqlValueKind.GeoPoint:
                 {
@@ -927,5 +977,5 @@ public enum SqlValueKind : byte
 /// </summary>
 /// <param name="Db">数据库名。</param>
 /// <param name="Sql">SQL 文本。</param>
-/// <param name="Parameters">命名标量参数（无参数时为 null），经 <see cref="SqlParameterBinder"/> 绑定。</param>
+/// <param name="Parameters">命名标量或 VECTOR 参数（无参数时为 null），经 <see cref="SqlParameterBinder"/> 绑定。</param>
 public sealed record SqlQueryFrameRequest(string Db, string Sql, SqlParameters? Parameters);

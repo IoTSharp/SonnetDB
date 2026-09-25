@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Buffers;
 using System.Data;
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -137,6 +138,87 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Contains(h2Requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
         Assert.Contains(h2Requests, r => r.Path == "/v1/frame");
         Assert.All(h2Requests, r => Assert.Equal("HTTP/2", r.Protocol));
+    }
+
+    [Fact]
+    public async Task FrameHttp2_VectorParameterAndResults_UseNativeFrameForReads()
+    {
+        using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        connection.Open();
+        using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = "CREATE MEASUREMENT vector_contract (source TAG, embedding FIELD VECTOR(3), score FIELD FLOAT)";
+            setup.ExecuteNonQuery();
+            setup.CommandText = "INSERT INTO vector_contract (time, source, embedding) VALUES (1000, 'a', @embedding)";
+            setup.Parameters.AddWithValue("@embedding", new float[] { 1f, -0.5f, 0.25f });
+            Assert.Equal(1, setup.ExecuteNonQuery());
+            setup.Parameters.Clear();
+            setup.CommandText = "INSERT INTO vector_contract (time, source, score) VALUES (2000, 'b', 1.0)";
+            Assert.Equal(1, setup.ExecuteNonQuery());
+        }
+
+        using (var invalid = connection.CreateCommand())
+        {
+            invalid.CommandText = "INSERT INTO vector_contract (time, source, embedding) VALUES (3000, 'bad', @embedding)";
+            invalid.Parameters.AddWithValue("@embedding", new float[] { 1f, 2f });
+            var mismatch = Assert.Throws<SndbServerException>(() => invalid.ExecuteNonQuery());
+            Assert.Equal("sql_error", mismatch.Error);
+            Assert.Contains("维度不匹配", mismatch.ServerMessage, StringComparison.Ordinal);
+            invalid.Parameters.Clear();
+            invalid.Parameters.AddWithValue("@embedding", new float[] { float.NaN });
+            Assert.Throws<ArgumentException>(() => invalid.ExecuteNonQuery());
+            invalid.Parameters.Clear();
+            invalid.Parameters.AddWithValue("@embedding", Array.Empty<float>());
+            Assert.Throws<ArgumentException>(() => invalid.ExecuteNonQuery());
+        }
+
+        foreach (string protocol in new[] { "rest", "frame-http2" })
+        {
+            using var readConnection = new SndbConnection(ConnectionString(
+                protocol == "rest" ? _http11Url : _frameH2Url, protocol));
+            readConnection.Open();
+            using var query = readConnection.CreateCommand();
+            query.CommandText = "SELECT embedding, time, score FROM vector_contract ORDER BY time";
+            using var reader = await query.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(typeof(float[]), reader.GetFieldType(0));
+            Assert.Equal(typeof(float[]), reader.GetSchemaTable()!.Rows[0][SchemaTableColumn.DataType]);
+            Assert.Equal(new float[] { 1f, -0.5f, 0.25f }, Assert.IsType<float[]>(reader.GetValue(0)));
+            Assert.True(await reader.ReadAsync());
+            Assert.True(reader.IsDBNull(0));
+            Assert.Equal(DBNull.Value, reader.GetValue(0));
+            Assert.False(await reader.ReadAsync());
+
+            using var aggregate = readConnection.CreateCommand();
+            aggregate.CommandText = "SELECT centroid(embedding) FROM vector_contract";
+            using var aggregateReader = await aggregate.ExecuteReaderAsync();
+            Assert.True(await aggregateReader.ReadAsync());
+            Assert.Equal(typeof(float[]), aggregateReader.GetFieldType(0));
+            Assert.Equal(new float[] { 1f, -0.5f, 0.25f }, Assert.IsType<float[]>(aggregateReader.GetValue(0)));
+        }
+
+        var frames = await SendSqlFrameAsync(
+            "SELECT * FROM knn(vector_contract, embedding, @query, 1)", SqlFrameCodec.TypedResultVersion,
+            new Dictionary<string, object?> { ["query"] = new float[] { 1f, -0.5f, 0.25f } });
+        var columns = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload).Columns;
+        int vectorOrdinal = Array.IndexOf(columns, "embedding");
+        Assert.True(vectorOrdinal >= 0);
+        var rows = frames.Where(frame => SqlFrameCodec.PeekChunkKind(frame.Payload) == SqlQueryChunkKind.Rows)
+            .SelectMany(frame => SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload)).ToArray();
+        Assert.Equal(new float[] { 1f, -0.5f, 0.25f }, Assert.IsType<float[]>(Assert.Single(rows)[vectorOrdinal]));
+
+        using var knn = connection.CreateCommand();
+        knn.CommandText = "SELECT embedding FROM knn(vector_contract, embedding, @query, 1)";
+        knn.Parameters.AddWithValue("@query", new float[] { 1f, -0.5f, 0.25f });
+        using var knnReader = await knn.ExecuteReaderAsync();
+        Assert.True(await knnReader.ReadAsync());
+        Assert.Equal(new float[] { 1f, -0.5f, 0.25f }, Assert.IsType<float[]>(knnReader.GetValue(0)));
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        ObservedRequest[] requests = _requests.Where(r => r.LocalPort == h2Port).ToArray();
+        Assert.Contains(requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
+        Assert.Contains(requests, r => r.Path == "/v1/frame");
+        Assert.All(requests, r => Assert.Equal("HTTP/2", r.Protocol));
     }
 
     [Fact]
@@ -638,10 +720,10 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
     }
 
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
-        string sql, string? resultVersion)
+        string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {
         var writer = new ArrayBufferWriter<byte>();
-        SqlFrameCodec.EncodeQueryRequest(writer, 91, DatabaseName, sql);
+        SqlFrameCodec.EncodeQueryRequest(writer, 91, DatabaseName, sql, parameters);
         using var http = new HttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_frameH2Url), "/v1/frame"))
         {
