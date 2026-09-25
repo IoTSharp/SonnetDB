@@ -299,6 +299,20 @@ internal static class TableValuedFunctionExecutor
         IReadOnlyDictionary<string, string>? tagFilter,
         TimeRange timeRange)
     {
+        lock (tsdb.VectorReplacements.SyncRoot)
+            return ExecuteKnnSearchCore(tsdb, measurement, column, queryVector, k, metric, tagFilter, timeRange);
+    }
+
+    private static SelectExecutionResult ExecuteKnnSearchCore(
+        Tsdb tsdb,
+        string measurement,
+        string column,
+        float[] queryVector,
+        int k,
+        KnnMetric metric,
+        IReadOnlyDictionary<string, string>? tagFilter,
+        TimeRange timeRange)
+    {
         var schema = tsdb.Measurements.TryGet(measurement)
             ?? throw new InvalidOperationException(
                 $"knn(...) 引用的 measurement '{measurement}' 不存在。");
@@ -365,7 +379,9 @@ internal static class TableValuedFunctionExecutor
                 k,
                 metric,
                 timeRange,
-                tsdb.Tombstones);
+                tsdb.Tombstones,
+                tsdb.VectorReplacements,
+                tsdb.Query);
         }
 
         // 字段值预批量读取：按 (SeriesId × FieldColumn) 各发一次 QueryPoints，覆盖

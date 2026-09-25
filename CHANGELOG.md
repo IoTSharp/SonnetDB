@@ -7,7 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
-- GH-Issue #186 在 measurement `UPDATE` 分派时明确拒绝，说明当前点追加、墓碑和 KNN 尚无原子替换合同；嵌入式、REST 与 HTTP/2 ADO 回归确认拒绝后旧向量不变。参数化 VECTOR UPDATE 仍未实现，Issue 保持开放。
+- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，重开时校验失效记录。内部存储与旧用户 keyspace 隔离；嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
 - GH-Issue #189 将递归累计行的字符串内存估算改为保守 UTF-16 大小，避免 ASCII 字符串按 UTF-8 长度低估 32 MiB 工作表预算；补充交替宽行、截止时间、NULL 与重复路径回归。该预算仍不代表 CLR 堆峰值硬上限。

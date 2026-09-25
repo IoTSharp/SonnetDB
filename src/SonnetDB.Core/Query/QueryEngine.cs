@@ -29,6 +29,7 @@ public sealed class QueryEngine
     private readonly SeriesCatalog _catalog;
     private readonly TombstoneTable? _tombstones;
     private readonly bool _useSimdNumericAggregates;
+    private MeasurementVectorReplacementStore? _vectorReplacements;
     private ReaderMapCache? _readerMapCache;
 
     /// <summary>
@@ -64,6 +65,9 @@ public sealed class QueryEngine
         // 不再持有独立 _memTable 引用，避免 flush 换表后引用陈旧（原子快照，修 #190）。
         segments.InitializeActiveMemTable(memTable);
     }
+
+    internal void SetVectorReplacementStore(MeasurementVectorReplacementStore replacements)
+        => _vectorReplacements = replacements;
 
     /// <summary>
     /// 从一次已获取的段快照租约中，收集指定 (series, field) 在所有 MemTable（active + sealing）
@@ -146,6 +150,13 @@ public sealed class QueryEngine
             long from = query.Range.FromInclusive;
             long to = query.Range.ToInclusive;
 
+            var replacements = _vectorReplacements?.Snapshot();
+            HashSet<long>? emittedReplacements = replacements is not null
+                && replacements.Keys.Any(key => key.SeriesId == query.SeriesId
+                    && string.Equals(key.FieldName, query.FieldName, StringComparison.Ordinal))
+                ? []
+                : null;
+
             var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
 
             // 墓碑集合与查询范围无关，可在进入租约前一次取好。
@@ -221,6 +232,14 @@ public sealed class QueryEngine
                 var dp = enumerator.Current;
                 if (tombstones.Count > 0 && IsCoveredByTombstones(dp.Timestamp, tombstones))
                     continue;
+
+                if (emittedReplacements is not null
+                    && replacements!.TryGetValue((query.SeriesId, query.FieldName, dp.Timestamp), out var replacement))
+                {
+                    if (!emittedReplacements.Add(dp.Timestamp))
+                        continue;
+                    dp = new DataPoint(dp.Timestamp, replacement);
+                }
 
                 yield return dp;
                 emitted++;
@@ -339,6 +358,9 @@ public sealed class QueryEngine
 
         if (!hasBest)
             return false;
+
+        if (_vectorReplacements?.TryGet(seriesId, fieldName, best.Timestamp, out var replacement) == true)
+            best = new DataPoint(best.Timestamp, replacement);
 
         point = best;
         return true;
@@ -1159,6 +1181,9 @@ public sealed class QueryEngine
         if (!CanUseAggregateSketchAccumulator(accumulator))
             return false;
 
+        if (_vectorReplacements?.HasSeriesField(seriesId, fieldName) == true)
+            return false;
+
         if (_tombstones is not null)
         {
             var tombstoneList = _tombstones.GetForSeriesField(seriesId, fieldName);
@@ -1224,6 +1249,8 @@ public sealed class QueryEngine
 
     private bool ShouldUsePointAggregatePath(AggregateQuery query)
     {
+        if (_vectorReplacements?.HasSeriesField(query.SeriesId, query.FieldName) == true)
+            return true;
         if (query.Aggregator is Aggregator.First or Aggregator.Last)
             return true;
 

@@ -172,15 +172,6 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             Assert.Throws<ArgumentException>(() => invalid.ExecuteNonQuery());
         }
 
-        using (var update = connection.CreateCommand())
-        {
-            update.CommandText = "UPDATE vector_contract SET embedding = @embedding WHERE source = 'a'";
-            update.Parameters.AddWithValue("@embedding", new float[] { 0f, 1f, 0f });
-            var rejected = Assert.Throws<SndbServerException>(() => update.ExecuteNonQuery());
-            Assert.Equal("sql_error", rejected.Error);
-            Assert.Contains("measurement UPDATE 尚不支持", rejected.ServerMessage, StringComparison.Ordinal);
-        }
-
         foreach (string protocol in new[] { "rest", "frame-http2" })
         {
             using var readConnection = new SndbConnection(ConnectionString(
@@ -228,6 +219,19 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Contains(requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
         Assert.Contains(requests, r => r.Path == "/v1/frame");
         Assert.All(requests, r => Assert.Equal("HTTP/2", r.Protocol));
+
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE vector_contract SET embedding = @embedding WHERE source = 'a'";
+            update.Parameters.AddWithValue("@embedding", new float[] { 0f, 1f, 0f });
+            Assert.Equal(1, update.ExecuteNonQuery());
+        }
+        using var afterUpdate = connection.CreateCommand();
+        afterUpdate.CommandText = "SELECT embedding FROM knn(vector_contract, embedding, @query, 1)";
+        afterUpdate.Parameters.AddWithValue("@query", new float[] { 1f, -0.5f, 0.25f });
+        using var updatedReader = await afterUpdate.ExecuteReaderAsync();
+        Assert.True(await updatedReader.ReadAsync());
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(updatedReader.GetValue(0)));
     }
 
     [Fact]

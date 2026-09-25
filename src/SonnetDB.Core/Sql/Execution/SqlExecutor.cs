@@ -2582,11 +2582,11 @@ public static class SqlExecutor
         }
 
         if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
-            && tsdb.Measurements.TryGet(update.TableName) is not null)
+            && tsdb.Measurements.TryGet(update.TableName) is { } measurementSchema)
         {
-            throw new NotSupportedException(
-                "measurement UPDATE 尚不支持：现有时序点追加/WAL/墓碑与 KNN 索引没有原子向量替换语义；"
-                + "请勿用同时间戳 INSERT 模拟 UPDATE。");
+            if (transaction is not null)
+                throw new NotSupportedException("轻事务当前不支持 measurement VECTOR UPDATE。");
+            return MeasurementVectorUpdateExecutor.Execute(tsdb, update, measurementSchema);
         }
 
         return ExecuteTableUpdateWithTriggers(

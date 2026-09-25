@@ -7,10 +7,12 @@ namespace SonnetDB.Kv;
 /// </summary>
 public sealed class KvKeyspaceManager : IDisposable
 {
+    private const string MeasurementVectorReplacementDirectoryName = "measurement-vector-replacements";
     private readonly object _sync = new();
     private readonly Dictionary<string, KvKeyspace> _opened = new(StringComparer.Ordinal);
     private readonly KvOptions _options;
     private readonly KvDiskReadBudget _diskReadBudget;
+    private KvKeyspace? _measurementVectorReplacements;
     private bool _disposed;
 
     /// <summary>
@@ -39,6 +41,28 @@ public sealed class KvKeyspaceManager : IDisposable
     /// <param name="name">Keyspace 名称，只允许字母、数字、点、下划线和短横线。</param>
     /// <returns>已打开的 <see cref="KvKeyspace"/> 实例。</returns>
     public KvKeyspace Open(string name)
+        => OpenCore(name);
+
+    internal KvKeyspace OpenMeasurementVectorReplacements()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_measurementVectorReplacements is { IsDisposed: false } existing)
+                return existing;
+            _measurementVectorReplacements = KvKeyspace.Open(
+                MeasurementVectorReplacementDirectoryName,
+                MeasurementVectorReplacementDirectory,
+                _options with { SyncWalOnEveryWrite = true },
+                _diskReadBudget);
+            return _measurementVectorReplacements;
+        }
+    }
+
+    internal string MeasurementVectorReplacementDirectory =>
+        Path.Combine(RootDirectory, "internal", MeasurementVectorReplacementDirectoryName);
+
+    private KvKeyspace OpenCore(string name)
     {
         ValidateName(name);
         SqlRagResourceScope.Demand(name);
@@ -95,6 +119,8 @@ public sealed class KvKeyspaceManager : IDisposable
                 pair.Value.CreateSnapshot();
                 names.Add(pair.Key);
             }
+
+            _measurementVectorReplacements?.CreateSnapshot();
 
             return names.AsReadOnly();
         }
@@ -165,6 +191,10 @@ public sealed class KvKeyspaceManager : IDisposable
                 }
             }
 
+            if (_measurementVectorReplacements is { IsDisposed: false } internalStore
+                && File.Exists(Path.Combine(internalStore.RootDirectory, KvCleanupManifest.FileName)))
+                result += internalStore.CleanupPendingFilesWithResult(maxFilesPerKeyspace);
+
             return result;
         }
     }
@@ -186,6 +216,12 @@ public sealed class KvKeyspaceManager : IDisposable
                 KvCleanupStatus status = keyspace.GetCleanupStatus();
                 result += new KvCleanupRoundResult(0, 0, 0, status.PendingFiles, status.PendingBytes);
             }
+            if (_measurementVectorReplacements is { IsDisposed: false } internalStore
+                && File.Exists(Path.Combine(internalStore.RootDirectory, KvCleanupManifest.FileName)))
+            {
+                KvCleanupStatus status = internalStore.GetCleanupStatus();
+                result += new KvCleanupRoundResult(0, 0, 0, status.PendingFiles, status.PendingBytes);
+            }
             return result;
         }
     }
@@ -205,6 +241,7 @@ public sealed class KvKeyspaceManager : IDisposable
             {
                 foreach (var keyspace in _opened.Values)
                     keyspace.Dispose();
+                _measurementVectorReplacements?.Dispose();
             }
             finally
             {
