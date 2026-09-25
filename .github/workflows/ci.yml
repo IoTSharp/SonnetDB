@@ -33,8 +33,8 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          git apply --check .github/issue-184-commit-readback.patch
-          git apply .github/issue-184-commit-readback.patch
+          git apply --recount --check .github/issue-184-commit-readback.patch
+          git apply --recount .github/issue-184-commit-readback.patch
           git fetch origin main
           git checkout origin/main -- .github/workflows/ci.yml
           rm .github/issue-184-commit-readback.patch
