@@ -210,6 +210,22 @@ public sealed class SqlFrameCodecTests
     }
 
     [Fact]
+    public void RowsFrame_LegacyDecimal_UsesFloat64InDenseAndVariantColumns()
+    {
+        var rows = MakeRows(
+            [9007199254740993.125000m, 1m],
+            [2m, "mixed"]);
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRowsFrame(writer, 1, rows, 0, rows.Count, 2);
+
+        object?[][] decoded = SqlFrameCodec.DecodeQueryRowsFrame(ParseSingleFrame(writer, out _));
+        Assert.Equal(Convert.ToDouble(9007199254740993.125000m), Assert.IsType<double>(decoded[0][0]));
+        Assert.Equal(2d, Assert.IsType<double>(decoded[1][0]));
+        Assert.Equal(1d, Assert.IsType<double>(decoded[0][1]));
+        Assert.Equal("mixed", Assert.IsType<string>(decoded[1][1]));
+    }
+
+    [Fact]
     public void RowsFrame_RoundTrip_ExtendedValueTypes()
     {
         var utc = new DateTime(2026, 7, 5, 12, 0, 0, DateTimeKind.Utc);
@@ -354,7 +370,7 @@ public sealed class SqlFrameCodecTests
     private static object?[][] RoundTripRows(IReadOnlyList<IReadOnlyList<object?>> rows, int columnCount)
     {
         var writer = new ArrayBufferWriter<byte>();
-        SqlFrameCodec.EncodeQueryRowsFrame(writer, 1, rows, 0, rows.Count, columnCount);
+        SqlFrameCodec.EncodeQueryRowsFrame(writer, 1, rows, 0, rows.Count, columnCount, exactDecimal: true);
         var payload = ParseSingleFrame(writer, out FrameHeader header);
         Assert.True(header.IsResponse);
         Assert.Equal(SqlQueryChunkKind.Rows, SqlFrameCodec.PeekChunkKind(payload));
