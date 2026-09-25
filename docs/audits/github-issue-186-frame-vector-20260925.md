@@ -94,3 +94,9 @@ dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --verbosity qu
 4. 吸收当前本机 `main` 后，定向 Core `SqlVectorParameterTests` 19/19（含累计字节预算和 65 条分页恢复）、真实 REST 与 HTTP/2 ADO `RemoteAdoHttp2TransportTests|RemoteVectorParameterTests` 18/18；子进程在 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三种数据库重开校验均通过。备份恢复、Flush/Compaction、同步故障、预算拒绝、Retention、DROP 同名重建、旧用户 keyspace、稀疏目标拒绝与并发 KNN 均有定向测试；最终代码的 win-x64 Server NativeAOT publish `/warnaserror` 退出 0。完整 Core 首轮 5250/5251，唯一失败为 `KvAtomicRestResponseTests` 的 `set-conditional` 用例，单独复验 4/4 通过；吸收本机 `main` 后第二、三轮均为 5258/5259，唯一失败为 `KvRedirectTests.Create_WithMixedRedirectPolicies_IsolatesCachedHandlers`，单独复验 2/2 通过。这三轮均不得记为全绿；最后的 128 MiB 预算及分页恢复修改只执行了定向 Core 和 AOT，未重跑完整 Core。
 
 原生 SQL Frame 请求仍只读；`Protocol=frame-http2` 的 ADO 写入仍走 REST 回落。轻事务、JOIN/FROM、RETURNING、GEO/字段残差谓词、稀疏目标补列、NULL VECTOR 与关系表 VECTOR UPDATE 不在本切片支持范围内。GitHub Issue 仍须以合入和线上回读状态为准。
+
+## 最终分支复验（未合入/发布）
+
+吸收远端 `main`（`7ce5aef8`）后的代码提交 `c9aede8e` 上，完整 Core 测试 **5282/5282 通过**，真实 REST/HTTP2 ADO 定向测试 **18/18 通过**，win-x64 Server NativeAOT publish `/warnaserror` 退出码 **0**。`git diff --check origin/main...HEAD` 无输出。此前三轮完整 Core 的单例失败仍保留在上文作为历史证据，不能改写为当时通过。
+
+另行构建 `SonnetDB.VectorCrashWorker` 为 **0 警告、0 错误**；在最终代码上分别于 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三个独立数据库的重开校验均输出 `VERIFIED`。这是手工子进程验收，不计入 5282 个 Core 自动测试。上述结果验证了受测平台与故障点，不能证明所有掉电、磁盘故障或并发交错均无风险；线上关闭 #186 仍以 PR 合入及 Issue 状态为准。
