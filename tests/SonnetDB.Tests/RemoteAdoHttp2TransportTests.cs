@@ -172,6 +172,15 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             Assert.Throws<ArgumentException>(() => invalid.ExecuteNonQuery());
         }
 
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE vector_contract SET embedding = @embedding WHERE source = 'a'";
+            update.Parameters.AddWithValue("@embedding", new float[] { 0f, 1f, 0f });
+            var rejected = Assert.Throws<SndbServerException>(() => update.ExecuteNonQuery());
+            Assert.Equal("sql_error", rejected.Error);
+            Assert.Contains("measurement UPDATE 尚不支持", rejected.ServerMessage, StringComparison.Ordinal);
+        }
+
         foreach (string protocol in new[] { "rest", "frame-http2" })
         {
             using var readConnection = new SndbConnection(ConnectionString(

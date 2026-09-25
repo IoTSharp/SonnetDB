@@ -115,4 +115,35 @@ public sealed class RemoteVectorParameterTests : IAsyncLifetime
         Assert.Equal(new float[] { 1.25f, -0.5f, 3f }, Assert.IsType<float[]>(reader.GetValue(0)));
         Assert.False(reader.Read());
     }
+
+    [Fact]
+    public void Remote_Rest_VectorUpdateWithoutReplacementContract_RejectsAndPreservesValue()
+    {
+        using var connection = new SndbConnection(
+            $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{DatabaseName};Token={AdminToken};Protocol=rest;Timeout=30");
+        connection.Open();
+        using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))";
+            setup.ExecuteNonQuery();
+            setup.CommandText = "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])";
+            Assert.Equal(1, setup.ExecuteNonQuery());
+        }
+
+        using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE docs SET embedding = @embedding WHERE source = 'a'";
+            update.Parameters.AddWithValue("@embedding", new float[] { 0f, 1f, 0f });
+            var error = Assert.Throws<SndbServerException>(() => update.ExecuteNonQuery());
+            Assert.Equal("sql_error", error.Error);
+            Assert.Contains("measurement UPDATE 尚不支持", error.ServerMessage, StringComparison.Ordinal);
+        }
+
+        using var select = connection.CreateCommand();
+        select.CommandText = "SELECT embedding FROM docs WHERE source = 'a'";
+        using var reader = select.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(reader.GetValue(0)));
+        Assert.False(reader.Read());
+    }
 }
