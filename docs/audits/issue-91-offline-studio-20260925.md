@@ -10,7 +10,7 @@
 4. 在 SQL 编辑器提交 `INSERT INTO inspections (id, note) VALUES (2, 'managed in Studio')`，经写入预览确认后查询得到 2 行。[工作台截图](../assets/issue-91-offline-studio.png)显示原行和新增行。
 5. 停止 Server，使用嵌入式 CLI 直接重开原目录，`SELECT id, note FROM inspections ORDER BY id` 返回 `offline sample` 和 `managed in Studio` 两行。浏览器记录中的动态请求全部指向 `127.0.0.1`；未修改系统网络或防火墙。
 
-自动化：Core 挂载/空目录/误删保护 2/2；Studio 宿主和 bridge 专项 16/16（含数据库被占用时恢复原 Server）；浏览器目录选择入口 e2e 1/1；Server Release 与 Web 生产构建成功。目录选择 e2e 使用浏览器 fixture，宿主进程测试使用真实 Server；两者不替代 WebView2 真机操作。
+自动化：Core 挂载/空目录/误删保护 2/2；Studio 宿主和 bridge 专项 16/16（含数据库被占用时恢复原 Server）；浏览器目录选择入口 e2e 1/1；Server Release 与 Web 生产构建成功。整合工作区恢复 NuGet 资产后，完整 Studio Release 套件 58/58 通过；第一次直接使用 `--no-restore` 时缺少 `System.IO.Hashing` 10.0.12，结果为 57/58，不能计为通过。独立工作树执行 Server `win-x64` NativeAOT `/warnaserror` 发布成功，未见 IL/AOT 警告。目录选择 e2e 使用浏览器 fixture，宿主进程测试使用真实 Server；这些验证不替代 WebView2 真机操作。
 
 ## 剩余证据
 
