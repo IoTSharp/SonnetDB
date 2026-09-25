@@ -15,7 +15,7 @@ command.CommandText = $"INSERT INTO {table} (name) VALUES ('first'), ('second') 
 using (var rows = command.ExecuteReader())
 {
     if (rows.FieldCount != 3 || rows.GetName(0) != "id"
-        || (scenario != "legacy" && rows.GetFieldType(0) != typeof(long)))
+        || (scenario == "current" && rows.GetFieldType(0) != typeof(long)))
         throw new InvalidOperationException("INSERT RETURNING metadata differs from the expected contract.");
     for (long id = 1; id <= 2; id++)
     {
@@ -47,6 +47,10 @@ if (scenario == "old-server")
     catch (NotSupportedException)
     {
         transaction.Rollback();
+        command.Transaction = null;
+        command.CommandText = $"SELECT name FROM {table} WHERE id = 1";
+        if (!Equals(command.ExecuteScalar(), "first"))
+            throw new InvalidOperationException("Old Server rejection left a partial UPSERT write.");
         Console.WriteLine("PASS current package rejects transactional UPSERT on old Server");
         return;
     }
