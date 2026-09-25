@@ -1341,7 +1341,7 @@ SELECT id FROM managed_devices
 ORDER BY id;
 ```
 
-`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
+`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。`INTERSECT` 优先于 `UNION` / `EXCEPT`，同优先级运算从左到右应用。`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
 
 分页子句（兼容两种风格）：
 

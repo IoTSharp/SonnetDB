@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #189 将递归累计行的字符串内存估算改为保守 UTF-16 大小，避免 ASCII 字符串按 UTF-8 长度低估 32 MiB 工作表预算；补充交替宽行、截止时间、NULL 与重复路径回归。该预算仍不代表 CLR 堆峰值硬上限。
 - **GH-Issue #191 UPDATE JOIN 索引路径**：保持非唯一来源按声明顺序取首行；唯一主键或唯一索引匹配改用索引嵌套循环，LEFT JOIN 未命中行及受影响目标行数保持不变。
 - **GH-Issue #194 UPDATE/DELETE RETURNING 合同**：直接 DELETE 以已读取行的完整前像与版本参与提交校验，避免并发变更后返回陈旧行；级联删除只计目标表受影响行。远程轻事务预览按批内语句位置解析连续 RETURNING 结果；空结果也保留声明列类型、可空性、主键和 ROWVERSION 元数据，覆盖嵌入式 ADO、REST NDJSON 与 HTTP/2 ADO 写入回落。

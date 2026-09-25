@@ -1915,6 +1915,8 @@ public static class SqlExecutor
         var first = executeBranch(left);
         var rows = new List<IReadOnlyList<object?>>();
         AddRows(first.Rows);
+        List<IReadOnlyList<object?>> intersectGroup = rows;
+        SqlSetOperationKind? pendingOperation = null;
 
         foreach (SqlSetOperation operation in statement.SetOperationList)
         {
@@ -1925,38 +1927,54 @@ public static class SqlExecutor
                     $"集合运算分支列数不一致：期望 {first.Columns.Count} 列，实际 {branch.Columns.Count} 列。");
             }
 
-            switch (operation.Kind)
+            if (operation.Kind == SqlSetOperationKind.Intersect)
+            {
+                var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
+                intersectGroup = SqlBlockingOperators
+                    .DistinctRows(intersectGroup.Where(right.Contains), DistinctRowComparer.Instance)
+                    .ToList();
+                continue;
+            }
+
+            if (pendingOperation is { } previous)
+                ApplyLowerPrecedence(previous, intersectGroup);
+            else
+                rows = intersectGroup;
+            pendingOperation = operation.Kind;
+            intersectGroup = branch.Rows.ToList();
+        }
+
+        if (pendingOperation is { } finalOperation)
+            ApplyLowerPrecedence(finalOperation, intersectGroup);
+        else
+            rows = intersectGroup;
+
+        var combined = new SelectExecutionResult(first.Columns, rows);
+        return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
+
+        void ApplyLowerPrecedence(SqlSetOperationKind kind, IReadOnlyList<IReadOnlyList<object?>> rightRows)
+        {
+            switch (kind)
             {
                 case SqlSetOperationKind.Union:
-                    AddRows(branch.Rows);
+                    AddRows(rightRows);
                     rows = ApplyDistinct(new SelectExecutionResult(first.Columns, rows)).Rows.ToList();
                     break;
                 case SqlSetOperationKind.UnionAll:
-                    AddRows(branch.Rows);
+                    AddRows(rightRows);
                     break;
-                case SqlSetOperationKind.Intersect:
-                {
-                    var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
-                    rows = SqlBlockingOperators
-                        .DistinctRows(rows.Where(right.Contains), DistinctRowComparer.Instance)
-                        .ToList();
-                    break;
-                }
                 case SqlSetOperationKind.Except:
                 {
-                    var right = new HashSet<IReadOnlyList<object?>>(branch.Rows, DistinctRowComparer.Instance);
+                    var right = new HashSet<IReadOnlyList<object?>>(rightRows, DistinctRowComparer.Instance);
                     rows = SqlBlockingOperators
                         .DistinctRows(rows.Where(row => !right.Contains(row)), DistinctRowComparer.Instance)
                         .ToList();
                     break;
                 }
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(operation.Kind), operation.Kind, "未知集合运算。");
+                    throw new ArgumentOutOfRangeException(nameof(kind), kind, "未知集合运算。");
             }
         }
-
-        var combined = new SelectExecutionResult(first.Columns, rows);
-        return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
 
         void AddRows(IEnumerable<IReadOnlyList<object?>> source)
         {

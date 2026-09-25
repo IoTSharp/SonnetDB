@@ -65,6 +65,25 @@ public sealed class SqlSetOperationTests : IDisposable
         Assert.Contains("集合运算分支列数不一致", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Execute_IntersectBeforeUnionAndExcept_UsesStandardPrecedence()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateRows(db);
+        SqlExecutor.Execute(db, "CREATE TABLE third_rows (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO third_rows (id) VALUES (3)");
+
+        var union = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM left_rows UNION SELECT id FROM right_rows "
+            + "INTERSECT SELECT id FROM third_rows ORDER BY id"));
+        Assert.Equal([1L, 2L, 3L], union.Rows.Select(row => Assert.IsType<long>(row[0])).ToArray());
+
+        var except = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM left_rows EXCEPT SELECT id FROM right_rows "
+            + "INTERSECT SELECT id FROM third_rows ORDER BY id"));
+        Assert.Equal([1L, 2L], except.Rows.Select(row => Assert.IsType<long>(row[0])).ToArray());
+    }
+
     private static void CreateRows(Tsdb db)
     {
         SqlExecutor.Execute(db, "CREATE TABLE left_rows (id INT, PRIMARY KEY (id))");
