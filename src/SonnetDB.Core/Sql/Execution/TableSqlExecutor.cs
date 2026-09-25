@@ -5977,7 +5977,7 @@ internal static class TableSqlExecutor
         PaginationSpec? pagination)
     {
         if (pagination is null)
-            return new SelectExecutionResult(columns, rows.ToArray());
+            return new SelectExecutionResult(columns, RetainRows(rows).ToArray());
 
         int offset = pagination.Offset;
         int take = pagination.Fetch ?? int.MaxValue;
@@ -5994,13 +5994,22 @@ internal static class TableSqlExecutor
                 continue;
             }
 
-            RecursiveCteBranchBudget.Current?.Retain(row);
+            SqlRowRetentionBudget.Current?.Retain(row);
             selected.Add(row);
             if (selected.Count >= take)
                 break;
         }
 
         return new SelectExecutionResult(columns, selected);
+    }
+
+    private static IEnumerable<IReadOnlyList<object?>> RetainRows(IEnumerable<IReadOnlyList<object?>> rows)
+    {
+        foreach (IReadOnlyList<object?> row in rows)
+        {
+            SqlRowRetentionBudget.Current?.Retain(row);
+            yield return row;
+        }
     }
 
     private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expression)

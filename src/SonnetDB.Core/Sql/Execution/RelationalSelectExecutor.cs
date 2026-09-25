@@ -1859,7 +1859,7 @@ internal static class RelationalSelectExecutor
         {
             foreach (IReadOnlyList<object?> row in source.Rows)
             {
-                RecursiveCteBranchBudget.Current?.Retain(row);
+                SqlRowRetentionBudget.Current?.Retain(row);
                 yield return row.ToArray();
             }
         }
@@ -1997,7 +1997,7 @@ internal static class RelationalSelectExecutor
         var rows = new List<object?[]>();
         foreach (IReadOnlyList<object?> row in snapshot.Rows)
         {
-            RecursiveCteBranchBudget.Current?.Retain(row);
+            SqlRowRetentionBudget.Current?.Retain(row);
             rows.Add(row.ToArray());
         }
         return new Relation(
@@ -2018,7 +2018,7 @@ internal static class RelationalSelectExecutor
         foreach (IReadOnlyList<object?> row in result.Rows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
-            RecursiveCteBranchBudget.Current?.Retain(row);
+            SqlRowRetentionBudget.Current?.Retain(row);
             rows.Add(row.ToArray());
         }
         return new Relation(
@@ -2137,7 +2137,7 @@ internal static class RelationalSelectExecutor
         IEnumerable<object?[]> JoinRows()
         {
             IReadOnlyList<object?[]> rightRows;
-            if (RecursiveCteBranchBudget.Current is { } budget)
+            if (SqlRowRetentionBudget.Current is { } budget)
             {
                 var retained = new List<object?[]>();
                 foreach (object?[] row in right.Rows)
@@ -3057,7 +3057,7 @@ internal static class RelationalSelectExecutor
                 {
                     actualBuildRows++;
                     SqlExecutor.ThrowIfCancellationRequested();
-                    RecursiveCteBranchBudget.Current?.Retain(buildRow);
+                    SqlRowRetentionBudget.Current?.Retain(buildRow);
                     if (TryMakeKey(buildRow, keyPairs, useRight: buildRight, out JoinValueKey key))
                     {
                         if (resources is not null && spillTable is null)
@@ -5278,7 +5278,7 @@ internal static class RelationalSelectExecutor
         }).ToArray();
         var comparer = new ResultRowSortComparer(sortItems);
         IReadOnlyList<IReadOnlyList<object?>> selected = TopN.OrderByThenPaginate(
-            RetainBranchRows(rows),
+            RetainBranchRows(rows, retainInsertRows: false),
             comparer,
             pagination?.Offset ?? 0,
             pagination?.Fetch,
@@ -5300,7 +5300,8 @@ internal static class RelationalSelectExecutor
         IEnumerable<RelationSortRow> candidates = relation.Rows
             .Select(row =>
             {
-                RecursiveCteBranchBudget.Current?.Retain(row);
+                if (SqlRowRetentionBudget.Current is { IsInsertSource: false } budget)
+                    budget.Retain(row);
                 return new RelationSortRow(
                     row,
                     orderBy
@@ -5423,19 +5424,22 @@ internal static class RelationalSelectExecutor
         var retained = new List<IReadOnlyList<object?>>();
         foreach (IReadOnlyList<object?> row in selected)
         {
-            RecursiveCteBranchBudget.Current?.Retain(row);
+            SqlRowRetentionBudget.Current?.Retain(row);
             retained.Add(row);
         }
         return new SelectExecutionResult(columns, retained);
     }
 
-    private static IEnumerable<T> RetainBranchRows<T>(IEnumerable<T> rows)
+    private static IEnumerable<T> RetainBranchRows<T>(
+        IEnumerable<T> rows,
+        bool retainInsertRows = true)
         where T : IReadOnlyList<object?>
-        => RecursiveCteBranchBudget.Current is { } budget
+        => SqlRowRetentionBudget.Current is { } budget
+            && (retainInsertRows || !budget.IsInsertSource)
             ? Retain(rows, budget)
             : rows;
 
-    private static IEnumerable<T> Retain<T>(IEnumerable<T> rows, RecursiveCteBranchBudget budget)
+    private static IEnumerable<T> Retain<T>(IEnumerable<T> rows, SqlRowRetentionBudget budget)
         where T : IReadOnlyList<object?>
     {
         foreach (T row in rows)

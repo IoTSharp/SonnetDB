@@ -853,6 +853,7 @@ internal static class SqlSpillSorter
                 resources.ThrowIfCancellationRequested();
                 if (index++ >= offset)
                 {
+                    SqlRowRetentionBudget.Current?.Retain(codec.Encode(item.Row));
                     result.Add(item.Row);
                     if (fetch is { } limit && result.Count == limit)
                         break;

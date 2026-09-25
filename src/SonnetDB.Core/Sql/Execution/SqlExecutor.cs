@@ -1913,7 +1913,8 @@ public static class SqlExecutor
             Pagination = null
         };
         var first = executeBranch(left);
-        var rows = new List<IReadOnlyList<object?>>(first.Rows);
+        var rows = new List<IReadOnlyList<object?>>();
+        AddRows(first.Rows);
 
         foreach (SqlSetOperation operation in statement.SetOperationList)
         {
@@ -1927,11 +1928,11 @@ public static class SqlExecutor
             switch (operation.Kind)
             {
                 case SqlSetOperationKind.Union:
-                    rows = ApplyDistinct(new SelectExecutionResult(first.Columns, rows.Concat(branch.Rows).ToArray()))
-                        .Rows.ToList();
+                    AddRows(branch.Rows);
+                    rows = ApplyDistinct(new SelectExecutionResult(first.Columns, rows)).Rows.ToList();
                     break;
                 case SqlSetOperationKind.UnionAll:
-                    rows.AddRange(branch.Rows);
+                    AddRows(branch.Rows);
                     break;
                 case SqlSetOperationKind.Intersect:
                 {
@@ -1956,6 +1957,15 @@ public static class SqlExecutor
 
         var combined = new SelectExecutionResult(first.Columns, rows);
         return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
+
+        void AddRows(IEnumerable<IReadOnlyList<object?>> source)
+        {
+            foreach (IReadOnlyList<object?> row in source)
+            {
+                SqlRowRetentionBudget.Current?.Retain(row);
+                rows.Add(row);
+            }
+        }
     }
 
     private static SelectExecutionResult ApplyResultOrderByAndPagination(
@@ -2713,6 +2723,7 @@ public static class SqlExecutor
         if (statement.Rows.Count != 0 || statement.IsDefaultValues)
             throw new InvalidOperationException("INSERT SELECT 不能同时指定 VALUES。");
         var options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
+        using var sourceBudget = SqlRowRetentionBudget.EnterInsertSource(options);
         int probe = (int)Math.Min(int.MaxValue, (long)options.MaxTriggerTransitionRows + 1);
         var bounded = query with
         {
@@ -2727,6 +2738,7 @@ public static class SqlExecutor
         foreach (var row in result.Rows)
         {
             budget.Add(null, row);
+            sourceBudget.Retain(row);
             rows.Add(row.Select(static value => value is decimal exact
                 ? LiteralExpression.String(exact.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 : SqlParameterBinder.ToLiteral(value)).ToArray());

@@ -1,4 +1,5 @@
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
@@ -159,8 +160,113 @@ public sealed class SqlInsertSelectTests : IDisposable
         Assert.Equal(new object?[] { 7L, 30L }, Assert.Single(inserted.Returning!.Rows));
     }
 
+    [Fact]
+    public void InsertSelect_SourceRowLimit_StopsBeforeFullSourceMaterialization()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, PRIMARY KEY (id))");
+        string values = string.Join(", ", Enumerable.Range(1, 20).Select(static id => $"({id})"));
+        Execute(db, $"INSERT INTO source_rows (id) VALUES {values}");
+        int decoded = 0;
+        db.Tables.Open("source_rows").RowDecodedTestHook = _ => decoded++;
+
+        var error = Assert.Throws<RoutineExecutionException>(() => Execute(db,
+            "INSERT INTO target_rows (id) SELECT id FROM source_rows",
+            options: new SqlExecutionOptions { MaxTriggerTransitionRows = 2 }));
+
+        Assert.Equal(RoutineErrorCodes.TransitionLimit, error.Code);
+        Assert.InRange(decoded, 1, 3);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT * FROM target_rows")).Rows);
+    }
+
+    [Fact]
+    public void InsertSelect_SourceByteLimit_StopsBeforeFullSourceMaterialization()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, payload STRING, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, payload STRING, PRIMARY KEY (id))");
+        string payload = new('x', 1_000);
+        string values = string.Join(", ", Enumerable.Range(1, 10)
+            .Select(id => $"({id}, '{payload}')"));
+        Execute(db, $"INSERT INTO source_rows (id, payload) VALUES {values}");
+        int decoded = 0;
+        db.Tables.Open("source_rows").RowDecodedTestHook = _ => decoded++;
+
+        var error = Assert.Throws<RoutineExecutionException>(() => Execute(db,
+            "INSERT INTO target_rows (id, payload) SELECT id, payload FROM source_rows",
+            options: new SqlExecutionOptions { MaxTriggerTransitionBytes = 2_500 }));
+
+        Assert.Equal(RoutineErrorCodes.TransitionLimit, error.Code);
+        Assert.InRange(decoded, 1, 2);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT * FROM target_rows")).Rows);
+    }
+
+    [Fact]
+    public void InsertSelect_JoinAggregateIntermediateLimit_RejectsBeforeTargetWrite()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE lookup_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT AUTO_INCREMENT, total INT, PRIMARY KEY (id))");
+        string values = string.Join(", ", Enumerable.Range(1, 30).Select(static id => $"({id})"));
+        Execute(db, $"INSERT INTO source_rows (id) VALUES {values}");
+        Execute(db, $"INSERT INTO lookup_rows (id) VALUES {values}");
+
+        var error = Assert.Throws<RoutineExecutionException>(() => Execute(db,
+            "INSERT INTO target_rows (total) "
+            + "SELECT COUNT(*) FROM source_rows AS s INNER JOIN lookup_rows AS l ON s.id = l.id",
+            options: new SqlExecutionOptions { MaxTriggerTransitionBytes = 1_024 }));
+
+        Assert.Equal(RoutineErrorCodes.TransitionLimit, error.Code);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT * FROM target_rows")).Rows);
+    }
+
+    [Fact]
+    public void InsertSelect_SortedTopOne_RetainsOnlySelectedSourceRow()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, PRIMARY KEY (id))");
+        string values = string.Join(", ", Enumerable.Range(1, 20).Select(static id => $"({id})"));
+        Execute(db, $"INSERT INTO source_rows (id) VALUES {values}");
+
+        var inserted = Assert.IsType<InsertExecutionResult>(Execute(db,
+            "INSERT INTO target_rows (id) SELECT id FROM source_rows ORDER BY id DESC LIMIT 1",
+            options: new SqlExecutionOptions { MaxTriggerTransitionRows = 2 }));
+
+        Assert.Equal(1, inserted.RowsInserted);
+        Assert.Equal(20L, Assert.Single(Assert.IsType<SelectExecutionResult>(
+            Execute(db, "SELECT id FROM target_rows")).Rows)[0]);
+    }
+
+    [Fact]
+    public void InsertSelect_SortedSpillOutput_RejectsOversizedSourceBeforeWrite()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, payload STRING, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, payload STRING, PRIMARY KEY (id))");
+        string payload = new('x', 1_000);
+        string values = string.Join(", ", Enumerable.Range(1, 10)
+            .Select(id => $"({id}, '{payload}')"));
+        Execute(db, $"INSERT INTO source_rows (id, payload) VALUES {values}");
+
+        var error = Assert.Throws<RoutineExecutionException>(() => Execute(db,
+            "INSERT INTO target_rows (id, payload) "
+            + "SELECT id, payload FROM source_rows ORDER BY id DESC LIMIT 3",
+            options: new SqlExecutionOptions { MaxTriggerTransitionBytes = 2_500 }));
+
+        Assert.Equal(RoutineErrorCodes.TransitionLimit, error.Code);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT * FROM target_rows")).Rows);
+    }
+
     private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });
 
-    private static object? Execute(Tsdb db, string sql, SqlTransactionContext? transaction = null)
-        => SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse(sql), null, transaction, SqlExecutionOptions.Default);
+    private static object? Execute(
+        Tsdb db,
+        string sql,
+        SqlTransactionContext? transaction = null,
+        SqlExecutionOptions? options = null)
+        => SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse(sql), null, transaction,
+            options ?? SqlExecutionOptions.Default);
 }
