@@ -29,6 +29,16 @@ SQL `INSERT`, `UPDATE`, `WHERE`, `MIN`, `MAX`, `COUNT(value)` versus `COUNT(*)`,
 - `dotnet build src/SonnetDB/SonnetDB.csproj --no-restore --configuration Release --verbosity quiet`（TIME 帧转换后复验）：**0 warnings, 0 errors**，包括 IL/AOT 分析器。
 - 相关 `git diff --check`：**passed**。
 
+SQL Frame 旧客户端兼容收口（独立工作树 `codex/issue-198-frame-compat`，基线 `2ba84b8d`）：
+
+- SQL query 帧体不变。HTTP 请求头 `X-SonnetDB-Sql-Result-Version: 2` 显式启用声明列 meta 尾部与 Decimal tag 9；无头或值 `1` 时，服务端输出历史 meta 及 Decimal Float64 tag 2。历史提交 `b8beed14^` 的解码器会拒绝 meta 尾部及大于 GeoPoint tag 8 的值标记；旧格式回归按该拒绝边界建立严格解码器。其他版本返回 `unsupported_result_version` 错误帧。
+- `SqlFrameCodec.EncodeQueryRowsFrame` 的原六参数公开签名仍存在并输出旧格式；新增七参数重载仅供已协商 v2 的调用方使用，避免已编译调用方缺少方法。
+- 新 ADO SQL Frame 客户端始终请求 v2。旧服务端忽略请求头并返回旧 meta 时，`Protocol=auto` 对只读查询回退 REST；`Protocol=frame-http2` 显式报 `frame_sql_result_version_unsupported`，不把旧 Float64 DECIMAL 报为精确 Decimal。未协商 v2 的旧客户端继续保留历史精度限制。
+- `dotnet vstest tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.Tests.dll --TestCaseFilter:FullyQualifiedName~SqlFrameCodecTests --logger:console`：**24/24 passed**，含 legacy dense/variant DECIMAL 编码。
+- `dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --configuration Release --filter "FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests|FullyQualifiedName~FrameTransportParityTests" --verbosity quiet`：**86/86 passed**。其中真实 HTTP/2 h2c 响应经严格旧 meta/rows 解码器读取，v2 精确 Decimal 值及 ADO 元数据、非法版本错误帧、模拟旧服务端的 `auto` REST 回退与强制 Frame 报错均通过。
+- `dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --configuration Release --filter "FullyQualifiedName~ObjectFrameTransportParityTests|FullyQualifiedName~TsdbBulkFrameTransportParityTests|FullyQualifiedName~KvObjectDocFrameEndpointTests" --verbosity quiet`：**47/47 passed**，覆盖共享 `FrameChannel` 发送路径上的非 SQL service。
+- `dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --no-restore --verbosity quiet`：**0 warnings, 0 errors**，包含 IL/AOT 分析器。
+
 ## Remaining Acceptance
 
-静态类型尚未覆盖所有表达式、递归 CTE、文档/measurement 等更宽查询模型；动态多类型结果仍保守报告 `object`。`SUM(INT)` 的溢出提升应由后续独立合同收紧。SQL Frame meta 在列名后增加可选声明信息尾部；新解码器兼容旧帧，但已发布的旧解码器可能拒绝新帧尾部。既有 Frame decimal tag 9 同样需要协议协商或明确最低客户端版本。NativeAOT 发布、已发布包和更宽模型兼容性尚未取证，#198 保持 open。
+静态类型尚未覆盖所有表达式、递归 CTE、文档/measurement 等更宽查询模型；动态多类型结果仍保守报告 `object`。`SUM(INT)` 的溢出提升应由后续独立合同收紧。Frame v2 的最低客户端边界已定义为显式请求头加 v2 meta/tag 9 解码能力；已发布 3.1.0 不包含此能力，首次承载它的 NuGet 版本尚未确定，旧客户端必须保持 v1。独立工作树的 NativeAOT 发布、已发布包与真实旧服务端二进制仍未取证；本次旧服务端回归通过请求头剥离模拟其响应格式。#198 保持 open。

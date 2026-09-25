@@ -413,6 +413,16 @@ internal static class FrameEndpointHandler
 
         try
         {
+            string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
+            bool typedResults = resultVersion == SqlFrameCodec.TypedResultVersion;
+            if (!typedResults && resultVersion.Length != 0 && resultVersion != "1")
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "unsupported_result_version", "不支持请求的 SQL Frame 结果格式版本。");
+                return;
+            }
+
             SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
                 ctx, registry, grants, request.Db, DatabasePermission.Read, out Tsdb tsdb);
             if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
@@ -510,13 +520,17 @@ internal static class FrameEndpointHandler
 
             // 流式回写：meta → rows × N → end。meta 与首块合并，最后一块与 end 合并；
             // 仅在确认还有后续块时中途 flush，既保留大结果反压，也避免小结果多次微小刷新。
-            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns, select.ColumnInfo);
+            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns,
+                typedResults
+                    ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null), select.Columns.Count).ToArray()
+                    : null);
 
             int position = 0;
             while (position < select.Rows.Count)
             {
                 int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
-                SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows, select.Columns.Count);
+                SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows,
+                    select.Columns.Count, exactDecimal: typedResults);
                 position += chunkRows;
                 if (position < select.Rows.Count)
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);

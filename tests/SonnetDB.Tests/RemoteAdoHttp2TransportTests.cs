@@ -15,8 +15,10 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data;
 using SonnetDB.Exceptions;
+using SonnetDB.IO;
 using SonnetDB.Json;
 using SonnetDB.Protocol;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
 using Xunit;
 
@@ -33,6 +35,7 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
     private string _http11Url = string.Empty;
     private string _frameH2Url = string.Empty;
     private string? _dataRoot;
+    private bool _suppressSqlResultVersion;
     private const string AdminToken = "ado-h2-admin";
     private const string DatabaseName = "ado_h2_transport";
 
@@ -55,6 +58,8 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         ]);
         _app.Use(async (context, next) =>
         {
+            if (_suppressSqlResultVersion)
+                context.Request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
             _requests.Enqueue(new ObservedRequest(
                 context.Connection.LocalPort,
                 context.Request.Path.Value ?? string.Empty,
@@ -505,6 +510,88 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
+    [Fact]
+    public async Task FrameHttp2_LegacyAndTypedSqlResults_NegotiateMetaAndDecimalTag()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_result_versions (id INT, amount DECIMAL(24,6), PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO h2_result_versions (id, amount) VALUES "
+            + "(1, '9007199254740993.125000')";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        const string sql = "SELECT amount FROM h2_result_versions WHERE id = 1";
+        var legacy = await SendSqlFrameAsync(sql, resultVersion: null);
+        Assert.Equal("amount", Assert.Single(DecodeLegacySqlMeta(legacy[0].Payload)));
+        Assert.Equal(Convert.ToDouble(9007199254740993.125000m),
+            DecodeLegacySingleFloatRow(legacy[1].Payload));
+        Assert.Equal(1L, SqlFrameCodec.DecodeQueryEndFrame(legacy[2].Payload).RowCount);
+        var explicitLegacy = await SendSqlFrameAsync(sql, "1");
+        Assert.Equal("amount", Assert.Single(DecodeLegacySqlMeta(explicitLegacy[0].Payload)));
+        Assert.Equal(Convert.ToDouble(9007199254740993.125000m),
+            DecodeLegacySingleFloatRow(explicitLegacy[1].Payload));
+
+        var typed = await SendSqlFrameAsync(sql, SqlFrameCodec.TypedResultVersion);
+        Assert.Throws<InvalidDataException>(() => DecodeLegacySqlMeta(typed[0].Payload));
+        Assert.Throws<InvalidDataException>(() => DecodeLegacySingleFloatRow(typed[1].Payload));
+        var (columns, info) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(typed[0].Payload);
+        Assert.Equal("amount", Assert.Single(columns));
+        Assert.Equal(TableColumnType.Decimal, Assert.Single(Assert.IsType<SelectColumnInfo[]>(info)).DataType);
+        Assert.Equal(9007199254740993.125000m,
+            Assert.IsType<decimal>(SqlFrameCodec.DecodeQueryRowsFrame(typed[1].Payload)[0][0]));
+
+        command.CommandText = sql;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.Equal(typeof(decimal), reader.GetFieldType(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(9007199254740993.125000m, Assert.IsType<decimal>(reader.GetValue(0)));
+        Assert.False(await reader.ReadAsync());
+
+        var unsupported = await SendSqlFrameAsync(sql, "3");
+        Assert.True(Assert.Single(unsupported).Header.IsError);
+        Assert.Equal("unsupported_result_version", FrameCodec.ReadErrorPayload(unsupported[0].Payload).Code);
+        Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
+    }
+
+    [Fact]
+    public async Task OldSqlFrameServer_AutoFallsBackAndForcedFrameReportsVersion()
+    {
+        _suppressSqlResultVersion = true;
+        using var auto = new SndbConnection(ConnectionString(_http11Url, "auto"));
+        auto.Open();
+        using (var setup = auto.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE h2_old_result_version (id INT, amount DECIMAL(24,6), PRIMARY KEY (id))";
+            setup.ExecuteNonQuery();
+            setup.CommandText = "INSERT INTO h2_old_result_version (id, amount) VALUES "
+                + "(1, '9007199254740993.125000')";
+            Assert.Equal(1, setup.ExecuteNonQuery());
+        }
+
+        int before = _requests.Count;
+        using (var query = auto.CreateCommand())
+        {
+            query.CommandText = "SELECT amount FROM h2_old_result_version WHERE id = 1";
+            using var reader = query.ExecuteReader();
+            Assert.Equal(typeof(decimal), reader.GetFieldType(0));
+            Assert.True(reader.Read());
+            Assert.Equal(9007199254740993.125000m, Assert.IsType<decimal>(reader.GetValue(0)));
+        }
+        ObservedRequest[] fallbackRequests = _requests.ToArray().Skip(before).ToArray();
+        Assert.Contains(fallbackRequests, request => request.Path == "/v1/frame");
+        Assert.Contains(fallbackRequests, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+
+        await using var forced = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await forced.OpenAsync();
+        await using var forcedQuery = forced.CreateCommand();
+        forcedQuery.CommandText = "SELECT amount FROM h2_old_result_version WHERE id = 1";
+        var error = await Assert.ThrowsAsync<SndbServerException>(
+            async () => await forcedQuery.ExecuteReaderAsync());
+        Assert.Equal("frame_sql_result_version_unsupported", error.Error);
+    }
+
     [Theory]
     [InlineData("rest")]
     [InlineData("auto")]
@@ -532,6 +619,62 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             .ToArray();
         Assert.NotEmpty(requests);
         Assert.All(requests, r => Assert.Equal("HTTP/1.1", r.Protocol));
+    }
+
+    private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
+        string sql, string? resultVersion)
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 91, DatabaseName, sql);
+        using var http = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_frameH2Url), "/v1/frame"))
+        {
+            Version = HttpVersion.Version20,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Content = new ByteArrayContent(writer.WrittenMemory.ToArray()),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+        if (resultVersion is not null)
+            request.Headers.Add(SqlFrameCodec.ResultVersionHeader, resultVersion);
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-sonnetdb-frame");
+        using var response = await http.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpVersion.Version20, response.Version);
+        ReadOnlySequence<byte> buffer = new(await response.Content.ReadAsByteArrayAsync());
+        var frames = new List<(FrameHeader, byte[])>();
+        while (FrameCodec.TryReadFrame(ref buffer, out var header, out var payload))
+            frames.Add((header, payload.ToArray()));
+        Assert.Equal(0, buffer.Length);
+        return frames;
+    }
+
+    private static string[] DecodeLegacySqlMeta(ReadOnlySpan<byte> payload)
+    {
+        var reader = new SpanReader(payload);
+        if (reader.ReadByte() != (byte)SqlQueryChunkKind.Meta)
+            throw new InvalidDataException("旧客户端预期 meta 帧。");
+        int count = checked((int)reader.ReadVarUInt32());
+        var columns = new string[count];
+        for (int i = 0; i < count; i++)
+            columns[i] = reader.ReadVarString();
+        if (reader.Remaining != 0)
+            throw new InvalidDataException("旧客户端拒绝 meta 尾部字节。");
+        return columns;
+    }
+
+    private static double DecodeLegacySingleFloatRow(ReadOnlySpan<byte> payload)
+    {
+        var reader = new SpanReader(payload);
+        if (reader.ReadByte() != (byte)SqlQueryChunkKind.Rows
+            || reader.ReadVarUInt32() != 1
+            || reader.ReadVarUInt32() != 1
+            || reader.ReadByte() != (byte)SqlValueKind.Float64
+            || reader.ReadByte() != 0)
+            throw new InvalidDataException("旧客户端不支持此行的值标记。");
+        double value = reader.ReadDouble();
+        if (reader.Remaining != 0)
+            throw new InvalidDataException("旧客户端拒绝 rows 尾部字节。");
+        return value;
     }
 
     private string ConnectionString(string baseUrl, string protocol)

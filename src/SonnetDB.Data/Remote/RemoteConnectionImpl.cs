@@ -228,9 +228,18 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
-            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken, sqlResultV2: true)
+                .ConfigureAwait(false);
             if (frames is not null)
-                return BuildSqlResult(frames);
+            {
+                if (frames[0].Header.IsError
+                    || SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload).ColumnInfo is not null)
+                    return BuildSqlResult(frames);
+                if (_builder.ResolveProtocol() == SndbTransportProtocol.FrameHttp2)
+                    throw new SndbServerException("frame_sql_result_version_unsupported",
+                        "服务端未协商 SQL Frame 结果格式 v2；请升级服务端或改用 Protocol=rest。",
+                        HttpStatusCode.OK);
+            }
         }
 
         var url = sessionUrl ?? $"v1/db/{Uri.EscapeDataString(_database)}/sql";

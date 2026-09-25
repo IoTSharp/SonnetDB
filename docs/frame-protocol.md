@@ -386,20 +386,31 @@ meta → rows × N → end，服务端逐块编码逐块 flush——响应缓冲
 命名参数绑定 `@name` / `:name` 占位符（同 REST 参数化查询 #213），值类型标记：
 `0`=null（无值字节）、`1`=int64（i64 LE）、`2`=float64（f64 LE）、`3`=bool（u8）、`4`=string（varstr）。
 
+SQL 查询结果格式通过 HTTP 请求头 `X-SonnetDB-Sql-Result-Version` 协商；请求帧体本身保持不变。
+不带请求头或显式发送 `1` 时，服务端返回旧版 meta（只有列名）和旧版 rows：DECIMAL
+沿用 Float64 标记 `2`，可能丢失十进制精度。发送 `2` 时，meta 在列名后追加版本字节 `1`
+及每列两个字节的声明类型/标志；DECIMAL 使用精确值标记 `9`（不变量格式的 varstr）。
+其他版本收到 `unsupported_result_version` 错误帧。请求头只影响 SQL service，其他 Frame service 不变。
+旧版解码器会拒绝 v2 meta 尾部和标记 `9`，因此旧客户端不得发送版本 `2`。
+最低客户端能力是同时发送该请求头并解码 v2 meta/Decimal 标记；已发布的 3.1.0 不包含此能力，
+首次承载 v2 的包版本尚未确定，不能仅凭服务端版本推断客户端可用。
+新版 ADO 客户端请求 v2；旧服务端忽略请求头并返回旧 meta 时，`Protocol=auto` 对只读 SQL
+回退 REST，`Protocol=frame-http2` 返回 `frame_sql_result_version_unsupported`。
+
 ### 响应帧序列
 
 每帧 Flags=`Response`、`StreamId` 回显，帧体首字节为**块类型**：
 
 | chunkKind | 名称 | 布局 |
 |-----------|------|------|
-| 1 | meta | columnCount varuint（≤4096）+ 列名 varstr × columnCount |
+| 1 | meta | columnCount varuint（≤4096）+ 列名 varstr × columnCount；协商 v2 后追加声明列信息 |
 | 2 | rows | rowCount varuint（1~65536）+ columnCount varuint + 列 × columnCount（见下） |
 | 3 | end | rowCount varuint64（总行数）+ elapsedMs f64 LE |
 
 **rows 帧按列存储**，每列 = u8 列类型标记 + 值序列：
 
 - 列类型 `0`（全 null 列）：无后续字节；
-- 列类型 `1`~`8`（单一类型列）：u8 hasNulls（0/1）+ 可选 null 位图
+- 列类型 `1`~`8`（协商 v2 后还包括 `9`；单一类型列）：u8 hasNulls（0/1）+ 可选 null 位图
   （`(rowCount+7)/8` 字节，bit=1 表示该行有值，LSB-first）+ 紧凑值序列（仅有值行按行序）；
 - 列类型 `255`（variant 混合列）：每行 u8 值标记 + 值（标记 `0`=null 无值字节）。
 
@@ -415,6 +426,7 @@ meta → rows × N → end，服务端逐块编码逐块 flush——响应缓冲
 | 6 | Timestamp | i64 LE（UTC ticks） |
 | 7 | Vector | varuint 维度 + f32 LE × 维度 |
 | 8 | GeoPoint | f64 lat + f64 lon |
+| 9 | Decimal（仅协商 v2） | 不变量格式十进制 varstr |
 
 类型按块内实际值推断：整型族归一 Int64、浮点族归一 Float64，**整型与浮点混列不合并**
 （走 variant，避免大 long → double 精度损失，对齐 #219 Q15 语义）；`Guid` 与未识别类型按
@@ -671,7 +683,7 @@ HTTP/1.1 请求回 400）。请求体是长生命周期的帧流，响应体是�
 > （仅 ASCII）——这是帧独有能力，非等价差异。get 帧路径的 `Metadata` / `Tags` 来自服务端 meta 帧，
 > REST get 不回传这两张字典（S3 兼容语义），此为已知差异。
 
-当前服务端对可静态确定的关系 SELECT 列在 REST NDJSON 与 Frame meta 中提供声明类型。ADO 两条路径均将关系 DATETIME、TIME、BLOB 分别还原为 `DateTime`、`TimeOnly`、`byte[]`，在首行读取前也能报告声明类型；INT 与 DECIMAL 保留整数和十进制精度。旧服务端响应缺少声明类型时，REST 仍按 JSON 行值推断，Frame 按帧类型标签解码，结果可能不同。动态投影和其他查询模型的类型信息仍可能为 `object`，不能据此推断所有 SQL 结果已跨协议一致。MQ / KV / 文档传输合同独立于此 SQL 元数据扩展。
+当前服务端对可静态确定的关系 SELECT 列在 REST NDJSON 与协商 v2 的 Frame meta 中提供声明类型。ADO 两条路径均将关系 DATETIME、TIME、BLOB 分别还原为 `DateTime`、`TimeOnly`、`byte[]`，在首行读取前也能报告声明类型；INT 与 DECIMAL 保留整数和十进制精度。旧服务端响应缺少声明类型时，REST 仍按 JSON 行值推断，新版 ADO 的 SQL Frame 查询按上述版本规则回退或报错。动态投影和其他查询模型的类型信息仍可能为 `object`，不能据此推断所有 SQL 结果已跨协议一致。MQ / KV / 文档传输合同独立于此 SQL 元数据扩展。
 
 ## 限制与配额
 

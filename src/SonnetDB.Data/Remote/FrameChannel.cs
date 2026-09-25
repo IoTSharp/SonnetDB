@@ -59,7 +59,8 @@ internal sealed class FrameChannel
     public async Task<IReadOnlyList<FrameMessage>?> TrySendAsync(
         ReadOnlyMemory<byte> requestFrames,
         CancellationToken cancellationToken,
-        bool allowFallback = true)
+        bool allowFallback = true,
+        bool sqlResultV2 = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_state == CapabilityState.Rest)
@@ -69,7 +70,15 @@ internal sealed class FrameChannel
         {
             using var content = new ReadOnlyMemoryContent(requestFrames);
             content.Headers.ContentType = new MediaTypeHeaderValue(FrameContentType);
-            using var response = await _http.PostAsync(FrameUrl, content, cancellationToken).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Post, FrameUrl)
+            {
+                Content = content,
+                Version = _http.DefaultRequestVersion,
+                VersionPolicy = _http.DefaultVersionPolicy,
+            };
+            if (sqlResultV2)
+                request.Headers.Add(SqlFrameCodec.ResultVersionHeader, SqlFrameCodec.TypedResultVersion);
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

@@ -19,6 +19,12 @@ namespace SonnetDB.Protocol;
 /// </summary>
 public static class SqlFrameCodec
 {
+    /// <summary>HTTP Frame 查询的 SQL 结果格式协商请求头；缺失时使用旧格式。</summary>
+    public const string ResultVersionHeader = "X-SonnetDB-Sql-Result-Version";
+
+    /// <summary>携带声明列信息和精确 DECIMAL 值标记的 SQL 结果格式版本。</summary>
+    public const string TypedResultVersion = "2";
+
     /// <summary>名字（db / 列名 / 参数名）UTF-8 字节数上限。</summary>
     public const int MaxNameBytes = 512;
 
@@ -314,8 +320,20 @@ public static class SqlFrameCodec
         int start,
         int count,
         int columnCount)
+        => EncodeQueryRowsFrame(writer, streamId, rows, start, count, columnCount, exactDecimal: false);
+
+    /// <summary>按协商结果编码 SQL rows 帧；旧客户端使用不带 <paramref name="exactDecimal"/> 的重载。</summary>
+    /// <param name="exactDecimal">为 false 时按旧协议把 DECIMAL 编码为 Float64；仅协商 v2 后可设为 true。</param>
+    public static void EncodeQueryRowsFrame(
+        IBufferWriter<byte> writer,
+        uint streamId,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        int start,
+        int count,
+        int columnCount,
+        bool exactDecimal)
         => EncodeRowsFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
-            streamId, rows, start, count, columnCount);
+            streamId, rows, start, count, columnCount, exactDecimal);
 
     /// <summary>
     /// rows 帧编码内核：块布局固定，帧头 service/op 由调用方指定。
@@ -328,7 +346,8 @@ public static class SqlFrameCodec
         IReadOnlyList<IReadOnlyList<object?>> rows,
         int start,
         int count,
-        int columnCount)
+        int columnCount,
+        bool exactDecimal = false)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -351,7 +370,7 @@ public static class SqlFrameCodec
             + SpanWriter.MeasureVarUInt32((uint)columnCount);
         for (int c = 0; c < columnCount; c++)
         {
-            plans[c] = PlanColumn(rows, start, count, c);
+            plans[c] = PlanColumn(rows, start, count, c, exactDecimal);
             payloadLength += plans[c].Bytes;
         }
 
@@ -367,7 +386,7 @@ public static class SqlFrameCodec
         w.WriteVarUInt32((uint)count);
         w.WriteVarUInt32((uint)columnCount);
         for (int c = 0; c < columnCount; c++)
-            WriteColumn(ref w, rows, start, count, c, plans[c]);
+            WriteColumn(ref w, rows, start, count, c, plans[c], exactDecimal);
         writer.Advance(FrameHeader.Size + (int)payloadLength);
     }
 
@@ -533,7 +552,8 @@ public static class SqlFrameCodec
         public long Bytes;      // 该列编码后的总字节数（含 kind 字节）
     }
 
-    private static ColumnPlan PlanColumn(IReadOnlyList<IReadOnlyList<object?>> rows, int start, int count, int col)
+    private static ColumnPlan PlanColumn(
+        IReadOnlyList<IReadOnlyList<object?>> rows, int start, int count, int col, bool exactDecimal)
     {
         byte kind = (byte)SqlValueKind.Null;
         bool variant = false;
@@ -544,7 +564,7 @@ public static class SqlFrameCodec
             if (value is null)
                 continue;
             presentCount++;
-            byte k = (byte)ClassifyValue(value);
+            byte k = (byte)ClassifyValue(value, exactDecimal);
             if (kind == (byte)SqlValueKind.Null)
                 kind = k;
             else if (kind != k)
@@ -567,7 +587,7 @@ public static class SqlFrameCodec
             {
                 object? value = rows[r][col];
                 if (value is not null)
-                    bytes += MeasureValue(ClassifyValue(value), value);
+                    bytes += MeasureValue(ClassifyValue(value, exactDecimal), value);
             }
             plan.Bytes = bytes;
             return plan;
@@ -594,7 +614,8 @@ public static class SqlFrameCodec
         int start,
         int count,
         int col,
-        in ColumnPlan plan)
+        in ColumnPlan plan,
+        bool exactDecimal)
     {
         writer.WriteByte(plan.Kind);
         if (plan.Kind == (byte)SqlValueKind.Null)
@@ -610,7 +631,7 @@ public static class SqlFrameCodec
                     writer.WriteByte((byte)SqlValueKind.Null);
                     continue;
                 }
-                SqlValueKind k = ClassifyValue(value);
+                SqlValueKind k = ClassifyValue(value, exactDecimal);
                 writer.WriteByte((byte)k);
                 WriteValue(ref writer, k, value);
             }
@@ -649,7 +670,7 @@ public static class SqlFrameCodec
     /// <see cref="Guid"/> 与未识别类型 → String（ToString 回退）。整型与浮点混列不合并（走 variant），
     /// 避免大 long → double 的精度损失。
     /// </summary>
-    private static SqlValueKind ClassifyValue(object value) => value switch
+    private static SqlValueKind ClassifyValue(object value, bool exactDecimal) => value switch
     {
         bool => SqlValueKind.Boolean,
         byte or sbyte or short or ushort or int or uint or long => SqlValueKind.Int64,
@@ -657,7 +678,7 @@ public static class SqlFrameCodec
             "SQL 帧整数超出 Int64 范围；请使用 STRING 保存任意精度整数。"),
         System.Numerics.BigInteger => throw UnsupportedBigInteger(),
         float or double => SqlValueKind.Float64,
-        decimal => SqlValueKind.Decimal,
+        decimal => exactDecimal ? SqlValueKind.Decimal : SqlValueKind.Float64,
         string => SqlValueKind.String,
         DateTime or DateTimeOffset => SqlValueKind.Timestamp,
         byte[] => SqlValueKind.Bytes,
