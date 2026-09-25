@@ -1,13 +1,13 @@
 # Online PR and issue integration read-back (2026-09-25)
 
-Repository: `https://github.com/IoTSharp/SonnetDB.git` (`origin`). The live GitHub read-back found seven open dependency PRs (#164-#170) and nine open issues (#184, #187, #189, #190, #191, #194, #195, #197, #198). This worktree contains local, uncommitted integration; none of these online items was pushed, merged or closed. See the [PR and issue API read-back](github-pr-queue-20260925.md) for head SHAs, check runs and access limits.
+Repository: `https://github.com/IoTSharp/SonnetDB.git` (`origin`). The initial GitHub read-back found seven open dependency PRs (#164-#170) and nine open issues (#184, #187, #189, #190, #191, #194, #195, #197, #198). The implementations were pushed to `main` in `1250a617`, `b8beed14` and `d49fc87c`. Dependabot subsequently closed all seven dependency PRs without a GitHub merge commit because their exact head version changes were already on `main`; the issue acceptance gates below remain separate. See the [PR API read-back and closure timeline](github-pr-queue-20260925.md).
 
 ## Item results
 
 | Item | Local result | Outstanding gate |
 | --- | --- | --- |
-| PR #164-#169 | Each OpenTelemetry 1.18.0 to 1.19.0 version change is present in `Directory.Packages.props`; restore, Server build and observability tests passed. | Historical Ubuntu/Windows checks failed on several heads; their anonymous job logs are unavailable. Current-base CI and per-PR online state remain open. |
-| PR #170 | Testcontainers 4.14.0 to 4.15.0 is present; five-target build and Docker build-context test passed. | Docker-backed integration and current-base CI are pending. |
+| PR #164-#169 | Each OpenTelemetry 1.18.0 to 1.19.0 version change is on `main`; restore, Server build and observability tests passed. Dependabot closed the superseded PRs, `merged=false`. | Historical Ubuntu/Windows failures and post-push CI remain separate. #164's later 1.19.1 title does not match its 1.19.0 head. |
+| PR #170 | Testcontainers 4.14.0 to 4.15.0 is on `main`; five-target build and Docker build-context test passed. Dependabot closed the superseded PR, `merged=false`. | Docker-backed integration and post-push CI are pending. |
 | Issue #184 | Conditional `ON CONFLICT DO UPDATE` and real-server fail-closed transaction tests passed. [Evidence](github-issue-184-conditional-upsert-20260925.md). | Remote lightweight transaction `DO UPDATE ... RETURNING` needs a durable server transaction/session protocol; current preview and commit are separate requests. |
 | Issue #187 | Generated-column addition and empty-table key change passed. [Evidence](github-issue-187-ddl-evolution-20260925.md). | No-key table creation and populated-table primary-key migration remain unsupported. |
 | Issue #189 | Recursive CTE SQL and candidate guard passed Core and real REST/Frame tests. [Evidence](github-issue-189-recursive-cte-20260925.md). | Single-iteration JOIN/subquery peak memory has no hard bound; issue remains partial. |
