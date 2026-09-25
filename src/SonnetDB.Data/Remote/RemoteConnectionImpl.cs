@@ -117,6 +117,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction is not null)
         {
+            if (transaction.SessionId is { } sessionId)
+                return ExecuteSqlRequest(sql, CancellationToken.None, SessionUrl(sessionId) + "/sql")
+                    .GetAwaiter().GetResult();
+
             if (IsFrameEligibleReadOnly(sql))
             {
                 return ExecuteTransactionalReadRequestAsync(transaction, sql, CancellationToken.None)
@@ -190,6 +194,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction is not null)
         {
+            if (transaction.SessionId is { } sessionId)
+                return ExecuteSqlRequest(sql, cancellationToken, SessionUrl(sessionId) + "/sql");
+
             if (IsFrameEligibleReadOnly(sql))
                 return ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken);
 
@@ -209,14 +216,15 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return ExecuteSqlRequest(sql, cancellationToken);
     }
 
-    private async Task<IExecutionResult> ExecuteSqlRequest(string sql, CancellationToken cancellationToken)
+    private async Task<IExecutionResult> ExecuteSqlRequest(
+        string sql, CancellationToken cancellationToken, string? sessionUrl = null)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
 
         // #241：只读语句优先走二进制帧（sql service）；写/控制面/解析失败回落 REST NDJSON。
         // 命名参数已由 ParameterBinder.Bind 内联进 sql 字面量，故帧编码 parameters:null。
-        if (_frames is { } fx && fx.ShouldTryFrames() && IsFrameEligibleReadOnly(sql))
+        if (sessionUrl is null && _frames is { } fx && fx.ShouldTryFrames() && IsFrameEligibleReadOnly(sql))
         {
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
@@ -225,7 +233,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 return BuildSqlResult(frames);
         }
 
-        var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql";
+        var url = sessionUrl ?? $"v1/db/{Uri.EscapeDataString(_database)}/sql";
         var body = new SqlRequestBody { Sql = sql };
         var json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlRequestBody);
 
@@ -607,7 +615,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
         }
 
-        return new RemoteTransactionState();
+        return new RemoteTransactionState(CreateSessionAsync(CancellationToken.None).GetAwaiter().GetResult());
     }
 
     public void CommitTransaction(object transactionState)
@@ -617,6 +625,35 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     {
         var transaction = GetRequiredTransactionState(transactionState);
         transaction.ThrowIfCompleted();
+
+        if (transaction.SessionId is { } sessionId)
+        {
+            try
+            {
+                await EndSessionAsync(sessionId, "commit", cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await EndSessionAsync(sessionId, "commit", CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception retryError)
+                {
+                    throw new IOException(
+                        $"远程轻事务 {sessionId} 的提交结果未知；请按会话 ID 核查服务端终态。",
+                        new AggregateException(ex, retryError));
+                }
+            }
+            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new IOException(
+                    $"远程轻事务 {sessionId} 的提交请求已取消，提交结果未知。", ex);
+            }
+            transaction.MarkCompleted();
+            return;
+        }
 
         var statements = new List<SqlRequestBody>(transaction.Statements.Count + 2)
         {
@@ -700,14 +737,76 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     {
         var transaction = GetRequiredTransactionState(transactionState);
         transaction.ThrowIfCompleted();
+        if (transaction.SessionId is { } sessionId)
+            EndSessionAsync(sessionId, "rollback", CancellationToken.None).GetAwaiter().GetResult();
         transaction.MarkCompleted();
     }
 
-    public Task RollbackTransactionAsync(object transactionState, CancellationToken cancellationToken)
+    public async Task RollbackTransactionAsync(object transactionState, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        RollbackTransaction(transactionState);
-        return Task.CompletedTask;
+        var transaction = GetRequiredTransactionState(transactionState);
+        transaction.ThrowIfCompleted();
+        if (transaction.SessionId is { } sessionId)
+            await EndSessionAsync(sessionId, "rollback", cancellationToken).ConfigureAwait(false);
+        transaction.MarkCompleted();
+    }
+
+    private string SessionUrl(string id)
+        => $"v1/db/{Uri.EscapeDataString(_database)}/sql/transactions/{id}";
+
+    private async Task<string?> CreateSessionAsync(CancellationToken cancellationToken)
+    {
+        if (_http is null)
+            throw new InvalidOperationException("连接未打开。");
+        using var request = CreateRequest(HttpMethod.Post,
+            $"v1/db/{Uri.EscapeDataString(_database)}/sql/transactions");
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!document.RootElement.TryGetProperty("id", out var id)
+            || id.ValueKind != JsonValueKind.String
+            || !Guid.TryParseExact(id.GetString(), "N", out _))
+            throw new InvalidDataException("远程事务创建响应缺少有效的会话 ID。");
+        return id.GetString();
+    }
+
+    private async Task EndSessionAsync(string id, string action, CancellationToken cancellationToken)
+    {
+        if (_http is null)
+            throw new InvalidOperationException("连接未打开。");
+        using var request = CreateRequest(HttpMethod.Post, SessionUrl(id) + "/" + action);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead,
+            cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NoContent)
+            return;
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        bool completed = false;
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (line.Length == 0)
+                continue;
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.TryGetProperty("error", out var error))
+            {
+                string message = root.TryGetProperty("message", out var detail)
+                    ? detail.GetString() ?? string.Empty : string.Empty;
+                throw new SndbServerException(error.GetString() ?? "sql_error", message, HttpStatusCode.OK);
+            }
+            completed |= root.TryGetProperty("type", out var type)
+                && type.GetString() == "end";
+        }
+        if (!completed)
+            throw new InvalidDataException("远程事务结束响应缺少 end 标记，提交结果未知。");
     }
 
     private async Task ExecuteBatchRequestAsync(
@@ -1403,6 +1502,10 @@ internal sealed class RemoteTransactionState
 {
     private readonly List<string> _statements = [];
     private bool _completed;
+
+    public RemoteTransactionState(string? sessionId) => SessionId = sessionId;
+
+    public string? SessionId { get; }
 
     public IReadOnlyList<string> Statements => _statements;
 

@@ -89,6 +89,15 @@ internal static class SqlEndpointHandler
             queueWaitMs).ConfigureAwait(false);
     }
 
+    internal static Task HandleSessionStatementAsync(
+        HttpContext context, Tsdb tsdb, string databaseName, SqlRequest request,
+        ServerMetrics metrics, bool canWrite, bool canAdministerDatabase,
+        bool isServerAdmin, IControlPlane? controlPlane, double queueWaitMs,
+        SqlTransactionContext transaction)
+        => ExecuteAsync(context, tsdb, databaseName, [request], metrics, canWrite,
+            canAdministerDatabase, isServerAdmin, controlPlane, queueWaitMs,
+            transaction, retainTransaction: true);
+
     /// <summary>
     /// 处理 <c>POST /v1/sql</c> 单条控制面 SQL 请求（无 db 路径）。
     /// 仅支持控制面语句（CREATE USER / GRANT / CREATE DATABASE / SHOW USERS 等）以及 <c>SHOW DATABASES</c>。
@@ -217,14 +226,16 @@ internal static class SqlEndpointHandler
         bool canAdministerDatabase,
         bool isServerAdmin,
         IControlPlane? controlPlane,
-        double queueWaitMs)
+        double queueWaitMs,
+        SqlTransactionContext? existingTransaction = null,
+        bool retainTransaction = false)
     {
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
-        SqlTransactionContext? transaction = null;
+        SqlTransactionContext? transaction = existingTransaction;
         var routineOptions = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
 
         try
@@ -487,7 +498,7 @@ internal static class SqlEndpointHandler
                 }
             }
 
-            if (transaction is not null && !transaction.IsCompleted)
+            if (!retainTransaction && transaction is not null && !transaction.IsCompleted)
             {
                 metrics.RecordSqlError();
                 await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
@@ -495,7 +506,7 @@ internal static class SqlEndpointHandler
         }
         finally
         {
-            if (transaction is { IsCompleted: false })
+            if (!retainTransaction && transaction is { IsCompleted: false })
                 SqlExecutor.ExecuteStatement(tsdb, databaseName, new RollbackTransactionStatement(), null, transaction);
         }
     }
