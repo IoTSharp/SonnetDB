@@ -8,5 +8,6 @@ The parser already recorded the list. The ordinary CTE expander now checks dupli
 |---|---|---|
 | Release Core `SqlCteTests` | PASS 13/13 | Parser order, single/multiple CTEs, JOIN, aggregate, parameters, `IN`/`EXISTS`, CTE and outer ordering/pagination, `UNION ALL`, empty-result width mismatch, duplicate names, relation/measurement/document sources, embedded ADO name and Int64 type. |
 | Release Core CTE/recursive/set/ADO filter | 39/40 | Only `SqlRecursiveCteTests.Execute_AlternatingWideRows_RejectsAtCumulativeStringBudget` failed: it expects the cumulative result-byte diagnostic, while the existing shared query budget rejects first. That test is unchanged in this branch and is tracked in the #189 integration. |
+| Release Core full suite, excluding that unchanged #189 assertion | PASS 5219/5219 | `dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName!~Execute_AlternatingWideRows_RejectsAtCumulativeStringBudget' --logger 'console;verbosity=minimal' -v quiet`; 0 failures and 0 skipped. |
 
 The local Core result does not establish real REST/Frame parity or published-package compatibility. Those require separate service and release evidence. Historical audit snapshots retain their original closure-time state.
