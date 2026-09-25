@@ -11,7 +11,7 @@
 - **GH-Issue #191 UPDATE JOIN 索引路径**：保持非唯一来源按声明顺序取首行；唯一主键或唯一索引匹配改用索引嵌套循环，LEFT JOIN 未命中行及受影响目标行数保持不变。
 - **GH-Issue #194 UPDATE/DELETE RETURNING 合同**：直接 DELETE 以已读取行的完整前像与版本参与提交校验，避免并发变更后返回陈旧行；级联删除只计目标表受影响行。远程轻事务预览按批内语句位置解析连续 RETURNING 结果；空结果也保留声明列类型、可空性、主键和 ROWVERSION 元数据，覆盖嵌入式 ADO、REST NDJSON 与 HTTP/2 ADO 写入回落。
 - GH-Issue #198 明确 SQL `INT` 的有符号 Int64 边界，拒绝溢出字面量、运算及 CLR `BigInteger` 参数；REST/NDJSON 保留整数精度，Frame 为 DECIMAL 增加精确值标签。普通关系 SELECT 的空结果与全 NULL 列通过嵌入式、REST 和 Frame ADO 保留声明类型，DATETIME/TIME/BLOB 值经真实远程协议往返。SQL Frame 结果 v2 需请求头显式协商；旧客户端继续收到旧 meta 与 Float64 DECIMAL，新 ADO 遇旧服务端在 `auto` 模式回退 REST、强制 Frame 模式报告版本错误。
-- GH-Issue #197 统一 `INSERT ... RETURNING` 的生成列、顺序、受影响行数、空结果和嵌入式/远程 ADO 元数据，重复复合主键返回稳定唯一约束错误码；HTTP/2 ADO 写入使用 REST 回落，原生 Frame 仍只读。首次完整发布版本待标签确定，已发布 3.1.0 不含本次合同。
+- GH-Issue #197 统一 `INSERT ... RETURNING` 的引擎生成列、顺序、受影响行数、空结果和嵌入式/远程 ADO 元数据，重复复合主键返回稳定唯一约束错误码；原始 REST NDJSON 增补多行生成值及原子失败取证，HTTP/2 ADO 增补空批次元数据取证。HTTP/2 ADO 写入使用 REST 回落，原生 Frame 仍只读；任意计算生成列尚不支持。首次完整发布版本待标签确定，已发布 3.1.0 不含本次合同。
 - GH-Issue #190 为不支持的 `SELECT FOR UPDATE`、`NOWAIT`、`SKIP LOCKED` 提供稳定错误码与 ADO/REST 拒绝合同；乐观并发使用 `ROWVERSION`，不承诺行锁语义。
 - 收紧 Server 图片解码像素预算并包装 Skia 输入异常，避免压缩 TIFF/损坏图片造成过高临时内存峰值或进入无意义重试。
 - 旧版远程 Server 无会话端点时，轻事务的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 保持 fail closed，避免客户端预览/重放产生错误结果。

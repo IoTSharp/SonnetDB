@@ -248,6 +248,8 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             command.Parameters.AddWithValue("@name", "pump");
             await using (var reader = await command.ExecuteReaderAsync())
             {
+                Assert.Equal(["id", "name", "version", "note"],
+                    Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray());
                 Assert.Equal(typeof(long), reader.GetFieldType(0));
                 Assert.Equal(typeof(string), reader.GetFieldType(3));
                 var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
@@ -268,6 +270,20 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
 
         command.Transaction = null;
         command.Parameters.Clear();
+        command.CommandText = "INSERT INTO h2_returning_contract (name) SELECT name FROM h2_returning_contract WHERE id = 404 RETURNING id, name, version, note";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(["id", "name", "version", "note"],
+                Enumerable.Range(0, empty.FieldCount).Select(empty.GetName).ToArray());
+            Assert.Equal([typeof(long), typeof(string), typeof(long), typeof(string)],
+                Enumerable.Range(0, empty.FieldCount).Select(empty.GetFieldType).ToArray());
+            var schema = Assert.IsType<DataTable>(empty.GetSchemaTable());
+            Assert.True((bool)schema.Rows[0][System.Data.Common.SchemaTableOptionalColumn.IsAutoIncrement]);
+            Assert.True((bool)schema.Rows[2]["IsRowVersion"]);
+            Assert.True((bool)schema.Rows[3][System.Data.Common.SchemaTableColumn.AllowDBNull]);
+            Assert.False(await empty.ReadAsync());
+            Assert.Equal(0, empty.RecordsAffected);
+        }
         command.CommandText = "SELECT COUNT(*) FROM h2_returning_contract";
         Assert.Equal(0L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
         Assert.Contains(_requests, request => request.Path == $"/v1/db/{DatabaseName}/sql" && request.Protocol == "HTTP/2");
