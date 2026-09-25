@@ -199,6 +199,134 @@ public sealed class SqlSetOperationTests : IDisposable
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 
+    /// <summary>混合集合查询的排序和分页属于完整表达式，不能落在最后一个分支上。</summary>
+    [Theory]
+    [InlineData("LIMIT 2 OFFSET 1")]
+    [InlineData("OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY")]
+    public void Parse_MixedSetOperations_AttachesOrderAndPaginationToCompoundQuery(string pagination)
+    {
+        var statement = Assert.IsType<SonnetDB.Sql.Ast.SelectStatement>(SqlParser.Parse(
+            "SELECT id FROM left_rows UNION ALL SELECT id FROM right_rows "
+            + "INTERSECT SELECT id FROM third_rows EXCEPT SELECT id FROM fourth_rows "
+            + "ORDER BY id DESC " + pagination));
+
+        Assert.Equal(SonnetDB.Sql.Ast.SortDirection.Descending, Assert.Single(statement.OrderByList).Direction);
+        Assert.NotNull(statement.Pagination);
+        Assert.Equal(1, statement.Pagination.Offset);
+        Assert.Equal(2, statement.Pagination.Fetch);
+        Assert.Equal(["right_rows", "third_rows", "fourth_rows"],
+            statement.SetOperationList.Select(operation => operation.Query.Measurement).ToArray());
+        Assert.All(statement.SetOperationList, operation =>
+        {
+            Assert.Empty(operation.Query.OrderByList);
+            Assert.Null(operation.Query.Pagination);
+        });
+    }
+
+    /// <summary>交集先结合；并集和差集保持左结合，且 UNION ALL 不得丢失重复行。</summary>
+    [Theory]
+    // A={1,2}, B={2,3}, C={2,4}, D={2}; expected values are explicit SQL results.
+    [InlineData("UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows",
+        new long[] { 1, 2, 2 })]
+    [InlineData("UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows INTERSECT SELECT id FROM fourth_rows",
+        new long[] { 1, 2, 2 })]
+    [InlineData("INTERSECT SELECT id FROM right_rows UNION ALL SELECT id FROM third_rows INTERSECT SELECT id FROM fourth_rows",
+        new long[] { 2, 2 })]
+    [InlineData("UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows EXCEPT SELECT id FROM fourth_rows",
+        new long[] { 1 })]
+    [InlineData("EXCEPT SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows UNION ALL SELECT id FROM fourth_rows",
+        new long[] { 1, 2 })]
+    [InlineData("UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows UNION ALL SELECT id FROM fourth_rows INTERSECT SELECT id FROM left_rows",
+        new long[] { 1, 2, 2, 2 })]
+    [InlineData("UNION SELECT id FROM right_rows EXCEPT SELECT id FROM third_rows",
+        new long[] { 1, 3 })]
+    [InlineData("EXCEPT SELECT id FROM right_rows UNION SELECT id FROM third_rows",
+        new long[] { 1, 2, 4 })]
+    [InlineData("EXCEPT SELECT id FROM right_rows EXCEPT SELECT id FROM third_rows",
+        new long[] { 1 })]
+    [InlineData("UNION ALL SELECT id FROM right_rows UNION SELECT id FROM third_rows",
+        new long[] { 1, 2, 3, 4 })]
+    [InlineData("UNION SELECT id FROM right_rows UNION ALL SELECT id FROM third_rows",
+        new long[] { 1, 2, 2, 3, 4 })]
+    [InlineData("UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows WHERE id = 4",
+        new long[] { 1, 2 })]
+    [InlineData("EXCEPT SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows WHERE id = 4",
+        new long[] { 1, 2 })]
+    [InlineData("WHERE id < 0 UNION ALL SELECT id FROM right_rows INTERSECT SELECT id FROM third_rows",
+        new long[] { 2 })]
+    public void Execute_MixedSetOperations_UsesPrecedenceAndLeftAssociativity(string expression, long[] expected)
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateMixedRows(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM left_rows " + expression + " ORDER BY id"));
+
+        Assert.Equal(expected, result.Rows.Select(row => Assert.IsType<long>(row[0])).ToArray());
+    }
+
+    /// <summary>先完成混合表达式，再排序分页；无排序时保留 UNION ALL 分支顺序。</summary>
+    [Theory]
+    [InlineData("", new long[] { 1, 2, 2 })]
+    [InlineData("ORDER BY result_id DESC LIMIT 2 OFFSET 1", new long[] { 2, 1 })]
+    [InlineData("ORDER BY result_id DESC OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY", new long[] { 2, 1 })]
+    public void Execute_MixedSetOperations_AppliesResultOrderAndPaginationLast(string tail, long[] expected)
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateMixedRows(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id AS result_id FROM left_rows UNION ALL SELECT id AS other_id FROM right_rows "
+            + "INTERSECT SELECT id FROM third_rows " + tail));
+
+        Assert.Equal("result_id", Assert.Single(result.Columns));
+        Assert.Equal(expected, result.Rows.Select(row => Assert.IsType<long>(row[0])).ToArray());
+    }
+
+    /// <summary>派生表形成独立分组，允许显式改变默认交集优先级。</summary>
+    [Fact]
+    public void Execute_MixedSetOperations_InDerivedTable_RespectsExplicitGrouping()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateMixedRows(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM (SELECT id FROM left_rows UNION ALL SELECT id FROM right_rows) AS grouped_rows "
+            + "INTERSECT SELECT id FROM third_rows ORDER BY id"));
+
+        Assert.Equal([2L], result.Rows.Select(row => Assert.IsType<long>(row[0])).ToArray());
+    }
+
+    /// <summary>交集内部对 NULL 和多列行去重，外层 UNION ALL 仍保留左分支的重复行。</summary>
+    [Fact]
+    public void Execute_UnionAllBeforeIntersect_WithNullDuplicateRows_PreservesOuterMultiplicity()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE nullable_rows (id INT, a INT NULL, b STRING NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO nullable_rows (id, a, b) VALUES (1, NULL, 'x'), (2, NULL, 'x'), (3, 1, NULL), (4, NULL, 'y')");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT a, b FROM nullable_rows UNION ALL SELECT a, b FROM nullable_rows "
+            + "INTERSECT SELECT a, b FROM nullable_rows WHERE b = 'x'"));
+
+        Assert.Collection(result.Rows,
+            row => { Assert.Null(row[0]); Assert.Equal("x", row[1]); },
+            row => { Assert.Null(row[0]); Assert.Equal("x", row[1]); },
+            row => { Assert.Equal(1L, row[0]); Assert.Null(row[1]); },
+            row => { Assert.Null(row[0]); Assert.Equal("y", row[1]); },
+            row => { Assert.Null(row[0]); Assert.Equal("x", row[1]); });
+    }
+
+    private static void CreateMixedRows(Tsdb db)
+    {
+        CreateRows(db);
+        SqlExecutor.Execute(db, "CREATE TABLE third_rows (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE fourth_rows (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO third_rows (id) VALUES (2), (4)");
+        SqlExecutor.Execute(db, "INSERT INTO fourth_rows (id) VALUES (2)");
+    }
+
     private static void CreateRows(Tsdb db)
     {
         SqlExecutor.Execute(db, "CREATE TABLE left_rows (id INT, PRIMARY KEY (id))");

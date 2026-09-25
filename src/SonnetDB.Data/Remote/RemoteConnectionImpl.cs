@@ -637,29 +637,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction.SessionId is { } sessionId)
         {
-            try
-            {
-                await EndSessionAsync(sessionId, "commit", cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException
-                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await EndSessionAsync(sessionId, "commit", CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception retryError)
-                {
-                    throw new IOException(
-                        $"远程轻事务 {sessionId} 的提交结果未知；请按会话 ID 核查服务端终态。",
-                        new AggregateException(ex, retryError));
-                }
-            }
-            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
-            {
-                throw new IOException(
-                    $"远程轻事务 {sessionId} 的提交请求已取消，提交结果未知。", ex);
-            }
+            await CommitSessionWithRecoveryAsync(sessionId, cancellationToken).ConfigureAwait(false);
             transaction.MarkCompleted();
             return;
         }
@@ -784,6 +762,115 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidDataException("远程事务创建响应缺少有效的会话 ID。");
         return id.GetString();
     }
+
+    /// <summary>
+    /// 提交远程会话，并在响应丢失、读取取消或终态冲突时先回读服务端终态。
+    /// 只有确认会话仍为 active 时才允许一次幂等重试；终态不可读时绝不把 UPSERT 当作新事务重放。
+    /// </summary>
+    private async Task CommitSessionWithRecoveryAsync(string id, CancellationToken cancellationToken)
+    {
+        Exception initialError;
+        try
+        {
+            await EndSessionAsync(id, "commit", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        catch (Exception ex) when (IsAmbiguousSessionOutcome(ex))
+        {
+            initialError = ex;
+        }
+
+        var errors = new List<Exception> { initialError };
+        string? state = await TryReadSessionStateAsync(id, errors).ConfigureAwait(false);
+        if (string.Equals(state, "commit", StringComparison.Ordinal))
+            return;
+        if (string.Equals(state, "rollback", StringComparison.Ordinal))
+            throw BuildCommitRolledBackException(id, errors);
+
+        if (string.Equals(state, "active", StringComparison.Ordinal)
+            && !cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await EndSessionAsync(id, "commit", CancellationToken.None).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (IsAmbiguousSessionOutcome(ex))
+            {
+                errors.Add(ex);
+            }
+
+            state = await TryReadSessionStateAsync(id, errors).ConfigureAwait(false);
+            if (string.Equals(state, "commit", StringComparison.Ordinal))
+                return;
+            if (string.Equals(state, "rollback", StringComparison.Ordinal))
+                throw BuildCommitRolledBackException(id, errors);
+        }
+
+        throw new IOException(
+            $"远程轻事务 {id} 的提交结果未知；客户端不会自动重放该事务。"
+            + $"请调用 GET {SessionUrl(id)} 核查服务端终态。",
+            new AggregateException(errors));
+    }
+
+    private async Task<string?> TryReadSessionStateAsync(string id, List<Exception> errors)
+    {
+        try
+        {
+            return await ReadSessionStateAsync(id, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            errors.Add(ex);
+            return null;
+        }
+    }
+
+    private async Task<string> ReadSessionStateAsync(string id, CancellationToken cancellationToken)
+    {
+        if (_http is null)
+            throw new InvalidOperationException("连接未打开。");
+
+        using var request = CreateRequest(HttpMethod.Get, SessionUrl(id));
+        using var response = await _http.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!document.RootElement.TryGetProperty("state", out var stateProperty)
+            || stateProperty.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException("远程事务状态响应缺少 state 字段。");
+        }
+
+        string? state = stateProperty.GetString();
+        return state switch
+        {
+            "active" or "commit" or "rollback" => state,
+            _ => throw new InvalidDataException($"远程事务状态响应包含未知终态 '{state}'。"),
+        };
+    }
+
+    private static bool IsAmbiguousSessionOutcome(Exception exception)
+    {
+        if (exception is HttpRequestException or IOException or OperationCanceledException)
+            return true;
+
+        return exception is SndbServerException serverError
+            && (string.Equals(serverError.Error, "transaction_missing", StringComparison.Ordinal)
+                || string.Equals(serverError.Error, "transaction_completed", StringComparison.Ordinal));
+    }
+
+    private static IOException BuildCommitRolledBackException(string id, IReadOnlyCollection<Exception> errors)
+        => new(
+            $"远程轻事务 {id} 的服务端终态为 rollback，提交未生效。",
+            new AggregateException(errors));
 
     private async Task EndSessionAsync(string id, string action, CancellationToken cancellationToken)
     {
