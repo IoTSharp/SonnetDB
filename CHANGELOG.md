@@ -22,6 +22,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- GH-Issue #186：PR #201 合入后回读为 `closed/completed`，同步路线图与逐项审计的开放数和验收证据；保留 CI 基线红项与未发布边界。
 - 首个候选 `4.0.0` 打包不再拿 `3.0.1` 当作 API 兼容基线，仍保留 NuGet 包验证；3.x 候选继续因公开 API 破坏而失败。`4.0.1` 前必须将包基线更新为正式发布的 `4.0.0`。新增独立 NuGet 消费程序核对新旧客户端的 `INSERT RETURNING` 与事务 UPSERT，见 [发布门槛取证](docs/audits/issue-184-197-release-readiness-20260925.md)。
 - GH-Issue #187 允许无主键空表作为 schema 演进起点，在补齐主键前以稳定错误码拒绝行写入；原有生成列回填、空表主键重定义、默认值/CHECK/索引及嵌入式与远程 ADO 元数据路径均有定向验证。已有数据的主键变更、影子表原子切换和掉电原子性仍未实现。
 - GH-Issue #195 的 `INSERT ... SELECT` 路径保留 DECIMAL 精度、同表源快照和参数化 JOIN/聚合结果；空集、复合键冲突、异步 ADO、原始 REST/NDJSON 及 HTTP/2 Frame 只读拒绝均有定向取证。关系源查询在结果收集、JOIN/聚合/子查询保留和外排归并输出前检查行数/估算字节预算，超限以 `trigger_transition_limit` 拒绝且不写目标表；非关系源及 UDF 内部分配仍不属于该估算预算，首次发布版本待确定。
@@ -29,9 +30,9 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
-- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，清理失败冻结替换读写直到重开裁剪。替换值与 series/field 命中索引同快照发布，避免 KNN 候选多时逐条扫描替换记录；内部存储与旧用户 keyspace 隔离。嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
+- GH-Issue #186 在 PR #201 合入有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，清理失败冻结替换读写直到重开裁剪。替换值与 series/field 命中索引同快照发布，避免 KNN 候选多时逐条扫描替换记录；内部存储与旧用户 keyspace 隔离。嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；Issue 已关闭，但此条不代表正式发布。
 - GH-Issue #178 增补混合集合表达式回归：覆盖 `UNION ALL` 重复行、连续及多组 `INTERSECT`、同级左结合、空分支、统一排序分页、派生表分组和 `NULL` 多列比较；保留现有 parser/executor 实现。
-- 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读，记录 26 条已关闭、#91/#184/#186/#197 四条开放及各自剩余验收；同步路线图状态，避免把历史快照当作当前状态。
+- 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读；初次记录 26 条已关闭、#91/#184/#186/#197 四条开放，后续 PR #201 合入并关闭 #186，回读为 27 条已关闭、#91/#184/#197 三条开放；同步路线图状态。
 - GH-Issue #91 Studio 可选择已有嵌入式数据库目录，由本地 Server 显式挂载并切换工作台；挂载库禁止通过 Server 删除数据库接口移除。保留原 DataRoot 启动路径，切换失败恢复先前托管 Server。
 - 为 GH-Issue #184/#197 增加共用的首次完整 SQL DML 合同发布就绪草稿，提议在完成兼容性与发版门禁后以 `4.0.0` 发布，并明确已发布 `3.1.0`、未发布主线、HTTP/2 REST 回落和原生 Frame 只读边界；草稿不代表已经发版。
 - GH-Issue #174 补齐标准 `position(search IN value)` 字符串位置函数，按 Ordinal/UTF-16 返回 1 基位置，未命中为 0，并覆盖 NULL、空串与 Unicode 回归。
@@ -102,7 +103,7 @@
 - **GH-Issue #188 CREATE TABLE 命名 FOREIGN KEY**：`CONSTRAINT name FOREIGN KEY` 复用现有外键 catalog、schema、DROP 和重开持久化路径，保留旧构造/解构兼容；Parser 77/77、表执行 166/166 和命名/重复/缺列/重开定向回归通过。该实现仍需外部 issue 线程确认。
 - **GH-Issue #185 schema metadata projection**：Server schema response 与 Remote ADO.NET DTO/源生成上下文统一暴露 views、materialized views、foreign keys 和 document collections，补真实 schema endpoint 回归；本地 schema endpoint 5/5 与已有 embedded `GetSchema` projection 通过。远程跨版本 parity 和外部 issue 线程确认仍待执行。
 - **GH-Issue #183 SQL 整数按位运算**：词法器识别 `&` / `|`，解析器按“按位与高于按位或、两者低于比较”的优先级生成 AST；共享标量执行器支持 Int64 常量/列在 `SELECT`、`WHERE`、`UPDATE` 中计算并传播 `NULL`，对浮点、字符串等非整数返回稳定中文诊断。新增 lexer、AST 优先级、关系表投影/筛选/更新和错误边界回归；定向 Core 测试 158/158 通过。远程 ADO.NET/Frame parity 与外部 issue 线程确认仍待执行。
-- **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码**：嵌入式和远程 ADO.NET 参数绑定支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`；REST/NDJSON 将结果写为数字数组并恢复 `float[]`。只读 SQL Frame 请求新增原生 float32 VECTOR 命名参数，向量参数/结果按 little-endian 编解码；真实 HTTP/2 Kestrel 回归覆盖 REST 写入回落、原生 Frame KNN、ADO `GetValue`/`GetFieldType`/`GetSchemaTable`、`centroid`、NULL 和异步读取。measurement VECTOR 的参数化 UPDATE 仍未实现，Issue 保持开放。
+- **GH-Issue #186 VECTOR 参数与远程 `float[]` 编解码（早期阶段）**：嵌入式和远程 ADO.NET 参数绑定支持有限的 `float[]`、`Memory<float>` 与 `ReadOnlyMemory<float>`；REST/NDJSON 将结果写为数字数组并恢复 `float[]`。只读 SQL Frame 请求新增原生 float32 VECTOR 命名参数，向量参数/结果按 little-endian 编解码；真实 HTTP/2 Kestrel 回归覆盖 REST 写入回落、原生 Frame KNN、ADO `GetValue`/`GetFieldType`/`GetSchemaTable`、`centroid`、NULL 和异步读取。此阶段 measurement VECTOR 的参数化 UPDATE 尚未实现；后续实现与线上关闭见上方 PR #201 条目。
 - **GH-Issue #171 非递归 `WITH` CTE**：新增 `WITH name AS (SELECT ...)` 单/多 CTE 解析和参数绑定，并将 CTE 展开到既有派生表、`IN` 与相关 `EXISTS` 关系执行路径；后续 CTE 可引用之前的 CTE。初始交付新增 5 个 Core 确定性回归；输出列名列表由上方后续条目补齐。有界 `WITH RECURSIVE` 由 #189 跟踪，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #178 SQL 集合运算**：新增 `UNION ALL`、`INTERSECT` 与 `EXCEPT` 的词法、解析和关系执行；保留既有 `UNION` 去重兼容语义，支持复合结果的排序/分页和稳定列数诊断。新增集合运算 Core 回归；当前按书写顺序求值，远程 parity 与外部 issue 线程确认仍待执行。
 - **GH-Issue #172 ANSI 窗口函数 `OVER` 初版**：窗口函数调用可携带空 `OVER ()` 或 `OVER (ORDER BY time ASC)` 规格，新增 `row_number()` 并保留既有 `difference` / `running_sum` 等函数的显式窗口语法；每个 measurement series 独立编号。该初版当时未覆盖关系表、`PARTITION BY`、非时间/降序排序及显式 frame；新增 5 项 Core 解析、执行与 fail-closed 回归。关系表后续实现见本段新增条目。
