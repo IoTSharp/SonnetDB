@@ -70,11 +70,19 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
                 .Select(static column => column.DataType).ToArray());
 
         SqlExecutor.Execute(db, "CREATE TABLE sum_rows (id INT, value INT, PRIMARY KEY (id))");
-        SqlExecutor.Execute(db, "INSERT INTO sum_rows (id, value) VALUES (1, 9223372036854775807), (2, 1)");
-        var promoted = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+        SqlExecutor.Execute(db, "INSERT INTO sum_rows (id, value) VALUES (1, 9223372036854775807)");
+        var boundary = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT SUM(value) AS total FROM sum_rows"));
-        Assert.IsType<double>(Assert.Single(promoted.Rows)[0]);
-        Assert.Null(Assert.Single(promoted.ColumnInfo!).DataType);
+        Assert.Equal(long.MaxValue, Assert.IsType<long>(Assert.Single(boundary.Rows)[0]));
+        Assert.Equal(TableColumnType.Int64, Assert.Single(boundary.ColumnInfo!).DataType);
+        SqlExecutor.Execute(db, "INSERT INTO sum_rows (id, value) VALUES (2, 1)");
+        var overflow = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "SELECT SUM(value) AS total FROM sum_rows"));
+        Assert.Contains("SUM(INT) 的 Int64 累加发生溢出", overflow.Message, StringComparison.Ordinal);
+        var exactDecimal = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT SUM(CAST(value AS DECIMAL)) AS total FROM sum_rows"));
+        Assert.Equal(9223372036854775808m, Assert.IsType<decimal>(Assert.Single(exactDecimal.Rows)[0]));
+        Assert.Equal(TableColumnType.Decimal, Assert.Single(exactDecimal.ColumnInfo!).DataType);
     }
 
     [Fact]

@@ -3649,15 +3649,6 @@ internal static class RelationalSelectExecutor
 
         var columnInfo = projections.Select(projection => InferSelectColumnInfo(
             projection.Expression, relation.Columns)).ToArray();
-        for (int column = 0; column < projections.Count; column++)
-        {
-            if (projections[column].Aggregate?.Function.Name.Equals("sum", StringComparison.OrdinalIgnoreCase) == true
-                && columnInfo[column].DataType == TableColumnType.Int64
-                && rows.Any(row => row[column] is double))
-            {
-                columnInfo[column] = new SelectColumnInfo(null, true);
-            }
-        }
         return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows)
         {
             ColumnInfo = columnInfo,
@@ -4217,7 +4208,7 @@ internal static class RelationalSelectExecutor
             long[] longs = rawValues.Select(static v => Convert.ToInt64(v)).ToArray();
             return name switch
             {
-                "sum" => SumLongsWithOverflowPromotion(longs),
+                "sum" => SumLongsChecked(longs),
                 "min" => longs.Min(),
                 "max" => longs.Max(),
                 _ => throw new InvalidOperationException($"unreachable: integral aggregate {name}"),
@@ -4270,25 +4261,19 @@ internal static class RelationalSelectExecutor
     }
 
     /// <summary>
-    /// 累加 long 数组；若任意中间结果溢出 <see cref="long"/> 范围，自动提升为 <see cref="double"/>
-    /// 并继续累加剩余元素——避免向上层抛 <see cref="OverflowException"/>，匹配 Postgres
-    /// sum(bigint) -&gt; numeric 的"溢出即扩位"语义；M4 修复 LINQ <c>longs.Sum()</c> 的 checked 行为。
+    /// 累加 Int64 输入；任意中间结果越界时拒绝查询，避免降为 Double 后丢失精度。
     /// </summary>
-    private static object SumLongsWithOverflowPromotion(long[] longs)
+    private static long SumLongsChecked(long[] longs)
     {
         long sum = 0;
-        for (int i = 0; i < longs.Length; i++)
+        try
         {
-            try
-            {
-                sum = checked(sum + longs[i]);
-            }
-            catch (OverflowException)
-            {
-                double promoted = sum;
-                for (; i < longs.Length; i++) promoted += longs[i];
-                return promoted;
-            }
+            foreach (long value in longs)
+                sum = checked(sum + value);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException("SUM(INT) 的 Int64 累加发生溢出。", exception);
         }
         return sum;
     }

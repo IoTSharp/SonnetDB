@@ -1167,23 +1167,38 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
-    public void Select_TableGroupBy_SumLongsOverflow_PromotesToDouble()
+    public void Select_TableGroupBy_SumLongsOverflow_RejectsWithoutPrecisionLoss()
     {
-        // M4 回归：long 累加溢出应自动提升为 double，不再抛 OverflowException。
-        // long.MaxValue + 1 会溢出，旧实现 longs.Sum() 抛 checked OverflowException。
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db,
-            "CREATE TABLE rel_big (id INT, v INT, PRIMARY KEY (id))");
+            "CREATE TABLE rel_big (id INT, g STRING, v INT, PRIMARY KEY (id))");
         SqlExecutor.Execute(db,
-            $"INSERT INTO rel_big (id, v) VALUES (1, {long.MaxValue}), (2, 1)");
+            $"INSERT INTO rel_big (id, g, v) VALUES (1, 'a', {long.MaxValue}), (2, 'a', 1)");
 
-        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
-            "SELECT sum(v) FROM rel_big"));
+        foreach (string query in new[]
+        {
+            "SELECT sum(v) FROM rel_big",
+            "SELECT g, sum(v) FROM rel_big GROUP BY g",
+            "SELECT sum(v) + 0 FROM rel_big",
+            "SELECT g FROM rel_big GROUP BY g HAVING sum(v) > 0",
+        })
+        {
+            var error = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, query));
+            Assert.Contains("SUM(INT) 的 Int64 累加发生溢出", error.Message, StringComparison.Ordinal);
+        }
+    }
 
-        Assert.Single(r.Rows);
-        // 升级为 double，值约等于 long.MaxValue + 1。
-        var v = Assert.IsType<double>(r.Rows[0][0]);
-        Assert.True(v > 9.0e18, $"溢出后应升级为 ≈ long.MaxValue+1，实际 {v}");
+    [Fact]
+    public void Select_TableSum_NegativeInt64Overflow_RejectsWithoutPrecisionLoss()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_negative (id INT, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            $"INSERT INTO rel_negative (id, v) VALUES (1, {long.MinValue}), (2, -1)");
+
+        var error = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "SELECT sum(v) FROM rel_negative"));
+        Assert.Contains("SUM(INT) 的 Int64 累加发生溢出", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
