@@ -1,6 +1,7 @@
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
 using SonnetDB.Sql;
+using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
 using Xunit;
@@ -85,6 +86,38 @@ public sealed class SqlUpdateJoinTests : IDisposable
             db,
             "SELECT picked FROM targets WHERE id = 1"));
         Assert.Equal("right-rank1", Assert.Single(selected.Rows)[0]);
+    }
+
+    [Fact]
+    public void UpdateJoin_UniqueSourceKey_UsesIndexAndPreservesUnmatchedRows()
+    {
+        using var db = Open();
+        SqlExecutor.Execute(db, "CREATE TABLE targets (id INT, source_id INT, picked STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE sources (id INT, value STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO targets (id, source_id, picked) VALUES (1, 7, 'old'), (2, 9, 'old')");
+        SqlExecutor.Execute(db, "INSERT INTO sources (id, value) VALUES (7, 'matched')");
+
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse("""
+            SELECT t.id, s.value FROM targets AS t
+            LEFT JOIN sources AS s ON t.source_id = s.id
+            """));
+        var metrics = new RelationalSelectExecutionMetrics();
+        var joined = RelationalSelectExecutor.ExecutePreservingJoinOrder(db, statement, metrics);
+        Assert.Equal(new object?[] { new object?[] { 1L, "matched" }, new object?[] { 2L, null } }, joined.Rows);
+        Assert.Equal("index_nested_loop", metrics.LastJoinOperator);
+        Assert.Equal("primary", metrics.LastJoinIndexName);
+        Assert.Equal(2, metrics.LastJoinLookupCount);
+
+        var updated = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(db, """
+            UPDATE targets AS t
+            LEFT JOIN sources AS s ON t.source_id = s.id
+            SET picked = COALESCE(s.value, 'missing')
+            WHERE t.id >= 1
+            RETURNING id, picked
+            """));
+        Assert.Equal(2, updated.RowsAffected);
+        Assert.Equal(new object?[] { new object?[] { 1L, "matched" }, new object?[] { 2L, "missing" } },
+            Select(db, "SELECT id, picked FROM targets ORDER BY id").Rows);
     }
 
     [Fact]

@@ -30,12 +30,13 @@ internal static class RelationalSelectExecutor
     /// <returns>关系查询结果。</returns>
     internal static SelectExecutionResult ExecutePreservingJoinOrder(
         Tsdb tsdb,
-        SelectStatement statement)
+        SelectStatement statement,
+        RelationalSelectExecutionMetrics? metrics = null)
         => Execute(
             tsdb,
             statement,
             outerScope: null,
-            new SubqueryMemo(metrics: null),
+            new SubqueryMemo(metrics),
             preserveDeclaredJoinOrder: true);
 
     /// <summary>
@@ -2031,7 +2032,28 @@ internal static class RelationalSelectExecutor
         bool preserveDeclaredJoinOrder = false)
     {
         if (preserveDeclaredJoinOrder)
+        {
+            // A unique lookup preserves the declared right-side match order because
+            // each left row can match at most one right row.
+            if (kind is JoinKind.Inner or JoinKind.Left
+                && TryPlanHashJoin(left, right, on, out var orderedKeys, out var orderedResidual)
+                && TryPlanIndexNestedLoop(left, right, orderedKeys, out var orderedIndex)
+                && orderedIndex is { IsUnique: true })
+            {
+                return IndexNestedLoopJoin(
+                    tsdb,
+                    left,
+                    right,
+                    orderedKeys,
+                    orderedResidual,
+                    kind,
+                    orderedIndex,
+                    outerScope,
+                    memo);
+            }
+
             return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
+        }
 
         // RIGHT/FULL/CROSS 的输出保留规则与现有 Hash/Index/Merge 算子不同；
         // 先使用声明顺序嵌套循环，确保 NULL 扩展和重复键语义正确。
