@@ -23,6 +23,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 首个候选 `4.0.0` 打包不再拿 `3.0.1` 当作 API 兼容基线，仍保留 NuGet 包验证；3.x 候选继续因公开 API 破坏而失败。`4.0.1` 前必须将包基线更新为正式发布的 `4.0.0`。新增独立 NuGet 消费程序核对新旧客户端的 `INSERT RETURNING` 与事务 UPSERT，见 [发布门槛取证](docs/audits/issue-184-197-release-readiness-20260925.md)。
 - GH-Issue #187 允许无主键空表作为 schema 演进起点，在补齐主键前以稳定错误码拒绝行写入；原有生成列回填、空表主键重定义、默认值/CHECK/索引及嵌入式与远程 ADO 元数据路径均有定向验证。已有数据的主键变更、影子表原子切换和掉电原子性仍未实现。
 - GH-Issue #195 的 `INSERT ... SELECT` 路径保留 DECIMAL 精度、同表源快照和参数化 JOIN/聚合结果；空集、复合键冲突、异步 ADO、原始 REST/NDJSON 及 HTTP/2 Frame 只读拒绝均有定向取证。关系源查询在结果收集、JOIN/聚合/子查询保留和外排归并输出前检查行数/估算字节预算，超限以 `trigger_transition_limit` 拒绝且不写目标表；非关系源及 UDF 内部分配仍不属于该估算预算，首次发布版本待确定。
 - GH-Issue #184 的关系表 `ON CONFLICT DO UPDATE` 新增可参数化 `WHERE` 谓词，条件不命中时不写入、不计数且不产生 `RETURNING` 行；嵌入式和事务 Core 路径及远程请求路径已覆盖。当前源码的远程轻事务通过服务端会话执行 `RETURNING`，不再预览并重放 `DO UPDATE`；旧 Server 仍在入队前拒绝。

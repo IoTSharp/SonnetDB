@@ -6,9 +6,11 @@ This single readiness note covers the version boundary shared by [GH-Issue #184]
 
 ## Version decision
 
-**Proposed first complete contract release: `4.0.0`, subject to release approval and verification.** The published `3.1.0` package cannot be relabeled with current `main` behavior. A `3.2.0` release is defensible only after restoring the old public `SonnetDB.Sql.TokenKind` numeric values and passing a broader public API and package compatibility check.
+**Proposed first complete contract release: `4.0.0`, subject to release approval and verification.** The published `3.1.0` package cannot be relabeled with current `main` behavior. A `3.2.0` release is defensible only after restoring old public `SonnetDB.Sql.TokenKind` numeric values and missing public constructor/`Deconstruct` signatures, then passing the original package compatibility gate.
 
 The public enum has existing members whose integral values differ between `v3.1.0` and this snapshot. For example, `KeywordFrom` is `48` in `v3.1.0` and `47` in `main`; `KeywordCheck` is `113` and `138`; `KeywordTransaction` is `138` and `135`. Enum constants can be compiled into downstream callers, so this is a compatibility change even though member names still exist. These examples come from evaluating the sequential enum declarations and explicit assignments in `src/SonnetDB.Core/Sql/TokenKind.cs` at the two commits; this is not a complete API or file-format compatibility audit. The proposed major version does not waive those checks or authorize a binary format change.
+
+The .NET SDK package validator confirms the breaking change: with the original `3.0.1` baseline, `dotnet pack` fails with `CP0011` for changed `TokenKind` values and `CP0002` for removed public constructors/`Deconstruct` methods (including `DocumentFullTextIndexDefinition` and SQL AST records). The release-prep branch keeps `EnablePackageValidation=true` but omits this old-major baseline only for `4.0.0` and `4.0.0-*` package versions. The regular `eng/release.ps1 -Tasks nuget` path then passes for a local `4.0.0-issue184197.2` candidate. A `3.2.0-issue184197.1` pack still fails with the original API errors. This is an explicit SemVer major transition, **not** a claim of binary API compatibility. Before `4.0.1`, set `PackageValidationBaselineVersion` to the actually published `4.0.0` so later 4.x packages are compared within their own major line.
 
 | Capability | Published `v3.1.0` | Current unpublished `main` | Candidate `4.0.0` claim after gates pass |
 | --- | --- | --- | --- |
@@ -26,13 +28,38 @@ The public enum has existing members whose integral values differ between `v3.1.
 >
 > Published SonnetDB 3.1.0 contains an earlier `INSERT ... RETURNING` implementation but does not contain this complete cross-connection contract or relation-table UPSERT. Do not enable an ORM provider's full `InsertOrUpdate` or rely on this complete `RETURNING` contract when its runtime package/server is 3.1.0. This candidate version also changes public `TokenKind` numeric values relative to 3.1.0; compiled consumers of those enum values require compatibility review and likely recompilation.
 
+## Local package and process verification
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| Original Core `dotnet pack -c Release -p:Version=4.0.0-issue184197.1` | FAIL: `CP0002` and `CP0011` against fixed `3.0.1` baseline | Preserved breaking-change report; no suppression file |
+| `pwsh -File eng/release.ps1 -Tasks nuget -Version 4.0.0-issue184197.2 -OutputRoot artifacts/issue184197/formal-release-2` after the scoped baseline adjustment | PASS: 7/7 local NuGet packages | Local prerelease version and directory only; no publish/tag |
+| Core `dotnet pack -c Release -p:Version=3.2.0-issue184197.1` after the adjustment | FAIL: same API baseline errors | Minor release remains blocked |
+| `dotnet publish` Server and CLI, `Release`, `win-x64`, NativeAOT enabled | PASS: native executables produced; no IL/AOT warnings in output | Actual Server native binary subsequently exercised; CLI runtime not exercised |
+| [`SonnetDB.ReleaseContractSmoke`](../../tests/SonnetDB.ReleaseContractSmoke/Program.cs) restored using only the formal-release-2 local feed | PASS: `project.assets.json` lists `SonnetDB` and `SonnetDB.Core` at `4.0.0-issue184197.2`; embedded and live NativeAOT Server both passed `INSERT RETURNING` order/generated values/affected count and transactional `DO UPDATE RETURNING` commit | No external package repository or tag |
+| Same consumer compiled against published NuGet `3.1.0` and connected to the new NativeAOT Server | PASS: rows, order and affected count; before the first row, `GetFieldType(0)` did not match the new declared `long` metadata contract | This older client remains usable for its earlier result behavior; it does **not** gain the new contract merely by connecting to a new Server |
+| Two NativeAOT Server processes with separate data roots and the same database name | Owner A `GET session` 200; non-owner B `GET session` 404 after A staged `DO UPDATE RETURNING` (200, row 20) | Requires routing affinity; no shared session storage |
+| Hard-stop owner A and restart with its same data root | Old session 404; previously committed value 10 remained; buffered value 20 absent | Confirms an uncommitted session is not replayed after this restart; does not resolve a lost response after commit |
+
+The disposable smoke project references `SonnetDB` from NuGet, not a project reference. Its connection string is supplied at runtime, so the same executable tests embedded storage or a live Server. The local data roots and package outputs under `artifacts/issue184197/` are ignored build evidence, not release artifacts. The two test Server processes were stopped after verification.
+
+The package consumer was restored and built with:
+
+```powershell
+dotnet restore tests/SonnetDB.ReleaseContractSmoke/SonnetDB.ReleaseContractSmoke.csproj -p:SmokePackageVersion=4.0.0-issue184197.2 --source D:/source/SonnetDB-issue184-197-release-prep/artifacts/issue184197/formal-release-2/nuget
+dotnet build tests/SonnetDB.ReleaseContractSmoke/SonnetDB.ReleaseContractSmoke.csproj -c Release --no-restore -p:SmokePackageVersion=4.0.0-issue184197.2 -o artifacts/issue184197/consumer-formal-2
+dotnet artifacts/issue184197/consumer-formal-2/SonnetDB.ReleaseContractSmoke.dll current 'Data Source=D:/source/SonnetDB-issue184-197-release-prep/artifacts/issue184197/embedded-formal-2'
+```
+
+For the remote run, the second argument was `Data Source=sonnetdb+http://127.0.0.1:64517/release_test;Token=release_test_token;Timeout=30`, with a local NativeAOT Server listening on that port. The old-client binary was restored/built from published `SonnetDB` NuGet `3.1.0` and used the `legacy` scenario against the same Server. NativeAOT commands were `dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r win-x64 -p:SonnetDbPublishAot=true -p:BuildAdminUi=false` and `dotnet publish src/SonnetDB.Cli/SonnetDB.Cli.csproj -c Release -r win-x64 -p:PublishAot=true`; both succeeded after initializing the pinned git submodules. The initial Server publish failed before compilation because this fresh worktree had not initialized those submodules, so it is not counted as an AOT warning or code regression.
+
 ## Evidence and release gates
 
 - [Existing #184 audit](github-issue-184-remote-session-20260925.md): integrated Release Core 75/75 and complete real-Kestrel Server 1106/1106; isolated Server/CLI win-x64 NativeAOT publish had no IL/AOT warnings. This is local source validation, not a released package or deployed cluster.
 - [Existing #197 audit](github-issue-197-insert-returning-20260925.md): focused Core 36/36, real-service/HTTP2 106/106 and Release build with zero warnings on its isolated tree. Raw REST and HTTP/2 ADO tests cover generated rows, empty metadata, errors and rollback. The complete result contract was not validated against a published package.
-- [ ] Select and tag an actual version after reviewing public API, wire and persisted-format compatibility, including all changed `TokenKind` values. If compatibility is repaired for a minor release, revise this proposed `4.0.0` text before publication.
-- [ ] Build packages, Server and clients from the same tag; run package-installed embedded, REST/NDJSON and `frame-http2` ADO UPSERT/RETURNING checks, including old/new client-server combinations and documented failure modes. Keep tests against source `main` separate from package evidence.
-- [ ] For #184, verify Server affinity across instances, expiry and restart behavior, a lost commit response with terminal readback, and the resulting operator procedure on an actual deployment. The current session is process-local; a restart loses pending buffers and the terminal cache, so an unresolved commit outcome must not be silently retried.
+- [ ] Select and tag an actual version after reviewing public API, wire and persisted-format compatibility, including all changed `TokenKind` values and removed public signatures. If compatibility is repaired for a minor release, revise this proposed `4.0.0` text before publication.
+- [ ] Build packages, Server and clients from the same tag; run package-installed embedded, REST/NDJSON and `frame-http2` ADO UPSERT/RETURNING checks, including a new client against a published old Server. Keep the local prerelease package evidence above separate from actual released-package evidence.
+- [ ] For #184, specify and test affinity routing in an actual multi-instance deployment, wall-clock expiry, process restart during commit, a lost commit response with terminal readback, and the operator procedure for an unknown outcome. The current session is process-local; a restart loses pending buffers and the terminal cache, so an unresolved commit outcome must not be silently retried. The local A/B and pre-commit hard-stop checks above do not cover these scenarios.
 - [ ] Check final release workflow, NativeAOT published binaries, release notes, package and GitHub release availability. Only then name the tagged version as the first **released** full contract in #184/#197 and decide each Issue closure independently.
 
 The protocol and SQL details are documented in [`sql-reference.md`](../sql-reference.md) and [`frame-protocol.md`](../frame-protocol.md). No test, package, tag, external deployment or Issue closure was produced by this documentation commit.
