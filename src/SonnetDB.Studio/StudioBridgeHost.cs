@@ -25,6 +25,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     private readonly StudioCopilotBroker _copilot;
     private readonly string _trustedStudioOrigin;
     private string _selectedDataRoot;
+    private string _normalDataRoot;
     private string _selectedManagedServerUrl;
     private WebApplication? _app;
 
@@ -43,6 +44,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         _managedServer = new StudioManagedServerHost(options.ServerExecutable, options.KeepManagedServer);
         _copilot = copilot ?? new StudioCopilotBroker();
         _selectedDataRoot = options.DataRoot;
+        _normalDataRoot = options.DataRoot;
         _selectedManagedServerUrl = options.ManagedServerUrl;
     }
 
@@ -95,6 +97,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         group.MapPost("/dialogs/select-directory", SelectDirectoryAsync);
         group.MapGet("/server/status", WriteServerStatusAsync);
         group.MapPost("/server/start", StartServerAsync);
+        group.MapPost("/server/open-embedded", OpenEmbeddedDatabaseAsync);
         group.MapPost("/server/stop", StopServerAsync);
         group.MapGet("/copilot/status", context => _copilot.HandleAsync(context, "status", Token));
         group.MapPost("/copilot/connect", context => _copilot.HandleAsync(context, "connect", Token));
@@ -301,12 +304,30 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     {
         var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioManagedServerRequest).ConfigureAwait(false)
             ?? new StudioManagedServerRequest(null, null);
-        _selectedDataRoot = string.IsNullOrWhiteSpace(request.DataRoot) ? _selectedDataRoot : Path.GetFullPath(request.DataRoot);
+        _normalDataRoot = string.IsNullOrWhiteSpace(request.DataRoot) ? _normalDataRoot : Path.GetFullPath(request.DataRoot);
+        _selectedDataRoot = _normalDataRoot;
         _selectedManagedServerUrl = string.IsNullOrWhiteSpace(request.Url) ? _selectedManagedServerUrl : request.Url.Trim().TrimEnd('/');
         var status = await _managedServer.StartAsync(
             _selectedDataRoot,
             _selectedManagedServerUrl,
             context.RequestAborted).ConfigureAwait(false);
+        await WriteJsonAsync(context, status, StudioBridgeJsonContext.Default.StudioManagedServerStatus).ConfigureAwait(false);
+    }
+
+    private async Task OpenEmbeddedDatabaseAsync(HttpContext context)
+    {
+        var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioOpenEmbeddedDatabaseRequest).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(request?.Path))
+        {
+            await BadRequestAsync(context, "Existing database path is required.").ConfigureAwait(false);
+            return;
+        }
+
+        var controlRoot = _normalDataRoot;
+        var status = await _managedServer.StartEmbeddedAsync(
+            request.Path, controlRoot, _selectedManagedServerUrl, context.RequestAborted).ConfigureAwait(false);
+        if (status.Healthy && status.StartedByStudio && status.MountedDatabasePath is not null)
+            _selectedDataRoot = controlRoot;
         await WriteJsonAsync(context, status, StudioBridgeJsonContext.Default.StudioManagedServerStatus).ConfigureAwait(false);
     }
 
@@ -336,6 +357,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
                 "dialogs.selectDirectory",
                 "connections.diskLibrary",
                 "server.managedLocal",
+                "server.openEmbedded",
                 "menu.desktopActions",
                 "menu.native",
                 "copilot.nativeBroker.v1",

@@ -17,6 +17,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     private Process? _process;
     private string? _managedDataRoot;
     private string? _managedUrl;
+    private string? _managedMountedDatabasePath;
+    private string? _managedMountedDatabaseName;
     private string? _lastError;
     private string _lastDataRoot = string.Empty;
     private string _lastUrl = "http://127.0.0.1:5080";
@@ -45,6 +47,82 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
         string dataRoot,
         string url,
         CancellationToken cancellationToken)
+        => await StartCoreAsync(dataRoot, url, null, null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// 使用独立控制目录挂载并打开一个已有嵌入式数据库。
+    /// </summary>
+    /// <param name="databasePath">已有嵌入式数据库目录。</param>
+    /// <param name="controlRoot">Studio 的 Server 控制面目录。</param>
+    /// <param name="url">本地 Server 地址。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    public async Task<StudioManagedServerStatus> StartEmbeddedAsync(
+        string databasePath,
+        string controlRoot,
+        string url,
+        CancellationToken cancellationToken)
+    {
+        var path = NormalizePath(databasePath);
+        if (!Directory.Exists(path)
+            || (!File.Exists(Path.Combine(path, "catalog.SDBCAT"))
+                && !File.Exists(Path.Combine(path, "wal", "active.SDBWAL"))))
+        {
+            var status = await GetStatusAsync(controlRoot, url, cancellationToken).ConfigureAwait(false);
+            return status with { Error = "所选目录不是已有的 SonnetDB 嵌入式数据库。" };
+        }
+
+        var relativeControlRoot = Path.GetRelativePath(path, NormalizePath(controlRoot));
+        if (relativeControlRoot is "." || (!Path.IsPathRooted(relativeControlRoot)
+            && relativeControlRoot != ".."
+            && !relativeControlRoot.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+        {
+            var status = await GetStatusAsync(controlRoot, url, cancellationToken).ConfigureAwait(false);
+            return status with { Error = "Studio 控制目录不能位于所选数据库目录内。" };
+        }
+
+        var leaf = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        var name = leaf.Length is > 0 and <= 64 && leaf.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-')
+            ? leaf
+            : "embedded";
+        StudioServerTarget? previous;
+        lock (_sync)
+        {
+            previous = _process is { HasExited: false } && _managedDataRoot is not null && _managedUrl is not null
+                ? new StudioServerTarget(_managedDataRoot, _managedUrl, _managedMountedDatabasePath, _managedMountedDatabaseName)
+                : null;
+        }
+
+        var opened = await StartCoreAsync(controlRoot, url, path, name, cancellationToken).ConfigureAwait(false);
+        if (opened.Healthy && opened.StartedByStudio
+            && string.Equals(opened.MountedDatabasePath, path, StringComparison.OrdinalIgnoreCase))
+            return opened;
+
+        if (previous is not null)
+        {
+            bool previousStillRunning;
+            lock (_sync)
+                previousStillRunning = IsManagedProcessFor(previous.DataRoot, previous.Url);
+            if (!previousStillRunning)
+            {
+                var restored = await StartCoreAsync(previous.DataRoot, previous.Url,
+                    previous.MountedDatabasePath, previous.MountedDatabaseName, cancellationToken).ConfigureAwait(false);
+                return restored with
+                {
+                    Error = restored.Healthy
+                        ? opened.Error ?? "所选嵌入式数据库未能打开；已恢复先前的本地 Server。"
+                        : $"{opened.Error ?? "所选数据库未能打开"}；恢复先前的本地 Server 也失败：{restored.Error}",
+                };
+            }
+        }
+        return opened with { Error = opened.Error ?? "所选嵌入式数据库未能由 Studio 本地 Server 打开。" };
+    }
+
+    private async Task<StudioManagedServerStatus> StartCoreAsync(
+        string dataRoot,
+        string url,
+        string? mountedDatabasePath,
+        string? mountedDatabaseName,
+        CancellationToken cancellationToken)
     {
         dataRoot = NormalizePath(dataRoot);
         url = NormalizeUrl(url);
@@ -56,6 +134,17 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                 _lastDataRoot = dataRoot;
                 _lastUrl = url;
             }
+
+            bool replaceAtSameUrl;
+            lock (_sync)
+            {
+                replaceAtSameUrl = _process is { HasExited: false }
+                    && string.Equals(_managedUrl, url, StringComparison.OrdinalIgnoreCase)
+                    && (!IsManagedProcessFor(dataRoot, url)
+                        || !string.Equals(_managedMountedDatabasePath, mountedDatabasePath, StringComparison.OrdinalIgnoreCase));
+            }
+            if (replaceAtSameUrl)
+                StopProcess();
 
             if (await IsHealthyAsync(url, cancellationToken).ConfigureAwait(false))
                 return await GetStatusAsync(dataRoot, url, cancellationToken).ConfigureAwait(false) with { Error = null };
@@ -70,6 +159,12 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
             // existing managed process. For an unhealthy new target, however, the
             // single managed-process slot must be released before launching it.
             if (targetChanged)
+                StopProcess();
+
+            bool exitedProcess;
+            lock (_sync)
+                exitedProcess = _process is { HasExited: true };
+            if (exitedProcess)
                 StopProcess();
 
             lock (_sync)
@@ -87,7 +182,7 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
 
             Directory.CreateDirectory(dataRoot);
             ConfigureLogPath(dataRoot);
-            var startInfo = CreateStartInfo(target, dataRoot, url);
+            var startInfo = CreateStartInfo(target, dataRoot, url, mountedDatabasePath, mountedDatabaseName);
             try
             {
                 var process = Process.Start(startInfo);
@@ -121,6 +216,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                     _process = process;
                     _managedDataRoot = dataRoot;
                     _managedUrl = url;
+                    _managedMountedDatabasePath = mountedDatabasePath;
+                    _managedMountedDatabaseName = mountedDatabaseName;
                     _lastError = null;
                     _stderrTail.Clear();
                 }
@@ -237,7 +334,9 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
         }
     }
 
-    private ProcessStartInfo CreateStartInfo(StudioServerLaunchTarget target, string dataRoot, string url)
+    private ProcessStartInfo CreateStartInfo(
+        StudioServerLaunchTarget target, string dataRoot, string url,
+        string? mountedDatabasePath, string? mountedDatabaseName)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -257,6 +356,12 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
         if (frameUrl is not null)
             startInfo.Environment["SONNETDB_Kestrel__Endpoints__FrameH2__Url"] = frameUrl;
         startInfo.Environment["SONNETDB_SonnetDBServer__DataRoot"] = dataRoot;
+        if (mountedDatabasePath is not null)
+        {
+            startInfo.Environment["SONNETDB_SonnetDBServer__MountedDatabasePath"] = mountedDatabasePath;
+            startInfo.Environment["SONNETDB_SonnetDBServer__MountedDatabaseName"] = mountedDatabaseName;
+            startInfo.Environment["SONNETDB_SonnetDBServer__AutoLoadExistingDatabases"] = "false";
+        }
         startInfo.Environment["SONNETDB_SonnetDBServer__Mqtt__Enabled"] = "false";
         startInfo.Environment["SONNETDB_SonnetDBServer__Coap__Enabled"] = "false";
         startInfo.Environment["SONNETDB_SonnetDBServer__LineProtocolUdp__Enabled"] = "false";
@@ -341,7 +446,9 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
                 runningProcess?.Id,
                 NormalizeUrl(url),
                 NormalizePath(dataRoot),
-                error);
+                error,
+                runningProcess is null ? null : _managedMountedDatabasePath,
+                runningProcess is null ? null : _managedMountedDatabaseName);
         }
     }
 
@@ -357,6 +464,8 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
             _process = null;
             _managedDataRoot = null;
             _managedUrl = null;
+            _managedMountedDatabasePath = null;
+            _managedMountedDatabaseName = null;
         }
 
         if (process is null)
@@ -368,7 +477,10 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
             {
                 process.CloseMainWindow();
                 if (!process.WaitForExit(1500))
+                {
                     process.Kill(entireProcessTree: true);
+                    process.WaitForExit(1500);
+                }
             }
         }
         catch (InvalidOperationException)
@@ -471,4 +583,5 @@ internal sealed class StudioManagedServerHost : IAsyncDisposable
     }
 
     private sealed record StudioServerLaunchTarget(string FileName, string[] Arguments, string WorkingDirectory);
+    private sealed record StudioServerTarget(string DataRoot, string Url, string? MountedDatabasePath, string? MountedDatabaseName);
 }

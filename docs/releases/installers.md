@@ -13,6 +13,14 @@ permalink: /releases/installers/
 
 Studio 默认把数据库写入 `%LocalAppData%\SonnetDB\Studio\data`，该目录不属于 MSI 安装目录，升级或卸载不会自动删除。可通过 Studio 启动参数 `--data-root` 选择其他目录。安装包合同和宿主自动化测试已覆盖；WebView2 依赖、首次启动、升级/卸载保留和端口冲突仍需在干净 Windows 真机验收。
 
+### 打开已有嵌入式数据库
+
+先关闭正在使用该目录的嵌入式应用，避免数据库文件锁冲突。在 Studio 工作区右上角的本地 Server 设置中选择“打开已有嵌入式数据库”，然后选择嵌入式连接串 `Data Source=...` 指向的**数据库目录本身**，而不是它的父目录。Studio 会使用自己的 `DataRoot` 保存本地 Server 控制面，只把选中的已有目录挂载为一个数据库；Explorer 自动选中该库，可浏览 schema、执行 SQL 和经确认修改数据。退出 Studio 或停止本地 Server 后，原嵌入式应用可重新打开同一目录。
+
+此操作直接使用原数据文件，不复制数据库。挂载的数据库不能通过 Server 的“删除数据库”操作删除，接口返回 HTTP 409；要删除原目录必须在 Studio 外另行处理。选择空目录或占用中的库会报错，切换启动失败时恢复先前由 Studio 托管的本地 Server。普通“Data root”设置仍接受**多个数据库目录的父目录**。
+
+本地构建的 Server 与浏览器工作台已验证打开、查询、修改和重开原库；干净无网 Windows 电脑上的 MSI、WebView2 Runtime 与首次启动仍待独立实机验收。见[本机验收记录](../audits/issue-91-offline-studio-20260925.md)。
+
 默认安装目录通常为：
 
 ```text

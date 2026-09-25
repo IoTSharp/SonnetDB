@@ -172,7 +172,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     nativeServerBusy.value = true;
     try {
       const status = await connections.refreshStudioServerStatus();
-      if (status?.dataRoot && (status.startedByStudio || !nativeDataRoot.value)) setNativeDataRoot(status.dataRoot);
+      if (status?.dataRoot && !status.mountedDatabasePath && (status.startedByStudio || !nativeDataRoot.value)) setNativeDataRoot(status.dataRoot);
     } finally {
       nativeServerBusy.value = false;
     }
@@ -206,6 +206,24 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   async function chooseNativeDataRoot(): Promise<void> {
     const selected = await connections.selectStudioDirectory('选择 SonnetDB data root', nativeDataRoot.value);
     if (selected) setNativeDataRoot(selected);
+  }
+
+  async function openNativeEmbeddedDatabase(): Promise<boolean> {
+    if (!connections.studioBridgeAvailable) return false;
+    const selected = await connections.selectStudioDirectory('选择已有 SonnetDB 嵌入式数据库目录');
+    if (!selected) return false;
+    nativeServerBusy.value = true;
+    try {
+      const status = await connections.openStudioEmbeddedDatabase(selected);
+      if (status?.error || !status?.healthy || !status.startedByStudio || !status.mountedDatabaseName)
+        throw new Error(status?.error || '无法打开所选数据库：本地 Server 未接管该目录。');
+      connections.setActiveProfile('managed-local');
+      auth.setApiBaseUrl(connections.activeBaseUrl);
+      targetDb.value = status.mountedDatabaseName;
+      return true;
+    } finally {
+      nativeServerBusy.value = false;
+    }
   }
 
   function setNativeDataRoot(value: string): void {
@@ -248,6 +266,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     refreshConnectionHealth,
     startNativeServer,
     chooseNativeDataRoot,
+    openNativeEmbeddedDatabase,
     setNativeDataRoot,
     stopNativeServer,
   };

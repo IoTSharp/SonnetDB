@@ -69,6 +69,12 @@
           </template>
           <div class="native-server-settings">
             <strong>Managed Local Server</strong>
+            <n-button secondary size="small" :loading="nativeServerBusy" @click="$emit('open-embedded-database')">
+              <template #icon><FolderOpen :size="16" /></template>
+              打开已有嵌入式数据库
+            </n-button>
+            <small v-if="nativeServerStatus?.mountedDatabasePath">{{ nativeServerStatus.mountedDatabasePath }}</small>
+            <small v-if="nativeServerStatus?.error" class="native-server-error">{{ nativeServerStatus.error }}</small>
             <span>Data root</span>
             <div class="native-server-settings__row">
               <n-input :value="nativeDataRoot" size="small" placeholder="C:\\SonnetDB\\data" @update:value="$emit('update:native-data-root', $event)" />
@@ -95,6 +101,7 @@ import {
   CircleCheck,
   FileSearch,
   FolderArchive,
+  FolderOpen,
   Gauge,
   History,
   Map,
@@ -146,6 +153,7 @@ defineEmits<{
   'start-native-server': [dataRoot?: string];
   'stop-native-server': [];
   'choose-native-data-root': [];
+  'open-embedded-database': [];
   'update:native-data-root': [value: string];
   'show-result': [];
   'show-history': [];
@@ -290,6 +298,10 @@ function tabIcon(tool: WorkbenchTool): Component {
 .native-server-settings > small {
   color: #667085;
   font-size: 12px;
+}
+
+.native-server-settings > .native-server-error {
+  color: #b42318;
 }
 
 .native-server-settings__row {

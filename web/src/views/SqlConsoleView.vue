@@ -91,6 +91,7 @@
           @start-native-server="startNativeServer"
           @stop-native-server="stopNativeServer"
           @choose-native-data-root="chooseNativeDataRoot"
+          @open-embedded-database="openEmbeddedDatabase"
           @update:native-data-root="setNativeDataRoot"
           @show-result="toggleResultDrawer"
           @show-history="globalHistoryVisible = true"
@@ -379,6 +380,7 @@ const {
   refreshConnectionHealth,
   startNativeServer,
   chooseNativeDataRoot,
+  openNativeEmbeddedDatabase,
   setNativeDataRoot,
   stopNativeServer,
 } = useSqlWorkbenchChrome({
@@ -429,6 +431,14 @@ const {
   activeTab,
   message,
 });
+
+async function openEmbeddedDatabase(): Promise<void> {
+  try {
+    if (await openNativeEmbeddedDatabase()) await refreshWorkbench();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '打开嵌入式数据库失败');
+  }
+}
 
 const currentKvKeyspaces = computed(() =>
   targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
