@@ -174,7 +174,7 @@ internal static class RelationalSelectExecutor
             || statement.GroupBy.Count > 0
             || statement.Having is not null)
         {
-            relation = relation with { Rows = relation.Rows.ToArray() };
+            relation = relation with { Rows = RetainBranchRows(relation.Rows).ToArray() };
             var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope, memo);
             return ApplyOrderByAndPagination(aggregateProjection, statement.OrderByList, statement.Pagination);
         }
@@ -203,7 +203,7 @@ internal static class RelationalSelectExecutor
                 statement.Pagination) with { ColumnInfo = projected.ColumnInfo };
         }
         if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
-            return new SelectExecutionResult(projected.Columns, projected.Rows.ToArray())
+            return new SelectExecutionResult(projected.Columns, RetainBranchRows(projected.Rows).ToArray())
             {
                 ColumnInfo = projected.ColumnInfo,
             };
@@ -1850,10 +1850,19 @@ internal static class RelationalSelectExecutor
         var columns = source.Columns.Select(name => new RelColumn(alias, name, name)).ToArray();
         return new Relation(
             columns,
-            source.Rows.Select(static row => row.ToArray()),
+            CloneRows(),
             new RelationalJoinInputEstimate(
                 source.Rows.Count,
                 RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
+
+        IEnumerable<object?[]> CloneRows()
+        {
+            foreach (IReadOnlyList<object?> row in source.Rows)
+            {
+                RecursiveCteBranchBudget.Current?.Retain(row);
+                yield return row.ToArray();
+            }
+        }
     }
 
     private static Relation LoadTable(
@@ -1985,14 +1994,17 @@ internal static class RelationalSelectExecutor
         var columns = snapshot.Columns
             .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
             .ToArray();
-        var rows = snapshot.Rows
-            .Select(static row => row.ToArray())
-            .ToArray();
+        var rows = new List<object?[]>();
+        foreach (IReadOnlyList<object?> row in snapshot.Rows)
+        {
+            RecursiveCteBranchBudget.Current?.Retain(row);
+            rows.Add(row.ToArray());
+        }
         return new Relation(
             columns,
             rows,
             new RelationalJoinInputEstimate(
-                rows.Length,
+                rows.Count,
                 RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
@@ -2002,14 +2014,18 @@ internal static class RelationalSelectExecutor
         var columns = result.Columns
             .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
             .ToArray();
-        var rows = result.Rows
-            .Select(row => row.ToArray())
-            .ToArray();
+        var rows = new List<object?[]>();
+        foreach (IReadOnlyList<object?> row in result.Rows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            RecursiveCteBranchBudget.Current?.Retain(row);
+            rows.Add(row.ToArray());
+        }
         return new Relation(
             columns,
             rows,
             new RelationalJoinInputEstimate(
-                rows.Length,
+                rows.Count,
                 RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
@@ -2120,15 +2136,29 @@ internal static class RelationalSelectExecutor
 
         IEnumerable<object?[]> JoinRows()
         {
-            object?[][] rightRows = right.Rows.ToArray();
+            IReadOnlyList<object?[]> rightRows;
+            if (RecursiveCteBranchBudget.Current is { } budget)
+            {
+                var retained = new List<object?[]>();
+                foreach (object?[] row in right.Rows)
+                {
+                    budget.Retain(row);
+                    retained.Add(row);
+                }
+                rightRows = retained;
+            }
+            else
+            {
+                rightRows = right.Rows.ToArray();
+            }
             bool preserveRight = kind is JoinKind.Right or JoinKind.Full;
             bool preserveLeft = kind is JoinKind.Left or JoinKind.Full;
-            bool[] rightMatched = preserveRight ? new bool[rightRows.Length] : Array.Empty<bool>();
+            bool[] rightMatched = preserveRight ? new bool[rightRows.Count] : Array.Empty<bool>();
             foreach (object?[] leftRow in left.Rows)
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 var matched = false;
-                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
+                for (int rightIndex = 0; rightIndex < rightRows.Count; rightIndex++)
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
                     object?[] rightRow = rightRows[rightIndex];
@@ -2154,7 +2184,7 @@ internal static class RelationalSelectExecutor
 
             if (preserveRight)
             {
-                for (int rightIndex = 0; rightIndex < rightRows.Length; rightIndex++)
+                for (int rightIndex = 0; rightIndex < rightRows.Count; rightIndex++)
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
                     if (rightMatched[rightIndex])
@@ -3027,6 +3057,7 @@ internal static class RelationalSelectExecutor
                 {
                     actualBuildRows++;
                     SqlExecutor.ThrowIfCancellationRequested();
+                    RecursiveCteBranchBudget.Current?.Retain(buildRow);
                     if (TryMakeKey(buildRow, keyPairs, useRight: buildRight, out JoinValueKey key))
                     {
                         if (resources is not null && spillTable is null)
@@ -5247,7 +5278,7 @@ internal static class RelationalSelectExecutor
         }).ToArray();
         var comparer = new ResultRowSortComparer(sortItems);
         IReadOnlyList<IReadOnlyList<object?>> selected = TopN.OrderByThenPaginate(
-            rows,
+            RetainBranchRows(rows),
             comparer,
             pagination?.Offset ?? 0,
             pagination?.Fetch,
@@ -5267,11 +5298,15 @@ internal static class RelationalSelectExecutor
             return relation;
 
         IEnumerable<RelationSortRow> candidates = relation.Rows
-            .Select(row => new RelationSortRow(
-                row,
-                orderBy
-                    .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
-                    .ToArray()));
+            .Select(row =>
+            {
+                RecursiveCteBranchBudget.Current?.Retain(row);
+                return new RelationSortRow(
+                    row,
+                    orderBy
+                        .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
+                        .ToArray());
+            });
         var comparer = new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray());
         RelationSortRow[] selected = TopN.OrderByThenPaginate(
             candidates,
@@ -5385,7 +5420,29 @@ internal static class RelationalSelectExecutor
             if (pagination.Fetch is int fetch)
                 selected = selected.Take(fetch);
         }
-        return new SelectExecutionResult(columns, selected.ToArray());
+        var retained = new List<IReadOnlyList<object?>>();
+        foreach (IReadOnlyList<object?> row in selected)
+        {
+            RecursiveCteBranchBudget.Current?.Retain(row);
+            retained.Add(row);
+        }
+        return new SelectExecutionResult(columns, retained);
+    }
+
+    private static IEnumerable<T> RetainBranchRows<T>(IEnumerable<T> rows)
+        where T : IReadOnlyList<object?>
+        => RecursiveCteBranchBudget.Current is { } budget
+            ? Retain(rows, budget)
+            : rows;
+
+    private static IEnumerable<T> Retain<T>(IEnumerable<T> rows, RecursiveCteBranchBudget budget)
+        where T : IReadOnlyList<object?>
+    {
+        foreach (T row in rows)
+        {
+            budget.Retain(row);
+            yield return row;
+        }
     }
 
     private static bool ContainsAggregate(IReadOnlyList<SelectItem> items)
