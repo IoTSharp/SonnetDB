@@ -23,8 +23,12 @@ internal sealed class MeasurementVectorReplacementStore
     private readonly object _sync = new();
     private readonly KvKeyspaceManager _keyspaces;
     private KvKeyspace? _keyspace;
-    private Dictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> _values = [];
+    private ReplacementSnapshot _snapshot = CreateSnapshot([]);
     private Exception? _writeFault;
+
+    private sealed record ReplacementSnapshot(
+        Dictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> Values,
+        HashSet<(ulong SeriesId, string FieldName)> SeriesFields);
 
     internal MeasurementVectorReplacementStore(
         KvKeyspaceManager keyspaces,
@@ -75,7 +79,7 @@ internal sealed class MeasurementVectorReplacementStore
             afterKey = entries[^1].Key.ToArray();
         }
 
-        _values = loaded;
+        _snapshot = CreateSnapshot(loaded);
         if (stale.Count != 0)
             _keyspace.ApplyBatch(stale);
     }
@@ -89,20 +93,21 @@ internal sealed class MeasurementVectorReplacementStore
     internal bool TryGet(ulong seriesId, string fieldName, long timestamp, out FieldValue value)
     {
         ThrowIfWriteFaulted();
-        return Volatile.Read(ref _values).TryGetValue((seriesId, fieldName, timestamp), out value);
+        return Volatile.Read(ref _snapshot).Values.TryGetValue((seriesId, fieldName, timestamp), out value);
     }
 
-    internal IReadOnlyDictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> Snapshot()
+    internal (IReadOnlyDictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> Values,
+        IReadOnlySet<(ulong SeriesId, string FieldName)> SeriesFields) Snapshot()
     {
         ThrowIfWriteFaulted();
-        return Volatile.Read(ref _values);
+        var snapshot = Volatile.Read(ref _snapshot);
+        return (snapshot.Values, snapshot.SeriesFields);
     }
 
     internal bool HasSeriesField(ulong seriesId, string fieldName)
     {
         ThrowIfWriteFaulted();
-        return Volatile.Read(ref _values).Keys.Any(key =>
-            key.SeriesId == seriesId && string.Equals(key.FieldName, fieldName, StringComparison.Ordinal));
+        return Volatile.Read(ref _snapshot).SeriesFields.Contains((seriesId, fieldName));
     }
 
     internal int Count
@@ -110,7 +115,7 @@ internal sealed class MeasurementVectorReplacementStore
         get
         {
             ThrowIfWriteFaulted();
-            return Volatile.Read(ref _values).Count;
+            return Volatile.Read(ref _snapshot).Values.Count;
         }
     }
 
@@ -133,7 +138,7 @@ internal sealed class MeasurementVectorReplacementStore
         lock (_sync)
         {
             ThrowIfWriteFaulted();
-            var current = Volatile.Read(ref _values);
+            var current = Volatile.Read(ref _snapshot).Values;
             var keys = current.Keys.Where(predicate).ToArray();
             if (keys.Length == 0)
                 return;
@@ -151,7 +156,7 @@ internal sealed class MeasurementVectorReplacementStore
             var next = new Dictionary<(ulong, string, long), FieldValue>(current);
             foreach (var key in keys)
                 next.Remove(key);
-            Volatile.Write(ref _values, next);
+            Volatile.Write(ref _snapshot, CreateSnapshot(next));
         }
     }
 
@@ -179,7 +184,7 @@ internal sealed class MeasurementVectorReplacementStore
         lock (_sync)
         {
             ThrowIfWriteFaulted();
-            var current = Volatile.Read(ref _values);
+            var current = Volatile.Read(ref _snapshot).Values;
             var next = new Dictionary<(ulong, string, long), FieldValue>(current);
             for (int i = 0; i < targets.Count; i++)
             {
@@ -215,9 +220,13 @@ internal sealed class MeasurementVectorReplacementStore
                     Volatile.Write(ref _writeFault, ex);
                 throw;
             }
-            Volatile.Write(ref _values, next);
+            Volatile.Write(ref _snapshot, CreateSnapshot(next));
         }
     }
+
+    private static ReplacementSnapshot CreateSnapshot(
+        Dictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> values)
+        => new(values, values.Keys.Select(static key => (key.SeriesId, key.FieldName)).ToHashSet());
 
     private static long EstimateBytes(
         (ulong SeriesId, string FieldName, long Timestamp) key,

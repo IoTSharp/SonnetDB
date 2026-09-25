@@ -29,7 +29,7 @@
 - **M36 #322 传输恢复防御**：恢复清单写入增加单写者保护、`Flush(true)` 和损坏记录校验；批量对象按对象派生清单；multipart 初始化/清单失败纳入终止清理；CLI 文件下载改为先校验临时文件再原子替换，避免取消或校验失败留下部分目标文件。服务端未返回 SHA-256 时仍只能记录传输完成，不能宣称端到端校验。
 
 ### Added
-- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，重开时分页校验失效记录。内部存储与旧用户 keyspace 隔离；嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
+- GH-Issue #186 在独立工作树实现有界、参数化 measurement VECTOR FIELD UPDATE：单次最多 256 行、存活替换记录最多 4096 条及 128 MiB 估算字节量，整批通过内部 KV WAL 原子提交；raw/SQL/聚合/KNN 读取替换值，DELETE/Retention/DROP 在持久删除后清理，清理失败冻结替换读写直到重开裁剪。替换值与 series/field 命中索引同快照发布，避免 KNN 候选多时逐条扫描替换记录；内部存储与旧用户 keyspace 隔离。嵌入式、真实 REST/HTTP2 ADO、备份恢复和子进程强杀有定向验证。当前只更新已有 VECTOR 点，WHERE 限 TAG/time；稀疏目标及其他谓词明确拒绝。原生 Frame SQL 写入仍只读；此条仅说明独立工作树源码，Issue 合并前保持开放。
 - GH-Issue #178 增补混合集合表达式回归：覆盖 `UNION ALL` 重复行、连续及多组 `INTERSECT`、同级左结合、空分支、统一排序分页、派生表分组和 `NULL` 多列比较；保留现有 parser/executor 实现。
 - 增加 2026-09-25 全部 30 条 GitHub Issue 的逐项线上回读，记录 26 条已关闭、#91/#184/#186/#197 四条开放及各自剩余验收；同步路线图状态，避免把历史快照当作当前状态。
 - GH-Issue #91 Studio 可选择已有嵌入式数据库目录，由本地 Server 显式挂载并切换工作台；挂载库禁止通过 Server 删除数据库接口移除。保留原 DataRoot 启动路径，切换失败恢复先前托管 Server。

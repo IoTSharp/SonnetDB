@@ -1184,7 +1184,16 @@ public sealed class Tsdb : IDisposable
                 // 跨 WAL 顺序：墓碑先同步，再清理 KV。期间禁止 UPDATE/保留清理
                 // 观察到尚未持久化的墓碑，否则崩溃后可能显露旧向量。
                 walSync.Wait();
-                _vectorReplacements.RemoveCovered(seriesId, fieldName, fromTimestamp, toTimestamp);
+                try
+                {
+                    _vectorReplacements.RemoveCovered(seriesId, fieldName, fromTimestamp, toTimestamp);
+                }
+                catch (Exception ex)
+                {
+                    // 墓碑已持久化；即使 KV 在追加前拒绝，也须重开裁剪残留替换记录。
+                    _vectorReplacements.Invalidate(ex);
+                    throw;
+                }
                 walSync = default;
             }
         }

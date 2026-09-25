@@ -97,6 +97,6 @@ dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --verbosity qu
 
 ## 最终分支复验（未合入/发布）
 
-吸收远端 `main`（`7ce5aef8`）后的代码提交 `c9aede8e` 上，完整 Core 测试 **5282/5282 通过**，真实 REST/HTTP2 ADO 定向测试 **18/18 通过**，win-x64 Server NativeAOT publish `/warnaserror` 退出码 **0**。`git diff --check origin/main...HEAD` 无输出。此前三轮完整 Core 的单例失败仍保留在上文作为历史证据，不能改写为当时通过。
+吸收远端 `main`（`7ce5aef8`）并补上持久删除后清理失败栅栏、同快照 series/field 命中索引后，完整 Core 测试 **5284/5284 通过**，其中 VECTOR 定向用例 **21/21 通过**；真实 REST/HTTP2 ADO 定向测试 **18/18 通过**，win-x64 Server NativeAOT publish `/warnaserror` 退出码 **0**。仅包含本次修改文件的 `dotnet format --verify-no-changes` 与 `git diff --check` 均通过。此前三轮完整 Core 的单例失败仍保留在上文作为历史证据，不能改写为当时通过。
 
-另行构建 `SonnetDB.VectorCrashWorker` 为 **0 警告、0 错误**；在最终代码上分别于 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三个独立数据库的重开校验均输出 `VERIFIED`。这是手工子进程验收，不计入 5282 个 Core 自动测试。上述结果验证了受测平台与故障点，不能证明所有掉电、磁盘故障或并发交错均无风险；线上关闭 #186 仍以 PR 合入及 Issue 状态为准。
+另行构建 `SonnetDB.VectorCrashWorker` 为 **0 警告、0 错误**；在最终代码上分别于 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三个独立数据库的重开校验均输出 `VERIFIED`。这是手工子进程验收，不计入 5284 个 Core 自动测试。PR #201 初次 CI 的 Format Check 与 Ubuntu Build & Test 为失败；其对应 `main` 提交也分别失败，Ubuntu 的 CDC 独占锁与 EF Core HTTP/2 请求记录断言是相同用例，不能把这两项写为通过。上述结果验证了受测平台与故障点，不能证明所有掉电、磁盘故障或并发交错均无风险；线上关闭 #186 仍以 PR 合入及 Issue 状态为准。

@@ -150,10 +150,10 @@ public sealed class QueryEngine
             long from = query.Range.FromInclusive;
             long to = query.Range.ToInclusive;
 
-            var replacements = _vectorReplacements?.Snapshot();
-            HashSet<long>? emittedReplacements = replacements is not null
-                && replacements.Keys.Any(key => key.SeriesId == query.SeriesId
-                    && string.Equals(key.FieldName, query.FieldName, StringComparison.Ordinal))
+            var replacementSnapshot = _vectorReplacements?.Snapshot();
+            var replacements = replacementSnapshot?.Values;
+            HashSet<long>? emittedReplacements = replacementSnapshot?.SeriesFields.Contains(
+                (query.SeriesId, query.FieldName)) == true
                 ? []
                 : null;
 

@@ -288,6 +288,30 @@ public sealed class SqlVectorParameterTests : IDisposable
     }
 
     [Fact]
+    public void Embedded_VectorDelete_CleanupFailure_FencesReadsUntilReopen()
+    {
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+
+            database.Keyspaces.OpenMeasurementVectorReplacements().Dispose();
+            Assert.Throws<ObjectDisposedException>(() => SqlExecutor.Execute(database,
+                "DELETE FROM docs WHERE source = 'a' AND time = 1000"));
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "SELECT embedding FROM docs WHERE source = 'a'"));
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT embedding FROM docs WHERE source = 'a'")).Rows);
+    }
+
+    [Fact]
     public void Embedded_VectorUpdate_WalBudgetRejectsBeforeAppend_LeavesDatabaseReadable()
     {
         using var database = Tsdb.Open(new TsdbOptions
@@ -403,6 +427,44 @@ public sealed class SqlVectorParameterTests : IDisposable
 
         using var reopened = Tsdb.Open(options with { Retention = RetentionPolicy.Default });
         Assert.Equal(0, reopened.VectorReplacements.Count);
+    }
+
+    [Fact]
+    public void Embedded_VectorRetention_CleanupFailure_FencesReadsUntilReopen()
+    {
+        long now = 1000;
+        var options = new TsdbOptions
+        {
+            RootDirectory = _root,
+            Compaction = new CompactionPolicy { Enabled = false },
+            Retention = new RetentionPolicy
+            {
+                Enabled = true,
+                TtlInTimestampUnits = 1000,
+                NowFn = () => Volatile.Read(ref now),
+                PollInterval = TimeSpan.FromHours(24),
+            },
+        };
+        using (var database = Tsdb.Open(options))
+        {
+            SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+            SqlExecutor.Execute(database,
+                "INSERT INTO docs (time, source, embedding) VALUES (100, 'a', [1,0,0])");
+            database.FlushNow();
+            SqlExecutor.Execute(database,
+                "UPDATE docs SET embedding = [0,1,0] WHERE source = 'a'");
+
+            database.Keyspaces.OpenMeasurementVectorReplacements().Dispose();
+            Volatile.Write(ref now, 5000);
+            Assert.Throws<ObjectDisposedException>(() => database.Retention!.RunOnce());
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(database,
+                "SELECT embedding FROM docs WHERE source = 'a'"));
+        }
+
+        using var reopened = Tsdb.Open(options with { Retention = RetentionPolicy.Default });
+        Assert.Equal(0, reopened.VectorReplacements.Count);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT embedding FROM docs WHERE source = 'a'")).Rows);
     }
 
     [Fact]
