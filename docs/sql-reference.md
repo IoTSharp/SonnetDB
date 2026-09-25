@@ -72,6 +72,20 @@ ORDER BY time;
 - 通过 `Tsdb.Functions` 注册的用户标量函数属于任意应用回调，UPDATE 会在表管理锁外执行它，避免回调等待其他 SQL 线程时死锁；该分支需要并发冲突检测时应使用 `ROWVERSION`。
 - `ROWVERSION` 由数据库自动维护，不能出现在 `SET` 左侧；需要乐观并发控制时在 `WHERE` 中携带旧版本值。
 
+#### 关系表锁定读边界与乐观并发
+
+关系表不提供用户可见的悲观行锁：`SELECT ... FOR UPDATE`、`FOR UPDATE NOWAIT`、`FOR UPDATE SKIP LOCKED` 和 `FOR SHARE` 均在解析阶段返回 `sql_locking_read_unsupported`，不会退化为普通 SELECT。单独尾随的 `NOWAIT`、`SKIP LOCKED` 也拒绝。不存在可供业务依赖的行锁粒度、持有生命周期、锁等待/超时、死锁检测或提交/回滚释放行为；不存在的目标行同样不能锁定。取消已请求的命令仍遵循普通 ADO.NET 取消合同，锁定读本身不会进入等待状态。
+
+需要“读取后更新”时，使用 `INT ROWVERSION` 列和条件写入：
+
+```sql
+CREATE TABLE jobs (id INT, status STRING, version INT ROWVERSION, PRIMARY KEY (id));
+SELECT status, version FROM jobs WHERE id = @id;
+UPDATE jobs SET status = 'running' WHERE id = @id AND version = @version;
+```
+
+调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`BeginTransaction` 的 ReadCommitted/Serializable 轻事务不提供悲观锁；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。ADO.NET 同步和异步锁定读在嵌入式及远程模式均抛 `SqlParseException`，其 `Code` 为 `sql_locking_read_unsupported`；直接 REST SQL 返回同一错误码。锁定读被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
+
 ### Modbus 32 位寄存器解码
 
 以下标量函数把两只已经由 Modbus 协议层解析为 `0..65535` 的 16 位寄存器，还原成一个 32 位值：
@@ -162,6 +176,7 @@ CREATE TABLE devices (
 - 普通 `INSERT` 在提交阶段的表管理锁内分配自增值；事务或触发器为了向 `NEW` 行提前暴露生成值而进行的预留会记录当时的 generation。若并发 `TRUNCATE TABLE` 已切换 generation，陈旧事务会在提交前明确失败，不会把重置前的预留值写入新 generation。
 - 关系表 `INSERT` 支持 `RETURNING column [, ...]` 和 `RETURNING *`；返回行使用完成默认值、`ROWVERSION` 与 `AUTO_INCREMENT` 生成后的最终值，多行结果保持 `VALUES` 的插入顺序。首版只允许列名或 `*`，不支持表达式和别名；measurement 与文档集合会明确拒绝 `RETURNING`。
 - ADO.NET 可用 `ExecuteScalar("INSERT ... RETURNING id")` 取得本条语句生成的首个 ID，作为语句级 last-insert-id；`ExecuteReader` 可读取完整返回行，同时 `RecordsAffected` 保留实际插入行数。SonnetDB 不维护连接级 `LAST_INSERT_ID()` 状态。
+- 完整的 `INSERT ... RETURNING` 类型、列属性和跨嵌入式/REST/Frame HTTP/2 ADO 回落合同属于下一未发布版本，首次交付版本号待发布标签确定；已发布的 3.1.0 不应据此视为具备该完整合同。Frame SQL 查询端点仍只读，`Protocol=frame-http2` 的 ADO 写入经同一 HTTP/2 连接回落 REST SQL 端点。
 - EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
 
 关系查询可在投影和谓词中使用以下日期标量函数：
@@ -221,6 +236,20 @@ ALTER TABLE table_name ALTER [COLUMN] column_name
 - PRIMARY KEY 列不能修改类型或改为可空；ROWVERSION 列不能修改类型、空值约束或默认值；参与外键的引用列或被引用列不能修改类型，必须先删除相应外键约束。
 - 被逻辑视图、物化视图、存储过程或触发器依赖的表仍受既有依赖保护，必须先移除依赖对象再修改 schema。
 - `ADD COLUMN ... NOT NULL` 当前即使目标表为空也要求 `DEFAULT`；有入站外键引用的父表不能 `RENAME TABLE` 或 `DROP TABLE`，必须先删除子表外键。
+
+现有关系表可在事务外追加生成列，并在空表上重定义主键：
+
+```sql
+ALTER TABLE devices ADD COLUMN id INT AUTO_INCREMENT;
+ALTER TABLE devices ADD COLUMN version INT ROWVERSION;
+ALTER TABLE devices ADD CONSTRAINT pk_devices PRIMARY KEY (id);
+-- 等价的无约束名写法：ALTER TABLE devices ALTER PRIMARY KEY (id);
+```
+
+- `ADD COLUMN ... AUTO_INCREMENT` 对已有行按旧主键编码顺序分配从 `1` 开始的值；新插入行从现有最大值加一继续。序列高水位与回填行在同一 KV batch 持久化，正常关闭并重开后继续增长。每张表只能有一个 `INT AUTO_INCREMENT`；显式 `NULL`、`DEFAULT`、`ROWVERSION` 组合及非 `INT` 类型被拒绝。
+- `ADD COLUMN ... ROWVERSION` 把已有行初始化为 `1`，后续 `UPDATE` 自动加一；每张表只能有一个 `INT ROWVERSION`，且该列不可空、不可声明默认值或手动赋值。
+- `ADD [CONSTRAINT pk_<table>] PRIMARY KEY (...)` 和 `ALTER PRIMARY KEY (...)` 仅支持空表。复合主键可用；有任意存量行、入站外键或自定义约束名时返回 `table_schema_evolution_unsupported`。已有行需要在事务外创建带目标主键的新表、分批回填并验证唯一性及约束，再切换应用访问；当前没有原子切换协议。所有关系表在 `CREATE TABLE` 时仍要求主键，不能用无主键表作为迁移起点。
+- 生成列追加复用行改写和索引重建路径，保留既有默认值、CHECK 和外键约束；DDL 不允许放在活动轻事务中。行改写受单个 KV batch 预算限制，并沿用上述进程终止/掉电非原子性边界。成功后新 schema 对新的 `DESCRIBE TABLE` 和 ADO.NET `GetSchema("Columns")` 读取可见；失败不更新 catalog。
 
 已有表还可追加或删除外键和检查约束。追加约束前会扫描存量行；任一行违反约束时 DDL 失败且 catalog 保持原状。
 
@@ -615,7 +644,10 @@ WHERE guid IN (
 
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `INSERT ... RETURNING` 在同一语句中返回成功插入后的列值；`RETURNING *` 按表 schema 顺序返回全部列。未知列会在写入前报错，不留下部分数据。
+- `INSERT ... VALUES ... ON CONFLICT (主键或唯一索引列) DO UPDATE SET column = excluded.column [WHERE predicate] [RETURNING ...]` 对冲突目标行执行原子更新。`excluded` 指当前候选行，未限定列名指冲突前目标行；可在 `WHERE` 同时引用两者。谓词为 FALSE 或 NULL 时不更新、不返回该行，且不计入受影响行数。多行语句按输入顺序返回成功插入或更新的行；同一语句重复更新同一目标行会整句拒绝。`ROWVERSION` 更新由引擎递增，候选行的默认值与自动生成列在冲突检查前确定。远程轻事务中的 `DO UPDATE ... RETURNING` 仍明确拒绝，不能据事务预览结果宣称远程提交一致性（GH-Issue #184）。
+- 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前主线提供 `DO NOTHING` 及上述受限 `DO UPDATE`。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配；未实现远程轻事务 `DO UPDATE ... RETURNING` 前，不将此能力标为完整 Provider UPSERT 兼容。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
@@ -1270,10 +1302,29 @@ ORDER BY d.id;
 
 当前边界：
 
-- 仅支持 `WITH ... AS (SELECT ...)`，不支持 `WITH RECURSIVE` 或递归自引用；递归查询属于后续 GH-Issue #189。
+- 非递归 `WITH ... AS (SELECT ...)` 仍不支持输出列名列表或自引用；递归形式见下一节。
 - CTE 名称按声明顺序解析，后一个 CTE 可以引用前一个 CTE；重复名称会被拒绝。
 - `WITH name (column, ...) AS (...)` 的输出列重命名尚未支持，请在 CTE 的 `SELECT` 投影中使用 `AS` 别名。
 - CTE 不新增独立 planner，继续复用 `FROM (SELECT ...)`、关系 JOIN 以及 `IN` / `EXISTS` 子查询的现有执行和相关性语义。
+
+### 有界递归公共表表达式 `WITH RECURSIVE`
+
+一个递归 CTE 可按 `anchor UNION ALL recursive_member` 逐层遍历关系表。`UNION ALL` 保留重复行；`UNION` 对全部已见行去重，可使包含环的图收敛：
+
+```sql
+WITH RECURSIVE device_tree (id, depth) AS (
+    SELECT id, 0 AS depth FROM devices WHERE id = 1
+    UNION ALL
+    SELECT child.id, device_tree.depth + 1 AS depth
+    FROM devices AS child
+    JOIN device_tree ON child.parent_id = device_tree.id
+)
+SELECT id, depth FROM device_tree ORDER BY id;
+```
+
+递归成员每轮只读取上一层结果；最终 SELECT 读取所有层。支持空 anchor、分支、参数绑定、最终结果排序和分页。同一 `WITH RECURSIVE` 中可在递归定义之前或之后声明普通 CTE；前置普通 CTE 可供 anchor 和递归成员引用，后置普通 CTE 可读取最终递归结果，名称按声明顺序解析。CTE 输出列名列表的列数必须与 anchor 和递归成员一致，非空值的列类型必须保持一致。每个查询最多展开 64 层、累计保留 100,000 行和约 32 MiB 行数据；每轮候选输出最多 100,000 行，超限时报错，不返回部分结果。`EXPLAIN` 报告递归工作表及这些上限。
+
+当前只支持一个递归 CTE 定义，以及恰好一次直接自引用的普通 SELECT/JOIN/WHERE 递归成员；不支持互递归、成员内子查询、聚合、DISTINCT、ORDER BY 或分页。递归定义内也不能排序或分页；应在最终 SELECT 指定。`UNION ALL` 遇到环会达到上限并报错；需要收敛时使用 `UNION` 或在递归成员中限制访问条件。每轮候选上限通过结果分页提前探测；JOIN 建表侧与普通 CTE 派生表可能在分页前物化，字节数上限也在候选结果返回后检查。因此上述限制不是单轮执行峰值内存承诺，仍须遵守实例级资源治理与调用方超时。
 
 ### SELECT 集合运算
 
@@ -1288,7 +1339,7 @@ SELECT id FROM managed_devices
 ORDER BY id;
 ```
 
-`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。递归 CTE、`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
+`UNION`、`INTERSECT` 和 `EXCEPT` 会按集合语义去重，`UNION ALL` 保留重复行。当前实现按 SQL 中的书写顺序从左到右应用运算；需要明确分组时应先物化为视图或 `FROM (SELECT ...)` 子查询。`INTERSECT ALL` 和 `EXCEPT ALL` 不在本次合同内。
 
 分页子句（兼容两种风格）：
 

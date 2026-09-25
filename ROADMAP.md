@@ -25,7 +25,7 @@
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与本地测试已归档；服务端会话是权威来源。 |
 | 18 | SonnetDB for VS Code | ✅ | `0.4.1` 发布及产物校验已归档。 |
 | 19 | 生态适配底座 | 🟡 | #125 runner/verifier 已完成；四档固定目标硬件报告待执行。 |
-| 20 | 多模型 Parity | ❌ | 最新七次 scheduled 窗口全部失败；启动修复已本地通过，修复后的连续七次远程窗口待重跑。 |
+| 20 | 多模型 Parity | ❌ | 2026-09-25 线上回读：最近七次 scheduled 为三次成功、四次失败；连续七次 light/full 与完整 artifact 验证仍待取得。 |
 | 21 | Document Store 单机能力 | ✅ | 单机子集已归档。 |
 | 22 | 上层应用/示例候选 | ⏸️ | 不作为 SonnetDB 内置里程碑；通用缺口另行回收。 |
 | 23 | 搜索与向量引擎合并 | ✅ | DotSearch/DotVector 已归档。 |
@@ -90,7 +90,7 @@
 
 ### M20 — Parity nightly
 
-Parity 场景、适配器、compose 和 verifier 已完成；MinIO pinned tag 已切换到可用镜像并通过本地 PowerShell 7 contract。最新七次 scheduled 窗口全部失败，须重跑完整 light/full，保留容器日志、测试报告、commit SHA 和 raw artifact；失败不能以 `No summary was produced for this run.` 代替证据。
+Parity 场景、适配器、compose 和 verifier 已完成；MinIO pinned tag 已切换到可用镜像并通过本地 PowerShell 7 contract。[2026-09-25 线上回读](docs/audits/m20-nightly-readback-20260925.md)显示最近七次 scheduled 为三次成功、四次失败；最新一次 light/full 原始报告可从 `parity-results` 分支读取，完整七次 artifact 对账仍待认证验证。须继续取得连续七次 light/full，保留容器日志、测试报告、commit SHA 和 raw artifact；失败不能以 `No summary was produced for this run.` 代替证据。
 
 ### M19 / M25 — 容量与发布
 

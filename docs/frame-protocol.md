@@ -671,19 +671,7 @@ HTTP/1.1 请求回 400）。请求体是长生命周期的帧流，响应体是�
 > （仅 ASCII）——这是帧独有能力，非等价差异。get 帧路径的 `Metadata` / `Tags` 来自服务端 meta 帧，
 > REST get 不回传这两张字典（S3 兼容语义），此为已知差异。
 
-ADO SQL 帧路径与 REST NDJSON 路径对部分列返回不同 CLR 类型。
-帧路径返回更正确/更富的类型，REST NDJSON 路径返回字符串：
-
-| 列类型 | 帧路径 | REST NDJSON 路径 |
-|--------|--------|------------------|
-| 时间戳 | `DateTime`（UTC） | ISO 字符串 |
-| blob | `byte[]` | base64 字符串 |
-| 整数值 double（如 `3.0`） | `double`（不收敛） | `long` |
-| 向量 | `float[]`（语义正确） | `"System.Single[]"`（`ToString()`） |
-| `long` / `string` / `GeoPoint` | 一致 | 一致 |
-
-`Protocol=auto` 下 ADO 走帧后上述列类型会变，消费 `SndbDataReader.GetValue`/`GetFieldType` 的既有代码需知悉。
-MQ / KV / 文档三者两条传输字节一致，无此差异。需保持旧类型行为可显式设 `Protocol=rest`。
+当前服务端对可静态确定的关系 SELECT 列在 REST NDJSON 与 Frame meta 中提供声明类型。ADO 两条路径均将关系 DATETIME、TIME、BLOB 分别还原为 `DateTime`、`TimeOnly`、`byte[]`，在首行读取前也能报告声明类型；INT 与 DECIMAL 保留整数和十进制精度。旧服务端响应缺少声明类型时，REST 仍按 JSON 行值推断，Frame 按帧类型标签解码，结果可能不同。动态投影和其他查询模型的类型信息仍可能为 `object`，不能据此推断所有 SQL 结果已跨协议一致。MQ / KV / 文档传输合同独立于此 SQL 元数据扩展。
 
 ## 限制与配额
 

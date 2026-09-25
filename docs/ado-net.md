@@ -177,3 +177,7 @@ ADO.NET 还支持 `CommandType.TableDirect` 快路径，适合：
 - `INSERT INTO ... VALUES (...)` 快路径
 
 详细示例见 [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/)。
+
+## 锁定读与乐观并发
+
+`SndbCommand` 不支持 `SELECT ... FOR UPDATE`、`NOWAIT` 或 `SKIP LOCKED`。同步 `ExecuteReader()` 和异步 `ExecuteReaderAsync()` 在嵌入式及远程连接中均抛出 `SqlParseException`，`Code=sql_locking_read_unsupported`；即使附加了 `SndbTransaction`，也不会把查询排队到提交。FreeSql 等 Provider 应继续拒绝 `ForUpdate()`，不能把锁定读改写为普通 SELECT。业务更新使用 `ROWVERSION` 列读取版本、带版本谓词写入，并在 `table_concurrency_conflict` 或目标行消失时重试。
