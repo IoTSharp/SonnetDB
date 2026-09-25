@@ -95,8 +95,12 @@ dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --verbosity qu
 
 原生 SQL Frame 请求仍只读；`Protocol=frame-http2` 的 ADO 写入仍走 REST 回落。轻事务、JOIN/FROM、RETURNING、GEO/字段残差谓词、稀疏目标补列、NULL VECTOR 与关系表 VECTOR UPDATE 不在本切片支持范围内。GitHub Issue 仍须以合入和线上回读状态为准。
 
-## 最终分支复验（未合入/发布）
+## 合入前最终分支复验
 
 吸收远端 `main`（`7ce5aef8`）并补上持久删除后清理失败栅栏、同快照 series/field 命中索引后，完整 Core 测试 **5284/5284 通过**，其中 VECTOR 定向用例 **21/21 通过**；真实 REST/HTTP2 ADO 定向测试 **18/18 通过**，win-x64 Server NativeAOT publish `/warnaserror` 退出码 **0**。仅包含本次修改文件的 `dotnet format --verify-no-changes` 与 `git diff --check` 均通过。此前三轮完整 Core 的单例失败仍保留在上文作为历史证据，不能改写为当时通过。
 
 另行构建 `SonnetDB.VectorCrashWorker` 为 **0 警告、0 错误**；在最终代码上分别于 UPDATE、DELETE、DROP 返回后调用 `Process.Kill()`，三个独立数据库的重开校验均输出 `VERIFIED`。这是手工子进程验收，不计入 5284 个 Core 自动测试。PR #201 初次 CI 的 Format Check 与 Ubuntu Build & Test 为失败；其对应 `main` 提交也分别失败，Ubuntu 的 CDC 独占锁与 EF Core HTTP/2 请求记录断言是相同用例，不能把这两项写为通过。上述结果验证了受测平台与故障点，不能证明所有掉电、磁盘故障或并发交错均无风险；线上关闭 #186 仍以 PR 合入及 Issue 状态为准。
+
+## 合入后线上回读
+
+PR [#201](https://github.com/IoTSharp/SonnetDB/pull/201) 已 squash 合入 `main`（`e3d185cf`）；GitHub API 回读 #186 为 `closed/completed`。最终 PR CI 的三平台 connectors、三平台 NativeAOT 与 CodeQL 通过；Format Check、Windows/Ubuntu Build & Test 失败。对应合入前 `main` 提交的 Format Check 与双平台 Build & Test 也失败：Windows 均只有 EF Core HTTP/2 请求记录断言，Ubuntu 均只有 CDC 独占锁与同一 EF Core 断言。Linux Docker 的 VECTOR 定向测试 21/21 通过，完整 Core 5283/5284，唯一失败为相同 CDC 用例。这些红项保留为未通过的门禁；合入与 Issue 关闭不等于正式发布或生产无风险。
