@@ -6,6 +6,7 @@ using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
 using SonnetDB.Model;
+using SonnetDB.Query;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -46,6 +47,60 @@ public sealed class SqlVectorParameterTests : IDisposable
         var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT embedding FROM docs"));
         var vector = Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]);
         Assert.Equal(new float[] { 1.25f, -0.5f, 3f }, vector);
+    }
+
+    [Fact]
+    public void Embedded_VectorUpdateWithoutReplacementContract_RejectsAndPreservesPointAndKnn()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+
+        var error = Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(
+            database,
+            databaseName: null,
+            "UPDATE docs SET embedding = @embedding WHERE source = 'a'",
+            new SqlParameters().AddNamed("embedding", new float[] { 0f, 1f, 0f })));
+        Assert.Contains("measurement UPDATE 尚不支持", error.Message, StringComparison.Ordinal);
+
+        var seriesId = SeriesId.Compute(new SeriesKey("docs",
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["source"] = "a" }));
+        var point = Assert.Single(database.Query.Execute(new PointQuery(
+            seriesId, "embedding", new TimeRange(1000, 1000))));
+        Assert.Equal(new float[] { 1f, 0f, 0f }, point.Value.AsVector().ToArray());
+
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+
+        var knn = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM knn(docs, embedding, [1,0,0], 1)"));
+        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(Assert.Single(knn.Rows)[0]));
+    }
+
+    [Fact]
+    public void SameTimestampInsert_DoesNotReplaceOldVectorInRawOrKnn()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3))");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [1,0,0])");
+        SqlExecutor.Execute(database,
+            "INSERT INTO docs (time, source, embedding) VALUES (1000, 'a', [0,1,0])");
+
+        var seriesId = SeriesId.Compute(new SeriesKey("docs",
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["source"] = "a" }));
+        Assert.Equal(2, database.Query.Execute(new PointQuery(
+            seriesId, "embedding", new TimeRange(1000, 1000))).Count());
+
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM docs WHERE source = 'a'"));
+        Assert.Equal(new float[] { 0f, 1f, 0f }, Assert.IsType<float[]>(Assert.Single(selected.Rows)[0]));
+
+        var knn = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT embedding FROM knn(docs, embedding, [1,0,0], 1)"));
+        Assert.Equal(new float[] { 1f, 0f, 0f }, Assert.IsType<float[]>(Assert.Single(knn.Rows)[0]));
     }
 
     [Fact]

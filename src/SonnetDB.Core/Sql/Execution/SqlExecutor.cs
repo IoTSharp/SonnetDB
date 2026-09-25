@@ -2648,6 +2648,14 @@ public static class SqlExecutor
             throw new NotSupportedException("UPDATE ... RETURNING 当前仅支持关系表。");
         }
 
+        if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
+            && tsdb.Measurements.TryGet(update.TableName) is not null)
+        {
+            throw new NotSupportedException(
+                "measurement UPDATE 尚不支持：现有时序点追加/WAL/墓碑与 KNN 索引没有原子向量替换语义；"
+                + "请勿用同时间戳 INSERT 模拟 UPDATE。");
+        }
+
         return ExecuteTableUpdateWithTriggers(
             tsdb,
             databaseName,
