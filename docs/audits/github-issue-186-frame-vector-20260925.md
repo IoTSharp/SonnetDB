@@ -68,3 +68,16 @@ dotnet build src/SonnetDB/SonnetDB.csproj --configuration Release --verbosity qu
 ```
 
 以上命令的最终树复验仍须在合入后执行；`RemoteVectorParameterTests` 是此前真实 REST Kestrel 回归，本次未修改其实现。
+
+## 后续实验核查（未合并，Issue 仍开放）
+
+独立工作树曾实验一个 measurement VECTOR UPDATE 切片：按 `(SeriesId, FIELD, timestamp)` 将替换值写入内部 KV 原子批次 WAL，并在 raw、SQL、聚合和 KNN 读取时覆盖旧点。实验包含每句最多 256 行、总共最多 4096 条替换记录的容量界限；超限、维度错误和 NULL 在提交前拒绝。定向 Core 测试覆盖 Flush、重开、Compaction、DELETE、备份恢复、行数上限及 WAL sync 故障。早期实验版本的完整 Core 回归为 5243/5243、Release 构建 0 警告、win-x64 NativeAOT publish 退出码 0。这些结果仅说明受测路径通过，**不代表 UPDATE 合同完成，也不是主线或发布证据**。
+
+只读审查发现以下阻断，因此实验代码不提交、不推送，也不用于关闭 #186：
+
+1. 替换记录在 DELETE、Retention 和 Compaction 后没有可靠的跨 WAL 清理。被删除的更新点仍占 4096 配额，`DROP MEASUREMENT` 因历史替换记录被永久拒绝。直接先删 KV 记录会在时序删除尚未持久时复活旧点；先删时序再清 KV 又必须处理崩溃与同名重建。
+2. KNN 使用外层段快照、替换序列的内层查询快照，再重新查询 FIELD 填充结果。并发 UPDATE 可使 `distance` 与返回的 `embedding` 不属于同一个版本；混合搜索有同类风险。需要统一的可见性快照或明确的版本重试合同。
+3. 内部 keyspace 名 `_measurement-vector-replacements` 与旧用户 keyspace 在 Windows 不区分大小写的路径上可能碰撞。仅对新建调用保留小写名称无法保护旧库；必须选择不会占用既有用户命名空间的持久位置，并规定迁移/拒绝行为。
+4. KV 在 WAL 追加前的确定性预算拒绝与 WAL 追加/同步后的未知提交结果需要区分。实验中使用 KV 的 `IsWriteCommitOutcomeUnknown` 判定作了修正，但它仍需与完整提交、读取隔离及故障恢复一同复核。
+
+安全推进顺序：先冻结 measurement 行身份与 DELETE/Retention/DROP 交错语义；确定独立且无旧库命名碰撞的持久化命名空间和跨时序/KV WAL 的恢复协议；随后统一 KNN 候选、距离和 FIELD 回填的快照。再以批次故障注入、真子进程强杀、备份恢复和嵌入式/真实 REST/HTTP2 ADO 回归作为关闭门禁。主线继续保持显式拒绝 VECTOR UPDATE，避免把实验性覆盖当作已交付。
