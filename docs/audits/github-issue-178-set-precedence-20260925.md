@@ -46,3 +46,55 @@ limit after branch execution, not a strict CLR heap-peak limit.
   `KvRedirectTests.Create_WithMixedRedirectPolicies`; both variants passed in
   the final 13-test focused run (11 set-operation cases plus 2 KV reruns).
   The full-suite count is not presented as a final-tree full pass.
+
+## Additional mixed-expression regression coverage
+
+Review base: `ee2f095f4a5f215357980690d0b33e92dc338886` (main).
+The precedence fix is already present; this follow-up changes tests and
+documentation only.
+
+`SqlParser.ParseSelect` retains operands and operator kinds in source order,
+then attaches ORDER BY and pagination to the compound statement. That flat
+representation is sufficient: `SqlExecutor.ExecuteUnion` accumulates each
+consecutive INTERSECT group before applying a pending UNION, UNION ALL or
+EXCEPT. Lower-precedence operators are applied left-to-right, and ordering
+and pagination are applied once to the combined result. No parser/AST
+redesign or additional executor change is needed for this issue.
+
+The additional 21 cases in `SqlSetOperationTests` cover:
+
+| Cases | Coverage |
+| --- | --- |
+| 2 | Compound ORDER BY and both pagination syntaxes belong to the root AST, not the last operand. |
+| 14 | UNION ALL with INTERSECT; consecutive and multiple intersection groups; mixed EXCEPT; left associativity of UNION/UNION ALL/EXCEPT; empty input and empty intersection groups. |
+| 3 | UNION ALL branch order and multiplicity; final descending sort with LIMIT/OFFSET and OFFSET/FETCH; output name from the first branch. |
+| 1 | A derived table explicitly groups UNION ALL before an outer INTERSECT. |
+| 1 | NULL and multicolumn row comparison: INTERSECT deduplicates its group while outer UNION ALL retains duplicates. |
+
+Expected rows are explicit, not calculated by another copy of the executor.
+For example, with A={1,2}, B={2,3}, C={2,4},
+`A UNION ALL B INTERSECT C` must yield {1,2,2}; the old left fold yields {2}.
+
+Verification used .NET SDK 10.0.100 on Linux with the repository's declared
+dependencies and warning/AOT analysis settings. Single-node MSBuild was used
+because the environment's parallel restore exited without diagnostics.
+
+```sh
+dotnet restore tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --disable-parallel -m:1
+dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release \
+  --no-restore -m:1 -p:UseSharedCompilation=false \
+  --filter 'FullyQualifiedName~SqlSetOperationTests'
+```
+
+- Current implementation: 32/32 passed, including all 21 additional cases.
+- Mutation check: temporarily replacing intersection grouping with the old
+  left-to-right fold produced 13 assertion failures (12 additional cases and
+  the existing precedence regression); the other 19 cases passed. Column
+  validation and memory accounting were retained in this mutation.
+- The executor source was restored byte-for-byte after the mutation; no
+  production-source change is part of this follow-up.
+- Final rebuild and rerun after restoring the executor: 32/32 passed,
+  0 skipped. `git diff --check` passed and `git diff -- src` was empty.
+
+These are focused local Core tests. The earlier full Core and server-suite
+figures above belong to the earlier tree, not this follow-up.
