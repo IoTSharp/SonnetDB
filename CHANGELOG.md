@@ -22,6 +22,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 将 OpenTelemetry.Exporter.Console 从 1.19.0 升级至 1.19.1（PR #205）。
 - 将 CodeQL Action 从 4.38.0 升级至 4.38.1，保持现有 C# 分析流程（PR #204）。
 - GH-Issue #186：PR #201 合入后回读为 `closed/completed`，同步路线图与逐项审计的开放数和验收证据；保留 CI 基线红项与未发布边界。
 - 首个候选 `4.0.0` 打包不再拿 `3.0.1` 当作 API 兼容基线，仍保留 NuGet 包验证；3.x 候选继续因公开 API 破坏而失败。`4.0.1` 前必须将包基线更新为正式发布的 `4.0.0`。新增独立 NuGet 消费程序核对新旧客户端的 `INSERT RETURNING` 与事务 UPSERT，见 [发布门槛取证](docs/audits/issue-184-197-release-readiness-20260925.md)。
