@@ -73,7 +73,9 @@ permalink: /benchmarks/ecosystem-soak/
 
 `Ecosystem Soak` workflow 每周运行 quick 档，也支持手动选择 quick、ci 或 soak 并归档报告。它不调度四个默认 #125 容量档，也不能生成固定目标硬件 PASS。
 
-`M19 Capacity Evidence` workflow 是唯一的自动化容量取证入口：仅 `main`、固定 `[self-hosted, linux, x64, sonnetdb-m19-capacity-x64-v1]` 标签、受保护 `m19-capacity-frozen-x64` environment 和全局串行锁。非 `main` 的手动触发会在接触目标机前显式失败。它 checkout 触发 SHA 并检查 clean tree，调用 `invoke-m19-capacity-bundle.ps1` 串行运行四个默认 profile；每个 profile 的 `--work` 位于同一 bundle 卷，避免报告磁盘快照与实际数据卷脱节。它生成硬件快照、checkout attestation 和 raw manifest，并在 profile 结束后记录终态 worktree；随后用单报告和 bundle verifier 核对同一 commit、机器、架构、硬件合同、存储型号、原始 JSON/Markdown 哈希及 artifact run URL。无论成功或失败，已生成内容都会上传；任意 profile、终态 worktree 或 verifier 失败则总结果为 `NOT_READY`。
+`M19 Capacity Evidence` workflow 默认以 `target=github-hosted` 运行 **GitHub-hosted capacity validation**：在 `ubuntu-latest` 执行四种缩规模 specialized profile 的真实写入、恢复、强杀重开、备份扫描和维护行为，以及严格 verifier 的正负合同回归。原始 JSON/Markdown、工作数据和实际 runner 硬件/规模保留在 artifact；汇总状态为 `HOSTED_VALIDATION_ONLY`，原始固定硬件声明保持 `NOT_READY`。软件发布就绪检查要求候选 SHA 的托管 job 成功。
+
+显式选择 `target=frozen-target` 才进入固定硬件容量取证：仅受保护 `main`、固定 `[self-hosted, linux, x64, sonnetdb-m19-capacity-x64-v1]` 标签、受保护 `m19-capacity-frozen-x64` environment 和全局串行锁。非 `main` 的固定目标触发会在接触目标机前显式失败。它 checkout 触发 SHA 并检查 clean tree，调用 `invoke-m19-capacity-bundle.ps1` 串行运行四个默认 profile；每个 profile 的 `--work` 位于同一 bundle 卷，避免报告磁盘快照与实际数据卷脱节。它生成硬件快照、checkout attestation 和 raw manifest，并在 profile 结束后记录终态 worktree；随后用单报告和 bundle verifier 核对同一 commit、机器、架构、硬件合同、存储型号、原始 JSON/Markdown 哈希及 artifact run URL。无论成功或失败，已生成内容都会上传；任意 profile、终态 worktree 或 verifier 失败则总结果为 `NOT_READY`。托管验证不替代此固定容量验收。
 
 目标机的部署前置条件、受保护变量和 artifact 审阅规则见 [M19 #125 固定目标硬件容量证据](m19-capacity-hardware.md)。
 
