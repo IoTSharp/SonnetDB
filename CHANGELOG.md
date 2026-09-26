@@ -13,6 +13,7 @@
 - **M43 稳定发布证据门禁**：核对同一提交的全部仓库工作流、实际验证步骤、当前 attempt 产物及双 profile Parity；较新失败/排队重跑、过期夜间窗口、全部跳过的场景不再放行。CodeQL 分析失败必须使工作流失败，候选分支的文档构建不部署 Pages。
 - **M20 Parity 依赖可用性**：固定 MinIO 参考版本的 Quay 镜像也已拒绝匿名拉取，改为从对应上游 commit 构建并校验源码归档 SHA-256，镜像同时保留许可和源码；原比较版本不变，远程 light/full 与七日结果另行验收。
 - **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。
+- 默认 Docker Compose 将 HTTP、Frame、MQTT 及可选观测栈主机端口限制为 loopback，避免空数据目录首次管理员初始化直接暴露给外部客户端；透传 `SONNETDB_USER` / `SONNETDB_PASSWORD` / `SONNETDB_DB`，并统一 Docker 示例中的本机启动与先初始化、验证认证再开放远程端口的步骤。
 - 修复 CDC spool 在 Unix 上使用共享文件租约而允许多个写入者同时打开同一路径的问题；专用租约改为独占打开，并覆盖并发竞争、构造失败清理、跨进程拒绝、正常释放及进程强杀后的事件回放与确认恢复。
 - 修复跨平台 CI 证据收集与测试合同：Graph launcher 退出后按原有期限等待完整进程组清空，控制状态读取允许 Windows 原子替换的 delete access；EF HTTP/2 验证实际服务端事务会话及回滚后的持久状态，Studio 宿主测试显式构建并记录 Server 输出位置，兼容独立 artifacts 目录且不混入 Server 配置。
 - Server/Studio bundle 与安装包内置 Server 默认仅在 loopback 提供 HTTP/Frame，并显式关闭 MQTT/外部客户端/Sparkplug、CoAP/DTLS、Line Protocol UDP 和 Modbus，避免公开初始化凭据随默认网络监听暴露；发布流程核对实际产物配置，并以 NativeAOT Server 验证本机健康访问和非本机接口连接拒绝。开放远程访问前需移除静态 bootstrap token 并配置每部署唯一凭据。

@@ -78,7 +78,7 @@ SonnetDB 是一款基于 C# / .NET 10 构建的开源时序数据库，由 maike
 docker pull iotsharp/sonnetdb:latest
 
 # 启动容器
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb
 ```
 
 ### 2.2 从源码构建
@@ -1594,11 +1594,11 @@ db.WriteMany(seriesId, points);
 ### 21.1 Docker 部署
 
 ```bash
-# 生产部署
+# 本机首次启动；完成初始化后再配置远程入口。
 docker run -d --name sonnetdb \
-  -p 5080:5080 \
+  -p 127.0.0.1:5080:5080 \
   -v /data/sonnetdb:/data \
-  -e SONNETDB__DATA__ROOT=/data \
+  -e SONNETDB_SonnetDBServer__DataRoot=/data \
   iotsharp/sonnetdb:latest
 ```
 
@@ -1609,12 +1609,14 @@ services:
   sonnetdb:
     image: iotsharp/sonnetdb:latest
     ports:
-      - "5080:5080"
+      - "127.0.0.1:5080:5080"
     volumes:
       - ./data:/data
     environment:
-      - SONNETDB__DATA__ROOT=/data
+      - SONNETDB_SonnetDBServer__DataRoot=/data
 ```
+
+远程部署先通过 `SONNETDB_USER` / `SONNETDB_PASSWORD` 完成引导，并在本机验证 `needsSetup=false` 与管理员认证；随后按需开放目标接口。完整步骤见 [Docker 镜像部署](../releases/docker-image.md#首次初始化与远程部署)。
 
 ### 21.2 安装器
 

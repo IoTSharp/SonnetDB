@@ -2,12 +2,15 @@ services:
   sonnetdb:
     image: iotsharp/sonnetdb
     ports:
-      - "5080:5080"
-      - "5081:5081"
-      - "1883:1883"
+      - "127.0.0.1:5080:5080"
+      - "127.0.0.1:5081:5081"
+      - "127.0.0.1:1883:1883"
     volumes:
       - sonnetdb-data:/data
     environment:
+      SONNETDB_USER: ${SONNETDB_USER:-}
+      SONNETDB_PASSWORD: ${SONNETDB_PASSWORD:-}
+      SONNETDB_DB: ${SONNETDB_DB:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${SONNETDB_OTEL_EXPORTER_OTLP_ENDPOINT:-}
       SONNETDB_SonnetDBServer__Observability__Prometheus__Enabled: ${SONNETDB_PROMETHEUS_ENABLED:-false}
     restart: unless-stopped
@@ -19,9 +22,9 @@ services:
     volumes:
       - ./deploy/observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     ports:
-      - "4317:4317"
-      - "4318:4318"
-      - "9464:9464"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:9464:9464"
     restart: unless-stopped
 
   prometheus:
@@ -34,7 +37,7 @@ services:
       - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       - otel-collector
     restart: unless-stopped
@@ -46,7 +49,7 @@ services:
       - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
     restart: unless-stopped
