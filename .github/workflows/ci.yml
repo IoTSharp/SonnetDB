@@ -24,6 +24,7 @@ jobs:
   build-and-test:
     name: Build & Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -67,14 +68,18 @@ jobs:
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
 
       - name: Test
-        run: dotnet test SonnetDB.slnx --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults
+        # 单项无进展时生成 mini dump 并失败退出；步骤上限为诊断产物上传预留时间。
+        timeout-minutes: 50
+        run: dotnet test SonnetDB.slnx --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
 
-      - name: Upload test results
+      - name: Upload test results and diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.os }}
+          # 保留整个结果目录，包含 TRX、Sequence_*.xml 和挂起转储。
           path: ./TestResults
+          if-no-files-found: error
 
   format-check:
     name: Format Check
