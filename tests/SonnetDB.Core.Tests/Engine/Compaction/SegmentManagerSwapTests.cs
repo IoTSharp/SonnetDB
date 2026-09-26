@@ -111,70 +111,107 @@ public sealed class SegmentManagerSwapTests : IDisposable
         Assert.NotEmpty(refs);
     }
 
-    // ── 并发：50 查询线程 + 1 Swap 持续 2 秒 → 无异常 ─────────────────────
+    // ── 并发：50 查询线程跨越 40 次实际发布，验证快照和 reader 租约 ─────────
 
     [Fact]
     public async Task SwapSegments_ConcurrentReadsAndSwap_NoExceptions()
     {
-        // 预写 3 个段
+        const int readerCount = 50;
+        const int swapCount = 40;
         WriteSegment(1, seriesId: 1UL);
         WriteSegment(2, seriesId: 1UL);
         WriteSegment(3, seriesId: 1UL);
 
         using var mgr = SegmentManager.Open(_tempDir);
+        for (int round = 0; round < swapCount; round++)
+            WriteSegment(10L + round, seriesId: 1UL);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        using var cancellation = new CancellationTokenSource();
+        using var phase = new Barrier(readerCount + 1);
+        var completedReads = new int[readerCount];
+        int completedSwaps = 0;
 
-        // 50 个只读任务：持续读取 Index 快照
-        var readTasks = Enumerable.Range(0, 50).Select(_ => Task.Run(() =>
+        void WaitForPhase()
         {
-            while (!cts.Token.IsCancellationRequested)
+            Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(10), cancellation.Token),
+                "All readers and the swap writer must reach the publication barrier.");
+        }
+
+        // 忙循环不能占满线程池后再依赖同一线程池上的取消定时器停止。
+        // 专用线程与固定轮次既避免调度饥饿，也确保每个读者实际跨越每次发布。
+        Task StartWorker(Action work) => Task.Factory.StartNew(() =>
+        {
+            try
             {
-                try
-                {
-                    var idx = mgr.Index;
-                    _ = idx.SegmentCount;
-                    var snap = mgr.Readers;
-                    _ = snap.Count;
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    exceptions.Add(ex);
-                }
+                work();
             }
-        })).ToList();
-
-        // 1 个 Swap 任务
-        long nextSegId = 10;
-        var swapTask = Task.Run(() =>
-        {
-            while (!cts.Token.IsCancellationRequested)
+            catch
             {
-                try
-                {
-                    long segId = Interlocked.Increment(ref nextSegId);
-                    WriteSegment(segId, seriesId: 1UL);
-                    string addedPath = SegPath(segId);
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-                    var current = mgr.Readers;
-                    if (current.Count > 0)
-                    {
-                        long removeId = current[0].Header.SegmentId;
-                        mgr.SwapSegments(new long[] { removeId }, addedPath);
-                    }
-                    Thread.Sleep(50);
-                }
-                catch (OperationCanceledException) { }
-                catch (Exception ex)
+        // 此钩子位于 writer 锁内、候选集合已变更而新快照尚未发布的位置。
+        // 此时所有读者都必须能取得完整旧快照，并持有租约直到发布结束。
+        mgr.BeforeSegmentIndexBuildTestHook = (_, _) =>
+        {
+            WaitForPhase();
+            WaitForPhase();
+        };
+
+        var readTasks = Enumerable.Range(0, readerCount).Select(readerId => StartWorker(() =>
+        {
+            for (int round = 0; round < swapCount; round++)
+            {
+                WaitForPhase();
+                using var lease = mgr.AcquireSnapshot();
+                Assert.Equal(3, mgr.Index.SegmentCount);
+                Assert.Equal(3, mgr.Readers.Count);
+                Assert.Equal(3, lease.Snapshot.Index.SegmentCount);
+                Assert.Equal(3, lease.Readers.Count);
+                Assert.DoesNotContain(lease.Readers, reader => reader.Header.SegmentId == 10L + round);
+                WaitForPhase();
+
+                WaitForPhase();
+                Assert.Contains(mgr.Readers, reader => reader.Header.SegmentId == 10L + round);
+                foreach (var reader in lease.Readers)
                 {
-                    exceptions.Add(ex);
+                    var points = reader.DecodeBlock(Assert.Single(reader.Blocks));
+                    Assert.Equal(10, points.Length);
+                    for (int point = 0; point < points.Length; point++)
+                    {
+                        Assert.Equal(1000L + point, points[point].Timestamp);
+                        Assert.Equal(FieldValue.FromDouble(point), points[point].Value);
+                    }
                 }
+                completedReads[readerId]++;
+            }
+        })).ToArray();
+
+        var swapTask = StartWorker(() =>
+        {
+            for (int round = 0; round < swapCount; round++)
+            {
+                long removeId = mgr.Readers[0].Header.SegmentId;
+                mgr.SwapSegments([removeId], SegPath(10L + round));
+                completedSwaps++;
+                WaitForPhase();
             }
         });
 
-        await Task.WhenAll([.. readTasks, swapTask]);
+        try
+        {
+            await Task.WhenAll([.. readTasks, swapTask]).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            mgr.BeforeSegmentIndexBuildTestHook = null;
+        }
 
-        Assert.Empty(exceptions);
+        Assert.Equal(swapCount, completedSwaps);
+        Assert.All(completedReads, count => Assert.Equal(swapCount, count));
+        Assert.Equal(3, mgr.SegmentCount);
     }
 }
