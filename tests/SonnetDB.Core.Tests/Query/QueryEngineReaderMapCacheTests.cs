@@ -166,13 +166,22 @@ public sealed class QueryEngineReaderMapCacheTests : IDisposable
             }
         });
 
+        Task allWorkers = Task.WhenAll([.. queryTasks, swapTask]);
         try
         {
-            await Task.WhenAll([.. queryTasks, swapTask]).WaitAsync(TimeSpan.FromSeconds(30));
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(30));
         }
         finally
         {
             cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；这里只等待所有专用线程退出后再释放同步对象。
+            }
             manager.BeforeSegmentIndexBuildTestHook = null;
         }
 
