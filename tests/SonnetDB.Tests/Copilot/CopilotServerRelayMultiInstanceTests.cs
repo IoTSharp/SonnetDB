@@ -1,6 +1,6 @@
+using System.Text.Json;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
-using System.Text.Json;
 using Xunit;
 
 namespace SonnetDB.Tests.Copilot;

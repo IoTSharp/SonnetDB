@@ -29,7 +29,7 @@ internal static class SqlProjectionExpressionEvaluator
                 return;
             case CastExpression cast:
                 if (cast.TargetType is SqlDataType.Vector or SqlDataType.GeoPoint)
-                    throw new NotSupportedException($"CAST 当前不支持目标类型 {cast.TargetType}。" );
+                    throw new NotSupportedException($"CAST 当前不支持目标类型 {cast.TargetType}。");
                 Validate(cast.Operand, identifierExists, context);
                 if (cast.Operand is LiteralExpression literal)
                     _ = SqlCastOperations.Convert(EvaluateLiteral(literal), cast.TargetType);

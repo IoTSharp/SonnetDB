@@ -798,7 +798,7 @@ public static class FunctionRegistry
             ArgumentNullException.ThrowIfNull(schema);
 
             if (call.IsDistinct && call.IsStar)
-                throw new InvalidOperationException("聚合 DISTINCT 不支持 '*' 参数。" );
+                throw new InvalidOperationException("聚合 DISTINCT 不支持 '*' 参数。");
 
             if (call.IsStar)
             {
@@ -813,7 +813,7 @@ public static class FunctionRegistry
                 && call.Arguments[0] is LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: 1 })
             {
                 if (call.IsDistinct)
-                    throw new InvalidOperationException("COUNT(DISTINCT 1) 当前不支持；请指定 FIELD 列。" );
+                    throw new InvalidOperationException("COUNT(DISTINCT 1) 当前不支持；请指定 FIELD 列。");
                 return null;
             }
 

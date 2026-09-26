@@ -207,7 +207,8 @@ internal static partial class RelationalSelectExecutor
                 projected.Columns,
                 projected.Rows,
                 statement.OrderByList,
-                statement.Pagination) with { ColumnInfo = projected.ColumnInfo };
+                statement.Pagination) with
+            { ColumnInfo = projected.ColumnInfo };
         }
         if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
             return ApplyPagination(
@@ -216,7 +217,8 @@ internal static partial class RelationalSelectExecutor
                     ColumnInfo = projected.ColumnInfo,
                 }, hasWindow ? statement.Pagination : null);
         return ApplyPagination(projected.Columns, projected.Rows, statement.Pagination)
-            with { ColumnInfo = projected.ColumnInfo };
+            with
+        { ColumnInfo = projected.ColumnInfo };
     }
 
     /// <summary>
@@ -4186,7 +4188,7 @@ internal static partial class RelationalSelectExecutor
             if (fn.IsStar)
             {
                 if (fn.IsDistinct)
-                    throw new InvalidOperationException("COUNT(DISTINCT *) 当前不支持；请指定列名。" );
+                    throw new InvalidOperationException("COUNT(DISTINCT *) 当前不支持；请指定列名。");
                 return (long)rows.Count;
             }
             RequireArgumentCount(fn, 1);
@@ -4586,7 +4588,7 @@ internal static partial class RelationalSelectExecutor
         SubqueryMemo? memo = null)
     {
         if (function.IsDistinct)
-            throw new InvalidOperationException($"函数 '{function.Name}' 不支持 DISTINCT 修饰词。" );
+            throw new InvalidOperationException($"函数 '{function.Name}' 不支持 DISTINCT 修饰词。");
         if (IsAggregateFunction(function.Name))
             throw new InvalidOperationException($"聚合函数 '{function.Name}' 只能出现在聚合投影中。");
 

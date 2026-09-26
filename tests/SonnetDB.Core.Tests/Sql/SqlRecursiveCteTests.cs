@@ -1,6 +1,6 @@
+using SonnetDB.Data;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
-using SonnetDB.Data;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;

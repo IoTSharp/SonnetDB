@@ -1,8 +1,8 @@
-using SonnetDB.Data.TimeSeries;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using SonnetDB.Data.TimeSeries;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.TimeSeries;

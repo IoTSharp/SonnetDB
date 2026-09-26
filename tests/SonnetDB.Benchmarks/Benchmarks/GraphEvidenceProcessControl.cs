@@ -485,7 +485,9 @@ internal sealed class GraphEvidenceProcessControl : IDisposable
                 path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read,
+                // 发布者用原子 rename 替换状态；Windows 读句柄须允许 delete access，
+                // 否则会与 rename 的短暂句柄重叠并把完整证据误判为失败。
+                FileShare.Read | FileShare.Delete,
                 bufferSize: 4_096,
                 FileOptions.SequentialScan);
             if (stream.Length is <= 0 || stream.Length > maximumBytes)

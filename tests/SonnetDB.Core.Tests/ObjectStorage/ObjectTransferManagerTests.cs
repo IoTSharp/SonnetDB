@@ -232,10 +232,18 @@ public sealed class ObjectTransferManagerTests
 
         private static object ObjectInfo(byte[] bytes, string key) => new
         {
-            bucket = "media", key, versionId = "v1", contentType = "application/octet-stream", sizeBytes = bytes.Length,
-            eTag = "\"object\"", sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), isDeleteMarker = false,
-            createdUtc = DateTimeOffset.UtcNow, updatedUtc = DateTimeOffset.UtcNow,
-            metadata = new Dictionary<string, string>(), tags = new Dictionary<string, string>(),
+            bucket = "media",
+            key,
+            versionId = "v1",
+            contentType = "application/octet-stream",
+            sizeBytes = bytes.Length,
+            eTag = "\"object\"",
+            sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+            isDeleteMarker = false,
+            createdUtc = DateTimeOffset.UtcNow,
+            updatedUtc = DateTimeOffset.UtcNow,
+            metadata = new Dictionary<string, string>(),
+            tags = new Dictionary<string, string>(),
         };
 
         private static HttpResponseMessage Json(object value)

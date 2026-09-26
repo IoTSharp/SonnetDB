@@ -206,7 +206,8 @@ public sealed class SqlResultBoundsEndpointTests : IAsyncLifetime
     {
         using var response = await _client!.PostAsync("/v1/db/bounds/sql",
             JsonContent.Create(new SqlRequest(
-                "INSERT INTO rows_to_preview (id) VALUES (4) RETURNING id") { PreviewMaxRows = requested },
+                "INSERT INTO rows_to_preview (id) VALUES (4) RETURNING id")
+            { PreviewMaxRows = requested },
                 ServerJsonContext.Default.SqlRequest));
         string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("\"error\"", body);

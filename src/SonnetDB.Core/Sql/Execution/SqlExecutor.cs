@@ -1990,14 +1990,14 @@ public static class SqlExecutor
                     AddRows(rightRows);
                     break;
                 case SqlSetOperationKind.Except:
-                {
-                    ReserveSet((long)rows.Count + rightRows.Count);
-                    var right = new HashSet<IReadOnlyList<object?>>(rightRows, DistinctRowComparer.Instance);
-                    rows = SqlBlockingOperators
-                        .DistinctRows(rows.Where(row => !right.Contains(row)), DistinctRowComparer.Instance)
-                        .ToList();
-                    break;
-                }
+                    {
+                        ReserveSet((long)rows.Count + rightRows.Count);
+                        var right = new HashSet<IReadOnlyList<object?>>(rightRows, DistinctRowComparer.Instance);
+                        rows = SqlBlockingOperators
+                            .DistinctRows(rows.Where(row => !right.Contains(row)), DistinctRowComparer.Instance)
+                            .ToList();
+                        break;
+                    }
                 default:
                     throw new ArgumentOutOfRangeException(nameof(kind), kind, "未知集合运算。");
             }

@@ -1752,9 +1752,20 @@ public sealed class SonnetDbProviderTests : IDisposable
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
             await transaction.RollbackAsync();
 
+            await using var verification = new DeviceContext(options);
+            Assert.Equal("pump-outside", (await verification.Devices.SingleAsync(item => item.Id == 1)).Name);
+            Assert.False(await verification.Devices.AnyAsync(item => item.Id == 404 || item.Id == 405));
+
             var observed = requests.ToArray();
             Assert.Contains(observed, request => request.Path == $"/v1/db/{database}/sql");
-            Assert.Contains(observed, request => request.Path == $"/v1/db/{database}/sql/batch");
+            var transactionPath = $"/v1/db/{database}/sql/transactions";
+            Assert.Contains(observed, request => request.Path == transactionPath);
+            var transactionSql = observed.Where(request =>
+                request.Path.StartsWith(transactionPath + "/", StringComparison.Ordinal)
+                && request.Path.EndsWith("/sql", StringComparison.Ordinal)).ToArray();
+            Assert.NotEmpty(transactionSql);
+            var sessionPath = Assert.Single(transactionSql.Select(request => request.Path[..^4]).Distinct());
+            Assert.Contains(observed, request => request.Path == sessionPath + "/rollback");
             Assert.All(observed, request => Assert.Equal("HTTP/2", request.Protocol));
         }
         finally

@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- 修复跨平台 CI 证据收集与测试合同：Graph launcher 退出后按原有期限等待完整进程组清空，控制状态读取允许 Windows 原子替换的 delete access；EF HTTP/2 验证实际服务端事务会话及回滚后的持久状态，Studio 宿主测试显式构建并记录 Server 输出位置，兼容独立 artifacts 目录且不混入 Server 配置。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
@@ -22,6 +23,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 清理主线合并后的 C# 格式与 imports，保持完整格式门禁；CI 取消同分支过期运行，并在 Windows/Linux 构建中执行发布门禁脚本合同测试；Studio 测试变更会触发管理工作台 smoke。
 - 核查并合并本地与远端开发分支的历史关系，保留已进入主线的后续修复并记录重复/过期片段处理；详见 [2026-09-26 分支合并核查](docs/audits/branch-integration-20260926.md)。
 - 将 OpenTelemetry.Extensions.Hosting 从 1.19.0 升级至 1.19.1（PR #208）。
 - 将 OpenTelemetry.Exporter.OpenTelemetryProtocol 从 1.19.0 升级至 1.19.1（PR #207）。

@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -51,6 +55,12 @@ jobs:
       - name: Verify restored dependency licenses
         shell: pwsh
         run: ./eng/verify-dependency-licenses.ps1
+
+      - name: Test release gate contracts
+        shell: pwsh
+        run: |
+          ./eng/test-release-artifacts.ps1
+          ./eng/test-release-readiness.ps1
 
       - name: Build
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
