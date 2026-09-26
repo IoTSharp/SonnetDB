@@ -1,0 +1,3 @@
+self-hosted-runner:
+  labels:
+    - sonnetdb-m19-capacity-x64-v1

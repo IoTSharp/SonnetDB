@@ -60,6 +60,7 @@ jobs:
         shell: pwsh
         run: |
           ./eng/test-release-artifacts.ps1
+          ./eng/test-release-network-defaults.ps1
           ./eng/test-release-readiness.ps1
 
       - name: Build

@@ -43,6 +43,7 @@ function Get-RequiredReleaseSteps {
         'Connectors (*)' { @('Build and package connectors', 'Verify connector package inventory and native entries') }
         'Build, Verify and Publish Docker Image' { @('Build image for local verification', 'Verify container startup, readiness and embedded Admin UI') }
         'evidence' { @('Run golden journey and commit failure tests', 'Run real process-kill replay test', 'Run REST and Frame routine contracts', 'Run M39 cost and rollback report') }
+        'GitHub-hosted capacity validation' { @('Validate strict capacity verifier contracts', 'Run all four scaled specialized profiles', 'Record hosted hardware, scale and evidence boundary') }
     }
 }
 

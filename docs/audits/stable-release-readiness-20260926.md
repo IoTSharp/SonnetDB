@@ -1,0 +1,37 @@
+# 4.0.0 稳定候选发布审查（2026-09-26）
+
+结论：必须先消除实际代码及验证缺陷，再以同一提交的 GitHub Actions 验证候选。首次审查时 **NOT_READY**，不能由既有 issue 关闭状态或其他提交上的绿色工作流推断可以发布。首次核查源码为 `7dffde4945a03c142bc980746b78a464e035f009`；集成保留后续 `387635ee` 的 M27 文档更新。最新公开版本仍是 `v3.1.0`，候选采用已经记录的 `4.0.0` 主版本兼容边界。
+
+## 发布前需要解决的实际问题
+
+| 问题 | 对发布后稳定性、可靠性或部署的影响 | 修复与验证方式 |
+| --- | --- | --- |
+| Unix CDC spool 的 `.lock` 使用共享租约 | 同进程或跨进程第二写入者可进入，事件帧和确认位点失去单写者保证 | 独占句柄；竞争、构造失败、正常退出和强杀后恢复测试。Linux 未修复负例已失败，修复后两平台 CDC/向量各 46/46、真实进程恢复各 26/26 |
+| Windows Graph 证据文件原子替换与读取冲突 | `completion.state` 读取发生 sharing violation，恢复/进程控制证据不可靠 | 读取允许 delete sharing，确定性句柄回归；保留 I/O 错误可见性 |
+| Graph launcher 退出后测试忙轮询 | 子进程尚在退出即误判清理失败 | 使用原有十秒期限等待实际进程组清空；受控启动钩子故障采用精确退出码 91 |
+| EF HTTP/2 测试断言旧轻事务路由 | 当前服务端事务会话无法取得可靠 CI 验证 | 核对会话创建、同一会话 SQL、rollback 和独立连接读回持久状态 |
+| Studio 单独构建找不到 Server | 管理工作台 workflow 无法验证真实托管宿主 | 显式构建依赖和构建期目标路径；独立 artifacts 目录 58/58 |
+| ecosystem torn WAL 测试假设单文件 | checkpoint carrier 出现后测试提前退出，没有执行预期恢复检查 | 选择含已确认写入记录的 WAL 段；完整 quick 旅程由失败变为通过 |
+| 固定 MinIO 镜像不能匿名拉取 | light/full 都无法启动参考栈 | 使用原版本对应上游 commit、SHA-256 核验源码构建，保留许可与源码；必须远程实跑后判定通过 |
+| 默认 bundle 暴露公开初始凭据 | HTTP、Frame、MQTT 等入口可能被网络访问 | bundle/Studio/安装包默认 loopback，额外协议关闭；开放远程前替换密码及静态 token |
+| 发布与验证之间缺少完整门禁 | `main` 覆盖 Docker latest，连接器抢先创建 Release，dispatch 可能发布 | dispatch 只验证；同一提交全工作流门禁；镜像运行验证后推送同一镜像；连接器等待主发布成功 |
+| 产物缺包、版本错误或重跑借用旧 artifact | 已发布资产不完整或与候选验证不一致 | 校验七个 NuGet 包、版本、内部身份、SHA-256、原生入口；门禁检查当前 attempt 的非空未过期产物 |
+| 验证报告可误放行 | 旧绿灯掩盖较新失败/排队重跑，旧七天窗口、全 skipped profile 被当成功 | 按最新 attempt 时间取证，检查必要步骤确实执行，拒绝过期窗口和无实际通过场景 |
+
+原始线上失败证据：CI [36208014238](https://github.com/IoTSharp/SonnetDB/actions/runs/36208014238)、Parity [36106844752](https://github.com/IoTSharp/SonnetDB/actions/runs/36106844752)、管理工作台 [36087324461](https://github.com/IoTSharp/SonnetDB/actions/runs/36087324461)、Ecosystem [35499601797](https://github.com/IoTSharp/SonnetDB/actions/runs/35499601797)。失败记录保留在分母中。
+
+## GitHub 托管验证与发布门槛
+
+按本次用户决定使用在线 GitHub 托管 runner。M19 默认路径执行四种有界容量/恢复场景并保留真实硬件、参数、原始报告，标记 `HOSTED_VALIDATION_ONLY`；它验证工作负载与自动化链路可运行，不提供专用固定硬件容量背书。原冻结硬件路径保留为显式选项。
+
+`eng/verify-release-readiness.ps1 -CommitSha <full-sha>` 核查十二个仓库工作流。Publish 与 Connectors Release 的候选版本统一使用 `4.0.0`；三个发布工作流必须先有该提交的 dispatch 预检，正式 tag 路径才允许发布。CI 包含 Windows/Linux 测试和三个架构 NativeAOT；CodeQL 分析失败必须使 workflow 失败。Parity 额外验证本次候选的 light/full 原始 artifact，以及最近连续七个 UTC 日期的 scheduled 双 profile 证据；最新 scheduled 必须在 48 小时内。手动运行七次不能替代七天 scheduled。
+
+首次在线快照只有 CodeQL 在初始提交成功，其余包括排队、取消、未运行或失败；初始 Parity 最近七次为三次成功、四次失败。最终发布判断必须重新运行脚本获取当前提交的在线报告，不能把此历史快照写成最终结果。
+
+## 能延期的能力与仍需限制的发布声明
+
+稳定版本不要求完成全部研究与产品路线图。原生 Frame SQL 写入、任意计算生成列、行锁、尚未实现的 Graph/Agent Framework 扩展应保持明确的拒绝或文档边界，不能临时以回退行为冒称支持。4.0.0 的公共 API 破坏要求消费者重编译；不借主版本跳过持久化格式规则。
+
+以下证据不能从 hosted 短测或代码存在推导：干净离线 Windows/WebView2 安装与升级卸载；百万/千万级固定硬件容量；真实模型质量、成本及迁移召回；现场双网和生产 HA；168 小时混合负载。远程事务已有丢失 COMMIT 响应回读及禁止自动重放，终态仍为单实例短期内存缓存，服务重启后的未知提交结果不应当作确定失败自动重试。数据库目录备份也不等于整个 Server 实例 MQ 的备份。
+
+发布说明应只承诺已验收的边界，缺少证据的规模、部署和质量保证继续标记未验证。正式版本号、NuGet 公布、GitHub Release、Docker stable 标签及其发布后复验未全部完成前，仍称候选版本。
