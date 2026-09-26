@@ -10,6 +10,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
+- 修复 ServerRelay 共享 journal 在 Unix 上删除锁文件导致的 inode 分裂：全局锁改为保留单个文件并以句柄释放所有权；run 租约获取强制位于该稳定 journal 事务内，短期租约文件仍及时清理。新增跨进程延迟 flock 回归，验证第二个实际 `Attach` 被拒绝且 journal 不被并发覆盖。
 - 修复 Document Store Soak 在线 Ubuntu 启动阻断：verifier 合同测试使用平台临时目录与当前 PowerShell 7 可执行路径，消除 `$env:TEMP` 和 `pwsh.exe` 的 Windows 假定，继续执行完整正负证据判定合同。
 - 修复远程 KV 回归测试的 loopback HTTP 宿主在响应完成后关闭监听时的 accept 竞态；仅忽略显式关闭期间的监听 socket 异常，处理器故障继续透传，并以重复关闭和故障传播回归防止 CI 偶发误报或漏报。
 - **M43 稳定发布证据门禁**：核对同一提交的全部仓库工作流、实际验证步骤、当前 attempt 产物及双 profile Parity；较新失败/排队重跑、过期夜间窗口、全部跳过的场景不再放行。CodeQL 分析失败必须使工作流失败，候选分支的文档构建不部署 Pages。

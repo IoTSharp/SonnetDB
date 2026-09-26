@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
@@ -9,6 +10,52 @@ namespace SonnetDB.Tests.Copilot;
 public sealed class CopilotServerRelayMultiInstanceTests
 {
     private static readonly CopilotServerRelayRunBinding Binding = new("owner", "factory", "request");
+
+    /// <summary>验证 Linux 延迟 flock 的进程仍锁住后续 journal 操作使用的同一 inode。</summary>
+    [Fact]
+    public async Task Attach_DelayedJournalLockProcess_PreventsConcurrentJournalOwner()
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        using var fixture = new SharedJournal();
+        var startInfo = new ProcessStartInfo("/bin/sh")
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add("-c");
+        // 精确模拟另一个进程在 open 与非阻塞 flock 之间被调度暂停。
+        startInfo.ArgumentList.Add("set -eu; exec 9<>\"$1\"; printf 'opened\\n'; IFS= read -r gate; flock -x -n 9; printf 'locked\\n'; IFS= read -r finish");
+        startInfo.ArgumentList.Add("relay-journal-lock");
+        startInfo.ArgumentList.Add(fixture.Path + ".lock");
+        using var delayedOwner = Process.Start(startInfo)!;
+        try
+        {
+            Assert.Equal("opened", await delayedOwner.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(CopilotServerRelayAttachStatus.Created,
+                fixture.First.Attach("first-transaction", null, Binding).Status);
+            string persisted = File.ReadAllText(fixture.Path);
+
+            await delayedOwner.StandardInput.WriteLineAsync("acquire");
+            await delayedOwner.StandardInput.FlushAsync();
+            Assert.Equal("locked", await delayedOwner.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Throws<IOException>(() => fixture.Second.Attach("competing-transaction", null, Binding));
+            Assert.Equal(persisted, File.ReadAllText(fixture.Path));
+        }
+        finally
+        {
+            if (!delayedOwner.HasExited)
+                delayedOwner.Kill(entireProcessTree: true);
+            await delayedOwner.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        // 进程退出释放的是句柄锁；残留路径不能阻止下一次合法事务。
+        Assert.Equal(CopilotServerRelayAttachStatus.Created,
+            fixture.Second.Attach("after-process-exit", null, Binding).Status);
+    }
 
     [Fact]
     public async Task Attach_WithoutSelectedDatabase_PersistsAndReplaysControlPlaneRun()
@@ -210,7 +257,7 @@ public sealed class CopilotServerRelayMultiInstanceTests
         owner.Publish(new CopilotChatEvent("start"));
         string before = File.ReadAllText(fixture.Path);
         using (var competingLock = new FileStream(fixture.Path + ".lock", FileMode.OpenOrCreate,
-            FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose))
+            FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None))
         {
             var started = System.Diagnostics.Stopwatch.StartNew();
             owner.Complete();
@@ -253,7 +300,7 @@ public sealed class CopilotServerRelayMultiInstanceTests
         fixture.First.Dispose();
 
         Assert.IsType<ObjectDisposedException>(attachFailure);
-        Assert.Empty(Directory.GetFiles(System.IO.Path.GetDirectoryName(fixture.Path)!, "*.lock"));
+        AssertOnlyReleasedJournalLockRemains(fixture.Path);
         var persisted = JsonSerializer.Deserialize(File.ReadAllText(fixture.Path),
             CopilotServerRelayJournalJsonContext.Default.CopilotServerRelayJournalDocument)!;
         Assert.Equal("dispose-reentrant", Assert.Single(persisted.Runs).RunId);
@@ -270,7 +317,15 @@ public sealed class CopilotServerRelayMultiInstanceTests
         fixture.First.Dispose();
         Assert.True(first.DeadlineToken.IsCancellationRequested);
         Assert.True(second.DeadlineToken.IsCancellationRequested);
-        Assert.Empty(Directory.GetFiles(System.IO.Path.GetDirectoryName(fixture.Path)!, "*.lock"));
+        AssertOnlyReleasedJournalLockRemains(fixture.Path);
+    }
+
+    private static void AssertOnlyReleasedJournalLockRemains(string journalPath)
+    {
+        Assert.Equal(journalPath + ".lock",
+            Assert.Single(Directory.GetFiles(System.IO.Path.GetDirectoryName(journalPath)!, "*.lock")));
+        using var released = new FileStream(journalPath + ".lock", FileMode.Open,
+            FileAccess.ReadWrite, FileShare.None);
     }
 
     private static void WriteJournal(string path, CopilotServerRelayJournalRun[] runs)

@@ -463,7 +463,9 @@ internal sealed class CopilotServerRelayRunStore : IDisposable
                     FileAccess.ReadWrite,
                     FileShare.None,
                     bufferSize: 1,
-                    options: FileOptions.DeleteOnClose);
+                    // 保留唯一 journal 锁文件；Unix 删除路径会让延迟 flock 的进程
+                    // 锁住旧 inode，而后来的事务同时锁住新 inode。
+                    options: FileOptions.None);
                 _journalTransactionDepth = 1;
                 return new JournalTransaction(this);
             }
@@ -481,6 +483,12 @@ internal sealed class CopilotServerRelayRunStore : IDisposable
     {
         if (_journalPath is null)
             return null;
+        if (_journalTransaction is null)
+            throw new InvalidOperationException("ServerRelay run 租约必须在 journal 事务内获取。");
+
+        // 所有 run lease 的 open/flock 均由稳定的 journal 锁串行化。即使旧 owner
+        // 在 journal 外释放租约，当前获取者仍持有 journal，其他实例不能同时创建
+        // 新 inode owner；保留短期删除，避免任意 runId 导致锁文件永久累积。
         string identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key.Owner + "\0" + key.RunId)));
         try
         {
