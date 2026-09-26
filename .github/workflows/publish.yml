@@ -136,6 +136,12 @@ jobs:
         shell: pwsh
         run: ./eng/release.ps1 -Tasks bundles,installers -Version '${{ needs.nuget.outputs.version }}' -Rid '${{ matrix.rid }}' -BuildAdminUi
 
+      - name: Verify bundle network defaults with the NativeAOT Server
+        shell: pwsh
+        run: |
+          $executable = if ($IsWindows) { 'SonnetDB.exe' } else { 'SonnetDB' }
+          ./eng/test-release-network-defaults.ps1 -ServerPath "artifacts/release/publish/${{ matrix.rid }}/server/$executable" -RequirePackagedDefaults
+
       - name: Verify installed INSERT RETURNING contract and published compatibility
         shell: pwsh
         run: |

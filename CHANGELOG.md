@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- Server/Studio bundle 与安装包内置 Server 默认仅在 loopback 提供 HTTP/Frame，并显式关闭 MQTT/外部客户端/Sparkplug、CoAP/DTLS、Line Protocol UDP 和 Modbus，避免公开初始化凭据随默认网络监听暴露；发布流程核对实际产物配置，并以 NativeAOT Server 验证本机健康访问和非本机接口连接拒绝。开放远程访问前需移除静态 bootstrap token 并配置每部署唯一凭据。
 - 稳定发布预检统一核对同一提交的 Actions 证据；Publish、连接器和 Docker 手动运行只生成并验证候选产物。主线镜像不再覆盖 `latest`，连接器等待主发布成功后附加资产；新增完整 NuGet/平台包库存、版本、SHA-256 与必需原生文件门禁，并修复默认 RID、Linux 压缩/执行位失败检测及 AOT 诊断输出。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
