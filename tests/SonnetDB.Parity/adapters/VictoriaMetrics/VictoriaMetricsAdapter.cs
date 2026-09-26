@@ -13,13 +13,22 @@ namespace SonnetDB.Parity.Adapters.VictoriaMetrics;
 public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
 {
     private readonly HttpClient _client;
+    private readonly TimeSpan _visibilityTimeout;
     private long _minTimestamp = long.MaxValue;
     private long _maxTimestamp = long.MinValue;
 
     /// <summary>使用 <c>PARITY_VM_URL</c> 环境变量创建连接。</summary>
     public VictoriaMetricsAdapter()
+        : this(new HttpClient { BaseAddress = new Uri(Env("PARITY_VM_URL", "http://127.0.0.1:28428")) }, TimeSpan.FromSeconds(15))
     {
-        _client = new HttpClient { BaseAddress = new Uri(Env("PARITY_VM_URL", "http://127.0.0.1:28428")) };
+    }
+
+    internal VictoriaMetricsAdapter(HttpClient client, TimeSpan visibilityTimeout)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(visibilityTimeout, TimeSpan.Zero);
+        _client = client;
+        _visibilityTimeout = visibilityTimeout;
     }
 
     /// <inheritdoc />
@@ -101,7 +110,7 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
                 $"VictoriaMetrics remote_write failed: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)}");
         }
 
-        await WaitUntilQueryableAsync(points[0].Measurement, ct).ConfigureAwait(false);
+        await WaitUntilQueryableAsync(points, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -271,20 +280,42 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
         return normalized;
     }
 
-    private async Task WaitUntilQueryableAsync(string measurement, CancellationToken ct)
+    private async Task WaitUntilQueryableAsync(IReadOnlyList<TsdbPoint> points, CancellationToken ct)
     {
-        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(15);
-        string url = "/api/v1/query?query=" + Uri.EscapeDataString(measurement)
-                     + "&time=" + FormatUnixSeconds(_maxTimestamp)
-                     + "&nocache=1";
-        while (true)
+        var expected = points.GroupBy(static point => point.Measurement, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+        var observed = expected.Keys.ToDictionary(static measurement => measurement, static _ => 0d, StringComparer.Ordinal);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(_visibilityTimeout);
+        try
         {
-            using var doc = await QueryAsync(url, ct).ConfigureAwait(false);
-            if (doc.RootElement.GetProperty("data").GetProperty("result").GetArrayLength() > 0)
-                return;
-            if (DateTimeOffset.UtcNow >= deadline)
-                throw new TimeoutException($"VictoriaMetrics measurement '{measurement}' was not queryable within 15 seconds.");
-            await Task.Delay(100, ct).ConfigureAwait(false);
+            while (true)
+            {
+                bool complete = true;
+                foreach (var (measurement, count) in expected)
+                {
+                    // remote_write 的确认与首条样本可见都不保证整批已可查询。
+                    // 必须等到每个 measurement 的完整精确数量，额外点仍直接失败。
+                    double visible = await QueryScalarAsync(
+                        $"sum(count_over_time({measurement}[{FullRangeDuration}]))",
+                        _maxTimestamp,
+                        timeout.Token).ConfigureAwait(false);
+                    observed[measurement] = visible;
+                    if (visible > count)
+                        throw new InvalidOperationException($"VictoriaMetrics measurement '{measurement}' has {visible.ToString(CultureInfo.InvariantCulture)} visible points; expected exactly {count}.");
+                    complete &= visible == count;
+                }
+
+                if (complete)
+                    return;
+                await Task.Delay(100, timeout.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested && timeout.IsCancellationRequested)
+        {
+            string counts = string.Join("; ", expected.Select(pair =>
+                $"'{pair.Key}': expected {pair.Value}, observed {observed[pair.Key].ToString(CultureInfo.InvariantCulture)}"));
+            throw new TimeoutException($"VictoriaMetrics complete batch was not queryable within {_visibilityTimeout.TotalSeconds.ToString(CultureInfo.InvariantCulture)} seconds: {counts}.", ex);
         }
     }
 

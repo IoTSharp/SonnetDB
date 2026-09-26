@@ -27,8 +27,12 @@ public sealed class IngestOneMillionPointsScenario : TsdbScenarioBase
         var result = await ops.CountAsync(measurement, ctx.Cancellation).ConfigureAwait(false);
 
         var scenario = FromResult(result);
-        scenario.Pass = result.Rows.Count == 1 && Convert.ToInt64(result.Rows[0].Values[0], System.Globalization.CultureInfo.InvariantCulture) == count;
+        long observedCount = result.Rows.Count == 1
+            ? Convert.ToInt64(result.Rows[0].Values[0], System.Globalization.CultureInfo.InvariantCulture)
+            : -1L;
+        scenario.Pass = observedCount == count;
         scenario.Metrics["points"] = count;
+        scenario.Metrics["observed_points"] = observedCount;
         scenario.Metrics["elapsed_ms"] = elapsed.TotalMilliseconds;
         scenario.Metrics["points_per_second"] = elapsed.TotalSeconds <= 0 ? 0 : count / elapsed.TotalSeconds;
         return scenario;
