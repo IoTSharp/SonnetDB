@@ -7,13 +7,17 @@
 | 问题 | 对发布后稳定性、可靠性或部署的影响 | 修复与验证方式 |
 | --- | --- | --- |
 | Unix CDC spool 的 `.lock` 使用共享租约 | 同进程或跨进程第二写入者可进入，事件帧和确认位点失去单写者保证 | 独占句柄；竞争、构造失败、正常退出和强杀后恢复测试。Linux 未修复负例已失败，修复后两平台 CDC/向量各 46/46、真实进程恢复各 26/26 |
+| Unix ServerRelay 全局 journal 锁使用 DeleteOnClose | 先打开旧 inode、后取得锁的进程可与新文件持有者同时写 journal | 保留唯一全局锁文件；实际 RunStore 延迟获取竞争在 Linux 修复前失败，修复后多实例 Windows/Linux 各 19/19。每个 run 的租约获取仍由全局事务串行，结束后清理，避免累积锁文件 |
 | Windows Graph 证据文件原子替换与读取冲突 | `completion.state` 读取发生 sharing violation，恢复/进程控制证据不可靠 | 读取允许 delete sharing，确定性句柄回归；保留 I/O 错误可见性 |
 | Graph launcher 退出后测试忙轮询 | 子进程尚在退出即误判清理失败 | 使用原有十秒期限等待实际进程组清空；受控启动钩子故障采用精确退出码 91 |
 | EF HTTP/2 测试断言旧轻事务路由 | 当前服务端事务会话无法取得可靠 CI 验证 | 核对会话创建、同一会话 SQL、rollback 和独立连接读回持久状态 |
 | Studio 单独构建找不到 Server | 管理工作台 workflow 无法验证真实托管宿主 | 显式构建依赖和构建期目标路径；独立 artifacts 目录 58/58 |
+| Document soak verifier 假定 Windows 临时目录和 `pwsh.exe` | Ubuntu job 无法完成证据合同验证 | 使用平台临时目录和当前 PowerShell 7 进程路径；在线 Ubuntu 修复复验通过 |
+| loopback HTTP 测试宿主关闭与 accept 竞争 | 完整 CI 偶发失败；过宽异常处理也可能隐藏真实处理器错误 | 取消并等待服务循环后释放监听；重复关闭和四类处理器故障传播在 Windows/Linux 各 31/31 |
 | ecosystem torn WAL 测试假设单文件 | checkpoint carrier 出现后测试提前退出，没有执行预期恢复检查 | 选择含已确认写入记录的 WAL 段；完整 quick 旅程由失败变为通过 |
 | 固定 MinIO 镜像不能匿名拉取 | light/full 都无法启动参考栈 | 使用原版本对应上游 commit、SHA-256 核验源码构建，保留许可与源码；必须远程实跑后判定通过 |
 | 默认 bundle 暴露公开初始凭据 | HTTP、Frame、MQTT 等入口可能被网络访问 | bundle/Studio/安装包默认 loopback，额外协议关闭；开放远程前替换密码及静态 token |
+| 默认 Compose 映射对外端口 | 空目录首次初始化可能直接被外部客户端访问 | 包括可选观测栈的八个 host port 均绑定 loopback，透传初始化环境变量并统一初始化文档 |
 | 发布与验证之间缺少完整门禁 | `main` 覆盖 Docker latest，连接器抢先创建 Release，dispatch 可能发布 | dispatch 只验证；同一提交全工作流门禁；镜像运行验证后推送同一镜像；连接器等待主发布成功 |
 | 产物缺包、版本错误或重跑借用旧 artifact | 已发布资产不完整或与候选验证不一致 | 校验七个 NuGet 包、版本、内部身份、SHA-256、原生入口；门禁检查当前 attempt 的非空未过期产物 |
 | 验证报告可误放行 | 旧绿灯掩盖较新失败/排队重跑，旧七天窗口、全 skipped profile 被当成功 | 按最新 attempt 时间取证，检查必要步骤确实执行，拒绝过期窗口和无实际通过场景 |
@@ -27,6 +31,22 @@
 `eng/verify-release-readiness.ps1 -CommitSha <full-sha>` 核查十二个仓库工作流。Publish 与 Connectors Release 的候选版本统一使用 `4.0.0`；三个发布工作流必须先有该提交的 dispatch 预检，正式 tag 路径才允许发布。CI 包含 Windows/Linux 测试和三个架构 NativeAOT；CodeQL 分析失败必须使 workflow 失败。Parity 额外验证本次候选的 light/full 原始 artifact，以及最近连续七个 UTC 日期的 scheduled 双 profile 证据；最新 scheduled 必须在 48 小时内。手动运行七次不能替代七天 scheduled。
 
 首次在线快照只有 CodeQL 在初始提交成功，其余包括排队、取消、未运行或失败；初始 Parity 最近七次为三次成功、四次失败。最终发布判断必须重新运行脚本获取当前提交的在线报告，不能把此历史快照写成最终结果。
+
+## 首轮在线复验（用于定位剩余问题）
+
+以下运行来自候选 `85dd7b7d00da09cfc23827612bf5057db7990d2c`，不替代后续修复提交的统一复验：
+
+| 验证 | 在线证据与结果 |
+| --- | --- |
+| Parity | [36211622630](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630) light/full 均成功，实际构建并启动固定版本 MinIO 参考栈 |
+| 管理工作台 | [36211620061](https://github.com/IoTSharp/SonnetDB/actions/runs/36211620061) 五个 job 成功；Chromium 162 通过、15 跳过、0 失败。跳过的 13 个 Studio native 和 2 个远程 KV 场景不计入已覆盖范围 |
+| M19 hosted | [36211630670](https://github.com/IoTSharp/SonnetDB/actions/runs/36211630670) 四种实际缩规模场景成功，原始数据、环境和校验和保留；固定容量结论仍为未验收 |
+| M39 | [36211633775](https://github.com/IoTSharp/SonnetDB/actions/runs/36211633775) 非 quick 路径成功；Core 47、Crash 6、Server 29、Benchmarks 65 项均通过 |
+| Ecosystem | [36211627679](https://github.com/IoTSharp/SonnetDB/actions/runs/36211627679) `ci` profile 成功 |
+| 发布预检 | [Publish](https://github.com/IoTSharp/SonnetDB/actions/runs/36211636198)、[Connectors](https://github.com/IoTSharp/SonnetDB/actions/runs/36211638185)、[Docker](https://github.com/IoTSharp/SonnetDB/actions/runs/36211640292) 成功；未执行正式发布。Windows/Linux bundle 各十项新旧客户端兼容合同通过，NativeAOT 实际启动验证 loopback 默认配置；MSI 的生成与库存验证不等于干净系统安装验收 |
+| CodeQL / Docs | [CodeQL](https://github.com/IoTSharp/SonnetDB/actions/runs/36211614309) 分析上传成功；[Docs](https://github.com/IoTSharp/SonnetDB/actions/runs/36211617219) 构建成功 |
+
+首轮 [Document soak](https://github.com/IoTSharp/SonnetDB/actions/runs/36211625116) 失败被保留；便携路径修复后在 `19abf7bc` 的[在线运行 36211921286](https://github.com/IoTSharp/SonnetDB/actions/runs/36211921286) 成功（10,000 文档、11 个实际阶段、备份恢复 10,032 行）。首轮本机完整测试发现一例 KV loopback 测试关闭竞态，已修复并取得两平台定向回归；必须由最终提交的完整 CI 再验收。
 
 ## 能延期的能力与仍需限制的发布声明
 
