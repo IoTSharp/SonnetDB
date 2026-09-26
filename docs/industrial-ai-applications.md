@@ -68,7 +68,7 @@ CREATE MEASUREMENT device_temperature (
 需要多用户、Web Admin、HTTP API、CopilotDock 或 MCP 时，可以运行 SonnetDB Server：
 
 ```bash
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 ```
 
 ## Industrial Data Agent 场景

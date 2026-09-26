@@ -106,14 +106,14 @@ foreach (var row in result.Rows)
 The repo's Docker release workflow builds and pushes prebuilt images `iotsharp/sonnetdb` and `ghcr.io/<owner>/sonnetdb`, which you can pull directly:
 
 ```bash
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 ```
 
 Or build the image from source:
 
 ```bash
 docker build -f src/SonnetDB/Dockerfile -t sonnetdb .
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data sonnetdb
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb
 ```
 
 Then open:
@@ -122,6 +122,8 @@ Then open:
 - `http://127.0.0.1:5080/help/`
 
 If `/data/.system` is empty, `/admin/` guides you through the first-run setup for server ID, organization, admin username / password, and an initial static Bearer token.
+
+These examples publish the host port on loopback only. For remote deployment, first initialize an administrator with `SONNETDB_USER` / `SONNETDB_PASSWORD`, verify `needsSetup=false` and authenticated access, then explicitly expose the required interfaces. See [Docker initialization and remote deployment](docs/releases/docker-image.md#首次初始化与远程部署).
 
 ### 🔗 ADO.NET
 

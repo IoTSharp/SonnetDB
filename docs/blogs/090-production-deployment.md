@@ -11,13 +11,15 @@ services:
   sonnetdb:
     image: iotsharp/sonnetdb:latest
     ports:
-      - "5080:5080"
+      - "127.0.0.1:5080:5080"
     volumes:
       - sonnetdb-data:/data
     environment:
       SONNETDB_SonnetDBServer__DataRoot: /data
       SONNETDB_SonnetDBServer__AutoLoadExistingDatabases: "true"
-      SONNETDB_SonnetDBServer__Tokens__admin: sndb_your_admin_token
+      SONNETDB_USER: ${SONNETDB_USER:-}
+      SONNETDB_PASSWORD: ${SONNETDB_PASSWORD:-}
+      SONNETDB_DB: ${SONNETDB_DB:-}
     restart: unless-stopped
 
 volumes:
@@ -28,7 +30,7 @@ volumes:
 docker compose up -d
 ```
 
-首次访问 `http://localhost:5080/admin/` 进入安装向导，设置服务器 ID、组织名和管理员密码。也可通过环境变量 `SONNETDB_SonnetDBServer__Tokens__<name>` 预设 Token 跳过向导。
+首次访问 `http://localhost:5080/admin/` 进入安装向导，设置服务器 ID、组织名和管理员密码。远程部署应先设置独立的 `SONNETDB_USER` / `SONNETDB_PASSWORD` 完成引导，在本机验证 `needsSetup=false` 和管理员认证后，再修改所需端口的主机绑定地址。完整命令见 [Docker 初始化与远程部署](../releases/docker-image.md#首次初始化与远程部署)。静态 Token 配置不会完成首次安装，不能用来跳过这一步。
 
 ### 原生安装包：MSI / DEB / RPM
 
@@ -58,9 +60,9 @@ SonnetDB 遵循 .NET 配置层次结构，键名使用双下划线 `__` 分隔�
 # 数据目录
 SONNETDB_SonnetDBServer__DataRoot=/var/lib/sonnetdb
 
-# 认证：预设多个 Token
-SONNETDB_SonnetDBServer__Tokens__admin=sndb_admin_token
-SONNETDB_SonnetDBServer__Tokens__readonly=sndb_ro_token
+# 首次管理员引导：通过私有 env 文件或部署环境注入独立凭据
+SONNETDB_USER=operator
+SONNETDB_PASSWORD=<本次部署的独立密码>
 
 # 自动加载已有数据库
 SONNETDB_SonnetDBServer__AutoLoadExistingDatabases=true
@@ -87,7 +89,7 @@ sndb connect production --url http://sonnetdb.mycompany.com:5080 --repl
 ### 生产建议
 
 - 使用卷挂载持久化 `/data`，容器重建不丢数据
-- 预设 Bearer Token 确保接口安全，避免匿名访问
+- 先完成管理员初始化、验证认证，再开放需要的远程端口
 - 启用 `/healthz` 健康检查集成到容器编排
 - 接入 Prometheus 端点监控写入吞吐、Compaction 和内存用量
 - 定期备份 `.SDBCAT`、`.SDBSEG` 和 `.SDBWAL` 文件

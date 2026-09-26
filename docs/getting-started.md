@@ -16,16 +16,19 @@ docker build -f src/SonnetDB/Dockerfile -t sonnetdb .
 运行容器：
 
 ```bash
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data sonnetdb
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb
 ```
 
 默认行为：
 
 - 容器内监听 `http://0.0.0.0:5080`
+- 主机映射仅接受本机连接，首次安装向导在此范围内完成
 - 数据根目录为 `/data`
 - 帮助文档会随镜像一起发布到 `/help`
 
 如果直接从源码运行服务端，也会默认监听 `5080`，并使用 `./sonnetdb-data` 作为数据根目录。
+
+远程部署请先通过 `SONNETDB_USER` / `SONNETDB_PASSWORD` 引导并验证初始化，再显式开放所需接口，步骤见 [Docker 首次初始化与远程部署](releases/docker-image.md#首次初始化与远程部署)。
 
 ## 2. 打开管理入口
 

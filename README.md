@@ -106,14 +106,14 @@ foreach (var row in result.Rows)
 仓库的 Docker 发布工作流会额外构建并推送预编译镜像 `iotsharp/sonnetdb` 与 `ghcr.io/<owner>/sonnetdb`，可直接拉取：
 
 ```bash
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 ```
 
 也可以从源码自行构建镜像：
 
 ```bash
 docker build -f src/SonnetDB/Dockerfile -t sonnetdb .
-docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data sonnetdb
+docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb
 ```
 
 启动后访问：
@@ -122,6 +122,8 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data sonnetdb
 - `http://127.0.0.1:5080/help/`
 
 当 `/data/.system` 为空时，`/admin/` 会进入首次安装流程。向导会根据主机名和本机硬件指纹生成稳定的服务器 ID，并默认填写组织名称、管理员用户名和随机 Bearer Token；管理员密码必须手动输入。
+
+示例端口仅绑定主机 loopback。远程部署请先用 `SONNETDB_USER` / `SONNETDB_PASSWORD` 引导并验证 `needsSetup=false` 与管理员认证，再显式开放需要的接口，见 [Docker 首次初始化与远程部署](docs/releases/docker-image.md#首次初始化与远程部署)。
 
 ### 3. 🔗 通过 ADO.NET 访问
 

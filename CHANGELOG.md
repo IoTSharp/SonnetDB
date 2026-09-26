@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- 默认 Docker Compose 将 HTTP、Frame、MQTT 及可选观测栈主机端口限制为 loopback，避免空数据目录首次管理员初始化直接暴露给外部客户端；透传 `SONNETDB_USER` / `SONNETDB_PASSWORD` / `SONNETDB_DB`，并统一 Docker 示例中的本机启动与先初始化、验证认证再开放远程端口的步骤。
 - 修复 CDC spool 在 Unix 上使用共享文件租约而允许多个写入者同时打开同一路径的问题；专用租约改为独占打开，并覆盖并发竞争、构造失败清理、跨进程拒绝、正常释放及进程强杀后的事件回放与确认恢复。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。

@@ -172,13 +172,15 @@ docker compose --env-file deploy/observability/compose.env --profile observabili
 
 Grafana 已自动配置名为 `SonnetDB Prometheus` 的默认数据源。此本地栈把 trace 输出到 Collector 日志，未附带生产级 trace 存储。
 
+Compose 中这些主机端口与 SonnetDB 的 HTTP、Frame、MQTT 端口均默认绑定 `127.0.0.1`；容器之间继续使用服务名通信。远程 SonnetDB 部署须先完成 [管理员初始化与认证验证](releases/docker-image.md#首次初始化与远程部署)，观测栈则在配置各自认证后按需开放目标接口。
+
 ## Aspire Dashboard 联调
 
 单独启动本地 Aspire Dashboard：
 
 ```powershell
 docker run --rm -it `
-  -p 18888:18888 -p 4317:18889 `
+  -p 127.0.0.1:18888:18888 -p 127.0.0.1:4317:18889 `
   -e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true `
   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
