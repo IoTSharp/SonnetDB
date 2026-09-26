@@ -1,5 +1,7 @@
 # GH-Issue #197: INSERT ... RETURNING 合同取证（2026-09-25）
 
+后续安装包与官方旧版 Server 验收见 [2026-09-26 包合同记录](issue-197-package-contract-20260926.md)，目标版本说明见 [4.0.0 候选发布说明](../releases/4.0.0.md)。下文保留本次源码验收时的证据边界；后续候选包通过不等同于正式版本已经发布。
+
 ## 范围与发布状态
 
 本次核对仅覆盖关系表 `INSERT ... RETURNING`，不把 UPDATE/DELETE RETURNING 计入 #197。仓库 `origin` 为 `https://github.com/IoTSharp/SonnetDB.git`。2026-09-25 从该仓库 GitHub API 重新读取 #197，状态为 open。完整合同在当前未发布工作区实现，首次完整交付版本的**正式版本号待发布决策和标签确定**；不能声称已发布的 3.1.0 具备本次合同。

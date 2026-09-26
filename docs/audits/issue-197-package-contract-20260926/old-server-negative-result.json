@@ -1,0 +1,19 @@
+{
+  "version": "4.0.0-issue197.1",
+  "sourceCommit": "630096355a740e6cda46188b406a899345a196f6",
+  "serverSha256": "C638340E04469F60F1AA44AD5C0D9D329DF2DC54931B5D3695A6907A4FAA7E06",
+  "baselineVersion": "3.1.0",
+  "baselineRequested": false,
+  "checks": [
+    {
+      "name": "candidate-embedded",
+      "scope": "full",
+      "status": "PASS"
+    }
+  ],
+  "status": "FAIL",
+  "SonnetDB-packageSha256": "F095E901D916D3F19246926A39E3BB342DAF45BCC74E4A845DA3413CC0074BAB",
+  "SonnetDB.Core-packageSha256": "1DB0FF455AD3C3843E2808325155513CA3BE5CF72522D72BFCE941FDE5E367DA",
+  "failure": "candidate-rest failed with exit code -532462766.",
+  "finishedUtc": "2026-09-25T16:50:34.3489864Z"
+}

@@ -25,7 +25,7 @@ On 2026-09-23, GH-Issue #177, #180 and #193 completed embedded, real REST, HTTP/
 |---|---|
 | GH-Issue #91 | Clean offline Windows MSI/WebView2 installation and first-run evidence for the existing embedded-database Studio workflow. |
 | GH-Issue #184 | Remote session is implemented on `main`; release version and deployed failure/recovery evidence remain. |
-| GH-Issue #197 | Main-source result behavior is tested; the first complete released version, installed-package and compatibility evidence remain. Published 3.1.0 is not sufficient. |
+| GH-Issue #197 | [Installed candidate and official 3.1.0 compatibility checks](audits/issue-197-package-contract-20260926.md) now cover the INSERT RETURNING contract. The first complete public release, tagged workflow and post-release verification remain; published 3.1.0 is not sufficient. |
 
 GH-Issue #171 evidence boundary: the 2026-09-25 follow-up supports ordered output-column lists for non-recursive CTEs, including JOIN, aggregation, parameterized `IN`/`EXISTS`, ordering/pagination, set operations and relation/measurement/document sources. Empty-result width mismatch and duplicate names fail explicitly; embedded ADO preserves the renamed name and Int64 type. The dedicated `SqlCteTests` regression passed 13/13. Bounded `WITH RECURSIVE` is tracked separately under #189. Remote parity and the external issue-thread follow-up remain pending. See [the #171 audit](audits/github-issue-171-cte-columns-20260925.md).
 
