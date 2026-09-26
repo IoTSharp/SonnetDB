@@ -210,8 +210,8 @@ public sealed class ClickHouseAdapter : IDataPlane, IAnalyticalOps
     {
         var host = Env("PARITY_CLICKHOUSE_HOST", "127.0.0.1");
         var port = Env("PARITY_CLICKHOUSE_HTTP_PORT", "28123");
-        var user = Env("PARITY_CLICKHOUSE_USER", "default");
-        var password = Env("PARITY_CLICKHOUSE_PASSWORD", string.Empty);
+        var user = Env("PARITY_CLICKHOUSE_USER", "parity");
+        var password = Env("PARITY_CLICKHOUSE_PASSWORD", "parity-clickhouse");
         var database = Env("PARITY_CLICKHOUSE_DATABASE", "default");
         return $"Host={host};Port={port};Username={user};Password={password};Database={database};Protocol=http;Timeout=3";
     }

@@ -32,6 +32,8 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   NUGET_XMLDOC_MODE: skip
+  PARITY_CLICKHOUSE_USER: parity
+  PARITY_CLICKHOUSE_PASSWORD: parity-clickhouse
 
 jobs:
   parity:
@@ -120,8 +122,9 @@ jobs:
           wait_http() {
             local service_name="$1"
             local url="$2"
+            shift 2
             for _ in $(seq 1 60); do
-              if curl --fail --silent --connect-timeout 2 --max-time 5 "$url" >/dev/null 2>&1; then
+              if curl --fail --silent --connect-timeout 2 --max-time 5 "$@" "$url" >/dev/null 2>&1; then
                 return 0
               fi
               sleep 2
@@ -163,7 +166,7 @@ jobs:
             wait_tcp "Mosquitto" 21883 || readiness_failed=1
             wait_http "Meilisearch" "http://127.0.0.1:27700/health" || readiness_failed=1
             wait_http "Qdrant" "http://127.0.0.1:26333/readyz" || readiness_failed=1
-            wait_http "ClickHouse" "http://127.0.0.1:28123/ping" || readiness_failed=1
+            wait_http "ClickHouse query" "http://127.0.0.1:28123/?query=SELECT%201" --user "$PARITY_CLICKHOUSE_USER:$PARITY_CLICKHOUSE_PASSWORD" || readiness_failed=1
             wait_tcp "MongoDB" 27017 || readiness_failed=1
           fi
 
