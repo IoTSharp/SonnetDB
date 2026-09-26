@@ -18,6 +18,7 @@ using SonnetDB.Model;
 using SonnetDB.ObjectStorage;
 using SonnetDB.Query;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Wal;
 
 namespace SonnetDB.EcosystemSoak;
 
@@ -427,7 +428,20 @@ internal static class Program
         }
 
         string walDirectory = Path.Combine(root, "wal");
-        string walPath = Directory.EnumerateFiles(walDirectory, "*.SDBWAL", SearchOption.TopDirectoryOnly).Single();
+        // Final flush can leave both the data segment and a checkpoint carrier.
+        // Inject the torn tail into the segment containing the acknowledged write.
+        string? walPath = null;
+        foreach (WalSegmentInfo segment in WalSegmentLayout.Enumerate(walDirectory))
+        {
+            using var reader = WalReader.Open(segment.Path);
+            if (reader.Replay().OfType<WritePointRecord>().Any())
+            {
+                walPath = segment.Path;
+                break;
+            }
+        }
+        if (walPath is null)
+            throw new InvalidDataException("Torn WAL recovery requires a segment containing the acknowledged write.");
         using (var stream = new FileStream(walPath, FileMode.Append, FileAccess.Write, FileShare.Read))
             stream.Write([0x42, 0x13, 0x37, 0x00, 0x7F]);
 

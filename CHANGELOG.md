@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Fixed
+- **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
