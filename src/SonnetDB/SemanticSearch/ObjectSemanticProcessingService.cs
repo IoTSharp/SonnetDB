@@ -34,6 +34,9 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
     /// <summary>用于验证领取与终态写入失败不会停止消费，生产环境不设置。</summary>
     internal Action? BeforeJobCommitForTest { get; set; }
 
+    /// <summary>测试在对象入队完成后精确触发页预算取消，不依赖机器速度或睡眠。</summary>
+    internal Action<CancellationTokenSource>? AfterBackfillObjectForTest { get; set; }
+
     /// <summary>测试读取排队及执行中去重占位的数量。</summary>
     internal int ScheduledCountForTest => _scheduled.Count;
 
@@ -433,38 +436,64 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(_processingOptions.BackfillBudgetMilliseconds);
         var objectStore = new SndbObjectStore(tsdb);
-        var page = objectStore.ListObjects(
-            current.State.Bucket,
-            prefix: null,
-            maxKeys: _processingOptions.BackfillPageSize,
-            continuationToken: current.State.ContinuationToken,
-            delimiter: null,
-            cancellationToken: budget.Token);
+        SndbObjectListResult page;
+        try
+        {
+            page = objectStore.ListObjects(
+                current.State.Bucket,
+                prefix: null,
+                maxKeys: _processingOptions.BackfillPageSize,
+                continuationToken: current.State.ContinuationToken,
+                delimiter: null,
+                cancellationToken: budget.Token);
+        }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            // 列表预算不足时还没有登记对象，保持原游标供恢复循环继续；请求取消仍向上传播。
+            return current;
+        }
         int scanned = current.State.ScannedObjects;
         int queued = current.State.QueuedObjects;
         int skipped = current.State.SkippedObjects;
+        int processed = 0;
         foreach (var info in page.Objects)
         {
-            budget.Token.ThrowIfCancellationRequested();
-            scanned++;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (budget.IsCancellationRequested)
+                break;
             if (EnqueueIfEnabled(database, tsdb, info) is not null)
                 queued++;
             else
                 skipped++;
+            scanned++;
+            processed++;
+            AfterBackfillObjectForTest?.Invoke(budget);
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (processed == 0 && page.Objects.Count > 0)
+            return current;
+        bool pageCompleted = processed == page.Objects.Count;
+        string? continuation = pageCompleted
+            ? page.NextContinuationToken
+            : SndbObjectStore.EncodeObjectPageCursor(new SndbObjectPageCursor(
+                current.State.Bucket, string.Empty, null, page.Objects[processed - 1].Key, false));
         var next = current.State with
         {
-            ContinuationToken = page.NextContinuationToken,
+            ContinuationToken = continuation,
             ScannedObjects = scanned,
             QueuedObjects = queued,
             SkippedObjects = skipped,
-            Completed = page.NextContinuationToken is null,
+            Completed = pageCompleted && continuation is null,
             UpdatedUtc = DateTimeOffset.UtcNow,
         };
+        // 已完成对象的任务已持久化，页预算只阻断后续对象；用独立且响应调用方取消的
+        // 五秒提交窗口保存对应游标/计数，避免过期 token 将正常分批进度变为 HTTP 500。
+        using var commitBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        commitBudget.CancelAfter(TimeSpan.FromSeconds(5));
         var jobStore = OpenJobStore(tsdb);
-        if (!jobStore.TryWriteBackfill(current, next, budget.Token))
-            return jobStore.ReadBackfill(next.Bucket, budget.Token) ?? current;
-        return jobStore.ReadBackfill(next.Bucket, budget.Token)
+        if (!jobStore.TryWriteBackfill(current, next, commitBudget.Token))
+            return jobStore.ReadBackfill(next.Bucket, commitBudget.Token) ?? current;
+        return jobStore.ReadBackfill(next.Bucket, commitBudget.Token)
             ?? new ObjectProcessingJobStore.StoredBackfill(next, current.Version);
     }
 

@@ -589,7 +589,8 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         await WaitForNoSearchHitsAsync(client);
 
         var backfill = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", content: null);
-        Assert.Equal(HttpStatusCode.OK, backfill.StatusCode);
+        Assert.True(backfill.StatusCode == HttpStatusCode.OK,
+            $"HTTP {(int)backfill.StatusCode}: {await backfill.Content.ReadAsStringAsync()}");
         var backfillResult = await backfill.Content.ReadFromJsonAsync(
             ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse);
         Assert.NotNull(backfillResult);
@@ -604,6 +605,41 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         Assert.Equal(1, repeatedBackfillResult!.ScannedObjects);
         Assert.Equal(0, repeatedBackfillResult.QueuedObjects);
         Assert.Equal(1, repeatedBackfillResult.SkippedObjects);
+    }
+
+    /// <summary>回填入队完成后内部预算到期仍返回真实 HTTP 成功及已持久化的完成计数。</summary>
+    [Fact]
+    public async Task SemanticSearch_BackfillBudgetExpiresAfterEnqueue_ReturnsCommittedProgress()
+    {
+        using var client = CreateClient();
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var processing = _app.Services.GetRequiredService<ObjectSemanticProcessingService>();
+        await processing.StopAsync(CancellationToken.None);
+        var objects = new SndbObjectStore(tsdb);
+        const string bucket = "backfill-budget";
+        objects.CreateBucket(bucket);
+        objects.SetSemanticOptions(bucket, false, true, 32, 32, 80);
+        using var image = new MemoryStream(CreatePng(8, 8, SKColors.Red));
+        await objects.PutObjectAsync(bucket, "image.png", image, "image/png");
+        processing.AfterBackfillObjectForTest = budget => budget.Cancel();
+        try
+        {
+            var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", content: null);
+            Assert.True(response.StatusCode == HttpStatusCode.OK,
+                $"HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            var result = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse);
+            Assert.NotNull(result);
+            Assert.True(result.Completed);
+            Assert.False(result.HasMore);
+            Assert.Equal(1, result.ScannedObjects);
+            Assert.Equal(1, result.QueuedObjects);
+            Assert.Equal(0, result.SkippedObjects);
+            Assert.Equal("pending", processing.GetStatus("images", tsdb, bucket, "image.png")!.Status);
+        }
+        finally
+        {
+            processing.AfterBackfillObjectForTest = null;
+        }
     }
 
     [Fact]
