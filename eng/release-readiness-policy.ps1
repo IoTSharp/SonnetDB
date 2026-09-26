@@ -1,8 +1,15 @@
 # Shared policy and pure evaluator; the public verifier obtains evidence from GitHub.
 function Select-LatestReleaseRun {
     param([object[]]$Runs)
+    # A queued rerun may still carry the previous attempt's start time. Any
+    # unfinished eligible run therefore blocks release, even when another run
+    # has already succeeded. The evaluator rejects its non-completed status.
+    $unfinishedRuns = @($Runs | Where-Object { $_.status -ne 'completed' })
+    if ($unfinishedRuns.Count -gt 0) { $Runs = $unfinishedRuns }
     $Runs | Sort-Object @{ Expression = {
-        $timestamps = @($_.created_at, $_.run_started_at, $_.updated_at) | Where-Object { $_ } | ForEach-Object { [DateTimeOffset]$_ }
+        # updated_at includes completion time: a slow older success must not
+        # supersede a newer failure that finished sooner.
+        $timestamps = @($_.created_at, $_.run_started_at) | Where-Object { $_ } | ForEach-Object { [DateTimeOffset]$_ }
         $timestamps | Sort-Object -Descending | Select-Object -First 1
     }; Descending = $true }, @{ Expression = { [long]$_.run_attempt }; Descending = $true }, @{ Expression = { [long]$_.id }; Descending = $true } | Select-Object -First 1
 }
