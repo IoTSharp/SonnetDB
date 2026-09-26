@@ -35,10 +35,31 @@ $case = Copy-Evidence; $case.artifacts[0].created_at = '2026-08-31T00:00:00Z'; A
 $case = Copy-Evidence; $case.jobs += @{ name = 'Publish verified NuGet packages'; status = 'completed'; conclusion = 'skipped'; steps = @() }; Assert-Readiness $case $true 'Expected nonpublishing dispatch'
 if (@(Get-ReleaseWorkflowPolicy).Count -ne 12) { throw 'All 12 repository workflows must remain in the release policy.' }
 $runs = @(
-    @{ id = 1; created_at = '2026-09-01T00:00:00Z'; run_started_at = '2026-09-03T00:00:00Z'; updated_at = '2026-09-03T01:00:00Z'; run_attempt = 2; conclusion = 'failure' }
-    @{ id = 2; created_at = '2026-09-02T00:00:00Z'; run_started_at = '2026-09-02T00:00:00Z'; updated_at = '2026-09-02T01:00:00Z'; run_attempt = 1; conclusion = 'success' }
+    @{ id = 1; created_at = '2026-09-01T00:00:00Z'; run_started_at = '2026-09-03T00:00:00Z'; updated_at = '2026-09-03T01:00:00Z'; run_attempt = 2; status = 'completed'; conclusion = 'failure' }
+    @{ id = 2; created_at = '2026-09-02T00:00:00Z'; run_started_at = '2026-09-02T00:00:00Z'; updated_at = '2026-09-02T01:00:00Z'; run_attempt = 1; status = 'completed'; conclusion = 'success' }
 )
 if ((Select-LatestReleaseRun $runs).id -ne 1) { throw 'A newly failed rerun of an older run must supersede an earlier success.' }
-$runs[0].conclusion = $null; $runs[0].updated_at = '2026-09-03T00:00:00Z'
+$runs[0].status = 'queued'; $runs[0].conclusion = $null; $runs[0].updated_at = '2026-09-03T00:00:00Z'
 if ((Select-LatestReleaseRun $runs).id -ne 1) { throw 'A pending rerun must not be hidden by an earlier success.' }
-Write-Host 'Release readiness contract tests passed (21 cases and complete workflow inventory).'
+$runs[0].status = 'in_progress'
+if ((Select-LatestReleaseRun $runs).id -ne 1) { throw 'An in-progress rerun must not be hidden by an earlier success.' }
+$runs = @(
+    @{ id = 1; created_at = '2026-09-26T00:00:00Z'; run_started_at = '2026-09-26T00:00:00Z'; updated_at = '2026-09-26T02:00:00Z'; run_attempt = 1; status = 'completed'; conclusion = 'success' }
+    @{ id = 2; created_at = '2026-09-26T01:00:00Z'; run_started_at = '2026-09-26T01:00:00Z'; updated_at = '2026-09-26T01:30:00Z'; run_attempt = 1; status = 'completed'; conclusion = 'failure' }
+)
+if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'An older run finishing later must not hide a newer failed attempt.' }
+$runs[1].conclusion = 'success'
+if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'Completed attempts must be ordered by their start, not their finish.' }
+$runs[1].status = 'queued'; $runs[1].conclusion = $null; $runs[1].run_started_at = $null
+if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'An older run finishing later must not hide a queued candidate.' }
+$runs[1].status = 'in_progress'; $runs[1].run_started_at = $runs[1].created_at
+if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'An older run finishing later must not hide an in-progress candidate.' }
+$runs[0].status = 'queued'; $runs[0].conclusion = $null; $runs[0].updated_at = $runs[0].created_at
+$runs[1].status = 'completed'; $runs[1].conclusion = 'success'
+if ((Select-LatestReleaseRun $runs).id -ne 1) { throw 'Any unfinished eligible candidate must block release, including an older pending attempt.' }
+$case = Copy-Evidence; $case.run.status = (Select-LatestReleaseRun $runs).status; $case.run.conclusion = $null
+Assert-Readiness $case $false 'Pending selection fails closed in the evaluator'
+$runs[0].status = 'completed'; $runs[0].conclusion = 'success'; $runs[1].run_started_at = $null
+if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'A missing attempt start must fall back to run creation, not completion.' }
+if ($null -ne (Select-LatestReleaseRun @())) { throw 'An empty run collection must not produce evidence.' }
+Write-Host 'Release readiness contract tests passed (evidence checks, complete workflow inventory and run ordering).'
