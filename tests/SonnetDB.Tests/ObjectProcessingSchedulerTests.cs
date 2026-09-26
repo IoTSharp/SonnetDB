@@ -320,6 +320,107 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         Assert.Equal(provider.Info.Profile, audit.Profile);
     }
 
+    /// <summary>预算在持久入队后耗尽时保存精确进度，重建服务后续页不丢失或重复入队。</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task EnqueueBucket_BudgetExpiresAfterDurableEnqueue_PreservesProgressAndResumes(int processedBeforeExpiry)
+    {
+        await SeedBackfillObjectsAsync();
+        using var fixture = CreateService();
+        int processed = 0;
+        fixture.Service.AfterBackfillObjectForTest = budget =>
+        {
+            if (++processed == processedBeforeExpiry)
+                budget.Cancel();
+        };
+
+        var first = fixture.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+        Assert.Equal(processedBeforeExpiry, first.ScannedObjects);
+        Assert.Equal(processedBeforeExpiry, first.QueuedObjects);
+        Assert.Equal(0, first.SkippedObjects);
+        Assert.Equal(processedBeforeExpiry < 3, first.HasMore);
+        Assert.Equal(processedBeforeExpiry == 3, first.Completed);
+        var jobs = new ObjectProcessingJobStore(_db);
+        var persisted = jobs.ReadBackfill("backfill", _deadline.Token)!;
+        Assert.Equal(first.ScannedObjects, persisted.State.ScannedObjects);
+        Assert.Equal(first.QueuedObjects, persisted.State.QueuedObjects);
+        Assert.Equal(first.ContinuationToken, persisted.State.ContinuationToken);
+
+        using var restarted = CreateService();
+        if (first.HasMore)
+        {
+            Assert.NotNull(first.ContinuationToken);
+            var resumed = restarted.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+            Assert.True(resumed.Completed);
+            Assert.False(resumed.HasMore);
+            Assert.Equal(3, resumed.ScannedObjects);
+            Assert.Equal(3, resumed.QueuedObjects);
+            Assert.Equal(0, resumed.SkippedObjects);
+        }
+        var repeated = restarted.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+        Assert.True(repeated.Completed);
+        Assert.Equal(3, repeated.ScannedObjects);
+        Assert.Equal(0, repeated.QueuedObjects);
+        Assert.Equal(3, repeated.SkippedObjects);
+        Assert.Equal(3, jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token).Count);
+        Assert.Equal(3, _db.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName)
+            .ScanPrefix(ObjectProcessingJobStore.JobPrefix, 10).Count);
+    }
+
+    /// <summary>调用方取消仍中断请求，已经持久入队的对象可恢复且不会重复登记。</summary>
+    [Fact]
+    public async Task EnqueueBucket_CallerCancelsAfterEnqueue_PropagatesCancellationAndRemainsRecoverable()
+    {
+        await SeedBackfillObjectsAsync();
+        using var fixture = CreateService();
+        using var caller = new CancellationTokenSource();
+        fixture.Service.AfterBackfillObjectForTest = _ => caller.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            fixture.Service.EnqueueBucket("images", _db, "backfill", caller.Token));
+        var jobs = new ObjectProcessingJobStore(_db);
+        Assert.Equal(0, jobs.ReadBackfill("backfill", _deadline.Token)!.State.ScannedObjects);
+        Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token));
+
+        using var restarted = CreateService();
+        var recovered = restarted.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+        Assert.True(recovered.Completed);
+        Assert.Equal(3, recovered.ScannedObjects);
+        Assert.Equal(2, recovered.QueuedObjects);
+        Assert.Equal(1, recovered.SkippedObjects);
+        Assert.Equal(3, jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token).Count);
+    }
+
+    /// <summary>真实存储错误不能当作时间预算耗尽吞掉。</summary>
+    [Fact]
+    public async Task EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure()
+    {
+        await SeedBackfillObjectsAsync();
+        using var fixture = CreateService();
+        var expected = new IOException("backfill storage unavailable");
+        fixture.Service.AfterBackfillObjectForTest = _ => throw expected;
+
+        Assert.Same(expected, Assert.Throws<IOException>(() =>
+            fixture.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token)));
+        var jobs = new ObjectProcessingJobStore(_db);
+        Assert.Equal(0, jobs.ReadBackfill("backfill", _deadline.Token)!.State.ScannedObjects);
+        Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token));
+    }
+
+    /// <summary>创建三个尚未登记派生任务的对象，测试只控制调度而不启动模型或 worker。</summary>
+    private async Task SeedBackfillObjectsAsync()
+    {
+        var objects = new SndbObjectStore(_db);
+        objects.CreateBucket("backfill");
+        objects.SetSemanticOptions("backfill", false, true, 32, 32, 80);
+        for (int index = 0; index < 3; index++)
+        {
+            using var content = new MemoryStream([1]);
+            await objects.PutObjectAsync("backfill", $"{index}.png", content, "image/png", cancellationToken: _deadline.Token);
+        }
+    }
+
     /// <summary>应用配置可直接绑定并收紧资源边界，不依赖部署环境变量。</summary>
     [Fact]
     public void Bind_ObjectProcessingConfiguration_IsBounded()

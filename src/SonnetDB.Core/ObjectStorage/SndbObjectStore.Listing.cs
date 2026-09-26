@@ -230,7 +230,8 @@ public sealed partial class SndbObjectStore
         return null;
     }
 
-    private static string EncodeObjectPageCursor(SndbObjectPageCursor cursor) => cursor.Delimiter is null
+    /// <summary>使用列表自身的令牌格式，为内部有界消费者保存最后完成的对象位置。</summary>
+    internal static string EncodeObjectPageCursor(SndbObjectPageCursor cursor) => cursor.Delimiter is null
         ? EncodeContinuationToken(cursor.Key)
         : EscapeKey("v2:" + JsonSerializer.Serialize(cursor, SndbObjectStoreJsonContext.Default.SndbObjectPageCursor));
 
