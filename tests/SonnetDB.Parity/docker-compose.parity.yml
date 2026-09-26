@@ -83,9 +83,11 @@ services:
     profiles: [light, full]
 
   minio:
-    # MinIO's Docker Hub namespace is no longer pullable for this pinned tag.
-    # Keep the immutable tag while using the upstream Quay registry.
-    image: quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z
+    # Both former image registries reject anonymous pulls. Build the original
+    # reference version from its verified upstream source archive.
+    build:
+      context: ./docker/minio
+    image: sonnetdb-parity-minio:RELEASE.2024-09-22T00-33-43Z
     command: server /data --console-address ":9001"
     networks: [parity-net]
     ports:
