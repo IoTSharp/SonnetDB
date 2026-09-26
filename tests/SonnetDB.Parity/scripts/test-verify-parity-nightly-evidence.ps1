@@ -231,6 +231,14 @@ try {
                 $suite.failed = 0
             }
             $summary.gateFailures = @()
+            foreach ($raw in $run.profiles.$profileName.rawReports) {
+                foreach ($scenario in $raw.report.scenarios) {
+                    $scenario.withinTolerance = $true
+                    foreach ($backend in $scenario.backends) {
+                        if ($backend.status -eq 'fail') { $backend.status = 'pass' }
+                    }
+                }
+            }
         }
     }
     $readyPath = Join-Path $testRoot "ready-fixture.json"
@@ -241,6 +249,67 @@ try {
     Assert-Equal "READY" $ready.status "Seven consecutive passing scheduled runs must be ready."
     Assert-Equal 7 $ready.validRunCount "All seven ready runs must validate."
     Assert-Equal 100 $ready.successRate "Ready evidence must have a 100 percent success rate."
+
+    # These changes retain the green summary and its original scenario count.
+    # Only inspection of the raw outcomes can reject them.
+    $rawCases = @(
+        @{ Name = 'missing-content'; Code = 'raw_report_content_missing'; Change = { param($profile) $profile.rawReports[0].PSObject.Properties.Remove('report') } }
+        @{ Name = 'empty-backends'; Code = 'raw_scenario_backends_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].backends = @() } }
+        @{ Name = 'missing-backend'; Code = 'raw_backend_outcome_missing'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].backends = @($profile.rawReports[0].report.scenarios[0].backends | Select-Object -Skip 1) } }
+        @{ Name = 'duplicate-backend'; Code = 'raw_backend_identity_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].backends += $profile.rawReports[0].report.scenarios[0].backends[0] } }
+        @{ Name = 'unknown-status'; Code = 'raw_backend_status_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].backends[0].status = 'success' } }
+        @{ Name = 'raw-failure'; Code = 'raw_scenario_failed'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].backends[0].status = 'fail' } }
+        @{ Name = 'raw-tolerance-failure'; Code = 'raw_scenario_failed'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].withinTolerance = $false } }
+        @{ Name = 'raw-tolerance-string'; Code = 'raw_tolerance_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].withinTolerance = 'true' } }
+        @{ Name = 'missing-comparison'; Code = 'raw_comparison_missing'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].PSObject.Properties.Remove('withinTolerance') } }
+        @{ Name = 'raw-identity'; Code = 'raw_report_content_identity_mismatch'; Change = { param($profile) $profile.rawReports[0].report.runId = 'another-suite' } }
+        @{ Name = 'raw-count'; Code = 'raw_content_count_mismatch'; Change = { param($profile) $profile.rawReports[0].report.scenarios = @($profile.rawReports[0].report.scenarios | Select-Object -Skip 1) } }
+        @{ Name = 'duplicate-scenario'; Code = 'raw_scenario_name_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[1].name = $profile.rawReports[0].report.scenarios[0].name } }
+        @{ Name = 'missing-differences'; Code = 'raw_differences_invalid'; Change = { param($profile) $profile.rawReports[0].report.scenarios[0].PSObject.Properties.Remove('differences') } }
+    )
+    foreach ($case in $rawCases) {
+        $rawFixture = Copy-Fixture $readyFixture
+        & $case.Change $rawFixture.runs[0].profiles.full
+        $rawResult = Invoke-FixtureCase $rawFixture $case.Name $testRoot $verifier
+        Assert-Equal 'NOT_READY' $rawResult.status "Raw evidence mutation '$($case.Name)' must reject the green summary."
+        $profileResult = Get-ProfileResult $rawResult '33071879124' 'full'
+        Assert-ContainsCode $profileResult.issues $case.Code "Raw evidence mutation '$($case.Name)' must report its actual defect."
+    }
+
+    $unreachableFixture = Copy-Fixture $readyFixture
+    $unreachableProfile = $unreachableFixture.runs[0].profiles.full
+    $unreachableBackend = $unreachableProfile.rawReports[0].report.scenarios[0].backends | Where-Object backend -EQ 'clickhouse'
+    $unreachableBackend.status = 'skipped'
+    $unreachableBackend | Add-Member -NotePropertyName gapReason -NotePropertyValue 'clickhouse unreachable'
+    $unreachableProfile.summary.passedScenarios--; $unreachableProfile.summary.skippedScenarios++
+    $unreachableProfile.summary.suites[0].passed--; $unreachableProfile.summary.suites[0].skipped++
+    $unreachable = Invoke-FixtureCase $unreachableFixture 'old-green-unreachable' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $unreachable.status 'A historical green summary with a skipped unreachable reference must fail.'
+    Assert-ContainsCode (Get-ProfileResult $unreachable '33071879124' 'full').issues 'raw_required_reference_unreachable' 'Required reference reachability must come from the original outcomes.'
+
+    $missingReferenceFixture = Copy-Fixture $readyFixture
+    $missingReferenceReport = $missingReferenceFixture.runs[0].profiles.full.rawReports[0].report
+    $missingReferenceReport.backends = @($missingReferenceReport.backends | Where-Object { $_ -ne 'clickhouse' })
+    foreach ($scenario in $missingReferenceReport.scenarios) {
+        $scenario.backends = @($scenario.backends | Where-Object backend -NE 'clickhouse')
+    }
+    $missingReference = Invoke-FixtureCase $missingReferenceFixture 'missing-reference' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $missingReference.status 'A reference omitted from all original reports cannot pass.'
+    Assert-ContainsCode (Get-ProfileResult $missingReference '33071879124' 'full').issues 'raw_required_backend_not_executed' 'Profile reference requirements must not depend on the summary listing them.'
+
+    $warningFixture = Copy-Fixture $readyFixture
+    $warningProfile = $warningFixture.runs[0].profiles.full
+    $warningScenario = $warningProfile.rawReports[0].report.scenarios[0]
+    $warningScenario.withinTolerance = $false
+    $warningScenario.backends[0].metrics | Add-Member -NotePropertyName performance_gating -NotePropertyValue 'warning_only'
+    $warningProfile.summary.warningOnlyScenarios = 1
+    $warningProfile.summary.performanceWarnings = @([pscustomobject]@{ suite = $warningProfile.rawReports[0].runId; scenario = $warningScenario.name; reason = 'performance metrics are warning only' })
+    $warning = Invoke-FixtureCase $warningFixture 'performance-warning' $testRoot $verifier
+    Assert-Equal 'READY' $warning.status 'Explicit performance warnings retain their existing nonblocking contract.'
+    $warningScenario.backends[0].status = 'fail'
+    $warningFailure = Invoke-FixtureCase $warningFixture 'performance-backend-failure' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $warningFailure.status 'Warning-only performance metrics cannot hide a failed backend.'
+    Assert-ContainsCode (Get-ProfileResult $warningFailure '33071879124' 'full').issues 'raw_scenario_failed' 'Backend failures remain blocking in performance scenarios.'
 
     $staleFixture = Copy-Fixture $readyFixture
     foreach ($run in $staleFixture.runs) { $run.createdAtUtc = ([DateTimeOffset]$run.createdAtUtc).AddDays(-90).ToString('o') }
@@ -275,6 +344,53 @@ try {
     & $verifier -FixturePath $candidatePath -CandidateRunId $candidateId -ExpectedCommitSha $candidateSha -OutputPath $candidateOutput
     $candidateReport = Get-Content -Raw -LiteralPath $candidateOutput | ConvertFrom-Json
     Assert-Equal 'READY' $candidateReport.status 'Both profiles for the exact candidate must pass.'
+
+    # Exercise the online download/normalization path with local artifacts.
+    # This catches dropping raw outcomes before profile validation.
+    $downloadSource = Join-Path $testRoot 'download-source'
+    foreach ($profileName in @('light', 'full')) {
+        $profileRoot = Join-Path $downloadSource $profileName
+        New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
+        $profile = $candidateFixture.runs[0].profiles.$profileName
+        $profile.summary | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath (Join-Path $profileRoot 'summary.json') -Encoding utf8
+        foreach ($raw in $profile.rawReports) {
+            $rawPath = Join-Path $profileRoot $raw.source
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $rawPath) | Out-Null
+            $raw.report | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $rawPath -Encoding utf8
+        }
+    }
+    $fakeRun = [pscustomobject]@{
+        id = $candidateId; path = '.github/workflows/parity.yml'; status = 'completed'
+        conclusion = 'success'; event = 'workflow_dispatch'; created_at = [DateTimeOffset]::UtcNow.ToString('o')
+        head_sha = $candidateSha; html_url = 'https://example.invalid/parity-fixture'
+    }
+    $originalGh = Get-Item Function:gh -ErrorAction SilentlyContinue
+    try {
+        function gh {
+            $arguments = @($args)
+            $global:LASTEXITCODE = 0
+            if ($arguments[0] -eq 'api') { return $fakeRun | ConvertTo-Json }
+            if ($arguments[0] -ne 'run' -or $arguments[1] -ne 'download') { throw 'Unexpected fixture gh command.' }
+            $artifactName = $arguments[[Array]::IndexOf($arguments, '--name') + 1]
+            $destination = $arguments[[Array]::IndexOf($arguments, '--dir') + 1]
+            $profileName = $artifactName -replace '^parity-|\-reports$', ''
+            Get-ChildItem -LiteralPath (Join-Path $downloadSource $profileName) | Copy-Item -Destination $destination -Recurse
+        }
+        & $verifier -Repository 'IoTSharp/SonnetDB' -CandidateRunId $candidateId -ExpectedCommitSha $candidateSha -OutputPath $candidateOutput
+        Assert-Equal 'READY' (Get-Content -LiteralPath $candidateOutput -Raw | ConvertFrom-Json).status 'Downloaded complete raw evidence must validate.'
+        $raw = $candidateFixture.runs[0].profiles.full.rawReports[0]
+        $raw.report.scenarios[0].backends[0].status = 'fail'
+        $raw.report | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath (Join-Path (Join-Path $downloadSource 'full') $raw.source) -Encoding utf8
+        & $verifier -Repository 'IoTSharp/SonnetDB' -CandidateRunId $candidateId -ExpectedCommitSha $candidateSha -OutputPath $candidateOutput -AllowNotReady
+        $downloadFailure = Get-Content -LiteralPath $candidateOutput -Raw | ConvertFrom-Json
+        Assert-Equal 'NOT_READY' $downloadFailure.status 'A downloaded raw failure cannot disappear during normalization.'
+        Assert-ContainsCode $downloadFailure.profiles[1].issues 'raw_scenario_failed' 'Downloaded failures must retain the raw failure reason.'
+        $raw.report.scenarios[0].backends[0].status = 'pass'
+    }
+    finally {
+        Remove-Item Function:gh
+        if ($null -ne $originalGh) { Set-Item Function:gh $originalGh.ScriptBlock }
+    }
     & $verifier -FixturePath $candidatePath -CandidateRunId $candidateId -ExpectedCommitSha ('b' * 40) -OutputPath $candidateOutput -AllowNotReady
     Assert-Equal 'NOT_READY' (Get-Content -Raw -LiteralPath $candidateOutput | ConvertFrom-Json).status 'Another commit cannot satisfy candidate evidence.'
     $candidateFixture.runs[0].profiles.full.artifactPresent = $false
