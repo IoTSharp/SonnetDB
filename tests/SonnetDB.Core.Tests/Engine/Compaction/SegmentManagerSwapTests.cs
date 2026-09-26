@@ -200,13 +200,22 @@ public sealed class SegmentManagerSwapTests : IDisposable
             }
         });
 
+        Task allWorkers = Task.WhenAll([.. readTasks, swapTask]);
         try
         {
-            await Task.WhenAll([.. readTasks, swapTask]).WaitAsync(TimeSpan.FromSeconds(30));
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(30));
         }
         finally
         {
             cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；这里只等待所有专用线程退出后再释放同步对象。
+            }
             mgr.BeforeSegmentIndexBuildTestHook = null;
         }
 
