@@ -174,6 +174,7 @@ function Read-DownloadedProfile {
                 parseError = ""
                 runId = if (Test-ObjectProperty $rawReport "runId") { [string]$rawReport.runId } else { "" }
                 scenarioCount = $scenarioCount
+                report = $rawReport
             })
         }
         catch {
@@ -265,6 +266,127 @@ function Get-RunSortValue {
     catch {
         return [long]::MinValue
     }
+}
+
+function Test-ParityRawReportEvidence {
+    param(
+        [object] $RawReport,
+        [string[]] $RequiredReferences,
+        [System.Collections.Generic.List[object]] $Issues
+    )
+
+    $counts = [ordered]@{ total = 0L; passed = 0L; skipped = 0L; failed = 0L; warnings = 0L }
+    $executedReferences = @{}
+    $report = if (Test-ObjectProperty $RawReport 'report') { $RawReport.report } else { $null }
+    if ($null -eq $report) {
+        Add-EvidenceIssue $Issues 'raw_report_content_missing' "Raw report '$($RawReport.source)' must retain its original scenario and backend evidence."
+        return [pscustomobject]@{ counts = $counts; executedReferences = @() }
+    }
+    if (-not (Test-RequiredStringProperty $report 'runId') -or $report.runId -cne $RawReport.runId) {
+        Add-EvidenceIssue $Issues 'raw_report_content_identity_mismatch' "Raw report '$($RawReport.source)' has inconsistent runId values."
+    }
+    if (-not (Test-ObjectProperty $report 'scenarios') -or -not (Test-ArrayValue $report.scenarios) -or $report.scenarios.Count -eq 0) {
+        Add-EvidenceIssue $Issues 'raw_scenarios_invalid' "Raw report '$($RawReport.source)' must contain a non-empty scenarios array."
+        return [pscustomobject]@{ counts = $counts; executedReferences = @() }
+    }
+    if (-not (Test-ObjectProperty $report 'capabilityGaps') -or -not (Test-ArrayValue $report.capabilityGaps)) {
+        Add-EvidenceIssue $Issues 'raw_capability_gaps_invalid' "Raw report '$($RawReport.source)' must contain a capabilityGaps array."
+    }
+    $declaredBackends = @{}
+    if (-not (Test-ObjectProperty $report 'backends') -or -not (Test-ArrayValue $report.backends) -or $report.backends.Count -eq 0) {
+        Add-EvidenceIssue $Issues 'raw_backends_invalid' "Raw report '$($RawReport.source)' must declare its backend columns."
+    }
+    else {
+        foreach ($name in $report.backends) {
+            if ($name -isnot [string] -or [string]::IsNullOrWhiteSpace($name) -or $declaredBackends.ContainsKey($name)) {
+                Add-EvidenceIssue $Issues 'raw_backends_invalid' "Raw report '$($RawReport.source)' contains an invalid or duplicate backend column."
+            }
+            else { $declaredBackends[$name] = $true }
+        }
+    }
+    if (-not $declaredBackends.ContainsKey('sonnetdb')) {
+        Add-EvidenceIssue $Issues 'raw_sonnetdb_missing' "Raw report '$($RawReport.source)' does not declare SonnetDB."
+    }
+
+    $scenarioNames = @{}
+    foreach ($scenario in $report.scenarios) {
+        $counts.total++
+        $scenarioName = if (Test-RequiredStringProperty $scenario 'name') { [string]$scenario.name } else { '' }
+        if (-not $scenarioName -or $scenarioNames.ContainsKey($scenarioName)) {
+            Add-EvidenceIssue $Issues 'raw_scenario_name_invalid' "Raw report '$($RawReport.source)' contains an invalid or duplicate scenario name."
+        }
+        else { $scenarioNames[$scenarioName] = $true }
+        if ((Test-ObjectProperty $scenario 'withinTolerance') -and $null -ne $scenario.withinTolerance -and $scenario.withinTolerance -isnot [bool]) {
+            Add-EvidenceIssue $Issues 'raw_tolerance_invalid' "Scenario '$scenarioName' withinTolerance must be Boolean or null."
+        }
+        if (-not (Test-ObjectProperty $scenario 'differences') -or -not (Test-ArrayValue $scenario.differences)) {
+            Add-EvidenceIssue $Issues 'raw_differences_invalid' "Scenario '$scenarioName' must retain a differences array."
+        }
+        if (-not (Test-ObjectProperty $scenario 'backends') -or -not (Test-ArrayValue $scenario.backends) -or $scenario.backends.Count -eq 0) {
+            Add-EvidenceIssue $Issues 'raw_scenario_backends_invalid' "Scenario '$scenarioName' must contain actual backend outcomes."
+            $counts.failed++
+            continue
+        }
+
+        $seenBackends = @{}
+        $hasFail = $false
+        $hasSkip = $false
+        $hasPass = $false
+        $passedBackendCount = 0
+        $warningOnly = $false
+        foreach ($backend in $scenario.backends) {
+            $name = if (Test-RequiredStringProperty $backend 'backend') { [string]$backend.backend } else { '' }
+            if (-not $name -or $seenBackends.ContainsKey($name) -or -not $declaredBackends.ContainsKey($name)) {
+                Add-EvidenceIssue $Issues 'raw_backend_identity_invalid' "Scenario '$scenarioName' contains an invalid, duplicate, or undeclared backend."
+            }
+            else { $seenBackends[$name] = $true }
+            if (-not (Test-RequiredStringProperty $backend 'status') -or $backend.status -cnotin @('pass', 'fail', 'skipped', 'not_run')) {
+                Add-EvidenceIssue $Issues 'raw_backend_status_invalid' "Scenario '$scenarioName' backend '$name' has an invalid status."
+                $hasFail = $true
+                continue
+            }
+            if ($backend.status -in @('skipped', 'not_run') -and -not (Test-RequiredStringProperty $backend 'gapReason')) {
+                Add-EvidenceIssue $Issues 'raw_backend_gap_missing' "Scenario '$scenarioName' backend '$name' must explain its unexecuted outcome."
+            }
+            if ($backend.status -eq 'pass') {
+                $hasPass = $true
+                $passedBackendCount++
+                $executedReferences[$name] = $true
+            }
+            $hasFail = $hasFail -or $backend.status -eq 'fail'
+            $hasSkip = $hasSkip -or $backend.status -eq 'skipped'
+            if ($name -in $RequiredReferences -and $backend.status -in @('skipped', 'not_run') -and $backend.gapReason -match 'unreachable') {
+                Add-EvidenceIssue $Issues 'raw_required_reference_unreachable' "Scenario '$scenarioName' required reference '$name' was unreachable."
+                $hasFail = $true
+            }
+            if ((Test-ObjectProperty $backend 'metrics') -and $null -ne $backend.metrics -and $backend.metrics.performance_gating -eq 'warning_only') {
+                $warningOnly = $true
+            }
+        }
+        foreach ($name in $declaredBackends.Keys) {
+            if (-not $seenBackends.ContainsKey($name)) {
+                Add-EvidenceIssue $Issues 'raw_backend_outcome_missing' "Scenario '$scenarioName' has no outcome for declared backend '$name'."
+            }
+        }
+        if ($passedBackendCount -gt 1 -and $scenario.withinTolerance -isnot [bool]) {
+            Add-EvidenceIssue $Issues 'raw_comparison_missing' "Scenario '$scenarioName' executed multiple backends without a Boolean tolerance result."
+        }
+        if ($warningOnly) { $counts.warnings++ }
+        if ($hasFail -or ($scenario.withinTolerance -eq $false -and -not $warningOnly)) {
+            $counts.failed++
+            Add-EvidenceIssue $Issues 'raw_scenario_failed' "Scenario '$scenarioName' contains a failed backend or a result outside tolerance."
+        }
+        elseif ($hasSkip) { $counts.skipped++ }
+        elseif ($hasPass) { $counts.passed++ }
+        else {
+            $counts.failed++
+            Add-EvidenceIssue $Issues 'raw_scenario_not_executed' "Scenario '$scenarioName' contains no executed backend."
+        }
+    }
+    if (-not (Test-ObjectProperty $RawReport 'scenarioCount') -or $counts.total -ne $RawReport.scenarioCount) {
+        Add-EvidenceIssue $Issues 'raw_content_count_mismatch' "Raw report '$($RawReport.source)' scenarioCount does not match its original scenarios."
+    }
+    return [pscustomobject]@{ counts = $counts; executedReferences = @($executedReferences.Keys) }
 }
 
 function Test-ParityProfileEvidence {
@@ -560,9 +682,19 @@ function Test-ParityProfileEvidence {
     }
 
     $rawByRunId = @{}
+    $rawOutcomes = @{}
+    $requiredReferences = switch ($Profile) {
+        'light' { @('postgres', 'redis', 'minio', 'nats') }
+        'full' { @('postgres', 'redis', 'minio', 'nats', 'influxdb', 'victoriametrics', 'meilisearch', 'qdrant', 'clickhouse', 'mongodb') }
+    }
+    $executedReferences = @{}
+    $rawWarningCount = 0L
     $rawScenarioTotal = 0L
     $rawCountsValid = $true
     foreach ($rawReport in $rawReports) {
+        $outcome = Test-ParityRawReportEvidence -RawReport $rawReport -RequiredReferences $requiredReferences -Issues $issues
+        $rawWarningCount += $outcome.counts.warnings
+        foreach ($name in $outcome.executedReferences) { $executedReferences[$name] = $true }
         $rawSource = if (Test-RequiredStringProperty $rawReport "source") { [string]$rawReport.source } else { "" }
         $rawRunId = if (Test-RequiredStringProperty $rawReport "runId") { [string]$rawReport.runId } else { "" }
         if (-not (Test-ObjectProperty $rawReport "parseError") -or $rawReport.parseError -isnot [string]) {
@@ -582,6 +714,7 @@ function Test-ParityProfileEvidence {
         }
         else {
             $rawByRunId[$rawRunId] = $rawReport
+            $rawOutcomes[$rawRunId] = $outcome.counts
         }
 
         if (-not (Test-ObjectProperty $rawReport "scenarioCount") `
@@ -601,6 +734,11 @@ function Test-ParityProfileEvidence {
             continue
         }
         $suite = $suiteByName[$suiteName]
+        foreach ($name in @('total', 'passed', 'skipped', 'failed')) {
+            if ((Test-ObjectProperty $suite $name) -and $suite.$name -ne $rawOutcomes[$suiteName][$name]) {
+                Add-EvidenceIssue $issues 'raw_suite_outcome_mismatch' "Suite '$suiteName' summary '$name' does not match the original scenario outcomes."
+            }
+        }
         if ((Test-ObjectProperty $suite "total") `
             -and (Test-IntegerValue $suite.total) `
             -and (Test-IntegerValue $rawByRunId[$suiteName].scenarioCount) `
@@ -615,6 +753,14 @@ function Test-ParityProfileEvidence {
     }
     if ($countsValid -and $rawCountsValid -and $rawScenarioTotal -ne $totalScenarios) {
         Add-EvidenceIssue $issues "raw_summary_count_mismatch" "The $Profile raw scenario total does not match summary totalScenarios."
+    }
+    if ($countsValid -and $rawWarningCount -ne $countValues['warningOnlyScenarios']) {
+        Add-EvidenceIssue $issues 'raw_warning_count_mismatch' "The $Profile warning count does not match the original scenario metrics."
+    }
+    foreach ($name in @('sonnetdb') + $requiredReferences) {
+        if (-not $executedReferences.ContainsKey($name)) {
+            Add-EvidenceIssue $issues 'raw_required_backend_not_executed' "The $Profile original reports contain no successful execution of required backend '$name'."
+        }
     }
 
     if ($summaryStatus -ne "passing") {
