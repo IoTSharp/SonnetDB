@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Version ($env:GITHUB_REF_NAME -replace '\Av', '') -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
 
       - name: Detect Docker Hub credentials
         id: dockerhub

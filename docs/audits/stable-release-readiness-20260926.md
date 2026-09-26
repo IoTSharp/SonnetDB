@@ -34,7 +34,7 @@
 
 按本次用户决定使用在线 GitHub 托管 runner。M19 默认路径执行四种有界容量/恢复场景并保留真实硬件、参数、原始报告，标记 `HOSTED_VALIDATION_ONLY`；它验证工作负载与自动化链路可运行，不提供专用固定硬件容量背书。原冻结硬件路径保留为显式选项。
 
-`eng/verify-release-readiness.ps1 -CommitSha <full-sha>` 核查十二个仓库工作流。Publish 与 Connectors Release 的候选版本统一使用 `4.0.0`；三个发布工作流必须先有该提交的 dispatch 预检，正式 tag 路径才允许发布。CI 包含 Windows/Linux 测试和三个架构 NativeAOT；CodeQL 分析失败必须使 workflow 失败。Parity 额外验证本次候选的 light/full 原始 artifact，以及最近连续七个 UTC 日期的 scheduled 双 profile 证据；最新 scheduled 必须在 48 小时内。手动运行七次不能替代七天 scheduled。
+`eng/verify-release-readiness.ps1 -CommitSha <full-sha> -Version 4.0.0` 核查十二个仓库工作流。Publish 与 Connectors Release 的候选版本统一使用 `4.0.0`；三个发布工作流必须先有该提交的 dispatch 预检，正式 tag 路径才允许发布。包及合同证据 artifact 必须带有同一解析版本，拒绝其他版本和旧版无版本产物。CI 包含 Windows/Linux 测试和三个架构 NativeAOT；CodeQL 分析失败必须使 workflow 失败。Parity 额外验证本次候选的 light/full 原始 artifact，以及最近连续七个 UTC 日期的 scheduled 双 profile 证据；最新 scheduled 必须在 48 小时内。手动运行七次不能替代七天 scheduled。
 
 首次在线快照只有 CodeQL 在初始提交成功，其余包括排队、取消、未运行或失败；初始 Parity 最近七次为三次成功、四次失败。最终发布判断必须重新运行脚本获取当前提交的在线报告，不能把此历史快照写成最终结果。
 

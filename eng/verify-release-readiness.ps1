@@ -3,6 +3,9 @@ param(
     [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
     [string]$Repository = 'IoTSharp/SonnetDB',
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-fA-F]{40}$')][string]$CommitSha,
+    [Parameter(Mandatory)]
+    [ValidatePattern('\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?\z')]
+    [string]$Version,
     [string]$Token = $env:GITHUB_TOKEN,
     [string]$OutputPath = 'artifacts/release-readiness/report.json'
 )
@@ -34,7 +37,7 @@ $errors = [Collections.Generic.List[string]]::new()
 $outputFullPath = [IO.Path]::GetFullPath($OutputPath)
 $outputDirectory = Split-Path -Parent $outputFullPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
-foreach ($policy in Get-ReleaseWorkflowPolicy) {
+foreach ($policy in Get-ReleaseWorkflowPolicy -Version $Version) {
     try {
         # Deliberately include queued and failed attempts: an older green run
         # must never hide a newer failed rerun of the release commit.
@@ -80,7 +83,7 @@ finally { $env:GH_TOKEN = $oldGhToken }
 $ready = @($checks | Where-Object { -not $_.ready }).Count -eq 0 -and $errors.Count -eq 0
 $report = [ordered]@{
     schemaVersion = 1; status = if ($ready) { 'READY' } else { 'NOT_READY' }
-    repository = $Repository; commitSha = $CommitSha; source = 'github'
+    repository = $Repository; commitSha = $CommitSha; version = $Version; source = 'github'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     workflows = $checks.ToArray(); issues = $errors.ToArray()
     boundary = 'Workflow success verifies the executed profiles. Quick profiles do not establish fixed-hardware capacity, clean offline installation, model quality or production acceptance.'

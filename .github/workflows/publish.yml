@@ -58,7 +58,7 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Version '${{ steps.version.outputs.version }}' -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
 
       - name: Upload release readiness evidence
         if: always() && github.event_name == 'push'
@@ -75,7 +75,7 @@ jobs:
       - name: Upload NuGet artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: nuget-packages
+          name: nuget-packages-${{ steps.version.outputs.version }}
           path: artifacts/release/nuget/*
           if-no-files-found: error
 
@@ -129,7 +129,7 @@ jobs:
       - name: Download candidate NuGet packages
         uses: actions/download-artifact@v7
         with:
-          name: nuget-packages
+          name: nuget-packages-${{ needs.nuget.outputs.version }}
           path: artifacts/release/nuget
 
       - name: Build bundles and installers
@@ -157,7 +157,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: insert-returning-contract-${{ matrix.rid }}
+          name: insert-returning-contract-${{ needs.nuget.outputs.version }}-${{ matrix.rid }}
           path: |
             artifacts/release-contract/**/result.json
             artifacts/release-contract/**/*.log
@@ -177,7 +177,7 @@ jobs:
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ matrix.rid }}
+          name: release-${{ needs.nuget.outputs.version }}-${{ matrix.rid }}
           path: |
             artifacts/release/bundles/${{ matrix.rid }}/*.zip
             artifacts/release/bundles/${{ matrix.rid }}/*.tar.gz
@@ -202,7 +202,7 @@ jobs:
           global-json-file: global.json
       - uses: actions/download-artifact@v7
         with:
-          name: nuget-packages
+          name: nuget-packages-${{ needs.nuget.outputs.version }}
           path: artifacts/verified-nuget
       - name: Publish to NuGet.org after both platform contracts pass
         shell: pwsh

@@ -8,6 +8,11 @@ function Select-LatestReleaseRun {
 }
 
 function Get-ReleaseWorkflowPolicy {
+    param(
+        [Parameter(Mandatory)]
+        [ValidatePattern('\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?\z')]
+        [string]$Version
+    )
     @(
         @{ File = 'ci.yml'; Jobs = @('Build & Test (ubuntu-latest)', 'Build & Test (windows-latest)', 'Format Check', 'AOT Publish (ubuntu-latest)', 'AOT Publish (windows-latest)', 'AOT Publish (ubuntu-24.04-arm)'); Artifacts = @('test-results-ubuntu-latest', 'test-results-windows-latest', 'aot-linux-x64', 'aot-linux-arm64', 'aot-win-x64') }
         @{ File = 'codeql.yml'; Jobs = @('Analyze (csharp)'); Artifacts = @() }
@@ -18,8 +23,10 @@ function Get-ReleaseWorkflowPolicy {
         @{ File = 'ecosystem-soak.yml'; Jobs = @('soak'); Artifacts = @('ecosystem-soak-*-*') }
         @{ File = 'm19-capacity-evidence.yml'; Jobs = @('GitHub-hosted capacity validation'); Artifacts = @('m19-hosted-*') }
         @{ File = 'm39-trigger-evidence.yml'; Jobs = @('evidence'); Artifacts = @('m39-trigger-v2-*') }
-        @{ File = 'publish.yml'; DispatchOnly = $true; Jobs = @('NuGet Packages', 'Release Bundles (linux-x64)', 'Release Bundles (win-x64)'); Artifacts = @('nuget-packages', 'release-linux-x64', 'release-win-x64', 'insert-returning-contract-linux-x64', 'insert-returning-contract-win-x64') }
-        @{ File = 'connectors-release.yml'; DispatchOnly = $true; Jobs = @('Connectors (linux-x64)', 'Connectors (win-x64)', 'Connectors (win-x86)'); Artifacts = @('connectors-linux-x64', 'connectors-win-x64', 'connectors-win-x86') }
+        # These names use the same resolved version passed to the package validators.
+        # An unversioned artifact or a successful preflight for another version is not evidence.
+        @{ File = 'publish.yml'; DispatchOnly = $true; Jobs = @('NuGet Packages', 'Release Bundles (linux-x64)', 'Release Bundles (win-x64)'); Artifacts = @("nuget-packages-$Version", "release-$Version-linux-x64", "release-$Version-win-x64", "insert-returning-contract-$Version-linux-x64", "insert-returning-contract-$Version-win-x64") }
+        @{ File = 'connectors-release.yml'; DispatchOnly = $true; Jobs = @('Connectors (linux-x64)', 'Connectors (win-x64)', 'Connectors (win-x86)'); Artifacts = @("connectors-$Version-linux-x64", "connectors-$Version-win-x64", "connectors-$Version-win-x86") }
         @{ File = 'docker-publish.yml'; DispatchOnly = $true; Jobs = @('Build, Verify and Publish Docker Image'); Artifacts = @('docker-validation') }
     )
 }

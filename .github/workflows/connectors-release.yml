@@ -131,7 +131,7 @@ jobs:
         if: steps.metadata.outputs.tasks == 'all'
         uses: actions/upload-artifact@v7
         with:
-          name: connectors-${{ matrix.rid }}
+          name: connectors-${{ steps.metadata.outputs.version }}-${{ matrix.rid }}
           path: artifacts/release/connectors/${{ matrix.rid }}/*.zip
           if-no-files-found: error
 
@@ -152,7 +152,7 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Version ($env:GITHUB_REF_NAME -replace '\Av', '') -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
 
       - uses: actions/download-artifact@v7
         with:
