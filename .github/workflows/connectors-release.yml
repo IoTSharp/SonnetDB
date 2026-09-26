@@ -8,9 +8,16 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate package version to build and validate without publishing
+        required: true
+        default: '4.0.0'
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 env:
   DOTNET_NOLOGO: true
@@ -90,13 +97,17 @@ jobs:
       - name: Resolve connector release metadata
         id: metadata
         shell: bash
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Connector releases require tags named vX.Y.Z."
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch || "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then version="$CANDIDATE_VERSION"; fi
+            if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+              echo "A valid release version is required."
               exit 1
             fi
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
             echo "tasks=all" >> "$GITHUB_OUTPUT"
           else
             echo "version=0.0.0-ci" >> "$GITHUB_OUTPUT"
@@ -111,23 +122,37 @@ jobs:
             --version "${{ steps.metadata.outputs.version }}" \
             --rid "${{ matrix.rid }}"
 
+      - name: Verify connector package inventory and native entries
+        if: steps.metadata.outputs.tasks == 'all'
+        shell: pwsh
+        run: ./eng/verify-release-artifacts.ps1 -Stage connectors -Version '${{ steps.metadata.outputs.version }}' -Rid '${{ matrix.rid }}' -ArtifactRoot 'artifacts/release/connectors/${{ matrix.rid }}'
+
       - name: Upload connector packages
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.metadata.outputs.tasks == 'all'
         uses: actions/upload-artifact@v7
         with:
           name: connectors-${{ matrix.rid }}
           path: artifacts/release/connectors/${{ matrix.rid }}/*.zip
+          if-no-files-found: error
 
   github-release:
     name: Upload Connector Release Assets
     runs-on: ubuntu-latest
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 70
     permissions:
       contents: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v7
+
+      - name: Require all release readiness evidence
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
 
       - uses: actions/download-artifact@v7
         with:
@@ -139,11 +164,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          title="SonnetDB ${tag#v}"
-
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --title "$title" --notes-file docs/releases/README.md
-          fi
+          # Only Publish owns Release creation. Wait for its package contracts,
+          # NuGet publication and complete asset upload before adding connectors.
+          published=false
+          for attempt in $(seq 1 120); do
+            state=$(gh run list --workflow publish.yml --commit "$GITHUB_SHA" --event push --limit 100 --json headBranch,status,conclusion --jq ".[] | select(.headBranch == \"$tag\") | [.status, .conclusion] | @tsv" | head -n 1)
+            if [[ "$state" == $'completed\tsuccess' ]]; then published=true; break; fi
+            if [[ "$state" == completed* ]]; then echo "Publish did not succeed: $state"; exit 1; fi
+            sleep 30
+          done
+          if [[ "$published" != true ]]; then echo 'Timed out waiting for Publish.'; exit 1; fi
+          gh release view "$tag" >/dev/null
 
           mapfile -t files < <(find artifacts/connectors-release-upload -type f -name '*.zip')
           if [ "${#files[@]}" -eq 0 ]; then

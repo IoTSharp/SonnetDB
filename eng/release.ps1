@@ -1,6 +1,7 @@
 ﻿param(
     [ValidateSet('nuget', 'bundles', 'installers', 'all')]
     [string[]]$Tasks = @('all'),
+    [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$')]
     [string]$Version = '0.0.0-dev',
     [string]$Rid,
     [string]$Configuration = 'Release',
@@ -18,6 +19,7 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot))
 {
     $OutputRoot = Join-Path $RepoRoot 'artifacts\release'
 }
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 
 $ReleaseTasks = if ($Tasks -contains 'all')
 {
@@ -26,11 +28,6 @@ $ReleaseTasks = if ($Tasks -contains 'all')
 else
 {
     $Tasks
-}
-
-if (($ReleaseTasks -contains 'bundles' -or $ReleaseTasks -contains 'installers') -and [string]::IsNullOrWhiteSpace($Rid))
-{
-    $Rid = Get-CurrentRid
 }
 
 $NuGetOutput = Join-Path $OutputRoot 'nuget'
@@ -49,6 +46,11 @@ function Pack-NuGetPackages
     Invoke-DotNetPack 'extensions/SonnetDB.Caching.Distributed/SonnetDB.Caching.Distributed.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Cli/SonnetDB.Cli.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj' $NuGetOutput
+
+    Get-ChildItem -LiteralPath $NuGetOutput -Filter '*.nupkg' -File | ForEach-Object {
+        Write-Sha256File $_.FullName
+    }
+    & (Join-Path $PSScriptRoot 'verify-release-artifacts.ps1') -Stage nuget -Version $Version -ArtifactRoot $NuGetOutput
 }
 
 function Publish-Binaries
@@ -69,35 +71,35 @@ function Publish-Binaries
     Ensure-Directory $serverPublishDir
     Ensure-Directory $studioPublishDir
 
-    $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Cli/SonnetDB.Cli.csproj') `
+    & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Cli/SonnetDB.Cli.csproj') `
         -c $Configuration `
         -r $TargetRid `
         -p:PublishAot=true `
         -p:Version=$Version `
         -o $cliPublishDir `
-        /warnaserror
+        /warnaserror | Out-Host
     Assert-LastExitCode "dotnet publish SonnetDB.Cli ($TargetRid)"
 
-    $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB/SonnetDB.csproj') `
+    & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB/SonnetDB.csproj') `
         -c $Configuration `
         -r $TargetRid `
         -p:SonnetDbPublishAot=true `
         -p:Version=$Version `
         -p:BuildAdminUi=$($BuildAdminUi.IsPresent.ToString().ToLowerInvariant()) `
         -o $serverPublishDir `
-        /warnaserror
+        /warnaserror | Out-Host
     Assert-LastExitCode "dotnet publish SonnetDB ($TargetRid)"
 
     if ($TargetRid -eq 'win-x64')
     {
-        $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Studio/SonnetDB.Studio.csproj') `
+        & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB.Studio/SonnetDB.Studio.csproj') `
             -c $Configuration `
             -r $TargetRid `
             --self-contained true `
             -p:Version=$Version `
             -p:BuildStudioUi=$($BuildAdminUi.IsPresent.ToString().ToLowerInvariant()) `
             -o $studioPublishDir `
-            /warnaserror
+            /warnaserror | Out-Host
         Assert-LastExitCode "dotnet publish SonnetDB.Studio ($TargetRid)"
     }
 
@@ -582,12 +584,16 @@ function Set-BundleExecutableBits
     }
 
     & chmod +x (Join-Path $BundleRoot 'cli/SonnetDB.Cli')
+    Assert-LastExitCode 'chmod native CLI'
     & chmod +x (Join-Path $BundleRoot 'sndb')
+    Assert-LastExitCode 'chmod CLI launcher'
 
     if ($IncludeServer)
     {
         & chmod +x (Join-Path $BundleRoot 'SonnetDB')
+        Assert-LastExitCode 'chmod native Server'
         & chmod +x (Join-Path $BundleRoot 'start-sonnetdb.sh')
+        Assert-LastExitCode 'chmod Server launcher'
     }
 }
 
@@ -632,6 +638,7 @@ function New-BundleArchive
         try
         {
             & tar -czf $archivePath $name
+            Assert-LastExitCode "tar bundle $name"
         }
         finally
         {
@@ -1229,6 +1236,10 @@ function Assert-LastExitCode
 }
 
 Ensure-Directory $OutputRoot
+if (($ReleaseTasks -contains 'bundles' -or $ReleaseTasks -contains 'installers') -and [string]::IsNullOrWhiteSpace($Rid))
+{
+    $Rid = Get-CurrentRid
+}
 if ($CleanIntermediate -and [string]::IsNullOrWhiteSpace($FinalOutputDir))
 {
     throw 'CleanIntermediate requires FinalOutputDir so release files are collected before cleanup.'
@@ -1246,6 +1257,8 @@ if ($ReleaseTasks -contains 'bundles' -or $ReleaseTasks -contains 'installers')
         Pack-NuGetPackages
     }
 
+    & (Join-Path $PSScriptRoot 'verify-release-artifacts.ps1') -Stage nuget -Version $Version -ArtifactRoot $NuGetOutput
+
     $publishInfo = Publish-Binaries -TargetRid $Rid
     $sdkBundle = New-SdkBundle -TargetRid $Rid -CliPublishDir $publishInfo['CliPublishDir']
     $serverBundle = New-ServerBundle -TargetRid $Rid -CliPublishDir $publishInfo['CliPublishDir'] -ServerPublishDir $publishInfo['ServerPublishDir']
@@ -1254,6 +1267,7 @@ if ($ReleaseTasks -contains 'bundles' -or $ReleaseTasks -contains 'installers')
     if ($ReleaseTasks -contains 'installers')
     {
         New-Installers -TargetRid $Rid -ServerBundleDir $serverBundle['BundleDirectory'] -StudioBundle $studioBundle
+        & (Join-Path $PSScriptRoot 'verify-release-artifacts.ps1') -Stage bundles -Version $Version -Rid $Rid -ArtifactRoot $OutputRoot
     }
 }
 

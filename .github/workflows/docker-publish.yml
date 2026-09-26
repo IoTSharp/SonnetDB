@@ -9,8 +9,15 @@ on:
       - '.github/workflows/docker-publish.yml'
       - 'src/SonnetDB/**'
       - 'src/SonnetDB.Core/**'
+      - 'extensions/IoTSharp.CoAP.NET/**'
+      - 'extensions/MQTTnet.AspNetCore.Routing/**'
+      - 'copilot/**'
+      - 'licenses/image-codecs/**'
+      - 'eng/image-codec-notices.targets'
+      - 'eng/verify-release-readiness.ps1'
       - 'web/**'
       - 'docs/**'
+      - 'llms*.txt'
       - '.config/dotnet-tools.json'
       - 'Directory.Build.props'
       - 'Directory.Packages.props'
@@ -19,24 +26,33 @@ on:
 
 permissions:
   contents: read
+  actions: read
   packages: write
 
 concurrency:
-  group: docker-publish-${{ github.ref }}
-  cancel-in-progress: true
+  group: docker-publish-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   docker:
-    name: Build and Publish Docker Image
+    name: Build, Verify and Publish Docker Image
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      VALIDATION_IMAGE: sonnetdb-validation:${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
+
+      - name: Require all release readiness evidence before tagged publication
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
 
       - name: Detect Docker Hub credentials
         id: dockerhub
@@ -48,20 +64,17 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       - name: Extract GHCR metadata
         id: meta-ghcr
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/sonnetdb
+          flavor: latest=false
           tags: |
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=tag
             type=semver,pattern={{version}},value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -78,20 +91,58 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: iotsharp/sonnetdb
+          flavor: latest=false
           tags: |
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=tag
             type=semver,pattern={{version}},value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=sha,prefix=sha-
-          labels: |
-            org.opencontainers.image.title=SonnetDB Server
-            org.opencontainers.image.description=SonnetDB with embedded Admin UI and Help Center
-            org.opencontainers.image.vendor=maikebing / IoTSharp
-            org.opencontainers.image.licenses=MIT
+
+      - name: Build image for local verification
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/SonnetDB/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          provenance: false
+          labels: ${{ steps.meta-ghcr.outputs.labels }}
+          tags: ${{ env.VALIDATION_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify container startup, readiness and embedded Admin UI
+        shell: bash
+        run: |
+          mkdir -p artifacts/docker-validation
+          container=$(docker run --detach --publish 127.0.0.1::5080 "$VALIDATION_IMAGE")
+          cleanup() {
+            docker logs "$container" > artifacts/docker-validation/container.log 2>&1 || true
+            docker inspect "$container" > artifacts/docker-validation/container.json || true
+            docker rm --force "$container" >/dev/null || true
+          }
+          trap cleanup EXIT
+          port=$(docker port "$container" 5080/tcp | sed 's/.*://')
+          curl --fail --silent --show-error --max-time 5 --retry 30 --retry-delay 2 --retry-all-errors \
+            "http://127.0.0.1:$port/healthz/ready" > artifacts/docker-validation/readiness.txt
+          curl --fail --silent --show-error --max-time 10 \
+            "http://127.0.0.1:$port/admin/" > artifacts/docker-validation/admin.html
+          test -s artifacts/docker-validation/admin.html
+          docker image inspect "$VALIDATION_IMAGE" > artifacts/docker-validation/image.json
+
+      - name: Upload image verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-validation
+          path: artifacts/docker-validation
+          if-no-files-found: error
 
       - name: Log in to GHCR
+        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -99,40 +150,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: steps.dockerhub.outputs.enabled == 'true'
+        if: github.event_name == 'push' && steps.dockerhub.outputs.enabled == 'true'
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push GHCR image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: src/SonnetDB/Dockerfile
-          platforms: linux/amd64
-          push: true
-          provenance: false
-          labels: ${{ steps.meta-ghcr.outputs.labels }}
-          tags: ${{ steps.meta-ghcr.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Docker Hub image
-        if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: src/SonnetDB/Dockerfile
-          platforms: linux/amd64
-          push: true
-          provenance: false
-          labels: ${{ steps.meta-dockerhub.outputs.labels }}
-          tags: ${{ steps.meta-dockerhub.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push the verified image to configured registries
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GHCR_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
+          DOCKERHUB_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [[ -z "$tag" ]] && continue
+            docker tag "$VALIDATION_IMAGE" "$tag"
+            docker push "$tag"
+          done <<< "${GHCR_TAGS}"$'\n'"${DOCKERHUB_TAGS}"
 
       - name: Report missing Docker Hub secrets
-        if: steps.dockerhub.outputs.enabled != 'true'
-        run: |
-          echo "Docker Hub secrets are not configured. GHCR publish completed; Docker Hub publish was skipped."
+        if: github.event_name == 'push' && steps.dockerhub.outputs.enabled != 'true'
+        run: echo 'Docker Hub secrets are not configured. Only GHCR is a publication target.'
