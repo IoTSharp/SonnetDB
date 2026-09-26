@@ -32,6 +32,7 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
+- [SonnetDB 4.0.0（候选，尚未发布）]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
 - [SonnetDB 3.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-1-0/)
 - [SonnetDB 3.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-0-0/)
 - [SonnetDB 2.5.0]({{ site.docs_baseurl | default: '/help' }}/releases/2-5-0/)

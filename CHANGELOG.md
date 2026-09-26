@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Added
+- 完善 4.0.0 中文候选发行说明，汇总关系 SQL、ADO.NET 写入、向量与图片处理、多模型客户端和部署变化，补充主版本升级建议及带提交身份的候选验证结果；保留 Graph Beta、七天 scheduled 和现场验收边界，并加入发布文档索引。
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
