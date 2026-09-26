@@ -216,43 +216,66 @@ public sealed class TombstoneTableTests
     [Fact]
     public async Task Concurrent_WritersAndReaders_NoThrow()
     {
+        const int writerCount = 50;
+        const int readerCount = 50;
+        const int rounds = 32;
         var table = new TombstoneTable();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var expected = Enumerable.Range(0, writerCount * rounds)
+            .Select(index => MakeTombstone((ulong)(index % writerCount % 5), $"f{index % writerCount % 3}",
+                index * 10, index * 10 + 5, index + 1))
+            .ToArray();
+        var writes = new int[writerCount];
+        var reads = new int[readerCount];
+        using var phase = new Barrier(writerCount + readerCount);
 
-        var writers = Enumerable.Range(0, 50).Select(i => Task.Run(() =>
-        {
-            while (!cts.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    table.Add(MakeTombstone((ulong)(i % 5), $"f{i % 3}", i * 10, i * 10 + 100, i));
-                }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
-                }
-            }
-        })).ToArray();
+        // 独立线程不占用线程池；固定轮次与有界屏障不依赖池内取消计时器。
+        // 每轮同时释放全部读写方，并等待本轮完成后再进入下一轮。
+        void Synchronize() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30)),
+            "Concurrent tombstone workers did not complete the current round.");
 
-        var readers = Enumerable.Range(0, 50).Select(i => Task.Run(() =>
+        var writers = Enumerable.Range(0, writerCount).Select(i => Task.Factory.StartNew(() =>
         {
-            while (!cts.Token.IsCancellationRequested)
+            for (int round = 0; round < rounds; round++)
             {
-                try
-                {
-                    _ = table.IsCovered((ulong)(i % 5), $"f{i % 3}", i * 10 + 50);
-                    _ = table.All.Count;
-                    _ = table.GetForSeriesField((ulong)(i % 5), $"f{i % 3}").Count;
-                }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
-                }
+                Synchronize();
+                table.Add(expected[round * writerCount + i]);
+                writes[i]++;
+                Synchronize();
             }
-        })).ToArray();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+
+        var readers = Enumerable.Range(0, readerCount).Select(i => Task.Factory.StartNew(() =>
+        {
+            for (int round = 0; round < rounds; round++)
+            {
+                Synchronize();
+                ulong seriesId = (ulong)(i % 5);
+                string field = $"f{i % 3}";
+                Assert.False(table.IsCovered(seriesId, field, -1));
+                Assert.InRange(table.All.Count, round * writerCount, (round + 1) * writerCount);
+                var snapshot = table.GetForSeriesField(seriesId, field);
+                Assert.All(snapshot, tombstone =>
+                {
+                    Assert.Equal(seriesId, tombstone.SeriesId);
+                    Assert.Equal(field, tombstone.FieldName);
+                    Assert.Equal(expected[checked((int)tombstone.CreatedLsn - 1)], tombstone);
+                });
+                if (round > 0)
+                {
+                    var previous = expected[(round - 1) * writerCount + i];
+                    Assert.True(table.IsCovered(seriesId, field, previous.FromTimestamp + 2));
+                    Assert.False(table.IsCovered(seriesId, field, previous.ToTimestamp + 1));
+                    Assert.Contains(previous, snapshot);
+                }
+                reads[i]++;
+                Synchronize();
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
 
         await Task.WhenAll([.. writers, .. readers]);
-        Assert.Empty(exceptions);
+        Assert.All(writes, count => Assert.Equal(rounds, count));
+        Assert.All(reads, count => Assert.Equal(rounds, count));
+        Assert.Equal(expected.Length, table.Count);
+        Assert.Equal(expected, table.All.OrderBy(tombstone => tombstone.CreatedLsn));
     }
 }
