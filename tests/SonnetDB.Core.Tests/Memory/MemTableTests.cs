@@ -232,26 +232,42 @@ public sealed class MemTableTests
         const int readerCount = 4;
         const int batchSize = 50;
         const int rounds = pointsPerSeries / batchSize;
+        using var cancellation = new CancellationTokenSource();
         using var phase = new Barrier(readerCount + 1);
 
-        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30)), "并发追加阶段未在期限内完成。");
+        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30), cancellation.Token), "并发追加阶段未在期限内完成。");
 
-        var writer = Task.Factory.StartNew(() =>
+        Task<T> StartWorker<T>(Func<T> work) => Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                return work();
+            }
+            catch
+            {
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        var writer = StartWorker(() =>
         {
             for (int round = 0; round < rounds; round++)
             {
                 NextPhase();
                 for (int offset = 0; offset < batchSize; offset++)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     int i = round * batchSize + offset;
                     for (ulong s = 1; s <= seriesCount; s++)
                         table.Append(s, 1000L + i, "v", FieldValue.FromDouble(i), i + 1);
                 }
                 NextPhase();
             }
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            return true;
+        });
 
-        var readers = Enumerable.Range(0, readerCount).Select(_ => Task.Factory.StartNew(() =>
+        var readers = Enumerable.Range(0, readerCount).Select(_ => StartWorker(() =>
         {
             long sink = 0;
             int reads = 0;
@@ -260,6 +276,7 @@ public sealed class MemTableTests
                 NextPhase();
                 for (int read = 0; read < batchSize; read++)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     // 与本批追加同时枚举桶快照、逐序列读取并读取统计量。
                     foreach (var bucket in table.SnapshotAll())
                         sink += bucket.Count;
@@ -275,9 +292,25 @@ public sealed class MemTableTests
             }
             GC.KeepAlive(sink);
             return reads;
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+        })).ToArray();
 
-        await Task.WhenAll(readers.Cast<Task>().Append(writer)).WaitAsync(TimeSpan.FromSeconds(60));
+        Task allWorkers = Task.WhenAll(readers.Cast<Task>().Append(writer));
+        try
+        {
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(60));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；等待所有工作线程退出后才释放屏障。
+            }
+        }
         Assert.All(await Task.WhenAll(readers), reads => Assert.Equal(pointsPerSeries, reads));
 
         Assert.Equal((long)pointsPerSeries * seriesCount, table.PointCount);
