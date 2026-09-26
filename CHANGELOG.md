@@ -11,6 +11,7 @@
 
 ### Fixed
 - 修复 Document Store Soak 在线 Ubuntu 启动阻断：verifier 合同测试使用平台临时目录与当前 PowerShell 7 可执行路径，消除 `$env:TEMP` 和 `pwsh.exe` 的 Windows 假定，继续执行完整正负证据判定合同。
+- 修复远程 KV 回归测试的 loopback HTTP 宿主在响应完成后关闭监听时的 accept 竞态；仅忽略显式关闭期间的监听 socket 异常，处理器故障继续透传，并以重复关闭和故障传播回归防止 CI 偶发误报或漏报。
 - **M43 稳定发布证据门禁**：核对同一提交的全部仓库工作流、实际验证步骤、当前 attempt 产物及双 profile Parity；较新失败/排队重跑、过期夜间窗口、全部跳过的场景不再放行。CodeQL 分析失败必须使工作流失败，候选分支的文档构建不部署 Pages。
 - **M20 Parity 依赖可用性**：固定 MinIO 参考版本的 Quay 镜像也已拒绝匿名拉取，改为从对应上游 commit 构建并校验源码归档 SHA-256，镜像同时保留许可和源码；原比较版本不变，远程 light/full 与七日结果另行验收。
 - **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。
