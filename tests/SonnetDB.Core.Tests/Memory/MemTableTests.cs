@@ -229,36 +229,56 @@ public sealed class MemTableTests
         var table = new MemTable();
         const int pointsPerSeries = 2000;
         const int seriesCount = 16;
-        using var stop = new CancellationTokenSource();
+        const int readerCount = 4;
+        const int batchSize = 50;
+        const int rounds = pointsPerSeries / batchSize;
+        using var phase = new Barrier(readerCount + 1);
 
-        var writer = Task.Run(() =>
+        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30)), "并发追加阶段未在期限内完成。");
+
+        var writer = Task.Factory.StartNew(() =>
         {
-            for (int i = 0; i < pointsPerSeries; i++)
+            for (int round = 0; round < rounds; round++)
             {
-                for (ulong s = 1; s <= seriesCount; s++)
-                    table.Append(s, 1000L + i, "v", FieldValue.FromDouble(i), i + 1);
+                NextPhase();
+                for (int offset = 0; offset < batchSize; offset++)
+                {
+                    int i = round * batchSize + offset;
+                    for (ulong s = 1; s <= seriesCount; s++)
+                        table.Append(s, 1000L + i, "v", FieldValue.FromDouble(i), i + 1);
+                }
+                NextPhase();
             }
-            stop.Cancel();
-        });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        var readers = Enumerable.Range(0, readerCount).Select(_ => Task.Factory.StartNew(() =>
         {
             long sink = 0;
-            while (!stop.IsCancellationRequested)
+            int reads = 0;
+            for (int round = 0; round < rounds; round++)
             {
-                // 枚举全部桶快照 + 逐 series 读取 + 读取统计量，全部应无异常。
-                foreach (var bucket in table.SnapshotAll())
-                    sink += bucket.Count;
-                sink += table.GetBySeries(3).Count;
-                sink += table.TryGet(new SeriesFieldKey(5, "v"))?.Count ?? 0;
-                sink += table.PointCount;
-                sink += table.EstimatedBytes;
+                NextPhase();
+                for (int read = 0; read < batchSize; read++)
+                {
+                    // 与本批追加同时枚举桶快照、逐序列读取并读取统计量。
+                    foreach (var bucket in table.SnapshotAll())
+                        sink += bucket.Count;
+                    sink += table.GetBySeries(3).Count;
+                    sink += table.TryGet(new SeriesFieldKey(5, "v"))?.Count ?? 0;
+                    sink += table.PointCount;
+                    sink += table.EstimatedBytes;
+                    reads++;
+                }
+                NextPhase();
+                // 下一批尚未越过开始屏障，完成批次必须对所有读者完整可见。
+                Assert.Equal((long)(round + 1) * batchSize * seriesCount, table.PointCount);
             }
-            return sink;
-        })).ToArray();
+            GC.KeepAlive(sink);
+            return reads;
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
 
-        await writer;
-        await Task.WhenAll(readers);
+        await Task.WhenAll(readers.Cast<Task>().Append(writer)).WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.All(await Task.WhenAll(readers), reads => Assert.Equal(pointsPerSeries, reads));
 
         Assert.Equal((long)pointsPerSeries * seriesCount, table.PointCount);
         Assert.Equal(seriesCount, table.SeriesCount);

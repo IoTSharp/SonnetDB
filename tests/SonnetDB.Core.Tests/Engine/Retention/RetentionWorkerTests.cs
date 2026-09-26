@@ -257,64 +257,59 @@ public sealed class RetentionWorkerTests : IDisposable
             db.Write(MakePoint(100L + i * 10, i));
         db.FlushNow();
 
-        var writeExceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
-        var readExceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
-        var retentionExceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        const int rounds = 5;
+        const int writesPerRound = 200;
+        using var phase = new Barrier(3);
+        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30)), "并发保留阶段未在期限内完成。");
 
-        using var cts = new CancellationTokenSource();
-
-        // 后台持续写入新鲜数据
-        var writeTask = Task.Run(() =>
+        // 各参与者使用专用线程，固定轮次；协调与退出不依赖被忙循环占满的线程池。
+        var writeTask = Task.Factory.StartNew(() =>
         {
             int seq = 0;
-            while (!cts.Token.IsCancellationRequested)
+            for (int round = 0; round < rounds; round++)
             {
-                try
+                NextPhase();
+                for (int write = 0; write < writesPerRound; write++)
                 {
-                    db.Write(MakePoint(9000L + seq++, seq));
+                    db.Write(MakePoint(9000L + seq, seq));
+                    seq++;
                 }
-                catch (ObjectDisposedException) { break; }
-                catch (Exception ex) { writeExceptions.Add(ex); }
+                NextPhase();
             }
-        });
+            return seq;
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        // 后台持续读取（通过 SegmentManager.Readers 快照模拟查询侧压力）
-        var readTask = Task.Run(() =>
+        var readTask = Task.Factory.StartNew(() =>
         {
-            while (!cts.Token.IsCancellationRequested)
+            int reads = 0;
+            for (int round = 0; round < rounds; round++)
             {
-                try
+                NextPhase();
+                for (int read = 0; read < writesPerRound; read++)
                 {
                     _ = db.Segments.Readers.Count;
                     _ = db.Tombstones.Count;
+                    reads++;
                 }
-                catch (ObjectDisposedException) { break; }
-                catch (Exception ex) { readExceptions.Add(ex); }
+                NextPhase();
             }
-        });
+            return reads;
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        // 推进时钟，多次执行 Retention
-        await Task.Delay(50);
-        Volatile.Write(ref nowValue, 10000L); // cutoff=9000，使预写数据（ts<=400）全部过期
-
-        for (int round = 0; round < 5; round++)
+        var retentionTask = Task.Factory.StartNew(() =>
         {
-            try
+            Volatile.Write(ref nowValue, 10000L); // cutoff=9000，使预写数据全部过期。
+            for (int round = 0; round < rounds; round++)
             {
+                NextPhase();
                 db.Retention!.RunOnce();
+                NextPhase();
             }
-            catch (Exception ex)
-            {
-                retentionExceptions.Add(ex);
-            }
-            await Task.Delay(10);
-        }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        await cts.CancelAsync();
-        await Task.WhenAll(writeTask, readTask);
-
-        Assert.Empty(writeExceptions);
-        Assert.Empty(readExceptions);
-        Assert.Empty(retentionExceptions);
+        await Task.WhenAll(writeTask, readTask, retentionTask).WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal(rounds * writesPerRound, await writeTask);
+        Assert.Equal(rounds * writesPerRound, await readTask);
+        Assert.Equal((long)rounds * writesPerRound, db.MemTable.PointCount);
     }
 }
