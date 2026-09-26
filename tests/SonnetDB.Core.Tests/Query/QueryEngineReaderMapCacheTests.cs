@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
@@ -81,64 +80,105 @@ public sealed class QueryEngineReaderMapCacheTests : IDisposable
     [Fact]
     public async Task Execute_ConcurrentQueryAndCompactionSwap_NoStaleReaderExceptions()
     {
+        const int readerCount = 24;
+        const int swapCount = 40;
         WriteSegment(1L, valueOffset: 0d);
         using var manager = SegmentManager.Open(_tempDir);
         var engine = CreateQueryEngine(manager);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exceptions = new ConcurrentBag<Exception>();
+        for (int round = 0; round < swapCount; round++)
+            WriteSegment(2L + round, valueOffset: (round + 1) * 100d);
 
-        var queryTasks = Enumerable.Range(0, 24)
-            .Select(_ => Task.Run(() =>
-            {
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        var points = QueryPoints(engine);
-                        if (points.Length != 10)
-                        {
-                            exceptions.Add(new InvalidOperationException(
-                                $"Expected 10 points, got {points.Length}."));
-                            continue;
-                        }
+        using var cancellation = new CancellationTokenSource();
+        using var phase = new Barrier(readerCount + 1);
+        var completedQueries = new int[readerCount];
+        int completedSwaps = 0;
 
-                        Assert.Equal(1000L, points[0].Timestamp);
-                        Assert.Equal(1009L, points[^1].Timestamp);
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        exceptions.Add(ex);
-                    }
-                }
-            }))
-            .ToArray();
-
-        long nextSegmentId = 1L;
-        var swapTask = Task.Run(() =>
+        void WaitForPhase()
         {
-            while (!cts.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    long segmentId = Interlocked.Increment(ref nextSegmentId);
-                    string path = WriteSegment(segmentId, valueOffset: segmentId * 100d);
-                    var current = manager.Readers;
-                    if (current.Count == 0)
-                        continue;
+            Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(10), cancellation.Token),
+                "All queries and the compaction writer must reach the publication barrier.");
+        }
 
-                    long removeId = current[0].Header.SegmentId;
-                    manager.SwapSegments([removeId], path);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+        static void AssertPoint(DataPoint point, int index, double valueOffset)
+        {
+            Assert.Equal(1000L + index, point.Timestamp);
+            Assert.Equal(FieldValue.FromDouble(valueOffset + index), point.Value);
+        }
+
+        // 专用任务不会占满需要调度停止回调的线程池；固定轮次保证所有查询
+        // 都实际跨越 compaction，不能因定时器早于 writer 运行而空跑通过。
+        Task StartWorker(Action work) => Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                work();
+            }
+            catch
+            {
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        manager.BeforeSegmentIndexBuildTestHook = (_, _) =>
+        {
+            WaitForPhase();
+            WaitForPhase();
+        };
+
+        var queryTasks = Enumerable.Range(0, readerCount).Select(readerId => StartWorker(() =>
+        {
+            for (int round = 0; round < swapCount; round++)
+            {
+                WaitForPhase();
+                // 暂停在第一个结果后，保留 QueryEngine 自己持有的旧快照租约。
+                using var pendingQuery = engine.Execute(
+                    new PointQuery(1UL, "v", new TimeRange(1000L, 1009L))).GetEnumerator();
+                Assert.True(pendingQuery.MoveNext());
+                AssertPoint(pendingQuery.Current, 0, round * 100d);
+                WaitForPhase();
+
+                WaitForPhase();
+                // 发布后的查询必须更新共享 reader map；仍在途的旧查询则继续
+                // 返回原快照的全部值，不能访问提前关闭或错配的新 reader。
+                var currentPoints = QueryPoints(engine);
+                Assert.Equal(10, currentPoints.Length);
+                for (int point = 0; point < currentPoints.Length; point++)
+                    AssertPoint(currentPoints[point], point, (round + 1) * 100d);
+
+                for (int point = 1; point < 10; point++)
                 {
-                    exceptions.Add(ex);
+                    Assert.True(pendingQuery.MoveNext());
+                    AssertPoint(pendingQuery.Current, point, round * 100d);
                 }
+                Assert.False(pendingQuery.MoveNext());
+                completedQueries[readerId] += 2;
+            }
+        })).ToArray();
+
+        var swapTask = StartWorker(() =>
+        {
+            for (int round = 0; round < swapCount; round++)
+            {
+                manager.SwapSegments([1L + round], SegmentPath(2L + round));
+                completedSwaps++;
+                WaitForPhase();
             }
         });
 
-        await Task.WhenAll([.. queryTasks, swapTask]);
+        try
+        {
+            await Task.WhenAll([.. queryTasks, swapTask]).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            manager.BeforeSegmentIndexBuildTestHook = null;
+        }
 
-        Assert.Empty(exceptions);
+        Assert.Equal(swapCount, completedSwaps);
+        Assert.All(completedQueries, count => Assert.Equal(swapCount * 2, count));
+        Assert.Single(manager.Readers);
     }
 
     private string SegmentPath(long segmentId) => TsdbPaths.SegmentPath(_tempDir, segmentId);
