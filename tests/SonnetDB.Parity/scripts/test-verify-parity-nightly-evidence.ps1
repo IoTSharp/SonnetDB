@@ -212,7 +212,10 @@ try {
     Assert-Equal $false (Test-Path -LiteralPath $invalidWindowOutput) "An invalid evidence window must not create a READY report."
 
     $readyFixture = Copy-Fixture $baseFixture
+    $dayOffset = 0
     foreach ($run in $readyFixture.runs) {
+        $run.createdAtUtc = [DateTimeOffset]::UtcNow.AddDays(-$dayOffset).AddHours(-1).ToString('o')
+        $dayOffset++
         $run.conclusion = "success"
         foreach ($profileName in @("light", "full")) {
             $summary = $run.profiles.PSObject.Properties[$profileName].Value.summary
@@ -238,6 +241,46 @@ try {
     Assert-Equal "READY" $ready.status "Seven consecutive passing scheduled runs must be ready."
     Assert-Equal 7 $ready.validRunCount "All seven ready runs must validate."
     Assert-Equal 100 $ready.successRate "Ready evidence must have a 100 percent success rate."
+
+    $staleFixture = Copy-Fixture $readyFixture
+    foreach ($run in $staleFixture.runs) { $run.createdAtUtc = ([DateTimeOffset]$run.createdAtUtc).AddDays(-90).ToString('o') }
+    $stale = Invoke-FixtureCase $staleFixture 'stale-window' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $stale.status 'Expired nightly windows cannot approve a release.'
+    Assert-ContainsCode $stale.issues 'scheduled_window_stale' 'Stale nightly evidence must explain its age.'
+    $pendingFixture = Copy-Fixture $readyFixture
+    $pendingFixture.runs[0] | Add-Member -NotePropertyName status -NotePropertyValue 'in_progress'
+    $pending = Invoke-FixtureCase $pendingFixture 'pending-run' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $pending.status 'A pending latest run cannot be hidden by completed history.'
+    $skippedFixture = Copy-Fixture $readyFixture
+    foreach ($profileName in @('light', 'full')) {
+        $summary = $skippedFixture.runs[0].profiles.$profileName.summary
+        $summary.passedScenarios = 0; $summary.skippedScenarios = $summary.totalScenarios
+        foreach ($suite in $summary.suites) { $suite.passed = 0; $suite.skipped = $suite.total }
+    }
+    $skipped = Invoke-FixtureCase $skippedFixture 'all-skipped' $testRoot $verifier
+    Assert-Equal 'NOT_READY' $skipped.status 'An all-skipped profile is not real parity evidence.'
+
+    $candidateFixture = Copy-Fixture $readyFixture
+    $candidateFixture.runs = @($candidateFixture.runs[0])
+    $candidateFixture.runs[0].event = 'workflow_dispatch'
+    $candidateId = [string]$candidateFixture.runs[0].runId
+    $candidateSha = 'a' * 40
+    $candidateFixture.runs[0].commitSha = $candidateSha
+    foreach ($profileName in @('light', 'full')) {
+        $candidateFixture.runs[0].profiles.$profileName.summary.commitSha = $candidateSha
+    }
+    $candidatePath = Join-Path $testRoot 'candidate.json'
+    $candidateOutput = Join-Path $testRoot 'candidate-result.json'
+    Write-Fixture $candidateFixture $candidatePath
+    & $verifier -FixturePath $candidatePath -CandidateRunId $candidateId -ExpectedCommitSha $candidateSha -OutputPath $candidateOutput
+    $candidateReport = Get-Content -Raw -LiteralPath $candidateOutput | ConvertFrom-Json
+    Assert-Equal 'READY' $candidateReport.status 'Both profiles for the exact candidate must pass.'
+    & $verifier -FixturePath $candidatePath -CandidateRunId $candidateId -ExpectedCommitSha ('b' * 40) -OutputPath $candidateOutput -AllowNotReady
+    Assert-Equal 'NOT_READY' (Get-Content -Raw -LiteralPath $candidateOutput | ConvertFrom-Json).status 'Another commit cannot satisfy candidate evidence.'
+    $candidateFixture.runs[0].profiles.full.artifactPresent = $false
+    Write-Fixture $candidateFixture $candidatePath
+    & $verifier -FixturePath $candidatePath -CandidateRunId $candidateId -ExpectedCommitSha $candidateSha -OutputPath $candidateOutput -AllowNotReady
+    Assert-Equal 'NOT_READY' (Get-Content -Raw -LiteralPath $candidateOutput | ConvertFrom-Json).status 'A light-only dispatch cannot satisfy the full candidate gate.'
 
     Write-Host "Parity nightly evidence contract tests passed."
 }

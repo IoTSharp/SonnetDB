@@ -1,6 +1,7 @@
 name: CodeQL
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -34,7 +35,7 @@ jobs:
       - name: Build
         run: dotnet build SonnetDB.slnx --configuration Release
 
-      - uses: github/codeql-action/analyze@v4.38.1
+      - name: Analyze code and upload results
+        uses: github/codeql-action/analyze@v4.38.1
         with:
           category: "/language:csharp"
-        continue-on-error: true

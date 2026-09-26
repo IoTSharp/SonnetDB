@@ -9,6 +9,10 @@ param(
     [ValidateRange(7, 100)]
     [int] $RequiredRunCount = 7,
 
+    [string] $CandidateRunId = "",
+
+    [string] $ExpectedCommitSha = "",
+
     [string] $OutputPath = "",
 
     [switch] $AllowNotReady
@@ -195,16 +199,27 @@ function Read-DownloadedProfile {
 function Get-GitHubScheduledRuns {
     param(
         [string] $RepositoryName,
-        [int] $RunCount
+        [int] $RunCount,
+        [string] $RunId = ""
     )
 
     if ($null -eq (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw "GitHub CLI 'gh' is required for online evidence verification."
     }
 
-    $endpoint = "repos/$RepositoryName/actions/workflows/parity.yml/runs?event=schedule&status=completed&per_page=$RunCount"
-    $response = Invoke-GhApiJson $endpoint
-    $workflowRuns = @($response.workflow_runs | Select-Object -First $RunCount)
+    if ($RunId) {
+        if ($RunId -notmatch '^\d+$') { throw 'Candidate run ID must be numeric.' }
+        $run = Invoke-GhApiJson "repos/$RepositoryName/actions/runs/$RunId"
+        if ($run.path -ne '.github/workflows/parity.yml' -or $run.status -ne 'completed') {
+            throw 'Candidate evidence must be a completed Parity workflow run.'
+        }
+        $workflowRuns = @($run)
+    }
+    else {
+        $endpoint = "repos/$RepositoryName/actions/workflows/parity.yml/runs?event=schedule&per_page=$RunCount"
+        $response = Invoke-GhApiJson $endpoint
+        $workflowRuns = @($response.workflow_runs | Select-Object -First $RunCount)
+    }
     $downloadRoot = Join-Path ([IO.Path]::GetTempPath()) ("sonnetdb-parity-nightly-" + [Guid]::NewGuid().ToString("N"))
 
     try {
@@ -223,6 +238,7 @@ function Get-GitHubScheduledRuns {
             $normalizedRuns.Add([pscustomobject][ordered]@{
                 runId = [string]$workflowRun.id
                 event = [string]$workflowRun.event
+                status = [string]$workflowRun.status
                 conclusion = [string]$workflowRun.conclusion
                 createdAtUtc = (ConvertTo-UtcDateTimeOffset $workflowRun.created_at).ToString("o")
                 commitSha = [string]$workflowRun.head_sha
@@ -400,6 +416,9 @@ function Test-ParityProfileEvidence {
     }
     if ($summaryStatus -eq "passing" -and $countsValid -and $countValues["failedScenarios"] -ne 0) {
         Add-EvidenceIssue $issues "passing_summary_has_failed_scenarios" "A passing $Profile summary contains failed scenarios."
+    }
+    if ($countsValid -and $countValues['passedScenarios'] -eq 0) {
+        Add-EvidenceIssue $issues 'summary_no_passed_scenarios' "The $Profile profile must contain actual passed scenarios; skips are not successful execution."
     }
     if ($summaryStatus -eq "passing" -and (Test-RequiredStringProperty $summary "color") -and [string]$summary.color -ne "brightgreen") {
         Add-EvidenceIssue $issues "summary_color_mismatch" "A passing $Profile summary must use the brightgreen badge color."
@@ -651,6 +670,9 @@ function Test-ParityNightlyEvidence {
         if ([string]$run.conclusion -ne "success") {
             $runIssues.Add([ordered]@{ code = "run_conclusion_not_success"; message = "Run $runId concluded '$($run.conclusion)'." })
         }
+        if ((Test-ObjectProperty $run 'status') -and $run.status -ne 'completed') {
+            $runIssues.Add([ordered]@{ code = 'run_not_completed'; message = "Run $runId is still '$($run.status)'." })
+        }
         if ([string]::IsNullOrWhiteSpace([string]$run.commitSha)) {
             $runIssues.Add([ordered]@{ code = "run_commit_missing"; message = "Run $runId does not record a commit SHA." })
         }
@@ -685,6 +707,12 @@ function Test-ParityNightlyEvidence {
             code = "insufficient_scheduled_runs"
             message = "Found $($runs.Count) completed scheduled runs; $RunCount are required."
         })
+    }
+    if ($runReports.Count -gt 0) {
+        $age = [DateTimeOffset]::UtcNow - (ConvertTo-UtcDateTimeOffset $runReports[0].createdAtUtc)
+        if ($age.TotalHours -gt 48 -or $age.TotalHours -lt -1) {
+            $reportIssues.Add([ordered]@{ code = 'scheduled_window_stale'; message = 'The newest scheduled run must be within the last 48 hours and cannot be in the future.' })
+        }
     }
 
     $duplicateRunIds = @($runIdCounts.GetEnumerator() | Where-Object { $_.Value -gt 1 } | ForEach-Object { [string]$_.Key })
@@ -749,14 +777,33 @@ if ($PSCmdlet.ParameterSetName -eq "Fixture") {
 else {
     $source = "github"
     $repositoryName = $Repository
-    $inputRuns = @(Get-GitHubScheduledRuns -RepositoryName $Repository -RunCount $RequiredRunCount)
+    $inputRuns = @(Get-GitHubScheduledRuns -RepositoryName $Repository -RunCount $RequiredRunCount -RunId $CandidateRunId)
 }
 
-$report = Test-ParityNightlyEvidence `
-    -InputRuns $inputRuns `
-    -RunCount $RequiredRunCount `
-    -RepositoryName $repositoryName `
-    -Source $source
+if ($CandidateRunId) {
+    if ($ExpectedCommitSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'Candidate verification requires a full expected commit SHA.' }
+    $candidate = @($inputRuns | Where-Object runId -EQ $CandidateRunId)
+    if ($candidate.Count -ne 1) { throw 'Exactly one candidate run is required.' }
+    $profiles = @(
+        Test-ParityProfileEvidence -Run $candidate[0] -Profile 'light' -RepositoryName $repositoryName
+        Test-ParityProfileEvidence -Run $candidate[0] -Profile 'full' -RepositoryName $repositoryName
+    )
+    $ready = $candidate[0].commitSha -eq $ExpectedCommitSha -and $candidate[0].conclusion -eq 'success' `
+        -and $candidate[0].event -in @('workflow_dispatch', 'schedule') `
+        -and @($profiles | Where-Object { -not $_.valid }).Count -eq 0
+    $report = [pscustomobject]@{
+        schemaVersion = 1; status = if ($ready) { 'READY' } else { 'NOT_READY' }
+        repository = $repositoryName; source = $source; commitSha = $candidate[0].commitSha
+        runId = $CandidateRunId; requiredRunCount = 1; validRunCount = [int]$ready; profiles = $profiles
+    }
+}
+else {
+    $report = Test-ParityNightlyEvidence `
+        -InputRuns $inputRuns `
+        -RunCount $RequiredRunCount `
+        -RepositoryName $repositoryName `
+        -Source $source
+}
 $reportJson = $report | ConvertTo-Json -Depth 16
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
