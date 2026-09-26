@@ -7,6 +7,8 @@ permalink: /releases/installers/
 
 ## Windows MSI
 
+新安装使用与 [Server Bundle]({{ site.docs_baseurl | default: '/help' }}/releases/server-bundle/) 相同的本机初始化配置：HTTP/Frame 仅监听 `127.0.0.1`，MQTT、CoAP/DTLS、Line Protocol UDP 和 Modbus 默认关闭。向其他机器开放服务前，按该文档完成管理员改密、静态 bootstrap token 移除、唯一凭据验证和网络配置。Linux DEB/RPM 同样适用。
+
 ### Studio MSI
 
 `sonnetdb-studio-<version>-win-x64.msi` 安装桌面管理工作台及同版本托管 Server。Studio bundle 自带 .NET runtime；默认安装目录为 `%ProgramFiles%\SonnetDB Studio`；Studio bundle 内的 Server 位于 `server\` 子目录。

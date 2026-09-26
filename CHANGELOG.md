@@ -12,6 +12,7 @@
 - **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。
 - 修复 CDC spool 在 Unix 上使用共享文件租约而允许多个写入者同时打开同一路径的问题；专用租约改为独占打开，并覆盖并发竞争、构造失败清理、跨进程拒绝、正常释放及进程强杀后的事件回放与确认恢复。
 - 修复跨平台 CI 证据收集与测试合同：Graph launcher 退出后按原有期限等待完整进程组清空，控制状态读取允许 Windows 原子替换的 delete access；EF HTTP/2 验证实际服务端事务会话及回滚后的持久状态，Studio 宿主测试显式构建并记录 Server 输出位置，兼容独立 artifacts 目录且不混入 Server 配置。
+- Server/Studio bundle 与安装包内置 Server 默认仅在 loopback 提供 HTTP/Frame，并显式关闭 MQTT/外部客户端/Sparkplug、CoAP/DTLS、Line Protocol UDP 和 Modbus，避免公开初始化凭据随默认网络监听暴露；发布流程核对实际产物配置，并以 NativeAOT Server 验证本机健康访问和非本机接口连接拒绝。开放远程访问前需移除静态 bootstrap token 并配置每部署唯一凭据。
 - 稳定发布预检统一核对同一提交的 Actions 证据；Publish、连接器和 Docker 手动运行只生成并验证候选产物。主线镜像不再覆盖 `latest`，连接器等待主发布成功后附加资产；新增完整 NuGet/平台包库存、版本、SHA-256 与必需原生文件门禁，并修复默认 RID、Linux 压缩/执行位失败检测及 AOT 诊断输出。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。

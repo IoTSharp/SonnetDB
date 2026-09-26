@@ -89,6 +89,8 @@ function Publish-Binaries
         -o $serverPublishDir `
         /warnaserror | Out-Host
     Assert-LastExitCode "dotnet publish SonnetDB ($TargetRid)"
+    & (Join-Path $PSScriptRoot 'set-release-network-defaults.ps1') `
+        -AppSettingsPath (Join-Path $serverPublishDir 'appsettings.json')
 
     if ($TargetRid -eq 'win-x64')
     {
@@ -532,6 +534,10 @@ __START__
 - 密码：`Admin123!`
 - Bearer Token：`sonnetdb-admin-token`
 
+HTTP 与 Frame HTTP/2 默认仅监听本机 `127.0.0.1`；MQTT、CoAP/DTLS、Line Protocol UDP 与 Modbus 默认关闭。初始凭据仅用于本机初始化。
+
+开放远程访问前，先在本机修改管理员密码并撤销已有管理员 token，从 `appsettings.json` 的 `SonnetDBServer:Tokens` 中移除 `sonnetdb-admin-token`，创建并验证本次部署的唯一凭据；然后显式配置监听地址、TLS、网络访问控制和所需协议。环境变量与命令行参数可以覆盖 bundle 配置，部署时也要核对这些来源。更改密码不能替代移除静态 token。
+
 CLI 示例：
 
 ```text
@@ -554,6 +560,8 @@ function Write-StudioBundleReadme
 # SonnetDB Studio __VERSION__
 
 运行 `SonnetDB.Studio.exe` 打开桌面管理工作台。Studio 会把托管 Server 放在 `server/` 子目录中启动，默认数据库目录位于 `%LocalAppData%\SonnetDB\Studio\data`，不写入安装目录。
+
+附带 Server 的 HTTP 与 Frame HTTP/2 仅监听本机，MQTT、CoAP/DTLS、Line Protocol UDP 与 Modbus 默认关闭。配置远程访问前应先设置本次部署的唯一凭据与 TLS/网络访问控制。
 
 升级或卸载 Studio 不会删除上述用户数据目录。需要清理数据时请在 Studio 中选择其他目录，或由管理员明确删除该目录。
 
