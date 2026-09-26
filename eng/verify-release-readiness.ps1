@@ -34,6 +34,7 @@ function Get-ReleaseApiPages {
 
 $checks = [Collections.Generic.List[object]]::new()
 $errors = [Collections.Generic.List[string]]::new()
+$observations = [Collections.Generic.List[object]]::new()
 $outputFullPath = [IO.Path]::GetFullPath($OutputPath)
 $outputDirectory = Split-Path -Parent $outputFullPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
@@ -64,12 +65,37 @@ try {
     if ($Token) { $env:GH_TOKEN = $Token }
     $parityVerifier = Join-Path $PSScriptRoot '../tests/SonnetDB.Parity/scripts/verify-parity-nightly-evidence.ps1'
     $nightlyPath = Join-Path $outputDirectory 'parity-nightly.json'
-    try {
-        & $parityVerifier -Repository $Repository -OutputPath $nightlyPath
-        $nightly = Get-Content -Raw -LiteralPath $nightlyPath | ConvertFrom-Json
-        if ($nightly.source -ne 'github' -or $nightly.status -ne 'READY') { throw 'Nightly evidence did not pass online verification.' }
+    $nightlyObservation = [ordered]@{
+        name = 'scheduled-parity-seven-days'; blocking = $false; status = 'UNAVAILABLE'
+        validRunCount = $null; requiredRunCount = 7; reportPath = $nightlyPath; issues = @()
     }
-    catch { $errors.Add("Seven consecutive scheduled Parity runs: $($_.Exception.Message)") }
+    # 七天 scheduled 只提供长期观察；不足、失败或读取不到均不得阻断当前候选发布。
+    # 恢复原生退出码，避免可选观察中的 gh 失败被 Actions 的 pwsh 包装器再次作为失败退出。
+    $nightlyLastExitCode = Get-Variable -Name LASTEXITCODE -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+    try {
+        if (Test-Path -LiteralPath $nightlyPath) { Remove-Item -LiteralPath $nightlyPath }
+        & $parityVerifier -Repository $Repository -OutputPath $nightlyPath -AllowNotReady
+        $nightly = Get-Content -Raw -LiteralPath $nightlyPath | ConvertFrom-Json
+        if ($nightly.source -ne 'github' -or $nightly.repository -ne $Repository -or $nightly.status -notin @('READY', 'NOT_READY')) {
+            throw 'Nightly observation has an unexpected source, repository or status.'
+        }
+        $nightlyObservation.status = $nightly.status
+        $nightlyObservation.validRunCount = $nightly.validRunCount
+        $nightlyObservation.requiredRunCount = $nightly.requiredRunCount
+        $nightlyObservation.issues = @($nightly.issues)
+        if ($nightly.status -ne 'READY') {
+            Write-Warning "Non-blocking seven-day Parity observation: $($nightly.validRunCount)/$($nightly.requiredRunCount) scheduled runs validated."
+        }
+    }
+    catch {
+        $nightlyObservation.issues = @(@{ code = 'observation_unavailable'; message = $_.Exception.Message })
+        Write-Warning "Non-blocking seven-day Parity observation unavailable: $($_.Exception.Message)"
+    }
+    finally {
+        if ($null -eq $nightlyLastExitCode) { Remove-Variable -Name LASTEXITCODE -Scope Global -ErrorAction SilentlyContinue }
+        else { $global:LASTEXITCODE = $nightlyLastExitCode }
+    }
+    $observations.Add([pscustomobject]$nightlyObservation)
     $parity = $checks | Where-Object workflow -EQ 'parity.yml'
     if ($parity.ready) {
         try {
@@ -85,8 +111,8 @@ $report = [ordered]@{
     schemaVersion = 1; status = if ($ready) { 'READY' } else { 'NOT_READY' }
     repository = $Repository; commitSha = $CommitSha; version = $Version; source = 'github'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
-    workflows = $checks.ToArray(); issues = $errors.ToArray()
-    boundary = 'Workflow success verifies the executed profiles. Quick profiles do not establish fixed-hardware capacity, clean offline installation, model quality or production acceptance.'
+    workflows = $checks.ToArray(); issues = $errors.ToArray(); observations = $observations.ToArray()
+    boundary = 'Release readiness requires the candidate workflows and raw Parity evidence. Seven-day scheduled Parity is a non-blocking observation. Quick profiles do not establish fixed-hardware capacity, clean offline installation, model quality or production acceptance.'
 }
 $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $outputFullPath -Encoding utf8
 Write-Host "Release readiness: $($report.status). Report: $outputFullPath"

@@ -104,3 +104,4 @@ $runs[0].status = 'completed'; $runs[0].conclusion = 'success'; $runs[1].run_sta
 if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'A missing attempt start must fall back to run creation, not completion.' }
 if ($null -ne (Select-LatestReleaseRun @())) { throw 'An empty run collection must not produce evidence.' }
 Write-Host 'Release readiness contract tests passed (evidence checks, complete workflow inventory and run ordering).'
+& (Join-Path $PSScriptRoot 'test-release-readiness-observations.ps1')

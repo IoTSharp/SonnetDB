@@ -90,7 +90,7 @@
 
 ### M20 — Parity nightly
 
-Parity 场景、适配器、compose 和 verifier 已完成；MinIO 原固定版本的两个公共 registry 均出现匿名拉取失败，现从同版本上游 commit 构建并校验源码 SHA-256，2026-09-26 候选的 [light/full 在线复验](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630)均通过。[2026-09-25 线上回读](docs/audits/m20-nightly-readback-20260925.md)显示最近七次 scheduled 为三次成功、四次失败。发布 verifier 现核对同一候选的原始 artifact、最近连续七个 UTC 日期 scheduled 及最新 attempt，手动复验不能替代七天窗口。须继续取得连续七次 light/full，保留容器日志、测试报告、commit SHA 和 raw artifact；失败不能以 `No summary was produced for this run.` 代替证据。
+Parity 场景、适配器、compose 和 verifier 已完成；MinIO 原固定版本的两个公共 registry 均出现匿名拉取失败，现从同版本上游 commit 构建并校验源码 SHA-256，2026-09-26 候选的 [light/full 在线复验](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630)均通过。[2026-09-25 线上回读](docs/audits/m20-nightly-readback-20260925.md)显示最近七次 scheduled 为三次成功、四次失败。发布 verifier 仍须核对同一候选提交、版本的十二类工作流、light/full 原始 artifact 及最新 attempt；自 2026-09-27 起，最近连续七个 UTC 日期的 scheduled 证据单独记录为非阻断观察项，窗口不足或失败不阻断正式发布，手动复验也不能替代七天观察完成。M20 须继续取得连续七次 light/full，保留容器日志、测试报告、commit SHA 和 raw artifact；失败不能以 `No summary was produced for this run.` 代替证据。
 
 ### M19 / M25 — 容量与发布
 

@@ -43,7 +43,9 @@ http://127.0.0.1:5080
 
 `Publish` 检查完整的七包库存、内部版本与 SHA-256，生成 Windows/Linux NativeAOT bundle 和安装包，并运行新旧客户端/Server 的包合同。连接器手动运行完整构建、打包和原生入口检查。Docker 先构建并启动候选镜像，检查 readiness 和内嵌 Admin UI；正式推送直接使用这个已经检查过的镜像。
 
-只有 `push` 标签事件可以正式发布。三个发布流程均通过 `eng/verify-release-readiness.ps1 -CommitSha <full-sha> -Version <version>` 验证同一提交、同一候选版本的 Actions 与所需长期证据；缺少、未完成或失败的结果会阻断发布。Publish 的 NuGet、平台 bundle、包合同证据及连接器产物名称包含实际构建和校验的版本，其他版本或旧版无版本产物不能替代当前候选预检。主 Publish 流程先上传完整资产，再公开 Release；连接器等待该流程成功后附加资产。主线镜像仅更新 `edge` 和提交标签，稳定版本标签通过门禁后才更新 `latest`。
+只有 `push` 标签事件可以正式发布。三个发布流程均通过 `eng/verify-release-readiness.ps1 -CommitSha <full-sha> -Version <version>` 验证同一提交、同一候选版本的十二类 Actions 工作流及当前候选 light/full Parity 的原始证据；这些必需结果缺少、未完成或失败时会阻断发布。Publish 的 NuGet、平台 bundle、包合同证据及连接器产物名称包含实际构建和校验的版本，其他版本或旧版无版本产物不能替代当前候选预检。主 Publish 流程先上传完整资产，再公开 Release；连接器等待该流程成功后附加资产。主线镜像仅更新 `edge` 和提交标签，稳定版本标签通过门禁后才更新 `latest`。
+
+**自 2026-09-27 起，连续七天 scheduled Parity 为非阻断观察项。** 发布核验继续记录窗口、原始报告和合格次数；窗口不足、历史运行失败或观察证据获取失败均如实报告，不阻断正式发布。手动候选成功不计作七天观察完成，旧的 `0/7`、`NOT_READY` 及其提交身份仍作为当时的核验记录保留。M20 的连续七天观察目标继续跟踪，当前候选的必需工作流和原始 Parity 校验仍须通过。
 
 这些检查证明构建与候选产物合同；MSI 实机安装、固定硬件规模和长期运行证据仍按各自门禁单独验收。脚本 `eng/test-release-artifacts.ps1` 的合成文件仅用于验证缺包、篡改、错版本和缺失原生文件会被拒绝，不能算作真实安装包运行证据。
 

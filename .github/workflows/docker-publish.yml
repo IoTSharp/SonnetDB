@@ -48,11 +48,24 @@ jobs:
           submodules: recursive
 
       - name: Require all release readiness evidence before tagged publication
+        id: release-readiness
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:GITHUB_SHA -Version ($env:GITHUB_REF_NAME -replace '\Av', '') -Token $env:GITHUB_TOKEN -OutputPath artifacts/release-readiness.json
+
+      - name: Upload tagged release readiness diagnostics
+        if: always() && contains(fromJSON('["success", "failure", "cancelled"]'), steps.release-readiness.outcome)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-release-readiness
+          path: |
+            artifacts/release-readiness.json
+            artifacts/parity-nightly.json
+            artifacts/parity-candidate.json
+          if-no-files-found: warn
 
       - name: Detect Docker Hub credentials
         id: dockerhub
@@ -115,6 +128,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Verify container startup, readiness and embedded Admin UI
+        id: container-verification
         shell: bash
         run: |
           mkdir -p artifacts/docker-validation
@@ -134,7 +148,7 @@ jobs:
           docker image inspect "$VALIDATION_IMAGE" > artifacts/docker-validation/image.json
 
       - name: Upload image verification evidence
-        if: always()
+        if: always() && contains(fromJSON('["success", "failure", "cancelled"]'), steps.container-verification.outcome)
         uses: actions/upload-artifact@v7
         with:
           name: docker-validation
