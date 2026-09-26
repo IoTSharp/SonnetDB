@@ -17,7 +17,7 @@ namespace SonnetDB.Hosting;
 public sealed partial class TsdbRegistry : IDisposable
 {
     /// <summary>合法数据库名匹配。</summary>
-    [GeneratedRegex(@"^[a-zA-Z0-9_-]{1,64}$")]
+    [GeneratedRegex(@"\A[a-zA-Z0-9_-]{1,64}\z")]
     private static partial Regex DatabaseNameRegex();
 
     private readonly ConcurrentDictionary<string, Tsdb> _databases = new(StringComparer.OrdinalIgnoreCase);

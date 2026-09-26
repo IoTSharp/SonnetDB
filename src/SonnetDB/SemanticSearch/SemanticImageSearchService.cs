@@ -654,7 +654,10 @@ internal sealed class SemanticImageSearchService : IDisposable
             }
             else if (_options.FallbackToManaged || NormalizeBackend(_options.Backend) == "auto")
             {
-                _logger.LogDebug("USearch unavailable for database {Database}: {Reason}", database, error);
+                // 日志参数仍需编码换行；结构化模板本身不保证纯文本日志只有一行。
+                _logger.LogDebug("USearch unavailable for database {Database}: {Reason}",
+                    database.Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal),
+                    error?.Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal));
                 candidates = store.SearchVector(vectorIndex, query, candidateCount);
             }
             else

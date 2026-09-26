@@ -10,6 +10,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
+- 控制面数据库名称改为完整字符串匹配，拒绝此前正则 `$` 意外放行的末尾换行，避免 Linux 创建与文档身份合同不符的目录；USearch 回退日志转义数据库名和错误信息中的 CR/LF，防止纯文本日志被拆行。既有名称必须符合原已声明的 `[a-zA-Z0-9_-]`、1–64 字符合同。
 - 完整 CI 的构建测试作业增加 60 分钟总时限，测试步骤预留诊断上传窗口；单项测试 10 分钟无进展时收集 mini dump 并失败退出，失败后也上传已生成的 TRX、执行序列和转储，避免无诊断的长时间等待。
 - 修复 ServerRelay 共享 journal 在 Unix 上删除锁文件导致的 inode 分裂：全局锁改为保留单个文件并以句柄释放所有权；run 租约获取强制位于该稳定 journal 事务内，短期租约文件仍及时清理。新增跨进程延迟 flock 回归，验证第二个实际 `Attach` 被拒绝且 journal 不被并发覆盖。
 - 修复 Document Store Soak 在线 Ubuntu 启动阻断：verifier 合同测试使用平台临时目录与当前 PowerShell 7 可执行路径，消除 `$env:TEMP` 和 `pwsh.exe` 的 Windows 假定，继续执行完整正负证据判定合同。
