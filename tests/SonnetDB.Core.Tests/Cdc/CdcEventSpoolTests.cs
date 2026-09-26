@@ -298,7 +298,58 @@ public sealed class CdcEventSpoolTests : IDisposable
     {
         string path = Path.Combine(_root, "lease.log");
         using var first = new CdcEventSpool(path);
-        Assert.ThrowsAny<IOException>(() => new CdcEventSpool(path));
+        Assert.ThrowsAny<IOException>(() =>
+        {
+            using var second = new CdcEventSpool(path);
+        });
+    }
+
+    [Fact]
+    public async Task Open_ConcurrentWriters_OnlyOneAcquiresLease()
+    {
+        string path = Path.Combine(_root, "concurrent-lease.log");
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<CdcEventSpool?>[] attempts = Enumerable.Range(0, 16).Select(_ => Task.Run(async () =>
+        {
+            await start.Task;
+            try
+            {
+                return new CdcEventSpool(path);
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        })).ToArray();
+        start.SetResult();
+        CdcEventSpool?[] writers = await Task.WhenAll(attempts);
+        try
+        {
+            CdcEventSpool owner = Assert.Single(writers.OfType<CdcEventSpool>());
+            await owner.AppendAsync(CreateEvent(1, 1, "owner"));
+            Assert.Equal("owner", Assert.Single(await owner.ReplayAsync()).Key);
+        }
+        finally
+        {
+            foreach (CdcEventSpool? writer in writers)
+                writer?.Dispose();
+        }
+
+        using var reopened = new CdcEventSpool(path);
+        Assert.Equal("owner", Assert.Single(await reopened.ReplayAsync()).Key);
+    }
+
+    [Fact]
+    public async Task Open_AfterInvalidFrameFailure_ReleasesWriterLease()
+    {
+        string path = Path.Combine(_root, "failed-open-lease.log");
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        Assert.Throws<InvalidDataException>(() => new CdcEventSpool(path));
+
+        await File.WriteAllBytesAsync(path, []);
+        await using var recovered = new CdcEventSpool(path);
+        await recovered.AppendAsync(CreateEvent(1, 1, "recovered"));
+        Assert.Equal("recovered", Assert.Single(await recovered.ReplayAsync()).Key);
     }
 
     private static CdcEvent CreateEvent(long partition, long offset, string key)

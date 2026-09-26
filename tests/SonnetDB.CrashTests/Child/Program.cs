@@ -1,3 +1,4 @@
+using SonnetDB.Cdc;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
@@ -80,9 +81,29 @@ switch (scenario)
     case "release_tsdb_root_directory_lease_via_crash_simulation":
         RunReleaseTsdbRootDirectoryLeaseViaCrashSimulation(root, readyFile);
         return 0;
+    case "hold_cdc_spool_writer_lease":
+    case "release_cdc_spool_writer_lease_via_dispose":
+        await RunCdcSpoolWriterLease(root, readyFile,
+            releaseBeforeReady: scenario == "release_cdc_spool_writer_lease_via_dispose");
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
+}
+
+static async Task RunCdcSpoolWriterLease(string root, string readyFile, bool releaseBeforeReady)
+{
+    using var spool = new CdcEventSpool(Path.Combine(root, "events.log"));
+    await spool.AppendAsync(new CdcEvent(
+        "cdc-lease-event", "crash-tests", "documents", "owner", 1,
+        DateTimeOffset.UtcNow,
+        new CdcEventMetadata(CdcEventCodec.CurrentContractVersion, "documents",
+            CdcEventCodec.CurrentSchemaVersion, CdcOperation.Update, new CdcCheckpoint(1, 1)),
+        "{}", "{\"committed\":true}"));
+    if (releaseBeforeReady)
+        spool.Dispose();
+    File.WriteAllText(readyFile, "ready");
+    await Task.Delay(Timeout.InfiniteTimeSpan);
 }
 
 static void RunKillDuringFsync(string root, string readyFile)
