@@ -16,6 +16,9 @@
 | loopback HTTP 测试宿主关闭与 accept 竞争 | 完整 CI 偶发失败；过宽异常处理也可能隐藏真实处理器错误 | 取消并等待服务循环后释放监听；重复关闭和四类处理器故障传播在 Windows/Linux 各 31/31 |
 | ecosystem torn WAL 测试假设单文件 | checkpoint carrier 出现后测试提前退出，没有执行预期恢复检查 | 选择含已确认写入记录的 WAL 段；完整 quick 旅程由失败变为通过 |
 | 固定 MinIO 镜像不能匿名拉取 | light/full 都无法启动参考栈 | 使用原版本对应上游 commit、SHA-256 核验源码构建，保留许可与源码；必须远程实跑后判定通过 |
+| ClickHouse `/ping` 成功但实际 SQL 无法认证 | full 报告将五个分析对照场景跳过，工作流仍显示成功 | 同版本容器复现 `/ping` 成功、SQL 403；专用测试凭据与认证查询就绪检查修复后五个场景双方均通过。light/full 的必需参考服务不可达或没有执行时必须失败 |
+| 完整 CI 缺少测试挂起诊断和作业期限 | Windows 长时间运行时无法判断停在哪项测试，默认最多等待六小时 | 作业限定六十分钟，单测试十分钟无进展收集 mini dump 并失败，保留 TRX、执行序列及转储上传窗口 |
+| 数据库名称正则 `$` 允许末尾换行 | Linux 可创建不符合已声明名称规则的目录；纯文本诊断日志可能被拆行 | 使用严格字符串边界，USearch 回退日志转义 CR/LF。新增回归修复前一例失败，修复后名称、挂载与语义搜索共 25/25 |
 | 默认 bundle 暴露公开初始凭据 | HTTP、Frame、MQTT 等入口可能被网络访问 | bundle/Studio/安装包默认 loopback，额外协议关闭；开放远程前替换密码及静态 token |
 | 默认 Compose 映射对外端口 | 空目录首次初始化可能直接被外部客户端访问 | 包括可选观测栈的八个 host port 均绑定 loopback，透传初始化环境变量并统一初始化文档 |
 | 发布与验证之间缺少完整门禁 | `main` 覆盖 Docker latest，连接器抢先创建 Release，dispatch 可能发布 | dispatch 只验证；同一提交全工作流门禁；镜像运行验证后推送同一镜像；连接器等待主发布成功 |
@@ -38,7 +41,7 @@
 
 | 验证 | 在线证据与结果 |
 | --- | --- |
-| Parity | [36211622630](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630) light/full 均成功，实际构建并启动固定版本 MinIO 参考栈 |
+| Parity | [36211622630](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630) light/full 工作流成功，实际构建并启动固定版本 MinIO 参考栈；后续原始报告核查发现 ClickHouse 跳过，不能据此声称 full 对照完整 |
 | 管理工作台 | [36211620061](https://github.com/IoTSharp/SonnetDB/actions/runs/36211620061) 五个 job 成功；Chromium 162 通过、15 跳过、0 失败。跳过的 13 个 Studio native 和 2 个远程 KV 场景不计入已覆盖范围 |
 | M19 hosted | [36211630670](https://github.com/IoTSharp/SonnetDB/actions/runs/36211630670) 四种实际缩规模场景成功，原始数据、环境和校验和保留；固定容量结论仍为未验收 |
 | M39 | [36211633775](https://github.com/IoTSharp/SonnetDB/actions/runs/36211633775) 非 quick 路径成功；Core 47、Crash 6、Server 29、Benchmarks 65 项均通过 |
@@ -47,6 +50,10 @@
 | CodeQL / Docs | [CodeQL](https://github.com/IoTSharp/SonnetDB/actions/runs/36211614309) 分析上传成功；[Docs](https://github.com/IoTSharp/SonnetDB/actions/runs/36211617219) 构建成功 |
 
 首轮 [Document soak](https://github.com/IoTSharp/SonnetDB/actions/runs/36211625116) 失败被保留；便携路径修复后在 `19abf7bc` 的[在线运行 36211921286](https://github.com/IoTSharp/SonnetDB/actions/runs/36211921286) 成功（10,000 文档、11 个实际阶段、备份恢复 10,032 行）。首轮本机完整测试发现一例 KV loopback 测试关闭竞态，已修复并取得两平台定向回归；必须由最终提交的完整 CI 再验收。
+
+后续 `9ec97d52` 的 [Parity 36212832566](https://github.com/IoTSharp/SonnetDB/actions/runs/36212832566) 仍为绿色，但 full 原始报告为 44 通过、7 跳过，其中 5 个来自 ClickHouse 认证失败。新门禁重放该报告正确得到 44 通过、2 个真实能力跳过、5 个失败，旧绿灯不再作为完整对照证据。ClickHouse 和 CI 诊断修复后，全部工作流必须再次在同一新提交上运行。
+
+CodeQL [告警 2](https://github.com/IoTSharp/SonnetDB/security/code-scanning/2) 与[告警 3](https://github.com/IoTSharp/SonnetDB/security/code-scanning/3) 的随机数来源均为 `M41P0DifferentialTests.cs` 中固定种子的普通行数据 `INSERT`，生产解析器接收 SQL 字符串导致上下文无关的数据流匹配；它们不是生产密码生成路径，保留确定性差分测试并记录误报依据。[告警 1](https://github.com/IoTSharp/SonnetDB/security/code-scanning/1) 指向 USearch 日志，已落实数据库名称完整匹配和日志换行编码，最终 CodeQL 扫描需验证该修复。没有关闭规则、压制诊断或删除在线告警。
 
 ## 能延期的能力与仍需限制的发布声明
 

@@ -39,6 +39,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 稳定发布审查补充 ClickHouse 绿灯中遗漏对照的原始证据、两条来自确定性 SQL 测试数据的 CodeQL 误报依据，以及日志名称边界修复；后续结论必须以合并这些修复后的统一提交复验为准。
 - 更新稳定候选审查与 M20 路线图，记录首轮 GitHub 托管运行的实际结果、Document 失败后修复复验及 Chromium 跳过项，明确最终提交复验与七天 scheduled 仍须分别满足。
 - M19 容量 workflow 默认改为 GitHub 托管 runner 验证四种实际缩规模 profile 与 verifier 合同，保留原始报告、工作数据、实际硬件/规模和 SHA-256；软件发布检查托管 job 成功，报告明确标记 `HOSTED_VALIDATION_ONLY`。固定硬件完整容量通过显式 `target=frozen-target` 保留原有 protected main、environment、runner 与串行锁要求，未取得证据时仍为 `NOT_READY`。
 - 清理主线合并后的 C# 格式与 imports，保持完整格式门禁；CI 取消同分支过期运行，并在 Windows/Linux 构建中执行发布门禁脚本合同测试；Studio 测试变更会触发管理工作台 smoke。
