@@ -10,6 +10,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
+- **M20 Parity 原始证据核验**：候选与七天门禁从原始 scenario/backend 重算通过、跳过、失败和性能警告，要求全部必需参考服务实际执行；拒绝旧绿色 summary 掩盖后端不可达、缺失或结果不一致，保留能力跳过与显式性能告警边界。
 - **M43 发布运行次序**：按 workflow attempt 的开始时间选择已完成证据，避免较早运行的延迟完成遮蔽较新失败；存在排队或运行中的候选时拒绝放行，保留重跑、重叠运行及失败传播回归。
 - **M43 发布候选版本绑定**：统一门禁显式接收目标版本，Publish 的 NuGet、平台包、包合同证据和连接器 artifact 使用与实际构建及校验相同的版本；同一提交上其他版本、混合平台版本及旧版无版本产物不再放行，三个 tag 发布入口均传入真实发布版本。
 - Parity 的 VictoriaMetrics remote_write 就绪检查在原有 15 秒界限内等待每个 measurement 的完整精确点数，避免首条样本可见就继续断言；额外点立即失败、缺点超时报告期望与实测数量，吞吐场景保留全部可见性等待耗时并记录实测点数。
