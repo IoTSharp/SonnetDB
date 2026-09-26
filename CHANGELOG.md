@@ -23,6 +23,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- M19 容量 workflow 默认改为 GitHub 托管 runner 验证四种实际缩规模 profile 与 verifier 合同，保留原始报告、工作数据、实际硬件/规模和 SHA-256；软件发布检查托管 job 成功，报告明确标记 `HOSTED_VALIDATION_ONLY`。固定硬件完整容量通过显式 `target=frozen-target` 保留原有 protected main、environment、runner 与串行锁要求，未取得证据时仍为 `NOT_READY`。
 - 清理主线合并后的 C# 格式与 imports，保持完整格式门禁；CI 取消同分支过期运行，并在 Windows/Linux 构建中执行发布门禁脚本合同测试；Studio 测试变更会触发管理工作台 smoke。
 - 核查并合并本地与远端开发分支的历史关系，保留已进入主线的后续修复并记录重复/过期片段处理；详见 [2026-09-26 分支合并核查](docs/audits/branch-integration-20260926.md)。
 - 将 OpenTelemetry.Extensions.Hosting 从 1.19.0 升级至 1.19.1（PR #208）。

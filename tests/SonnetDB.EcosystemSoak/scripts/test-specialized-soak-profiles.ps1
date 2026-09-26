@@ -1,3 +1,10 @@
+[CmdletBinding()]
+param(
+    # Explicit output roots retain raw reports and workload files, including failed runs.
+    [string] $OutputRoot,
+    [switch] $NoBuild
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -6,8 +13,17 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 }
 
 $projectPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$root = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) (
-    'm19-specialized-profile-smoke-' + [guid]::NewGuid().ToString('N'))))
+$retainOutput = -not [string]::IsNullOrWhiteSpace($OutputRoot)
+$root = if ($retainOutput) {
+    [System.IO.Path]::GetFullPath($OutputRoot)
+}
+else {
+    [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) (
+        'm19-specialized-profile-smoke-' + [guid]::NewGuid().ToString('N'))))
+}
+if (Test-Path -LiteralPath $root) {
+    throw "Specialized profile output root must be new: $root"
+}
 $targetEnvironmentNames = @(
     'SONNETDB_M19_TARGET_HARDWARE_STATUS',
     'SONNETDB_M19_TARGET_HARDWARE_ID',
@@ -434,7 +450,11 @@ try {
         $output = Join-Path $root (Join-Path 'output' $profile.Name)
         $work = Join-Path $root (Join-Path 'work' $profile.Name)
         $arguments = @(
-            'run', '-c', 'Release', '--project', $projectPath, '--',
+            'run', '-c', 'Release', '--project', $projectPath
+        )
+        if ($NoBuild) { $arguments += '--no-build' }
+        $arguments += @(
+            '--',
             '--profile', $profile.Name,
             '--cycles', '1',
             '--relational-rows', '1',
@@ -468,7 +488,7 @@ finally {
     foreach ($name in $targetEnvironmentNames) {
         [Environment]::SetEnvironmentVariable($name, $originalTargetEnvironment[$name], [EnvironmentVariableTarget]::Process)
     }
-    if (Test-Path -LiteralPath $root) {
+    if (-not $retainOutput -and (Test-Path -LiteralPath $root)) {
         Remove-Item -LiteralPath $root -Recurse -Force
     }
 }

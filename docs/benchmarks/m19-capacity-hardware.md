@@ -9,9 +9,26 @@ permalink: /benchmarks/m19-capacity-hardware/
 
 ## 当前状态
 
-`研发完成，待验证`。仓库包含可复现的 `high-cardinality`、`small-segments`、`maintenance-chaos` 和 `many-measurements` runner、固定目标机 workflow、报告 schema 与 verifier；当前没有四个 profile 在 ROADMAP 指定固定规格目标硬件上的归档 PASS artifact。开发机 quick/ci/缩规模运行和历史结果不能替代容量证据，因此发布证据状态仍为 `NOT_READY`。
+`研发完成，固定硬件容量待验证`。仓库包含可复现的 `high-cardinality`、`small-segments`、`maintenance-chaos` 和 `many-measurements` runner、报告 schema 与 verifier。`M19 Capacity Evidence` 默认在 GitHub 托管 runner 上完成缩规模行为验证，软件发布门禁检查该托管 job 是否成功；当前没有四个 profile 在 ROADMAP 指定固定规格目标硬件上的归档 PASS artifact，该固定硬件容量验收仍为 `NOT_READY`。
 
 本轮 flush/维护发布优化改变了目录 fsync 次数和段发布分配路径；任何旧容量或延迟数字均不能直接作为优化后的基线。固定目标机取证必须使用优化后的 commit 重新采集写入、查询、恢复 P50/P95/P99、分配、GC 和进程 I/O。
+
+## GitHub 托管验证入口
+
+手动运行 `.github/workflows/m19-capacity-evidence.yml`，保持 `target=github-hosted`（默认）。执行 job ID 为 `hosted-capacity`，显示名称为 **GitHub-hosted capacity validation**，使用 `ubuntu-latest`，超时为 30 分钟，无需自托管 runner 或固定目标机 environment。软件发布就绪检查应要求同一候选提交的这个 job 成功；选择此入口时，`Verify authoritative branch` 和 `Fixed target capacity bundle` 两个固定目标任务被跳过。
+
+它先运行单报告和 bundle verifier 的正负合同回归，再运行四个 specialized profile 的真实工作负载：
+
+| Profile | 托管验证规模 | 主要实际行为 |
+| --- | --- | --- |
+| `high-cardinality` | 8 series，2 次恢复采样，4 次查询采样 | 写入、catalog 与点完整性、重开恢复 |
+| `small-segments` | 4 segment，每段 1 点，2 次恢复采样 | 独立段发布、全量点完整性、重开恢复 |
+| `maintenance-chaos` | 4 series，3 次 kill/reopen，每批 8 点、至少 2 批确认进度 | WAL 确认范围、预留尾部、维护与恢复完整性 |
+| `many-measurements` | 8 measurement，每个 2 点，删除 2 个 measurement | 目录、恢复、备份扫描、retention 与 drop |
+
+这些参数来自 `test-specialized-soak-profiles.ps1` 的既有缩规模合同，原始报告还记录全部实际参数、CPU、内存、磁盘、源码 SHA、资源计数、延迟样本和完整性结果。新增的 `-OutputRoot` 参数要求一个尚不存在的目录，并保留原始报告和工作文件（包括失败时已生成的内容）；省略该参数仍使用临时目录并在结束时清理。`-NoBuild` 允许 workflow 复用当前提交已构建的 runner。
+
+artifact 名称为 `m19-hosted-validation-<sha>-<run-id>`，包含 `output/<profile>/report.json`、`report.md`、`work/<profile>` 及 `hosted-validation.json`。汇总记录每份原始报告的 SHA-256、实际规模和环境，状态固定为 `HOSTED_VALIDATION_ONLY`，另以 Boolean `succeeded` 表示行为验证是否成功；`fixedTargetStatus=NOT_READY`、`releaseEvidence=false` 明确说明尚未取得固定目标容量证据。原始报告保持 `targetHardware.status=NOT_READY`、`id=UNDECLARED`，不改写为固定硬件 PASS。这里的 `releaseEvidence` 沿用 M19 固定容量证据含义，软件发布门禁独立检查托管 job 成功。
 
 ## 必须归档的四份报告
 
@@ -36,7 +53,7 @@ $env:SONNETDB_M19_TARGET_HARDWARE_CONTRACT = 'M19-#125-frozen-target-v1'
 
 ## 目标机与自动化前置条件
 
-容量证据只能使用 `.github/workflows/m19-capacity-evidence.yml` 的 `M19 Capacity Evidence` workflow。仓库管理员必须先配置以下不可变边界：
+固定硬件容量证据使用 `.github/workflows/m19-capacity-evidence.yml` 的 `M19 Capacity Evidence` workflow，并显式选择 `target=frozen-target`。这是可选的独立取证路径，仓库管理员必须先配置以下不可变边界：
 
 1. self-hosted runner 同时带有 `self-hosted`、`linux`、`x64` 和 `sonnetdb-m19-capacity-x64-v1` 标签，且标签只授予冻结目标机；runner group 必须在取证期间拒绝其他 workload，并保持单一 runner executor；
 2. protected environment `m19-capacity-frozen-x64` 审批后才允许工作流读取 `SONNETDB_M19_TARGET_HARDWARE_STATUS`、`SONNETDB_M19_TARGET_HARDWARE_ID`、`SONNETDB_M19_TARGET_HARDWARE_CONTRACT` 和 `SONNETDB_M19_STORAGE_MODEL`；
@@ -48,7 +65,7 @@ $env:SONNETDB_M19_TARGET_HARDWARE_CONTRACT = 'M19-#125-frozen-target-v1'
 
 ## 执行与检查
 
-`M19 Capacity Evidence` workflow 会在同一干净 checkout 中调用 `invoke-m19-capacity-bundle.ps1` 串行执行四个默认 profile。每个 profile 以 `--work <bundleRoot>/work/<profile>` 运行，因此 `report.json` 的磁盘快照对应实际 workload 与 evidence 所在卷。它自动生成 `target-hardware.json`、`checkout-attestation.json`、每个 profile 的 `report.json`/`report.md`、`raw-artifact-manifest.json` 和 `m19-capacity-bundle-verification.json`，再上传为单个 artifact。raw manifest 为每个原始文件记录 SHA-256，并在四个 profile 结束后记录终态 worktree 状态；任一 checkout 改动都会被 verifier 拒绝。bundle verifier 还要求 protected storage declaration、checkout attestation、硬件快照和四份报告的存储型号完全一致。artifact run URL 被写入 bundle verifier 输出，便于从报告回溯 GitHub Actions run。
+选择 `target=frozen-target` 后，workflow 会在同一干净 checkout 中调用 `invoke-m19-capacity-bundle.ps1` 串行执行四个默认 profile。每个 profile 以 `--work <bundleRoot>/work/<profile>` 运行，因此 `report.json` 的磁盘快照对应实际 workload 与 evidence 所在卷。它自动生成 `target-hardware.json`、`checkout-attestation.json`、每个 profile 的 `report.json`/`report.md`、`raw-artifact-manifest.json` 和 `m19-capacity-bundle-verification.json`，再上传为单个 artifact。raw manifest 为每个原始文件记录 SHA-256，并在四个 profile 结束后记录终态 worktree 状态；任一 checkout 改动都会被 verifier 拒绝。bundle verifier 还要求 protected storage declaration、checkout attestation、硬件快照和四份报告的存储型号完全一致。artifact run URL 被写入 bundle verifier 输出，便于从报告回溯 GitHub Actions run。
 
 仅在隔离的目标机诊断中，才可分别执行默认 profile；这不会替代 workflow 的 bundle attestation：
 
@@ -86,5 +103,7 @@ pwsh -File tests/SonnetDB.EcosystemSoak/scripts/invoke-m19-capacity-bundle.ps1 `
 `maintenance-chaos` 也验证 interrupted segment publication 的恢复合同：Core 使用 `wal/<segmentId:X16>.SDBFPUB` 64-byte CRC-protected v1 sidecar，记录 `Pending`/`Committed`、segment ID、checkpoint LSN 和创建时间。`Pending` 在 segment 最终写入前同步；只有 segment、其父目录和 durable checkpoint 均完成后，才原子持久化 `Committed`。reopen 先把遗留 `wal/active.SDBWAL` 升级为 LSN 命名段，再在 segment 扫描前对账：有效、精确 checkpoint 的 `Pending` 可提升保留；没有覆盖 checkpoint 的 `Pending` 清理未发布 artifact 后由 WAL 回放；WAL/checkpoint 已跨越未解决 marker、marker 损坏/不匹配或清理失败一律 fail closed。`.SDBFPUB.tmp` 被忽略。此合同防止受控中断发布被静默接受，不把 profile 的 `Process.Kill`、关闭的 segment fsync 或报告 I/O 计数升级为电源故障或物理持久性证明。
 
 ## 发布判定
+
+软件发布要求候选 SHA 的 `GitHub-hosted capacity validation` job 成功，并保留 `HOSTED_VALIDATION_ONLY` 原始报告；不要求提供自托管 runner。此结论仅覆盖上述规模的实际恢复与容量行为，不声明固定硬件吞吐、生产容量或掉电耐久性。
 
 四个 profile 的研发交付已完成；只有它们均在同一份冻结目标硬件合同下完成，且报告中的 commit、配置、原始 JSON/Markdown、硬件快照、checkout attestation、SHA-256 raw manifest 和 artifact URL 可追溯时，才能把 M19 #125 的外部验收标记为通过。任一 profile 缺失、失败、环境字段不可用、工作树不干净或完整性/分位数缺失，都保持 `NOT_READY`。

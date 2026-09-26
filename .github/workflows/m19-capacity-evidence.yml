@@ -2,14 +2,23 @@ name: M19 Capacity Evidence
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "GitHub-hosted behavioral validation or optional frozen hardware capacity evidence"
+        required: true
+        default: github-hosted
+        type: choice
+        options:
+          - github-hosted
+          - frozen-target
 
 permissions:
   contents: read
 
-# A single target machine must not run overlapping capacity workloads. The
-# target identity and hardware contract are deliberately not dispatch inputs.
+# Preserve the frozen target's global lock; hosted validation uses its own queue.
+# Target identity and hardware contract remain protected environment variables.
 concurrency:
-  group: m19-capacity-evidence-frozen-target-v1
+  group: ${{ inputs.target == 'frozen-target' && 'm19-capacity-evidence-frozen-target-v1' || format('m19-capacity-hosted-{0}', github.ref) }}
   cancel-in-progress: false
 
 env:
@@ -19,8 +28,114 @@ env:
   NUGET_XMLDOC_MODE: skip
 
 jobs:
+  hosted-capacity:
+    name: GitHub-hosted capacity validation
+    if: ${{ inputs.target != 'frozen-target' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # v7 @ 3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      # v6 @ a98b56852c35b8e3190ac28c8c2271da59106c68
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          global-json-file: global.json
+
+      - name: Restore and build hosted capacity runner
+        run: |
+          dotnet restore tests/SonnetDB.EcosystemSoak/SonnetDB.EcosystemSoak.csproj
+          dotnet build tests/SonnetDB.EcosystemSoak/SonnetDB.EcosystemSoak.csproj --configuration Release --no-restore --nologo
+
+      - name: Validate strict capacity verifier contracts
+        id: verifier_contracts
+        shell: pwsh
+        run: |
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-report.ps1
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-verify-m19-capacity-bundle.ps1
+
+      - name: Run all four scaled specialized profiles
+        id: specialized_profiles
+        shell: pwsh
+        run: |
+          ./tests/SonnetDB.EcosystemSoak/scripts/test-specialized-soak-profiles.ps1 `
+            -OutputRoot (Join-Path 'artifacts/m19-hosted' $env:GITHUB_SHA) `
+            -NoBuild
+
+      - name: Record hosted hardware, scale and evidence boundary
+        if: always()
+        shell: pwsh
+        env:
+          VERIFIER_OUTCOME: ${{ steps.verifier_contracts.outcome }}
+          PROFILE_OUTCOME: ${{ steps.specialized_profiles.outcome }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path 'artifacts/m19-hosted' $env:GITHUB_SHA
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $profiles = foreach ($name in @('high-cardinality', 'small-segments', 'maintenance-chaos', 'many-measurements')) {
+            $reportPath = Join-Path $root "output/$name/report.json"
+            $markdownPath = Join-Path $root "output/$name/report.md"
+            if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+              [ordered]@{ profile = $name; succeeded = $false; failure = 'Raw report is missing.' }
+              continue
+            }
+            $report = Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | ConvertFrom-Json -Depth 100
+            if ($report.targetHardware.status -ne 'NOT_READY' -or $report.targetHardware.id -ne 'UNDECLARED') {
+              throw "Hosted profile '$name' must not claim fixed hardware evidence."
+            }
+            [ordered]@{
+              profile = $name
+              succeeded = $report.succeeded
+              actualScale = $report.options
+              actualEnvironment = $report.environment
+              targetHardware = $report.targetHardware
+              source = $report.evidence
+              jsonSha256 = (Get-FileHash -LiteralPath $reportPath -Algorithm SHA256).Hash.ToLowerInvariant()
+              markdownSha256 = if (Test-Path -LiteralPath $markdownPath -PathType Leaf) { (Get-FileHash -LiteralPath $markdownPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { $null }
+            }
+          }
+          $succeeded = $env:VERIFIER_OUTCOME -eq 'success' -and $env:PROFILE_OUTCOME -eq 'success'
+          [ordered]@{
+            schemaVersion = 1
+            status = 'HOSTED_VALIDATION_ONLY'
+            succeeded = $succeeded
+            fixedTargetStatus = 'NOT_READY'
+            releaseEvidence = $false
+            commitSha = $env:GITHUB_SHA
+            artifactUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            runnerEnvironment = $env:RUNNER_ENVIRONMENT
+            runnerName = $env:RUNNER_NAME
+            verifierContracts = $env:VERIFIER_OUTCOME
+            specializedProfiles = $env:PROFILE_OUTCOME
+            profiles = @($profiles)
+          } | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath (Join-Path $root 'hosted-validation.json') -Encoding utf8NoBOM
+          @(
+            '### M19 hosted capacity validation'
+            ''
+            "Status: HOSTED_VALIDATION_ONLY; behavioral validation succeeded: $succeeded."
+            ''
+            'Raw reports retain actual runner hardware, scale, integrity, latency samples and controlled kill/reopen results.'
+            'Frozen hardware capacity acceptance remains NOT_READY; this run does not establish production capacity or power-loss durability.'
+          ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          if (-not $succeeded) { throw 'Hosted capacity validation did not complete successfully.' }
+
+      - name: Upload hosted capacity validation evidence
+        if: always()
+        # v7 @ 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: m19-hosted-validation-${{ github.sha }}-${{ github.run_id }}
+          path: artifacts/m19-hosted/${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+
   validate-authority:
     name: Verify authoritative branch
+    if: ${{ inputs.target == 'frozen-target' }}
     runs-on: ubuntu-latest
     steps:
       - name: Require protected main branch
@@ -37,6 +152,7 @@ jobs:
 
   capacity:
     name: Fixed target capacity bundle
+    if: ${{ inputs.target == 'frozen-target' }}
     needs: validate-authority
     runs-on: [self-hosted, linux, x64, sonnetdb-m19-capacity-x64-v1]
     environment:
