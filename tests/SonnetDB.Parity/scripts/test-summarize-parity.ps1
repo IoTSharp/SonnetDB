@@ -128,6 +128,77 @@ try {
     Assert-Equal "failing" $invalidShape.status "Object-shaped parity fields must produce a failing summary."
     Assert-Equal "parity_report_parse_failed" $invalidShape.gateFailures[0].gap_reason "Object-shaped report gap_reason 错误。"
 
+    $referenceRoot = Join-Path $testRoot "reference-reports"
+    New-Item -ItemType Directory -Force -Path (Join-Path $referenceRoot "suite") | Out-Null
+    $referencePath = Join-Path $referenceRoot "suite/report.json"
+    $fullReferences = @("postgres", "redis", "minio", "nats", "influxdb", "victoriametrics", "meilisearch", "qdrant", "clickhouse", "mongodb")
+    foreach ($profile in @("light", "full")) {
+        $required = if ($profile -eq "full") { $fullReferences } else { $fullReferences[0..3] }
+        $referenceReport = [ordered]@{
+            runId = "reference-contract"
+            capabilityGaps = @()
+            scenarios = @($required | ForEach-Object {
+                [ordered]@{
+                    name = "reference-$_"
+                    withinTolerance = $true
+                    differences = @()
+                    backends = @([ordered]@{ backend = $_; status = "pass"; metrics = @{} })
+                }
+            })
+        }
+        # Optional profile services, unsupported capabilities, and external Graph
+        # comparisons retain their explicit boundaries when required services run.
+        $referenceReport.scenarios += [ordered]@{
+            name = "capability-gap"
+            differences = @()
+            backends = @([ordered]@{ backend = "postgres"; status = "skipped"; gapReason = "backend lacks required capabilities: RelationalTpccLite" })
+        }
+        $referenceReport.scenarios += [ordered]@{
+            name = "graph-deferred"
+            differences = @()
+            backends = @([ordered]@{ backend = "postgres"; status = "not_run"; gapReason = "external SQL/PGQ parity deferred to the target environment" })
+        }
+        if ($profile -eq "light") {
+            $referenceReport.scenarios += [ordered]@{
+                name = "optional-clickhouse"
+                differences = @()
+                backends = @([ordered]@{ backend = "clickhouse"; status = "skipped"; gapReason = "clickhouse unreachable" })
+            }
+        }
+        $referenceReport | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $referencePath -Encoding utf8
+        $referenceOutput = Join-Path $testRoot "$profile-references"
+        & $summarizer -ReportRoot $referenceRoot -OutputDirectory $referenceOutput -Profile $profile
+        $referenceSummary = Get-Content -LiteralPath (Join-Path $referenceOutput "summary.json") -Raw | ConvertFrom-Json
+        Assert-Equal "passing" $referenceSummary.status "Available $profile references and explicit capability/profile skips must pass."
+
+        for ($index = 0; $index -lt $required.Count; $index++) {
+            $backend = $referenceReport.scenarios[$index].backends[0]
+            $backend.status = "skipped"
+            $backend.gapReason = "$($backend.backend) unreachable"
+            # Infrastructure failure must not disappear behind warning-only metrics.
+            $backend.metrics = @{ performance_gating = "warning_only" }
+            $referenceReport | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $referencePath -Encoding utf8
+            $referenceRaised = $false
+            try { & $summarizer -ReportRoot $referenceRoot -OutputDirectory $referenceOutput -Profile $profile }
+            catch { $referenceRaised = $true }
+            Assert-Equal $true $referenceRaised "Unreachable required $profile reference $($backend.backend) must fail."
+            $referenceSummary = Get-Content -LiteralPath (Join-Path $referenceOutput "summary.json") -Raw | ConvertFrom-Json
+            Assert-Equal 1 $referenceSummary.failedScenarios "Unreachable reference must remain in the failed scenario denominator."
+            Assert-Equal $true (@($referenceSummary.gateFailures.gap_reason) -contains "required_reference_unreachable") "Required reference infrastructure failure is missing."
+            Assert-Equal $true (@($referenceSummary.gateFailures.gap_reason) -contains "required_reference_not_executed") "Missing reference execution must fail closed."
+            $backend.status = "pass"
+            $backend.Remove("gapReason")
+            $backend.metrics = @{}
+        }
+
+        $referenceReport.scenarios = @($referenceReport.scenarios | Where-Object { $_.name -ne "reference-postgres" })
+        $referenceReport | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $referencePath -Encoding utf8
+        $missingRaised = $false
+        try { & $summarizer -ReportRoot $referenceRoot -OutputDirectory $referenceOutput -Profile $profile }
+        catch { $missingRaised = $true }
+        Assert-Equal $true $missingRaised "An omitted required reference report must fail even when a deferred Graph outcome exists."
+    }
+
     Write-Host "Parity summary contract tests passed."
 }
 finally {

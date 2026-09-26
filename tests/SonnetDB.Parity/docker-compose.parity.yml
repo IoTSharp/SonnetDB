@@ -197,6 +197,11 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     networks: [parity-net]
+    environment:
+      CLICKHOUSE_USER: ${PARITY_CLICKHOUSE_USER:-parity}
+      CLICKHOUSE_PASSWORD: ${PARITY_CLICKHOUSE_PASSWORD:-parity-clickhouse}
+      CLICKHOUSE_DB: ${PARITY_CLICKHOUSE_DATABASE:-default}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ports:
       - "${PARITY_CLICKHOUSE_HTTP_PORT:-28123}:8123"
     volumes:
@@ -206,7 +211,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8123/ping || exit 1"]
+      test: ["CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --database \"$$CLICKHOUSE_DB\" --query 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -261,8 +266,8 @@ services:
       PARITY_QDRANT_PORT: "6334"
       PARITY_CLICKHOUSE_HOST: clickhouse
       PARITY_CLICKHOUSE_HTTP_PORT: "8123"
-      PARITY_CLICKHOUSE_USER: ${PARITY_CLICKHOUSE_USER:-default}
-      PARITY_CLICKHOUSE_PASSWORD: ${PARITY_CLICKHOUSE_PASSWORD:-}
+      PARITY_CLICKHOUSE_USER: ${PARITY_CLICKHOUSE_USER:-parity}
+      PARITY_CLICKHOUSE_PASSWORD: ${PARITY_CLICKHOUSE_PASSWORD:-parity-clickhouse}
       PARITY_CLICKHOUSE_DATABASE: ${PARITY_CLICKHOUSE_DATABASE:-default}
       PARITY_MONGO_URL: mongodb://mongodb:27017
       PARITY_MONGO_DB: ${PARITY_MONGO_DB:-sonnetdb_parity}

@@ -30,4 +30,10 @@ Assert-True ($dockerfile.Contains('03e996320ebb887112fb2a15c6f27936e5f124a0')) `
 Assert-True ($dockerfile.Contains('23783181b83d426a01dad69524b0fccc19796fd475f40cb9144237c6ce515c22') -and $dockerfile.Contains('sha256sum --check')) `
     "The upstream source archive must be verified before building."
 
+$clickHouse = [regex]::Match($compose, '(?ms)^  clickhouse:\r?\n(?<service>.*?)(?=^  [a-z][a-z0-9-]*:|\z)').Groups['service'].Value
+Assert-True ($clickHouse.Contains('CLICKHOUSE_USER: ${PARITY_CLICKHOUSE_USER:-parity}') -and $clickHouse.Contains('CLICKHOUSE_PASSWORD: ${PARITY_CLICKHOUSE_PASSWORD:-parity-clickhouse}')) `
+    "ClickHouse must initialize the credentials used by host and compose clients."
+Assert-True ($clickHouse.Contains("--query 'SELECT 1'") -and $clickHouse.Contains('$$CLICKHOUSE_PASSWORD')) `
+    "ClickHouse health must verify an authenticated query, not just the public ping endpoint."
+
 Write-Host "Parity compose image contract passed."

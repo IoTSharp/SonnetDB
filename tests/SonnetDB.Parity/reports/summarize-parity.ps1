@@ -29,6 +29,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# These profiles promise live reference services. Optional local/test profiles
+# retain explicit skips, while a declared reference must actually execute.
+$requiredReferenceBackends = switch ($Profile) {
+    "light" { @("postgres", "redis", "minio", "nats") }
+    "full" { @("postgres", "redis", "minio", "nats", "influxdb", "victoriametrics", "meilisearch", "qdrant", "clickhouse", "mongodb") }
+    default { @() }
+}
+$executedReferenceBackends = @{}
+
 function Test-ObjectProperty {
     param(
         [object] $InputObject,
@@ -172,6 +181,12 @@ foreach ($file in $reportFiles) {
         $allSkipped = $backendStatuses.Count -gt 0 -and (@($backendStatuses | Where-Object { $_ -eq "skipped" }).Count -eq $backendStatuses.Count)
         $isWarningOnly = Test-PerformanceOnlyScenario $scenario
 
+        foreach ($backend in $scenario.backends) {
+            if ($backend.status -eq "pass") {
+                $executedReferenceBackends[[string]$backend.backend] = $true
+            }
+        }
+
         if ($isWarningOnly) {
             $warningOnlyScenarios++
             $performanceWarnings.Add([ordered]@{
@@ -179,6 +194,21 @@ foreach ($file in $reportFiles) {
                 scenario = [string]$scenario.name
                 reason = "performance metrics are warning only"
             })
+        }
+
+        $unreachableReferences = @($scenario.backends | Where-Object {
+            $_.backend -in $requiredReferenceBackends -and
+            $_.status -eq "skipped" -and
+            $_.gapReason -match "unreachable"
+        })
+        if ($unreachableReferences.Count -gt 0) {
+            $failedScenarios++
+            $suiteFail++
+            foreach ($backend in $unreachableReferences) {
+                Add-GateFailure $failures "infrastructure" $suiteName ([string]$scenario.name) `
+                    "Required reference '$($backend.backend)' is unreachable: $($backend.gapReason)" "required_reference_unreachable"
+            }
+            continue
         }
 
         if ($hasFail -or ($scenario.withinTolerance -eq $false -and -not $isWarningOnly)) {
@@ -213,6 +243,13 @@ foreach ($file in $reportFiles) {
         failed = $suiteFail
         source = $source
     })
+}
+
+foreach ($backend in $requiredReferenceBackends) {
+    if (-not $executedReferenceBackends.ContainsKey($backend)) {
+        Add-GateFailure $failures "infrastructure" $backend "reference-execution" `
+            "Profile '$Profile' requires at least one successful scenario on reference '$backend'." "required_reference_not_executed"
+    }
 }
 
 if ($RestoreExitCode -ne 0) {
@@ -254,6 +291,7 @@ $summary = [ordered]@{
     message = "$passRate%"
     color = $badgeColor
     profile = $Profile
+    requiredReferenceBackends = @($requiredReferenceBackends)
     status = $status
     passRate = $passRate
     totalScenarios = $totalScenarios
