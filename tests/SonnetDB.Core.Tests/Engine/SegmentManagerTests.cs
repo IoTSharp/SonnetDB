@@ -451,56 +451,122 @@ public sealed class SegmentManagerTests : IDisposable
     [Fact]
     public async Task Concurrent_QueryAndAddSegment_NoExceptionsAndIndexConsistent()
     {
+        const int readerCount = 50;
+        const int addCount = 40;
         WriteSegment(1L, 0x1UL, "f", 1000L, 2000L);
 
         using var mgr = SegmentManager.Open(_tempDir);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        for (long segId = 2; segId <= addCount + 1; segId++)
+            WriteSegment(segId, (ulong)segId, "f", segId * 1000L, segId * 1000L + 500L);
 
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        using var cancellation = new CancellationTokenSource();
+        using var phase = new Barrier(readerCount + 1);
+        var completedReads = new int[readerCount];
+        int completedAdds = 0;
 
-        // 50 个查询线程
-        var queryTasks = Enumerable.Range(0, 50).Select(i => Task.Run(() =>
+        void WaitForPhase()
         {
-            while (!cts.Token.IsCancellationRequested)
+            Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(10), cancellation.Token),
+                "All readers and the add writer must reach the publication barrier.");
+        }
+
+        // 不能让忙循环占满线程池，再依赖相同线程池上的写者和取消计时器推进测试。
+        Task StartWorker(Action work) => Task.Factory.StartNew(() =>
+        {
+            try
             {
-                try
-                {
-                    var idx = mgr.Index;
-                    var candidates = idx.LookupCandidates(0x1UL, "f", 1000L, 2000L);
-                    int count = idx.SegmentCount;
-                    GC.KeepAlive(candidates);
-                    GC.KeepAlive(count);
-                }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
-                }
+                work();
             }
-        })).ToList();
-
-        // 1 个 AddSegment 线程
-        long nextSegId = 2L;
-        var addTask = Task.Run(() =>
-        {
-            while (!cts.Token.IsCancellationRequested)
+            catch
             {
-                try
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        // writer 锁内已加入候选 reader，但新索引尚未发布；读者仍须取得完整旧快照。
+        mgr.BeforeSegmentIndexBuildTestHook = (_, _) =>
+        {
+            WaitForPhase();
+            WaitForPhase();
+        };
+
+        var queryTasks = Enumerable.Range(0, readerCount).Select(readerId => StartWorker(() =>
+        {
+            for (int round = 0; round < addCount; round++)
+            {
+                long addedId = round + 2L;
+                WaitForPhase();
+                using var lease = mgr.AcquireSnapshot();
+                Assert.Equal(round + 1, mgr.Index.SegmentCount);
+                Assert.Equal(round + 1, mgr.Readers.Count);
+                Assert.Equal(round + 1, lease.Readers.Count);
+                Assert.Equal(round + 1, lease.Snapshot.Index.SegmentCount);
+                Assert.Empty(lease.Snapshot.Index.LookupCandidates((ulong)addedId, "f", 0, long.MaxValue));
+                foreach (var reader in lease.Readers)
                 {
-                    long segId = Interlocked.Increment(ref nextSegId);
-                    string path = WriteSegment(segId, (ulong)segId, "f",
-                        segId * 1000L, segId * 1000L + 500L);
-                    mgr.AddSegment(path);
+                    long segId = reader.Header.SegmentId;
+                    Assert.Equal(segId, Assert.Single(lease.Snapshot.Index.LookupCandidates(
+                        (ulong)segId, "f", 0, long.MaxValue)).SegmentId);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                WaitForPhase();
+
+                WaitForPhase();
+                using var published = mgr.AcquireSnapshot();
+                Assert.Equal(round + 2, published.Readers.Count);
+                Assert.Equal(round + 2, published.Snapshot.Index.SegmentCount);
+                Assert.Equal(addedId, Assert.Single(published.Snapshot.Index.LookupCandidates(
+                    (ulong)addedId, "f", addedId * 1000L, addedId * 1000L + 501L)).SegmentId);
+                var addedReader = Assert.Single(published.Readers, reader => reader.Header.SegmentId == addedId);
+                var points = addedReader.DecodeBlock(Assert.Single(addedReader.Blocks));
+                Assert.Equal(6, points.Length);
+                for (int point = 0; point < points.Length; point++)
                 {
-                    exceptions.Add(ex);
+                    long timestamp = addedId * 1000L + point * 100L;
+                    Assert.Equal(timestamp, points[point].Timestamp);
+                    Assert.Equal(FieldValue.FromDouble(timestamp), points[point].Value);
                 }
+
+                // 新发布不得改变仍被查询持有的旧索引与 reader 集合。
+                Assert.Equal(round + 1, lease.Snapshot.Index.SegmentCount);
+                Assert.Equal(round + 1, lease.Readers.Count);
+                Assert.DoesNotContain(lease.Readers, reader => reader.Header.SegmentId == addedId);
+                Assert.Empty(lease.Snapshot.Index.LookupCandidates((ulong)addedId, "f", 0, long.MaxValue));
+                completedReads[readerId]++;
+            }
+        })).ToArray();
+
+        var addTask = StartWorker(() =>
+        {
+            for (int round = 0; round < addCount; round++)
+            {
+                mgr.AddSegment(SegPath(round + 2L));
+                completedAdds++;
+                WaitForPhase();
             }
         });
 
-        await Task.WhenAll(queryTasks.Append(addTask));
+        Task allWorkers = Task.WhenAll([.. queryTasks, addTask]);
+        try
+        {
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；这里只等待所有专用线程退出后再释放同步对象。
+            }
+            mgr.BeforeSegmentIndexBuildTestHook = null;
+        }
 
-        Assert.Empty(exceptions);
-        Assert.True(mgr.SegmentCount >= 1);
+        Assert.Equal(addCount, completedAdds);
+        Assert.All(completedReads, count => Assert.Equal(addCount, count));
+        Assert.Equal(addCount + 1, mgr.SegmentCount);
     }
 }

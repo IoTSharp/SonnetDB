@@ -136,69 +136,138 @@ public sealed class SegmentManagerDropTests : IDisposable
         Assert.Throws<ObjectDisposedException>(() => mgr.DropSegments([1L]));
     }
 
-    // ── 并发：50 个查询线程 + 1 个 Drop 持续 2 秒 → 无异常 ─────────────────
+    // ── 并发：50 个读者持有旧快照，跨越 40 轮实际删除和补充发布 ───────────
 
     [Fact]
     public async Task DropSegments_ConcurrentReadsAndDrop_NoExceptions()
     {
-        // 预写多个段
+        const int readerCount = 50;
+        const int dropCount = 40;
         for (int i = 1; i <= 10; i++)
             WriteSegment(i, seriesId: (ulong)i);
 
         using var mgr = SegmentManager.Open(_tempDir);
+        for (int round = 0; round < dropCount; round++)
+            WriteSegment(20L + round, seriesId: (ulong)(20 + round));
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        using var cancellation = new CancellationTokenSource();
+        using var phase = new Barrier(readerCount + 1);
+        var completedReads = new int[readerCount];
+        var droppedReaders = new List<SegmentReader>();
+        int completedAdds = 0;
 
-        // 50 个只读任务
-        var readTasks = Enumerable.Range(0, 50).Select(_ => Task.Run(() =>
+        void WaitForPhase()
         {
-            while (!cts.Token.IsCancellationRequested)
+            Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(10), cancellation.Token),
+                "All readers and the drop writer must reach the publication barrier.");
+        }
+
+        // 专用线程不占用取消计时器所依赖的线程池；固定轮次保证读写实际发生。
+        Task StartWorker(Action work) => Task.Factory.StartNew(() =>
+        {
+            try
             {
-                try
-                {
-                    _ = mgr.Index.SegmentCount;
-                    _ = mgr.Readers.Count;
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    exceptions.Add(ex);
-                }
+                work();
             }
-        })).ToList();
-
-        // 1 个 Drop 任务：每次写新段后 Drop 最旧段
-        long nextSegId = 20;
-        var dropTask = Task.Run(() =>
-        {
-            while (!cts.Token.IsCancellationRequested)
+            catch
             {
-                try
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        var readTasks = Enumerable.Range(0, readerCount).Select(readerId => StartWorker(() =>
+        {
+            for (int round = 0; round < dropCount; round++)
+            {
+                long removeId = round < 10 ? round + 1L : round + 10L;
+                long addedId = 20L + round;
+                using var lease = mgr.AcquireSnapshot();
+                Assert.Equal(10, lease.Readers.Count);
+                Assert.Equal(10, lease.Snapshot.Index.SegmentCount);
+                var removedReader = Assert.Single(lease.Readers, reader => reader.Header.SegmentId == removeId);
+                Assert.Equal(removeId, Assert.Single(lease.Snapshot.Index.LookupCandidates(
+                    (ulong)removeId, "v", 1000L, 1010L)).SegmentId);
+                WaitForPhase();
+
+                // 与 Drop 并发读取将被移除的段；租约必须跨越删除发布保持有效。
+                Assert.Equal(10, removedReader.DecodeBlock(Assert.Single(removedReader.Blocks)).Length);
+                WaitForPhase();
+                using (var afterDrop = mgr.AcquireSnapshot())
                 {
-                    var current = mgr.Readers;
-                    if (current.Count > 0)
+                    Assert.Equal(9, afterDrop.Readers.Count);
+                    Assert.Equal(9, afterDrop.Snapshot.Index.SegmentCount);
+                    Assert.DoesNotContain(afterDrop.Readers, reader => reader.Header.SegmentId == removeId);
+                    Assert.Empty(afterDrop.Snapshot.Index.LookupCandidates((ulong)removeId, "v", 1000L, 1010L));
+                }
+
+                // 删除后仍通过旧快照的索引找到并完整解码每个段。
+                foreach (var reader in lease.Readers)
+                {
+                    long segId = reader.Header.SegmentId;
+                    Assert.Equal(segId, Assert.Single(lease.Snapshot.Index.LookupCandidates(
+                        (ulong)segId, "v", 1000L, 1010L)).SegmentId);
+                    var points = reader.DecodeBlock(Assert.Single(reader.Blocks));
+                    Assert.Equal(10, points.Length);
+                    for (int point = 0; point < points.Length; point++)
                     {
-                        long removeId = current[0].Header.SegmentId;
-                        mgr.DropSegments([removeId]);
+                        Assert.Equal(1000L + point, points[point].Timestamp);
+                        Assert.Equal(FieldValue.FromDouble(point), points[point].Value);
                     }
-
-                    // 补一个新段进去（短暂延迟让读线程也有机会获得 CPU 时间）
-                    long segId = Interlocked.Increment(ref nextSegId);
-                    WriteSegment(segId, seriesId: (ulong)segId);
-                    mgr.AddSegment(SegPath(segId));
-
-                    Thread.Sleep(30);
                 }
-                catch (OperationCanceledException) { }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
-                }
+                WaitForPhase();
+                WaitForPhase();
+                using var afterAdd = mgr.AcquireSnapshot();
+                Assert.Equal(10, afterAdd.Readers.Count);
+                Assert.Equal(10, afterAdd.Snapshot.Index.SegmentCount);
+                Assert.Contains(afterAdd.Readers, reader => reader.Header.SegmentId == addedId);
+                Assert.Equal(addedId, Assert.Single(afterAdd.Snapshot.Index.LookupCandidates(
+                    (ulong)addedId, "v", 1000L, 1010L)).SegmentId);
+                Assert.DoesNotContain(lease.Readers, reader => reader.Header.SegmentId == addedId);
+                completedReads[readerId]++;
+            }
+        })).ToArray();
+
+        var dropTask = StartWorker(() =>
+        {
+            for (int round = 0; round < dropCount; round++)
+            {
+                long removeId = round < 10 ? round + 1L : round + 10L;
+                WaitForPhase();
+                var dropped = Assert.Single(mgr.DropSegments([removeId]));
+                Assert.Equal(removeId, dropped.Header.SegmentId);
+                droppedReaders.Add(dropped);
+                WaitForPhase();
+                WaitForPhase();
+                mgr.AddSegment(SegPath(20L + round));
+                completedAdds++;
+                WaitForPhase();
             }
         });
 
-        await Task.WhenAll([.. readTasks, dropTask]);
+        Task allWorkers = Task.WhenAll([.. readTasks, dropTask]);
+        try
+        {
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；这里只等待所有专用线程退出后再释放同步对象。
+            }
+        }
 
-        Assert.Empty(exceptions);
+        Assert.Equal(dropCount, droppedReaders.Count);
+        Assert.Equal(dropCount, completedAdds);
+        Assert.All(completedReads, count => Assert.Equal(dropCount, count));
+        Assert.Equal(10, mgr.SegmentCount);
+        foreach (var dropped in droppedReaders)
+            Assert.Throws<ObjectDisposedException>(() => dropped.DecodeBlock(dropped.Blocks[0]));
     }
 }
