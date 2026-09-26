@@ -6,6 +6,9 @@
 本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
 
 ## [Unreleased]
+### Added
+- **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
+
 ### Fixed
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。

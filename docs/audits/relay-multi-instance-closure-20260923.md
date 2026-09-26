@@ -38,6 +38,23 @@ cleanup=PASS, cleanupErrors=[]
 
 最新 DLL 又执行了一次双独立进程 smoke，live follow、hard-kill、稳定失败重放与 cleanup 全部通过；provider 仍为 6 次（planner 4、answer 2）。最新 [原始报告](roadmap-closure-evidence-20260924/relay-smoke/report.json)的 Server SHA-256 为 `AB2F34D227B96AB223900337A4AC0197122CB65679526C5FBCD70BD9FE8E0B20`，脚本 SHA-256 不变。该报告替代上方初次运行的二进制作为最终源码 smoke 证据，仍为 `PASS_LOCAL_ONLY`。
 
+## 2026-09-26 主分支复验
+
+**项目状态决定：M27 #340 ServerRelay 功能交付标记完成。** 用户将自行人工验证真实 IdP、部署双网和 StudioNative 现场旅程；这些验收仍为待执行，不影响功能完成标记，也不记作已通过。
+
+在当前主分支 `7dffde4945a03c142bc980746b78a464e035f009` 上重新构建并运行既有多实例 smoke：
+
+```text
+dotnet build src/SonnetDB/SonnetDB.csproj --no-restore --configuration Release -m:1 --disable-build-servers /warnaserror
+生成成功，0 warning，0 error
+
+pwsh -NoLogo -NoProfile -File tests/SonnetDB.Tests/Copilot/scripts/test-m27-server-relay-multi-instance.ps1 -ServerDll src/SonnetDB/bin/Release/net10.0/SonnetDB.dll -TimeoutSeconds 120 -KeepArtifacts
+```
+
+smoke 结果为 `PASS_LOCAL_ONLY`：跨进程 live owner following、owner hard-kill 后 failure seal、稳定失败重放和资源清理均通过；两个 Server 使用独立 `DataRoot` 与共享 journal，provider 总调用 6 次（planner 4、answer 2），follower/replay 没有重复执行。Server DLL SHA-256 为 `07907521CE9ED26CB4EDCA22DF43DAA343B75337B1F0CB91F1C1286C70379D91`，脚本 SHA-256 为 `426456B1BCC2255DC65E3870540CC351EF3173F6E53A69DD3C512A6405056058`；完整原始报告见[report.json](relay-multi-instance-evidence-20260926/report.json)，其 SHA-256 为 `C8246D5D83BE1EE8F44A8A6F65325B802A3F0C060DA5083F1CA42B40211FB920`。
+
+此 smoke 仍只覆盖本机 loopback 与 deterministic mock provider；报告明确 `realModel=NOT_RUN`、`deployedHa=NOT_RUN`、`providerFailureResume=UNSUPPORTED_FAIL_CLOSED`。本次进程没有 M27/Copilot/OAuth/provider 环境变量，仓库下也没有 `web/.env*` 部署配置；因此真实 IdP、部署公网 continuation/CSP/CORS、无公网出口的双网旅程、StudioNative 实机和模型质量/成本尚未执行，不将本机多网卡状态视为这些验收的替代证据。
+
 ## 边界
 
 `IChatProvider` 仍只有完整 `CompleteAsync`，云端 gateway 也没有 provider continuation/lease API。因此 owner 崩溃后本实现 fail closed 并稳定重放错误，不能透明恢复 provider 或工具执行；没有新增跨实例取消转移 API。真实 IdP、双网、公网 CSP/CORS、真实模型质量/成本、共享文件系统跨机器锁语义、安装和长稳门禁继续按 M27 真机待办执行。

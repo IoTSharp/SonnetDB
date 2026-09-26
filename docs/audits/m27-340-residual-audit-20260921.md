@@ -2,6 +2,8 @@
 
 本审计把 M27 #340 的真实代码状态与部署/现场证据分开记录。它不把已有能力重新包装成实现任务，也不把缺少真实公网、固定设备或安装环境的证据误写成代码缺口。
 
+**2026-09-26 状态更新：M27 #340 功能交付已标记完成，用户将人工验证真实环境。** 本文早期“下一项可执行切片”现为历史计划，不再作为未完成代码派单；真实 IdP、部署双网、公网 continuation/CSP/CORS 和 StudioNative 实机结果仍待人工记录。
+
 ## 已实现且有本地回归的范围
 
 | 范围 | 代码证据 | 回归证据 | 判定 |
@@ -55,13 +57,13 @@ dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore --filter "Fu
 
 StudioNative transport、六个固定 broker 操作、Windows Credential Manager、原生短期 token 输入与 Dock 生命周期已实现。宿主完整测试 56/56，Native 浏览器/共享协议专项 26/26，生产构建通过；配置及准确边界见[合同](../studio-copilot-contract.md)和[本轮验收](m27-studio-native-closure-20260923.md)。缺少宿主、批准目标或有效凭据时仍保持不可用。此项不再列为缺失代码；真实原生窗口、WebView2、provider 与双网部署仍需现场证据。
 
-## 仍明确未实现的代码/产品边界
+## 已完成范围之外的产品边界
 
-正在执行中的多实例实时接管与高可用共享 session。journal 使用文件锁合并完成快照；新进程不会接管旧进程仍在执行的 provider/工具，符合当前 fail-closed 合同。升级为实时接管需要 provider lease、所有权租约、取消转移、跨实例事件订阅和故障注入，不能以已完成重放替代。
+owner 丢失后透明续跑 provider 或工具不属于本次已完成合同。系统按既定 fail-closed 行为追加稳定失败终态并允许重放，不接管旧进程执行，也不重复调用 provider/工具；本轮人工现场验收仍需确认部署环境符合该边界。
 
-## 下一项可执行切片
+## 2026-09-23 历史实现计划与验收要点
 
-优先级仍为 M27 #340。BrowserDirect OAuth/PKCE 获取入口与 StudioNative 本地宿主合同已完成实现和专项验收；后续推进多实例实时接管，以及真实 IdP/双网/部署后浏览器刷新和 StudioNative 现场旅程，不重复派已完成代码。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地：
+以下恢复要点用于人工验证时核对既有行为，不代表仍有待实现的代码任务。页面刷新重放和本机 Server 进程切换 smoke 已按以下合同落地：
 
 - 仅 `ServerRelay` 模式允许自动恢复；`BrowserDirect`、`StudioNative` 和 `Disabled` 不共享该状态。
 - 只在发送请求前保存受限的 `runId`、会话 ID、数据库名和请求 fingerprint；不保存数据库 Bearer、public token、消息正文或工具结果。
