@@ -22,6 +22,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 将 OpenTelemetry.Extensions.Hosting 从 1.19.0 升级至 1.19.1（PR #208）。
 - 将 OpenTelemetry.Exporter.OpenTelemetryProtocol 从 1.19.0 升级至 1.19.1（PR #207）。
 - 将测试使用的 OpenTelemetry.Exporter.InMemory 从 1.19.0 升级至 1.19.1（PR #206）。
 - 将 OpenTelemetry.Exporter.Console 从 1.19.0 升级至 1.19.1（PR #205）。
