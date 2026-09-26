@@ -259,11 +259,25 @@ public sealed class RetentionWorkerTests : IDisposable
 
         const int rounds = 5;
         const int writesPerRound = 200;
+        using var cancellation = new CancellationTokenSource();
         using var phase = new Barrier(3);
-        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30)), "并发保留阶段未在期限内完成。");
+        void NextPhase() => Assert.True(phase.SignalAndWait(TimeSpan.FromSeconds(30), cancellation.Token), "并发保留阶段未在期限内完成。");
+
+        Task<T> StartWorker<T>(Func<T> work) => Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                return work();
+            }
+            catch
+            {
+                cancellation.Cancel();
+                throw;
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         // 各参与者使用专用线程，固定轮次；协调与退出不依赖被忙循环占满的线程池。
-        var writeTask = Task.Factory.StartNew(() =>
+        var writeTask = StartWorker(() =>
         {
             int seq = 0;
             for (int round = 0; round < rounds; round++)
@@ -271,15 +285,16 @@ public sealed class RetentionWorkerTests : IDisposable
                 NextPhase();
                 for (int write = 0; write < writesPerRound; write++)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     db.Write(MakePoint(9000L + seq, seq));
                     seq++;
                 }
                 NextPhase();
             }
             return seq;
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        });
 
-        var readTask = Task.Factory.StartNew(() =>
+        var readTask = StartWorker(() =>
         {
             int reads = 0;
             for (int round = 0; round < rounds; round++)
@@ -287,6 +302,7 @@ public sealed class RetentionWorkerTests : IDisposable
                 NextPhase();
                 for (int read = 0; read < writesPerRound; read++)
                 {
+                    cancellation.Token.ThrowIfCancellationRequested();
                     _ = db.Segments.Readers.Count;
                     _ = db.Tombstones.Count;
                     reads++;
@@ -294,9 +310,9 @@ public sealed class RetentionWorkerTests : IDisposable
                 NextPhase();
             }
             return reads;
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        });
 
-        var retentionTask = Task.Factory.StartNew(() =>
+        var retentionTask = StartWorker(() =>
         {
             Volatile.Write(ref nowValue, 10000L); // cutoff=9000，使预写数据全部过期。
             for (int round = 0; round < rounds; round++)
@@ -305,9 +321,26 @@ public sealed class RetentionWorkerTests : IDisposable
                 db.Retention!.RunOnce();
                 NextPhase();
             }
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            return true;
+        });
 
-        await Task.WhenAll(writeTask, readTask, retentionTask).WaitAsync(TimeSpan.FromSeconds(60));
+        Task allWorkers = Task.WhenAll(writeTask, readTask, retentionTask);
+        try
+        {
+            await allWorkers.WaitAsync(TimeSpan.FromSeconds(60));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try
+            {
+                await allWorkers.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception) when (allWorkers.IsCompleted)
+            {
+                // 上方 await 保留原始失败；等待工作线程退出后才释放屏障和数据库。
+            }
+        }
         Assert.Equal(rounds * writesPerRound, await writeTask);
         Assert.Equal(rounds * writesPerRound, await readTask);
         Assert.Equal((long)rounds * writesPerRound, db.MemTable.PointCount);
