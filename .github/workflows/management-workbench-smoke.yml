@@ -12,6 +12,7 @@ on:
       - 'tests/SonnetDB.LanguageServer.Tests/**'
       - 'tests/SonnetDB.Tests/ManagementContractEndpointTests.cs'
       - 'src/SonnetDB.Studio/**'
+      - 'tests/SonnetDB.Studio.Tests/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
   push:
@@ -26,6 +27,7 @@ on:
       - 'tests/SonnetDB.LanguageServer.Tests/**'
       - 'tests/SonnetDB.Tests/ManagementContractEndpointTests.cs'
       - 'src/SonnetDB.Studio/**'
+      - 'tests/SonnetDB.Studio.Tests/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
   workflow_dispatch:

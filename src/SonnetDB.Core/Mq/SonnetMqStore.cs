@@ -159,59 +159,59 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
-        var state = GetOrCreateTopic(topic);
+            EnsureNotDisposed();
+            byte[] topicBytes = EncodeName(topic, nameof(topic));
+            var state = GetOrCreateTopic(topic);
 
-        bool groupCommit = _options.GroupCommitPublish
-            && _options.OpenMode != SonnetMqOpenMode.SingleFile
-            && (_options.FlushOnPublish || _options.SyncOnPublish);
+            bool groupCommit = _options.GroupCommitPublish
+                && _options.OpenMode != SonnetMqOpenMode.SingleFile
+                && (_options.FlushOnPublish || _options.SyncOnPublish);
 
-        long mySeq = 0;
-        long[] offsets;
-        lock (state.SyncRoot)
-        {
-            offsets = new long[prepared.Length];
-            int appendedCount = 0;
-            for (int i = 0; i < prepared.Length; i++)
+            long mySeq = 0;
+            long[] offsets;
+            lock (state.SyncRoot)
             {
-                var publish = prepared[i];
-                if (TryGetMessageId(publish.Headers, out string? messageId)
-                    && messageId is not null
-                    && state.TryGetMessageId(messageId, out long existingOffset))
+                offsets = new long[prepared.Length];
+                int appendedCount = 0;
+                for (int i = 0; i < prepared.Length; i++)
                 {
-                    offsets[i] = existingOffset;
-                    continue;
+                    var publish = prepared[i];
+                    if (TryGetMessageId(publish.Headers, out string? messageId)
+                        && messageId is not null
+                        && state.TryGetMessageId(messageId, out long existingOffset))
+                    {
+                        offsets[i] = existingOffset;
+                        continue;
+                    }
+
+                    long offset = state.NextOffset;
+                    var timestamp = DateTimeOffset.UtcNow;
+                    var location = WriteRecordAt(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
+                    state.Append(
+                        new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload, ColdReadable: location.SegmentBaseOffset >= 0),
+                        location,
+                        _offsetIndexStride,
+                        _residentHotTailMaxBytes,
+                        _options.MessageIdDeduplicationWindow);
+                    offsets[i] = offset;
+                    appendedCount++;
                 }
 
-                long offset = state.NextOffset;
-                var timestamp = DateTimeOffset.UtcNow;
-                var location = WriteRecordAt(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
-                state.Append(
-                    new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload, ColdReadable: location.SegmentBaseOffset >= 0),
-                    location,
-                    _offsetIndexStride,
-                    _residentHotTailMaxBytes,
-                    _options.MessageIdDeduplicationWindow);
-                offsets[i] = offset;
-                appendedCount++;
+                state.AppendedSeq += appendedCount;
+                mySeq = state.AppendedSeq;
+
+                // 未启用组提交（含单文件模式）：沿用逐次内联刷盘，锁内完成，语义与逐条刷盘一致。
+                if (appendedCount > 0 && !groupCommit)
+                    FlushPublishBatchIfNeeded(state);
             }
 
-            state.AppendedSeq += appendedCount;
-            mySeq = state.AppendedSeq;
+            // 组提交 leader-flush：在 SyncRoot 外合并刷盘，仅刷盘瞬间借回 SyncRoot 序列化于写入者。
+            if (groupCommit && mySeq > 0)
+                CommitPublishFlush(state, mySeq);
 
-            // 未启用组提交（含单文件模式）：沿用逐次内联刷盘，锁内完成，语义与逐条刷盘一致。
-            if (appendedCount > 0 && !groupCommit)
-                FlushPublishBatchIfNeeded(state);
-        }
-
-        // 组提交 leader-flush：在 SyncRoot 外合并刷盘，仅刷盘瞬间借回 SyncRoot 序列化于写入者。
-        if (groupCommit && mySeq > 0)
-            CommitPublishFlush(state, mySeq);
-
-        // 唤醒推送订阅者（#236）：刷盘完成后、SyncRoot 外，避免被唤醒者立刻回争锁。虚假/重复 pulse 无害。
-        state.Pulse();
-        return offsets;
+            // 唤醒推送订阅者（#236）：刷盘完成后、SyncRoot 外，避免被唤醒者立刻回争锁。虚假/重复 pulse 无害。
+            state.Pulse();
+            return offsets;
         }
         finally
         {
@@ -343,25 +343,25 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        ValidateTopic(topic);
-        ValidateConsumerGroup(consumerGroup);
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+            EnsureNotDisposed();
+            ValidateTopic(topic);
+            ValidateConsumerGroup(consumerGroup);
+            ArgumentOutOfRangeException.ThrowIfNegative(offset);
 
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
-        byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
+            byte[] topicBytes = EncodeName(topic, nameof(topic));
+            byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
 
-        var state = GetOrCreateTopic(topic);
-        lock (state.SyncRoot)
-        {
-            long acknowledgedNext = offset >= state.NextOffset ? state.NextOffset : offset + 1;
-            long next = Math.Max(acknowledgedNext, state.GetConsumerOffset(consumerGroup));
-            WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
-            state.SetConsumerOffset(consumerGroup, next);
-            state.ClearDeliveryAttempts(consumerGroup, next);
-            TrimAcknowledgedMessages(state, force: false);
-            return next;
-        }
+            var state = GetOrCreateTopic(topic);
+            lock (state.SyncRoot)
+            {
+                long acknowledgedNext = offset >= state.NextOffset ? state.NextOffset : offset + 1;
+                long next = Math.Max(acknowledgedNext, state.GetConsumerOffset(consumerGroup));
+                WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
+                state.SetConsumerOffset(consumerGroup, next);
+                state.ClearDeliveryAttempts(consumerGroup, next);
+                TrimAcknowledgedMessages(state, force: false);
+                return next;
+            }
         }
         finally
         {
@@ -384,58 +384,58 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        ValidateTopic(topic);
-        ValidateConsumerGroup(consumerGroup);
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        if (reason is not null && reason.Length > 1024)
-            throw new ArgumentOutOfRangeException(nameof(reason), "nack 原因不能超过 1024 个字符。");
+            EnsureNotDisposed();
+            ValidateTopic(topic);
+            ValidateConsumerGroup(consumerGroup);
+            ArgumentOutOfRangeException.ThrowIfNegative(offset);
+            if (reason is not null && reason.Length > 1024)
+                throw new ArgumentOutOfRangeException(nameof(reason), "nack 原因不能超过 1024 个字符。");
 
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
-        byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
-        byte[] reasonBytes = reason is null ? [] : Encoding.UTF8.GetBytes(reason);
-        var state = GetOrCreateTopic(topic);
-        lock (state.SyncRoot)
-        {
-            long next = state.GetConsumerOffset(consumerGroup);
-            if (offset != next)
-                throw new ArgumentException($"只能拒绝消费者组当前 offset {next}，收到 {offset}。", nameof(offset));
-            if (offset >= state.NextOffset)
-                throw new ArgumentOutOfRangeException(nameof(offset), "不能拒绝尚未发布的消息。");
-
-            int attempt = state.IncrementDeliveryAttempt(consumerGroup, offset, reason);
-            WriteRecord(state, RecordTypeNack, topicBytes, consumerBytes, reasonBytes, offset, DateTimeOffset.UtcNow.UtcTicks);
-
-            int maxAttempts = _options.MaxDeliveryAttempts;
-            if (maxAttempts <= 0 || attempt < maxAttempts)
-                return new SonnetMqNackResult(next, attempt, false, null);
-
-            IReadOnlyList<SonnetMqMessage> originals = PullFromState(state, offset, 1);
-            if (originals.Count == 0)
-                throw new InvalidDataException($"无法读取待转入死信的消息 offset {offset}。");
-            SonnetMqMessage original = originals[0];
-
-            if (string.IsNullOrWhiteSpace(_options.DeadLetterTopicSuffix))
-                throw new InvalidOperationException("MaxDeliveryAttempts 启用时 DeadLetterTopicSuffix 不能为空。");
-            string deadLetterTopic = topic + _options.DeadLetterTopicSuffix;
-            ValidateTopic(deadLetterTopic);
-            var headers = new Dictionary<string, string>(original.Headers, StringComparer.Ordinal)
+            byte[] topicBytes = EncodeName(topic, nameof(topic));
+            byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
+            byte[] reasonBytes = reason is null ? [] : Encoding.UTF8.GetBytes(reason);
+            var state = GetOrCreateTopic(topic);
+            lock (state.SyncRoot)
             {
-                ["x-original-topic"] = topic,
-                ["x-original-offset"] = offset.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["x-delivery-attempts"] = attempt.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["x-dead-letter-reason"] = reason ?? string.Empty,
-            };
-            long deadLetterOffset = Publish(deadLetterTopic, original.Payload, new SonnetMqPublishOptions(headers));
-            long acknowledgedNext = offset >= state.NextOffset ? state.NextOffset : offset + 1;
-            long nextOffset = Math.Max(acknowledgedNext, state.GetConsumerOffset(consumerGroup));
-            WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, nextOffset, DateTimeOffset.UtcNow.UtcTicks);
-            state.SetConsumerOffset(consumerGroup, nextOffset);
-            state.MarkDeadLettered(reason);
-            state.ClearDeliveryAttempts(consumerGroup, nextOffset);
-            TrimAcknowledgedMessages(state, force: false);
-            return new SonnetMqNackResult(nextOffset, attempt, true, deadLetterOffset);
-        }
+                long next = state.GetConsumerOffset(consumerGroup);
+                if (offset != next)
+                    throw new ArgumentException($"只能拒绝消费者组当前 offset {next}，收到 {offset}。", nameof(offset));
+                if (offset >= state.NextOffset)
+                    throw new ArgumentOutOfRangeException(nameof(offset), "不能拒绝尚未发布的消息。");
+
+                int attempt = state.IncrementDeliveryAttempt(consumerGroup, offset, reason);
+                WriteRecord(state, RecordTypeNack, topicBytes, consumerBytes, reasonBytes, offset, DateTimeOffset.UtcNow.UtcTicks);
+
+                int maxAttempts = _options.MaxDeliveryAttempts;
+                if (maxAttempts <= 0 || attempt < maxAttempts)
+                    return new SonnetMqNackResult(next, attempt, false, null);
+
+                IReadOnlyList<SonnetMqMessage> originals = PullFromState(state, offset, 1);
+                if (originals.Count == 0)
+                    throw new InvalidDataException($"无法读取待转入死信的消息 offset {offset}。");
+                SonnetMqMessage original = originals[0];
+
+                if (string.IsNullOrWhiteSpace(_options.DeadLetterTopicSuffix))
+                    throw new InvalidOperationException("MaxDeliveryAttempts 启用时 DeadLetterTopicSuffix 不能为空。");
+                string deadLetterTopic = topic + _options.DeadLetterTopicSuffix;
+                ValidateTopic(deadLetterTopic);
+                var headers = new Dictionary<string, string>(original.Headers, StringComparer.Ordinal)
+                {
+                    ["x-original-topic"] = topic,
+                    ["x-original-offset"] = offset.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["x-delivery-attempts"] = attempt.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["x-dead-letter-reason"] = reason ?? string.Empty,
+                };
+                long deadLetterOffset = Publish(deadLetterTopic, original.Payload, new SonnetMqPublishOptions(headers));
+                long acknowledgedNext = offset >= state.NextOffset ? state.NextOffset : offset + 1;
+                long nextOffset = Math.Max(acknowledgedNext, state.GetConsumerOffset(consumerGroup));
+                WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, nextOffset, DateTimeOffset.UtcNow.UtcTicks);
+                state.SetConsumerOffset(consumerGroup, nextOffset);
+                state.MarkDeadLettered(reason);
+                state.ClearDeliveryAttempts(consumerGroup, nextOffset);
+                TrimAcknowledgedMessages(state, force: false);
+                return new SonnetMqNackResult(nextOffset, attempt, true, deadLetterOffset);
+            }
         }
         finally
         {
@@ -461,37 +461,37 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        ValidateTopic(topic);
-        ValidateConsumerGroup(consumerGroup);
-        if (!Enum.IsDefined(mode))
-            throw new ArgumentOutOfRangeException(nameof(mode));
-        if ((mode is SonnetMqOffsetResetMode.Explicit or SonnetMqOffsetResetMode.Time) && value < 0)
-            throw new ArgumentOutOfRangeException(nameof(value));
+            EnsureNotDisposed();
+            ValidateTopic(topic);
+            ValidateConsumerGroup(consumerGroup);
+            if (!Enum.IsDefined(mode))
+                throw new ArgumentOutOfRangeException(nameof(mode));
+            if ((mode is SonnetMqOffsetResetMode.Explicit or SonnetMqOffsetResetMode.Time) && value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value));
 
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
-        byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
-        var state = GetOrCreateTopic(topic);
-        lock (state.SyncRoot)
-        {
-            long target = mode switch
+            byte[] topicBytes = EncodeName(topic, nameof(topic));
+            byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
+            var state = GetOrCreateTopic(topic);
+            lock (state.SyncRoot)
             {
-                SonnetMqOffsetResetMode.Earliest => state.TrimmedBeforeOffset,
-                SonnetMqOffsetResetMode.Latest => state.NextOffset,
-                SonnetMqOffsetResetMode.Explicit => Math.Clamp(value, state.TrimmedBeforeOffset, state.NextOffset),
-                SonnetMqOffsetResetMode.Time => FindOffsetAtOrAfter(state, new DateTimeOffset(value, TimeSpan.Zero)),
-                _ => throw new ArgumentOutOfRangeException(nameof(mode)),
-            };
+                long target = mode switch
+                {
+                    SonnetMqOffsetResetMode.Earliest => state.TrimmedBeforeOffset,
+                    SonnetMqOffsetResetMode.Latest => state.NextOffset,
+                    SonnetMqOffsetResetMode.Explicit => Math.Clamp(value, state.TrimmedBeforeOffset, state.NextOffset),
+                    SonnetMqOffsetResetMode.Time => FindOffsetAtOrAfter(state, new DateTimeOffset(value, TimeSpan.Zero)),
+                    _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+                };
 
-            byte[] meta = new byte[1 + sizeof(long) + consumerBytes.Length];
-            meta[0] = (byte)mode;
-            BinaryPrimitives.WriteInt64LittleEndian(meta.AsSpan(1), value);
-            consumerBytes.CopyTo(meta.AsSpan(1 + sizeof(long)));
-            WriteRecord(state, RecordTypeOffsetReset, topicBytes, meta, ReadOnlySpan<byte>.Empty, target, DateTimeOffset.UtcNow.UtcTicks);
-            state.ResetConsumerOffset(consumerGroup, target);
-            state.ClearDeliveryAttempts(consumerGroup, target);
-            return target;
-        }
+                byte[] meta = new byte[1 + sizeof(long) + consumerBytes.Length];
+                meta[0] = (byte)mode;
+                BinaryPrimitives.WriteInt64LittleEndian(meta.AsSpan(1), value);
+                consumerBytes.CopyTo(meta.AsSpan(1 + sizeof(long)));
+                WriteRecord(state, RecordTypeOffsetReset, topicBytes, meta, ReadOnlySpan<byte>.Empty, target, DateTimeOffset.UtcNow.UtcTicks);
+                state.ResetConsumerOffset(consumerGroup, target);
+                state.ClearDeliveryAttempts(consumerGroup, target);
+                return target;
+            }
         }
         finally
         {
@@ -511,23 +511,23 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        ValidateTopic(topic);
-        ArgumentOutOfRangeException.ThrowIfNegative(beforeOffset);
+            EnsureNotDisposed();
+            ValidateTopic(topic);
+            ArgumentOutOfRangeException.ThrowIfNegative(beforeOffset);
 
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
-        var state = GetOrCreateTopic(topic);
-        lock (state.SyncRoot)
-        {
-            long cutoff = Math.Min(beforeOffset, state.NextOffset);
-            if (cutoff <= state.TrimmedBeforeOffset)
+            byte[] topicBytes = EncodeName(topic, nameof(topic));
+            var state = GetOrCreateTopic(topic);
+            lock (state.SyncRoot)
+            {
+                long cutoff = Math.Min(beforeOffset, state.NextOffset);
+                if (cutoff <= state.TrimmedBeforeOffset)
+                    return state.TrimmedBeforeOffset;
+
+                WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
+                state.ApplyTombstone(cutoff);
+                DeleteRetiredSegments(state);
                 return state.TrimmedBeforeOffset;
-
-            WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
-            state.ApplyTombstone(cutoff);
-            DeleteRetiredSegments(state);
-            return state.TrimmedBeforeOffset;
-        }
+            }
         }
         finally
         {
@@ -544,19 +544,19 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
-            return;
+            EnsureNotDisposed();
+            if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+                return;
 
-        // MQ7：只锁被裁剪的单个 topic，文件系统调用不再阻塞其它 topic 的 publish/pull。
-        foreach (var state in _topics.Values)
-        {
-            lock (state.SyncRoot)
+            // MQ7：只锁被裁剪的单个 topic，文件系统调用不再阻塞其它 topic 的 publish/pull。
+            foreach (var state in _topics.Values)
             {
-                TrimAcknowledgedMessages(state, force: true);
-                TrimTopicRetention(state);
+                lock (state.SyncRoot)
+                {
+                    TrimAcknowledgedMessages(state, force: true);
+                    TrimTopicRetention(state);
+                }
             }
-        }
         }
         finally
         {
@@ -633,19 +633,19 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterReadLock();
         try
         {
-        EnsureNotDisposed();
-        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
-        {
-            lock (_globalSync)
-                _singleFileStream?.Flush(flushToDisk);
-            return;
-        }
+            EnsureNotDisposed();
+            if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+            {
+                lock (_globalSync)
+                    _singleFileStream?.Flush(flushToDisk);
+                return;
+            }
 
-        foreach (var state in _topics.Values)
-        {
-            lock (state.SyncRoot)
-                state.Writer?.Flush(flushToDisk);
-        }
+            foreach (var state in _topics.Values)
+            {
+                lock (state.SyncRoot)
+                    state.Writer?.Flush(flushToDisk);
+            }
         }
         finally
         {
@@ -662,29 +662,29 @@ public sealed partial class SonnetMqStore : IDisposable
         _snapshotGate.EnterWriteLock();
         try
         {
-        _retentionCts?.Dispose();
+            _retentionCts?.Dispose();
 
-        lock (_globalSync)
-        {
-            if (_disposed)
-                return;
-            _disposed = true;
-        }
-
-        foreach (var state in _topics.Values)
-        {
-            // 在 SyncRoot 内置 Faulted + 故障 pulse（#236）：与等待者的条件检查串行化，杜绝故障后新建 pulse 永不完成。
-            lock (state.SyncRoot)
+            lock (_globalSync)
             {
-                state.FaultWaiters(new ObjectDisposedException(nameof(SonnetMqStore)));
-                state.Dispose();
+                if (_disposed)
+                    return;
+                _disposed = true;
             }
-        }
 
-        _handleCache.Dispose();
+            foreach (var state in _topics.Values)
+            {
+                // 在 SyncRoot 内置 Faulted + 故障 pulse（#236）：与等待者的条件检查串行化，杜绝故障后新建 pulse 永不完成。
+                lock (state.SyncRoot)
+                {
+                    state.FaultWaiters(new ObjectDisposedException(nameof(SonnetMqStore)));
+                    state.Dispose();
+                }
+            }
 
-        lock (_globalSync)
-            _singleFileStream?.Dispose();
+            _handleCache.Dispose();
+
+            lock (_globalSync)
+                _singleFileStream?.Dispose();
         }
         finally
         {

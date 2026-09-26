@@ -24,6 +24,22 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SonnetDB.Studio\SonnetDB.Studio.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
+
+  <Target Name="RecordStudioTestServerPath" BeforeTargets="GetAssemblyAttributes">
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\..\src\SonnetDB\SonnetDB.csproj"
+      Targets="GetTargetPath"
+      Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_StudioTestServerTarget" />
+    </MSBuild>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>SonnetDB.ServerAssemblyPath</_Parameter1>
+        <_Parameter2>@(_StudioTestServerTarget->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
 
 </Project>

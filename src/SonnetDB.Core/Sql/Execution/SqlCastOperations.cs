@@ -49,7 +49,7 @@ internal static class SqlCastOperations
         if (value is string text)
         {
             if (!long.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed))
-                throw new InvalidOperationException($"字符串 '{text}' 不是有效的 Int64。" );
+                throw new InvalidOperationException($"字符串 '{text}' 不是有效的 Int64。");
             return parsed;
         }
         if (value is DateTime dateTime)
@@ -61,18 +61,18 @@ internal static class SqlCastOperations
         if (value is double doubleValue)
         {
             if (!double.IsFinite(doubleValue) || doubleValue < long.MinValue || doubleValue >= 9.223372036854776E18)
-                throw new InvalidOperationException("浮点值超出 Int64 范围或不是有限值。" );
+                throw new InvalidOperationException("浮点值超出 Int64 范围或不是有限值。");
             return checked((long)doubleValue);
         }
         if (value is float floatValue)
         {
             if (!float.IsFinite(floatValue) || floatValue < long.MinValue || floatValue >= 9.223372E18f)
-                throw new InvalidOperationException("浮点值超出 Int64 范围或不是有限值。" );
+                throw new InvalidOperationException("浮点值超出 Int64 范围或不是有限值。");
             return checked((long)floatValue);
         }
         if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
             return checked(System.Convert.ToInt64(value, CultureInfo.InvariantCulture));
-        throw new InvalidOperationException($"值类型 {value.GetType().Name} 不能转换为 Int64。" );
+        throw new InvalidOperationException($"值类型 {value.GetType().Name} 不能转换为 Int64。");
     }
 
     private static double ToFloat64(object value)
@@ -81,7 +81,7 @@ internal static class SqlCastOperations
         {
             if (!double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)
                 || !double.IsFinite(parsed))
-                throw new InvalidOperationException($"字符串 '{text}' 不是有效的有限 Float64。" );
+                throw new InvalidOperationException($"字符串 '{text}' 不是有效的有限 Float64。");
             return parsed;
         }
         if (value is bool boolean)
@@ -95,7 +95,7 @@ internal static class SqlCastOperations
             _ => throw new InvalidOperationException($"值类型 {value.GetType().Name} 不能转换为 Float64。"),
         };
         if (!double.IsFinite(converted))
-            throw new InvalidOperationException("转换结果不是有限 Float64。" );
+            throw new InvalidOperationException("转换结果不是有限 Float64。");
         return converted;
     }
 
@@ -148,7 +148,7 @@ internal static class SqlCastOperations
                     1 => true,
                     _ => throw new InvalidOperationException($"字符串 '{text}' 不是有效的 BOOL。"),
                 };
-            throw new InvalidOperationException($"字符串 '{text}' 不是有效的 BOOL。" );
+            throw new InvalidOperationException($"字符串 '{text}' 不是有效的 BOOL。");
         }
         if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
         {
@@ -170,7 +170,7 @@ internal static class SqlCastOperations
                 _ => throw new InvalidOperationException($"数值 {number.ToString(CultureInfo.InvariantCulture)} 不是有效的 BOOL。"),
             };
         }
-        throw new InvalidOperationException($"值类型 {value.GetType().Name} 不能转换为 BOOL。" );
+        throw new InvalidOperationException($"值类型 {value.GetType().Name} 不能转换为 BOOL。");
     }
 
     private static string ToStringValue(object value) => value switch
@@ -196,7 +196,7 @@ internal static class SqlCastOperations
             return parsed.UtcDateTime;
         if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
             return DateTimeOffset.FromUnixTimeMilliseconds(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)).UtcDateTime;
-        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIME。" );
+        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIME。");
     }
 
     private static TimeOnly ToTime(object value)
@@ -211,7 +211,7 @@ internal static class SqlCastOperations
             return parsed;
         }
 
-        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 TIME。仅支持 00:00:00 至 23:59:59.9999999。" );
+        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 TIME。仅支持 00:00:00 至 23:59:59.9999999。");
     }
 
     private static byte[] ToBlob(object value) => value switch

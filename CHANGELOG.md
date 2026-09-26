@@ -11,6 +11,7 @@
 - **M20 Parity 依赖可用性**：固定 MinIO 参考版本的 Quay 镜像也已拒绝匿名拉取，改为从对应上游 commit 构建并校验源码归档 SHA-256，镜像同时保留许可和源码；原比较版本不变，远程 light/full 与七日结果另行验收。
 - **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。
 - 修复 CDC spool 在 Unix 上使用共享文件租约而允许多个写入者同时打开同一路径的问题；专用租约改为独占打开，并覆盖并发竞争、构造失败清理、跨进程拒绝、正常释放及进程强杀后的事件回放与确认恢复。
+- 修复跨平台 CI 证据收集与测试合同：Graph launcher 退出后按原有期限等待完整进程组清空，控制状态读取允许 Windows 原子替换的 delete access；EF HTTP/2 验证实际服务端事务会话及回滚后的持久状态，Studio 宿主测试显式构建并记录 Server 输出位置，兼容独立 artifacts 目录且不混入 Server 配置。
 - GH-Issue #178 补齐集合运算逐列类型诊断、`NULL`/重复/多列比较与 `UNION ALL` 分支顺序回归；集合保留行和哈希结构接入查询内存预算，超限明确拒绝，结果保留推断的列类型元数据。
 - GH-Issue #178 修正混合集合运算的标准优先级：先计算 `INTERSECT`，再从左到右计算 `UNION` / `EXCEPT`，避免结果依赖错误的纯左结合顺序。
 - GH-Issue #198 关系表 `SUM(INT)` 的 Int64 累加越界现稳定拒绝，不再静默提升为有损 Double；成功结果和空结果继续保留 Int64 声明类型。
@@ -26,6 +27,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 清理主线合并后的 C# 格式与 imports，保持完整格式门禁；CI 取消同分支过期运行，并在 Windows/Linux 构建中执行发布门禁脚本合同测试；Studio 测试变更会触发管理工作台 smoke。
 - 核查并合并本地与远端开发分支的历史关系，保留已进入主线的后续修复并记录重复/过期片段处理；详见 [2026-09-26 分支合并核查](docs/audits/branch-integration-20260926.md)。
 - 将 OpenTelemetry.Extensions.Hosting 从 1.19.0 升级至 1.19.1（PR #208）。
 - 将 OpenTelemetry.Exporter.OpenTelemetryProtocol 从 1.19.0 升级至 1.19.1（PR #207）。

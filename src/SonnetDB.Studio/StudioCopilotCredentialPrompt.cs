@@ -18,11 +18,21 @@ internal static class StudioCopilotCredentialPrompt
                 using var form = new Form
                 {
                     Text = "SonnetDB Studio · 连接 AI 服务",
-                    Width = 510, Height = 230, FormBorderStyle = FormBorderStyle.FixedDialog,
-                    MaximizeBox = false, MinimizeBox = false, StartPosition = FormStartPosition.CenterScreen,
+                    Width = 510,
+                    Height = 230,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    StartPosition = FormStartPosition.CenterScreen,
                 };
-                var label = new Label { Left = 18, Top = 16, Width = 465, Height = 55,
-                    Text = $"仅向 {publicOrigin} 发送。\n请输入已取得的短期公网访问令牌；不要输入数据库令牌。" };
+                var label = new Label
+                {
+                    Left = 18,
+                    Top = 16,
+                    Width = 465,
+                    Height = 55,
+                    Text = $"仅向 {publicOrigin} 发送。\n请输入已取得的短期公网访问令牌；不要输入数据库令牌。"
+                };
                 var password = new TextBox { Left = 18, Top = 78, Width = 465, UseSystemPasswordChar = true, MaxLength = 2048 };
                 var connect = new Button { Text = "连接", Left = 305, Top = 126, Width = 84, DialogResult = DialogResult.OK };
                 var cancel = new Button { Text = "取消", Left = 399, Top = 126, Width = 84, DialogResult = DialogResult.Cancel };
@@ -44,7 +54,8 @@ internal static class StudioCopilotCredentialPrompt
             }
             catch (OperationCanceledException) { completion.TrySetCanceled(cancellationToken); }
             catch (Exception error) { completion.TrySetException(error); }
-        }) { IsBackground = true, Name = "Studio Copilot credential prompt" };
+        })
+        { IsBackground = true, Name = "Studio Copilot credential prompt" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return completion.Task;

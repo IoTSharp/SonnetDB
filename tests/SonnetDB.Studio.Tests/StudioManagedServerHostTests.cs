@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using SonnetDB.Engine;
 using SonnetDB.Sql.Execution;
@@ -202,10 +203,11 @@ public sealed class StudioManagedServerHostTests
 
     private static string GetServerExecutable()
     {
-        var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "SonnetDB", "bin", "Release", "net10.0", "SonnetDB.exe"));
+        var serverAssembly = typeof(StudioManagedServerHostTests).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "SonnetDB.ServerAssemblyPath").Value;
+        Assert.False(string.IsNullOrWhiteSpace(serverAssembly));
+        var path = Path.ChangeExtension(serverAssembly, ".exe");
         Assert.True(File.Exists(path), $"Server executable was not found at {path}.");
         return path;
     }

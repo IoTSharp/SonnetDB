@@ -177,7 +177,7 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
         Assert.True(result.Completed, result.Diagnostic);
         Assert.True(result.TargetCompletionObserved, result.Diagnostic);
         Assert.True(result.CompletionRequired, result.Diagnostic);
-        Assert.NotEqual(0, result.ExitCode);
+        Assert.Equal(91, result.ExitCode);
         Assert.Contains("Intentional evidence target startup-hook failure", result.StandardError);
         Assert.False(File.Exists(Path.Combine(_rootDirectory, "parent.pid")));
         Assert.False(File.Exists(Path.Combine(_rootDirectory, "leaf.pid")));
@@ -301,6 +301,16 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                     cleanupConfirmed = true;
                     break;
                 }
+                if (launcherExited)
+                {
+                    // launcher 已退出时 WaitForExit 不再等待；给同组子进程实际退出时间，
+                    // 避免在十秒期限前忙轮询耗尽次数。
+                    TimeSpan remaining = TimeSpan.FromSeconds(10) - stopwatch.Elapsed;
+                    if (remaining > TimeSpan.Zero)
+                        await Task.Delay(remaining < TimeSpan.FromMilliseconds(100)
+                            ? remaining
+                            : TimeSpan.FromMilliseconds(100));
+                }
             }
 
             Assert.True(cleanupConfirmed, "launcher hard lifetime 后 containment 未确认清空。");
@@ -323,6 +333,14 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                     {
                         cleanupConfirmed = true;
                         break;
+                    }
+                    if (launcherExited)
+                    {
+                        TimeSpan remaining = TimeSpan.FromSeconds(10) - cleanup.Elapsed;
+                        if (remaining > TimeSpan.Zero)
+                            await Task.Delay(remaining < TimeSpan.FromMilliseconds(100)
+                                ? remaining
+                                : TimeSpan.FromMilliseconds(100));
                     }
                 }
             }

@@ -15,6 +15,8 @@ public static class StartupHook
         }
 
         Thread.Sleep(TimeSpan.FromSeconds(2));
-        throw new InvalidOperationException("Intentional evidence target startup-hook failure.");
+        Console.Error.WriteLine("Intentional evidence target startup-hook failure.");
+        // 使用确定的故障退出，避免系统崩溃报告器接管未处理异常而延迟子进程回收。
+        Environment.Exit(91);
     }
 }

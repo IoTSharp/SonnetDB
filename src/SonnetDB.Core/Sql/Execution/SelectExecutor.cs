@@ -394,12 +394,12 @@ internal static class SelectExecutor
                 case FunctionCallExpression fn:
                     var kind = FunctionRegistry.GetFunctionKind(fn.Name);
                     if (fn.IsDistinct && kind != FunctionKind.Aggregate)
-                        throw new InvalidOperationException($"函数 '{fn.Name}' 不支持 DISTINCT 修饰词。" );
+                        throw new InvalidOperationException($"函数 '{fn.Name}' 不支持 DISTINCT 修饰词。");
                     if (fn.Over is not null)
                     {
                         if (kind != FunctionKind.Window)
                             throw new InvalidOperationException(
-                                $"函数 '{fn.Name}' 不是窗口函数，不能使用 OVER (...)。" );
+                                $"函数 '{fn.Name}' 不是窗口函数，不能使用 OVER (...)。");
                         ValidateWindowSpecification(fn.Over, schema, fn.Name);
                     }
                     if (kind == FunctionKind.Aggregate)
@@ -492,7 +492,7 @@ internal static class SelectExecutor
     {
         if (specification.PartitionBy.Count != 0)
             throw new NotSupportedException(
-                $"窗口函数 {functionName} 当前仅支持按 measurement series 分区；PARTITION BY 尚未支持。" );
+                $"窗口函数 {functionName} 当前仅支持按 measurement series 分区；PARTITION BY 尚未支持。");
 
         foreach (OrderBySpec orderBy in specification.OrderBy)
         {
@@ -501,7 +501,7 @@ internal static class SelectExecutor
                 || orderBy.Direction != SortDirection.Ascending)
             {
                 throw new NotSupportedException(
-                    $"窗口函数 {functionName} 当前仅支持 ORDER BY time ASC。" );
+                    $"窗口函数 {functionName} 当前仅支持 ORDER BY time ASC。");
             }
         }
     }
