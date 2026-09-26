@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SonnetDB.Cdc;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
@@ -414,9 +415,55 @@ public sealed class CrashReliabilityTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CdcSpool_CrossProcessWriterLease_RejectsConcurrentOwnerAndRecoversAfterRelease(bool disposeBeforeReady)
+    {
+        string root = NewScenarioRoot();
+        string path = Path.Combine(root, "events.log");
+        string readyFile = Path.Combine(root, "cdc-lease.ready");
+        using Process process = StartChild(
+            disposeBeforeReady ? "release_cdc_spool_writer_lease_via_dispose" : "hold_cdc_spool_writer_lease",
+            root, readyFile);
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.False(process.HasExited);
+            if (!disposeBeforeReady)
+            {
+                byte[] committed = File.ReadAllBytes(path);
+                byte[] checkpoint = File.ReadAllBytes(path + ".checkpoint");
+                Assert.ThrowsAny<IOException>(() =>
+                {
+                    using var rejected = new CdcEventSpool(path);
+                });
+                Assert.Equal(committed, File.ReadAllBytes(path));
+                Assert.Equal(checkpoint, File.ReadAllBytes(path + ".checkpoint"));
+                TerminateAndWait(process, TimeSpan.FromSeconds(10));
+            }
+
+            using (var recovered = new CdcEventSpool(path))
+            {
+                CdcEvent value = Assert.Single(await recovered.ReplayAsync());
+                Assert.Equal("cdc-lease-event", value.EventId);
+                Assert.Equal("owner", value.Key);
+                await recovered.AcknowledgeAsync(new CdcCheckpoint(1, 1));
+            }
+            using var reopened = new CdcEventSpool(path);
+            Assert.Empty(await reopened.ReplayAsync());
+            Assert.Equal(new CdcCheckpoint(1, 1), reopened.AcknowledgedCheckpoint);
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+    }
+
     [Fact]
     public void disk_full_during_wal_append_PreservesPreviouslySyncedRecords()
-    {        string root = NewScenarioRoot();
+    {
+        string root = NewScenarioRoot();
         using (var db = Tsdb.Open(MakeOptions(root)))
         {
             db.Write(MakePoint("disk_full", 1_000L, "h", 1.0));

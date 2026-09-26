@@ -80,11 +80,14 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         _leasePath = _filePath + ".lock";
 
         Directory.CreateDirectory(_directory);
+        // Unix 上 FileShare.Read 使用共享 flock，并不拒绝另一个 ReadWrite 句柄。
+        // 专用 lease 文件必须独占打开；持有期间覆盖恢复读取、append、ack 和 Dispose。
+        // 保留文件本身，由句柄关闭（包括进程退出）释放租约，避免删除后产生新 inode 的竞争。
         FileStream lease = new(
             _leasePath,
             FileMode.OpenOrCreate,
             FileAccess.ReadWrite,
-            FileShare.Read,
+            FileShare.None,
             bufferSize: 1,
             options: FileOptions.SequentialScan);
         _writerLease = lease;
