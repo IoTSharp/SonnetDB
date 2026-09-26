@@ -101,7 +101,7 @@ function Test-ReleaseWorkflowEvidence {
         }
         foreach ($pattern in $Policy.Artifacts) {
             if (@($Evidence.artifacts | Where-Object {
-                $_.name -like $pattern -and $_.expired -eq $false -and $_.size_in_bytes -gt 0 `
+                $_.name -clike $pattern -and $_.expired -eq $false -and $_.size_in_bytes -gt 0 `
                     -and $_.created_at -and $run.run_started_at `
                     -and [DateTimeOffset]$_.created_at -ge [DateTimeOffset]$run.run_started_at
             }).Count -eq 0) {

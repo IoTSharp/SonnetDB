@@ -63,6 +63,8 @@ foreach ($workflow in @('publish.yml', 'connectors-release.yml')) {
     $policy = @(Get-ReleaseWorkflowPolicy -Version '4.0.0-rc.1' | Where-Object File -EQ $workflow)[0]
     foreach ($artifact in $case.artifacts) { $artifact.name = $artifact.name.Replace($version, '4.0.0-rc.1') }
     Assert-Readiness $case $true "$workflow exact prerelease version"
+    foreach ($artifact in $case.artifacts) { $artifact.name = $artifact.name.Replace('rc.1', 'RC.1') }
+    Assert-Readiness $case $false "$workflow rejects different prerelease casing"
 }
 foreach ($invalidVersion in @('4.0.0*', "4.0.0`n", 'v4.0.0', '')) {
     $rejected = $false
@@ -93,7 +95,10 @@ if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'An older run finishing la
 $runs[0].status = 'queued'; $runs[0].conclusion = $null; $runs[0].updated_at = $runs[0].created_at
 $runs[1].status = 'completed'; $runs[1].conclusion = 'success'
 if ((Select-LatestReleaseRun $runs).id -ne 1) { throw 'Any unfinished eligible candidate must block release, including an older pending attempt.' }
-$case = Copy-Evidence; $case.run.status = (Select-LatestReleaseRun $runs).status; $case.run.conclusion = $null
+$policy = @(Get-ReleaseWorkflowPolicy -Version $version | Where-Object File -EQ 'publish.yml')[0]
+$case = Copy-Evidence
+Assert-Readiness $case $true 'Pending selection positive baseline'
+$case.run.status = (Select-LatestReleaseRun $runs).status; $case.run.conclusion = $null
 Assert-Readiness $case $false 'Pending selection fails closed in the evaluator'
 $runs[0].status = 'completed'; $runs[0].conclusion = 'success'; $runs[1].run_started_at = $null
 if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'A missing attempt start must fall back to run creation, not completion.' }
