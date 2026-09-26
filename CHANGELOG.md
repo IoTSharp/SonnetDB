@@ -22,6 +22,7 @@
 - 修复 `DISTINCT` 聚合投影列名丢失字段、普通标量函数列名回退为带空括号，以及整数 `AVG(DISTINCT ...)` 错误返回 `Decimal` 的兼容性回归；DECIMAL 输入仍保留精确 `Decimal` 结果。
 
 ### Changed
+- 将测试使用的 OpenTelemetry.Exporter.InMemory 从 1.19.0 升级至 1.19.1（PR #206）。
 - 将 OpenTelemetry.Exporter.Console 从 1.19.0 升级至 1.19.1（PR #205）。
 - 将 CodeQL Action 从 4.38.0 升级至 4.38.1，保持现有 C# 分析流程（PR #204）。
 - GH-Issue #186：PR #201 合入后回读为 `closed/completed`，同步路线图与逐项审计的开放数和验收证据；保留 CI 基线红项与未发布边界。
