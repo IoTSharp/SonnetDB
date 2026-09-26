@@ -18,7 +18,9 @@
 | 固定 MinIO 镜像不能匿名拉取 | light/full 都无法启动参考栈 | 使用原版本对应上游 commit、SHA-256 核验源码构建，保留许可与源码；必须远程实跑后判定通过 |
 | ClickHouse `/ping` 成功但实际 SQL 无法认证 | full 报告将五个分析对照场景跳过，工作流仍显示成功 | 同版本容器复现 `/ping` 成功、SQL 403；专用测试凭据与认证查询就绪检查修复后五个场景双方均通过。light/full 的必需参考服务不可达或没有执行时必须失败 |
 | 完整 CI 缺少测试挂起诊断和作业期限 | Windows 长时间运行时无法判断停在哪项测试，默认最多等待六小时 | 作业限定六十分钟，单测试十分钟无进展收集 mini dump 并失败，保留 TRX、执行序列及转储上传窗口 |
+| SegmentManager 并发测试把忙循环与取消都放在线程池 | 本意两秒的测试在线上耗时 24 分钟，取消回调和交换任务可能被读任务饿死 | 独立进程限制四个 worker 后原测试十二秒仍未退出、队列 48；改用专用线程和有界同步，保留五十读者并明确验证四十次交换及跨发布快照读取 |
 | 数据库名称正则 `$` 允许末尾换行 | Linux 可创建不符合已声明名称规则的目录；纯文本诊断日志可能被拆行 | 使用严格字符串边界，USearch 回退日志转义 CR/LF。新增回归修复前一例失败，修复后名称、挂载与语义搜索共 25/25 |
+| 图片桶回填共用工作与收尾预算 | 慢磁盘入队后内部 250 毫秒预算耗尽，正常分批工作在保存游标或读取结果时变成 HTTP 500 | 按最后成功对象保存已有格式的游标，收尾使用独立五秒上限并响应调用方取消；I/O 异常继续透传。实际 HTTP 及 scheduler 回归先失败，修复后相关组 34/34 |
 | 默认 bundle 暴露公开初始凭据 | HTTP、Frame、MQTT 等入口可能被网络访问 | bundle/Studio/安装包默认 loopback，额外协议关闭；开放远程前替换密码及静态 token |
 | 默认 Compose 映射对外端口 | 空目录首次初始化可能直接被外部客户端访问 | 包括可选观测栈的八个 host port 均绑定 loopback，透传初始化环境变量并统一初始化文档 |
 | 发布与验证之间缺少完整门禁 | `main` 覆盖 Docker latest，连接器抢先创建 Release，dispatch 可能发布 | dispatch 只验证；同一提交全工作流门禁；镜像运行验证后推送同一镜像；连接器等待主发布成功 |
@@ -53,7 +55,9 @@
 
 后续 `9ec97d52` 的 [Parity 36212832566](https://github.com/IoTSharp/SonnetDB/actions/runs/36212832566) 仍为绿色，但 full 原始报告为 44 通过、7 跳过，其中 5 个来自 ClickHouse 认证失败。新门禁重放该报告正确得到 44 通过、2 个真实能力跳过、5 个失败，旧绿灯不再作为完整对照证据。ClickHouse 和 CI 诊断修复后，全部工作流必须再次在同一新提交上运行。
 
-CodeQL [告警 2](https://github.com/IoTSharp/SonnetDB/security/code-scanning/2) 与[告警 3](https://github.com/IoTSharp/SonnetDB/security/code-scanning/3) 的随机数来源均为 `M41P0DifferentialTests.cs` 中固定种子的普通行数据 `INSERT`，生产解析器接收 SQL 字符串导致上下文无关的数据流匹配；它们不是生产密码生成路径，保留确定性差分测试并记录误报依据。[告警 1](https://github.com/IoTSharp/SonnetDB/security/code-scanning/1) 指向 USearch 日志，已落实数据库名称完整匹配和日志换行编码，最终 CodeQL 扫描需验证该修复。没有关闭规则、压制诊断或删除在线告警。
+CodeQL [告警 2](https://github.com/IoTSharp/SonnetDB/security/code-scanning/2) 与[告警 3](https://github.com/IoTSharp/SonnetDB/security/code-scanning/3) 的随机数来源均为 `M41P0DifferentialTests.cs` 中固定种子的普通行数据 `INSERT`，生产解析器接收 SQL 字符串导致上下文无关的数据流匹配；它们不是生产密码生成路径，保留确定性差分测试并记录误报依据。[告警 1](https://github.com/IoTSharp/SonnetDB/security/code-scanning/1) 指向 USearch 日志，已落实数据库名称完整匹配和日志换行编码，`cd95996a` 在线分析后该告警在 2026-09-26 03:28 UTC 自动变为 `fixed`。没有关闭规则、压制诊断或手动删除在线告警。
+
+首轮 Windows 完整 CI 后续返回图片桶首次 backfill 请求 HTTP 500。原断言没有保存响应正文，不能追认当时的异常堆栈；已在同一生产路径用可控预算到期稳定复现 HTTP 500，并验证修复后的部分页续扫、末项完成、重复回填、外部取消和 I/O 透传。原断言现在保留失败正文，最终 Windows 全量回归仍是必要验收。
 
 ## 能延期的能力与仍需限制的发布声明
 
