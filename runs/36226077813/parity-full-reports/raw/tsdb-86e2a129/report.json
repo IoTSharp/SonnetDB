@@ -1,0 +1,314 @@
+{
+  "runId": "tsdb-86e2a129",
+  "startedAtUtc": "2026-09-26T07:20:32.307353+00:00",
+  "scenarios": [
+    {
+      "name": "ingest_1m_points",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "observed_points": 10000,
+            "elapsed_ms": 540.8388,
+            "points_per_second": 18489.797699425413
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "observed_points": 10000,
+            "elapsed_ms": 250.4318,
+            "points_per_second": 39931.03112304428
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "observed_points": 10000,
+            "elapsed_ms": 4382.8933,
+            "points_per_second": 2281.5978659576313
+          }
+        }
+      ]
+    },
+    {
+      "name": "groupby_time_window",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "derivative_accuracy",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        }
+      ]
+    },
+    {
+      "name": "rate_irate_consistency",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        }
+      ]
+    },
+    {
+      "name": "holt_winters_forecast_recall",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 6,
+          "metrics": {
+            "row_count": 6
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 6,
+          "metrics": {
+            "row_count": 6
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "backend \u0027victoriametrics\u0027 lacks required capabilities: TimeSeriesHoltWinters",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "percentile_p95_tdigest_vs_quantile",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "distinct_count_hll_2pct_error",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "ingest_1m_points",
+      "required": "TimeSeries, TimeSeriesRemoteWrite",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "groupby_time_window",
+      "required": "TimeSeries, TimeSeriesGroupByTime",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "derivative_accuracy",
+      "required": "TimeSeries, TimeSeriesDerivative",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "rate_irate_consistency",
+      "required": "TimeSeries, TimeSeriesRateIrate",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "holt_winters_forecast_recall",
+      "required": "TimeSeries, TimeSeriesHoltWinters",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "percentile_p95_tdigest_vs_quantile",
+      "required": "TimeSeries, TimeSeriesQuantile",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "distinct_count_hll_2pct_error",
+      "required": "TimeSeries, TimeSeriesDistinctCount",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "influxdb",
+    "victoriametrics"
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "runId": "fulltext-18267f90",
+  "startedAtUtc": "2026-09-26T07:21:32.0539368+00:00",
+  "scenarios": [
+    {
+      "name": "index_1m_documents",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "documents": 5000,
+            "elapsed_ms": 471.9086,
+            "documents_per_second": 10595.272050562333,
+            "full_1m_enabled": false
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "documents": 5000,
+            "elapsed_ms": 1054.0634,
+            "documents_per_second": 4743.547684133611,
+            "full_1m_enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "bm25_ranking_top10_overlap",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "top10_overlap": 1,
+            "documents": 2000
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "top10_overlap": 1,
+            "documents": 2000
+          }
+        }
+      ]
+    },
+    {
+      "name": "cjk_tokenize_correctness",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "hit_count": 1
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "hit_count": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "facet_filter_query",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "hit_count": 7
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "hit_count": 100
+          }
+        }
+      ]
+    },
+    {
+      "name": "incremental_update_during_query",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "typo_tolerant_query",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "meilisearch",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "index_1m_documents",
+      "required": "Fulltext",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    },
+    {
+      "scenario": "bm25_ranking_top10_overlap",
+      "required": "Fulltext",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    },
+    {
+      "scenario": "cjk_tokenize_correctness",
+      "required": "Fulltext, FulltextCjk",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    },
+    {
+      "scenario": "facet_filter_query",
+      "required": "Fulltext, FulltextFacetFilter",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    },
+    {
+      "scenario": "incremental_update_during_query",
+      "required": "Fulltext",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    },
+    {
+      "scenario": "typo_tolerant_query",
+      "required": "Fulltext, FulltextTypoTolerant",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "meilisearch": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "meilisearch"
+  ]
+}

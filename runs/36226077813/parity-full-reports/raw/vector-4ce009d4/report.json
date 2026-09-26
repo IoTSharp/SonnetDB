@@ -1,0 +1,116 @@
+{
+  "runId": "vector-4ce009d4",
+  "startedAtUtc": "2026-09-26T07:21:30.2149281+00:00",
+  "scenarios": [
+    {
+      "name": "ann_recall_at_10",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "recall_at_10": 1,
+            "records": 2000
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "recall_at_10": 1,
+            "records": 2000
+          }
+        }
+      ]
+    },
+    {
+      "name": "filtered_search",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "filtered_matches": 10
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "filtered_matches": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "upsert_during_query",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "non_empty_queries": 20
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "non_empty_queries": 20
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "ann_recall_at_10",
+      "required": "Vector",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "pass"
+      }
+    },
+    {
+      "scenario": "filtered_search",
+      "required": "Vector, HnswFiltered",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "pass"
+      }
+    },
+    {
+      "scenario": "upsert_during_query",
+      "required": "Vector",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "qdrant"
+  ]
+}

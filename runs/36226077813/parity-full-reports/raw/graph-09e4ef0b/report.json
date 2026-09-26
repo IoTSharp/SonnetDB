@@ -1,0 +1,55 @@
+{
+  "runId": "graph-09e4ef0b",
+  "startedAtUtc": "2026-09-26T07:20:14.916569+00:00",
+  "scenarios": [
+    {
+      "name": "graph_sql_pgq_beta",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "native_rows": 1,
+            "composed_rows": 1,
+            "access_path": "source:g[graph_table:relational_mapping;anchor=relation_primary_key_seek;edge=relation_index_seek];join:s[table_scan];join_order=g,s;join_order_candidates=0;join_1:runtime_join(binding=deferred)",
+            "external_postgresql": "not_run",
+            "external_neo4j": "not_run"
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "not_run",
+          "gapReason": "external SQL/PGQ parity deferred to the target environment",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "neo4j",
+          "status": "not_run",
+          "gapReason": "external native graph parity deferred to the target environment",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "graph_sql_pgq_beta",
+      "required": "Graph, GraphSqlPgq, GraphNativeTraversal, GraphCrossModelSql",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "not_run",
+        "neo4j": "not_run"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "postgres",
+    "neo4j"
+  ]
+}
