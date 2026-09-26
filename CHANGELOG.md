@@ -10,6 +10,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
+- 修复远程 KV 回归测试的 loopback HTTP 宿主在响应完成后关闭监听时的 accept 竞态；仅忽略显式关闭期间的监听 socket 异常，处理器故障继续透传，并以重复关闭和故障传播回归防止 CI 偶发误报或漏报。
 - **M43 稳定发布证据门禁**：核对同一提交的全部仓库工作流、实际验证步骤、当前 attempt 产物及双 profile Parity；较新失败/排队重跑、过期夜间窗口、全部跳过的场景不再放行。CodeQL 分析失败必须使工作流失败，候选分支的文档构建不部署 Pages。
 - **M20 Parity 依赖可用性**：固定 MinIO 参考版本的 Quay 镜像也已拒绝匿名拉取，改为从对应上游 commit 构建并校验源码归档 SHA-256，镜像同时保留许可和源码；原比较版本不变，远程 light/full 与七日结果另行验收。
 - **M19 生态恢复验收**：torn WAL 场景按记录选择包含已确认写入的分段文件，兼容最终 flush 生成的 checkpoint carrier；不再因多个 `.SDBWAL` 文件提前失败。完整 quick 组合旅程已在本机复验，固定硬件容量不在此证据范围。

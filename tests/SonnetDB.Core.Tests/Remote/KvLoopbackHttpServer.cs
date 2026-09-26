@@ -9,7 +9,8 @@ namespace SonnetDB.Core.Tests.Remote;
 internal sealed class KvLoopbackHttpServer : IAsyncDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-    private readonly CancellationTokenSource _deadline = new(TimeSpan.FromSeconds(10));
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly CancellationTokenSource _deadline;
     private readonly ConcurrentQueue<KvLoopbackRequest> _requests = new();
     private readonly Func<KvLoopbackRequest, KvLoopbackResponse> _respond;
     private readonly Task _serving;
@@ -17,6 +18,8 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
     public KvLoopbackHttpServer(Func<KvLoopbackRequest, KvLoopbackResponse> respond)
     {
         _respond = respond;
+        _deadline = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        _deadline.CancelAfter(TimeSpan.FromSeconds(10));
         _listener.Start();
         var endpoint = (IPEndPoint)_listener.LocalEndpoint;
         Address = new Uri($"http://127.0.0.1:{endpoint.Port}/");
@@ -29,21 +32,21 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _deadline.CancelAsync();
-        _listener.Stop();
+        await _shutdown.CancelAsync();
         try
         {
             await _serving.WaitAsync(TimeSpan.FromSeconds(5));
         }
-        catch (OperationCanceledException) when (_deadline.IsCancellationRequested)
-        {
-        }
-        catch (SocketException) when (_deadline.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (
+            _shutdown.IsCancellationRequested && exception.CancellationToken == _deadline.Token)
         {
         }
         finally
         {
+            // 先通过 token 结束 accept/请求 I/O，再停止监听，避免 Stop 抢先清空活动 socket。
+            _listener.Stop();
             _deadline.Dispose();
+            _shutdown.Dispose();
         }
     }
 
@@ -54,7 +57,22 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
         for (int requestIndex = 0; requestIndex < 8; requestIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var connection = await _listener.AcceptTcpClientAsync(cancellationToken);
+            TcpClient accepted;
+            try
+            {
+                accepted = await _listener.AcceptTcpClientAsync(cancellationToken);
+            }
+            // Stop 与 accept 的 socket 注册可能交错；仅忽略显式关闭期间的监听异常。
+            // 请求解析和响应处理器位于该 catch 范围外，其真实故障必须传播。
+            catch (ObjectDisposedException) when (_shutdown.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (SocketException) when (_shutdown.IsCancellationRequested)
+            {
+                return;
+            }
+            using var connection = accepted;
             await using var stream = connection.GetStream();
             using var reader = new StreamReader(stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
             string requestLine = await ReadLineAsync(reader, cancellationToken);
