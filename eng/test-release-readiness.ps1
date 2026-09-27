@@ -1,5 +1,9 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release-readiness-policy.ps1')
+$verifierSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'verify-release-readiness.ps1') -Raw
+if ($verifierSource -notmatch '\$currentRunId' -or $verifierSource -notmatch 'currentRunId.*DispatchOnly') {
+    throw 'Readiness verifier must exclude the current dispatch workflow from its own preflight lookup.'
+}
 $sha = 'a' * 40
 $repository = 'IoTSharp/SonnetDB'
 $version = '4.0.0'
@@ -105,3 +109,4 @@ if ((Select-LatestReleaseRun $runs).id -ne 2) { throw 'A missing attempt start m
 if ($null -ne (Select-LatestReleaseRun @())) { throw 'An empty run collection must not produce evidence.' }
 Write-Host 'Release readiness contract tests passed (evidence checks, complete workflow inventory and run ordering).'
 & (Join-Path $PSScriptRoot 'test-release-readiness-observations.ps1')
+& (Join-Path $PSScriptRoot 'test-recover-tagged-release.ps1')

@@ -11,6 +11,9 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Fixed
+- 修复发布就绪门禁将当前手动发布 workflow 误判为自身预检，以及 GitHub Pages 的 `upload-pages-artifact` 不作为持久 Actions artifact 导致稳定发布被阻断的问题。
+- 增加已有 release tag 的受控恢复脚本：按 tag 的精确 commit 重跑三类候选预检，再按主发布、Docker、连接器的依赖顺序恢复原 tag workflow；拒绝模糊 run 并在完成后核对 GitHub Release 全量资产与七个 NuGet 包。脚本默认仅输出计划，不创建、删除或移动 tag。
+- 修复 Parity 发布就绪核验在 Windows PATH 未刷新时找不到已安装 GitHub CLI 的问题，并支持复用同 commit 的成功预检，避免重复 dispatch。
 - Docker 标签发布在前置核验失败、容器验证尚未执行时不再上传不存在的镜像验证目录；单独保留发布就绪与 Parity 诊断报告，实际执行的镜像验证仍要求提供证据。
 - **M20 Parity 原始证据核验**：候选与七天门禁从原始 scenario/backend 重算通过、跳过、失败和性能警告，要求全部必需参考服务实际执行；拒绝旧绿色 summary 掩盖后端不可达、缺失或结果不一致，保留能力跳过与显式性能告警边界。
 - **M43 发布运行次序**：按 workflow attempt 的开始时间选择已完成证据，避免较早运行的延迟完成遮蔽较新失败；存在排队或运行中的候选时拒绝放行，保留重跑、重叠运行及失败传播回归。

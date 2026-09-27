@@ -35,6 +35,7 @@ function Get-ReleaseApiPages {
 $checks = [Collections.Generic.List[object]]::new()
 $errors = [Collections.Generic.List[string]]::new()
 $observations = [Collections.Generic.List[object]]::new()
+$currentRunId = if ($env:GITHUB_RUN_ID -match '^\d+$') { [string]$env:GITHUB_RUN_ID } else { $null }
 $outputFullPath = [IO.Path]::GetFullPath($OutputPath)
 $outputDirectory = Split-Path -Parent $outputFullPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
@@ -45,7 +46,8 @@ foreach ($policy in Get-ReleaseWorkflowPolicy -Version $Version) {
         $runs = @(Get-ReleaseApiPages "actions/workflows/$($policy.File)/runs?head_sha=$CommitSha" 'workflow_runs')
         $eligible = @($runs | Where-Object {
             $_.head_sha -eq $CommitSha -and $_.event -in @('push', 'workflow_dispatch', 'schedule') `
-                -and (-not $policy.DispatchOnly -or $_.event -eq 'workflow_dispatch')
+                -and (-not ($policy.ContainsKey('DispatchOnly') -and $policy.DispatchOnly) -or $_.event -eq 'workflow_dispatch') `
+                -and (-not ($currentRunId -and $policy.ContainsKey('DispatchOnly') -and $policy.DispatchOnly -and ([string]$_.id -eq $currentRunId)))
         })
         $run = Select-LatestReleaseRun $eligible
         $jobs = @(); $artifacts = @()

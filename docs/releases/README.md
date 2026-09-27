@@ -32,7 +32,7 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
-- [SonnetDB 4.0.0（候选，尚未发布）]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
+- [SonnetDB 4.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
 - [SonnetDB 3.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-1-0/)
 - [SonnetDB 3.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-0-0/)
 - [SonnetDB 2.5.0]({{ site.docs_baseurl | default: '/help' }}/releases/2-5-0/)
@@ -48,6 +48,18 @@ http://127.0.0.1:5080
 **自 2026-09-27 起，连续七天 scheduled Parity 为非阻断观察项。** 发布核验继续记录窗口、原始报告和合格次数；窗口不足、历史运行失败或观察证据获取失败均如实报告，不阻断正式发布。手动候选成功不计作七天观察完成，旧的 `0/7`、`NOT_READY` 及其提交身份仍作为当时的核验记录保留。M20 的连续七天观察目标继续跟踪，当前候选的必需工作流和原始 Parity 校验仍须通过。
 
 这些检查证明构建与候选产物合同；MSI 实机安装、固定硬件规模和长期运行证据仍按各自门禁单独验收。脚本 `eng/test-release-artifacts.ps1` 的合成文件仅用于验证缺包、篡改、错版本和缺失原生文件会被拒绝，不能算作真实安装包运行证据。
+
+### 已有 tag 的恢复
+
+若 tag 已经推送，但发布门禁报告缺少该 tag 提交的候选预检，不要删除、重建或移动 tag。先在已认证 GitHub CLI 的工作站执行：
+
+```powershell
+.\eng\recover-tagged-release.ps1 -Tag v4.0.0 -Resume
+```
+
+如果候选预检已经成功而只需重新验证 readiness，可追加 `-ReuseSuccessfulPreflight`；脚本会校验并复用最新成功的同 commit 预检，不会再次 dispatch。
+
+脚本先从远端解析 tag 的精确 commit，再在该 tag 上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的非发布预检，拒绝不唯一或失败的 run。三个预检成功后，它会先用同一 commit/version 运行完整发布就绪核验；未满足的 CI、Parity 或 artifact 证据会写入 `artifacts/tagged-release-recovery/` 并停止，不会进入发布。通过后才按 `Publish`、`Docker Publish`、`Connectors Release` 的顺序重跑原 tag workflow，最后核对 GitHub Release 不是 draft、七个 NuGet 包可下载，以及全部 bundle、installer、校验和和连接器资产已经上传。它不会创建、删除或移动 tag；默认不带 `-Resume` 时只显示解析出的 commit 和执行计划。
 
 ## 本地 Windows 打包
 

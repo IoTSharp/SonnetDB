@@ -23,7 +23,10 @@ function Get-ReleaseWorkflowPolicy {
     @(
         @{ File = 'ci.yml'; Jobs = @('Build & Test (ubuntu-latest)', 'Build & Test (windows-latest)', 'Format Check', 'AOT Publish (ubuntu-latest)', 'AOT Publish (windows-latest)', 'AOT Publish (ubuntu-24.04-arm)'); Artifacts = @('test-results-ubuntu-latest', 'test-results-windows-latest', 'aot-linux-x64', 'aot-linux-arm64', 'aot-win-x64') }
         @{ File = 'codeql.yml'; Jobs = @('Analyze (csharp)'); Artifacts = @() }
-        @{ File = 'docs-pages.yml'; Jobs = @('Build Docs'); Artifacts = @('github-pages') }
+        # upload-pages-artifact is consumed by deploy-pages and is not exposed
+        # as a durable Actions artifact for release evidence. The successful
+        # Build Docs job is the release gate for this workflow.
+        @{ File = 'docs-pages.yml'; Jobs = @('Build Docs'); Artifacts = @() }
         @{ File = 'management-workbench-smoke.yml'; Jobs = @('Server management contracts', 'Web Admin and Studio bridge', 'Studio desktop host', 'VS Code HTTP consumer', 'VS Code Extension Host'); Artifacts = @('management-contract-results', 'studio-host-results', 'sonnetdb-vscode-vsix') }
         @{ File = 'parity.yml'; Jobs = @('Parity (light, ubuntu-latest)', 'Parity (full, ubuntu-latest)'); Artifacts = @('parity-light-reports', 'parity-full-reports') }
         @{ File = 'document-soak.yml'; Jobs = @('soak'); Artifacts = @('document-soak-*-*') }
@@ -74,7 +77,7 @@ function Test-ReleaseWorkflowEvidence {
         if ($run.path -ne ".github/workflows/$($Policy.File)") { $issues.Add('Run workflow path does not match.') }
         if ($run.status -ne 'completed' -or $run.conclusion -ne 'success') { $issues.Add("Latest run is $($run.status)/$($run.conclusion).") }
         if ($run.event -notin @('push', 'workflow_dispatch', 'schedule')) { $issues.Add('Pull requests and external events are not release evidence.') }
-        if ($Policy.DispatchOnly -and $run.event -ne 'workflow_dispatch') { $issues.Add('A successful dispatch preflight is required before publishing.') }
+        if ($Policy.ContainsKey('DispatchOnly') -and $Policy.DispatchOnly -and $run.event -ne 'workflow_dispatch') { $issues.Add('A successful dispatch preflight is required before publishing.') }
         foreach ($name in $Policy.Jobs) {
             $matches = @($Evidence.jobs | Where-Object name -CEQ $name)
             if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success' -or $matches[0].status -ne 'completed') {

@@ -19,6 +19,39 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$script:GitHubCliPath = $null
+
+function Resolve-GitHubCliPath {
+    $command = Get-Command gh -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $command) {
+        if ($command.CommandType -eq 'Application' -and -not [string]::IsNullOrWhiteSpace($command.Source)) {
+            if (Test-Path -LiteralPath $command.Source -PathType Leaf) {
+                return $command.Source
+            }
+        }
+        # Preserve PowerShell functions and aliases used by contract tests and local wrappers.
+        return 'gh'
+    }
+
+    $candidatePaths = [Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $candidatePaths.Add((Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\gh.exe'))
+        $candidatePaths.Add((Join-Path $env:LOCALAPPDATA 'Programs\GitHub CLI\gh.exe'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        $candidatePaths.Add((Join-Path $env:ProgramFiles 'GitHub CLI\gh.exe'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+        $candidatePaths.Add((Join-Path ${env:ProgramFiles(x86)} 'GitHub CLI\gh.exe'))
+    }
+
+    foreach ($candidate in $candidatePaths) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    return $null
+}
 
 function Test-ObjectProperty {
     param(
@@ -98,7 +131,7 @@ function ConvertTo-UtcDateTimeOffset {
 function Invoke-GhApiJson {
     param([string] $Endpoint)
 
-    $jsonLines = @(& gh api $Endpoint)
+    $jsonLines = @(& $script:GitHubCliPath api $Endpoint)
     if ($LASTEXITCODE -ne 0) {
         throw "gh api failed for '$Endpoint'."
     }
@@ -117,7 +150,7 @@ function Read-DownloadedProfile {
     $profileRoot = Join-Path $DownloadRoot $Profile
     New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
 
-    $downloadOutput = @(& gh run download $RunId `
+    $downloadOutput = @(& $script:GitHubCliPath run download $RunId `
         --repo $RepositoryName `
         --name "parity-$Profile-reports" `
         --dir $profileRoot 2>&1)
@@ -204,7 +237,8 @@ function Get-GitHubScheduledRuns {
         [string] $RunId = ""
     )
 
-    if ($null -eq (Get-Command gh -ErrorAction SilentlyContinue)) {
+    $script:GitHubCliPath = Resolve-GitHubCliPath
+    if ([string]::IsNullOrWhiteSpace($script:GitHubCliPath)) {
         throw "GitHub CLI 'gh' is required for online evidence verification."
     }
 
@@ -285,7 +319,7 @@ function Test-ParityRawReportEvidence {
     if (-not (Test-RequiredStringProperty $report 'runId') -or $report.runId -cne $RawReport.runId) {
         Add-EvidenceIssue $Issues 'raw_report_content_identity_mismatch' "Raw report '$($RawReport.source)' has inconsistent runId values."
     }
-    if (-not (Test-ObjectProperty $report 'scenarios') -or -not (Test-ArrayValue $report.scenarios) -or $report.scenarios.Count -eq 0) {
+    if (-not (Test-ObjectProperty $report 'scenarios') -or -not (Test-ArrayValue $report.scenarios) -or @($report.scenarios).Count -eq 0) {
         Add-EvidenceIssue $Issues 'raw_scenarios_invalid' "Raw report '$($RawReport.source)' must contain a non-empty scenarios array."
         return [pscustomobject]@{ counts = $counts; executedReferences = @() }
     }
@@ -293,7 +327,7 @@ function Test-ParityRawReportEvidence {
         Add-EvidenceIssue $Issues 'raw_capability_gaps_invalid' "Raw report '$($RawReport.source)' must contain a capabilityGaps array."
     }
     $declaredBackends = @{}
-    if (-not (Test-ObjectProperty $report 'backends') -or -not (Test-ArrayValue $report.backends) -or $report.backends.Count -eq 0) {
+    if (-not (Test-ObjectProperty $report 'backends') -or -not (Test-ArrayValue $report.backends) -or @($report.backends).Count -eq 0) {
         Add-EvidenceIssue $Issues 'raw_backends_invalid' "Raw report '$($RawReport.source)' must declare its backend columns."
     }
     else {
@@ -312,6 +346,7 @@ function Test-ParityRawReportEvidence {
     foreach ($scenario in $report.scenarios) {
         $counts.total++
         $scenarioName = if (Test-RequiredStringProperty $scenario 'name') { [string]$scenario.name } else { '' }
+        $withinTolerance = if (Test-ObjectProperty $scenario 'withinTolerance') { $scenario.withinTolerance } else { $null }
         if (-not $scenarioName -or $scenarioNames.ContainsKey($scenarioName)) {
             Add-EvidenceIssue $Issues 'raw_scenario_name_invalid' "Raw report '$($RawReport.source)' contains an invalid or duplicate scenario name."
         }
@@ -322,7 +357,7 @@ function Test-ParityRawReportEvidence {
         if (-not (Test-ObjectProperty $scenario 'differences') -or -not (Test-ArrayValue $scenario.differences)) {
             Add-EvidenceIssue $Issues 'raw_differences_invalid' "Scenario '$scenarioName' must retain a differences array."
         }
-        if (-not (Test-ObjectProperty $scenario 'backends') -or -not (Test-ArrayValue $scenario.backends) -or $scenario.backends.Count -eq 0) {
+        if (-not (Test-ObjectProperty $scenario 'backends') -or -not (Test-ArrayValue $scenario.backends) -or @($scenario.backends).Count -eq 0) {
             Add-EvidenceIssue $Issues 'raw_scenario_backends_invalid' "Scenario '$scenarioName' must contain actual backend outcomes."
             $counts.failed++
             continue
@@ -359,7 +394,9 @@ function Test-ParityRawReportEvidence {
                 Add-EvidenceIssue $Issues 'raw_required_reference_unreachable' "Scenario '$scenarioName' required reference '$name' was unreachable."
                 $hasFail = $true
             }
-            if ((Test-ObjectProperty $backend 'metrics') -and $null -ne $backend.metrics -and $backend.metrics.performance_gating -eq 'warning_only') {
+            if ((Test-ObjectProperty $backend 'metrics') -and $null -ne $backend.metrics `
+                -and (Test-ObjectProperty $backend.metrics 'performance_gating') `
+                -and $backend.metrics.performance_gating -eq 'warning_only') {
                 $warningOnly = $true
             }
         }
@@ -368,11 +405,11 @@ function Test-ParityRawReportEvidence {
                 Add-EvidenceIssue $Issues 'raw_backend_outcome_missing' "Scenario '$scenarioName' has no outcome for declared backend '$name'."
             }
         }
-        if ($passedBackendCount -gt 1 -and $scenario.withinTolerance -isnot [bool]) {
+        if ($passedBackendCount -gt 1 -and $withinTolerance -isnot [bool]) {
             Add-EvidenceIssue $Issues 'raw_comparison_missing' "Scenario '$scenarioName' executed multiple backends without a Boolean tolerance result."
         }
         if ($warningOnly) { $counts.warnings++ }
-        if ($hasFail -or ($scenario.withinTolerance -eq $false -and -not $warningOnly)) {
+        if ($hasFail -or ($withinTolerance -eq $false -and -not $warningOnly)) {
             $counts.failed++
             Add-EvidenceIssue $Issues 'raw_scenario_failed' "Scenario '$scenarioName' contains a failed backend or a result outside tolerance."
         }
