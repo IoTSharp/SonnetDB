@@ -19,6 +19,7 @@ const CopilotTestView = () => import('@/views/CopilotTestView.vue');
 const CopilotOAuthCallbackView = () => import('@/views/CopilotOAuthCallbackView.vue');
 const RagManagementView = () => import('@/views/RagManagementView.vue');
 const ModbusView = () => import('@/views/ModbusView.vue');
+const AboutView = () => import('@/views/AboutView.vue');
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -56,6 +57,7 @@ const router = createRouter({
         { path: 'ai-settings', name: 'ai-settings', component: AiSettingsView, meta: { admin: true } },
         { path: 'copilot-test', name: 'copilot-test', component: CopilotTestView, meta: { admin: true } },
         { path: 'rag', name: 'rag', component: RagManagementView },
+        { path: 'about', name: 'about', component: AboutView },
       ],
     },
   ],

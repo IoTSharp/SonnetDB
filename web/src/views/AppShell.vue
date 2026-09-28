@@ -108,6 +108,7 @@ import {
   Database,
   FlaskConical,
   Gauge,
+  Info,
   KeyRound,
   Network,
   LayoutDashboard,
@@ -165,6 +166,7 @@ const primaryNavigation = computed(() => baseNavigation);
 const secondaryNavigation = computed(() => [
   ...(auth.isSuperuser ? adminNavigation : []),
   { label: '设置', key: auth.isSuperuser ? 'ai-settings' : 'dashboard', icon: Settings },
+  { label: '关于', key: 'about', icon: Info },
 ]);
 
 const titleByKey: Record<string, string> = {
@@ -179,6 +181,7 @@ const titleByKey: Record<string, string> = {
   tokens: 'Token',
   'ai-settings': 'Copilot',
   'copilot-test': 'Copilot 测试',
+  about: '关于',
 };
 
 const toolLabels: Record<string, string> = {

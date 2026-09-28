@@ -24,6 +24,7 @@ internal static partial class SonnetDbEndpoints
         app.MapIngestionEndpoints();
         app.MapControlPlaneEndpoints();
         app.MapDiagnosticsEndpoints();
+        app.MapSystemAboutEndpoints();
         app.MapCopilotEndpoints(serverOptions);
         app.MapSemanticSearchEndpoints();
         app.MapMcp("/mcp/{db}");

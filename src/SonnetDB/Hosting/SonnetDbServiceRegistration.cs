@@ -58,6 +58,7 @@ internal static class SonnetDbServiceRegistration
         });
         builder.Services.AddSingleton<SlowQueryDiagnostics>();
         builder.Services.AddSingleton<DiagnosticDumpService>();
+        builder.Services.AddSingleton<SystemAboutService>();
         builder.Services.AddSingleton<SonnetDbMcpContextAccessor>();
         builder.Services.AddSingleton<SonnetDbMcpSchemaCache>();
         builder.Services.AddSingleton<SonnetDbMcpExplainSqlService>();
