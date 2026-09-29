@@ -68,10 +68,20 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
     /// <param name="options">容量和回放边界；为空时使用默认值。</param>
     /// <exception cref="InvalidDataException">已有文件包含截断、损坏或越界帧时抛出。</exception>
     public CdcEventSpool(string path, CdcEventSpoolOptions? options = null)
+        : this(path, options, CancellationToken.None)
+    {
+    }
+
+    internal CdcEventSpool(
+        string path,
+        CdcEventSpoolOptions? options,
+        CancellationToken cancellationToken,
+        Action? onRecoveryStep = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _options = options ?? new CdcEventSpoolOptions();
         _options.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
 
         _filePath = Path.GetFullPath(path);
         _directory = Path.GetDirectoryName(_filePath)
@@ -93,8 +103,9 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         _writerLease = lease;
         try
         {
-            LoadCheckpointMetadata();
-            LoadFrames();
+            cancellationToken.ThrowIfCancellationRequested();
+            LoadCheckpointMetadata(cancellationToken, onRecoveryStep);
+            LoadFrames(cancellationToken, onRecoveryStep);
         }
         catch
         {
@@ -580,8 +591,11 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    private void LoadCheckpointMetadata()
+    private void LoadCheckpointMetadata(
+        CancellationToken cancellationToken,
+        Action? onRecoveryStep)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!File.Exists(_checkpointPath))
             return;
 
@@ -597,7 +611,9 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
             throw new InvalidDataException("CDC spool checkpoint 元数据长度越界。");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = File.ReadAllBytes(_checkpointPath);
+        cancellationToken.ThrowIfCancellationRequested();
         if (bytes.Length != length)
             throw new InvalidDataException("CDC spool checkpoint 元数据在读取期间发生变化。");
         if (bytes.Length < MetadataHeaderSize + MetadataCrcSize
@@ -624,12 +640,14 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         uint storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(
             bytes.AsSpan(bytes.Length - MetadataCrcSize, MetadataCrcSize));
         uint actualCrc = Crc32.HashToUInt32(bytes.AsSpan(0, bytes.Length - MetadataCrcSize));
+        cancellationToken.ThrowIfCancellationRequested();
         if (storedCrc != actualCrc)
             throw new InvalidDataException("CDC spool checkpoint 元数据 CRC32 不匹配。");
 
         long previousPartition = -1;
         for (int index = 0; index < count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int offset = MetadataHeaderSize + index * MetadataEntrySize;
             long partition = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(offset, 8));
             long acknowledged = BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(offset + 8, 8));
@@ -645,11 +663,13 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
 
             _partitions.Add(partition, new PartitionState(acknowledged, highWatermark));
             previousPartition = partition;
+            onRecoveryStep?.Invoke();
         }
     }
 
-    private void LoadFrames()
+    private void LoadFrames(CancellationToken cancellationToken, Action? onRecoveryStep)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!File.Exists(_filePath))
         {
             // A checkpoint with an unacknowledged high-water mark proves that the
@@ -657,6 +677,7 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
             // Never replace that state with a new empty spool.
             foreach ((long partition, PartitionState state) in _partitions)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (state.HighWatermark > state.AcknowledgedOffset)
                 {
                     throw new InvalidDataException(
@@ -664,9 +685,11 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
                 }
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             using var create = new FileStream(_filePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
             create.Flush(flushToDisk: true);
             SonnetDB.Wal.DirectoryFsync.FlushBestEffort(_directory);
+            cancellationToken.ThrowIfCancellationRequested();
             return;
         }
 
@@ -686,11 +709,12 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         long position = 0;
         for (int index = 0; position < length; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (index >= _options.MaxEvents)
                 throw new InvalidDataException("CDC spool 文件超过配置的事件数上限。");
 
             byte[] header = new byte[FrameHeaderSize];
-            ReadExactly(source, header, "CDC spool 帧头");
+            ReadExactly(source, header, "CDC spool 帧头", cancellationToken);
             FrameHeader parsed = ParseFrameHeader(header);
             if (parsed.PayloadLength <= 0 || parsed.PayloadLength > CdcEventCodec.MaxEventBytes)
                 throw new InvalidDataException("CDC spool 帧正文长度越界。");
@@ -700,9 +724,10 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
                 throw new InvalidDataException("CDC spool 帧长度超过文件边界。");
 
             byte[] payload = new byte[parsed.PayloadLength];
-            ReadExactly(source, payload, "CDC spool 帧正文");
+            ReadExactly(source, payload, "CDC spool 帧正文", cancellationToken);
             VerifyFrameCrc(header, payload);
             CdcEvent value = DecodeFramePayload(payload, parsed.Checkpoint);
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (lastOffsets.TryGetValue(parsed.Checkpoint.Partition, out long previous)
                 && parsed.Checkpoint.Offset <= previous)
@@ -714,6 +739,7 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
             lastOffsets[parsed.Checkpoint.Partition] = parsed.Checkpoint.Offset;
             position = checked(position + frameLength);
             _ = value;
+            onRecoveryStep?.Invoke();
         }
 
         if (position != length)
@@ -721,6 +747,7 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
 
         foreach ((long partition, PartitionState state) in _partitions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (state.HighWatermark <= state.AcknowledgedOffset)
                 continue;
             if (!lastOffsets.TryGetValue(partition, out long observed)
@@ -733,6 +760,7 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
 
         foreach ((long partition, long highWatermark) in lastOffsets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (_partitions.TryGetValue(partition, out PartitionState state))
             {
                 if (state.HighWatermark > highWatermark)
@@ -749,6 +777,7 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
 
         lock (_stateLock)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             _frames = frames;
             _storedBytes = length;
         }
@@ -1035,12 +1064,17 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
             throw new ArgumentOutOfRangeException(parameterName, "offset 不能为负数。");
     }
 
-    private static void ReadExactly(Stream source, byte[] destination, string description)
+    private static void ReadExactly(
+        Stream source,
+        byte[] destination,
+        string description,
+        CancellationToken cancellationToken)
     {
         int total = 0;
         int maxOperations = destination.Length + 1;
         for (int operation = 0; total < destination.Length && operation < maxOperations; operation++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int read = source.Read(destination, total, destination.Length - total);
             if (read == 0)
                 break;
