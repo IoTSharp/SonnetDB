@@ -40,7 +40,10 @@ internal static partial class RelationalSelectExecutor
         object?[][] input = RetainBranchRows(relation.Rows).ToArray();
         var output = new object?[input.Length][];
         for (int row = 0; row < input.Length; row++)
+        {
             output[row] = new object?[projections.Count];
+            SqlRowRetentionBudget.RetainForExecution(output[row]);
+        }
 
         var columnInfo = new SelectColumnInfo[projections.Count];
         for (int column = 0; column < projections.Count; column++)
@@ -51,7 +54,10 @@ internal static partial class RelationalSelectExecutor
                 object?[] values = EvaluateWindow(tsdb, function, relation with { Rows = input }, input,
                     outerScope, memo);
                 for (int row = 0; row < input.Length; row++)
+                {
+                    SqlRowRetentionBudget.RetainValueForExecution(values[row]);
                     output[row][column] = values[row];
+                }
                 columnInfo[column] = function.Name.Equals("row_number", StringComparison.OrdinalIgnoreCase)
                     ? new SelectColumnInfo(TableColumnType.Int64, false)
                     : InferSelectColumnInfo(function, relation.Columns);
@@ -64,8 +70,10 @@ internal static partial class RelationalSelectExecutor
                 for (int row = 0; row < input.Length; row++)
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
-                    output[row][column] = EvaluateScalar(tsdb, expression, relation.Columns,
+                    object? value = EvaluateScalar(tsdb, expression, relation.Columns,
                         input[row], outerScope, memo);
+                    SqlRowRetentionBudget.RetainValueForExecution(value);
+                    output[row][column] = value;
                 }
             }
         }
@@ -107,15 +115,19 @@ internal static partial class RelationalSelectExecutor
         {
             SqlExecutor.ThrowIfCancellationRequested();
             object?[] row = input[index];
-            var key = new GroupKey(specification.PartitionBy.Select(expression =>
-                EvaluateScalar(tsdb, expression, relation.Columns, row, outerScope, memo)).ToArray());
+            object?[] keyValues = specification.PartitionBy.Select(expression =>
+                EvaluateScalar(tsdb, expression, relation.Columns, row, outerScope, memo)).ToArray();
+            SqlRowRetentionBudget.RetainForExecution(keyValues);
+            var key = new GroupKey(keyValues);
             if (!partitions.TryGetValue(key, out List<WindowRow>? partition))
             {
                 partition = [];
                 partitions.Add(key, partition);
             }
-            partition.Add(new WindowRow(index, row, specification.OrderBy.Select(order =>
-                EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo)).ToArray()));
+            object?[] orderValues = specification.OrderBy.Select(order =>
+                EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo)).ToArray();
+            SqlRowRetentionBudget.RetainForExecution(orderValues);
+            partition.Add(new WindowRow(index, row, orderValues));
         }
 
         bool integral = !rowNumber && name is "sum" or "min" or "max" or "avg"

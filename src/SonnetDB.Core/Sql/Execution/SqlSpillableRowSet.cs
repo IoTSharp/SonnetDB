@@ -98,6 +98,7 @@ internal static class SqlBlockingOperators
             foreach (IReadOnlyList<object?> row in rows)
             {
                 resources.ThrowIfCancellationRequested();
+                SqlRowRetentionBudget.RetainForExecution(row);
                 if (diskSet is null)
                 {
                     long bytes = SqlSpillRowCodec.EstimateRowBytes(row) + 48;

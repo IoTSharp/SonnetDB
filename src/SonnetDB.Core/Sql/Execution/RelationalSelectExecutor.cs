@@ -70,6 +70,8 @@ internal static partial class RelationalSelectExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureMaterializationSourceSupported(tsdb, statement);
+
         if (statement.UnionStatements.Count != 0)
         {
             return SqlExecutor.ExecuteUnion(
@@ -78,6 +80,7 @@ internal static partial class RelationalSelectExecutor
         }
 
         if (outerScope is null
+            && !SqlRowRetentionBudget.HasExecutionBudget
             && TryRewriteNonCorrelatedInSemijoin(
                 tsdb,
                 statement,
@@ -2812,6 +2815,8 @@ internal static partial class RelationalSelectExecutor
 
                         object?[] leftGroupKey = leftRow!;
                         object?[] rightGroupKey = rightRow!;
+                        SqlRowRetentionBudget.RetainForExecution(leftRow!);
+                        SqlRowRetentionBudget.RetainForExecution(rightRow!);
                         var leftGroup = new List<object?[]> { leftRow! };
                         var rightGroup = new List<object?[]> { rightRow! };
                         hasLeft = CollectMergeGroup(
@@ -2952,6 +2957,7 @@ internal static partial class RelationalSelectExecutor
                 next = candidate;
                 return true;
             }
+            SqlRowRetentionBudget.RetainForExecution(candidate!);
             group.Add(candidate!);
         }
         next = null;
@@ -3207,6 +3213,7 @@ internal static partial class RelationalSelectExecutor
                     Array.Copy(leftRow, row, leftRow.Length);
                     Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
                     matched = true;
+                    SqlRowRetentionBudget.RetainForExecution(row);
                     output.Add(row);
                 }
             }
@@ -3215,6 +3222,7 @@ internal static partial class RelationalSelectExecutor
             {
                 var row = new object?[probeRow.Length + rightRelation.Columns.Count];
                 Array.Copy(probeRow, row, probeRow.Length);
+                SqlRowRetentionBudget.RetainForExecution(row);
                 output.Add(row);
             }
 
@@ -3551,6 +3559,7 @@ internal static partial class RelationalSelectExecutor
             var keyValues = statement.GroupBy
                 .Select(group => EvaluateScalar(tsdb, group, relation.Columns, row, outerScope, memo))
                 .ToArray();
+            SqlRowRetentionBudget.RetainForExecution(keyValues);
             var key = new GroupKey(keyValues);
             if (resources is not null && diskGroups is null)
             {
@@ -3655,6 +3664,7 @@ internal static partial class RelationalSelectExecutor
                         outerScope,
                         memo);
             }
+            SqlRowRetentionBudget.RetainForExecution(output);
             rows.Add(output);
         }
 
@@ -5298,11 +5308,13 @@ internal static partial class RelationalSelectExecutor
             {
                 if (SqlRowRetentionBudget.Current is { IsInsertSource: false } budget)
                     budget.Retain(row);
+                object?[] sortValues = orderBy
+                    .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
+                    .ToArray();
+                SqlRowRetentionBudget.RetainForExecution(sortValues);
                 return new RelationSortRow(
                     row,
-                    orderBy
-                        .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
-                        .ToArray());
+                    sortValues);
             });
         var comparer = new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray());
         RelationSortRow[] selected = TopN.OrderByThenPaginate(
