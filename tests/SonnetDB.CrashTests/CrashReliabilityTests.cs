@@ -20,7 +20,7 @@ namespace SonnetDB.CrashTests;
 /// <summary>
 /// 可靠性套件：使用真子进程与 <see cref="Process.Kill(bool)"/> 注入崩溃。
 /// </summary>
-public sealed class CrashReliabilityTests : IDisposable
+public sealed partial class CrashReliabilityTests : IDisposable
 {
     private readonly string _tempDir;
 

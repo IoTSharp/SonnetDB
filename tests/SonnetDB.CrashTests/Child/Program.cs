@@ -10,6 +10,7 @@ using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
+using SonnetDB.Streaming;
 
 if (args.Length < 3)
 {
@@ -86,9 +87,87 @@ switch (scenario)
         await RunCdcSpoolWriterLease(root, readyFile,
             releaseBeforeReady: scenario == "release_cdc_spool_writer_lease_via_dispose");
         return 0;
+    case "crash_kill9_cdc_partial_snapshot":
+    case "crash_kill9_cdc_materialization_before_spool_ack":
+        await RunM43CdcSnapshotCrash(root, readyFile,
+            partialSnapshot: scenario == "crash_kill9_cdc_partial_snapshot");
+        return 0;
+    case "crash_kill9_streaming_inflight":
+        await RunM43StreamingInFlightCrash(root, readyFile);
+        return 0;
+    case "crash_kill9_cdc_single_tail_before_ack":
+        await RunM43CdcSingleTailBeforeAck(root, readyFile);
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
+}
+
+static async Task RunM43CdcSnapshotCrash(string root, string readyFile, bool partialSnapshot)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var descriptor = new CdcSnapshotDescriptor(
+        "crash-fixed-view", "crash-source", "documents", "documents", 1, new CdcCheckpoint(7, 10), 2);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "replica.bin"), descriptor, cancellationToken: deadline.Token);
+    await replica.WriteSnapshotPageAsync(0, [new CdcSnapshotRow("a", "{\"value\":1}")], deadline.Token);
+    if (partialSnapshot)
+    {
+        WriteCrashReady(readyFile, "cdc-snapshot-page-committed");
+        await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+        return;
+    }
+
+    await replica.WriteSnapshotPageAsync(1, [new CdcSnapshotRow("b", "{\"value\":1}")], deadline.Token);
+    await replica.CompleteSnapshotAsync(deadline.Token);
+    await using var spool = new CdcEventSpool(Path.Combine(root, "events.log"));
+    await spool.AppendAsync(M43CdcEvent(11, "a", CdcOperation.Update, "{\"value\":2}"), deadline.Token);
+    await spool.AppendAsync(M43CdcEvent(12, "b", CdcOperation.Delete), deadline.Token);
+    await spool.AppendAsync(M43CdcEvent(13, "c", CdcOperation.Insert, "{\"value\":3}"), deadline.Token);
+    CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(descriptor.Checkpoint, maxEvents: 2, cancellationToken: deadline.Token);
+    await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
+    WriteCrashReady(readyFile, "cdc-materialized-before-spool-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static CdcEvent M43CdcEvent(long offset, string key, CdcOperation operation, string? after = null)
+    => new($"crash-event-{offset}", "crash-source", "documents", key, offset,
+        new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero),
+        new CdcEventMetadata(1, "documents", 1, operation, new CdcCheckpoint(7, offset)), null, after);
+
+static async Task RunM43CdcSingleTailBeforeAck(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var descriptor = new CdcSnapshotDescriptor(
+        "crash-fixed-view", "crash-source", "documents", "documents", 1, new CdcCheckpoint(7, 10), 0);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "replica.bin"), descriptor, cancellationToken: deadline.Token);
+    await replica.CompleteSnapshotAsync(deadline.Token);
+    await using var spool = new CdcEventSpool(Path.Combine(root, "events.log"),
+        new CdcEventSpoolOptions { MaxEvents = 1, MaxReplayEvents = 1 });
+    await spool.AppendAsync(M43CdcEvent(11, "a", CdcOperation.Insert, "{\"value\":1}"), deadline.Token);
+    CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(descriptor.Checkpoint, cancellationToken: deadline.Token);
+    await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
+    WriteCrashReady(readyFile, "cdc-single-tail-materialized-before-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static async Task RunM43StreamingInFlightCrash(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    StreamingSubscriptionDefinition definition = StreamingSubscriptionDefinition.Create(
+        "crash-subscription", "crash-events", batchSize: 2, capacity: 4);
+    await using var subscription = await FileStreamingSubscription.OpenAsync(
+        Path.Combine(root, "subscription"), definition, cancellationToken: deadline.Token);
+    DateTimeOffset eventTime = new(2026, 9, 30, 0, 0, 0, TimeSpan.Zero);
+    await subscription.PublishAsync(new StreamingEvent("streaming-crash-1", 1, eventTime, "first"u8.ToArray()), deadline.Token);
+    await subscription.PublishAsync(new StreamingEvent("streaming-crash-2", 2, eventTime, "second"u8.ToArray()), deadline.Token);
+    await subscription.CompleteAsync(deadline.Token);
+    StreamingDeliveryBatch batch = await subscription.ReadBatchAsync(deadline.Token)
+        ?? throw new InvalidOperationException("Crash subscription did not return its committed events.");
+    File.WriteAllText(Path.Combine(root, "streaming-delivery-id.txt"), batch.DeliveryId);
+    WriteCrashReady(readyFile, "streaming-inflight-before-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
 }
 
 static async Task RunCdcSpoolWriterLease(string root, string readyFile, bool releaseBeforeReady)
