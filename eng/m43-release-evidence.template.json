@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "gates": [
+    {
+      "id": "candidate-workflows",
+      "mode": "deferred",
+      "reason": "Run the candidate's twelve workflow and raw Parity verifiers after the implementation is committed."
+    },
+    {
+      "id": "m19-capacity",
+      "mode": "deferred",
+      "reason": "Four fixed-target profiles and the protected artifact bundle have not been supplied."
+    },
+    {
+      "id": "m20-nightly",
+      "mode": "deferred",
+      "reason": "Read back seven consecutive UTC scheduled light/full runs and reconcile their raw artifacts."
+    },
+    {
+      "id": "m25-capacity",
+      "mode": "deferred",
+      "reason": "Million and ten-million fixed-target reports and external attestation remain pending."
+    },
+    {
+      "id": "m27-quality-cost",
+      "mode": "deferred",
+      "reason": "Real-model quality, measured cost, rollback and deployed dual-network acceptance remain pending."
+    },
+    {
+      "id": "m29-installation",
+      "mode": "deferred",
+      "reason": "A clean Windows installation, upgrade, uninstall and WebView2 report remain pending."
+    },
+    {
+      "id": "m40-graph-production",
+      "mode": "deferred",
+      "reason": "External comparisons, fixed hardware, Native AOT and the 168-hour raw artifact manifest remain pending."
+    },
+    {
+      "id": "m41-m42-performance",
+      "mode": "deferred",
+      "reason": "Fixed x64/ARM64 corpus, cold-start, recovery and 168-hour reports remain pending."
+    }
+  ]
+}

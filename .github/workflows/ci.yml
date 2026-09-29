@@ -63,6 +63,7 @@ jobs:
           ./eng/test-release-artifacts.ps1
           ./eng/test-release-network-defaults.ps1
           ./eng/test-release-readiness.ps1
+          ./eng/test-m43-release-evidence.ps1
 
       - name: Build
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
