@@ -118,8 +118,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
       "entryPoints": ["src/SonnetDB.Core/Streaming", "src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "docs/roadmap-total-milestone.md"],
-      "boundary": "A bounded embedded subscription contract with watermark, late-event policy, file-backed conditional checkpoint persistence and at-least-once redelivery is covered locally; persistent task operations, remote parity, cross-process recovery and distributed semantics remain open."
+      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-streaming-persistent-subscription-2026-09-30.md", "docs/roadmap-total-milestone.md"],
+      "boundary": "A bounded local file subscription persists events, watermark and in-flight delivery, coordinates interrupted conditional checkpoint/spool acknowledgements and supports at-least-once replay after reopen, including a real local process-kill test of unacknowledged delivery. Persistent windows, task operations, real database change-feed capture, remote parity, field recovery and distributed semantics remain open."
     },
     {
       "id": "cdc",
@@ -128,8 +128,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #385", "M43 #386", "M43 #387", "M43 #388", "M43 #389", "M43 #390"],
       "entryPoints": ["src/SonnetDB.Core/Cdc", "src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcEventSpoolTests.cs", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
-      "boundary": "A bounded versioned CDC event format with schema/checkpoint metadata, CRC-protected append-only spool and strict UTF-8 codec is covered locally; snapshot/incremental handoff, offline queue, conflict policy, client routes and replication topology remain open."
+      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcEventSpoolTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcSnapshotReplicaTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-cdc-snapshot-20260930.md", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
+      "boundary": "The bounded versioned codec/spool and a single-source/entity/schema/partition snapshot replica cover local page resume, continuous incremental materialization and atomic row/checkpoint recovery, with real local process-kill tests of partial snapshots and materialization committed before spool acknowledgement. Fixed read views and source capture are caller-supplied; automatic capture, multi-partition/remote handoff, offline synchronization, conflict/schema policy, client routes and replication topology remain open."
     },
     {
       "id": "ai-rag",
@@ -148,7 +148,7 @@
       "maturity": "partial",
       "roadmap": ["M8", "M17", "M19", "M20", "M27", "M29", "M39", "MM9", "M41", "M42", "M43 #397"],
       "entryPoints": ["src/SonnetDB/Endpoints", "src/SonnetDB.Core", "src/SonnetDB.Cli"],
-      "evidence": ["docs/backup-restore.md", "docs/audits/2026-09-05_project-SonnetDB-report.md", "docs/audits/changelog-verification-20260905.md"],
+      "evidence": ["docs/backup-restore.md", "docs/audits/2026-09-05_project-SonnetDB-report.md", "docs/audits/changelog-verification-20260905.md", "docs/m43-release-evidence.md", "eng/verify-m43-release-evidence.ps1", "eng/test-m43-release-evidence.ps1", "docs/ecosystem-directory-dossier.md", "docs/ecosystem-reproduction-index.md"],
       "boundary": "Authorization, audit, health, metrics and database backup exist; full-model recovery, cross-architecture release and long-run evidence remain open."
     }
   ]
