@@ -130,10 +130,28 @@ public sealed class ServerOptions
 }
 
 /// <summary>
-/// KV 关系表索引恢复配置。较大预算只在缺少干净关闭令牌的索引重建期间生效。
+/// KV 写入、读快照及关系表索引恢复的独立有界预算。
 /// </summary>
 public sealed class KvStorageOptions
 {
+    /// <summary>
+    /// 普通 KV 自动检查点允许的 WAL 最大字节数，默认 256 MiB；
+    /// 服务端绑定限制在 1 MiB 到 64 GiB，避免部署配置导致无界 WAL 增长。
+    /// </summary>
+    public long MaxWalBytes { get; set; } = 256L * 1024 * 1024;
+
+    /// <summary>
+    /// 普通 KV 自动检查点允许的可变覆盖层最大条目数，默认 100,000；
+    /// 服务端绑定限制在 1 到 50,000,000，避免内存覆盖层无界增长。
+    /// </summary>
+    public int MaxOverlayEntries { get; set; } = 100_000;
+
+    /// <summary>
+    /// 单次读快照允许复制的可变与冻结覆盖层合计条目数，默认 100,000；
+    /// 独立于写入预算，服务端绑定限制在 1 到 50,000,000。
+    /// </summary>
+    public int MaxSnapshotOverlayEntries { get; set; } = 100_000;
+
     /// <summary>
     /// 索引重建允许的 WAL 最大字节数，默认与日常预算一致为 256 MiB；
     /// 服务端绑定会把非正数修正为 1 MiB，避免部署配置意外取消恢复上限。

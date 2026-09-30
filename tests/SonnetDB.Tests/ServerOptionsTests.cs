@@ -123,6 +123,9 @@ public sealed class ServerOptionsTests
             SqlMemoryOptions.Default.ParallelWorkerMemoryBytes,
             options.SqlExecution.ParallelWorkerMemoryBytes);
         Assert.Equal(1, options.RelationalTableWarmupConcurrency);
+        Assert.Equal(256L * 1024 * 1024, options.Kv.MaxWalBytes);
+        Assert.Equal(100_000, options.Kv.MaxOverlayEntries);
+        Assert.Equal(100_000, options.Kv.MaxSnapshotOverlayEntries);
         Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
         Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
         Assert.Equal(1024, options.Mqtt.Sparkplug.RebirthQueueCapacity);
@@ -474,6 +477,84 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(64L * 1024 * 1024 * 1024, boundedOptions.IndexRebuildMaxWalBytes);
         Assert.Equal(1, boundedOptions.IndexRebuildMaxOverlayEntries);
+    }
+
+    /// <summary>验证普通 KV 检查点预算可由部署配置覆盖，并保持有界。</summary>
+    [Fact]
+    public void Bind_WithKvBudget_AppliesAndBoundsConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Kv:MaxWalBytes"] = "3221225472",
+                ["SonnetDBServer:Kv:MaxOverlayEntries"] = "4000000",
+            })
+            .Build();
+
+        var configuredOptions = ServerOptionsBinder.Bind(configured).Kv;
+
+        Assert.Equal(3L * 1024 * 1024 * 1024, configuredOptions.MaxWalBytes);
+        Assert.Equal(4_000_000, configuredOptions.MaxOverlayEntries);
+
+        var outOfRange = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Kv:MaxWalBytes"] = long.MaxValue.ToString(),
+                ["SonnetDBServer:Kv:MaxOverlayEntries"] = "0",
+            })
+            .Build();
+
+        var boundedOptions = ServerOptionsBinder.Bind(outOfRange).Kv;
+
+        Assert.Equal(64L * 1024 * 1024 * 1024, boundedOptions.MaxWalBytes);
+        Assert.Equal(1, boundedOptions.MaxOverlayEntries);
+    }
+
+    /// <summary>验证读快照预算独立于写入预算，并拒绝配置取消读侧上限。</summary>
+    [Fact]
+    public void Bind_WithKvSnapshotBudget_AppliesIndependentBoundedConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Kv:MaxOverlayEntries"] = "50000000",
+                ["SonnetDBServer:Kv:MaxSnapshotOverlayEntries"] = "1000000",
+            })
+            .Build();
+        var configuredOptions = ServerOptionsBinder.Bind(configured).Kv;
+        Assert.Equal(50_000_000, configuredOptions.MaxOverlayEntries);
+        Assert.Equal(1_000_000, configuredOptions.MaxSnapshotOverlayEntries);
+
+        var minimum = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Kv:MaxSnapshotOverlayEntries"] = "0",
+        }).Build();
+        var maximum = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Kv:MaxSnapshotOverlayEntries"] = int.MaxValue.ToString(),
+        }).Build();
+        Assert.Equal(1, ServerOptionsBinder.Bind(minimum).Kv.MaxSnapshotOverlayEntries);
+        Assert.Equal(50_000_000, ServerOptionsBinder.Bind(maximum).Kv.MaxSnapshotOverlayEntries);
+    }
+
+    /// <summary>验证配置注册保持 Core 的读写预算独立，避免新增配置只绑定而未生效。</summary>
+    [Fact]
+    public void ServiceRegistration_MapsIndependentKvBudgetsToCore()
+    {
+        var server = new KvStorageOptions
+        {
+            MaxWalBytes = 1_048_576,
+            MaxOverlayEntries = 50_000_000,
+            MaxSnapshotOverlayEntries = 1_000_000,
+            IndexRebuildMaxWalBytes = 3_221_225_472,
+            IndexRebuildMaxOverlayEntries = 4_000_000,
+        };
+        var core = SonnetDbServiceRegistration.CreateKvOptions(server);
+        Assert.Equal(server.MaxWalBytes, core.MaxWalBytes);
+        Assert.Equal(server.MaxOverlayEntries, core.MaxOverlayEntries);
+        Assert.Equal(server.MaxSnapshotOverlayEntries, core.MaxSnapshotOverlayEntries);
+        Assert.Equal(server.IndexRebuildMaxWalBytes, core.IndexRebuildMaxWalBytes);
+        Assert.Equal(server.IndexRebuildMaxOverlayEntries, core.IndexRebuildMaxOverlayEntries);
     }
 
     /// <summary>验证关系表启动预热并发可配置，并限制在明确的资源边界内。</summary>

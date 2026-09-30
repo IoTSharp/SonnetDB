@@ -65,11 +65,7 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
-            var kvOptions = KvOptions.Default with
-            {
-                IndexRebuildMaxWalBytes = options.Kv.IndexRebuildMaxWalBytes,
-                IndexRebuildMaxOverlayEntries = options.Kv.IndexRebuildMaxOverlayEntries,
-            };
+            var kvOptions = CreateKvOptions(options.Kv);
             SqlMemoryOptions sqlMemoryOptions = CreateSqlMemoryOptions(options.SqlExecution);
             var registry = new TsdbRegistry(
                 options.DataRoot,
@@ -270,6 +266,22 @@ internal static class SonnetDbServiceRegistration
         MqttServerBootstrap.ConfigureServices(builder, serverOptions.Mqtt);
         CoapServerBootstrap.ConfigureServices(builder, serverOptions.Coap);
         LineProtocolUdpBootstrap.ConfigureServices(builder, serverOptions.LineProtocolUdp);
+    }
+
+    /// <summary>把服务端有界 KV 配置复制到 Core，保持读快照、普通写入和索引恢复预算独立。</summary>
+    /// <param name="options">已通过配置绑定边界校验的服务端 KV 预算。</param>
+    /// <returns>用于数据库和所有 keyspace 的不可变 KV 配置。</returns>
+    internal static KvOptions CreateKvOptions(KvStorageOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return KvOptions.Default with
+        {
+            MaxWalBytes = options.MaxWalBytes,
+            MaxOverlayEntries = options.MaxOverlayEntries,
+            MaxSnapshotOverlayEntries = options.MaxSnapshotOverlayEntries,
+            IndexRebuildMaxWalBytes = options.IndexRebuildMaxWalBytes,
+            IndexRebuildMaxOverlayEntries = options.IndexRebuildMaxOverlayEntries,
+        };
     }
 
     /// <summary>

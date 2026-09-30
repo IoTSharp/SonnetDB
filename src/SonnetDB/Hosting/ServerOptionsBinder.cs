@@ -127,6 +127,21 @@ internal static class ServerOptionsBinder
             600_000);
 
         // 索引恢复预算必须保持正数和明确上限，避免配置错误导致无界 WAL 或内存增长。
+        // 普通写入预算同样必须有界，现场数据库迁移期间可通过配置提高但不能取消上限。
+        options.Kv.MaxOverlayEntries = Math.Clamp(
+            options.Kv.MaxOverlayEntries,
+            1,
+            50_000_000);
+        // 读快照同时复制可变与冻结层，使用独立预算，不能以写入上限代替。
+        options.Kv.MaxSnapshotOverlayEntries = Math.Clamp(
+            options.Kv.MaxSnapshotOverlayEntries,
+            1,
+            50_000_000);
+        options.Kv.MaxWalBytes = Math.Clamp(
+            options.Kv.MaxWalBytes,
+            1024L * 1024,
+            64L * 1024 * 1024 * 1024);
+
         options.Kv.IndexRebuildMaxOverlayEntries = Math.Clamp(
             options.Kv.IndexRebuildMaxOverlayEntries,
             1,
