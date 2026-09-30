@@ -38,7 +38,7 @@ public enum StreamingDeliveryStatus
 /// </summary>
 public enum StreamingPublishDisposition
 {
-    /// <summary>事件已经进入有界订阅缓冲区。</summary>
+    /// <summary>事件已经被订阅接受；文件入口会在持久化完成后返回此结果。</summary>
     Accepted = 0,
 
     /// <summary>事件因为迟到策略被丢弃。</summary>
@@ -255,7 +255,7 @@ public sealed record StreamingDeliveryBatch(
 /// <param name="DeliveryId">批次投递标识。</param>
 /// <param name="Attempt">确认前的投递次数。</param>
 /// <param name="Status">确认后的状态。</param>
-/// <param name="Checkpoint">已提交到内存订阅的检查点。</param>
+/// <param name="Checkpoint">已提交的订阅检查点；文件入口返回持久化检查点。</param>
 public sealed record StreamingDeliveryReceipt(
     string DeliveryId,
     int Attempt,

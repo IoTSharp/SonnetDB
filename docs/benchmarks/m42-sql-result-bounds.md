@@ -1,4 +1,4 @@
-# M42 / SQL-002：显式 SQL 结果预览合同
+# M42 / SQL-002：显式结果预览与关系 SELECT 物化预算
 
 2026-09-24 本地合同切片完成：REST SQL 调用方可以显式要求有界结果预览；Web SQL 控制台使用该合同。该切片不代表 SQL-002 的执行阶段内存边界或整项验收完成。
 
@@ -26,6 +26,30 @@ Web 通用 SQL API 不自动启用预览；仅 SQL 控制台显式请求最多 1
 
 Web：`node --experimental-vm-modules --test web/tests/sql-workflow.test.mjs` 共 11 项通过、0 失败、0 跳过；`vue-tsc --noEmit` 通过，Vite production build 通过，仍有大于 500 kB chunk 的体积提示。[测试日志](../audits/roadmap-closure-evidence-20260924/sql-preview-web-tests-final.out.log)与[构建日志](../audits/roadmap-closure-evidence-20260924/sql-preview-web-build-final.out.log)已留存。全部构建产物输出到本轮专属 C 盘临时目录，不写入仓库；.NET Release 使用 `/warnaserror`，未压制 AOT/trim 警告。
 
+## 2026-09-30 关系 SELECT 执行器预算
+
+Core 的 `SqlExecutionOptions.MaxMaterializedRows` 和 `MaxMaterializedBytes` 是独立的 opt-in 执行合同，可用于 `SqlExecutor.Execute` / `ExecuteStatement` 的显式选项重载。两项默认均为 `null`；未设置时所有入口继续保留原有完整结果、写入和例程语义。启用后，成功返回的结果仍完整且不会设置 `Truncated`；超限抛出 `InvalidOperationException`，不会把不完整结果当成成功。
+
+```csharp
+var options = new SqlExecutionOptions
+{
+    MaxMaterializedRows = 100_000,
+    MaxMaterializedBytes = 64L * 1024 * 1024,
+};
+var result = SqlExecutor.Execute(database, null,
+    "SELECT id, payload FROM orders ORDER BY id", null, null, options);
+```
+
+支持范围为关系表、已展开的关系视图、常量 SELECT，以及它们的 JOIN、派生表、标量/IN/EXISTS 子查询、普通/递归 CTE、UNION/INTERSECT/EXCEPT、DISTINCT、GROUP BY、排序和窗口投影。`EXPLAIN SELECT` 的输出也计费，`EXPLAIN ANALYZE SELECT` 的实际执行与解释结果共用预算。查询树在扫描前预检；时序、文档、Graph、系统视图、物化视图、表值函数、用户函数回调和非标准标量值当前明确拒绝该模式。
+
+**此切片不支持 DML 物化预算。** 启用任何一项时，INSERT/UPDATE/DELETE（包括 RETURNING）、CALL、DDL、事务控制等语句在目标分发、生成键、触发器或实际 mutation 之前抛出 `NotSupportedException`。已有显式事务可以执行受预算的只读 SELECT，失败不改变此前缓冲写入；BEGIN/COMMIT/ROLLBACK 继续使用未启用该预算的调用。0 或负预算在语句分发之前抛出 `ArgumentOutOfRangeException`。原有 trigger transition / INSERT SELECT 预算在默认模式下保持既有错误合同。
+
+预算覆盖结果追加及阻塞阶段的物化保留，并跨整个根调用共享。子查询、CTE、集合运算、spill 输出和并行 worker 不重置计数；不同根调用各自计费。行数是**累计物化次数**，不是最终返回行数：排序输入、JOIN build/同键组、聚合/窗口输入、辅助键及后续投影可能重复计入，SQL LIMIT 不能跳过这些阶段的预算检查。已计费的物化在本条语句返回或失败前不退还累计配额，因此这是保守的准入合同，并非实际存活行数测量。为防止候选全集先于预算检查物化，此模式使用关系惰性扫描输入，事务叠加逐行计费并从小容量开始；会牺牲部分单表索引/IN 快路径性能，默认调用不受此影响。
+
+每次物化行的估算为 `64 + 8 * 列数 + 值载荷` 字节。NULL 计 1，固定宽度 SQL 标量计 24，字符串计 `24 + 2 * UTF-16 长度`，二进制值计 `24 + byte[].Length`；窗口输出容器先计费，填入值时追加载荷差额。查询/数据库原有共享阻塞算子预留继续有效，启用的物化字节上限进一步收紧其准入，所有失败路径归还预留并清理查询 spill 工作区。成功返回后结果由调用方拥有，查询预留已经释放；该预算不治理调用方的后续保留或跨响应总内存。
+
+`SqlMaterializationBudgetTests` 覆盖默认完整结果、精确行/字符串字节边界、大二进制值、0/负值、提前停止扫描、自动提交/显式事务 RETURNING 提前拒绝且数据不变、read-your-writes、嵌套/CTE/集合/递归预算共享、五类阻塞路径、spill 清理、EXPLAIN/ANALYZE、取消、并发 worker 计费，以及预检在扫描/用户回调前拒绝未支持路径。Release `/warnaserror` 定向回归最终 181/181，其中新增预算 36/36；合并 SQL/CDC/Streaming 回归 1746/1746。[并行实施记录](../audits/roadmap-parallel-implementation-20260930.md)保留原始结果与首轮夹具失败说明。
+
 ## 未覆盖的内存与性能边界
 
-当前执行器仍先生成完整 `SelectExecutionResult`。此切片减少显式预览的传输行数和 Web 留存行数，**不保证服务端执行 heap 上界、字节预算或首行延迟**；单行可含大值，行数上限不能替代字节上限。完整 SQL-002 仍需算子/输出物化预算或端到端流式执行，以及大结果 heap/首行延迟基准、断连压力与固定硬件证据。不得将此文或合同测试用作完整 SQL-002、M42 或生产门禁完成证据。
+执行器仍先生成完整 `SelectExecutionResult`。REST 预览减少传输行数和 Web 留存行数；新 Core 预算提供受支持的关系 SELECT 物化准入与超限拒绝。两者都**不保证 CLR heap 精确硬上限或首行延迟**：解析/绑定、已有表 snapshot、存储页/索引底层缓存、单行 decode 和 scalar expression 求值的瞬时分配、spill 游标缓冲等不等同于物化估算。DML RETURNING 执行预算、其它数据模型、端到端流式执行、大结果 heap/首行延迟基准、断连压力与固定目标硬件证据仍未闭环。不得将此文或合同测试用作完整 SQL-002、M42 或生产门禁完成证据。

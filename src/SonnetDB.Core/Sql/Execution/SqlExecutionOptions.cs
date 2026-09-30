@@ -1,6 +1,6 @@
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>单次 SQL 执行向过程/触发器运行时传递的治理选项。</summary>
+/// <summary>单次 SQL 执行及过程/触发器调用链的治理选项。</summary>
 public sealed record SqlExecutionOptions
 {
     /// <summary>默认嵌入式执行选项。</summary>
@@ -57,6 +57,21 @@ public sealed record SqlExecutionOptions
     /// </summary>
     public long? BlockingOperatorMemoryLimitBytes { get; init; }
 
+    /// <summary>
+    /// 可选的单条关系 SELECT 调用链累计物化行数上限。子查询、CTE、集合运算和阻塞算子
+    /// 共用预算，同一行在不同物化阶段会重复计入；超限拒绝查询，不返回截断结果。
+    /// 为空时不增加物化行数限制。显式设置此属性或 <see cref="MaxMaterializedBytes"/> 时，
+    /// 仅支持关系表及常量 SELECT 和 EXPLAIN SELECT；写入、例程、用户函数及其他数据模型在执行前拒绝。
+    /// </summary>
+    public long? MaxMaterializedRows { get; init; }
+
+    /// <summary>
+    /// 可选的单条关系 SELECT 调用链累计物化估算字节上限。包含行容器、标量、字符串和
+    /// 二进制值的估算，并收紧共享阻塞算子的字节预算；不代表 CLR heap 的精确硬上限。
+    /// 为空时不增加物化字节限制。该选项的支持范围与 <see cref="MaxMaterializedRows"/> 一致。
+    /// </summary>
+    public long? MaxMaterializedBytes { get; init; }
+
     /// <summary>是否允许在估算收益成立且资源足够时启用受控 SQL 并行。</summary>
     public bool EnableParallelism { get; init; } = true;
 
@@ -93,11 +108,17 @@ public sealed record SqlExecutionOptions
         ArgumentOutOfRangeException.ThrowIfGreaterThan(TransactionCommitTimeoutMilliseconds, 120_000);
         if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);
+        if (MaxMaterializedRows is { } materializedRows)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(materializedRows);
+        if (MaxMaterializedBytes is { } materializedBytes)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(materializedBytes);
         if (MaxDegreeOfParallelism is { } degree)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
         if (ParallelismMinRows is { } minRows)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minRows);
     }
+
+    internal bool HasMaterializationLimits => MaxMaterializedRows is not null || MaxMaterializedBytes is not null;
 
     /// <summary>
     /// 创建把调用方取消令牌和绝对截止时间合并起来的有界令牌源。

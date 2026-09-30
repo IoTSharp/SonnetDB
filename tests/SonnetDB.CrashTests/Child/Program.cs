@@ -1,4 +1,5 @@
 using SonnetDB.Cdc;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
@@ -10,6 +11,7 @@ using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
+using SonnetDB.Streaming;
 
 if (args.Length < 3)
 {
@@ -86,9 +88,131 @@ switch (scenario)
         await RunCdcSpoolWriterLease(root, readyFile,
             releaseBeforeReady: scenario == "release_cdc_spool_writer_lease_via_dispose");
         return 0;
+    case "crash_kill9_cdc_partial_snapshot":
+    case "crash_kill9_cdc_materialization_before_spool_ack":
+        await RunM43CdcSnapshotCrash(root, readyFile,
+            partialSnapshot: scenario == "crash_kill9_cdc_partial_snapshot");
+        return 0;
+    case "crash_kill9_streaming_inflight":
+        await RunM43StreamingInFlightCrash(root, readyFile);
+        return 0;
+    case "crash_kill9_cdc_single_tail_before_ack":
+        await RunM43CdcSingleTailBeforeAck(root, readyFile);
+        return 0;
+    case "crash_kill9_cdc_document_source_capture":
+        await RunM43CdcDocumentSourceCapture(root, readyFile);
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
+}
+
+static async Task RunM43CdcSnapshotCrash(string root, string readyFile, bool partialSnapshot)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var descriptor = new CdcSnapshotDescriptor(
+        "crash-fixed-view", "crash-source", "documents", "documents", 1, new CdcCheckpoint(7, 10), 2);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "replica.bin"), descriptor, cancellationToken: deadline.Token);
+    await replica.WriteSnapshotPageAsync(0, [new CdcSnapshotRow("a", "{\"value\":1}")], deadline.Token);
+    if (partialSnapshot)
+    {
+        WriteCrashReady(readyFile, "cdc-snapshot-page-committed");
+        await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+        return;
+    }
+
+    await replica.WriteSnapshotPageAsync(1, [new CdcSnapshotRow("b", "{\"value\":1}")], deadline.Token);
+    await replica.CompleteSnapshotAsync(deadline.Token);
+    await using var spool = new CdcEventSpool(Path.Combine(root, "events.log"));
+    await spool.AppendAsync(M43CdcEvent(11, "a", CdcOperation.Update, "{\"value\":2}"), deadline.Token);
+    await spool.AppendAsync(M43CdcEvent(12, "b", CdcOperation.Delete), deadline.Token);
+    await spool.AppendAsync(M43CdcEvent(13, "c", CdcOperation.Insert, "{\"value\":3}"), deadline.Token);
+    CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(descriptor.Checkpoint, maxEvents: 2, cancellationToken: deadline.Token);
+    await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
+    WriteCrashReady(readyFile, "cdc-materialized-before-spool-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static CdcEvent M43CdcEvent(long offset, string key, CdcOperation operation, string? after = null)
+    => new($"crash-event-{offset}", "crash-source", "documents", key, offset,
+        new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero),
+        new CdcEventMetadata(1, "documents", 1, operation, new CdcCheckpoint(7, offset)), null, after);
+
+static async Task RunM43CdcSingleTailBeforeAck(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var descriptor = new CdcSnapshotDescriptor(
+        "crash-fixed-view", "crash-source", "documents", "documents", 1, new CdcCheckpoint(7, 10), 0);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "replica.bin"), descriptor, cancellationToken: deadline.Token);
+    await replica.CompleteSnapshotAsync(deadline.Token);
+    await using var spool = new CdcEventSpool(Path.Combine(root, "events.log"),
+        new CdcEventSpoolOptions { MaxEvents = 1, MaxReplayEvents = 1 });
+    await spool.AppendAsync(M43CdcEvent(11, "a", CdcOperation.Insert, "{\"value\":1}"), deadline.Token);
+    CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(descriptor.Checkpoint, cancellationToken: deadline.Token);
+    await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
+    WriteCrashReady(readyFile, "cdc-single-tail-materialized-before-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static async Task RunM43CdcDocumentSourceCapture(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    using var database = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(root, "source-db") });
+    database.Documents.Create(DocumentCollectionSchema.Create("docs"));
+    DocumentCollectionStore store = database.Documents.Open("docs");
+    store.Insert("a", "{\"value\":1}");
+    store.Insert("b", "{\"value\":1}");
+
+    var spoolOptions = new CdcEventSpoolOptions { MaxEvents = 3, MaxReplayEvents = 1 };
+    await using var spool = new CdcEventSpool(Path.Combine(root, "source-events.log"), spoolOptions);
+    var captureOptions = new CdcDocumentSourceCaptureOptions
+    {
+        Source = "crash-source",
+        Entity = "docs",
+        Schema = "documents",
+        Partition = 7,
+        BatchSize = 2,
+    };
+    await using var capture = new CdcDocumentSourceCapture(store, spool, captureOptions);
+    await capture.CaptureAsync(deadline.Token);
+    await using var view = await CdcSourceReadView.CaptureDocumentCollectionAsync(
+        Path.Combine(root, "source-view.bin"), store, captureOptions.Source,
+        partition: captureOptions.Partition, options: new CdcSnapshotReplicaOptions { MaxBatchRows = 1 },
+        cancellationToken: deadline.Token);
+    await spool.AcknowledgeAsync(view.Descriptor.Checkpoint, deadline.Token);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "source-replica.bin"), view.Descriptor,
+        new CdcSnapshotReplicaOptions { MaxBatchRows = 1 }, deadline.Token);
+    CdcSnapshotRowBatch first = await view.ReadPageAsync(maxRows: 1, cancellationToken: deadline.Token);
+    await replica.WriteSnapshotPageAsync(0, first.Rows, deadline.Token);
+
+    store.Replace("a", "{\"value\":2}");
+    store.Delete("b");
+    CdcDocumentSourceCaptureResult captured = await capture.CaptureAsync(deadline.Token);
+    if (captured.StartSequence != 2 || captured.EndSequence != 4 || captured.CapturedEvents != 2)
+        throw new InvalidOperationException("CDC source capture did not persist the expected checkpoint.");
+    WriteCrashReady(readyFile, "cdc-document-source-captured-partial-snapshot");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static async Task RunM43StreamingInFlightCrash(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    StreamingSubscriptionDefinition definition = StreamingSubscriptionDefinition.Create(
+        "crash-subscription", "crash-events", batchSize: 2, capacity: 4);
+    await using var subscription = await FileStreamingSubscription.OpenAsync(
+        Path.Combine(root, "subscription"), definition, cancellationToken: deadline.Token);
+    DateTimeOffset eventTime = new(2026, 9, 30, 0, 0, 0, TimeSpan.Zero);
+    await subscription.PublishAsync(new StreamingEvent("streaming-crash-1", 1, eventTime, "first"u8.ToArray()), deadline.Token);
+    await subscription.PublishAsync(new StreamingEvent("streaming-crash-2", 2, eventTime, "second"u8.ToArray()), deadline.Token);
+    await subscription.CompleteAsync(deadline.Token);
+    StreamingDeliveryBatch batch = await subscription.ReadBatchAsync(deadline.Token)
+        ?? throw new InvalidOperationException("Crash subscription did not return its committed events.");
+    File.WriteAllText(Path.Combine(root, "streaming-delivery-id.txt"), batch.DeliveryId);
+    WriteCrashReady(readyFile, "streaming-inflight-before-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
 }
 
 static async Task RunCdcSpoolWriterLease(string root, string readyFile, bool releaseBeforeReady)

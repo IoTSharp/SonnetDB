@@ -185,6 +185,92 @@ public sealed class CdcEventSpoolTests : IDisposable
     }
 
     [Fact]
+    public async Task Open_WithCancelledRecovery_PreservesFramesAndAllowsRetry()
+    {
+        string path = Path.Combine(_root, "cancel-recovery.log");
+        await using (var spool = new CdcEventSpool(path))
+            await spool.AppendAsync(CreateEvent(1, 1, "retained"));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() =>
+            new CdcEventSpool(path, null, cancellation.Token));
+
+        await using var reopened = new CdcEventSpool(path);
+        Assert.Equal("retained", Assert.Single(await reopened.ReplayAsync()).Key);
+    }
+
+    [Fact]
+    public async Task Open_WhenCancelledDuringMetadataRecovery_ReleasesLease()
+    {
+        string path = Path.Combine(_root, "cancel-metadata.log");
+        await using (var spool = new CdcEventSpool(path))
+        {
+            await spool.AppendAsync(CreateEvent(1, 1, "first"));
+            await spool.AppendAsync(CreateEvent(2, 1, "second"));
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        int loadedEntries = 0;
+        CdcEventSpool? unexpected = null;
+        try
+        {
+            Assert.Throws<OperationCanceledException>(() =>
+            {
+                unexpected = new CdcEventSpool(path, null, cancellation.Token, () =>
+                {
+                    loadedEntries++;
+                    cancellation.Cancel();
+                });
+            });
+        }
+        finally
+        {
+            if (unexpected is not null)
+                await unexpected.DisposeAsync();
+        }
+
+        Assert.Equal(1, loadedEntries);
+        await using var reopened = new CdcEventSpool(path);
+        Assert.Equal(["first", "second"], (await reopened.ReplayAsync()).Select(static value => value.Key));
+    }
+
+    [Fact]
+    public async Task Open_WhenCancelledDuringFrameRecovery_ReleasesLease()
+    {
+        string path = Path.Combine(_root, "cancel-frames.log");
+        await using (var spool = new CdcEventSpool(path))
+        {
+            await spool.AppendAsync(CreateEvent(1, 1, "first"));
+            await spool.AppendAsync(CreateEvent(1, 2, "second"));
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        int recoveredSteps = 0;
+        CdcEventSpool? unexpected = null;
+        try
+        {
+            Assert.Throws<OperationCanceledException>(() =>
+            {
+                unexpected = new CdcEventSpool(path, null, cancellation.Token, () =>
+                {
+                    if (++recoveredSteps == 2)
+                        cancellation.Cancel();
+                });
+            });
+        }
+        finally
+        {
+            if (unexpected is not null)
+                await unexpected.DisposeAsync();
+        }
+
+        Assert.Equal(2, recoveredSteps);
+        await using var reopened = new CdcEventSpool(path);
+        Assert.Equal(["first", "second"], (await reopened.ReplayAsync()).Select(static value => value.Key));
+    }
+
+    [Fact]
     public async Task ConcurrentAppends_SerializeWithoutInterleavingFrames()
     {
         string path = Path.Combine(_root, "concurrent.log");

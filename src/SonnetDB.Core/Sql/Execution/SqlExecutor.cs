@@ -397,12 +397,15 @@ public static class SqlExecutor
             };
         }
         options.Validate();
+        if (options.HasMaterializationLimits || SqlRowRetentionBudget.HasExecutionBudget)
+            SqlMaterializationContract.Validate(tsdb, statement);
         if (options.QueryFingerprint is null)
             options = options with { QueryFingerprint = SqlStatementFingerprint.Create(statement) };
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
         EnsureModbusAdministrationAllowed(statement, options);
 
         using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, options);
+        using var materializationScope = SqlRowRetentionBudget.EnterExecution(options);
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
         // COMMIT owns cancellation failure cleanup, including a pre-cancelled request.
         if (statement is not CommitTransactionStatement)
@@ -1056,14 +1059,22 @@ public static class SqlExecutor
                 ActualPeakMemoryBytes = snapshot.PeakMemoryBytes,
                 ActualSpillBytes = snapshot.SpillBytes,
             };
-            return SqlExplainPlanner.ToSelectExecutionResult(estimated);
+            return RetainExplainResult(estimated);
         }
         if (statement.Statement is DescribePropertyGraphStatement describePropertyGraph)
             return GraphSqlExecutor.ExplainPropertyGraph(tsdb, describePropertyGraph.Name);
         if (statement.Statement is ShowPropertyGraphsStatement)
             return GraphSqlExecutor.ExplainShowPropertyGraphs(tsdb);
         var explain = SqlExplainPlanner.Explain(databaseName, tsdb, statement.Statement);
-        return SqlExplainPlanner.ToSelectExecutionResult(explain);
+        return RetainExplainResult(explain);
+    }
+
+    private static SelectExecutionResult RetainExplainResult(SqlExplainExecutionResult explain)
+    {
+        SelectExecutionResult result = SqlExplainPlanner.ToSelectExecutionResult(explain);
+        foreach (IReadOnlyList<object?> row in result.Rows)
+            SqlRowRetentionBudget.RetainForExecution(row);
+        return result;
     }
 
     private static SelectExecutionResult ShowMeasurements(Tsdb tsdb)
@@ -1805,6 +1816,7 @@ public static class SqlExecutor
         // 单表且排序键已在投影中的 DISTINCT 可安全下推到表执行器，按过滤→去重→Top-N 流式执行。
         // 隐藏排序列、JOIN、子查询等路径仍保留统一收敛点，避免改变 SQL 语义。
         if (statement.SetOperationList.Count == 0
+            && !SqlRowRetentionBudget.HasExecutionBudget
             && statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
             && !RelationalSelectExecutor.NeedsRelationalPath(statement)
@@ -1973,7 +1985,7 @@ public static class SqlExecutor
             else
                 rows = intersectGroup;
             pendingOperation = operation.Kind;
-            intersectGroup = branch.Rows.ToList();
+            intersectGroup = SqlRowRetentionBudget.RetainExecutionRows(branch.Rows).ToList();
         }
 
         if (pendingOperation is { } finalOperation)
@@ -2149,6 +2161,7 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
     {
+        EnsureMaterializationSourceSupported(tsdb, statement);
         if (RecursiveCteScope.Find(statement.Measurement) is not null)
             return RelationalSelectExecutor.Execute(tsdb, statement);
         if (TriggerTransitionTables.FindSchema(statement.Measurement) is not null)
@@ -2162,6 +2175,8 @@ public static class SqlExecutor
         var tableSchema = statement.FromSubquery is null
             ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
             : null;
+        if (SqlRowRetentionBudget.HasExecutionBudget && tableSchema is not null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
         var materializedView = statement.FromSubquery is null
             ? tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement)
             : null;
@@ -2198,6 +2213,27 @@ public static class SqlExecutor
             return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema);
 
         return SelectExecutor.Execute(tsdb, statement);
+    }
+
+    internal static void EnsureMaterializationSourceSupported(Tsdb tsdb, SelectStatement statement)
+    {
+        if (!SqlRowRetentionBudget.HasExecutionBudget)
+            return;
+        if (statement.TableValuedFunction is not null || statement.GraphTable is not null)
+            throw new NotSupportedException("SQL 物化预算不支持表值函数或 Graph 查询源。");
+        if (statement.FromSubquery is null && !string.IsNullOrEmpty(statement.Measurement))
+            EnsureMaterializationTableSupported(tsdb, statement.Measurement);
+        foreach (JoinClause join in statement.JoinClauses)
+        {
+            if (join.Subquery is null)
+                EnsureMaterializationTableSupported(tsdb, join.TableName);
+        }
+    }
+
+    private static void EnsureMaterializationTableSupported(Tsdb tsdb, string name)
+    {
+        if (tsdb.Tables.Catalog.TryGet(name) is null && RecursiveCteScope.Find(name) is null)
+            throw new NotSupportedException("SQL 物化预算仅支持关系表、关系表视图、CTE 和常量查询源。");
     }
 
     private static bool TryExecuteInformationSchemaSelect(

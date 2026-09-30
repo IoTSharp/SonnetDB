@@ -2890,11 +2890,24 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(schema);
-        TableExistsAccessPlan access = PlanExistsAccess(store, schema, where);
+        TableExistsAccessPlan access = SqlRowRetentionBudget.HasExecutionBudget
+            ? new TableExistsAccessPlan(
+                AccessPath: "table_scan", IndexName: null, UsesPrimaryKey: false, IndexPlan: null,
+                PredicateCovered: false, HasResidualPredicate: where is not null,
+                FallbackReason: "materialization_budget_requires_streaming_scan")
+            : PlanExistsAccess(store, schema, where);
 
         IEnumerable<TableRow> candidates;
         string actualAccessPath = access.AccessPath;
-        if (SqlTransactionContext.Current is { } transaction
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            // 显式预算模式不使用先物化候选全集的 IN/索引并集快路径。
+            candidates = SqlTransactionContext.Current is { } boundedTransaction
+                && boundedTransaction.TryGetBufferedMutations(schema.Name, out var boundedMutations)
+                ? ApplyMutationOverlay(schema, store.EnumerateScan(), boundedMutations)
+                : store.EnumerateScan();
+        }
+        else if (SqlTransactionContext.Current is { } transaction
             && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
             candidates = TryLoadPrimaryKeyCandidateRowsWithOverlay(
@@ -4538,14 +4551,17 @@ internal static class TableSqlExecutor
     /// </summary>
     private static IReadOnlyList<TableRow> ApplyMutationOverlay(
         TableSchema schema,
-        IReadOnlyList<TableRow> baseRows,
+        IEnumerable<TableRow> baseRows,
         IReadOnlyList<TableRowMutation> mutations)
     {
-        var order = new List<string>(baseRows.Count + mutations.Count);
-        var byKey = new Dictionary<string, TableRow>(baseRows.Count + mutations.Count, StringComparer.Ordinal);
+        int capacity = SqlRowRetentionBudget.HasExecutionBudget ? 0
+            : (baseRows is IReadOnlyCollection<TableRow> collection ? collection.Count : 0) + mutations.Count;
+        var order = new List<string>(capacity);
+        var byKey = new Dictionary<string, TableRow>(capacity, StringComparer.Ordinal);
 
         foreach (var row in baseRows)
         {
+            SqlRowRetentionBudget.RetainForExecution(row.Values);
             var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, row.Values));
             if (byKey.TryAdd(key, row))
                 order.Add(key);
@@ -4557,6 +4573,7 @@ internal static class TableSqlExecutor
         {
             if (mutation.NewValues is not null)
             {
+                SqlRowRetentionBudget.RetainForExecution(mutation.NewValues);
                 var pk = mutation.PrimaryKeyValues is not null
                     ? TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues)
                     : TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
@@ -4577,7 +4594,10 @@ internal static class TableSqlExecutor
         var result = new List<TableRow>(order.Count);
         foreach (var key in order)
             if (byKey.TryGetValue(key, out var row))
+            {
+                SqlRowRetentionBudget.RetainForExecution(row.Values);
                 result.Add(row);
+            }
         return result;
     }
 
@@ -5832,7 +5852,7 @@ internal static class TableSqlExecutor
         var sortItems = ResolveSortItems(columns, orderBy);
         var comparer = new ResultRowSortComparer(sortItems);
         var selected = TopN.OrderByThenPaginate(
-            rows,
+            SqlRowRetentionBudget.RetainExecutionRows(rows),
             comparer,
             pagination?.Offset ?? 0,
             pagination?.Fetch,
@@ -5898,6 +5918,11 @@ internal static class TableSqlExecutor
     {
         var rows = result.Rows
             .Select(row => (IReadOnlyList<object?>)row.Take(visibleColumnCount).ToArray())
+            .Select(row =>
+            {
+                SqlRowRetentionBudget.RetainForExecution(row);
+                return row;
+            })
             .ToArray();
         return new SelectExecutionResult(
             result.Columns.Take(visibleColumnCount).ToArray(),

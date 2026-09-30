@@ -8,6 +8,13 @@
 ## [Unreleased]
 ### Added
 - Measurement schema-on-write 增加数据库总 measurement 数、单 measurement 列数和单次写入新增列数上限；支持 `Disabled`、`CreateOnly`、`CreateAndEvolve` 全局及按 measurement 覆盖。新增稳定内容 revision、进程内有界审计事件、扩列/类型提升/拒绝指标，并向 REST、SDK、MCP 与管理后台提供缓存刷新依据。关系表未知列自动 DDL 的独立 opt-in 边界见 [设计文档](docs/design/relational-auto-ddl-opt-in.md)，当前默认仍严格拒绝。
+- **M43 #385~#390 本地真实 CDC 源切片（2026-09-30）**：新增 `CdcSourceReadView` 从文档集合的稳定 KV 读快照生成固定行集，并以 `OpenExisting` 校验及恢复创建结果未知时的持久 descriptor；`CdcDocumentSourceCapture` 将单集合持久 change feed 按 spool 高水位转换为版本化事件，`CdcLocalReplicaPump` 每次有界推进一页快照或一批增量并协调接收端提交与 spool ACK。文档主数据、change feed 和序号由集合写入路径在同一 KV batch 提交。范围限于单源/单实体/单分区；捕获调度仍由调用方负责，多分区、远程拓扑、冲突和生产门禁仍待补。
+- **M43 #386 本地快照/增量接收端（2026-09-30）**：新增有界 `CdcSnapshotReplica`，提供固定快照分页恢复、完整计数切换、同源/schema/分区连续增量的原子物化与位点恢复，复用 CDC spool 保留复制期间的增量；接收端本身不调度源捕获，也不提供多分区切换、冲突或远程复制拓扑。
+- **M43 #392 持久订阅（2026-09-30）**：新增 `FileStreamingSubscription`，复用 CDC spool 与条件 checkpoint 保存事件、watermark、发布完成标记及未确认批次；重开协调中断的 ACK，恢复扫描协作检查取消/操作超时，支持有界容量、可取消背压、稳定投递 ID 与至少一次重投，保留窗口聚合、远程运维和分布式边界。
+- **M43 #390/#395 本地强杀恢复（2026-09-30）**：新增 5 项真实子进程 hard-kill/reopen 场景，覆盖文档源捕获续传与源/副本对账、部分快照页续传、物化已提交但 spool 未确认、容量为 1 的尾批回收，以及订阅未确认批次稳定 ID 重投和确认后再重开；不替代真机掉电、远程拓扑或长期 gate。
+- **M42 SQL-002 关系查询物化准入（2026-09-30）**：`SqlExecutionOptions` 新增 opt-in 累计物化行数/估算字节上限，关系 SELECT、CTE/子查询、集合、阻塞阶段及 EXPLAIN 共用根预算；超限拒绝完整查询，DML RETURNING、用户回调和未支持模型在执行前拒绝。估算不等于 CLR heap 硬上限，REST 预览、端到端流式与生产性能证据继续独立。
+- **M43 #397 发布证据汇总工具**：新增固定八组清单与 `verify-m43-release-evidence.ps1`，重新调用既有候选/nightly/M19/M25/Graph verifier，保存原始结果与 SHA-256；绑定 M19 仓库/run 身份、复核验证后原始文件、拒绝链接及重叠输出目录，M40 从干净候选源码重新构建 evaluator。公开 `PASS`/`NOT_READY`/`DEFERRED`，保留 M25 attestation 缺口及未取得的模型/安装/长稳证据，30 项本地脚本合同接入 CI。见[汇总合同](docs/m43-release-evidence.md)。
+- **M43 #398/#401 资料草稿与复现索引**：新增[DBDB.io/DB-Engines 中英文资料包](docs/ecosystem-directory-dossier.md)和[生态样例/基准复现索引](docs/ecosystem-reproduction-index.md)，与十四能力索引保持分类、`partial` 和 Graph `beta` 口径；外部提交仍为 `NOT_SUBMITTED`，不宣称收录、排名或发布级基准完成。
 - 管理后台新增“关于”页面与 `/v1/system/about` 只读端点，展示 SonnetDB 版本、版权、GitHub/Gitee 仓库、企微群二维码，以及服务主机的操作系统、CPU、内存、磁盘和 GPU 快照。
 - 新增龙芯 `linux/loong64` 专用 Docker 运行镜像配方，使用已验证的原生 .NET 10 runtime 与发布产物、固定的 Debian Loong 基础镜像和容器内健康检查；构建与部署步骤见 `deploy/loongarch64/README.md`。
 - 完善 4.0.0 中文候选发行说明，汇总关系 SQL、ADO.NET 写入、向量与图片处理、多模型客户端和部署变化，补充主版本升级建议及带提交身份的候选验证结果；保留 Graph Beta、七天 scheduled 和现场验收边界，并加入发布文档索引。
