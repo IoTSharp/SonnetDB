@@ -89,119 +89,81 @@ public sealed class SpanWriterTests
 
     // ────────────────────────────── WriteInt16 / WriteUInt16 ──────────────────────────────
 
-    [Theory]
-    [InlineData(short.MinValue)]
-    [InlineData(-1)]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(short.MaxValue)]
-    public void WriteInt16_AdvancesPositionByTwo(short value)
+    [Fact]
+    public void WriteInt16_AdvancesPositionByTwo()
     {
         Span<byte> buf = stackalloc byte[8];
         var writer = new SpanWriter(buf);
-        writer.WriteInt16(value);
+        writer.WriteInt16(1);
         Assert.Equal(2, writer.Position);
     }
 
-    [Theory]
-    [InlineData(ushort.MinValue)]
-    [InlineData(1)]
-    [InlineData(ushort.MaxValue)]
-    public void WriteUInt16_AdvancesPositionByTwo(ushort value)
+    [Fact]
+    public void WriteUInt16_AdvancesPositionByTwo()
     {
         Span<byte> buf = stackalloc byte[8];
         var writer = new SpanWriter(buf);
-        writer.WriteUInt16(value);
+        writer.WriteUInt16(1);
         Assert.Equal(2, writer.Position);
     }
 
     // ────────────────────────────── WriteInt32 / WriteUInt32 ──────────────────────────────
 
-    [Theory]
-    [InlineData(int.MinValue)]
-    [InlineData(-1)]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(int.MaxValue)]
-    public void WriteInt32_AdvancesPositionByFour(int value)
+    [Fact]
+    public void WriteInt32_AdvancesPositionByFour()
     {
         Span<byte> buf = stackalloc byte[8];
         var writer = new SpanWriter(buf);
-        writer.WriteInt32(value);
+        writer.WriteInt32(1);
         Assert.Equal(4, writer.Position);
     }
 
-    [Theory]
-    [InlineData(0u)]
-    [InlineData(1u)]
-    [InlineData(uint.MaxValue)]
-    public void WriteUInt32_AdvancesPositionByFour(uint value)
+    [Fact]
+    public void WriteUInt32_AdvancesPositionByFour()
     {
         Span<byte> buf = stackalloc byte[8];
         var writer = new SpanWriter(buf);
-        writer.WriteUInt32(value);
+        writer.WriteUInt32(1);
         Assert.Equal(4, writer.Position);
     }
 
     // ────────────────────────────── WriteInt64 / WriteUInt64 ──────────────────────────────
 
-    [Theory]
-    [InlineData(long.MinValue)]
-    [InlineData(-1L)]
-    [InlineData(0L)]
-    [InlineData(1L)]
-    [InlineData(long.MaxValue)]
-    public void WriteInt64_AdvancesPositionByEight(long value)
+    [Fact]
+    public void WriteInt64_AdvancesPositionByEight()
     {
         Span<byte> buf = stackalloc byte[16];
         var writer = new SpanWriter(buf);
-        writer.WriteInt64(value);
+        writer.WriteInt64(1);
         Assert.Equal(8, writer.Position);
     }
 
-    [Theory]
-    [InlineData(0ul)]
-    [InlineData(1ul)]
-    [InlineData(ulong.MaxValue)]
-    public void WriteUInt64_AdvancesPositionByEight(ulong value)
+    [Fact]
+    public void WriteUInt64_AdvancesPositionByEight()
     {
         Span<byte> buf = stackalloc byte[16];
         var writer = new SpanWriter(buf);
-        writer.WriteUInt64(value);
+        writer.WriteUInt64(1);
         Assert.Equal(8, writer.Position);
     }
 
     // ────────────────────────────── WriteSingle / WriteDouble ──────────────────────────────
 
-    [Theory]
-    [InlineData(0.0f)]
-    [InlineData(1.0f)]
-    [InlineData(float.MinValue)]
-    [InlineData(float.MaxValue)]
-    [InlineData(float.NaN)]
-    [InlineData(float.PositiveInfinity)]
-    [InlineData(float.NegativeInfinity)]
-    public void WriteSingle_AdvancesPositionByFour(float value)
+    [Fact]
+    public void WriteSingle_AdvancesPositionByFour()
     {
         Span<byte> buf = stackalloc byte[8];
         var writer = new SpanWriter(buf);
-        writer.WriteSingle(value);
+        writer.WriteSingle(1.0f);
         Assert.Equal(4, writer.Position);
     }
 
-    [Theory]
-    [InlineData(0.0)]
-    [InlineData(1.0)]
-    [InlineData(double.MinValue)]
-    [InlineData(double.MaxValue)]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    [InlineData(double.NegativeInfinity)]
-    public void WriteDouble_AdvancesPositionByEight(double value)
+    [Fact]
+    public void WriteDouble_AdvancesPositionByEight()
     {
         Span<byte> buf = stackalloc byte[16];
         var writer = new SpanWriter(buf);
-        writer.WriteDouble(value);
+        writer.WriteDouble(1.0);
         Assert.Equal(8, writer.Position);
     }
 
@@ -301,6 +263,7 @@ public sealed class SpanWriterTests
         var writer = new SpanWriter(buf);
         writer.WriteVarUInt32(value);
         Assert.Equal(expectedBytes, writer.Position);
+        Assert.Equal(expectedBytes, SpanWriter.MeasureVarUInt32(value));
     }
 
     [Theory]
@@ -318,6 +281,7 @@ public sealed class SpanWriterTests
         var writer = new SpanWriter(buf);
         writer.WriteVarUInt64(value);
         Assert.Equal(expectedBytes, writer.Position);
+        Assert.Equal(expectedBytes, SpanWriter.MeasureVarUInt64(value));
     }
 
     // ────────────────────────────── WriteString ──────────────────────────────

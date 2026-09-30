@@ -50,12 +50,13 @@ public sealed class LegacyWalUpgradeTests : IDisposable
         const int recordCount = 100;
         var tags = new Dictionary<string, string> { ["host"] = "legacy" };
 
-        // 创建旧格式 WAL（active.SDBWAL，startLsn=1）
+        const long startLsn = 42;
+        // 创建非默认起始 LSN 的旧格式 WAL。
         string legacyPath = Path.Combine(walDir, WalSegmentLayout.LegacyActiveFileName);
         var preCatalog = new SonnetDB.Catalog.SeriesCatalog();
         var entry = preCatalog.GetOrAdd("cpu", tags);
 
-        using (var writer = WalWriter.Open(legacyPath, startLsn: 1))
+        using (var writer = WalWriter.Open(legacyPath, startLsn: startLsn))
         {
             writer.AppendCreateSeries(entry.Id, "cpu", tags);
             for (int i = 0; i < recordCount; i++)
@@ -71,6 +72,7 @@ public sealed class LegacyWalUpgradeTests : IDisposable
 
         // 验证：wal/ 目录中无 active.SDBWAL，只有 {startLsn:X16}.SDBWAL
         Assert.False(File.Exists(legacyPath), "Legacy active.SDBWAL should not exist after upgrade");
+        Assert.True(File.Exists(WalSegmentLayout.SegmentPath(walDir, startLsn)));
 
         var walSegs = WalSegmentLayout.Enumerate(walDir);
         Assert.NotEmpty(walSegs);
@@ -83,44 +85,4 @@ public sealed class LegacyWalUpgradeTests : IDisposable
         Assert.Equal(recordCount, (int)db.MemTable.PointCount);
     }
 
-    [Fact]
-    public void Open_WithLegacyActiveWal_FirstLsnPreservedInNewFileName()
-    {
-        string walDir = TsdbPaths.WalDir(_tempDir);
-        Directory.CreateDirectory(walDir);
-        Directory.CreateDirectory(TsdbPaths.SegmentsDir(_tempDir));
-
-        // 创建 startLsn=42 的旧格式 WAL
-        string legacyPath = Path.Combine(walDir, WalSegmentLayout.LegacyActiveFileName);
-        using (var writer = WalWriter.Open(legacyPath, startLsn: 42))
-        {
-            writer.AppendWritePoint(1UL, 1000L, "v", FieldValue.FromDouble(1.0));
-            writer.Sync();
-        }
-
-        using var db = Tsdb.Open(MakeOptions());
-
-        // 验证新文件名含有 startLsn=42（0x2A）
-        string expectedNewPath = WalSegmentLayout.SegmentPath(walDir, 42L);
-        Assert.True(File.Exists(expectedNewPath),
-            $"Expected segment at {expectedNewPath}");
-        Assert.False(File.Exists(legacyPath));
-    }
-
-    [Fact]
-    public void Open_NoLegacyFile_WorksNormally()
-    {
-        // 无 legacy 文件的情况，正常启动
-        using var db = Tsdb.Open(MakeOptions());
-
-        string walDir = TsdbPaths.WalDir(_tempDir);
-        string legacyPath = Path.Combine(walDir, WalSegmentLayout.LegacyActiveFileName);
-
-        // legacy 文件不应存在
-        Assert.False(File.Exists(legacyPath));
-
-        // WAL 目录中应有一个 segment 文件
-        var walSegs = WalSegmentLayout.Enumerate(walDir);
-        Assert.NotEmpty(walSegs);
-    }
 }

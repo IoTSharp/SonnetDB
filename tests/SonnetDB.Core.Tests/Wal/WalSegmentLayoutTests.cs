@@ -31,14 +31,6 @@ public sealed class WalSegmentLayoutTests : IDisposable
     }
 
     [Fact]
-    public void SegmentFileName_16HexDigits_UpperCase()
-    {
-        string name = WalSegmentLayout.SegmentFileName(0xABCDEF);
-        Assert.Equal("0000000000ABCDEF.SDBWAL", name);
-        Assert.Equal(16 + 7, name.Length); // 16 hex + ".SDBWAL"
-    }
-
-    [Fact]
     public void SegmentPath_CombinesDirectoryAndFileName()
     {
         string dir = "/tmp/wal";

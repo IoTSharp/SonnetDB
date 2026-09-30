@@ -371,37 +371,6 @@ public sealed class SpanRoundTripTests
         });
     }
 
-    [Theory]
-    [InlineData(0u, 1)]
-    [InlineData(127u, 1)]
-    [InlineData(128u, 2)]
-    [InlineData(16383u, 2)]
-    [InlineData(16384u, 3)]
-    [InlineData(uint.MaxValue, 5)]
-    public void MeasureVarUInt32_MatchesWrittenLength(uint value, int expected)
-    {
-        Assert.Equal(expected, SpanWriter.MeasureVarUInt32(value));
-        Span<byte> buf = stackalloc byte[8];
-        var writer = new SpanWriter(buf);
-        writer.WriteVarUInt32(value);
-        Assert.Equal(expected, writer.Position);
-    }
-
-    [Theory]
-    [InlineData(0ul, 1)]
-    [InlineData(127ul, 1)]
-    [InlineData(128ul, 2)]
-    [InlineData((ulong)uint.MaxValue, 5)]
-    [InlineData(ulong.MaxValue, 10)]
-    public void MeasureVarUInt64_MatchesWrittenLength(ulong value, int expected)
-    {
-        Assert.Equal(expected, SpanWriter.MeasureVarUInt64(value));
-        Span<byte> buf = stackalloc byte[16];
-        var writer = new SpanWriter(buf);
-        writer.WriteVarUInt64(value);
-        Assert.Equal(expected, writer.Position);
-    }
-
     // ────────────────────────────── 综合 block round-trip ──────────────────────────────
 
     /// <summary>

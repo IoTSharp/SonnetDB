@@ -350,20 +350,6 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         Assert.Equal(0, await context.Users.CountAsync());
     }
 
-    [Fact]
-    [Trait("Category", "Documentation")]
-    public void UnsupportedList_ForApplicationDbContextCompat_DocumentsCurrentBoundaries()
-    {
-        // 文档表一致性检查；不运行 SonnetDB。
-        var unsupported = IoTSharpCompatMatrix.RelationalSonnetDbUnsupported;
-
-        Assert.Contains(unsupported, item => item.Contains("HealthChecks UI", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(unsupported, item => item.Contains("migrations history has no", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(unsupported, item => item.Contains("distributed cross-process migration locking", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(unsupported, item => item.Contains("production migration baseline", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(unsupported, item => item.Contains("StartsWith", StringComparison.OrdinalIgnoreCase));
-    }
-
     private async Task EnsureSchemaAsync()
     {
         await using var scope = _provider.CreateAsyncScope();

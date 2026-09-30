@@ -445,6 +445,8 @@
 
 ### Removed
 
+- 清理无调用的 KV/Table 内部旧入口、已废弃的 `WalTruncator.SwapAndTruncate`、3.0.1 API 转发兼容成员以及对象读取结果的五参兼容构造；旧 WAL/state 持久化格式读取路径仍保留。
+- 删除不运行后端的静态 IoTSharp 兼容矩阵自检、重复 IO/WAL/Admin/窗口测试、脚本字符串检查，以及被真实 round-trip 或 artifact verifier 覆盖的参数展开。
 - 按用户要求删除 `artifacts/system-performance-20260901` 的 JSON 与 Markdown 报告，撤回其性能证据地位；历史说明、README 和 ROADMAP 同步标明不能作为当前性能或验收依据。
 
 ## [3.1.0] - 2026-08-24
