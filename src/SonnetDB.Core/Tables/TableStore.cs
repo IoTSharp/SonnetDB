@@ -47,6 +47,8 @@ public sealed partial class TableStore : IDisposable
             keyspace.Generation,
             schemaFingerprint))
         {
+            // 旧格式迁移会按 key 分页并写回；先建立一次有序覆盖层，避免每页重新排序全部剩余 key。
+            keyspace.EnableOrderedOverlayScans(CancellationToken.None);
             MigrateLegacyRowsLocked();
             keyspace.SyncWalForMaintenance();
             TableStoreMaintenanceFile.MarkLegacyMigrationComplete(

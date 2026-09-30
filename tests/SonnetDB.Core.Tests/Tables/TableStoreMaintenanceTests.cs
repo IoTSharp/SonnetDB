@@ -210,6 +210,43 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         store.Dispose();
     }
 
+    /// <summary>验证旧格式跨多页迁移时有序 key 能承受逐行写入、删除，且重开不重复迁移。</summary>
+    [Fact]
+    public void LegacyMigration_MultiplePages_PreservesEveryRowAndCompletesOnce()
+    {
+        const int rowCount = 600;
+        string path = Path.Combine(_root, "multi-page-legacy-table");
+        var schema = SimpleSchema("multi_page_legacy_table");
+        var options = KvOptions.Default with
+        {
+            AutoCheckpointEnabled = false,
+            SyncWalOnEveryWrite = false,
+        };
+        var keyspace = KvKeyspace.Open("table.multi_page_legacy_table", path, options);
+        for (int index = 0; index < rowCount; index++)
+        {
+            byte[] primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, [(long)index]);
+            keyspace.Put(primaryKey, TableRowCodec.Encode(schema, [(long)index, $"legacy-{index}"]));
+        }
+
+        using (var store = new TableStore(schema, keyspace))
+        {
+            Assert.Equal(rowCount, store.RowCount);
+            for (int index = 0; index < rowCount; index++)
+            {
+                byte[] primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, [(long)index]);
+                Assert.Null(keyspace.Get(primaryKey));
+                Assert.Equal($"legacy-{index}", store.GetByPrimaryKey([(long)index])!.Values[1]);
+            }
+        }
+
+        var reopenedKeyspace = KvKeyspace.Open("table.multi_page_legacy_table", path, options);
+        long migratedSequence = reopenedKeyspace.LastSequence;
+        using var reopenedStore = new TableStore(schema, reopenedKeyspace);
+        Assert.Equal(migratedSequence, reopenedKeyspace.LastSequence);
+        Assert.Equal(rowCount, reopenedStore.RowCount);
+    }
+
     /// <summary>验证缺少 clean token 但索引完全一致时不追加 WAL，也不调度后台检查点。</summary>
     [Fact]
     public void MissingCleanToken_ConsistentIndexes_ProducesNoWritesOrCheckpoint()
