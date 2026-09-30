@@ -229,7 +229,7 @@ public sealed class RemoteStandardJoinTests : IAsyncLifetime
     /// <summary>有冲突的来源列必须限定；未知排序列明确报错。</summary>
     [Theory]
     [InlineData("SELECT id FROM left_rows l FULL JOIN right_rows r ON l.join_key = r.join_key", "存在歧义")]
-    [InlineData("SELECT l.id FROM left_rows l FULL JOIN right_rows r ON l.join_key = r.join_key ORDER BY absent_column", "不存在")]
+    [InlineData("SELECT l.id FROM left_rows l FULL JOIN right_rows r ON l.join_key = r.join_key ORDER BY absent_column", "未知列")]
     public async Task FullJoin_AmbiguousColumnOrUnknownSortColumn_RejectsInvalidReference(string sql, string diagnostic)
     {
         foreach (string mode in Modes)
