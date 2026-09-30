@@ -21,24 +21,10 @@ internal static class KvStateFile
     public static void SaveSnapshot(
         string path,
         long sequence,
-        IReadOnlyDictionary<byte[], KvValueEntry> values,
-        long generation = 0)
-        => SaveSnapshot(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count, generation);
-
-    public static void SaveSnapshot(
-        string path,
-        long sequence,
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> orderedValues,
         int count,
         long generation = 0)
         => Save(path, SnapshotMagic, sequence, orderedValues, count, generation);
-
-    public static void SaveSegment(
-        string path,
-        long sequence,
-        IReadOnlyDictionary<byte[], KvValueEntry> values,
-        long generation = 0)
-        => SaveSegment(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count, generation);
 
     public static void SaveSegment(
         string path,
@@ -121,73 +107,6 @@ internal static class KvStateFile
             throw new InvalidDataException("KV state file contains trailing data.");
 
         return new KvDiskState(path, header.Sequence, header.Generation, entries, readBudget);
-    }
-
-    public static KvStateSnapshot Load(string path)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var header = ReadHeader(fs);
-        var values = new Dictionary<byte[], KvValueEntry>(header.Count, KvKeyComparer.Instance);
-        int entryPrefixBytes = GetEntryPrefixBytes(header.Version);
-        byte[] prefixBuffer = new byte[entryPrefixBytes];
-        byte[] crcBuffer = new byte[4];
-        byte[] previousKey = [];
-        for (int i = 0; i < header.Count; i++)
-        {
-            Span<byte> prefix = prefixBuffer;
-            if (ReadExact(fs, prefix) < entryPrefixBytes)
-                throw new InvalidDataException("KV state entry prefix is truncated.");
-
-            int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix[..4]);
-            int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(4, 4));
-            long entryVersion = BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(8, 8));
-            long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
-                ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
-                : 0;
-            int sharedKeyBytes = header.Version >= 5
-                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(24, 4))
-                : 0;
-            int storedKeyBytes = header.Version >= 5
-                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(28, 4))
-                : keyLength;
-            ValidateEntryHeader(
-                keyLength,
-                valueLength,
-                expiresAtUtcTicks,
-                sharedKeyBytes,
-                storedKeyBytes,
-                previousKey.Length,
-                header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
-
-            byte[] key = new byte[keyLength];
-            previousKey.AsSpan(0, sharedKeyBytes).CopyTo(key);
-            if (ReadExact(fs, key.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
-                throw new InvalidDataException("KV state entry key is truncated.");
-            byte[] value = new byte[valueLength];
-            if (ReadExact(fs, value) < valueLength)
-                throw new InvalidDataException("KV state entry value is truncated.");
-
-            if (ReadExact(fs, crcBuffer) < crcBuffer.Length)
-                throw new InvalidDataException("KV state entry CRC is truncated.");
-
-            uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcBuffer);
-            uint actualCrc = ComputeEntryCrc(key, value);
-            if (expectedCrc != actualCrc)
-                throw new InvalidDataException("KV state entry CRC mismatch.");
-
-            DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
-                ? new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero)
-                : null;
-            values[key] = new KvValueEntry(value, entryVersion, expiresAtUtc);
-            previousKey = key;
-        }
-
-        if (fs.Position != fs.Length)
-            throw new InvalidDataException("KV state file contains trailing data.");
-
-        return new KvStateSnapshot(header.Sequence, header.Generation, values, diskState: null);
     }
 
     private static void Save(
@@ -467,12 +386,6 @@ internal sealed class KvDiskState : IDisposable
 
         return Read(_entries[index], cancellationToken);
     }
-
-    /// <summary>
-    /// 兼容旧前缀分页扫描，并严格从指定 key 之后继续读取。
-    /// </summary>
-    public IEnumerable<KvDiskIndexEntry> ScanPrefixAfter(byte[] prefix, byte[]? afterKey)
-        => ScanRange(prefix, startInclusive: null, endExclusive: null, afterKey);
 
     /// <summary>
     /// 按前缀和半开区间扫描磁盘索引，并严格排除 continuation key。

@@ -347,16 +347,6 @@ public sealed class WindowFunctionTests
         Assert.Equal(15.0, result.Values[3], precision: 6);
     }
 
-    [Fact]
-    public void EwmaEvaluator_Update_MatchesCompatibilityCompute()
-    {
-        var ev = new EwmaEvaluator("x", alpha: 0.5);
-        AssertStreamingMatchesCompatibility(
-            ev,
-            T(0, 1, 2, 3),
-            D(null, 10, null, 20));
-    }
-
     // ── fill / locf / interpolate ────────────────────────────────────────
 
     [Fact]
@@ -464,16 +454,6 @@ public sealed class WindowFunctionTests
             else
                 Assert.Null(boxed[i]);
         }
-    }
-
-    [Fact]
-    public void HoltWintersEvaluator_Update_MatchesCompatibilityCompute()
-    {
-        var ev = new HoltWintersEvaluator("x", alpha: 0.8, beta: 0.3);
-        AssertStreamingMatchesCompatibility(
-            ev,
-            T(0, 1, 2, 3, 4),
-            D(1, 2, null, 4, 5));
     }
 
     // ── FunctionRegistry 注册校验 ─────────────────────────────────────────

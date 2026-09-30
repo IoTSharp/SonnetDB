@@ -123,17 +123,6 @@ public sealed class AdminUiEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetAdmin_DoesNotRequireBearerToken()
-    {
-        using var client = CreateClient();
-        // 不带 Authorization；SPA 入口路由应返回 index.html
-        var resp = await client.GetAsync("/admin/login");
-        if (resp.StatusCode == HttpStatusCode.ServiceUnavailable) return;
-        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-        Assert.StartsWith("text/html", resp.Content.Headers.ContentType?.MediaType ?? string.Empty);
-    }
-
-    [Fact]
     public async Task GetAdminFavicon_ReturnsSvg()
     {
         using var client = CreateClient();

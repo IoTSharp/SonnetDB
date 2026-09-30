@@ -1185,13 +1185,6 @@ public sealed partial class TableStore : IDisposable
         }
     }
 
-    /// <summary>兼容旧的完整等值覆盖扫描入口。</summary>
-    internal IEnumerable<TableRow> EnumerateCoveredIndexEquality(
-        TableIndex index,
-        IReadOnlyList<object?> indexColumnValues,
-        int? limit = null)
-        => EnumerateCoveredIndex(index, indexColumnValues, range: null, limit: limit);
-
     /// <summary>
     /// 按范围索引的物理区间惰性读取候选行；不改变范围值的逻辑排序语义。
     /// </summary>

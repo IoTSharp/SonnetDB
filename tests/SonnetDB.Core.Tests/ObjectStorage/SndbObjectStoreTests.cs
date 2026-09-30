@@ -157,47 +157,6 @@ public sealed class SndbObjectStoreTests : IDisposable
     }
 
     /// <summary>
-    /// 验证改造前的五参数构造函数和五元素解构继续保持二进制与源码兼容。
-    /// </summary>
-    [Fact]
-    public void SndbObjectReadResult_LegacyFiveParameterApi_RemainsAvailable()
-    {
-        var info = new SndbObjectInfo(
-            "test-bucket",
-            "videos/legacy.bin",
-            "v1",
-            "application/octet-stream",
-            42,
-            "etag",
-            "sha256",
-            IsDeleteMarker: false,
-            DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch,
-            new Dictionary<string, string>(),
-            new Dictionary<string, string>());
-
-        var result = new SndbObjectReadResult(info, Stream.Null, 3, 4, true);
-        var (actualInfo, actualContent, offset, length, isRange) = result;
-
-        Assert.Same(info, actualInfo);
-        Assert.Same(Stream.Null, actualContent);
-        Assert.Equal(3, offset);
-        Assert.Equal(4, length);
-        Assert.True(isRange);
-        Assert.Equal(0, result.TotalLength);
-        var legacyConstructor = Assert.Single(
-            typeof(SndbObjectReadResult).GetConstructors(),
-            static constructor => constructor.GetParameters().Length == 5);
-        var legacyDeconstruct = Assert.Single(
-            typeof(SndbObjectReadResult).GetMethods(),
-            static method => method.Name == nameof(SndbObjectReadResult.Deconstruct)
-                && method.GetParameters().Length == 5);
-        string[] expectedParameterNames = ["Info", "Content", "Offset", "Length", "IsRange"];
-        Assert.Equal(expectedParameterNames, legacyConstructor.GetParameters().Select(static parameter => parameter.Name));
-        Assert.Equal(expectedParameterNames, legacyDeconstruct.GetParameters().Select(static parameter => parameter.Name));
-    }
-
-    /// <summary>
     /// 验证元数据原子批次在 WAL 预算拒绝时不会遗留最终对象或可见索引。
     /// </summary>
     [Fact]

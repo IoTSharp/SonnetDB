@@ -85,38 +85,7 @@ public sealed record SndbObjectReadResult(
     long Offset,
     long Length,
     bool IsRange,
-    long TotalLength = 0)
-{
-    /// <summary>
-    /// 使用原有五参数 API 创建对象读取结果，完整对象长度未知时保持为零。
-    /// </summary>
-    public SndbObjectReadResult(
-        SndbObjectInfo Info,
-        Stream Content,
-        long Offset,
-        long Length,
-        bool IsRange)
-        : this(Info, Content, Offset, Length, IsRange, TotalLength: 0)
-    {
-    }
-
-    /// <summary>
-    /// 按原有五元素形式解构读取结果，兼容已编译的旧调用方。
-    /// </summary>
-    public void Deconstruct(
-        out SndbObjectInfo Info,
-        out Stream Content,
-        out long Offset,
-        out long Length,
-        out bool IsRange)
-    {
-        Info = this.Info;
-        Content = this.Content;
-        Offset = this.Offset;
-        Length = this.Length;
-        IsRange = this.IsRange;
-    }
-}
+    long TotalLength = 0);
 
 /// <summary>
 /// 对象条件写入的前置条件。
