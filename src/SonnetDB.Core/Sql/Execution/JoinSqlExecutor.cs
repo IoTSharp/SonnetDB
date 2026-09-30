@@ -26,10 +26,10 @@ internal static class JoinSqlExecutor
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
 
-        var measurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
+        var measurementSchema = tsdb.Measurements.Resolve(statement.Measurement, statement.MeasurementIsQuoted)
             ?? throw new InvalidOperationException(
                 $"JOIN 左侧必须是 measurement，'{statement.Measurement}' 不存在或不是 measurement。");
-        var tableSchema = tsdb.Tables.Catalog.TryGet(join.TableName)
+        var tableSchema = tsdb.Tables.Catalog.Resolve(join.TableName, join.TableNameIsQuoted)
             ?? throw new InvalidOperationException(
                 $"JOIN 右侧必须是关系表，table '{join.TableName}' 不存在。");
 
@@ -37,7 +37,7 @@ internal static class JoinSqlExecutor
         var joinKeys = ResolveJoinKeys(join.On, scope);
         var filterPlan = PlanFilters(statement.Where, scope);
         var measurementPushdown = filterPlan.MeasurementWhere;
-        var matchedSeries = tsdb.Catalog.Find(statement.Measurement, measurementPushdown.TagFilter);
+        var matchedSeries = tsdb.Catalog.Find(measurementSchema.Name, measurementPushdown.TagFilter);
 
         var tableCandidateRows = TableSqlExecutor.LoadSelectCandidateRows(
             tsdb.Tables.Open(tableSchema.Name),
@@ -115,17 +115,17 @@ internal static class JoinSqlExecutor
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
 
-        var measurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
+        var measurementSchema = tsdb.Measurements.Resolve(statement.Measurement, statement.MeasurementIsQuoted)
             ?? throw new InvalidOperationException(
                 $"JOIN 左侧必须是 measurement，'{statement.Measurement}' 不存在或不是 measurement。");
-        var tableSchema = tsdb.Tables.Catalog.TryGet(join.TableName)
+        var tableSchema = tsdb.Tables.Catalog.Resolve(join.TableName, join.TableNameIsQuoted)
             ?? throw new InvalidOperationException(
                 $"JOIN 右侧必须是关系表，table '{join.TableName}' 不存在。");
 
         var scope = JoinScope.Create(statement, join, measurementSchema, tableSchema);
         _ = ResolveJoinKeys(join.On, scope);
         var filterPlan = PlanFilters(statement.Where, scope);
-        var matchedSeries = tsdb.Catalog.Find(statement.Measurement, filterPlan.MeasurementWhere.TagFilter);
+        var matchedSeries = tsdb.Catalog.Find(measurementSchema.Name, filterPlan.MeasurementWhere.TagFilter);
         var tableStore = tsdb.Tables.Open(tableSchema.Name);
         TableAccessCostEstimate tableEstimate = ExplainTableAccessCost(
             tableStore,
@@ -160,18 +160,18 @@ internal static class JoinSqlExecutor
             throw new InvalidOperationException("JOIN ON 等值条件必须连接 measurement 列和关系表列。");
 
         var measurementRef = leftSide.Source == JoinSource.Measurement ? left : right;
-        var tableRef = leftSide.Source == JoinSource.Table ? left : right;
-
-        var measurementColumn = scope.MeasurementSchema.TryGetColumn(measurementRef.Name)
-            ?? throw new InvalidOperationException($"JOIN ON 引用了未知 measurement 列 '{measurementRef.Name}'。");
+        var measurementColumn = leftSide.Source == JoinSource.Measurement
+            ? leftSide.MeasurementColumn!
+            : rightSide.MeasurementColumn!;
         if (measurementColumn.Role != MeasurementColumnRole.Tag)
         {
             throw new InvalidOperationException(
                 $"MM4 JOIN 第一版要求 measurement 侧连接键是 TAG 列；'{measurementRef.Name}' 是 {measurementColumn.Role} 列。");
         }
 
-        var tableColumn = scope.TableSchema.TryGetColumn(tableRef.Name)
-            ?? throw new InvalidOperationException($"JOIN ON 引用了未知 table 列 '{tableRef.Name}'。");
+        var tableColumn = leftSide.Source == JoinSource.Table
+            ? leftSide.TableColumn!
+            : rightSide.TableColumn!;
         return new JoinKeys(measurementColumn, tableColumn);
     }
 
@@ -246,7 +246,9 @@ internal static class JoinSqlExecutor
     }
 
     internal static CrossModelFilterPlan PlanFilters(SqlExpression? where, JoinScope scope)
-        => CrossModelFilterPlanner.Plan(where, scope.MeasurementSchema, leaf =>
+        => CrossModelFilterPlanner.Plan(
+            where is null ? null : SqlIdentifierExpressionBinder.Rewrite(where, scope.BindIdentifier),
+            scope.MeasurementSchema, leaf =>
         {
             var result = CrossModelFilterSource.None;
             foreach (var identifier in EnumerateIdentifiers(leaf))
@@ -378,7 +380,7 @@ internal static class JoinSqlExecutor
         projections.Add(Projection.Column("time", new IdentifierExpression("time", scope.MeasurementAlias), ResolvedIdentifier.MeasurementTime));
         foreach (var column in scope.MeasurementSchema.Columns)
         {
-            var identifier = new IdentifierExpression(column.Name, scope.MeasurementAlias);
+            var identifier = new IdentifierExpression(column.Name, scope.MeasurementAlias) { IsQuoted = true };
             projections.Add(Projection.Column(
                 scope.TableSchema.TryGetColumn(column.Name) is null ? column.Name : $"{scope.MeasurementAlias}.{column.Name}",
                 identifier,
@@ -387,7 +389,7 @@ internal static class JoinSqlExecutor
 
         foreach (var column in scope.TableSchema.Columns)
         {
-            var identifier = new IdentifierExpression(column.Name, scope.TableAlias);
+            var identifier = new IdentifierExpression(column.Name, scope.TableAlias) { IsQuoted = true };
             projections.Add(Projection.Column(
                 scope.MeasurementSchema.TryGetColumn(column.Name) is null ? column.Name : $"{scope.TableAlias}.{column.Name}",
                 identifier,
@@ -695,11 +697,10 @@ internal static class JoinSqlExecutor
 
     private static string FormatIdentifierColumnName(IdentifierExpression identifier, ResolvedIdentifier resolved)
     {
+        string columnName = resolved.MeasurementColumn?.Name ?? resolved.TableColumn?.Name ?? "time";
         if (identifier.Qualifier is not null)
-            return $"{identifier.Qualifier}.{identifier.Name}";
-        return resolved.Source == JoinSource.Measurement && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase)
-            ? "time"
-            : identifier.Name;
+            return $"{identifier.Qualifier}.{columnName}";
+        return columnName;
     }
 
     private static string FormatLiteralColumnName(LiteralExpression literal) => literal.Kind switch
@@ -877,11 +878,11 @@ internal static class JoinSqlExecutor
             if (identifier.Qualifier is not null)
                 return ResolveQualified(identifier);
 
-            if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+            if (IsMeasurementTime(identifier))
                 return ResolvedIdentifier.MeasurementTime;
 
-            var measurementColumn = MeasurementSchema.TryGetColumn(identifier.Name);
-            var tableColumn = TableSchema.TryGetColumn(identifier.Name);
+            var measurementColumn = MeasurementSchema.Resolve(identifier.Name, identifier.IsQuoted);
+            var tableColumn = TableSchema.Resolve(identifier.Name, identifier.IsQuoted);
             if (measurementColumn is not null && tableColumn is not null)
             {
                 throw new InvalidOperationException(
@@ -896,20 +897,38 @@ internal static class JoinSqlExecutor
             throw new InvalidOperationException($"JOIN 查询引用了未知列 '{identifier.Name}'。");
         }
 
+        public IdentifierExpression BindIdentifier(IdentifierExpression identifier)
+        {
+            ResolvedIdentifier resolved = Resolve(identifier);
+            return identifier with
+            {
+                Name = resolved.MeasurementColumn?.Name ?? resolved.TableColumn?.Name ?? "time",
+                IsQuoted = resolved.MeasurementColumn is not null || resolved.TableColumn is not null,
+                Qualifier = identifier.Qualifier is null
+                    ? null
+                    : resolved.Source == JoinSource.Measurement ? MeasurementAlias : TableAlias,
+                QualifierIsQuoted = identifier.Qualifier is not null,
+            };
+        }
+
         private ResolvedIdentifier ResolveQualified(IdentifierExpression identifier)
         {
-            if (MatchesMeasurementQualifier(identifier.Qualifier!))
+            bool measurementQualifier = MatchesMeasurementQualifier(identifier.Qualifier!, identifier.QualifierIsQuoted);
+            bool tableQualifier = MatchesTableQualifier(identifier.Qualifier!, identifier.QualifierIsQuoted);
+            if (measurementQualifier && tableQualifier)
+                throw new InvalidOperationException($"JOIN 查询中的限定名称 '{identifier.Qualifier}' 存在大小写歧义；请使用双引号精确引用或显式别名。");
+            if (measurementQualifier)
             {
-                if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+                if (IsMeasurementTime(identifier))
                     return ResolvedIdentifier.MeasurementTime;
-                var column = MeasurementSchema.TryGetColumn(identifier.Name)
+                var column = MeasurementSchema.Resolve(identifier.Name, identifier.IsQuoted)
                     ?? throw new InvalidOperationException($"JOIN 查询引用了未知 measurement 列 '{identifier.Name}'。");
                 return new ResolvedIdentifier(JoinSource.Measurement, MeasurementColumn: column);
             }
 
-            if (MatchesTableQualifier(identifier.Qualifier!))
+            if (tableQualifier)
             {
-                var column = TableSchema.TryGetColumn(identifier.Name)
+                var column = TableSchema.Resolve(identifier.Name, identifier.IsQuoted)
                     ?? throw new InvalidOperationException($"JOIN 查询引用了未知 table 列 '{identifier.Name}'。");
                 return new ResolvedIdentifier(JoinSource.Table, TableColumn: column);
             }
@@ -917,13 +936,17 @@ internal static class JoinSqlExecutor
             throw new InvalidOperationException($"JOIN 查询引用了未知别名 '{identifier.Qualifier}'。");
         }
 
-        private bool MatchesMeasurementQualifier(string qualifier)
-            => string.Equals(qualifier, MeasurementAlias, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(qualifier, MeasurementSchema.Name, StringComparison.OrdinalIgnoreCase);
+        private bool IsMeasurementTime(IdentifierExpression identifier)
+            => !identifier.IsQuoted
+                && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase);
 
-        private bool MatchesTableQualifier(string qualifier)
-            => string.Equals(qualifier, TableAlias, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(qualifier, TableSchema.Name, StringComparison.OrdinalIgnoreCase);
+        private bool MatchesMeasurementQualifier(string qualifier, bool quoted)
+            => string.Equals(qualifier, MeasurementAlias, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+               || string.Equals(qualifier, MeasurementSchema.Name, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+        private bool MatchesTableQualifier(string qualifier, bool quoted)
+            => string.Equals(qualifier, TableAlias, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+               || string.Equals(qualifier, TableSchema.Name, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class JoinRowContext
@@ -954,7 +977,7 @@ internal static class JoinSqlExecutor
             if (resolved.Source == JoinSource.Table)
                 return _tableRow.Values[resolved.TableColumn!.Ordinal];
 
-            if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+            if (resolved.MeasurementColumn is null)
                 return _timestamp;
 
             var column = resolved.MeasurementColumn

@@ -27,7 +27,7 @@ internal static class ViewExpander
         }
         else if (select.TableValuedFunction is null
                  && select.GraphTable is null
-                 && catalog.TryGet(select.Measurement) is { } view)
+                 && catalog.Resolve(select.Measurement, select.IdentifierNamesBound || select.MeasurementIsQuoted) is { } view)
         {
             fromSubquery = ExpandDefinition(catalog, view, expansionPath);
             tableAlias ??= select.Measurement;
@@ -164,7 +164,7 @@ internal static class ViewExpander
             };
         }
 
-        var view = catalog.TryGet(join.TableName);
+        var view = catalog.Resolve(join.TableName, join.TableNameIsQuoted);
         return view is null
             ? join with { On = on }
             : join with

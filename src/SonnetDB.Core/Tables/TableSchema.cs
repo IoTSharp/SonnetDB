@@ -173,6 +173,23 @@ public sealed class TableSchema
         IReadOnlyDictionary<string, string?>? columnDefaults,
         IReadOnlySet<string>? autoIncrementColumns,
         IReadOnlyDictionary<string, (byte Precision, byte Scale)>? decimalDefinitions = null)
+        => CreateWithDefaultsCore(
+            name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns, createdAtUtcTicks,
+            checkConstraints, columnDefaults, autoIncrementColumns, decimalDefinitions);
+
+    private static TableSchema CreateWithDefaultsCore(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        IReadOnlyDictionary<string, string?>? columnDefaults,
+        IReadOnlySet<string>? autoIncrementColumns,
+        IReadOnlyDictionary<string, (byte Precision, byte Scale)>? decimalDefinitions,
+        bool allowLegacyCaseVariants = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
@@ -181,6 +198,7 @@ public sealed class TableSchema
         if (columns.Count == 0)
             throw new ArgumentException("关系表至少需要 1 个列。", nameof(columns));
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var uniqueNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var autoIncrementSet = autoIncrementColumns is null
             ? new HashSet<string>(StringComparer.Ordinal)
             : new HashSet<string>(autoIncrementColumns, StringComparer.Ordinal);
@@ -191,6 +209,8 @@ public sealed class TableSchema
             ArgumentException.ThrowIfNullOrWhiteSpace(column.Name);
             if (!seen.Add(column.Name))
                 throw new ArgumentException($"关系表 '{name}' 中列 '{column.Name}' 重复。", nameof(columns));
+            if (!uniqueNames.Add(column.Name) && !allowLegacyCaseVariants)
+                throw new ArgumentException($"关系表 '{name}' 中列 '{column.Name}' 存在仅大小写不同的名称。", nameof(columns));
             if (!Enum.IsDefined(column.DataType))
                 throw new ArgumentException($"关系表 '{name}' 的列 '{column.Name}' 使用了未知类型 {column.DataType}。", nameof(columns));
             bool isRowVersion = rowVersionColumns?.Contains(column.Name) == true;
@@ -297,11 +317,11 @@ public sealed class TableSchema
         }
 
         ValidateRowVersionColumns(name, columnList);
-        var indexList = BuildIndexes(name, columnList, primaryKeySet, indexes, createdAtUtcTicks);
-        var foreignKeyList = BuildForeignKeys(name, columnList, foreignKeys);
-        var checkConstraintList = BuildCheckConstraints(name, columnList, checkConstraints);
+        var indexList = BuildIndexes(name, columnList, primaryKeySet, indexes, createdAtUtcTicks, allowLegacyCaseVariants);
+        var foreignKeyList = BuildForeignKeys(name, columnList, foreignKeys, allowLegacyCaseVariants);
+        var checkConstraintList = BuildCheckConstraints(name, columnList, checkConstraints, allowLegacyCaseVariants);
         var constraintNames = foreignKeyList.Select(static constraint => constraint.Name)
-            .ToHashSet(StringComparer.Ordinal);
+            .ToHashSet(allowLegacyCaseVariants ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         foreach (var checkConstraint in checkConstraintList)
         {
             if (!constraintNames.Add(checkConstraint.Name))
@@ -318,6 +338,24 @@ public sealed class TableSchema
             createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks);
     }
 
+    /// <summary>按原始名称恢复历史 schema，保留需要显式迁移的大小写冲突。</summary>
+    internal static TableSchema LoadWithDefaults(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        IReadOnlyDictionary<string, string?>? columnDefaults,
+        IReadOnlySet<string>? autoIncrementColumns,
+        IReadOnlyDictionary<string, (byte Precision, byte Scale)>? decimalDefinitions)
+        => CreateWithDefaultsCore(
+            name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns, createdAtUtcTicks,
+            checkConstraints, columnDefaults, autoIncrementColumns, decimalDefinitions,
+            allowLegacyCaseVariants: true);
+
     /// <summary>
     /// 尝试按列名查找列定义。
     /// </summary>
@@ -327,6 +365,27 @@ public sealed class TableSchema
     {
         ArgumentNullException.ThrowIfNull(name);
         return _columnsByName.TryGetValue(name, out var column) ? column : null;
+    }
+
+    /// <summary>未加引号名称忽略大小写；加引号名称精确匹配。历史重名必须显式迁移。</summary>
+    /// <param name="name">待解析的列名。</param>
+    /// <param name="quoted">名称是否使用双引号。</param>
+    /// <returns>匹配的列；不存在时返回 <c>null</c>。</returns>
+    public TableColumn? Resolve(string name, bool quoted)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (quoted)
+            return TryGetColumn(name);
+        TableColumn? match = null;
+        foreach (var column in Columns)
+        {
+            if (!string.Equals(column.Name, name, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (match is not null)
+                throw new InvalidOperationException($"table '{Name}' 中列 '{name}' 存在大小写歧义，请使用双引号精确访问并显式迁移。");
+            match = column;
+        }
+        return match;
     }
 
     /// <summary>
@@ -369,7 +428,7 @@ public sealed class TableSchema
     public TableSchema WithIndex(TableIndexDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        if (_indexesByName.ContainsKey(definition.Name))
+        if (Indexes.Any(index => string.Equals(index.Name, definition.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"table '{Name}' 中索引 '{definition.Name}' 已存在。");
 
         var definitions = Indexes
@@ -573,7 +632,7 @@ public sealed class TableSchema
         bool isAutoIncrement)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        if (_columnsByName.ContainsKey(name))
+        if (Columns.Any(column => string.Equals(column.Name, name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"table '{Name}' 中列 '{name}' 已存在。");
 
         var defaults = ColumnDefaultDefinitions().ToDictionary(
@@ -725,14 +784,16 @@ public sealed class TableSchema
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
         var column = TryGetColumn(oldName)
             ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{oldName}'。");
-        if (_columnsByName.ContainsKey(newName))
+        if (Columns.Any(existing =>
+            !string.Equals(existing.Name, oldName, StringComparison.Ordinal)
+            && string.Equals(existing.Name, newName, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"table '{Name}' 中列 '{newName}' 已存在。");
         if (column.IsPrimaryKey)
             throw new InvalidOperationException("ALTER TABLE RENAME COLUMN 当前不支持重命名 PRIMARY KEY 列。");
         if (CheckConstraints.Any(constraint => constraint.ReferencesColumn(oldName)))
             throw new InvalidOperationException($"列 '{oldName}' 被 CHECK 约束引用，当前不能重命名。");
 
-        return CreateWithDefaults(
+        return CreateWithDefaultsCore(
             Name,
             Columns.Select(c => string.Equals(c.Name, oldName, StringComparison.Ordinal)
                     ? (newName, c.DataType, c.IsNullable)
@@ -745,7 +806,9 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(renameColumn: (oldName, newName)),
-            AutoIncrementColumnNames(renameColumn: (oldName, newName)));
+            AutoIncrementColumnNames(renameColumn: (oldName, newName)),
+            decimalDefinitions: null,
+            allowLegacyCaseVariants: true);
     }
 
     /// <summary>
@@ -777,14 +840,15 @@ public sealed class TableSchema
         IReadOnlyList<TableColumn> columns,
         HashSet<string> primaryKeySet,
         IReadOnlyList<TableIndexDefinition>? indexes,
-        long createdAtUtcTicks)
+        long createdAtUtcTicks,
+        bool allowLegacyCaseVariants)
     {
         var result = new List<TableIndex>();
         if (indexes is null || indexes.Count == 0)
             return result;
 
         var columnNames = columns.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(allowLegacyCaseVariants ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         foreach (var index in indexes)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(index.Name);
@@ -833,14 +897,15 @@ public sealed class TableSchema
     private static List<TableForeignKey> BuildForeignKeys(
         string tableName,
         IReadOnlyList<TableColumn> columns,
-        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys)
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        bool allowLegacyCaseVariants)
     {
         var result = new List<TableForeignKey>();
         if (foreignKeys is null || foreignKeys.Count == 0)
             return result;
 
         var columnNames = columns.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(allowLegacyCaseVariants ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < foreignKeys.Count; i++)
         {
             var foreignKey = foreignKeys[i];
@@ -886,14 +951,15 @@ public sealed class TableSchema
     private static List<TableCheckConstraint> BuildCheckConstraints(
         string tableName,
         IReadOnlyList<TableColumn> columns,
-        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints)
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        bool allowLegacyCaseVariants)
     {
         var result = new List<TableCheckConstraint>();
         if (checkConstraints is null || checkConstraints.Count == 0)
             return result;
 
         var columnNames = columns.Select(static column => column.Name).ToHashSet(StringComparer.Ordinal);
-        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(allowLegacyCaseVariants ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < checkConstraints.Count; i++)
         {
             var definition = checkConstraints[i];

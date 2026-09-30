@@ -275,7 +275,7 @@ internal static class TableInSubqueryExecutor
     {
         var outerSource = new StaticSource(
             outerQualifier,
-            outerSchema.Columns.Select(static column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase));
+            outerSchema.Columns.Select(static column => column.Name).ToHashSet(StringComparer.Ordinal));
         ValidateSelect(tsdb, statement, new StaticScope([outerSource], Parent: null, IsDeleteOuter: true));
     }
 
@@ -323,17 +323,17 @@ internal static class TableInSubqueryExecutor
         {
             sources.Add(new StaticSource(
                 baseQualifier,
-                schema.Columns.Select(static column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase)));
+                schema.Columns.Select(static column => column.Name).ToHashSet(StringComparer.Ordinal)));
         }
         else if (!string.IsNullOrEmpty(statement.Measurement)
             && tsdb.Measurements.TryGet(statement.Measurement) is { } measurementSchema)
         {
             var columns = measurementSchema.Columns
                 .Select(static column => column.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .ToHashSet(StringComparer.Ordinal);
             columns.Add("time");
             sources.Add(new StaticSource(baseQualifier, columns));
-            if (!string.Equals(baseQualifier, measurementSchema.Name, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(baseQualifier, measurementSchema.Name, StringComparison.Ordinal))
                 sources.Add(new StaticSource(measurementSchema.Name, columns));
         }
 
@@ -347,12 +347,12 @@ internal static class TableInSubqueryExecutor
             {
                 var columns = joinSchema.Columns
                     .Select(static column => column.Name)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .ToHashSet(StringComparer.Ordinal);
                 sources.Add(new StaticSource(
                     join.Alias,
                     columns));
                 if (usesMeasurementJoin
-                    && !string.Equals(join.Alias, joinSchema.Name, StringComparison.OrdinalIgnoreCase))
+                    && !string.Equals(join.Alias, joinSchema.Name, StringComparison.Ordinal))
                     sources.Add(new StaticSource(joinSchema.Name, columns));
             }
         }
@@ -368,10 +368,10 @@ internal static class TableInSubqueryExecutor
             && !RelationalSelectExecutor.NeedsRelationalPath(statement))
         {
             return TableSqlExecutor.ResolveProjectionColumnNames(statement, tableSchema)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .ToHashSet(StringComparer.Ordinal);
         }
 
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(StringComparer.Ordinal);
         var sources = BuildSources(tsdb, statement);
         foreach (var projection in statement.Projections)
         {
@@ -498,9 +498,13 @@ internal static class TableInSubqueryExecutor
             foreach (var source in current.Sources)
             {
                 if (identifier.Qualifier is not null
-                    && !string.Equals(identifier.Qualifier, source.Qualifier, StringComparison.OrdinalIgnoreCase))
+                    && !string.Equals(identifier.Qualifier, source.Qualifier,
+                        identifier.IsNameBound || identifier.QualifierIsQuoted
+                            ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
                     continue;
-                if (source.Columns.Contains(identifier.Name))
+                if (source.Columns.Any(name => string.Equals(name, identifier.Name,
+                    identifier.IsNameBound || identifier.IsQuoted
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)))
                     matches++;
             }
 

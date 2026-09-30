@@ -2,6 +2,7 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -159,16 +160,21 @@ public sealed class RelationalExistsAccessPathTests : IDisposable
     }
 
     /// <summary>
-    /// 内表存在仅大小写不同的同名列时必须回退并报告歧义，不能误绑定外层同名列。
+    /// 历史内表存在仅大小写不同的同名列时必须报告歧义，不能误绑定外层同名列。
     /// </summary>
     [Fact]
     public void Exists_AmbiguousCaseInsensitiveInnerColumn_DoesNotBindOuterColumn()
     {
+        var legacyInner = TableSchema.LoadWithDefaults(
+            "exists_case_inner",
+            [("id", TableColumnType.Int64, false), ("Foo", TableColumnType.String, true),
+                ("FOO", TableColumnType.String, true)],
+            ["id"], null, null, null, 1234, null, null, null, null);
+        TableSchemaCodec.Save(Path.Combine(TsdbPaths.TablesDir(_root), TableSchemaCodec.FileName), [legacyInner]);
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE TABLE exists_case_outer (id INT, foo STRING, PRIMARY KEY (id))");
-        SqlExecutor.Execute(db, "CREATE TABLE exists_case_inner (id INT, Foo STRING, FOO STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO exists_case_outer (id, foo) VALUES (1, 'outer')");
-        SqlExecutor.Execute(db, "INSERT INTO exists_case_inner (id, Foo, FOO) VALUES (1, 'left', 'right')");
+        SqlExecutor.Execute(db, "INSERT INTO exists_case_inner (id, \"Foo\", \"FOO\") VALUES (1, 'left', 'right')");
         var statement = Assert.IsType<SelectStatement>(SqlParser.Parse("""
             SELECT o.id
             FROM exists_case_outer o
@@ -182,8 +188,8 @@ public sealed class RelationalExistsAccessPathTests : IDisposable
             RelationalSelectExecutor.Execute(db, statement, metrics));
 
         Assert.Contains("歧义", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(1, metrics.ExistsFallbackExecutionCount);
-        Assert.Equal("outer_reference_not_safely_bindable", metrics.LastExistsFallbackReason);
+        Assert.Equal(0, metrics.ExistsFastPathExecutionCount);
+        Assert.Equal(0, db.Tables.Open("exists_case_inner").FullScanCount);
     }
 
     /// <summary>

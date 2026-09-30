@@ -22,6 +22,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- **GH-Issue #211 SQL 标识符规则**：表、measurement、视图/物化视图与列/TAG/FIELD 保留创建时的拼写，普通引用按 `OrdinalIgnoreCase` 匹配，双引号按 `Ordinal` 精确匹配；禁止新增或重命名为仅大小写不同的同作用域名称。旧 catalog 冲突须显式迁移，普通引用报歧义；设备摄取名称绑定到已保存的 schema 拼写。
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed

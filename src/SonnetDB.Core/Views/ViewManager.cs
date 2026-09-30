@@ -37,7 +37,7 @@ public sealed class ViewManager
         CatalogPath = Path.Combine(rootDirectory, ViewDefinitionCodec.FileName);
         Catalog = new ViewCatalog();
         foreach (var definition in ViewDefinitionCodec.Load(CatalogPath))
-            Catalog.LoadOrReplace(definition);
+            Catalog.LoadExisting(definition);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
     }
 

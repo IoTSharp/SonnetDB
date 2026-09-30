@@ -11,8 +11,9 @@ namespace SonnetDB.Catalog;
 public sealed class MeasurementSchema
 {
     private readonly FrozenDictionary<string, MeasurementColumn> _byName;
+    private readonly FrozenDictionary<string, MeasurementColumn?> _unquotedByName;
 
-    /// <summary>Measurement 名称（区分大小写，非空且不含保留字符）。</summary>
+    /// <summary>目录中保存的 measurement 名称，保留创建时的原始拼写。</summary>
     public string Name { get; }
 
     /// <summary>列定义列表（按 CREATE 语句中的声明顺序）。</summary>
@@ -27,9 +28,15 @@ public sealed class MeasurementSchema
         Columns = columns;
         CreatedAtUtcTicks = createdAtUtcTicks;
         var byName = new Dictionary<string, MeasurementColumn>(columns.Count, StringComparer.Ordinal);
+        var unquotedByName = new Dictionary<string, MeasurementColumn?>(columns.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var col in columns)
+        {
             byName[col.Name] = col;
+            if (!unquotedByName.TryAdd(col.Name, col))
+                unquotedByName[col.Name] = null;
+        }
         _byName = byName.ToFrozenDictionary(StringComparer.Ordinal);
+        _unquotedByName = unquotedByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -44,13 +51,42 @@ public sealed class MeasurementSchema
         string name,
         IReadOnlyList<MeasurementColumn> columns,
         long? createdAtUtcTicks = null)
+        => CreateCore(name, columns, createdAtUtcTicks, allowCaseVariants: false);
+
+    // 旧文件可能含仅大小写不同的列；保留精确读取能力，供调用方显式迁移。
+    internal static MeasurementSchema CreateLoaded(
+        string name,
+        IReadOnlyList<MeasurementColumn> columns,
+        long? createdAtUtcTicks = null)
+        => CreateCore(name, columns, createdAtUtcTicks, allowCaseVariants: true);
+
+    // 更新时保留已经存在的旧列冲突，但禁止新增大小写变体。
+    internal MeasurementSchema WithColumns(IReadOnlyList<MeasurementColumn> columns)
+    {
+        var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (MeasurementColumn column in columns)
+        {
+            if (_byName.ContainsKey(column.Name))
+                continue;
+            if (_unquotedByName.ContainsKey(column.Name) || !addedNames.Add(column.Name))
+                throw new ArgumentException($"重复的列名 '{column.Name}'；新建列名不能仅大小写不同。", nameof(columns));
+        }
+
+        return CreateLoaded(Name, columns, CreatedAtUtcTicks);
+    }
+
+    private static MeasurementSchema CreateCore(
+        string name,
+        IReadOnlyList<MeasurementColumn> columns,
+        long? createdAtUtcTicks,
+        bool allowCaseVariants)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count == 0)
             throw new ArgumentException("Measurement schema 至少需要一列。", nameof(columns));
 
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<string>(allowCaseVariants ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         var fieldCount = 0;
         var copy = new List<MeasurementColumn>(columns.Count);
 
@@ -60,7 +96,7 @@ public sealed class MeasurementSchema
             if (string.IsNullOrWhiteSpace(col.Name))
                 throw new ArgumentException("列名不能为空。", nameof(columns));
             if (!seen.Add(col.Name))
-                throw new ArgumentException($"重复的列名 '{col.Name}'。", nameof(columns));
+                throw new ArgumentException($"重复的列名 '{col.Name}'；新建列名不能仅大小写不同。", nameof(columns));
             if (col.Role == MeasurementColumnRole.Tag && col.DataType != FieldType.String)
                 throw new ArgumentException(
                     $"Tag 列 '{col.Name}' 必须是 STRING 类型，但声明为 {col.DataType}。", nameof(columns));
@@ -104,6 +140,22 @@ public sealed class MeasurementSchema
     {
         ArgumentNullException.ThrowIfNull(columnName);
         return _byName.GetValueOrDefault(columnName);
+    }
+
+    /// <summary>按 SQL 标识符规则解析列；普通引用忽略大小写，引号引用精确匹配。</summary>
+    /// <param name="columnName">引用的列名。</param>
+    /// <param name="quoted">名称是否使用双引号；加引号时精确匹配。</param>
+    /// <returns>匹配的列；不存在时返回 null。</returns>
+    /// <exception cref="InvalidOperationException">普通引用匹配到旧 schema 中仅大小写不同的多个列。</exception>
+    public MeasurementColumn? Resolve(string columnName, bool quoted)
+    {
+        ArgumentNullException.ThrowIfNull(columnName);
+        if (quoted)
+            return TryGetColumn(columnName);
+        if (!_unquotedByName.TryGetValue(columnName, out MeasurementColumn? column))
+            return null;
+        return column ?? throw new InvalidOperationException(
+            $"Measurement '{Name}' 的列名 '{columnName}' 存在大小写歧义；请使用双引号精确引用并显式迁移冲突列。");
     }
 
     /// <summary>枚举所有 Tag 列（按声明顺序）。</summary>

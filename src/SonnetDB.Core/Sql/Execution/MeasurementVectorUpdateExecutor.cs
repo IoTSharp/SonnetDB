@@ -12,6 +12,7 @@ internal static class MeasurementVectorUpdateExecutor
 {
     internal static RowsAffectedExecutionResult Execute(Tsdb tsdb, UpdateStatement statement, MeasurementSchema schema)
     {
+        statement = (UpdateStatement)MeasurementSqlNameBinder.Bind(tsdb, statement);
         if (statement.Assignments.Count != 1)
             throw new NotSupportedException("measurement VECTOR UPDATE 当前只支持一个 VECTOR FIELD 赋值。");
         if (statement.FromClauses.Count != 0)

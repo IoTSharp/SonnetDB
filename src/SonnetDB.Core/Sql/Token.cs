@@ -15,6 +15,9 @@ public readonly record struct Token(
     long IntegerValue = 0,
     double DoubleValue = 0)
 {
+    /// <summary>标识符是否使用双引号引用。</summary>
+    public bool IsQuotedIdentifier { get; init; }
+
     /// <summary>返回便于诊断的 token 描述。</summary>
     public override string ToString() => Kind switch
     {

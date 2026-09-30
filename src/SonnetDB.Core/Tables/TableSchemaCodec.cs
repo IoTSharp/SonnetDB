@@ -247,7 +247,7 @@ public static class TableSchemaCodec
             }
         }
 
-        return TableSchema.CreateWithDefaults(
+        return TableSchema.LoadWithDefaults(
             name,
             columns,
             primaryKey,

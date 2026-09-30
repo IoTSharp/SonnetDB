@@ -3,7 +3,11 @@
 using SonnetDB.Query;
 
 /// <summary>SQL 语句抽象基类。</summary>
-public abstract record SqlStatement;
+public abstract record SqlStatement
+{
+    /// <summary>名称是否已绑定到目录中的精确拼写，避免执行入口重复解析。</summary>
+    internal bool IdentifierNamesBound { get; init; }
+}
 
 /// <summary>
 /// <c>CREATE MEASUREMENT [IF NOT EXISTS] name (col TAG, col FIELD type, ...)</c>。
@@ -14,7 +18,11 @@ public abstract record SqlStatement;
 public sealed record CreateMeasurementStatement(
     string Name,
     IReadOnlyList<ColumnDefinition> Columns,
-    bool IfNotExists = false) : SqlStatement;
+    bool IfNotExists = false) : SqlStatement
+{
+    /// <summary>measurement 名称是否使用双引号声明。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL] [ROWVERSION], ..., PRIMARY KEY (...), FOREIGN KEY (...) REFERENCES ... (...), CONSTRAINT name CHECK (...))</c>。
@@ -33,6 +41,12 @@ public sealed record CreateTableStatement(
     IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
     IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
+    /// <summary>表名是否使用双引号声明。</summary>
+    public bool NameIsQuoted { get; init; }
+
+    /// <summary>主键列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> PrimaryKeyColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
     /// <summary>
     /// 使用 3.0.1 的位置参数合同创建关系表语句。
     /// </summary>
@@ -74,10 +88,10 @@ public sealed record CreateTableStatement(
     }
 
     /// <summary>当前表级外键声明。</summary>
-    public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
+    public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses => ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
 
     /// <summary>当前表级检查约束声明。</summary>
-    public IReadOnlyList<TableCheckConstraintClause> CheckConstraintClauses { get; } = CheckConstraints ?? Array.Empty<TableCheckConstraintClause>();
+    public IReadOnlyList<TableCheckConstraintClause> CheckConstraintClauses => CheckConstraints ?? Array.Empty<TableCheckConstraintClause>();
 
     /// <summary>可选的 Modbus 表级绑定；为空表示普通关系表。</summary>
     public ModbusTableBindingClause? ModbusBinding { get; init; }
@@ -106,6 +120,15 @@ public sealed record TableForeignKeyClause(
     IReadOnlyList<string> PrincipalColumns,
     ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
 {
+    /// <summary>被引用表名是否使用双引号。</summary>
+    public bool PrincipalTableIsQuoted { get; init; }
+
+    /// <summary>本表外键列按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>被引用列按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> PrincipalColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
     /// <summary>外键约束名；未命名时为空。</summary>
     public string? Name { get; init; }
 }
@@ -139,7 +162,11 @@ public sealed record CreateViewStatement(
     string Name,
     SelectStatement Query,
     string DefinitionSql,
-    bool IfNotExists = false) : SqlStatement;
+    bool IfNotExists = false) : SqlStatement
+{
+    /// <summary>视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>CREATE MATERIALIZED VIEW [IF NOT EXISTS] name AS SELECT ...</c>。
@@ -153,7 +180,11 @@ public sealed record CreateMaterializedViewStatement(
     string Name,
     SelectStatement Query,
     string DefinitionSql,
-    bool IfNotExists = false) : SqlStatement;
+    bool IfNotExists = false) : SqlStatement
+{
+    /// <summary>物化视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>SQL 过程 IN 参数支持的首版标量类型。</summary>
 public enum SqlProcedureParameterType
@@ -229,7 +260,11 @@ public enum SqlTriggerLevel
 /// <summary>仅供 BEFORE ROW body 使用的 NEW 列赋值。</summary>
 /// <param name="ColumnName">NEW 中待改写的列名。</param>
 /// <param name="Value">受限标量表达式；后续赋值可读取已改写的 NEW。</param>
-public sealed record SetTriggerNewStatement(string ColumnName, SqlExpression Value) : SqlStatement;
+public sealed record SetTriggerNewStatement(string ColumnName, SqlExpression Value) : SqlStatement
+{
+    /// <summary>NEW 列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>CREATE TRIGGER name AFTER event ON table FOR EACH ROW [WHEN (...)] LANGUAGE SQL AS BEGIN ... END</c>。
@@ -252,6 +287,9 @@ public sealed record CreateTriggerStatement(
     string BodySql,
     string Language = "SQL") : SqlStatement
 {
+    /// <summary>触发器目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
     /// <summary>可选的 FOLLOWS/PRECEDES 参照触发器；必须属于同表同事件。</summary>
     public string? RelativeTo { get; init; }
     /// <summary>为 true 时排在参照之前，否则排在其后。</summary>
@@ -306,7 +344,11 @@ public sealed record ShowRoutineDiagnosticsStatement(bool Statistics, string? Ki
 /// <c>REFRESH MATERIALIZED VIEW name</c>：显式生成并原子发布一个全量物理代际。
 /// </summary>
 /// <param name="Name">物化视图名称。</param>
-public sealed record RefreshMaterializedViewStatement(string Name) : SqlStatement;
+public sealed record RefreshMaterializedViewStatement(string Name) : SqlStatement
+{
+    /// <summary>物化视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>CREATE [UNIQUE] INDEX [IF NOT EXISTS] index_name ON table_name (col, ...)</c>。
@@ -325,7 +367,17 @@ public sealed record CreateTableIndexStatement(
     bool IsUnique,
     bool IfNotExists = false,
     DocumentIndexOptions? DocumentOptions = null,
-    bool Online = false) : SqlStatement;
+    bool Online = false) : SqlStatement
+{
+    /// <summary>索引名是否使用双引号。</summary>
+    public bool IndexNameIsQuoted { get; init; }
+
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>索引列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary>
 /// 普通 <c>CREATE INDEX</c> 用于文档集合时的专用选项。
@@ -385,7 +437,17 @@ public sealed record CreateTableJsonPathIndexStatement(
     string TableName,
     string JsonColumnName,
     string Path,
-    bool IfNotExists = false) : SqlStatement;
+    bool IfNotExists = false) : SqlStatement
+{
+    /// <summary>索引名是否使用双引号。</summary>
+    public bool IndexNameIsQuoted { get; init; }
+
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>JSON 列名是否使用双引号。</summary>
+    public bool JsonColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>IMPORT JSON 'file.json' INTO target [FORMAT AUTO|ARRAY|LINES] [ID PATH '$.id']</c>。
@@ -457,6 +519,9 @@ public sealed record TableColumnDefinition(
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     bool IsRowVersion = false)
 {
+    /// <summary>列名是否使用双引号声明。</summary>
+    public bool NameIsQuoted { get; init; }
+
     /// <summary>DECIMAL/NUMERIC 的总精度；未声明时使用 38。</summary>
     public byte DecimalPrecision { get; init; } = 38;
 
@@ -491,7 +556,14 @@ public sealed record AlterTableAddColumnStatement(
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     SqlExpression? DefaultExpression = null,
     bool IsRowVersion = false,
-    bool IsAutoIncrement = false) : SqlStatement;
+    bool IsAutoIncrement = false) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>新增列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table ADD [CONSTRAINT name] PRIMARY KEY (column [, ...])</c>
@@ -503,7 +575,14 @@ public sealed record AlterTableAddColumnStatement(
 public sealed record AlterTableAlterPrimaryKeyStatement(
     string TableName,
     IReadOnlyList<string> Columns,
-    string? ConstraintName = null) : SqlStatement;
+    string? ConstraintName = null) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>主键列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary>
 /// <c>ALTER TABLE table ALTER [COLUMN] col [TYPE type|SET DATA TYPE type] [NULL|NOT NULL] [SET|DROP DEFAULT]</c>。
@@ -521,7 +600,14 @@ public sealed record AlterTableAlterColumnStatement(
     SqlDataType? DataType = null,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     ColumnDefaultAction DefaultAction = ColumnDefaultAction.Unchanged,
-    SqlExpression? DefaultExpression = null) : SqlStatement;
+    SqlExpression? DefaultExpression = null) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>目标列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table ADD [CONSTRAINT name] FOREIGN KEY (...) REFERENCES principal (...)</c>。
@@ -538,7 +624,20 @@ public sealed record AlterTableAddForeignKeyStatement(
     IReadOnlyList<string> Columns,
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
-    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction) : SqlStatement;
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>本表外键列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>被引用表名是否使用双引号。</summary>
+    public bool PrincipalTableIsQuoted { get; init; }
+
+    /// <summary>被引用列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> PrincipalColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary>
 /// <c>ALTER TABLE table ADD [CONSTRAINT name] CHECK (expression)</c>。
@@ -551,7 +650,11 @@ public sealed record AlterTableAddCheckConstraintStatement(
     string TableName,
     string? ConstraintName,
     string ExpressionSql,
-    SqlExpression Expression) : SqlStatement;
+    SqlExpression Expression) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table DROP COLUMN [IF EXISTS] col</c>。
@@ -559,22 +662,53 @@ public sealed record AlterTableAddCheckConstraintStatement(
 /// <param name="TableName">目标关系表名称。</param>
 /// <param name="ColumnName">目标列名。</param>
 /// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时列不存在视为成功。</param>
-public sealed record AlterTableDropColumnStatement(string TableName, string ColumnName, bool IfExists = false) : SqlStatement;
+public sealed record AlterTableDropColumnStatement(string TableName, string ColumnName, bool IfExists = false) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>目标列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table DROP CONSTRAINT constraint</c>。
 /// </summary>
-public sealed record AlterTableDropConstraintStatement(string TableName, string ConstraintName) : SqlStatement;
+public sealed record AlterTableDropConstraintStatement(string TableName, string ConstraintName) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>目标约束名称是否使用双引号。</summary>
+    public bool ConstraintNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table RENAME COLUMN old TO new</c>。
 /// </summary>
-public sealed record AlterTableRenameColumnStatement(string TableName, string OldColumnName, string NewColumnName) : SqlStatement;
+public sealed record AlterTableRenameColumnStatement(string TableName, string OldColumnName, string NewColumnName) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>原列名是否使用双引号。</summary>
+    public bool OldColumnNameIsQuoted { get; init; }
+
+    /// <summary>新列名是否使用双引号。</summary>
+    public bool NewColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE old RENAME TO new</c>。
 /// </summary>
-public sealed record AlterTableRenameTableStatement(string OldTableName, string NewTableName) : SqlStatement;
+public sealed record AlterTableRenameTableStatement(string OldTableName, string NewTableName) : SqlStatement
+{
+    /// <summary>原表名是否使用双引号。</summary>
+    public bool OldTableNameIsQuoted { get; init; }
+
+    /// <summary>新表名是否使用双引号。</summary>
+    public bool NewTableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER DOCUMENT COLLECTION name SET VALIDATOR '{...}' [VALIDATION ACTION ERROR|WARN]</c>。
@@ -648,7 +782,11 @@ public sealed record ColumnDefinition(
     int? VectorDimension = null,
     VectorIndexSpec? VectorIndex = null,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
-    SqlExpression? DefaultExpression = null);
+    SqlExpression? DefaultExpression = null)
+{
+    /// <summary>列名是否使用双引号声明。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>INSERT INTO measurement (col, ...) VALUES (v, ...), (...)</c>，
@@ -665,6 +803,12 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>目标表或 measurement 名称是否使用双引号。</summary>
+    public bool MeasurementIsQuoted { get; init; }
+
+    /// <summary>插入列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
     /// <summary>
     /// measurement INSERT 列角色提示，与 <see cref="Columns"/> 按位置对应；
     /// 空集合或全 <c>null</c> 表示没有提示。
@@ -685,6 +829,9 @@ public sealed record InsertStatement(
     /// 空集合表示未声明 <c>RETURNING</c>。
     /// </summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+
+    /// <summary>RETURNING 列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ReturningColumnIsQuoted { get; init; } = Array.Empty<bool>();
 
     /// <summary>可选的 SonnetDB 原生冲突处理子句。</summary>
     public SqlOnConflictClause? OnConflict { get; init; }
@@ -710,6 +857,9 @@ public sealed record SqlOnConflictClause(
     IReadOnlyList<string> TargetColumns,
     SqlOnConflictAction Action = SqlOnConflictAction.DoNothing)
 {
+    /// <summary>冲突目标列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> TargetColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
     /// <summary>
     /// <c>DO UPDATE SET</c> 的赋值列表；<c>DO NOTHING</c> 时必须为空。
     /// 赋值表达式可用 <c>excluded.column</c> 引用本次候选行。
@@ -729,7 +879,14 @@ public sealed record SqlOnConflictClause(
 public sealed record CommonTableExpression(
     string Name,
     SelectStatement Query,
-    IReadOnlyList<string>? ColumnNames = null);
+    IReadOnlyList<string>? ColumnNames = null)
+{
+    /// <summary>CTE 名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+
+    /// <summary>CTE 输出列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary>SELECT 集合运算的语义。</summary>
 public enum SqlSetOperationKind
@@ -783,6 +940,15 @@ public sealed record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>FROM 名称是否使用双引号。</summary>
+    public bool MeasurementIsQuoted { get; init; }
+
+    /// <summary>点号分隔的 FROM 名称各部分是否使用双引号；普通单名称包含一项。</summary>
+    public IReadOnlyList<bool> MeasurementNamePartIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>FROM 别名是否使用双引号。</summary>
+    public bool TableAliasIsQuoted { get; init; }
+
     /// <summary>
     /// 当前 SELECT 前置的非递归公共表表达式；解析后由执行入口展开为现有派生表节点。
     /// </summary>
@@ -983,7 +1149,14 @@ public sealed record JoinClause(
     string Alias,
     SqlExpression On,
     SelectStatement? Subquery = null,
-    JoinKind Kind = JoinKind.Inner);
+    JoinKind Kind = JoinKind.Inner)
+{
+    /// <summary>JOIN 目标名称是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>JOIN 别名是否使用双引号。</summary>
+    public bool AliasIsQuoted { get; init; }
+}
 
 /// <summary>JOIN 类型。</summary>
 public enum JoinKind
@@ -1088,7 +1261,11 @@ public sealed record PaginationSpec(SqlExpression OffsetExpression, SqlExpressio
 /// <param name="Alias">可选 <c>AS alias</c> 别名。</param>
 public sealed record SelectItem(
     SqlExpression Expression,
-    string? Alias);
+    string? Alias)
+{
+    /// <summary>投影别名是否使用双引号。</summary>
+    public bool AliasIsQuoted { get; init; }
+}
 
 /// <summary>GROUP BY time(duration) 桶规格。</summary>
 /// <param name="BucketSizeMs">桶大小（毫秒，&gt; 0）。</param>
@@ -1103,13 +1280,23 @@ public sealed record DeleteStatement(
     string Measurement,
     SqlExpression Where) : SqlStatement
 {
+    /// <summary>删除目标名称是否使用双引号。</summary>
+    public bool MeasurementIsQuoted { get; init; }
+
     /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+
+    /// <summary>RETURNING 列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ReturningColumnIsQuoted { get; init; } = Array.Empty<bool>();
 }
 
 /// <summary><c>TRUNCATE TABLE name</c> generation 快速清表。</summary>
 /// <param name="TableName">目标关系表名称。</param>
-public sealed record TruncateTableStatement(string TableName) : SqlStatement;
+public sealed record TruncateTableStatement(string TableName) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>UPDATE table [AS alias] [JOIN ...] SET col = expr [, ...] [FROM ...] WHERE expr</c>。
@@ -1125,6 +1312,12 @@ public sealed record UpdateStatement(
     SqlExpression Where,
     string? TableAlias = null) : SqlStatement
 {
+    /// <summary>更新目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>目标表别名是否使用双引号。</summary>
+    public bool TableAliasIsQuoted { get; init; }
+
     /// <summary>
     /// UPDATE 联接来源。首项可以来自 <c>UPDATE ... JOIN</c> 或 <c>FROM</c>，后续项为链式 JOIN。
     /// 关系表联接只读，不会改写来源表；重复来源匹配按关系执行顺序取首行，目标行只计一次。
@@ -1136,26 +1329,41 @@ public sealed record UpdateStatement(
 
     /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
+
+    /// <summary>RETURNING 列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> ReturningColumnIsQuoted { get; init; } = Array.Empty<bool>();
 }
 
 /// <summary>UPDATE SET 子句中的一个列赋值。</summary>
 /// <param name="ColumnName">列名。</param>
 /// <param name="Value">赋值表达式。</param>
-public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
+public sealed record UpdateAssignment(string ColumnName, SqlExpression Value)
+{
+    /// <summary>赋值列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DROP TABLE [IF EXISTS] name</c>：删除关系表 schema 与 rowstore。
 /// </summary>
 /// <param name="Name">目标关系表名称。</param>
 /// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时表不存在视为成功（0 行受影响），否则报错。</param>
-public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement;
+public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DROP MEASUREMENT [IF EXISTS] name</c>：删除 measurement schema、series catalog 与已落盘时序数据。
 /// </summary>
 /// <param name="Name">目标 measurement 名称。</param>
 /// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时 measurement 不存在视为成功（0 行受影响）。</param>
-public sealed record DropMeasurementStatement(string Name, bool IfExists = false) : SqlStatement;
+public sealed record DropMeasurementStatement(string Name, bool IfExists = false) : SqlStatement
+{
+    /// <summary>目标 measurement 名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DROP DOCUMENT COLLECTION name</c>：删除文档集合 schema 与主数据。
@@ -1168,14 +1376,22 @@ public sealed record DropDocumentCollectionStatement(string Name) : SqlStatement
 /// </summary>
 /// <param name="Name">视图名称。</param>
 /// <param name="IfExists">视图不存在时是否视为成功。</param>
-public sealed record DropViewStatement(string Name, bool IfExists = false) : SqlStatement;
+public sealed record DropViewStatement(string Name, bool IfExists = false) : SqlStatement
+{
+    /// <summary>视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DROP MATERIALIZED VIEW [IF EXISTS] name</c>：删除定义及物理代际。
 /// </summary>
 /// <param name="Name">物化视图名称。</param>
 /// <param name="IfExists">物化视图不存在时是否视为成功。</param>
-public sealed record DropMaterializedViewStatement(string Name, bool IfExists = false) : SqlStatement;
+public sealed record DropMaterializedViewStatement(string Name, bool IfExists = false) : SqlStatement
+{
+    /// <summary>物化视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary><c>DROP PROCEDURE [IF EXISTS] name</c>。</summary>
 /// <param name="Name">过程名称。</param>
@@ -1192,7 +1408,14 @@ public sealed record DropTriggerStatement(string Name, bool IfExists = false) : 
 /// </summary>
 /// <param name="IndexName">索引名。</param>
 /// <param name="TableName">表名。</param>
-public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement;
+public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement
+{
+    /// <summary>索引名是否使用双引号。</summary>
+    public bool IndexNameIsQuoted { get; init; }
+
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DROP JSON INDEX index_name ON collection_name</c>：删除文档集合 JSON path 索引声明。
@@ -1251,7 +1474,11 @@ public sealed record ShowProceduresStatement : SqlStatement;
 
 /// <summary><c>SHOW TRIGGERS [ON table]</c>。</summary>
 /// <param name="TableName">可选目标表过滤。</param>
-public sealed record ShowTriggersStatement(string? TableName = null) : SqlStatement;
+public sealed record ShowTriggersStatement(string? TableName = null) : SqlStatement
+{
+    /// <summary>可选目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>SHOW DOCUMENT COLLECTIONS</c>：列出当前数据库中所有 JSON 文档集合。
@@ -1262,7 +1489,11 @@ public sealed record ShowDocumentCollectionsStatement : SqlStatement;
 /// <c>SHOW INDEXES ON table</c>：列出指定关系表的二级索引。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
-public sealed record ShowTableIndexesStatement(string TableName) : SqlStatement;
+public sealed record ShowTableIndexesStatement(string TableName) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>SHOW JSON INDEXES ON collection</c>：列出指定文档集合的 JSON path 索引。
@@ -1281,29 +1512,49 @@ public sealed record ShowFullTextIndexesStatement(string CollectionName) : SqlSt
 /// 返回三列 <c>column_name</c>(string)、<c>column_type</c>(string，取值 <c>tag</c> / <c>field</c>)、<c>data_type</c>(string，例如 <c>float64</c> / <c>int64</c> / <c>boolean</c> / <c>string</c>)。
 /// </summary>
 /// <param name="Name">目标 measurement 名称。</param>
-public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
+public sealed record DescribeMeasurementStatement(string Name) : SqlStatement
+{
+    /// <summary>目标 measurement 名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DESCRIBE TABLE &lt;name&gt;</c>：描述指定关系表的列结构。
 /// </summary>
 /// <param name="Name">目标关系表名称。</param>
-public sealed record DescribeTableStatement(string Name) : SqlStatement;
+public sealed record DescribeTableStatement(string Name) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary><c>ANALYZE [TABLE] name</c>：刷新关系表轻量统计。</summary>
 /// <param name="TableName">待分析的关系表名称。</param>
-public sealed record AnalyzeTableStatement(string TableName) : SqlStatement;
+public sealed record AnalyzeTableStatement(string TableName) : SqlStatement
+{
+    /// <summary>目标表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DESCRIBE VIEW name</c>：返回逻辑视图定义和直接依赖。
 /// </summary>
 /// <param name="Name">视图名称。</param>
-public sealed record DescribeViewStatement(string Name) : SqlStatement;
+public sealed record DescribeViewStatement(string Name) : SqlStatement
+{
+    /// <summary>视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary>
 /// <c>DESCRIBE MATERIALIZED VIEW name</c>：返回定义、依赖和刷新元数据。
 /// </summary>
 /// <param name="Name">物化视图名称。</param>
-public sealed record DescribeMaterializedViewStatement(string Name) : SqlStatement;
+public sealed record DescribeMaterializedViewStatement(string Name) : SqlStatement
+{
+    /// <summary>物化视图名称是否使用双引号。</summary>
+    public bool NameIsQuoted { get; init; }
+}
 
 /// <summary><c>DESCRIBE PROCEDURE name</c>。</summary>
 /// <param name="Name">过程名称。</param>
@@ -1345,7 +1596,17 @@ public sealed record PropertyGraphVertexTableClause(
     string TableName,
     IReadOnlyList<string> KeyColumns,
     string Label,
-    IReadOnlyList<string> PropertyColumns);
+    IReadOnlyList<string> PropertyColumns)
+{
+    /// <summary>顶点表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>键列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> KeyColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>属性列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> PropertyColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary><c>CREATE PROPERTY GRAPH</c> 中的边表映射。</summary>
 /// <param name="TableName">关系表名称。</param>
@@ -1368,7 +1629,35 @@ public sealed record PropertyGraphEdgeTableClause(
     IReadOnlyList<string> DestinationColumns,
     IReadOnlyList<string> DestinationReferenceColumns,
     string Label,
-    IReadOnlyList<string> PropertyColumns);
+    IReadOnlyList<string> PropertyColumns)
+{
+    /// <summary>边表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>边表键列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> KeyColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>源顶点表名是否使用双引号。</summary>
+    public bool SourceTableIsQuoted { get; init; }
+
+    /// <summary>源列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> SourceColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>源顶点引用列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> SourceReferenceColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>目标顶点表名是否使用双引号。</summary>
+    public bool DestinationTableIsQuoted { get; init; }
+
+    /// <summary>目标列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> DestinationColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>目标顶点引用列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> DestinationReferenceColumnIsQuoted { get; init; } = Array.Empty<bool>();
+
+    /// <summary>属性列名中按位置标记使用双引号的名称。</summary>
+    public IReadOnlyList<bool> PropertyColumnIsQuoted { get; init; } = Array.Empty<bool>();
+}
 
 /// <summary>创建只读 SQL/PGQ 关系映射图。</summary>
 /// <param name="Name">映射图名称。</param>

@@ -126,6 +126,39 @@ public sealed class TsdbMeasurementSchemaPolicyTests : IDisposable
     }
 
     [Fact]
+    public void Write_WithCreateOnlyModeAndCaseVariants_DoesNotEvolveSchemaOrSpendColumnBudget()
+    {
+        using var db = Open(new MeasurementSchemaPolicy { Mode = MeasurementSchemaMode.CreateOnly });
+        db.Write(Point("Sensors", 1, ("Usage", FieldValue.FromLong(1))));
+        string revision = db.MeasurementSchemaRevision;
+
+        db.Write(Point("sensors", 2, ("usage", FieldValue.FromLong(2))));
+
+        Assert.Equal(revision, db.MeasurementSchemaRevision);
+        Assert.Equal("Usage", Assert.Single(db.Measurements.TryGet("Sensors")!.Columns).Name);
+        Assert.Equal(1, db.Catalog.Count);
+        Assert.Equal(2L, db.MemTable.PointCount);
+    }
+
+    [Fact]
+    public void WriteMany_CaseVariantsOfNewColumn_CountsOneNewColumn()
+    {
+        using var db = Open(new MeasurementSchemaPolicy { MaxNewColumnsPerWrite = 1 });
+        db.Write(Point("Sensors", 1, ("Base", FieldValue.FromLong(1))));
+
+        Point[] points =
+        [
+            Point("sensors", 2, ("Added", FieldValue.FromLong(2))),
+            Point("SENSORS", 3, ("added", FieldValue.FromLong(3))),
+        ];
+        Assert.Equal(2, db.WriteMany(points));
+
+        Assert.Equal(new[] { "Base", "Added" }, db.Measurements.TryGet("Sensors")!.Columns.Select(static column => column.Name));
+        Assert.Equal(1, db.Measurements.Count);
+        Assert.Equal(1, db.Catalog.Count);
+    }
+
+    [Fact]
     public void Write_SuccessfulEvolution_UpdatesRevisionMetricsAndAuditAcrossReopen()
     {
         string revision;

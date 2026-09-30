@@ -191,7 +191,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateEvent(value, Options);
         StreamingEvent snapshot = Clone(value);
-        for (;;)
+        for (; ; )
         {
             (StreamingPublishResult? result, Task? wait) = await ExecuteAsync(async token =>
             {
@@ -250,7 +250,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     /// <returns>投递批次；发布结束且全部事件已确认时返回空值。</returns>
     public async ValueTask<StreamingDeliveryBatch?> ReadBatchAsync(CancellationToken cancellationToken = default)
     {
-        for (;;)
+        for (; ; )
         {
             (StreamingDeliveryBatch? batch, Task? wait) = await ExecuteAsync(async token =>
             {

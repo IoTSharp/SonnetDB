@@ -1064,6 +1064,108 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         Assert.Contains("idx_devices_tenant", (string)values["index_name"]!);
     }
 
+    /// <summary>
+    /// 混合模型检索的普通名称忽略大小写，结果保留声明拼写，JSON 路径保持精确。
+    /// </summary>
+    [Fact]
+    public void HybridSearch_MeasurementKnnMixedCaseNames_PreservesMetadataAndJsonKeys()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db, mixedCaseNames: true);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT MeAsUrEmEnT.dEvIcE_iD,
+                   DIM.sItE,
+                   measurement.SEVERITY,
+                   json_value(document, '$.title') AS title,
+                   json_value(document, '$.Title') AS wrong_case_title
+            FROM hybrid_search(
+                source => INCIDENTS,
+                documents => knowledge,
+                vector_field => eMbEdDiNg,
+                vector => [1, 0, 0],
+                k => 5,
+                measurement_join_tag => DEVICE_ID,
+                document_join_path => '$.device_id',
+                text => 'pump alarm')
+            JOIN dEvIcEs Dim ON MEASUREMENT.DEVICE_ID = dim.ID
+            WHERE dim.TENANT = 'tenant-1' AND measurement.TIME >= 1000 AND measurement.DEVICE_ID = 'pump-1'
+            """));
+
+        Assert.Equal(new[] { "measurement.Device_Id", "Dim.Site", "measurement.Severity", "title", "wrong_case_title" }, result.Columns);
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("pump-1", row[0]);
+        Assert.Equal("north", row[1]);
+        Assert.Equal(9.0, Convert.ToDouble(row[2]));
+        Assert.Equal("Pump overheating guide", row[3]);
+        Assert.Null(row[4]);
+    }
+
+    /// <summary>
+    /// 混合模型检索中带引号的实体、字段和限定符使用精确拼写。
+    /// </summary>
+    [Fact]
+    public void HybridSearch_MeasurementKnnQuotedExactNames_ReturnsMatchingRows()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db, mixedCaseNames: true);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT "measurement"."Device_Id", "Dim"."Site"
+            FROM hybrid_search(
+                source => "Incidents",
+                documents => knowledge,
+                vector_field => "Embedding",
+                vector => [1, 0, 0],
+                measurement_join_tag => "Device_Id",
+                document_join_path => '$.device_id',
+                text => 'pump alarm')
+            JOIN "Devices" "Dim" ON "measurement"."Device_Id" = "Dim"."Id"
+            WHERE "Dim"."Tenant" = 'tenant-1' AND "measurement"."Device_Id" = 'pump-1'
+            """));
+
+        Assert.Equal(new[] { "measurement.Device_Id", "Dim.Site" }, result.Columns);
+        Assert.Equal(new object?[] { "pump-1", "north" }, Assert.Single(result.Rows));
+    }
+
+    /// <summary>
+    /// 混合模型检索拒绝带引号但大小写错误的来源、字段、参数与限定符。
+    /// </summary>
+    /// <param name="source">检索来源的 SQL 名称。</param>
+    /// <param name="vectorField">向量字段的 SQL 名称。</param>
+    /// <param name="joinTag">关联 TAG 的 SQL 名称。</param>
+    /// <param name="projection">包含待验证标识符的投影。</param>
+    /// <param name="joinedTable">关联关系表的 SQL 名称。</param>
+    [Theory]
+    [InlineData("\"incidents\"", "Embedding", "Device_Id", "measurement.Device_Id", "Devices")]
+    [InlineData("Incidents", "\"embedding\"", "Device_Id", "measurement.Device_Id", "Devices")]
+    [InlineData("Incidents", "Embedding", "\"device_id\"", "measurement.Device_Id", "Devices")]
+    [InlineData("Incidents", "Embedding", "Device_Id", "measurement.\"device_id\"", "Devices")]
+    [InlineData("Incidents", "Embedding", "Device_Id", "\"MEASUREMENT\".Device_Id", "Devices")]
+    [InlineData("Incidents", "Embedding", "Device_Id", "dim.\"site\"", "Devices")]
+    [InlineData("Incidents", "Embedding", "Device_Id", "\"DIM\".Site", "Devices")]
+    [InlineData("Incidents", "Embedding", "Device_Id", "measurement.Device_Id", "\"devices\"")]
+    public void HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(
+        string source, string vectorField, string joinTag, string projection, string joinedTable)
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db, mixedCaseNames: true);
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, $$"""
+            SELECT {{projection}}
+            FROM hybrid_search(
+                source => {{source}},
+                documents => knowledge,
+                vector_field => {{vectorField}},
+                vector => [1, 0, 0],
+                measurement_join_tag => {{joinTag}},
+                document_join_path => '$.device_id',
+                text => 'pump alarm')
+            JOIN {{joinedTable}} Dim ON measurement.Device_Id = dim.Id
+            WHERE dim.Tenant = 'tenant-1'
+            """));
+    }
+
     private static void CreateHybridSearchFixture(Tsdb db)
     {
         SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
@@ -1077,11 +1179,20 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
     }
 
-    private static void CreateMeasurementKnowledgeFixture(Tsdb db)
+    private static void CreateMeasurementKnowledgeFixture(Tsdb db, bool mixedCaseNames = false)
     {
-        SqlExecutor.Execute(db, "CREATE MEASUREMENT incidents (device_id TAG, embedding FIELD VECTOR(3), severity FIELD FLOAT)");
-        SqlExecutor.Execute(db, """
-            INSERT INTO incidents (device_id, embedding, severity, time)
+        string measurementName = mixedCaseNames ? "Incidents" : "incidents";
+        string deviceColumn = mixedCaseNames ? "Device_Id" : "device_id";
+        string vectorColumn = mixedCaseNames ? "Embedding" : "embedding";
+        string severityColumn = mixedCaseNames ? "Severity" : "severity";
+        string tableName = mixedCaseNames ? "Devices" : "devices";
+        string idColumn = mixedCaseNames ? "Id" : "id";
+        string tenantColumn = mixedCaseNames ? "Tenant" : "tenant";
+        string siteColumn = mixedCaseNames ? "Site" : "site";
+
+        SqlExecutor.Execute(db, $"CREATE MEASUREMENT {measurementName} ({deviceColumn} TAG, {vectorColumn} FIELD VECTOR(3), {severityColumn} FIELD FLOAT)");
+        SqlExecutor.Execute(db, $$"""
+            INSERT INTO {{measurementName}} ({{deviceColumn}}, {{vectorColumn}}, {{severityColumn}}, time)
             VALUES ('pump-1', [1, 0, 0], 9.0, 1000),
                    ('pump-2', [0.8, 0.2, 0], 7.5, 2000),
                    ('fan-1', [0, 1, 0], 3.0, 3000)
@@ -1097,10 +1208,10 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         SqlExecutor.Execute(db, "CREATE JSON INDEX idx_knowledge_device ON knowledge ('$.device_id')");
         SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_knowledge_body ON knowledge ('$.body') USING unicode");
 
-        SqlExecutor.Execute(db, "CREATE TABLE devices (id STRING, tenant STRING, site STRING, PRIMARY KEY (id))");
-        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
-        SqlExecutor.Execute(db, """
-            INSERT INTO devices (id, tenant, site)
+        SqlExecutor.Execute(db, $"CREATE TABLE {tableName} ({idColumn} STRING, {tenantColumn} STRING, {siteColumn} STRING, PRIMARY KEY ({idColumn}))");
+        SqlExecutor.Execute(db, $"CREATE INDEX idx_devices_tenant ON {tableName} ({tenantColumn})");
+        SqlExecutor.Execute(db, $$"""
+            INSERT INTO {{tableName}} ({{idColumn}}, {{tenantColumn}}, {{siteColumn}})
             VALUES ('pump-1', 'tenant-1', 'north'),
                    ('pump-2', 'tenant-2', 'south'),
                    ('fan-1', 'tenant-1', 'east')

@@ -56,6 +56,62 @@ public class MeasurementSchemaTests
     }
 
     [Fact]
+    public void Create_WithCaseOnlyColumnNames_RejectsDuplicates()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            MeasurementSchema.Create("Sensors", new[] { Field("Temperature"), Field("temperature") }));
+    }
+
+    [Fact]
+    public void Resolve_WithQuotedAndUnquotedColumnNames_PreservesSpellingAndMatchesCorrectly()
+    {
+        var schema = MeasurementSchema.Create("Sensors", new[] { Field("Temperature") });
+
+        Assert.Equal("Temperature", schema.Resolve("TEMPERATURE", quoted: false)!.Name);
+        Assert.Equal("Temperature", schema.Resolve("Temperature", quoted: true)!.Name);
+        Assert.Null(schema.Resolve("TEMPERATURE", quoted: true));
+        Assert.Null(schema.TryGetColumn("TEMPERATURE"));
+    }
+
+    [Fact]
+    public void Resolve_WithLegacyCaseVariants_RejectsUnquotedAmbiguity()
+    {
+        var schema = MeasurementSchema.CreateLoaded("Sensors", new[] { Field("Temperature"), Field("temperature") });
+
+        Assert.Throws<InvalidOperationException>(() => schema.Resolve("TEMPERATURE", quoted: false));
+        Assert.Throws<InvalidOperationException>(() => schema.Resolve("Temperature", quoted: false));
+        Assert.Equal("Temperature", schema.Resolve("Temperature", quoted: true)!.Name);
+        Assert.Equal("temperature", schema.Resolve("temperature", quoted: true)!.Name);
+    }
+
+    [Fact]
+    public void Create_WithTimeColumn_PreservesExplicitField()
+    {
+        var schema = MeasurementSchema.Create("m", new[] { Field("time") });
+        Assert.Equal("time", schema.Resolve("time", quoted: true)!.Name);
+    }
+
+    [Fact]
+    public void CreateLoaded_WithLegacyTimeColumn_PreservesExistingSchema()
+    {
+        var schema = MeasurementSchema.CreateLoaded("m", new[] { Field("time") });
+        Assert.Equal("time", schema.TryGetColumn("time")!.Name);
+    }
+
+    [Fact]
+    public void WithColumns_WithLegacyConflict_PreservesOldNamesAndRejectsNewVariants()
+    {
+        var schema = MeasurementSchema.CreateLoaded("m", new[] { Field("Usage"), Field("usage") });
+        var changed = schema.WithColumns(new[] { Field("Usage", FieldType.Int64), Field("usage"), Field("Status") });
+
+        Assert.Equal(FieldType.Int64, changed.Resolve("Usage", quoted: true)!.DataType);
+        Assert.Equal("Status", changed.Resolve("status", quoted: false)!.Name);
+        Assert.Throws<InvalidOperationException>(() => changed.Resolve("Usage", quoted: false));
+        Assert.Throws<ArgumentException>(() => changed.WithColumns(
+            new[] { Field("Usage"), Field("usage"), Field("Status"), Field("status") }));
+    }
+
+    [Fact]
     public void Create_WithNonStringTag_Throws()
     {
         Assert.Throws<ArgumentException>(() =>
@@ -92,6 +148,47 @@ public class MeasurementSchemaTests
             cat.Add(MeasurementSchema.Create("m", new[] { Field("y") })));
         Assert.True(cat.Contains("m"));
         Assert.Equal(1, cat.Count);
+    }
+
+    [Fact]
+    public void Catalog_Add_RejectsCaseOnlyDistinctNames()
+    {
+        var catalog = new MeasurementCatalog();
+        catalog.Add(MeasurementSchema.Create("Sensors", new[] { Field("value") }));
+        Assert.Throws<InvalidOperationException>(() =>
+            catalog.Add(MeasurementSchema.Create("sensors", new[] { Field("value") })));
+
+        Assert.Equal(1, catalog.Count);
+    }
+
+    [Fact]
+    public void Catalog_Resolve_WithQuotedAndUnquotedNames_PreservesSpellingAndMatchesCorrectly()
+    {
+        var catalog = new MeasurementCatalog();
+        var upper = MeasurementSchema.Create("Sensors", new[] { Field("value") });
+        catalog.Add(upper);
+
+        Assert.Same(upper, catalog.Resolve("SENSORS", quoted: false));
+        Assert.Same(upper, catalog.Resolve("Sensors", quoted: true));
+        Assert.Null(catalog.Resolve("SENSORS", quoted: true));
+        Assert.Null(catalog.TryGet("SENSORS"));
+    }
+
+    [Fact]
+    public void Catalog_Resolve_WithLegacyCaseVariants_RejectsUnquotedAmbiguity()
+    {
+        var catalog = new MeasurementCatalog();
+        var schema = MeasurementSchema.Create("Sensors", new[] { Field("value") });
+        var lower = MeasurementSchema.Create("sensors", new[] { Field("value") });
+        catalog.LoadOrReplace(schema);
+        catalog.LoadOrReplace(lower);
+
+        Assert.Throws<InvalidOperationException>(() => catalog.Resolve("SENSORS", quoted: false));
+        Assert.Throws<InvalidOperationException>(() => catalog.Resolve("Sensors", quoted: false));
+        Assert.Same(schema, catalog.Resolve("Sensors", quoted: true));
+        Assert.Same(lower, catalog.Resolve("sensors", quoted: true));
+        Assert.Throws<InvalidOperationException>(() =>
+            catalog.Add(MeasurementSchema.Create("SENSORS", new[] { Field("value") })));
     }
 
     [Fact]

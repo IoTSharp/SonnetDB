@@ -12,6 +12,7 @@ internal static class DeleteExecutor
 {
     public static DeleteExecutionResult Execute(Tsdb tsdb, DeleteStatement statement)
     {
+        statement = (DeleteStatement)MeasurementSqlNameBinder.Bind(tsdb, statement);
         var schema = tsdb.Measurements.TryGet(statement.Measurement)
             ?? throw new InvalidOperationException(
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");

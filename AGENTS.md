@@ -90,6 +90,25 @@ public struct FileHeader
 2. 在 PR 描述和 `CHANGELOG.md` 中明确标注格式变更
 3. 添加格式迁移或拒绝旧格式的处理逻辑
 
+### 7. 提交前格式检查铁律
+
+**每次提交代码前，必须在最终待提交的工作树上执行与 CI `Format Check` 相同的检查，并确认通过。**不得以提交后的 CI 检查代替，也不得跳过或降低检查级别：
+
+```bash
+dotnet restore SonnetDB.slnx
+dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/
+```
+
+检查失败时必须先修正格式问题，再重新运行检查；检查通过后若继续修改代码，提交前必须重新检查。未取得通过结果不得执行 `git commit`。
+
+### 8. SQL 标识符大小写合同（GH-Issue #211）
+
+- SQL 表名、measurement 名称、视图及物化视图名称、关系表列名及 measurement 的 TAG/FIELD 列名必须保留创建时的原始拼写，不折叠为小写或大写；catalog、`SHOW`/`DESCRIBE` 与结果列元数据使用已保存的名称。
+- 未加双引号的名称按 `OrdinalIgnoreCase` 解析；双引号名称按 `Ordinal` 精确解析。创建 `DeviceID` 后，`deviceid`、`DEVICEID` 与 `"DeviceID"` 可引用它，`"deviceid"` 不匹配。该规则不依赖当前语言区域或数据 collation。
+- 新建或重命名时，禁止在同一命名空间内产生仅大小写不同的名称，即使加双引号也不允许；表、measurement、视图和物化视图共享 SQL 数据源命名空间。旧 catalog 中已存在的此类冲突须显式迁移；普通引用必须报歧义，允许用双引号精确检查和迁移，不能静默选取、合并或覆盖。跨模型精确同名无法由引号消歧时，须通过指明对象类型的 DDL 显式迁移。
+- 限定符、别名、CTE 名及 DDL/DML 中的名称引用遵循相同规则。解析器须把引号信息传给统一名称绑定阶段，执行器使用绑定后的原名；禁止各入口自行折叠或选择不同的比较规则。双引号内的转义 `""` 代表一个 `"`。
+- Point、Line Protocol 等摄取入口的 measurement/TAG/FIELD 名称也须解析到已有 schema 的拼写，避免仅因大小写变化而新增列或 series。此合同不改变字符串数据值、数据 collation、JSON 文档属性键或其他模型的数据键语义。
+
 ---
 
 ## 代码规范

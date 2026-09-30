@@ -334,7 +334,7 @@ public static class MeasurementSchemaCodec
             columns.Add(new MeasurementColumn(colName, role, dataType, vectorDim, vectorIndex));
         }
 
-        return MeasurementSchema.Create(name, columns, createdAt);
+        return MeasurementSchema.CreateLoaded(name, columns, createdAt);
     }
 
     private static void Save(IReadOnlyList<MeasurementSchema> schemas, Stream destination)

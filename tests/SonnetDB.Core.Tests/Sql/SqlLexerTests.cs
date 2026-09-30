@@ -32,6 +32,16 @@ public class SqlLexerTests
         var tokens = SqlLexer.Tokenize("\"my \"\"col\"\"\"");
         Assert.Equal(TokenKind.IdentifierLiteral, tokens[0].Kind);
         Assert.Equal("my \"col\"", tokens[0].Text);
+        Assert.True(tokens[0].IsQuotedIdentifier);
+    }
+
+    [Fact]
+    public void Tokenize_UnquotedIdentifier_PreservesCaseWithoutQuoteFlag()
+    {
+        var tokens = SqlLexer.Tokenize("MixedCase");
+        Assert.Equal(TokenKind.IdentifierLiteral, tokens[0].Kind);
+        Assert.Equal("MixedCase", tokens[0].Text);
+        Assert.False(tokens[0].IsQuotedIdentifier);
     }
 
     [Fact]

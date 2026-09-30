@@ -386,6 +386,7 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
+        statement = BindNames(tsdb, statement);
         using var deadlineSource = options.CreateDeadlineSource();
         if (deadlineSource is not null)
         {
@@ -525,8 +526,11 @@ public static class SqlExecutor
             AnalyzeGraphStatement analyzeGraph => GraphSqlExecutor.AnalyzeGraph(tsdb, analyzeGraph),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             AnalyzeTableStatement analyzeTable => TableSqlExecutor.ExecuteAnalyze(tsdb, analyzeTable),
-            DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
-            DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb, describeMaterializedView.Name),
+            DescribeViewStatement describeView => DescribeView(tsdb,
+                tsdb.Views.Catalog.Resolve(describeView.Name, describeView.NameIsQuoted)?.Name ?? describeView.Name),
+            DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb,
+                tsdb.MaterializedViews.Catalog.Resolve(describeMaterializedView.Name, describeMaterializedView.NameIsQuoted)?.Name
+                    ?? describeMaterializedView.Name),
             DescribeProcedureStatement describeProcedure => DescribeProcedure(tsdb, describeProcedure.Name),
             DescribeTriggerStatement describeTrigger => DescribeTrigger(tsdb, describeTrigger.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
@@ -778,6 +782,14 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        if (tsdb.Views.Catalog.Resolve(statement.Name, statement.NameIsQuoted) is { } matchingView)
+        {
+            if (statement.IfNotExists)
+                return matchingView;
+            throw new InvalidOperationException($"view '{statement.Name}' 已存在。");
+        }
+        SqlSourceNameResolver.EnsureAvailable(tsdb, statement.Name);
+
         if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
             || tsdb.Measurements.Contains(statement.Name)
             || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
@@ -800,11 +812,11 @@ public static class SqlExecutor
             statement.Name,
             statement.DefinitionSql,
             statement.Query);
-        var analysis = ViewDependencyCollector.Analyze(statement.Query);
+        var analysis = ViewDependencyCollector.Analyze(BindSelectNames(tsdb, statement.Query));
         ValidateViewDependencies(
             tsdb,
             definition.Name,
-            definition.Dependencies,
+            analysis.Dependencies,
             analysis.GraphDependencies,
             "view");
 
@@ -818,6 +830,14 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        if (tsdb.MaterializedViews.Catalog.Resolve(statement.Name, statement.NameIsQuoted) is { } matchingView)
+        {
+            if (statement.IfNotExists)
+                return matchingView;
+            throw new InvalidOperationException($"materialized view '{statement.Name}' 已存在。");
+        }
+        SqlSourceNameResolver.EnsureAvailable(tsdb, statement.Name);
 
         if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
             || tsdb.Measurements.Contains(statement.Name)
@@ -841,11 +861,11 @@ public static class SqlExecutor
             statement.Name,
             statement.DefinitionSql,
             statement.Query);
-        var analysis = ViewDependencyCollector.Analyze(statement.Query);
+        var analysis = ViewDependencyCollector.Analyze(BindSelectNames(tsdb, statement.Query));
         ValidateViewDependencies(
             tsdb,
             definition.Name,
-            definition.Dependencies,
+            analysis.Dependencies,
             analysis.GraphDependencies,
             "materialized view");
         tsdb.MaterializedViews.Create(definition);
@@ -860,12 +880,12 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         if (SqlTransactionContext.Current is not null)
             throw new InvalidOperationException("REFRESH MATERIALIZED VIEW 不能在活动轻事务内执行。");
-        var definition = tsdb.MaterializedViews.Catalog.TryGet(statement.Name)
+        var definition = tsdb.MaterializedViews.Catalog.Resolve(statement.Name, statement.NameIsQuoted)
             ?? throw new InvalidOperationException($"materialized view '{statement.Name}' 不存在。");
         var result = tsdb.MaterializedViews.Refresh(
-            statement.Name,
+            definition.Name,
             () => ExecuteSelect(tsdb, definition.Query));
-        return new RowsAffectedExecutionResult(statement.Name, result.Rows.Count, "refresh_materialized_view");
+        return new RowsAffectedExecutionResult(definition.Name, result.Rows.Count, "refresh_materialized_view");
     }
 
     private static RowsAffectedExecutionResult ExecuteDropView(Tsdb tsdb, DropViewStatement statement)
@@ -873,8 +893,13 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var viewDependents = tsdb.Views.FindDependents(statement.Name);
-        var materializedDependents = tsdb.MaterializedViews.FindDependents(statement.Name);
+        statement = statement with
+        {
+            Name = tsdb.Views.Catalog.Resolve(statement.Name, statement.NameIsQuoted)?.Name ?? statement.Name,
+        };
+
+        var viewDependents = FindViewDependents(tsdb, statement.Name, excludeSelf: true);
+        var materializedDependents = FindMaterializedViewDependents(tsdb, statement.Name);
         if (viewDependents.Count != 0 || materializedDependents.Count != 0)
         {
             string dependents = FormatDependentNames(viewDependents, materializedDependents);
@@ -895,8 +920,13 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var viewDependents = tsdb.Views.FindDependents(statement.Name);
-        var materializedDependents = tsdb.MaterializedViews.FindDependents(statement.Name);
+        statement = statement with
+        {
+            Name = tsdb.MaterializedViews.Catalog.Resolve(statement.Name, statement.NameIsQuoted)?.Name ?? statement.Name,
+        };
+
+        var viewDependents = FindViewDependents(tsdb, statement.Name);
+        var materializedDependents = FindMaterializedViewDependents(tsdb, statement.Name, excludeSelf: true);
         if (viewDependents.Count != 0 || materializedDependents.Count != 0)
         {
             string dependents = FormatDependentNames(viewDependents, materializedDependents);
@@ -912,6 +942,27 @@ public static class SqlExecutor
             removed ? 1 : 0,
             "drop_materialized_view");
     }
+
+    internal static IReadOnlyList<ViewDefinition> FindViewDependents(
+        Tsdb tsdb, string objectName, bool excludeSelf = false)
+        => tsdb.Views.Catalog.Snapshot()
+            .Where(definition => (!excludeSelf || !string.Equals(definition.Name, objectName, StringComparison.Ordinal))
+                && HasViewDependency(definition.Query, objectName))
+            .ToArray();
+
+    internal static IReadOnlyList<MaterializedViewDefinition> FindMaterializedViewDependents(
+        Tsdb tsdb, string objectName, bool excludeSelf = false)
+        => tsdb.MaterializedViews.Catalog.Snapshot()
+            .Where(definition => (!excludeSelf || !string.Equals(definition.Name, objectName, StringComparison.Ordinal))
+                && HasViewDependency(definition.Query, objectName))
+            .ToArray();
+
+    private static bool HasViewDependency(SelectStatement query, string objectName)
+        => ViewDependencyCollector.Analyze(query, (name, quoted) => string.Equals(
+                name, objectName, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+            ? objectName
+            : name)
+            .Dependencies.Contains(objectName, StringComparer.Ordinal);
 
     private static void ValidateViewDependencies(
         Tsdb tsdb,
@@ -964,6 +1015,12 @@ public static class SqlExecutor
         string objectName,
         string objectType)
     {
+        SqlSourceNameResolver.EnsureAvailable(tsdb, objectName, objectType switch
+        {
+            "table" => SqlSourceKind.Table,
+            "measurement" => SqlSourceKind.Measurement,
+            _ => null,
+        });
         if (tsdb.Views.Catalog.TryGet(objectName) is not null)
         {
             throw new InvalidOperationException(
@@ -992,8 +1049,8 @@ public static class SqlExecutor
         string operation)
     {
         SqlRoutineRuntime.EnsureNoDependents(tsdb, objectName, operation);
-        var viewDependents = tsdb.Views.FindDependents(objectName);
-        var materializedDependents = tsdb.MaterializedViews.FindDependents(objectName);
+        var viewDependents = FindViewDependents(tsdb, objectName);
+        var materializedDependents = FindMaterializedViewDependents(tsdb, objectName);
         if (viewDependents.Count == 0 && materializedDependents.Count == 0)
             return;
 
@@ -1014,6 +1071,7 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
     {
+        statement = statement with { Statement = BindNames(tsdb, statement.Statement) };
         if (statement.Statement is SelectStatement select && GraphSqlExecutor.IsGraphSelect(select))
             return select.GraphTable is null
                 ? statement.Analyze
@@ -1449,13 +1507,15 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (CreateMeasurementStatement)MeasurementSqlNameBinder.Bind(tsdb, statement);
 
         if (statement.IfNotExists)
         {
             // 存在检查和首次发布必须处于同一 schema 锁内，避免并发启动时其中一个幂等 DDL 误报重复。
             return tsdb.GetOrCreateMeasurement(
                 statement.Name,
-                () => BuildMeasurementSchema(statement));
+                () => BuildMeasurementSchema(statement),
+                quoted: statement.NameIsQuoted);
         }
 
         EnsureNameDoesNotBelongToView(tsdb, statement.Name, "measurement");
@@ -1474,6 +1534,7 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (DropMeasurementStatement)MeasurementSqlNameBinder.Bind(tsdb, statement);
 
         EnsureNoViewDependents(tsdb, statement.Name, "DROP MEASUREMENT");
 
@@ -1589,6 +1650,7 @@ public static class SqlExecutor
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (InsertStatement)BindNames(tsdb, statement);
         if (statement.ColumnRoleHints.Count != 0
             && statement.ColumnRoleHints.Count != statement.Columns.Count)
             throw new InvalidOperationException("INSERT 列角色提示数与列数不一致。");
@@ -1651,10 +1713,11 @@ public static class SqlExecutor
         for (int i = 0; i < statement.Columns.Count; i++)
         {
             var name = statement.Columns[i];
+            bool quoted = i < statement.ColumnIsQuoted.Count && statement.ColumnIsQuoted[i];
             ColumnKind? roleHint = statement.ColumnRoleHints.Count == 0
                 ? null
                 : statement.ColumnRoleHints[i];
-            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+            if (!quoted && string.Equals(name, "time", StringComparison.Ordinal))
             {
                 if (roleHint is not null)
                     throw new InvalidOperationException("INSERT 的 time 伪列不能指定 TAG / FIELD 提示。");
@@ -1749,7 +1812,7 @@ public static class SqlExecutor
                     $"INSERT 行至少需要包含一个 FIELD 列值（measurement '{statement.Measurement}'）。");
 
             var point = Point.Create(statement.Measurement, timestamp, tags, fields);
-            tsdb.Write(point);
+            tsdb.WriteSqlPoint(point);
             written++;
         }
 
@@ -1795,6 +1858,7 @@ public static class SqlExecutor
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = BindSelectNames(tsdb, statement);
         // EXPLAIN ANALYZE 和例程内嵌 SELECT 复用当前根调用的治理选项，
         // 不能因为进入这个公开辅助入口而退回默认取消令牌或丢失执行指标。
         SqlExecutionOptions executionOptions = RoutineExecutionContext.Current?.Options
@@ -1816,6 +1880,8 @@ public static class SqlExecutor
 
         if (tsdb.Views.Catalog.Count != 0)
             statement = ViewExpander.Expand(tsdb.Views.Catalog, statement);
+
+        statement = BindSelectNames(tsdb, statement);
 
         if (statement.SetOperationList.Count != 0)
             return ApplyCteOutputColumnNames(ExecuteUnion(tsdb, statement), statement.CteOutputColumnNames);
@@ -1862,6 +1928,12 @@ public static class SqlExecutor
                 $"CTE 输出列数不一致：声明 {names.Count} 列，查询返回 {result.Columns.Count} 列。");
         return result with { Columns = names.ToArray() };
     }
+
+    private static SqlStatement BindNames(Tsdb tsdb, SqlStatement statement)
+        => MeasurementSqlNameBinder.Bind(tsdb, SqlNameBinder.Bind(tsdb, statement));
+
+    private static SelectStatement BindSelectNames(Tsdb tsdb, SelectStatement statement)
+        => MeasurementSqlNameBinder.BindSelect(tsdb, SqlNameBinder.BindSelect(tsdb, statement));
 
     private static SelectExecutionResult ApplyDistinct(SelectExecutionResult result)
     {
@@ -2118,10 +2190,13 @@ public static class SqlExecutor
             int columnIndex = -1;
             for (int i = 0; i < result.Columns.Count; i++)
             {
-                if (string.Equals(result.Columns[i], identifier.Name, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(result.Columns[i], identifier.Name,
+                    identifier.IsQuoted || identifier.IsNameBound
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
                 {
+                    if (columnIndex >= 0)
+                        throw new InvalidOperationException($"UNION ORDER BY 列 '{identifier.Name}' 存在歧义。");
                     columnIndex = i;
-                    break;
                 }
             }
 
@@ -2258,12 +2333,12 @@ public static class SqlExecutor
         out SelectExecutionResult result)
     {
         result = default!;
-        if (!statement.Measurement.StartsWith("information_schema.", StringComparison.OrdinalIgnoreCase))
+        if (!TryResolveInformationSchemaName(statement, out string sourceName))
             return false;
         if (statement.JoinClauses.Count != 0 || statement.TableValuedFunction is not null || statement.GroupBy.Count != 0)
             throw new InvalidOperationException("INFORMATION_SCHEMA 查询不支持 JOIN、表值函数或 GROUP BY。");
 
-        var (columns, rows) = statement.Measurement.ToLowerInvariant() switch
+        var (columns, rows) = sourceName switch
         {
             "information_schema.tables" => BuildInformationSchemaTables(tsdb),
             "information_schema.columns" => BuildInformationSchemaColumns(tsdb),
@@ -2279,6 +2354,27 @@ public static class SqlExecutor
         (columns, rows) = ApplyInformationSchemaProjection(columns, rows, statement.Projections);
         rows = ApplyInformationSchemaPagination(rows, statement.Pagination);
         result = new SelectExecutionResult(columns, rows);
+        return true;
+    }
+
+    private static bool TryResolveInformationSchemaName(SelectStatement statement, out string name)
+    {
+        name = string.Empty;
+        if (statement.MeasurementNamePartIsQuoted.Count == 1)
+            return false;
+        int dot = statement.Measurement.IndexOf('.', StringComparison.Ordinal);
+        if (dot < 0)
+            return false;
+        bool schemaQuoted = statement.MeasurementNamePartIsQuoted.Count > 0
+            ? statement.MeasurementNamePartIsQuoted[0] : statement.MeasurementIsQuoted;
+        string schema = statement.Measurement[..dot];
+        if (!string.Equals(schema, "information_schema",
+            schemaQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+            return false;
+        bool tableQuoted = statement.MeasurementNamePartIsQuoted.Count > 1
+            && statement.MeasurementNamePartIsQuoted[1];
+        string table = statement.Measurement[(dot + 1)..];
+        name = "information_schema." + (tableQuoted ? table : table.ToLowerInvariant());
         return true;
     }
 
@@ -2483,7 +2579,7 @@ public static class SqlExecutor
                 ? (rightId, leftLiteral)
                 : throw new InvalidOperationException("INFORMATION_SCHEMA WHERE 当前仅支持列名 = 字面量。");
 
-        var ordinal = FindInformationSchemaColumn(columns, identifier.Name);
+        var ordinal = FindInformationSchemaColumn(columns, identifier);
         var expected = EvaluateInformationSchemaLiteral(literal);
         return Equals(row[ordinal], expected);
     }
@@ -2503,7 +2599,9 @@ public static class SqlExecutor
             SqlProjectionExpressionEvaluator.Validate(
                 projection.Expression,
                 identifier => columns.Any(column => string.Equals(
-                    column, identifier.Name, StringComparison.OrdinalIgnoreCase)),
+                    column, identifier.Name,
+                    identifier.IsQuoted || identifier.IsNameBound
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)),
                 "INFORMATION_SCHEMA");
             expressions.Add(projection.Expression);
             outputColumns.Add(projection.Alias
@@ -2515,7 +2613,7 @@ public static class SqlExecutor
             .Select(row => (IReadOnlyList<object?>)expressions.Select(expression =>
                 SqlProjectionExpressionEvaluator.Evaluate(
                     expression,
-                    identifier => row[FindInformationSchemaColumn(columns, identifier.Name)],
+                    identifier => row[FindInformationSchemaColumn(columns, identifier)],
                     "INFORMATION_SCHEMA")).ToArray())
             .ToArray();
         return (outputColumns, projectedRows);
@@ -2531,7 +2629,7 @@ public static class SqlExecutor
         if (orderBy.Expression is not IdentifierExpression id)
             throw new InvalidOperationException("INFORMATION_SCHEMA ORDER BY 当前仅支持列名。");
 
-        var ordinal = FindInformationSchemaColumn(columns, id.Name);
+        var ordinal = FindInformationSchemaColumn(columns, id);
         return orderBy.Direction == SortDirection.Descending
             ? rows.OrderByDescending(row => row[ordinal]).ToArray()
             : rows.OrderBy(row => row[ordinal]).ToArray();
@@ -2550,15 +2648,17 @@ public static class SqlExecutor
             : skipped.ToArray();
     }
 
-    private static int FindInformationSchemaColumn(IReadOnlyList<string> columns, string name)
+    private static int FindInformationSchemaColumn(IReadOnlyList<string> columns, IdentifierExpression identifier)
     {
         for (var i = 0; i < columns.Count; i++)
         {
-            if (string.Equals(columns[i], name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(columns[i], identifier.Name,
+                identifier.IsQuoted || identifier.IsNameBound
+                    ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
                 return i;
         }
 
-        throw new InvalidOperationException($"INFORMATION_SCHEMA 中不存在列 '{name}'。");
+        throw new InvalidOperationException($"INFORMATION_SCHEMA 中不存在列 '{identifier.Name}'。");
     }
 
     private static string FormatInformationSchemaTableType(TableColumnType type)
@@ -2632,6 +2732,7 @@ public static class SqlExecutor
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (DeleteStatement)BindNames(tsdb, statement);
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
@@ -2677,6 +2778,7 @@ public static class SqlExecutor
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
+        update = (UpdateStatement)BindNames(tsdb, update);
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
         {

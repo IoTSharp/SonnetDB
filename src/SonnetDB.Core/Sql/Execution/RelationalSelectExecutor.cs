@@ -20,7 +20,7 @@ internal static partial class RelationalSelectExecutor
     /// <param name="statement">待执行的 SELECT AST。</param>
     /// <returns>关系查询结果。</returns>
     public static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
-        => Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics: null));
+        => Execute(tsdb, SqlNameBinder.BindSelect(tsdb, statement), outerScope: null, new SubqueryMemo(metrics: null));
 
     /// <summary>
     /// 执行需要保留 JOIN 声明顺序的内部关系查询。
@@ -34,7 +34,7 @@ internal static partial class RelationalSelectExecutor
         RelationalSelectExecutionMetrics? metrics = null)
         => Execute(
             tsdb,
-            statement,
+            SqlNameBinder.BindSelect(tsdb, statement),
             outerScope: null,
             new SubqueryMemo(metrics),
             preserveDeclaredJoinOrder: true);
@@ -52,7 +52,7 @@ internal static partial class RelationalSelectExecutor
         RelationalSelectExecutionMetrics metrics)
     {
         ArgumentNullException.ThrowIfNull(metrics);
-        return Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics));
+        return Execute(tsdb, SqlNameBinder.BindSelect(tsdb, statement), outerScope: null, new SubqueryMemo(metrics));
     }
 
     /// <summary>
@@ -1051,7 +1051,7 @@ internal static partial class RelationalSelectExecutor
 
         var requiredColumns = new HashSet<string>[inputs.Count];
         for (int i = 0; i < requiredColumns.Length; i++)
-            requiredColumns[i] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            requiredColumns[i] = new HashSet<string>(StringComparer.Ordinal);
 
         bool projectionPushdown = !hasSubquery
             && !HasStarProjection(statement.Projections)
@@ -1287,7 +1287,7 @@ internal static partial class RelationalSelectExecutor
         {
             var input = inputs[i];
             if (identifier.Qualifier is not null
-                && !NameEquals(identifier.Qualifier, input.Alias))
+                && !IdentifierQualifierEquals(input.Alias, identifier))
             {
                 continue;
             }
@@ -1330,6 +1330,7 @@ internal static partial class RelationalSelectExecutor
             {
                 Name = GetCanonicalColumn(input.Schema, identifier.Name).Name,
                 Qualifier = input.Schema.Name,
+                IsNameBound = true,
             },
             UnaryExpression unary => unary with
             {
@@ -1676,11 +1677,11 @@ internal static partial class RelationalSelectExecutor
         {
             Relation source = sources[index];
             if (identifier.Qualifier is not null
-                && !NameEquals(identifier.Qualifier, source.TableInput!.Alias))
+                && !IdentifierQualifierEquals(source.TableInput!.Alias, identifier))
             {
                 continue;
             }
-            if (!source.Columns.Any(column => NameEquals(column.Name, identifier.Name)))
+            if (!source.Columns.Any(column => IdentifierNameEquals(column.Name, identifier)))
                 continue;
             sourceIndex = index;
             matches++;
@@ -3528,10 +3529,10 @@ internal static partial class RelationalSelectExecutor
         for (int i = 0; i < relation.Columns.Count; i++)
         {
             var column = relation.Columns[i];
-            if (!NameEquals(column.Name, identifier.Name))
+            if (!IdentifierNameEquals(column.Name, identifier))
                 continue;
             if (identifier.Qualifier is not null
-                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                && !IdentifierQualifierEquals(column.Qualifier, identifier))
                 continue;
             matchIndex = i;
             matchCount++;
@@ -3788,10 +3789,10 @@ internal static partial class RelationalSelectExecutor
         for (int i = 0; i < columns.Count; i++)
         {
             var column = columns[i];
-            if (!NameEquals(column.Name, identifier.Name))
+            if (!IdentifierNameEquals(column.Name, identifier))
                 continue;
             if (identifier.Qualifier is not null
-                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                && !IdentifierQualifierEquals(column.Qualifier, identifier))
                 continue;
             matchIndex = i;
             matchCount++;
@@ -4061,7 +4062,8 @@ internal static partial class RelationalSelectExecutor
                 if (item.Alias is not null)
                     throw new InvalidOperationException("'*' 不允许带 alias。");
                 foreach (var column in relation.Columns)
-                    result.Add(new Projection(FormatStarColumnName(column, relation), new IdentifierExpression(column.Name, column.Qualifier)));
+                    result.Add(new Projection(FormatStarColumnName(column, relation),
+                        new IdentifierExpression(column.Name, column.Qualifier) { IsNameBound = true }));
                 continue;
             }
 
@@ -4114,9 +4116,9 @@ internal static partial class RelationalSelectExecutor
             RelColumn? match = null;
             foreach (var column in columns)
             {
-                if (!NameEquals(column.Name, identifier.Name)
+                if (!IdentifierNameEquals(column.Name, identifier)
                     || identifier.Qualifier is not null
-                        && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                        && !IdentifierQualifierEquals(column.Qualifier, identifier))
                     continue;
                 if (match is not null)
                     return new SelectColumnInfo(null);
@@ -5097,13 +5099,13 @@ internal static partial class RelationalSelectExecutor
     {
         column = null!;
         ambiguous = false;
-        if (identifier.Qualifier is not null && !QualifierEquals(identifier.Qualifier, qualifier))
+        if (identifier.Qualifier is not null && !IdentifierQualifierEquals(qualifier, identifier))
             return false;
 
         TableColumn? match = null;
         foreach (var schemaColumn in schema.Columns)
         {
-            if (!NameEquals(schemaColumn.Name, identifier.Name))
+            if (!IdentifierNameEquals(schemaColumn.Name, identifier))
                 continue;
             if (match is not null)
             {
@@ -5161,10 +5163,10 @@ internal static partial class RelationalSelectExecutor
         for (int i = 0; i < columns.Count; i++)
         {
             var column = columns[i];
-            if (!NameEquals(column.Name, identifier.Name))
+            if (!IdentifierNameEquals(column.Name, identifier))
                 continue;
             if (identifier.Qualifier is not null
-                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                && !IdentifierQualifierEquals(column.Qualifier, identifier))
                 continue;
             matches.Add(i);
         }
@@ -5210,10 +5212,10 @@ internal static partial class RelationalSelectExecutor
         for (int i = 0; i < scope.Columns.Count; i++)
         {
             var column = scope.Columns[i];
-            if (!NameEquals(column.Name, identifier.Name))
+            if (!IdentifierNameEquals(column.Name, identifier))
                 continue;
             if (identifier.Qualifier is not null
-                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                && !IdentifierQualifierEquals(column.Qualifier, identifier))
                 continue;
             matchIndex = i;
             matchCount++;
@@ -5243,9 +5245,9 @@ internal static partial class RelationalSelectExecutor
             // 可能是 "c.name"（由 FormatExpressionName 生成）或裸 "name"（用户用了 alias）。
             // 两种形式都试一遍，避免相关子查询写法因 ORDER BY 失配而被拒绝。
             string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
-            int columnIndex = FindResultColumn(result.Columns, qualified);
+            int columnIndex = FindResultColumn(result.Columns, qualified, id.IsNameBound || id.IsQuoted);
             if (columnIndex < 0)
-                columnIndex = FindResultColumn(result.Columns, id.Name);
+                columnIndex = FindResultColumn(result.Columns, id.Name, id.IsNameBound || id.IsQuoted);
 
             if (columnIndex < 0)
                 throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{qualified}'。");
@@ -5275,9 +5277,9 @@ internal static partial class RelationalSelectExecutor
             if (order.Expression is not IdentifierExpression id)
                 throw new InvalidOperationException("关系型 ORDER BY 当前仅支持结果列名。");
             string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
-            int columnIndex = FindResultColumn(materializedColumns, qualified);
+            int columnIndex = FindResultColumn(materializedColumns, qualified, id.IsNameBound || id.IsQuoted);
             if (columnIndex < 0)
-                columnIndex = FindResultColumn(materializedColumns, id.Name);
+                columnIndex = FindResultColumn(materializedColumns, id.Name, id.IsNameBound || id.IsQuoted);
             if (columnIndex < 0)
                 throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{qualified}'。");
             return (ColumnIndex: columnIndex, order.Direction);
@@ -5391,14 +5393,18 @@ internal static partial class RelationalSelectExecutor
         }
     }
 
-    private static int FindResultColumn(IReadOnlyList<string> columns, string name)
+    private static int FindResultColumn(IReadOnlyList<string> columns, string name, bool exact = true)
     {
+        int match = -1;
         for (int i = 0; i < columns.Count; i++)
         {
-            if (NameEquals(columns[i], name))
-                return i;
+            if (!string.Equals(columns[i], name, exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (match >= 0)
+                throw new InvalidOperationException($"结果列 '{name}' 存在歧义。");
+            match = i;
         }
-        return -1;
+        return match;
     }
 
     private static SelectExecutionResult ApplyPagination(SelectExecutionResult result, PaginationSpec? pagination)
@@ -5588,8 +5594,12 @@ internal static partial class RelationalSelectExecutor
         => left switch
         {
             IdentifierExpression l when right is IdentifierExpression r =>
-                NameEquals(l.Name, r.Name)
-                && QualifierEquals(l.Qualifier, r.Qualifier),
+                string.Equals(l.Name, r.Name,
+                    (l.IsNameBound || l.IsQuoted) && (r.IsNameBound || r.IsQuoted)
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+                && string.Equals(l.Qualifier, r.Qualifier,
+                    (l.IsNameBound || l.QualifierIsQuoted) && (r.IsNameBound || r.QualifierIsQuoted)
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase),
             _ => Equals(left, right),
         };
 
@@ -5734,14 +5744,23 @@ internal static partial class RelationalSelectExecutor
             : column.Name;
 
     /// <summary>
-    /// 未加引号标识符的列名比较：大小写不敏感（<see cref="StringComparison.OrdinalIgnoreCase"/>），
-    /// 与本执行器的限定符（qualifier）比较策略以及 measurement / 关系表投影路径保持一致（Q12）。
+    /// 标识符在绑定阶段解析为存储的原始拼写；执行阶段精确比较已绑定名称。
     /// </summary>
     private static bool NameEquals(string left, string right)
-        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(left, right, StringComparison.Ordinal);
 
     private static bool QualifierEquals(string? left, string? right)
-        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(left, right, StringComparison.Ordinal);
+
+    private static bool IdentifierNameEquals(string name, IdentifierExpression identifier)
+        => string.Equals(name, identifier.Name,
+            identifier.IsNameBound || identifier.IsQuoted
+                ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    private static bool IdentifierQualifierEquals(string? qualifier, IdentifierExpression identifier)
+        => string.Equals(qualifier, identifier.Qualifier,
+            identifier.IsNameBound || identifier.QualifierIsQuoted
+                ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
 
     private sealed record Relation(
         IReadOnlyList<RelColumn> Columns,

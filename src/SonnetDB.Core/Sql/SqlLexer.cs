@@ -6,7 +6,7 @@ namespace SonnetDB.Sql;
 
 /// <summary>
 /// 单遍 SQL 词法分析器：把源文本扫描成 <see cref="Token"/> 序列。
-/// 关键字大小写不敏感；标识符保留原始大小写（双引号引用的标识符按字面保留）。
+/// 关键字大小写不敏感；标识符保留原始大小写，并记录是否使用双引号引用。
 /// </summary>
 public sealed class SqlLexer
 {
@@ -334,7 +334,7 @@ public sealed class SqlLexer
                     continue;
                 }
                 _position++;
-                return new Token(TokenKind.IdentifierLiteral, sb.ToString(), start);
+                return new Token(TokenKind.IdentifierLiteral, sb.ToString(), start) { IsQuotedIdentifier = true };
             }
             sb.Append(ch);
             _position++;

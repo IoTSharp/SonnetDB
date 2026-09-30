@@ -122,7 +122,7 @@ internal static class WhereClauseDecomposer
         var (left, right, op) = NormalizeComparison(bin);
 
         // time vs literal：可下推为时间窗。
-        if (left is IdentifierExpression { Name: var leftName } &&
+        if (left is IdentifierExpression { Name: var leftName, IsQuoted: false } &&
             string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase) &&
             IsTimeComparableLiteral(right))
         {
@@ -132,10 +132,12 @@ internal static class WhereClauseDecomposer
 
         // tag_col = 'literal'：可下推为 tag 等值过滤（仅顶层 AND 的等值 tag 比较到达此处）。
         if (op == SqlBinaryOperator.Equal &&
-            left is IdentifierExpression { Name: var tagName } &&
+            left is IdentifierExpression tagIdentifier &&
             right is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var tagVal } &&
-            schema.TryGetColumn(tagName) is { Role: MeasurementColumnRole.Tag })
+            schema.Resolve(tagIdentifier.Name, tagIdentifier.IsQuoted || tagIdentifier.IsNameBound)
+                is { Role: MeasurementColumnRole.Tag } tagColumn)
         {
+            string tagName = tagColumn.Name;
             if (tagFilter.TryGetValue(tagName, out var existing))
             {
                 if (!string.Equals(existing, tagVal, StringComparison.Ordinal))
@@ -198,7 +200,7 @@ internal static class WhereClauseDecomposer
             if (fn.Arguments.Count != 4 || fn.Arguments[0] is not IdentifierExpression id)
                 return false;
 
-            var column = schema.TryGetColumn(id.Name)
+            var column = schema.Resolve(id.Name, id.IsQuoted || id.IsNameBound)
                 ?? throw new InvalidOperationException($"WHERE 中引用了未知列 '{id.Name}'。");
             if (column.Role != MeasurementColumnRole.Field || column.DataType != Storage.Format.FieldType.GeoPoint)
                 throw new InvalidOperationException($"WHERE 中地理空间谓词要求 '{id.Name}' 是 GEOPOINT FIELD 列。");
@@ -209,7 +211,7 @@ internal static class WhereClauseDecomposer
             if (radius < 0)
                 throw new InvalidOperationException($"函数 {fn.Name} 的 radius_m 必须 >= 0。");
 
-            fieldName = id.Name;
+            fieldName = column.Name;
             box = GeoHash32.BoundingBoxForCircle(lat, lon, radius);
             predicate = fn;
             return true;
@@ -220,7 +222,7 @@ internal static class WhereClauseDecomposer
             if (fn.Arguments.Count != 5 || fn.Arguments[0] is not IdentifierExpression id)
                 return false;
 
-            var column = schema.TryGetColumn(id.Name)
+            var column = schema.Resolve(id.Name, id.IsQuoted || id.IsNameBound)
                 ?? throw new InvalidOperationException($"WHERE 中引用了未知列 '{id.Name}'。");
             if (column.Role != MeasurementColumnRole.Field || column.DataType != Storage.Format.FieldType.GeoPoint)
                 throw new InvalidOperationException($"WHERE 中地理空间谓词要求 '{id.Name}' 是 GEOPOINT FIELD 列。");
@@ -232,7 +234,7 @@ internal static class WhereClauseDecomposer
             if (latMin > latMax || lonMin > lonMax)
                 throw new InvalidOperationException("函数 geo_bbox 要求 lat_min <= lat_max 且 lon_min <= lon_max。");
 
-            fieldName = id.Name;
+            fieldName = column.Name;
             box = new GeoBoundingBox(latMin, lonMin, latMax, lonMax);
             predicate = fn;
             return true;

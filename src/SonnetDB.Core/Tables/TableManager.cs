@@ -86,7 +86,7 @@ public sealed partial class TableManager : IDisposable
 
         Catalog = new TableCatalog();
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
-            Catalog.LoadOrReplace(schema);
+            Catalog.LoadExisting(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
         try
         {
@@ -126,7 +126,7 @@ public sealed partial class TableManager : IDisposable
             {
                 _nameAvailabilityGuard?.Invoke(schema.Name, "table");
                 ThrowIfDisposed();
-                if (Catalog.TryGet(schema.Name) is not null)
+                if (Catalog.Snapshot().Any(existing => string.Equals(existing.Name, schema.Name, StringComparison.OrdinalIgnoreCase)))
                     throw new InvalidOperationException($"table '{schema.Name}' 已存在。");
 
                 IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
@@ -663,7 +663,11 @@ public sealed partial class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(oldName)
                     ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
-                if (Catalog.TryGet(newName) is not null)
+                if (string.Equals(oldName, newName, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"table '{newName}' 已存在。");
+                if (Catalog.Snapshot().Any(existing =>
+                    !string.Equals(existing.Name, oldName, StringComparison.Ordinal)
+                    && string.Equals(existing.Name, newName, StringComparison.OrdinalIgnoreCase)))
                     throw new InvalidOperationException($"table '{newName}' 已存在。");
                 EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
                 OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
@@ -693,7 +697,7 @@ public sealed partial class TableManager : IDisposable
                     if (Directory.Exists(newDirectory) && !Directory.Exists(oldDirectory))
                         Directory.Move(newDirectory, oldDirectory);
                     Catalog.Remove(newName);
-                    Catalog.Add(current);
+                    Catalog.LoadExisting(current);
                     PersistCatalogLocked();
                     _ = OpenStoreLocked(current);
                     throw;

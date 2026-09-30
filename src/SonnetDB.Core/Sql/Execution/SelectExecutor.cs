@@ -19,9 +19,11 @@ internal static class SelectExecutor
     public static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
     {
         ValidateTableAliasReferences(statement);
+        var orderByItems = statement.OrderByList;
+        OrderBySpec? orderBy = orderByItems.Count == 0 ? null : orderByItems[0];
 
         if (statement.TableValuedFunction is not null)
-            return ApplyOrderByAndPagination(TableValuedFunctionExecutor.Execute(tsdb, statement), statement.OrderBy, statement.Pagination);
+            return ApplyOrderByAndPagination(TableValuedFunctionExecutor.Execute(tsdb, statement), orderBy, statement.Pagination);
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement)
             ?? throw new InvalidOperationException(
@@ -53,7 +55,7 @@ internal static class SelectExecutor
                 classified,
                 matchedSeries,
                 where,
-                statement.OrderBy,
+                orderBy,
                 statement.Pagination,
                 out var latestResult))
         {
@@ -68,7 +70,7 @@ internal static class SelectExecutor
                 classified,
                 matchedSeries,
                 where,
-                statement.OrderBy,
+                orderBy,
                 statement.Pagination,
                 out var pushedDownResult))
         {
@@ -79,7 +81,7 @@ internal static class SelectExecutor
             ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
 
-        return ApplyOrderByAndPagination(result, statement.OrderBy, statement.Pagination);
+        return ApplyOrderByAndPagination(result, orderBy, statement.Pagination);
     }
 
     private static bool TryExecuteLatestPointFastPath(
@@ -97,8 +99,8 @@ internal static class SelectExecutor
             || where.GeoFilters.Count != 0
             || where.Residual is not null
             || orderBy is not { Direction: SortDirection.Descending }
-            || orderBy.Expression is not IdentifierExpression { Name: var orderColumn }
-            || !string.Equals(orderColumn, "time", StringComparison.OrdinalIgnoreCase)
+            || orderBy.Expression is not IdentifierExpression orderIdentifier
+            || !IsTimePseudoColumn(orderIdentifier)
             || pagination is not { Offset: 0, Fetch: 1 })
         {
             return false;
@@ -173,13 +175,10 @@ internal static class SelectExecutor
             if (identifier.Qualifier is null)
                 continue;
 
-            if (statement.TableAlias is null)
-            {
-                throw new InvalidOperationException(
-                    $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 要求 FROM 子句声明单表别名。");
-            }
-
-            if (!string.Equals(identifier.Qualifier, statement.TableAlias, StringComparison.OrdinalIgnoreCase))
+            string qualifier = statement.TableAlias ?? statement.Measurement;
+            if (!string.Equals(identifier.Qualifier, qualifier,
+                identifier.QualifierIsQuoted || identifier.IsNameBound
+                    ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 引用了未知别名 '{identifier.Qualifier}'；当前查询只声明了别名 '{statement.TableAlias}'。");
@@ -213,9 +212,9 @@ internal static class SelectExecutor
                 yield return identifier;
         }
 
-        if (statement.OrderBy is not null)
+        foreach (OrderBySpec orderBy in statement.OrderByList)
         {
-            foreach (var identifier in EnumerateIdentifierReferences(statement.OrderBy.Expression))
+            foreach (var identifier in EnumerateIdentifierReferences(orderBy.Expression))
                 yield return identifier;
         }
     }
@@ -264,8 +263,8 @@ internal static class SelectExecutor
         if (orderBy is null)
             return ApplyPagination(result, pagination);
 
-        if (orderBy.Expression is not IdentifierExpression { Name: var name }
-            || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+        if (orderBy.Expression is not IdentifierExpression identifier
+            || !IsTimePseudoColumn(identifier))
         {
             throw new InvalidOperationException("当前仅支持 ORDER BY time [ASC|DESC]。");
         }
@@ -273,7 +272,7 @@ internal static class SelectExecutor
         int timeColumnIndex = -1;
         for (int i = 0; i < result.Columns.Count; i++)
         {
-            if (string.Equals(result.Columns[i], "time", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(result.Columns[i], "time", StringComparison.Ordinal))
             {
                 timeColumnIndex = i;
                 break;
@@ -379,7 +378,7 @@ internal static class SelectExecutor
                     break;
 
                 case IdentifierExpression id:
-                    result.Add(BuildIdentifierProjection(id.Name, item.Alias, schema));
+                    result.Add(BuildIdentifierProjection(id, item.Alias, schema));
                     break;
 
                 case LiteralExpression literal:
@@ -496,8 +495,8 @@ internal static class SelectExecutor
 
         foreach (OrderBySpec orderBy in specification.OrderBy)
         {
-            if (orderBy.Expression is not IdentifierExpression { Name: var name }
-                || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase)
+            if (orderBy.Expression is not IdentifierExpression identifier
+                || !IsTimePseudoColumn(identifier)
                 || orderBy.Direction != SortDirection.Ascending)
             {
                 throw new NotSupportedException(
@@ -512,14 +511,15 @@ internal static class SelectExecutor
     private static bool IsMeasurementProjectionIdentifier(
         IdentifierExpression identifier,
         MeasurementSchema schema)
-        => string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase)
+        => IsTimePseudoColumn(identifier)
             || schema.TryGetColumn(identifier.Name) is not null;
 
-    private static Projection BuildIdentifierProjection(string name, string? alias, MeasurementSchema schema)
+    private static Projection BuildIdentifierProjection(IdentifierExpression identifier, string? alias, MeasurementSchema schema)
     {
-        if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+        if (IsTimePseudoColumn(identifier))
             return new Projection(alias ?? "time", ProjectionKind.Time, null, null);
 
+        string name = identifier.Name;
         var col = schema.TryGetColumn(name)
             ?? throw new InvalidOperationException(
                 $"SELECT 中引用了未知列 '{name}'。");
@@ -605,8 +605,8 @@ internal static class SelectExecutor
         }
 
         if (orderBy is not null
-            && (orderBy.Expression is not IdentifierExpression { Name: var orderColumn }
-                || !string.Equals(orderColumn, "time", StringComparison.OrdinalIgnoreCase)))
+            && (orderBy.Expression is not IdentifierExpression orderIdentifier
+                || !IsTimePseudoColumn(orderIdentifier)))
         {
             return false;
         }
@@ -614,7 +614,7 @@ internal static class SelectExecutor
         var columnNames = projections.Select(static projection => projection.ColumnName).ToList();
         if (orderBy is not null
             && !columnNames.Any(static name =>
-                string.Equals(name, "time", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(name, "time", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException("ORDER BY time 要求 SELECT 结果中包含 time 列。");
         }
@@ -1233,7 +1233,7 @@ internal static class SelectExecutor
         switch (expression)
         {
             case IdentifierExpression id:
-                if (string.Equals(id.Name, "time", StringComparison.OrdinalIgnoreCase))
+                if (IsTimePseudoColumn(id))
                     yield break;
 
                 var column = schema.TryGetColumn(id.Name)
@@ -1299,53 +1299,54 @@ internal static class SelectExecutor
         if (residual is null)
             yield break;
 
-        foreach (var name in CollectIdentifierNames(residual))
+        foreach (var identifier in CollectIdentifiers(residual))
         {
-            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+            if (IsTimePseudoColumn(identifier))
                 continue;
+            string name = identifier.Name;
             if (schema.TryGetColumn(name) is { Role: MeasurementColumnRole.Field })
                 yield return name;
         }
     }
 
     /// <summary>递归收集表达式中出现的全部标识符名（含残差可能出现的 IS NULL / IN / NOT / 比较等节点）。</summary>
-    private static IEnumerable<string> CollectIdentifierNames(SqlExpression expression)
+    private static IEnumerable<IdentifierExpression> CollectIdentifiers(SqlExpression expression)
     {
         switch (expression)
         {
             case IdentifierExpression id:
-                yield return id.Name;
+                yield return id;
                 yield break;
             case BinaryExpression binary:
-                foreach (var n in CollectIdentifierNames(binary.Left)) yield return n;
-                foreach (var n in CollectIdentifierNames(binary.Right)) yield return n;
+                foreach (var n in CollectIdentifiers(binary.Left)) yield return n;
+                foreach (var n in CollectIdentifiers(binary.Right)) yield return n;
                 yield break;
             case UnaryExpression unary:
-                foreach (var n in CollectIdentifierNames(unary.Operand)) yield return n;
+                foreach (var n in CollectIdentifiers(unary.Operand)) yield return n;
                 yield break;
             case CastExpression cast:
-                foreach (var n in CollectIdentifierNames(cast.Operand)) yield return n;
+                foreach (var n in CollectIdentifiers(cast.Operand)) yield return n;
                 yield break;
             case IsNullExpression isNull:
-                foreach (var n in CollectIdentifierNames(isNull.Operand)) yield return n;
+                foreach (var n in CollectIdentifiers(isNull.Operand)) yield return n;
                 yield break;
             case InExpression inExpr:
-                foreach (var n in CollectIdentifierNames(inExpr.Value)) yield return n;
+                foreach (var n in CollectIdentifiers(inExpr.Value)) yield return n;
                 foreach (var item in inExpr.Values)
-                    foreach (var n in CollectIdentifierNames(item)) yield return n;
+                    foreach (var n in CollectIdentifiers(item)) yield return n;
                 yield break;
             case FunctionCallExpression fn:
                 foreach (var arg in fn.Arguments)
-                    foreach (var n in CollectIdentifierNames(arg)) yield return n;
+                    foreach (var n in CollectIdentifiers(arg)) yield return n;
                 yield break;
             case CaseExpression caseExpression:
                 foreach (var clause in caseExpression.WhenClauses)
                 {
-                    foreach (var n in CollectIdentifierNames(clause.Condition)) yield return n;
-                    foreach (var n in CollectIdentifierNames(clause.Result)) yield return n;
+                    foreach (var n in CollectIdentifiers(clause.Condition)) yield return n;
+                    foreach (var n in CollectIdentifiers(clause.Result)) yield return n;
                 }
                 if (caseExpression.Else is not null)
-                    foreach (var n in CollectIdentifierNames(caseExpression.Else)) yield return n;
+                    foreach (var n in CollectIdentifiers(caseExpression.Else)) yield return n;
                 yield break;
             default:
                 yield break;
@@ -1429,10 +1430,11 @@ internal static class SelectExecutor
     /// </summary>
     internal static void ValidateResidualColumns(SqlExpression residual, MeasurementSchema schema)
     {
-        foreach (var name in CollectIdentifierNames(residual))
+        foreach (var identifier in CollectIdentifiers(residual))
         {
-            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+            if (IsTimePseudoColumn(identifier))
                 continue;
+            string name = identifier.Name;
             if (schema.TryGetColumn(name) is null)
                 throw new InvalidOperationException($"WHERE 中引用了未知列 '{name}'。");
         }
@@ -1472,7 +1474,7 @@ internal static class SelectExecutor
         SeriesEntry series,
         IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
     {
-        if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+        if (IsTimePseudoColumn(identifier))
             return timestamp;
         if (series.Tags.TryGetValue(identifier.Name, out var tagValue))
             return tagValue;
@@ -1482,6 +1484,10 @@ internal static class SelectExecutor
             return null;
         throw new InvalidOperationException($"SELECT 中引用了未知列 '{identifier.Name}'。");
     }
+
+    private static bool IsTimePseudoColumn(IdentifierExpression identifier)
+        => !identifier.IsQuoted
+            && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase);
 
     // ── 残差谓词逐点求值（#217，三值 Kleene 逻辑）──────────────────────────────
 

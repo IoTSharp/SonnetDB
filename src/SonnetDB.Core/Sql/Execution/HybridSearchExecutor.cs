@@ -26,10 +26,153 @@ internal static class HybridSearchExecutor
         => statement.TableValuedFunction is { Name: var name }
             && string.Equals(name, FunctionName, StringComparison.OrdinalIgnoreCase);
 
+    internal static SelectStatement BindMeasurementNames(Tsdb tsdb, SelectStatement statement)
+    {
+        FunctionCallExpression call = statement.TableValuedFunction
+            ?? throw new InvalidOperationException("hybrid_search 只能出现在 FROM 表值函数中。");
+        var args = BindArguments(call);
+        string source = RequireIdentifierArgument(args, "source");
+        if (tsdb.Documents.Catalog.TryGet(source) is not null)
+            return statement;
+        bool sourceQuoted = args["source"] is not IdentifierExpression sourceIdentifier
+            || sourceIdentifier.IsQuoted || sourceIdentifier.IsNameBound;
+        MeasurementSchema? schema = tsdb.Measurements.Resolve(source, sourceQuoted);
+        if (schema is null)
+            return statement;
+
+        if (statement.JoinClauses.Count > 1)
+            throw new InvalidOperationException("hybrid_search measurement 当前仅支持一个关系表 JOIN。");
+        JoinClause? join = statement.JoinClauses.Count == 0 ? null : statement.JoinClauses[0];
+        TableSchema? tableSchema = join is null ? null : tsdb.Tables.Catalog.Resolve(join.TableName, join.TableNameIsQuoted)
+            ?? throw new InvalidOperationException($"hybrid_search JOIN 右侧必须是关系表，table '{join.TableName}' 不存在。");
+        if (join is not null && (IsMeasurementQualifier(join.Alias, schema.Name) || IsDocumentQualifier(join.Alias)))
+            throw new InvalidOperationException($"hybrid_search JOIN 别名 '{join.Alias}' 与其他来源名称冲突。");
+
+        JoinClause[] joins = join is null ? [] : [join with
+        {
+            TableName = tableSchema!.Name,
+            TableNameIsQuoted = true,
+            On = SqlIdentifierExpressionBinder.Rewrite(join.On, identifier =>
+            {
+                var resolved = ResolveJoinIdentifierSource(identifier, schema, tableSchema!, join!);
+                return resolved.MeasurementColumn is { } measurementColumn
+                    ? CanonicalIdentifier(identifier, measurementColumn.Name, "measurement")
+                    : CanonicalIdentifier(identifier, resolved.TableColumn!.Name, join!.Alias);
+            }),
+        }];
+
+        var arguments = call.Arguments.Select(argument => argument is NamedArgumentExpression named
+            ? named with { Value = BindArgument(named.Name, named.Value) }
+            : argument).ToArray();
+        var order = statement.OrderByList.Select(item => item with
+        {
+            Expression = Rewrite(item.Expression),
+        }).ToArray();
+        return statement with
+        {
+            Measurement = schema.Name,
+            MeasurementIsQuoted = true,
+            TableValuedFunction = call with { Arguments = arguments },
+            Projections = statement.Projections.Select(item => item with { Expression = Rewrite(item.Expression) }).ToArray(),
+            Where = statement.Where is null ? null : Rewrite(statement.Where),
+            OrderBy = order.Length == 0 ? null : order[0],
+            OrderByItems = order,
+            Join = null,
+            Joins = joins,
+        };
+
+        SqlExpression BindArgument(string name, SqlExpression value)
+        {
+            if (value is not IdentifierExpression identifier)
+                return value;
+            if (string.Equals(name, "source", StringComparison.OrdinalIgnoreCase))
+                return identifier with { Name = schema.Name, IsNameBound = true, IsQuoted = true };
+            if (name.ToLowerInvariant() is "vector_field" or "measurement_vector_field" or "column"
+                or "measurement_join_tag" or "join_tag" or "tag")
+                return BindColumn(identifier, allowTimePseudoColumn: false);
+            return value;
+        }
+
+        SqlExpression Rewrite(SqlExpression expression)
+            => SqlIdentifierExpressionBinder.Rewrite(expression, identifier =>
+            {
+                if (identifier.IsNameBound)
+                    return identifier;
+                if (identifier.Qualifier is not null)
+                {
+                    var comparison = identifier.QualifierIsQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    bool measurementQualifier = IsMeasurementQualifier(identifier.Qualifier, schema.Name, identifier.QualifierIsQuoted);
+                    bool tableQualifier = join is not null && tableSchema is not null
+                        && (string.Equals(identifier.Qualifier, join.Alias, comparison)
+                            || string.Equals(identifier.Qualifier, tableSchema.Name, comparison));
+                    if (measurementQualifier && tableQualifier)
+                        throw new InvalidOperationException($"hybrid_search 限定符 '{identifier.Qualifier}' 存在歧义。");
+                    if (measurementQualifier)
+                        return BindColumn(identifier);
+                    if (tableQualifier)
+                    {
+                        TableColumn tableColumn = tableSchema!.Resolve(identifier.Name, identifier.IsQuoted)
+                            ?? throw new InvalidOperationException($"hybrid_search JOIN 引用了未知 table 列 '{identifier.Name}'。");
+                        return CanonicalIdentifier(identifier, tableColumn.Name, join!.Alias);
+                    }
+                    if (IsDocumentQualifier(identifier.Qualifier))
+                        return identifier;
+                    if (IsMeasurementQualifier(identifier.Qualifier, schema.Name))
+                        throw new InvalidOperationException($"hybrid_search 引用了未知 measurement 限定符 '{identifier.Qualifier}'。");
+                    if (join is not null && tableSchema is not null
+                        && (string.Equals(identifier.Qualifier, join.Alias, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(identifier.Qualifier, tableSchema.Name, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException($"hybrid_search 引用了未知 table 限定符 '{identifier.Qualifier}'。");
+                    return identifier;
+                }
+                if (!identifier.IsQuoted && identifier.Name.ToLowerInvariant() is "time" or "id" or "document_id"
+                    or "document" or "json" or "measurement_distance" or "vector_distance" or "measurement_score"
+                    or "vector_score" or "bm25_score" or "text_score" or "document_vector_distance"
+                    or "document_vector_score" or "hybrid_score")
+                    return identifier;
+                MeasurementColumn? column = schema.Resolve(identifier.Name, identifier.IsQuoted);
+                TableColumn? relationColumn = tableSchema?.Resolve(identifier.Name, identifier.IsQuoted);
+                if (column is not null && relationColumn is not null)
+                    throw new InvalidOperationException($"hybrid_search 中未限定列名 '{identifier.Name}' 同时存在于 measurement 和 table。");
+                return column is not null ? CanonicalIdentifier(identifier, column.Name, "measurement")
+                    : relationColumn is not null ? CanonicalIdentifier(identifier, relationColumn.Name, join!.Alias)
+                    : identifier;
+            });
+
+        IdentifierExpression BindColumn(IdentifierExpression identifier, bool allowTimePseudoColumn = true)
+        {
+            string qualifier = identifier.Qualifier is not null
+                && string.Equals(identifier.Qualifier, schema.Name, identifier.QualifierIsQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+                ? schema.Name : "measurement";
+            if (allowTimePseudoColumn && !identifier.IsQuoted && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+                return identifier with
+                {
+                    Name = "time",
+                    IsNameBound = true,
+                    Qualifier = identifier.Qualifier is null ? null : qualifier,
+                    QualifierIsQuoted = identifier.Qualifier is not null,
+                };
+            MeasurementColumn column = schema.Resolve(identifier.Name, identifier.IsQuoted)
+                ?? throw new InvalidOperationException($"hybrid_search measurement '{schema.Name}' 中不存在列 '{identifier.Name}'。");
+            return CanonicalIdentifier(identifier, column.Name, qualifier);
+        }
+    }
+
+    private static IdentifierExpression CanonicalIdentifier(IdentifierExpression identifier, string name, string qualifier)
+        => identifier with
+        {
+            Name = name,
+            IsQuoted = true,
+            IsNameBound = true,
+            Qualifier = identifier.Qualifier is null ? null : qualifier,
+            QualifierIsQuoted = identifier.Qualifier is not null,
+        };
+
     public static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = BindMeasurementNames(tsdb, statement);
 
         var call = statement.TableValuedFunction
             ?? throw new InvalidOperationException("hybrid_search 只能出现在 FROM 表值函数中。");
@@ -40,7 +183,7 @@ internal static class HybridSearchExecutor
         if (documentSchema is not null)
             return ExecuteDocumentCollection(tsdb, statement, call, documentSchema);
 
-        var measurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
+        var measurementSchema = tsdb.Measurements.Resolve(statement.Measurement, statement.MeasurementIsQuoted)
             ?? throw new InvalidOperationException(
                 $"hybrid_search(...) 的 source '{statement.Measurement}' 必须是 measurement 或 document collection。");
         return ExecuteMeasurementKnowledge(tsdb, statement, call, measurementSchema);
@@ -337,11 +480,11 @@ internal static class HybridSearchExecutor
         MeasurementSchema schema,
         MeasurementKnowledgeOptions options)
     {
-        if (statement.Join is null)
+        if (statement.JoinClauses.Count == 0)
             return null;
 
-        var join = statement.Join;
-        var tableSchema = tsdb.Tables.Catalog.TryGet(join.TableName)
+        var join = statement.JoinClauses[0];
+        var tableSchema = tsdb.Tables.Catalog.Resolve(join.TableName, join.TableNameIsQuoted)
             ?? throw new InvalidOperationException(
                 $"hybrid_search JOIN 右侧必须是关系表，table '{join.TableName}' 不存在。");
         var keys = ResolveRelationJoinKeys(join.On, schema, tableSchema, join, options.MeasurementJoinTag);
@@ -388,11 +531,7 @@ internal static class HybridSearchExecutor
         if (leftSource.Source == rightSource.Source)
             throw new InvalidOperationException("hybrid_search JOIN ON 等值条件必须连接 measurement 列和关系表列。");
 
-        var measurementIdentifier = leftSource.Source == CrossModelFilterSource.Measurement ? left : right;
-        var tableIdentifier = leftSource.Source == CrossModelFilterSource.Table ? left : right;
-
-        var measurementColumn = measurementSchema.TryGetColumn(measurementIdentifier.Name)
-            ?? throw new InvalidOperationException($"hybrid_search JOIN ON 引用了未知 measurement 列 '{measurementIdentifier.Name}'。");
+        var measurementColumn = leftSource.MeasurementColumn ?? rightSource.MeasurementColumn!;
         if (measurementColumn.Role != MeasurementColumnRole.Tag)
             throw new InvalidOperationException($"hybrid_search JOIN ON 的 measurement 侧连接键必须是 TAG 列。");
         if (!string.Equals(measurementColumn.Name, expectedMeasurementJoinTag.Name, StringComparison.Ordinal))
@@ -401,8 +540,7 @@ internal static class HybridSearchExecutor
                 $"hybrid_search JOIN ON 的 measurement 侧连接键必须与 measurement_join_tag '{expectedMeasurementJoinTag.Name}' 一致。");
         }
 
-        var tableColumn = tableSchema.TryGetColumn(tableIdentifier.Name)
-            ?? throw new InvalidOperationException($"hybrid_search JOIN ON 引用了未知 table 列 '{tableIdentifier.Name}'。");
+        var tableColumn = leftSource.TableColumn ?? rightSource.TableColumn!;
         return new RelationJoinKeys(measurementColumn, tableColumn);
     }
 
@@ -415,17 +553,25 @@ internal static class HybridSearchExecutor
     {
         if (identifier.Qualifier is not null)
         {
-            if (IsMeasurementQualifier(identifier.Qualifier, measurementSchema.Name))
+            bool quoted = identifier.IsQuoted || identifier.IsNameBound;
+            var qualifierComparison = identifier.QualifierIsQuoted || identifier.IsNameBound
+                ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            bool measurementQualifier = IsMeasurementQualifier(identifier.Qualifier, measurementSchema.Name,
+                identifier.QualifierIsQuoted || identifier.IsNameBound);
+            bool tableQualifier = string.Equals(identifier.Qualifier, join.Alias, qualifierComparison)
+                || string.Equals(identifier.Qualifier, tableSchema.Name, qualifierComparison);
+            if (measurementQualifier && tableQualifier)
+                throw new InvalidOperationException($"hybrid_search JOIN 限定符 '{identifier.Qualifier}' 存在歧义。");
+            if (measurementQualifier)
             {
-                var column = measurementSchema.TryGetColumn(identifier.Name)
+                var column = measurementSchema.Resolve(identifier.Name, quoted)
                     ?? throw new InvalidOperationException($"hybrid_search JOIN 引用了未知 measurement 列 '{identifier.Name}'。");
                 return (CrossModelFilterSource.Measurement, column, null);
             }
 
-            if (string.Equals(identifier.Qualifier, join.Alias, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(identifier.Qualifier, tableSchema.Name, StringComparison.OrdinalIgnoreCase))
+            if (tableQualifier)
             {
-                var column = tableSchema.TryGetColumn(identifier.Name)
+                var column = tableSchema.Resolve(identifier.Name, quoted)
                     ?? throw new InvalidOperationException($"hybrid_search JOIN 引用了未知 table 列 '{identifier.Name}'。");
                 return (CrossModelFilterSource.Table, null, column);
             }
@@ -433,8 +579,8 @@ internal static class HybridSearchExecutor
             throw new InvalidOperationException($"hybrid_search JOIN 引用了未知限定符 '{identifier.Qualifier}'。");
         }
 
-        var measurementColumn = measurementSchema.TryGetColumn(identifier.Name);
-        var tableColumn = tableSchema.TryGetColumn(identifier.Name);
+        var measurementColumn = measurementSchema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound);
+        var tableColumn = tableSchema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound);
         if (measurementColumn is not null && tableColumn is not null)
         {
             throw new InvalidOperationException(
@@ -707,23 +853,23 @@ internal static class HybridSearchExecutor
     {
         if (identifier.Qualifier is not null)
         {
-            if (IsMeasurementQualifier(identifier.Qualifier, schema.Name))
+            if (IsMeasurementQualifier(identifier.Qualifier, schema.Name, identifier.QualifierIsQuoted || identifier.IsNameBound))
                 return CrossModelFilterSource.Measurement;
             if (IsDocumentQualifier(identifier.Qualifier))
                 return CrossModelFilterSource.Document;
-            if (relationPlan is not null && relationPlan.MatchesQualifier(identifier.Qualifier))
+            if (relationPlan is not null && relationPlan.MatchesQualifier(identifier.Qualifier, identifier.QualifierIsQuoted || identifier.IsNameBound))
                 return CrossModelFilterSource.Table;
             throw new InvalidOperationException(
                 $"hybrid_search 查询引用了未知限定符 '{identifier.Qualifier}'。");
         }
 
-        if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase)
-            || schema.TryGetColumn(identifier.Name) is not null)
+        if ((!identifier.IsQuoted && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+            || schema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound) is not null)
         {
             return CrossModelFilterSource.Measurement;
         }
 
-        if (relationPlan?.TableSchema.TryGetColumn(identifier.Name) is not null)
+        if (relationPlan?.TableSchema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound) is not null)
             return CrossModelFilterSource.Table;
 
         return CrossModelFilterSource.Document;
@@ -828,7 +974,8 @@ internal static class HybridSearchExecutor
         var documentStore = tsdb.Documents.Open(documentSchema.Name);
 
         string vectorColumnName = GetFieldArgument(args, "embedding", "vector_field", "measurement_vector_field", "column");
-        var vectorColumn = schema.TryGetColumn(vectorColumnName)
+        var vectorColumn = schema.Resolve(vectorColumnName,
+            IsExactIdentifierArgument(args, "vector_field", "measurement_vector_field", "column"))
             ?? throw new InvalidOperationException($"hybrid_search measurement '{schema.Name}' 中不存在向量列 '{vectorColumnName}'。");
         if (vectorColumn.Role != MeasurementColumnRole.Field || vectorColumn.DataType != FieldType.Vector)
         {
@@ -846,7 +993,8 @@ internal static class HybridSearchExecutor
         }
 
         string joinTagName = RequireIdentifierArgument(args, "measurement_join_tag", "join_tag", "tag");
-        var joinTag = schema.TryGetColumn(joinTagName)
+        var joinTag = schema.Resolve(joinTagName,
+            IsExactIdentifierArgument(args, "measurement_join_tag", "join_tag", "tag"))
             ?? throw new InvalidOperationException($"hybrid_search measurement '{schema.Name}' 中不存在关联 tag '{joinTagName}'。");
         if (joinTag.Role != MeasurementColumnRole.Tag)
             throw new InvalidOperationException($"hybrid_search 关联列 '{joinTagName}' 必须是 measurement TAG。");
@@ -1079,9 +1227,19 @@ internal static class HybridSearchExecutor
                     projections.Add(new Projection("measurement_distance", new IdentifierExpression("measurement_distance")));
                     projections.Add(new Projection("measurement_score", new IdentifierExpression("measurement_score")));
                     foreach (var tag in schema.TagColumns)
-                        projections.Add(new Projection(tag.Name, new IdentifierExpression(tag.Name, "measurement")));
+                        projections.Add(new Projection(tag.Name, new IdentifierExpression(tag.Name, "measurement")
+                        {
+                            IsQuoted = true,
+                            IsNameBound = true,
+                            QualifierIsQuoted = true,
+                        }));
                     foreach (var field in schema.FieldColumns)
-                        projections.Add(new Projection(field.Name, new IdentifierExpression(field.Name, "measurement")));
+                        projections.Add(new Projection(field.Name, new IdentifierExpression(field.Name, "measurement")
+                        {
+                            IsQuoted = true,
+                            IsNameBound = true,
+                            QualifierIsQuoted = true,
+                        }));
                     projections.Add(new Projection("document_id", new IdentifierExpression("document_id")));
                     projections.Add(new Projection("document", new IdentifierExpression("document")));
                     projections.Add(new Projection("bm25_score", new IdentifierExpression("bm25_score")));
@@ -1094,7 +1252,12 @@ internal static class HybridSearchExecutor
                         foreach (var column in relationPlan.TableSchema.Columns)
                             projections.Add(new Projection(
                                 $"{relationPlan.Alias}.{column.Name}",
-                                new IdentifierExpression(column.Name, relationPlan.Alias)));
+                                new IdentifierExpression(column.Name, relationPlan.Alias)
+                                {
+                                    IsQuoted = true,
+                                    IsNameBound = true,
+                                    QualifierIsQuoted = true,
+                                }));
                     }
                     break;
 
@@ -1391,7 +1554,18 @@ internal static class HybridSearchExecutor
         if (identifier.Qualifier is not null)
             return GetQualifiedIdentifierValue(identifier, row);
 
-        if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+        if (identifier.IsQuoted && identifier.IsNameBound)
+        {
+            if (row.Series.Tags.TryGetValue(identifier.Name, out string? exactTag))
+                return exactTag;
+            if (row.MeasurementFields.TryGetValue(identifier.Name, out object? exactField))
+                return exactField;
+            if (row.RelationPlan is not null && row.RelationRow is not null
+                && row.RelationPlan.TableSchema.TryGetColumn(identifier.Name) is { } exactTableColumn)
+                return row.RelationRow.Values[exactTableColumn.Ordinal];
+        }
+
+        if (!identifier.IsQuoted && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
             return row.Timestamp;
         if (string.Equals(identifier.Name, "document_id", StringComparison.OrdinalIgnoreCase)
             || string.Equals(identifier.Name, "id", StringComparison.OrdinalIgnoreCase))
@@ -1422,7 +1596,7 @@ internal static class HybridSearchExecutor
             return fieldValue;
         if (row.RelationPlan is not null
             && row.RelationRow is not null
-            && row.RelationPlan.TableSchema.TryGetColumn(identifier.Name) is { } tableColumn)
+            && row.RelationPlan.TableSchema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound) is { } tableColumn)
         {
             return row.RelationRow.Values[tableColumn.Ordinal];
         }
@@ -1432,10 +1606,10 @@ internal static class HybridSearchExecutor
 
     private static object? GetQualifiedIdentifierValue(IdentifierExpression identifier, KnowledgeHybridRow row)
     {
-        if (string.Equals(identifier.Qualifier, "measurement", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(identifier.Qualifier, row.Series.Measurement, StringComparison.OrdinalIgnoreCase))
+        if (IsMeasurementQualifier(identifier.Qualifier!, row.Series.Measurement,
+            identifier.QualifierIsQuoted || identifier.IsNameBound))
         {
-            if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+            if (!identifier.IsQuoted && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
                 return row.Timestamp;
             if (row.Series.Tags.TryGetValue(identifier.Name, out string? tagValue))
                 return tagValue;
@@ -1458,9 +1632,9 @@ internal static class HybridSearchExecutor
 
         if (row.RelationPlan is not null
             && row.RelationRow is not null
-            && row.RelationPlan.MatchesQualifier(identifier.Qualifier!))
+            && row.RelationPlan.MatchesQualifier(identifier.Qualifier!, identifier.QualifierIsQuoted || identifier.IsNameBound))
         {
-            var column = row.RelationPlan.TableSchema.TryGetColumn(identifier.Name)
+            var column = row.RelationPlan.TableSchema.Resolve(identifier.Name, identifier.IsQuoted || identifier.IsNameBound)
                 ?? throw new InvalidOperationException(
                     $"hybrid_search JOIN 查询引用了未知 table 列 '{identifier.Name}'。");
             return row.RelationRow.Values[column.Ordinal];
@@ -1587,6 +1761,12 @@ internal static class HybridSearchExecutor
             return "*";
         return ExpressionToName(expression, names[0]);
     }
+
+    private static bool IsExactIdentifierArgument(
+        IReadOnlyDictionary<string, SqlExpression> args,
+        params ReadOnlySpan<string> names)
+        => TryGetArgument(args, out SqlExpression expression, names)
+            && (expression is not IdentifierExpression identifier || identifier.IsQuoted || identifier.IsNameBound);
 
     private static KnnMetric GetMetricArgument(IReadOnlyDictionary<string, SqlExpression> args)
     {
@@ -1743,9 +1923,9 @@ internal static class HybridSearchExecutor
             ? path!
             : function.Name;
 
-    private static bool IsMeasurementQualifier(string qualifier, string measurementName)
-        => string.Equals(qualifier, "measurement", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(qualifier, measurementName, StringComparison.OrdinalIgnoreCase);
+    private static bool IsMeasurementQualifier(string qualifier, string measurementName, bool quoted = false)
+        => string.Equals(qualifier, "measurement", quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+            || string.Equals(qualifier, measurementName, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDocumentQualifier(string qualifier)
         => string.Equals(qualifier, "document", StringComparison.OrdinalIgnoreCase)
@@ -1826,9 +2006,9 @@ internal static class HybridSearchExecutor
         string AccessPath,
         string? IndexName)
     {
-        public bool MatchesQualifier(string qualifier)
-            => string.Equals(qualifier, Alias, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(qualifier, TableSchema.Name, StringComparison.OrdinalIgnoreCase);
+        public bool MatchesQualifier(string qualifier, bool quoted = false)
+            => string.Equals(qualifier, Alias, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)
+                || string.Equals(qualifier, TableSchema.Name, quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class ScalarComparer : IComparer<object?>

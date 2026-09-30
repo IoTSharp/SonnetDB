@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Text;
+using SonnetDB.Kv;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 using Xunit;
@@ -78,6 +79,113 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Equal(["name"], foreignKey.Columns);
         Assert.Equal("sites", foreignKey.PrincipalTable);
         Assert.Equal(["id"], foreignKey.PrincipalColumns);
+    }
+
+    [Fact]
+    public void Resolve_WithQuotedAndUnquotedNames_UsesDifferentComparisons()
+    {
+        var schema = TableSchema.Create(
+            "Devices", [("Id", TableColumnType.Int64, false), ("DisplayName", TableColumnType.String, true)], ["Id"]);
+        var catalog = new TableCatalog();
+        catalog.Add(schema);
+        Assert.Throws<InvalidOperationException>(() => catalog.LoadOrReplace(
+            TableSchema.Create("devices", [("id", TableColumnType.Int64, false)], ["id"])));
+
+        Assert.Same(schema, catalog.Resolve("devices", quoted: false));
+        Assert.Same(schema, catalog.Resolve("Devices", quoted: true));
+        Assert.Null(catalog.Resolve("devices", quoted: true));
+        Assert.Equal("DisplayName", schema.Resolve("displayname", quoted: false)?.Name);
+        Assert.Equal("DisplayName", schema.Resolve("DisplayName", quoted: true)?.Name);
+        Assert.Null(schema.Resolve("displayname", quoted: true));
+    }
+
+    [Fact]
+    public void CreateAndRename_WithCaseOnlyColumnCollision_RejectsNewName()
+    {
+        Assert.Throws<ArgumentException>(() => TableSchema.Create(
+            "devices", [("Id", TableColumnType.Int64, false), ("id", TableColumnType.Int64, false)], ["Id"]));
+
+        var schema = TableSchema.Create(
+            "devices", [("Id", TableColumnType.Int64, false), ("Name", TableColumnType.String, true)], ["Id"]);
+        Assert.Throws<InvalidOperationException>(() => schema.WithAddedColumn("name", TableColumnType.String, true));
+        Assert.Throws<InvalidOperationException>(() => schema.WithRenamedColumn("Name", "id"));
+        Assert.Equal("name", schema.WithRenamedColumn("Name", "name").Columns[1].Name);
+    }
+
+    [Fact]
+    public void WithIndex_WithCaseOnlyIndexCollision_RejectsNewName()
+    {
+        var schema = TableSchema.Create(
+            "Devices", [("Id", TableColumnType.Int64, false), ("Name", TableColumnType.String, true)], ["Id"],
+            indexes: [new TableIndexDefinition("NameIndex", ["Name"], false)]);
+
+        Assert.Throws<InvalidOperationException>(() => schema.WithIndex(
+            new TableIndexDefinition("nameindex", ["Name"], false)));
+    }
+
+    [Fact]
+    public void Load_WithLegacyCaseOnlyCollisions_PreservesNamesAndReportsAmbiguity()
+    {
+        var legacyColumns = TableSchema.LoadWithDefaults(
+            "legacy", [("id", TableColumnType.Int64, false), ("Foo", TableColumnType.String, true),
+                ("FOO", TableColumnType.String, true)], ["id"], null, null, null, 1234, null, null, null, null);
+        var differentlyCasedTables = new[]
+        {
+            TableSchema.Create("Device", [("id", TableColumnType.Int64, false)], ["id"]),
+            TableSchema.Create("device", [("id", TableColumnType.Int64, false)], ["id"]),
+        };
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchemaCodec.Save(path, [legacyColumns, .. differentlyCasedTables]);
+
+        var loaded = TableSchemaCodec.Load(path);
+        var restoredLegacy = Assert.Single(loaded, schema => schema.Name == "legacy");
+        Assert.Equal("Foo", restoredLegacy.Resolve("Foo", quoted: true)?.Name);
+        Assert.Equal("FOO", restoredLegacy.Resolve("FOO", quoted: true)?.Name);
+        Assert.Contains("歧义", Assert.Throws<InvalidOperationException>(
+            () => restoredLegacy.Resolve("foo", quoted: false)).Message, StringComparison.Ordinal);
+        var migrated = restoredLegacy.WithRenamedColumn("FOO", "Other");
+        Assert.Equal("Foo", migrated.Resolve("foo", quoted: false)?.Name);
+        Assert.Equal("Other", migrated.Resolve("other", quoted: false)?.Name);
+
+        using var manager = new TableManager(_root, KvOptions.Default);
+        var catalog = manager.Catalog;
+        Assert.Equal("Device", catalog.Resolve("Device", quoted: true)?.Name);
+        Assert.Equal("device", catalog.Resolve("device", quoted: true)?.Name);
+        Assert.Contains("歧义", Assert.Throws<InvalidOperationException>(
+            () => catalog.Resolve("DEVICE", quoted: false)).Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => catalog.Add(
+            TableSchema.Create("DEVICE", [("id", TableColumnType.Int64, false)], ["id"])));
+    }
+
+    [Fact]
+    public void TableManager_CreateCaseOnlyDuplicate_RejectsBeforePersisting()
+    {
+        using var manager = new TableManager(_root, KvOptions.Default);
+        manager.Create(TableSchema.Create("Device", [("id", TableColumnType.Int64, false)], ["id"]));
+        byte[] before = File.ReadAllBytes(manager.SchemaPath);
+
+        Assert.Throws<InvalidOperationException>(() => manager.Create(
+            TableSchema.Create("device", [("id", TableColumnType.Int64, false)], ["id"])));
+
+        Assert.Equal(before, File.ReadAllBytes(manager.SchemaPath));
+        Assert.Single(manager.Catalog.Snapshot());
+        Assert.Null(manager.Catalog.TryGet("device"));
+    }
+
+    [Fact]
+    public void TableManager_RenameTable_RejectsOtherCaseCollisionButAllowsOwnCaseChange()
+    {
+        using var manager = new TableManager(_root, KvOptions.Default);
+        manager.Create(TableSchema.Create("Device", [("id", TableColumnType.Int64, false)], ["id"]));
+        manager.Create(TableSchema.Create("Other", [("id", TableColumnType.Int64, false)], ["id"]));
+
+        Assert.Throws<InvalidOperationException>(() => manager.RenameTable("Other", "device"));
+        Assert.Equal("Other", manager.Catalog.TryGet("Other")?.Name);
+
+        manager.RenameTable("Device", "device");
+        Assert.Null(manager.Catalog.TryGet("Device"));
+        Assert.Equal("device", manager.Catalog.Resolve("DEVICE", quoted: false)?.Name);
+        Assert.Equal("device", manager.Catalog.Resolve("device", quoted: true)?.Name);
     }
 
     /// <summary>Windows 上 schema 文件被短暂占用时，释放句柄后保存应在重试窗口内完成。</summary>

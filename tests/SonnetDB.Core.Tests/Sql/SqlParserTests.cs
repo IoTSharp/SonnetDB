@@ -48,6 +48,171 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_CreateViewFromTokens_PreservesIdentifierQuotingInDefinition()
+    {
+        const string sql = "CREATE VIEW sample AS SELECT Amount, \"Ex\"\"act\" FROM Devices";
+        var parser = new SqlParser(SqlLexer.Tokenize(sql));
+
+        var statement = Assert.IsType<CreateViewStatement>(parser.ParseStatement());
+
+        Assert.Equal("SELECT Amount , \"Ex\"\"act\" FROM Devices", statement.DefinitionSql);
+        Assert.IsType<SelectStatement>(SqlParser.Parse(statement.DefinitionSql));
+    }
+
+    [Fact]
+    public void Parse_CreateTable_TracksQuotedNameColumnAndKeyReferences()
+    {
+        var statement = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE \"Device\" (\"Id\" INT, Amount INT, PRIMARY KEY (\"Id\"), " +
+            "FOREIGN KEY (Amount) REFERENCES \"Parent\" (\"Id\"))"));
+
+        Assert.True(statement.NameIsQuoted);
+        Assert.True(statement.Columns[0].NameIsQuoted);
+        Assert.False(statement.Columns[1].NameIsQuoted);
+        Assert.Equal([true], statement.PrimaryKeyColumnIsQuoted);
+        var foreignKey = Assert.Single(statement.ForeignKeyClauses);
+        Assert.Equal([false], foreignKey.ColumnIsQuoted);
+        Assert.True(foreignKey.PrincipalTableIsQuoted);
+        Assert.Equal([true], foreignKey.PrincipalColumnIsQuoted);
+    }
+
+    [Fact]
+    public void Parse_SelectJoinAndDml_TrackQuotedIdentifierReferences()
+    {
+        var select = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT \"D\".Amount AS \"Total\" FROM \"Device\" AS \"D\" " +
+            "JOIN Parent p ON \"D\".\"Id\" = p.id"));
+        Assert.True(select.MeasurementIsQuoted);
+        Assert.True(select.TableAliasIsQuoted);
+        Assert.True(select.Projections[0].AliasIsQuoted);
+        var projected = Assert.IsType<IdentifierExpression>(select.Projections[0].Expression);
+        Assert.False(projected.IsQuoted);
+        Assert.True(projected.QualifierIsQuoted);
+        var join = Assert.Single(select.Joins!);
+        Assert.False(join.TableNameIsQuoted);
+        Assert.False(join.AliasIsQuoted);
+        var on = Assert.IsType<BinaryExpression>(join.On);
+        var joinColumn = Assert.IsType<IdentifierExpression>(on.Left);
+        Assert.True(joinColumn.IsQuoted);
+        Assert.True(joinColumn.QualifierIsQuoted);
+
+        var insert = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO \"Device\" (\"Id\", Amount) VALUES (1, 2)"));
+        Assert.True(insert.MeasurementIsQuoted);
+        Assert.Equal([true, false], insert.ColumnIsQuoted);
+
+        var update = Assert.IsType<UpdateStatement>(SqlParser.Parse(
+            "UPDATE \"Device\" AS \"D\" SET \"Amount\" = 3 WHERE \"D\".\"Id\" = 1"));
+        Assert.True(update.TableNameIsQuoted);
+        Assert.True(update.TableAliasIsQuoted);
+        Assert.True(Assert.Single(update.Assignments).ColumnNameIsQuoted);
+
+        Assert.True(Assert.IsType<DeleteStatement>(SqlParser.Parse(
+            "DELETE FROM \"Device\" WHERE \"Id\" = 1")).MeasurementIsQuoted);
+        Assert.True(Assert.IsType<TruncateTableStatement>(SqlParser.Parse(
+            "TRUNCATE TABLE \"Device\"")).TableNameIsQuoted);
+        Assert.True(Assert.IsType<DropTableStatement>(SqlParser.Parse(
+            "DROP TABLE \"Device\"")).NameIsQuoted);
+    }
+
+    [Fact]
+    public void Parse_AlterDescribeAndReturning_TrackQuotedIdentifiers()
+    {
+        var rename = Assert.IsType<AlterTableRenameColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE \"Device\" RENAME COLUMN \"OldName\" TO NewName"));
+        Assert.Equal("NewName", rename.NewColumnName);
+        Assert.True(rename.TableNameIsQuoted);
+        Assert.True(rename.OldColumnNameIsQuoted);
+        Assert.False(rename.NewColumnNameIsQuoted);
+
+        Assert.True(Assert.IsType<DescribeTableStatement>(SqlParser.Parse(
+            "DESCRIBE TABLE \"Device\"")).NameIsQuoted);
+        Assert.False(Assert.IsType<DescribeMeasurementStatement>(SqlParser.Parse(
+            "DESCRIBE MEASUREMENT Device")).NameIsQuoted);
+
+        var insert = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO \"Device\" (\"Id\") VALUES (1) RETURNING \"Id\", Label"));
+        Assert.Equal([true, false], insert.ReturningColumnIsQuoted);
+        Assert.Equal(["Id", "Label"], insert.ReturningColumns);
+
+        var update = Assert.IsType<UpdateStatement>(SqlParser.Parse(
+            "UPDATE \"Device\" SET Label = 'x' WHERE \"Id\" = 1 RETURNING \"Id\""));
+        Assert.Equal([true], update.ReturningColumnIsQuoted);
+
+        var delete = Assert.IsType<DeleteStatement>(SqlParser.Parse(
+            "DELETE FROM \"Device\" WHERE \"Id\" = 1 RETURNING Label"));
+        Assert.Equal([false], delete.ReturningColumnIsQuoted);
+    }
+
+    [Fact]
+    public void Parse_CommonTableExpressionAndAliases_PreservesSpellingAndQuoteFlags()
+    {
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "WITH \"CteName\" (\"OutputName\", MixedOutput) AS " +
+            "(SELECT Amount AS MixedAlias, \"ExactColumn\" FROM Devices) " +
+            "SELECT \"SourceAlias\".MixedOutput AS \"ExactAlias\" " +
+            "FROM \"CteName\" AS \"SourceAlias\""));
+
+        var cte = Assert.Single(statement.CommonTableExpressions);
+        Assert.Equal("CteName", cte.Name);
+        Assert.True(cte.NameIsQuoted);
+        Assert.Equal(["OutputName", "MixedOutput"], cte.ColumnNames);
+        Assert.Equal([true, false], cte.ColumnIsQuoted);
+        Assert.Equal("Devices", cte.Query.Measurement);
+        Assert.Equal("MixedAlias", cte.Query.Projections[0].Alias);
+        Assert.False(cte.Query.Projections[0].AliasIsQuoted);
+        Assert.Equal("CteName", statement.Measurement);
+        Assert.True(statement.MeasurementIsQuoted);
+        Assert.Equal("SourceAlias", statement.TableAlias);
+        Assert.True(statement.TableAliasIsQuoted);
+        var identifier = Assert.IsType<IdentifierExpression>(Assert.Single(statement.Projections).Expression);
+        Assert.Equal("MixedOutput", identifier.Name);
+        Assert.False(identifier.IsQuoted);
+        Assert.Equal("SourceAlias", identifier.Qualifier);
+        Assert.True(identifier.QualifierIsQuoted);
+    }
+
+    [Fact]
+    public void Parse_QuotedPseudoKeywordAliases_TreatsThemAsNames()
+    {
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT Amount \"returning\" FROM Devices \"nowait\""));
+
+        Assert.Equal("returning", Assert.Single(statement.Projections).Alias);
+        Assert.True(statement.Projections[0].AliasIsQuoted);
+        Assert.Equal("nowait", statement.TableAlias);
+        Assert.True(statement.TableAliasIsQuoted);
+    }
+
+    [Fact]
+    public void Parse_KeywordColumnNames_PreservesDeclaredAndReferencedSpelling()
+    {
+        var create = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE Devices (TiMe INT, DoCuMeNt STRING, KeY INT, TaG STRING, FiElD INT)"));
+        Assert.Equal(["TiMe", "DoCuMeNt", "KeY", "TaG", "FiElD"],
+            create.Columns.Select(static column => column.Name));
+
+        var select = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT D.TiMe, D.DoCuMeNt, KeY, TaG, FiElD FROM Devices D"));
+        Assert.Equal(["TiMe", "DoCuMeNt", "KeY", "TaG", "FiElD"],
+            select.Projections.Select(static item => Assert.IsType<IdentifierExpression>(item.Expression).Name));
+    }
+
+    [Theory]
+    [InlineData("INFORMATION_SCHEMA.TABLES", "INFORMATION_SCHEMA.TABLES", false, false)]
+    [InlineData("\"Information_Schema\".tables", "Information_Schema.tables", true, false)]
+    [InlineData("information_schema.\"Tables\"", "information_schema.Tables", false, true)]
+    public void Parse_QualifiedFromName_PreservesPartSpellingAndQuoteFlags(
+        string source, string expected, bool schemaIsQuoted, bool objectIsQuoted)
+    {
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse("SELECT * FROM " + source));
+
+        Assert.Equal(expected, statement.Measurement);
+        Assert.Equal(schemaIsQuoted, statement.MeasurementIsQuoted);
+        Assert.Equal([schemaIsQuoted, objectIsQuoted], statement.MeasurementNamePartIsQuoted);
+    }
+
+    [Fact]
     public void Parse_AlterTableDropConstraint_ReturnsAst()
     {
         var stmt = Assert.IsType<AlterTableDropConstraintStatement>(SqlParser.Parse(
@@ -55,6 +220,8 @@ public class SqlParserTests
 
         Assert.Equal("Device", stmt.TableName);
         Assert.Equal("FK_Device_AuthorizedKeys_AuthorizedKeyId", stmt.ConstraintName);
+        Assert.True(stmt.TableNameIsQuoted);
+        Assert.True(stmt.ConstraintNameIsQuoted);
     }
 
     [Fact]
@@ -316,6 +483,17 @@ public class SqlParserTests
     {
         Assert.Throws<SqlParseException>(() =>
             SqlParser.Parse("INSERT INTO cpu (time TAG, usage) VALUES (1, 0.5)"));
+    }
+
+    [Fact]
+    public void Parse_Insert_QuotedTimeFieldRoleHint_PreservesExactFieldName()
+    {
+        var statement = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO Cpu (time, \"Time\" FIELD) VALUES (1, 2)"));
+
+        Assert.Equal(["time", "Time"], statement.Columns);
+        Assert.Equal([false, true], statement.ColumnIsQuoted);
+        Assert.Equal([null, ColumnKind.Field], statement.ColumnRoleHints);
     }
 
     [Fact]

@@ -229,8 +229,10 @@ internal static class RecursiveCteExecutor
 
     private static int References(string name, SelectStatement query)
     {
-        int count = string.Equals(query.Measurement, name, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-        count += query.JoinClauses.Count(join => string.Equals(join.TableName, name, StringComparison.OrdinalIgnoreCase));
+        int count = string.Equals(query.Measurement, name,
+            query.MeasurementIsQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        count += query.JoinClauses.Count(join => string.Equals(join.TableName, name,
+            join.TableNameIsQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase));
         if (query.FromSubquery is not null)
             count += References(name, query.FromSubquery);
         foreach (JoinClause join in query.JoinClauses)
@@ -284,7 +286,7 @@ internal sealed class RecursiveCteScope : IDisposable
     {
         for (RecursiveCteScope? scope = Current.Value; scope is not null; scope = scope._previous)
         {
-            if (string.Equals(scope._name, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(scope._name, name, StringComparison.Ordinal))
                 return scope._result;
         }
         return null;

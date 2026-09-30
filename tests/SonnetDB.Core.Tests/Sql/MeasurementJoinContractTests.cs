@@ -68,6 +68,41 @@ public sealed class MeasurementJoinContractTests : IDisposable
         Assert.Contains(explain.Rows, row => Equals(row[0], "statement_type") && Equals(row[1], "select_join"));
     }
 
+    /// <summary>JOIN 的时间戳伪列只接受普通标识符，带引号时必须存在同名 schema 列。</summary>
+    [Fact]
+    public void Execute_MeasurementJoinQuotedTimeWithoutSchemaColumn_RejectsUnknownColumn()
+    {
+        using var database = CreateDatabase();
+        const string from = "FROM sonnet_metric AS s INNER JOIN sonnet_device AS d ON s.Host = d.Name";
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT s.time " + from + " WHERE s.time = 1000"));
+        Assert.Equal(1000L, Assert.Single(result.Rows)[0]);
+
+        var error = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            database, "SELECT s.\"time\" " + from + " WHERE s.time = 1000"));
+        Assert.Contains("未知 measurement 列 'time'", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>有 Time 字段时星号保留时间戳伪列，引号精确访问字段。</summary>
+    [Fact]
+    public void Execute_MeasurementJoinWithTimeField_StarAndQuotedColumnRemainDistinct()
+    {
+        using var database = CreateDatabase();
+        SqlExecutor.Execute(database, "CREATE MEASUREMENT clock_join (Host TAG, \"Time\" FIELD FLOAT)");
+        SqlExecutor.Execute(database, "INSERT INTO clock_join (time, Host, \"Time\") VALUES (1000, 'alpha', 2.5)");
+        const string from = "FROM clock_join AS s INNER JOIN sonnet_device AS d ON s.Host = d.Name";
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, "SELECT * " + from));
+        Assert.Equal(["time", "Host", "Time", "Id", "Name"], result.Columns);
+        Assert.Equal(new object?[] { 1000L, "alpha", 2.5, 1L, "alpha" }, Assert.Single(result.Rows));
+
+        var exact = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, "SELECT s.time, s.\"Time\" " + from));
+        Assert.Equal(new object?[] { 1000L, 2.5 }, Assert.Single(exact.Rows));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            database, "SELECT s.\"time\" " + from));
+    }
+
     /// <summary>规范化 AST 保留未投影 FIELD 的升降序，分页在跨 series 排序后执行。</summary>
     [Theory]
     [InlineData("ASC", 1500L, 1000L)]

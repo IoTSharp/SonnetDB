@@ -9,6 +9,20 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### 标识符大小写合同（GH-Issue #211）
+
+关系表与 measurement 保留创建时的名称拼写，不折叠大小写。普通 SQL 引用按 `OrdinalIgnoreCase` 匹配；双引号引用按 `Ordinal` 精确匹配，与当前语言区域及数据 collation 无关。
+
+| 创建名称 | catalog 名称 | 引用方式 |
+| --- | --- | --- |
+| `CREATE TABLE Device (...)` | `Device` | `Device`、`DEVICE`、`device` 或 `"Device"`；`"device"` 不匹配 |
+| `CREATE TABLE "Device" (...)` | `Device` | 与上行相同；双引号在引用时要求精确拼写 |
+| 已存在 `Device` 时创建 `device` 或 `"device"` | 拒绝 | 禁止新增仅大小写不同的同作用域名称 |
+
+该规则适用于 SQL 表名、measurement 名称、视图及物化视图名称、关系表列名、measurement 的 TAG/FIELD 列名，以及别名、CTE 名和相应的限定符。表、measurement、视图和物化视图共享 SQL 数据源命名空间。双引号还允许空格、特殊字符和保留字；其中 `""` 表示名称内的一个 `"`。`SHOW`、`DESCRIBE` 和结果列元数据返回已保存的原名。旧 catalog 若已有仅大小写不同的名称，普通引用报歧义，须用双引号精确检查并显式迁移；数据库不自动改写或合并。跨模型精确同名无法由引号消歧时，须先用指明对象类型的 DDL 迁移冲突对象。
+
+Point、Line Protocol 等摄取方式的 measurement/TAG/FIELD 名称解析到已有 schema 的拼写，避免仅因大小写变化新增列或 series。此规则不改变字符串数据值、列数据 collation、JSON 文档属性键或其他数据模型的数据键语义。单引号表示字符串值，双引号表示 SQL 标识符。选择依据与 PostgreSQL/Oracle 的差别见[标识符决策记录](design/sql-identifier-case.md)。
+
 ### 标量表达式与数值语义
 
 `SELECT` 投影和关系表 `UPDATE ... SET` 支持由列、字面量、括号、标量函数及以下运算符组成的数值表达式：
@@ -1226,7 +1240,7 @@ VALUES
 
 规则：
 
-- `time` 是保留伪列，表示 Unix 毫秒时间戳。
+- 未加引号的 `time` 是保留伪列，表示 Unix 毫秒时间戳；双引号名称（例如 `"Time"`）按实际 TAG/FIELD 名精确解析，不作为时间戳伪列。
 - `time` 省略时会使用当前 UTC 毫秒时间。
 - 每一行至少需要提供一个 `FIELD` 列值。
 - `TAG` 列必须是字符串字面量。
@@ -1325,7 +1339,7 @@ ORDER BY d.id;
 
 - 非递归 `WITH ... AS (SELECT ...)` 不支持自引用；递归形式见下一节。
 - CTE 名称按声明顺序解析，后一个 CTE 可以引用前一个 CTE；重复名称会被拒绝。
-- 可用 `WITH name (column, ...) AS (...)` 按位置重命名输出列；列数必须等于查询结果列数，列名不区分大小写且不得重复。即使查询返回空行也校验列数。重命名发生在 CTE 自身排序、分页和集合运算之后；后续 CTE、JOIN、`IN` 与 `EXISTS` 使用新列名。
+- 可用 `WITH name (column, ...) AS (...)` 按位置重命名输出列；列数必须等于查询结果列数，名称保留拼写且不得仅大小写不同，普通引用忽略大小写，双引号引用精确匹配。即使查询返回空行也校验列数。重命名发生在 CTE 自身排序、分页和集合运算之后；后续 CTE、JOIN、`IN` 与 `EXISTS` 使用新列名。
 - CTE 不新增独立 planner，继续复用 `FROM (SELECT ...)`、关系 JOIN 以及 `IN` / `EXISTS` 子查询的现有执行和相关性语义。
 - measurement 和文档 SELECT 可作为 CTE 来源；不支持的来源/查询组合仍遵守各自 SELECT 执行路径的限制。跨服务端 REST/Frame parity 未在此处声明。
 

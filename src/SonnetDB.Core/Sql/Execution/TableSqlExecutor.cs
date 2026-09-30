@@ -51,6 +51,7 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (CreateTableStatement)SqlNameBinder.Bind(tsdb, statement);
 
         return tsdb.ExecuteSchemaMutation(() => ExecuteCreateTableLocked(tsdb, statement));
     }
@@ -473,6 +474,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        statement = (InsertStatement)SqlNameBinder.Bind(tsdb, statement);
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
@@ -713,7 +715,7 @@ internal static class TableSqlExecutor
         => expression switch
         {
             IdentifierExpression identifier
-                when string.Equals(identifier.Qualifier, "excluded", StringComparison.OrdinalIgnoreCase)
+                when string.Equals(identifier.Qualifier, "excluded", StringComparison.Ordinal)
                     => new MaterializedSubqueryValueExpression(
                         excludedValues[(schema.TryGetColumn(identifier.Name)
                             ?? throw new InvalidOperationException(
@@ -776,7 +778,7 @@ internal static class TableSqlExecutor
         foreach (var identifier in EnumerateConflictIdentifiers(expression))
         {
             if (identifier.Qualifier is not null
-                && !string.Equals(identifier.Qualifier, "excluded", StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(identifier.Qualifier, "excluded", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"ON CONFLICT DO UPDATE 只允许无限定目标列或 excluded.column，实际为 '{identifier.Qualifier}.{identifier.Name}'。");
@@ -1259,6 +1261,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        statement = SqlNameBinder.BindSelect(tsdb, statement);
 
         ValidateTableAliasReferences(statement);
         if (statement.TableValuedFunction is not null)
@@ -1369,6 +1372,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        statement = (DeleteStatement)SqlNameBinder.Bind(tsdb, statement);
 
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1435,6 +1439,7 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        statement = (UpdateStatement)SqlNameBinder.Bind(tsdb, statement);
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
@@ -1781,7 +1786,7 @@ internal static class TableSqlExecutor
         if (statement.FromClauses.Count == 0)
             throw new InvalidOperationException("UPDATE 联接更新至少需要一个 FROM/JOIN 来源。");
 
-        var schemas = new Dictionary<string, TableSchema>(StringComparer.OrdinalIgnoreCase)
+        var schemas = new Dictionary<string, TableSchema>(StringComparer.Ordinal)
         {
             [statement.TableAlias ?? statement.TableName] = targetSchema,
         };
@@ -2788,7 +2793,7 @@ internal static class TableSqlExecutor
             } inExpression
             || !string.Equals(identifier.Name, schema.PrimaryKey[0], StringComparison.Ordinal)
             || (identifier.Qualifier is not null
-                && !string.Equals(identifier.Qualifier, schema.Name, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(identifier.Qualifier, schema.Name, StringComparison.Ordinal))
             || inExpression.Values.Any(static value => value is not MaterializedSubqueryValueExpression))
         {
             return LoadCandidateRows(store, schema, where);
@@ -3017,7 +3022,7 @@ internal static class TableSqlExecutor
             && string.IsNullOrWhiteSpace(plan.Index.JsonPath)
             && IsWhereFullyCoveredByIndexPlan(where, schema, plan)
             && requiredColumns.All(column =>
-                plan.Index.Columns.Contains(column, StringComparer.OrdinalIgnoreCase)
+                plan.Index.Columns.Contains(column, StringComparer.Ordinal)
                 // 既有 DECIMAL 索引使用 G29 文本，无法还原行值的 scale（例如 CAST AS STRING）。
                 && schema.TryGetColumn(column)?.DataType != TableColumnType.Decimal);
 
@@ -6178,7 +6183,7 @@ internal static class TableSqlExecutor
                     $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 要求 FROM 子句声明单表别名。");
             }
 
-            if (!string.Equals(identifier.Qualifier, statement.TableAlias, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(identifier.Qualifier, statement.TableAlias, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 引用了未知别名 '{identifier.Qualifier}'；当前查询只声明了别名 '{statement.TableAlias}'。");

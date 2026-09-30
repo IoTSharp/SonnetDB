@@ -11,13 +11,13 @@ public sealed class MeasurementCatalog
 {
     private readonly object _sync = new();
     private Dictionary<string, MeasurementSchema> _mutable = new(StringComparer.Ordinal);
-    private FrozenDictionary<string, MeasurementSchema> _snapshot = EmptySnapshot();
+    private CatalogSnapshot _snapshot = CreateSnapshot(new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal));
 
     /// <summary>由所属 Tsdb 安装的目录变更守卫；独立 catalog 默认不限制直接变更。</summary>
     internal Action<string, string>? MutationGuard { get; set; }
 
     /// <summary>当前已注册的 measurement 数量。</summary>
-    public int Count => Volatile.Read(ref _snapshot).Count;
+    public int Count => Volatile.Read(ref _snapshot).Exact.Count;
 
     /// <summary>
     /// 注册一个新的 measurement schema。若同名 schema 已存在则抛出。
@@ -31,7 +31,7 @@ public sealed class MeasurementCatalog
         MutationGuard?.Invoke(schema.Name, "ADD");
         lock (_sync)
         {
-            if (_mutable.ContainsKey(schema.Name))
+            if (Volatile.Read(ref _snapshot).Unquoted.ContainsKey(schema.Name))
                 throw new InvalidOperationException($"Measurement '{schema.Name}' 已存在。");
 
             _mutable.Add(schema.Name, schema);
@@ -84,7 +84,7 @@ public sealed class MeasurementCatalog
             replacement.Add(schema.Name, schema);
         }
 
-        var snapshot = replacement.ToFrozenDictionary(StringComparer.Ordinal);
+        var snapshot = CreateSnapshot(replacement);
         return new PreparedReplacement(replacement, snapshot);
     }
 
@@ -100,7 +100,11 @@ public sealed class MeasurementCatalog
 
     internal sealed record PreparedReplacement(
         Dictionary<string, MeasurementSchema> Mutable,
-        FrozenDictionary<string, MeasurementSchema> Snapshot);
+        CatalogSnapshot Snapshot);
+
+    internal sealed record CatalogSnapshot(
+        FrozenDictionary<string, MeasurementSchema> Exact,
+        FrozenDictionary<string, MeasurementSchema?> Unquoted);
 
     /// <summary>按名查找 schema；未命中返回 null。</summary>
     /// <param name="name">measurement 名称（区分大小写）。</param>
@@ -108,7 +112,23 @@ public sealed class MeasurementCatalog
     {
         ArgumentNullException.ThrowIfNull(name);
         var snapshot = Volatile.Read(ref _snapshot);
-        return snapshot.TryGetValue(name, out var schema) ? schema : null;
+        return snapshot.Exact.TryGetValue(name, out var schema) ? schema : null;
+    }
+
+    /// <summary>按 SQL 标识符规则解析 measurement；普通引用忽略大小写，引号引用精确匹配。</summary>
+    /// <param name="name">引用的 measurement 名称。</param>
+    /// <param name="quoted">名称是否使用双引号；加引号时精确匹配。</param>
+    /// <returns>匹配的 schema；不存在时返回 null。</returns>
+    /// <exception cref="InvalidOperationException">普通引用匹配到旧目录中仅大小写不同的多个 measurement。</exception>
+    public MeasurementSchema? Resolve(string name, bool quoted)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (quoted)
+            return TryGet(name);
+        if (!Volatile.Read(ref _snapshot).Unquoted.TryGetValue(name, out MeasurementSchema? schema))
+            return null;
+        return schema ?? throw new InvalidOperationException(
+            $"Measurement 名称 '{name}' 存在大小写歧义；请使用双引号精确引用并显式迁移冲突名称。");
     }
 
     /// <summary>判断指定名称的 measurement 是否已注册。</summary>
@@ -116,21 +136,31 @@ public sealed class MeasurementCatalog
     public bool Contains(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return Volatile.Read(ref _snapshot).ContainsKey(name);
+        return Volatile.Read(ref _snapshot).Exact.ContainsKey(name);
     }
 
     /// <summary>返回当前所有 schema 的快照（按 measurement 名称的字典序排序）。</summary>
     public IReadOnlyList<MeasurementSchema> Snapshot()
     {
-        var list = Volatile.Read(ref _snapshot).Values.ToList();
+        var list = Volatile.Read(ref _snapshot).Exact.Values.ToList();
         list.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
         return list;
     }
 
     private void PublishSnapshot()
-        => Volatile.Write(ref _snapshot, _mutable.ToFrozenDictionary(StringComparer.Ordinal));
+        => Volatile.Write(ref _snapshot, CreateSnapshot(_mutable));
 
-    private static FrozenDictionary<string, MeasurementSchema> EmptySnapshot()
-        => new Dictionary<string, MeasurementSchema>(0, StringComparer.Ordinal)
-            .ToFrozenDictionary(StringComparer.Ordinal);
+    private static CatalogSnapshot CreateSnapshot(Dictionary<string, MeasurementSchema> schemas)
+    {
+        var unquoted = new Dictionary<string, MeasurementSchema?>(schemas.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (MeasurementSchema schema in schemas.Values)
+        {
+            if (!unquoted.TryAdd(schema.Name, schema))
+                unquoted[schema.Name] = null;
+        }
+
+        return new CatalogSnapshot(
+            schemas.ToFrozenDictionary(StringComparer.Ordinal),
+            unquoted.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
+    }
 }

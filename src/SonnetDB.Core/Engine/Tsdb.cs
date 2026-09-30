@@ -890,6 +890,13 @@ public sealed class Tsdb : IDisposable
     /// <exception cref="ArgumentNullException"><paramref name="point"/> 为 null 时抛出。</exception>
     /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
     public void Write(Point point)
+        => WriteCore(point, exactNames: false);
+
+    // SQL 绑定器已经按引号合同解析到目录中的精确名称，不能再次进行普通引用解析。
+    internal void WriteSqlPoint(Point point)
+        => WriteCore(point, exactNames: true);
+
+    private void WriteCore(Point point, bool exactNames)
     {
         ArgumentNullException.ThrowIfNull(point);
 
@@ -903,7 +910,7 @@ public sealed class Tsdb : IDisposable
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
-                var normalized = EnsureMeasurementSchemaLocked(point);
+                var normalized = EnsureMeasurementSchemaLocked(point, exactNames);
                 WritePointLocked(normalized);
                 hardCapFlush = FlushForHardCapIfNeededLocked();
 
@@ -999,20 +1006,29 @@ public sealed class Tsdb : IDisposable
                     {
                         if (point is null)
                             continue;
+                        Point normalized;
+                        lock (_schemaSync)
+                            lock (_writeSync)
+                            {
+                                MeasurementSchema? schema = Measurements.Resolve(point.Measurement, quoted: false);
+                                normalized = schema is null ? point : NormalizePointNames(point, schema, exactNames: false);
+                                if (schema is not null)
+                                    normalized = PlanPointAgainstMeasurementSchema(normalized, schema, out _, out _);
+                            }
                         var absentFields = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
-                        var entry = Catalog.GetOrAdd(point);
-                        foreach (var field in point.Fields)
+                        var entry = Catalog.GetOrAdd(normalized);
+                        foreach (var field in normalized.Fields)
                         {
                             bool present = Query.Execute(new PointQuery(
                                 entry.Id,
                                 field.Key,
-                                new TimeRange(point.Timestamp, checked(point.Timestamp + 1)),
+                                new TimeRange(normalized.Timestamp, checked(normalized.Timestamp + 1)),
                                 Limit: 8)).Any(dataPoint => dataPoint.Value == field.Value);
                             if (!present)
                                 absentFields[field.Key] = field.Value;
                         }
                         if (absentFields.Count > 0)
-                            missing.Add(Point.Create(point.Measurement, point.Timestamp, point.Tags, absentFields));
+                            missing.Add(Point.Create(normalized.Measurement, normalized.Timestamp, normalized.Tags, absentFields));
                     }
 
                     int repaired = missing.Count == 0 ? 0 : WriteManyFromBatchAdmission(missing.ToArray());
@@ -1058,7 +1074,11 @@ public sealed class Tsdb : IDisposable
     /// <returns>成功写入的点数量（不含 null 跳过）。</returns>
     /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
     public int WriteMany(ReadOnlySpan<Point> points)
-        => WriteManyCore(points, hasBatchWriteAdmission: false);
+        => WriteManyCore(points, hasBatchWriteAdmission: false, exactNames: false);
+
+    // 仅接收 SQL 绑定器已经解析为目录精确名称的点。
+    internal int WriteSqlPoints(ReadOnlySpan<Point> points)
+        => WriteManyCore(points, hasBatchWriteAdmission: false, exactNames: true);
 
     /// <summary>
     /// 在已于 flush 失败前取得 batch admission 的情况下写入。调用方持有 admission 时，
@@ -1067,9 +1087,9 @@ public sealed class Tsdb : IDisposable
     /// 此时账本已有对应的可恢复写入意图。
     /// </summary>
     private int WriteManyFromBatchAdmission(ReadOnlySpan<Point> points)
-        => WriteManyCore(points, hasBatchWriteAdmission: true);
+        => WriteManyCore(points, hasBatchWriteAdmission: true, exactNames: false);
 
-    private int WriteManyCore(ReadOnlySpan<Point> points, bool hasBatchWriteAdmission)
+    private int WriteManyCore(ReadOnlySpan<Point> points, bool hasBatchWriteAdmission, bool exactNames)
     {
         if (points.IsEmpty)
             return 0;
@@ -1084,7 +1104,7 @@ public sealed class Tsdb : IDisposable
             // batch admission 只跨越第一个实际写入块。它的作用是让 Prepare 与首次 WAL/MemTable
             // 变更按同一线性化点发生；后续块恢复正常 fault 检查，避免失败后无界继续写入。
             bool isFirstAdmittedBatchChunk = hasBatchWriteAdmission && offset == 0;
-            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk);
+            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk, exactNames);
             offset += chunkLength;
         }
 
@@ -1095,7 +1115,7 @@ public sealed class Tsdb : IDisposable
     /// 单块批量写入：与整批写入语义一致，但只处理 <paramref name="chunk"/> 一段，
     /// 便于 <see cref="WriteMany(ReadOnlySpan{Point})"/> 在块间释放锁并施加硬上限背压。
     /// </summary>
-    private int WriteManyChunk(ReadOnlySpan<Point> chunk, bool hasBatchWriteAdmission)
+    private int WriteManyChunk(ReadOnlySpan<Point> chunk, bool hasBatchWriteAdmission, bool exactNames)
     {
         long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -1112,7 +1132,7 @@ public sealed class Tsdb : IDisposable
                     ThrowIfFlushRecoveryFault();
                 }
 
-                MeasurementSchemaWritePlan schemaPlan = PlanMeasurementSchemasLocked(chunk);
+                MeasurementSchemaWritePlan schemaPlan = PlanMeasurementSchemasLocked(chunk, exactNames);
                 Point?[] normalizedPoints = schemaPlan.NormalizedPoints;
                 written = schemaPlan.PointCount;
 
@@ -1271,7 +1291,7 @@ public sealed class Tsdb : IDisposable
                 ThrowIfMeasurementDropPendingLocked(schema.Name);
                 EnsureViewNameAvailable(schema.Name, "measurement");
                 _vectorReplacements?.EnsureHealthy();
-                if (Measurements.Contains(schema.Name))
+                if (Measurements.Resolve(schema.Name, quoted: false) is not null)
                     throw new InvalidOperationException($"Measurement '{schema.Name}' 已存在。");
 
                 EnsureExplicitSchemaLimitsLocked(schema);
@@ -1287,13 +1307,15 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     /// <param name="name">Measurement 名称。</param>
     /// <param name="schemaFactory">确认同名 measurement 不存在后调用的 schema 工厂。</param>
+    /// <param name="quoted">引用是否使用双引号；加引号时只返回精确同名 schema。</param>
     /// <returns>已存在或本次新建的 schema。</returns>
     /// <exception cref="ArgumentException"><paramref name="name"/> 为空，或工厂返回了不同名称的 schema。</exception>
     /// <exception cref="ArgumentNullException"><paramref name="schemaFactory"/> 为 null。</exception>
     /// <exception cref="ObjectDisposedException">实例已关闭。</exception>
     internal MeasurementSchema GetOrCreateMeasurement(
         string name,
-        Func<MeasurementSchema> schemaFactory)
+        Func<MeasurementSchema> schemaFactory,
+        bool quoted = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(schemaFactory);
@@ -1305,12 +1327,14 @@ public sealed class Tsdb : IDisposable
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
                 ThrowIfMeasurementDropPendingLocked(name);
-                var existing = Measurements.TryGet(name);
+                var existing = Measurements.Resolve(name, quoted);
                 if (existing is not null)
                 {
                     return existing;
                 }
 
+                if (Measurements.Resolve(name, quoted: false) is not null)
+                    throw new InvalidOperationException($"Measurement '{name}' 已存在；新建名称不能仅大小写不同。");
                 EnsureViewNameAvailable(name, "measurement");
                 var schema = schemaFactory();
                 if (!string.Equals(schema.Name, name, StringComparison.Ordinal))
@@ -2437,13 +2461,15 @@ public sealed class Tsdb : IDisposable
         }
     }
 
-    private Point EnsureMeasurementSchemaLocked(Point point)
+    private Point EnsureMeasurementSchemaLocked(Point point, bool exactNames)
     {
         ThrowIfMeasurementDropPendingLocked(point.Measurement);
         _vectorReplacements?.EnsureHealthy();
-        var schema = Measurements.TryGet(point.Measurement);
+        var schema = Measurements.Resolve(point.Measurement, quoted: exactNames);
         if (schema is null)
         {
+            if (Measurements.Resolve(point.Measurement, quoted: false) is not null)
+                throw new InvalidOperationException($"Measurement '{point.Measurement}' 已存在；新建名称不能仅大小写不同。");
             EnsureImplicitCreateAllowedLocked(point, pendingMeasurements: 0, pendingNewColumns: 0);
             EnsureViewNameAvailable(point.Measurement, "measurement");
             MeasurementSchema created = CreateSchemaFromPointWithAudit(point);
@@ -2455,6 +2481,7 @@ public sealed class Tsdb : IDisposable
             point,
             schema,
             pendingNewColumns: 0,
+            exactNames,
             out MeasurementSchema? updated,
             out bool promotedIntToFloat,
             out _);
@@ -2474,12 +2501,13 @@ public sealed class Tsdb : IDisposable
         return normalized;
     }
 
-    private MeasurementSchemaWritePlan PlanMeasurementSchemasLocked(ReadOnlySpan<Point> points)
+    private MeasurementSchemaWritePlan PlanMeasurementSchemasLocked(ReadOnlySpan<Point> points, bool exactNames)
     {
         _vectorReplacements?.EnsureHealthy();
 
-        var stagedSchemas = new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal);
+        var stagedSchemas = new Dictionary<string, MeasurementSchema>(exactNames ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
         var changedSchemas = new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal);
+        var newMeasurementNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var normalizedPoints = new Point?[points.Length];
         int pointCount = 0;
         int newMeasurementCount = 0;
@@ -2496,9 +2524,12 @@ public sealed class Tsdb : IDisposable
             pointCount++;
             if (!stagedSchemas.TryGetValue(point.Measurement, out MeasurementSchema? schema))
             {
-                schema = Measurements.TryGet(point.Measurement);
+                schema = Measurements.Resolve(point.Measurement, quoted: exactNames);
                 if (schema is null)
                 {
+                    if (Measurements.Resolve(point.Measurement, quoted: false) is not null
+                        || !newMeasurementNames.Add(point.Measurement))
+                        throw new InvalidOperationException($"Measurement '{point.Measurement}' 已存在；新建名称不能仅大小写不同。");
                     EnsureImplicitCreateAllowedLocked(point, newMeasurementCount, newColumnCount);
                     EnsureViewNameAvailable(point.Measurement, "measurement");
                     schema = CreateSchemaFromPointWithAudit(point);
@@ -2517,6 +2548,7 @@ public sealed class Tsdb : IDisposable
                 point,
                 schema,
                 newColumnCount,
+                exactNames,
                 out MeasurementSchema? updated,
                 out bool pointPromotedIntToFloat,
                 out int pointAddedColumns);
@@ -2527,7 +2559,7 @@ public sealed class Tsdb : IDisposable
             if (updated is not null)
             {
                 stagedSchemas[point.Measurement] = updated;
-                changedSchemas[point.Measurement] = updated;
+                changedSchemas[schema.Name] = updated;
             }
         }
 
@@ -2573,10 +2605,20 @@ public sealed class Tsdb : IDisposable
         Point point,
         MeasurementSchema schema,
         int pendingNewColumns,
+        bool exactNames,
         out MeasurementSchema? updatedSchema,
         out bool promotedIntToFloat,
         out int addedColumns)
     {
+        try
+        {
+            point = NormalizePointNames(point, schema, exactNames);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            SchemaDiagnostics.RecordRejected(point.Measurement, "column_conflict", MeasurementSchemaRevision);
+            throw;
+        }
         PreflightNewColumnsLocked(point, schema, pendingNewColumns);
         Point normalized;
         try
@@ -2661,6 +2703,49 @@ public sealed class Tsdb : IDisposable
         }
     }
 
+    private static Point NormalizePointNames(Point point, MeasurementSchema schema, bool exactNames)
+    {
+        // 常见的拼写一致路径不分配集合；需要更名时才复制字典，并拒绝映射到同一列的重复键。
+        Dictionary<string, string>? tags = null;
+        Dictionary<string, FieldValue>? fields = null;
+        foreach (var (name, value) in point.Tags)
+        {
+            string resolvedName = ResolveName(name);
+            if (!string.Equals(name, resolvedName, StringComparison.Ordinal))
+            {
+                tags ??= new Dictionary<string, string>(point.Tags, StringComparer.Ordinal);
+                tags.Remove(name);
+                if (!tags.TryAdd(resolvedName, value))
+                    throw new InvalidOperationException($"Measurement '{schema.Name}' 的写入包含重复 TAG 列 '{resolvedName}'。");
+            }
+        }
+        foreach (var (name, value) in point.Fields)
+        {
+            string resolvedName = ResolveName(name);
+            if (!string.Equals(name, resolvedName, StringComparison.Ordinal))
+            {
+                fields ??= new Dictionary<string, FieldValue>(point.Fields, StringComparer.Ordinal);
+                fields.Remove(name);
+                if (!fields.TryAdd(resolvedName, value))
+                    throw new InvalidOperationException($"Measurement '{schema.Name}' 的写入包含重复 FIELD 列 '{resolvedName}'。");
+            }
+        }
+
+        return tags is null && fields is null && string.Equals(point.Measurement, schema.Name, StringComparison.Ordinal)
+            ? point
+            : Point.Create(schema.Name, point.Timestamp, tags ?? point.Tags, fields ?? point.Fields);
+
+        string ResolveName(string name)
+        {
+            MeasurementColumn? column = schema.Resolve(name, quoted: exactNames);
+            if (column is not null)
+                return column.Name;
+            if (exactNames && schema.Resolve(name, quoted: false) is not null)
+                throw new InvalidOperationException($"Measurement '{schema.Name}' 已有列 '{name}' 的大小写变体，不能新建重名列。");
+            return name;
+        }
+    }
+
     private static Point PlanPointAgainstMeasurementSchema(
         Point point,
         MeasurementSchema schema,
@@ -2722,7 +2807,7 @@ public sealed class Tsdb : IDisposable
         }
 
         if (changed)
-            updatedSchema = MeasurementSchema.Create(schema.Name, columns!, schema.CreatedAtUtcTicks);
+            updatedSchema = schema.WithColumns(columns!);
         else
             updatedSchema = null;
 
@@ -3326,6 +3411,11 @@ public sealed class Tsdb : IDisposable
 
     private void EnsureViewNameAvailable(string objectName, string objectType)
     {
+        if (objectType is "table" or "measurement")
+        {
+            SqlSourceNameResolver.EnsureAvailable(this, objectName,
+                objectType == "table" ? SqlSourceKind.Table : SqlSourceKind.Measurement);
+        }
         if (_views.Catalog.TryGet(objectName) is not null)
         {
             throw new InvalidOperationException(
@@ -3381,6 +3471,7 @@ public sealed class Tsdb : IDisposable
     /// <summary>拒绝与任一基础对象、其它视图类别或原生图同名的视图定义。</summary>
     private void EnsureViewDefinitionNameAvailable(string objectName, string objectType)
     {
+        SqlSourceNameResolver.EnsureAvailable(this, objectName);
         EnsureGraphNameAvailable(objectName, objectType);
         if (_graphs.Catalog.TryGet(objectName) is not null)
         {
@@ -3397,8 +3488,8 @@ public sealed class Tsdb : IDisposable
     private void EnsureNoViewDependents(string objectName, string operation)
     {
         SqlRoutineRuntime.EnsureNoDependents(this, objectName, operation);
-        var viewDependents = _views.FindDependents(objectName);
-        var materializedDependents = _materializedViews.FindDependents(objectName);
+        var viewDependents = SqlExecutor.FindViewDependents(this, objectName);
+        var materializedDependents = SqlExecutor.FindMaterializedViewDependents(this, objectName);
         if (viewDependents.Count == 0 && materializedDependents.Count == 0)
             return;
 

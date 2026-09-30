@@ -62,6 +62,40 @@ public class MeasurementSchemaCodecTests
     }
 
     [Fact]
+    public void SaveAndLoad_WithLegacyCaseVariants_PreservesNamesAndAmbiguity()
+    {
+        var path = TempFile();
+        try
+        {
+            var upper = MeasurementSchema.CreateLoaded("Sensors",
+            [
+                new MeasurementColumn("Usage", MeasurementColumnRole.Field, FieldType.Int64),
+                new MeasurementColumn("usage", MeasurementColumnRole.Field, FieldType.Int64),
+            ]);
+            var lower = MeasurementSchema.CreateLoaded("sensors",
+                [new MeasurementColumn("value", MeasurementColumnRole.Field, FieldType.Float64)]);
+            MeasurementSchemaCodec.Save(path, new[] { upper, lower });
+
+            var catalog = new MeasurementCatalog();
+            foreach (MeasurementSchema schema in MeasurementSchemaCodec.Load(path))
+                catalog.LoadOrReplace(schema);
+
+            Assert.Equal(2, catalog.Count);
+            Assert.Throws<InvalidOperationException>(() => catalog.Resolve("Sensors", quoted: false));
+            var loaded = catalog.Resolve("Sensors", quoted: true)!;
+            Assert.Equal(new[] { "Usage", "usage" }, loaded.Columns.Select(static column => column.Name));
+            Assert.Throws<InvalidOperationException>(() => loaded.Resolve("Usage", quoted: false));
+            Assert.Equal("Usage", loaded.Resolve("Usage", quoted: true)!.Name);
+            Assert.Equal("usage", loaded.Resolve("usage", quoted: true)!.Name);
+            Assert.Equal("sensors", catalog.Resolve("sensors", quoted: true)!.Name);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Save_WithEmptyList_WritesValidFile()
     {
         var path = TempFile();

@@ -55,7 +55,7 @@ internal static class TableValuedFunctionExecutor
         // 第 2 个参数：field
         if (call.Arguments[1] is not IdentifierExpression fieldId)
             throw new InvalidOperationException("forecast 第 2 个参数必须是字段列名。");
-        var fieldCol = schema.TryGetColumn(fieldId.Name)
+        var fieldCol = schema.Resolve(fieldId.Name, fieldId.IsQuoted || fieldId.IsNameBound)
             ?? throw new InvalidOperationException(
                 $"forecast 引用了未知字段 '{fieldId.Name}'。");
         if (fieldCol.Role != MeasurementColumnRole.Field)
@@ -85,8 +85,7 @@ internal static class TableValuedFunctionExecutor
             .Where(c => c.Role == MeasurementColumnRole.Tag)
             .ToList();
         // 防御性：tag 列名若与 forecast 内置输出列（time / value / lower / upper）冲突，
-        // 后续 ApplyTableValuedProjection 的 OrdinalIgnoreCase 查表会被 tag 覆盖（last-write-wins），
-        // 导致 SELECT time FROM forecast(...) 返回 tag 而非桶时间——静默错列。
+        // 普通输出列引用会存在大小写歧义，导致无法确定引用的是 tag 还是桶时间。
         // 这里在构表阶段显式报错，避免错列结果流回上层。
         foreach (var t in tagColumns)
         {
@@ -132,21 +131,50 @@ internal static class TableValuedFunctionExecutor
             }
         }
 
-        return ApplyTableValuedProjection("forecast", sourceColumnNames, rows, statement.Projections);
+        return ApplyTableValuedProjection("forecast", sourceColumnNames, rows, statement);
     }
 
     private static SelectExecutionResult ApplyTableValuedProjection(
         string functionName,
         IReadOnlyList<string> sourceColumns,
         IReadOnlyList<IReadOnlyList<object?>> sourceRows,
-        IReadOnlyList<SelectItem> projections)
+        SelectStatement statement)
     {
-        var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var exact = new Dictionary<string, int>(StringComparer.Ordinal);
+        var ordinary = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < sourceColumns.Count; i++)
-            lookup[sourceColumns[i]] = i;
+        {
+            if (!exact.TryAdd(sourceColumns[i], i))
+                exact[sourceColumns[i]] = -1;
+            if (!ordinary.TryAdd(sourceColumns[i], i))
+                ordinary[sourceColumns[i]] = -1;
+        }
+
+        void ValidateQualifier(string? qualifier, bool quoted)
+        {
+            if (qualifier is null)
+                return;
+            string source = statement.TableAlias ?? statement.Measurement;
+            if (!string.Equals(qualifier, source,
+                quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"{functionName}(...) 引用了未知限定符 '{qualifier}'。");
+        }
+
+        int ResolveColumn(IdentifierExpression identifier)
+        {
+            ValidateQualifier(identifier.Qualifier, identifier.QualifierIsQuoted);
+            var lookup = identifier.IsQuoted || identifier.IsNameBound ? exact : ordinary;
+            if (!lookup.TryGetValue(identifier.Name, out int ordinal))
+                throw new InvalidOperationException(
+                    $"{functionName}(...) 表值函数没有输出列 '{identifier.Name}'。");
+            if (ordinal < 0)
+                throw new InvalidOperationException(
+                    $"{functionName}(...) 输出列 '{identifier.Name}' 存在名称歧义；请用双引号精确引用或显式迁移冲突列。");
+            return ordinal;
+        }
 
         var projected = new List<TableValuedProjection>();
-        foreach (var item in projections)
+        foreach (var item in statement.Projections)
         {
             switch (item.Expression)
             {
@@ -158,19 +186,15 @@ internal static class TableValuedFunctionExecutor
                     break;
 
                 case IdentifierExpression id:
-                    if (!lookup.TryGetValue(id.Name, out var ordinal))
-                    {
-                        throw new InvalidOperationException(
-                            $"{functionName}(...) 表值函数没有输出列 '{id.Name}'。");
-                    }
-                    projected.Add(new TableValuedProjection(item.Alias ?? id.Name, ordinal, null));
+                    int ordinal = ResolveColumn(id);
+                    projected.Add(new TableValuedProjection(item.Alias ?? sourceColumns[ordinal], ordinal, null));
                     break;
 
                 default:
                     string context = $"{functionName}(...) 表值函数";
                     SqlProjectionExpressionEvaluator.Validate(
                         item.Expression,
-                        identifier => lookup.ContainsKey(identifier.Name),
+                        identifier => ResolveColumn(identifier) >= 0,
                         context);
                     projected.Add(new TableValuedProjection(
                         item.Alias ?? "expression", null, item.Expression));
@@ -189,7 +213,7 @@ internal static class TableValuedFunctionExecutor
                     ? sourceRow[ordinal]
                     : SqlProjectionExpressionEvaluator.Evaluate(
                         projection.Expression!,
-                        identifier => sourceRow[lookup[identifier.Name]],
+                        identifier => sourceRow[ResolveColumn(identifier)],
                         $"{functionName}(...) 表值函数");
             }
             rows.Add(row);
@@ -263,6 +287,8 @@ internal static class TableValuedFunctionExecutor
         // 第 2 个参数：向量列名
         if (call.Arguments[1] is not IdentifierExpression columnId)
             throw new InvalidOperationException("knn 第 2 个参数必须是向量列名标识符。");
+        var vectorColumn = schema.Resolve(columnId.Name, columnId.IsQuoted || columnId.IsNameBound)
+            ?? throw new InvalidOperationException($"knn 引用了未知列 '{columnId.Name}'。");
 
         // 第 3 个参数：查询向量
         float[] queryArray = ResolveQueryVector(call.Arguments[2]);
@@ -278,10 +304,10 @@ internal static class TableValuedFunctionExecutor
         // WHERE 子句：tag 过滤 + 时间范围
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
 
-        var result = ExecuteKnnSearch(tsdb, statement.Measurement, columnId.Name, queryArray, k, metric,
+        var result = ExecuteKnnSearch(tsdb, statement.Measurement, vectorColumn.Name, queryArray, k, metric,
             where.TagFilter, where.TimeRange);
         return ApplyTableValuedProjection(
-            "knn", result.Columns, result.Rows, statement.Projections);
+            "knn", result.Columns, result.Rows, statement);
     }
 
     /// <summary>

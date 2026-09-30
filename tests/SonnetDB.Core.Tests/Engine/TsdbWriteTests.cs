@@ -88,6 +88,141 @@ public sealed class TsdbWriteTests : IDisposable
     }
 
     [Fact]
+    public void Write_PointNamesWithDifferentCase_UsesOriginalSchemaAndSeriesAcrossReopen()
+    {
+        using (var db = Tsdb.Open(MakeOptions()))
+        {
+            db.Write(Point.Create("Sensors", 1,
+                new Dictionary<string, string> { ["Host"] = "MixedCaseValue" },
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromLong(10) }));
+            db.Write(Point.Create("sensors", 2,
+                new Dictionary<string, string> { ["host"] = "MixedCaseValue" },
+                new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromLong(20) }));
+
+            Assert.Equal(1, db.Measurements.Count);
+            Assert.Equal(1, db.Catalog.Count);
+            Assert.Equal(new[] { "Host", "Usage" }, db.Measurements.TryGet("Sensors")!.Columns.Select(static column => column.Name));
+            Assert.Null(db.Measurements.TryGet("sensors"));
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions());
+        var entry = Assert.Single(reopened.Catalog.Find("Sensors",
+            new Dictionary<string, string> { ["Host"] = "MixedCaseValue" }));
+        Assert.Equal(new long[] { 10, 20 }, reopened.Query.Execute(new PointQuery(entry.Id, "Usage", TimeRange.All))
+            .Select(static point => point.Value.AsLong()));
+        Assert.Empty(reopened.Query.Execute(new PointQuery(entry.Id, "usage", TimeRange.All)));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Write_CaseOnlyDuplicateNames_RejectsBeforePublishing(bool duplicateTags)
+    {
+        var tags = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["host"] = "lower",
+        };
+        var fields = new Dictionary<string, FieldValue>(StringComparer.Ordinal)
+        {
+            ["usage"] = FieldValue.FromLong(10),
+        };
+        if (duplicateTags)
+            tags.Add("Host", "upper");
+        else
+            fields.Add("Usage", FieldValue.FromLong(20));
+
+        using var db = Tsdb.Open(MakeOptions());
+        Assert.Throws<ArgumentException>(() => db.Write(Point.Create("sensors", 1, tags, fields)));
+        Assert.Equal(0, db.Measurements.Count);
+        Assert.Equal(0, db.Catalog.Count);
+        Assert.Equal(0L, db.MemTable.PointCount);
+    }
+
+    [Fact]
+    public void WriteMany_MixedCaseNamesAndTypePromotion_UsesOneSchemaAndSeriesAcrossReopen()
+    {
+        Point[] points =
+        [
+            Point.Create("Sensors", 1, new Dictionary<string, string> { ["Host"] = "A" },
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromLong(10) }),
+            Point.Create("sensors", 2, new Dictionary<string, string> { ["host"] = "A" },
+                new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromDouble(20.5) }),
+        ];
+        using (var db = Tsdb.Open(MakeOptions()))
+        {
+            Assert.Equal(2, db.WriteMany(points));
+            Assert.Equal(1, db.Measurements.Count);
+            Assert.Equal(1, db.Catalog.Count);
+            Assert.Equal(FieldType.Float64, db.Measurements.TryGet("Sensors")!.TryGetColumn("Usage")!.DataType);
+        }
+        using var reopened = Tsdb.Open(MakeOptions());
+        var entry = Assert.Single(reopened.Catalog.Find("Sensors", new Dictionary<string, string> { ["Host"] = "A" }));
+        Assert.Equal(new double[] { 10, 20.5 }, reopened.Query.Execute(new PointQuery(entry.Id, "Usage", TimeRange.All))
+            .Select(static point => point.Value.AsDouble()));
+    }
+
+    [Fact]
+    public void WriteMany_PendingBatchWithCaseVariants_ReconcilesCanonicalFieldsAcrossReopen()
+    {
+        using (var db = Tsdb.Open(MakeOptions()))
+        {
+            db.CreateMeasurement(MeasurementSchema.Create("Sensors",
+            [
+                new MeasurementColumn("Host", MeasurementColumnRole.Tag, FieldType.String),
+                new MeasurementColumn("Usage", MeasurementColumnRole.Field, FieldType.Float64),
+            ]));
+            db.Write(Point.Create("Sensors", 1, new Dictionary<string, string> { ["Host"] = "A" },
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromLong(10) }));
+        }
+
+        Point[] points =
+        [
+            Point.Create("sensors", 1, new Dictionary<string, string> { ["host"] = "A" },
+                new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromLong(10) }),
+            Point.Create("sensors", 2, new Dictionary<string, string> { ["host"] = "A" },
+                new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromLong(20) }),
+        ];
+        MeasurementBatchLedger.Load(TsdbPaths.MeasurementBatchLedgerPath(_tempDir))
+            .Prepare("case-retry", MeasurementBatchLedger.Fingerprint(points));
+
+        using var reopened = Tsdb.Open(MakeOptions());
+        Assert.Equal(1, reopened.WriteMany(points, "case-retry"));
+        Assert.Equal(0, reopened.WriteMany(points, "case-retry"));
+        var entry = Assert.Single(reopened.Catalog.Find("Sensors", null));
+        Assert.Equal(1, reopened.Catalog.Count);
+        Assert.Equal(new double[] { 10, 20 }, reopened.Query.Execute(new PointQuery(entry.Id, "Usage", TimeRange.All))
+            .Select(static point => point.Value.AsDouble()));
+    }
+
+    [Fact]
+    public void Write_LegacyCaseConflicts_RejectsDynamicNamesAndAllowsExactSqlNames()
+    {
+        var schema = MeasurementSchema.CreateLoaded("Sensors",
+        [
+            new MeasurementColumn("Usage", MeasurementColumnRole.Field, FieldType.Int64),
+            new MeasurementColumn("usage", MeasurementColumnRole.Field, FieldType.Int64),
+        ]);
+        MeasurementSchemaCodec.Save(TsdbPaths.MeasurementSchemaPath(_tempDir), new[] { schema });
+        using (var db = Tsdb.Open(MakeOptions()))
+        {
+            Assert.Throws<InvalidOperationException>(() => db.Write(Point.Create("Sensors", 1, fields:
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromLong(10) })));
+            db.WriteSqlPoint(Point.Create("Sensors", 1, fields:
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromLong(10), ["usage"] = FieldValue.FromLong(20) }));
+            db.WriteSqlPoint(Point.Create("Sensors", 2, fields:
+                new Dictionary<string, FieldValue> { ["Usage"] = FieldValue.FromDouble(10.5) }));
+            Assert.Equal(2, db.Measurements.TryGet("Sensors")!.Columns.Count);
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions());
+        var entry = Assert.Single(reopened.Catalog.Find("Sensors", null));
+        Assert.Equal(new double[] { 10, 10.5 }, reopened.Query.Execute(new PointQuery(entry.Id, "Usage", TimeRange.All))
+            .Select(static point => point.Value.Type == FieldType.Int64 ? point.Value.AsLong() : point.Value.AsDouble()));
+        Assert.Equal(20L, Assert.Single(reopened.Query.Execute(new PointQuery(entry.Id, "usage", TimeRange.All))).Value.AsLong());
+        Assert.Throws<InvalidOperationException>(() => reopened.Measurements.TryGet("Sensors")!.Resolve("Usage", quoted: false));
+    }
+
+    [Fact]
     public void Write_CrashAfterAutoSchema_WalReplayKeepsSchemaVisible()
     {
         var point = Point.Create("cpu", 1000L,

@@ -82,7 +82,17 @@ public sealed record GeoPointLiteralExpression(double Lat, double Lon) : SqlExpr
 /// <summary>标识符引用（列名 / 字段名 / tag 名），可带单表别名限定符。</summary>
 /// <param name="Name">标识符名称（保留原始大小写）。</param>
 /// <param name="Qualifier">可选限定符，例如 <c>alias.column</c> 中的 <c>alias</c>。</param>
-public sealed record IdentifierExpression(string Name, string? Qualifier = null) : SqlExpression;
+public sealed record IdentifierExpression(string Name, string? Qualifier = null) : SqlExpression
+{
+    /// <summary>列名是否使用双引号引用。</summary>
+    public bool IsQuoted { get; init; }
+
+    /// <summary>限定符是否使用双引号引用。</summary>
+    public bool QualifierIsQuoted { get; init; }
+
+    /// <summary>列名是否已绑定到来源中的精确拼写。</summary>
+    internal bool IsNameBound { get; init; }
+}
 
 /// <summary>
 /// 参数占位符表达式（#213）：位置参数 <c>?</c> 或命名参数 <c>@name</c> / <c>:name</c>。

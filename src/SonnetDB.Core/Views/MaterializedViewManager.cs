@@ -52,7 +52,7 @@ public sealed class MaterializedViewManager
                 throw new InvalidDataException(
                     $"materialized view '{definition.Name}' 的活动代际 {definition.ActiveGeneration} 不存在。");
             }
-            Catalog.LoadOrReplace(definition);
+            Catalog.LoadExisting(definition);
         }
         RecoverInterruptedRefreshes();
         CleanupUnpublishedArtifacts();

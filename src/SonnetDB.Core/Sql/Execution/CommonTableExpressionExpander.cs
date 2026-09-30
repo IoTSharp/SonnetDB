@@ -14,14 +14,14 @@ internal static class CommonTableExpressionExpander
         if (statement.CommonTableExpressions.Count == 0)
             return statement;
 
-        return ExpandSelect(statement, new Dictionary<string, SelectStatement>(StringComparer.OrdinalIgnoreCase));
+        return ExpandSelect(statement, new Dictionary<string, SelectStatement>(StringComparer.Ordinal));
     }
 
     private static SelectStatement ExpandSelect(
         SelectStatement statement,
         IReadOnlyDictionary<string, SelectStatement> inheritedDefinitions)
     {
-        var definitions = new Dictionary<string, SelectStatement>(StringComparer.OrdinalIgnoreCase);
+        var definitions = new Dictionary<string, SelectStatement>(StringComparer.Ordinal);
         foreach (var inherited in inheritedDefinitions)
             definitions.Add(inherited.Key, inherited.Value);
 
@@ -35,7 +35,7 @@ internal static class CommonTableExpressionExpander
                 && names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count)
                 throw new InvalidOperationException("CTE 输出列名不能重复。");
 
-            if (definitions.ContainsKey(cte.Name))
+            if (definitions.Keys.Any(name => string.Equals(name, cte.Name, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException($"CTE 名称重复：'{cte.Name}'。");
 
             definitions.Add(cte.Name, ExpandSelect(cte.Query, definitions) with
@@ -81,14 +81,16 @@ internal static class CommonTableExpressionExpander
                 .ToArray(),
         };
 
-        if (definitions.TryGetValue(statement.Measurement, out SelectStatement? cteQuery)
+        string? referencedCte = ResolveName(definitions, statement.Measurement, statement.MeasurementIsQuoted);
+        if (referencedCte is not null
             && statement.FromSubquery is null
             && statement.TableValuedFunction is null)
         {
             expanded = expanded with
             {
-                FromSubquery = cteQuery,
-                TableAlias = statement.TableAlias ?? statement.Measurement,
+                FromSubquery = definitions[referencedCte],
+                Measurement = referencedCte,
+                TableAlias = statement.TableAlias ?? referencedCte,
             };
         }
 
@@ -109,8 +111,9 @@ internal static class CommonTableExpressionExpander
             SelectStatement? subquery = join.Subquery is null
                 ? null
                 : ExpandSelect(join.Subquery, definitions);
-            if (subquery is null && definitions.TryGetValue(join.TableName, out SelectStatement? cteQuery))
-                subquery = cteQuery;
+            string? referencedCte = ResolveName(definitions, join.TableName, join.TableNameIsQuoted);
+            if (subquery is null && referencedCte is not null)
+                subquery = definitions[referencedCte];
 
             expanded[index] = join with
             {
@@ -121,6 +124,11 @@ internal static class CommonTableExpressionExpander
 
         return expanded;
     }
+
+    private static string? ResolveName(
+        IReadOnlyDictionary<string, SelectStatement> definitions, string name, bool quoted)
+        => definitions.Keys.FirstOrDefault(candidate => string.Equals(candidate, name,
+            quoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase));
 
     private static SqlExpression ExpandExpression(
         SqlExpression expression,

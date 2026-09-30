@@ -48,6 +48,24 @@ public class SqlExecutorDeleteTests : IDisposable
         => Assert.IsType<DeleteExecutionResult>(SqlExecutor.Execute(db, sql));
 
     [Fact]
+    public void Delete_QuotedTimeField_DeletesByFieldValue()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT Signals (Host TAG, \"Time\" FIELD INT, Amount FIELD INT)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO signals (time, HOST, \"Time\", amount) VALUES " +
+            "(1000, 'h1', 10, 1), (2000, 'h1', 20, 2)");
+
+        Delete(db, "DELETE FROM SIGNALS WHERE \"Time\" = 10");
+
+        var remaining = Select(db, "SELECT time, \"Time\", amount FROM signals");
+        var row = Assert.Single(remaining.Rows);
+        Assert.Equal(2000L, row[0]);
+        Assert.Equal(20L, row[1]);
+        Assert.Equal(2L, row[2]);
+    }
+
+    [Fact]
     public void Delete_TimeRangeAndTagFilter_RemovesMatchingPoints()
     {
         using var db = OpenWithSchema(Options());
