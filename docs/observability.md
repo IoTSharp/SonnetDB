@@ -17,6 +17,9 @@ Core Meter 名为 `SonnetDB.Core`，Server SQL Meter 名为 `SonnetDB.Server`，
 | --- | --- | --- | --- |
 | `sonnetdb.write.points` | Counter | point | 写入路径接受的数据点数 |
 | `sonnetdb.write.duration` | Histogram | ms | 单次写入端到端耗时，含 WAL durability 与背压等待 |
+| `sonnetdb.schema.columns.added` | Counter | column | 已发布的现有 measurement 扩列数；无 measurement 名称标签 |
+| `sonnetdb.schema.columns.promoted` | Counter | column | 已发布的 `INT64` 到 `FLOAT64` 字段提升数；无 measurement 名称标签 |
+| `sonnetdb.schema.changes.rejected` | Counter | change | 策略、额度或列冲突拒绝数；无 measurement 名称标签 |
 | `sonnetdb.wal.fsync.duration` | Histogram | ms | WAL fsync 耗时 |
 | `sonnetdb.flush.duration` | Histogram | ms | Flush 总耗时；`outcome=ok|error` |
 | `sonnetdb.flush.points` | Counter | point | Flush 落盘的数据点数 |
@@ -138,7 +141,7 @@ scrape_configs:
     metrics_path: /metrics
 ```
 
-未启用该配置时，`/metrics` 保留兼容用的最小文本指标集，不包含本文列出的完整 OTel histogram 和 Copilot 指标。
+未启用该配置时，`/metrics` 保留兼容用的最小文本指标集，不包含本文列出的完整 OTel histogram 和 Copilot 指标。兼容输出另外提供按当前数据库实例分组的 `sonnetdb_schema_measurements_created_total`、`sonnetdb_schema_columns_added_total`、`sonnetdb_schema_columns_promoted_total` 和 `sonnetdb_schema_changes_rejected_total`；删除或重开数据库实例会重置该实例的累计值。需要跨重启的审计留存或连续计数时，应由外部采集器持久化。
 
 ## OTLP 导出
 

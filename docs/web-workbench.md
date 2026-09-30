@@ -43,6 +43,7 @@ Studio 中的 Copilot 不是孤立聊天框，而是伴随式数据库智能体�
 
 - `GET /v1/db`
 - `GET /v1/db/{db}/schema`
+- `GET /v1/db/{db}/schema/measurements/revision`（只读，返回 `{ "revision": "..." }`）
 - `POST /v1/db/{db}/sql`
 - Copilot SSE stream 协议（仍由全局 CopilotDock 使用）
 - `/mcp/{db}` 工具入口（供外部 Agent / MCP Host 使用）
@@ -53,6 +54,7 @@ Studio 中的 Copilot 不是孤立聊天框，而是伴随式数据库智能体�
 - `INSERT` / `CREATE` / `ALTER` / `DROP` / `DELETE` / `GRANT` / `REVOKE` 先进入 staged preview。
 - `DELETE` / `DROP` / `GRANT` / `REVOKE` / `CREATE USER` / `DROP USER` / `ALTER USER` / `ISSUE TOKEN` 归为危险操作，必须二次确认后才能提交。
 - 左侧 Schema Explorer 以数据库树展示可见数据库和 measurement；管理员可以在 Studio 内直接新建或删除数据库。
+- Studio 在重选数据库或窗口重新获得焦点时重新加载完整的多模型 schema；measurement revision 仅覆盖 measurement 列定义，不代表关系表、文档等模型的版本。SDK 可调用 `SndbTimeSeriesClient.GetMeasurementSchemaRevisionAsync()` 校验 measurement 缓存，MCP measurement 工具及资源返回同一 revision。
 - 预览内容和目标数据库变化后会自动判定为过期，需要重新预览。
 - Copilot 继续保持全局浮窗，不在 Studio 内单独占一栏。
 

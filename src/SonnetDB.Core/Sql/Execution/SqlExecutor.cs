@@ -1546,7 +1546,7 @@ public static class SqlExecutor
     ///   <item>同一 INSERT 列列表中不允许重复列名。</item>
     ///   <item>Tag 列必须传入字符串字面量；不允许 NULL；不允许保留字符。</item>
     ///   <item>Field 列值必须与列声明类型兼容；INT 字面量可隐式转换为 FLOAT，INT 列遇到 FLOAT 会提升为 FLOAT。</item>
-    ///   <item>未知 SQL 字符串列会按 TAG 推断，未知非字符串列会按 FIELD 推断。</item>
+    ///   <item>未知列默认按 FIELD 解释；需要 TAG 时在列名后显式写 TAG。</item>
     ///   <item>每行至少需要包含一个 Field 列值（与 <see cref="Point"/> 的约束一致）。</item>
     ///   <item><c>time</c> 列必须为非负整数字面量；缺省时使用当前 UTC 毫秒。</item>
     ///   <item>VALUES 字面量当前仅支持 NULL / Boolean / Integer / Float / String，不支持运算表达式。</item>
@@ -1575,10 +1575,17 @@ public static class SqlExecutor
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        if (statement.ColumnRoleHints.Count != 0
+            && statement.ColumnRoleHints.Count != statement.Columns.Count)
+            throw new InvalidOperationException("INSERT 列角色提示数与列数不一致。");
+
+        bool hasRoleHints = statement.ColumnRoleHints.Any(static role => role is not null);
 
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
+            if (hasRoleHints)
+                throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
             if (statement.Query is not null)
                 throw new NotSupportedException("INSERT SELECT 当前仅支持关系表。");
             if (statement.ReturningColumns.Count != 0)
@@ -1590,6 +1597,9 @@ public static class SqlExecutor
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
+        {
+            if (hasRoleHints)
+                throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
             return ExecuteTableInsertWithTriggers(
                 tsdb,
                 databaseName,
@@ -1597,6 +1607,7 @@ public static class SqlExecutor
                 tableSchema,
                 controlPlane,
                 transaction);
+        }
 
         if (statement.ReturningColumns.Count != 0)
             throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
@@ -1626,8 +1637,13 @@ public static class SqlExecutor
         for (int i = 0; i < statement.Columns.Count; i++)
         {
             var name = statement.Columns[i];
+            ColumnKind? roleHint = statement.ColumnRoleHints.Count == 0
+                ? null
+                : statement.ColumnRoleHints[i];
             if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
             {
+                if (roleHint is not null)
+                    throw new InvalidOperationException("INSERT 的 time 伪列不能指定 TAG / FIELD 提示。");
                 if (timeColumnIndex >= 0)
                     throw new InvalidOperationException("INSERT 列列表中 'time' 出现多次。");
                 timeColumnIndex = i;
@@ -1639,24 +1655,18 @@ public static class SqlExecutor
                 throw new InvalidOperationException($"INSERT 列列表中列 '{name}' 重复。");
 
             var col = schema?.TryGetColumn(name);
-            var inferredRole = schema is not null && !schema.TagColumns.Any()
-                ? MeasurementColumnRole.Field
-                : InferUnknownColumnRole(statement.Rows, i, name);
+            var inferredRole = roleHint switch
+            {
+                ColumnKind.Tag => MeasurementColumnRole.Tag,
+                ColumnKind.Field or null => MeasurementColumnRole.Field,
+                _ => throw new InvalidOperationException($"列 '{name}' 的角色提示无效。"),
+            };
+            if (col is not null && roleHint is not null && col.Role != inferredRole)
+                throw new InvalidOperationException(
+                    $"列 '{name}' 的 {roleHint} 提示与 measurement '{schema!.Name}' 的 {col.Role} schema 不一致。");
             bindings[i] = col is null
                 ? ColumnBinding.Inferred(name, inferredRole)
                 : ColumnBinding.Schema(col);
-        }
-
-        if (schema is not null && !HasFieldBinding(bindings, timeColumnIndex))
-        {
-            for (int i = 0; i < bindings.Length; i++)
-            {
-                if (i == timeColumnIndex)
-                    continue;
-
-                if (bindings[i].Column is null && bindings[i].Role == MeasurementColumnRole.Tag)
-                    bindings[i] = ColumnBinding.Inferred(bindings[i].Name, MeasurementColumnRole.Field);
-            }
         }
 
         int written = 0;
@@ -2969,44 +2979,6 @@ public static class SqlExecutor
             default:
                 throw new NotSupportedException($"不支持的列类型 {column.DataType}。");
         }
-    }
-
-    private static MeasurementColumnRole InferUnknownColumnRole(
-        IReadOnlyList<IReadOnlyList<SqlExpression>> rows,
-        int columnIndex,
-        string columnName)
-    {
-        var sawValue = false;
-        foreach (var row in rows)
-        {
-            var expr = row[columnIndex];
-            if (expr is VectorLiteralExpression or GeoPointLiteralExpression)
-                return MeasurementColumnRole.Field;
-
-            var literal = AsLiteral(expr, columnName);
-            if (literal.Kind == SqlLiteralKind.Null)
-                continue;
-
-            sawValue = true;
-            if (literal.Kind != SqlLiteralKind.String)
-                return MeasurementColumnRole.Field;
-        }
-
-        if (!sawValue)
-            throw new InvalidOperationException(
-                $"无法从全 NULL 列 '{columnName}' 推断 TAG / FIELD。");
-        return MeasurementColumnRole.Tag;
-    }
-
-    private static bool HasFieldBinding(IReadOnlyList<ColumnBinding> bindings, int timeColumnIndex)
-    {
-        for (int i = 0; i < bindings.Count; i++)
-        {
-            if (i != timeColumnIndex && bindings[i].Role == MeasurementColumnRole.Field)
-                return true;
-        }
-
-        return false;
     }
 
     /// <summary>

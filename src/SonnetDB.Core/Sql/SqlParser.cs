@@ -2413,16 +2413,21 @@ public sealed class SqlParser
 
         Expect(TokenKind.LeftParen);
         var columns = new List<string>();
-        columns.Add(ExpectColumnName());
+        var roleHints = new List<ColumnKind?>();
+        ParseInsertColumn(columns, roleHints);
         while (Current.Kind == TokenKind.Comma)
         {
             Advance();
-            columns.Add(ExpectColumnName());
+            ParseInsertColumn(columns, roleHints);
         }
         Expect(TokenKind.RightParen);
 
         if (Current.Kind == TokenKind.KeywordSelect)
-            return ParseInsertReturning(new InsertStatement(measurement, columns, []) { Query = ParseSelect() });
+            return ParseInsertReturning(new InsertStatement(measurement, columns, [])
+            {
+                ColumnRoleHints = roleHints,
+                Query = ParseSelect(),
+            });
 
         Expect(TokenKind.KeywordValues);
 
@@ -2434,7 +2439,29 @@ public sealed class SqlParser
             rows.Add(ParseValueRow(columns.Count));
         }
 
-        return ParseInsertReturning(new InsertStatement(measurement, columns, rows));
+        return ParseInsertReturning(new InsertStatement(measurement, columns, rows)
+        {
+            ColumnRoleHints = roleHints,
+        });
+    }
+
+    private void ParseInsertColumn(List<string> columns, List<ColumnKind?> roleHints)
+    {
+        string name = ExpectColumnName();
+        ColumnKind? role = Current.Kind switch
+        {
+            TokenKind.KeywordTag => ColumnKind.Tag,
+            TokenKind.KeywordField => ColumnKind.Field,
+            _ => null,
+        };
+        if (role is not null)
+        {
+            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+                throw Error("INSERT 的 time 伪列不能指定 TAG / FIELD 提示");
+            Advance();
+        }
+        columns.Add(name);
+        roleHints.Add(role);
     }
 
     private InsertGraphStatement ParseGraphInsert()

@@ -20,7 +20,8 @@ internal static class SchemaEndpointHandler
         ArgumentException.ThrowIfNullOrEmpty(db);
         ArgumentNullException.ThrowIfNull(tsdb);
 
-        var measurements = BuildMeasurements(tsdb);
+        var measurementSnapshot = tsdb.GetMeasurementSchemaSnapshot();
+        var measurements = BuildMeasurements(measurementSnapshot.Measurements);
         var tables = BuildTables(tsdb);
         var documents = BuildDocuments(tsdb);
         var views = BuildViews(tsdb);
@@ -29,13 +30,14 @@ internal static class SchemaEndpointHandler
         var backupStatus = BuildBackupStatus(tsdb);
 
         return Results.Json(
-            new SchemaResponse(measurements, tables, documents, indexes, backupStatus, views, materializedViews),
+            new SchemaResponse(measurements, tables, documents, indexes, backupStatus, views, materializedViews,
+                measurementSnapshot.Revision),
             ServerJsonContext.Default.SchemaResponse);
     }
 
-    private static List<MeasurementInfo> BuildMeasurements(Tsdb tsdb)
+    private static List<MeasurementInfo> BuildMeasurements(
+        IReadOnlyList<SonnetDB.Catalog.MeasurementSchema> schemas)
     {
-        var schemas = tsdb.Measurements.Snapshot();
         var infos = new List<MeasurementInfo>(schemas.Count);
         foreach (var measurement in schemas)
         {

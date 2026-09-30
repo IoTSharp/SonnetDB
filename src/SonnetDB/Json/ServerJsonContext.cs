@@ -378,6 +378,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(McpSkillLoadResult))]
 // ---- Schema API ----
 [JsonSerializable(typeof(SchemaResponse))]
+[JsonSerializable(typeof(MeasurementSchemaRevisionResponse))]
 [JsonSerializable(typeof(MeasurementInfo))]
 [JsonSerializable(typeof(ColumnInfo))]
 [JsonSerializable(typeof(VectorIndexInfo))]

@@ -39,6 +39,7 @@ public sealed class Tsdb : IDisposable
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
     private readonly TsdbOptions _options;
+    private readonly MeasurementSchemaPolicy _measurementSchemaPolicy;
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
@@ -82,6 +83,8 @@ public sealed class Tsdb : IDisposable
     private bool _catalogDirty;
     private bool _measurementSchemaDirty;
     private long _measurementSchemaPersistCount;
+    private string _measurementSchemaRevision = string.Empty;
+    private string? _pendingMeasurementDropName;
     private bool _disposed;
     private int _writeLifecycleClosing;
     private BackgroundFlushWorker? _flushWorker;
@@ -114,6 +117,9 @@ public sealed class Tsdb : IDisposable
     /// <summary>仅供关闭恢复测试在后台 worker 停止路径注入故障。</summary>
     internal Action? BeforeBackgroundWorkerShutdownTestHook { get; set; }
 
+    /// <summary>仅供恢复测试在 schema 删除已发布、数据清理尚未开始时注入故障。</summary>
+    internal Action? AfterMeasurementSchemaDropTestHook { get; set; }
+
     /// <summary>
     /// <see cref="WriteMany(ReadOnlySpan{Point})"/> 单次持锁处理的最大点数。超大批量按此粒度分块，
     /// 使硬上限背压能在批内周期性触发、块间释放写锁，避免单批无界撑大 MemTable/WAL（C4）。
@@ -144,6 +150,20 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>当前 Measurement schema 集合（线程安全）。</summary>
     public MeasurementCatalog Measurements { get; }
+
+    /// <summary>已发布 measurement schema 集合的稳定内容 revision，可用于客户端缓存校验。</summary>
+    public string MeasurementSchemaRevision => Volatile.Read(ref _measurementSchemaRevision);
+
+    /// <summary>进程内 measurement schema 审计事件与累计指标。</summary>
+    public MeasurementSchemaDiagnostics SchemaDiagnostics { get; } = new();
+
+    /// <summary>在线性化的 schema 锁内读取 measurement 集合及匹配的 revision。</summary>
+    /// <returns>不会混合不同发布版本的 schema 与 revision 快照。</returns>
+    public MeasurementSchemaSnapshot GetMeasurementSchemaSnapshot()
+    {
+        lock (_schemaSync)
+            return new MeasurementSchemaSnapshot(Measurements.Snapshot(), _measurementSchemaRevision);
+    }
 
     /// <summary>
     /// 当前活跃内存层（MemTable）。Flush 时会被原子替换为新的空实例，因此本属性每次读取
@@ -398,11 +418,13 @@ public sealed class Tsdb : IDisposable
         MeasurementBatchLedger measurementBatchLedger)
     {
         _options = options;
+        _measurementSchemaPolicy = options.MeasurementSchemaPolicy.ValidateAndCopy();
         _sqlMemoryBudget = new SqlGlobalMemoryBudget(options.SqlMemory.GlobalLimitBytes);
         _sqlParallelCoordinator = new SqlParallelCoordinator(options.SqlMemory.MaxParallelWorkers);
         _sqlRuntimeFeedback = new SqlRuntimeFeedbackStore();
         Catalog = catalog;
         Measurements = measurements;
+        _measurementSchemaRevision = MeasurementSchemaCodec.ComputeRevision(measurements.Snapshot());
         _activeMemTable = memTable;
         _walSet = walSet;
         _nextSegmentId = nextSegmentId;
@@ -612,6 +634,7 @@ public sealed class Tsdb : IDisposable
             tsdb._vectorReplacements = new MeasurementVectorReplacementStore(
                 tsdb._keyspaces, catalog, measurements);
             tsdb.Query.SetVectorReplacementStore(tsdb._vectorReplacements);
+            tsdb.RecoverPendingMeasurementDrop();
             tsdb.PruneStaleVectorReplacements();
 
             // 重写一遍 manifest（合并 manifest + WAL replay 的结果）
@@ -880,7 +903,7 @@ public sealed class Tsdb : IDisposable
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
-                var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
+                var normalized = EnsureMeasurementSchemaLocked(point);
                 WritePointLocked(normalized);
                 hardCapFlush = FlushForHardCapIfNeededLocked();
 
@@ -1089,21 +1112,19 @@ public sealed class Tsdb : IDisposable
                     ThrowIfFlushRecoveryFault();
                 }
 
-                var normalizedPoints = new Point?[chunk.Length];
-
-                for (int i = 0; i < chunk.Length; i++)
-                {
-                    var point = chunk[i];
-                    if (point is null)
-                        continue;
-
-                    normalizedPoints[i] = EnsureMeasurementSchemaLocked(point, persistImmediately: false);
-                    written++;
-                }
+                MeasurementSchemaWritePlan schemaPlan = PlanMeasurementSchemasLocked(chunk);
+                Point?[] normalizedPoints = schemaPlan.NormalizedPoints;
+                written = schemaPlan.PointCount;
 
                 if (written > 0)
                 {
-                    PersistMeasurementSchemasLocked();
+                    // 整块 schema 必须先完整校验，再产生任何可见变更。否则后续点冲突时，
+                    // 前面点推断出的新列或类型提升会留在内存，形成“数据未写入但 schema 部分发布”。
+                    if (schemaPlan.ChangedSchemas.Count > 0)
+                        PersistAndPublishMeasurementSchemasLocked(schemaPlan.ChangedSchemas);
+
+                    if (schemaPlan.PromotedIntToFloat && MemTable.PointCount > 0)
+                        SealAndEnqueueLocked();
 
                     for (int i = 0; i < normalizedPoints.Length; i++)
                     {
@@ -1247,13 +1268,15 @@ public sealed class Tsdb : IDisposable
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
+                ThrowIfMeasurementDropPendingLocked(schema.Name);
                 EnsureViewNameAvailable(schema.Name, "measurement");
                 _vectorReplacements?.EnsureHealthy();
-                Measurements.Add(schema);
+                if (Measurements.Contains(schema.Name))
+                    throw new InvalidOperationException($"Measurement '{schema.Name}' 已存在。");
 
-                // 立即把全量 schema 集合原子写入磁盘，确保 CREATE 语义具备崩溃安全性
-                MarkMeasurementSchemasDirty();
-                PersistMeasurementSchemasLocked();
+                EnsureExplicitSchemaLimitsLocked(schema);
+
+                PersistAndPublishMeasurementSchemasLocked([schema]);
             }
 
         return schema;
@@ -1281,6 +1304,7 @@ public sealed class Tsdb : IDisposable
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
+                ThrowIfMeasurementDropPendingLocked(name);
                 var existing = Measurements.TryGet(name);
                 if (existing is not null)
                 {
@@ -1296,9 +1320,9 @@ public sealed class Tsdb : IDisposable
                         nameof(schemaFactory));
                 }
 
-                Measurements.Add(schema);
-                MarkMeasurementSchemasDirty();
-                PersistMeasurementSchemasLocked();
+                EnsureExplicitSchemaLimitsLocked(schema);
+
+                PersistAndPublishMeasurementSchemasLocked([schema]);
                 return schema;
             }
     }
@@ -1323,39 +1347,106 @@ public sealed class Tsdb : IDisposable
                     _vectorReplacements?.EnsureHealthy();
                     EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
+                    if (_pendingMeasurementDropName is not null)
+                    {
+                        if (!string.Equals(_pendingMeasurementDropName, name, StringComparison.Ordinal)
+                            || Measurements.Contains(name))
+                            throw new InvalidOperationException(
+                                $"Measurement '{_pendingMeasurementDropName}' 的删除尚未恢复；请重新打开数据库。");
+
+                        CompletePendingMeasurementDropLocked(name);
+                        return true;
+                    }
+
                     if (!Measurements.Contains(name))
                         return false;
 
                     SealAndWaitLocked();
 
-                    var removedSeries = Catalog.RemoveMeasurement(name);
-                    var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
-                    foreach (ulong seriesId in removedSeriesIds)
-                        _seriesWithWalRecord.Remove(seriesId);
-
-                    MemTable.RemoveSeries(removedSeriesIds);
-                    RemoveMeasurementSegmentsLocked(removedSeriesIds);
-
-                    Measurements.Remove(name);
-                    MarkMeasurementSchemasDirty();
-                    PersistMeasurementSchemasLocked();
-
-                    _catalogDirty = true;
-                    PersistCatalogCheckpointLocked();
-
+                    string intentPath = TsdbPaths.MeasurementDropIntentPath(RootDirectory);
+                    MeasurementDropIntentFile.Save(intentPath, name);
+                    _pendingMeasurementDropName = name;
                     try
                     {
-                        _vectorReplacements?.RemoveSeries(removedSeriesIds);
+                        PersistAndPublishMeasurementSchemasLocked([], removedName: name);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        // 目录删除已经持久化；禁止同名重建，重开时按已删除目录清理残留。
-                        _vectorReplacements?.Invalidate(ex);
+                        // Save 在原子 rename 前失败时，旧 schema 仍在磁盘上；只有校验该
+                        // 文件后才撤销意图。提交结果不确定时保留意图供 Open 判定。
+                        try
+                        {
+                            if (MeasurementSchemaCodec.Load(TsdbPaths.MeasurementSchemaPath(RootDirectory))
+                                .Any(schema => string.Equals(schema.Name, name, StringComparison.Ordinal)))
+                            {
+                                MeasurementDropIntentFile.Clear(intentPath);
+                                _pendingMeasurementDropName = null;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            ReportDiagnostic("measurement.drop.intent", TsdbDiagnosticSeverity.Warning,
+                                "无法确认并撤销未完成的 measurement 删除意图。", ex);
+                        }
                         throw;
                     }
 
+                    AfterMeasurementSchemaDropTestHook?.Invoke();
+                    CompletePendingMeasurementDropLocked(name);
                     return true;
                 }
+    }
+
+    private void RecoverPendingMeasurementDrop()
+    {
+        string path = TsdbPaths.MeasurementDropIntentPath(RootDirectory);
+        string? name = MeasurementDropIntentFile.Load(path);
+        if (name is null)
+            return;
+
+        _pendingMeasurementDropName = name;
+        if (Measurements.Contains(name))
+        {
+            // Schema rename 尚未提交；该意图没有对应的删除决定。
+            MeasurementDropIntentFile.Clear(path);
+            _pendingMeasurementDropName = null;
+            return;
+        }
+
+        CompletePendingMeasurementDropLocked(name);
+    }
+
+    private void CompletePendingMeasurementDropLocked(string name)
+    {
+        var removedSeriesIds = Catalog.Snapshot()
+            .Where(entry => string.Equals(entry.Measurement, name, StringComparison.Ordinal))
+            .Select(static entry => entry.Id)
+            .ToHashSet();
+
+        // Catalog 始终最后删除：任何前序步骤失败，重启仍能从 durable catalog
+        // 重建待清理的 SeriesId 集合。每一步均可重复执行。
+        MemTable.RemoveSeries(removedSeriesIds);
+        RemoveMeasurementSegmentsLocked(removedSeriesIds);
+        _vectorReplacements?.RemoveSeries(removedSeriesIds);
+
+        // 段替换 manifest 必须先于 series catalog 的删除稳定落盘。
+        DirectoryFsync.FlushRequired(RootDirectory);
+        var removedSeries = Catalog.RemoveMeasurement(name);
+        foreach (SeriesEntry entry in removedSeries)
+            _seriesWithWalRecord.Remove(entry.Id);
+
+        _catalogDirty = true;
+        PersistCatalogCheckpointLocked();
+        DirectoryFsync.FlushRequired(RootDirectory);
+        MeasurementDropIntentFile.Clear(TsdbPaths.MeasurementDropIntentPath(RootDirectory));
+        _pendingMeasurementDropName = null;
+    }
+
+    private void ThrowIfMeasurementDropPendingLocked(string name)
+    {
+        if (string.Equals(_pendingMeasurementDropName, name, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Measurement '{name}' 的删除尚未完成；请重试 DROP MEASUREMENT 或重新打开数据库。");
     }
 
     /// <summary>
@@ -1418,6 +1509,10 @@ public sealed class Tsdb : IDisposable
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
+
+                if (_pendingMeasurementDropName is not null)
+                    throw new InvalidOperationException(
+                        $"Measurement '{_pendingMeasurementDropName}' 的删除尚未完成；无法创建一致备份。");
 
                 SealAndWaitLocked();
                 _walSet?.Sync();
@@ -2203,6 +2298,9 @@ public sealed class Tsdb : IDisposable
                     ObjectDisposedException.ThrowIf(_disposed, this);
                     ThrowIfWriteLifecycleClosing();
                     ThrowIfFlushRecoveryFault();
+                    if (_pendingMeasurementDropName is not null)
+                        throw new InvalidOperationException(
+                            $"Measurement '{_pendingMeasurementDropName}' 的删除尚未完成；请重新打开数据库。");
                     // 替换值写入独立 KV WAL 前，先持久化其依赖的原始时序点与 CreateSeries。
                     _walSet!.Sync();
                     return operation();
@@ -2294,6 +2392,7 @@ public sealed class Tsdb : IDisposable
                 RootDirectory,
                 replacementSegmentId,
                 [sourceSegmentId]);
+            DirectoryFsync.FlushRequired(RootDirectory);
 
             bool touched = MeasurementDropCompactor.RewriteWithoutSeries(
                 this,
@@ -2338,26 +2437,241 @@ public sealed class Tsdb : IDisposable
         }
     }
 
-    private Point EnsureMeasurementSchemaLocked(Point point, bool persistImmediately)
+    private Point EnsureMeasurementSchemaLocked(Point point)
     {
+        ThrowIfMeasurementDropPendingLocked(point.Measurement);
         _vectorReplacements?.EnsureHealthy();
         var schema = Measurements.TryGet(point.Measurement);
         if (schema is null)
         {
+            EnsureImplicitCreateAllowedLocked(point, pendingMeasurements: 0, pendingNewColumns: 0);
             EnsureViewNameAvailable(point.Measurement, "measurement");
-            var created = CreateSchemaFromPoint(point);
-            Measurements.Add(created);
-            MarkMeasurementSchemasDirty();
-            if (persistImmediately)
-                PersistMeasurementSchemasLocked();
+            MeasurementSchema created = CreateSchemaFromPointWithAudit(point);
+            PersistAndPublishMeasurementSchemasLocked([created]);
             return point;
         }
 
+        Point normalized = PlanPointWithPolicyLocked(
+            point,
+            schema,
+            pendingNewColumns: 0,
+            out MeasurementSchema? updated,
+            out bool promotedIntToFloat,
+            out _);
+
+        if (updated is not null)
+        {
+            PersistAndPublishMeasurementSchemasLocked([updated]);
+
+            // int→float 提升：先密封当前含旧 Int64 数据的活跃表（换成新空表），使随后写入的
+            // Float64 落到新表，同一 key 不会在单个 MemTable 内混型（避免 MemTable.Append 抛异常）。
+            // 密封是 O(1)，旧表的落盘由 flush 泵异步完成；查询侧 IsIntFloatCompatible 容忍 MemTable↔段
+            // 之间的 int/float 跨源混型，故无需在此同步等待落盘。
+            if (promotedIntToFloat && MemTable.PointCount > 0)
+                SealAndEnqueueLocked();
+        }
+
+        return normalized;
+    }
+
+    private MeasurementSchemaWritePlan PlanMeasurementSchemasLocked(ReadOnlySpan<Point> points)
+    {
+        _vectorReplacements?.EnsureHealthy();
+
+        var stagedSchemas = new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal);
+        var changedSchemas = new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal);
+        var normalizedPoints = new Point?[points.Length];
+        int pointCount = 0;
+        int newMeasurementCount = 0;
+        int newColumnCount = 0;
+        bool promotedIntToFloat = false;
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            Point? point = points[i];
+            if (point is null)
+                continue;
+
+            ThrowIfMeasurementDropPendingLocked(point.Measurement);
+            pointCount++;
+            if (!stagedSchemas.TryGetValue(point.Measurement, out MeasurementSchema? schema))
+            {
+                schema = Measurements.TryGet(point.Measurement);
+                if (schema is null)
+                {
+                    EnsureImplicitCreateAllowedLocked(point, newMeasurementCount, newColumnCount);
+                    EnsureViewNameAvailable(point.Measurement, "measurement");
+                    schema = CreateSchemaFromPointWithAudit(point);
+                    stagedSchemas.Add(point.Measurement, schema);
+                    changedSchemas[point.Measurement] = schema;
+                    normalizedPoints[i] = point;
+                    newMeasurementCount++;
+                    newColumnCount += schema.Columns.Count;
+                    continue;
+                }
+
+                stagedSchemas.Add(point.Measurement, schema);
+            }
+
+            Point normalized = PlanPointWithPolicyLocked(
+                point,
+                schema,
+                newColumnCount,
+                out MeasurementSchema? updated,
+                out bool pointPromotedIntToFloat,
+                out int pointAddedColumns);
+            normalizedPoints[i] = normalized;
+            newColumnCount += pointAddedColumns;
+            promotedIntToFloat |= pointPromotedIntToFloat;
+
+            if (updated is not null)
+            {
+                stagedSchemas[point.Measurement] = updated;
+                changedSchemas[point.Measurement] = updated;
+            }
+        }
+
+        return new MeasurementSchemaWritePlan(
+            normalizedPoints,
+            pointCount,
+            changedSchemas.Values.ToArray(),
+            promotedIntToFloat);
+    }
+
+    private void EnsureExplicitSchemaLimitsLocked(MeasurementSchema schema)
+    {
+        if (Measurements.Count >= _measurementSchemaPolicy.MaxMeasurements)
+            throw RejectSchemaChange(schema.Name, "measurement_limit",
+                $"Measurement 总数已达到上限 {_measurementSchemaPolicy.MaxMeasurements}。");
+        if (schema.Columns.Count > _measurementSchemaPolicy.MaxColumnsPerMeasurement)
+            throw RejectSchemaChange(schema.Name, "column_limit",
+                $"Measurement '{schema.Name}' 的列数 {schema.Columns.Count} 超过上限 {_measurementSchemaPolicy.MaxColumnsPerMeasurement}。");
+    }
+
+    private void EnsureImplicitCreateAllowedLocked(
+        Point point,
+        int pendingMeasurements,
+        int pendingNewColumns)
+    {
+        if (_measurementSchemaPolicy.GetMode(point.Measurement) == MeasurementSchemaMode.Disabled)
+            throw RejectSchemaChange(point.Measurement, "mode_disabled",
+                $"Measurement '{point.Measurement}' 禁止自动创建 schema。");
+        if (Measurements.Count + pendingMeasurements >= _measurementSchemaPolicy.MaxMeasurements)
+            throw RejectSchemaChange(point.Measurement, "measurement_limit",
+                $"Measurement 总数已达到上限 {_measurementSchemaPolicy.MaxMeasurements}。");
+
+        int columns = checked(point.Tags.Count + point.Fields.Count);
+        if (columns > _measurementSchemaPolicy.MaxColumnsPerMeasurement)
+            throw RejectSchemaChange(point.Measurement, "column_limit",
+                $"Measurement '{point.Measurement}' 的列数 {columns} 超过上限 {_measurementSchemaPolicy.MaxColumnsPerMeasurement}。");
+        if (columns > _measurementSchemaPolicy.MaxNewColumnsPerWrite - pendingNewColumns)
+            throw RejectSchemaChange(point.Measurement, "new_column_limit",
+                $"单次写入新增列数超过上限 {_measurementSchemaPolicy.MaxNewColumnsPerWrite}。");
+    }
+
+    private Point PlanPointWithPolicyLocked(
+        Point point,
+        MeasurementSchema schema,
+        int pendingNewColumns,
+        out MeasurementSchema? updatedSchema,
+        out bool promotedIntToFloat,
+        out int addedColumns)
+    {
+        PreflightNewColumnsLocked(point, schema, pendingNewColumns);
+        Point normalized;
+        try
+        {
+            normalized = PlanPointAgainstMeasurementSchema(
+                point, schema, out updatedSchema, out promotedIntToFloat);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            SchemaDiagnostics.RecordRejected(point.Measurement, "column_conflict", MeasurementSchemaRevision);
+            throw;
+        }
+
+        addedColumns = updatedSchema is null ? 0 : updatedSchema.Columns.Count - schema.Columns.Count;
+        if (updatedSchema is null)
+            return normalized;
+
+        MeasurementSchemaMode mode = _measurementSchemaPolicy.GetMode(point.Measurement);
+        if (mode != MeasurementSchemaMode.CreateAndEvolve)
+            throw RejectSchemaChange(point.Measurement,
+                mode == MeasurementSchemaMode.Disabled ? "mode_disabled" : "mode_create_only",
+                $"Measurement '{point.Measurement}' 禁止自动扩列或类型提升。");
+        if (updatedSchema.Columns.Count > _measurementSchemaPolicy.MaxColumnsPerMeasurement)
+            throw RejectSchemaChange(point.Measurement, "column_limit",
+                $"Measurement '{point.Measurement}' 的列数 {updatedSchema.Columns.Count} 超过上限 {_measurementSchemaPolicy.MaxColumnsPerMeasurement}。");
+        if (addedColumns > _measurementSchemaPolicy.MaxNewColumnsPerWrite - pendingNewColumns)
+            throw RejectSchemaChange(point.Measurement, "new_column_limit",
+                $"单次写入新增列数超过上限 {_measurementSchemaPolicy.MaxNewColumnsPerWrite}。");
+
+        return normalized;
+    }
+
+    private void PreflightNewColumnsLocked(Point point, MeasurementSchema schema, int pendingNewColumns)
+    {
+        int newColumns = 0;
+        MeasurementSchemaMode mode = _measurementSchemaPolicy.GetMode(point.Measurement);
+
+        foreach (string name in point.Tags.Keys)
+        {
+            if (schema.TryGetColumn(name) is null)
+                CheckNewColumn();
+        }
+        foreach (string name in point.Fields.Keys)
+        {
+            if (schema.TryGetColumn(name) is null)
+                CheckNewColumn();
+        }
+
+        void CheckNewColumn()
+        {
+            if (mode != MeasurementSchemaMode.CreateAndEvolve)
+                throw RejectSchemaChange(point.Measurement,
+                    mode == MeasurementSchemaMode.Disabled ? "mode_disabled" : "mode_create_only",
+                    $"Measurement '{point.Measurement}' 禁止自动扩列或类型提升。");
+
+            newColumns++;
+            if (newColumns > _measurementSchemaPolicy.MaxColumnsPerMeasurement - schema.Columns.Count)
+                throw RejectSchemaChange(point.Measurement, "column_limit",
+                    $"Measurement '{point.Measurement}' 的列数超过上限 {_measurementSchemaPolicy.MaxColumnsPerMeasurement}。");
+            if (newColumns > _measurementSchemaPolicy.MaxNewColumnsPerWrite - pendingNewColumns)
+                throw RejectSchemaChange(point.Measurement, "new_column_limit",
+                    $"单次写入新增列数超过上限 {_measurementSchemaPolicy.MaxNewColumnsPerWrite}。");
+        }
+    }
+
+    private InvalidOperationException RejectSchemaChange(string measurement, string reasonCode, string message)
+    {
+        SchemaDiagnostics.RecordRejected(measurement, reasonCode, MeasurementSchemaRevision);
+        return new InvalidOperationException(message);
+    }
+
+    private MeasurementSchema CreateSchemaFromPointWithAudit(Point point)
+    {
+        try
+        {
+            return CreateSchemaFromPoint(point);
+        }
+        catch (ArgumentException)
+        {
+            SchemaDiagnostics.RecordRejected(point.Measurement, "column_conflict", MeasurementSchemaRevision);
+            throw;
+        }
+    }
+
+    private static Point PlanPointAgainstMeasurementSchema(
+        Point point,
+        MeasurementSchema schema,
+        out MeasurementSchema? updatedSchema,
+        out bool promotedIntToFloat)
+    {
         // 稳态（无新列 / 无类型提升）不复制 schema.Columns：仅在真检测到变化时才 copy-on-write，
         // 消除每点 new List(schema.Columns) 后丢弃的锁内分配（C3）。
         List<MeasurementColumn>? columns = null;
         var changed = false;
-        var promotedIntToFloat = false;
+        promotedIntToFloat = false;
         Dictionary<string, FieldValue>? normalizedFields = null;
 
         foreach (var (tagName, _) in point.Tags)
@@ -2408,26 +2722,21 @@ public sealed class Tsdb : IDisposable
         }
 
         if (changed)
-        {
-            // int→float 提升：先密封当前含旧 Int64 数据的活跃表（换成新空表），使随后写入的
-            // Float64 落到新表，同一 key 不会在单个 MemTable 内混型（避免 MemTable.Append 抛异常）。
-            // 密封是 O(1)，旧表的落盘由 flush 泵异步完成；查询侧 IsIntFloatCompatible 容忍 MemTable↔段
-            // 之间的 int/float 跨源混型，故无需在此同步等待落盘。
-            if (promotedIntToFloat && MemTable.PointCount > 0)
-                SealAndEnqueueLocked();
-
-            var updated = MeasurementSchema.Create(schema.Name, columns!, schema.CreatedAtUtcTicks);
-            Measurements.LoadOrReplace(updated);
-            MarkMeasurementSchemasDirty();
-            if (persistImmediately)
-                PersistMeasurementSchemasLocked();
-        }
+            updatedSchema = MeasurementSchema.Create(schema.Name, columns!, schema.CreatedAtUtcTicks);
+        else
+            updatedSchema = null;
 
         if (normalizedFields is null)
             return point;
 
         return Point.Create(point.Measurement, point.Timestamp, point.Tags, normalizedFields);
     }
+
+    private sealed record MeasurementSchemaWritePlan(
+        Point?[] NormalizedPoints,
+        int PointCount,
+        IReadOnlyList<MeasurementSchema> ChangedSchemas,
+        bool PromotedIntToFloat);
 
     private Point NormalizePointAgainstCurrentSchemaLocked(Point point)
     {
@@ -2920,11 +3229,60 @@ public sealed class Tsdb : IDisposable
         if (!_measurementSchemaDirty)
             return;
 
+        IReadOnlyList<MeasurementSchema> snapshot = Measurements.Snapshot();
+        string revision = MeasurementSchemaCodec.ComputeRevision(snapshot);
         MeasurementSchemaCodec.Save(
             TsdbPaths.MeasurementSchemaPath(RootDirectory),
-            Measurements.Snapshot());
+            snapshot);
+        Volatile.Write(ref _measurementSchemaRevision, revision);
         _measurementSchemaDirty = false;
         _measurementSchemaPersistCount++;
+    }
+
+    private void PersistAndPublishMeasurementSchemasLocked(
+        IReadOnlyList<MeasurementSchema> changedSchemas,
+        string? removedName = null)
+    {
+        IReadOnlyList<MeasurementSchema> before = Measurements.Snapshot();
+        var candidate = new Dictionary<string, MeasurementSchema>(StringComparer.Ordinal);
+        foreach (MeasurementSchema schema in before)
+            candidate.Add(schema.Name, schema);
+
+        if (removedName is not null && !candidate.Remove(removedName))
+            throw new InvalidOperationException($"Measurement '{removedName}' 不存在。");
+
+        foreach (MeasurementSchema schema in changedSchemas)
+            candidate[schema.Name] = schema;
+
+        MeasurementSchema[] snapshot = candidate.Values
+            .OrderBy(static schema => schema.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        MeasurementCatalog.PreparedReplacement prepared = Measurements.PrepareReplacement(snapshot);
+        string revision = MeasurementSchemaCodec.ComputeRevision(snapshot);
+
+        // Save may fail before its atomic rename. No catalog mutation is visible until it succeeds.
+        MeasurementSchemaCodec.Save(TsdbPaths.MeasurementSchemaPath(RootDirectory), snapshot);
+        Measurements.PublishPrepared(prepared);
+        Volatile.Write(ref _measurementSchemaRevision, revision);
+        _measurementSchemaDirty = false;
+        _measurementSchemaPersistCount++;
+        try
+        {
+            SchemaDiagnostics.RecordPublished(before, snapshot, revision);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                ReportDiagnostic("measurement.schema.audit", TsdbDiagnosticSeverity.Warning,
+                    "Measurement schema 已发布，但审计事件未能完整记录。", ex);
+            }
+            catch
+            {
+                // 审计通道故障不能把已提交的 schema 变更伪装为失败。
+            }
+        }
     }
 
     private void MarkMeasurementSchemasDirty()
@@ -3054,14 +3412,11 @@ public sealed class Tsdb : IDisposable
             + $"'{dependents}' 依赖对象 '{objectName}'。");
     }
 
-    /// <summary>阻止调用方绕过 Tsdb 的 schema 锁和持久化路径直接修改 measurement 目录。</summary>
+    /// <summary>阻止受管理目录的直接修改，包括 schema 锁内同步触发的审计回调。</summary>
     private void EnsureManagedMeasurementCatalogMutation(string measurementName, string operation)
     {
-        if (!Monitor.IsEntered(_schemaSync))
-        {
-            throw new InvalidOperationException(
-                $"不能直接对受管理的 MeasurementCatalog 执行 {operation} '{measurementName}'；请使用 Tsdb 的 measurement schema API。");
-        }
+        throw new InvalidOperationException(
+            $"不能直接对受管理的 MeasurementCatalog 执行 {operation} '{measurementName}'；请使用 Tsdb 的 measurement schema API。");
     }
 
     /// <summary>拒绝会使 Modbus、例程或视图引用失效的关系表 schema 变更。</summary>

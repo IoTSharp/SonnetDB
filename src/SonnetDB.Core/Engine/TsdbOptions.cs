@@ -82,6 +82,9 @@ public sealed record TsdbOptions
     /// <summary>SQL 阻塞算子的单查询与数据库实例全局内存预算。</summary>
     public SqlMemoryOptions SqlMemory { get; init; } = SqlMemoryOptions.Default;
 
+    /// <summary>measurement 自动 schema 变更模式与增长额度。</summary>
+    public MeasurementSchemaPolicy MeasurementSchemaPolicy { get; init; } = MeasurementSchemaPolicy.Default;
+
     /// <summary>
     /// 是否允许通过 <c>Tsdb.Functions</c> 注册用户自定义函数（UDF）。
     /// 默认 <c>true</c>（嵌入式场景启用）；SonnetDB 默认设为 <c>false</c> 以保证 AOT 兼容。

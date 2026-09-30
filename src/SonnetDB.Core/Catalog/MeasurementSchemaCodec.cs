@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using SonnetDB.IO;
 using SonnetDB.Storage.Format;
@@ -102,17 +103,46 @@ public static class MeasurementSchemaCodec
 
         string tmpPath = path + tempSuffix;
 
-        using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var bs = new BufferedStream(fs, 65536))
+        bool createdTemporaryFile = false;
+        try
         {
-            Save(schemas, bs);
-            bs.Flush();
-            fs.Flush(true);
-        }
+            using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var bs = new BufferedStream(fs, 65536))
+            {
+                createdTemporaryFile = true;
+                Save(schemas, bs);
+                bs.Flush();
+                fs.Flush(true);
+            }
 
-        File.Move(tmpPath, path, overwrite: true);
-        // 目录 fsync：使原子改名对崩溃/掉电可见（measurement schema 与 CREATE 语义的崩溃安全性）。#189
-        SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(path) ?? string.Empty);
+            File.Move(tmpPath, path, overwrite: true);
+            createdTemporaryFile = false;
+            // 目录 fsync：使原子改名对崩溃/掉电可见（measurement schema 与 CREATE 语义的崩溃安全性）。#189
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(path) ?? string.Empty);
+        }
+        finally
+        {
+            if (createdTemporaryFile)
+            {
+                try { File.Delete(tmpPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
+
+    /// <summary>按现有二进制编码计算稳定的 opaque schema revision，不修改持久化格式。</summary>
+    /// <param name="schemas">待发布的 measurement schema 集合。</param>
+    /// <returns>小写十六进制 SHA-256 revision；相同 schema 内容在重开后保持不变。</returns>
+    public static string ComputeRevision(IReadOnlyList<MeasurementSchema> schemas)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        MeasurementSchema[] ordered = schemas.OrderBy(static schema => schema.Name, StringComparer.Ordinal).ToArray();
+        using var hash = SHA256.Create();
+        using var stream = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write, leaveOpen: true);
+        Save(ordered, stream);
+        stream.FlushFinalBlock();
+        return Convert.ToHexString(hash.Hash!).ToLowerInvariant();
     }
 
     // ── 私有实现 ──────────────────────────────────────────────────────────────

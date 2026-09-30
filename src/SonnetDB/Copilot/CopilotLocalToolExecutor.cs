@@ -96,7 +96,8 @@ internal sealed class CopilotLocalToolExecutor
         var maxRows = tool.MaxRows ?? SonnetDbMcpResults.DefaultToolRowLimit;
         var databaseName = ResolveToolDatabaseName(context, tool);
         var database = RequireToolDatabase(context, tool, "list_measurements", DatabasePermission.Read);
-        var measurements = _schemaCache.GetMeasurements(databaseName, database);
+        var snapshot = _schemaCache.GetMeasurements(databaseName, database);
+        var measurements = snapshot.Measurements;
         var names = new List<string>(Math.Min(measurements.Count, maxRows));
         for (var i = 0; i < measurements.Count && i < maxRows; i++)
         {
@@ -104,7 +105,9 @@ internal sealed class CopilotLocalToolExecutor
         }
 
         return SerializeToolResult(
-            new McpMeasurementListResult(databaseName, names, Truncated: measurements.Count > maxRows),
+            new McpMeasurementListResult(databaseName, names,
+                Truncated: measurements.Count > maxRows,
+                SchemaRevision: snapshot.SchemaRevision),
             ServerJsonContext.Default.McpMeasurementListResult);
     }
 

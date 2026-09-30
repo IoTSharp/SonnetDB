@@ -180,7 +180,7 @@ public class SqlExecutorInsertTests : IDisposable
         using var db = Tsdb.Open(Options());
 
         var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db,
-            "INSERT INTO ghost (time, host, usage) VALUES (1, 'h1', 1.5)"));
+            "INSERT INTO ghost (time, host TAG, usage) VALUES (1, 'h1', 1.5)"));
 
         Assert.Equal(1, result.RowsInserted);
         var schema = db.Measurements.TryGet("ghost");
@@ -191,12 +191,27 @@ public class SqlExecutorInsertTests : IDisposable
     }
 
     [Fact]
+    public void Insert_NewMeasurement_WithOnlyUnknownString_CreatesStringField()
+    {
+        using var db = Tsdb.Open(Options());
+
+        SqlExecutor.Execute(db, "INSERT INTO events (time, request_id) VALUES (1, 'unique-001')");
+
+        var column = db.Measurements.TryGet("events")!.TryGetColumn("request_id")!;
+        Assert.Equal(MeasurementColumnRole.Field, column.Role);
+        Assert.Equal(FieldType.String, column.DataType);
+        var seriesId = SeriesId.Compute(new SeriesKey("events"));
+        Assert.Equal("unique-001", db.Query.Execute(new PointQuery(seriesId, "request_id", TimeRange.All))
+            .Single().Value.AsString());
+    }
+
+    [Fact]
     public void Insert_UnknownColumns_AutoExtendsSchema()
     {
         using var db = OpenWithSchema(Options());
 
         SqlExecutor.Execute(db,
-            "INSERT INTO cpu (time, host, rack, temperature) VALUES (1, 'h1', 'r1', 42.5)");
+            "INSERT INTO cpu (time, host, rack TAG, temperature) VALUES (1, 'h1', 'r1', 42.5)");
 
         var schema = db.Measurements.TryGet("cpu")!;
         Assert.Equal(MeasurementColumnRole.Tag, schema.TryGetColumn("rack")!.Role);
@@ -222,6 +237,35 @@ public class SqlExecutorInsertTests : IDisposable
         var seriesId = SeriesId.Compute(new SeriesKey("cpu", new Dictionary<string, string>()));
         var point = db.Query.Execute(new PointQuery(seriesId, "PARAM_M1BLACK", TimeRange.All)).Single();
         Assert.Equal("202606301810", point.Value.AsString());
+    }
+
+    [Fact]
+    public void Insert_UnknownHighCardinalityString_WithExistingTag_DefaultsToField()
+    {
+        using var db = OpenWithSchema(Options());
+
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, request_id, usage) VALUES (1, 'h1', 'unique-001', 1.0)");
+
+        var column = db.Measurements.TryGet("cpu")!.TryGetColumn("request_id")!;
+        Assert.Equal(MeasurementColumnRole.Field, column.Role);
+        Assert.Equal(FieldType.String, column.DataType);
+        var seriesId = SeriesId.Compute(new SeriesKey("cpu", new Dictionary<string, string> { ["host"] = "h1" }));
+        Assert.Equal("unique-001", db.Query.Execute(new PointQuery(seriesId, "request_id", TimeRange.All))
+            .Single().Value.AsString());
+    }
+
+    [Fact]
+    public void Insert_ExistingColumn_ConflictingRoleHint_RejectsBeforeWrite()
+    {
+        using var db = OpenWithSchema(Options());
+
+        var error = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host FIELD, usage) VALUES (1, 'h1', 1.0)"));
+
+        Assert.Contains("schema 不一致", error.Message, StringComparison.Ordinal);
+        var seriesId = SeriesId.Compute(new SeriesKey("cpu", new Dictionary<string, string> { ["host"] = "h1" }));
+        Assert.Empty(db.Query.Execute(new PointQuery(seriesId, "usage", TimeRange.All)));
     }
 
     [Fact]

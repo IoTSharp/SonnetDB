@@ -138,7 +138,7 @@ SQL 看起来像“表和行”，底层仍然是按 series 和 field 存储的�
 举例：
 
 ```sql
-INSERT INTO cpu (time, host, usage, temperature)
+INSERT INTO cpu (time, host TAG, usage, temperature)
 VALUES (1000, 'server-01', 0.71, 63.5)
 ```
 
@@ -178,7 +178,7 @@ VALUES (1000, 'server-01', 0.71, 63.5)
 Line Protocol、JSON points、Bulk VALUES 和普通 SQL `INSERT` 都支持写入时补齐缺失列：
 
 - LP / JSON 天然区分 `tags` 与 `fields`，缺失 tag 会追加为 `TAG STRING`，缺失 field 会按写入值类型追加为 `FIELD`。
-- SQL `INSERT` 中已存在列按 schema 解释；未知字符串列会推断为 `TAG`，未知非字符串列会推断为 `FIELD`。
+- SQL `INSERT` 中已存在列按 schema 解释；未知列默认推断为 `FIELD`，包括字符串列。新 TAG 使用列列表中的 `name TAG` 显式提示；`name FIELD` 可显式标注 field，提示与已有列角色冲突时拒绝写入。Bulk VALUES 快路径使用相同规则。
 - 已有 `FLOAT` 字段接收整数时仍保持 `FLOAT`，写入前转换为浮点。
 - 已有 `INT` 字段接收浮点时提升为 `FLOAT`。
 - `FLOAT` 不会降级为 `INT`，`BOOL` / `STRING` / `VECTOR` / `GEOPOINT` 等类型之间不会自动互转。

@@ -155,7 +155,8 @@ internal sealed class SonnetDbMcpTools
             var databaseName = contextAccessor.GetDatabaseName();
             var tsdb = contextAccessor.GetDatabase();
             var normalizedLimit = SonnetDbMcpResults.NormalizeToolRowLimit(maxRows);
-            var measurements = schemaCache.GetMeasurements(databaseName, tsdb);
+            var snapshot = schemaCache.GetMeasurements(databaseName, tsdb);
+            var measurements = snapshot.Measurements;
             var names = new List<string>(Math.Min(measurements.Count, normalizedLimit));
             for (int i = 0; i < measurements.Count && i < normalizedLimit; i++)
                 names.Add(measurements[i]);
@@ -163,7 +164,8 @@ internal sealed class SonnetDbMcpTools
             var payload = new McpMeasurementListResult(
                 databaseName,
                 names,
-                Truncated: measurements.Count > normalizedLimit);
+                Truncated: measurements.Count > normalizedLimit,
+                SchemaRevision: snapshot.SchemaRevision);
 
             return SonnetDbMcpResults.Success(payload, ServerJsonContext.Default.McpMeasurementListResult);
         }

@@ -113,6 +113,9 @@ public static class TsdbPaths
     /// <summary>Measurement schema 文件名（相对于根目录）。</summary>
     public const string MeasurementSchemaFileName = "measurements.tslschema";
 
+    /// <summary>待完成的 measurement 删除意图文件名（相对于根目录）。</summary>
+    internal const string MeasurementDropIntentFileName = "measurement-drop.sdbintent";
+
     /// <summary>Measurement 批次幂等账本文件名（相对于根目录）。</summary>
     public const string MeasurementBatchLedgerFileName = "measurement-batches.sdbledger";
 
@@ -153,6 +156,10 @@ public static class TsdbPaths
     /// <returns>schema 文件路径。</returns>
     public static string MeasurementSchemaPath(string root) =>
         Path.Combine(root, MeasurementSchemaFileName);
+
+    /// <summary>返回待完成的 measurement 删除意图文件路径。</summary>
+    internal static string MeasurementDropIntentPath(string root) =>
+        Path.Combine(root, MeasurementDropIntentFileName);
 
     /// <summary>返回 measurement 批次幂等账本路径。</summary>
     public static string MeasurementBatchLedgerPath(string root) =>

@@ -123,7 +123,7 @@ command.ExecuteNonQuery();
 ## 格式 3：Bulk VALUES 快路径
 
 ```sql
-INSERT INTO cpu(host, value, time) VALUES
+INSERT INTO cpu(host TAG, value, time) VALUES
 ('server-01', 1.0, 1),
 ('server-02', 2.0, 2),
 ('server-03', 3.0, 3)
@@ -141,7 +141,7 @@ connection.Open();
 using var command = connection.CreateCommand();
 command.CommandType = CommandType.TableDirect;
 command.CommandText = """
-INSERT INTO cpu(host, value, time) VALUES
+INSERT INTO cpu(host TAG, value, time) VALUES
 ('server-01', 1.0, 1),
 ('server-02', 2.0, 2)
 """;
@@ -234,7 +234,7 @@ curl -X POST "http://127.0.0.1:5080/v1/db/metrics/measurements/cpu/bulk?onerror=
 
 - 目标 measurement 可以预先通过 `CREATE MEASUREMENT` 定义，也可以由首次写入自动推断创建。
 - Line Protocol / JSON points 会根据 payload 中的 `tags` / `fields` 自动补齐缺失列。
-- `Bulk VALUES` 会按已有 measurement schema 校验列角色和类型；未知字符串列会按 `TAG` 推断，未知非字符串列会按 `FIELD` 推断。
+- `Bulk VALUES` 会按已有 measurement schema 校验列角色和类型；未知列默认按 `FIELD` 推断，包括字符串列。要新增 TAG，在列列表中显式写 `host TAG`；`name FIELD` 可显式标注 FIELD。提示与已有列角色冲突时拒绝写入。
 - 已有 `INT` 字段遇到 `FLOAT` 写入会提升为 `FLOAT`；已有 `FLOAT` 字段接收整数时会转换为浮点保存；其它类型漂移会失败或在 `onerror=skip` 下跳过。
 - 远程 `TableDirect` 的 Line Protocol 推荐显式给出 measurement 前缀或参数。
 - 写入权限至少需要 `readwrite` 角色。

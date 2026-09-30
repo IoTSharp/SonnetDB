@@ -24,7 +24,8 @@ internal sealed class SonnetDbMcpResources
     {
         var databaseName = contextAccessor.GetDatabaseName();
         var tsdb = contextAccessor.GetDatabase();
-        var measurements = schemaCache.GetMeasurements(databaseName, tsdb);
+        var snapshot = schemaCache.GetMeasurements(databaseName, tsdb);
+        var measurements = snapshot.Measurements;
 
         var names = new List<string>(Math.Min(measurements.Count, SonnetDbMcpResults.ResourceRowLimit));
         for (int i = 0; i < measurements.Count && i < SonnetDbMcpResults.ResourceRowLimit; i++)
@@ -33,7 +34,8 @@ internal sealed class SonnetDbMcpResources
         var payload = new McpMeasurementListResult(
             databaseName,
             names,
-            Truncated: measurements.Count > SonnetDbMcpResults.ResourceRowLimit);
+            Truncated: measurements.Count > SonnetDbMcpResults.ResourceRowLimit,
+            SchemaRevision: snapshot.SchemaRevision);
 
         return SonnetDbMcpResults.Resource(
             "sonnetdb://schema/measurements",

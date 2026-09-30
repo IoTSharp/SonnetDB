@@ -166,6 +166,9 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        if (statement.ColumnRoleHints.Any(static role => role is not null))
+            throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
+
         if (statement.IsDefaultValues
             || statement.Rows.Any(static row => row.Any(static value => value is DefaultValueExpression)))
         {

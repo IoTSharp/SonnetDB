@@ -940,10 +940,17 @@ watch(
 
 let unsubscribeDesktopActions: (() => void) | null = null;
 
+function refreshSchemaOnFocus(): void {
+  if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
+    void loadSchema(targetDb.value, true);
+  }
+}
+
 onMounted(async () => {
   unsubscribeDesktopActions = subscribeStudioDesktopActions(handleStudioDesktopAction);
   window.addEventListener('keydown', handleStudioShortcut);
   window.addEventListener('resize', handleWorkbenchResize);
+  window.addEventListener('focus', refreshSchemaOnFocus);
   handleWorkbenchResize();
   const bridgeReady = await connections.connectStudioBridge();
   if (bridgeReady) {
@@ -966,6 +973,7 @@ onBeforeUnmount(() => {
   unsubscribeDesktopActions?.();
   window.removeEventListener('keydown', handleStudioShortcut);
   window.removeEventListener('resize', handleWorkbenchResize);
+  window.removeEventListener('focus', refreshSchemaOnFocus);
 });
 </script>
 

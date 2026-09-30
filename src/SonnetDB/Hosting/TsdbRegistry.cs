@@ -27,6 +27,7 @@ public sealed partial class TsdbRegistry : IDisposable
     private readonly EventBroadcaster? _broadcaster;
     private readonly KvOptions _kvOptions;
     private readonly SqlMemoryOptions _sqlMemoryOptions;
+    private readonly MeasurementSchemaPolicy _measurementSchemaPolicy;
     private bool _disposed;
 
     /// <summary>
@@ -65,12 +66,29 @@ public sealed partial class TsdbRegistry : IDisposable
         EventBroadcaster? broadcaster,
         KvOptions? kvOptions,
         SqlMemoryOptions? sqlMemoryOptions)
+        : this(dataRoot, broadcaster, kvOptions, sqlMemoryOptions, measurementSchemaPolicy: null)
+    {
+    }
+
+    /// <summary>使用指定的 KV、SQL 内部资源与 measurement schema 策略构造注册表。</summary>
+    /// <param name="dataRoot">数据库根目录。</param>
+    /// <param name="broadcaster">可选事件广播器。</param>
+    /// <param name="kvOptions">所有数据库共用的 KV 选项。</param>
+    /// <param name="sqlMemoryOptions">所有数据库共用的 SQL 内部资源选项。</param>
+    /// <param name="measurementSchemaPolicy">所有数据库共用的 measurement schema 策略。</param>
+    public TsdbRegistry(
+        string dataRoot,
+        EventBroadcaster? broadcaster,
+        KvOptions? kvOptions,
+        SqlMemoryOptions? sqlMemoryOptions,
+        MeasurementSchemaPolicy? measurementSchemaPolicy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
         _dataRoot = Path.GetFullPath(dataRoot);
         _broadcaster = broadcaster;
         _kvOptions = kvOptions ?? KvOptions.Default;
         _sqlMemoryOptions = sqlMemoryOptions ?? SqlMemoryOptions.Default;
+        _measurementSchemaPolicy = (measurementSchemaPolicy ?? MeasurementSchemaPolicy.Default).ValidateAndCopy();
         _sqlMemoryOptions.Validate();
         Directory.CreateDirectory(_dataRoot);
     }
@@ -207,6 +225,7 @@ public sealed partial class TsdbRegistry : IDisposable
             AllowUserFunctions = false,
             Kv = _kvOptions,
             SqlMemory = _sqlMemoryOptions,
+            MeasurementSchemaPolicy = _measurementSchemaPolicy,
         });
 
     /// <summary>

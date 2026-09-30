@@ -281,6 +281,66 @@ public sealed class TsdbWriteTests : IDisposable
     }
 
     [Fact]
+    public void WriteMany_LaterSchemaConflict_DoesNotPublishNewSchemasOrData()
+    {
+        using var db = Tsdb.Open(MakeOptions());
+
+        Point[] points =
+        [
+            Point.Create("metric", 1L,
+                new Dictionary<string, string> { ["host"] = "h1" },
+                new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromDouble(1.0) }),
+            Point.Create("other", 2L,
+                new Dictionary<string, string> { ["site"] = "s1" },
+                new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromLong(2L) }),
+            Point.Create("metric", 3L,
+                new Dictionary<string, string>(),
+                new Dictionary<string, FieldValue> { ["host"] = FieldValue.FromBool(true) }),
+        ];
+
+        var error = Assert.Throws<InvalidOperationException>(() => db.WriteMany(points));
+
+        Assert.Contains("不能作为 FIELD 写入", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.Measurements.Count);
+        Assert.Equal(0, db.Catalog.Count);
+        Assert.Equal(0L, db.MemTable.PointCount);
+        Assert.Equal(0L, db.MeasurementSchemaPersistCount);
+        Assert.False(File.Exists(TsdbPaths.MeasurementSchemaPath(_tempDir)));
+    }
+
+    [Fact]
+    public void WriteMany_LaterTypeConflict_DoesNotPromoteOrSealExistingSchema()
+    {
+        using var db = Tsdb.Open(MakeOptions());
+        db.CreateMeasurement(MeasurementSchema.Create("meter",
+        [
+            new MeasurementColumn("reading", MeasurementColumnRole.Field, FieldType.Int64),
+        ]));
+        db.Write(Point.Create("meter", 1L,
+            new Dictionary<string, string>(),
+            new Dictionary<string, FieldValue> { ["reading"] = FieldValue.FromLong(1L) }));
+        MemTable originalMemTable = db.MemTable;
+        long originalPersistCount = db.MeasurementSchemaPersistCount;
+
+        Point[] points =
+        [
+            Point.Create("meter", 2L,
+                new Dictionary<string, string>(),
+                new Dictionary<string, FieldValue> { ["reading"] = FieldValue.FromDouble(1.5) }),
+            Point.Create("meter", 3L,
+                new Dictionary<string, string>(),
+                new Dictionary<string, FieldValue> { ["reading"] = FieldValue.FromBool(true) }),
+        ];
+
+        Assert.Throws<InvalidOperationException>(() => db.WriteMany(points));
+
+        Assert.Same(originalMemTable, db.MemTable);
+        Assert.Equal(1L, db.MemTable.PointCount);
+        Assert.Equal(originalPersistCount, db.MeasurementSchemaPersistCount);
+        Assert.Equal(FieldType.Int64, db.Measurements.TryGet("meter")!.TryGetColumn("reading")!.DataType);
+    }
+
+    [Fact]
     public void FlushNow_EmptyMemTable_ReturnsNull()
     {
         using var db = Tsdb.Open(MakeOptions());

@@ -665,6 +665,13 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>
+    /// measurement INSERT 列角色提示，与 <see cref="Columns"/> 按位置对应；
+    /// 空集合或全 <c>null</c> 表示没有提示。
+    /// 关系表和文档集合不接受此语法。
+    /// </summary>
+    public IReadOnlyList<ColumnKind?> ColumnRoleHints { get; init; } = Array.Empty<ColumnKind?>();
+
     /// <summary>关系表 INSERT SELECT 的查询源；与 VALUES 互斥。</summary>
     public SelectStatement? Query { get; init; }
     /// <summary>

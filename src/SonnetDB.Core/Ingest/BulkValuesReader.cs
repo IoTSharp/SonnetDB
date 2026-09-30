@@ -8,7 +8,7 @@ namespace SonnetDB.Ingest;
 /// </summary>
 public enum BulkValuesColumnRole
 {
-    /// <summary>自动推断列角色：字符串字面量按 tag 写入，其它非 NULL 字面量按 field 写入。</summary>
+    /// <summary>自动推断列角色：所有非 NULL 字面量均按 field 写入。</summary>
     Auto,
 
     /// <summary>tag 列：必须为字符串字面量。</summary>
@@ -66,7 +66,7 @@ public sealed class BulkValuesReader : IPointReader
         _columnRoleResolver = columnRoleResolver;
 
         // 表头：INSERT INTO <m>(<cols>) VALUES
-        ParseHeader(out _measurement, out _columnNames, out _cursor);
+        ParseHeader(out _measurement, out _columnNames, out var roleHints, out _cursor);
         if (measurementOverride is not null) _measurement = measurementOverride;
 
         _columnRoles = new BulkValuesColumnRole[_columnNames.Length];
@@ -77,6 +77,8 @@ public sealed class BulkValuesReader : IPointReader
             var name = _columnNames[i];
             if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
             {
+                if (roleHints[i] != BulkValuesColumnRole.Auto)
+                    throw new BulkIngestException("Bulk INSERT: time 伪列不能指定 TAG / FIELD 提示。");
                 if (_timeColumnIndex >= 0)
                     throw new BulkIngestException("Bulk INSERT: 列列表中 'time' 出现多次。");
                 _columnRoles[i] = BulkValuesColumnRole.Time;
@@ -85,7 +87,17 @@ public sealed class BulkValuesReader : IPointReader
             }
             if (!seen.Add(name))
                 throw new BulkIngestException($"Bulk INSERT: 列列表中列 '{name}' 重复。");
-            _columnRoles[i] = _columnRoleResolver(name);
+            var resolvedRole = _columnRoleResolver(name);
+            if (roleHints[i] != BulkValuesColumnRole.Auto
+                && resolvedRole != BulkValuesColumnRole.Auto
+                && resolvedRole != roleHints[i])
+            {
+                throw new BulkIngestException(
+                    $"Bulk INSERT: 列 '{name}' 的 {roleHints[i]} 提示与已有 schema 的 {resolvedRole} 角色不一致。");
+            }
+            _columnRoles[i] = roleHints[i] == BulkValuesColumnRole.Auto
+                ? resolvedRole
+                : roleHints[i];
         }
     }
 
@@ -117,21 +129,13 @@ public sealed class BulkValuesReader : IPointReader
             switch (_columnRoles[i])
             {
                 case BulkValuesColumnRole.Auto:
-                    if (literal.Kind == LiteralKind.String)
-                    {
-                        tags ??= new Dictionary<string, string>(StringComparer.Ordinal);
-                        tags[_columnNames[i]] = literal.StringValue!;
-                    }
-                    else if (literal.Kind == LiteralKind.Null)
+                    if (literal.Kind == LiteralKind.Null)
                     {
                         throw new BulkIngestException(
                             $"Bulk INSERT: 自动推断列 '{_columnNames[i]}' 不允许 NULL。");
                     }
-                    else
-                    {
-                        fields ??= new Dictionary<string, FieldValue>(StringComparer.Ordinal);
-                        fields[_columnNames[i]] = LiteralToFieldValue(literal, _columnNames[i]);
-                    }
+                    fields ??= new Dictionary<string, FieldValue>(StringComparer.Ordinal);
+                    fields[_columnNames[i]] = LiteralToFieldValue(literal, _columnNames[i]);
                     break;
                 case BulkValuesColumnRole.Time:
                     if (literal.Kind != LiteralKind.Integer)
@@ -177,7 +181,11 @@ public sealed class BulkValuesReader : IPointReader
 
     // ── 表头解析 ──────────────────────────────────────────────────────────
 
-    private void ParseHeader(out string measurement, out string[] columns, out int valuesCursor)
+    private void ParseHeader(
+        out string measurement,
+        out string[] columns,
+        out BulkValuesColumnRole[] roleHints,
+        out int valuesCursor)
     {
         var span = _payload.AsSpan();
         int idx = 0;
@@ -195,10 +203,18 @@ public sealed class BulkValuesReader : IPointReader
         idx++;
 
         var cols = new List<string>();
+        var hints = new List<BulkValuesColumnRole>();
         while (true)
         {
             SkipWhitespace(span, ref idx);
             cols.Add(ReadIdentifier(span, ref idx));
+            SkipWhitespace(span, ref idx);
+            if (TryConsumeKeyword(span, ref idx, "TAG"))
+                hints.Add(BulkValuesColumnRole.Tag);
+            else if (TryConsumeKeyword(span, ref idx, "FIELD"))
+                hints.Add(BulkValuesColumnRole.Field);
+            else
+                hints.Add(BulkValuesColumnRole.Auto);
             SkipWhitespace(span, ref idx);
             if (idx < span.Length && span[idx] == ',') { idx++; continue; }
             if (idx < span.Length && span[idx] == ')') { idx++; break; }
@@ -206,6 +222,7 @@ public sealed class BulkValuesReader : IPointReader
                 $"Bulk INSERT: 列列表中期望 ',' 或 ')'，实际 '{(idx < span.Length ? span[idx] : '∅')}'。");
         }
         columns = cols.ToArray();
+        roleHints = hints.ToArray();
 
         SkipWhitespace(span, ref idx);
         ExpectKeyword(span, ref idx, "VALUES");
@@ -246,6 +263,22 @@ public sealed class BulkValuesReader : IPointReader
                 throw new BulkIngestException($"Bulk INSERT: 期望关键字 '{kw}'，实际 '{new string(span.Slice(idx, kw.Length))}'。");
         }
         idx += kw.Length;
+    }
+
+    private static bool TryConsumeKeyword(ReadOnlySpan<char> span, ref int idx, string keyword)
+    {
+        if (idx + keyword.Length > span.Length)
+            return false;
+        for (int i = 0; i < keyword.Length; i++)
+        {
+            if (char.ToUpperInvariant(span[idx + i]) != keyword[i])
+                return false;
+        }
+        int end = idx + keyword.Length;
+        if (end < span.Length && (char.IsLetterOrDigit(span[end]) || span[end] == '_'))
+            return false;
+        idx = end;
+        return true;
     }
 
     private static string ReadIdentifier(ReadOnlySpan<char> span, ref int idx)

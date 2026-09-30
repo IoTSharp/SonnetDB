@@ -10,7 +10,7 @@ namespace SonnetDB.Catalog;
 public sealed class MeasurementCatalog
 {
     private readonly object _sync = new();
-    private readonly Dictionary<string, MeasurementSchema> _mutable = new(StringComparer.Ordinal);
+    private Dictionary<string, MeasurementSchema> _mutable = new(StringComparer.Ordinal);
     private FrozenDictionary<string, MeasurementSchema> _snapshot = EmptySnapshot();
 
     /// <summary>由所属 Tsdb 安装的目录变更守卫；独立 catalog 默认不限制直接变更。</summary>
@@ -72,6 +72,35 @@ public sealed class MeasurementCatalog
             PublishSnapshot();
         }
     }
+
+    /// <summary>在持久化前构造完整的新快照，避免保存成功后再进行可能失败的分配。</summary>
+    internal PreparedReplacement PrepareReplacement(IReadOnlyList<MeasurementSchema> schemas)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        var replacement = new Dictionary<string, MeasurementSchema>(schemas.Count, StringComparer.Ordinal);
+        foreach (MeasurementSchema schema in schemas)
+        {
+            ArgumentNullException.ThrowIfNull(schema);
+            replacement.Add(schema.Name, schema);
+        }
+
+        var snapshot = replacement.ToFrozenDictionary(StringComparer.Ordinal);
+        return new PreparedReplacement(replacement, snapshot);
+    }
+
+    /// <summary>持久化成功后一次性发布预构造的快照。</summary>
+    internal void PublishPrepared(PreparedReplacement prepared)
+    {
+        lock (_sync)
+        {
+            _mutable = prepared.Mutable;
+            Volatile.Write(ref _snapshot, prepared.Snapshot);
+        }
+    }
+
+    internal sealed record PreparedReplacement(
+        Dictionary<string, MeasurementSchema> Mutable,
+        FrozenDictionary<string, MeasurementSchema> Snapshot);
 
     /// <summary>按名查找 schema；未命中返回 null。</summary>
     /// <param name="name">measurement 名称（区分大小写）。</param>

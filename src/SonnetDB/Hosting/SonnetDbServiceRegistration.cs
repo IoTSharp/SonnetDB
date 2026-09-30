@@ -75,7 +75,8 @@ internal static class SonnetDbServiceRegistration
                 options.DataRoot,
                 sp.GetRequiredService<EventBroadcaster>(),
                 kvOptions,
-                sqlMemoryOptions);
+                sqlMemoryOptions,
+                options.MeasurementSchema.ToPolicy());
             if (!string.IsNullOrWhiteSpace(options.MountedDatabasePath))
                 registry.MountExisting(options.MountedDatabaseName ?? "embedded", options.MountedDatabasePath);
             else if (options.AutoLoadExistingDatabases)

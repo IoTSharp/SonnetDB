@@ -120,10 +120,17 @@ export interface BackupStatusInfo {
 
 export interface SchemaResponse {
   measurements: MeasurementInfo[];
+  measurementSchemaRevision?: string;
   tables?: TableInfo[];
   documentCollections?: DocumentCollectionInfo[];
   indexes?: IndexLifecycleInfo[];
   backupStatus?: BackupStatusInfo | null;
+}
+
+/** 获取持久化 measurement schema 的版本，用于校验工作台缓存。 */
+export async function fetchMeasurementSchemaRevision(api: AxiosInstance, db: string): Promise<string> {
+  const resp = await api.get<{ revision: string }>(`/v1/db/${encodeURIComponent(db)}/schema/measurements/revision`);
+  return resp.data.revision;
 }
 
 /** 获取指定数据库的 schema（measurement 列表及列定义），供 SQL 自动补全使用。 */

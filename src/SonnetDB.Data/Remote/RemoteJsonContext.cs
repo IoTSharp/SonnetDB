@@ -22,6 +22,7 @@ namespace SonnetDB.Data.Remote;
 [JsonSerializable(typeof(ServerErrorBody))]
 [JsonSerializable(typeof(BulkIngestResponseBody))]
 [JsonSerializable(typeof(RemoteSchemaResponse))]
+[JsonSerializable(typeof(RemoteMeasurementSchemaRevisionResponse))]
 [JsonSerializable(typeof(RemoteTableForeignKeyInfo))]
 [JsonSerializable(typeof(RemoteViewInfo))]
 [JsonSerializable(typeof(RemoteMaterializedViewInfo))]

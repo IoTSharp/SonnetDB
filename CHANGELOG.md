@@ -7,12 +7,18 @@
 
 ## [Unreleased]
 ### Added
+- Measurement schema-on-write 增加数据库总 measurement 数、单 measurement 列数和单次写入新增列数上限；支持 `Disabled`、`CreateOnly`、`CreateAndEvolve` 全局及按 measurement 覆盖。新增稳定内容 revision、进程内有界审计事件、扩列/类型提升/拒绝指标，并向 REST、SDK、MCP 与管理后台提供缓存刷新依据。关系表未知列自动 DDL 的独立 opt-in 边界见 [设计文档](docs/design/relational-auto-ddl-opt-in.md)，当前默认仍严格拒绝。
 - 管理后台新增“关于”页面与 `/v1/system/about` 只读端点，展示 SonnetDB 版本、版权、GitHub/Gitee 仓库、企微群二维码，以及服务主机的操作系统、CPU、内存、磁盘和 GPU 快照。
 - 新增龙芯 `linux/loong64` 专用 Docker 运行镜像配方，使用已验证的原生 .NET 10 runtime 与发布产物、固定的 Debian Loong 基础镜像和容器内健康检查；构建与部署步骤见 `deploy/loongarch64/README.md`。
 - 完善 4.0.0 中文候选发行说明，汇总关系 SQL、ADO.NET 写入、向量与图片处理、多模型客户端和部署变化，补充主版本升级建议及带提交身份的候选验证结果；保留 Graph Beta、七天 scheduled 和现场验收边界，并加入发布文档索引。
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
+### Changed
+- SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
+
 ### Fixed
+- **GH-Issue #210 批量 schema-on-write 原子性**：`WriteMany` 先在临时计划中完整合并并校验整块 measurement schema，全部通过后先持久化再一次性发布和写入；后续点发生 TAG/FIELD 角色或字段类型冲突时，不再残留前面点推断出的 measurement、新列、类型提升或提前密封的 MemTable。schema 文件保存失败时，单点、批量、显式创建和删除都不会发布未持久化的内存 schema。
+- `DROP MEASUREMENT` 增加持久化删除意图和启动重放：schema 删除后若段、VECTOR 替换记录或 series catalog 清理失败，同名重建会被阻止，重启后按已提交 schema 决定完成清理；新段、替换 manifest 和 catalog 在删除意图移除前按顺序持久化。受管理的 measurement catalog 在审计回调内也不能直接修改。
 - 修复发布就绪门禁将当前手动发布 workflow 误判为自身预检，以及 GitHub Pages 的 `upload-pages-artifact` 不作为持久 Actions artifact 导致稳定发布被阻断的问题。
 - 增加已有 release tag 的受控恢复脚本：按 tag 的精确 commit 重跑三类候选预检，再按主发布、Docker、连接器的依赖顺序恢复原 tag workflow；拒绝模糊 run 并在完成后核对 GitHub Release 全量资产与七个 NuGet 包。脚本默认仅输出计划，不创建、删除或移动 tag。
 - 修复 Parity 发布就绪核验在 Windows PATH 未刷新时找不到已安装 GitHub CLI 的问题，并支持复用同 commit 的成功预检，避免重复 dispatch。

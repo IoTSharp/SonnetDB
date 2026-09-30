@@ -2054,6 +2054,9 @@ internal static class TableSqlExecutor
 
     private static TableColumn[] BindInsertColumns(InsertStatement statement, TableSchema schema)
     {
+        if (statement.ColumnRoleHints.Any(static role => role is not null))
+            throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
+
         if (statement.IsDefaultValues)
         {
             if (statement.Columns.Count != 0

@@ -1232,7 +1232,7 @@ VALUES
 - `TAG` 列必须是字符串字面量。
 - `FIELD FLOAT` 可以接受整数或浮点字面量。
 - 目标 measurement 不存在时，`INSERT` 会按列值自动创建 schema；已有 measurement 缺失列时也会自动补齐。
-- SQL `INSERT` 的未知字符串列会推断为 `TAG`，未知非字符串列会推断为 `FIELD`。
+- SQL `INSERT` 的未知列默认推断为 `FIELD`，包括字符串列。需要新 `TAG` 时，在列列表中写 `host TAG`；也可以用 `message FIELD` 显式标注字符串 field。已有列始终按 schema 解释，提示与现有角色不一致时拒绝写入，`time` 不能带提示。Bulk VALUES 快路径采用相同规则；关系表和文档集合不接受列角色提示。
 - 已有 `INT` 字段遇到浮点值时会提升为 `FLOAT`；已有 `FLOAT` 字段接收整数时会转换为浮点保存，不会降级为 `INT`。
 - `NULL` 不能作为当前 `INSERT` 的显式列值；要表达某个 field 在该时间点缺失，请从列列表中省略它。
 

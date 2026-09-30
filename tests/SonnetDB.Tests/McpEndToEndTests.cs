@@ -129,9 +129,9 @@ public sealed class McpEndToEndTests : IAsyncLifetime
 
         AssertToolSchema(tools["list_databases"], [], [], ["contractVersion", "currentDatabase", "databases"]);
         AssertToolSchema(tools["list_measurements"], ["maxRows"], [],
-            ["contractVersion", "database", "measurements", "truncated"]);
+            ["contractVersion", "database", "measurements", "truncated", "schemaRevision"]);
         AssertToolSchema(tools["describe_measurement"], ["name"], ["name"],
-            ["contractVersion", "database", "measurement", "columns"]);
+            ["contractVersion", "database", "measurement", "columns", "schemaRevision"]);
         AssertToolSchema(tools["sample_rows"], ["measurement", "n"], ["measurement"],
             ["contractVersion", "database", "measurement", "requestedRows", "columns", "rows", "returnedRows", "truncated"]);
         AssertToolSchema(tools["query_sql"], ["sql", "maxRows"], ["sql"],
@@ -245,11 +245,14 @@ public sealed class McpEndToEndTests : IAsyncLifetime
             .Select(static element => element.GetString())
             .ToArray();
         Assert.Equal(new[] { "cpu", "mem" }, measurementNames);
+        string listRevision = measurements.StructuredContent!.Value.GetProperty("schemaRevision").GetString()!;
+        Assert.Equal(64, listRevision.Length);
 
         var describe = await client.CallToolAsync(
             "describe_measurement",
             new Dictionary<string, object?> { ["name"] = "cpu" });
         Assert.False(describe.IsError.GetValueOrDefault());
+        Assert.Equal(listRevision, describe.StructuredContent!.Value.GetProperty("schemaRevision").GetString());
 
         var columns = describe.StructuredContent!.Value.GetProperty("columns");
         Assert.Equal(3, columns.GetArrayLength());
@@ -334,7 +337,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListMeasurements_AfterSchemaChange_WithinCacheWindow_ReturnsCachedSnapshot()
+    public async Task ListMeasurements_AfterSchemaChange_WithinCacheWindow_RefreshesSnapshot()
     {
         await using var client = await CreateMcpClientAsync();
 
@@ -342,6 +345,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
             "list_measurements",
             new Dictionary<string, object?> { ["maxRows"] = 10 });
         Assert.False(first.IsError.GetValueOrDefault());
+        string firstRevision = first.StructuredContent!.Value.GetProperty("schemaRevision").GetString()!;
 
         using var admin = CreateHttpClient(_adminToken);
         await ExecuteSqlAsync(admin, "CREATE MEASUREMENT disk (host TAG, used FIELD INT)");
@@ -355,7 +359,28 @@ public sealed class McpEndToEndTests : IAsyncLifetime
             .EnumerateArray()
             .Select(static element => element.GetString())
             .ToArray();
-        Assert.Equal(new[] { "cpu", "mem" }, measurements);
+        Assert.Equal(new[] { "cpu", "disk", "mem" }, measurements);
+        Assert.NotEqual(firstRevision, second.StructuredContent!.Value.GetProperty("schemaRevision").GetString());
+    }
+
+    [Fact]
+    public async Task DescribeMeasurement_AfterColumnEvolution_WithinCacheWindow_RefreshesColumns()
+    {
+        await using var client = await CreateMcpClientAsync();
+        var args = new Dictionary<string, object?> { ["name"] = "cpu" };
+        var first = await client.CallToolAsync("describe_measurement", args);
+        Assert.False(first.IsError.GetValueOrDefault());
+        string firstRevision = first.StructuredContent!.Value.GetProperty("schemaRevision").GetString()!;
+        Assert.Equal(3, first.StructuredContent!.Value.GetProperty("columns").GetArrayLength());
+
+        using var admin = CreateHttpClient(_adminToken);
+        await ExecuteSqlAsync(admin,
+            "INSERT INTO cpu (time, host, usage, pressure) VALUES (4000, 'h1', 1.5, 2.5)");
+
+        var second = await client.CallToolAsync("describe_measurement", args);
+        Assert.False(second.IsError.GetValueOrDefault());
+        Assert.Equal(4, second.StructuredContent!.Value.GetProperty("columns").GetArrayLength());
+        Assert.NotEqual(firstRevision, second.StructuredContent!.Value.GetProperty("schemaRevision").GetString());
     }
 
     [Fact]
@@ -375,6 +400,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
         using (var doc = JsonDocument.Parse(measurementsText))
         {
             Assert.Equal(SonnetDbMcpContract.Version, doc.RootElement.GetProperty("contractVersion").GetString());
+            Assert.Equal(64, doc.RootElement.GetProperty("schemaRevision").GetString()!.Length);
             var names = doc.RootElement.GetProperty("measurements")
                 .EnumerateArray()
                 .Select(static element => element.GetString())
@@ -387,6 +413,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
         using (var doc = JsonDocument.Parse(schemaText))
         {
             Assert.Equal("cpu", doc.RootElement.GetProperty("measurement").GetString());
+            Assert.Equal(64, doc.RootElement.GetProperty("schemaRevision").GetString()!.Length);
             Assert.Equal(3, doc.RootElement.GetProperty("columns").GetArrayLength());
         }
 

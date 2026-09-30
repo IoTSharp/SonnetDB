@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SonnetDB;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Data.TimeSeries;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
@@ -66,6 +67,33 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         {
             try { Directory.Delete(_dataRoot, recursive: true); } catch { }
         }
+    }
+
+    [Fact]
+    public async Task MeasurementSchemaRevision_AfterCreate_RefreshesRestAndSdkViews()
+    {
+        using var admin = CreateClient(AdminToken);
+        using var readOnly = CreateClient(ReadOnlyToken);
+        const string dbName = "schema_revision";
+        await CreateDatabaseAsync(admin, dbName);
+
+        string revisionUrl = $"/v1/db/{dbName}/schema/measurements/revision";
+        using var initialResponse = JsonDocument.Parse(await readOnly.GetStringAsync(revisionUrl));
+        string initial = initialResponse.RootElement.GetProperty("revision").GetString()!;
+        Assert.Equal(64, initial.Length);
+
+        await ExecuteSqlAsync(admin, dbName, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+
+        using var updatedResponse = JsonDocument.Parse(await readOnly.GetStringAsync(revisionUrl));
+        string updated = updatedResponse.RootElement.GetProperty("revision").GetString()!;
+        Assert.NotEqual(initial, updated);
+
+        using var schemaResponse = JsonDocument.Parse(await readOnly.GetStringAsync($"/v1/db/{dbName}/schema"));
+        Assert.Equal(updated, schemaResponse.RootElement.GetProperty("measurementSchemaRevision").GetString());
+
+        string connectionString = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/{dbName};Token={ReadOnlyToken};Protocol=rest;Timeout=10";
+        using var sdk = new SndbTimeSeriesClient(connectionString);
+        Assert.Equal(updated, await sdk.GetMeasurementSchemaRevisionAsync());
     }
 
     [Fact]

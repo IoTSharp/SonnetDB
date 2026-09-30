@@ -15,6 +15,7 @@ import {
 import { fetchGraphs } from '@/api/graphs';
 import {
   fetchSchema,
+  fetchMeasurementSchemaRevision,
   type MeasurementInfo,
   type SchemaResponse,
   type TableInfo,
@@ -65,6 +66,9 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
   const databases = ref<string[]>([]);
   const schema = ref<MeasurementInfo[]>([]);
   const schemaByDb = ref<Record<string, SchemaResponse>>({});
+  const schemaLoadGeneration = new Map<string, number>();
+  let nextSchemaLoadGeneration = 0;
+  let schemaCacheEpoch = 0;
   const managementByDb = ref<Record<string, ManagementExplorerInfo>>({});
   const schemaLoadingByDb = ref<Record<string, boolean>>({});
   const schemaErrorByDb = ref<Record<string, string>>({});
@@ -284,7 +288,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         ...expandedDatabases.value,
         [db]: true,
       };
-      void loadSchema(db);
+      void loadSchema(db, true);
     } else {
       schema.value = [];
       activeExplorerKey.value = '';
@@ -321,6 +325,11 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
 
   function syncDatabaseState(currentDatabases: string[]): void {
     const currentSet = new Set(currentDatabases);
+    for (const name of schemaLoadGeneration.keys()) {
+      if (!currentSet.has(name)) {
+        schemaLoadGeneration.delete(name);
+      }
+    }
     schemaByDb.value = Object.fromEntries(
       Object.entries(schemaByDb.value).filter(([name]) => currentSet.has(name)),
     );
@@ -330,6 +339,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
     schemaLoadingByDb.value = Object.fromEntries(
       Object.entries(schemaLoadingByDb.value).filter(([name]) => currentSet.has(name)),
     );
+    loadingSchema.value = Object.values(schemaLoadingByDb.value).some(Boolean);
     schemaErrorByDb.value = Object.fromEntries(
       Object.entries(schemaErrorByDb.value).filter(([name]) => currentSet.has(name)),
     );
@@ -366,15 +376,31 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
       return;
     }
 
+    if (schemaLoadingByDb.value[db] && !force) return;
+    const generation = ++nextSchemaLoadGeneration;
+    schemaLoadGeneration.set(db, generation);
+    const epoch = schemaCacheEpoch;
+    const isLatest = () => epoch === schemaCacheEpoch && schemaLoadGeneration.get(db) === generation;
+
     if (hasCachedSchema(db) && !force) {
-      if (syncActive && targetDb.value === db) {
-        const dbSchema = schemaByDb.value[db];
-        schema.value = dbSchema?.measurements ?? [];
-        if (dbSchema) {
-          activeExplorerKey.value = normalizeActiveExplorerKey(activeExplorerKey.value, dbSchema, managementByDb.value[db]);
-        }
+      const cachedRevision = schemaByDb.value[db]?.measurementSchemaRevision;
+      let currentRevision: string | undefined;
+      try {
+        currentRevision = await fetchMeasurementSchemaRevision(auth.api, db);
+      } catch {
+        // Older servers lack the revision endpoint; loading the complete schema remains valid.
       }
-      return;
+      if (!isLatest()) return;
+      if (cachedRevision && currentRevision === cachedRevision) {
+        if (syncActive && targetDb.value === db) {
+          const dbSchema = schemaByDb.value[db];
+          schema.value = dbSchema?.measurements ?? [];
+          if (dbSchema) {
+            activeExplorerKey.value = normalizeActiveExplorerKey(activeExplorerKey.value, dbSchema, managementByDb.value[db]);
+          }
+        }
+        return;
+      }
     }
 
     schemaLoadingByDb.value = {
@@ -391,6 +417,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         fetchSchema(auth.api, db),
         loadManagementExplorerInfo(db),
       ]);
+      if (!isLatest()) return;
       if (schemaResult.status === 'rejected') {
         throw schemaResult.reason;
       }
@@ -401,6 +428,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         ...schemaByDb.value,
         [db]: {
           measurements,
+          measurementSchemaRevision: resp.measurementSchemaRevision,
           tables: resp.tables ?? [],
           documentCollections: resp.documentCollections ?? [],
           indexes: resp.indexes ?? [],
@@ -420,6 +448,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         activeExplorerKey.value = normalizeActiveExplorerKey(activeExplorerKey.value, schemaByDb.value[db], managementByDb.value[db]);
       }
     } catch (error) {
+      if (!isLatest()) return;
       const errorMessage = error instanceof Error ? error.message : '加载 Schema 失败';
       schemaErrorByDb.value = {
         ...schemaErrorByDb.value,
@@ -430,11 +459,13 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         activeExplorerKey.value = '';
       }
     } finally {
-      schemaLoadingByDb.value = {
-        ...schemaLoadingByDb.value,
-        [db]: false,
-      };
-      loadingSchema.value = false;
+      if (isLatest()) {
+        schemaLoadingByDb.value = {
+          ...schemaLoadingByDb.value,
+          [db]: false,
+        };
+        loadingSchema.value = Object.values(schemaLoadingByDb.value).some(Boolean);
+      }
     }
   }
 
@@ -503,9 +534,9 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         return;
       }
       message.success(`已删除数据库 ${db}`);
-      schemaByDb.value = Object.fromEntries(
-        Object.entries(schemaByDb.value).filter(([name]) => name !== db),
-      );
+      schemaLoadGeneration.delete(db);
+      databases.value = databases.value.filter((name) => name !== db);
+      syncDatabaseState(databases.value);
       await reloadDbs();
       normalizeTarget();
       if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
@@ -517,11 +548,14 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
   }
 
   function resetExplorerCache(): void {
+    schemaCacheEpoch++;
+    schemaLoadGeneration.clear();
     databases.value = [];
     schema.value = [];
     schemaByDb.value = {};
     managementByDb.value = {};
     schemaLoadingByDb.value = {};
+    loadingSchema.value = false;
     schemaErrorByDb.value = {};
     expandedDatabases.value = {};
     activeExplorerKey.value = '';

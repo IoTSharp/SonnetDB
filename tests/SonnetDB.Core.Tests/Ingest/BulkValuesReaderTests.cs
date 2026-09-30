@@ -48,6 +48,26 @@ public sealed class BulkValuesReaderTests
     }
 
     [Fact]
+    public void TryRead_UnknownString_DefaultsToFieldUnlessExplicitlyTagged()
+    {
+        const string sql = "INSERT INTO cpu(host TAG, request_id, time) VALUES ('server', 'unique-001', 1)";
+        var reader = new BulkValuesReader(sql, static _ => BulkValuesColumnRole.Auto);
+
+        Assert.True(reader.TryRead(out var point));
+        Assert.Equal("server", point.Tags["host"]);
+        Assert.Equal("unique-001", point.Fields["request_id"].AsString());
+    }
+
+    [Fact]
+    public void Ctor_ExistingRoleConflictsWithHint_Throws()
+    {
+        const string sql = "INSERT INTO cpu(host FIELD, value) VALUES ('server', 1)";
+
+        var error = Assert.Throws<BulkIngestException>(() => new BulkValuesReader(sql, Resolver));
+        Assert.Contains("schema", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TryRead_QuotedIdentifierMeasurement_Supported()
     {
         const string sql = "INSERT INTO \"my m\"(host, value, time) VALUES ('a', 1, 1)";

@@ -25,6 +25,27 @@ public sealed class SqlExecutorTableTests : IDisposable
     private TsdbOptions Options() => new() { RootDirectory = _root };
 
     [Fact]
+    public void Insert_UnknownRelationalColumn_RemainsStrictAndDoesNotAlterSchema()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        var unknown = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, serial_number) VALUES (1, 'unique-001')"));
+        Assert.Contains("不存在列", unknown.Message, StringComparison.Ordinal);
+
+        var hint = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name FIELD) VALUES (1, 'device')"));
+        Assert.Contains("仅适用于 measurement", hint.Message, StringComparison.Ordinal);
+        var hintedStatement = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO devices (id, name FIELD) VALUES (1, 'device')"));
+        var direct = Assert.Throws<InvalidOperationException>(() => TableSqlExecutor.ExecuteInsert(
+            db, hintedStatement, db.Tables.Catalog.TryGet("devices")!));
+        Assert.Contains("仅适用于 measurement", direct.Message, StringComparison.Ordinal);
+        Assert.Null(db.Tables.Catalog.TryGet("devices")!.TryGetColumn("serial_number"));
+    }
+
+    [Fact]
     public void ParseCreateTable_WithPrimaryKey_ReturnsAst()
     {
         var stmt = Assert.IsType<CreateTableStatement>(SqlParser.Parse(

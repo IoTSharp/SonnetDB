@@ -3,7 +3,7 @@ using SonnetDB.Engine;
 namespace SonnetDB.Mcp;
 
 /// <summary>
-/// MCP schema 读取结果的 30 秒进程内缓存。
+/// MCP schema 读取结果按持久化 revision 失效，并有 30 秒兜底过期时间。
 /// </summary>
 internal sealed class SonnetDbMcpSchemaCache
 {
@@ -11,7 +11,7 @@ internal sealed class SonnetDbMcpSchemaCache
 
     private readonly TimeProvider _timeProvider;
     private readonly Lock _lock = new();
-    private readonly Dictionary<string, CacheEntry<IReadOnlyList<string>>> _measurementListCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CacheEntry<McpMeasurementListSnapshot>> _measurementListCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CacheEntry<McpMeasurementSchemaResult>> _measurementSchemaCache = new(StringComparer.Ordinal);
 
     public SonnetDbMcpSchemaCache()
@@ -28,17 +28,25 @@ internal sealed class SonnetDbMcpSchemaCache
     /// <summary>
     /// 获取当前数据库的 measurement 名称快照。
     /// </summary>
-    public IReadOnlyList<string> GetMeasurements(string databaseName, Tsdb tsdb)
+    public McpMeasurementListSnapshot GetMeasurements(string databaseName, Tsdb tsdb)
     {
         ArgumentException.ThrowIfNullOrEmpty(databaseName);
         ArgumentNullException.ThrowIfNull(tsdb);
 
+        string revision = tsdb.MeasurementSchemaRevision;
         return GetOrCreate(
             _measurementListCache,
             $"measurements::{databaseName}",
-            () => tsdb.Measurements.Snapshot()
-                .Select(static measurement => measurement.Name)
-                .ToArray());
+            revision,
+            () =>
+            {
+                var snapshot = tsdb.GetMeasurementSchemaSnapshot();
+                return (
+                    new McpMeasurementListSnapshot(
+                        snapshot.Measurements.Select(static measurement => measurement.Name).ToArray(),
+                        snapshot.Revision),
+                    snapshot.Revision);
+            });
     }
 
     /// <summary>
@@ -50,12 +58,16 @@ internal sealed class SonnetDbMcpSchemaCache
         ArgumentException.ThrowIfNullOrWhiteSpace(measurementName);
         ArgumentNullException.ThrowIfNull(tsdb);
 
+        string revision = tsdb.MeasurementSchemaRevision;
         return GetOrCreate(
             _measurementSchemaCache,
             $"measurement::{databaseName}::{measurementName}",
+            revision,
             () =>
             {
-                var schema = tsdb.Measurements.TryGet(measurementName)
+                var snapshot = tsdb.GetMeasurementSchemaSnapshot();
+                var schema = snapshot.Measurements.FirstOrDefault(measurement =>
+                    string.Equals(measurement.Name, measurementName, StringComparison.Ordinal))
                     ?? throw new InvalidOperationException($"measurement '{measurementName}' 不存在。");
 
                 var columns = new List<McpMeasurementColumnResult>(schema.Columns.Count);
@@ -67,23 +79,29 @@ internal sealed class SonnetDbMcpSchemaCache
                         DataType: FormatColumnDataType(column)));
                 }
 
-                return new McpMeasurementSchemaResult(databaseName, schema.Name, columns);
+                return (
+                    new McpMeasurementSchemaResult(
+                        databaseName, schema.Name, columns, snapshot.Revision),
+                    snapshot.Revision);
             });
     }
 
     private T GetOrCreate<T>(
         Dictionary<string, CacheEntry<T>> cache,
         string key,
-        Func<T> valueFactory)
+        string revision,
+        Func<(T Value, string Revision)> valueFactory)
     {
         lock (_lock)
         {
             var now = _timeProvider.GetUtcNow();
-            if (cache.TryGetValue(key, out var cached) && cached.ExpiresAt > now)
+            if (cache.TryGetValue(key, out var cached)
+                && cached.ExpiresAt > now
+                && string.Equals(cached.Revision, revision, StringComparison.Ordinal))
                 return cached.Value;
 
-            var value = valueFactory();
-            cache[key] = new CacheEntry<T>(value, now + CacheTtl);
+            var (value, valueRevision) = valueFactory();
+            cache[key] = new CacheEntry<T>(value, valueRevision, now + CacheTtl);
             return value;
         }
     }
@@ -104,5 +122,7 @@ internal sealed class SonnetDbMcpSchemaCache
         };
     }
 
-    private sealed record CacheEntry<T>(T Value, DateTimeOffset ExpiresAt);
+    private sealed record CacheEntry<T>(T Value, string Revision, DateTimeOffset ExpiresAt);
 }
+
+internal sealed record McpMeasurementListSnapshot(IReadOnlyList<string> Measurements, string SchemaRevision);

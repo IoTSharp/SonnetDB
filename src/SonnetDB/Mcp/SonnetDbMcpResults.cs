@@ -55,7 +55,11 @@ internal sealed record McpMeasurementColumnResult(string Name, string ColumnType
 /// <summary>
 /// MCP tool <c>list_measurements</c> 的返回体。
 /// </summary>
-internal sealed record McpMeasurementListResult(string Database, IReadOnlyList<string> Measurements, bool Truncated)
+internal sealed record McpMeasurementListResult(
+    string Database,
+    IReadOnlyList<string> Measurements,
+    bool Truncated,
+    string SchemaRevision)
     : McpContractResult;
 
 /// <summary>
@@ -70,7 +74,8 @@ internal sealed record McpDatabaseListResult(string CurrentDatabase, IReadOnlyLi
 internal sealed record McpMeasurementSchemaResult(
     string Database,
     string Measurement,
-    IReadOnlyList<McpMeasurementColumnResult> Columns) : McpContractResult;
+    IReadOnlyList<McpMeasurementColumnResult> Columns,
+    string SchemaRevision) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>query_sql</c> 的返回体。

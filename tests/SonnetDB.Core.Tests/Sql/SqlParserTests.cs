@@ -302,6 +302,23 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_Insert_ColumnRoleHints_PreservesRoles()
+    {
+        var statement = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO cpu (time, host TAG, message FIELD, usage) VALUES (1, 'server', 'ok', 0.5)"));
+
+        Assert.Equal(["time", "host", "message", "usage"], statement.Columns);
+        Assert.Equal([null, ColumnKind.Tag, ColumnKind.Field, null], statement.ColumnRoleHints);
+    }
+
+    [Fact]
+    public void Parse_Insert_TimeRoleHint_Throws()
+    {
+        Assert.Throws<SqlParseException>(() =>
+            SqlParser.Parse("INSERT INTO cpu (time TAG, usage) VALUES (1, 0.5)"));
+    }
+
+    [Fact]
     public void Parse_Insert_MultipleRows_ReturnsAllRows()
     {
         var stmt = (InsertStatement)SqlParser.Parse(

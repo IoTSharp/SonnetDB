@@ -58,7 +58,13 @@ internal static class MeasurementDropCompactor
         // 含 VECTOR 桶时强制解析索引（保留幸存 series 的向量索引；缺 catalog 则显式失败而非静默丢索引，I11）。
         var vectorIndexes = VectorIndexBuildMap.BuildForSegment(buckets, owner.Catalog, owner.Measurements);
         result = writer.Write(buckets, newSegmentId, newSegmentPath, vectorIndexes);
-        WalCheckpointFile.FlushDirectoryBestEffort(TsdbPaths.SegmentsDir(owner.RootDirectory));
+        // DROP 的 series catalog 删除依赖替换段已经持久化，即使普通段写入关闭了 fsync 也必须保证。
+        if (!owner.CompactionWriterOptions.FsyncOnCommit)
+        {
+            using var file = new FileStream(newSegmentPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            file.Flush(flushToDisk: true);
+        }
+        DirectoryFsync.FlushRequired(Path.GetDirectoryName(newSegmentPath)!);
         return true;
     }
 }

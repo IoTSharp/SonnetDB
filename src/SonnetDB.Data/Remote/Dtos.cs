@@ -97,6 +97,8 @@ internal sealed record RemoteSchemaResponse(
     List<RemoteViewInfo>? Views = null,
     List<RemoteMaterializedViewInfo>? MaterializedViews = null);
 
+internal sealed record RemoteMeasurementSchemaRevisionResponse(string Revision);
+
 internal sealed record RemoteMeasurementInfo(
     string Name,
     List<RemoteColumnInfo> Columns);

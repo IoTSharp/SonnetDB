@@ -8,6 +8,30 @@ namespace SonnetDB.Tests;
 
 public sealed class ServerOptionsTests
 {
+    [Fact]
+    public void Bind_MeasurementSchemaPolicy_PreservesLimitsAndNameOverrides()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:MeasurementSchema:Mode"] = "CreateOnly",
+            ["SonnetDBServer:MeasurementSchema:MeasurementModes:hot"] = "CreateAndEvolve",
+            ["SonnetDBServer:MeasurementSchema:MeasurementModes:cold"] = "Disabled",
+            ["SonnetDBServer:MeasurementSchema:MaxMeasurements"] = "24",
+            ["SonnetDBServer:MeasurementSchema:MaxColumnsPerMeasurement"] = "12",
+            ["SonnetDBServer:MeasurementSchema:MaxNewColumnsPerWrite"] = "4",
+        }).Build();
+
+        var policy = ServerOptionsBinder.Bind(configuration).MeasurementSchema.ToPolicy();
+
+        Assert.Equal(MeasurementSchemaMode.CreateOnly, policy.Mode);
+        Assert.Equal(MeasurementSchemaMode.CreateAndEvolve, policy.GetMode("hot"));
+        Assert.Equal(MeasurementSchemaMode.Disabled, policy.GetMode("cold"));
+        Assert.Equal(MeasurementSchemaMode.CreateOnly, policy.GetMode("HOT"));
+        Assert.Equal(24, policy.MaxMeasurements);
+        Assert.Equal(12, policy.MaxColumnsPerMeasurement);
+        Assert.Equal(4, policy.MaxNewColumnsPerWrite);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

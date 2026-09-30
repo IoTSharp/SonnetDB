@@ -8,7 +8,11 @@ public sealed record SchemaResponse(
     List<IndexLifecycleInfo>? Indexes = null,
     BackupStatusInfo? BackupStatus = null,
     List<ViewInfo>? Views = null,
-    List<MaterializedViewInfo>? MaterializedViews = null);
+    List<MaterializedViewInfo>? MaterializedViews = null,
+    string? MeasurementSchemaRevision = null);
+
+/// <summary>Measurement schema 的持久化内容版本，用于客户端校验缓存。</summary>
+public sealed record MeasurementSchemaRevisionResponse(string Revision);
 
 /// <summary>一个 Measurement 的 schema 信息。</summary>
 public sealed record MeasurementInfo(string Name, List<ColumnInfo> Columns);

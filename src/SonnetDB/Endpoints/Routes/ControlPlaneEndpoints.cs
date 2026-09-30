@@ -84,6 +84,18 @@ internal static partial class SonnetDbEndpoints
             await SchemaEndpointHandler.Handle(db, tsdb).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
+        app.MapGet("/v1/db/{db}/schema/measurements/revision", async (HttpContext ctx, string db) =>
+        {
+            if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
+                return;
+            var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+            if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            await Results.Json(
+                new MeasurementSchemaRevisionResponse(tsdb.MeasurementSchemaRevision),
+                ServerJsonContext.Default.MeasurementSchemaRevisionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
         // ---- Maintenance API ----
         app.MapPost("/v1/db/{db}/maintenance", async (HttpContext ctx, string db) =>
         {

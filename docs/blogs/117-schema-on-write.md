@@ -18,7 +18,7 @@ SonnetDB 新增了受控的 schema-on-write 能力：写入路径可以在入库
 也就是说，下面这种首次写入可以直接创建 schema：
 
 ```sql
-INSERT INTO weather (time, station, temperature, humidity)
+INSERT INTO weather (time, station TAG, temperature, humidity)
 VALUES (1713676800000, 'beijing', 28.5, 61.2)
 ```
 
@@ -35,7 +35,7 @@ CREATE MEASUREMENT weather (
 如果之后又写入新列：
 
 ```sql
-INSERT INTO weather (time, station, firmware, pressure)
+INSERT INTO weather (time, station, firmware TAG, pressure)
 VALUES (1713676860000, 'beijing', '1.2.0', 1008.5)
 ```
 
@@ -80,15 +80,15 @@ SQL 的难点是：列名本身并不告诉数据库它是 tag 还是 field。
 例如：
 
 ```sql
-INSERT INTO cpu (time, host, usage)
+INSERT INTO cpu (time, host TAG, usage)
 VALUES (1, 'server-01', 0.72)
 ```
 
-如果 `cpu` 还不存在，`host` 是字符串，`usage` 是浮点数。SonnetDB 当前采用一个简单且可解释的规则：
+如果 `cpu` 还不存在，`host TAG` 明确声明该列为身份维度，`usage` 是浮点数。SQL 字符串值本身不能证明其基数适合做 tag，规则如下：
 
-- 未知字符串列推断为 `TAG`
-- 未知非字符串列推断为 `FIELD`
-- 已存在列永远按 schema 解释
+- 未知列默认推断为 `FIELD`，包括字符串列；高基数的请求 ID、消息等不会仅因类型是字符串而进入 series key
+- 在列列表中写 `name TAG` 或 `name FIELD` 可以显式指定新列角色；`TAG` 值必须是字符串
+- 已存在列永远按 schema 解释；提示与现有角色不一致时拒绝写入
 
 因此上面的 SQL 会推断为：
 
@@ -99,7 +99,7 @@ CREATE MEASUREMENT cpu (
 )
 ```
 
-如果你确实需要一个字符串 field，比如 `status FIELD STRING`，建议先显式建表：
+如果你需要一个字符串 field，比如 `status FIELD STRING`，可以直接写入，或先显式建表：
 
 ```sql
 CREATE MEASUREMENT device_state (
@@ -108,7 +108,7 @@ CREATE MEASUREMENT device_state (
 )
 ```
 
-这样后续 `INSERT` 会严格按 schema 写入，不会把 `status` 推断成 tag。
+这样后续 `INSERT` 会严格按 schema 写入。Bulk VALUES 快路径也采用相同的字符串默认 FIELD 和显式列角色提示；Line Protocol、JSON points 继续依赖格式中的 tags/fields 边界。
 
 ### 类型兼容与提升
 
@@ -122,7 +122,7 @@ CREATE MEASUREMENT device_state (
 示例：
 
 ```sql
-INSERT INTO meter (time, device, reading)
+INSERT INTO meter (time, device TAG, reading)
 VALUES (1, 'm1', 100);
 ```
 
@@ -153,14 +153,24 @@ measurements.tslschema 中却没有这个字段
 现在 SonnetDB 的写入顺序是：
 
 ```text
-推断缺失列
-更新 measurement schema
+推断并校验候选 measurement schema
 持久化 measurements.tslschema
+发布内存 measurement schema 快照
 写 WAL
 写 MemTable
 ```
 
 这样即使在 schema 保存后、WAL 写入前崩溃，最多只是留下一个还没有数据的新列；不会出现“数据存在但 schema 不可见”的情况。
+
+### 批量写入先完整校验再发布 schema
+
+`WriteMany` 会先在临时计划中合并每个写入块的新增列和类型提升，并校验块内每个点的列角色与类型。只有整个写入块校验全部通过后，才会先持久化 schema、一次性发布内存快照，再写 WAL 和 MemTable。
+
+如果块内后面的点把已有 `TAG` 当作 `FIELD`，或者写入了不兼容类型，整个写入块会在发布前失败：前面点推断出的 measurement、新列和 `INT -> FLOAT` 提升都不会残留，当前 MemTable 也不会因未提交的类型提升被提前密封。调用方修正数据后可以安全重试，不需要清理部分 schema 变更。
+
+超大 `WriteMany` 调用仍按最多 8192 点分块，以便在块间释放写锁并执行内存背压；已经成功提交的前序块不会因后续块失败而回滚。需要跨块全有或全无时，应使用具备明确事务边界的上层导入流程，而不能把普通批量写入当作无限大小事务。
+
+`MaxNewColumnsPerWrite` 对一次 `Tsdb.Write` 或 `WriteMany` 的一个内部块生效。普通 SQL 多行 `INSERT` 目前逐行调用 `Tsdb.Write`，因此每行分别计入本额度，整条 SQL 语句累计新增列数不受该额度约束；后续行失败时，已写入的前序行保持成功。若需要整句扩列预算，应增加独立选项及预检，不能把现有 SQL 多行写入悄悄改为全有或全无。
 
 ### 它不是完全 schema-less
 
@@ -180,7 +190,7 @@ SonnetDB 仍然坚持“受控 schema-on-write”，不是完全 schema-less。
 
 对于设备接入、边缘采集、日志转指标、Prometheus / OTLP 这类数据源，可以放心使用自动 schema 演进，让接入链路先跑起来。
 
-对于业务核心表、字符串字段较多的 measurement、或者需要稳定对外 API 的场景，仍然建议显式执行 `CREATE MEASUREMENT`。这样可以避免 SQL 字符串列被默认推断成 tag，也能让 schema 设计更可审查。
+对于业务核心表、字符串字段较多的 measurement、或者需要稳定对外 API 的场景，仍然建议显式执行 `CREATE MEASUREMENT`。这样能固定 TAG/FIELD 角色，也能让 schema 设计更可审查。
 
 一个实用的折中方式是：
 
@@ -200,6 +210,29 @@ VALUES (1713676800000, 'server-01', 'cn-hz', 0.72, 1.8)
 ```
 
 `load1` 会自动追加为 `FIELD FLOAT`，而 `host` / `region` / `usage` 仍按原 schema 校验。
+
+### Server 中配置 schema 增长策略
+
+服务端在 `SonnetDBServer:MeasurementSchema` 下统一配置新建、自动加载和挂载的数据库实例：
+
+```json
+{
+  "SonnetDBServer": {
+    "MeasurementSchema": {
+      "Mode": "CreateOnly",
+      "MeasurementModes": {
+        "telemetry_hot": "CreateAndEvolve",
+        "billing_events": "Disabled"
+      },
+      "MaxMeasurements": 4096,
+      "MaxColumnsPerMeasurement": 128,
+      "MaxNewColumnsPerWrite": 16
+    }
+  }
+}
+```
+
+`Mode` 是默认策略；`MeasurementModes` 按区分大小写的 measurement 名称覆盖。`Disabled` 拒绝自动创建和演进，`CreateOnly` 只允许自动创建，`CreateAndEvolve` 允许自动创建、扩列和兼容的数值提升。三项额度分别限制数据库内 measurement 总数、单个 measurement 的 TAG/FIELD 列总数，以及一次写入规划的新增列数。配置在打开数据库实例时固定；修改后需要重启服务或重新打开对应数据库实例。
 
 ### 小结
 

@@ -28,6 +28,21 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     private TsdbOptions Options() => new() { RootDirectory = _root };
 
     [Fact]
+    public void Insert_ColumnRoleHint_RejectsForDocumentCollectionDirectly()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        var statement = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO device_docs (id FIELD, document) VALUES ('doc-1', '{}')"));
+
+        var error = Assert.Throws<InvalidOperationException>(() => DocumentSqlExecutor.ExecuteInsert(
+            db, statement, db.Documents.Catalog.TryGet("device_docs")!));
+
+        Assert.Contains("仅适用于 measurement", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.Documents.Open("device_docs").Count());
+    }
+
+    [Fact]
     public void ParseCreateDocumentCollection_ReturnsAst()
     {
         var stmt = Assert.IsType<CreateDocumentCollectionStatement>(SqlParser.Parse(

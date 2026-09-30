@@ -88,6 +88,11 @@ public sealed class ServerOptions
     public KvStorageOptions Kv { get; set; } = new();
 
     /// <summary>
+    /// Measurement 自动 schema 增长上限与默认/按名称策略。绑定路径：<c>SonnetDBServer:MeasurementSchema</c>。
+    /// </summary>
+    public MeasurementSchemaServerOptions MeasurementSchema { get; set; } = new();
+
+    /// <summary>
     /// 可观测性配置（M17）。绑定路径：<c>"SonnetDBServer:Observability"</c>。
     /// </summary>
     public ObservabilityOptions Observability { get; set; } = new();
@@ -140,6 +145,43 @@ public sealed class KvStorageOptions
     /// 服务端绑定会把非正数修正为 1，避免部署配置意外取消恢复上限。
     /// </summary>
     public int IndexRebuildMaxOverlayEntries { get; set; } = 100_000;
+}
+
+/// <summary>可由服务器配置系统绑定的 measurement schema 策略。</summary>
+public sealed class MeasurementSchemaServerOptions
+{
+    /// <summary>未覆盖时的自动 schema 模式。</summary>
+    public SonnetDB.Engine.MeasurementSchemaMode Mode { get; set; }
+        = SonnetDB.Engine.MeasurementSchemaMode.CreateAndEvolve;
+
+    /// <summary>按 measurement 名称覆盖的模式，名称区分大小写。</summary>
+    public Dictionary<string, SonnetDB.Engine.MeasurementSchemaMode> MeasurementModes { get; set; }
+        = new(StringComparer.Ordinal);
+
+    /// <summary>一个数据库允许的 measurement 总数。</summary>
+    public int MaxMeasurements { get; set; } = SonnetDB.Engine.MeasurementSchemaPolicy.Default.MaxMeasurements;
+
+    /// <summary>单个 measurement 允许的列总数。</summary>
+    public int MaxColumnsPerMeasurement { get; set; }
+        = SonnetDB.Engine.MeasurementSchemaPolicy.Default.MaxColumnsPerMeasurement;
+
+    /// <summary>一次写入规划允许新增的列总数。</summary>
+    public int MaxNewColumnsPerWrite { get; set; }
+        = SonnetDB.Engine.MeasurementSchemaPolicy.Default.MaxNewColumnsPerWrite;
+
+    internal SonnetDB.Engine.MeasurementSchemaPolicy ToPolicy()
+    {
+        ArgumentNullException.ThrowIfNull(MeasurementModes);
+        return new SonnetDB.Engine.MeasurementSchemaPolicy
+        {
+            Mode = Mode,
+            MeasurementModes = new Dictionary<string, SonnetDB.Engine.MeasurementSchemaMode>(
+                MeasurementModes, StringComparer.Ordinal),
+            MaxMeasurements = MaxMeasurements,
+            MaxColumnsPerMeasurement = MaxColumnsPerMeasurement,
+            MaxNewColumnsPerWrite = MaxNewColumnsPerWrite,
+        };
+    }
 }
 
 /// <summary>

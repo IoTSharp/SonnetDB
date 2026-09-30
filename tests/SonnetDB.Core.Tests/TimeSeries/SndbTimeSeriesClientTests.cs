@@ -14,6 +14,26 @@ public sealed class SndbTimeSeriesClientTests : IDisposable
         "sonnetdb-timeseries-client-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public async Task GetMeasurementSchemaRevisionAsync_EmbeddedSchemaCreation_ChangesRevision()
+    {
+        using var client = new SndbTimeSeriesClient($"Data Source={_root}");
+        string before = await client.GetMeasurementSchemaRevisionAsync();
+
+        SndbTimeSeriesWriteResult result = await client.WriteAsync("cpu",
+        [
+            SndbTimeSeriesPoint.Create("cpu")
+                .Timestamp(1)
+                .Field("usage", 1d)
+                .Build(),
+        ]);
+
+        Assert.True(result.IsSuccess);
+        string after = await client.GetMeasurementSchemaRevisionAsync();
+        Assert.Equal(64, after.Length);
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
     public void PointBuilder_BuildsTypedFieldsAndTags()
     {
         SndbTimeSeriesPoint point = SndbTimeSeriesPoint.Create("cpu")

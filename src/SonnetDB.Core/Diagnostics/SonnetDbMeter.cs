@@ -38,6 +38,21 @@ public static class SonnetDbMeter
         "sonnetdb.write.duration", unit: "ms",
         description: "End-to-end write call latency including WAL durability and hard-cap backpressure waits.");
 
+    /// <summary>已发布的 measurement schema 扩列数，无 measurement 名称维度。</summary>
+    internal static readonly Counter<long> SchemaColumnsAdded = Meter.CreateCounter<long>(
+        "sonnetdb.schema.columns.added", unit: "{column}",
+        description: "Columns added to existing measurement schemas.");
+
+    /// <summary>已发布的 measurement FIELD 列 INT64 到 FLOAT64 提升数。</summary>
+    internal static readonly Counter<long> SchemaColumnsPromoted = Meter.CreateCounter<long>(
+        "sonnetdb.schema.columns.promoted", unit: "{column}",
+        description: "Measurement field columns promoted from INT64 to FLOAT64.");
+
+    /// <summary>策略、额度或列冲突拒绝的 measurement schema 变更数。</summary>
+    internal static readonly Counter<long> SchemaChangesRejected = Meter.CreateCounter<long>(
+        "sonnetdb.schema.changes.rejected", unit: "{change}",
+        description: "Measurement schema changes rejected by policy, quota, or column conflicts.");
+
     // ── WAL ──────────────────────────────────────────────────────────────────
 
     /// <summary>

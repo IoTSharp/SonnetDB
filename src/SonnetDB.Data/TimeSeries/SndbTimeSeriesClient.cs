@@ -39,6 +39,30 @@ public sealed class SndbTimeSeriesClient : IDisposable
     /// <summary>当前数据库名或嵌入式数据目录。</summary>
     public string Database => _database;
 
+    /// <summary>获取当前 measurement schema 的持久化内容版本，供调用方校验缓存。</summary>
+    public async Task<string> GetMeasurementSchemaRevisionAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+            return _embedded.MeasurementSchemaRevision;
+
+        string url = $"v1/db/{Uri.EscapeDataString(_database)}/schema/measurements/revision";
+        using HttpResponseMessage response = await Http.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var body = await JsonSerializer.DeserializeAsync(
+            stream,
+            RemoteJsonContext.Default.RemoteMeasurementSchemaRevisionResponse,
+            cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("SonnetDB measurement schema revision response body is empty.");
+        if (string.IsNullOrWhiteSpace(body.Revision))
+            throw new InvalidDataException("SonnetDB measurement schema revision is missing.");
+        return body.Revision;
+    }
+
     /// <summary>创建一个独立的时序 point builder。</summary>
     public SndbTimeSeriesPointBuilder Point(string measurement)
         => SndbTimeSeriesPoint.Create(measurement);
