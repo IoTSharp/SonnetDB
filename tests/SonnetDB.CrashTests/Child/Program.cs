@@ -1,4 +1,5 @@
 using SonnetDB.Cdc;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
@@ -98,6 +99,9 @@ switch (scenario)
     case "crash_kill9_cdc_single_tail_before_ack":
         await RunM43CdcSingleTailBeforeAck(root, readyFile);
         return 0;
+    case "crash_kill9_cdc_document_source_capture":
+        await RunM43CdcDocumentSourceCapture(root, readyFile);
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
@@ -149,6 +153,47 @@ static async Task RunM43CdcSingleTailBeforeAck(string root, string readyFile)
     CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(descriptor.Checkpoint, cancellationToken: deadline.Token);
     await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
     WriteCrashReady(readyFile, "cdc-single-tail-materialized-before-ack");
+    await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static async Task RunM43CdcDocumentSourceCapture(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    using var database = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(root, "source-db") });
+    database.Documents.Create(DocumentCollectionSchema.Create("docs"));
+    DocumentCollectionStore store = database.Documents.Open("docs");
+    store.Insert("a", "{\"value\":1}");
+    store.Insert("b", "{\"value\":1}");
+
+    var spoolOptions = new CdcEventSpoolOptions { MaxEvents = 3, MaxReplayEvents = 1 };
+    await using var spool = new CdcEventSpool(Path.Combine(root, "source-events.log"), spoolOptions);
+    var captureOptions = new CdcDocumentSourceCaptureOptions
+    {
+        Source = "crash-source",
+        Entity = "docs",
+        Schema = "documents",
+        Partition = 7,
+        BatchSize = 2,
+    };
+    await using var capture = new CdcDocumentSourceCapture(store, spool, captureOptions);
+    await capture.CaptureAsync(deadline.Token);
+    await using var view = await CdcSourceReadView.CaptureDocumentCollectionAsync(
+        Path.Combine(root, "source-view.bin"), store, captureOptions.Source,
+        partition: captureOptions.Partition, options: new CdcSnapshotReplicaOptions { MaxBatchRows = 1 },
+        cancellationToken: deadline.Token);
+    await spool.AcknowledgeAsync(view.Descriptor.Checkpoint, deadline.Token);
+    await using var replica = await CdcSnapshotReplica.CreateAsync(
+        Path.Combine(root, "source-replica.bin"), view.Descriptor,
+        new CdcSnapshotReplicaOptions { MaxBatchRows = 1 }, deadline.Token);
+    CdcSnapshotRowBatch first = await view.ReadPageAsync(maxRows: 1, cancellationToken: deadline.Token);
+    await replica.WriteSnapshotPageAsync(0, first.Rows, deadline.Token);
+
+    store.Replace("a", "{\"value\":2}");
+    store.Delete("b");
+    CdcDocumentSourceCaptureResult captured = await capture.CaptureAsync(deadline.Token);
+    if (captured.StartSequence != 2 || captured.EndSequence != 4 || captured.CapturedEvents != 2)
+        throw new InvalidOperationException("CDC source capture did not persist the expected checkpoint.");
+    WriteCrashReady(readyFile, "cdc-document-source-captured-partial-snapshot");
     await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
 }
 

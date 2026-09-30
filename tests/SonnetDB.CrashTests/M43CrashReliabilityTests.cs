@@ -1,4 +1,6 @@
 using SonnetDB.Cdc;
+using SonnetDB.Documents;
+using SonnetDB.Engine;
 using SonnetDB.Streaming;
 using Xunit;
 
@@ -6,6 +8,79 @@ namespace SonnetDB.CrashTests;
 
 public sealed partial class CrashReliabilityTests
 {
+    [Fact]
+    public async Task M43_CdcDocumentSourceCapture_HardKill_ReopensContinuesAndReconciles()
+    {
+        const string scenario = "crash_kill9_cdc_document_source_capture";
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        Assert.Equal("cdc-document-source-captured-partial-snapshot",
+            File.ReadAllText(Path.Combine(root, scenario + ".ready")));
+        string databasePath = Path.Combine(root, "source-db");
+        string viewPath = Path.Combine(root, "source-view.bin");
+        string replicaPath = Path.Combine(root, "source-replica.bin");
+        string spoolPath = Path.Combine(root, "source-events.log");
+        var descriptor = new CdcSnapshotDescriptor(
+            "snapshot-crash-source-docs-7-2", "crash-source", "docs", "documents", 1,
+            new CdcCheckpoint(7, 2), 2);
+        var replicaOptions = new CdcSnapshotReplicaOptions { MaxBatchRows = 1 };
+        var spoolOptions = new CdcEventSpoolOptions { MaxEvents = 3, MaxReplayEvents = 1 };
+        var captureOptions = new CdcDocumentSourceCaptureOptions
+        {
+            Source = "crash-source", Entity = "docs", Schema = "documents", Partition = 7, BatchSize = 2,
+        };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = databasePath }))
+        {
+            DocumentCollectionStore store = database.Documents.Open("docs");
+            await using var view = CdcSourceReadView.Open(viewPath, descriptor, replicaOptions);
+            await using var replica = CdcSnapshotReplica.Open(replicaPath, descriptor, replicaOptions);
+            await using var spool = new CdcEventSpool(spoolPath, spoolOptions);
+            await using var capture = new CdcDocumentSourceCapture(store, spool, captureOptions);
+
+            Assert.Equal(1, replica.GetState().SnapshotRowsCopied);
+            Assert.Equal("a", replica.GetState().LastSnapshotKey);
+            Assert.Equal(2, spool.EventCount);
+            Assert.Equal(2, spool.AcknowledgedCheckpoint?.Offset);
+            CdcSnapshotRowBatch second = await view.ReadPageAsync("a", maxRows: 1,
+                cancellationToken: deadline.Token);
+            Assert.Equal([new CdcSnapshotRow("b", "{\"value\":1}")], second.Rows);
+            await replica.WriteSnapshotPageAsync(1, second.Rows, deadline.Token);
+            await replica.CompleteSnapshotAsync(deadline.Token);
+
+            store.Insert("c", "{\"value\":3}");
+            CdcDocumentSourceCaptureResult resumed = await capture.CaptureAsync(deadline.Token);
+            Assert.Equal(4, resumed.StartSequence);
+            Assert.Equal(5, resumed.EndSequence);
+            Assert.Equal(1, resumed.CapturedEvents);
+            Assert.Equal(3, spool.EventCount);
+
+            CdcCheckpoint cursor = descriptor.Checkpoint;
+            foreach (long expected in new[] { 3L, 4L, 5L })
+            {
+                CdcEventSpoolBatch batch = await spool.ReplayBatchAsync(cursor, cancellationToken: deadline.Token);
+                CdcEvent value = Assert.Single(batch.Events);
+                Assert.Equal(expected, value.Sequence);
+                CdcSnapshotReplicaState committed = await replica.ApplyIncrementalAsync(batch.Events, deadline.Token);
+                await spool.AcknowledgeAsync(committed.AppliedCheckpoint, deadline.Token);
+                cursor = committed.AppliedCheckpoint;
+            }
+            Assert.Equal(0, spool.EventCount);
+            Assert.Equal(new CdcCheckpoint(7, 5), replica.GetState().AppliedCheckpoint);
+            CdcSnapshotRowBatch first = await replica.ReadRowsAsync(maxRows: 1, cancellationToken: deadline.Token);
+            CdcSnapshotRowBatch last = await replica.ReadRowsAsync(first.NextKey, maxRows: 1,
+                cancellationToken: deadline.Token);
+            Assert.Equal([new CdcSnapshotRow("a", "{\"value\":2}"),
+                new CdcSnapshotRow("c", "{\"value\":3}")], first.Rows.Concat(last.Rows));
+        }
+
+        await using var reopenedReplica = CdcSnapshotReplica.Open(replicaPath, descriptor, replicaOptions);
+        await using var reopenedSpool = new CdcEventSpool(spoolPath, spoolOptions);
+        Assert.Equal(new CdcCheckpoint(7, 5), reopenedReplica.GetState().AppliedCheckpoint);
+        Assert.Equal(new CdcCheckpoint(7, 5), reopenedSpool.AcknowledgedCheckpoint);
+        Assert.Equal(0, reopenedSpool.EventCount);
+    }
+
     [Fact]
     public async Task M43_CdcPartialSnapshot_HardKill_ReopensAndResumesAtCommittedOrdinal()
     {

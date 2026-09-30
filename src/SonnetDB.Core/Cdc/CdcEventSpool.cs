@@ -174,6 +174,21 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>当前每个分区已持久追加的最大 offset；返回值是独立快照。</summary>
+    public IReadOnlyDictionary<long, long> PartitionHighWatermarks
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                var result = new Dictionary<long, long>(_partitions.Count);
+                foreach ((long partition, PartitionState state) in _partitions)
+                    result.Add(partition, state.HighWatermark);
+                return new ReadOnlyDictionary<long, long>(result);
+            }
+        }
+    }
+
     /// <summary>
     /// 当 spool 只有一个已确认分区时返回该位点；多分区时返回空值。
     /// </summary>
