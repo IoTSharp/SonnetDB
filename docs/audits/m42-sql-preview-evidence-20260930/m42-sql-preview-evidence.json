@@ -1,0 +1,183 @@
+{
+  "schema": "m42-sql-preview-evidence-v1",
+  "mode": "local_full",
+  "startedUtc": "2026-09-30T08:04:39.6023946+00:00",
+  "finishedUtc": "2026-09-30T08:04:43.315528+00:00",
+  "rowCount": 20000,
+  "payloadLength": 512,
+  "previewRows": 100,
+  "previewMaxBytes": 16777216,
+  "iterations": 5,
+  "sql": "SELECT id, payload FROM m42_preview_rows",
+  "framework": ".NET 10.0.12",
+  "os": "Microsoft Windows 10.0.26200",
+  "architecture": "X64",
+  "processorCount": 22,
+  "processId": 103892,
+  "processStartedUtc": "2026-09-30T08:04:39.5152848Z",
+  "buildVersion": "0.0.0-dev\u002Bdaba5a4459463a6c85a5200bf1b551fb882a59c7",
+  "fullCore": [
+    {
+      "elapsedMs": 52.7825,
+      "allocatedBytes": 38419464,
+      "sampledPeakHeapDeltaBytes": 22824128,
+      "postExecutionHeapDeltaBytes": 22824128,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "elapsedMs": 56.555,
+      "allocatedBytes": 38683256,
+      "sampledPeakHeapDeltaBytes": 23096112,
+      "postExecutionHeapDeltaBytes": 23096112,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "elapsedMs": 51.3254,
+      "allocatedBytes": 38682232,
+      "sampledPeakHeapDeltaBytes": 22938920,
+      "postExecutionHeapDeltaBytes": 22938920,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "elapsedMs": 53.6201,
+      "allocatedBytes": 38682232,
+      "sampledPeakHeapDeltaBytes": 23095248,
+      "postExecutionHeapDeltaBytes": 23095248,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "elapsedMs": 46.0902,
+      "allocatedBytes": 38419464,
+      "sampledPeakHeapDeltaBytes": 22662832,
+      "postExecutionHeapDeltaBytes": 22662832,
+      "returnedRows": 20000,
+      "truncated": false
+    }
+  ],
+  "previewCore": [
+    {
+      "elapsedMs": 34.3837,
+      "allocatedBytes": 632760,
+      "sampledPeakHeapDeltaBytes": 648920,
+      "postExecutionHeapDeltaBytes": 648920,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "elapsedMs": 0.39,
+      "allocatedBytes": 312664,
+      "sampledPeakHeapDeltaBytes": 328920,
+      "postExecutionHeapDeltaBytes": 328920,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "elapsedMs": 0.5664,
+      "allocatedBytes": 313688,
+      "sampledPeakHeapDeltaBytes": 328416,
+      "postExecutionHeapDeltaBytes": 328416,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "elapsedMs": 0.49,
+      "allocatedBytes": 312664,
+      "sampledPeakHeapDeltaBytes": 328920,
+      "postExecutionHeapDeltaBytes": 328920,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "elapsedMs": 0.5772,
+      "allocatedBytes": 312664,
+      "sampledPeakHeapDeltaBytes": 328920,
+      "postExecutionHeapDeltaBytes": 328920,
+      "returnedRows": 100,
+      "truncated": true
+    }
+  ],
+  "fullRest": [
+    {
+      "firstBodyByteMs": 102.3624,
+      "completeMs": 204.6642,
+      "bodyBytes": 10449287,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "firstBodyByteMs": 91.7404,
+      "completeMs": 164.2149,
+      "bodyBytes": 10449287,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "firstBodyByteMs": 73.6127,
+      "completeMs": 146.546,
+      "bodyBytes": 10449287,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "firstBodyByteMs": 58.2979,
+      "completeMs": 128.0449,
+      "bodyBytes": 10449287,
+      "returnedRows": 20000,
+      "truncated": false
+    },
+    {
+      "firstBodyByteMs": 67.9188,
+      "completeMs": 128.7033,
+      "bodyBytes": 10449286,
+      "returnedRows": 20000,
+      "truncated": false
+    }
+  ],
+  "previewRest": [
+    {
+      "firstBodyByteMs": 2.661,
+      "completeMs": 3.9099,
+      "bodyBytes": 52380,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "firstBodyByteMs": 2.3853,
+      "completeMs": 3.1098,
+      "bodyBytes": 52380,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "firstBodyByteMs": 1.8548,
+      "completeMs": 2.395,
+      "bodyBytes": 52380,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "firstBodyByteMs": 1.7378,
+      "completeMs": 2.2524,
+      "bodyBytes": 52380,
+      "returnedRows": 100,
+      "truncated": true
+    },
+    {
+      "firstBodyByteMs": 3.2291,
+      "completeMs": 4.1583,
+      "bodyBytes": 52380,
+      "returnedRows": 100,
+      "truncated": true
+    }
+  ],
+  "caveats": [
+    "Local synthetic comparison only; it is not fixed-hardware or production SLO evidence.",
+    "Core allocation is synchronous-thread allocation. Sampled and immediate post-execution heap deltas are observations, not retained heap or a CLR heap hard bound.",
+    "REST time to first body byte includes SQL execution and current NDJSON buffering; it does not prove row streaming.",
+    "Full and preview samples alternate after one warmup per path. The client and Kestrel share one process."
+  ]
+}

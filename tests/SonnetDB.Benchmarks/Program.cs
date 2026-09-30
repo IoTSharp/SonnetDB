@@ -27,6 +27,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
+//   dotnet run -c Release -- --m42-sql-preview-evidence --quick --output artifacts/m42-sql-preview （SQL-002 本地对照）
 //   dotnet run -c Release -- --model-read-latency-evidence --quick --output artifacts/model-read-latency （KV/Document/Object 请求级 P50/P95/P99）
 //   dotnet run -c Release -- --m36-object-validation-evidence --quick --output artifacts/m36-object-validation （#323 本机预检，不是固定硬件容量通过）
 //   dotnet run -c Release -- --m36-verify-object-validation <report> （验证 #323 本机预检报告边界）
@@ -287,6 +288,17 @@ if (args.Contains("--m41-production-closeout", StringComparer.OrdinalIgnoreCase)
         + $"release-decision={report.ReleaseDecision} deferred={report.DeferredValidations.Count}");
     if (report.LocalCloseout != M41ProductionCloseoutStatus.Pass)
         Environment.ExitCode = 1;
+    return;
+}
+
+if (args.Contains("--m42-sql-preview-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m42-sql-preview-evidence"));
+    bool quick = args.Contains("--quick", StringComparer.OrdinalIgnoreCase);
+    using var timeout = new CancellationTokenSource(quick ? TimeSpan.FromMinutes(2) : TimeSpan.FromMinutes(5));
+    string reportPath = await M42SqlPreviewEvidenceRunner.RunAsync(
+        outputDirectory, quick, timeout.Token).ConfigureAwait(false);
+    Console.WriteLine($"m42-sql-preview-evidence=PASS output={reportPath} mode={(quick ? "quick" : "local")}");
     return;
 }
 

@@ -331,6 +331,12 @@ public sealed class SqlExecutionResourceOptions
     /// </summary>
     public int MaxResultRows { get; set; } = 10_000;
 
+    /// <summary>
+    /// REST SQL 显式预览中可早停单表 SELECT 的保留行估算字节上限，默认 16 MiB；
+    /// 不约束阻塞查询、其它模型或 RETURNING，也不代表响应字节数或 CLR heap 硬上限。
+    /// </summary>
+    public long MaxPreviewBytes { get; set; } = 16L * 1024 * 1024;
+
     /// <summary>每条调用链同时存活的 transition set 行数上限。</summary>
     public int MaxTriggerTransitionRows { get; set; } = 100_000;
 

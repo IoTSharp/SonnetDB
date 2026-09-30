@@ -1249,7 +1249,12 @@ internal static class TableSqlExecutor
         };
     }
 
-    public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)
+    public static SelectExecutionResult ExecuteSelect(
+        Tsdb tsdb,
+        SelectStatement statement,
+        TableSchema schema,
+        int? previewMaxRows = null,
+        long? previewMaxBytes = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -1261,6 +1266,18 @@ internal static class TableSqlExecutor
         if (statement.GroupBy.Count != 0)
             throw new InvalidOperationException("关系表 MVP 暂不支持 GROUP BY。");
 
+        bool streamingPreview = previewMaxRows is not null
+            && !SqlRowRetentionBudget.HasExecutionBudget
+            && !statement.Distinct
+            && statement.OrderByList.Count == 0
+            && statement.FromSubquery is null
+            && statement.JoinClauses.Count == 0
+            && (statement.Where is null
+                || (!ContainsDisjunctionOrIn(statement.Where)
+                    && !ContainsPreviewFunction(statement.Where)))
+            && !statement.Projections.Any(projection => ContainsPreviewFunction(projection.Expression))
+            && (SqlTransactionContext.Current is not { } transaction
+                || !transaction.TryGetBufferedMutations(schema.Name, out _));
         var projections = BuildProjections(statement.Projections, schema);
         var hiddenOrderColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
         var (rows, rangeOrderSatisfied) = LoadSelectCandidateRowsForStatement(
@@ -1292,7 +1309,10 @@ internal static class TableSqlExecutor
         var projected = statement.Distinct
             ? DistinctRows(ProjectMatchingRows())
             : ProjectMatchingRows();
-        var ordered = rangeOrderSatisfied
+        var ordered = streamingPreview
+            ? ApplyPreviewPagination(columns, projected, statement.Pagination,
+                previewMaxRows!.Value, previewMaxBytes ?? long.MaxValue)
+            : rangeOrderSatisfied
             ? ApplyPagination(columns, projected, statement.Pagination)
             : statement.OrderByList.Count == 0
                 ? ApplyPagination(columns, projected, statement.Pagination)
@@ -4177,6 +4197,7 @@ internal static class TableSqlExecutor
             BinaryExpression binary => ContainsDisjunctionOrIn(binary.Left)
                 || ContainsDisjunctionOrIn(binary.Right),
             InExpression => true,
+            CastExpression cast => ContainsDisjunctionOrIn(cast.Operand),
             UnaryExpression unary => ContainsDisjunctionOrIn(unary.Operand),
             IsNullExpression isNull => ContainsDisjunctionOrIn(isNull.Operand),
             FunctionCallExpression function => function.Arguments.Any(ContainsDisjunctionOrIn),
@@ -4186,6 +4207,26 @@ internal static class TableSqlExecutor
                     || ContainsDisjunctionOrIn(clause.Result))
                 || (@case.Else is not null && ContainsDisjunctionOrIn(@case.Else)),
             SubqueryExpression or ExistsExpression => true,
+            _ => false,
+        };
+
+    private static bool ContainsPreviewFunction(SqlExpression expression)
+        => expression switch
+        {
+            FunctionCallExpression or SubqueryExpression or ExistsExpression => true,
+            CastExpression cast => ContainsPreviewFunction(cast.Operand),
+            UnaryExpression unary => ContainsPreviewFunction(unary.Operand),
+            BinaryExpression binary => ContainsPreviewFunction(binary.Left)
+                || ContainsPreviewFunction(binary.Right),
+            IsNullExpression isNull => ContainsPreviewFunction(isNull.Operand),
+            InExpression membership => ContainsPreviewFunction(membership.Value)
+                || membership.Values.Any(ContainsPreviewFunction)
+                || membership.Subquery is not null,
+            NamedArgumentExpression named => ContainsPreviewFunction(named.Value),
+            CaseExpression @case => @case.WhenClauses.Any(static clause =>
+                    ContainsPreviewFunction(clause.Condition)
+                    || ContainsPreviewFunction(clause.Result))
+                || (@case.Else is not null && ContainsPreviewFunction(@case.Else)),
             _ => false,
         };
 
@@ -6025,6 +6066,46 @@ internal static class TableSqlExecutor
             SqlRowRetentionBudget.Current?.Retain(row);
             selected.Add(row);
             if (selected.Count >= take)
+                break;
+        }
+
+        return new SelectExecutionResult(columns, selected);
+    }
+
+    private static SelectExecutionResult ApplyPreviewPagination(
+        IReadOnlyList<string> columns,
+        IEnumerable<IReadOnlyList<object?>> rows,
+        PaginationSpec? pagination,
+        int maxRows,
+        long maxBytes)
+    {
+        int offset = pagination?.Offset ?? 0;
+        int? fetch = pagination?.Fetch;
+        var selected = new List<IReadOnlyList<object?>>(Math.Min(maxRows, 256));
+        if (fetch is 0)
+            return new SelectExecutionResult(columns, selected);
+
+        int skipped = 0;
+        long retainedBytes = 0;
+        foreach (IReadOnlyList<object?> row in rows)
+        {
+            if (skipped < offset)
+            {
+                skipped++;
+                continue;
+            }
+
+            if (selected.Count == maxRows)
+                return new SelectExecutionResult(columns, selected) { Truncated = true };
+
+            long rowBytes = SqlSpillRowCodec.EstimateRowBytes(row);
+            if (rowBytes > maxBytes - retainedBytes)
+                return new SelectExecutionResult(columns, selected) { Truncated = true };
+
+            SqlRowRetentionBudget.Current?.Retain(row);
+            selected.Add(row);
+            retainedBytes += rowBytes;
+            if (fetch is { } limit && selected.Count >= limit)
                 break;
         }
 

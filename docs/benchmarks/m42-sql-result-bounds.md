@@ -50,6 +50,27 @@ var result = SqlExecutor.Execute(database, null,
 
 `SqlMaterializationBudgetTests` 覆盖默认完整结果、精确行/字符串字节边界、大二进制值、0/负值、提前停止扫描、自动提交/显式事务 RETURNING 提前拒绝且数据不变、read-your-writes、嵌套/CTE/集合/递归预算共享、五类阻塞路径、spill 清理、EXPLAIN/ANALYZE、取消、并发 worker 计费，以及预检在扫描/用户回调前拒绝未支持路径。Release `/warnaserror` 定向回归最终 181/181，其中新增预算 36/36；合并 SQL/CDC/Streaming 回归 1746/1746。[并行实施记录](../audits/roadmap-parallel-implementation-20260930.md)保留原始结果与首轮夹具失败说明。
 
+## 单表 REST 预览的执行期早停
+
+在执行期早停适用范围内，显式 `previewMaxRows` 请求还受 `SonnetDBServer:SqlExecution:MaxPreviewBytes` 约束，默认 16 MiB，配置绑定范围 1 字节到 1 GiB。它按保留行的 SQL 内部估算值计费，不是 NDJSON 编码字节数或 CLR heap 硬上限。若下一行超过行数或字节预算，返回已保留的完整前缀和 `truncated=true`；首行超过字节预算时可返回零行并标为截断。恰好用尽预算且查询结束时不标为截断。
+
+执行期早停只覆盖顶层、直接关系表、可惰性读取的非阻塞 `SELECT`；支持不改变原候选顺序的 `WHERE`、`OFFSET`、`LIMIT`。`IN`/`OR`、函数表达式、全量排序、去重、JOIN、聚合、子查询、CTE、窗口或事务缓冲行合并沿用执行后预览行数裁剪，不宣称执行期有界。未提供预览的 REST、Frame、嵌入式和 DML `RETURNING` 保持原语义及完整影响行数。此预览合同与上述 `MaxMaterializedRows` / `MaxMaterializedBytes` 不共享“超限拒绝”语义。
+
+早停预览只求值到判定截断所需的下一行。`truncated=true` 表示返回的是查询前缀，不证明尚未读取的行能完成表达式求值；后续行的 CAST 等错误仍会由完整查询报告。需要验证全量查询的调用方不能以成功预览代替完整执行。
+
+2026-09-30 定向测试新增 Core 8 项与真实 Kestrel Server 10 项，覆盖 N/N+1、估算字节边界、WHERE/OFFSET/LIMIT、IN/DISTINCT/CTE/UDF 回退、后段 CAST 错误、默认完整结果、ADO/Frame 兼容和取消后资源释放。相关 Release 回归分别为 Core 226/226、Server 116/116；Server `win-x64` NativeAOT 发布通过，输出无警告，使用 `BuildAdminUi=false`。这些是功能与 AOT 合同结果，不是固定硬件 heap 或延迟门禁。
+
+## 本机合成对照（非门禁）
+
+可重跑的 `--m42-sql-preview-evidence` runner 在同一数据库上交替执行完整结果与预览，并通过同进程真实 Kestrel 读取 NDJSON 首个 body 字节。2026-09-30 Windows x64 / .NET 10.0.12 本机样本为 20,000 行、每行 512 字符、预览 100 行，每条路径 5 次；以下为 P50：
+
+| 路径 | Core 执行 ms | Core 同步线程分配 | 采样托管堆峰值增量 | REST 首字节 ms | REST 完成 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 完整结果 | 52.782 | 38,682,232 B | 22,938,920 B | 73.613 | 146.546 |
+| 显式预览 | 0.566 | 312,664 B | 328,920 B | 2.385 | 3.110 |
+
+[原始五次样本与环境 JSON](../audits/m42-sql-preview-evidence-20260930/m42-sql-preview-evidence.json)、[摘要报告](../audits/m42-sql-preview-evidence-20260930/m42-sql-preview-evidence.md)。报告的程序集 `buildVersion` 记录运行时基底提交 `daba5a44`；采样时本轮 M42 改动仍在工作树中，不能把该字段当作最终提交身份。同步线程分配和采样托管堆都是观测值，既非所有线程分配总量，也非进程峰值或 GC 后保留量。HTTP 客户端与服务端同进程；首字节时间包含当前 SQL 执行和 NDJSON 缓冲，不代表逐行流式输出或生产网络延迟。
+
 ## 未覆盖的内存与性能边界
 
-执行器仍先生成完整 `SelectExecutionResult`。REST 预览减少传输行数和 Web 留存行数；新 Core 预算提供受支持的关系 SELECT 物化准入与超限拒绝。两者都**不保证 CLR heap 精确硬上限或首行延迟**：解析/绑定、已有表 snapshot、存储页/索引底层缓存、单行 decode 和 scalar expression 求值的瞬时分配、spill 游标缓冲等不等同于物化估算。DML RETURNING 执行预算、其它数据模型、端到端流式执行、大结果 heap/首行延迟基准、断连压力与固定目标硬件证据仍未闭环。不得将此文或合同测试用作完整 SQL-002、M42 或生产门禁完成证据。
+除上述可惰性读取的预览切片外，执行器仍先生成完整 `SelectExecutionResult`。新 Core 预算提供受支持的关系 SELECT 物化准入与超限拒绝。两者都**不保证 CLR heap 精确硬上限或首行延迟**：解析/绑定、已有表 snapshot、存储页/索引底层缓存、单行 decode 和 scalar expression 求值的瞬时分配、spill 游标缓冲等不等同于物化估算。DML RETURNING 执行预算、其它数据模型、端到端流式执行、断连压力、固定目标硬件的大结果 heap/首字节与长稳证据仍未闭环。不得将本机合成对照或合同测试用作完整 SQL-002、M42 或生产门禁完成证据。

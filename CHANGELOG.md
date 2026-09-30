@@ -8,6 +8,7 @@
 ## [Unreleased]
 ### Added
 - Measurement schema-on-write 增加数据库总 measurement 数、单 measurement 列数和单次写入新增列数上限；支持 `Disabled`、`CreateOnly`、`CreateAndEvolve` 全局及按 measurement 覆盖。新增稳定内容 revision、进程内有界审计事件、扩列/类型提升/拒绝指标，并向 REST、SDK、MCP 与管理后台提供缓存刷新依据。关系表未知列自动 DDL 的独立 opt-in 边界见 [设计文档](docs/design/relational-auto-ddl-opt-in.md)，当前默认仍严格拒绝。
+- **M42 SQL-002 单表预览早停**：显式 REST 预览的可惰性关系表 SELECT 在执行阶段按行数和估算字节预算保留前缀，并准确报告截断；默认 16 MiB 字节预算可配置。复杂阻塞查询、其它模型及 DML RETURNING 保留现有结果合同；物化估算不等于 CLR heap 硬上限或端到端流式执行。
 - **M43 #385~#390 本地真实 CDC 源切片（2026-09-30）**：新增 `CdcSourceReadView` 从文档集合的稳定 KV 读快照生成固定行集，并以 `OpenExisting` 校验及恢复创建结果未知时的持久 descriptor；`CdcDocumentSourceCapture` 将单集合持久 change feed 按 spool 高水位转换为版本化事件，`CdcLocalReplicaPump` 每次有界推进一页快照或一批增量并协调接收端提交与 spool ACK。文档主数据、change feed 和序号由集合写入路径在同一 KV batch 提交。范围限于单源/单实体/单分区；捕获调度仍由调用方负责，多分区、远程拓扑、冲突和生产门禁仍待补。
 - **M43 #386 本地快照/增量接收端（2026-09-30）**：新增有界 `CdcSnapshotReplica`，提供固定快照分页恢复、完整计数切换、同源/schema/分区连续增量的原子物化与位点恢复，复用 CDC spool 保留复制期间的增量；接收端本身不调度源捕获，也不提供多分区切换、冲突或远程复制拓扑。
 - **M43 #392 持久订阅（2026-09-30）**：新增 `FileStreamingSubscription`，复用 CDC spool 与条件 checkpoint 保存事件、watermark、发布完成标记及未确认批次；重开协调中断的 ACK，恢复扫描协作检查取消/操作超时，支持有界容量、可取消背压、稳定投递 ID 与至少一次重投，保留窗口聚合、远程运维和分布式边界。

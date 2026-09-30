@@ -72,6 +72,12 @@ public sealed record SqlExecutionOptions
     /// </summary>
     public long? MaxMaterializedBytes { get; init; }
 
+    /// <summary>REST 显式预览的内部行数上限；仅顶层单表 SELECT 可在执行期早停。</summary>
+    internal int? PreviewMaxRows { get; init; }
+
+    /// <summary>REST 显式预览的估算结果保留字节上限；不代表物理堆内存上限。</summary>
+    internal long? PreviewMaxBytes { get; init; }
+
     /// <summary>是否允许在估算收益成立且资源足够时启用受控 SQL 并行。</summary>
     public bool EnableParallelism { get; init; } = true;
 
@@ -112,6 +118,12 @@ public sealed record SqlExecutionOptions
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(materializedRows);
         if (MaxMaterializedBytes is { } materializedBytes)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(materializedBytes);
+        if (PreviewMaxRows is { } previewRows)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(previewRows);
+        if (PreviewMaxBytes is { } previewBytes)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(previewBytes);
+        if (PreviewMaxBytes is not null && PreviewMaxRows is null)
+            throw new ArgumentException("预览字节预算需要同时指定预览行数预算。", nameof(PreviewMaxBytes));
         if (MaxDegreeOfParallelism is { } degree)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
         if (ParallelismMinRows is { } minRows)

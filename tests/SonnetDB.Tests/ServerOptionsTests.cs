@@ -85,6 +85,20 @@ public sealed class ServerOptionsTests
         Assert.Equal(timeout, options.TransactionCommitTimeoutMilliseconds);
     }
 
+    [Theory]
+    [InlineData("0", 1L)]
+    [InlineData("1024", 1024L)]
+    [InlineData("9223372036854775807", 1024L * 1024 * 1024)]
+    public void Bind_WithPreviewByteBudget_ClampsToSupportedRange(string requested, long expected)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:SqlExecution:MaxPreviewBytes"] = requested,
+        }).Build();
+
+        Assert.Equal(expected, ServerOptionsBinder.Bind(configuration).SqlExecution.MaxPreviewBytes);
+    }
+
     [Fact]
     public void Defaults_UseProductionObservabilitySettings()
     {
@@ -101,6 +115,7 @@ public sealed class ServerOptionsTests
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
         Assert.Equal(SqlMemoryOptions.Default.QueryLimitBytes, options.SqlExecution.QueryLimitBytes);
+        Assert.Equal(16L * 1024 * 1024, options.SqlExecution.MaxPreviewBytes);
         Assert.Equal(SqlMemoryOptions.Default.GlobalLimitBytes, options.SqlExecution.GlobalLimitBytes);
         Assert.Equal(SqlMemoryOptions.Default.MaxParallelWorkers, options.SqlExecution.MaxParallelWorkers);
         Assert.Equal(SqlMemoryOptions.Default.ParallelismMinRows, options.SqlExecution.ParallelismMinRows);

@@ -404,6 +404,7 @@ public static class SqlExecutor
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
         EnsureModbusAdministrationAllowed(statement, options);
 
+        bool isRootStatement = RoutineExecutionContext.Current is null;
         using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, options);
         using var materializationScope = SqlRowRetentionBudget.EnterExecution(options);
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
@@ -464,7 +465,9 @@ public static class SqlExecutor
             InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(tsdb, insertGraph),
             UpdateGraphStatement updateGraph => GraphSqlExecutor.UpdateGraph(tsdb, updateGraph),
             DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(tsdb, deleteGraph),
-            SelectStatement select => ExecuteSelect(tsdb, select),
+            SelectStatement select => ExecuteSelect(tsdb, select,
+                isRootStatement ? options.PreviewMaxRows : null,
+                isRootStatement ? options.PreviewMaxBytes : null),
             CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
             ExplainRoutineStatement explainRoutine => SqlRoutineRuntime.ExplainRoutine(tsdb, explainRoutine),
             ShowRoutineDiagnosticsStatement showRoutine => ShowRoutineDiagnostics(tsdb, showRoutine),
@@ -1781,6 +1784,13 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">measurement 不存在 / WHERE 包含不支持的表达式 / 投影违规等。</exception>
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement)
+        => ExecuteSelect(tsdb, statement, previewMaxRows: null, previewMaxBytes: null);
+
+    private static SelectExecutionResult ExecuteSelect(
+        Tsdb tsdb,
+        SelectStatement statement,
+        int? previewMaxRows,
+        long? previewMaxBytes)
     {
         using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -1811,7 +1821,9 @@ public static class SqlExecutor
             return ApplyCteOutputColumnNames(ExecuteUnion(tsdb, statement), statement.CteOutputColumnNames);
 
         if (!statement.Distinct)
-            return ApplyCteOutputColumnNames(ExecuteSelectDispatch(tsdb, statement), statement.CteOutputColumnNames);
+            return ApplyCteOutputColumnNames(
+                ExecuteSelectDispatch(tsdb, statement, previewMaxRows, previewMaxBytes),
+                statement.CteOutputColumnNames);
 
         // 单表且排序键已在投影中的 DISTINCT 可安全下推到表执行器，按过滤→去重→Top-N 流式执行。
         // 隐藏排序列、JOIN、子查询等路径仍保留统一收敛点，避免改变 SQL 语义。
@@ -2159,7 +2171,11 @@ public static class SqlExecutor
         }
     }
 
-    private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
+    private static SelectExecutionResult ExecuteSelectDispatch(
+        Tsdb tsdb,
+        SelectStatement statement,
+        int? previewMaxRows = null,
+        long? previewMaxBytes = null)
     {
         EnsureMaterializationSourceSupported(tsdb, statement);
         if (RecursiveCteScope.Find(statement.Measurement) is not null)
@@ -2210,7 +2226,7 @@ public static class SqlExecutor
             return DocumentSqlExecutor.ExecuteSelect(tsdb, statement, documentSchema);
 
         if (tableSchema is not null)
-            return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema);
+            return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema, previewMaxRows, previewMaxBytes);
 
         return SelectExecutor.Execute(tsdb, statement);
     }

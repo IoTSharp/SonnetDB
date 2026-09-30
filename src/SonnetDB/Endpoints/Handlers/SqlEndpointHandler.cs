@@ -344,6 +344,8 @@ internal static class SqlEndpointHandler
                                 MaxDeferredTriggerInvocations = routineOptions.MaxDeferredTriggerInvocations,
                                 MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
                                 TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
+                                PreviewMaxRows = previewMaxRows,
+                                PreviewMaxBytes = previewMaxRows is null ? null : routineOptions.MaxPreviewBytes,
                                 Metrics = executionMetrics,
                             }),
                     };
