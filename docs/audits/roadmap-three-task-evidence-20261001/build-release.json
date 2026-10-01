@@ -1,0 +1,420 @@
+{
+  "Name": "build-release",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 190.555,
+  "Processes": [
+    {
+      "ProcessId": 57320,
+      "ParentProcessId": 23172,
+      "CreationDate": "2026-10-01T16:05:51.368683+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 63904,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:05:51.374808+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 62924,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:05:51.872385+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 78880,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:05:51.878391+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 43660,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:05:52.661902+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp01f2d837ec684c6486246c9f57d5f824.rsp\""
+    },
+    {
+      "ProcessId": 80712,
+      "ParentProcessId": 43660,
+      "CreationDate": "2026-10-01T16:05:52.678029+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 82568,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:05:53.187669+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmpcd4caf8a9add4c7eb4630bcd57dc5217.rsp\""
+    },
+    {
+      "ProcessId": 79944,
+      "ParentProcessId": 82568,
+      "CreationDate": "2026-10-01T16:05:53.194108+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 4008,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:05:54.915316+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp1fd40edc29e74c31abac885f5345b662.rsp\""
+    },
+    {
+      "ProcessId": 77772,
+      "ParentProcessId": 4008,
+      "CreationDate": "2026-10-01T16:05:54.920524+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 52904,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:05:58.338389+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpb6a8e65b76354f87ac5b8b3cd8728f17.rsp\""
+    },
+    {
+      "ProcessId": 81980,
+      "ParentProcessId": 52904,
+      "CreationDate": "2026-10-01T16:05:58.363155+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 60884,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:03.716484+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp06141ef39b2b48129f81f74cd07ba52f.rsp\""
+    },
+    {
+      "ProcessId": 76344,
+      "ParentProcessId": 60884,
+      "CreationDate": "2026-10-01T16:06:03.724671+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 1428,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:07.916562+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpe58ebb33daec466cb296c6df5a319e89.rsp\""
+    },
+    {
+      "ProcessId": 77016,
+      "ParentProcessId": 1428,
+      "CreationDate": "2026-10-01T16:06:07.925779+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 78964,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:17.445264+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpf3993c94695c4f189e79167ae02110f3.rsp\""
+    },
+    {
+      "ProcessId": 19676,
+      "ParentProcessId": 78964,
+      "CreationDate": "2026-10-01T16:06:17.452303+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 59228,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:21.734038+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp0017f11ae16a44f48e5daddd67784016.rsp\""
+    },
+    {
+      "ProcessId": 82876,
+      "ParentProcessId": 59228,
+      "CreationDate": "2026-10-01T16:06:21.740707+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 65380,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:22.787935+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp3d424f659891431eae9e9933ecce79d8.rsp\""
+    },
+    {
+      "ProcessId": 52452,
+      "ParentProcessId": 65380,
+      "CreationDate": "2026-10-01T16:06:22.794603+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71324,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:24.309006+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp23d43c750dba4d21a66b4225251cc9ed.rsp\""
+    },
+    {
+      "ProcessId": 82464,
+      "ParentProcessId": 71324,
+      "CreationDate": "2026-10-01T16:06:24.315478+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 59488,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:29.650778+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp8ad8291692b24a338c6f1b7c34cbd12b.rsp\""
+    },
+    {
+      "ProcessId": 58684,
+      "ParentProcessId": 59488,
+      "CreationDate": "2026-10-01T16:06:29.658795+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 80548,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:32.351165+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 79180,
+      "ParentProcessId": 80548,
+      "CreationDate": "2026-10-01T16:06:32.358881+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 77032,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:32.364035+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp4a9a61ad9e2047dcad4faf68380f9c6a.rsp\""
+    },
+    {
+      "ProcessId": 73140,
+      "ParentProcessId": 77032,
+      "CreationDate": "2026-10-01T16:06:32.370318+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 76860,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:35.795408+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp1a80689e3e234d81b3fbfa05ec4cbad8.rsp\""
+    },
+    {
+      "ProcessId": 80144,
+      "ParentProcessId": 76860,
+      "CreationDate": "2026-10-01T16:06:35.802187+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 77516,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:36.657817+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpc40a59505c864370bb778f7e2c5b3bd6.rsp\""
+    },
+    {
+      "ProcessId": 74192,
+      "ParentProcessId": 77516,
+      "CreationDate": "2026-10-01T16:06:36.665321+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47400,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:40.338099+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 25348,
+      "ParentProcessId": 47400,
+      "CreationDate": "2026-10-01T16:06:40.343523+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 42280,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:40.604858+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 55680,
+      "ParentProcessId": 42280,
+      "CreationDate": "2026-10-01T16:06:40.611774+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 76904,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:44.403507+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp85b60e61d17648aaa5217354f97b8792.rsp\""
+    },
+    {
+      "ProcessId": 79600,
+      "ParentProcessId": 76904,
+      "CreationDate": "2026-10-01T16:06:44.410655+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70756,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:45.934981+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp6747a81caf174198987828905949005d.rsp\""
+    },
+    {
+      "ProcessId": 69572,
+      "ParentProcessId": 70756,
+      "CreationDate": "2026-10-01T16:06:45.942318+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68244,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:47.483066+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp9dff0af9d5d745928171fff97a5de695.rsp\""
+    },
+    {
+      "ProcessId": 52396,
+      "ParentProcessId": 68244,
+      "CreationDate": "2026-10-01T16:06:47.490271+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47764,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:48.925835+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpfcce96db5bee4a5ebd29d9127167b515.rsp\""
+    },
+    {
+      "ProcessId": 72712,
+      "ParentProcessId": 47764,
+      "CreationDate": "2026-10-01T16:06:48.951228+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74036,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:51.362578+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp45b3c6e750e74eb9bac3d839c3e1852c.rsp\""
+    },
+    {
+      "ProcessId": 69044,
+      "ParentProcessId": 74036,
+      "CreationDate": "2026-10-01T16:06:51.383739+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 49388,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:06:52.943617+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpa2291958716245c4bc340bd9d3a4e607.rsp\""
+    },
+    {
+      "ProcessId": 77304,
+      "ParentProcessId": 49388,
+      "CreationDate": "2026-10-01T16:06:52.95257+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 77860,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:55.387548+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 81456,
+      "ParentProcessId": 77860,
+      "CreationDate": "2026-10-01T16:06:55.396071+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 79816,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:06:59.011494+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp02dd5f2db41e416baf81b442ae407eaa.rsp\""
+    },
+    {
+      "ProcessId": 33528,
+      "ParentProcessId": 79816,
+      "CreationDate": "2026-10-01T16:06:59.017933+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 31488,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:07:10.38237+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmp99ea0cb9076f447a8a09cf53dbc92df4.rsp\""
+    },
+    {
+      "ProcessId": 63660,
+      "ParentProcessId": 31488,
+      "CreationDate": "2026-10-01T16:07:10.389034+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 52812,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:07:40.762371+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 62740,
+      "ParentProcessId": 52812,
+      "CreationDate": "2026-10-01T16:07:40.767756+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 5804,
+      "ParentProcessId": 62924,
+      "CreationDate": "2026-10-01T16:07:44.920029+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempy2mcqsir.ehr\\tmpd8b17eb7707f4b8c8212cf5ea39e63c7.rsp\""
+    },
+    {
+      "ProcessId": 68164,
+      "ParentProcessId": 5804,
+      "CreationDate": "2026-10-01T16:07:44.927575+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53664,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:07:53.666272+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmpfe4f14d67f474d0d96731b8ac83536ba.rsp\""
+    },
+    {
+      "ProcessId": 55724,
+      "ParentProcessId": 53664,
+      "CreationDate": "2026-10-01T16:07:53.672758+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 50520,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:07:57.674643+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp634773bbf7c445cd8accff1f5de0e0ce.rsp\""
+    },
+    {
+      "ProcessId": 66724,
+      "ParentProcessId": 50520,
+      "CreationDate": "2026-10-01T16:07:57.681108+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 32508,
+      "ParentProcessId": 57320,
+      "CreationDate": "2026-10-01T16:07:59.77916+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempmvsnb2cg.hpj\\tmp27eba3bd8a7a4a0cb54d9abeb9d10a66.rsp\""
+    },
+    {
+      "ProcessId": 44308,
+      "ParentProcessId": 32508,
+      "CreationDate": "2026-10-01T16:07:59.785921+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

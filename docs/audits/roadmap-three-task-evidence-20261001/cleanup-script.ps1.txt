@@ -1,0 +1,107 @@
+param([switch]$Smoke)
+$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
+$taskRoot = 'C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95'
+$shortTemp = 'C:\Temp\sdb3-4eff9296'
+$evidenceRoot = 'D:\source\SonnetDB\docs\audits\roadmap-three-task-evidence-20261001'
+$owner = '4eff92966347481daaf27153e9fadd95'
+$watch = [Diagnostics.Stopwatch]::StartNew()
+function Assert-CleanupBound {
+    if ($watch.Elapsed.TotalSeconds -ge 110) { throw 'Cleanup exceeded 110 seconds.' }
+}
+if ((Get-Content -LiteralPath (Join-Path $evidenceRoot '.task-owner') -Raw).Trim() -ne $owner) { throw 'Evidence ownership mismatch.' }
+if ($Smoke) {
+    $smokePath = [IO.Path]::GetFullPath((Join-Path $taskRoot 'cleanup-smoke'))
+    if ($smokePath -ne ($taskRoot + '\cleanup-smoke')) { throw 'Smoke path mismatch.' }
+    try {
+        [void][IO.Directory]::CreateDirectory($smokePath)
+        [IO.File]::WriteAllText((Join-Path $smokePath '.task-owner'),$owner)
+        foreach ($target in @($smokePath)) {
+            Assert-CleanupBound
+            if ((Get-Content -LiteralPath (Join-Path $target '.task-owner') -Raw).Trim() -ne $owner) { throw 'Smoke ownership mismatch.' }
+            Remove-Item -LiteralPath $target -Recurse -Force
+        }
+        Write-Output ('Cleanup smoke passed in {0:N1}s.' -f $watch.Elapsed.TotalSeconds)
+    }
+    finally {
+        if ([IO.Directory]::Exists($smokePath)) { throw ('Smoke directory retained: ' + $smokePath) }
+    }
+    exit 0
+}
+$cleanup = [ordered]@{
+    schemaVersion=1;taskOwner=$owner;checkedAt=[DateTimeOffset]::Now.ToString('o');executionMetadata='cleanup-run.json'
+    powershell=$PSVersionTable.PSVersion.ToString();processIdentityFields=@('ProcessId','CreationDate','CommandLine','ParentProcessId')
+    recordedProcessCount=0;matchingLiveProcesses=@();unverifiedTaskPathProcesses=@();terminatedProcesses=@();removedDirectories=@();retainedObjects=@()
+    sharedCachesAndUserProcesses='No process-name termination or shared cache/user file deletion; only two exact task directories.'
+    status='IN_PROGRESS'
+}
+try {
+    $validation = Get-Content -LiteralPath (Join-Path $evidenceRoot 'validation.json') -Raw | ConvertFrom-Json
+    if ($validation.runs.Count -gt 32) { throw 'Run item bound exceeded.' }
+    $records = [Collections.Generic.List[object]]::new()
+    foreach ($run in $validation.runs) {
+        Assert-CleanupBound
+        $metadata = Get-Content -LiteralPath (Join-Path $evidenceRoot $run.metadata) -Raw | ConvertFrom-Json
+        if ($metadata.Processes.Count -gt 256) { throw 'Run process limit exceeded.' }
+        foreach ($identity in $metadata.Processes) { $records.Add($identity) }
+    }
+    if ($records.Count -gt 1024) { throw 'Total process record limit exceeded.' }
+    $cleanup.recordedProcessCount = $records.Count
+    $live = @(Get-CimInstance Win32_Process)
+    if ($live.Count -gt 8192) { throw 'Live process limit exceeded.' }
+    $liveByPid = @{}
+    foreach ($process in $live) { Assert-CleanupBound; $liveByPid[[int]$process.ProcessId] = $process }
+    $matching = [Collections.Generic.List[object]]::new()
+    foreach ($identity in $records) {
+        Assert-CleanupBound
+        $current = $liveByPid[[int]$identity.ProcessId]
+        if ($null -ne $current -and $current.CreationDate -eq [datetime]$identity.CreationDate -and $current.CommandLine -eq $identity.CommandLine -and $current.ParentProcessId -eq $identity.ParentProcessId) {
+            $matching.Add(($current | Select-Object ProcessId,CreationDate,CommandLine,ParentProcessId))
+        }
+    }
+    $cleanup.matchingLiveProcesses = @($matching)
+    if ($matching.Count -gt 0) { throw 'Recorded task processes remain; retain files pending verified process cleanup.' }
+    $ancestors = [Collections.Generic.HashSet[int]]::new()
+    $ancestorPid = $PID
+    for ($depth = 0; $depth -lt 16 -and $ancestorPid -gt 0; $depth++) {
+        Assert-CleanupBound
+        [void]$ancestors.Add($ancestorPid)
+        $ancestor = $liveByPid[$ancestorPid]
+        if ($null -eq $ancestor) { break }
+        $ancestorPid = [int]$ancestor.ParentProcessId
+    }
+    $unverified = [Collections.Generic.List[object]]::new()
+    foreach ($process in $live) {
+        Assert-CleanupBound
+        if (-not $ancestors.Contains([int]$process.ProcessId) -and $process.CommandLine -and ($process.CommandLine.Contains($taskRoot,[StringComparison]::OrdinalIgnoreCase) -or $process.CommandLine.Contains($shortTemp,[StringComparison]::OrdinalIgnoreCase))) {
+            $unverified.Add(($process | Select-Object ProcessId,CreationDate,CommandLine,ParentProcessId))
+        }
+    }
+    $cleanup.unverifiedTaskPathProcesses = @($unverified)
+    if ($unverified.Count -gt 0) { throw 'Unverified process ownership; retain task directories.' }
+    $finalConfig = Get-Content -LiteralPath (Join-Path $taskRoot 'core-full-final.config.json') -Raw | ConvertFrom-Json
+    if ($finalConfig.Name -ne 'core-full-final' -or $finalConfig.WorkingDirectory -ne 'D:\source\SonnetDB' -or $finalConfig.OutputPrefix -ne ($taskRoot + '\core-full-final') -or $finalConfig.TempDirectory -ne $shortTemp) { throw 'Task directory/config ownership mismatch.' }
+    foreach ($target in @($taskRoot,$shortTemp)) {
+        Assert-CleanupBound
+        $resolved = [IO.Path]::GetFullPath($target)
+        if ($resolved -ne $target -or $resolved -notin @($taskRoot,$shortTemp)) { throw 'Deletion target mismatch.' }
+        $directory = Get-Item -LiteralPath $resolved -Force
+        if (-not $directory.PSIsContainer -or ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Unexpected directory/reparse target.' }
+        Write-Output ('Removing verified task directory: ' + $resolved)
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+        if ([IO.Directory]::Exists($resolved)) { throw ('Task directory remains: ' + $resolved) }
+        $cleanup.removedDirectories += $resolved
+    }
+    $cleanup.status = 'PASS'
+}
+catch {
+    $cleanup.status = 'FAIL'
+    $cleanup.error = $_.Exception.Message
+    foreach ($target in @($taskRoot,$shortTemp)) { if ([IO.Directory]::Exists($target)) { $cleanup.retainedObjects += $target } }
+    throw
+}
+finally {
+    $cleanup.elapsedSeconds = [Math]::Round($watch.Elapsed.TotalSeconds,3)
+    $cleanup | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'cleanup.json') -Encoding utf8NoBOM
+}
+Write-Output ('Cleanup passed in {0:N1}s.' -f $watch.Elapsed.TotalSeconds)

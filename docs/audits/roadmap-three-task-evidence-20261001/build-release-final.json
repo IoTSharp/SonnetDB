@@ -1,0 +1,60 @@
+{
+  "Name": "build-release-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 37.463,
+  "Processes": [
+    {
+      "ProcessId": 77388,
+      "ParentProcessId": 69796,
+      "CreationDate": "2026-10-01T16:09:59.652111+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 68120,
+      "ParentProcessId": 77388,
+      "CreationDate": "2026-10-01T16:09:59.658421+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 4972,
+      "ParentProcessId": 77388,
+      "CreationDate": "2026-10-01T16:10:00.187541+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 59472,
+      "ParentProcessId": 4972,
+      "CreationDate": "2026-10-01T16:10:00.193181+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 23208,
+      "ParentProcessId": 77388,
+      "CreationDate": "2026-10-01T16:10:01.645723+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTemppycqjbln.5vm\\tmp352885f67d0449acac4d31455ae443c9.rsp\""
+    },
+    {
+      "ProcessId": 53124,
+      "ParentProcessId": 23208,
+      "CreationDate": "2026-10-01T16:10:01.652769+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

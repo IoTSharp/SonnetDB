@@ -1,0 +1,39 @@
+{
+  "Name": "streaming-hard-kill",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "--filter",
+    "FullyQualifiedName~M43_StreamingInFlight_HardKill",
+    "--logger",
+    "trx;LogFileName=streaming-hard-kill.trx",
+    "--results-directory",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 2.373,
+  "Processes": [
+    {
+      "ProcessId": 69968,
+      "ParentProcessId": 81524,
+      "CreationDate": "2026-10-01T16:24:14.545572+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts --filter FullyQualifiedName~M43_StreamingInFlight_HardKill --logger trx;LogFileName=streaming-hard-kill.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results --blame-hang-timeout 2m --blame-hang-dump-type mini -m:1 -nodeReuse:false"
+    }
+  ],
+  "CleanedProcesses": []
+}

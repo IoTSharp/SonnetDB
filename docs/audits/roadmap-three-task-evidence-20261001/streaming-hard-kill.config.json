@@ -1,0 +1,30 @@
+{
+  "Name": "streaming-hard-kill",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "--filter",
+    "FullyQualifiedName~M43_StreamingInFlight_HardKill",
+    "--logger",
+    "trx;LogFileName=streaming-hard-kill.trx",
+    "--results-directory",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 180,
+  "OutputPrefix": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\streaming-hard-kill",
+  "TempDirectory": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch"
+}

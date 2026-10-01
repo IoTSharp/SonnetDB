@@ -1,0 +1,8 @@
+{
+  "Command": "pwsh -File eng/validate-fourteen-capability-index.ps1",
+  "PowerShell": "7.6.6",
+  "ExitCode": 0,
+  "Capabilities": 14,
+  "Journeys": 14,
+  "ComposedJourneys": 2
+}

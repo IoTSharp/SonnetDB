@@ -1,0 +1,28 @@
+{
+  "Name": "cleanup-final",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\final-cleanup.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 4.956,
+  "Processes": [
+    {
+      "ProcessId": 44640,
+      "ParentProcessId": 78792,
+      "CreationDate": "2026-10-01T16:48:26.701903+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\final-cleanup.ps1"
+    },
+    {
+      "ProcessId": 55160,
+      "ParentProcessId": 44640,
+      "CreationDate": "2026-10-01T16:48:26.709621+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

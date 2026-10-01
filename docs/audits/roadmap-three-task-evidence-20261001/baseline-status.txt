@@ -1,0 +1,27 @@
+ M CHANGELOG.md
+ M ROADMAP.md
+ M SonnetDB.slnx
+ M docs/audits/fourteen-capability-evidence-index.json
+ M docs/audits/fourteen-capability-journey-index.json
+ M docs/cdc-contract.md
+ M docs/ecosystem-reproduction-index.md
+ M docs/roadmap-total-milestone.md
+ M docs/streaming-subscription-contract.md
+ M src/SonnetDB.Core/Query/KnnExecutor.cs
+ M src/SonnetDB.Core/Streaming/FileStreamingSubscriptionContracts.cs
+ M tests/SonnetDB.Core.Tests/Query/KnnExecutorTests.cs
+ M tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj
+?? docs/audits/roadmap-four-task-closure-20261001.md
+?? docs/audits/roadmap-four-task-evidence-20261001/
+?? docs/benchmarks/m42-measurement-knn-bounds.md
+?? docs/m43-local-cdc-topology.md
+?? docs/m43-persistent-windows.md
+?? samples/SonnetDB.CdcStreamingJourney/
+?? src/SonnetDB.Core/Cdc/CdcLocalReplicaTopology.cs
+?? src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.cs
+?? src/SonnetDB.Core/Streaming/StreamingWindowContracts.cs
+?? tests/SonnetDB.Core.Tests/Audits/CdcStreamingRecoveryJourneyTests.cs
+?? tests/SonnetDB.Core.Tests/Cdc/CdcLocalReplicaTopologyTests.cs
+?? tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs
+?? tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs
+?? tests/SonnetDB.Core.Tests/Streaming/FileStreamingWindowAggregatorTests.cs

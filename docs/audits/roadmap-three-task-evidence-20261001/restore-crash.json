@@ -1,0 +1,43 @@
+{
+  "Name": "restore-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "--disable-parallel",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "-m:2"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 7.271,
+  "Processes": [
+    {
+      "ProcessId": 4744,
+      "ParentProcessId": 34908,
+      "CreationDate": "2026-10-01T16:26:30.238819+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --disable-parallel --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts -m:2"
+    },
+    {
+      "ProcessId": 72064,
+      "ParentProcessId": 4744,
+      "CreationDate": "2026-10-01T16:26:30.244953+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 12284,
+      "ParentProcessId": 4744,
+      "CreationDate": "2026-10-01T16:26:31.046363+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 3200,
+      "ParentProcessId": 12284,
+      "CreationDate": "2026-10-01T16:26:31.052794+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

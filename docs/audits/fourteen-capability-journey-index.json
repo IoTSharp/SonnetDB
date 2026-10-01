@@ -33,6 +33,14 @@
       "testPath": "tests/SonnetDB.Core.Tests/Audits/CdcStreamingRecoveryJourneyTests.cs",
       "evidencePath": "docs/audits/roadmap-four-task-closure-20261001.md",
       "boundary": "Bounded embedded two-partition replica and persistent COUNT reconciliation after orderly close/reopen, including window commit before subscription ACK. No continuous transactional CDC-to-stream bridge, hard kill, remote parity or fourteen-capability completion claim."
+    },
+    {
+      "id": "numeric-window-subscription-operations-reopen",
+      "capabilities": ["streaming", "governance"],
+      "entryPoint": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/FileStreamingOperationsWindowJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-three-task-closure-20261001.md",
+      "boundary": "Exact decimal window reconciliation after commit before ACK, persistent pause, delivery exhaustion, revision-conditional reset and orderly reopen. Local file APIs only; no remote operations, hard kill, DLQ or exactly-once external side effects."
     }
   ]
 }

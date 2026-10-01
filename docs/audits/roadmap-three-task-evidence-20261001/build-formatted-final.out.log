@@ -1,0 +1,50 @@
+  run-benchmarks -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\run-benchmarks\release\run-benchmarks.dll
+  connectors-release -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\connectors-release\release\connectors-release.dll
+  start-benchmark-env -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\start-benchmark-env\release\start-benchmark-env.dll
+  CoAP.NET.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\CoAP.NET.SourceGeneration\release\CoAP.NET.SourceGeneration.dll
+  CoAP.NET -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\CoAP.NET\release\CoAP.NET.dll
+  MQTTnet.AspNetCore.Routing -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\MQTTnet.AspNetCore.Routing\release_net10.0\MQTTnet.AspNetCore.Routing.dll
+  MQTTnet.AspNetCore.Routing -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\MQTTnet.AspNetCore.Routing\release_net8.0\MQTTnet.AspNetCore.Routing.dll
+  MQTTnet.AspNetCore.Routing.SourceGeneration -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\MQTTnet.AspNetCore.Routing.SourceGeneration\release\MQTTnet.AspNetCore.Routing.SourceGeneration.dll
+  SonnetDB.IndustrialDiagnostics -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.IndustrialDiagnostics\release\SonnetDB.IndustrialDiagnostics.dll
+  SonnetDB.SemanticImages -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.SemanticImages\release\SonnetDB.SemanticImages.dll
+  SonnetDB.Studio -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Studio\release\SonnetDB.Studio.dll
+  Testcontainers.SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\Testcontainers.SonnetDB\release_netstandard2.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\Testcontainers.SonnetDB\release_netstandard2.1\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\Testcontainers.SonnetDB\release_net8.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\Testcontainers.SonnetDB\release_net9.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\Testcontainers.SonnetDB\release_net10.0\Testcontainers.SonnetDB.dll
+  SonnetDB.Benchmarks.Tests.ProcessProbe -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Benchmarks.Tests.ProcessProbe\release\SonnetDB.Benchmarks.Tests.ProcessProbe.dll
+  SonnetDB.Core -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  SonnetDB.Data -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.TriggerAdmission -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.TriggerAdmission\release\SonnetDB.TriggerAdmission.dll
+  SonnetDB.LanguageServer -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.LanguageServer\release\SonnetDB.LanguageServer.dll
+  SonnetDB.CdcStreamingJourney -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.CdcStreamingJourney\release\SonnetDB.CdcStreamingJourney.dll
+  SonnetDB.Media -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Media\release\SonnetDB.Media.dll
+  SonnetDB.Native -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Native\release\SonnetDB.Native.dll
+  SonnetDB.Cli -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Cli\release\SonnetDB.Cli.dll
+  SonnetDB.KvQuickstart -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.KvQuickstart\release\SonnetDB.KvQuickstart.dll
+  SonnetDB.EntityFrameworkCore -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.EntityFrameworkCore\release\SonnetDB.EntityFrameworkCore.dll
+  SonnetDB.DocumentQuickstart -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.DocumentQuickstart\release\SonnetDB.DocumentQuickstart.dll
+  SonnetDB.Caching.EasyCaching -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Caching.Distributed -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.IoTSharpCompat.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.IoTSharpCompat.Tests\release\SonnetDB.IoTSharpCompat.Tests.dll
+  SonnetDB.EcosystemSample -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.EcosystemSample\release\SonnetDB.EcosystemSample.dll
+  SonnetDB.EcosystemSoak -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.EcosystemSoak\release\SonnetDB.EcosystemSoak.dll
+  SonnetDB.Core.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll
+  SonnetDB.MediaSegments -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.MediaSegments\release\SonnetDB.MediaSegments.dll
+  SonnetDB.Media.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Media.Tests\release\SonnetDB.Media.Tests.dll
+  SonnetDB.LanguageServer.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.LanguageServer.Tests\release\SonnetDB.LanguageServer.Tests.dll
+  SonnetDB -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB\release\SonnetDB.dll
+  SonnetDB.EntityFrameworkCore.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.EntityFrameworkCore.Tests\release\SonnetDB.EntityFrameworkCore.Tests.dll
+  SonnetDB.Benchmarks -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Benchmarks\release\SonnetDB.Benchmarks.dll
+  SonnetDB.Benchmarks.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Benchmarks.Tests\release\SonnetDB.Benchmarks.Tests.dll
+  SonnetDB.Accuracy.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Accuracy.Tests\release\SonnetDB.Accuracy.Tests.dll
+  SonnetDB.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll
+  SonnetDB.Studio.Tests -> C:\Users\mysti\AppData\Local\Temp\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\artifacts\bin\SonnetDB.Studio.Tests\release\SonnetDB.Studio.Tests.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:32.79

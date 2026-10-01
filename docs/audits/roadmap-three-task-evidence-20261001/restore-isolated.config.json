@@ -1,0 +1,16 @@
+{
+  "Name": "restore-isolated",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "--disable-parallel",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "-m:2"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 600,
+  "OutputPrefix": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\restore-isolated",
+  "TempDirectory": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch"
+}

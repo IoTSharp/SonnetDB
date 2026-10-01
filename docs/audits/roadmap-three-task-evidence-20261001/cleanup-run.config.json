@@ -1,0 +1,12 @@
+{
+  "Name": "cleanup-final",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\final-cleanup.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 120,
+  "OutputPrefix": "D:\\source\\SonnetDB\\docs\\audits\\roadmap-three-task-evidence-20261001\\cleanup-run"
+}

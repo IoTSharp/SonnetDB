@@ -1,0 +1,18 @@
+{
+  "Name": "format-check",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 600,
+  "OutputPrefix": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\format-check",
+  "TempDirectory": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch"
+}

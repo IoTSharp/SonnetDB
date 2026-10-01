@@ -1,0 +1,10 @@
+{
+  "Name": "runner-smoke",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "--version"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 10,
+  "OutputPrefix": "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\runner-smoke"
+}

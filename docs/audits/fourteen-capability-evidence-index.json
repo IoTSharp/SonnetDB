@@ -18,7 +18,7 @@
       "maturity": "partial",
       "roadmap": ["M0-M13", "M19 #125", "M36 #314", "M36 #315", "M42"],
       "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB.Data/TimeSeries", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md"],
+      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
       "boundary": "High-cardinality, long-run, fixed-hardware and full recovery evidence remains open."
     },
     {
@@ -118,8 +118,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
       "entryPoints": ["src/SonnetDB.Core/Streaming", "src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-streaming-persistent-subscription-2026-09-30.md", "docs/m43-persistent-windows.md", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingWindowAggregatorTests.cs", "samples/SonnetDB.CdcStreamingJourney/README.md", "docs/roadmap-total-milestone.md"],
-      "boundary": "A bounded local file subscription persists events, watermark and in-flight delivery; a persistent UTC tumbling COUNT commits windows and applied delivery before ACK and deduplicates last-batch replay after reopen. A bounded composed document/CDC/subscription/window journey reconciles local state. Other aggregations, task operations, continuous transactional CDC-to-stream capture, remote parity, field recovery and distributed semantics remain open."
+      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-streaming-persistent-subscription-2026-09-30.md", "docs/m43-persistent-windows.md", "docs/m43-numeric-windows.md", "docs/m43-subscription-operations.md", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingNumericWindowTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionOperationsTests.cs", "tests/SonnetDB.Core.Tests/Audits/FileStreamingOperationsWindowJourneyTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingWindowAggregatorTests.cs", "samples/SonnetDB.CdcStreamingJourney/README.md", "docs/roadmap-total-milestone.md"],
+      "boundary": "A bounded local file subscription persists events, watermark, in-flight delivery, consumption pause and revision-conditional exhausted-delivery reset. Persistent UTC tumbling COUNT and opt-in exact decimal SUM/MIN/MAX/AVG commit windows and applied delivery before ACK and deduplicate last-batch replay after reopen. Composed local recovery checks reconcile CDC/subscription/window state and numeric aggregation after pause/reset. Grouping, sliding/session windows, task listing/DLQ, continuous transactional CDC-to-stream capture, remote parity, field recovery and distributed semantics remain open."
     },
     {
       "id": "cdc",

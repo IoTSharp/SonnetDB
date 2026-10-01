@@ -1,0 +1,2 @@
+加载工作区时遇到警告。要记录警告，请将“详细级别”选项设置为“诊断”级别。
+D:\source\SonnetDB\src\SonnetDB.Core\Streaming\StreamingWindowContracts.cs(85,17): error WHITESPACE: 修复空格格式。 将 1 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [D:\source\SonnetDB\src\SonnetDB.Core\SonnetDB.Core.csproj]

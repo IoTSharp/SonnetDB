@@ -1,0 +1,60 @@
+{
+  "Name": "build-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 11.465,
+  "Processes": [
+    {
+      "ProcessId": 82412,
+      "ParentProcessId": 81588,
+      "CreationDate": "2026-10-01T16:26:58.453773+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj -c Release --no-restore --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 79612,
+      "ParentProcessId": 82412,
+      "CreationDate": "2026-10-01T16:26:58.461209+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 48152,
+      "ParentProcessId": 82412,
+      "CreationDate": "2026-10-01T16:26:59.432265+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 9204,
+      "ParentProcessId": 48152,
+      "CreationDate": "2026-10-01T16:26:59.439191+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 57168,
+      "ParentProcessId": 82412,
+      "CreationDate": "2026-10-01T16:27:03.248847+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\scratch\\MSBuildTempofqqsvnm.35t\\tmpbf915b57564f4c418d8de8fc0285fa17.rsp\""
+    },
+    {
+      "ProcessId": 16052,
+      "ParentProcessId": 57168,
+      "CreationDate": "2026-10-01T16:27:03.257868+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

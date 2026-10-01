@@ -1,0 +1,73 @@
+{
+  "Name": "core-full",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts",
+    "--logger",
+    "trx;LogFileName=core-full.trx",
+    "--results-directory",
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 1,
+  "TimedOut": false,
+  "ElapsedSeconds": 252.838,
+  "Processes": [
+    {
+      "ProcessId": 71000,
+      "ParentProcessId": 30988,
+      "CreationDate": "2026-10-01T16:22:32.067004+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts --logger trx;LogFileName=core-full.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results --blame-hang-timeout 2m --blame-hang-dump-type mini -m:1 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 76028,
+      "ParentProcessId": 71000,
+      "CreationDate": "2026-10-01T16:22:32.073451+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 46812,
+      "ParentProcessId": 71000,
+      "CreationDate": "2026-10-01T16:22:32.736811+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --logger:\"trx;LogFileName=core-full.trx\" --resultsDirectory:C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\results C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --Blame:\"CollectHangDump;HangDumpType=mini;TestTimeout=2m\" --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:71000_daeafc8f-f061-4194-aee4-087626d80fe3"
+    },
+    {
+      "ProcessId": 22832,
+      "ParentProcessId": 46812,
+      "CreationDate": "2026-10-01T16:22:32.995631+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.runtimeconfig.json\" --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.deps.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.dll\" --port 57206 --parentprocessid 46812 "
+    },
+    {
+      "ProcessId": 81264,
+      "ParentProcessId": 22832,
+      "CreationDate": "2026-10-01T16:22:33.001282+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 75412,
+      "ParentProcessId": 46812,
+      "CreationDate": "2026-10-01T16:22:33.263441+08:00",
+      "CommandLine": "\"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts\\bin\\SonnetDB.Core.Tests\\release\\testhost.exe\"  --runtimeconfig \"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95\\artifacts\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.deps.json\" --port 57211 --endpoint 127.0.0.1:057211 --role client --parentprocessid 46812 --datacollectionport 57210 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 77660,
+      "ParentProcessId": 75412,
+      "CreationDate": "2026-10-01T16:22:33.270684+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

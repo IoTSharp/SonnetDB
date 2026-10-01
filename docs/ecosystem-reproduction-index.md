@@ -10,7 +10,7 @@
 | 工业设备写入、SQL 异常诊断 | [Industrial Diagnostics](../samples/SonnetDB.IndustrialDiagnostics/README.md) | HTTP 与鉴权 MQTT 数据链路分别对账；建议/引用是演示素材，provider 未取得真实模型/usage 证据时仍为 `NOT_READY`。 |
 | 图片对象、持久摄取、文本/图像检索 | [Semantic Images](../samples/SonnetDB.SemanticImages/README.md) | 需配置真实 SigLIP2 profile 和现场图片；默认生成的确定性 PNG 不证明专业视觉质量。 |
 | CDC 快照、增量物化与恢复 | [CDC 合同](cdc-contract.md)、[本地多分区拓扑](m43-local-cdc-topology.md)、[组合恢复样例](../samples/SonnetDB.CdcStreamingJourney/README.md) | 专用路由独立恢复、真实文档源捕获及本地 COUNT 对账；远程拓扑、持续事务化 CDC 到流桥接及十四能力总验收仍未完成。 |
-| 持久订阅、watermark、背压、ACK 与重投 | [Streaming 合同](streaming-subscription-contract.md)、[持久窗口 COUNT](m43-persistent-windows.md) | 单个本地执行者、至少一次；持久滚动 COUNT 已交付，业务副作用不与 ACK 形成事务；其它聚合、DLQ 和远程运维仍待补。 |
+| 持久订阅、watermark、背压、ACK 与重投 | [Streaming 合同](streaming-subscription-contract.md)、[持久窗口 COUNT](m43-persistent-windows.md)、[数值窗口](m43-numeric-windows.md)、[订阅运维](m43-subscription-operations.md) | 单个本地执行者、至少一次；COUNT/SUM/MIN/MAX/AVG、暂停/恢复与条件重试已有本地切片，业务副作用不与 ACK 形成事务；分组/滑动窗口、DLQ 和远程运维仍待补。 |
 
 已有组合样例的嵌入式入口：
 

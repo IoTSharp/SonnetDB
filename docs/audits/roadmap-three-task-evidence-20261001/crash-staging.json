@@ -1,0 +1,16 @@
+{
+  "ChildFiles": [
+    "SonnetDB.Core.dll",
+    "SonnetDB.Core.pdb",
+    "SonnetDB.CrashTests.Child.deps.json",
+    "SonnetDB.CrashTests.Child.dll",
+    "SonnetDB.CrashTests.Child.exe",
+    "SonnetDB.CrashTests.Child.pdb",
+    "SonnetDB.CrashTests.Child.runtimeconfig.json",
+    "System.IO.Hashing.dll",
+    "System.Numerics.Tensors.dll"
+  ],
+  "Reason": "The CrashTests copy target uses its default bin path; stage the freshly built isolated child outputs before execution.",
+  "CoreHash": "C7992C2FE5BC1DDC9C54357811E9BE67214CF98E2F0D9AF26D2AF4D2B96CFB27",
+  "CrashCoreHash": "C7992C2FE5BC1DDC9C54357811E9BE67214CF98E2F0D9AF26D2AF4D2B96CFB27"
+}

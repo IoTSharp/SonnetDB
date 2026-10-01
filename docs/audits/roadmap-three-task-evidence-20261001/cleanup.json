@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "taskOwner": "4eff92966347481daaf27153e9fadd95",
+  "checkedAt": "2026-10-01T16:48:27.0762482+08:00",
+  "executionMetadata": "cleanup-run.json",
+  "powershell": "7.6.6",
+  "processIdentityFields": [
+    "ProcessId",
+    "CreationDate",
+    "CommandLine",
+    "ParentProcessId"
+  ],
+  "recordedProcessCount": 242,
+  "matchingLiveProcesses": [],
+  "unverifiedTaskPathProcesses": [],
+  "terminatedProcesses": [],
+  "removedDirectories": [
+    "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-parallel-third-4eff92966347481daaf27153e9fadd95",
+    "C:\\Temp\\sdb3-4eff9296"
+  ],
+  "retainedObjects": [],
+  "sharedCachesAndUserProcesses": "No process-name termination or shared cache/user file deletion; only two exact task directories.",
+  "status": "PASS",
+  "elapsedSeconds": 2.927,
+  "postExecutionVerification": {
+    "checkedAt": "2026-10-01T16:49:34.2987368+08:00",
+    "helperProcessCount": 2,
+    "helperProcessesRemaining": 0,
+    "directoriesRemaining": 0,
+    "status": "PASS"
+  }
+}
