@@ -79,6 +79,12 @@ public sealed record FileStreamingSubscriptionStatus(
     /// <summary>状态文件的单调修订号，供运维命令进行条件更新；与确认检查点修订号不同。</summary>
     public long StateRevision { get; init; }
 
+    /// <summary>持久死信目录保留的批次数，包含结果未知但可恢复的隔离意图。</summary>
+    public int DeadLetterBatchCount { get; init; }
+
+    /// <summary>独立持久死信状态文件当前占用的字节数。</summary>
+    public long DeadLetterStoredBytes { get; init; }
+
     /// <summary>当前未确认批次是否已经耗尽允许的投递次数。</summary>
     public bool DeliveryAttemptsExhausted => InFlightDeliveryId is not null && InFlightAttempt >= MaxDeliveryAttempts;
 }

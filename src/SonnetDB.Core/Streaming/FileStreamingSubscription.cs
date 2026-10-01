@@ -14,7 +14,7 @@ namespace SonnetDB.Streaming;
 /// <para>同一目录只允许一个执行者持有文件锁；没有分布式租约、远程投递或业务副作用事务。</para>
 /// <para>存储操作失败后必须重开；检查点提交结果可能未知，不能假设失败的确认已回滚。</para>
 /// </remarks>
-public sealed class FileStreamingSubscription : IAsyncDisposable
+public sealed partial class FileStreamingSubscription : IAsyncDisposable
 {
     private const int LegacyFormatVersion = 1;
     private const int Version2FormatVersion = 2;
@@ -40,13 +40,15 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         FileStream lease,
         CdcEventSpool spool,
         FileStreamingSubscriptionCheckpointStore checkpointStore,
-        FileStreamingSubscriptionState state)
+        FileStreamingSubscriptionState state,
+        FileStreamingDeadLetterStore deadLetters)
     {
         DirectoryPath = directoryPath;
         _lease = lease;
         _spool = spool;
         _checkpointStore = checkpointStore;
         _state = state;
+        _deadLetters = deadLetters;
     }
 
     /// <summary>订阅存储目录的绝对路径。</summary>
@@ -132,6 +134,8 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             {
                 ConsumptionPaused = state.ConsumptionPaused,
                 StateRevision = state.StateRevision,
+                DeadLetterBatchCount = _deadLetters.State.Records.Length,
+                DeadLetterStoredBytes = _deadLetters.StoredBytes,
             };
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -212,17 +216,33 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     /// <param name="options">容量与操作边界，重开时必须与已保存边界完全相同。</param>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>已恢复并持有单执行者文件锁的订阅。</returns>
-    public static async ValueTask<FileStreamingSubscription> OpenAsync(
+    public static ValueTask<FileStreamingSubscription> OpenAsync(
         string directoryPath,
         StreamingSubscriptionDefinition definition,
         FileStreamingSubscriptionOptions? options = null,
         CancellationToken cancellationToken = default)
+        => OpenAsync(directoryPath, definition, options, cancellationToken, deadLetterOptions: null);
+
+    /// <summary>创建或恢复持久订阅，并显式校验独立死信容量；保留原打开入口的二进制签名。</summary>
+    /// <param name="directoryPath">专属于该订阅的存储目录。</param>
+    /// <param name="definition">订阅定义，重开时须与保存定义相同。</param>
+    /// <param name="options">原事件容量和操作边界；空值使用默认边界。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="deadLetterOptions">独立死信边界；空值恢复已保存边界，新建时使用默认值。</param>
+    /// <returns>已恢复并持有单执行者锁的订阅。</returns>
+    public static async ValueTask<FileStreamingSubscription> OpenAsync(
+        string directoryPath,
+        StreamingSubscriptionDefinition definition,
+        FileStreamingSubscriptionOptions? options,
+        CancellationToken cancellationToken,
+        FileStreamingDeadLetterOptions? deadLetterOptions)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         ArgumentNullException.ThrowIfNull(definition);
         definition.Validate();
         options ??= new FileStreamingSubscriptionOptions();
         options.Validate();
+        deadLetterOptions?.Validate();
         ValidateString(definition.SubscriptionId, FileStreamingSubscriptionCheckpointStore.MaxSubscriptionIdBytes);
         ValidateString(definition.StreamName, CdcEventCodec.MaxStringBytes);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(definition.Capacity, CdcEventSpoolOptions.DefaultMaxEvents);
@@ -245,7 +265,8 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             if (state is null
                 && (File.Exists(Path.Combine(directory, "events.spool"))
                     || File.Exists(Path.Combine(directory, "events.spool.checkpoint"))
-                    || Directory.Exists(Path.Combine(directory, "checkpoints"))))
+                    || Directory.Exists(Path.Combine(directory, "checkpoints"))
+                    || Directory.Exists(Path.Combine(directory, "dead-letters"))))
             {
                 throw new InvalidDataException("持久订阅状态文件缺失，但目录中仍有订阅数据；不能重置为空订阅。");
             }
@@ -280,7 +301,9 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 await WriteStateAsync(directory, state, token).ConfigureAwait(false);
             }
 
-            var subscription = new FileStreamingSubscription(directory, lease, spool, checkpointStore, state);
+            FileStreamingDeadLetterStore deadLetters = await FileStreamingDeadLetterStore.OpenAsync(
+                directory, definition, options, deadLetterOptions, token).ConfigureAwait(false);
+            var subscription = new FileStreamingSubscription(directory, lease, spool, checkpointStore, state, deadLetters);
             await subscription.RecoverAsync(token).ConfigureAwait(false);
             return subscription;
         }
@@ -610,6 +633,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     {
         StreamingSubscriptionCheckpoint checkpoint = await _checkpointStore.LoadAsync(Definition.SubscriptionId, token)
             .ConfigureAwait(false) ?? throw new InvalidDataException("持久订阅已存在，但确认检查点文件缺失。");
+        checkpoint = await RecoverDeadLetterIntentAsync(checkpoint, token).ConfigureAwait(false);
         IReadOnlyDictionary<long, long> spoolCheckpoints = _spool.AcknowledgedCheckpoints;
         if (spoolCheckpoints.Keys.Any(static partition => partition != 0))
             throw new InvalidDataException("持久订阅 spool 包含不属于订阅的分区。");
@@ -697,6 +721,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             await WriteStateAsync(DirectoryPath, recovered, token).ConfigureAwait(false);
         }
         _state = recovered;
+        await CompleteRecoveredDeadLetterIntentAsync(token).ConfigureAwait(false);
     }
 
     private async Task PersistAsync(FileStreamingSubscriptionState state, CancellationToken token)
@@ -978,7 +1003,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         }
     }
 
-    private static void ValidateEvent(StreamingEvent value, FileStreamingSubscriptionOptions options)
+    internal static void ValidateEvent(StreamingEvent value, FileStreamingSubscriptionOptions options)
     {
         value.Validate();
         ValidateString(value.EventId, CdcEventCodec.MaxStringBytes);
