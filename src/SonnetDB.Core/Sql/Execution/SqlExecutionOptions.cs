@@ -58,16 +58,17 @@ public sealed record SqlExecutionOptions
     public long? BlockingOperatorMemoryLimitBytes { get; init; }
 
     /// <summary>
-    /// 可选的单条关系查询或 DML 调用链累计物化行数上限。子查询、CTE、集合运算、阻塞算子
+    /// 可选的单条受支持查询或关系 DML 调用链累计物化行数上限。子查询、CTE、集合运算、阻塞算子
     /// 和 DML mutation 共用预算，同一行在不同物化阶段会重复计入；超限拒绝执行，不返回截断结果。
     /// 为空时不增加物化行数限制。显式设置此属性或 <see cref="MaxMaterializedBytes"/> 时，
-    /// 支持关系表 SELECT、EXPLAIN SELECT 以及关系表 INSERT/UPDATE/DELETE（含 INSERT SELECT 和 RETURNING）；
-    /// 例程、用户函数、DDL、事务控制及其他数据模型在执行前拒绝。
+    /// 支持关系表 SELECT、EXPLAIN SELECT、关系表 INSERT/UPDATE/DELETE（含 INSERT SELECT 和 RETURNING），
+    /// 以及直接 measurement 的 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；measurement 排序、聚合、
+    /// 窗口、JOIN、去重及嵌套查询，以及例程、用户函数、DDL、事务控制及其他模型在执行前拒绝。
     /// </summary>
     public long? MaxMaterializedRows { get; init; }
 
     /// <summary>
-    /// 可选的单条关系查询或 DML 调用链累计物化估算字节上限。包含 mutation 行容器、标量、
+    /// 可选的单条受支持查询或关系 DML 调用链累计物化估算字节上限。包含 mutation 行容器、标量、
     /// 字符串和二进制值的估算，并收紧共享阻塞算子的字节预算；不代表 CLR heap 的精确硬上限。
     /// 为空时不增加物化字节限制。该选项的支持范围与 <see cref="MaxMaterializedRows"/> 一致。
     /// </summary>

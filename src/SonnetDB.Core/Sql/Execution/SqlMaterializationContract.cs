@@ -4,7 +4,7 @@ using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>在执行前验证显式物化预算当前支持的关系查询和 DML 范围。</summary>
+/// <summary>在执行前验证显式物化预算当前支持的关系查询、直接 measurement 查询和关系 DML 范围。</summary>
 internal static class SqlMaterializationContract
 {
     internal static void Validate(Tsdb tsdb, SqlStatement statement)
@@ -12,10 +12,10 @@ internal static class SqlMaterializationContract
         switch (statement)
         {
             case SelectStatement select:
-                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true);
                 return;
             case ExplainStatement { Statement: SelectStatement explainSelect }:
-                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true);
                 return;
             case InsertStatement insert:
                 ValidateInsert(insert);
@@ -144,7 +144,7 @@ internal static class SqlMaterializationContract
             }
         }
 
-        void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes)
+        void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes, bool allowMeasurement = false)
         {
             if (!query.IsRecursive)
                 query = CommonTableExpressionExpander.Expand(query);
@@ -165,7 +165,16 @@ internal static class SqlMaterializationContract
             if (query.FromSubquery is { } from)
                 ValidateQuery(from, ctes);
             else if (!string.IsNullOrEmpty(query.Measurement))
-                ValidateTable(query.Measurement, ctes);
+            {
+                if (tsdb.Tables.Catalog.TryGet(query.Measurement) is null
+                    && tsdb.Measurements.TryGet(query.Measurement) is not null)
+                {
+                    if (!allowMeasurement)
+                        throw new NotSupportedException("SQL 物化预算尚不支持包含 measurement 的嵌套查询或集合运算。");
+                }
+                else
+                    ValidateTable(query.Measurement, ctes);
+            }
             foreach (JoinClause join in query.JoinClauses)
             {
                 if (join.Subquery is { } subquery)
@@ -189,6 +198,9 @@ internal static class SqlMaterializationContract
                 ValidateExpression(pagination.OffsetExpression, ctes);
                 ValidateExpression(pagination.FetchExpression, ctes);
             }
+            if (query.FromSubquery is null && tsdb.Tables.Catalog.TryGet(query.Measurement) is null
+                && tsdb.Measurements.TryGet(query.Measurement) is { } measurementSchema)
+                SelectExecutor.ValidateMaterializationSupported(measurementSchema, query);
         }
 
         void ValidateTable(string name, HashSet<string> ctes)

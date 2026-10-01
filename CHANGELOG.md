@@ -7,6 +7,7 @@
 
 ## [Unreleased]
 ### Added
+- **M42 measurement 物化准入（2026-10-01 第三批）**：直接 raw SELECT 的跨字段时间轴合并改用惰性前沿，过滤和分页后的结果在入列表前共享累计行/估算字节预算；opt-in 模式在扫描前拒绝尚未纳入预算的排序、聚合、JOIN 等路径，默认调用保持原合同。存储快照与页解码不属于整体 heap 硬上限。见[查询合同](docs/benchmarks/m42-measurement-result-bounds.md)。
 - **M43 #386 多分区本地 CDC 拓扑（2026-10-01）**：新增 `CdcLocalReplicaTopology`，以精确源/实体/分区身份绑定最多 64 条独立路由，轮转推进快照及增量，限制次数、时间、行数和字节数，并从各分区持久位点重开；一路失败保留其它分区提交，失败路由不提前 ACK。仍不提供跨分区事务、远程传输、冲突解决或 schema 演进。见[合同](docs/m43-local-cdc-topology.md)。
 - **M43 #391~#395 持久窗口切片（2026-10-01）**：新增 `FileStreamingWindowAggregator`，保存固定 UTC 滚动 COUNT、已应用订阅位点和最后批次身份，先提交窗口再 ACK；重投核对内容后跳过重复计数，支持显式 watermark、迟到丢弃/拒绝、容量边界、有界结果分页和关闭窗口回收。使用独立 source-generated JSON 状态，不变更现有订阅格式；数值聚合、任务运维及远程执行继续待补。见[合同](docs/m43-persistent-windows.md)。
 - **M43 #396 组合恢复样例（2026-10-01）**：新增可运行 `SonnetDB.CdcStreamingJourney`，真实两文档集合经过多分区 CDC 快照中断/增量续传、源副本对账、固定副本导出、持久订阅及 ACK 前窗口恢复，核对最终计数与检查点；设置三十秒总时限和专属临时目录清理。范围限于本地有序关闭重开，不替代十四能力总验收或持续 CDC 到流的事务桥接。见[复现入口](samples/SonnetDB.CdcStreamingJourney/README.md)。

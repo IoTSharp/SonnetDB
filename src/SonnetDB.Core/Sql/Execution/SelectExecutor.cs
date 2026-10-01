@@ -29,6 +29,12 @@ internal static class SelectExecutor
             ?? throw new InvalidOperationException(
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
 
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            ValidateMaterializationSupported(schema, statement);
+            return ExecuteBudgetedRaw(tsdb, schema, statement);
+        }
+
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
         RecordEstimatedRows(tsdb, statement);
@@ -83,6 +89,178 @@ internal static class SelectExecutor
 
         return ApplyOrderByAndPagination(result, orderBy, statement.Pagination);
     }
+
+    internal static void ValidateMaterializationSupported(MeasurementSchema schema, SelectStatement statement)
+    {
+        if (statement.OrderByList.Count != 0 || statement.GroupBy.Count != 0
+            || statement.Having is not null || statement.Distinct || statement.IsRecursive
+            || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
+            || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0
+            || statement.TableValuedFunction is not null || statement.GraphTable is not null
+            || ContainsBudgetedSubquery(statement.Where)
+            || statement.Projections.Any(static projection => ContainsBudgetedSubquery(projection.Expression)))
+        {
+            throw new NotSupportedException(
+                "measurement SQL 物化预算仅支持直接 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
+        }
+
+        var projections = ClassifyProjections(statement.Projections, schema);
+        if (projections.Any(static projection => projection.Kind is ProjectionKind.Aggregate
+            or ProjectionKind.AggregateExpression or ProjectionKind.Window))
+        {
+            throw new NotSupportedException("measurement SQL 物化预算尚不支持聚合或窗口投影。");
+        }
+        var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
+        if (where.GeoFilters.Count != 0)
+            throw new NotSupportedException("measurement SQL 物化预算尚不支持 Geo 谓词。");
+        if (where.Residual is not null)
+            ValidateResidualColumns(where.Residual, schema);
+
+        var fieldNames = GetBudgetedFieldNames(projections, schema, where);
+        foreach (string fieldName in fieldNames)
+        {
+            if (schema.TryGetColumn(fieldName)!.DataType is not
+                (FieldType.Int64 or FieldType.Float64 or FieldType.Boolean or FieldType.String))
+            {
+                throw new NotSupportedException("measurement SQL 物化预算仅支持数值、布尔和字符串 FIELD。");
+            }
+        }
+    }
+
+    private static bool ContainsBudgetedSubquery(SqlExpression? expression) => expression switch
+    {
+        SubqueryExpression or ExistsExpression => true,
+        InExpression membership => membership.Subquery is not null
+            || ContainsBudgetedSubquery(membership.Value) || membership.Values.Any(ContainsBudgetedSubquery),
+        BinaryExpression binary => ContainsBudgetedSubquery(binary.Left) || ContainsBudgetedSubquery(binary.Right),
+        UnaryExpression unary => ContainsBudgetedSubquery(unary.Operand),
+        CastExpression cast => ContainsBudgetedSubquery(cast.Operand),
+        IsNullExpression isNull => ContainsBudgetedSubquery(isNull.Operand),
+        FunctionCallExpression function => function.Arguments.Any(ContainsBudgetedSubquery),
+        CaseExpression conditional => conditional.WhenClauses.Any(static clause =>
+            ContainsBudgetedSubquery(clause.Condition) || ContainsBudgetedSubquery(clause.Result))
+            || ContainsBudgetedSubquery(conditional.Else),
+        _ => false,
+    };
+
+    private static SelectExecutionResult ExecuteBudgetedRaw(
+        Tsdb tsdb, MeasurementSchema schema, SelectStatement statement)
+    {
+        var projections = ClassifyProjections(statement.Projections, schema);
+        var columns = projections.Select(static projection => projection.ColumnName).ToList();
+        var rows = new List<IReadOnlyList<object?>>();
+        int? fetch = statement.Pagination?.Fetch;
+        if (fetch == 0)
+            return new SelectExecutionResult(columns, rows);
+
+        var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
+        var fieldNames = GetBudgetedFieldNames(projections, schema, where);
+        var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
+        RecordEstimatedRows(tsdb, statement);
+        int skipped = 0;
+        int offset = statement.Pagination?.Offset ?? 0;
+        foreach (var series in matchedSeries)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            foreach (var pointRow in EnumerateBudgetedPointRows(tsdb, series, fieldNames, where.TimeRange))
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (where.Residual is not null
+                    && !ResidualHoldsAtPoint(where.Residual, pointRow.Timestamp, series, pointRow.Lookups))
+                    continue;
+                if (skipped < offset)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var row = new object?[projections.Count];
+                for (int i = 0; i < projections.Count; i++)
+                {
+                    var projection = projections[i];
+                    row[i] = projection.Kind switch
+                    {
+                        ProjectionKind.Time => pointRow.Timestamp,
+                        ProjectionKind.Tag => series.Tags.TryGetValue(projection.Column!.Name, out var tagValue)
+                            ? tagValue : null,
+                        ProjectionKind.Field => pointRow.Lookups[projection.Column!.Name]
+                            .TryGetValue(pointRow.Timestamp, out var value)
+                                ? UnboxFieldValue(projection.Column, value) : null,
+                        ProjectionKind.Constant => projection.ConstantValue,
+                        ProjectionKind.Scalar => EvaluateScalarProjection(
+                            projection, pointRow.Timestamp, series, pointRow.Lookups),
+                        _ => throw new InvalidOperationException("内部错误：物化预算 raw 路径收到不支持的投影。"),
+                    };
+                }
+                // 只保留过滤、分页后的完整结果；预算拒绝发生在追加前，不生成成功的截断结果。
+                SqlRowRetentionBudget.RetainForExecution(row);
+                rows.Add(row);
+                if (fetch is { } limit && rows.Count >= limit)
+                    return new SelectExecutionResult(columns, rows);
+            }
+        }
+        return new SelectExecutionResult(columns, rows);
+    }
+
+    private static List<string> GetBudgetedFieldNames(
+        IReadOnlyList<Projection> projections, MeasurementSchema schema, WhereClause where)
+    {
+        var fieldNames = projections.Where(static projection => projection.Kind == ProjectionKind.Field)
+            .Select(static projection => projection.Column!.Name)
+            .Concat(GetScalarFieldDependencies(projections, schema))
+            .Concat(GetResidualFieldDependencies(where.Residual, schema))
+            .Distinct(StringComparer.Ordinal).ToList();
+        if (fieldNames.Count == 0)
+            fieldNames.Add(schema.FieldColumns.First().Name);
+        return fieldNames;
+    }
+
+    private static IEnumerable<BudgetedPointRow> EnumerateBudgetedPointRows(
+        Tsdb tsdb, SeriesEntry series, IReadOnlyList<string> fieldNames, TimeRange range)
+    {
+        var enumerators = new List<IEnumerator<DataPoint>>(fieldNames.Count);
+        var queue = new PriorityQueue<int, (long Timestamp, int FieldIndex)>();
+        var lookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
+        try
+        {
+            for (int i = 0; i < fieldNames.Count; i++)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                lookups.Add(fieldNames[i], new Dictionary<long, FieldValue>(1));
+                var enumerator = QueryPointsStream(tsdb, series.Id, fieldNames[i], range).GetEnumerator();
+                enumerators.Add(enumerator);
+                if (enumerator.MoveNext())
+                    queue.Enqueue(i, (enumerator.Current.Timestamp, i));
+            }
+            // 各字段单调前进；每字段仅保留当前值和一个前沿点，不构造全部时间戳/字段查表。
+            while (queue.TryPeek(out int firstFieldIndex, out _))
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                long timestamp = enumerators[firstFieldIndex].Current.Timestamp;
+                foreach (var lookup in lookups.Values)
+                    lookup.Clear();
+                while (queue.TryPeek(out int fieldIndex, out _)
+                    && enumerators[fieldIndex].Current.Timestamp == timestamp)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    queue.Dequeue();
+                    var enumerator = enumerators[fieldIndex];
+                    lookups[fieldNames[fieldIndex]][timestamp] = enumerator.Current.Value;
+                    if (enumerator.MoveNext())
+                        queue.Enqueue(fieldIndex, (enumerator.Current.Timestamp, fieldIndex));
+                }
+                yield return new BudgetedPointRow(timestamp, lookups);
+            }
+        }
+        finally
+        {
+            foreach (var enumerator in enumerators)
+                enumerator.Dispose();
+        }
+    }
+
+    private readonly record struct BudgetedPointRow(
+        long Timestamp, Dictionary<string, Dictionary<long, FieldValue>> Lookups);
 
     private static bool TryExecuteLatestPointFastPath(
         Tsdb tsdb,

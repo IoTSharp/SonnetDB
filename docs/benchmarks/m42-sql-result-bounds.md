@@ -40,7 +40,7 @@ var result = SqlExecutor.Execute(database, null,
     "SELECT id, payload FROM orders ORDER BY id", null, null, options);
 ```
 
-支持范围为关系表、已展开的关系视图、常量 SELECT，以及它们的 JOIN、派生表、标量/IN/EXISTS 子查询、普通/递归 CTE、UNION/INTERSECT/EXCEPT、DISTINCT、GROUP BY、排序和窗口投影。`EXPLAIN SELECT` 的输出也计费，`EXPLAIN ANALYZE SELECT` 的实际执行与解释结果共用预算。查询树在扫描前预检；时序、文档、Graph、系统视图、物化视图、表值函数、用户函数回调和非标准标量值当前明确拒绝该模式。
+支持范围为关系表、已展开的关系视图、常量 SELECT，以及它们的 JOIN、派生表、标量/IN/EXISTS 子查询、普通/递归 CTE、UNION/INTERSECT/EXCEPT、DISTINCT、GROUP BY、排序和窗口投影。2026-10-01 第三批补充直接 measurement raw SELECT 的标量投影、WHERE 和 OFFSET/LIMIT，见[measurement 预算合同](m42-measurement-result-bounds.md)；该模型的排序/聚合/JOIN/嵌套查询仍在扫描前拒绝。`EXPLAIN SELECT` 的输出也计费，`EXPLAIN ANALYZE SELECT` 的实际执行与解释结果共用预算。查询树在扫描前预检；文档、Graph、系统视图、物化视图、表值函数、用户函数回调和非标准标量值当前明确拒绝该模式。
 
 关系表 INSERT/UPDATE/DELETE 已纳入同一执行预算。DML 在 mutation 行进入事务缓冲或 `ApplyTransaction` 前计入行数和估算字节；包括无 `RETURNING` 的写入、`RETURNING` 输出、`ON CONFLICT DO UPDATE` 和 `INSERT SELECT` 目标行。任一行超限均抛出 `InvalidOperationException`，不会返回截断结果，自动提交和显式轻事务都保持整条语句原子性；此前显式事务中的缓冲写入不受失败语句撤销。`INSERT SELECT` 的源查询和目标 mutation 是同一根调用链的两个物化阶段，可能分别计入累计预算。DELETE 在预算模式下禁用 generation fast path，以便逐行计费。其它模型目标、CALL、DDL、事务控制和用户函数回调仍在目标分发前抛出 `NotSupportedException`。0 或负预算在语句分发之前抛出 `ArgumentOutOfRangeException`；原有 trigger transition 预算继续独立生效。
 
