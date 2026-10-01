@@ -1,0 +1,73 @@
+{
+  "Name": "build-reviewed-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 48.198,
+  "Processes": [
+    {
+      "ProcessId": 58812,
+      "ParentProcessId": 76996,
+      "CreationDate": "2026-10-01T19:05:39.588695+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --artifacts-path C:\\Temp\\sdb4-5115d3fe\\a -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 57808,
+      "ParentProcessId": 58812,
+      "CreationDate": "2026-10-01T19:05:39.594409+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 61700,
+      "ParentProcessId": 58812,
+      "CreationDate": "2026-10-01T19:05:40.109977+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 65552,
+      "ParentProcessId": 61700,
+      "CreationDate": "2026-10-01T19:05:40.117017+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 81924,
+      "ParentProcessId": 58812,
+      "CreationDate": "2026-10-01T19:05:41.481662+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempiijgjhek.g2i\\tmp639469d344994ee9bdc78bc2ad788213.rsp\""
+    },
+    {
+      "ProcessId": 53684,
+      "ParentProcessId": 81924,
+      "CreationDate": "2026-10-01T19:05:41.4881+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 17444,
+      "ParentProcessId": 61700,
+      "CreationDate": "2026-10-01T19:06:11.491451+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemporu1ta4l.21c\\tmpd328048435ae46fda2300dba00803b32.rsp\""
+    },
+    {
+      "ProcessId": 71008,
+      "ParentProcessId": 17444,
+      "CreationDate": "2026-10-01T19:06:11.498232+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}

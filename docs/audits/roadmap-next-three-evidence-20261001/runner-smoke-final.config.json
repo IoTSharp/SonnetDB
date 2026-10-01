@@ -1,0 +1,11 @@
+{
+  "TimeoutSeconds": 20,
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\runner-smoke-final",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "Name": "runner-smoke-final",
+  "Arguments": [
+    "--version"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB"
+}

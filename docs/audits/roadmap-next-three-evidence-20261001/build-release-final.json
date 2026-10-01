@@ -1,0 +1,408 @@
+{
+  "Name": "build-release-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 193.241,
+  "Processes": [
+    {
+      "ProcessId": 66540,
+      "ParentProcessId": 82480,
+      "CreationDate": "2026-10-01T18:59:55.759636+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --artifacts-path C:\\Temp\\sdb4-5115d3fe\\a -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 81788,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T18:59:55.765844+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68344,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T18:59:56.277049+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 79876,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T18:59:56.282807+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66752,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T18:59:57.625944+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmp6dfde823debb4072ac9bd110fe7c2454.rsp\""
+    },
+    {
+      "ProcessId": 79768,
+      "ParentProcessId": 66752,
+      "CreationDate": "2026-10-01T18:59:57.632316+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 23672,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T18:59:59.496956+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpa30950916d1c40a79ec858c4aa55e72f.rsp\""
+    },
+    {
+      "ProcessId": 56560,
+      "ParentProcessId": 23672,
+      "CreationDate": "2026-10-01T18:59:59.502226+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 78700,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:02.741511+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp5fb7c0dc007749ad8a2dc574caf9c2bc.rsp\""
+    },
+    {
+      "ProcessId": 54768,
+      "ParentProcessId": 78700,
+      "CreationDate": "2026-10-01T19:00:02.782969+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74036,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:08.287348+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp0b4a9e8b98c340d9b720ed961f2587c7.rsp\""
+    },
+    {
+      "ProcessId": 61340,
+      "ParentProcessId": 74036,
+      "CreationDate": "2026-10-01T19:00:08.337068+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 46688,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:13.414058+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpbc957efc78434afb883bae1c1a51c390.rsp\""
+    },
+    {
+      "ProcessId": 45912,
+      "ParentProcessId": 46688,
+      "CreationDate": "2026-10-01T19:00:13.46507+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53264,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:19.75506+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp5fc5eb54a01144e58c302efde8d89018.rsp\""
+    },
+    {
+      "ProcessId": 69464,
+      "ParentProcessId": 53264,
+      "CreationDate": "2026-10-01T19:00:19.764087+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 55940,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:23.921243+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpb497c36bc3bd4531bb51a643616c1388.rsp\""
+    },
+    {
+      "ProcessId": 58000,
+      "ParentProcessId": 55940,
+      "CreationDate": "2026-10-01T19:00:23.947818+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 14580,
+      "ParentProcessId": 23672,
+      "CreationDate": "2026-10-01T19:00:25.760202+08:00",
+      "CommandLine": "\"C:\\Users\\mysti\\AppData\\Local\\uv\\cache\\archive-v0\\UGwat2yz7GQM7uEg\\Scripts\\python.exe\" \"C:\\Users\\mysti\\AppData\\Local\\uv\\cache\\archive-v0\\UGwat2yz7GQM7uEg\\Scripts\\mcp-server-fetch.exe\""
+    },
+    {
+      "ProcessId": 52244,
+      "ParentProcessId": 14580,
+      "CreationDate": "2026-10-01T19:00:25.780592+08:00",
+      "CommandLine": "\"C:\\Users\\mysti\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe\" \"C:\\Users\\mysti\\AppData\\Local\\uv\\cache\\archive-v0\\UGwat2yz7GQM7uEg\\Scripts\\mcp-server-fetch.exe\""
+    },
+    {
+      "ProcessId": 57460,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:30.40711+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpd167108a3f784beb982e3ea7b4a162d0.rsp\""
+    },
+    {
+      "ProcessId": 43572,
+      "ParentProcessId": 57460,
+      "CreationDate": "2026-10-01T19:00:30.413076+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 38272,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:00:30.865997+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpcfcc9207e33f480cb51bf49b3e14ce64.rsp\""
+    },
+    {
+      "ProcessId": 42048,
+      "ParentProcessId": 38272,
+      "CreationDate": "2026-10-01T19:00:30.874236+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 34612,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:33.906219+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpf6758d1f634e4d2fb1779afe8db4a62a.rsp\""
+    },
+    {
+      "ProcessId": 81160,
+      "ParentProcessId": 34612,
+      "CreationDate": "2026-10-01T19:00:33.920843+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37544,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:37.078976+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp8b662de246bd43b29e87dbe1e7074cd4.rsp\""
+    },
+    {
+      "ProcessId": 18772,
+      "ParentProcessId": 37544,
+      "CreationDate": "2026-10-01T19:00:37.087293+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 81296,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:00:41.540332+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpfdd1c57c3d08436481b875a9b8808df9.rsp\""
+    },
+    {
+      "ProcessId": 54144,
+      "ParentProcessId": 81296,
+      "CreationDate": "2026-10-01T19:00:41.54755+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 27660,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:00:45.624936+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpa6b1cc5348a84452899c0d46c58177f4.rsp\""
+    },
+    {
+      "ProcessId": 72492,
+      "ParentProcessId": 27660,
+      "CreationDate": "2026-10-01T19:00:45.633145+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 56368,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:45.660711+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpd011aa918108423d870221b3ebe880e4.rsp\""
+    },
+    {
+      "ProcessId": 34544,
+      "ParentProcessId": 56368,
+      "CreationDate": "2026-10-01T19:00:45.66779+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 30860,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:50.658242+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpc55a08e26cfb4366b1bae07f94f95743.rsp\""
+    },
+    {
+      "ProcessId": 7348,
+      "ParentProcessId": 30860,
+      "CreationDate": "2026-10-01T19:00:50.665648+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66408,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:00:53.757092+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpe7dc67ad94f0432a812a24296199f993.rsp\""
+    },
+    {
+      "ProcessId": 44808,
+      "ParentProcessId": 66408,
+      "CreationDate": "2026-10-01T19:00:53.764002+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 63716,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:55.011008+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp93c9847100924404bbef331e1dd06ed7.rsp\""
+    },
+    {
+      "ProcessId": 28900,
+      "ParentProcessId": 63716,
+      "CreationDate": "2026-10-01T19:00:55.018539+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 4236,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:00:59.043248+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp6a10f87e98d245c69714c1bfec6ac191.rsp\""
+    },
+    {
+      "ProcessId": 25824,
+      "ParentProcessId": 4236,
+      "CreationDate": "2026-10-01T19:00:59.048966+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64452,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:00:59.054551+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmp89976fd1b181403591308ff710c2a86a.rsp\""
+    },
+    {
+      "ProcessId": 80648,
+      "ParentProcessId": 64452,
+      "CreationDate": "2026-10-01T19:00:59.060951+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53428,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:01:01.31775+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 11868,
+      "ParentProcessId": 53428,
+      "CreationDate": "2026-10-01T19:01:01.326743+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 61536,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:01:04.114249+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmp65c3321a7e734184a4d4a82b8b1c7742.rsp\""
+    },
+    {
+      "ProcessId": 27068,
+      "ParentProcessId": 61536,
+      "CreationDate": "2026-10-01T19:01:04.122769+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37712,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:01:06.34393+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpb78091d084a04ab2bafcd6b0500b1eb3.rsp\""
+    },
+    {
+      "ProcessId": 82028,
+      "ParentProcessId": 37712,
+      "CreationDate": "2026-10-01T19:01:06.351381+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 60144,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:01:10.68525+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp32f812975c504c5db94305ce1719c1e4.rsp\""
+    },
+    {
+      "ProcessId": 12096,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:01:15.325659+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpc182973fd4d24e859106f6eca16752e4.rsp\""
+    },
+    {
+      "ProcessId": 73280,
+      "ParentProcessId": 12096,
+      "CreationDate": "2026-10-01T19:01:15.332845+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64152,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:01:28.04365+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmp6b9b7b1df877414aa4f9e19bf433ad7f.rsp\""
+    },
+    {
+      "ProcessId": 50124,
+      "ParentProcessId": 64152,
+      "CreationDate": "2026-10-01T19:01:28.051411+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 79812,
+      "ParentProcessId": 78700,
+      "CreationDate": "2026-10-01T19:02:04.884759+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71220,
+      "ParentProcessId": 68344,
+      "CreationDate": "2026-10-01T19:02:12.740718+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempzybd55mh.ryh\\tmpcecf6a03d4b44f30b0f941ec1c2877fb.rsp\""
+    },
+    {
+      "ProcessId": 62500,
+      "ParentProcessId": 71220,
+      "CreationDate": "2026-10-01T19:02:12.747998+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 10900,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:02:16.39406+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp713cec5016cf4d8aa066ca9fe8b6885f.rsp\""
+    },
+    {
+      "ProcessId": 39852,
+      "ParentProcessId": 10900,
+      "CreationDate": "2026-10-01T19:02:16.405554+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 8700,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:02:21.005727+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmpe05e8ff3d1074699826aeb91b26f9645.rsp\""
+    },
+    {
+      "ProcessId": 33168,
+      "ParentProcessId": 8700,
+      "CreationDate": "2026-10-01T19:02:21.012649+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 63284,
+      "ParentProcessId": 66540,
+      "CreationDate": "2026-10-01T19:02:28.255636+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTemprjjetuhh.qrh\\tmp72166363a8b54047b329440c8e512744.rsp\""
+    },
+    {
+      "ProcessId": 36824,
+      "ParentProcessId": 63284,
+      "CreationDate": "2026-10-01T19:02:28.263142+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

@@ -41,6 +41,14 @@
       "testPath": "tests/SonnetDB.Core.Tests/Audits/FileStreamingOperationsWindowJourneyTests.cs",
       "evidencePath": "docs/audits/roadmap-three-task-closure-20261001.md",
       "boundary": "Exact decimal window reconciliation after commit before ACK, persistent pause, delivery exhaustion, revision-conditional reset and orderly reopen. Local file APIs only; no remote operations, hard kill, DLQ or exactly-once external side effects."
+    },
+    {
+      "id": "grouped-window-dead-letter-reopen",
+      "capabilities": ["streaming", "governance"],
+      "entryPoint": "src/SonnetDB.Core/Streaming/FileStreamingSubscription.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/FileStreamingGroupedDeadLetterJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-next-three-closure-20261001.md",
+      "boundary": "Local grouped decimal commit-before-ACK replay and poison-group quarantine preserve original events across orderly reopen. Existing windows reject skipped checkpoints; a separate state path with an explicit post-quarantine baseline consumes the tail. No automatic window skip, DLQ replay, remote parity, hard-kill or fourteen-capability completion claim."
     }
   ]
 }

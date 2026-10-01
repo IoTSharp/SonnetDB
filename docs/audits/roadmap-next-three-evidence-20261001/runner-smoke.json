@@ -1,0 +1,20 @@
+{
+  "Name": "runner-smoke",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "--version"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 2.694,
+  "Processes": [
+    {
+      "ProcessId": 77556,
+      "ParentProcessId": 58000,
+      "CreationDate": "2026-10-01T18:41:45.5086737+08:00",
+      "CommandLine": "C:\\Program Files\\dotnet\\dotnet.exe --version"
+    }
+  ],
+  "CleanedProcesses": []
+}

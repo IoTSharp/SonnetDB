@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 ### Added
+- **M42 文档 SQL 物化准入（2026-10-01 第四批）**：直接无 TTL 集合 raw SELECT 按文档 ID 逐条读取，在过滤、OFFSET/LIMIT 和投影后、保留结果前共享累计行/估算字节预算；排序、聚合、搜索、JOIN 和嵌套文档来源在扫描前拒绝。底层 KV 快照和单值解析仍有独立工作集，不承诺整体 heap 上限或远程预算选项。见[合同](docs/benchmarks/m42-document-result-bounds.md)。
+- **M43 持久分组窗口（2026-10-01 第四批）**：显式顶层 JSON string 键按原值分组，支持 COUNT 与精确 decimal 数值聚合、键数/结果数/字节边界、组合游标分页和关闭窗口回收；分组使用独立 v3 状态，旧 COUNT v1/数值 v2 保持原字段与 SHA-256 校验。见[合同](docs/m43-grouped-windows.md)。
+- **M43 持久 DLQ（2026-10-01 第四批）**：耗尽批次可经 delivery ID、revision 和 attempt 条件显式隔离，先保存完整事件与原因再推进确认，重开协调中断提交；有界摘要与事件读取，容量满保留原批次。独立 DLQ 状态不改变订阅 v1~v3；窗口不自动跳过隔离后的位点差距。见[合同](docs/m43-subscription-dead-letter.md)。
 - **M43 数值窗口（2026-10-01 第三批）**：持久 UTC 滚动窗口新增显式 JSON 数值字段选择与精确 decimal SUM/MIN/MAX/AVG；坏值、不可精确表示和总和溢出整批拒绝，保留已有 COUNT 状态读取与提交后未 ACK 重投去重。见[数值合同](docs/m43-numeric-windows.md)。
 - **M43 持久订阅运维（2026-10-01 第三批）**：新增持久暂停/恢复与耗尽批次的受控投递计数重置，通过状态 revision、delivery ID 和 attempt 条件拒绝陈旧命令；暂停期间允许发布与 ACK，旧 v1/v2 状态严格校验后迁移到 v3，旧实现不能重开 v3 文件。读取和容量等待设取消及五分钟上限，不承诺 DLQ 或分布式运维。见[运维合同](docs/m43-subscription-operations.md)。
 - **M42 measurement 物化准入（2026-10-01 第三批）**：直接 raw SELECT 的跨字段时间轴合并改用惰性前沿，过滤和分页后的结果在入列表前共享累计行/估算字节预算；opt-in 模式在扫描前拒绝尚未纳入预算的排序、聚合、JOIN 等路径，默认调用保持原合同。存储快照与页解码不属于整体 heap 硬上限。见[查询合同](docs/benchmarks/m42-measurement-result-bounds.md)。

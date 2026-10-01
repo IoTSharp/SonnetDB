@@ -1,0 +1,22 @@
+{
+  "Name": "index-validation",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "eng/validate-fourteen-capability-index.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 1.751,
+  "Processes": [
+    {
+      "ProcessId": 60936,
+      "ParentProcessId": 72816,
+      "CreationDate": "2026-10-01T18:58:13.785238+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File eng/validate-fourteen-capability-index.ps1"
+    }
+  ],
+  "CleanedProcesses": []
+}

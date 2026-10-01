@@ -1,0 +1,13 @@
+  SonnetDB.Core -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  SonnetDB.Data -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.CdcStreamingJourney -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.CdcStreamingJourney\release\SonnetDB.CdcStreamingJourney.dll
+  SonnetDB.Caching.EasyCaching -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Caching.Distributed -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.Cli -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Cli\release\SonnetDB.Cli.dll
+  SonnetDB.Core.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:01:04.92

@@ -1,0 +1,13 @@
+{
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Temp\\sdb4-5115d3fe\\collect.ps1"
+  ],
+  "TimeoutSeconds": 90,
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Name": "collect-evidence",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\collect-evidence"
+}

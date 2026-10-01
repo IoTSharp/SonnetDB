@@ -1,0 +1,16 @@
+{
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Name": "restore-isolated",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\restore-isolated",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "TimeoutSeconds": 600,
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t"
+}

@@ -1,0 +1,13 @@
+{
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "TimeoutSeconds": 60,
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\index-validation",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "eng/validate-fourteen-capability-index.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Name": "index-validation"
+}

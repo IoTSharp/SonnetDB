@@ -1,0 +1,1862 @@
+[
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1e1001}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0555357"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash_RejectsInsteadOfRestoringDefault(field: \"allowedLatenessMilliseconds\", value: \"0\", boundary: \"定义\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0239342"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithSameDeliveryAndChangedContent_RejectsReplay",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0177723"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Publish_WhenBoundedBufferIsFull_CancellationStopsBackpressureWait",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1107479"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_FullTextIndex_TracksUpdateAndDelete",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0676989"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"definition\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2375892"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithRepresentableLongDecimalAndRepeatingAverage_PreservesExactSumAndRoundsAverage",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0551323"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":null}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0498947"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_ExplainShowsHybridAccessPath",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0507261"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BinaryValueOverByteLimit_RejectsSingleWideRow",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0446205"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_ExplainDocumentPlanner_ReportsIndexIntersectionGap",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0404636"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ExplainSelect_UsesMaterializationBudget(sql: \"EXPLAIN ANALYZE SELECT id FROM items\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0450597"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"state\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0351931"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"event-crc\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0357967"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_AfterGroupedNumericCommitBeforeAckAndReopen_DeduplicatesExactResults",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0986107"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_PaginationWithFilter_PreservesCompleteSqlPage(sql: \"SELECT time, value FROM readings OFFSET 8\", first: 8, second: 9)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0539238"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":null}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2517756"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithCorruptLegacyState_FailsClosedWithoutRewriting(version: 2, corruption: \"field\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0409667"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_GeoField_RejectsBeforeScan",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0404329"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithResignedPendingIntentMismatch_FailsClosedAndPreservesOriginalSpool(change: \"checkpoint\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2467861"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM (SELECT id FROM docs) AS source\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0571025"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithCancelledWait_LeavesStateUnchangedAndAllowsNextBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0956263"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.DisposeAsync_WhilePaused_WakesReadAndCapacityWaitAndPreservesBacklog",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0249493"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_WithCancelledToken_DoesNotCreateState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0015040"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_MixedCaseIdentifiers_PreservesBoundNames",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0551645"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtByteCapacity_WaitsForAckAndRecoversBound",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0530191"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Acknowledge_AdvancesVersionedCheckpoint_AndAllowsNextBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0015617"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"value\\\":1}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0587732"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterSpoolAckBeforeStatePublication_CompletesInterruptedAck",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0543698"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithMissingCorruptOrMismatchedState_FailsClosedAndReleasesLease",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0256584"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_WithMismatchedCondition_LeavesDurableStateUnchanged(mismatch: \"revision\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0276510"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"\\\"devices\\\"\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0913800"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM docs ORDER BY id LIMIT 1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0426917"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":\\\"1\\\"}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0494130"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_BudgetRejection_DoesNotModifyPersistentPoints",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0994920"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithRejectedLateEvent_RejectsOtherGroupsInSameBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0251143"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ReadWindowsAsync_WithNegativeEpochTimeAndPagination_UsesFloorAndExclusiveCursor",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0120552"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT value FROM readings WHERE EXISTS (SELECT 1)\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0577933"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_FusesFullTextAndVectorScores",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0757934"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BlockingOperators_RejectAndReleaseSharedBudget(sql: \"SELECT id FROM items ORDER BY value DESC LIMIT 1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0452660"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_InsertDuplicateId_DoesNotOverwriteExistingDocument",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0376927"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash_RejectsInsteadOfRestoringDefault(field: \"lateEventPolicy\", value: \"0\", boundary: \"定义\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0202684"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"checkpoint-required\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0584820"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithUnrepresentableGroupedNumericSum_RejectsWholeBatch(first: \"0.1\", second: \"1e-29\", overflow: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0132030"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_StringAndScalarFilter_PreservesDefaultResult",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0571200"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0493130"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"UPDATE items SET value = 999 WHERE id = 1 RETURNIN\"···, explicitTransaction: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0435069"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM docs WHERE id IN (SELECT 'a')\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0422443"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"group\\\":\\\"A\\\"}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0855438"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithCancelledTokenOrWrongId_PreservesRecoverableBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0370809"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"version\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0710556"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_PaginationWithFilter_PreservesCompleteSqlPage(sql: \"SELECT time, value FROM readings WHERE value >= 4 \"···, first: 7, second: 8)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0540665"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithCorruptOrTruncatedJson_FailsClosed(content: \"{\\\"formatVersion\\\":1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0153457"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithOrdinalStringKeysAndOutOfOrderTimes_PagesStableWindowKeyPositions",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0273328"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithResignedPendingIntentMismatch_FailsClosedAndPreservesOriginalSpool(change: \"revision\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2557990"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":79228162514264337593543950336}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0524655"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_CancelledRoot_ReleasesBudgetAndAllowsNextQuery(expiredDeadline: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0561192"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_FlushedSegmentOverRowBudget_ReleasesPointStreamAndAllowsNextQuery",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0613948"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_ZeroLimit_DoesNotReadDocuments",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0520640"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithStateByteLimit_RejectsBeforeCommitAndKeepsInstanceUsable",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0197601"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTableWithForeignKeyViolation_RejectsEntireBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0559528"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_VectorSearch_ExplainShowsDocumentVectorScan",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0440173"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.HeldFileLock_StopsAtConfiguredTimeout",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1182291"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 1, location: \"definition\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0161640"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithDistinctGroupLimit_RejectsAtomicallyAndReclaimsOnlyAfterLastWindowRemoved",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0476751"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ZeroOrNegativeLimit_RejectsBeforeWrite(rows: 0, bytes: null)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0439947"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterAppendBeforeStatePublication_PreservesUncertainEvent",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0449919"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BlockingOperators_RejectAndReleaseSharedBudget(sql: \"SELECT category, count(*) FROM items GROUP BY cate\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0438290"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_SelectSupportsQualifiedDocumentPseudoColumn",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0343295"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"nested\\\":{\\\"Group\\\":\\\"A\\\"}}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0889152"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithFailedDeadLetterDirectoryPublication_RetriesWithoutResettingExistingRecords",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0490547"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_MultipleSeries_SharesRootBudgetAndPreservesNaturalOrder",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0745883"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_DeleteWithoutReturningOverRowLimit_RollsBackWholeStatement",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0470839"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":true}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2469879"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_NestedBranches_ShareRootBudget(sql: \"SELECT id FROM (SELECT id FROM items LIMIT 2) AS s\"···, smallLimit: 2, expectedRows: 2)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0441846"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_DefaultOptions_PreservesFullSortAndAggregateResults",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0606019"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WhenWindowCapacityFull_PreservesBatchThenContinuesAfterRemovingClosedWindow",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0675681"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT 1 UNION ALL SELECT value FROM readings\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0546308"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTableWithoutRowVersion_GeneratesInitialRowVersion",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0459419"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":[]}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0511062"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithWindowPairLimit_ReclaimsClosedResultsAndDeduplicatesAfterCleanup",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0352925"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ZeroOrNegativeLimit_RejectsBeforeWrite(rows: null, bytes: 0)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0408538"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 7, second: 8)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0384295"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorTableTests.Select_OrderByLimit_UsesStreamingTopNForTableScan",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0341620"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.CompleteAsync_AfterReopening_DrainsAcceptedEventsAndReturnsNull",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0520228"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"UPDATE items SET value = 999 WHERE id = 1 RETURNIN\"···, explicitTransaction: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0430326"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_TtlCollection_RejectsBeforeExpiryPurge",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0363155"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT value FROM (SELECT value FROM readings) AS \"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0526592"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ZeroOrNegativeLimit_RejectsBeforeWrite(rows: null, bytes: -1)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0445640"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_FullTextIndex_RebuildDropsStaleDerivedDocuments",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0950310"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_SparseJsonAndScalarExpressions_PreservesProjectionSemantics",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0376805"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithInvalidGroupedNumericProperty_PreservesOtherGroups(payload: \"{\\\"Group\\\":\\\"B\\\",\\\"Value\\\":null}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0164355"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.CreateNumeric_WithInvalidFieldOrCountVersion_RejectsDefinition",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0004979"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT json_value(document, '$.n') FROM docs GROUP\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0431336"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.RelationalInputPushdownTests.Explain_RelationalStreamingPlan_ReportsBlockingMemoryBoundaries",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0505820"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithConcurrentOwner_RejectsSecondExecutor",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2029066"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithPendingInitialCommit_RejectsAndPreservesSideFile",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0119302"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_IdPredicate_ReadsSingleCandidate(sql: \"SELECT id FROM docs WHERE id = 'missing'\", rows: 0)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0367126"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Graphs.GraphOperationsClientTests.GraphClient_StreamingCompletionOrEarlyExit_DisposesResponse(stopEarly: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0021260"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BlockingOperators_RejectAndReleaseSharedBudget(sql: \"SELECT i.id, l.id FROM items AS i JOIN items AS l \"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0452683"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash_RejectsBeforeLastWins(location: \"escapedGroupKey\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0216599"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.ListDeadLettersAsync_WithPagination_ReturnsBoundedSummariesAndValidatesRanges",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0970403"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_UpdateOverByteLimit_RollsBackWholeStatement",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0467495"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithSumOverflowOrPrecisionLoss_RejectsAtomically(first: \"79228162514264337593543950335\", second: \"1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0511152"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.TableJsonColumn_JsonValue_UsesSamePathEvaluator",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0394882"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_VectorSearch_RanksAndFiltersJsonDocuments",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0497347"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_WithDuplicateDescendingAndOversizedEvents_RejectsWithoutLosingAcceptedEvent",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0303733"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_DmlDefaultForms_AreRejectedAsTableOnly",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0352444"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UserCallback_RejectsBeforeInvocation",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0544254"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"WITH source AS (SELECT id FROM docs) SELECT id FRO\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0404720"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Retain_ConcurrentWorkers_EnforcesSingleRootBudget",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0313188"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorAggregateStreamingTests.NoResidual_CountAggregate_ShortCircuitPreservesResult",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2400499"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM docs WHERE match('index', 'query')\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0445123"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":true}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0501606"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":\\\"A\\\",\\\"Group\\\":\\\"B\\\"}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0834154"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedPositionAndValidHash_RejectsStructuralCorruption",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0427998"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_UnsupportedSourceWithBudget_RejectsExplicitly(sql: \"SELECT * FROM json_each('[1,2]')\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0469596"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithRepeatingAverageAndIndependentGroupSums_PreservesExactDecimalState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0246297"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1} {}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0494467"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithUnownedSideFile_RejectsAndPreservesUnknownFile",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0122250"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"DELETE FROM items WHERE id = 1 RETURNING id\", explicitTransaction: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0480228"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.AdvanceWatermarkAsync_WithAllowedLateness_ClosesAtExactBoundaryAndPersistsDrop",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0283838"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtCapacity_CancelledWaitDoesNotAcceptEvent",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0337188"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_AfterCheckpointAndSpoolCommitFailure_ReopensWithoutLosingOriginalPayload",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0834645"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"DELETE FROM items WHERE id = 1 RETURNING id\", explicitTransaction: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0451250"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.PauseConsumptionAsync_AfterReopening_PreservesPauseAndAllowsPublishingUntilResume",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0362670"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithStaleCondition_PreservesOriginalBatch(condition: \"delivery\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0321901"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithCorruptLegacyState_FailsClosedWithoutRewriting(version: 2, corruption: \"hash\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0228271"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithSavedCustomDeadLetterOptions_RestoresOmittedOptionsAndRejectsMismatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0514587"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":\\\"\\\",\\\"\\\\u0047roup\\\":\\\"B\\\"}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0825396"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_FullTextIndex_SearchesScoresAndPersistsAcrossReopen",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0792458"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash_RejectsBeforeLastWins(location: \"root\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0284403"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterCheckpointCommitBeforeSpoolAck_CompletesInterruptedAck",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0538940"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.Insert_ColumnRoleHint_RejectsForDocumentCollectionDirectly",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0367581"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTableWithExplicitRowVersion_RejectsEntireBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0380891"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"[]\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0830900"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_SeparateRootCalls_DoNotShareCounters",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0431815"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT CAST(SUM(json_value(document, '$.n')) AS IN\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0442183"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_StringByteLimit_EnforcesExactEstimate(bytes: 296, succeeds: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0305264"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_AdvancedIndexes_SupportCompositeUniqueSparsePartialAndTtl",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0791680"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.FileStreamingOperationsWindowJourneyTests.RecoverNumericWindow_AfterPauseAndExhaustedDeliveryReset_ReconcilesValuesAndCheckpoint",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1015954"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorAggregateStreamingTests.StreamingCountAggregate_PeakAllocation_DoesNotScaleWithPointCount",
+    "Outcome": "Passed",
+    "Duration": "00:00:02.0317762"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_SelectGroupByAggregate_ReturnsGroups",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0420697"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithCancellationThenValidNumericBatch_PreservesStateAndRemainsUsable",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1061149"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT d.id FROM docs AS d JOIN items AS i ON d.id\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0433052"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithExistingStateOrSecondWriter_RefusesOverwriteAndConcurrentLease",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0111413"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_ExplainAnalyze_SharesRootBudgetWithExplainResult",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0370739"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_WhenAttemptLimitReached_ReportsStatusAndAllowsAcknowledge",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0416532"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.GetStatusAsync_AfterReopening_ReportsBacklogOldestEventAndInFlightAttempt",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0267843"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ExplainSelect_UsesMaterializationBudget(sql: \"EXPLAIN SELECT id FROM items\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0469344"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnn_AssociatesDocumentKnowledgeRows",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0960806"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Graphs.GraphOperationsClientTests.GraphClient_FilteredExpand_StreamingRequestUsesConfiguredHttp2Version",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0148402"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BlockingOperators_RejectAndReleaseSharedBudget(sql: \"SELECT DISTINCT category FROM items\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0472023"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_AfterReopening_RestoresCommittedCheckpointAndReclaimsSpace",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0570413"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_SparseFieldsAndScalarProjection_PreservesUnionTimelineAndNulls",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0562116"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":\\\"A\\\"\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1044500"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_UnsupportedSourceWithBudget_RejectsExplicitly(sql: \"SELECT * FROM information_schema.tables\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0468192"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT ROW_NUMBER() OVER (ORDER BY id) FROM docs\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0402627"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.LatePolicy_DropAndRejectRespectWatermark",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0014985"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.VersionedDtos_RoundTripWithSourceGeneratedJson",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0074473"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Graphs.GraphOperationsClientTests.GraphClient_StreamingBodyCallerCancellation_CancelsAndDisposes",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0032507"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"state-integrity\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0360242"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithSumOverflowOrPrecisionLoss_RejectsAtomically(first: \"79228162514264337593543950335\", second: \"0.1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0536563"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_AtByteBoundary_ReturnsPrefixAndPreservesRemainder",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2009768"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_PartialIndex_IsUsedOnlyWhenFilterImpliesPredicate",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0399141"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithCorruptLegacyState_FailsClosedWithoutRewriting(version: 1, corruption: \"hash\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0280013"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"event-truncation\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0330795"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOriginalVersionAndHash_PreservesOldShapeAndRefusesGroupedUpgrade(version: 2)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0289698"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 7, second: 8)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0400750"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":1}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0847021"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.ApplyBatchAsync_WithPayloadSnapshotBeyondTotalByteLimit_RejectsBeforeHeaderEnumeration",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0089758"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithNonInitialRevision_WhenCheckpointIsMissing_FailsClosed",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0036022"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash_RejectsInsteadOfRestoringDefault(field: \"maxWindows\", value: \"10000\", boundary: \"容量\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0196097"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithForeignSubscriptionSkippedRevisionOrOverBudget_RefusesMutation",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0144843"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithEmptyStream_StopsAtOperationTimeout",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2735868"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithCancelledTokenOrInvalidReason_DoesNotWriteIntent",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0394076"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithExactDecimalValues_PersistsNumericResultsAndAcknowledges",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0639402"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoDocumentCollection_UsesIdPathAndNormalizesDocuments",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0425457"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_UnsupportedNestedSourceOrUserFunction_RejectsBeforeScanAndCallback",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0479152"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FullDocumentProjection_AccountsForJsonPayload",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0355875"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT DISTINCT value FROM readings\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0535692"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT COUNT(*) FROM docs\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0412108"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 2, location: \"definition\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0122579"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_NestedBranches_ShareRootBudget(sql: \"WITH RECURSIVE r (id) AS (SELECT 1 AS id UNION ALL\"···, smallLimit: 4, expectedRows: 4)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0533681"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"nested\\\":{\\\"Value\\\":1}}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0466620"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithInvalidGroupedNumericProperty_PreservesOtherGroups(payload: \"{\\\"Group\\\":\\\"B\\\"}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0119628"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_WithMismatchedCondition_LeavesDurableStateUnchanged(mismatch: \"attempt\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0246621"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.JsonEach_ReadsJsonArrayFile_AsVirtualTable",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0383512"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT SUM(value) FROM readings\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0560453"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1e-29}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0529737"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_OnConflictDoUpdateWithBudget_UpdatesExistingRow",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0496949"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"INSERT INTO items (id, category, value, payload) V\"···, explicitTransaction: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0470524"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveThenReopen_RestoresLatestCheckpoint",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0221818"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterPublishingAndReopening_RestoresEventsAndWatermark",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0474889"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTable_AppliesPersistedDefaultsToMissingPropertiesAfterReopen",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0661662"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 2, location: \"options\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0118302"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash_RejectsBeforeLastWins(location: \"count\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0391795"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_LimitBeforeInvalidLaterProjection_ReturnsCompletePageWithoutEvaluatingLaterRow",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0505062"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.FileStreamingGroupedDeadLetterJourneyTests.RecoverGroupedNumericWindow_AfterCommitBeforeAck_ReconcilesGroupsAndCheckpoint",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0947196"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithUnrepresentableGroupedNumericSum_RejectsWholeBatch(first: \"79228162514264337593543950335\", second: \"0.1\", overflow: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0175003"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 2, location: \"state\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0122169"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithCorruptLegacyState_FailsClosedWithoutRewriting(version: 1, corruption: \"field\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0227112"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_WhenEmptyAndCancelled_StopsWaitWithoutChangingState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0186443"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_AfterSnapshotAndUnacknowledgedWindowReopen_ReconcilesProductState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.3538578"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithCheckpointLockTimeout_ReopensAndCompletesIntentExactlyOnce",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2760484"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithUnrepresentableWindow_RejectsUtcBoundaryWithoutMutation",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0079296"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_IdPredicate_ReadsSingleCandidate(sql: \"SELECT id FROM docs WHERE id = 'd0017' AND json_va\"···, rows: 0)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0442182"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_WithExistingData_RejectsWithoutOverwriting",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0113027"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_SelectUsesSharedFindPlanner_ForFilterSortPagination",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0356635"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithCancellation_RemainsUsableWithoutStateMutation",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0172761"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"dim.\\\"site\\\"\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0806265"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"\\\"incidents\\\"\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0833979"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorAggregateStreamingTests.ResidualAggregate_LargeDataset_MatchesReference(n: 50000)",
+    "Outcome": "Passed",
+    "Duration": "00:00:02.4879359"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_NestedBranches_ShareRootBudget(sql: \"WITH source AS (SELECT id FROM items LIMIT 2) SELE\"···, smallLimit: 2, expectedRows: 2)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0425289"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ExplainGraphWithBudget_RejectsBeforeTargetDispatch(sql: \"EXPLAIN ANALYZE SELECT * FROM graph_nodes(missing_\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0339532"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorAggregateStreamingTests.CrossFieldGeoAggregate_LargeDataset_MatchesReference(n: 30000)",
+    "Outcome": "Passed",
+    "Duration": "00:00:01.2991724"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_FullTextIndex_CanSearchAcrossAllFields",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0509142"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.\\\"device_id\\\"\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0821467"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":[]}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1552918"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT bm25_score() FROM docs\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0432548"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT value FROM readings UNION ALL SELECT 1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0528300"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_DocumentIndex_NullLookupMatchesJsonNull",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0517002"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_StringAndMultipleColumns_EnforcesEstimatedByteBoundary(bytes: 359, succeeds: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0549859"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_ManyDocumentsOverRowBudget_StopsAtFailureFrontier",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0678523"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithRejectedLateNumericEvent_PreservesWholeBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0430472"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnicodeProjection_EnforcesExactEstimatedBytes(bytes: 143, succeeds: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0412235"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnn_ExplainShowsCrossModelAccessPath",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0817107"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithOutOfOrderEventTimes_CountsFixedUtcWindowsAndAcknowledges",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0630136"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOriginalVersionAndHash_PreservesOldShapeAndRefusesGroupedUpgrade(version: 1)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0347682"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_CancelledRoot_ReleasesBudgetAndAllowsNextQuery(expiredDeadline: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0544408"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1,\\\"Value\\\":2}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0571054"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"WITH source AS (SELECT value FROM readings) SELECT\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0588646"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_InsertReturningOverRowLimit_RollsBackWholeStatement",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0455641"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"unknown\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0533041"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithStaleCondition_PreservesOriginalBatch(condition: \"attempt\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0282119"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash_RejectsBeforeLastWins(location: \"groupKey\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0279111"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"hash\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0585625"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithDifferentStreamIdentity_RejectsBeforeReading",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0316122"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_JsonPathIndex_IsUsedByExplainAndQuery",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0430179"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":\\\"A\\\"} {}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1063575"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WithoutAcknowledge_RedeliversSameBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0078260"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"spool-metadata\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.4753950"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"\\\"DIM\\\".Site\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0789842"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UserCallback_RejectsBeforeInvocation",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0335063"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_ValidatorSql_ErrorRejectsAndPersists",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0652330"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_AfterNumericCommitBeforeAckAndReopen_DeduplicatesAndContinues",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0752184"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AfterWatermarkReopen_RespectsPersistedLatePolicy(policy: Reject)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0330844"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Audits.FileStreamingGroupedDeadLetterJourneyTests.QuarantinePoisonGroup_AfterRejectedBatch_ReopensAndRequiresExplicitWindowBaseline",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1259970"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithLegacyInFlightState_MigratesVerifiedHashAndPreservesStableBatch(version: 1)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0367800"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReturningWithBudget_AllowsRelationalDml(sql: \"INSERT INTO items (id, category, value, payload) V\"···, explicitTransaction: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0519036"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithCorruptOrTruncatedJson_FailsClosed(content: \"\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0165202"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithExternalCheckpointConflict_FaultsAndPreservesPendingEvents",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0382382"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.OpenAsync_WithLegacyInFlightState_MigratesVerifiedHashAndPreservesStableBatch(version: 2)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0400582"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_AfterAnotherResetCycle_RejectsOriginalCommandEvenWhenAttemptMatches",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0318828"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"duplicate\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2361391"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnMixedCaseNames_PreservesMetadataAndJsonKeys",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0936632"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithInitialCheckpoint_ContinuesExistingSubscriptionAtNextRevision",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0621625"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.ApplyBatchAsync_WhenHeaderEnumerationMutatesOriginalPayload_UsesOneOwnedSnapshotForHashAndNumericValue",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0119315"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTable_InvokesAfterInsertTriggerForEveryRow",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0633476"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ReadBatchAsync_WhilePausedWithNoEvents_WaitsUntilPublishingCompletes",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0163693"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithSumOverflowOrPrecisionLoss_RejectsAtomically(first: \"-79228162514264337593543950335\", second: \"-1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0574191"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(cancel: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2348651"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTable_MapsObjectPropertiesToColumns",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0460515"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_UpdateDeleteExceedingWalBudget_RejectsBeforeWalAppendAndLeavesDocumentsUntouched(statement: \"UPDATE budget_docs SET document = '{\\\"state\\\":\\\"up\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0977365"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_CreateShowDescribe_PersistsAcrossReopen",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0644571"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM docs UNION ALL SELECT 'x'\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0403961"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_CancelledRoot_ReleasesBudgetAndAllowsNextQuery(expiredDeadline: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0392653"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_InsertSelectUpdateDelete_WorksEndToEnd",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0394906"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"checkpoint\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0295194"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash_RejectsInsteadOfRestoringDefault(field: \"operationTimeoutMilliseconds\", value: \"10000\", boundary: \"容量\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0227174"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WhenSubscriptionAlreadyAcknowledgedMissingWindows_FailsClosed",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0452452"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT DISTINCT id FROM docs\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0456212"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"\\\"MEASUREMENT\\\".Device_Id\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0846081"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.CancelledOperation_DoesNotLeaveTemporaryPublication",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0020287"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_ManyPointsOverRowBudget_StopsBeforeFullResultAndReleasesResources",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.3813582"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WhenStateByteBudgetExceeded_PreservesStateAndAllowsSmallerBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0160455"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtCapacity_WaitsForAckIncludingInFlightEvents",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0435986"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_MigratesLegacyStateWithoutDeliveryAttemptField",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0498566"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_BlockingOperators_RejectAndReleaseSharedBudget(sql: \"SELECT id, row_number() OVER (ORDER BY value) AS p\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0482019"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_WithMismatchedCondition_LeavesDurableStateUnchanged(mismatch: \"delivery\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0270012"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WhenOpenAndEmpty_CancellationStopsWait",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0027646"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_DefaultAndExactRowLimit_ReturnCompleteResults",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0499877"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 1, location: \"state\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0118885"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ReadBatchAsync_WhilePaused_CancellationPreservesEventsAndAttempts",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0244965"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Group\\\":{}}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.1674410"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_AfterUnacknowledgedReopen_RedeliversSameBatchAndAttempt",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0653888"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"options\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2127362"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithByteCapacityFull_PreservesEventsRevisionAndCheckpoint",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0285952"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ReadYourWritesOverLimit_PreservesExistingTransaction",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0450790"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"checkpoint\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0717756"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"required\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0617948"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnJoinDimensionTable_PushesRelationFilter",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0779678"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedExactNames_ReturnsMatchingRows",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0818910"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"state\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0264312"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT time, SUM(value) FROM readings GROUP BY tim\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0536612"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Graphs.GraphOperationsClientTests.GraphClient_StreamingHttpFailure_DisposesResponseBeforeReturningError",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0021704"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT moving_average(value, 2) FROM readings\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0551292"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AfterWatermarkReopen_RespectsPersistedLatePolicy(policy: Drop)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0338316"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_StringByteLimit_EnforcesExactEstimate(bytes: 295, succeeds: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0325379"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithSameDeliveryAfterWatermarkAndResultRemoval_DoesNotRecountOrDrop",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0225953"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_BudgetRejection_PreservesPersistentDataAndDefaultCapabilities",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0650506"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithStaleCondition_PreservesOriginalBatch(condition: \"revision\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0280509"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1,\\\"\\\\u0056alue\\\":2}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0568608"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Graphs.GraphOperationsClientTests.GraphClient_StreamingCompletionOrEarlyExit_DisposesResponse(stopEarly: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0004658"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":1\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0607170"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_StaleSchemaAfterTtlAddition_RejectsBeforeRead",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0365963"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"spool\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0384612"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_UpdateDeleteExceedingWalBudget_RejectsBeforeWalAppendAndLeavesDocumentsUntouched(statement: \"DELETE FROM budget_docs WHERE json_value(document,\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0857277"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_CancelledBudgetedQuery_PreservesCancellationContract",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0555590"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_FieldAndTagFilters_CountsOnlyRetainedRows",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.3367689"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"missing\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0598379"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT 'x' UNION ALL SELECT id FROM docs\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0410126"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithGroupedNullFieldInOldState_RejectsEvenWithOriginalHash(version: 1, location: \"options\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0112541"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_CreateUniqueIndex_WithExistingDuplicates_RejectsAndKeepsSchema",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0337649"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_StringAndMultipleColumns_EnforcesEstimatedByteBoundary(bytes: 360, succeeds: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0545813"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithRejectPolicy_KeepsEntireBatchUnapplied",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0154868"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"\\\"embedding\\\"\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0774630"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.DisposeAsync_WithWaitingPublishAndRead_WakesWaitersAndAllowsReopen",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0398794"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.ConcurrentStores_OnlyOneConditionalWriteWins",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0428259"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithCompleteEvents_PreservesPayloadHeadersAndTailAfterReopen",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0814488"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash_RejectsBeforeLastWins(location: \"state\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0244518"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorWindowFunctionTests.Select_MovingAverage_LargeDataset_StreamingPathKeepsAllocationBudget",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.5443399"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithMismatchedSubscriptionId_FailsClosed",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0254964"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnsupportedDocumentShape_RejectsBeforeCandidateRead(sql: \"SELECT id FROM docs WHERE EXISTS (SELECT 1)\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0490877"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_CancelledRoot_ReleasesBudgetAndAllowsNextQuery(expiredDeadline: False)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0368590"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ExplainGraphWithBudget_RejectsBeforeTargetDispatch(sql: \"EXPLAIN SELECT * FROM graph_nodes(missing_graph)\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0324018"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithUnrepresentableGroupedNumericSum_RejectsWholeBatch(first: \"79228162514264337593543950335\", second: \"1\", overflow: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0080890"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.AcknowledgeAsync_WhilePausedAndCompleted_DrainsInFlightAndWakesTerminalRead",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0359700"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.PumpOnceAsync_WithInvalidNumericPayload_RejectsWholeBatchWithoutAckOrMutation(payload: \"{\\\"Value\\\":0.12345678901234567890123456789}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0609860"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_AfterExhaustionAndReopening_RedeliversStableBatchWithoutResuming",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0584385"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(cancel: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0417149"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_ZeroLimit_DoesNotReadPoints",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0563592"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_LimitBeforeInvalidLaterProjection_EvaluatesOnlySqlPage",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0385499"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WhenClosedBeforeRead_ReturnsNull",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0007354"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_PaginationWithFilter_PreservesCompleteSqlPage(sql: \"SELECT time, value FROM readings WHERE value >= 4 \"···, first: 7, second: 8)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0539314"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_ValidatorSql_WarnAllowsAndReportsWarning",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0397937"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Definition_RejectsSubMillisecondLatenessInsteadOfTruncating",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0003332"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResumeConsumptionAsync_WithStaleRevision_LeavesSubscriptionPaused",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0218591"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_FullTextIndex_RebuildsWhenDerivedDirectoryIsMissing",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0749162"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_InsertSelectOverSharedRowLimit_LeavesTargetUnchanged",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0586050"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithMaximumKeyLength_PreservesUnicodeAndRejectsLongerKey",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0269936"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionOperationsTests.ResetDeliveryAttemptsAsync_BeforeExhaustion_RejectsWithoutChangingState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0188119"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithBatchCapacityFull_RejectsAtomicallyAndAllowsOriginalAcknowledge",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0628975"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithAllowedLatenessAndLateDrop_DoesNotParseDiscardedKeysOrRecreateRemovedGroups",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0446099"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_IndexedFilter_PreservesCompleteFilteredPage",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0353842"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_ZeroOrNegativeLimit_RejectsBeforeWrite(rows: -1, bytes: null)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0455957"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.LatePolicy_DeliverMarksEvent_AndWatermarkCannotMoveBack",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0016952"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.MoveExhaustedBatchToDeadLetterAsync_WithStaleCondition_PreservesOriginalBatch(condition: \"not-exhausted\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0340135"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_MissingTag_ReturnsNullWithDefaultEquivalentResult",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0544885"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.ApplyBatchAsync_WithInvalidGroupedNumericProperty_PreservesOtherGroups(payload: \"{\\\"Group\\\":\\\"B\\\",\\\"Value\\\":1,\\\"\\\\u0056alue\\\":2}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0270975"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_AppliesJsonPathFilters",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0474564"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMeasurementMaterializationBudgetTests.Execute_UnsupportedMeasurementShape_RejectsBeforePointRead(sql: \"SELECT time, value FROM readings ORDER BY time LIM\"···)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0568685"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_IdPredicate_ReadsSingleCandidate(sql: \"SELECT id FROM docs WHERE id = 'd0017'\", rows: 1)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0361707"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ImportJson_IntoTableWithCheckViolation_RejectsEntireBatch",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0413844"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.PumpOnceAsync_WithInvalidGroupKey_RejectsWholeBatchWithoutAckOrMutation(payload: \"{}\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0864985"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithStaleRevision_RejectsWriteAndPreservesCommittedValue",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0231996"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_AfterWindowCommitBeforeAckAndReopen_DeduplicatesStableDelivery",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0818244"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_UnicodeProjection_EnforcesExactEstimatedBytes(bytes: 144, succeeds: True)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0365781"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithRegressingSequenceOrWatermark_RejectsWrite",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0144910"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_ExplainDocumentPlanner_ShowsCostPushdownSortAndPrefixIndex",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0491854"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.OpenAsync_WithOriginalCountFormatAndHash_RestoresWithoutChangingFormatAndRejectsTampering",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0687495"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 8, second: 9)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0322392"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithResignedPendingIntentMismatch_FailsClosedAndPreservesOriginalSpool(change: \"payload\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.2489272"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_RawRowsOverLimit_StopsScanAndReleasesBudget",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0509823"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingNumericWindowTests.ReadNumericWindowsAsync_WithPaginationCapacityAndLateDrop_ReclaimsBothCountAndNumericState",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0993243"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingGroupedWindowTests.CreateAsync_WithInvalidGroupingDefinitionOrCapacity_RejectsExplicitContract",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0040032"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_NestedBranches_ShareRootBudget(sql: \"SELECT 1 AS value UNION ALL SELECT 2 AS value\", smallLimit: 2, expectedRows: 2)",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0436597"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingDeadLetterTests.OpenAsync_WithInvalidDeadLetterState_RejectsStrictly(change: \"identity\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0590235"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlMaterializationBudgetTests.Execute_SpilledSortOverByteLimit_RejectsAndCleansWorkspace",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0479435"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"\\\"device_id\\\"\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0930683"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.ParseCreateDocumentCollection_ReturnsAst",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0011512"
+  },
+  {
+    "Name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithOwnedInterruptedTemporaryWrite_ReclaimsFixedSideFileAndContinues",
+    "Outcome": "Passed",
+    "Duration": "00:00:00.0205644"
+  }
+]

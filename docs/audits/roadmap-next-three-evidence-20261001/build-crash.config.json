@@ -1,0 +1,21 @@
+{
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\build-crash",
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "TimeoutSeconds": 360,
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Name": "build-crash",
+  "Arguments": [
+    "build",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:1",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t"
+}

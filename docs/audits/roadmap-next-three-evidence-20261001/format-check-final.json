@@ -1,0 +1,52 @@
+{
+  "Name": "format-check-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 101.114,
+  "Processes": [
+    {
+      "ProcessId": 3832,
+      "ParentProcessId": 72808,
+      "CreationDate": "2026-10-01T19:10:02.572582+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 78952,
+      "ParentProcessId": 3832,
+      "CreationDate": "2026-10-01T19:10:02.578947+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 81400,
+      "ParentProcessId": 3832,
+      "CreationDate": "2026-10-01T19:10:02.745535+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 64200,
+      "ParentProcessId": 81400,
+      "CreationDate": "2026-10-01T19:10:03.794926+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 40d114d7-63d5-48fa-bbad-9e2bf65914ab zh-CN"
+    },
+    {
+      "ProcessId": 27788,
+      "ParentProcessId": 64200,
+      "CreationDate": "2026-10-01T19:10:03.80379+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}

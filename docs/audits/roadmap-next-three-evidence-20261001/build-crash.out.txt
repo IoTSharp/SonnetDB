@@ -1,0 +1,9 @@
+  SonnetDB.Core -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  SonnetDB.CrashTests.Child -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.CrashTests.Child\release\SonnetDB.CrashTests.Child.dll
+  SonnetDB.CrashTests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.CrashTests\release\SonnetDB.CrashTests.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:06.35

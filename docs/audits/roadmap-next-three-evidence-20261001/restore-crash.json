@@ -1,0 +1,43 @@
+{
+  "Name": "restore-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 4.778,
+  "Processes": [
+    {
+      "ProcessId": 72960,
+      "ParentProcessId": 81980,
+      "CreationDate": "2026-10-01T18:56:06.06782+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --artifacts-path C:\\Temp\\sdb4-5115d3fe\\a -m:2 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 67864,
+      "ParentProcessId": 72960,
+      "CreationDate": "2026-10-01T18:56:06.073531+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 51984,
+      "ParentProcessId": 72960,
+      "CreationDate": "2026-10-01T18:56:06.852093+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 21276,
+      "ParentProcessId": 51984,
+      "CreationDate": "2026-10-01T18:56:06.857721+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

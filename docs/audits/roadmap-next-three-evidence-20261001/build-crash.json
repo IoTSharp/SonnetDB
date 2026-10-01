@@ -1,0 +1,61 @@
+{
+  "Name": "build-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:1",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 12.904,
+  "Processes": [
+    {
+      "ProcessId": 11688,
+      "ParentProcessId": 81116,
+      "CreationDate": "2026-10-01T19:11:41.079151+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj -c Release --no-restore --artifacts-path C:\\Temp\\sdb4-5115d3fe\\a -m:1 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 61988,
+      "ParentProcessId": 11688,
+      "CreationDate": "2026-10-01T19:11:41.091601+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 78092,
+      "ParentProcessId": 11688,
+      "CreationDate": "2026-10-01T19:11:42.60704+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempybzzkgtl.440\\tmpc2a67e6849db436aabc0ae68a97cae4e.rsp\""
+    },
+    {
+      "ProcessId": 62924,
+      "ParentProcessId": 78092,
+      "CreationDate": "2026-10-01T19:11:42.618735+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 36308,
+      "ParentProcessId": 11688,
+      "CreationDate": "2026-10-01T19:11:45.129661+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdb4-5115d3fe\\t\\MSBuildTempybzzkgtl.440\\tmp52f6c119ec6e47f69f46cc8afba042d7.rsp\""
+    },
+    {
+      "ProcessId": 8888,
+      "ParentProcessId": 36308,
+      "CreationDate": "2026-10-01T19:11:45.135889+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}

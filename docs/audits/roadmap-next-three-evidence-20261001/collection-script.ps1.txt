@@ -1,0 +1,74 @@
+param([switch]$Smoke)
+$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
+$taskRoot = 'C:\Temp\sdb4-5115d3fe'
+$destination = if ($Smoke) { $taskRoot + '\t\evidence-smoke' } else { 'D:\source\SonnetDB\docs\audits\roadmap-next-three-evidence-20261001' }
+New-Item -ItemType Directory -Path $destination -Force | Out-Null
+$watch = [Diagnostics.Stopwatch]::StartNew()
+$files = @([IO.Directory]::GetFiles($taskRoot) | Where-Object { $_ -match '\.(json|log)$' } | Sort-Object)
+if ($files.Count -gt 128) { throw 'Evidence inventory exceeds limit.' }
+$limit = if ($Smoke) { 1 } else { $files.Count }
+for ($index = 0; $index -lt $limit -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+    if (Test-Path -LiteralPath ($taskRoot + '\collect.cancel')) { throw 'Evidence collection cancelled.' }
+    $name = [IO.Path]::GetFileName($files[$index]).Replace('.log', '.txt')
+    Copy-Item -LiteralPath $files[$index] -Destination (Join-Path $destination $name)
+}
+if ($index -ne $limit) { throw 'Evidence copy timed out.' }
+if ($Smoke) { Write-Output 'Evidence smoke copied 1 file.'; exit 0 }
+Copy-Item -LiteralPath ($taskRoot + '\run.ps1') -Destination (Join-Path $destination 'execution-wrapper.ps1.txt')
+Copy-Item -LiteralPath $PSCommandPath -Destination (Join-Path $destination 'collection-script.ps1.txt')
+$reports = [ordered]@{}
+$newTests = @()
+$related = @()
+$testNames = @('targeted-first', 'state-tiny-probe', 'core-full-final', 'server-sql-final', 'streaming-hard-kill')
+for ($index = 0; $index -lt $testNames.Count -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+    $name = $testNames[$index]
+    $path = Join-Path ($taskRoot + '\results') ($name + '.trx')
+    if ((Get-Item -LiteralPath $path).Length -gt 64MB) { throw 'TRX exceeds evidence read limit.' }
+    [xml]$xml = Get-Content -LiteralPath $path -Raw
+    $counters = $xml.TestRun.ResultSummary.Counters
+    $results = @($xml.TestRun.Results.UnitTestResult)
+    if ($results.Count -gt 10000) { throw 'TRX result count exceeds limit.' }
+    $failed = @($results | Where-Object outcome -eq Failed | ForEach-Object {
+        [ordered]@{ Name = $_.testName; Message = [string]$_.Output.ErrorInfo.Message; StackTrace = [string]$_.Output.ErrorInfo.StackTrace }
+    })
+    $reports[$name] = [ordered]@{
+        Total = [int]$counters.total; Passed = [int]$counters.passed; Failed = [int]$counters.failed
+        NotExecuted = [int]$counters.notExecuted; Skipped = [int]$counters.pending
+        TrxSha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash; Failures = $failed
+    }
+    if ($name -eq 'core-full-final') {
+        $newTests = @($results | Where-Object testName -Match 'DocumentSelectMaterializationBudgetTests|FileStreamingGroupedWindowTests|FileStreamingDeadLetterTests|FileStreamingGroupedDeadLetterJourneyTests' | ForEach-Object {
+            [ordered]@{ Name = $_.testName; Outcome = $_.outcome; Duration = $_.duration }
+        })
+        $related = @($results | Where-Object testName -Match 'Streaming|SqlMaterializationBudgetTests|SqlMeasurementMaterializationBudgetTests|DocumentSelectMaterializationBudgetTests|SqlExecutorDocumentTests' | ForEach-Object {
+            [ordered]@{ Name = $_.testName; Outcome = $_.outcome; Duration = $_.duration }
+        })
+    }
+}
+if ($index -ne $testNames.Count) { throw 'TRX summary timed out.' }
+$sources = @(@(git ls-files --modified) + @(git ls-files --others --exclude-standard) | Where-Object { $_.EndsWith('.cs') } | Sort-Object -Unique)
+if ($sources.Count -gt 64) { throw 'Source inventory exceeds limit.' }
+$hashes = @()
+for ($index = 0; $index -lt $sources.Count -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+    $hashes += [ordered]@{ Path = $sources[$index]; Sha256 = (Get-FileHash -LiteralPath (Join-Path 'D:\source\SonnetDB' $sources[$index]) -Algorithm SHA256).Hash }
+}
+if ($index -ne $sources.Count) { throw 'Source hash collection timed out.' }
+$commands = @()
+$commandNames = @('runner-smoke', 'runner-smoke-final', 'restore', 'restore-isolated', 'restore-crash', 'build-core-first', 'targeted-first', 'build-release-final', 'build-reviewed-final', 'state-tiny-probe', 'core-full-final', 'server-sql-final', 'format-check-final', 'build-crash', 'streaming-hard-kill', 'index-validation')
+for ($index = 0; $index -lt $commandNames.Count -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+    $name = $commandNames[$index]
+    $report = Get-Content -LiteralPath (Join-Path $taskRoot ($name + '.json')) -Raw | ConvertFrom-Json
+    $commands += [ordered]@{ Name = $name; ExitCode = $report.ExitCode; TimedOut = $report.TimedOut; ElapsedSeconds = $report.ElapsedSeconds }
+}
+if ($index -ne $commandNames.Count) { throw 'Command summary timed out.' }
+$newTests | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $destination 'new-tests.json') -Encoding utf8NoBOM
+$related | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $destination 'related-tests.json') -Encoding utf8NoBOM
+[ordered]@{
+    SchemaVersion = '1.0'; Scope = 'LOCAL_WINDOWS_CONTRACT_ONLY'; BaseCommit = (git rev-parse HEAD)
+    PowerShell = $PSVersionTable.PSVersion.ToString(); DotnetSdk = '10.0.401'; TaskRoot = $taskRoot
+    Commands = $commands; Tests = $reports; NewTestCount = $newTests.Count; RelatedTestCount = $related.Count
+    FinalSourceHashes = $hashes
+    ExternalGates = 'NOT_RUN: fixed hardware, NativeAOT publish, remote CDC/streaming, real model, installation, scheduled nightly, 168h/production'
+} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $destination 'validation.json') -Encoding utf8NoBOM
+Write-Output ('Collected {0} new and {1} related tests.' -f $newTests.Count, $related.Count)

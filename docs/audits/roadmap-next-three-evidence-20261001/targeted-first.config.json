@@ -1,0 +1,30 @@
+{
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "--filter",
+    "FullyQualifiedName~DocumentSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingGroupedWindowTests|FullyQualifiedName~FileStreamingDeadLetterTests|FullyQualifiedName~FileStreamingGroupedDeadLetterJourneyTests",
+    "--logger",
+    "trx;LogFileName=targeted-first.trx",
+    "--results-directory",
+    "C:\\Temp\\sdb4-5115d3fe\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\targeted-first",
+  "TimeoutSeconds": 300,
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Name": "targeted-first",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t"
+}

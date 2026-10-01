@@ -1,0 +1,18 @@
+{
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "TimeoutSeconds": 900,
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\format-check-final",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "Name": "format-check-final",
+  "WorkingDirectory": "D:\\source\\SonnetDB"
+}

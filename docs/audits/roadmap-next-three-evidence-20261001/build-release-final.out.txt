@@ -1,0 +1,50 @@
+  run-benchmarks -> C:\Temp\sdb4-5115d3fe\a\bin\run-benchmarks\release\run-benchmarks.dll
+  start-benchmark-env -> C:\Temp\sdb4-5115d3fe\a\bin\start-benchmark-env\release\start-benchmark-env.dll
+  connectors-release -> C:\Temp\sdb4-5115d3fe\a\bin\connectors-release\release\connectors-release.dll
+  CoAP.NET.SourceGeneration -> C:\Temp\sdb4-5115d3fe\a\bin\CoAP.NET.SourceGeneration\release\CoAP.NET.SourceGeneration.dll
+  CoAP.NET -> C:\Temp\sdb4-5115d3fe\a\bin\CoAP.NET\release\CoAP.NET.dll
+  MQTTnet.AspNetCore.Routing -> C:\Temp\sdb4-5115d3fe\a\bin\MQTTnet.AspNetCore.Routing\release_net8.0\MQTTnet.AspNetCore.Routing.dll
+  MQTTnet.AspNetCore.Routing -> C:\Temp\sdb4-5115d3fe\a\bin\MQTTnet.AspNetCore.Routing\release_net10.0\MQTTnet.AspNetCore.Routing.dll
+  MQTTnet.AspNetCore.Routing.SourceGeneration -> C:\Temp\sdb4-5115d3fe\a\bin\MQTTnet.AspNetCore.Routing.SourceGeneration\release\MQTTnet.AspNetCore.Routing.SourceGeneration.dll
+  SonnetDB.Core -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Core\release\SonnetDB.Core.dll
+  SonnetDB.IndustrialDiagnostics -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.IndustrialDiagnostics\release\SonnetDB.IndustrialDiagnostics.dll
+  SonnetDB.Data -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Data\release\SonnetDB.Data.dll
+  SonnetDB.SemanticImages -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.SemanticImages\release\SonnetDB.SemanticImages.dll
+  SonnetDB.Native -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Native\release\SonnetDB.Native.dll
+  SonnetDB.Media -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Media\release\SonnetDB.Media.dll
+  SonnetDB.Cli -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Cli\release\SonnetDB.Cli.dll
+  SonnetDB.Caching.EasyCaching -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Caching.EasyCaching\release\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.EntityFrameworkCore -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.EntityFrameworkCore\release\SonnetDB.EntityFrameworkCore.dll
+  SonnetDB.KvQuickstart -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.KvQuickstart\release\SonnetDB.KvQuickstart.dll
+  SonnetDB.DocumentQuickstart -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.DocumentQuickstart\release\SonnetDB.DocumentQuickstart.dll
+  SonnetDB.LanguageServer -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.LanguageServer\release\SonnetDB.LanguageServer.dll
+  SonnetDB.Caching.Distributed -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Caching.Distributed\release\SonnetDB.Caching.Distributed.dll
+  SonnetDB.CdcStreamingJourney -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.CdcStreamingJourney\release\SonnetDB.CdcStreamingJourney.dll
+  SonnetDB.Studio -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Studio\release\SonnetDB.Studio.dll
+  SonnetDB.EcosystemSample -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.EcosystemSample\release\SonnetDB.EcosystemSample.dll
+  Testcontainers.SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\Testcontainers.SonnetDB\release_netstandard2.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\Testcontainers.SonnetDB\release_netstandard2.1\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\Testcontainers.SonnetDB\release_net9.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\Testcontainers.SonnetDB\release_net8.0\Testcontainers.SonnetDB.dll
+  Testcontainers.SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\Testcontainers.SonnetDB\release_net10.0\Testcontainers.SonnetDB.dll
+  SonnetDB.Benchmarks.Tests.ProcessProbe -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Benchmarks.Tests.ProcessProbe\release\SonnetDB.Benchmarks.Tests.ProcessProbe.dll
+  SonnetDB.MediaSegments -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.MediaSegments\release\SonnetDB.MediaSegments.dll
+  SonnetDB.EcosystemSoak -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.EcosystemSoak\release\SonnetDB.EcosystemSoak.dll
+  SonnetDB.TriggerAdmission -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.TriggerAdmission\release\SonnetDB.TriggerAdmission.dll
+  SonnetDB.IoTSharpCompat.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.IoTSharpCompat.Tests\release\SonnetDB.IoTSharpCompat.Tests.dll
+  SonnetDB.Media.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Media.Tests\release\SonnetDB.Media.Tests.dll
+  SonnetDB.LanguageServer.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.LanguageServer.Tests\release\SonnetDB.LanguageServer.Tests.dll
+  SonnetDB.Core.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll
+  SonnetDB -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB\release\SonnetDB.dll
+  SonnetDB.Benchmarks -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Benchmarks\release\SonnetDB.Benchmarks.dll
+  SonnetDB.Benchmarks.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Benchmarks.Tests\release\SonnetDB.Benchmarks.Tests.dll
+  SonnetDB.Accuracy.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Accuracy.Tests\release\SonnetDB.Accuracy.Tests.dll
+  SonnetDB.EntityFrameworkCore.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.EntityFrameworkCore.Tests\release\SonnetDB.EntityFrameworkCore.Tests.dll
+  SonnetDB.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Tests\release_win-x64\SonnetDB.Tests.dll
+  SonnetDB.Studio.Tests -> C:\Temp\sdb4-5115d3fe\a\bin\SonnetDB.Studio.Tests\release\SonnetDB.Studio.Tests.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:02:36.18

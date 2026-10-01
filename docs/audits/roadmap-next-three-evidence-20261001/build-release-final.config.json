@@ -1,0 +1,21 @@
+{
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\build-release-final",
+  "TimeoutSeconds": 900,
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "Name": "build-release-final",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe"
+}

@@ -1,0 +1,16 @@
+{
+  "TimeoutSeconds": 600,
+  "Arguments": [
+    "restore",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "Name": "restore-crash",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\restore-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "WorkingDirectory": "D:\\source\\SonnetDB"
+}

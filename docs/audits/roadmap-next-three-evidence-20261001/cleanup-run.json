@@ -1,0 +1,29 @@
+{
+  "Name": "cleanup-run",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Temp\\sdb4-5115d3fe\\cleanup.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 4.94,
+  "Processes": [
+    {
+      "ProcessId": 31020,
+      "ParentProcessId": 77668,
+      "CreationDate": "2026-10-01T19:23:28.65147+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File C:\\Temp\\sdb4-5115d3fe\\cleanup.ps1"
+    },
+    {
+      "ProcessId": 76444,
+      "ParentProcessId": 31020,
+      "CreationDate": "2026-10-01T19:23:28.659976+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}

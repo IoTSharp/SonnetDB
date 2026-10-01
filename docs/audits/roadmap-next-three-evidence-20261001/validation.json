@@ -1,0 +1,251 @@
+{
+  "SchemaVersion": "1.0",
+  "Scope": "LOCAL_WINDOWS_CONTRACT_ONLY",
+  "BaseCommit": "1f900c7c2d4031da09fc0d520eb29834c8bcaa21",
+  "PowerShell": "7.6.6",
+  "DotnetSdk": "10.0.401",
+  "TaskRoot": "C:\\Temp\\sdb4-5115d3fe",
+  "Commands": [
+    {
+      "Name": "runner-smoke",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 2.694
+    },
+    {
+      "Name": "runner-smoke-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 1.756
+    },
+    {
+      "Name": "restore",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 6.413
+    },
+    {
+      "Name": "restore-isolated",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 8.303
+    },
+    {
+      "Name": "restore-crash",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 4.778
+    },
+    {
+      "Name": "build-core-first",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 74.17
+    },
+    {
+      "Name": "targeted-first",
+      "ExitCode": 1,
+      "TimedOut": false,
+      "ElapsedSeconds": 12.672
+    },
+    {
+      "Name": "build-release-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 193.241
+    },
+    {
+      "Name": "build-reviewed-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 48.198
+    },
+    {
+      "Name": "state-tiny-probe",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 6.134
+    },
+    {
+      "Name": "core-full-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 286.785
+    },
+    {
+      "Name": "server-sql-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 25.615
+    },
+    {
+      "Name": "format-check-final",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 101.114
+    },
+    {
+      "Name": "build-crash",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 12.904
+    },
+    {
+      "Name": "streaming-hard-kill",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 9.112
+    },
+    {
+      "Name": "index-validation",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedSeconds": 1.751
+    }
+  ],
+  "Tests": {
+    "targeted-first": {
+      "Total": 98,
+      "Passed": 94,
+      "Failed": 4,
+      "NotExecuted": 0,
+      "Skipped": 0,
+      "TrxSha256": "DADF5FB77961C5B29D6DB7356BBD9D1DF029DF44D95EED818C37A0A58740BF96",
+      "Failures": [
+        {
+          "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 7, second: 8)",
+          "Message": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.Int64'.",
+          "StackTrace": "   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.<>c.<Execute_FilterAndPagination_CountsOnlyCompletePage>b__2_0(IReadOnlyList`1 row) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at System.Linq.Enumerable.ListSelectIterator`2.MoveNext()\r\n   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(String sql, Int64 first, Int64 second) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at InvokeStub_DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(Object, Span`1)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)"
+        },
+        {
+          "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 8, second: 9)",
+          "Message": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.Int64'.",
+          "StackTrace": "   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.<>c.<Execute_FilterAndPagination_CountsOnlyCompletePage>b__2_0(IReadOnlyList`1 row) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at System.Linq.Enumerable.ListSelectIterator`2.MoveNext()\r\n   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(String sql, Int64 first, Int64 second) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at InvokeStub_DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(Object, Span`1)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithFewArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)"
+        },
+        {
+          "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: \"SELECT json_value(document, '$.n') AS n FROM docs \"···, first: 7, second: 8)",
+          "Message": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.Int64'.",
+          "StackTrace": "   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.<>c.<Execute_FilterAndPagination_CountsOnlyCompletePage>b__2_0(IReadOnlyList`1 row) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at System.Linq.Enumerable.ListSelectIterator`2.MoveNext()\r\n   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(String sql, Int64 first, Int64 second) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 48\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)"
+        },
+        {
+          "Name": "SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_SparseJsonAndScalarExpressions_PreservesProjectionSemantics",
+          "Message": "System.NotSupportedException : SQL 物化预算仅支持关系表、关系表视图、CTE 和常量查询源。",
+          "StackTrace": "   at SonnetDB.Sql.Execution.SqlMaterializationContract.<Validate>g__ValidateTable|0_6(String name, HashSet`1 ctes, <>c__DisplayClass0_0&) in D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Sql\\Execution\\SqlMaterializationContract.cs:line 223\r\n   at SonnetDB.Sql.Execution.SqlMaterializationContract.<Validate>g__ValidateQuery|0_5(SelectStatement query, HashSet`1 inheritedCtes, Boolean allowMeasurement, Boolean allowDocument, <>c__DisplayClass0_0&) in D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Sql\\Execution\\SqlMaterializationContract.cs:line 185\r\n   at SonnetDB.Sql.Execution.SqlMaterializationContract.Validate(Tsdb tsdb, SqlStatement statement) in D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Sql\\Execution\\SqlMaterializationContract.cs:line 15\r\n   at SonnetDB.Sql.Execution.SqlExecutor.ExecuteStatement(Tsdb tsdb, String databaseName, SqlStatement statement, IControlPlane controlPlane, SqlTransactionContext transaction, SqlExecutionOptions options) in D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Sql\\Execution\\SqlExecutor.cs:line 402\r\n   at SonnetDB.Sql.Execution.SqlExecutor.Execute(Tsdb tsdb, String databaseName, String sql, SqlParameters parameters, IControlPlane controlPlane, SqlExecutionOptions options) in D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Sql\\Execution\\SqlExecutor.cs:line 156\r\n   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Select(Tsdb db, String sql, SqlExecutionOptions options) in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 362\r\n   at SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_SparseJsonAndScalarExpressions_PreservesProjectionSemantics() in D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\Sql\\DocumentSelectMaterializationBudgetTests.cs:line 146\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)"
+        }
+      ]
+    },
+    "state-tiny-probe": {
+      "Total": 9,
+      "Passed": 9,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Skipped": 0,
+      "TrxSha256": "FE9774DADA3E621E950A4EBC14AA44C17E798DBC90E8CC883C15E09014DB04ED",
+      "Failures": []
+    },
+    "core-full-final": {
+      "Total": 5717,
+      "Passed": 5717,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Skipped": 0,
+      "TrxSha256": "D2AE04514C929EF317EAEFB4F70BAC67537B1DF334042F4802B26F46E3C21030",
+      "Failures": []
+    },
+    "server-sql-final": {
+      "Total": 67,
+      "Passed": 67,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Skipped": 0,
+      "TrxSha256": "70A6D0D3BDC466A79F136372223A569A05BC11DC35DE44C1F6CD3E8EACD15B69",
+      "Failures": []
+    },
+    "streaming-hard-kill": {
+      "Total": 1,
+      "Passed": 1,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Skipped": 0,
+      "TrxSha256": "DEEDBEE6FD9A66CC5A43B4BEC173BDBA1EA6C5F41AE5F1D2AC44C2B61214E031",
+      "Failures": []
+    }
+  },
+  "NewTestCount": 110,
+  "RelatedTestCount": 372,
+  "FinalSourceHashes": [
+    {
+      "Path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs",
+      "Sha256": "0F78450F9CC4C2102450E543DC022AE415EB92AD8A6097ACA6960A87472242A5"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/DocumentSqlExecutor.cs",
+      "Sha256": "33F644ECF3269EBEA18AF776C75871E06BF6B9A2804D2B19A2D4D7F10581059C"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "Sha256": "899A418C7D224D5A28C1B0E21285A3C233D916E63BA7938867526047AAFE4179"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "Sha256": "6977454485171E002B0CB418374036BD4EB6C8660ADBC438E585575AE7F4943A"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/SqlMaterializationContract.cs",
+      "Sha256": "7A2C53A81589D8AC2A38B68415219D00DD5CB920CCAC1DFB09E5F1566EFFEA8E"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterCapacityException.cs",
+      "Sha256": "2FA5DBB65F75FD0CEDF778A5D225641CC8D45EBEA51E911353D67AB848487663"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterContracts.cs",
+      "Sha256": "A286709E12C36EA54B8A1404AAAA73386FB7A4401D19638E07C2DEB6C92A5CA4"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterOperations.cs",
+      "Sha256": "68C1E0115FD8D0FE0D5435F54AD66C61EFD895A8F746E005EF48E53FA96FFC41"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterStore.cs",
+      "Sha256": "2DD1E71B4BD52B390D38B32ABC864AAB92A3350BA2958095D8946C6C23E51923"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingSubscription.cs",
+      "Sha256": "0FF169B4B8D01C8AED80E45D632A1E41DA3B8EC3CD3BA957F558E4FC1E780CD5"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingSubscriptionContracts.cs",
+      "Sha256": "315A53B2C38FC335F3CCB42BD79EB60C33D0D6F7F58C53E00EDD72542379C1B0"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.cs",
+      "Sha256": "8E3CACB0EBBC7BB70564C7FE4C56D0E5354F24B1D9166F08AB279FD220458D21"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.Grouped.cs",
+      "Sha256": "6507E801F660BF6EFFCDA97C12DABC8332FFEBE26DDD4642A7C4E713FEBD8417"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/StreamingWindowContracts.cs",
+      "Sha256": "FC187E214E984CC79F949663E85E154E7E4DA5590555A4C8E21BE6C7D58387D8"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Audits/FileStreamingGroupedDeadLetterJourneyTests.cs",
+      "Sha256": "410957981B8204D27337BE6EA9B8C5873F2F6B90F03CA58C5A335D4754E3C446"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Sql/DocumentSelectMaterializationBudgetTests.cs",
+      "Sha256": "E07CCA226E9A8C8CC9D94C25D9B7272D5331DEF1133937329DE9EB5BDBD75A26"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingDeadLetterTests.cs",
+      "Sha256": "4EA57B4DB76368A7C2522881F19E52A1EECA9B08389E66ED96B27143CC030B94"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingGroupedWindowTests.cs",
+      "Sha256": "604FD4C86813A15B5B14C1A27424B1D18A414262781C2EF24F8252CA4E816FB2"
+    }
+  ],
+  "ExternalGates": "NOT_RUN: fixed hardware, NativeAOT publish, remote CDC/streaming, real model, installation, scheduled nightly, 168h/production"
+}

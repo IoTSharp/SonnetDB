@@ -1,0 +1,69 @@
+param([switch]$Smoke)
+$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
+$taskRoot = 'C:\Temp\sdb4-5115d3fe'
+$evidence = 'D:\source\SonnetDB\docs\audits\roadmap-next-three-evidence-20261001'
+$watch = [Diagnostics.Stopwatch]::StartNew()
+$report = [ordered]@{ Root = $taskRoot; Smoke = [bool]$Smoke; IdentityRecords = 0; StoppedProcesses = @(); SurvivingOwnedProcesses = @(); RootRemoved = $false; Error = $null }
+try {
+    $resolved = [IO.Path]::GetFullPath($taskRoot).TrimEnd('\')
+    if ($resolved -ne 'C:\Temp\sdb4-5115d3fe' -or [IO.Path]::GetDirectoryName($resolved) -ne 'C:\Temp') { throw 'Unexpected cleanup path.' }
+    $owner = Get-Content -LiteralPath (Join-Path $resolved 'ownership.json') -Raw | ConvertFrom-Json
+    if ($owner.Root -ne $resolved -or $owner.Nonce -ne '5115d3fe' -or $owner.Task -ne 'sonnetdb-next-three-20261001') { throw 'Task ownership mismatch.' }
+    $files = @([IO.Directory]::GetFiles($resolved, '*.json'))
+    if ($files.Count -gt 128) { throw 'Process report inventory exceeds limit.' }
+    $limit = if ($Smoke) { 1 } else { $files.Count }
+    $identities = @()
+    for ($index = 0; $index -lt $limit -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+        $item = Get-Content -LiteralPath $files[$index] -Raw | ConvertFrom-Json
+        if ($item.Processes) { $identities += @($item.Processes) }
+        if ($identities.Count -gt 4096) { throw 'Process identity inventory exceeds limit.' }
+    }
+    if ($index -ne $limit) { throw 'Identity loading timed out.' }
+    $report.IdentityRecords = $identities.Count
+    $snapshot = @(Get-CimInstance Win32_Process -OperationTimeoutSec 3)
+    if ($snapshot.Count -gt 4096) { throw 'Live process inventory exceeds limit.' }
+    $live = @{}
+    for ($index = 0; $index -lt $snapshot.Count -and $watch.Elapsed.TotalSeconds -lt 60; $index++) { $live[[int]$snapshot[$index].ProcessId] = $snapshot[$index] }
+    if ($index -ne $snapshot.Count) { throw 'Process inventory timed out.' }
+    $identities = @($identities | Sort-Object CreationDate -Descending)
+    for ($index = 0; $index -lt $identities.Count -and $watch.Elapsed.TotalSeconds -lt 60; $index++) {
+        if (Test-Path -LiteralPath (Join-Path $resolved 'cleanup.cancel')) { throw 'Cleanup cancelled.' }
+        $identity = $identities[$index]
+        $current = $live[[int]$identity.ProcessId]
+        if ($current -and $current.CreationDate -eq [datetime]$identity.CreationDate -and $current.CommandLine -eq $identity.CommandLine -and $current.ParentProcessId -eq $identity.ParentProcessId) {
+            $report.SurvivingOwnedProcesses += @($identity)
+            if (-not $Smoke) {
+                # 再核对一次身份，防止快照之后 PID 被其它进程复用。
+                $confirmed = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $identity.ProcessId) -OperationTimeoutSec 3
+                if ($confirmed -and $confirmed.CreationDate -eq [datetime]$identity.CreationDate -and $confirmed.CommandLine -eq $identity.CommandLine -and $confirmed.ParentProcessId -eq $identity.ParentProcessId) {
+                    Stop-Process -Id $identity.ProcessId -Force
+                    $report.StoppedProcesses += @($identity)
+                }
+            }
+        }
+    }
+    if ($index -ne $identities.Count) { throw 'Process identity verification timed out.' }
+    if ($report.SurvivingOwnedProcesses.Count -gt 0) { throw 'Owned processes survived; retain artifacts for investigation.' }
+    if (-not $Smoke) {
+        # 目标为本任务独占目录；先限制深度、总条目数及墙钟，外层 runner 另有 120 秒总期限。
+        $entries = @(Get-ChildItem -LiteralPath $resolved -Recurse -Depth 16 -Force | Select-Object -First 100001)
+        if ($entries.Count -gt 100000 -or $watch.Elapsed.TotalSeconds -ge 90) { throw 'Artifact inventory exceeds cleanup bounds.' }
+        $report.ArtifactEntryCount = $entries.Count
+        Copy-Item -LiteralPath $PSCommandPath -Destination (Join-Path $evidence 'cleanup-script.ps1.txt')
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+        $report.RootRemoved = -not (Test-Path -LiteralPath $resolved)
+        $marker = 'C:\Temp\sdb4-active-01a0f70a.txt'
+        if ((Test-Path -LiteralPath $marker) -and (Get-Content -LiteralPath $marker -Raw).Trim() -eq $resolved) { Remove-Item -LiteralPath $marker -Force }
+    }
+}
+catch {
+    $report.Error = $_.Exception.Message
+    throw
+}
+finally {
+    $report.ElapsedSeconds = [Math]::Round($watch.Elapsed.TotalSeconds, 3)
+    $name = if ($Smoke) { 'cleanup-smoke.json' } else { 'cleanup.json' }
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $evidence $name) -Encoding utf8NoBOM
+    Write-Output ($report | ConvertTo-Json -Depth 4 -Compress)
+}

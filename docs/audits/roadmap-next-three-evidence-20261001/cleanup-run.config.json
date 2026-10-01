@@ -1,0 +1,12 @@
+{
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Temp\\sdb4-5115d3fe\\cleanup.ps1"
+  ],
+  "OutputPrefix": "D:\\source\\SonnetDB\\docs\\audits\\roadmap-next-three-evidence-20261001\\cleanup-run",
+  "Name": "cleanup-run",
+  "TimeoutSeconds": 120,
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+}

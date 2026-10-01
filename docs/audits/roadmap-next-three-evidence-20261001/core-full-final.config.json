@@ -1,0 +1,28 @@
+{
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "--logger",
+    "trx;LogFileName=core-full-final.trx",
+    "--results-directory",
+    "C:\\Temp\\sdb4-5115d3fe\\results",
+    "--blame-hang-timeout",
+    "3m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "Name": "core-full-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\core-full-final",
+  "TimeoutSeconds": 1200
+}

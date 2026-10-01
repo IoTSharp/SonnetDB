@@ -1,0 +1,14 @@
+{
+  "TempDirectory": "C:\\Temp\\sdb4-5115d3fe\\t",
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "OutputPrefix": "C:\\Temp\\sdb4-5115d3fe\\restore",
+  "TimeoutSeconds": 600,
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "Name": "restore",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe"
+}

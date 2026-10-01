@@ -1,0 +1,102 @@
+param([Parameter(Mandatory)][string]$ConfigPath)
+$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
+$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+if ($config.TimeoutSeconds -lt 1 -or $config.TimeoutSeconds -gt 1800 -or $config.Arguments.Count -gt 256) { throw 'Invalid execution bounds.' }
+$records = [System.Collections.Generic.Dictionary[int,object]]::new()
+$runWatch = [System.Diagnostics.Stopwatch]::StartNew()
+$process = [System.Diagnostics.Process]::new()
+$start = [System.Diagnostics.ProcessStartInfo]::new()
+$start.FileName = $config.Executable
+$start.WorkingDirectory = $config.WorkingDirectory
+$start.UseShellExecute = $false
+$start.CreateNoWindow = $true
+$start.RedirectStandardOutput = $true
+$start.RedirectStandardError = $true
+foreach ($argument in $config.Arguments) { [void]$start.ArgumentList.Add([string]$argument) }
+$start.Environment['DOTNET_CLI_TELEMETRY_OPTOUT'] = '1'
+$start.Environment['DOTNET_NOLOGO'] = '1'
+$start.Environment['MSBUILDDISABLENODEREUSE'] = '1'
+if ($config.TempDirectory) {
+    $start.Environment['TEMP'] = [string]$config.TempDirectory
+    $start.Environment['TMP'] = [string]$config.TempDirectory
+}
+$process.StartInfo = $start
+$exitCode = -1
+$timeout = $false
+$outTask = $null
+$errTask = $null
+$cleanup = [System.Collections.Generic.List[object]]::new()
+try {
+    [void]$process.Start()
+    $rootPid = $process.Id
+    $rootRecord = Get-CimInstance Win32_Process -Filter "ProcessId=$rootPid" -OperationTimeoutSec 3
+    if ($null -eq $rootRecord) {
+        if (-not $process.HasExited) { throw 'Missing live root process identity.' }
+        $rootRecord = [pscustomobject]@{ProcessId=$rootPid;ParentProcessId=$PID;CreationDate=$process.StartTime;CommandLine=($config.Executable + ' ' + ($config.Arguments -join ' '))}
+    }
+    $records[$rootPid] = $rootRecord
+    $outTask = $process.StandardOutput.ReadToEndAsync()
+    $errTask = $process.StandardError.ReadToEndAsync()
+    Write-Output ('START {0} PID={1} timeout={2}s' -f $config.Name,$rootPid,$config.TimeoutSeconds)
+    $maxChecks = [int][Math]::Ceiling($config.TimeoutSeconds / 3.0) + 2
+    for ($check = 0; $check -lt $maxChecks -and $runWatch.Elapsed.TotalSeconds -lt $config.TimeoutSeconds; $check++) {
+        if (Test-Path -LiteralPath ($config.OutputPrefix + '.cancel')) { throw ('Cancelled: ' + $config.Name) }
+        $snapshot = @(Get-CimInstance Win32_Process -OperationTimeoutSec 3)
+        if ($snapshot.Count -gt 4096) { throw 'Process inventory exceeds task limit.' }
+        for ($depth = 0; $depth -lt 16; $depth++) {
+            $added = 0
+            foreach ($candidate in $snapshot) {
+                if ($records.ContainsKey([int]$candidate.ParentProcessId) -and -not $records.ContainsKey([int]$candidate.ProcessId)) {
+                    $parentRecord = $records[[int]$candidate.ParentProcessId]
+                    if ($candidate.CreationDate -ge $parentRecord.CreationDate) {
+                        $records[[int]$candidate.ProcessId] = $candidate
+                        if ($records.Count -gt 256) { throw 'Task process tree exceeds limit.' }
+                        $added++
+                    }
+                }
+            }
+            if ($added -eq 0) { break }
+        }
+        if ($process.HasExited) { $exitCode = $process.ExitCode; break }
+        if ($check % 10 -eq 0) { Write-Output ('PROGRESS {0} elapsed={1:N0}s processes={2}' -f $config.Name,$runWatch.Elapsed.TotalSeconds,$records.Count) }
+        [void]$process.WaitForExit(3000)
+    }
+    if (-not $process.HasExited) { $timeout = $true; throw ('Timeout: ' + $config.Name) }
+    $exitCode = $process.ExitCode
+}
+finally {
+    if ($null -ne $outTask -and -not $process.HasExited) {
+        $liveRoot = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $process.Id) -OperationTimeoutSec 3
+        $savedRoot = $records[$process.Id]
+        if ($liveRoot -and $savedRoot -and $liveRoot.CreationDate -eq $savedRoot.CreationDate -and $liveRoot.CommandLine -eq $savedRoot.CommandLine -and $liveRoot.ParentProcessId -eq $savedRoot.ParentProcessId) {
+            $process.Kill($true)
+            [void]$process.WaitForExit(10000)
+        }
+    }
+    $identityList = @($records.Values | Sort-Object CreationDate -Descending)
+    $cleanupWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $cleanupIncomplete = $false
+    foreach ($identity in $identityList) {
+        if ($cleanupWatch.Elapsed.TotalSeconds -ge 60) { $cleanupIncomplete = $true; break }
+        $current = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $identity.ProcessId) -OperationTimeoutSec 3
+        if ($null -eq $current) { continue }
+        if ($current.CreationDate -eq $identity.CreationDate -and $current.CommandLine -eq $identity.CommandLine -and $current.ParentProcessId -eq $identity.ParentProcessId) {
+            $cleanup.Add([pscustomobject]@{ProcessId=$current.ProcessId;CreationDate=$current.CreationDate;CommandLine=$current.CommandLine;ParentProcessId=$current.ParentProcessId})
+            Stop-Process -Id $current.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($null -ne $outTask) { [System.IO.File]::WriteAllText($config.OutputPrefix + '.out.log', $outTask.GetAwaiter().GetResult()) }
+    if ($null -ne $errTask) { [System.IO.File]::WriteAllText($config.OutputPrefix + '.err.log', $errTask.GetAwaiter().GetResult()) }
+    $report = [ordered]@{
+        Name=$config.Name;Executable=$config.Executable;Arguments=$config.Arguments;WorkingDirectory=$config.WorkingDirectory
+        ExitCode=$exitCode;TimedOut=$timeout;ElapsedSeconds=[Math]::Round($runWatch.Elapsed.TotalSeconds,3)
+        Processes=@($records.Values | Select-Object ProcessId,ParentProcessId,CreationDate,CommandLine)
+        CleanedProcesses=@($cleanup)
+        CleanupIncomplete=$cleanupIncomplete
+    }
+    $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ($config.OutputPrefix + '.json') -Encoding utf8NoBOM
+    $process.Dispose()
+    Write-Output ('END {0} exit={1} seconds={2:N1}' -f $config.Name,$exitCode,$runWatch.Elapsed.TotalSeconds)
+}
+exit $exitCode

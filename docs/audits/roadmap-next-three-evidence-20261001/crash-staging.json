@@ -1,0 +1,16 @@
+{
+  "CoreHash": "4B59BACA5468085105FB6F8B3B97AF34D4246A3173F403C783FC826582F9A975",
+  "CrashCoreHash": "4B59BACA5468085105FB6F8B3B97AF34D4246A3173F403C783FC826582F9A975",
+  "Reason": "Stage freshly built isolated child output because the existing copy target uses default bin.",
+  "ChildFiles": [
+    "SonnetDB.Core.dll",
+    "SonnetDB.Core.pdb",
+    "SonnetDB.CrashTests.Child.deps.json",
+    "SonnetDB.CrashTests.Child.dll",
+    "SonnetDB.CrashTests.Child.exe",
+    "SonnetDB.CrashTests.Child.pdb",
+    "SonnetDB.CrashTests.Child.runtimeconfig.json",
+    "System.IO.Hashing.dll",
+    "System.Numerics.Tensors.dll"
+  ]
+}

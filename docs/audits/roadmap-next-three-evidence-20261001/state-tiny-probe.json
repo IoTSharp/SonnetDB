@@ -1,0 +1,60 @@
+{
+  "Name": "state-tiny-probe",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdb4-5115d3fe\\a",
+    "--filter",
+    "FullyQualifiedName~OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash|FullyQualifiedName~OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash",
+    "--logger",
+    "trx;LogFileName=state-tiny-probe.trx",
+    "--results-directory",
+    "C:\\Temp\\sdb4-5115d3fe\\results",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 6.134,
+  "Processes": [
+    {
+      "ProcessId": 80832,
+      "ParentProcessId": 15892,
+      "CreationDate": "2026-10-01T19:08:00.084842+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Temp\\sdb4-5115d3fe\\a --filter FullyQualifiedName~OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash|FullyQualifiedName~OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash --logger trx;LogFileName=state-tiny-probe.trx --results-directory C:\\Temp\\sdb4-5115d3fe\\results -m:1 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 32452,
+      "ParentProcessId": 80832,
+      "CreationDate": "2026-10-01T19:08:00.091847+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 82292,
+      "ParentProcessId": 80832,
+      "CreationDate": "2026-10-01T19:08:00.767427+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~OpenAsync_WithDuplicateGroupedJsonPropertyAndValidEffectiveHash|FullyQualifiedName~OpenAsync_WithOmittedDefaultGroupedFieldAndOriginalHash\" --logger:\"trx;LogFileName=state-tiny-probe.trx\" --resultsDirectory:C:\\Temp\\sdb4-5115d3fe\\results C:\\Temp\\sdb4-5115d3fe\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:80832_a2ef727a-e22a-4e9c-acc3-6e9038e24e04"
+    },
+    {
+      "ProcessId": 67572,
+      "ParentProcessId": 82292,
+      "CreationDate": "2026-10-01T19:08:00.997443+08:00",
+      "CommandLine": "\"C:\\Temp\\sdb4-5115d3fe\\a\\bin\\SonnetDB.Core.Tests\\release\\testhost.exe\"  --runtimeconfig \"C:\\Temp\\sdb4-5115d3fe\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"C:\\Temp\\sdb4-5115d3fe\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.deps.json\" --port 49400 --endpoint 127.0.0.1:049400 --role client --parentprocessid 82292 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 40164,
+      "ParentProcessId": 67572,
+      "CreationDate": "2026-10-01T19:08:01.004311+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}

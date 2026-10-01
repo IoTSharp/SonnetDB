@@ -4,6 +4,8 @@
 
 ## 请求和响应
 
+2026-10-01 的执行期增量现覆盖[直接 measurement raw SELECT](m42-measurement-result-bounds.md)及[无 TTL 文档 raw SELECT](m42-document-result-bounds.md)。这两项使用 Core 显式物化预算，REST 预览和 Frame 的现有请求合同分别保持各自边界。
+
 `POST /v1/db/{db}/sql`、`/sql/batch` 中的单条语句和 `/v1/sql` 可传 `previewMaxRows`（正整数）。实际预算为请求值与 `SonnetDBServer:SqlExecution:MaxResultRows` 的较小值；配置默认 10000，绑定范围 1～1000000。无效请求值在该语句执行前拒绝，避免写入后才报告预算错误。
 
 未提供 `previewMaxRows` 的 REST 调用、嵌入式调用和 Frame 调用保持完整结果语义。Frame 字节格式未扩展；已有客户端和公共记录类型的主构造/Deconstruct 签名保持兼容。

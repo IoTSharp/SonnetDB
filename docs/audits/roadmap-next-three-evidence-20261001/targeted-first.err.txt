@@ -1,0 +1,4 @@
+[xUnit.net 00:00:02.88]     SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_SparseJsonAndScalarExpressions_PreservesProjectionSemantics [FAIL]
+[xUnit.net 00:00:02.98]     SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: "SELECT json_value(document, '$.n') AS n FROM docs "···, first: 7, second: 8) [FAIL]
+[xUnit.net 00:00:03.02]     SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: "SELECT json_value(document, '$.n') AS n FROM docs "···, first: 7, second: 8) [FAIL]
+[xUnit.net 00:00:03.07]     SonnetDB.Core.Tests.Sql.DocumentSelectMaterializationBudgetTests.Execute_FilterAndPagination_CountsOnlyCompletePage(sql: "SELECT json_value(document, '$.n') AS n FROM docs "···, first: 8, second: 9) [FAIL]

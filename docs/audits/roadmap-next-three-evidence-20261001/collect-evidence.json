@@ -1,0 +1,29 @@
+{
+  "Name": "collect-evidence",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "C:\\Temp\\sdb4-5115d3fe\\collect.ps1"
+  ],
+  "WorkingDirectory": "D:\\source\\SonnetDB",
+  "ExitCode": 0,
+  "TimedOut": false,
+  "ElapsedSeconds": 3.155,
+  "Processes": [
+    {
+      "ProcessId": 70036,
+      "ParentProcessId": 25784,
+      "CreationDate": "2026-10-01T19:17:38.044433+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File C:\\Temp\\sdb4-5115d3fe\\collect.ps1"
+    },
+    {
+      "ProcessId": 3608,
+      "ParentProcessId": 70036,
+      "CreationDate": "2026-10-01T19:17:38.051831+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": [],
+  "CleanupIncomplete": false
+}
