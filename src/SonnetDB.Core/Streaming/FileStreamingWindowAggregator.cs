@@ -13,7 +13,7 @@ namespace SonnetDB.Streaming;
 /// 结果保留至显式删除，容量耗尽会拒绝批次而保留未确认事件。</para>
 /// <para>数值窗口显式选择顶层 JSON 属性，支持 SUM/MIN/MAX/AVG；仅支持单机单执行者，没有远程租约或外部副作用事务。</para>
 /// </remarks>
-public sealed class FileStreamingWindowAggregator : IAsyncDisposable
+public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
 {
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -55,7 +55,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         StreamingWindowOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        ValidateArguments(definition, options ??= new());
+        ArgumentNullException.ThrowIfNull(definition);
+        ValidateArguments(definition, options ??= DefaultOptions(definition));
         initialCheckpoint ??= StreamingSubscriptionCheckpoint.Create(definition.SubscriptionId);
         initialCheckpoint.Validate();
         if (initialCheckpoint.SubscriptionId != definition.SubscriptionId)
@@ -75,7 +76,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
                 definition.FormatVersion, definition, options, initialCheckpoint.CommittedSequence,
                 initialCheckpoint.Revision, initialCheckpoint.WatermarkUtc, 0, null, null, [])
             {
-                NumericWindows = definition.NumericField is null ? null : [],
+                NumericWindows = definition.GroupField is null && definition.NumericField is not null ? [] : null,
+                GroupedWindows = definition.GroupField is null ? null : [],
             };
             aggregator = new FileStreamingWindowAggregator(fullPath, lease, document);
             await aggregator.ExecuteAsync(async token =>
@@ -107,7 +109,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         StreamingWindowOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        ValidateArguments(definition, options ??= new());
+        ArgumentNullException.ThrowIfNull(definition);
+        ValidateArguments(definition, options ??= DefaultOptions(definition));
         cancellationToken.ThrowIfCancellationRequested();
         string fullPath = GetPath(path);
         var lease = AcquireLease(fullPath);
@@ -236,6 +239,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             ValidateUtc(after, nameof(afterStartUtc));
         return await ExecuteAsync(token =>
         {
+            if (Definition.GroupField is not null)
+                throw new InvalidOperationException("分组窗口必须使用 ReadGroupedWindowsAsync 读取，分页位置包含起点与键。");
             var results = new List<StreamingWindowCount>(maxWindows);
             bool hasMore = false;
             foreach ((long startTicks, long count) in _document.Windows.OrderBy(static item => item.Key))
@@ -320,6 +325,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         ValidateUtc(throughStartUtc, nameof(throughStartUtc));
         return await ExecuteAsync(async token =>
         {
+            if (_document.GroupedWindows is not null)
+                return await RemoveClosedGroupedWindowsAsync(throughStartUtc, token).ConfigureAwait(false);
             var windows = new Dictionary<long, long>(_document.Windows);
             Dictionary<long, StreamingWindowNumericAccumulator>? numericWindows = _document.NumericWindows is { } numeric
                 ? new(numeric) : null;
@@ -451,6 +458,12 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         if (checkpoint.Revision != checked(_document.AppliedRevision + 1)
             || events[0].Sequence <= _document.AppliedSequence)
             throw new InvalidDataException("窗口批次位点倒退、缺失前置批次或重复了已应用前缀。");
+
+        if (_document.GroupedWindows is not null)
+        {
+            await ApplyGroupedCoreAsync(batch, checkpoint, events, batchHash, token).ConfigureAwait(false);
+            return;
+        }
 
         var windows = new Dictionary<long, long>(_document.Windows);
         Dictionary<long, StreamingWindowNumericAccumulator>? numericWindows = _document.NumericWindows is { } numeric
@@ -816,6 +829,18 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
                 || version.ValueKind != JsonValueKind.Number
                 || !version.TryGetInt32(out int formatVersion))
                 throw new InvalidDataException("持久窗口状态缺少格式版本。");
+            if (formatVersion == StreamingWindowDefinition.GroupedFormatVersion)
+            {
+                RejectDuplicateGroupedJsonProperties(bytes, token);
+                ValidateGroupedJsonRequiredFields(stateElement);
+            }
+            if (formatVersion != StreamingWindowDefinition.GroupedFormatVersion
+                && (stateElement.TryGetProperty("groupedWindows", out _)
+                    || (stateElement.TryGetProperty("definition", out JsonElement rawDefinition)
+                        && rawDefinition.ValueKind == JsonValueKind.Object && rawDefinition.TryGetProperty("groupField", out _))
+                    || (stateElement.TryGetProperty("options", out JsonElement rawOptions)
+                        && rawOptions.ValueKind == JsonValueKind.Object && rawOptions.TryGetProperty("maxGroups", out _))))
+                throw new InvalidDataException("旧版窗口状态不能包含分组字段，即使字段值为空。");
             if (formatVersion == StreamingWindowDefinition.CurrentFormatVersion)
             {
                 LegacyStreamingWindowEnvelope legacy = JsonSerializer.Deserialize(bytes, StreamingWindowJsonContext.Default.LegacyStreamingWindowEnvelope)
@@ -855,13 +880,16 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
 
     private static void ValidateDocument(StreamingWindowDocument document, CancellationToken token)
     {
-        if (document.FormatVersion is not (StreamingWindowDefinition.CurrentFormatVersion or StreamingWindowDefinition.NumericFormatVersion)
+        if (document.FormatVersion is not (StreamingWindowDefinition.CurrentFormatVersion or StreamingWindowDefinition.NumericFormatVersion or StreamingWindowDefinition.GroupedFormatVersion)
             || document.Definition is null || document.Options is null
             || document.Windows is null || document.AppliedSequence < -1 || document.AppliedRevision < 0
             || document.DroppedLateEvents < 0 || document.WatermarkUtc.Offset != TimeSpan.Zero)
             throw new InvalidDataException("持久窗口恢复状态无效。");
+        bool grouped = document.FormatVersion == StreamingWindowDefinition.GroupedFormatVersion;
         if (document.FormatVersion != document.Definition.FormatVersion
-            || (document.Definition.NumericField is null) != (document.NumericWindows is null)
+            || grouped != (document.GroupedWindows is not null)
+            || (grouped && (document.Windows.Count != 0 || document.NumericWindows is not null))
+            || (!grouped && (document.Definition.NumericField is null) != (document.NumericWindows is null))
             || (document.NumericWindows is { } numericWindows && numericWindows.Count != document.Windows.Count))
             throw new InvalidDataException("持久数值窗口状态与定义或 COUNT 不一致。");
         try
@@ -881,6 +909,11 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         if (document.LastBatchHash is not null
             && (document.AppliedSequence < 0 || document.AppliedRevision < 1 || string.IsNullOrWhiteSpace(document.LastDeliveryId)))
             throw new InvalidDataException("持久窗口已应用位点与重投身份不一致。");
+        if (grouped)
+        {
+            ValidateGroupedDocument(document, token);
+            return;
+        }
         long windowTicks = checked(document.Definition.WindowSizeMilliseconds * TimeSpan.TicksPerMillisecond);
         foreach ((long startTicks, long count) in document.Windows)
         {
@@ -931,7 +964,7 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
     private static StreamingWindowState State(StreamingWindowDocument document)
     {
         return new StreamingWindowState(document.AppliedSequence, document.AppliedRevision,
-            document.WatermarkUtc, document.DroppedLateEvents, document.Windows.Count);
+            document.WatermarkUtc, document.DroppedLateEvents, document.GroupedWindows?.Count ?? document.Windows.Count);
     }
 
     private static void ValidateArguments(StreamingWindowDefinition definition, StreamingWindowOptions options)
@@ -939,6 +972,13 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(definition);
         definition.Validate();
         options.Validate();
+        if ((definition.GroupField is null) != (options.MaxGroups is null))
+            throw new ArgumentException("分组版本必须配置 MaxGroups，未分组版本不能配置分组容量。", nameof(options));
+    }
+
+    private static StreamingWindowOptions DefaultOptions(StreamingWindowDefinition definition)
+    {
+        return new StreamingWindowOptions { MaxGroups = definition.GroupField is null ? null : 1000 };
     }
 
     private static void ValidateUtc(DateTimeOffset value, string parameterName)

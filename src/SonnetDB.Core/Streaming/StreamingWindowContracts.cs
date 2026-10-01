@@ -33,9 +33,16 @@ public sealed record StreamingWindowDefinition(
     /// <summary>显式选择数值 JSON 属性的窗口定义格式版本。</summary>
     public const int NumericFormatVersion = 2;
 
+    /// <summary>显式选择字符串分组键的窗口定义格式版本。</summary>
+    public const int GroupedFormatVersion = 3;
+
     /// <summary>显式选择的顶层 JSON 数值属性，按 Ordinal 匹配；为空时保持原 COUNT 合同。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NumericField { get; init; }
+
+    /// <summary>显式选择的顶层 JSON 字符串分组属性，按 Ordinal 匹配并保留键原值。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupField { get; init; }
 
     /// <summary>创建并校验固定 UTC 滚动 COUNT 窗口定义。</summary>
     /// <param name="subscriptionId">所属订阅标识。</param>
@@ -90,14 +97,77 @@ public sealed record StreamingWindowDefinition(
         return definition;
     }
 
+    /// <summary>创建按顶层 JSON 字符串键分组的固定 UTC 滚动 COUNT 窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="groupField">顶层 JSON 字符串属性原名，最长为二百五十六个字符。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的分组窗口定义。</returns>
+    /// <remarks>分组键保留原值并按 Ordinal 比较，允许空字符串；键最多二百五十六个 UTF-16 字符。</remarks>
+    public static StreamingWindowDefinition CreateGrouped(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        string groupField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        StreamingWindowDefinition definition = Create(subscriptionId, streamName, windowSize, allowedLateness, lateEventPolicy) with
+        {
+            FormatVersion = GroupedFormatVersion,
+            GroupField = groupField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
+    /// <summary>创建按字符串键分组并提供精确 decimal SUM/MIN/MAX 与 decimal AVG 的窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="groupField">顶层 JSON 字符串分组属性原名。</param>
+    /// <param name="numericField">与分组属性不同的顶层 JSON 数值属性原名。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的分组数值窗口定义。</returns>
+    public static StreamingWindowDefinition CreateGroupedNumeric(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        string groupField,
+        string numericField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(numericField);
+        StreamingWindowDefinition definition = CreateGrouped(subscriptionId, streamName, windowSize, groupField, allowedLateness, lateEventPolicy) with
+        {
+            NumericField = numericField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
     /// <summary>校验版本、订阅身份和窗口时间边界。</summary>
     public void Validate()
     {
-        if (FormatVersion is not (CurrentFormatVersion or NumericFormatVersion))
+        if (FormatVersion is not (CurrentFormatVersion or NumericFormatVersion or GroupedFormatVersion))
             throw new InvalidDataException($"不支持窗口定义格式版本 {FormatVersion}。");
         if (FormatVersion == CurrentFormatVersion && NumericField is not null)
             throw new InvalidDataException("COUNT 版本不能包含数值属性选择。");
-        if (FormatVersion == NumericFormatVersion)
+        if (FormatVersion != GroupedFormatVersion && GroupField is not null)
+            throw new InvalidDataException("未分组窗口版本不能包含分组属性选择。");
+        if (FormatVersion == GroupedFormatVersion)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(GroupField);
+            if (GroupField.Length > 256)
+                throw new ArgumentException("窗口分组属性超过长度上限。", nameof(GroupField));
+            if (GroupField == NumericField)
+                throw new ArgumentException("分组与数值属性必须不同。", nameof(NumericField));
+        }
+        if (FormatVersion == NumericFormatVersion || NumericField is not null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(NumericField);
             if (NumericField.Length > 256)
@@ -119,7 +189,7 @@ public sealed record StreamingWindowDefinition(
 /// <summary>本地窗口聚合器的容量、单批处理和操作超时边界。</summary>
 public sealed record StreamingWindowOptions
 {
-    /// <summary>保留的最大窗口数量，包含尚未删除的已关闭窗口，最高为一万个。</summary>
+    /// <summary>保留的最大窗口结果数量，分组时每个起点与键的组合计一项，最高为一万个。</summary>
     public int MaxWindows { get; init; } = 10_000;
 
     /// <summary>单次应用的最大事件数量，最高为一万个。</summary>
@@ -134,6 +204,10 @@ public sealed record StreamingWindowOptions
     /// <summary>每次操作与闸门等待的总超时毫秒数，范围为五十毫秒至五分钟。</summary>
     public int OperationTimeoutMilliseconds { get; init; } = 10_000;
 
+    /// <summary>显式分组窗口保留的不同键数量上限，最高为一万个；未分组版本必须为空。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxGroups { get; init; }
+
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxWindows, 1);
@@ -146,6 +220,11 @@ public sealed record StreamingWindowOptions
         ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxStateBytes, 16 * 1024 * 1024);
         ArgumentOutOfRangeException.ThrowIfLessThan(OperationTimeoutMilliseconds, 50);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(OperationTimeoutMilliseconds, 300_000);
+        if (MaxGroups is { } groups)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(groups, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(groups, 10_000);
+        }
     }
 }
 
@@ -214,10 +293,53 @@ public sealed record StreamingWindowNumericBatch(
     bool HasMore,
     StreamingWindowState State);
 
+/// <summary>分组窗口分页使用的排他位置，按 UTC 起点再按 Ordinal 键原值排序。</summary>
+/// <param name="StartUtc">上页最后一个窗口的 UTC 起点。</param>
+/// <param name="GroupKey">上页最后一个窗口的原始字符串键。</param>
+public sealed record StreamingGroupedWindowCursor(DateTimeOffset StartUtc, string GroupKey);
+
+/// <summary>一个字符串键与固定 UTC 窗口的持久聚合结果。</summary>
+/// <param name="StartUtc">包含的窗口起点。</param>
+/// <param name="EndUtc">不包含的窗口终点。</param>
+/// <param name="GroupKey">保留原值的字符串分组键。</param>
+/// <param name="Count">已应用且未被迟到策略丢弃的事件数量。</param>
+/// <param name="Sum">显式数值模式的精确总和，否则为空。</param>
+/// <param name="Min">显式数值模式的最小值，否则为空。</param>
+/// <param name="Max">显式数值模式的最大值，否则为空。</param>
+/// <param name="Average">显式数值模式的 decimal 平均值，否则为空。</param>
+/// <param name="IsClosed">窗口是否已由 watermark 关闭。</param>
+public sealed record StreamingGroupedWindow(
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc,
+    string GroupKey,
+    long Count,
+    decimal? Sum,
+    decimal? Min,
+    decimal? Max,
+    decimal? Average,
+    bool IsClosed);
+
+/// <summary>按 UTC 起点与 Ordinal 字符串键排序的有界分组结果页。</summary>
+/// <param name="Windows">本次返回的分组窗口。</param>
+/// <param name="NextCursor">继续读取的排他位置，空页时为空。</param>
+/// <param name="HasMore">同一筛选条件下是否还有结果。</param>
+/// <param name="State">读取时的一致恢复状态，其中窗口数量为保留的分组结果数量。</param>
+public sealed record StreamingGroupedWindowBatch(
+    IReadOnlyList<StreamingGroupedWindow> Windows,
+    StreamingGroupedWindowCursor? NextCursor,
+    bool HasMore,
+    StreamingWindowState State);
+
 internal sealed record StreamingWindowNumericAccumulator(
     [property: JsonRequired] decimal Sum,
     [property: JsonRequired] decimal Min,
     [property: JsonRequired] decimal Max);
+
+internal sealed record StreamingGroupedWindowAccumulator(
+    [property: JsonRequired] long StartTicks,
+    [property: JsonRequired] string GroupKey,
+    [property: JsonRequired] long Count,
+    [property: JsonRequired] StreamingWindowNumericAccumulator? Numeric);
 
 internal sealed record StreamingWindowDocument(
     [property: JsonRequired] int FormatVersion,
@@ -234,6 +356,10 @@ internal sealed record StreamingWindowDocument(
     // 空值必须从旧版本 JSON 中省略，使 COUNT 的既有字节形状及 SHA-256 保持不变。
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<long, StreamingWindowNumericAccumulator>? NumericWindows { get; init; }
+
+    // 仅显式版本 3 保存此字段；旧版本序列化和原始哈希不增加字段。
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<StreamingGroupedWindowAccumulator>? GroupedWindows { get; init; }
 }
 
 internal sealed record StreamingWindowEnvelope(
