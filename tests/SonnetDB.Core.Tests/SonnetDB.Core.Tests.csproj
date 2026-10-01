@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\samples\SonnetDB.CdcStreamingJourney\SonnetDB.CdcStreamingJourney.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Cli\SonnetDB.Cli.csproj" />

@@ -9,8 +9,8 @@
 | EF Core、ADO.NET、KV/TTL 与对象组合 | [Ecosystem Sample](../samples/SonnetDB.EcosystemSample/README.md) | 嵌入式与远程使用同一连接字符串合同；真实远程需 Server、建库/SQL/KV/对象权限。 |
 | 工业设备写入、SQL 异常诊断 | [Industrial Diagnostics](../samples/SonnetDB.IndustrialDiagnostics/README.md) | HTTP 与鉴权 MQTT 数据链路分别对账；建议/引用是演示素材，provider 未取得真实模型/usage 证据时仍为 `NOT_READY`。 |
 | 图片对象、持久摄取、文本/图像检索 | [Semantic Images](../samples/SonnetDB.SemanticImages/README.md) | 需配置真实 SigLIP2 profile 和现场图片；默认生成的确定性 PNG 不证明专业视觉质量。 |
-| CDC 快照、增量物化与恢复 | [CDC 合同](cdc-contract.md)、[快照接收端本地验收](audits/m43-cdc-snapshot-20260930.md) | 单源/实体/schema/分区的本地入口；固定读视图与源变更捕获由调用方提供，远程拓扑仍未完成。 |
-| 持久订阅、watermark、背压、ACK 与重投 | [Streaming 合同](streaming-subscription-contract.md) | 单个本地执行者、至少一次；业务副作用不与 ACK 形成事务，窗口聚合、DLQ 和远程运维仍待补。 |
+| CDC 快照、增量物化与恢复 | [CDC 合同](cdc-contract.md)、[本地多分区拓扑](m43-local-cdc-topology.md)、[组合恢复样例](../samples/SonnetDB.CdcStreamingJourney/README.md) | 专用路由独立恢复、真实文档源捕获及本地 COUNT 对账；远程拓扑、持续事务化 CDC 到流桥接及十四能力总验收仍未完成。 |
+| 持久订阅、watermark、背压、ACK 与重投 | [Streaming 合同](streaming-subscription-contract.md)、[持久窗口 COUNT](m43-persistent-windows.md) | 单个本地执行者、至少一次；持久滚动 COUNT 已交付，业务副作用不与 ACK 形成事务；其它聚合、DLQ 和远程运维仍待补。 |
 
 已有组合样例的嵌入式入口：
 

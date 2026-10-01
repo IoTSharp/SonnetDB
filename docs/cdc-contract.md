@@ -103,7 +103,7 @@ if (batch.Events.Count != 0)
 
 ## 尚未承诺的能力
 
-已有快照/增量衔接仅覆盖上述本地文档源和接收端边界。调度器只覆盖调用方任务中的单源显式运行；离线队列、多分区/远程衔接、冲突解决、schema migration、客户端路由和复制拓扑仍归入 M43 #386~#390 的后续切片；远程 parity、断网现场恢复和固定硬件容量属于后续验证计划。
+单源捕获调度器只覆盖调用方任务中的显式运行；2026-10-01 新增的 [本地多分区拓扑](m43-local-cdc-topology.md) 可公平推进最多 64 条具有专用源视图/spool/接收端的独立路由，并按各自位点重开。调用方必须保证 spool 由匹配身份的源捕获器生产；该协调器不提供跨分区事务或同实体分片合并。离线同步、远程衔接、冲突解决、schema migration、客户端路由及现场恢复和固定硬件容量继续待补。真实组合样例见 [CDC/订阅/窗口旅程](../samples/SonnetDB.CdcStreamingJourney/README.md)。
 
 定向回归：`dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter FullyQualifiedName~CdcEventSpoolTests`（当前 19 项）及 `FullyQualifiedName~CdcEventCodecTests`。
 

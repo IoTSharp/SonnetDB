@@ -68,7 +68,7 @@
       "maturity": "partial",
       "roadmap": ["M12", "M23", "M27", "M35 #298", "M36 #320", "M36 #321", "M42", "M43 GH-Issue #186"],
       "entryPoints": ["src/SonnetDB.Core/Vector", "src/SonnetDB.Data/VectorData", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
+      "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/benchmarks/m42-measurement-knn-bounds.md", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
       "boundary": "Exact fallback, bounded Top-K, VECTOR parameter binding and REST/NDJSON float[] transport are locally implemented; Core 3/3 and Kestrel REST 2/2 pass. Remote Frame E2E, generic filtered ANN, Recall@K, quality and fixed-hardware evidence remain open."
     },
     {
@@ -118,8 +118,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #391", "M43 #392", "M43 #393", "M43 #394", "M43 #395"],
       "entryPoints": ["src/SonnetDB.Core/Streaming", "src/SonnetDB.Core/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-streaming-persistent-subscription-2026-09-30.md", "docs/roadmap-total-milestone.md"],
-      "boundary": "A bounded local file subscription persists events, watermark and in-flight delivery, coordinates interrupted conditional checkpoint/spool acknowledgements and supports at-least-once replay after reopen, including a real local process-kill test of unacknowledged delivery. Persistent windows, task operations, real database change-feed capture, remote parity, field recovery and distributed semantics remain open."
+      "evidence": ["docs/streaming-subscription-contract.md", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionTests.cs", "tests/SonnetDB.Core.Tests/Streaming/StreamingSubscriptionCheckpointStoreTests.cs", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSubscriptionTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-streaming-persistent-subscription-2026-09-30.md", "docs/m43-persistent-windows.md", "tests/SonnetDB.Core.Tests/Streaming/FileStreamingWindowAggregatorTests.cs", "samples/SonnetDB.CdcStreamingJourney/README.md", "docs/roadmap-total-milestone.md"],
+      "boundary": "A bounded local file subscription persists events, watermark and in-flight delivery; a persistent UTC tumbling COUNT commits windows and applied delivery before ACK and deduplicates last-batch replay after reopen. A bounded composed document/CDC/subscription/window journey reconciles local state. Other aggregations, task operations, continuous transactional CDC-to-stream capture, remote parity, field recovery and distributed semantics remain open."
     },
     {
       "id": "cdc",
@@ -128,8 +128,8 @@
       "maturity": "partial",
       "roadmap": ["M43 #385", "M43 #386", "M43 #387", "M43 #388", "M43 #389", "M43 #390"],
       "entryPoints": ["src/SonnetDB.Core/Cdc", "src/SonnetDB.Core", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcEventSpoolTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcSnapshotReplicaTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-cdc-snapshot-20260930.md", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
-      "boundary": "The bounded versioned codec/spool and a single-source/entity/schema/partition snapshot replica cover local page resume, continuous incremental materialization and atomic row/checkpoint recovery, with real local process-kill tests of partial snapshots and materialization committed before spool acknowledgement. Fixed read views and source capture are caller-supplied; automatic capture, multi-partition/remote handoff, offline synchronization, conflict/schema policy, client routes and replication topology remain open."
+      "evidence": ["docs/cdc-contract.md", "tests/SonnetDB.Core.Tests/Cdc/CdcEventCodecTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcEventSpoolTests.cs", "tests/SonnetDB.Core.Tests/Cdc/CdcSnapshotReplicaTests.cs", "tests/SonnetDB.CrashTests/M43CrashReliabilityTests.cs", "docs/audits/m43-cdc-snapshot-20260930.md", "docs/m43-local-cdc-topology.md", "tests/SonnetDB.Core.Tests/Cdc/CdcLocalReplicaTopologyTests.cs", "samples/SonnetDB.CdcStreamingJourney/README.md", "docs/roadmap-total-milestone.md", "docs/sql-reference.md"],
+      "boundary": "Versioned codec/spool, real document change-feed capture, fixed read views and snapshot replicas support local resume; an explicit bounded topology fairly advances up to 64 independently committed partitions. Callers must supply correctly sourced dedicated spools. Cross-partition transactions, remote transport, offline synchronization, conflict/schema policy, client routes and field evidence remain open."
     },
     {
       "id": "ai-rag",

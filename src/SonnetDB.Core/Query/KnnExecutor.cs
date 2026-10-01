@@ -3,6 +3,7 @@ using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Format;
 using SonnetDB.Storage.Segments;
 
@@ -17,7 +18,7 @@ namespace SonnetDB.Query;
 /// 而非逐 series 全块扫描（I8）。
 /// </para>
 /// <para>
-/// 靠 <see cref="System.Threading.Tasks.Parallel.ForEach"/> 并行扫描多序列；
+/// 通过 SQL 共享 worker 与内存预算受控扫描多序列，所有 worker 共用最多 k 个候选；
 /// 命中 metric 一致且无墓碑的 block 走段内 HNSW ANN 加速，否则精确扫描。
 /// </para>
 /// </summary>
@@ -43,6 +44,9 @@ internal static class KnnExecutor
     /// 墓碑集合，用于过滤已被逻辑删除的点；为 null 时不过滤。
     /// 必须显式传入（通常为 <c>tsdb.Tombstones</c>），避免漏过滤已删除向量。
     /// </param>
+    /// <param name="replacements">向量替换记录。</param>
+    /// <param name="queryEngine">提供替换后可见点的查询器。</param>
+    /// <param name="cancellationToken">可选取消信号；与当前 SQL 根执行的取消信号共同生效。</param>
     /// <returns>
     /// 按距离升序排列的最近邻结果列表，长度 ≤ <paramref name="k"/>。
     /// 若无候选点则返回空列表。
@@ -59,7 +63,8 @@ internal static class KnnExecutor
         TimeRange timeRange,
         TombstoneTable? tombstones,
         MeasurementVectorReplacementStore? replacements = null,
-        QueryEngine? queryEngine = null)
+        QueryEngine? queryEngine = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(memTables);
         ArgumentNullException.ThrowIfNull(segmentIndex);
@@ -68,6 +73,15 @@ internal static class KnnExecutor
         ArgumentNullException.ThrowIfNull(vectorField);
         ArgumentOutOfRangeException.ThrowIfLessThan(k, 1);
 
+        SqlQueryResources? resources = SqlQueryResources.Current;
+        CancellationToken rootToken = resources?.CancellationToken ?? default;
+        using CancellationTokenSource? linkedSource = rootToken.CanBeCanceled && cancellationToken.CanBeCanceled
+            && rootToken != cancellationToken
+                ? CancellationTokenSource.CreateLinkedTokenSource(rootToken, cancellationToken)
+                : null;
+        CancellationToken token = linkedSource?.Token ?? (rootToken.CanBeCanceled ? rootToken : cancellationToken);
+        token.ThrowIfCancellationRequested();
+
         if (matchedSeries.Count == 0)
             return [];
 
@@ -75,32 +89,34 @@ internal static class KnnExecutor
         // MultiSegmentIndex 给出，需按 SegmentId 回到对应 reader 读取真实 payload。
         var readersBySegmentId = BuildReaderMap(segmentReaders);
 
-        // 候选集（锁保护跨线程合并）
-        var allCandidates = new List<(double Dist, long Ts, ulong Sid)>();
-        var mergeLock = new object();
+        using var candidates = new BoundedCandidateSet(k, vectorField, tombstones, token, resources);
+        long estimatedRows = resources?.EstimatedRows ?? 0;
+        foreach (var memTable in memTables)
+            estimatedRows = Math.Max(estimatedRows, memTable.PointCount);
 
-        // 并行扫描：每个 series 独立收集候选，最后合并
-        Parallel.ForEach(
+        // worker 只保留当前存储页；不会建立本地候选 List 或 O(worker * k) 的候选堆。
+        _ = SqlParallelExecution.MapOrdered(
             matchedSeries,
-            () => new List<(double Dist, long Ts, ulong Sid)>(),
-            (series, _, localCandidates) =>
+            series =>
             {
+                token.ThrowIfCancellationRequested();
                 if (replacements?.HasSeriesField(series.Id, vectorField) == true)
                 {
                     if (queryEngine is null)
                         throw new InvalidOperationException("VECTOR 替换记录需要可见点查询器。");
                     foreach (var point in queryEngine.Execute(new PointQuery(series.Id, vectorField, timeRange)))
                     {
+                        token.ThrowIfCancellationRequested();
                         double distance = VectorDistance.Compute(
                             metric, queryVector.Span, point.Value.AsVector().Span);
-                        localCandidates.Add((distance, point.Timestamp, series.Id));
+                        candidates.Add(distance, point.Timestamp, series.Id);
                     }
-                    return localCandidates;
+                    return true;
                 }
 
                 // 1. 扫描全部 MemTable（active + sealing）
                 foreach (var memTable in memTables)
-                    ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, localCandidates);
+                    ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, candidates);
 
                 // 此 series/field 上若存在墓碑，ANN sidecar 路径返回的候选可能在后续墓碑过滤后剩余 < k，
                 // 故强制走精确扫描（详见 ScanSegmentBlock 注释）。此判定只依赖 series/field，
@@ -111,66 +127,26 @@ internal static class KnnExecutor
 
                 // 2. 扫描 Segments：用 block skip-index 只取与 (series, field, 时间窗) 相交的候选 block，
                 //    段级时间剪枝 + block 级 prefix-max 剪枝均在 LookupCandidates 内完成（I8）。
-                var candidates = segmentIndex.LookupCandidates(
+                var blocks = segmentIndex.LookupCandidates(
                     series.Id, vectorField, timeRange.FromInclusive, timeRange.ToInclusive);
-                foreach (var blockRef in candidates)
+                foreach (var blockRef in blocks)
                 {
+                    token.ThrowIfCancellationRequested();
                     if (!readersBySegmentId.TryGetValue(blockRef.SegmentId, out var reader))
                         continue;
 
                     ScanSegmentBlock(
                         reader, blockRef.Descriptor, series.Id, vectorField, queryVector,
-                        k, metric, timeRange, hasTombstonesForSeriesField, localCandidates);
+                        k, metric, timeRange, hasTombstonesForSeriesField, candidates);
                 }
 
-                return localCandidates;
+                return true;
             },
-            localCandidates =>
-            {
-                if (localCandidates.Count == 0)
-                    return;
+            operatorName: "measurement_knn",
+            estimatedRows);
 
-                lock (mergeLock)
-                    allCandidates.AddRange(localCandidates);
-            });
-
-        if (allCandidates.Count == 0)
-            return [];
-
-        // 过滤已被逻辑删除（墓碑覆盖）的点，语义与 QueryEngine 点查一致。
-        // 压缩前墓碑仍在 TombstoneTable 中，若不在此过滤会返回已删除的向量。
-        if (tombstones is not null && tombstones.Count > 0)
-        {
-            allCandidates.RemoveAll(c => tombstones.IsCovered(c.Sid, vectorField, c.Ts));
-            if (allCandidates.Count == 0)
-                return [];
-        }
-
-        // 按距离选 top-k：用大小 ≤ k 的最大堆（PriorityQueue + 反向 comparer），
-        // O(N log k) 代替原 List.Sort 的 O(N log N)；N 远大于 k 时显著降低排序开销。
-        // 堆顶始终是当前 top-k 里距离最远的候选；新候选触发 EnqueueDequeue 自动淘汰更远者。
-        int take = Math.Min(k, allCandidates.Count);
-        var heap = new PriorityQueue<(long Ts, ulong Sid), double>(
-            initialCapacity: take,
-            comparer: Comparer<double>.Create(static (a, b) => b.CompareTo(a)));
-
-        foreach (var c in CollectionsMarshal.AsSpan(allCandidates))
-        {
-            if (heap.Count < take)
-                heap.Enqueue((c.Ts, c.Sid), c.Dist);
-            else
-                heap.EnqueueDequeue((c.Ts, c.Sid), c.Dist);
-        }
-
-        // 堆按距离降序 dequeue，结果需升序——从数组末尾倒序填回。
-        var results = new KnnSearchResult[take];
-        for (int i = take - 1; i >= 0; i--)
-        {
-            heap.TryDequeue(out var element, out double dist);
-            results[i] = new KnnSearchResult(element.Ts, element.Sid, dist);
-        }
-
-        return results;
+        token.ThrowIfCancellationRequested();
+        return candidates.GetResults();
     }
 
     // ── 私有：SegmentId → SegmentReader 映射 ────────────────────────────────
@@ -192,8 +168,9 @@ internal static class KnnExecutor
         ReadOnlyMemory<float> queryVector,
         KnnMetric metric,
         TimeRange timeRange,
-        List<(double Dist, long Ts, ulong Sid)> candidates)
+        BoundedCandidateSet candidates)
     {
+        candidates.CancellationToken.ThrowIfCancellationRequested();
         var key = new SeriesFieldKey(seriesId, vectorField);
         var bucket = memTable.TryGet(in key);
         if (bucket is null || bucket.FieldType != FieldType.Vector)
@@ -203,9 +180,10 @@ internal static class KnnExecutor
         var slice = bucket.SnapshotRange(timeRange.FromInclusive, timeRange.ToInclusive);
         foreach (var dp in slice.Span)
         {
+            candidates.CancellationToken.ThrowIfCancellationRequested();
             var vecSpan = dp.Value.AsVector().Span;
             double dist = VectorDistance.Compute(metric, querySpan, vecSpan);
-            candidates.Add((dist, dp.Timestamp, seriesId));
+            candidates.Add(dist, dp.Timestamp, seriesId);
         }
     }
 
@@ -225,8 +203,9 @@ internal static class KnnExecutor
         KnnMetric metric,
         TimeRange timeRange,
         bool hasTombstonesForSeriesField,
-        List<(double Dist, long Ts, ulong Sid)> candidates)
+        BoundedCandidateSet candidates)
     {
+        candidates.CancellationToken.ThrowIfCancellationRequested();
         // skip-index 已按 (SeriesId, FieldName) 精确定位桶并做过时间窗剪枝，
         // 这里仅需确认列类型（同名列理论上恒为 Vector，保险起见判定一次）。
         if (block.FieldType != FieldType.Vector)
@@ -244,7 +223,7 @@ internal static class KnnExecutor
         {
             var data = reader.ReadBlock(block);
             var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);
-            int candidateLimit = Math.Min(block.Count, Math.Max(k * 8, vectorIndex.Ef * 2));
+            int candidateLimit = (int)Math.Min(block.Count, Math.Max((long)k * 8, (long)vectorIndex.Ef * 2));
             var annHits = vectorIndex.Search(
                 querySpan,
                 data.ValuePayload,
@@ -269,16 +248,17 @@ internal static class KnnExecutor
         var points = reader.DecodeBlockRange(block, timeRange.FromInclusive, timeRange.ToInclusive);
         foreach (var dp in points)
         {
+            candidates.CancellationToken.ThrowIfCancellationRequested();
             var vecSpan = dp.Value.AsVector().Span;
             double dist = VectorDistance.Compute(metric, querySpan, vecSpan);
-            candidates.Add((dist, dp.Timestamp, seriesId));
+            candidates.Add(dist, dp.Timestamp, seriesId);
         }
     }
 
     /// <summary>
     /// 合并 ANN 命中与必要的精确补扫结果。
     /// 当 ANN 命中已足够覆盖 Top-K，或本次 ANN 已覆盖整个 block 时，直接采用 ANN 结果；
-    /// 否则对未命中的点位做一次精确补扫，避免“部分 ANN 命中 + 整块精确回退”把同一点重复计入候选。
+    /// 否则丢弃此次 ANN 命中并精确扫描整个时间窗，避免同一点重复计入候选。
     /// </summary>
     internal static void CollectIndexedBlockCandidates(
         ReadOnlySpan<float> queryVector,
@@ -291,64 +271,139 @@ internal static class KnnExecutor
         KnnMetric metric,
         TimeRange timeRange,
         ulong seriesId,
-        List<(double Dist, long Ts, ulong Sid)> candidates)
+        BoundedCandidateSet candidates)
     {
         ArgumentNullException.ThrowIfNull(annHits);
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentOutOfRangeException.ThrowIfLessThan(k, 1);
 
-        var acceptedHits = new List<VectorSearchResult>(Math.Min(k, annHits.Count));
+        int acceptedCount = 0;
         foreach (var hit in annHits)
         {
+            candidates.CancellationToken.ThrowIfCancellationRequested();
             if (!timeRange.Contains(hit.Timestamp))
                 continue;
 
-            acceptedHits.Add(hit);
-            if (acceptedHits.Count >= k)
+            if (++acceptedCount >= k)
                 break;
         }
 
-        if (acceptedHits.Count >= k || candidateLimit >= pointCount)
+        if (acceptedCount >= k || candidateLimit >= pointCount)
         {
-            AddAnnHits(acceptedHits, seriesId, candidates);
-            return;
-        }
-
-        HashSet<int>? acceptedPointIndexes = null;
-        if (acceptedHits.Count > 0)
-        {
-            acceptedPointIndexes = new HashSet<int>(acceptedHits.Count);
-            foreach (var hit in acceptedHits)
+            foreach (var hit in annHits)
             {
-                candidates.Add((hit.Distance, hit.Timestamp, seriesId));
-                acceptedPointIndexes.Add(hit.PointIndex);
+                candidates.CancellationToken.ThrowIfCancellationRequested();
+                if (timeRange.Contains(hit.Timestamp))
+                    candidates.Add(hit.Distance, hit.Timestamp, seriesId);
             }
+            return;
         }
 
         int dimension = queryVector.Length;
         for (int pointIndex = 0; pointIndex < pointCount; pointIndex++)
         {
-            if (acceptedPointIndexes?.Contains(pointIndex) == true)
-                continue;
-
+            candidates.CancellationToken.ThrowIfCancellationRequested();
             long timestamp = timestamps[pointIndex];
             if (!timeRange.Contains(timestamp))
                 continue;
 
             double distance = VectorDistance.Compute(metric, queryVector, GetVector(valPayload, pointIndex, dimension));
-            candidates.Add((distance, timestamp, seriesId));
+            candidates.Add(distance, timestamp, seriesId);
         }
     }
 
-    private static void AddAnnHits(
-        IReadOnlyList<VectorSearchResult> hits,
-        ulong seriesId,
-        List<(double Dist, long Ts, ulong Sid)> candidates)
+    /// <summary>所有扫描 worker 共享的有界最大堆；候选进入堆前过滤墓碑并预留 SQL 工作集预算。</summary>
+    internal sealed class BoundedCandidateSet : IDisposable
     {
-        for (int i = 0; i < hits.Count; i++)
+        // 包括堆扩容余量、值/优先级和最终结果容器；是保守准入估算，不是 CLR heap 硬上限。
+        internal const int EstimatedBytesPerCandidate = 256;
+        private readonly int _limit;
+        private readonly string _field;
+        private readonly TombstoneTable? _tombstones;
+        private readonly SqlQueryResources.SqlOperatorMemoryReservation? _reservation;
+        private readonly PriorityQueue<Candidate, Candidate> _heap = new(CandidateComparer.Instance);
+        private readonly object _gate = new();
+
+        internal BoundedCandidateSet(int limit, string field, TombstoneTable? tombstones,
+            CancellationToken cancellationToken = default, SqlQueryResources? resources = null)
         {
-            var hit = hits[i];
-            candidates.Add((hit.Distance, hit.Timestamp, seriesId));
+            ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+            ArgumentNullException.ThrowIfNull(field);
+            _limit = limit;
+            _field = field;
+            _tombstones = tombstones;
+            CancellationToken = cancellationToken;
+            _reservation = resources?.CreateReservation();
+        }
+
+        internal CancellationToken CancellationToken { get; }
+
+        internal int Count
+        {
+            get
+            {
+                lock (_gate)
+                    return _heap.Count;
+            }
+        }
+
+        internal void Add(double distance, long timestamp, ulong seriesId)
+        {
+            CancellationToken.ThrowIfCancellationRequested();
+            if (_tombstones?.IsCovered(seriesId, _field, timestamp) == true)
+                return;
+
+            var candidate = new Candidate(distance, timestamp, seriesId);
+            lock (_gate)
+            {
+                CancellationToken.ThrowIfCancellationRequested();
+                if (_heap.Count < _limit)
+                {
+                    if (_reservation?.TryReserve(EstimatedBytesPerCandidate) == false)
+                        throw new InvalidOperationException("measurement KNN Top-K 候选工作集超过 SQL 共享内存预算。");
+                    _heap.Enqueue(candidate, candidate);
+                }
+                else if (Compare(candidate, _heap.Peek()) < 0)
+                {
+                    _heap.DequeueEnqueue(candidate, candidate);
+                }
+            }
+        }
+
+        internal IReadOnlyList<KnnSearchResult> GetResults()
+        {
+            lock (_gate)
+            {
+                var results = new KnnSearchResult[_heap.Count];
+                for (int index = results.Length - 1; index >= 0; index--)
+                {
+                    CancellationToken.ThrowIfCancellationRequested();
+                    var candidate = _heap.Dequeue();
+                    results[index] = new KnnSearchResult(candidate.Timestamp, candidate.SeriesId, candidate.Distance);
+                }
+                return results;
+            }
+        }
+
+        /// <summary>归还候选工作集的共享预算。</summary>
+        public void Dispose() => _reservation?.Dispose();
+
+        private static int Compare(Candidate left, Candidate right)
+        {
+            int distance = left.Distance.CompareTo(right.Distance);
+            if (distance != 0)
+                return distance;
+            int timestamp = left.Timestamp.CompareTo(right.Timestamp);
+            return timestamp != 0 ? timestamp : left.SeriesId.CompareTo(right.SeriesId);
+        }
+
+        private readonly record struct Candidate(double Distance, long Timestamp, ulong SeriesId);
+
+        private sealed class CandidateComparer : IComparer<Candidate>
+        {
+            internal static CandidateComparer Instance { get; } = new();
+
+            public int Compare(Candidate left, Candidate right) => BoundedCandidateSet.Compare(right, left);
         }
     }
 

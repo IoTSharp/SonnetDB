@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 ### Added
+- **M43 #386 多分区本地 CDC 拓扑（2026-10-01）**：新增 `CdcLocalReplicaTopology`，以精确源/实体/分区身份绑定最多 64 条独立路由，轮转推进快照及增量，限制次数、时间、行数和字节数，并从各分区持久位点重开；一路失败保留其它分区提交，失败路由不提前 ACK。仍不提供跨分区事务、远程传输、冲突解决或 schema 演进。见[合同](docs/m43-local-cdc-topology.md)。
+- **M43 #391~#395 持久窗口切片（2026-10-01）**：新增 `FileStreamingWindowAggregator`，保存固定 UTC 滚动 COUNT、已应用订阅位点和最后批次身份，先提交窗口再 ACK；重投核对内容后跳过重复计数，支持显式 watermark、迟到丢弃/拒绝、容量边界、有界结果分页和关闭窗口回收。使用独立 source-generated JSON 状态，不变更现有订阅格式；数值聚合、任务运维及远程执行继续待补。见[合同](docs/m43-persistent-windows.md)。
+- **M43 #396 组合恢复样例（2026-10-01）**：新增可运行 `SonnetDB.CdcStreamingJourney`，真实两文档集合经过多分区 CDC 快照中断/增量续传、源副本对账、固定副本导出、持久订阅及 ACK 前窗口恢复，核对最终计数与检查点；设置三十秒总时限和专属临时目录清理。范围限于本地有序关闭重开，不替代十四能力总验收或持续 CDC 到流的事务桥接。见[复现入口](samples/SonnetDB.CdcStreamingJourney/README.md)。
 - Measurement schema-on-write 增加数据库总 measurement 数、单 measurement 列数和单次写入新增列数上限；支持 `Disabled`、`CreateOnly`、`CreateAndEvolve` 全局及按 measurement 覆盖。新增稳定内容 revision、进程内有界审计事件、扩列/类型提升/拒绝指标，并向 REST、SDK、MCP 与管理后台提供缓存刷新依据。关系表未知列自动 DDL 的独立 opt-in 边界见 [设计文档](docs/design/relational-auto-ddl-opt-in.md)，当前默认仍严格拒绝。
 - **M42 SQL-002 单表预览早停**：显式 REST 预览的可惰性关系表 SELECT 在执行阶段按行数和估算字节预算保留前缀，并准确报告截断；默认 16 MiB 字节预算可配置。复杂阻塞查询、其它模型及 DML RETURNING 保留现有结果合同；物化估算不等于 CLR heap 硬上限或端到端流式执行。
 - **M43 #385~#390 本地真实 CDC 源切片（2026-09-30～2026-10-01）**：新增 `CdcSourceReadView` 从文档集合的稳定 KV 读快照生成固定行集，并以 `OpenExisting` 校验及恢复创建结果未知时的持久 descriptor；`CdcDocumentSourceCapture` 将单集合持久 change feed 按 spool 高水位转换为版本化事件，`CdcDocumentSourceCaptureScheduler` 在调用方任务中按批次/事件/间隔有界推进，`CdcLocalReplicaPump` 每次有界推进一页快照或一批增量并协调接收端提交与 spool ACK。文档主数据、change feed 和序号由集合写入路径在同一 KV batch 提交。范围限于单源/单实体/单分区；多分区、远程拓扑、冲突和生产门禁仍待补。
@@ -25,6 +28,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- **M42 measurement KNN 候选有界化（2026-10-01）**：扫描时直接进入共享 Top-K 堆，替代 worker 和总结果的全量候选列表；候选入堆前过滤墓碑，复用 SQL worker/工作集预算，传播根取消并按距离、时间戳、序列 ID 稳定排序。ANN 时间窗不足时丢弃该批候选并精确补扫，修复 `k * 8` 溢出。候选保留量为 O(K)，存储页解码、首行和整体 CLR heap 门禁仍未完成。见[合同](docs/benchmarks/m42-measurement-knn-bounds.md)。
 - **GH-Issue #211 SQL 标识符规则**：表、measurement、视图/物化视图与列/TAG/FIELD 保留创建时的拼写，普通引用按 `OrdinalIgnoreCase` 匹配，双引号按 `Ordinal` 精确匹配；禁止新增或重命名为仅大小写不同的同作用域名称。旧 catalog 冲突须显式迁移，普通引用报歧义；设备摄取名称绑定到已保存的 schema 拼写。
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 

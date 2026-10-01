@@ -1,0 +1,2382 @@
+{
+  "schemaVersion": 1,
+  "executedOn": "2026-10-01",
+  "timezone": "Asia/Shanghai",
+  "baseCommit": "cf8c70e0032e2015590eef32300584b077831396",
+  "branch": "codex/roadmap-four-closures-20261001",
+  "claim": "Local development contracts only; no remote, hardware or production gate.",
+  "environment": {
+    "powershell": "7.6.6",
+    "dotnetSdk": "10.0.401",
+    "os": "Microsoft Windows NT 10.0.26200.0"
+  },
+  "sourceHashes": [
+    {
+      "path": "src/SonnetDB.Core/Cdc/CdcLocalReplicaTopology.cs",
+      "sha256": "F961BBCEDDB61BD7A4CA059BE4DC47D70E0E609D02633B1485F4CCC1C166819A"
+    },
+    {
+      "path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.cs",
+      "sha256": "8E6EAF2E3CA154D1F173F24123C46B38C84BEFC62FE08D0195AFF653E36FD046"
+    },
+    {
+      "path": "src/SonnetDB.Core/Streaming/StreamingWindowContracts.cs",
+      "sha256": "5D9DCC290696D24D2BA0AD4BBEB0A69E8D1FC1569557D514E132420112875035"
+    },
+    {
+      "path": "src/SonnetDB.Core/Query/KnnExecutor.cs",
+      "sha256": "4F0EC908184CBE44437E53DE5E81605196B7CE13CEB74E516476E9B97CE0D010"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Cdc/CdcLocalReplicaTopologyTests.cs",
+      "sha256": "F96C930AE4F86467A48876F4AE4CD15238AD63929EEDF5F4F153C64AD8C4DD80"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingWindowAggregatorTests.cs",
+      "sha256": "B2EF1A7653C720BD46C6792F075AD4CE3C66C72F372BE5FF9A89ECB0997E157B"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs",
+      "sha256": "492097A198A01690BD108622D3C1D439016B7FD91E1EE22839EF36194A6C9B39"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Query/KnnExecutorTests.cs",
+      "sha256": "F5516C89EC71114F72AFF4BCCFBD0B6FCA7B4F0605699343503528B1D5B3ED5A"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs",
+      "sha256": "291E994075810ECCC3926B0C1F1BECCC599F6C7D3060E885C65E61E96148D705"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Audits/CdcStreamingRecoveryJourneyTests.cs",
+      "sha256": "135801E4C1954BFF86160CAD4D0669146D8890352E24F9851E70E920F58EB7BE"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/Program.cs",
+      "sha256": "48E6678F425201A013F9F35BB8FA16FF89A9727B976B6F2A4632B6542FF75FC3"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/CdcStreamingRecoveryJourney.cs",
+      "sha256": "A1655571A541EFECFA30B14F1753C27C105B5E828C9B0E511383262067F5FB82"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj",
+      "sha256": "393AC6BB197D08183ABE73557EB4E869B68AF9B21715E537AC324F42D69C6DC7"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+      "sha256": "A85BA46404B2955D643E35725ABF77ADC2B934CEF794EB3105CCA10D39FEAE68"
+    },
+    {
+      "path": "SonnetDB.slnx",
+      "sha256": "4C78D41209A6B8FBE15600211D6E7B4BBB5E807B46BB7F25CE8E0860EF8C9778"
+    }
+  ],
+  "targetedCounters": [],
+  "coreCounters": [],
+  "originalTrxSha256": {
+    "targeted": "B1CFD9D2345304BC12138051BF82AE69543B639579500848805CDDCD03EA8CA4",
+    "core": "49E1C609E1083A7B3F240379ECC7C2B096B8365DD055435FC6F84925337A5495"
+  },
+  "targetedResults": [
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_DimMismatch_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0225532",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"dim.\\\"site\\\"\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0638199",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_MetricAliases_ProduceEquivalentResults",
+      "outcome": "Passed",
+      "duration": "00:00:00.0401911",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.CompleteAsync_AfterReopening_DrainsAcceptedEventsAndReturnsNull",
+      "outcome": "Passed",
+      "duration": "00:00:00.0338964",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.EmbeddedAdo_VectorParametersAndResults_PreserveFloatArrayMetadata",
+      "outcome": "Passed",
+      "duration": "00:00:00.0682514",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_TooManyRows_RejectsBeforeChangingAnyPoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0518705",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"state\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0117501",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlKnnBoundedQueryTests.Knn_WithDeletedNearestCandidates_FillsKFromSurvivors(flush: False)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0414365",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentCollectionFixedReadView_OpenExistingRecoversDescriptorAndRejectsIdentityOrCorruption",
+      "outcome": "Passed",
+      "duration": "00:00:00.0372523",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.SnapshotAndSpool_LastMaterializedEventBeforeAck_ReopenConfirmsTailAndReleasesCapacity",
+      "outcome": "Passed",
+      "duration": "00:00:00.0644440",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_ReturnsTopKByDistance_Cosine",
+      "outcome": "Passed",
+      "duration": "00:00:00.0357221",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithOutOfOrderEventTimes_CountsFixedUtcWindowsAndAcknowledges",
+      "outcome": "Passed",
+      "duration": "00:00:00.0423333",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 100001, rows: 1, bytes: 4096, elapsedMilliseconds: 1000, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0107354",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_AcrossMemTableAndSegments_MergesBothLayers",
+      "outcome": "Passed",
+      "duration": "00:00:00.0522283",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_UnknownMetric_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0268359",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"\\\"embedding\\\"\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0612406",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithNonInitialRevision_WhenCheckpointIsMissing_FailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0020894",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.ApplyIncremental_LastIdenticalEventRetryAndNextEvent_AreDeterministicAfterReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0097442",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.AdvanceWatermarkAsync_WithAllowedLateness_ClosesAtExactBoundaryAndPersistsDrop",
+      "outcome": "Passed",
+      "duration": "00:00:00.0154693",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_AnnSegmentWithManyTombstones_StillReturnsKResults",
+      "outcome": "Passed",
+      "duration": "00:00:00.1834851",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WrongColumnType_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0243099",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Encode_InvalidUtf8BudgetAndPayload_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0015244",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithForeignSubscriptionSkippedRevisionOrOverBudget_RefusesMutation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0085840",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnn_AssociatesDocumentKnowledgeRows",
+      "outcome": "Passed",
+      "duration": "00:00:00.0754793",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithExternalCheckpointConflict_FaultsAndPreservesPendingEvents",
+      "outcome": "Passed",
+      "duration": "00:00:00.0225259",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithCancelledTokenOrWrongId_PreservesRecoverableBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0235881",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithFlushedL2HnswSegment_ServesL2NearestNeighbor",
+      "outcome": "Passed",
+      "duration": "00:00:00.0528199",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Acknowledge_AdvancesVersionedCheckpoint_AndAllowsNextBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0012244",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AfterWatermarkReopen_RespectsPersistedLatePolicy(policy: Drop)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0157934",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.SnapshotAndSpool_PartialReopenAndIncrementalResume_PreserveMaterializedResult",
+      "outcome": "Passed",
+      "duration": "00:00:00.0354615",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Cancellation_PreCancelledOperations_DoNotCreateOrMutateState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0088664",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.EncodeDecode_RoundTrip_IsDeterministic",
+      "outcome": "Passed",
+      "duration": "00:00:00.0015907",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterSpoolAckBeforeStatePublication_CompletesInterruptedAck",
+      "outcome": "Passed",
+      "duration": "00:00:00.0372599",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentPipeline_ConcurrentPumpCalls_DoNotDuplicateSnapshotPageOrIncrement",
+      "outcome": "Passed",
+      "duration": "00:00:00.0668336",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_ConcurrentKnn_DistanceMatchesReturnedVector",
+      "outcome": "Passed",
+      "duration": "00:00:00.0947403",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_AppliesJsonPathFilters",
+      "outcome": "Passed",
+      "duration": "00:00:00.0462001",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_NoMatchedSeries_ReturnsEmpty",
+      "outcome": "Passed",
+      "duration": "00:00:00.0394488",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.VersionedDtos_RoundTripWithSourceGeneratedJson",
+      "outcome": "Passed",
+      "duration": "00:00:00.0081869",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentPipeline_ConcurrentCaptureAndPump_PagedBacklogReconciles",
+      "outcome": "Passed",
+      "duration": "00:00:00.1532719",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithFixedK_AllocationDoesNotGrowWithCandidateCount",
+      "outcome": "Passed",
+      "duration": "00:00:00.0885782",
+      "stdout": "Fixed K=8; 100000 replacement candidates; additional managed allocation=0 bytes."
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_ConcurrentWriters_OnlyOneAcquiresLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0141715",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.CreateAndOpen_ExistingFileAndSecondWriter_RejectWithoutChangingData",
+      "outcome": "Passed",
+      "duration": "00:00:00.0104648",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithUnownedSideFile_RejectsAndPreservesUnknownFile",
+      "outcome": "Passed",
+      "duration": "00:00:00.0066452",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.CorruptOrTruncatedFrame_FailsClosedOnReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0133463",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.Constructor_EmptyOrOversizedTopology_RejectsBeforeScheduling",
+      "outcome": "Passed",
+      "duration": "00:00:00.0094203",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_AfterSnapshotAndUnacknowledgedWindowReopen_ReconcilesProductState",
+      "outcome": "Passed",
+      "duration": "00:00:00.2525255",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Capacity_IsBoundedAndAckReleasesSpace",
+      "outcome": "Passed",
+      "duration": "00:00:00.0159851",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterPublishingAndReopening_RestoresEventsAndWatermark",
+      "outcome": "Passed",
+      "duration": "00:00:00.0297593",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorDelete_CleanupFailure_FencesReadsUntilReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.1366283",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.CompleteSnapshot_EmptySnapshotAndRepeatedCompletion_AreDurable",
+      "outcome": "Passed",
+      "duration": "00:00:00.0127307",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.AppendReplay_ReopenAndPartitionCheckpoint_AreDeterministic",
+      "outcome": "Passed",
+      "duration": "00:00:00.0164974",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_WalBudgetRejectsBeforeAppend_LeavesDatabaseReadable",
+      "outcome": "Passed",
+      "duration": "00:00:00.0397984",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_ElapsedTimeLimit_CancelsIntervalAndReturnsRecoverableStates",
+      "outcome": "Passed",
+      "duration": "00:00:00.1434476",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"\\\"incidents\\\"\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0637153",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.ConcurrentStores_OnlyOneConditionalWriteWins",
+      "outcome": "Passed",
+      "duration": "00:00:00.0361111",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithMissingCorruptOrMismatchedState_FailsClosedAndReleasesLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0103249",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_IncrementalIdentityMismatch_DoesNotApplyOrAcknowledgeForeignEvent(field: \"entity\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0261282",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_DropAndRecreateAfterReopen_DoesNotApplyOldReplacement",
+      "outcome": "Passed",
+      "duration": "00:00:00.0784280",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_ExplainShowsHybridAccessPath",
+      "outcome": "Passed",
+      "duration": "00:00:00.0395464",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlIdentifierCaseContractTests.Knn_MixedCaseIdentifiers_PreserveOutputNamesAndExactQuotes",
+      "outcome": "Passed",
+      "duration": "00:00:00.2961273",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnMixedCaseNames_PreservesMetadataAndJsonKeys",
+      "outcome": "Passed",
+      "duration": "00:00:00.0806281",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 1, bytes: 4096, elapsedMilliseconds: 1000, intervalMilliseconds: 60001)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0078056",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"\\\"DIM\\\".Site\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0717419",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentSourceCapture_ForeignPartitionAfterFirstReplayPage_Rejects",
+      "outcome": "Passed",
+      "duration": "00:00:00.0412017",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"state-integrity\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0227175",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Capacity_StateByteLimitDoesNotPublishPartialSnapshot",
+      "outcome": "Passed",
+      "duration": "00:00:00.0130368",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_L2Metric_ReturnsCorrectOrder",
+      "outcome": "Passed",
+      "duration": "00:00:00.0347763",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 1, bytes: 4096, elapsedMilliseconds: 0, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0093327",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_WithExistingData_RejectsWithoutOverwriting",
+      "outcome": "Passed",
+      "duration": "00:00:00.0035701",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 0, bytes: 4096, elapsedMilliseconds: 1000, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0070167",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlParserTests.Parse_HybridSearchNamedArguments_ReturnsTvfAst",
+      "outcome": "Passed",
+      "duration": "00:00:00.0009434",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"checkpoint\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0151492",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Acknowledge_TruncatesFramesAndPersistsAcrossReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0194084",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_WithCancelledRecovery_PreservesFramesAndAllowsRetry",
+      "outcome": "Passed",
+      "duration": "00:00:00.0097396",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.MissingDataFileWithUnacknowledgedCheckpoint_FailsClosedOnReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0125891",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.Constructor_MismatchedDescriptorOrSpoolPartition_FailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0151379",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithMismatchedSubscriptionId_FailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0064006",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithEmptyStream_StopsAtOperationTimeout",
+      "outcome": "Passed",
+      "duration": "00:00:00.2799070",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_AfterReopening_RestoresCommittedCheckpointAndReclaimsSpace",
+      "outcome": "Passed",
+      "duration": "00:00:00.0383256",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentPipeline_PumpAfterReplicaCommitBeforeAck_ReconcilesAndContinues",
+      "outcome": "Passed",
+      "duration": "00:00:00.0675428",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Decode_UnknownSchemaVersion_ThrowsExplicitSchemaError",
+      "outcome": "Passed",
+      "duration": "00:00:00.0004157",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Open_MissingState_DoesNotReplaceCommittedSnapshotWithEmptyState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0064892",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithRejectPolicy_KeepsEntireBatchUnapplied",
+      "outcome": "Passed",
+      "duration": "00:00:00.0092583",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_AfterDelete_DoesNotReturnTombstonedVector",
+      "outcome": "Passed",
+      "duration": "00:00:00.0543364",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"spool-metadata\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0164822",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithManyTiedCandidates_MatchesExactOracle",
+      "outcome": "Passed",
+      "duration": "00:00:00.0074504",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.Device_Id\", joinedTable: \"\\\"devices\\\"\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0812301",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithDifferentStreamIdentity_RejectsBeforeReading",
+      "outcome": "Passed",
+      "duration": "00:00:00.0194142",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Decode_UnknownContractVersion_ThrowsExplicitVersionError",
+      "outcome": "Passed",
+      "duration": "00:00:00.0004644",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"definition\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0179362",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_WhenEmptyAndCancelled_StopsWaitWithoutChangingState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0090668",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcDocumentSourceCaptureSchedulerTests.RunAsync_WithEmptySource_CompletesOneBatchWithoutMoreWork",
+      "outcome": "Passed",
+      "duration": "00:00:00.0348851",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentSourceCapture_MismatchedSpoolEvent_RejectsWithoutAppending",
+      "outcome": "Passed",
+      "duration": "00:00:00.0346020",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WithCancelledWait_LeavesStateUnchangedAndAllowsNextBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0896811",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcDocumentSourceCaptureSchedulerTests.RunAsync_WhenCancelledBeforeStart_DoesNotCaptureEvents",
+      "outcome": "Passed",
+      "duration": "00:00:00.0319177",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_ConcurrentRuns_SerializesStepsAndKeepsRoundRobinOrder",
+      "outcome": "Passed",
+      "duration": "00:00:00.0183663",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Publish_WhenBoundedBufferIsFull_CancellationStopsBackpressureWait",
+      "outcome": "Passed",
+      "duration": "00:00:00.1022826",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithLazyVectorSidecarCache_ReturnsSameRowsWhenCacheDisabled",
+      "outcome": "Passed",
+      "duration": "00:00:00.0780359",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WhenWindowCapacityFull_PreservesBatchThenContinuesAfterRemovingClosedWindow",
+      "outcome": "Passed",
+      "duration": "00:00:00.0522708",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithExistingStateOrSecondWriter_RefusesOverwriteAndConcurrentLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0075235",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.SameTimestampInsert_DoesNotReplaceOldVectorInRawOrKnn",
+      "outcome": "Passed",
+      "duration": "00:00:00.0361240",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithCancellationAfterAdmission_RejectsFurtherWork",
+      "outcome": "Passed",
+      "duration": "00:00:00.0004996",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 1, bytes: 4096, elapsedMilliseconds: 3600001, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0076471",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnJoinDimensionTable_PushesRelationFilter",
+      "outcome": "Passed",
+      "duration": "00:00:00.0644128",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.ApplyIncremental_IdentitySchemaPartitionAndOffsetMismatch_FailAtomically",
+      "outcome": "Passed",
+      "duration": "00:00:00.0099020",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ReadWindowsAsync_WithNegativeEpochTimeAndPagination_UsesFloorAndExclusiveCursor",
+      "outcome": "Passed",
+      "duration": "00:00:00.0073372",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_DeleteThenBackupRestore_DoesNotReviveOldVector",
+      "outcome": "Passed",
+      "duration": "00:00:00.2228502",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"state\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0134773",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentPipeline_WritesAfterFixedCheckpoint_BoundedSpoolReconcilesAfterReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.1027588",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_InnerProductMetric_ReturnsNegativeDotOrder",
+      "outcome": "Passed",
+      "duration": "00:00:00.0406664",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WhenClosedBeforeRead_ReturnsNull",
+      "outcome": "Passed",
+      "duration": "00:00:00.0005758",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Cancellation_DoesNotAppendOrReplay",
+      "outcome": "Passed",
+      "duration": "00:00:00.0033755",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithFlushedHnswSegment_UsesIndexedMeasurementAndReturnsResults",
+      "outcome": "Passed",
+      "duration": "00:00:00.0578995",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.LegacyMetadataV1_WithPendingFrame_RemainsReadable",
+      "outcome": "Passed",
+      "duration": "00:00:00.0148976",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithSameDeliveryAfterWatermarkAndResultRemoval_DoesNotRecountOrDrop",
+      "outcome": "Passed",
+      "duration": "00:00:00.0190953",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.CheckpointValidation_RejectsUnknownRegressionAndFutureOffsets",
+      "outcome": "Passed",
+      "duration": "00:00:00.0096481",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.DisposeAsync_WithWaitingPublishAndRead_WakesWaitersAndAllowsReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0287362",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_RetentionDrop_ReclaimsReplacementAndRecovers",
+      "outcome": "Passed",
+      "duration": "00:00:00.0775795",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"spool\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0132183",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentCollectionFixedReadView_ExceedsFileCapacity_DoesNotPublishState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0293200",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentSourceCapture_ReopenResumesAfterSpoolHighWatermark",
+      "outcome": "Passed",
+      "duration": "00:00:00.0620757",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Capacity_RowLimitRejectsEntireBatch_AndDeleteReleasesCapacity",
+      "outcome": "Passed",
+      "duration": "00:00:00.0089894",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.DocumentCollection_HybridSearch_FusesFullTextAndVectorScores",
+      "outcome": "Passed",
+      "duration": "00:00:00.0632125",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_AtByteBoundary_ReturnsPrefixAndPreservesRemainder",
+      "outcome": "Passed",
+      "duration": "00:00:00.0554667",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_AlreadyAppliedEventWithoutAcknowledgement_RecoversConfirmationBeforeNextBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0177477",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"event-crc\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0166794",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_CancelledBeforeStart_DoesNotMutateAnyPartition",
+      "outcome": "Passed",
+      "duration": "00:00:00.0080455",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Capacity_BatchRowAndByteLimits_DoNotAdvanceProgress",
+      "outcome": "Passed",
+      "duration": "00:00:00.0079073",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_MultiSegment_FullWindow_ReturnsGlobalNearestAcrossSegments",
+      "outcome": "Passed",
+      "duration": "00:00:00.0522783",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_MeasurementNotExists_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0229507",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_IncrementalIdentityMismatch_DoesNotApplyOrAcknowledgeForeignEvent(field: \"source\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0238579",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_WhenCancelledDuringFrameRecovery_ReleasesLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0112081",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_WhenAttemptLimitReached_ReportsStatusAndAllowsAcknowledge",
+      "outcome": "Passed",
+      "duration": "00:00:00.0274049",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithStaleRevision_RejectsWriteAndPreservesCommittedValue",
+      "outcome": "Passed",
+      "duration": "00:00:00.0080548",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.ApplyIncremental_CancelledDuringBatch_DoesNotAdvanceRowsOrCheckpoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0097293",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_LegacyNamedUserKeyspace_RemainsIndependent",
+      "outcome": "Passed",
+      "duration": "00:00:00.0696576",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.WriteSnapshotPage_CancelledDuringEnumeration_ReopensAtPreviousOrdinal",
+      "outcome": "Passed",
+      "duration": "00:00:00.0089661",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_AfterInvalidFrameFailure_ReleasesWriterLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0084635",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.WriteSnapshotPage_WrongOrdinalDuplicateAndUnorderedKeys_DoNotAdvanceProgress",
+      "outcome": "Passed",
+      "duration": "00:00:00.0095365",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.VectorParameterBinder_SupportsMemoryAndRejectsInvalidVectors",
+      "outcome": "Passed",
+      "duration": "00:00:00.0046803",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithMismatchedDefinitionOrMissingFiles_FailsClosed(change: \"options\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0144401",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnExecutorTests.CollectIndexedBlockCandidates_WithPartialAnnHitsAndExactFallback_DoesNotDuplicateAcceptedPoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0008990",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_TimeWindowOutsideAllSegments_ReturnsEmpty",
+      "outcome": "Passed",
+      "duration": "00:00:00.0483325",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.LatePolicy_DropAndRejectRespectWatermark",
+      "outcome": "Passed",
+      "duration": "00:00:00.0012809",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.StreamRoundTrip_AndCancellation_AreBounded",
+      "outcome": "Passed",
+      "duration": "00:00:00.0026809",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtCapacity_CancelledWaitDoesNotAcceptEvent",
+      "outcome": "Passed",
+      "duration": "00:00:00.0177519",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_WhenSubscriptionAlreadyAcknowledgedMissingWindows_FailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0307367",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithTagFilter_OnlyMatchesSeries",
+      "outcome": "Passed",
+      "duration": "00:00:00.0374978",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"\\\"device_id\\\"\", projection: \"measurement.Device_Id\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.1844052",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorParameter_BindsAndRoundTripsFloatArray",
+      "outcome": "Passed",
+      "duration": "00:00:00.0411430",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlKnnBoundedQueryTests.Knn_WithControlledParallelism_MatchesSerialTiesAndReleasesResources",
+      "outcome": "Passed",
+      "duration": "00:00:00.0491267",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_WalSyncFailure_RejectsReadsUntilReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0559211",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WhenStateByteBudgetExceeded_PreservesStateAndAllowsSmallerBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0096349",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedExactNames_ReturnsMatchingRows",
+      "outcome": "Passed",
+      "duration": "00:00:00.0641601",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.Execute_WithCancelledTokenAndNoSeries_ThrowsCancellation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0005287",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_CancelledAfterFirstStep_PreservesProgressAndNextPartition",
+      "outcome": "Passed",
+      "duration": "00:00:00.0163862",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Encode_OperationPayloadShape_IsValidated",
+      "outcome": "Passed",
+      "duration": "00:00:00.0003008",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.ConcurrentAppends_SerializeWithoutInterleavingFrames",
+      "outcome": "Passed",
+      "duration": "00:00:00.0443346",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"event-truncation\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0184927",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.FixedReadView_PageReaderIsBoundedAndReopenPreservesIdentity",
+      "outcome": "Passed",
+      "duration": "00:00:00.0060704",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Encode_DeepPayload_ThrowsFormatBoundary",
+      "outcome": "Passed",
+      "duration": "00:00:00.0003537",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WhenOpenAndEmpty_CancellationStopsWait",
+      "outcome": "Passed",
+      "duration": "00:00:00.0023658",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtCapacity_WaitsForAckIncludingInFlightEvents",
+      "outcome": "Passed",
+      "duration": "00:00:00.0278875",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_AfterDeleteOnHnswSegment_DoesNotReturnTombstonedVector",
+      "outcome": "Passed",
+      "duration": "00:00:00.0657839",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveWithRegressingSequenceOrWatermark_RejectsWrite",
+      "outcome": "Passed",
+      "duration": "00:00:00.0069618",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithSameDeliveryAndChangedContent_RejectsReplay",
+      "outcome": "Passed",
+      "duration": "00:00:00.0112271",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.ApplyBatchAsync_WithUnrepresentableWindow_RejectsUtcBoundaryWithoutMutation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0064089",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithConcurrentOwner_RejectsSecondExecutor",
+      "outcome": "Passed",
+      "duration": "00:00:00.0869685",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.LatePolicy_DeliverMarksEvent_AndWatermarkCannotMoveBack",
+      "outcome": "Passed",
+      "duration": "00:00:00.0010701",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_TwoDocumentCollections_ReopensAndReconcilesIndependentPartitions",
+      "outcome": "Passed",
+      "duration": "00:00:00.1852736",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.ApplyIncremental_MaximumCheckpoint_ReopensAndRetriesWithoutOverflow",
+      "outcome": "Passed",
+      "duration": "00:00:00.0085562",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 1, bytes: 0, elapsedMilliseconds: 1000, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0078549",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.OpenAsync_WithOwnedInterruptedTemporaryWrite_ReclaimsFixedSideFileAndContinues",
+      "outcome": "Passed",
+      "duration": "00:00:00.0130701",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_IncrementalIdentityMismatch_DoesNotApplyOrAcknowledgeForeignEvent(field: \"schema\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0213429",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcDocumentSourceCaptureSchedulerTests.RunAsync_WithEventLimit_AdvancesAcrossBatchesWithoutExceedingLimit",
+      "outcome": "Passed",
+      "duration": "00:00:00.0445100",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.CorruptCheckpointMetadata_FailsClosedOnReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0109139",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.HeldFileLock_StopsAtConfiguredTimeout",
+      "outcome": "Passed",
+      "duration": "00:00:00.1192291",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Decode_UnknownOrDuplicateProperties_ThrowsFormatError",
+      "outcome": "Passed",
+      "duration": "00:00:00.0004571",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_PartitionCapacityFailure_KeepsOtherCommitAndDoesNotAcknowledgeFailedPartition",
+      "outcome": "Passed",
+      "duration": "00:00:00.0449151",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_MultiSeriesInFlushedSegment_TagFilterSelectsOnlyMatchingSeries",
+      "outcome": "Passed",
+      "duration": "00:00:00.0384358",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_WithCorruptFiles_FailsClosed(change: \"checkpoint\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0198150",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.MetadataHighWatermark_WithMissingUnacknowledgedFrame_FailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0132057",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_RepeatedSingleSteps_RotatesWithoutStarvingOtherPartitions",
+      "outcome": "Passed",
+      "duration": "00:00:00.0210217",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_WhenCancelledDuringMetadataRecovery_ReleasesLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0110301",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithHugeK_DoesNotPreallocateRequestedCapacity",
+      "outcome": "Passed",
+      "duration": "00:00:00.0008017",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_ByteBudgetRejectsBeforeWal_LeavesStoreEmpty",
+      "outcome": "Passed",
+      "duration": "00:00:00.0232051",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"\\\"MEASUREMENT\\\".Device_Id\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0746929",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.WriteSnapshotPage_TooManyRowsOrInvalidJson_PreservesRecoverableState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0083970",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnnQuotedWrongCaseNames_RejectsReference(source: \"Incidents\", vectorField: \"Embedding\", joinTag: \"Device_Id\", projection: \"measurement.\\\"device_id\\\"\", joinedTable: \"Devices\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0756310",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentCollectionFixedReadView_UsesStableKvSnapshotAndCheckpoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0356056",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.ReadRows_BoundedPaginationAndTooSmallFirstRow_UseStableKeysAndCheckpoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0113210",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.Constructor_DuplicateRouteOrSharedSpool_RejectsTopologyWithoutMutation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0134266",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_WithDuplicateDescendingAndOversizedEvents_RejectsWithoutLosingAcceptedEvent",
+      "outcome": "Passed",
+      "duration": "00:00:00.0149581",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_OutputContainsAllFieldColumns",
+      "outcome": "Passed",
+      "duration": "00:00:00.0371796",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentCollectionFixedReadView_ExceedsRowCapacity_DoesNotPublishState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0321487",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.AppendAfterAcknowledge_PersistsHighWatermarkAndMissingDataFailsClosed",
+      "outcome": "Passed",
+      "duration": "00:00:00.0127223",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithInitialCheckpoint_ContinuesExistingSubscriptionAtNextRevision",
+      "outcome": "Passed",
+      "duration": "00:00:00.0421475",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_SparseTargetAndFieldPredicate_RejectBeforeCommit",
+      "outcome": "Passed",
+      "duration": "00:00:00.0344109",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.GetStatusAsync_AfterReopening_ReportsBacklogOldestEventAndInFlightAttempt",
+      "outcome": "Passed",
+      "duration": "00:00:00.0191739",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.FixedReadView_SnapshotThenConcurrentWrites_ReplaysAndReconcilesAfterReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0247258",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithTimeFilter_RespectsTimeRange",
+      "outcome": "Passed",
+      "duration": "00:00:00.0395915",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorRetention_CleanupFailure_FencesReadsUntilReopen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0673048",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(cancel: True)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0284675",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.Definition_RejectsSubMillisecondLatenessInsteadOfTruncating",
+      "outcome": "Passed",
+      "duration": "00:00:00.0002305",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithCorruptOrTruncatedJson_FailsClosed(content: \"\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0056530",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_MigratesLegacyStateWithoutDeliveryAttemptField",
+      "outcome": "Passed",
+      "duration": "00:00:00.0183928",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentCollectionFixedReadView_CorruptionAndDescriptorMismatch_FailClosedOnOpen",
+      "outcome": "Passed",
+      "duration": "00:00:00.0392844",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlParserTests.Parse_Select_HybridSearchJoinDimensionTable_ReturnsTvfJoinAst",
+      "outcome": "Passed",
+      "duration": "00:00:00.0005503",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AtByteCapacity_WaitsForAckAndRecoversBound",
+      "outcome": "Passed",
+      "duration": "00:00:00.0315702",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 1, rows: 1, bytes: 4096, elapsedMilliseconds: 1000, intervalMilliseconds: -1)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0073542",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.ReplayBatch_ReportsBoundedContinuation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0126848",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.ReadBatchAsync_AfterUnacknowledgedReopen_RedeliversSameBatchAndAttempt",
+      "outcome": "Passed",
+      "duration": "00:00:00.0372499",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterAppendBeforeStatePublication_PreservesUncertainEvent",
+      "outcome": "Passed",
+      "duration": "00:00:00.0410693",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.CollectIndexedBlockCandidates_WithNarrowWindowFallback_ReturnsExactWindowTopK",
+      "outcome": "Passed",
+      "duration": "00:00:00.0007048",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.LoadWithCorruptOrTruncatedJson_FailsClosed(content: \"{\\\"formatVersion\\\":1\")",
+      "outcome": "Passed",
+      "duration": "00:00:00.0042737",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorDocumentTests.HybridSearch_MeasurementKnn_ExplainShowsCrossModelAccessPath",
+      "outcome": "Passed",
+      "duration": "00:00:00.0720567",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionTests.ReadBatch_WithoutAcknowledge_RedeliversSameBatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0047156",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.CollectIndexedBlockCandidates_WithTiedAnnHits_UsesDeterministicTimestampOrder",
+      "outcome": "Passed",
+      "duration": "00:00:00.0009935",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_MultipleRowsAndValidation_AreAtomic",
+      "outcome": "Passed",
+      "duration": "00:00:00.0779387",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.Pipeline_CapacityFailureDoesNotAdvanceReplicaOrAcknowledgeSpool",
+      "outcome": "Passed",
+      "duration": "00:00:00.0183814",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithExhaustedBudget_FailsAndReleasesReservation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0214387",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.CreateAsync_WithPendingInitialCommit_RejectsAndPreservesSideFile",
+      "outcome": "Passed",
+      "duration": "00:00:00.0052008",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcDocumentSourceCaptureSchedulerTests.RunAsync_AfterReopen_ResumesFromSpoolHighWatermark",
+      "outcome": "Passed",
+      "duration": "00:00:00.0688995",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_MultiSegmentDisjointTimeBands_NarrowWindow_ReturnsOnlyWindowedNearest",
+      "outcome": "Passed",
+      "duration": "00:00:00.0522501",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventCodecTests.Decode_InvalidUtf8AndOversizedInput_ThrowsFormatError",
+      "outcome": "Passed",
+      "duration": "00:00:00.0007036",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Open_CorruptOrTruncatedState_FailsClosed(truncate: False)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0067451",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Audits.CdcStreamingRecoveryJourneyTests.RunAsync_WithCancelledToken_DoesNotCreateState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0012311",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_InvalidBounds_RejectsWithoutMutation(steps: 0, rows: 1, bytes: 4096, elapsedMilliseconds: 1000, intervalMilliseconds: 0)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0077136",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlKnnBoundedQueryTests.Knn_WithInsufficientCandidateBudget_FailsThenAllowsSmallerQuery",
+      "outcome": "Passed",
+      "duration": "00:00:00.0433757",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Open_MismatchedSnapshotIdentitySchemaAndCheckpoint_RejectsAndReleasesLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0112877",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcLocalReplicaTopologyTests.RunAsync_ByteLimitCannotFitSnapshotRow_DoesNotAdvanceState",
+      "outcome": "Passed",
+      "duration": "00:00:00.0080958",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.OpenAsync_AfterCheckpointCommitBeforeSpoolAck_CompletesInterruptedAck",
+      "outcome": "Passed",
+      "duration": "00:00:00.0374541",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(cancel: False)",
+      "outcome": "Passed",
+      "duration": "00:00:00.2336007",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingWindowAggregatorTests.PumpOnceAsync_AfterWindowCommitBeforeAckAndReopen_DeduplicatesStableDelivery",
+      "outcome": "Passed",
+      "duration": "00:00:00.0555935",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.CancelledOperation_DoesNotLeaveTemporaryPublication",
+      "outcome": "Passed",
+      "duration": "00:00:00.0014040",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.RemoteExecutionResult_DecodesNumericArrayAsFloatArrayAndPreservesOtherArrays",
+      "outcome": "Passed",
+      "duration": "00:00:00.0013350",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Query.KnnBoundedExecutionTests.BoundedCandidates_WithConcurrentWriters_RetainsGlobalTopK",
+      "outcome": "Passed",
+      "duration": "00:00:00.0039580",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.FileStreamingSubscriptionTests.PublishAsync_AfterWatermarkReopen_RespectsPersistedLatePolicy(policy: Reject)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0156214",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentSourceCapture_SingleEventCapacity_AcknowledgementAllowsNextCapture",
+      "outcome": "Passed",
+      "duration": "00:00:00.0477823",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcEventSpoolTests.Open_SamePathTwice_RejectsSecondWriterLease",
+      "outcome": "Passed",
+      "duration": "00:00:00.0028186",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSnapshotReplicaTests.Open_CorruptOrTruncatedState_FailsClosed(truncate: True)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0052013",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlKnnBoundedQueryTests.Knn_WithDeletedNearestCandidates_FillsKFromSurvivors(flush: True)",
+      "outcome": "Passed",
+      "duration": "00:00:00.0890718",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_KLargerThanData_ReturnsAllData",
+      "outcome": "Passed",
+      "duration": "00:00:00.0356567",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_RecoveryAcrossPages_RestoresEveryReplacement",
+      "outcome": "Passed",
+      "duration": "00:00:00.0677153",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Streaming.StreamingSubscriptionCheckpointStoreTests.SaveThenReopen_RestoresLatestCheckpoint",
+      "outcome": "Passed",
+      "duration": "00:00:00.0083052",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_CompactionAndReopen_KeepOnlyReplacementVisible",
+      "outcome": "Passed",
+      "duration": "00:00:00.3364246",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlVectorParameterTests.Embedded_VectorUpdate_ReplacesRawSqlAndKnnAndRecovers",
+      "outcome": "Passed",
+      "duration": "00:00:00.0605324",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Cdc.CdcSourcePipelineTests.DocumentSourceCapture_PendingFramesBeyondBatchSize_ReopensAtLastFrame",
+      "outcome": "Passed",
+      "duration": "00:00:00.0734071",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_WithFlushedHnswSegment_AndTimeFilter_ReturnsFilteredNearestNeighbor",
+      "outcome": "Passed",
+      "duration": "00:00:00.0538990",
+      "stdout": ""
+    },
+    {
+      "name": "SonnetDB.Core.Tests.Sql.SqlExecutorKnnTests.Knn_KZero_Throws",
+      "outcome": "Passed",
+      "duration": "00:00:00.0222517",
+      "stdout": ""
+    }
+  ],
+  "runs": [
+    {
+      "label": "restore",
+      "process": {
+        "Label": "restore",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "restore",
+          "SonnetDB.slnx",
+          "--disable-parallel",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "ElapsedSeconds": 29.2296241,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 70576,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492691+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 70128,
+            "ParentProcessId": 19252,
+            "CreationDate": "2026-10-01T13:48:40.941552+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel -p:UseSharedCompilation=false -nodeReuse:false"
+          },
+          {
+            "ProcessId": 76728,
+            "ParentProcessId": 64892,
+            "CreationDate": "2026-10-01T13:48:41.508187+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 78488,
+            "ParentProcessId": 9300,
+            "CreationDate": "2026-10-01T13:48:41.483576+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 43764,
+            "ParentProcessId": 82732,
+            "CreationDate": "2026-10-01T13:48:41.501203+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 76884,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472687+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 26864,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492683+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 39056,
+            "ParentProcessId": 3080,
+            "CreationDate": "2026-10-01T13:48:41.509619+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 79816,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472549+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 72160,
+            "ParentProcessId": 26236,
+            "CreationDate": "2026-10-01T13:48:41.483658+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 26236,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472633+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 51244,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.505129+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 80524,
+            "ParentProcessId": 77604,
+            "CreationDate": "2026-10-01T13:48:41.4834+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 78208,
+            "ParentProcessId": 79816,
+            "CreationDate": "2026-10-01T13:48:41.483668+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 20980,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492667+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 67704,
+            "ParentProcessId": 70576,
+            "CreationDate": "2026-10-01T13:48:41.501014+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 68592,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492632+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 82336,
+            "ParentProcessId": 78812,
+            "CreationDate": "2026-10-01T13:48:41.50476+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 77312,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472814+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 82028,
+            "ParentProcessId": 76884,
+            "CreationDate": "2026-10-01T13:48:41.483393+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 61912,
+            "ParentProcessId": 80916,
+            "CreationDate": "2026-10-01T13:48:41.504925+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 53812,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472752+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 3080,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.503029+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 64132,
+            "ParentProcessId": 65144,
+            "CreationDate": "2026-10-01T13:48:41.483616+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 82732,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.495456+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 73228,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492631+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 38052,
+            "ParentProcessId": 73228,
+            "CreationDate": "2026-10-01T13:48:41.502838+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 78812,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.499141+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 65144,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472834+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 9300,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472561+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 19932,
+            "ParentProcessId": 68592,
+            "CreationDate": "2026-10-01T13:48:41.500885+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 49164,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:40.950766+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 37032,
+            "ParentProcessId": 53812,
+            "CreationDate": "2026-10-01T13:48:41.481429+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 52720,
+            "ParentProcessId": 26864,
+            "CreationDate": "2026-10-01T13:48:41.50362+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 74876,
+            "ParentProcessId": 31492,
+            "CreationDate": "2026-10-01T13:48:41.500827+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 65388,
+            "ParentProcessId": 47100,
+            "CreationDate": "2026-10-01T13:48:41.504758+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 47100,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492622+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 77604,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.472837+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 80916,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.496589+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 64892,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.500994+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 66760,
+            "ParentProcessId": 20980,
+            "CreationDate": "2026-10-01T13:48:41.50078+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 81532,
+            "ParentProcessId": 77312,
+            "CreationDate": "2026-10-01T13:48:41.48143+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 31492,
+            "ParentProcessId": 70128,
+            "CreationDate": "2026-10-01T13:48:41.492656+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 43348,
+            "ParentProcessId": 51244,
+            "CreationDate": "2026-10-01T13:48:41.513211+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          }
+        ]
+      },
+      "stdout": "  正在确定要还原的项目…\r\n  所有项目均是最新的，无法还原。\r\n",
+      "stderr": null
+    },
+    {
+      "label": "release-build-final",
+      "process": {
+        "Label": "release-build-final",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "build",
+          "SonnetDB.slnx",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false",
+          "--verbosity",
+          "minimal"
+        ],
+        "ElapsedSeconds": 157.6508458,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 43752,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:58:33.689192+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmp2214561adf41476bafe374bc1a6dae50.rsp\""
+          },
+          {
+            "ProcessId": 37820,
+            "ParentProcessId": 57828,
+            "CreationDate": "2026-10-01T13:56:25.725244+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 71192,
+            "ParentProcessId": 14372,
+            "CreationDate": "2026-10-01T13:56:27.787402+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 6132,
+            "ParentProcessId": 57828,
+            "CreationDate": "2026-10-01T13:56:26.271966+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 36300,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:39.852384+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpd1be32e1a7f04c4b81bfc2fcf6e89ae3.rsp\""
+          },
+          {
+            "ProcessId": 57828,
+            "ParentProcessId": 76928,
+            "CreationDate": "2026-10-01T13:56:25.718645+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore -m:2 -p:UseSharedCompilation=false -nodeReuse:false --verbosity minimal"
+          },
+          {
+            "ProcessId": 81588,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:10.024286+08:00",
+            "CommandLine": null
+          },
+          {
+            "ProcessId": 66724,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:58:27.43547+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpe1fc8056658f44c593ab77fb03ab1501.rsp\""
+          },
+          {
+            "ProcessId": 66100,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:58:22.594503+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpf825390ece6e4b639c67915a13037a49.rsp\""
+          },
+          {
+            "ProcessId": 58892,
+            "ParentProcessId": 15448,
+            "CreationDate": "2026-10-01T13:57:52.006052+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 14564,
+            "ParentProcessId": 20164,
+            "CreationDate": "2026-10-01T13:57:21.203397+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 78908,
+            "ParentProcessId": 77008,
+            "CreationDate": "2026-10-01T13:58:35.733813+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 52652,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:56:26.278468+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 15448,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:51.999124+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmp589456c7cee847b987e1af9645ca9ec4.rsp\""
+          },
+          {
+            "ProcessId": 20164,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:21.196243+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmp0ea069ef36f744239abce075493e9bd7.rsp\""
+          },
+          {
+            "ProcessId": 77208,
+            "ParentProcessId": 54196,
+            "CreationDate": "2026-10-01T13:57:28.769761+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 45968,
+            "ParentProcessId": 24320,
+            "CreationDate": "2026-10-01T13:57:01.448228+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 14372,
+            "ParentProcessId": 57828,
+            "CreationDate": "2026-10-01T13:56:27.780889+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemprmwhesxz.ks3\\tmp6fd4f6c329eb46bab4c850dbc2e23db5.rsp\""
+          },
+          {
+            "ProcessId": 77008,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:58:35.727247+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmp590ecbc49440462999eef78d52990c8b.rsp\""
+          },
+          {
+            "ProcessId": 34304,
+            "ParentProcessId": 36300,
+            "CreationDate": "2026-10-01T13:57:39.858882+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 54196,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:28.763264+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpbef1ab3473a6438b90e5be4bc1dd9066.rsp\""
+          },
+          {
+            "ProcessId": 7772,
+            "ParentProcessId": 43752,
+            "CreationDate": "2026-10-01T13:58:33.695831+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 24320,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:01.441203+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpaddc5a478ac44e53937f762a4e57c579.rsp\""
+          },
+          {
+            "ProcessId": 76648,
+            "ParentProcessId": 66724,
+            "CreationDate": "2026-10-01T13:58:27.441119+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 79584,
+            "ParentProcessId": 81588,
+            "CreationDate": "2026-10-01T13:57:35.062931+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 24224,
+            "ParentProcessId": 80648,
+            "CreationDate": "2026-10-01T13:57:16.247331+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 80648,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:57:16.240708+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempi5nerkxs.ptd\\tmpba6992d8d8b44e29931586fc0dd6040f.rsp\""
+          },
+          {
+            "ProcessId": 28400,
+            "ParentProcessId": 72276,
+            "CreationDate": "2026-10-01T13:58:44.721722+08:00",
+            "CommandLine": null
+          },
+          {
+            "ProcessId": 72276,
+            "ParentProcessId": 6132,
+            "CreationDate": "2026-10-01T13:58:44.71602+08:00",
+            "CommandLine": null
+          },
+          {
+            "ProcessId": 82152,
+            "ParentProcessId": 66100,
+            "CreationDate": "2026-10-01T13:58:22.600239+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 58476,
+            "ParentProcessId": 81588,
+            "CreationDate": "2026-10-01T13:57:10.031172+08:00",
+            "CommandLine": null
+          }
+        ]
+      },
+      "stdout": "  run-benchmarks -> D:\\source\\SonnetDB\\eng\\benchmarks\\run-benchmarks\\bin\\Release\\net10.0\\run-benchmarks.dll\r\n  connectors-release -> D:\\source\\SonnetDB\\eng\\tools\\connectors-release\\bin\\Release\\net10.0\\connectors-release.dll\r\n  CoAP.NET.SourceGeneration -> D:\\source\\SonnetDB\\extensions\\IoTSharp.CoAP.NET\\CoAP.NET.SourceGeneration\\bin\\Release\\netstandard2.0\\CoAP.NET.SourceGeneration.dll\r\n  start-benchmark-env -> D:\\source\\SonnetDB\\eng\\benchmarks\\start-benchmark-env\\bin\\Release\\net10.0\\start-benchmark-env.dll\r\n  CoAP.NET -> D:\\source\\SonnetDB\\extensions\\IoTSharp.CoAP.NET\\CoAP.NET\\bin\\Release\\net10.0\\CoAP.NET.dll\r\n  MQTTnet.AspNetCore.Routing -> D:\\source\\SonnetDB\\extensions\\MQTTnet.AspNetCore.Routing\\Source\\bin\\Release\\net10.0\\MQTTnet.AspNetCore.Routing.dll\r\n  MQTTnet.AspNetCore.Routing -> D:\\source\\SonnetDB\\extensions\\MQTTnet.AspNetCore.Routing\\Source\\bin\\Release\\net8.0\\MQTTnet.AspNetCore.Routing.dll\r\n  MQTTnet.AspNetCore.Routing.SourceGeneration -> D:\\source\\SonnetDB\\extensions\\MQTTnet.AspNetCore.Routing\\SourceGeneration\\bin\\Release\\netstandard2.0\\MQTTnet.AspNetCore.Routing.SourceGeneration.dll\r\n  SonnetDB.IndustrialDiagnostics -> D:\\source\\SonnetDB\\samples\\SonnetDB.IndustrialDiagnostics\\bin\\Release\\net10.0\\SonnetDB.IndustrialDiagnostics.dll\r\n  SonnetDB.SemanticImages -> D:\\source\\SonnetDB\\samples\\SonnetDB.SemanticImages\\bin\\Release\\net10.0\\SonnetDB.SemanticImages.dll\r\n  SonnetDB.Studio -> D:\\source\\SonnetDB\\src\\SonnetDB.Studio\\bin\\Release\\net10.0-windows\\SonnetDB.Studio.dll\r\n  Testcontainers.SonnetDB -> D:\\source\\SonnetDB\\src\\Testcontainers.SonnetDB\\bin\\Release\\netstandard2.0\\Testcontainers.SonnetDB.dll\r\n  Testcontainers.SonnetDB -> D:\\source\\SonnetDB\\src\\Testcontainers.SonnetDB\\bin\\Release\\netstandard2.1\\Testcontainers.SonnetDB.dll\r\n  Testcontainers.SonnetDB -> D:\\source\\SonnetDB\\src\\Testcontainers.SonnetDB\\bin\\Release\\net8.0\\Testcontainers.SonnetDB.dll\r\n  Testcontainers.SonnetDB -> D:\\source\\SonnetDB\\src\\Testcontainers.SonnetDB\\bin\\Release\\net9.0\\Testcontainers.SonnetDB.dll\r\n  Testcontainers.SonnetDB -> D:\\source\\SonnetDB\\src\\Testcontainers.SonnetDB\\bin\\Release\\net10.0\\Testcontainers.SonnetDB.dll\r\n  SonnetDB.Benchmarks.Tests.ProcessProbe -> D:\\source\\SonnetDB\\tests\\SonnetDB.Benchmarks.Tests\\Child\\bin\\Release\\net10.0\\SonnetDB.Benchmarks.Tests.ProcessProbe.dll\r\n  SonnetDB.Core -> D:\\source\\SonnetDB\\src\\SonnetDB.Core\\bin\\Release\\net10.0\\SonnetDB.Core.dll\r\n  SonnetDB.Data -> D:\\source\\SonnetDB\\src\\SonnetDB.Data\\bin\\Release\\net10.0\\SonnetDB.Data.dll\r\n  SonnetDB.TriggerAdmission -> D:\\source\\SonnetDB\\tests\\SonnetDB.TriggerAdmission\\bin\\Release\\net10.0\\SonnetDB.TriggerAdmission.dll\r\n  SonnetDB.LanguageServer -> D:\\source\\SonnetDB\\src\\SonnetDB.LanguageServer\\bin\\Release\\net10.0\\SonnetDB.LanguageServer.dll\r\n  SonnetDB.CdcStreamingJourney -> D:\\source\\SonnetDB\\samples\\SonnetDB.CdcStreamingJourney\\bin\\Release\\net10.0\\SonnetDB.CdcStreamingJourney.dll\r\n  SonnetDB.Media -> D:\\source\\SonnetDB\\extensions\\SonnetDB.Media\\bin\\Release\\net10.0\\SonnetDB.Media.dll\r\n  SonnetDB.Native -> D:\\source\\SonnetDB\\connectors\\c\\native\\SonnetDB.Native\\bin\\Release\\net10.0\\SonnetDB.Native.dll\r\n  SonnetDB.Cli -> D:\\source\\SonnetDB\\src\\SonnetDB.Cli\\bin\\Release\\net10.0\\SonnetDB.Cli.dll\r\n  SonnetDB.KvQuickstart -> D:\\source\\SonnetDB\\samples\\SonnetDB.KvQuickstart\\bin\\Release\\net10.0\\SonnetDB.KvQuickstart.dll\r\n  SonnetDB.EntityFrameworkCore -> D:\\source\\SonnetDB\\src\\SonnetDB.EntityFrameworkCore\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll\r\n  SonnetDB.DocumentQuickstart -> D:\\source\\SonnetDB\\samples\\SonnetDB.DocumentQuickstart\\bin\\Release\\net10.0\\SonnetDB.DocumentQuickstart.dll\r\n  SonnetDB.Caching.EasyCaching -> D:\\source\\SonnetDB\\extensions\\SonnetDB.Caching.EasyCaching\\bin\\Release\\net10.0\\SonnetDB.Caching.EasyCaching.dll\r\n  SonnetDB.Caching.Distributed -> D:\\source\\SonnetDB\\extensions\\SonnetDB.Caching.Distributed\\bin\\Release\\net10.0\\SonnetDB.Caching.Distributed.dll\r\n  SonnetDB.IoTSharpCompat.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.IoTSharpCompat.Tests\\bin\\Release\\net10.0\\SonnetDB.IoTSharpCompat.Tests.dll\r\n  SonnetDB.EcosystemSample -> D:\\source\\SonnetDB\\samples\\SonnetDB.EcosystemSample\\bin\\Release\\net10.0\\SonnetDB.EcosystemSample.dll\r\n  SonnetDB.EcosystemSoak -> D:\\source\\SonnetDB\\tests\\SonnetDB.EcosystemSoak\\bin\\Release\\net10.0\\SonnetDB.EcosystemSoak.dll\r\n  SonnetDB.Core.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll\r\n  SonnetDB.MediaSegments -> D:\\source\\SonnetDB\\samples\\SonnetDB.MediaSegments\\bin\\Release\\net10.0\\SonnetDB.MediaSegments.dll\r\n  SonnetDB.Media.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Media.Tests\\bin\\Release\\net10.0\\SonnetDB.Media.Tests.dll\r\n  SonnetDB.LanguageServer.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.LanguageServer.Tests\\bin\\Release\\net10.0\\SonnetDB.LanguageServer.Tests.dll\r\n  SonnetDB -> D:\\source\\SonnetDB\\src\\SonnetDB\\bin\\Release\\net10.0\\SonnetDB.dll\r\n  SonnetDB.EntityFrameworkCore.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.EntityFrameworkCore.Tests\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.Tests.dll\r\n  SonnetDB.Benchmarks -> D:\\source\\SonnetDB\\tests\\SonnetDB.Benchmarks\\bin\\Release\\net10.0\\SonnetDB.Benchmarks.dll\r\n  SonnetDB.Benchmarks.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Benchmarks.Tests\\bin\\Release\\net10.0\\SonnetDB.Benchmarks.Tests.dll\r\n  SonnetDB.Accuracy.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Accuracy.Tests\\bin\\Release\\net10.0\\SonnetDB.Accuracy.Tests.dll\r\n  SonnetDB.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll\r\n  SonnetDB.Studio.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Studio.Tests\\bin\\Release\\net10.0-windows\\SonnetDB.Studio.Tests.dll\r\n\r\n已成功生成。\r\n    0 个警告\r\n    0 个错误\r\n\r\n已用时间 00:02:20.71\r\n",
+      "stderr": null
+    },
+    {
+      "label": "targeted-tests-final",
+      "process": {
+        "Label": "targeted-tests-final",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "test",
+          "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false",
+          "--filter",
+          "FullyQualifiedName~SonnetDB.Core.Tests.Cdc|FullyQualifiedName~SonnetDB.Core.Tests.Streaming|FullyQualifiedName~Knn|FullyQualifiedName~HybridSearch|FullyQualifiedName~SqlVectorParameterTests|FullyQualifiedName~CdcStreamingRecoveryJourneyTests",
+          "--logger",
+          "trx;LogFileName=targeted.trx",
+          "--results-directory",
+          "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\targeted-final-results"
+        ],
+        "ElapsedSeconds": 27.9550341,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 68916,
+            "ParentProcessId": 44860,
+            "CreationDate": "2026-10-01T14:02:19.423841+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 44860,
+            "ParentProcessId": 67032,
+            "CreationDate": "2026-10-01T14:02:18.588074+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore -m:2 -p:UseSharedCompilation=false -nodeReuse:false --filter FullyQualifiedName~SonnetDB.Core.Tests.Cdc|FullyQualifiedName~SonnetDB.Core.Tests.Streaming|FullyQualifiedName~Knn|FullyQualifiedName~HybridSearch|FullyQualifiedName~SqlVectorParameterTests|FullyQualifiedName~CdcStreamingRecoveryJourneyTests --logger trx;LogFileName=targeted.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\targeted-final-results"
+          },
+          {
+            "ProcessId": 37736,
+            "ParentProcessId": 17400,
+            "CreationDate": "2026-10-01T14:02:31.865005+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 64288,
+            "ParentProcessId": 44860,
+            "CreationDate": "2026-10-01T14:02:18.593886+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 51860,
+            "ParentProcessId": 67628,
+            "CreationDate": "2026-10-01T14:02:21.068333+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 17400,
+            "ParentProcessId": 36388,
+            "CreationDate": "2026-10-01T14:02:31.859227+08:00",
+            "CommandLine": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 55530 --endpoint 127.0.0.1:055530 --role client --parentprocessid 36388 --telemetryoptedin false"
+          },
+          {
+            "ProcessId": 36388,
+            "ParentProcessId": 44860,
+            "CreationDate": "2026-10-01T14:02:31.662953+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~SonnetDB.Core.Tests.Cdc|FullyQualifiedName~SonnetDB.Core.Tests.Streaming|FullyQualifiedName~Knn|FullyQualifiedName~HybridSearch|FullyQualifiedName~SqlVectorParameterTests|FullyQualifiedName~CdcStreamingRecoveryJourneyTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\targeted-final-results D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44860_8c91e085-0331-41e1-861f-503129c2a528"
+          },
+          {
+            "ProcessId": 67628,
+            "ParentProcessId": 44860,
+            "CreationDate": "2026-10-01T14:02:21.060565+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempuu4pfo33.ujd\\tmpfdce0bb219644fbdb7d23accb4725a94.rsp\""
+          }
+        ]
+      },
+      "stdout": "  SonnetDB.Core -> D:\\source\\SonnetDB\\src\\SonnetDB.Core\\bin\\Release\\net10.0\\SonnetDB.Core.dll\r\n  SonnetDB.Data -> D:\\source\\SonnetDB\\src\\SonnetDB.Data\\bin\\Release\\net10.0\\SonnetDB.Data.dll\r\n  SonnetDB.CdcStreamingJourney -> D:\\source\\SonnetDB\\samples\\SonnetDB.CdcStreamingJourney\\bin\\Release\\net10.0\\SonnetDB.CdcStreamingJourney.dll\r\n  SonnetDB.Caching.EasyCaching -> D:\\source\\SonnetDB\\extensions\\SonnetDB.Caching.EasyCaching\\bin\\Release\\net10.0\\SonnetDB.Caching.EasyCaching.dll\r\n  SonnetDB.Caching.Distributed -> D:\\source\\SonnetDB\\extensions\\SonnetDB.Caching.Distributed\\bin\\Release\\net10.0\\SonnetDB.Caching.Distributed.dll\r\n  SonnetDB.Cli -> D:\\source\\SonnetDB\\src\\SonnetDB.Cli\\bin\\Release\\net10.0\\SonnetDB.Cli.dll\r\n  SonnetDB.Core.Tests -> D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll\r\nD:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行\r\n总共 1 个测试文件与指定模式相匹配。\r\n结果文件: C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\targeted-final-results\\targeted.trx\r\n\r\n已通过! - 失败:     0，通过:   250，已跳过:     0，总计:   250，持续时间: 9 s - SonnetDB.Core.Tests.dll (net10.0)\r\n",
+      "stderr": null
+    },
+    {
+      "label": "core-regression",
+      "process": {
+        "Label": "core-regression",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "test",
+          "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+          "-c",
+          "Release",
+          "--no-build",
+          "--no-restore",
+          "--logger",
+          "trx;LogFileName=core.trx",
+          "--results-directory",
+          "C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\core-results",
+          "--blame-hang-timeout",
+          "3min",
+          "--blame-hang-dump-type",
+          "mini"
+        ],
+        "ElapsedSeconds": 222.7395009,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 48496,
+            "ParentProcessId": 81296,
+            "CreationDate": "2026-10-01T14:04:29.343987+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.runtimeconfig.json\" --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.deps.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.dll\" --port 58027 --parentprocessid 81296 "
+          },
+          {
+            "ProcessId": 77748,
+            "ParentProcessId": 67988,
+            "CreationDate": "2026-10-01T14:04:28.324507+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 74992,
+            "ParentProcessId": 81296,
+            "CreationDate": "2026-10-01T14:04:29.614272+08:00",
+            "CommandLine": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58030 --endpoint 127.0.0.1:058030 --role client --parentprocessid 81296 --datacollectionport 58029 --telemetryoptedin false"
+          },
+          {
+            "ProcessId": 67988,
+            "ParentProcessId": 79164,
+            "CreationDate": "2026-10-01T14:04:28.318978+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --logger trx;LogFileName=core.trx --results-directory C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\core-results --blame-hang-timeout 3min --blame-hang-dump-type mini"
+          },
+          {
+            "ProcessId": 81296,
+            "ParentProcessId": 67988,
+            "CreationDate": "2026-10-01T14:04:29.042386+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --logger:\"trx;LogFileName=core.trx\" --resultsDirectory:C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\core-results D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --Blame:\"CollectHangDump;HangDumpType=mini;TestTimeout=3min\" --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:67988_3bf04578-e1c6-400a-80e5-234d49d07e6a"
+          },
+          {
+            "ProcessId": 20164,
+            "ParentProcessId": 48496,
+            "CreationDate": "2026-10-01T14:04:29.349942+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 3112,
+            "ParentProcessId": 74992,
+            "CreationDate": "2026-10-01T14:04:29.620651+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          }
+        ]
+      },
+      "stdout": "D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行\r\n总共 1 个测试文件与指定模式相匹配。\r\n数据收集器“Blame”消息: 所有测试都已运行完毕，将不生成序列文件。\r\n结果文件: C:\\Users\\mysti\\AppData\\Local\\Temp\\sonnetdb-roadmap-four-6f9642047d034171839fabd658818794\\core-results\\core.trx\r\n\r\n已通过! - 失败:     0，通过:  5529，已跳过:     0，总计:  5529，持续时间: 3 m 35 s - SonnetDB.Core.Tests.dll (net10.0)\r\n",
+      "stderr": null
+    },
+    {
+      "label": "journey-smoke",
+      "process": {
+        "Label": "journey-smoke",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll"
+        ],
+        "ElapsedSeconds": 1.2513482,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 82660,
+            "ParentProcessId": 31716,
+            "CreationDate": "2026-10-01T14:03:53.45701+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll"
+          }
+        ]
+      },
+      "stdout": "PASS_LOCAL_ONLY partitions=2 rows=3 window_count=3 redelivery_attempt=2 pending=0 closed=True\r\n",
+      "stderr": null
+    },
+    {
+      "label": "format-verify-final",
+      "process": {
+        "Label": "format-verify-final",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "format",
+          "SonnetDB.slnx",
+          "--verify-no-changes",
+          "--no-restore",
+          "--severity",
+          "warn",
+          "--exclude",
+          "extensions/"
+        ],
+        "ElapsedSeconds": 88.0642608,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 53612,
+            "ParentProcessId": 64320,
+            "CreationDate": "2026-10-01T14:11:27.511393+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 51212,
+            "ParentProcessId": 62300,
+            "CreationDate": "2026-10-01T14:11:28.616293+08:00",
+            "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" c7aeb7ae-0c7a-4078-99b1-863ea94a7354 zh-CN"
+          },
+          {
+            "ProcessId": 64320,
+            "ParentProcessId": 65212,
+            "CreationDate": "2026-10-01T14:11:27.503788+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+          },
+          {
+            "ProcessId": 79900,
+            "ParentProcessId": 51212,
+            "CreationDate": "2026-10-01T14:11:28.622054+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 62300,
+            "ParentProcessId": 64320,
+            "CreationDate": "2026-10-01T14:11:27.698897+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+          }
+        ]
+      },
+      "stdout": null,
+      "stderr": "加载工作区时遇到警告。要记录警告，请将“详细级别”选项设置为“诊断”级别。\r\n"
+    },
+    {
+      "label": "final-sample-build",
+      "process": {
+        "Label": "final-sample-build",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "build",
+          "samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false",
+          "--verbosity",
+          "minimal"
+        ],
+        "ElapsedSeconds": 5.1275717,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 66688,
+            "ParentProcessId": 22152,
+            "CreationDate": "2026-10-01T14:14:08.514953+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 22152,
+            "ParentProcessId": 79036,
+            "CreationDate": "2026-10-01T14:14:08.509575+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj -c Release --no-restore -m:2 -p:UseSharedCompilation=false -nodeReuse:false --verbosity minimal"
+          },
+          {
+            "ProcessId": 37652,
+            "ParentProcessId": 63812,
+            "CreationDate": "2026-10-01T14:14:09.685969+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 63812,
+            "ParentProcessId": 22152,
+            "CreationDate": "2026-10-01T14:14:09.670267+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp0rp4rtxk.bm2\\tmp7a6bf700524a416b8720d195a564c2cf.rsp\""
+          }
+        ]
+      },
+      "stdout": "  SonnetDB.Core -> D:\\source\\SonnetDB\\src\\SonnetDB.Core\\bin\\Release\\net10.0\\SonnetDB.Core.dll\r\n  SonnetDB.CdcStreamingJourney -> D:\\source\\SonnetDB\\samples\\SonnetDB.CdcStreamingJourney\\bin\\Release\\net10.0\\SonnetDB.CdcStreamingJourney.dll\r\n\r\n已成功生成。\r\n    0 个警告\r\n    0 个错误\r\n\r\n已用时间 00:00:02.84\r\n",
+      "stderr": null
+    },
+    {
+      "label": "journey-smoke-final",
+      "process": {
+        "Label": "journey-smoke-final",
+        "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "Arguments": [
+          "samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll"
+        ],
+        "ElapsedSeconds": 1.2384103,
+        "TimedOut": false,
+        "ExitCode": 0,
+        "Processes": [
+          {
+            "ProcessId": 79680,
+            "ParentProcessId": 82704,
+            "CreationDate": "2026-10-01T14:15:38.942992+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll"
+          }
+        ]
+      },
+      "stdout": "PASS_LOCAL_ONLY partitions=2 rows=3 window_count=3 redelivery_attempt=2 pending=0 closed=True\r\n",
+      "stderr": null
+    }
+  ]
+}

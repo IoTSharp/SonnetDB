@@ -28,7 +28,7 @@ public sealed class KnnExecutorTests
                 Distance: VectorDistance.ComputeCosine([1f, 0f], [0.8f, 0.6f])),
         };
 
-        var candidates = new List<(double Dist, long Ts, ulong Sid)>();
+        using var candidates = new KnnExecutor.BoundedCandidateSet(2, "embedding", tombstones: null);
         KnnExecutor.CollectIndexedBlockCandidates(
             queryVector: [1f, 0f],
             valPayload: MemoryMarshal.AsBytes(vectorData.AsSpan()),
@@ -42,8 +42,9 @@ public sealed class KnnExecutorTests
             seriesId: 42UL,
             candidates: candidates);
 
-        Assert.Equal(2, candidates.Count);
-        Assert.Equal(1, candidates.Count(static candidate => candidate.Ts == 2000L));
-        Assert.Equal(1, candidates.Count(static candidate => candidate.Ts == 3000L));
+        var results = candidates.GetResults();
+        Assert.Equal(2, results.Count);
+        Assert.Equal(1, results.Count(static candidate => candidate.Timestamp == 2000L));
+        Assert.Equal(1, results.Count(static candidate => candidate.Timestamp == 3000L));
     }
 }

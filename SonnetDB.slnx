@@ -27,6 +27,7 @@
     <Project Path="extensions/IoTSharp.CoAP.NET/CoAP.NET/CoAP.NET.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj" />
     <Project Path="samples/SonnetDB.MediaSegments/SonnetDB.MediaSegments.csproj" />
     <Project Path="samples/SonnetDB.DocumentQuickstart/SonnetDB.DocumentQuickstart.csproj" />
     <Project Path="samples/SonnetDB.EcosystemSample/SonnetDB.EcosystemSample.csproj" />

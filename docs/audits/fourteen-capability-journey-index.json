@@ -24,5 +24,15 @@
     { "id": "cdc", "local_contract": "PASS", "remote_parity": "NOT_READY", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
     { "id": "ai-rag", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" },
     { "id": "governance", "local_contract": "PASS", "remote_parity": "PARTIAL", "recovery": "PARTIAL", "fixed_hardware": "DEFERRED", "long_run": "DEFERRED" }
+  ],
+  "composedJourneys": [
+    {
+      "id": "document-cdc-streaming-window-reopen",
+      "capabilities": ["document", "cdc", "streaming", "governance"],
+      "entryPoint": "samples/SonnetDB.CdcStreamingJourney/Program.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/CdcStreamingRecoveryJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-four-task-closure-20261001.md",
+      "boundary": "Bounded embedded two-partition replica and persistent COUNT reconciliation after orderly close/reopen, including window commit before subscription ACK. No continuous transactional CDC-to-stream bridge, hard kill, remote parity or fourteen-capability completion claim."
+    }
   ]
 }
