@@ -17,10 +17,13 @@ namespace SonnetDB.Streaming;
 public sealed class FileStreamingSubscription : IAsyncDisposable
 {
     private const int LegacyFormatVersion = 1;
-    private const int FormatVersion = 2;
+    private const int Version2FormatVersion = 2;
+    private const int FormatVersion = 3;
     private const int LegacyMaxDeliveryAttempts = 100;
     private const int MaxStateBytes = 64 * 1024;
     private const int MaxHeaders = 64;
+    private const int MaxWaitRechecks = 100_000;
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromMinutes(5);
     private const string EventSchema = "sonnetdb.streaming-event";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly SemaphoreSlim _operationGate = new(1, 1);
@@ -66,6 +69,12 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
 
     /// <summary>最近已接受并可恢复的事件序号，供发布源在重开后继续；初始值为 -1。</summary>
     public long LastAcceptedSequence => Volatile.Read(ref _state).LastAcceptedSequence;
+
+    /// <summary>是否已持久暂停消费；发布事件和确认当前批次仍可继续。</summary>
+    public bool ConsumptionPaused => Volatile.Read(ref _state).ConsumptionPaused;
+
+    /// <summary>最近成功状态提交的单调修订号，供运维命令进行条件更新。</summary>
+    public long StateRevision => Volatile.Read(ref _state).StateRevision;
 
     /// <summary>事件 spool 当前占用的字节数，包含帧头。</summary>
     public long StoredBytes => _spool.StoredBytes;
@@ -119,8 +128,80 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 inFlight?.EventCount ?? 0,
                 oldestEventTimeUtc,
                 oldestEventAge,
-                observedAtUtc);
+                observedAtUtc)
+            {
+                ConsumptionPaused = state.ConsumptionPaused,
+                StateRevision = state.StateRevision,
+            };
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>条件持久化暂停消费；暂停期间不开始投递或重投，仍允许发布和确认当前批次。</summary>
+    /// <param name="expectedRevision">状态快照的预期修订号；陈旧值会拒绝。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>成功操作后的状态修订号。</returns>
+    public ValueTask<long> PauseConsumptionAsync(long expectedRevision, CancellationToken cancellationToken = default)
+        => SetConsumptionPausedAsync(true, expectedRevision, cancellationToken);
+
+    /// <summary>条件持久化恢复消费，并唤醒等待读取；耗尽投递次数的批次仍需显式重置。</summary>
+    /// <param name="expectedRevision">状态快照的预期修订号；陈旧值会拒绝。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>成功操作后的状态修订号。</returns>
+    public ValueTask<long> ResumeConsumptionAsync(long expectedRevision, CancellationToken cancellationToken = default)
+        => SetConsumptionPausedAsync(false, expectedRevision, cancellationToken);
+
+    /// <summary>条件重置已耗尽批次的投递计数，保留标识、事件和候选检查点，允许后续显式读取重投。</summary>
+    /// <remarks>调用方宿主必须限制此入口的管理员访问；重置不会确认、跳过或删除事件，也不会恢复暂停的消费。</remarks>
+    /// <param name="deliveryId">状态快照中已耗尽批次的稳定投递标识。</param>
+    /// <param name="expectedRevision">状态快照的预期修订号；陈旧值会拒绝。</param>
+    /// <param name="expectedAttempt">状态快照中的预期投递次数；不匹配或尚未耗尽时会拒绝。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>重置成功后的状态修订号。</returns>
+    public async ValueTask<long> ResetDeliveryAttemptsAsync(
+        string deliveryId,
+        long expectedRevision,
+        int expectedAttempt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deliveryId);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        ArgumentOutOfRangeException.ThrowIfLessThan(expectedAttempt, 1);
+        return await ExecuteAsync(async token =>
+        {
+            ValidateExpectedRevision(expectedRevision);
+            FileStreamingDeliveryState? delivery = _state.InFlight;
+            if (delivery is null || !string.Equals(delivery.DeliveryId, deliveryId, StringComparison.Ordinal)
+                || delivery.Attempt != expectedAttempt || delivery.Attempt < Options.MaxDeliveryAttempts)
+            {
+                throw new InvalidOperationException("重置命令与当前已耗尽批次的标识或投递次数不匹配。");
+            }
+
+            await PersistAsync(_state with { InFlight = delivery with { Attempt = 0 } }, token).ConfigureAwait(false);
+            Pulse();
+            return _state.StateRevision;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<long> SetConsumptionPausedAsync(
+        bool paused,
+        long expectedRevision,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        return await ExecuteAsync(async token =>
+        {
+            ValidateExpectedRevision(expectedRevision);
+            if (_state.ConsumptionPaused != paused)
+                await PersistAsync(_state with { ConsumptionPaused = paused }, token).ConfigureAwait(false);
+            Pulse();
+            return _state.StateRevision;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void ValidateExpectedRevision(long expectedRevision)
+    {
+        if (_state.StateRevision != expectedRevision)
+            throw new InvalidOperationException("运维命令的预期状态修订号与当前状态不匹配。");
     }
 
     /// <summary>
@@ -195,7 +276,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 await checkpointStore.SaveAsync(initial, expectedRevision: -1, token).ConfigureAwait(false);
                 state = new FileStreamingSubscriptionState(
                     FormatVersion, definition, options, initial, DateTimeOffset.MinValue,
-                    -1, 0, false, null);
+                    -1, 0, false, null, false, 0);
                 await WriteStateAsync(directory, state, token).ConfigureAwait(false);
             }
 
@@ -236,7 +317,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     }
 
     /// <summary>
-    /// 持久化事件；事件数或磁盘容量已满时等待确认回收空间，等待可以取消。
+    /// 持久化事件；事件数或磁盘容量已满时等待确认回收空间，总等待最多五分钟且可以取消。
     /// </summary>
     /// <param name="value">序号严格递增的事件。</param>
     /// <param name="cancellationToken">取消令牌。</param>
@@ -249,111 +330,102 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateEvent(value, Options);
         StreamingEvent snapshot = Clone(value);
-        for (; ; )
+        return await ExecuteWithWaitAsync<StreamingPublishResult>(async token =>
         {
-            (StreamingPublishResult? result, Task? wait) = await ExecuteAsync(async token =>
+            if (_state.PublishingCompleted)
+                throw new InvalidOperationException("订阅发布端已经结束。");
+            if (snapshot.Sequence <= _state.LastAcceptedSequence)
+                throw new ArgumentException("事件序号必须严格大于最近接受的序号。", nameof(value));
+            bool isLate = IsLate(snapshot.EventTimeUtc, _state.WatermarkUtc, Definition.AllowedLateness);
+            if (isLate && Definition.LateEventPolicy == StreamingLateEventPolicy.Drop)
+                return ((StreamingPublishResult?)Result(StreamingPublishDisposition.DroppedLate), (Task?)null);
+            if (isLate && Definition.LateEventPolicy == StreamingLateEventPolicy.Reject)
+                throw new StreamingLateEventException(snapshot.EventId);
+
+            CdcEvent envelope = EncodeEvent(snapshot with { IsLate = isLate });
+            int encodedBytes = CdcEventCodec.Encode(envelope).Length;
+            long frameBytes = CdcEventSpool.FrameHeaderSize + (long)encodedBytes;
+            if (encodedBytes > Options.MaxBatchBytes || frameBytes > Options.MaxStoredBytes)
+                throw new ArgumentException("单个事件超过批次或磁盘容量上限，无法投递。", nameof(value));
+            if (_state.PendingEventCount >= Definition.Capacity
+                || _spool.StoredBytes > Options.MaxStoredBytes - frameBytes)
             {
-                if (_state.PublishingCompleted)
-                    throw new InvalidOperationException("订阅发布端已经结束。");
-                if (snapshot.Sequence <= _state.LastAcceptedSequence)
-                    throw new ArgumentException("事件序号必须严格大于最近接受的序号。", nameof(value));
-                bool isLate = IsLate(snapshot.EventTimeUtc, _state.WatermarkUtc, Definition.AllowedLateness);
-                if (isLate && Definition.LateEventPolicy == StreamingLateEventPolicy.Drop)
-                    return ((StreamingPublishResult?)Result(StreamingPublishDisposition.DroppedLate), (Task?)null);
-                if (isLate && Definition.LateEventPolicy == StreamingLateEventPolicy.Reject)
-                    throw new StreamingLateEventException(snapshot.EventId);
+                return ((StreamingPublishResult?)null, (Task?)_changed.Task);
+            }
 
-                CdcEvent envelope = EncodeEvent(snapshot with { IsLate = isLate });
-                int encodedBytes = CdcEventCodec.Encode(envelope).Length;
-                long frameBytes = CdcEventSpool.FrameHeaderSize + (long)encodedBytes;
-                if (encodedBytes > Options.MaxBatchBytes || frameBytes > Options.MaxStoredBytes)
-                    throw new ArgumentException("单个事件超过批次或磁盘容量上限，无法投递。", nameof(value));
-                if (_state.PendingEventCount >= Definition.Capacity
-                    || _spool.StoredBytes > Options.MaxStoredBytes - frameBytes)
+            try
+            {
+                await _spool.AppendAsync(envelope, token).ConfigureAwait(false);
+                await PersistAsync(_state with
                 {
-                    return ((StreamingPublishResult?)null, (Task?)_changed.Task);
-                }
+                    LastAcceptedSequence = snapshot.Sequence,
+                    PendingEventCount = _state.PendingEventCount + 1,
+                }, token).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                Fault(exception);
+                throw;
+            }
 
-                try
-                {
-                    await _spool.AppendAsync(envelope, token).ConfigureAwait(false);
-                    await PersistAsync(_state with
-                    {
-                        LastAcceptedSequence = snapshot.Sequence,
-                        PendingEventCount = _state.PendingEventCount + 1,
-                    }, token).ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    Fault(exception);
-                    throw;
-                }
+            Pulse();
+            return ((StreamingPublishResult?)Result(StreamingPublishDisposition.Accepted), (Task?)null);
 
-                Pulse();
-                return ((StreamingPublishResult?)Result(StreamingPublishDisposition.Accepted), (Task?)null);
-
-                StreamingPublishResult Result(StreamingPublishDisposition disposition)
-                    => new(disposition, snapshot.EventId, snapshot.Sequence, _state.WatermarkUtc);
-            }, cancellationToken).ConfigureAwait(false);
-            if (result is not null)
-                return result;
-            await wait!.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
+            StreamingPublishResult Result(StreamingPublishDisposition disposition)
+                => new(disposition, snapshot.EventId, snapshot.Sequence, _state.WatermarkUtc);
+        }, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("持久订阅发布未生成结果。");
     }
 
     /// <summary>
-    /// 读取一个有界持久批次；未确认批次保留投递标识并增加次数，重开后继续重投。
+    /// 读取一个有界持久批次；暂停时等待恢复，未确认批次保留标识并增加次数，总等待最多五分钟。
     /// </summary>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>投递批次；发布结束且全部事件已确认时返回空值。</returns>
     public async ValueTask<StreamingDeliveryBatch?> ReadBatchAsync(CancellationToken cancellationToken = default)
     {
-        for (; ; )
+        return await ExecuteWithWaitAsync<StreamingDeliveryBatch>(async token =>
         {
-            (StreamingDeliveryBatch? batch, Task? wait) = await ExecuteAsync(async token =>
+            if (_state.PendingEventCount == 0)
+                return ((StreamingDeliveryBatch?)null, _state.PublishingCompleted ? null : _changed.Task);
+            if (_state.ConsumptionPaused)
+                return ((StreamingDeliveryBatch?)null, (Task?)_changed.Task);
+
+            FileStreamingDeliveryState? previous = _state.InFlight;
+            CdcEventSpoolBatch replay = await _spool.ReplayBatchAsync(
+                maxEvents: previous?.EventCount ?? Definition.BatchSize,
+                cancellationToken: token).ConfigureAwait(false);
+            StreamingEvent[] events = replay.Events.Select(DecodeEvent).ToArray();
+            if (events.Length == 0)
+                throw new InvalidDataException("持久订阅声明有未确认事件，但 spool 未提供可投递事件。");
+            FileStreamingDeliveryState delivery;
+            StreamingDeliveryStatus status;
+            if (previous is not null)
             {
-                if (_state.PendingEventCount == 0)
-                    return ((StreamingDeliveryBatch?)null, _state.PublishingCompleted ? null : _changed.Task);
-
-                FileStreamingDeliveryState? previous = _state.InFlight;
-                CdcEventSpoolBatch replay = await _spool.ReplayBatchAsync(
-                    maxEvents: previous?.EventCount ?? Definition.BatchSize,
-                    cancellationToken: token).ConfigureAwait(false);
-                StreamingEvent[] events = replay.Events.Select(DecodeEvent).ToArray();
-                if (events.Length == 0)
-                    throw new InvalidDataException("持久订阅声明有未确认事件，但 spool 未提供可投递事件。");
-                FileStreamingDeliveryState delivery;
-                StreamingDeliveryStatus status;
-                if (previous is not null)
+                if (previous.Attempt >= Options.MaxDeliveryAttempts)
                 {
-                    if (previous.Attempt >= Options.MaxDeliveryAttempts)
-                    {
-                        throw new FileStreamingDeliveryAttemptLimitException(
-                            previous.DeliveryId,
-                            previous.Attempt,
-                            Options.MaxDeliveryAttempts);
-                    }
-
-                    ValidateBatchEvents(previous, events);
-                    delivery = previous with { Attempt = checked(previous.Attempt + 1) };
-                    status = StreamingDeliveryStatus.Redelivered;
-                }
-                else
-                {
-                    delivery = new FileStreamingDeliveryState(
-                        Guid.NewGuid().ToString("N"), 1, events[0].Sequence, events[^1].Sequence,
-                        events.Length, _state.Checkpoint.Advance(events[^1].Sequence, _state.WatermarkUtc));
-                    status = StreamingDeliveryStatus.InFlight;
+                    throw new FileStreamingDeliveryAttemptLimitException(
+                        previous.DeliveryId,
+                        previous.Attempt,
+                        Options.MaxDeliveryAttempts);
                 }
 
-                await PersistAsync(_state with { InFlight = delivery }, token).ConfigureAwait(false);
-                return ((StreamingDeliveryBatch?)new StreamingDeliveryBatch(
-                    delivery.DeliveryId, delivery.Attempt, status, events, delivery.CandidateCheckpoint), (Task?)null);
-            }, cancellationToken).ConfigureAwait(false);
-            if (wait is null)
-                return batch;
-            await wait.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
+                ValidateBatchEvents(previous, events);
+                delivery = previous with { Attempt = checked(previous.Attempt + 1) };
+                status = StreamingDeliveryStatus.Redelivered;
+            }
+            else
+            {
+                delivery = new FileStreamingDeliveryState(
+                    Guid.NewGuid().ToString("N"), 1, events[0].Sequence, events[^1].Sequence,
+                    events.Length, _state.Checkpoint.Advance(events[^1].Sequence, _state.WatermarkUtc));
+                status = StreamingDeliveryStatus.InFlight;
+            }
+
+            await PersistAsync(_state with { InFlight = delivery }, token).ConfigureAwait(false);
+            return ((StreamingDeliveryBatch?)new StreamingDeliveryBatch(
+                delivery.DeliveryId, delivery.Attempt, status, events, delivery.CandidateCheckpoint), (Task?)null);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -508,6 +580,32 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         }
     }
 
+    private async ValueTask<T?> ExecuteWithWaitAsync<T>(
+        Func<CancellationToken, Task<(T? Result, Task? Wait)>> operation,
+        CancellationToken callerToken) where T : class
+    {
+        using var waitSource = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        waitSource.CancelAfter(WaitTimeout);
+        try
+        {
+            for (int recheck = 0; recheck < MaxWaitRechecks; recheck++)
+            {
+                waitSource.Token.ThrowIfCancellationRequested();
+                (T? result, Task? wait) = await ExecuteAsync(operation, waitSource.Token).ConfigureAwait(false);
+                if (wait is null)
+                    return result;
+                // 在操作闸门内捕获信号，状态提交也在相同闸门内唤醒，避免丢失恢复或确认通知。
+                await wait.WaitAsync(waitSource.Token).ConfigureAwait(false);
+            }
+
+            throw new TimeoutException("持久订阅等待达到信号重检次数上限。");
+        }
+        catch (OperationCanceledException exception) when (!callerToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("持久订阅等待事件、容量或恢复消费超过五分钟边界。", exception);
+        }
+    }
+
     private async Task RecoverAsync(CancellationToken token)
     {
         StreamingSubscriptionCheckpoint checkpoint = await _checkpointStore.LoadAsync(Definition.SubscriptionId, token)
@@ -553,8 +651,12 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         int count = 0;
         long lastSequence = checkpoint.CommittedSequence;
         bool hasMore;
+        int replayBatches = 0;
         do
         {
+            token.ThrowIfCancellationRequested();
+            if (++replayBatches > Definition.Capacity + 1)
+                throw new InvalidDataException("持久订阅恢复达到批次数上限。");
             CdcEventSpoolBatch replay = await _spool.ReplayBatchAsync(
                 afterCheckpoint: lastSequence < 0 ? null : new CdcCheckpoint(0, lastSequence),
                 maxEvents: Math.Min(Definition.Capacity, 1024),
@@ -590,7 +692,10 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         }
 
         if (recovered != _state)
+        {
+            recovered = recovered with { StateRevision = checked(_state.StateRevision + 1) };
             await WriteStateAsync(DirectoryPath, recovered, token).ConfigureAwait(false);
+        }
         _state = recovered;
     }
 
@@ -598,6 +703,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     {
         try
         {
+            state = state with { StateRevision = checked(_state.StateRevision + 1) };
             await WriteStateAsync(DirectoryPath, state, token).ConfigureAwait(false);
             Volatile.Write(ref _state, state);
         }
@@ -669,7 +775,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         state.Definition.Validate();
         state.Options.Validate();
         state.Checkpoint.Validate();
-        if (state.Checkpoint.SubscriptionId != state.Definition.SubscriptionId
+        if (state.StateRevision < 0 || state.Checkpoint.SubscriptionId != state.Definition.SubscriptionId
             || state.WatermarkUtc.Offset != TimeSpan.Zero || state.WatermarkUtc < state.Checkpoint.WatermarkUtc
             || state.LastAcceptedSequence < state.Checkpoint.CommittedSequence
             || state.PendingEventCount < 0 || state.PendingEventCount > state.Definition.Capacity
@@ -683,7 +789,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             if (delivery.CandidateCheckpoint is null || !Guid.TryParseExact(delivery.DeliveryId, "N", out _))
                 throw new InvalidDataException("持久订阅未确认批次标识无效。");
             delivery.CandidateCheckpoint.Validate();
-            if (delivery.Attempt < 1 || delivery.EventCount < 1
+            if (delivery.Attempt < 0 || delivery.EventCount < 1
                 || delivery.Attempt > state.Options.MaxDeliveryAttempts
                 || delivery.EventCount > state.Definition.BatchSize || delivery.EventCount > state.PendingEventCount
                 || delivery.FirstSequence <= state.Checkpoint.CommittedSequence || delivery.LastSequence < delivery.FirstSequence
@@ -711,16 +817,32 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             byte[] trailing = new byte[1];
             if (await stream.ReadAsync(trailing, token).ConfigureAwait(false) != 0)
                 throw new InvalidDataException("持久订阅状态文件在读取期间发生变化。");
-            var envelope = JsonSerializer.Deserialize(bytes, FileStreamingJsonContext.Default.FileStreamingStateEnvelope)
+            using JsonDocument document = JsonDocument.Parse(bytes);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("state", out JsonElement stateElement)
+                || stateElement.ValueKind != JsonValueKind.Object
+                || !stateElement.TryGetProperty("formatVersion", out JsonElement versionElement)
+                || versionElement.ValueKind != JsonValueKind.Number
+                || !versionElement.TryGetInt32(out int version))
+            {
+                throw new InvalidDataException("持久订阅状态缺少有效版本。");
+            }
+
+            if (version == LegacyFormatVersion)
+                return (MigrateLegacyState(bytes), true);
+            if (version == Version2FormatVersion)
+                return (MigrateVersion2State(bytes), true);
+            if (version != FormatVersion)
+                throw new InvalidDataException("持久订阅状态版本不受支持。");
+
+            FileStreamingStateEnvelope envelope = JsonSerializer.Deserialize(bytes, FileStreamingJsonContext.Default.FileStreamingStateEnvelope)
                 ?? throw new InvalidDataException("持久订阅状态为空。");
             if (envelope.State is null || envelope.Sha256 is null)
                 throw new InvalidDataException("持久订阅状态缺少校验字段。");
             byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(envelope.State,
                 FileStreamingJsonContext.Default.FileStreamingSubscriptionState);
-            if (string.Equals(envelope.Sha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal))
-                return (envelope.State, false);
-
-            return (MigrateLegacyState(bytes, envelope.Sha256), true);
+            ValidateStateHash(stateBytes, envelope.Sha256);
+            return (envelope.State, false);
         }
         catch (FileNotFoundException)
         {
@@ -732,7 +854,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         }
     }
 
-    private static FileStreamingSubscriptionState MigrateLegacyState(byte[] bytes, string expectedSha256)
+    private static FileStreamingSubscriptionState MigrateLegacyState(byte[] bytes)
     {
         try
         {
@@ -749,13 +871,12 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
                 legacy.State,
                 FileStreamingJsonContext.Default.LegacyFileStreamingSubscriptionState);
-            if (!string.Equals(legacy.Sha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal)
-                || !string.Equals(expectedSha256, legacy.Sha256, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。");
-            }
+            ValidateStateHash(stateBytes, legacy.Sha256);
 
-            LegacyFileStreamingSubscriptionOptions options = legacy.State.Options;
+            LegacyFileStreamingSubscriptionOptions options = legacy.State.Options
+                ?? throw new InvalidDataException("持久订阅旧状态缺少容量配置。");
+            if (legacy.State.InFlight is { Attempt: < 1 })
+                throw new InvalidDataException("旧状态的投递次数无效。");
             return new FileStreamingSubscriptionState(
                 FormatVersion,
                 legacy.State.Definition,
@@ -772,12 +893,50 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 legacy.State.LastAcceptedSequence,
                 legacy.State.PendingEventCount,
                 legacy.State.PublishingCompleted,
-                legacy.State.InFlight);
+                legacy.State.InFlight,
+                false,
+                0);
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。", exception);
         }
+    }
+
+    private static FileStreamingSubscriptionState MigrateVersion2State(byte[] bytes)
+    {
+        Version2FileStreamingStateEnvelope envelope = JsonSerializer.Deserialize(
+            bytes, FileStreamingJsonContext.Default.Version2FileStreamingStateEnvelope)
+            ?? throw new InvalidDataException("持久订阅 v2 状态为空。");
+        if (envelope.State is null || envelope.Sha256 is null || envelope.State.FormatVersion != Version2FormatVersion)
+            throw new InvalidDataException("持久订阅 v2 状态版本或校验字段无效。");
+        byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
+            envelope.State, FileStreamingJsonContext.Default.Version2FileStreamingSubscriptionState);
+        ValidateStateHash(stateBytes, envelope.Sha256);
+        Version2FileStreamingSubscriptionState state = envelope.State;
+        Version2FileStreamingSubscriptionOptions options = state.Options
+            ?? throw new InvalidDataException("持久订阅 v2 状态缺少容量配置。");
+        if (state.InFlight is { Attempt: < 1 })
+            throw new InvalidDataException("旧状态的投递次数无效。");
+        return new FileStreamingSubscriptionState(
+            FormatVersion, state.Definition,
+            new FileStreamingSubscriptionOptions
+            {
+                MaxEventBytes = options.MaxEventBytes,
+                MaxStoredBytes = options.MaxStoredBytes,
+                MaxBatchBytes = options.MaxBatchBytes,
+                OperationTimeoutMilliseconds = options.OperationTimeoutMilliseconds,
+                MaxDeliveryAttempts = options.MaxDeliveryAttempts,
+            },
+            state.Checkpoint, state.WatermarkUtc,
+            state.LastAcceptedSequence, state.PendingEventCount, state.PublishingCompleted, state.InFlight,
+            false, 0);
+    }
+
+    private static void ValidateStateHash(byte[] stateBytes, string expectedSha256)
+    {
+        if (!string.Equals(expectedSha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal))
+            throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。");
     }
 
     private static async Task WriteStateAsync(string directory, FileStreamingSubscriptionState state, CancellationToken token)

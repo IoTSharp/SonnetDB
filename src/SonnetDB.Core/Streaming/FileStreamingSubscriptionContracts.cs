@@ -71,7 +71,17 @@ public sealed record FileStreamingSubscriptionStatus(
     int InFlightEventCount,
     DateTimeOffset? OldestEventTimeUtc,
     TimeSpan? OldestEventAge,
-    DateTimeOffset ObservedAtUtc);
+    DateTimeOffset ObservedAtUtc)
+{
+    /// <summary>是否已持久暂停新批次投递和未确认批次重投；发布和确认仍可继续。</summary>
+    public bool ConsumptionPaused { get; init; }
+
+    /// <summary>状态文件的单调修订号，供运维命令进行条件更新；与确认检查点修订号不同。</summary>
+    public long StateRevision { get; init; }
+
+    /// <summary>当前未确认批次是否已经耗尽允许的投递次数。</summary>
+    public bool DeliveryAttemptsExhausted => InFlightDeliveryId is not null && InFlightAttempt >= MaxDeliveryAttempts;
+}
 
 /// <summary>未确认批次达到文件订阅投递次数上限时抛出的异常。</summary>
 public sealed class FileStreamingDeliveryAttemptLimitException : InvalidOperationException
@@ -118,7 +128,9 @@ internal sealed record FileStreamingSubscriptionState(
     [property: JsonRequired] long LastAcceptedSequence,
     [property: JsonRequired] int PendingEventCount,
     [property: JsonRequired] bool PublishingCompleted,
-    [property: JsonRequired] FileStreamingDeliveryState? InFlight);
+    [property: JsonRequired] FileStreamingDeliveryState? InFlight,
+    [property: JsonRequired] bool ConsumptionPaused,
+    [property: JsonRequired] long StateRevision);
 
 internal sealed record FileStreamingStateEnvelope(
     [property: JsonRequired] FileStreamingSubscriptionState State,
@@ -147,6 +159,29 @@ internal sealed record LegacyFileStreamingStateEnvelope(
     [property: JsonRequired] LegacyFileStreamingSubscriptionState State,
     [property: JsonRequired] string Sha256);
 
+// v2 已有投递上限，但没有暂停标记与状态修订号。此模型仅用于严格校验旧文件并迁移。
+internal sealed record Version2FileStreamingSubscriptionOptions(
+    [property: JsonRequired] int MaxEventBytes,
+    [property: JsonRequired] long MaxStoredBytes,
+    [property: JsonRequired] long MaxBatchBytes,
+    [property: JsonRequired] int OperationTimeoutMilliseconds,
+    [property: JsonRequired] int MaxDeliveryAttempts);
+
+internal sealed record Version2FileStreamingSubscriptionState(
+    [property: JsonRequired] int FormatVersion,
+    [property: JsonRequired] StreamingSubscriptionDefinition Definition,
+    [property: JsonRequired] Version2FileStreamingSubscriptionOptions Options,
+    [property: JsonRequired] StreamingSubscriptionCheckpoint Checkpoint,
+    [property: JsonRequired] DateTimeOffset WatermarkUtc,
+    [property: JsonRequired] long LastAcceptedSequence,
+    [property: JsonRequired] int PendingEventCount,
+    [property: JsonRequired] bool PublishingCompleted,
+    [property: JsonRequired] FileStreamingDeliveryState? InFlight);
+
+internal sealed record Version2FileStreamingStateEnvelope(
+    [property: JsonRequired] Version2FileStreamingSubscriptionState State,
+    [property: JsonRequired] string Sha256);
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
@@ -155,5 +190,8 @@ internal sealed record LegacyFileStreamingStateEnvelope(
 [JsonSerializable(typeof(LegacyFileStreamingStateEnvelope))]
 [JsonSerializable(typeof(LegacyFileStreamingSubscriptionState))]
 [JsonSerializable(typeof(LegacyFileStreamingSubscriptionOptions))]
+[JsonSerializable(typeof(Version2FileStreamingStateEnvelope))]
+[JsonSerializable(typeof(Version2FileStreamingSubscriptionState))]
+[JsonSerializable(typeof(Version2FileStreamingSubscriptionOptions))]
 [JsonSerializable(typeof(StreamingEvent))]
 internal sealed partial class FileStreamingJsonContext : JsonSerializerContext;

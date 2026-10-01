@@ -84,7 +84,7 @@ public sealed class FileStreamingSubscriptionTests
         FileStreamingStateEnvelope rewritten = JsonSerializer.Deserialize(
             await File.ReadAllBytesAsync(StatePath(directory)),
             FileStreamingJsonContext.Default.FileStreamingStateEnvelope)!;
-        Assert.Equal(2, rewritten.State.FormatVersion);
+        Assert.Equal(3, rewritten.State.FormatVersion);
         Assert.Equal(100, rewritten.State.Options.MaxDeliveryAttempts);
         Assert.NotEqual(legacyEnvelope.Sha256, rewritten.Sha256);
     }

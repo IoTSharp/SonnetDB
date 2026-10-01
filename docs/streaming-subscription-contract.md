@@ -62,7 +62,7 @@ if (batch is not null)
 
 状态、检查点、spool 缺失、CRC/SHA-256 不匹配、截断、版本不支持或事件包装错配均 fail closed；不会回退为空订阅。不同文件的状态必须通过提交顺序与未确认批次相互验证。确定性测试模拟提交阶段中断与 dispose/reopen；本地真实子进程强杀已覆盖未确认批次重投、确认和再重开，仍不等同于机器掉电或文件系统故障验收。
 
-2026-10-01 新增 [持久 UTC 滚动 COUNT](m43-persistent-windows.md)，通过 `FileStreamingWindowAggregator.PumpOnceAsync` 先提交窗口与已应用位点，再 ACK 订阅，重开时核对最后批次而不重复计数；[真实组合样例](../samples/SonnetDB.CdcStreamingJourney/README.md) 演示文档/CDC/订阅/窗口对账。其它聚合、远程 Frame/REST parity、更多 ACK 提交阶段的真实进程故障注入、任务列表/暂停/重试、DLQ 和持续事务化 change-feed 到流的桥接仍需后续切片。文件订阅入口保存发布者提供的事件，不自动捕获数据库变更，也不宣称 exactly-once。
+2026-10-01 新增 [持久 UTC 滚动 COUNT](m43-persistent-windows.md)，通过 `FileStreamingWindowAggregator.PumpOnceAsync` 先提交窗口与已应用位点，再 ACK 订阅，重开时核对最后批次而不重复计数；第三批增加[精确数值窗口](m43-numeric-windows.md)与[持久暂停/恢复、受控重试](m43-subscription-operations.md)。[真实组合样例](../samples/SonnetDB.CdcStreamingJourney/README.md) 演示文档/CDC/订阅/窗口对账。分组/滑动窗口、远程 Frame/REST parity、更多 ACK 提交阶段的真实进程故障注入、任务列表/DLQ 和持续事务化 change-feed 到流的桥接仍需后续切片。文件订阅入口保存发布者提供的事件，不自动捕获数据库变更，也不宣称 exactly-once。
 
 ## 事件时间与迟到
 
