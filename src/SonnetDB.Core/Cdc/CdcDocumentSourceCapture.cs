@@ -109,8 +109,33 @@ public sealed class CdcDocumentSourceCapture : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>本次捕获前后的可恢复游标和后续标志。</returns>
-    public async ValueTask<CdcDocumentSourceCaptureResult> CaptureAsync(
+    public ValueTask<CdcDocumentSourceCaptureResult> CaptureAsync(
         CancellationToken cancellationToken = default)
+        => CaptureBatchAsync(_options.BatchSize, cancellationToken);
+
+    /// <summary>
+    /// 捕获并持久化一批源端变更，并将本次源读取限制为指定事件数。
+    /// </summary>
+    /// <param name="maxEvents">本次最多读取的事件数，不能超过捕获器配置的批次大小。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>本次捕获前后的可恢复游标和后续标志。</returns>
+    internal ValueTask<CdcDocumentSourceCaptureResult> CaptureBatchAsync(
+        int maxEvents,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxEvents, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxEvents, _options.BatchSize);
+        return CaptureBatchCoreAsync(maxEvents, cancellationToken);
+    }
+
+    /// <summary>
+    /// 捕获器配置的单次源读取上限；仅供同程序集的有界调度器使用。
+    /// </summary>
+    internal int BatchSize => _options.BatchSize;
+
+    private async ValueTask<CdcDocumentSourceCaptureResult> CaptureBatchCoreAsync(
+        int maxEvents,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -120,7 +145,7 @@ public sealed class CdcDocumentSourceCapture : IDisposable, IAsyncDisposable
             await pipelineGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await CaptureLockedAsync(cancellationToken).ConfigureAwait(false);
+                return await CaptureLockedAsync(maxEvents, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -133,14 +158,16 @@ public sealed class CdcDocumentSourceCapture : IDisposable, IAsyncDisposable
         }
     }
 
-    private async ValueTask<CdcDocumentSourceCaptureResult> CaptureLockedAsync(CancellationToken cancellationToken)
+    private async ValueTask<CdcDocumentSourceCaptureResult> CaptureLockedAsync(
+        int maxEvents,
+        CancellationToken cancellationToken)
     {
         EnsureOperational();
         long startSequence = await RecoverSpoolSequenceAsync(cancellationToken).ConfigureAwait(false);
         long sourceLatestSequence = _source.LatestChangeSequence;
         if (startSequence > sourceLatestSequence)
             throw new InvalidDataException("CDC spool 确认位点超过源集合当前 change feed 序号。");
-        DocumentChangeFeedPage page = _source.ReadChangeFeed(startSequence, _options.BatchSize);
+        DocumentChangeFeedPage page = _source.ReadChangeFeed(startSequence, maxEvents);
         if (page.Changes.Count == 0 && page.LatestSequence > startSequence)
             throw new InvalidDataException("文档 change feed 缺少尚未捕获的源事件。");
         long cursor = startSequence;

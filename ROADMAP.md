@@ -11,7 +11,7 @@
 3. CI、nightly、容量、发布或 Marketplace 声明必须有对应 workflow、报告或已发布产物。
 4. 文档描述与实际依赖、调用链和限制一致；“计划采用”不能写成“已经基于”。
 
-最新专项核查基线为 2026-09-05/06，当前本地实现增量核对到 2026-09-30：
+最新专项核查基线为 2026-09-05/06，当前本地实现增量核对到 2026-10-01：
 [综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)、[gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)、[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)。已撤回的系统性能原始报告不作为验收依据。
 
 图例：✅ 已完成 / 🟡 本机或配置级完成、外部真机或发布门禁待验证 / 🚧 进行中、仍有实现残余或部分闭环 / ⏳ 尚未执行或明确后置 / ❌ 已执行但未通过 / 📋 计划中 / ⏸️ 暂停 / ➡️ 移交。
@@ -47,15 +47,15 @@
 | 39 | SQL 触发器第二版 | ✅ | #333~#339 研发闭环；生产混合负载和长期 SLO列入真机计划。 |
 | 40 | 原生属性图数据库 | 🟡 | #341~#367 步骤 1~7 本地闭环；外部对拍、固定硬件、AOT、Couplet 和 7 天 gate 待真机。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#374、#376~#380 本地合同完成；#373/#375~#381 发布证据和统一语料待补。 |
-| 42 | 九域与规划器系统性能深化 | 🚧 | 覆盖索引、REST/Web 预览和关系 SELECT 的 opt-in 累计物化准入已有本地切片；DML/其它模型、heap/首行、九域容量、跨架构、冷启动、168 小时和生产门禁未闭环。 |
-| 43 | 十四套能力与生态发布总收口 | 🚧 | 新增 #386 本地快照增量接收端、#392 文件持久订阅、#397 汇总工具及 #398/#401 资料/复现索引；源捕获、远程拓扑、持久窗口/运维、组合旅程、发布级报告与外部提交仍在队列。 |
+| 42 | 九域与规划器系统性能深化 | 🚧 | 覆盖索引、REST/Web 预览、关系 SELECT 及关系表 DML 的 opt-in 累计物化准入已有本地切片；其它模型、heap/首行、九域容量、跨架构、冷启动、168 小时和生产门禁未闭环。 |
+| 43 | 十四套能力与生态发布总收口 | 🚧 | 新增 #386 本地快照增量接收端、#390 源捕获有界调度、#392 文件持久订阅及本地运维状态、#397 汇总工具和 #398/#401 资料/复现索引；多分区/远程拓扑、组合旅程、发布级报告与外部提交仍在队列。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已归档。 |
 
 ## 当前推进顺序
 
 主路线按“代码实现与能力补全 → 性能优化 → 验证、测试与论证”执行，完整当前队列见[总里程碑 D 节](docs/roadmap-total-milestone.md#existing-pr-execution-order)。
 
-1. **代码与功能补全：** M27 #340 功能交付已完成；真实 IdP、双网部署与现场旅程转入人工验收待办。M35 #298/#302/#303/#305 仍需真实模型与质量门禁实现；M36 #310/#311/#326 仍有旅程工具和跨端缺口；M41 #375 与 M42 保留冷启动、向量和结果内存残余（KV state 读预算及覆盖索引读取切片已完成）。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收、推送并关闭，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)。新增 GH-Issue #194～#198 已纳入[当前外部队列](docs/github-issues-roadmap.md)。
+1. **代码与功能补全：** M27 #340 功能交付已完成；真实 IdP、双网部署与现场旅程转入人工验收待办。M35 #298/#302/#303/#305 仍需真实模型与质量门禁实现，新增真子进程硬杀恢复回归只覆盖本机 staging/WAL；M36 #310/#311/#326 仍有旅程工具和跨端缺口；M41 #375 与 M42 保留冷启动、向量和结果内存残余（KV state 读预算、覆盖索引读取以及关系 DML 物化预算已有本地切片）。M43 已补源捕获有界调度和持久订阅运维状态，仍缺多分区/远程拓扑与组合旅程。GH-Issue #177/#180/#193 的功能合同已于 2026-09-23 完成嵌入式、真实 REST/HTTP2 Frame 验收、推送并关闭，见[闭环报告](docs/audits/sql-provider-closure-20260923.md)。新增 GH-Issue #194～#198 已纳入[当前外部队列](docs/github-issues-roadmap.md)。
 2. **性能优化：** 统一语料下的页感知成本、独立 I/O 预算、向量有界 Top-K、对象分页、covering/index-only 和受控并行边界；保持正确性、事务、取消和恢复合同。
 3. **后置验证与发布论证：** #125 → #174 → #184~#185 → #187 → #258 → #352/#367 → #373/#381 → M42；最后执行 M20 七次 scheduled、M43 总验收和生态提交。固定硬件、真机、nightly、长稳和外部对拍都属于本阶段。
 
@@ -141,8 +141,8 @@ M43 只保留未实施或待外部动作的队列：
 - ✅ M27 #340 StudioNative 宿主本地合同：固定 broker、系统凭据库、原生短期 token 输入及 Web 聊天/工具 continuation 已完成；Studio 56/56、Native 专项 26/26、Web 主套件 161 通过（模式限定 13 项另已通过，真实 KV 2 项未配置），生产构建通过。见[验收报告](docs/audits/m27-studio-native-closure-20260923.md)。真实 WebView2/provider/双网现场及多实例接管不计完成。
 - ✅ M27 #340 ServerRelay 功能交付完成：共享 journal、单执行者 lease、活跃事件续流、owner-loss 稳定失败重放、配置接线及双独立 Server smoke 已完成；2026-09-24 定向复验 119/119，2026-09-26 主分支 Release 构建 0 warning/0 error、双进程 smoke `PASS_LOCAL_ONLY`。真实 IdP、部署双网、StudioNative 实机和生产 HA 由用户人工验证，当前仍待执行。见[闭环报告与验收边界](docs/audits/relay-multi-instance-closure-20260923.md)。
 - ✅ M42 覆盖索引读取切片：普通索引连续等值前缀/Int64-DATETIME 范围 index-only scan、严格解码、稳定快照、取消和回表边界已完成；Core 42/42。固定架构、统一语料、冷启动、结果内存和 168 小时门禁仍待验证。见[切片报告](docs/benchmarks/m42-covered-index-scans.md)。
-- ✅ M42 SQL 显式预览合同：REST 请求 opt-in、RETURNING 完整影响数、事务提交/回滚、ADO 截断状态和 Web 提示已完成；专项 Core/ADO 16、真实端点 12、Web 11 项通过。2026-09-30 增量让直接单表、非阻塞关系 SELECT 在执行期按行数和估算字节预算早停；新增 Core 8、真实端点 10 项定向测试，相关 Release 回归 Core 226/226、Server 116/116，Server `win-x64` NativeAOT 发布通过。同机 20,000 行合成对照已归档，普通 REST、Frame 和嵌入式仍返回完整结果。SQL-002 的 CLR heap 上限、其它路径预算及固定硬件首字节/长稳门禁仍未完成，见[合同与证据](docs/benchmarks/m42-sql-result-bounds.md)。
-- M42/M43 2026-09-30 本地增量：关系 SELECT 累计物化行/估算字节准入、单分区快照增量接收端、文件持久订阅和发布汇总工具已实现；[并行实施记录](docs/audits/roadmap-parallel-implementation-20260930.md)分别记录本地合同与后置证据。SQL DML/其它模型/heap/首行、源捕获/远程复制、持久窗口/运维及现场发布 gate 继续保留。
+- ✅ M42 SQL 显式预览合同：REST 请求 opt-in、RETURNING 完整影响数、事务提交/回滚、ADO 截断状态和 Web 提示已完成；专项 Core/ADO 16、真实端点 12、Web 11 项通过。2026-09-30 增量让直接单表、非阻塞关系 SELECT 在执行期按行数和估算字节预算早停；2026-10-01 再补关系表 INSERT/UPDATE/DELETE（含 RETURNING、INSERT SELECT、ON CONFLICT）执行期累计预算和整条语句原子拒绝。普通 REST、Frame 和嵌入式结果边界、SQL-002 的 CLR heap/首行、其它模型预算及固定硬件首字节/长稳门禁仍未完成，见[合同与证据](docs/benchmarks/m42-sql-result-bounds.md)。
+- M42/M43 2026-09-30～10-01 本地增量：关系 SELECT/DML 累计物化准入、单分区快照增量接收端、CDC 源捕获有界调度、文件持久订阅运维状态和发布汇总工具已实现；[并行实施记录](docs/audits/roadmap-parallel-implementation-20261001.md)分别记录本地合同与后置证据。其它模型/heap/首行、源多分区/远程复制、持久窗口聚合、组合旅程及现场发布 gate 继续保留。
 - ✅ GH-Issue #196 已验收、推送并关闭：参数化 measurement INNER JOIN、多键排序与分页、Provider 能力预检合同；最终 Core 212/212、真实 Server/SDK 182/182，见[验收报告](docs/audits/measurement-join-196-closure-20260923.md)。当前跟踪外部队列 21 项关闭、9 项开放。
 - M0~M13、M15~M18、M21、M23、M24、M26、M28、M30、M31、M33、M34、M37~M39、MM9：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21)；M14 Copilot 继续按 M27 未闭环队列推进。
 - M35 #297、#299~#301、#304、#306~#309；M36 #311~#326 代码范围；M40 #341~#367 步骤 1~7；M41 #368~#380 本地合同：见 [CHANGELOG 归档](CHANGELOG.md#roadmap-completed-archive-2026-09-21) 和各专页。

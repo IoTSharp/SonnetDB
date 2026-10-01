@@ -1,6 +1,10 @@
 using SonnetDB.Cdc;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Engine.Compaction;
+using SonnetDB.Generations;
+using SonnetDB.Kv;
+using SonnetDB.SemanticContent;
 using SonnetDB.Streaming;
 using Xunit;
 
@@ -220,6 +224,56 @@ public sealed partial class CrashReliabilityTests
         Assert.Null(await reopened.ReadBatchAsync(deadline.Token));
     }
 
+    [Fact]
+    public async Task M35_RagWriter_HardKillDuringEmbedding_ReopensAndReusesDurableChunk()
+    {
+        const string scenario = "crash_kill9_rag_writer_mid_embedding";
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        Assert.Equal("rag-writer-after-first-chunk",
+            File.ReadAllText(Path.Combine(root, scenario + ".ready")));
+
+        string databasePath = Path.Combine(root, "rag-db");
+        EmbeddingProfile profile = RagCrashProfile();
+        using var database = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = databasePath,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+            Kv = KvOptions.Default with { AutoCheckpointEnabled = false, ExpirerEnabled = false, CleanupEnabled = false },
+        });
+        int calls = 0;
+        var writer = new RagIngestionWriter(database, "manuals", profile,
+            new RagIngestionWriterOptions { MaxEmbeddingAttempts = 1, MaxDuration = TimeSpan.FromSeconds(20) });
+        RagIngestionWriteResult result = Assert.IsType<RagIngestionWriteResult>(await writer.ResumeAsync((chunk, token) =>
+        {
+            calls++;
+            token.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(chunk.Text == "bravo"
+                ? new[] { 0f, 1f, 0f }
+                : new[] { 1f, 0f, 0f });
+        }));
+
+        Assert.Equal(1, calls);
+        Assert.Equal(1, result.ReusedChunks);
+        Assert.Equal(1, result.EmbeddedChunks);
+        Assert.Equal(1, result.Generation.Revision);
+        using DatabaseGenerationQueryLease lease = database.Generations.AcquireActive("manuals");
+        string collectionName = lease.GetRequiredResource(
+            RagIngestionWriter.ChunksResourceRole, DatabaseGenerationResourceKind.DocumentCollection).Name;
+        DocumentCollectionStore collection = database.Documents.Open(collectionName);
+        Assert.Equal(2, collection.Scan().Count);
+        Assert.True(collection.VerifyIndexConsistency().IsConsistent);
+        Assert.Single(collection.SearchFullText(
+            collection.Schema.TryGetFullTextIndex(RagIngestionWriter.FullTextIndexName)!, "$.text", "alpha", 10));
+        Assert.Single(collection.SearchFullText(
+            collection.Schema.TryGetFullTextIndex(RagIngestionWriter.FullTextIndexName)!, "$.text", "bravo", 10));
+        RagIngestionWriteResult? replayed = await writer.ResumeAsync(
+            (_, _) => throw new InvalidOperationException("provider must not be called"));
+        Assert.NotNull(replayed);
+        Assert.Equal(result.Generation.GenerationId, replayed!.Generation.GenerationId);
+        Assert.Equal(2, replayed.ReusedChunks);
+    }
+
     private static CdcSnapshotDescriptor M43SnapshotDescriptor()
         => new("crash-fixed-view", "crash-source", "documents", "documents", 1, new CdcCheckpoint(7, 10), 2);
 
@@ -231,4 +285,8 @@ public sealed partial class CrashReliabilityTests
             new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero),
             new CdcEventMetadata(1, "documents", 1, CdcOperation.Insert, new CdcCheckpoint(7, offset)),
             null, "{\"value\":1}");
+
+    private static EmbeddingProfile RagCrashProfile()
+        => new("crash-profile-v1", "crash-fixture", "fixture", "1", 3,
+            supportedModalities: [SemanticContentModality.Text, SemanticContentModality.Document]);
 }

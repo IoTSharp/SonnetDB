@@ -8,6 +8,7 @@ using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Routines;
+using SonnetDB.SemanticContent;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
@@ -102,6 +103,9 @@ switch (scenario)
     case "crash_kill9_cdc_document_source_capture":
         await RunM43CdcDocumentSourceCapture(root, readyFile);
         return 0;
+    case "crash_kill9_rag_writer_mid_embedding":
+        await RunRagWriterMidEmbedding(root, readyFile);
+        return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
@@ -195,6 +199,65 @@ static async Task RunM43CdcDocumentSourceCapture(string root, string readyFile)
         throw new InvalidOperationException("CDC source capture did not persist the expected checkpoint.");
     WriteCrashReady(readyFile, "cdc-document-source-captured-partial-snapshot");
     await Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+}
+
+static async Task RunRagWriterMidEmbedding(string root, string readyFile)
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    string databaseRoot = Path.Combine(root, "rag-db");
+    using var database = Tsdb.Open(new TsdbOptions
+    {
+        RootDirectory = databaseRoot,
+        BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+        Compaction = new CompactionPolicy { Enabled = false },
+        Kv = KvOptions.Default with { AutoCheckpointEnabled = false, ExpirerEnabled = false, CleanupEnabled = false },
+    });
+    EmbeddingProfile profile = RagCrashProfile();
+    var writer = new RagIngestionWriter(database, "manuals", profile,
+        new RagIngestionWriterOptions
+        {
+            MaxEmbeddingAttempts = 1,
+            RetryDelay = TimeSpan.FromMilliseconds(1),
+            MaxDuration = TimeSpan.FromSeconds(20),
+        });
+    int calls = 0;
+    try
+    {
+        await writer.WriteAsync(RagCrashSnapshot(), async (chunk, token) =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+                return chunk.Text == "alpha" ? [1f, 0f, 0f] : [0f, 1f, 0f];
+
+            WriteCrashReady(readyFile, "rag-writer-after-first-chunk");
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return [0f, 0f, 1f];
+        }, deadline.Token).ConfigureAwait(false);
+    }
+    catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+    {
+        // 父进程通过 Kill(true) 终止；仅在异常测试超时时返回非零信息。
+        throw;
+    }
+}
+
+static EmbeddingProfile RagCrashProfile()
+    => new("crash-profile-v1", "crash-fixture", "fixture", "1", 3,
+        supportedModalities: [SemanticContentModality.Text, SemanticContentModality.Document]);
+
+static RagIngestionSnapshot RagCrashSnapshot()
+    => new([RagCrashManifest("a", "alpha"), RagCrashManifest("b", "bravo")]);
+
+static SemanticContentManifest RagCrashManifest(string id, string text)
+{
+    RagTextSnapshot chunked = RagTextChunker.Chunk(id, text);
+    return new SemanticContentManifest(id,
+        new SemanticObjectReference("manuals", id, chunked.ContentHash),
+        chunked.ContentHash, "text/plain", SemanticContentModality.Text,
+        System.Text.Encoding.UTF8.GetByteCount(text))
+    {
+        Text = text,
+        Chunks = chunked.Chunks,
+    };
 }
 
 static async Task RunM43StreamingInFlightCrash(string root, string readyFile)

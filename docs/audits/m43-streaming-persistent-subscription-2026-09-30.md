@@ -55,6 +55,16 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --configuration
 
 尚需独立交付的范围包括：远程 Frame/REST parity、持久窗口聚合、任务列表/暂停/重试运维面、真实 change-feed 生产源、更多提交阶段的真实进程故障注入和掉电、容量/性能真机报告。文件入口保存调用方显式发布的事件，不自动捕获数据库写入。
 
+## 2026-10-01 本地窗口与运维状态补充
+
+本地文件入口新增两个有界运维合同：
+
+- `FileStreamingSubscriptionOptions.MaxDeliveryAttempts` 将同一未确认批次的投递次数限制在 1 至 1,000,000 次（默认 100）。达到上限时 `ReadBatchAsync` 抛出 `FileStreamingDeliveryAttemptLimitException`，事件和 `DeliveryId` 仍然保留，调用方可先检查状态再确认或重开，不会静默丢弃 backlog。
+- `GetStatusAsync` 返回 `FileStreamingSubscriptionStatus` 快照，包含持久检查点、最近接受序号、pending 数量、spool 字节数、未确认批次及 attempt、最早事件时间和查询时的 backlog age。快照在重开后从 spool 重新读取最早事件，因此可用于本机容量和积压监控；`OldestEventAge` 以 `ObservedAtUtc` 为基准，长时间展示需重新查询。
+- `MaxDeliveryAttempts` 写入订阅状态格式 2；重开旧格式 1 时按历史默认值 100 迁移并立即重写状态，旧状态的完整性哈希仍按旧源生成模型校验。自定义投递上限的当前格式状态必须与打开参数完全一致。
+
+新增回归覆盖了发布后查询、关闭/重开后的 backlog 与最早事件恢复、未确认批次达到 attempt 上限时的可观测状态，以及在达到上限后显式 ACK 仍可回收。该补充只覆盖本地文件锁和本地持久层，不代表远程 Frame/REST parity、任务列表/暂停接口、分布式租约、DLQ 或 exactly-once 已完成。
+
 ## CHANGELOG 建议
 
 在 `[Unreleased] / Added` 中记录：

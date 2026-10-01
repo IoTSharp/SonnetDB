@@ -512,6 +512,8 @@ internal static class TableSqlExecutor
                 ExecuteInsertOnConflict(tsdb, schema, statement.OnConflict, valuesRows, returningColumns));
         }
 
+        foreach (object?[] values in valuesRows)
+            SqlRowRetentionBudget.RetainForExecution(values);
         var mutations = valuesRows
             .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
             .ToList();
@@ -568,6 +570,7 @@ internal static class TableSqlExecutor
                         TableKeyCodec.EncodePrimaryKey(schema, values));
                 }
                 ValidateRequiredColumns(schema, values);
+                SqlRowRetentionBudget.RetainForExecution(values);
                 var insertedValues = values.ToArray();
                 mutations.Add(new TableRowMutation(PrimaryKeyValues: null, insertedValues));
                 visibleRows.Add(new TableRow(
@@ -592,6 +595,7 @@ internal static class TableSqlExecutor
             var expectedRowVersion = ExtractRowVersion(schema, conflict.Values);
             ApplyUpdateRowVersion(schema, updatedValues, expectedRowVersion);
             ValidateRequiredColumns(schema, updatedValues);
+            SqlRowRetentionBudget.RetainForExecution(updatedValues);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, conflict.Values),
                 updatedValues,
@@ -1102,6 +1106,8 @@ internal static class TableSqlExecutor
                         seenDoUpdatePrimaryKeys,
                         TableKeyCodec.EncodePrimaryKey(schema, values));
                 }
+                // 在触发器或事务缓冲之前计入 mutation 行；超限时整条 INSERT 仍未产生可见写入。
+                SqlRowRetentionBudget.RetainForExecution(values);
                 if (tsdb is not null && triggers is not null)
                     SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, null, values, transaction);
                 ValidateRequiredColumns(schema, values);
@@ -1131,6 +1137,8 @@ internal static class TableSqlExecutor
                 conflict,
                 values,
                 conflictAssignments);
+            // ON CONFLICT DO UPDATE 也会保留一行新的 mutation，和普通 UPDATE 使用同一预算。
+            SqlRowRetentionBudget.RetainForExecution(updatedValues);
             if (tsdb is not null && triggers is not null)
                 SqlRoutineRuntime.FireBeforeTriggers(tsdb, triggers, schema, conflict.Values, updatedValues, transaction);
             var expectedRowVersion = ExtractRowVersion(schema, conflict.Values);
@@ -1376,7 +1384,8 @@ internal static class TableSqlExecutor
 
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
-        if (schema.AutoIncrementColumn is null
+        if (!SqlRowRetentionBudget.HasExecutionBudget
+            && schema.AutoIncrementColumn is null
             && returningColumns.Length == 0
             && where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
             && tsdb.Tables.TryTruncateFast(schema.Name, out int truncated))
@@ -1398,6 +1407,7 @@ internal static class TableSqlExecutor
                 var row = store.GetByPrimaryKey(keyValues);
                 if (row is null)
                     return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, returningRows);
+                SqlRowRetentionBudget.RetainForExecution(row.Values);
                 var mutation = new TableRowMutation(keyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
                 { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) };
                 if (returningColumns.Length != 0)
@@ -1420,6 +1430,7 @@ internal static class TableSqlExecutor
                     continue;
 
                 var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
+                SqlRowRetentionBudget.RetainForExecution(row.Values);
                 mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
                 { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
                 if (returningColumns.Length != 0)
@@ -1508,6 +1519,7 @@ internal static class TableSqlExecutor
             ValidateRequiredColumns(schema, values);
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
+            SqlRowRetentionBudget.RetainForExecution(values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
@@ -1643,6 +1655,7 @@ internal static class TableSqlExecutor
             ValidateRequiredColumns(schema, values);
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
+            SqlRowRetentionBudget.RetainForExecution(values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
@@ -1745,6 +1758,7 @@ internal static class TableSqlExecutor
             ValidateRequiredColumns(schema, newValues);
             var expectedRowVersion = ExtractRowVersion(schema, oldValues);
             ApplyUpdateRowVersion(schema, newValues, expectedRowVersion);
+            SqlRowRetentionBudget.RetainForExecution(newValues);
             var mutation = new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, oldValues),
                 newValues,
@@ -1897,6 +1911,7 @@ internal static class TableSqlExecutor
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
+            SqlRowRetentionBudget.RetainForExecution(row.Values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values))
             { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });

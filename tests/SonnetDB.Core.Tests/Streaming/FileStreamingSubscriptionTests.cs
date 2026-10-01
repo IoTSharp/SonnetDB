@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using SonnetDB.Cdc;
 using SonnetDB.Streaming;
 using Xunit;
@@ -35,6 +37,59 @@ public sealed class FileStreamingSubscriptionTests
     }
 
     [Fact]
+    public async Task OpenAsync_MigratesLegacyStateWithoutDeliveryAttemptField()
+    {
+        using var directory = new TemporaryDirectory();
+        var definition = Definition(batchSize: 1);
+        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition))
+        {
+            await subscription.PublishAsync(Event(1));
+        }
+
+        byte[] currentBytes = await File.ReadAllBytesAsync(StatePath(directory));
+        FileStreamingStateEnvelope current = JsonSerializer.Deserialize(
+            currentBytes,
+            FileStreamingJsonContext.Default.FileStreamingStateEnvelope)!;
+        FileStreamingSubscriptionOptions currentOptions = current.State.Options;
+        var legacyState = new LegacyFileStreamingSubscriptionState(
+            1,
+            current.State.Definition,
+            new LegacyFileStreamingSubscriptionOptions(
+                currentOptions.MaxEventBytes,
+                currentOptions.MaxStoredBytes,
+                currentOptions.MaxBatchBytes,
+                currentOptions.OperationTimeoutMilliseconds),
+            current.State.Checkpoint,
+            current.State.WatermarkUtc,
+            current.State.LastAcceptedSequence,
+            current.State.PendingEventCount,
+            current.State.PublishingCompleted,
+            current.State.InFlight);
+        byte[] legacyStateBytes = JsonSerializer.SerializeToUtf8Bytes(
+            legacyState,
+            FileStreamingJsonContext.Default.LegacyFileStreamingSubscriptionState);
+        var legacyEnvelope = new LegacyFileStreamingStateEnvelope(
+            legacyState,
+            Convert.ToHexString(SHA256.HashData(legacyStateBytes)));
+        await File.WriteAllBytesAsync(
+            StatePath(directory),
+            JsonSerializer.SerializeToUtf8Bytes(
+                legacyEnvelope,
+                FileStreamingJsonContext.Default.LegacyFileStreamingStateEnvelope));
+
+        await using var migrated = await FileStreamingSubscription.OpenAsync(directory.Path, definition);
+        Assert.Equal(100, migrated.Options.MaxDeliveryAttempts);
+        Assert.Equal(1, migrated.PendingEventCount);
+
+        FileStreamingStateEnvelope rewritten = JsonSerializer.Deserialize(
+            await File.ReadAllBytesAsync(StatePath(directory)),
+            FileStreamingJsonContext.Default.FileStreamingStateEnvelope)!;
+        Assert.Equal(2, rewritten.State.FormatVersion);
+        Assert.Equal(100, rewritten.State.Options.MaxDeliveryAttempts);
+        Assert.NotEqual(legacyEnvelope.Sha256, rewritten.Sha256);
+    }
+
+    [Fact]
     public async Task ReadBatchAsync_AfterUnacknowledgedReopen_RedeliversSameBatchAndAttempt()
     {
         using var directory = new TemporaryDirectory();
@@ -60,6 +115,74 @@ public sealed class FileStreamingSubscriptionTests
         await reopened.AcknowledgeAsync(second.DeliveryId);
         StreamingDeliveryBatch third = Assert.IsType<StreamingDeliveryBatch>(await reopened.ReadBatchAsync());
         Assert.Equal(3, Assert.Single(third.Events).Sequence);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_AfterReopening_ReportsBacklogOldestEventAndInFlightAttempt()
+    {
+        using var directory = new TemporaryDirectory();
+        var definition = Definition(batchSize: 1);
+        var options = new FileStreamingSubscriptionOptions { MaxDeliveryAttempts = 2 };
+        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options))
+        {
+            await subscription.PublishAsync(Event(1));
+            DateTimeOffset beforeStatus = DateTimeOffset.UtcNow;
+            FileStreamingSubscriptionStatus status = await subscription.GetStatusAsync();
+            DateTimeOffset afterStatus = DateTimeOffset.UtcNow;
+            Assert.Equal(definition.SubscriptionId, status.SubscriptionId);
+            Assert.Equal(definition.StreamName, status.StreamName);
+            Assert.False(status.PublishingCompleted);
+            Assert.Equal(-1, status.CommittedSequence);
+            Assert.Equal(1, status.LastAcceptedSequence);
+            Assert.Equal(1, status.PendingEventCount);
+            Assert.True(status.StoredBytes > 0);
+            Assert.Null(status.InFlightDeliveryId);
+            Assert.Equal(0, status.InFlightAttempt);
+            Assert.Equal(2, status.MaxDeliveryAttempts);
+            Assert.Equal(Utc(1), status.OldestEventTimeUtc);
+            Assert.True(status.OldestEventAge >= TimeSpan.Zero);
+            Assert.InRange(status.ObservedAtUtc, beforeStatus, afterStatus);
+        }
+
+        await using var reopened = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options);
+        StreamingDeliveryBatch batch = Assert.IsType<StreamingDeliveryBatch>(await reopened.ReadBatchAsync());
+        FileStreamingSubscriptionStatus inFlight = await reopened.GetStatusAsync();
+        Assert.Equal(1, inFlight.PendingEventCount);
+        Assert.Equal(batch.DeliveryId, inFlight.InFlightDeliveryId);
+        Assert.Equal(1, inFlight.InFlightAttempt);
+        Assert.Equal(1, inFlight.InFlightEventCount);
+        Assert.Equal(Utc(1), inFlight.OldestEventTimeUtc);
+        Assert.NotNull(inFlight.OldestEventAge);
+    }
+
+    [Fact]
+    public async Task ReadBatchAsync_WhenAttemptLimitReached_ReportsStatusAndAllowsAcknowledge()
+    {
+        using var directory = new TemporaryDirectory();
+        var definition = Definition(batchSize: 1);
+        var options = new FileStreamingSubscriptionOptions { MaxDeliveryAttempts = 2 };
+        await using var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options);
+        await subscription.PublishAsync(Event(1));
+        StreamingDeliveryBatch first = Assert.IsType<StreamingDeliveryBatch>(await subscription.ReadBatchAsync());
+        StreamingDeliveryBatch second = Assert.IsType<StreamingDeliveryBatch>(await subscription.ReadBatchAsync());
+        Assert.Equal(first.DeliveryId, second.DeliveryId);
+        Assert.Equal(2, second.Attempt);
+
+        FileStreamingDeliveryAttemptLimitException exception =
+            await Assert.ThrowsAsync<FileStreamingDeliveryAttemptLimitException>(
+                () => subscription.ReadBatchAsync().AsTask());
+        Assert.Equal(second.DeliveryId, exception.DeliveryId);
+        Assert.Equal(2, exception.Attempt);
+        Assert.Equal(2, exception.MaxAttempts);
+
+        FileStreamingSubscriptionStatus blocked = await subscription.GetStatusAsync();
+        Assert.True(blocked.InFlightAttempt >= blocked.MaxDeliveryAttempts);
+        Assert.Equal(1, blocked.PendingEventCount);
+        await subscription.AcknowledgeAsync(second.DeliveryId);
+        FileStreamingSubscriptionStatus drained = await subscription.GetStatusAsync();
+        Assert.Equal(0, drained.PendingEventCount);
+        Assert.Null(drained.OldestEventTimeUtc);
+        Assert.Null(drained.InFlightDeliveryId);
     }
 
     [Fact]

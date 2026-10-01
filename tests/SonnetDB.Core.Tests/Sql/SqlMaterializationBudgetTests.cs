@@ -108,7 +108,7 @@ public sealed class SqlMaterializationBudgetTests : IDisposable
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 
-    /// <summary>当前预算仅用于只读关系查询，自动提交与显式事务 RETURNING 都在写入前拒绝。</summary>
+    /// <summary>关系表 DML RETURNING 使用同一执行预算，并保留受影响行数与事务语义。</summary>
     [Theory]
     [InlineData("INSERT INTO items (id, category, value, payload) VALUES (2, 0, 2, 'new') RETURNING id", false)]
     [InlineData("UPDATE items SET value = 999 WHERE id = 1 RETURNING id, value", false)]
@@ -116,21 +116,120 @@ public sealed class SqlMaterializationBudgetTests : IDisposable
     [InlineData("INSERT INTO items (id, category, value, payload) VALUES (2, 0, 2, 'new') RETURNING id", true)]
     [InlineData("UPDATE items SET value = 999 WHERE id = 1 RETURNING id, value", true)]
     [InlineData("DELETE FROM items WHERE id = 1 RETURNING id", true)]
-    public void Execute_ReturningWithBudget_RejectsBeforeMutation(string sql, bool explicitTransaction)
+    public void Execute_ReturningWithBudget_AllowsRelationalDml(string sql, bool explicitTransaction)
     {
         using Tsdb db = OpenItems(1);
         SqlTransactionContext? transaction = explicitTransaction
             ? Assert.IsType<SqlTransactionContext>(Execute(db, "BEGIN")) : null;
 
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Execute(db, sql,
-            new SqlExecutionOptions { MaxMaterializedRows = 100, MaxMaterializedBytes = 1_000_000 }, transaction));
+        object result = Execute(db, sql,
+            new SqlExecutionOptions { MaxMaterializedRows = 100, MaxMaterializedBytes = 1_000_000 }, transaction)!;
+        switch (result)
+        {
+            case InsertExecutionResult insert:
+                Assert.Equal(1, insert.RowsInserted);
+                Assert.Single(insert.Returning!.Rows);
+                break;
+            case RowsAffectedExecutionResult affected:
+                Assert.Equal(1, affected.RowsAffected);
+                Assert.Single(affected.Returning!.Rows);
+                break;
+            case DeleteExecutionResult deleted:
+                Assert.Equal(1, deleted.SeriesAffected);
+                Assert.Single(deleted.Returning!.Rows);
+                break;
+            default:
+                throw new Xunit.Sdk.XunitException($"Unexpected DML result {result.GetType().Name}.");
+        }
 
-        Assert.Contains("RETURNING", error.Message, StringComparison.Ordinal);
-        Assert.Equal(new object?[] { 1L, 1L }, Assert.Single(Select(db,
-            "SELECT id, value FROM items", transaction: transaction).Rows));
         if (transaction is not null)
             Execute(db, "COMMIT", transaction: transaction);
-        Assert.Equal(new object?[] { 1L, 1L }, Assert.Single(Select(db, "SELECT id, value FROM items").Rows));
+        Assert.Equal(sql.StartsWith("DELETE", StringComparison.Ordinal),
+            Select(db, "SELECT id FROM items").Rows.Count == 0);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    /// <summary>INSERT RETURNING 超过行预算时在提交前拒绝，目标表保持不变。</summary>
+    [Fact]
+    public void Execute_InsertReturningOverRowLimit_RollsBackWholeStatement()
+    {
+        using Tsdb db = OpenItems(1);
+
+        Assert.Throws<InvalidOperationException>(() => Execute(db,
+            "INSERT INTO items (id, category, value, payload) VALUES (2, 0, 2, 'new'), (3, 0, 3, 'new'), (4, 0, 4, 'new') RETURNING id",
+            new SqlExecutionOptions { MaxMaterializedRows = 2, MaxMaterializedBytes = 1_000_000 }));
+
+        Assert.Equal([1L], Select(db, "SELECT id FROM items").Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    /// <summary>UPDATE 的 mutation 字节估算超限时不应用任何行更新。</summary>
+    [Fact]
+    public void Execute_UpdateOverByteLimit_RollsBackWholeStatement()
+    {
+        using Tsdb db = OpenItems(2);
+        const long oneRowEstimate = 64 + (4 * 8) + 24 + (100 * 2) + 24 + 24 + 24;
+
+        Assert.Throws<InvalidOperationException>(() => Execute(db,
+            "UPDATE items SET value = value + 1 WHERE id >= 1 RETURNING id, value",
+            new SqlExecutionOptions
+            {
+                MaxMaterializedRows = 100,
+                MaxMaterializedBytes = oneRowEstimate - 1,
+            }));
+
+        Assert.Equal([1L, 2L], Select(db, "SELECT id FROM items ORDER BY id").Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal([1L, 2L], Select(db, "SELECT value FROM items ORDER BY id").Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    /// <summary>无 RETURNING 的 DELETE 也计入 mutation 行预算，不能绕过 fast truncate。</summary>
+    [Fact]
+    public void Execute_DeleteWithoutReturningOverRowLimit_RollsBackWholeStatement()
+    {
+        using Tsdb db = OpenItems(3);
+
+        Assert.Throws<InvalidOperationException>(() => Execute(db,
+            "DELETE FROM items WHERE id >= 1",
+            new SqlExecutionOptions { MaxMaterializedRows = 2 }));
+
+        Assert.Equal(3, Select(db, "SELECT id FROM items").Rows.Count);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    /// <summary>INSERT SELECT 的源行和目标 mutation 共用根预算，超限时目标事务仍为空。</summary>
+    [Fact]
+    public void Execute_InsertSelectOverSharedRowLimit_LeavesTargetUnchanged()
+    {
+        using Tsdb db = Open();
+        Execute(db, "CREATE TABLE source_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT, PRIMARY KEY (id))");
+        Execute(db, "INSERT INTO source_rows (id) VALUES (1), (2), (3)");
+
+        Assert.Throws<InvalidOperationException>(() => Execute(db,
+            "INSERT INTO target_rows (id) SELECT id FROM source_rows ORDER BY id RETURNING id",
+            new SqlExecutionOptions { MaxMaterializedRows = 3, MaxMaterializedBytes = 1_000_000 }));
+
+        Assert.Empty(Select(db, "SELECT id FROM target_rows").Rows);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+    }
+
+    /// <summary>ON CONFLICT DO UPDATE 的候选行和更新 mutation 共用预算并成功完成。</summary>
+    [Fact]
+    public void Execute_OnConflictDoUpdateWithBudget_UpdatesExistingRow()
+    {
+        using Tsdb db = OpenItems(1);
+
+        InsertExecutionResult result = Assert.IsType<InsertExecutionResult>(Execute(db,
+            "INSERT INTO items (id, category, value, payload) VALUES (1, 0, 99, 'updated') "
+            + "ON CONFLICT (id) DO UPDATE SET value = excluded.value RETURNING id, value",
+            new SqlExecutionOptions { MaxMaterializedRows = 2, MaxMaterializedBytes = 1_000_000 }));
+
+        Assert.Equal(1, result.RowsInserted);
+        IReadOnlyList<object?> returned = Assert.Single(result.Returning!.Rows);
+        Assert.Equal(1L, returned[0]);
+        Assert.Equal(99L, returned[1]);
+        Assert.Equal(99L, Assert.Single(Select(db, "SELECT value FROM items").Rows)[0]);
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 

@@ -86,10 +86,10 @@ if (batch.Events.Count != 0)
 
 1. `DocumentCollectionStore` 在同一个 KV batch 中提交主文档、change feed 记录和集合序号。`AcquireCdcReadSnapshot()` 在集合写锁内取得 `KvReadSnapshot` 及该序号，固定视图只读取这份快照；快照建立后的写入不会进入视图。
 2. `CaptureDocumentCollectionAsync` 对稳定快照计算准确行数，按文档业务键排序后原子发布 `CdcSourceReadView`。视图文件包含 source/entity/schema/row count/checkpoint，重开严格校验身份和 SHA-256；读取页的位点始终是创建时 checkpoint。
-3. 调用方配置专用 `CdcEventSpool`，持续调用 `CdcDocumentSourceCapture.CaptureAsync`，并确保源 change feed 在捕获前仍保留从恢复游标起的完整连续记录。文档 change feed 的保留期为 7 天；过期缺口不能用当前位点跳过，必须重新建立快照。捕获器从 spool 的 ACK 和未确认帧恢复连续 source sequence，把 change feed 的 insert/update/delete 转换为版本化 `CdcEvent`；载荷截断、身份错配、序号缺口和未来 ACK 都 fail closed。事件帧成功 durable append 后才推进捕获游标。
+3. 调用方配置专用 `CdcEventSpool`，可使用 `CdcDocumentSourceCaptureScheduler` 在当前任务中以批次数、事件数和间隔上限显式、有界、可取消地连续调用捕获器；调度器不创建后台线程。并确保源 change feed 在捕获前仍保留从恢复游标起的完整连续记录。文档 change feed 的保留期为 7 天；过期缺口不能用当前位点跳过，必须重新建立快照。捕获器从 spool 的 ACK 和未确认帧恢复连续 source sequence，把 change feed 的 insert/update/delete 转换为版本化 `CdcEvent`；载荷截断、身份错配、序号缺口和未来 ACK 都 fail closed。事件帧成功 durable append 后才推进捕获游标。
 4. 副本先写完视图并 `CompleteSnapshotAsync`，再按 descriptor checkpoint 回放 spool；`CdcSnapshotReplica` 提交物化状态后才确认 spool。调用方在快照复制期间持续捕获，确保边界之后的写入在源 change feed 到期前进入 spool。
 
-本切片的重启回归关闭并重开 `Tsdb`、视图、spool 和副本对象，验证 spool high-watermark 后续捕获及源/副本结果对账。真实 Child `Process.Kill` 回归进一步覆盖源捕获、部分快照、增量物化后未 ACK 和容量回收；这些本机结果不代表真机掉电或远程拓扑。自动捕获调度、多分区、远程传输、冲突/schema 演进、离线同步和 exactly-once 仍未承诺。
+本切片的重启回归关闭并重开 `Tsdb`、视图、spool 和副本对象，验证 spool high-watermark 后续捕获及源/副本结果对账。真实 Child `Process.Kill` 回归进一步覆盖源捕获、部分快照、增量物化后未 ACK 和容量回收；这些本机结果不代表真机掉电或远程拓扑。调度器只提供本地显式有界运行，多分区、远程传输、冲突/schema 演进、离线同步和 exactly-once 仍未承诺。
 
 固定视图创建在临时文件刷盘后原子发布，并对目录执行 fsync。若发布尝试后的目录同步报错，调用方不能把创建异常解释为视图不存在。`CaptureDocumentCollectionAsync` 可能尚未返回 descriptor，因此调用方应使用本次创建专用的路径，以 `CdcSourceReadView.OpenExisting(path, expectedSource, expectedEntity, expectedSchema, expectedSchemaVersion, expectedPartition, expectedSnapshotId)` 校验已有文件并读取其持久 `Descriptor`（包含准确行数和 checkpoint）。`expectedSnapshotId` 可省略；已知时传入可进一步约束身份。文件缺失、损坏或身份不匹配均不能被当作成功恢复；确认已有视图后可继续沿用严格的 `Open(path, expectedDescriptor)`。创建接口不覆盖既有视图。
 
@@ -99,11 +99,11 @@ if (batch.Events.Count != 0)
 - 状态文件使用独立的 `SDBCSR01`/version 1 格式，48 字节头部记录正文长度和 SHA-256；正文通过独立 source-generated `CdcSnapshotReplicaJsonContext` 序列化。没有修改既有 spool 或数据库文件格式。
 - 每批替换整个有界状态文件。临时文件 `Flush(true)` 后原子发布，再要求目录 fsync；复制页、物化行、阶段与位点同时发布。发布前取消或容量失败保留旧状态；发布尝试之后的 I/O 错误可能结果未知，实例进入 faulted 状态，必须关闭并重开核对。
 - 同一路径通过独占 `.lock` lease 保证一个接收端实例；实例内操作串行。重开校验完整状态长度、SHA-256、schema、阶段、行数、键和位点。
-- 该接收端要求实体专属分区的连续 offset。不能把混合实体的分区过滤后直接应用，否则缺口会被拒绝。多分区切换、自动捕获调度、重新快照、远程传输、冲突解决、schema migration 和固定硬件容量仍属于后续切片。
+- 该接收端要求实体专属分区的连续 offset。不能把混合实体的分区过滤后直接应用，否则缺口会被拒绝。多分区切换、后台调度生命周期、重新快照、远程传输、冲突解决、schema migration 和固定硬件容量仍属于后续切片。
 
 ## 尚未承诺的能力
 
-已有快照/增量衔接仅覆盖上述本地文档源和接收端边界。离线队列、自动捕获调度、多分区/远程衔接、冲突解决、schema migration、客户端路由和复制拓扑仍归入 M43 #386~#390 的后续切片；远程 parity、断网现场恢复和固定硬件容量属于后续验证计划。
+已有快照/增量衔接仅覆盖上述本地文档源和接收端边界。调度器只覆盖调用方任务中的单源显式运行；离线队列、多分区/远程衔接、冲突解决、schema migration、客户端路由和复制拓扑仍归入 M43 #386~#390 的后续切片；远程 parity、断网现场恢复和固定硬件容量属于后续验证计划。
 
 定向回归：`dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter FullyQualifiedName~CdcEventSpoolTests`（当前 19 项）及 `FullyQualifiedName~CdcEventCodecTests`。
 

@@ -4,19 +4,145 @@ using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>在执行前验证显式物化预算当前支持的只读关系查询范围。</summary>
+/// <summary>在执行前验证显式物化预算当前支持的关系查询和 DML 范围。</summary>
 internal static class SqlMaterializationContract
 {
     internal static void Validate(Tsdb tsdb, SqlStatement statement)
     {
-        SelectStatement select = statement switch
+        switch (statement)
         {
-            SelectStatement query => query,
-            ExplainStatement { Statement: SelectStatement query } => query,
-            _ => throw new NotSupportedException(
-                "SQL 物化预算仅支持关系 SELECT 和 EXPLAIN SELECT；写入、RETURNING、例程和事务控制须使用未启用该预算的调用。"),
-        };
-        ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            case SelectStatement select:
+                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                return;
+            case ExplainStatement { Statement: SelectStatement explainSelect }:
+                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                return;
+            case InsertStatement insert:
+                ValidateInsert(insert);
+                return;
+            case UpdateStatement update:
+                ValidateUpdate(update);
+                return;
+            case DeleteStatement delete:
+                ValidateDelete(delete);
+                return;
+            default:
+                throw new NotSupportedException(
+                    "SQL 物化预算仅支持关系 SELECT、EXPLAIN SELECT 和关系表 DML；例程、DDL 与事务控制须使用未启用该预算的调用。");
+        }
+
+        void ValidateInsert(InsertStatement insert)
+        {
+            ValidateTableTarget(insert.Measurement);
+            foreach (IReadOnlyList<SqlExpression> row in insert.Rows)
+                foreach (SqlExpression expression in row)
+                    ValidateDmlExpression(expression, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            if (insert.OnConflict is { } conflict)
+            {
+                foreach (UpdateAssignment assignment in conflict.UpdateAssignments)
+                    ValidateDmlExpression(assignment.Value, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ValidateDmlExpression(conflict.UpdateWhere, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            }
+            if (insert.Query is { } query)
+                ValidateQuery(query, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        void ValidateUpdate(UpdateStatement update)
+        {
+            ValidateTableTarget(update.TableName);
+            foreach (UpdateAssignment assignment in update.Assignments)
+                ValidateDmlExpression(assignment.Value, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            ValidateDmlExpression(update.Where, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            foreach (JoinClause join in update.FromClauses)
+            {
+                if (join.Subquery is { } subquery)
+                    ValidateQuery(subquery, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                else
+                    ValidateTableTarget(join.TableName);
+                ValidateDmlExpression(join.On, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            }
+        }
+
+        void ValidateDelete(DeleteStatement delete)
+        {
+            ValidateTableTarget(delete.Measurement);
+            ValidateDmlExpression(delete.Where, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        void ValidateTableTarget(string name)
+        {
+            if (tsdb.Tables.Catalog.TryGet(name) is null)
+                throw new NotSupportedException(
+                    "SQL 物化预算仅支持关系表、关系表视图、CTE 和常量查询源；DML 目标必须是关系表。");
+        }
+
+        void ValidateDmlExpression(SqlExpression? expression, HashSet<string> inheritedCtes)
+        {
+            switch (expression)
+            {
+                case SubqueryExpression subquery:
+                    ValidateQuery(subquery.Select, inheritedCtes);
+                    break;
+                case ExistsExpression exists:
+                    ValidateQuery(exists.Select, inheritedCtes);
+                    break;
+                case InExpression membership:
+                    ValidateDmlExpression(membership.Value, inheritedCtes);
+                    foreach (SqlExpression value in membership.Values)
+                        ValidateDmlExpression(value, inheritedCtes);
+                    if (membership.Subquery is { } membershipQuery)
+                        ValidateQuery(membershipQuery, inheritedCtes);
+                    break;
+                case BinaryExpression binary:
+                    ValidateDmlExpression(binary.Left, inheritedCtes);
+                    ValidateDmlExpression(binary.Right, inheritedCtes);
+                    break;
+                case UnaryExpression unary:
+                    ValidateDmlExpression(unary.Operand, inheritedCtes);
+                    break;
+                case CastExpression cast:
+                    ValidateDmlExpression(cast.Operand, inheritedCtes);
+                    break;
+                case IsNullExpression isNull:
+                    ValidateDmlExpression(isNull.Operand, inheritedCtes);
+                    break;
+                case NamedArgumentExpression named:
+                    ValidateDmlExpression(named.Value, inheritedCtes);
+                    break;
+                case CaseExpression conditional:
+                    foreach (CaseWhenClause clause in conditional.WhenClauses)
+                    {
+                        ValidateDmlExpression(clause.Condition, inheritedCtes);
+                        ValidateDmlExpression(clause.Result, inheritedCtes);
+                    }
+                    ValidateDmlExpression(conditional.Else, inheritedCtes);
+                    break;
+                case FunctionCallExpression function:
+                    if (tsdb.Functions.TryGetScalar(function.Name, out _)
+                        || tsdb.Functions.TryGetAggregate(function.Name, out _)
+                        || tsdb.Functions.TryGetWindow(function.Name, out _))
+                    {
+                        throw new NotSupportedException("SQL 物化预算不支持用户自定义函数回调。");
+                    }
+                    foreach (SqlExpression argument in function.Arguments)
+                        ValidateDmlExpression(argument, inheritedCtes);
+                    if (function.Over is { } window)
+                    {
+                        foreach (SqlExpression partition in window.PartitionBy)
+                            ValidateDmlExpression(partition, inheritedCtes);
+                        foreach (OrderBySpec order in window.OrderBy)
+                            ValidateDmlExpression(order.Expression, inheritedCtes);
+                    }
+                    break;
+                case VectorLiteralExpression or GeoPointLiteralExpression:
+                    throw new NotSupportedException("SQL 物化预算只支持标准 SQL 标量、字符串和二进制值。");
+                case DefaultValueExpression or null or LiteralExpression or DurationLiteralExpression
+                    or IdentifierExpression or StarExpression:
+                    break;
+                default:
+                    throw new NotSupportedException("SQL 物化预算只支持已经绑定的只读标量表达式。");
+            }
+        }
 
         void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes)
         {

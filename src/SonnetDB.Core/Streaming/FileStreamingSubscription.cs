@@ -16,7 +16,9 @@ namespace SonnetDB.Streaming;
 /// </remarks>
 public sealed class FileStreamingSubscription : IAsyncDisposable
 {
-    private const int FormatVersion = 1;
+    private const int LegacyFormatVersion = 1;
+    private const int FormatVersion = 2;
+    private const int LegacyMaxDeliveryAttempts = 100;
     private const int MaxStateBytes = 64 * 1024;
     private const int MaxHeaders = 64;
     private const string EventSchema = "sonnetdb.streaming-event";
@@ -69,6 +71,59 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
     public long StoredBytes => _spool.StoredBytes;
 
     /// <summary>
+    /// 查询当前文件订阅的本地运维状态，包括 backlog 数量、最早事件时间和未确认批次投递次数。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>带有查询时刻的本地状态快照。</returns>
+    public async ValueTask<FileStreamingSubscriptionStatus> GetStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(async token =>
+        {
+            FileStreamingSubscriptionState state = _state;
+            DateTimeOffset observedAtUtc = DateTimeOffset.UtcNow;
+            DateTimeOffset? oldestEventTimeUtc = null;
+            if (state.PendingEventCount > 0)
+            {
+                CdcEventSpoolBatch replay = await _spool.ReplayBatchAsync(
+                    afterCheckpoint: state.Checkpoint.CommittedSequence < 0
+                        ? null
+                        : new CdcCheckpoint(0, state.Checkpoint.CommittedSequence),
+                    maxEvents: 1,
+                    maxBytes: Options.MaxBatchBytes,
+                    cancellationToken: token).ConfigureAwait(false);
+                if (replay.Events.Count == 0)
+                    throw new InvalidDataException("持久订阅声明有未确认事件，但 spool 未提供状态快照事件。");
+                oldestEventTimeUtc = DecodeEvent(replay.Events[0]).EventTimeUtc;
+            }
+
+            FileStreamingDeliveryState? inFlight = state.InFlight;
+            TimeSpan? oldestEventAge = oldestEventTimeUtc is { } eventTime
+                ? observedAtUtc - eventTime
+                : null;
+            if (oldestEventAge < TimeSpan.Zero)
+                oldestEventAge = TimeSpan.Zero;
+
+            return new FileStreamingSubscriptionStatus(
+                state.Definition.SubscriptionId,
+                state.Definition.StreamName,
+                state.PublishingCompleted,
+                state.Checkpoint.CommittedSequence,
+                state.LastAcceptedSequence,
+                state.PendingEventCount,
+                _spool.StoredBytes,
+                state.WatermarkUtc,
+                inFlight?.DeliveryId,
+                inFlight?.Attempt ?? 0,
+                state.Options.MaxDeliveryAttempts,
+                inFlight?.EventCount ?? 0,
+                oldestEventTimeUtc,
+                oldestEventAge,
+                observedAtUtc);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// 创建或重开持久订阅，并校验定义、容量、检查点与未确认事件。
     /// </summary>
     /// <param name="directoryPath">专属于该订阅的存储目录。</param>
@@ -104,7 +159,8 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
             operationSource.CancelAfter(options.OperationTimeoutMilliseconds);
             CancellationToken token = operationSource.Token;
             string statePath = Path.Combine(directory, "subscription.json");
-            FileStreamingSubscriptionState? state = await ReadStateAsync(statePath, token).ConfigureAwait(false);
+            (FileStreamingSubscriptionState? state, bool migrated) =
+                await ReadStateAsync(statePath, token).ConfigureAwait(false);
             if (state is null
                 && (File.Exists(Path.Combine(directory, "events.spool"))
                     || File.Exists(Path.Combine(directory, "events.spool.checkpoint"))
@@ -118,6 +174,8 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 ValidateState(state);
                 if (state.Definition != definition || state.Options != options)
                     throw new InvalidDataException("持久订阅定义或文件容量配置与已保存状态不匹配。");
+                if (migrated)
+                    await WriteStateAsync(directory, state, token).ConfigureAwait(false);
             }
 
             checkpointStore = new FileStreamingSubscriptionCheckpointStore(
@@ -268,6 +326,14 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 StreamingDeliveryStatus status;
                 if (previous is not null)
                 {
+                    if (previous.Attempt >= Options.MaxDeliveryAttempts)
+                    {
+                        throw new FileStreamingDeliveryAttemptLimitException(
+                            previous.DeliveryId,
+                            previous.Attempt,
+                            Options.MaxDeliveryAttempts);
+                    }
+
                     ValidateBatchEvents(previous, events);
                     delivery = previous with { Attempt = checked(previous.Attempt + 1) };
                     status = StreamingDeliveryStatus.Redelivered;
@@ -618,6 +684,7 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 throw new InvalidDataException("持久订阅未确认批次标识无效。");
             delivery.CandidateCheckpoint.Validate();
             if (delivery.Attempt < 1 || delivery.EventCount < 1
+                || delivery.Attempt > state.Options.MaxDeliveryAttempts
                 || delivery.EventCount > state.Definition.BatchSize || delivery.EventCount > state.PendingEventCount
                 || delivery.FirstSequence <= state.Checkpoint.CommittedSequence || delivery.LastSequence < delivery.FirstSequence
                 || delivery.LastSequence > state.LastAcceptedSequence
@@ -629,7 +696,9 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
         }
     }
 
-    private static async Task<FileStreamingSubscriptionState?> ReadStateAsync(string path, CancellationToken token)
+    private static async Task<(FileStreamingSubscriptionState? State, bool Migrated)> ReadStateAsync(
+        string path,
+        CancellationToken token)
     {
         try
         {
@@ -648,17 +717,66 @@ public sealed class FileStreamingSubscription : IAsyncDisposable
                 throw new InvalidDataException("持久订阅状态缺少校验字段。");
             byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(envelope.State,
                 FileStreamingJsonContext.Default.FileStreamingSubscriptionState);
-            if (!string.Equals(envelope.Sha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal))
-                throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。");
-            return envelope.State;
+            if (string.Equals(envelope.Sha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal))
+                return (envelope.State, false);
+
+            return (MigrateLegacyState(bytes, envelope.Sha256), true);
         }
         catch (FileNotFoundException)
         {
-            return null;
+            return (null, false);
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or EndOfStreamException)
         {
             throw new InvalidDataException("持久订阅状态文件损坏或截断。", exception);
+        }
+    }
+
+    private static FileStreamingSubscriptionState MigrateLegacyState(byte[] bytes, string expectedSha256)
+    {
+        try
+        {
+            LegacyFileStreamingStateEnvelope legacy = JsonSerializer.Deserialize(
+                bytes,
+                FileStreamingJsonContext.Default.LegacyFileStreamingStateEnvelope)
+                ?? throw new InvalidDataException("持久订阅状态为空。");
+            if (legacy.State is null || legacy.Sha256 is null
+                || legacy.State.FormatVersion != LegacyFormatVersion)
+            {
+                throw new InvalidDataException("持久订阅状态版本或必需字段无效。");
+            }
+
+            byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
+                legacy.State,
+                FileStreamingJsonContext.Default.LegacyFileStreamingSubscriptionState);
+            if (!string.Equals(legacy.Sha256, Convert.ToHexString(SHA256.HashData(stateBytes)), StringComparison.Ordinal)
+                || !string.Equals(expectedSha256, legacy.Sha256, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。");
+            }
+
+            LegacyFileStreamingSubscriptionOptions options = legacy.State.Options;
+            return new FileStreamingSubscriptionState(
+                FormatVersion,
+                legacy.State.Definition,
+                new FileStreamingSubscriptionOptions
+                {
+                    MaxEventBytes = options.MaxEventBytes,
+                    MaxStoredBytes = options.MaxStoredBytes,
+                    MaxBatchBytes = options.MaxBatchBytes,
+                    OperationTimeoutMilliseconds = options.OperationTimeoutMilliseconds,
+                    MaxDeliveryAttempts = LegacyMaxDeliveryAttempts,
+                },
+                legacy.State.Checkpoint,
+                legacy.State.WatermarkUtc,
+                legacy.State.LastAcceptedSequence,
+                legacy.State.PendingEventCount,
+                legacy.State.PublishingCompleted,
+                legacy.State.InFlight);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        {
+            throw new InvalidDataException("持久订阅状态 SHA-256 校验失败。", exception);
         }
     }
 
