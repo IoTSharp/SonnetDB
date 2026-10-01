@@ -1,6 +1,6 @@
 # M43 #391~#395 持久固定 UTC 滚动 COUNT 窗口
 
-`FileStreamingWindowAggregator` 补充本地持久订阅的窗口聚合入口。它按事件 UTC 时间计算以 Unix epoch 对齐的固定滚动窗口，原子保存 COUNT、已应用订阅序号和 revision，再由 `PumpOnceAsync` 确认订阅。当前实现只提供 COUNT；SUM、MIN、MAX、AVG、分组、滑动窗口、会话窗口和远程 Frame/REST 不属于本片。
+`FileStreamingWindowAggregator` 补充本地持久订阅的窗口聚合入口。它按事件 UTC 时间计算以 Unix epoch 对齐的固定滚动窗口，原子保存 COUNT、已应用订阅序号和 revision，再由 `PumpOnceAsync` 确认订阅。本片描述原有 COUNT 合同；2026-10-01 第三批新增显式 opt-in 的[精确 decimal SUM/MIN/MAX/AVG](m43-numeric-windows.md)，原有 COUNT 定义和状态仍可读取。分组、滑动窗口、会话窗口和远程 Frame/REST 继续待补。
 
 ## 实际调用
 

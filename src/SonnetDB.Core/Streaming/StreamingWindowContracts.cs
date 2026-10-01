@@ -12,7 +12,7 @@ public enum StreamingWindowLateEventPolicy
     Reject = 1,
 }
 
-/// <summary>以 Unix epoch 为边界的固定 UTC 滚动 COUNT 窗口定义。</summary>
+/// <summary>以 Unix epoch 为边界的固定 UTC 滚动窗口定义，默认只计数。</summary>
 /// <param name="FormatVersion">定义格式版本。</param>
 /// <param name="SubscriptionId">所属订阅标识。</param>
 /// <param name="StreamName">所属事件流名称。</param>
@@ -29,6 +29,13 @@ public sealed record StreamingWindowDefinition(
 {
     /// <summary>当前窗口定义格式版本。</summary>
     public const int CurrentFormatVersion = 1;
+
+    /// <summary>显式选择数值 JSON 属性的窗口定义格式版本。</summary>
+    public const int NumericFormatVersion = 2;
+
+    /// <summary>显式选择的顶层 JSON 数值属性，按 Ordinal 匹配；为空时保持原 COUNT 合同。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NumericField { get; init; }
 
     /// <summary>创建并校验固定 UTC 滚动 COUNT 窗口定义。</summary>
     /// <param name="subscriptionId">所属订阅标识。</param>
@@ -57,11 +64,45 @@ public sealed record StreamingWindowDefinition(
         return definition;
     }
 
+    /// <summary>创建同时提供 COUNT、精确 decimal SUM/MIN/MAX 和 decimal AVG 的固定 UTC 窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="numericField">顶层 JSON 数值属性原名，最长为二百五十六个字符。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的数值窗口定义。</returns>
+    /// <remarks>缺失、null、非数值、重复属性、无法精确表示的 decimal 或 SUM 会拒绝整个批次；AVG 使用 decimal 除法舍入。</remarks>
+    public static StreamingWindowDefinition CreateNumeric(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        string numericField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        StreamingWindowDefinition definition = Create(subscriptionId, streamName, windowSize, allowedLateness, lateEventPolicy) with
+        {
+            FormatVersion = NumericFormatVersion,
+            NumericField = numericField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
     /// <summary>校验版本、订阅身份和窗口时间边界。</summary>
     public void Validate()
     {
-        if (FormatVersion != CurrentFormatVersion)
+        if (FormatVersion is not (CurrentFormatVersion or NumericFormatVersion))
             throw new InvalidDataException($"不支持窗口定义格式版本 {FormatVersion}。");
+        if (FormatVersion == CurrentFormatVersion && NumericField is not null)
+            throw new InvalidDataException("COUNT 版本不能包含数值属性选择。");
+        if (FormatVersion == NumericFormatVersion)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(NumericField);
+            if (NumericField.Length > 256)
+                throw new ArgumentException("窗口数值属性超过长度上限。", nameof(NumericField));
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(SubscriptionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(StreamName);
         if (SubscriptionId.Length > 256 || StreamName.Length > 4096)
@@ -143,6 +184,41 @@ public sealed record StreamingWindowBatch(
     bool HasMore,
     StreamingWindowState State);
 
+/// <summary>一个固定 UTC 窗口的 decimal 数值聚合结果。</summary>
+/// <param name="StartUtc">包含的窗口起点。</param>
+/// <param name="EndUtc">不包含的窗口终点。</param>
+/// <param name="Count">已应用且未被迟到策略丢弃的事件数量。</param>
+/// <param name="Sum">没有舍入的精确 decimal 总和。</param>
+/// <param name="Min">窗口数值最小值。</param>
+/// <param name="Max">窗口数值最大值。</param>
+/// <param name="Average">总和除以数量的 decimal 结果，除不尽时按 decimal 除法舍入。</param>
+/// <param name="IsClosed">watermark 是否已经超过窗口终点加允许迟到时间。</param>
+public sealed record StreamingWindowNumeric(
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc,
+    long Count,
+    decimal Sum,
+    decimal Min,
+    decimal Max,
+    decimal Average,
+    bool IsClosed);
+
+/// <summary>按窗口起点排序的一次有界数值结果读取。</summary>
+/// <param name="Windows">本次返回的窗口结果。</param>
+/// <param name="NextStartUtc">继续读取时传入的排他窗口起点。</param>
+/// <param name="HasMore">同一筛选条件下是否仍有后续窗口。</param>
+/// <param name="State">读取时对应的一致恢复状态。</param>
+public sealed record StreamingWindowNumericBatch(
+    IReadOnlyList<StreamingWindowNumeric> Windows,
+    DateTimeOffset? NextStartUtc,
+    bool HasMore,
+    StreamingWindowState State);
+
+internal sealed record StreamingWindowNumericAccumulator(
+    [property: JsonRequired] decimal Sum,
+    [property: JsonRequired] decimal Min,
+    [property: JsonRequired] decimal Max);
+
 internal sealed record StreamingWindowDocument(
     [property: JsonRequired] int FormatVersion,
     [property: JsonRequired] StreamingWindowDefinition Definition,
@@ -153,10 +229,40 @@ internal sealed record StreamingWindowDocument(
     [property: JsonRequired] long DroppedLateEvents,
     [property: JsonRequired] string? LastDeliveryId,
     [property: JsonRequired] string? LastBatchHash,
-    [property: JsonRequired] Dictionary<long, long> Windows);
+    [property: JsonRequired] Dictionary<long, long> Windows)
+{
+    // 空值必须从旧版本 JSON 中省略，使 COUNT 的既有字节形状及 SHA-256 保持不变。
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<long, StreamingWindowNumericAccumulator>? NumericWindows { get; init; }
+}
 
 internal sealed record StreamingWindowEnvelope(
     [property: JsonRequired] StreamingWindowDocument State,
+    [property: JsonRequired] string Sha256);
+
+// 版本 1 DTO 固定原 COUNT 字段顺序和形状，必须先核对其原哈希，不能补新字段后再校验。
+internal sealed record LegacyStreamingWindowDefinition(
+    [property: JsonRequired] int FormatVersion,
+    [property: JsonRequired] string SubscriptionId,
+    [property: JsonRequired] string StreamName,
+    [property: JsonRequired] long WindowSizeMilliseconds,
+    [property: JsonRequired] long AllowedLatenessMilliseconds,
+    [property: JsonRequired] StreamingWindowLateEventPolicy LateEventPolicy);
+
+internal sealed record LegacyStreamingWindowDocument(
+    [property: JsonRequired] int FormatVersion,
+    [property: JsonRequired] LegacyStreamingWindowDefinition Definition,
+    [property: JsonRequired] StreamingWindowOptions Options,
+    [property: JsonRequired] long AppliedSequence,
+    [property: JsonRequired] long AppliedRevision,
+    [property: JsonRequired] DateTimeOffset WatermarkUtc,
+    [property: JsonRequired] long DroppedLateEvents,
+    [property: JsonRequired] string? LastDeliveryId,
+    [property: JsonRequired] string? LastBatchHash,
+    [property: JsonRequired] Dictionary<long, long> Windows);
+
+internal sealed record LegacyStreamingWindowEnvelope(
+    [property: JsonRequired] LegacyStreamingWindowDocument State,
     [property: JsonRequired] string Sha256);
 
 [JsonSourceGenerationOptions(
@@ -166,4 +272,6 @@ internal sealed record StreamingWindowEnvelope(
 [JsonSerializable(typeof(StreamingWindowDocument))]
 [JsonSerializable(typeof(StreamingWindowDefinition))]
 [JsonSerializable(typeof(StreamingWindowOptions))]
+[JsonSerializable(typeof(LegacyStreamingWindowEnvelope))]
+[JsonSerializable(typeof(LegacyStreamingWindowDocument))]
 internal sealed partial class StreamingWindowJsonContext : JsonSerializerContext;

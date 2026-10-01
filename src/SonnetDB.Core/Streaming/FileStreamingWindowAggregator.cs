@@ -1,20 +1,20 @@
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
 namespace SonnetDB.Streaming;
 
-/// <summary>为单个本地文件订阅持久化固定 UTC 滚动 COUNT 窗口及其恢复位点。</summary>
+/// <summary>为单个本地文件订阅持久化固定 UTC 滚动 COUNT 或显式 decimal 数值窗口及其恢复位点。</summary>
 /// <remarks>
 /// <para>每个批次的窗口和已应用位点写入同一个原子替换文件，之后才确认订阅。
 /// 窗口提交后未完成确认的最后批次按稳定投递标识和内容校验重试，不重复计数。</para>
 /// <para>只有显式推进的 watermark 才关闭窗口；调用方应先排空已接受的订阅事件。
 /// 结果保留至显式删除，容量耗尽会拒绝批次而保留未确认事件。</para>
-/// <para>仅支持单机单执行者与 COUNT；没有远程租约、SUM 等数值聚合或外部副作用事务。</para>
+/// <para>数值窗口显式选择顶层 JSON 属性，支持 SUM/MIN/MAX/AVG；仅支持单机单执行者，没有远程租约或外部副作用事务。</para>
 /// </remarks>
 public sealed class FileStreamingWindowAggregator : IAsyncDisposable
 {
-    private const int FormatVersion = 1;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly CancellationToken _lifetimeToken;
@@ -72,8 +72,11 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             if (File.Exists(fullPath + ".pending"))
                 throw new IOException("窗口初始状态缺失但仍有待提交侧文件；不能创建并覆盖结果未知的初始提交。");
             var document = new StreamingWindowDocument(
-                FormatVersion, definition, options, initialCheckpoint.CommittedSequence,
-                initialCheckpoint.Revision, initialCheckpoint.WatermarkUtc, 0, null, null, []);
+                definition.FormatVersion, definition, options, initialCheckpoint.CommittedSequence,
+                initialCheckpoint.Revision, initialCheckpoint.WatermarkUtc, 0, null, null, [])
+            {
+                NumericWindows = definition.NumericField is null ? null : [],
+            };
             aggregator = new FileStreamingWindowAggregator(fullPath, lease, document);
             await aggregator.ExecuteAsync(async token =>
             {
@@ -258,6 +261,54 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>按 UTC 起点排序有界读取显式数值窗口，返回 COUNT、SUM/MIN/MAX/AVG 与排他起点。</summary>
+    /// <param name="maxWindows">最多返回的窗口数量，不能超过配置的最大窗口数。</param>
+    /// <param name="afterStartUtc">排他起点；为空时从第一个窗口开始。</param>
+    /// <param name="closedOnly">是否只返回已关闭窗口。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>数值结果窗口及读取时对应的一致状态。</returns>
+    /// <remarks>必须使用 CreateNumeric 定义；SUM、MIN、MAX 无舍入，AVG 使用 decimal 除法舍入。</remarks>
+    public async ValueTask<StreamingWindowNumericBatch> ReadNumericWindowsAsync(
+        int maxWindows = 100,
+        DateTimeOffset? afterStartUtc = null,
+        bool closedOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxWindows, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxWindows, Options.MaxWindows);
+        if (afterStartUtc is { } after)
+            ValidateUtc(after, nameof(afterStartUtc));
+        return await ExecuteAsync(token =>
+        {
+            if (_document.NumericWindows is not { } numericWindows)
+                throw new InvalidOperationException("COUNT 定义没有数值聚合结果；必须显式创建数值窗口。");
+            var results = new List<StreamingWindowNumeric>(maxWindows);
+            bool hasMore = false;
+            foreach ((long startTicks, long count) in _document.Windows.OrderBy(static item => item.Key))
+            {
+                token.ThrowIfCancellationRequested();
+                var start = new DateTimeOffset(startTicks, TimeSpan.Zero);
+                DateTimeOffset end = WindowEnd(startTicks);
+                bool closed = IsClosed(end, _document.WatermarkUtc);
+                if ((afterStartUtc is { } boundary && start <= boundary) || (closedOnly && !closed))
+                    continue;
+                if (results.Count == maxWindows)
+                {
+                    hasMore = true;
+                    break;
+                }
+
+                StreamingWindowNumericAccumulator numeric = numericWindows[startTicks];
+                results.Add(new StreamingWindowNumeric(start, end, count,
+                    numeric.Sum, numeric.Min, numeric.Max, numeric.Sum / count, closed));
+            }
+
+            return ValueTask.FromResult(new StreamingWindowNumericBatch(
+                results.AsReadOnly(), results.Count == 0 ? null : results[^1].StartUtc,
+                hasMore, State(_document)));
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>持久移除指定起点及以前的已关闭窗口，保留恢复位点与迟到丢弃计数。</summary>
     /// <param name="throughStartUtc">包含的最大窗口起点，必须为 UTC。</param>
     /// <param name="cancellationToken">取消令牌。</param>
@@ -270,6 +321,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         return await ExecuteAsync(async token =>
         {
             var windows = new Dictionary<long, long>(_document.Windows);
+            Dictionary<long, StreamingWindowNumericAccumulator>? numericWindows = _document.NumericWindows is { } numeric
+                ? new(numeric) : null;
             int removed = 0;
             foreach (long startTicks in _document.Windows.Keys)
             {
@@ -277,12 +330,13 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
                 if (startTicks <= throughStartUtc.UtcTicks && IsClosed(WindowEnd(startTicks), _document.WatermarkUtc))
                 {
                     windows.Remove(startTicks);
+                    numericWindows?.Remove(startTicks);
                     removed++;
                 }
             }
 
             if (removed > 0)
-                await CommitAsync(_document with { Windows = windows }, token).ConfigureAwait(false);
+                await CommitAsync(_document with { Windows = windows, NumericWindows = numericWindows }, token).ConfigureAwait(false);
             return removed;
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -329,18 +383,19 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             || batch.Status is not (StreamingDeliveryStatus.InFlight or StreamingDeliveryStatus.Redelivered))
             throw new ArgumentException("窗口批次的订阅身份或投递状态不正确。", nameof(batch));
         ArgumentNullException.ThrowIfNull(batch.Events);
-        if (batch.Events.Count < 1 || batch.Events.Count > Options.MaxBatchEvents)
+        int eventCount = batch.Events.Count;
+        if (eventCount < 1 || eventCount > Options.MaxBatchEvents)
             throw new ArgumentException("窗口批次事件数量超过边界或为空。", nameof(batch));
-        StreamingEvent[] events = batch.Events.ToArray();
-        if (events.Length < 1 || events.Length > Options.MaxBatchEvents)
-            throw new ArgumentException("窗口批次事件数量超过边界或为空。", nameof(batch));
+        var events = new StreamingEvent[eventCount];
 
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         long previousSequence = -1;
         int bytes = 0;
-        foreach (StreamingEvent value in events)
+        int copiedPayloadBytes = 0;
+        for (int eventIndex = 0; eventIndex < eventCount; eventIndex++)
         {
             token.ThrowIfCancellationRequested();
+            StreamingEvent value = batch.Events[eventIndex];
             ArgumentNullException.ThrowIfNull(value);
             value.Validate();
             if (value.Sequence <= previousSequence)
@@ -349,16 +404,32 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             if (value.Payload.Length > Options.MaxBatchBytes || value.EventId.Length > 4096
                 || value.Headers?.Count > 64)
                 throw new ArgumentException("窗口事件超过单批容量边界。", nameof(batch));
+            copiedPayloadBytes = checked(copiedPayloadBytes + value.Payload.Length);
+            if (copiedPayloadBytes > Options.MaxBatchBytes)
+                throw new ArgumentException("窗口批次 payload 快照超过总复制字节上限。", nameof(batch));
+            // 先复制有界 payload，再枚举调用方 headers；枚举器可能修改原 payload，不能让哈希和数值解析看到不同内容。
+            byte[] payload = value.Payload.ToArray();
+            Dictionary<string, string>? headers = null;
             if (value.Headers is not null)
             {
-                foreach ((string key, string header) in value.Headers)
+                headers = new Dictionary<string, string>(StringComparer.Ordinal);
+                using IEnumerator<KeyValuePair<string, string>> iterator = value.Headers.GetEnumerator();
+                for (int headerIndex = 0; headerIndex <= 64 && iterator.MoveNext(); headerIndex++)
                 {
                     token.ThrowIfCancellationRequested();
+                    if (headerIndex == 64)
+                        throw new ArgumentException("窗口事件头超过数量上限。", nameof(batch));
+                    (string key, string header) = iterator.Current;
                     if (key is null || header is null || key.Length > 4096 || header.Length > 4096)
                         throw new ArgumentException("窗口事件头超过单批容量边界。", nameof(batch));
+                    if (!headers.TryAdd(key, header))
+                        throw new ArgumentException("窗口事件头包含重复键。", nameof(batch));
                 }
             }
 
+            value = value with { Payload = payload, Headers = headers };
+            value.Validate();
+            events[eventIndex] = value;
             byte[] encoded = JsonSerializer.SerializeToUtf8Bytes(value, StreamingJsonContext.Default.StreamingEvent);
             bytes = checked(bytes + encoded.Length);
             if (bytes > Options.MaxBatchBytes)
@@ -382,6 +453,8 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             throw new InvalidDataException("窗口批次位点倒退、缺失前置批次或重复了已应用前缀。");
 
         var windows = new Dictionary<long, long>(_document.Windows);
+        Dictionary<long, StreamingWindowNumericAccumulator>? numericWindows = _document.NumericWindows is { } numeric
+            ? new(numeric) : null;
         long dropped = _document.DroppedLateEvents;
         foreach (StreamingEvent value in events)
         {
@@ -395,13 +468,24 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
                 continue;
             }
 
+            decimal numericValue = Definition.NumericField is { } field ? ReadNumericValue(value.Payload, field, token) : 0;
             if (windows.TryGetValue(startTicks, out long count))
+            {
                 windows[startTicks] = checked(count + 1);
+                if (numericWindows is not null)
+                {
+                    StreamingWindowNumericAccumulator accumulator = numericWindows[startTicks];
+                    numericWindows[startTicks] = new StreamingWindowNumericAccumulator(
+                        AddExact(accumulator.Sum, numericValue),
+                        Math.Min(accumulator.Min, numericValue), Math.Max(accumulator.Max, numericValue));
+                }
+            }
             else
             {
                 if (windows.Count >= Options.MaxWindows)
                     throw new InvalidOperationException("持久窗口容量已满；读取并移除已关闭结果后重试批次。");
                 windows.Add(startTicks, 1);
+                numericWindows?.Add(startTicks, new StreamingWindowNumericAccumulator(numericValue, numericValue, numericValue));
             }
         }
 
@@ -413,7 +497,151 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             LastDeliveryId = batch.DeliveryId,
             LastBatchHash = batchHash,
             Windows = windows,
+            NumericWindows = numericWindows,
         }, token).ConfigureAwait(false);
+    }
+
+    private static decimal ReadNumericValue(byte[] payload, string field, CancellationToken token)
+    {
+        try
+        {
+            var reader = new Utf8JsonReader(payload);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+                throw new InvalidDataException("数值窗口 payload 必须为 JSON 对象。");
+            bool found = false;
+            decimal value = 0;
+            // payload 已受 MaxBatchBytes 限制；每个 token 都观察操作 deadline 和调用方取消。
+            for (int tokenCount = 0; tokenCount < payload.Length && reader.Read(); tokenCount++)
+            {
+                token.ThrowIfCancellationRequested();
+                if (reader.TokenType == JsonTokenType.EndObject && reader.CurrentDepth == 0)
+                {
+                    if (reader.Read())
+                        throw new InvalidDataException("数值窗口 payload 不能包含多个 JSON 根值。");
+                    if (!found)
+                        throw new InvalidDataException("数值窗口选择的顶层属性缺失。");
+                    return value;
+                }
+
+                if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1 || !reader.ValueTextEquals(field))
+                    continue;
+                if (found)
+                    throw new InvalidDataException("数值窗口选择的顶层属性重复。");
+                found = true;
+                if (!reader.Read() || reader.TokenType != JsonTokenType.Number
+                    || !TryReadExactDecimal(reader.ValueSpan, out value))
+                    throw new InvalidDataException("数值窗口属性必须为可精确表示的 decimal JSON 数字，数字 token 最长为一百二十八字节且指数绝对值不能超过一千。");
+            }
+
+            throw new InvalidDataException("数值窗口 payload 不完整。");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("数值窗口 payload JSON 无效。", exception);
+        }
+    }
+
+    private static bool TryReadExactDecimal(ReadOnlySpan<byte> utf8, out decimal value)
+    {
+        value = 0;
+        if (utf8.Length is < 1 or > 128)
+            return false;
+        bool negative = utf8[0] == (byte)'-';
+        BigInteger coefficient = BigInteger.Zero;
+        int fractionalDigits = 0;
+        bool fractional = false;
+        int exponentStart = utf8.Length;
+        for (int index = negative ? 1 : 0; index < utf8.Length; index++)
+        {
+            byte current = utf8[index];
+            if (current is (byte)'e' or (byte)'E')
+            {
+                exponentStart = index + 1;
+                break;
+            }
+
+            if (current == (byte)'.')
+                fractional = true;
+            else
+            {
+                coefficient = coefficient * 10 + current - (byte)'0';
+                if (fractional)
+                    fractionalDigits++;
+            }
+        }
+
+        int exponent = 0;
+        bool negativeExponent = false;
+        if (exponentStart < utf8.Length && utf8[exponentStart] is (byte)'+' or (byte)'-')
+        {
+            negativeExponent = utf8[exponentStart] == (byte)'-';
+            exponentStart++;
+        }
+
+        for (int index = exponentStart; index < utf8.Length; index++)
+        {
+            exponent = exponent * 10 + utf8[index] - (byte)'0';
+            if (exponent > 1000)
+                return false;
+        }
+
+        if (negativeExponent)
+            exponent = -exponent;
+        int scale = fractionalDigits - exponent;
+        if (coefficient.IsZero)
+            return true;
+        if (scale < 0)
+        {
+            if (scale < -28)
+                return false;
+            coefficient *= BigInteger.Pow(10, -scale);
+            scale = 0;
+        }
+
+        return TryCreateDecimal(negative ? -coefficient : coefficient, scale, out value);
+    }
+
+    private static decimal AddExact(decimal left, decimal right)
+    {
+        (BigInteger leftCoefficient, int leftScale) = DecimalParts(left);
+        (BigInteger rightCoefficient, int rightScale) = DecimalParts(right);
+        int scale = Math.Max(leftScale, rightScale);
+        BigInteger sum = leftCoefficient * BigInteger.Pow(10, scale - leftScale)
+            + rightCoefficient * BigInteger.Pow(10, scale - rightScale);
+        if (!TryCreateDecimal(sum, scale, out decimal value))
+            throw new OverflowException("窗口 SUM 不能以 decimal 精确表示；整个批次保持未应用。");
+        return value;
+    }
+
+    private static (BigInteger Coefficient, int Scale) DecimalParts(decimal value)
+    {
+        Span<int> bits = stackalloc int[4];
+        decimal.GetBits(value, bits);
+        BigInteger coefficient = (uint)bits[0] + ((BigInteger)(uint)bits[1] << 32) + ((BigInteger)(uint)bits[2] << 64);
+        return ((bits[3] & int.MinValue) != 0 ? -coefficient : coefficient, (bits[3] >> 16) & 0xFF);
+    }
+
+    private static bool TryCreateDecimal(BigInteger coefficient, int scale, out decimal value)
+    {
+        value = 0;
+        bool negative = coefficient.Sign < 0;
+        coefficient = BigInteger.Abs(coefficient);
+        if (coefficient.IsZero)
+            return true;
+        // 最多 128 位输入数字；SUM 的对齐系数最多 57 位，故去尾零始终受固定迭代上限约束。
+        for (int removed = 0; removed < 128 && scale > 0 && coefficient % 10 == 0; removed++)
+        {
+            coefficient /= 10;
+            scale--;
+        }
+
+        if (scale is < 0 or > 28 || coefficient > (BigInteger.One << 96) - 1)
+            return false;
+        uint low = (uint)(coefficient & uint.MaxValue);
+        uint middle = (uint)((coefficient >> 32) & uint.MaxValue);
+        uint high = (uint)(coefficient >> 64);
+        value = new decimal(unchecked((int)low), unchecked((int)middle), unchecked((int)high), negative, (byte)scale);
+        return true;
     }
 
     private async ValueTask<T> ExecuteAsync<T>(Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken)
@@ -540,6 +768,23 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
 
     private static byte[] Encode(StreamingWindowDocument document, int maxBytes)
     {
+        if (document.FormatVersion == StreamingWindowDefinition.CurrentFormatVersion)
+        {
+            StreamingWindowDefinition definition = document.Definition;
+            var legacy = new LegacyStreamingWindowDocument(document.FormatVersion,
+                new LegacyStreamingWindowDefinition(definition.FormatVersion, definition.SubscriptionId,
+                    definition.StreamName, definition.WindowSizeMilliseconds, definition.AllowedLatenessMilliseconds, definition.LateEventPolicy),
+                document.Options, document.AppliedSequence, document.AppliedRevision, document.WatermarkUtc,
+                document.DroppedLateEvents, document.LastDeliveryId, document.LastBatchHash, document.Windows);
+            byte[] legacyState = JsonSerializer.SerializeToUtf8Bytes(legacy, StreamingWindowJsonContext.Default.LegacyStreamingWindowDocument);
+            byte[] legacyEncoded = JsonSerializer.SerializeToUtf8Bytes(
+                new LegacyStreamingWindowEnvelope(legacy, Convert.ToHexString(SHA256.HashData(legacyState))),
+                StreamingWindowJsonContext.Default.LegacyStreamingWindowEnvelope);
+            if (legacyEncoded.Length > maxBytes)
+                throw new InvalidDataException("持久窗口状态超过字节容量上限。");
+            return legacyEncoded;
+        }
+
         byte[] state = JsonSerializer.SerializeToUtf8Bytes(document, StreamingWindowJsonContext.Default.StreamingWindowDocument);
         if (state.Length > maxBytes)
             throw new InvalidDataException("持久窗口状态超过字节容量上限。");
@@ -562,6 +807,35 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
         StreamingWindowEnvelope envelope;
         try
         {
+            using JsonDocument json = JsonDocument.Parse(bytes);
+            token.ThrowIfCancellationRequested();
+            if (json.RootElement.ValueKind != JsonValueKind.Object
+                || !json.RootElement.TryGetProperty("state", out JsonElement stateElement)
+                || stateElement.ValueKind != JsonValueKind.Object
+                || !stateElement.TryGetProperty("formatVersion", out JsonElement version)
+                || version.ValueKind != JsonValueKind.Number
+                || !version.TryGetInt32(out int formatVersion))
+                throw new InvalidDataException("持久窗口状态缺少格式版本。");
+            if (formatVersion == StreamingWindowDefinition.CurrentFormatVersion)
+            {
+                LegacyStreamingWindowEnvelope legacy = JsonSerializer.Deserialize(bytes, StreamingWindowJsonContext.Default.LegacyStreamingWindowEnvelope)
+                    ?? throw new InvalidDataException("持久 COUNT 窗口状态 JSON 为空。");
+                if (legacy.State is null || legacy.State.Definition is null || legacy.Sha256 is null || legacy.Sha256.Length != 64)
+                    throw new InvalidDataException("持久 COUNT 窗口状态或校验和无效。");
+                byte[] legacyBytes = JsonSerializer.SerializeToUtf8Bytes(legacy.State, StreamingWindowJsonContext.Default.LegacyStreamingWindowDocument);
+                if (legacy.Sha256 != Convert.ToHexString(SHA256.HashData(legacyBytes)))
+                    throw new InvalidDataException("持久 COUNT 窗口原格式 SHA-256 不匹配。");
+                LegacyStreamingWindowDefinition definition = legacy.State.Definition;
+                var restored = new StreamingWindowDocument(legacy.State.FormatVersion,
+                    new StreamingWindowDefinition(definition.FormatVersion, definition.SubscriptionId, definition.StreamName,
+                        definition.WindowSizeMilliseconds, definition.AllowedLatenessMilliseconds, definition.LateEventPolicy),
+                    legacy.State.Options, legacy.State.AppliedSequence, legacy.State.AppliedRevision, legacy.State.WatermarkUtc,
+                    legacy.State.DroppedLateEvents, legacy.State.LastDeliveryId, legacy.State.LastBatchHash, legacy.State.Windows);
+                ValidateDocument(restored, token);
+                token.ThrowIfCancellationRequested();
+                return restored;
+            }
+
             envelope = JsonSerializer.Deserialize(bytes, StreamingWindowJsonContext.Default.StreamingWindowEnvelope)
                 ?? throw new InvalidDataException("持久窗口状态 JSON 为空。");
         }
@@ -581,10 +855,15 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
 
     private static void ValidateDocument(StreamingWindowDocument document, CancellationToken token)
     {
-        if (document.FormatVersion != FormatVersion || document.Definition is null || document.Options is null
+        if (document.FormatVersion is not (StreamingWindowDefinition.CurrentFormatVersion or StreamingWindowDefinition.NumericFormatVersion)
+            || document.Definition is null || document.Options is null
             || document.Windows is null || document.AppliedSequence < -1 || document.AppliedRevision < 0
             || document.DroppedLateEvents < 0 || document.WatermarkUtc.Offset != TimeSpan.Zero)
             throw new InvalidDataException("持久窗口恢复状态无效。");
+        if (document.FormatVersion != document.Definition.FormatVersion
+            || (document.Definition.NumericField is null) != (document.NumericWindows is null)
+            || (document.NumericWindows is { } numericWindows && numericWindows.Count != document.Windows.Count))
+            throw new InvalidDataException("持久数值窗口状态与定义或 COUNT 不一致。");
         try
         {
             ValidateArguments(document.Definition, document.Options);
@@ -609,6 +888,12 @@ public sealed class FileStreamingWindowAggregator : IAsyncDisposable
             if (startTicks < DateTime.MinValue.Ticks || startTicks > DateTime.MaxValue.Ticks - windowTicks
                 || (startTicks - DateTime.UnixEpoch.Ticks) % windowTicks != 0 || count < 1)
                 throw new InvalidDataException("持久窗口边界或 COUNT 无效。");
+            if (document.NumericWindows is { } numeric
+                && (!numeric.TryGetValue(startTicks, out StreamingWindowNumericAccumulator? accumulator)
+                    || accumulator is null || accumulator.Min > accumulator.Max
+                    || accumulator.Sum / count < accumulator.Min || accumulator.Sum / count > accumulator.Max
+                    || (count == 1 && (accumulator.Sum != accumulator.Min || accumulator.Sum != accumulator.Max))))
+                throw new InvalidDataException("持久窗口数值聚合状态无效。");
         }
     }
 
