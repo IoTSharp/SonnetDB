@@ -62,7 +62,8 @@ public sealed record SqlExecutionOptions
     /// 和 DML mutation 共用预算，同一行在不同物化阶段会重复计入；超限拒绝执行，不返回截断结果。
     /// 为空时不增加物化行数限制。显式设置此属性或 <see cref="MaxMaterializedBytes"/> 时，
     /// 支持关系表 SELECT、EXPLAIN SELECT、关系表 INSERT/UPDATE/DELETE（含 INSERT SELECT 和 RETURNING），
-    /// 以及直接 measurement 的 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；measurement 排序、聚合、
+    /// 以及直接 measurement 的 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET，
+    /// 以及无 TTL 索引的直接文档集合 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；measurement 和文档的排序、聚合、
     /// 窗口、JOIN、去重及嵌套查询，以及例程、用户函数、DDL、事务控制及其他模型在执行前拒绝。
     /// </summary>
     public long? MaxMaterializedRows { get; init; }

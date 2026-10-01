@@ -533,6 +533,24 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>显式 SQL 物化预算一次只读取一个文档，锁内拒绝 TTL 回收且不执行过期删除。</summary>
+    internal IReadOnlyList<DocumentRow> ReadForSqlMaterialization(string? afterId, string? id = null)
+    {
+        lock (_sync)
+        {
+            // 查询预检之后仍可能并发添加 TTL 索引；不能因此转入全量扫描及持久删除。
+            if (_schema.Indexes.Any(static index => index.IsTtl))
+                throw new NotSupportedException("Document SQL 物化预算尚不支持读取时全量回收的 TTL 集合。");
+            if (id is not null)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(id);
+                DocumentRow? row = TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
+                return row is null ? Array.Empty<DocumentRow>() : [row];
+            }
+            return afterId is null ? ScanRowsLocked(1) : ScanRowsAfterLocked(afterId, 1);
+        }
+    }
+
     /// <summary>
     /// 返回当前集合的文档数量。
     /// </summary>

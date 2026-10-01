@@ -1,9 +1,12 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.FullText;
 using SonnetDB.Query.Functions;
+using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Sql.Execution;
@@ -13,6 +16,7 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class DocumentSqlExecutor
 {
+    private static readonly TimeSpan BudgetedRawTimeout = TimeSpan.FromMinutes(5);
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeColumns =
@@ -201,6 +205,12 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            ValidateMaterializationSupported(schema, statement);
+            return ExecuteBudgetedRaw(tsdb, statement, schema);
+        }
+
         ValidateAliasReferences(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("文档集合 SELECT 不支持 FROM 表值函数。");
@@ -252,6 +262,178 @@ internal static class DocumentSqlExecutor
         return plannerAppliedOrderByAndPagination
             ? result
             : ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+    }
+
+    internal static void ValidateMaterializationSupported(DocumentCollectionSchema schema, SelectStatement statement)
+    {
+        if (statement.OrderByList.Count != 0 || statement.GroupBy.Count != 0
+            || statement.Having is not null || statement.Distinct || statement.IsRecursive
+            || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
+            || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0
+            || statement.TableValuedFunction is not null || statement.GraphTable is not null)
+        {
+            throw new NotSupportedException(
+                "Document SQL 物化预算仅支持直接 raw SELECT、标量及 JSON 投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
+        }
+        // 既有读取会先全量物化并删除过期文档；不能将该路径冒充为只读有界扫描。
+        if (schema.Indexes.Any(static index => index.IsTtl))
+            throw new NotSupportedException("Document SQL 物化预算尚不支持读取时全量回收的 TTL 集合。");
+
+        ValidateAliasReferences(statement);
+        foreach (SelectItem projection in statement.Projections)
+            ValidateBudgetedScalar(projection.Expression, allowStar: true);
+        ValidateBudgetedScalar(statement.Where);
+        _ = BuildProjections(statement.Projections);
+        if (statement.Pagination is { } pagination)
+        {
+            _ = pagination.Offset;
+            _ = pagination.Fetch;
+        }
+    }
+
+    private static void ValidateBudgetedScalar(SqlExpression? expression, bool allowStar = false)
+    {
+        switch (expression)
+        {
+            case null or LiteralExpression:
+                return;
+            case StarExpression when allowStar:
+                return;
+            case IdentifierExpression identifier:
+                ValidateIdentifier(identifier);
+                return;
+            case CastExpression cast:
+                ValidateBudgetedScalar(cast.Operand);
+                return;
+            case UnaryExpression unary:
+                ValidateBudgetedScalar(unary.Operand);
+                return;
+            case BinaryExpression binary:
+                ValidateBudgetedScalar(binary.Left);
+                ValidateBudgetedScalar(binary.Right);
+                return;
+            case IsNullExpression isNull:
+                ValidateBudgetedScalar(isNull.Operand);
+                return;
+            case CaseExpression conditional:
+                foreach (CaseWhenClause clause in conditional.WhenClauses)
+                {
+                    ValidateBudgetedScalar(clause.Condition);
+                    ValidateBudgetedScalar(clause.Result);
+                }
+                ValidateBudgetedScalar(conditional.Else);
+                return;
+            case FunctionCallExpression function:
+                if (function.Over is not null || function.IsStar || IsAggregateFunction(function.Name)
+                    || FunctionRegistry.TryGetAggregate(function.Name, out _)
+                    || FunctionRegistry.TryGetWindow(function.Name, out _)
+                    || function.Name.Equals("match", StringComparison.OrdinalIgnoreCase)
+                    || function.Name.Equals("bm25_score", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new NotSupportedException("Document SQL 物化预算尚不支持聚合、窗口、全文或向量查询函数。");
+                }
+                if (function.Name.Equals("json_value", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (function.Arguments.Count != 2 || function.Arguments[1] is not
+                        LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
+                        throw new NotSupportedException("Document SQL 物化预算要求 json_value 使用固定 JSON path。");
+                    _ = JsonPath.Parse(path);
+                }
+                else if (function.Name.Equals("regexp_like", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (function.Arguments.Count is < 2 or > 3)
+                        throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+                }
+                else if (!FunctionRegistry.TryGetScalar(function.Name, out _))
+                {
+                    throw new NotSupportedException($"Document SQL 物化预算不支持函数 '{function.Name}'。");
+                }
+                foreach (SqlExpression argument in function.Arguments)
+                    ValidateBudgetedScalar(argument);
+                return;
+            default:
+                throw new NotSupportedException("Document SQL 物化预算仅支持直接只读标量表达式；子查询和模型查询表达式尚不支持。");
+        }
+    }
+
+    private static SelectExecutionResult ExecuteBudgetedRaw(
+        Tsdb tsdb, SelectStatement statement, DocumentCollectionSchema schema)
+    {
+        long startedAt = Stopwatch.GetTimestamp();
+        Projection[] projections = BuildProjections(statement.Projections);
+        string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
+        var rows = new List<IReadOnlyList<object?>>();
+        int? fetch = statement.Pagination?.Fetch;
+        if (fetch == 0)
+            return new SelectExecutionResult(columns, rows);
+
+        int offset = statement.Pagination?.Offset ?? 0;
+        int skipped = 0;
+        var store = tsdb.Documents.Open(schema.Name);
+        var matchScores = new Dictionary<string, double>(StringComparer.Ordinal);
+        SqlExecutionTelemetry.RecordAccessPath("document_budgeted_scan");
+        foreach (DocumentRow row in EnumerateBudgetedRows(store, statement.Where, startedAt))
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            SqlExecutionTelemetry.RecordCandidateAndExaminedRows(1);
+            if (!EvaluateWhere(statement.Where, row, matchScores))
+                continue;
+            if (skipped < offset)
+            {
+                skipped++;
+                continue;
+            }
+
+            var output = new object?[projections.Length];
+            for (int i = 0; i < projections.Length; i++)
+            {
+                ThrowIfBudgetedCancelled(startedAt);
+                output[i] = EvaluateProjection(projections[i], row, matchScores);
+            }
+            // 在保留完整 SQL 行前计入根预算，超限不返回已累积的成功前缀。
+            ThrowIfBudgetedCancelled(startedAt);
+            SqlRowRetentionBudget.RetainForExecution(output);
+            rows.Add(output);
+            if (fetch is { } limit && rows.Count >= limit)
+                break;
+        }
+        return new SelectExecutionResult(columns, rows);
+    }
+
+    private static IEnumerable<DocumentRow> EnumerateBudgetedRows(
+        DocumentCollectionStore store, SqlExpression? where, long startedAt)
+    {
+        if (TryExtractId(where, out string id))
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId: null, id);
+            if (page.Count != 0)
+                yield return page[0];
+            yield break;
+        }
+
+        string? afterId = null;
+        // 每次读取严格推进 ID；Int32 候选数及五分钟墙钟上限共同限制扫描，根取消更早生效。
+        for (int read = 0; read < int.MaxValue; read++)
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId);
+            if (page.Count == 0)
+                yield break;
+            DocumentRow row = page[0];
+            afterId = row.Id;
+            yield return row;
+        }
+        throw new InvalidOperationException("Document SQL 扫描候选文档数量超过 Int32 上限。");
+    }
+
+    private static void ThrowIfBudgetedCancelled(long startedAt)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        if (Stopwatch.GetElapsedTime(startedAt) >= BudgetedRawTimeout)
+            throw new RoutineExecutionException(RoutineErrorCodes.Cancelled,
+                "Document SQL 物化预算查询已超过五分钟执行上限。",
+                new TimeoutException("Document SQL 物化预算查询已超过五分钟执行上限。"));
     }
 
     public static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, DocumentCollectionSchema schema)

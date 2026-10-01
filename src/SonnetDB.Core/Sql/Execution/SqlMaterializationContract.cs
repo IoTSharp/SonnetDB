@@ -4,7 +4,7 @@ using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>在执行前验证显式物化预算当前支持的关系查询、直接 measurement 查询和关系 DML 范围。</summary>
+/// <summary>在执行前验证显式物化预算当前支持的关系查询、直接 measurement/Document 查询和关系 DML 范围。</summary>
 internal static class SqlMaterializationContract
 {
     internal static void Validate(Tsdb tsdb, SqlStatement statement)
@@ -12,10 +12,10 @@ internal static class SqlMaterializationContract
         switch (statement)
         {
             case SelectStatement select:
-                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true);
+                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true);
                 return;
             case ExplainStatement { Statement: SelectStatement explainSelect }:
-                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true);
+                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true);
                 return;
             case InsertStatement insert:
                 ValidateInsert(insert);
@@ -28,7 +28,7 @@ internal static class SqlMaterializationContract
                 return;
             default:
                 throw new NotSupportedException(
-                    "SQL 物化预算仅支持关系 SELECT、EXPLAIN SELECT 和关系表 DML；例程、DDL 与事务控制须使用未启用该预算的调用。");
+                    "SQL 物化预算仅支持关系 SELECT、直接 measurement/Document raw SELECT、EXPLAIN SELECT 和关系表 DML；例程、DDL 与事务控制须使用未启用该预算的调用。");
         }
 
         void ValidateInsert(InsertStatement insert)
@@ -144,8 +144,11 @@ internal static class SqlMaterializationContract
             }
         }
 
-        void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes, bool allowMeasurement = false)
+        void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes,
+            bool allowMeasurement = false, bool allowDocument = false)
         {
+            bool directlyReferencesDocument = query.FromSubquery is null
+                && tsdb.Documents.Catalog.TryGet(query.Measurement) is not null;
             if (!query.IsRecursive)
                 query = CommonTableExpressionExpander.Expand(query);
             if (tsdb.Views.Catalog.Count != 0)
@@ -171,6 +174,12 @@ internal static class SqlMaterializationContract
                 {
                     if (!allowMeasurement)
                         throw new NotSupportedException("SQL 物化预算尚不支持包含 measurement 的嵌套查询或集合运算。");
+                }
+                else if (tsdb.Tables.Catalog.TryGet(query.Measurement) is null
+                    && tsdb.Documents.Catalog.TryGet(query.Measurement) is not null)
+                {
+                    if (!allowDocument || !directlyReferencesDocument)
+                        throw new NotSupportedException("SQL 物化预算尚不支持包含 Document 的视图、嵌套查询或集合运算。");
                 }
                 else
                     ValidateTable(query.Measurement, ctes);
@@ -201,6 +210,9 @@ internal static class SqlMaterializationContract
             if (query.FromSubquery is null && tsdb.Tables.Catalog.TryGet(query.Measurement) is null
                 && tsdb.Measurements.TryGet(query.Measurement) is { } measurementSchema)
                 SelectExecutor.ValidateMaterializationSupported(measurementSchema, query);
+            else if (query.FromSubquery is null && tsdb.Tables.Catalog.TryGet(query.Measurement) is null
+                && tsdb.Documents.Catalog.TryGet(query.Measurement) is { } documentSchema)
+                DocumentSqlExecutor.ValidateMaterializationSupported(documentSchema, query);
         }
 
         void ValidateTable(string name, HashSet<string> ctes)

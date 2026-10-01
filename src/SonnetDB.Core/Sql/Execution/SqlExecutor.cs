@@ -2317,6 +2317,9 @@ public static class SqlExecutor
             if (tsdb.Tables.Catalog.TryGet(statement.Measurement) is null
                 && tsdb.Measurements.TryGet(statement.Measurement) is { } measurementSchema)
                 SelectExecutor.ValidateMaterializationSupported(measurementSchema, statement);
+            else if (tsdb.Tables.Catalog.TryGet(statement.Measurement) is null
+                && tsdb.Documents.Catalog.TryGet(statement.Measurement) is { } documentSchema)
+                DocumentSqlExecutor.ValidateMaterializationSupported(documentSchema, statement);
             else
                 EnsureMaterializationTableSupported(tsdb, statement.Measurement);
         }
