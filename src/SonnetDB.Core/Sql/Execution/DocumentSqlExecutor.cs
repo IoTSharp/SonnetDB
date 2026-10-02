@@ -275,10 +275,6 @@ internal static class DocumentSqlExecutor
             throw new NotSupportedException(
                 "Document SQL 物化预算仅支持直接 raw SELECT、标量及 JSON 投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
         }
-        // 既有读取会先全量物化并删除过期文档；不能将该路径冒充为只读有界扫描。
-        if (schema.Indexes.Any(static index => index.IsTtl))
-            throw new NotSupportedException("Document SQL 物化预算尚不支持读取时全量回收的 TTL 集合。");
-
         ValidateAliasReferences(statement);
         foreach (SelectItem projection in statement.Projections)
             ValidateBudgetedScalar(projection.Expression, allowStar: true);
@@ -360,6 +356,8 @@ internal static class DocumentSqlExecutor
         Tsdb tsdb, SelectStatement statement, DocumentCollectionSchema schema)
     {
         long startedAt = Stopwatch.GetTimestamp();
+        long visibleAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        ThrowIfBudgetedCancelled(startedAt);
         Projection[] projections = BuildProjections(statement.Projections);
         string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
         var rows = new List<IReadOnlyList<object?>>();
@@ -372,10 +370,10 @@ internal static class DocumentSqlExecutor
         var store = tsdb.Documents.Open(schema.Name);
         var matchScores = new Dictionary<string, double>(StringComparer.Ordinal);
         SqlExecutionTelemetry.RecordAccessPath("document_budgeted_scan");
-        foreach (DocumentRow row in EnumerateBudgetedRows(store, statement.Where, startedAt))
+        foreach (DocumentRow row in EnumerateBudgetedRows(store, statement.Where, startedAt, visibleAtUnixMs))
         {
             ThrowIfBudgetedCancelled(startedAt);
-            SqlExecutionTelemetry.RecordCandidateAndExaminedRows(1);
+            SqlExecutionTelemetry.RecordExaminedRows(1);
             if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
             if (skipped < offset)
@@ -401,14 +399,19 @@ internal static class DocumentSqlExecutor
     }
 
     private static IEnumerable<DocumentRow> EnumerateBudgetedRows(
-        DocumentCollectionStore store, SqlExpression? where, long startedAt)
+        DocumentCollectionStore store, SqlExpression? where, long startedAt, long visibleAtUnixMs)
     {
         if (TryExtractId(where, out string id))
         {
             ThrowIfBudgetedCancelled(startedAt);
-            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId: null, id);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(
+                afterId: null, visibleAtUnixMs, out bool expired, id);
             if (page.Count != 0)
-                yield return page[0];
+            {
+                SqlExecutionTelemetry.RecordCandidateRows(1);
+                if (!expired)
+                    yield return page[0];
+            }
             yield break;
         }
 
@@ -417,12 +420,16 @@ internal static class DocumentSqlExecutor
         for (int read = 0; read < int.MaxValue; read++)
         {
             ThrowIfBudgetedCancelled(startedAt);
-            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(
+                afterId, visibleAtUnixMs, out bool expired);
             if (page.Count == 0)
                 yield break;
             DocumentRow row = page[0];
             afterId = row.Id;
-            yield return row;
+            SqlExecutionTelemetry.RecordCandidateRows(1);
+            // 过期行仍推进游标并计入读取统计，但不求值 WHERE、OFFSET 或投影。
+            if (!expired)
+                yield return row;
         }
         throw new InvalidOperationException("Document SQL 扫描候选文档数量超过 Int32 上限。");
     }
@@ -643,6 +650,24 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(statement);
+
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            ValidateMaterializationSupported(schema, statement);
+            // 默认 planner 的 Count/Get 会全量回收 TTL；预算解释不为估算启动扫描。
+            return new DocumentQueryPlan(
+                "document_budgeted_scan",
+                IndexName: null,
+                EstimatedCandidateRows: 0,
+                EstimatedOutputRows: 0,
+                FilterPushdown: false,
+                FilterPushdownFields: Array.Empty<string>(),
+                ResidualFilterFields: statement.Where is null ? Array.Empty<string>() : ["where"],
+                SortUsesIndex: false,
+                ProjectionCoveredByIndex: false,
+                Candidates: Array.Empty<DocumentQueryPlanCandidate>(),
+                GapReason: "materialization_budget_cardinality_unknown");
+        }
 
         var store = tsdb.Documents.Open(schema.Name);
         if (TryExtractMatch(schema, statement.Where, statement.Pagination) is { } match)

@@ -30,7 +30,8 @@ public sealed partial class DocumentCollectionStore : IDisposable
         DocumentCollectionSchema schema,
         KvKeyspace keyspace,
         Func<DocumentFullTextIndex, DocumentFullTextIndexStore> fullTextIndexFactory,
-        Func<DocumentVectorIndex, DocumentVectorIndexStore>? vectorIndexFactory = null)
+        Func<DocumentVectorIndex, DocumentVectorIndexStore>? vectorIndexFactory = null,
+        bool purgeExpiredDocuments = true)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(keyspace);
@@ -44,7 +45,8 @@ public sealed partial class DocumentCollectionStore : IDisposable
         ReconcileFullTextStoresLocked(schema, rebuildAll: false);
         ReconcileVectorStoresLocked(schema, rebuildAll: false);
         RepairDerivedIndexesIfNeededLocked();
-        PurgeExpiredDocumentsLocked();
+        if (purgeExpiredDocuments)
+            PurgeExpiredDocumentsLocked();
     }
 
     /// <summary>文档集合 schema。</summary>
@@ -533,21 +535,27 @@ public sealed partial class DocumentCollectionStore : IDisposable
         }
     }
 
-    /// <summary>显式 SQL 物化预算一次只读取一个文档，锁内拒绝 TTL 回收且不执行过期删除。</summary>
-    internal IReadOnlyList<DocumentRow> ReadForSqlMaterialization(string? afterId, string? id = null)
+    /// <summary>显式 SQL 物化预算一次读取一个文档，锁内按查询时刻判断 TTL，不执行过期删除。</summary>
+    internal IReadOnlyList<DocumentRow> ReadForSqlMaterialization(
+        string? afterId, long visibleAtUnixMs, out bool expired, string? id = null)
     {
         lock (_sync)
         {
-            // 查询预检之后仍可能并发添加 TTL 索引；不能因此转入全量扫描及持久删除。
-            if (_schema.Indexes.Any(static index => index.IsTtl))
-                throw new NotSupportedException("Document SQL 物化预算尚不支持读取时全量回收的 TTL 集合。");
+            IReadOnlyList<DocumentRow> rows;
             if (id is not null)
             {
                 ArgumentException.ThrowIfNullOrWhiteSpace(id);
                 DocumentRow? row = TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
-                return row is null ? Array.Empty<DocumentRow>() : [row];
+                rows = row is null ? Array.Empty<DocumentRow>() : [row];
             }
-            return afterId is null ? ScanRowsLocked(1) : ScanRowsAfterLocked(afterId, 1);
+            else
+            {
+                rows = afterId is null ? ScanRowsLocked(1) : ScanRowsAfterLocked(afterId, 1);
+            }
+            // 使用锁内的最新 schema，预检之后新建的 TTL 索引也不能绕过可见性检查。
+            expired = rows.Count != 0 && _schema.Indexes.Any(static index => index.IsTtl)
+                && IsExpired(rows[0], _schema.Indexes, visibleAtUnixMs);
+            return rows;
         }
     }
 
@@ -2367,6 +2375,8 @@ public sealed partial class DocumentCollectionStore : IDisposable
         using var document = JsonDocument.Parse(row.Json);
         foreach (var index in ttlIndexes)
         {
+            if (!index.IsTtl)
+                continue;
             string ttlPath = index.TtlPath ?? index.Path;
             if (!JsonPathEvaluator.TryResolve(document.RootElement, JsonPath.Parse(ttlPath), out var element))
                 continue;
@@ -2374,7 +2384,7 @@ public sealed partial class DocumentCollectionStore : IDisposable
                 continue;
 
             long ttlMs = checked(index.TtlSeconds!.Value * 1000L);
-            if (timestampMs + ttlMs <= nowMs)
+            if ((Int128)timestampMs + ttlMs <= nowMs)
                 return true;
         }
 

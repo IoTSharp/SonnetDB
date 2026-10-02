@@ -218,26 +218,26 @@ public sealed class DocumentSelectMaterializationBudgetTests : IDisposable
         AssertReleased(db);
     }
 
-    /// <summary>需要全量删除过期文档的 TTL 集合在读取及写入前拒绝。</summary>
+    /// <summary>TTL 集合通过逐文档可见性检查读取，没有时间字段的文档仍可见。</summary>
     [Fact]
-    public void Execute_TtlCollection_RejectsBeforeExpiryPurge()
+    public void Execute_TtlCollection_ReadsWithoutExpiryPurge()
     {
         using Tsdb db = OpenDocuments(1);
         SqlExecutor.Execute(db, "CREATE TTL INDEX idx_expiry ON docs ('$.expiresAt') WITH ttl_seconds = 1");
         var metrics = new SqlExecutionMetrics();
 
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Select(db,
-            "SELECT id FROM docs LIMIT 1", new SqlExecutionOptions { MaxMaterializedRows = 1, Metrics = metrics }));
+        SelectExecutionResult result = Select(db,
+            "SELECT id FROM docs LIMIT 1", new SqlExecutionOptions { MaxMaterializedRows = 1, Metrics = metrics });
 
-        Assert.Contains("TTL", error.Message, StringComparison.Ordinal);
-        Assert.Equal(0, metrics.Complete().CandidateRows);
+        Assert.Single(result.Rows);
+        Assert.Equal(1, metrics.Complete().CandidateRows);
         AssertReleased(db);
         Assert.Single(Select(db, "SELECT id FROM docs").Rows);
     }
 
-    /// <summary>预检之后新增 TTL 索引时，锁内复检仍拒绝读取，避免使用旧 schema 进入回收。</summary>
+    /// <summary>预检之后新增 TTL 索引时，锁内使用最新 schema，读取不会转入全量回收。</summary>
     [Fact]
-    public void Execute_StaleSchemaAfterTtlAddition_RejectsBeforeRead()
+    public void Execute_StaleSchemaAfterTtlAddition_ReadsWithoutExpiryPurge()
     {
         using Tsdb db = OpenDocuments(1);
         DocumentCollectionSchema schema = db.Documents.Catalog.TryGet("docs")!;
@@ -247,9 +247,7 @@ public sealed class DocumentSelectMaterializationBudgetTests : IDisposable
 
         using (SqlRowRetentionBudget.EnterExecution(new SqlExecutionOptions { MaxMaterializedRows = 1 }))
         {
-            NotSupportedException error = Assert.Throws<NotSupportedException>(() =>
-                DocumentSqlExecutor.ExecuteSelect(db, statement, schema));
-            Assert.Contains("TTL", error.Message, StringComparison.Ordinal);
+            Assert.Single(DocumentSqlExecutor.ExecuteSelect(db, statement, schema).Rows);
         }
         AssertReleased(db);
         Assert.Single(Select(db, "SELECT id FROM docs").Rows);
