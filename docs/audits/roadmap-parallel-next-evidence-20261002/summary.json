@@ -1,0 +1,1644 @@
+{
+  "schemaVersion": 1,
+  "startedDate": "2026-10-02",
+  "completedDate": "2026-10-03",
+  "timezone": "Asia/Shanghai",
+  "baseCommit": "6072f770",
+  "branch": "codex/roadmap-parallel-next-20261002",
+  "scope": "local_contract_only",
+  "powershell": "7.6.6",
+  "dotnet": "10.0.401",
+  "tests": {
+    "targeted": 136,
+    "core": 5926,
+    "failed": 0,
+    "skipped": 0
+  },
+  "releaseBuild": "PASS_0_WARNINGS",
+  "nativeAot": {
+    "rid": "win-x64",
+    "sample": "SonnetDB.CdcStreamingJourney",
+    "result": "PASS_LOCAL_ONLY",
+    "sha256": "5D14234453285087AB62D731445DDED3CD4EEEDEDA60E41B12F19C3F3C0F52A8",
+    "sourceOffset": 4,
+    "targetSequence": 3,
+    "windowCount": 4,
+    "redeliveryAttempt": 2,
+    "pendingEvents": 0
+  },
+  "format": {
+    "result": "PASS",
+    "examinedFiles": 2149,
+    "workspaceNotice": "docker-compose.dcproj has no language association"
+  },
+  "processOwnership": {
+    "observedCandidateIdentities": 286,
+    "excludedIndependentProjectIdentities": 21,
+    "retainedCandidateIdentities": 265,
+    "ownershipVerified": false,
+    "remainingObservedCandidates": 0,
+    "limitation": "The temporary runner inferred descendants using historical parent PIDs without checking the current parent identity. A known independent-project subtree was excluded. Logs do not record individual stop actions, so effects of earlier cleanup on independent processes cannot be established. The final read-only identity check found no remaining original candidates."
+  },
+  "remote": "NOT_EXECUTED",
+  "production": "NOT_EXECUTED",
+  "externalPublishing": false,
+  "processes": [
+    {
+      "ProcessId": 1996,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:35.563286+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp55cba2698bd844488a03d6819aa20963.rsp\""
+    },
+    {
+      "ProcessId": 2584,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:19:33.914925+08:00",
+      "CommandLine": "\"C:\\Windows\\system32\\cmd.exe\"  /Q /D /C C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempig5svshn.y4q\\tmpc266b86346954cd1b866491da138149d.exec.cmd"
+    },
+    {
+      "ProcessId": 3516,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.528497+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 3688,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.535231+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 4140,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:19:36.498747+08:00",
+      "CommandLine": "\"C:\\Windows\\system32\\cmd.exe\"  /Q /D /C C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempig5svshn.y4q\\tmpd4f5c872921b4348ac7e67a426341cf7.exec.cmd"
+    },
+    {
+      "ProcessId": 5612,
+      "ParentProcessId": 65312,
+      "CreationDate": "2026-10-03T00:15:15.511711+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 5832,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:18:43.908824+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempig5svshn.y4q\\tmp8a9cce4a72e744a2ad4490dda7f287ec.rsp\""
+    },
+    {
+      "ProcessId": 6612,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:40.68712+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpfab53b26964b4982a786a4a69ce9c231.rsp\""
+    },
+    {
+      "ProcessId": 8236,
+      "ParentProcessId": 3688,
+      "CreationDate": "2026-10-03T00:22:28.539346+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 8236,
+      "ParentProcessId": 62212,
+      "CreationDate": "2026-10-03T00:23:31.928198+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 07f452e6-4393-4660-a0af-a478583306af zh-CN"
+    },
+    {
+      "ProcessId": 8252,
+      "ParentProcessId": 71872,
+      "CreationDate": "2026-10-03T00:22:28.994281+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 10500,
+      "ParentProcessId": 67480,
+      "CreationDate": "2026-10-03T00:27:59.550987+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic"
+    },
+    {
+      "ProcessId": 10796,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.752657+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 11168,
+      "ParentProcessId": 16360,
+      "CreationDate": "2026-10-03T00:16:06.571305+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 11368,
+      "ParentProcessId": 59036,
+      "CreationDate": "2026-10-03T00:16:51.121937+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 11368,
+      "ParentProcessId": 2584,
+      "CreationDate": "2026-10-03T00:19:33.926307+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 11368,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.737641+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 11780,
+      "ParentProcessId": 48404,
+      "CreationDate": "2026-10-03T00:27:00.858214+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 13632,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.715948+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 14660,
+      "ParentProcessId": 19128,
+      "CreationDate": "2026-10-03T00:27:01.999089+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 15016,
+      "ParentProcessId": 66776,
+      "CreationDate": "2026-10-03T00:09:32.476536+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 16104,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:33.472847+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp1fa0bab350b14e2a8c8e72f89609be3c.rsp\""
+    },
+    {
+      "ProcessId": 16360,
+      "ParentProcessId": 1996,
+      "CreationDate": "2026-10-03T00:15:35.572459+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 16424,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.858189+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 19128,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.994784+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 20072,
+      "ParentProcessId": 65408,
+      "CreationDate": "2026-10-02T23:45:44.734415+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 21988,
+      "ParentProcessId": 61596,
+      "CreationDate": "2026-10-02T23:45:44.804994+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 21988,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.282963+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 22500,
+      "ParentProcessId": 35500,
+      "CreationDate": "2026-10-03T00:15:21.732957+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 22808,
+      "ParentProcessId": 69800,
+      "CreationDate": "2026-10-03T00:27:01.590208+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 25044,
+      "ParentProcessId": 43384,
+      "CreationDate": "2026-10-03T00:23:31.010486+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 25168,
+      "ParentProcessId": 31040,
+      "CreationDate": "2026-10-03T00:08:26.475799+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp14jvamos.dva\\tmpa54d8673d7b94450925b740c535b06c3.rsp\""
+    },
+    {
+      "ProcessId": 27200,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:26.713398+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp807fa7e586c74b12881de560ab29b621.rsp\""
+    },
+    {
+      "ProcessId": 27252,
+      "ParentProcessId": 74416,
+      "CreationDate": "2026-10-03T00:09:17.521247+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 29004,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.737665+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 29052,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.99356+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 29220,
+      "ParentProcessId": 4140,
+      "CreationDate": "2026-10-02T23:56:00.961847+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -v:minimal"
+    },
+    {
+      "ProcessId": 29856,
+      "ParentProcessId": 66200,
+      "CreationDate": "2026-10-03T00:22:26.277617+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx"
+    },
+    {
+      "ProcessId": 30564,
+      "ParentProcessId": 67328,
+      "CreationDate": "2026-10-03T00:15:13.841205+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 30576,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.975133+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 31040,
+      "ParentProcessId": 73912,
+      "CreationDate": "2026-10-03T00:08:25.372396+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false --filter FullyQualifiedName~GraphSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSubscriptionDispatcherTests|FullyQualifiedName~CdcStreamingBridgeTests|FullyQualifiedName~CdcStreamingBridgeJourneyTests|FullyQualifiedName~SqlMaterializationBudgetTests --logger trx;LogFileName=targeted-fixed.trx --results-directory D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results -v:minimal"
+    },
+    {
+      "ProcessId": 33736,
+      "ParentProcessId": 62784,
+      "CreationDate": "2026-10-03T00:27:02.315051+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 34528,
+      "ParentProcessId": 59864,
+      "CreationDate": "2026-10-03T00:27:02.918986+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 34552,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716289+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 35500,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:21.723961+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 35500,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.199142+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 35576,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716192+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 35764,
+      "ParentProcessId": 70580,
+      "CreationDate": "2026-10-02T23:45:44.740025+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 36380,
+      "ParentProcessId": 70516,
+      "CreationDate": "2026-10-03T00:17:17.259716+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 36600,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.636818+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 36716,
+      "ParentProcessId": 59396,
+      "CreationDate": "2026-10-03T00:27:02.428952+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 36808,
+      "ParentProcessId": 48860,
+      "CreationDate": "2026-10-03T00:16:55.336304+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37032,
+      "ParentProcessId": 72800,
+      "CreationDate": "2026-10-03T00:05:36.785178+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37568,
+      "ParentProcessId": 44624,
+      "CreationDate": "2026-10-03T00:17:02.019962+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37704,
+      "ParentProcessId": 59684,
+      "CreationDate": "2026-10-03T00:15:23.250359+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 37744,
+      "ParentProcessId": 29052,
+      "CreationDate": "2026-10-03T00:22:26.99769+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 37780,
+      "ParentProcessId": 69408,
+      "CreationDate": "2026-10-03T00:19:36.248759+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 38216,
+      "ParentProcessId": 71040,
+      "CreationDate": "2026-10-03T00:18:42.047804+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" publish samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -o D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\native -v:minimal"
+    },
+    {
+      "ProcessId": 38996,
+      "ParentProcessId": 13632,
+      "CreationDate": "2026-10-02T23:45:44.739954+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 40200,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:03:58.313002+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmpc3901327d41a4cd8b2381c66fc14d2e1.rsp\""
+    },
+    {
+      "ProcessId": 40360,
+      "ParentProcessId": 74084,
+      "CreationDate": "2026-10-03T00:22:28.823118+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 40880,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:31.008779+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpb612bdf0318f4164b17ec11991dbfd44.rsp\""
+    },
+    {
+      "ProcessId": 41992,
+      "ParentProcessId": 50468,
+      "CreationDate": "2026-10-03T00:15:10.755535+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 42040,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:17:06.886065+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp692c905bd93e4ebfbd7c621665d3ccfb.rsp\""
+    },
+    {
+      "ProcessId": 42888,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:35.079054+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp2fef13094a8e49db9f9973ac0e2c5700.rsp\""
+    },
+    {
+      "ProcessId": 43220,
+      "ParentProcessId": 31040,
+      "CreationDate": "2026-10-03T00:09:32.258797+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~GraphSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSubscriptionDispatcherTests|FullyQualifiedName~CdcStreamingBridgeTests|FullyQualifiedName~CdcStreamingBridgeJourneyTests|FullyQualifiedName~SqlMaterializationBudgetTests\" --logger:\"trx;LogFileName=targeted-fixed.trx\" --resultsDirectory:D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:31040_692533d7-79d8-4c47-8ef3-84db579734d2"
+    },
+    {
+      "ProcessId": 43384,
+      "ParentProcessId": 71096,
+      "CreationDate": "2026-10-03T00:23:31.002264+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 43664,
+      "ParentProcessId": 68200,
+      "CreationDate": "2026-10-03T00:16:30.988226+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 44624,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:17:02.012924+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp31e5da533c894f0787a1743c7cbc2e32.rsp\""
+    },
+    {
+      "ProcessId": 44628,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:17.239663+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp1c3a49a59a1943e983ddb5dd2d205704.rsp\""
+    },
+    {
+      "ProcessId": 44848,
+      "ParentProcessId": 68796,
+      "CreationDate": "2026-10-03T00:04:08.584897+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 45152,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:48.219435+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp45c24e35f5a845a78509ed379cf7c762.rsp\""
+    },
+    {
+      "ProcessId": 45208,
+      "ParentProcessId": 51552,
+      "CreationDate": "2026-10-03T00:22:27.284406+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 46392,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:32.809469+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpfc99227d11c246d1a6006da53f9dc859.rsp\""
+    },
+    {
+      "ProcessId": 46408,
+      "ParentProcessId": 73676,
+      "CreationDate": "2026-10-02T23:45:44.803737+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47088,
+      "ParentProcessId": 16424,
+      "CreationDate": "2026-10-03T00:22:27.863702+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47108,
+      "ParentProcessId": 67212,
+      "CreationDate": "2026-10-03T00:15:19.498264+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47376,
+      "ParentProcessId": 50904,
+      "CreationDate": "2026-10-03T00:05:53.73222+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 47444,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.088823+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 47884,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.719522+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 47888,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716588+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 48008,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:03:48.498107+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmp5c441f6aea3947a4907c71d205e20324.rsp\""
+    },
+    {
+      "ProcessId": 48404,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:00.851342+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 48452,
+      "ParentProcessId": 3516,
+      "CreationDate": "2026-10-03T00:22:27.532695+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 48644,
+      "ParentProcessId": 59888,
+      "CreationDate": "2026-10-03T00:27:01.390029+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 48820,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.940404+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 48860,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:55.329401+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpe2e0ca05871849ae8e8e661876ed810d.rsp\""
+    },
+    {
+      "ProcessId": 49028,
+      "ParentProcessId": 53860,
+      "CreationDate": "2026-10-03T00:22:27.42329+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 49080,
+      "ParentProcessId": 4140,
+      "CreationDate": "2026-10-03T00:19:36.537126+08:00",
+      "CommandLine": "\"C:\\Users\\mysti\\.nuget\\packages\\runtime.win-x64.microsoft.dotnet.ilcompiler\\10.0.12\\tools\\\\ilc\"  @\"obj\\Release\\net10.0\\win-x64\\native\\SonnetDB.CdcStreamingJourney.ilc.rsp\""
+    },
+    {
+      "ProcessId": 49088,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:38.985898+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpb4eeb355c12a40c8ba2418334c5bb1ed.rsp\""
+    },
+    {
+      "ProcessId": 49228,
+      "ParentProcessId": 73580,
+      "CreationDate": "2026-10-03T00:05:31.652923+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 49464,
+      "ParentProcessId": 61692,
+      "CreationDate": "2026-10-03T00:22:28.600601+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 49512,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716111+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 49532,
+      "ParentProcessId": 49512,
+      "CreationDate": "2026-10-02T23:45:44.732706+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 50444,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.884099+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 50468,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:10.748957+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp1447ab4fe39343ebb611077785f3e7f4.rsp\""
+    },
+    {
+      "ProcessId": 50756,
+      "ParentProcessId": 72272,
+      "CreationDate": "2026-10-03T00:27:02.788996+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 50816,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:02:53.01374+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmpe39c45a1ea4f46b2a8ebf35e5b933cd9.rsp\""
+    },
+    {
+      "ProcessId": 50896,
+      "ParentProcessId": 53088,
+      "CreationDate": "2026-10-03T00:22:28.306723+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 50904,
+      "ParentProcessId": 72960,
+      "CreationDate": "2026-10-03T00:05:53.721265+08:00",
+      "CommandLine": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 52709 --endpoint 127.0.0.1:052709 --role client --parentprocessid 72960 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 51552,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.279753+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 51936,
+      "ParentProcessId": 48820,
+      "CreationDate": "2026-10-03T00:22:27.946013+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 52356,
+      "ParentProcessId": 59516,
+      "CreationDate": "2026-10-03T00:27:03.159517+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53016,
+      "ParentProcessId": 69792,
+      "CreationDate": "2026-10-03T00:10:09.952787+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --logger:\"trx;LogFileName=core-regression.trx\" --resultsDirectory:D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:69792_840e656d-b2e7-4857-b151-81e5dc26798a"
+    },
+    {
+      "ProcessId": 53088,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.301801+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 53172,
+      "ParentProcessId": 62736,
+      "CreationDate": "2026-10-02T23:45:44.732468+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53224,
+      "ParentProcessId": 42888,
+      "CreationDate": "2026-10-03T00:16:35.085707+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53244,
+      "ParentProcessId": 67480,
+      "CreationDate": "2026-10-03T00:27:59.333911+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53280,
+      "ParentProcessId": 69792,
+      "CreationDate": "2026-10-03T00:10:09.353473+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53600,
+      "ParentProcessId": 47888,
+      "CreationDate": "2026-10-02T23:45:44.735502+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53860,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:27.418113+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 53900,
+      "ParentProcessId": 72464,
+      "CreationDate": "2026-10-03T00:28:00.310639+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 53968,
+      "ParentProcessId": 54036,
+      "CreationDate": "2026-10-03T00:22:28.761312+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 54036,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.755893+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 54052,
+      "ParentProcessId": 67476,
+      "CreationDate": "2026-10-03T00:22:28.100639+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 54952,
+      "ParentProcessId": 6612,
+      "CreationDate": "2026-10-03T00:16:40.692759+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 55252,
+      "ParentProcessId": 61572,
+      "CreationDate": "2026-10-02T23:45:43.674877+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx"
+    },
+    {
+      "ProcessId": 55596,
+      "ParentProcessId": 66888,
+      "CreationDate": "2026-10-03T00:16:36.667803+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 56000,
+      "ParentProcessId": 65172,
+      "CreationDate": "2026-10-03T00:27:01.317344+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 56816,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.753399+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 57172,
+      "ParentProcessId": 27200,
+      "CreationDate": "2026-10-03T00:15:26.719332+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 57388,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:00.851332+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 57404,
+      "ParentProcessId": 69436,
+      "CreationDate": "2026-10-03T00:27:02.092887+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 57528,
+      "ParentProcessId": 70156,
+      "CreationDate": "2026-10-03T00:04:05.176757+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 58336,
+      "ParentProcessId": 50444,
+      "CreationDate": "2026-10-03T00:27:01.888229+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 58532,
+      "ParentProcessId": 31040,
+      "CreationDate": "2026-10-03T00:08:25.378027+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 58800,
+      "ParentProcessId": 64308,
+      "CreationDate": "2026-10-03T00:10:10.167149+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 58896,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:28.935735+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp05de43c57cc24bd0abf92199cbd017b4.rsp\""
+    },
+    {
+      "ProcessId": 58940,
+      "ParentProcessId": 30356,
+      "CreationDate": "2026-10-03T00:15:09.419186+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -v:minimal"
+    },
+    {
+      "ProcessId": 59036,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:51.114584+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp4f4e031c97dc4168b32b1f6cec3766e1.rsp\""
+    },
+    {
+      "ProcessId": 59068,
+      "ParentProcessId": 29004,
+      "CreationDate": "2026-10-03T00:22:26.745552+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 59164,
+      "ParentProcessId": 64192,
+      "CreationDate": "2026-10-03T00:17:18.929621+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 59328,
+      "ParentProcessId": 48008,
+      "CreationDate": "2026-10-03T00:03:48.504876+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 59396,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.424558+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 59516,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:03.148304+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 59684,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:23.244009+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 59864,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.914167+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 59888,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.386058+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 60020,
+      "ParentProcessId": 56816,
+      "CreationDate": "2026-10-02T23:45:44.772414+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 60768,
+      "ParentProcessId": 16104,
+      "CreationDate": "2026-10-03T00:16:33.479191+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 61596,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.774576+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 61596,
+      "ParentProcessId": 5832,
+      "CreationDate": "2026-10-03T00:18:43.914924+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 61692,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.596509+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62148,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.966484+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62212,
+      "ParentProcessId": 43384,
+      "CreationDate": "2026-10-03T00:23:31.159762+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 62340,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:04:06.823736+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmp19b99d6f72a545439bf1cf33ca8859ba.rsp\""
+    },
+    {
+      "ProcessId": 62596,
+      "ParentProcessId": 8236,
+      "CreationDate": "2026-10-03T00:23:31.934073+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 62704,
+      "ParentProcessId": 25168,
+      "CreationDate": "2026-10-03T00:08:26.482106+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 62736,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716359+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62784,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.309809+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62840,
+      "ParentProcessId": 70596,
+      "CreationDate": "2026-10-03T00:27:01.079375+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 62964,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:37.806846+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp0bdc89970e71497b970dd65653a95961.rsp\""
+    },
+    {
+      "ProcessId": 63168,
+      "ParentProcessId": 64148,
+      "CreationDate": "2026-10-02T23:45:44.734473+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 63432,
+      "ParentProcessId": 62912,
+      "CreationDate": "2026-10-03T00:02:51.887013+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -v:minimal"
+    },
+    {
+      "ProcessId": 63608,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.717214+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 63744,
+      "ParentProcessId": 47444,
+      "CreationDate": "2026-10-03T00:27:02.093397+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 63788,
+      "ParentProcessId": 62340,
+      "CreationDate": "2026-10-03T00:04:06.829772+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 63920,
+      "ParentProcessId": 45152,
+      "CreationDate": "2026-10-03T00:16:48.22494+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64016,
+      "ParentProcessId": 70292,
+      "CreationDate": "2026-10-03T00:05:30.468204+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64148,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716472+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 64192,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:31.949116+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp8b16a8a0db6b4aa4994ad4a223200b95.rsp\""
+    },
+    {
+      "ProcessId": 64308,
+      "ParentProcessId": 53016,
+      "CreationDate": "2026-10-03T00:10:10.161115+08:00",
+      "CommandLine": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 61448 --endpoint 127.0.0.1:061448 --role client --parentprocessid 53016 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 64488,
+      "ParentProcessId": 58896,
+      "CreationDate": "2026-10-03T00:15:38.561071+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64608,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.532006+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 64684,
+      "ParentProcessId": 69884,
+      "CreationDate": "2026-10-02T23:45:44.733326+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64704,
+      "ParentProcessId": 71188,
+      "CreationDate": "2026-10-02T23:45:44.737222+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 65172,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.312631+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 65312,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:15.506051+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpe73755d92c1f455898242c3a139fdeef.rsp\""
+    },
+    {
+      "ProcessId": 65408,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.721849+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 65708,
+      "ParentProcessId": 36600,
+      "CreationDate": "2026-10-03T00:22:27.64197+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 65964,
+      "ParentProcessId": 11368,
+      "CreationDate": "2026-10-03T00:22:26.744748+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66196,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:42.431737+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpe30585f8f5e04abb8923e33197c342d7.rsp\""
+    },
+    {
+      "ProcessId": 66200,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:00.851324+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 66208,
+      "ParentProcessId": 34552,
+      "CreationDate": "2026-10-02T23:45:44.735368+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66488,
+      "ParentProcessId": 30576,
+      "CreationDate": "2026-10-03T00:27:02.980781+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66536,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.767497+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 66548,
+      "ParentProcessId": 35576,
+      "CreationDate": "2026-10-02T23:45:44.730919+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66580,
+      "ParentProcessId": 70232,
+      "CreationDate": "2026-10-03T00:22:29.059199+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66664,
+      "ParentProcessId": 73216,
+      "CreationDate": "2026-10-03T00:22:28.335998+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66776,
+      "ParentProcessId": 43220,
+      "CreationDate": "2026-10-03T00:09:32.469712+08:00",
+      "CommandLine": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 64482 --endpoint 127.0.0.1:064482 --role client --parentprocessid 43220 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 66776,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:58.296962+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmpd014126314914beb946a31f870563215.rsp\""
+    },
+    {
+      "ProcessId": 66888,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:36.662604+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp499906d56f7c4bc3adda4568e55dc56d.rsp\""
+    },
+    {
+      "ProcessId": 66932,
+      "ParentProcessId": 4140,
+      "CreationDate": "2026-10-03T00:19:36.507742+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 67212,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:19.491835+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp5c31a041b0a1449198f43fcf683727b8.rsp\""
+    },
+    {
+      "ProcessId": 67328,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:13.835254+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp41fc555fd2314411848684934e4bca46.rsp\""
+    },
+    {
+      "ProcessId": 67476,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.095463+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 67480,
+      "ParentProcessId": 52828,
+      "CreationDate": "2026-10-03T00:27:59.328261+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic"
+    },
+    {
+      "ProcessId": 67492,
+      "ParentProcessId": 68532,
+      "CreationDate": "2026-10-03T00:27:01.111827+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 67512,
+      "ParentProcessId": 29220,
+      "CreationDate": "2026-10-02T23:56:00.969541+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 67896,
+      "ParentProcessId": 66196,
+      "CreationDate": "2026-10-03T00:15:42.438679+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68076,
+      "ParentProcessId": 64192,
+      "CreationDate": "2026-10-03T00:16:31.954904+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68200,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:16:30.982544+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp869007bd8f5343b59238528029cd8527.rsp\""
+    },
+    {
+      "ProcessId": 68532,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.106886+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 68660,
+      "ParentProcessId": 58896,
+      "CreationDate": "2026-10-03T00:17:11.1759+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 68752,
+      "ParentProcessId": 69872,
+      "CreationDate": "2026-10-02T23:45:44.736898+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68796,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:04:08.578821+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmpc65e1d56003840d79b98a2047cbc94be.rsp\""
+    },
+    {
+      "ProcessId": 69388,
+      "ParentProcessId": 40200,
+      "CreationDate": "2026-10-03T00:03:58.322596+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 69408,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:19:36.239138+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.exe\" /nologo /nodemode:2 /nodereuse:False /low:False /parentpacketversion:4 "
+    },
+    {
+      "ProcessId": 69436,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.088878+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 69468,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:17:04.238005+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp82d82a12592b4295a57353c67430b3ef.rsp\""
+    },
+    {
+      "ProcessId": 69508,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:03.117086+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 69528,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:19:30.854648+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempig5svshn.y4q\\tmp12e34a72d7444cf8aa47780a90a544f0.rsp\""
+    },
+    {
+      "ProcessId": 69684,
+      "ParentProcessId": 38216,
+      "CreationDate": "2026-10-03T00:18:42.053864+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 69792,
+      "ParentProcessId": 16268,
+      "CreationDate": "2026-10-03T00:10:09.347255+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --logger trx;LogFileName=core-regression.trx --results-directory D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results -v:minimal"
+    },
+    {
+      "ProcessId": 69800,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.585529+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 69872,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.717096+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 69884,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.716037+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 70156,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:04:05.169634+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmpf4b9b918ac8f47b5bd8fab176f702a2c.rsp\""
+    },
+    {
+      "ProcessId": 70232,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:29.054432+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 70292,
+      "ParentProcessId": 14660,
+      "CreationDate": "2026-10-03T00:05:30.461857+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false --filter FullyQualifiedName~GraphSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSubscriptionDispatcherTests|FullyQualifiedName~CdcStreamingBridgeTests|FullyQualifiedName~CdcStreamingBridgeJourneyTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results -v:minimal"
+    },
+    {
+      "ProcessId": 70364,
+      "ParentProcessId": 70956,
+      "CreationDate": "2026-10-02T23:45:44.744942+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70376,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:43.686911+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70384,
+      "ParentProcessId": 69468,
+      "CreationDate": "2026-10-03T00:17:04.245005+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70516,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:17:17.252575+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp2d0284b501d046b9b8ac4b7f1408bb3a.rsp\""
+    },
+    {
+      "ProcessId": 70580,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.723735+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 70596,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.075175+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 70636,
+      "ParentProcessId": 29220,
+      "CreationDate": "2026-10-02T23:56:02.179647+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp5di223y2.uku\\tmp50d4ac6c234742ac972370677bced7f6.rsp\""
+    },
+    {
+      "ProcessId": 70840,
+      "ParentProcessId": 63608,
+      "CreationDate": "2026-10-02T23:45:44.732806+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70956,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.724359+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 70992,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:03:44.975643+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempvrjpspv2.bp1\\tmp4ebeec3f9131463f8266193ecf47bf10.rsp\""
+    },
+    {
+      "ProcessId": 71128,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:17:00.16849+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTempymza2kkq.2s5\\tmp18c28b4a1a9343e18f478876eaabe27e.rsp\""
+    },
+    {
+      "ProcessId": 71188,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.717125+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 71188,
+      "ParentProcessId": 40880,
+      "CreationDate": "2026-10-03T00:15:31.015868+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71216,
+      "ParentProcessId": 35500,
+      "CreationDate": "2026-10-03T00:22:27.203245+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71336,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.718973+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 71716,
+      "ParentProcessId": 71336,
+      "CreationDate": "2026-10-02T23:45:44.756253+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71872,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.990313+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 71892,
+      "ParentProcessId": 62148,
+      "CreationDate": "2026-10-03T00:22:26.970919+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71908,
+      "ParentProcessId": 46392,
+      "CreationDate": "2026-10-03T00:15:32.815997+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71936,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:26.737624+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 71976,
+      "ParentProcessId": 69528,
+      "CreationDate": "2026-10-03T00:19:30.861215+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 72272,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:02.78532+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 72392,
+      "ParentProcessId": 66200,
+      "CreationDate": "2026-10-03T00:27:00.858219+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 72464,
+      "ParentProcessId": 10500,
+      "CreationDate": "2026-10-03T00:28:00.304817+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" da2ec61f-4326-4b0a-b913-98f3ea46ff98 zh-CN"
+    },
+    {
+      "ProcessId": 72520,
+      "ParentProcessId": 57388,
+      "CreationDate": "2026-10-03T00:27:00.858244+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 72696,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:01.585357+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 72800,
+      "ParentProcessId": 70292,
+      "CreationDate": "2026-10-03T00:05:36.778549+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemplhj2clg1.thl\\tmpc74a1bff4b874ab184801c394b1e1159.rsp\""
+    },
+    {
+      "ProcessId": 72888,
+      "ParentProcessId": 42040,
+      "CreationDate": "2026-10-03T00:17:06.894389+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 72916,
+      "ParentProcessId": 71936,
+      "CreationDate": "2026-10-03T00:22:26.744838+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 72960,
+      "ParentProcessId": 70292,
+      "CreationDate": "2026-10-03T00:05:53.427235+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~GraphSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSubscriptionDispatcherTests|FullyQualifiedName~CdcStreamingBridgeTests|FullyQualifiedName~CdcStreamingBridgeJourneyTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002\\test-results D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:70292_46b3eca9-258c-47b7-a5db-1407e971eb9b"
+    },
+    {
+      "ProcessId": 72968,
+      "ParentProcessId": 63432,
+      "CreationDate": "2026-10-03T00:02:51.893137+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73108,
+      "ParentProcessId": 64608,
+      "CreationDate": "2026-10-03T00:27:02.537276+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73176,
+      "ParentProcessId": 73892,
+      "CreationDate": "2026-10-03T00:27:00.394613+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx"
+    },
+    {
+      "ProcessId": 73216,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.331729+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 73300,
+      "ParentProcessId": 46392,
+      "CreationDate": "2026-10-03T00:17:17.450261+08:00",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 73392,
+      "ParentProcessId": 72696,
+      "CreationDate": "2026-10-03T00:27:01.590263+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73400,
+      "ParentProcessId": 66536,
+      "CreationDate": "2026-10-02T23:45:44.783628+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73404,
+      "ParentProcessId": 50816,
+      "CreationDate": "2026-10-03T00:02:53.02051+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73416,
+      "ParentProcessId": 58940,
+      "CreationDate": "2026-10-03T00:15:09.425157+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73428,
+      "ParentProcessId": 10796,
+      "CreationDate": "2026-10-02T23:45:44.7923+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73460,
+      "ParentProcessId": 66776,
+      "CreationDate": "2026-10-03T00:16:58.30555+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73508,
+      "ParentProcessId": 73176,
+      "CreationDate": "2026-10-03T00:27:00.3998+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73544,
+      "ParentProcessId": 47884,
+      "CreationDate": "2026-10-02T23:45:44.770386+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73580,
+      "ParentProcessId": 70292,
+      "CreationDate": "2026-10-03T00:05:31.646975+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemplhj2clg1.thl\\tmpd3a7588063d145928452efb32069fb4c.rsp\""
+    },
+    {
+      "ProcessId": 73600,
+      "ParentProcessId": 69508,
+      "CreationDate": "2026-10-03T00:27:03.12281+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73676,
+      "ParentProcessId": 55252,
+      "CreationDate": "2026-10-02T23:45:44.786008+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 73872,
+      "ParentProcessId": 40880,
+      "CreationDate": "2026-10-03T00:15:39.318053+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74072,
+      "ParentProcessId": 70636,
+      "CreationDate": "2026-10-02T23:56:02.187066+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74084,
+      "ParentProcessId": 29856,
+      "CreationDate": "2026-10-03T00:22:28.818491+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 74416,
+      "ParentProcessId": 31040,
+      "CreationDate": "2026-10-03T00:09:17.515818+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp14jvamos.dva\\tmp6d68f41aff554f40835d4aee6c270e9c.rsp\""
+    },
+    {
+      "ProcessId": 74544,
+      "ParentProcessId": 44628,
+      "CreationDate": "2026-10-03T00:15:17.244769+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74588,
+      "ParentProcessId": 70992,
+      "CreationDate": "2026-10-03T00:03:44.982151+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74636,
+      "ParentProcessId": 49088,
+      "CreationDate": "2026-10-03T00:16:38.992184+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74652,
+      "ParentProcessId": 58896,
+      "CreationDate": "2026-10-03T00:15:28.944559+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74656,
+      "ParentProcessId": 62964,
+      "CreationDate": "2026-10-03T00:15:37.813198+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "temporaryCleanup": {
+    "status": "RETAINED_POLICY_REJECTION",
+    "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002",
+    "reason": "blocked by policy",
+    "remainingObservedCandidates": 0
+  },
+  "evidenceTextNormalization": "UTF-8, LF line endings and no trailing empty lines; substantive stdout/stderr preserved."
+}

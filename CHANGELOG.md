@@ -6,7 +6,12 @@
 本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
 
 ## [Unreleased]
+
 ### Added
+
+- **M42 直接 Graph SQL 物化准入**：直接节点/边与原生固定一跳 GRAPH_TABLE 的标量 WHERE/投影/OFFSET/LIMIT 使用分页候选和累计行/估算字节预算；EXPLAIN/ANALYZE 共用根预算，复杂路径预检拒绝。默认查询、图快照和文件格式保持兼容，整体 heap/首行及远程门禁仍待验证。见[合同](docs/benchmarks/m42-graph-result-bounds.md)。
+- **M43 有界自动订阅投递**：新增显式驱动器，串行回调、成功后 ACK、失败退避与持久次数上限，默认耗尽保留或显式条件 DLQ；超时停止，回调未收敛前保留同对象租约。见[合同](docs/m43-streaming-dispatcher.md)。
+- **M43 CDC→流恢复桥接**：新增单分区 outbox、目标接收凭证和身份/摘要核对，交付证明先于源 ACK；未知且事件已回收的发布明确拒绝推进，保留人工恢复边界。样例新增真实文档 change feed→桥接→自动投递→持久窗口入口；无业务副作用 exactly-once 声明。见[合同](docs/m43-cdc-streaming-bridge.md)及[验证报告](docs/audits/roadmap-parallel-next-20261002.md)。
 - **M42 Document ORDER BY 物化预算（2026-10-02）**：直接文档 raw SELECT 支持单列结果名 `ORDER BY`；阻塞排序先完整扫描并逐行计入 `SqlRowRetentionBudget`，再应用排序与 `LIMIT/OFFSET`，因此 `LIMIT 1` 不能绕过全量排序工作集预算。TTL、冷开、取消和 `EXPLAIN ANALYZE` 保持固定查询时刻与既有未支持边界；聚合、JOIN、多列排序和嵌套来源仍在执行前拒绝。见本轮[验证报告](docs/audits/roadmap-next-three-closure-20261002.md)。
 - **M43 持久会话 COUNT 窗口（2026-10-02）**：新增独立版本化文件聚合器，支持等号仍桥接的不活跃 gap、乱序桥接、watermark/迟到策略、全批原子拒绝、关闭后回收防复活、状态容量/分页/操作时限及提交后 ACK 去重；状态采用 source-generated JSON、SHA-256 和单执行者 lease。真实文件订阅重开、远端传输、掉电和生产门禁仍待补。
 - **M43 持久订阅任务目录（2026-10-02）**：新增有界任务定义目录，保存稳定身份、相对路径、订阅定义和目录 revision，支持 CAS 注册/更新/删除、revision 绑定分页、容量边界、坏 JSON/hash fail closed，并通过真实 `FileStreamingSubscription` 提供状态、暂停和恢复入口。目录不伪造运行状态，不提供分布式租约、自动调度或业务副作用事务。见[任务目录合同](docs/m43-streaming-task-catalog.md)。

@@ -18,4 +18,18 @@ dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release
 dotnet test tests/SonnetDB.Core.Tests -c Release --filter FullyQualifiedName~CdcStreamingRecoveryJourneyTests
 ```
 
-这里的固定副本导出不提供持续 CDC 到流的事务桥接。测试覆盖有序关闭及未确认批次重开；没有硬杀、断电、跨分区原子事务、远程拓扑、权限矩阵、真实设备、固定硬件或长期 SLO 证据。十四能力总验收继续保留为未完成。
+默认模式的固定副本导出不提供持续 CDC 到流的事务桥接。测试覆盖有序关闭及未确认批次重开；没有硬杀、断电、跨分区原子事务、远程拓扑、权限矩阵、真实设备、固定硬件或长期 SLO 证据。十四能力总验收继续保留为未完成。
+
+## 实际 change feed 桥接与自动投递
+
+```powershell
+dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release -- --bridge
+```
+
+`--bridge` 模式复用真实文档持久 change feed。两次插入经过源捕获进入专用单分区 CDC spool；`CdcStreamingBridge` 用一事件批次、outbox 和独立目标接收凭证交付到持久订阅，证明交付后才确认源。自动驱动器的首次处理先保存窗口再故意抛出异常，以稳定批次身份退避重投并去重，随后 ACK。
+
+关闭全部句柄后，再重开源并执行更新和删除，捕获后将剩余三次变更交付到同一目标，自动排空并再次重开核对。成功输出 `PASS_LOCAL_ONLY bridge source_offset=4 target_sequence=3 window_count=4 redelivery_attempt=2 pending=0`。窗口计数代表四次变更，包括删除，区别于默认模式的最终副本行数。
+
+此入口设三十秒总时限、三次尾部推进上限和独立驱动器批次/次数/时间边界，支持 Ctrl+C。`--keep` 可同时使用；默认仅回收本次创建的专属目录。生产使用须先恢复 bridge outbox 再启动消费者；源 ACK 和目标发布均应由桥接独占。未知接收凭证而目标事件已经回收时明确拒绝推进，需要人工恢复交接，见[桥接合同](../../docs/m43-cdc-streaming-bridge.md)和[自动投递合同](../../docs/m43-streaming-dispatcher.md)。
+
+这是本地真实嵌入式文件旅程；没有执行远程服务、跨业务副作用事务或生产门禁。
