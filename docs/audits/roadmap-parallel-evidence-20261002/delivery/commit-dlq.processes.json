@@ -1,0 +1,14 @@
+{
+  "Name": "commit-dlq",
+  "Executable": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "Arguments": [
+    "commit",
+    "-m",
+    "feat(streaming): 实现持久 DLQ 重放与条件删除"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 1.4246003,
+  "Processes": [],
+  "CleanedProcesses": []
+}

@@ -1,0 +1,14 @@
+{
+  "Name": "commit-sliding",
+  "Executable": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "Arguments": [
+    "commit",
+    "-m",
+    "feat(streaming): 实现持久滑动窗口与提交恢复"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 0.9982899,
+  "Processes": [],
+  "CleanedProcesses": []
+}

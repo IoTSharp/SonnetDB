@@ -1,0 +1,27 @@
+{
+  "Name": "cleanup-run",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-evidence-20261002\\Cleanup-Task.ps1"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 9.1217002,
+  "Processes": [
+    {
+      "ProcessId": 31764,
+      "ParentProcessId": 92448,
+      "CreationDate": "2026-10-02T19:32:48.05271+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 92448,
+      "ParentProcessId": 36308,
+      "CreationDate": "2026-10-02T19:32:48.041328+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-evidence-20261002\\Cleanup-Task.ps1"
+    }
+  ],
+  "CleanedProcesses": []
+}

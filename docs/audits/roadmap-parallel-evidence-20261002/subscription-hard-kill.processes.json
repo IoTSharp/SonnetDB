@@ -1,0 +1,50 @@
+{
+  "Name": "subscription-hard-kill",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "--filter",
+    "FullyQualifiedName~M43_StreamingInFlight_HardKill",
+    "--logger",
+    "trx;LogFileName=subscription-hard-kill.trx",
+    "--results-directory",
+    "C:\\Temp\\sdbp-81bfff26\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 5.4150257,
+  "Processes": [
+    {
+      "ProcessId": 80664,
+      "ParentProcessId": 76520,
+      "CreationDate": "2026-10-02T19:28:22.554747+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 73628,
+      "ParentProcessId": 76520,
+      "CreationDate": "2026-10-02T19:28:23.544285+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~M43_StreamingInFlight_HardKill\" --logger:\"trx;LogFileName=subscription-hard-kill.trx\" --resultsDirectory:C:\\Temp\\sdbp-81bfff26\\results C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.CrashTests\\release\\SonnetDB.CrashTests.dll --logger:Console;Verbosity=minimal --Blame:\"CollectHangDump;HangDumpType=mini;TestTimeout=2m\" --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:76520_7cf17fa2-f1e1-428c-b066-fec6f2d82dde"
+    },
+    {
+      "ProcessId": 76520,
+      "ParentProcessId": 4944,
+      "CreationDate": "2026-10-02T19:28:22.546897+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Temp\\sdbp-81bfff26\\a --filter FullyQualifiedName~M43_StreamingInFlight_HardKill --logger trx;LogFileName=subscription-hard-kill.trx --results-directory C:\\Temp\\sdbp-81bfff26\\results --blame-hang-timeout 2m --blame-hang-dump-type mini -m:1 -nodeReuse:false"
+    }
+  ],
+  "CleanedProcesses": []
+}

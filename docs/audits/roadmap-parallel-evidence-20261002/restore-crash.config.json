@@ -1,0 +1,14 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Name": "restore-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "TimeoutSeconds": 600
+}

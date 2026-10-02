@@ -1,0 +1,14 @@
+{
+  "TaskRoot": "C:\\Temp\\sdb-delivery-9bdceac1",
+  "Name": "commit-ttl",
+  "Executable": [
+    "C:\\Program Files\\Git\\cmd\\git.exe",
+    "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd\\git.exe"
+  ],
+  "Arguments": [
+    "commit",
+    "-m",
+    "fix(sql): 对 TTL 文档查询执行有界物化准入"
+  ],
+  "TimeoutSeconds": 90
+}

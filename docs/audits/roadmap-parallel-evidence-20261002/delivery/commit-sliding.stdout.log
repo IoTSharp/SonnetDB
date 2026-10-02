@@ -1,0 +1,5 @@
+[codex/roadmap-parallel-20261002 73c2d2a8] feat(streaming): 实现持久滑动窗口与提交恢复
+ 7 files changed, 815 insertions(+), 54 deletions(-)
+ create mode 100644 docs/m43-sliding-window-contract.md
+ create mode 100644 src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.Sliding.cs
+ create mode 100644 tests/SonnetDB.Core.Tests/Streaming/FileStreamingSlidingWindowTests.cs

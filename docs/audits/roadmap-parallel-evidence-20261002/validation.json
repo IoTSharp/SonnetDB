@@ -1,0 +1,247 @@
+{
+  "SchemaVersion": "1.0",
+  "Scope": "LOCAL_WINDOWS_CONTRACT_ONLY",
+  "BaseCommit": "54e75dd6",
+  "Branch": "codex/roadmap-parallel-20261002",
+  "PowerShell": "7.6.6",
+  "DotnetSdk": "10.0.401",
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Commands": [
+    {
+      "Name": "runner-smoke",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 1.2432332,
+      "Eligible": true
+    },
+    {
+      "Name": "restore-standard",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 55.0378354,
+      "Eligible": true
+    },
+    {
+      "Name": "restore-isolated",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 11.5755076,
+      "Eligible": true
+    },
+    {
+      "Name": "build-release",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 9.5277246,
+      "Eligible": true
+    },
+    {
+      "Name": "tiny-boundaries",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 7.3240737,
+      "Eligible": true
+    },
+    {
+      "Name": "new-targeted",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 12.7939909,
+      "Eligible": true
+    },
+    {
+      "Name": "core-full",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 438.4089435,
+      "Eligible": true
+    },
+    {
+      "Name": "server-related",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 29.2088947,
+      "Eligible": true
+    },
+    {
+      "Name": "format-final",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 199.3340025,
+      "Eligible": true
+    },
+    {
+      "Name": "index-validation",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 1.2667744,
+      "Eligible": true
+    },
+    {
+      "Name": "restore-crash",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 4.0655015,
+      "Eligible": true
+    },
+    {
+      "Name": "build-crash",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 9.1503226,
+      "Eligible": true
+    },
+    {
+      "Name": "subscription-hard-kill-stale",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 4.1059889,
+      "Eligible": false
+    },
+    {
+      "Name": "subscription-hard-kill",
+      "ExitCode": 0,
+      "Failure": null,
+      "DurationSeconds": 5.4150257,
+      "Eligible": true
+    }
+  ],
+  "Tests": {
+    "tiny-boundaries": {
+      "Total": 5,
+      "Passed": 5,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Outcome": "Completed",
+      "TrxSha256": "A2C175B5A69731F3D56E25F76258AD6DF5F0C893B15BFCA12F165CC8064786FD",
+      "Failures": [],
+      "Groups": {}
+    },
+    "new-targeted": {
+      "Total": 98,
+      "Passed": 98,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Outcome": "Completed",
+      "TrxSha256": "52C168711BA7E9C8EACC36A3F0B18F34FE5BE7C6C7328BF9FB454B8D56BA04CD",
+      "Failures": [],
+      "Groups": {
+        "DLQ": 27,
+        "Sliding": 38,
+        "TTL": 32,
+        "Journey": 1
+      }
+    },
+    "core-full": {
+      "Total": 5815,
+      "Passed": 5815,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Outcome": "Completed",
+      "TrxSha256": "FA06535280E89F03083EAF6DC7173EFB2A0E56A3353CA2E6DA0E756EABBED6EC",
+      "Failures": [],
+      "Groups": {}
+    },
+    "server-related": {
+      "Total": 64,
+      "Passed": 64,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Outcome": "Completed",
+      "TrxSha256": "9E65515D719E1EBDD35E646E82D930A6CE62C3A8F4B37A0EA22E648B5567498A",
+      "Failures": [],
+      "Groups": {}
+    },
+    "subscription-hard-kill": {
+      "Total": 1,
+      "Passed": 1,
+      "Failed": 0,
+      "NotExecuted": 0,
+      "Outcome": "Completed",
+      "TrxSha256": "35C289CCDE07418D238202A68454566D57EDD0DE0A373B3CDB75D2E0BE7D765F",
+      "Failures": [],
+      "Groups": {}
+    }
+  },
+  "Sources": [
+    {
+      "Path": "src/SonnetDB.Core/Documents/DocumentCollectionManager.cs",
+      "Sha256": "75637029298EDD92416BC3A840F738CA997BA1492EF2E6C1F87A0BEDE64FC8F2"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs",
+      "Sha256": "FBD9EBABDE4B6079306156B3D9F0A74A5297543500F074A86A9F2AE5F62E418D"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/DocumentSqlExecutor.cs",
+      "Sha256": "EB0B1046BF5C9FFBA9ED74A7C019C6CFF3073EA48E368B9718C1E7F2450D1619"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "Sha256": "7E2B6FF77CB4F3791F33D929C6504889CC9160BBF1151414D7627E8FA65C899F"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterContracts.cs",
+      "Sha256": "7092729C8E4F78C8E2E6133A6B0E5F9D9229E1E756C470E1D4341A7F06DEBC21"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterOperations.cs",
+      "Sha256": "99C245035DEC7629246A0AD66BF429B61081B9D5D50A5048801E3904D7DB4FB0"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterStore.cs",
+      "Sha256": "55AA160E91A31C5E12E4D8225B30023722643D3C6CCEBA87281343A89BFCD20C"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.Grouped.cs",
+      "Sha256": "2771EC8D7B706D34369C9F834CE08E5D3D2536C6D2605ACAC0671317393DA1EE"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.cs",
+      "Sha256": "38E24607DAEC43D413C347CF5B4F3A2B6931B4CBA8F81F533AC35D6DD66F3DBD"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/StreamingWindowContracts.cs",
+      "Sha256": "A12568614DD46E092EB56FA10EDE5A3A1FFEB2EA068C8CF6F5402EEDF551A0D4"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Sql/DocumentSelectMaterializationBudgetTests.cs",
+      "Sha256": "EC165F1F89E11C20D2EC1B876FF4B963B14E37398D8A8AD2880B79F3463064BF"
+    },
+    {
+      "Path": "src/SonnetDB.Core/Streaming/FileStreamingWindowAggregator.Sliding.cs",
+      "Sha256": "C61DA18D67DEB009E00F5022F6BB03CA6011DDAF4592007170E687E82746844F"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Audits/FileStreamingSlidingDeadLetterJourneyTests.cs",
+      "Sha256": "978662232E7C3F0E48D37C0E4ED0BB9E383E24C25A145A5090CED4E1BEE0530F"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Sql/DocumentTtlSelectMaterializationBudgetTests.cs",
+      "Sha256": "38A733695F37F178EF561112C55EF5A670E1383CFF9FBCDDFF563A86EA7C66E5"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingDeadLetterOperationsTests.cs",
+      "Sha256": "757F4A58647A2D8F236B1C6B7877C5134961B7203735B8F53050307F4BDB518B"
+    },
+    {
+      "Path": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingSlidingWindowTests.cs",
+      "Sha256": "89FFC026E667B2C3579E99464C86BD0CE61857D418D6030F9934D3BC4EA612F8"
+    }
+  ],
+  "ComposedJourneys": 4,
+  "CrashArtifacts": {
+    "BeforeCoreHash": "07C874DB55D712B64F4742FDB55F76FA47FE0FE8A165658A369148A8FE3CA930",
+    "FinalCoreHash": "A1A77B6C8A930F50D71B9B58490BE452996235A4E21E9EA06CD0A886A29239B5",
+    "CoreTestsHash": "A1A77B6C8A930F50D71B9B58490BE452996235A4E21E9EA06CD0A886A29239B5",
+    "ChildHash": "3914A8BF54381B432BB9F6725439CD605DDFCDFCD99E2B23338763DAE60E3E53",
+    "CopiedFiles": 9,
+    "Boundary": "First hard-kill run used stale copied output and is excluded. Final run uses this task isolated build."
+  },
+  "InitialBuildWrapperFailure": "First full build process cleanup encountered an exited child race before logs were saved. Not counted as successful validation. Runner repaired and the final solution build returned exit 0 with 0 warnings/errors.",
+  "NativeAotPublish": "NOT_RUN",
+  "RemoteStreamingParity": "NOT_RUN",
+  "FixedHardware": "DEFERRED",
+  "Nightly": "NOT_RUN",
+  "LongRun": "DEFERRED"
+}

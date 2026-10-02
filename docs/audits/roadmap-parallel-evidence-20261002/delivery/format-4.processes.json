@@ -1,0 +1,50 @@
+{
+  "Name": "format-4",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 134.1901474,
+  "Processes": [
+    {
+      "ProcessId": 10296,
+      "ParentProcessId": 6764,
+      "CreationDate": "2026-10-02T20:27:46.408784+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64420,
+      "ParentProcessId": 79352,
+      "CreationDate": "2026-10-02T20:27:47.566654+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 78e9aa6e-4bde-470b-9946-fe351cab97cc zh-CN"
+    },
+    {
+      "ProcessId": 90024,
+      "ParentProcessId": 64420,
+      "CreationDate": "2026-10-02T20:27:47.573171+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 6764,
+      "ParentProcessId": 80276,
+      "CreationDate": "2026-10-02T20:27:46.401572+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 79352,
+      "ParentProcessId": 6764,
+      "CreationDate": "2026-10-02T20:27:46.615009+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    }
+  ],
+  "CleanedProcesses": []
+}

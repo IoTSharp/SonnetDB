@@ -1,0 +1,47 @@
+{
+  "Name": "build-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "-m:1",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 9.1503226,
+  "Processes": [
+    {
+      "ProcessId": 65448,
+      "ParentProcessId": 63348,
+      "CreationDate": "2026-10-02T19:25:08.539973+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdbp-81bfff26\\tmp\\MSBuildTempgimhdbvm.rwk\\tmpf6262d6ebcf74c85a4a97cb8b6a75521.rsp\""
+    },
+    {
+      "ProcessId": 63348,
+      "ParentProcessId": 79660,
+      "CreationDate": "2026-10-02T19:25:06.9764+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj -c Release --no-restore --artifacts-path C:\\Temp\\sdbp-81bfff26\\a -m:1 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 65096,
+      "ParentProcessId": 63348,
+      "CreationDate": "2026-10-02T19:25:06.984079+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 85636,
+      "ParentProcessId": 63348,
+      "CreationDate": "2026-10-02T19:25:11.365511+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Temp\\sdbp-81bfff26\\tmp\\MSBuildTempgimhdbvm.rwk\\tmp37391aaec66149e6a6efc8f89e3b6fa7.rsp\""
+    }
+  ],
+  "CleanedProcesses": []
+}

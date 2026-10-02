@@ -1,0 +1,47 @@
+{
+  "Name": "build-release",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "-m:2",
+    "-p:UseSharedCompilation=false",
+    "-nodeReuse:false",
+    "/warnaserror"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 9.5277246,
+  "Processes": [
+    {
+      "ProcessId": 81352,
+      "ParentProcessId": 81240,
+      "CreationDate": "2026-10-02T19:14:57.860306+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --artifacts-path C:\\Temp\\sdbp-81bfff26\\a -m:2 -p:UseSharedCompilation=false -nodeReuse:false /warnaserror"
+    },
+    {
+      "ProcessId": 91288,
+      "ParentProcessId": 81352,
+      "CreationDate": "2026-10-02T19:14:58.383582+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 39572,
+      "ParentProcessId": 81352,
+      "CreationDate": "2026-10-02T19:14:57.866713+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 91600,
+      "ParentProcessId": 91288,
+      "CreationDate": "2026-10-02T19:14:58.39249+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

@@ -49,6 +49,14 @@
       "testPath": "tests/SonnetDB.Core.Tests/Audits/FileStreamingGroupedDeadLetterJourneyTests.cs",
       "evidencePath": "docs/audits/roadmap-next-three-closure-20261001.md",
       "boundary": "Local grouped decimal commit-before-ACK replay and poison-group quarantine preserve original events across orderly reopen. Existing windows reject skipped checkpoints; a separate state path with an explicit post-quarantine baseline consumes the tail. No automatic window skip, DLQ replay, remote parity, hard-kill or fourteen-capability completion claim."
+    },
+    {
+      "id": "sliding-window-dead-letter-replay-reopen",
+      "capabilities": ["streaming", "governance"],
+      "entryPoint": "src/SonnetDB.Core/Streaming/FileStreamingDeadLetterOperations.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/FileStreamingSlidingDeadLetterJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-parallel-20261002.md",
+      "boundary": "Local durable DLQ replay identity survives reopen. An explicit independent replay subscription commits overlapping decimal windows before ACK, then reopens and deduplicates; conditional source DLQ deletion follows business reconciliation. A separate post-quarantine baseline consumes the normal source tail. No automatic republishing, cross-directory side-effect transaction, remote parity, hard kill or fourteen-capability completion claim."
     }
   ]
 }

@@ -1,0 +1,50 @@
+{
+  "Name": "format-1",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 134.0666183,
+  "Processes": [
+    {
+      "ProcessId": 64608,
+      "ParentProcessId": 31032,
+      "CreationDate": "2026-10-02T20:16:53.635633+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" a5b4170f-2808-4042-98d2-bedcac09b4e0 zh-CN"
+    },
+    {
+      "ProcessId": 17120,
+      "ParentProcessId": 80080,
+      "CreationDate": "2026-10-02T20:16:51.822821+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 46576,
+      "ParentProcessId": 64608,
+      "CreationDate": "2026-10-02T20:16:53.643524+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 31032,
+      "ParentProcessId": 17120,
+      "CreationDate": "2026-10-02T20:16:52.193426+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 4088,
+      "ParentProcessId": 17120,
+      "CreationDate": "2026-10-02T20:16:51.835487+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

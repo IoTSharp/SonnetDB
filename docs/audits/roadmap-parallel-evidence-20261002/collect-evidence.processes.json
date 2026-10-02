@@ -1,0 +1,27 @@
+{
+  "Name": "collect-evidence",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "D:\\source\\SonnetDB\\artifacts\\parallel-20261002\\Collect-Evidence.ps1"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 4.5092788,
+  "Processes": [
+    {
+      "ProcessId": 85832,
+      "ParentProcessId": 80944,
+      "CreationDate": "2026-10-02T19:29:16.781418+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 80944,
+      "ParentProcessId": 39856,
+      "CreationDate": "2026-10-02T19:29:16.76868+08:00",
+      "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\source\\SonnetDB\\artifacts\\parallel-20261002\\Collect-Evidence.ps1"
+    }
+  ],
+  "CleanedProcesses": []
+}

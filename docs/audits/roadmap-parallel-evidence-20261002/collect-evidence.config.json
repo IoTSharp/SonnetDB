@@ -1,0 +1,11 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Name": "collect-evidence",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "D:\\source\\SonnetDB\\artifacts\\parallel-20261002\\Collect-Evidence.ps1"
+  ],
+  "TimeoutSeconds": 120
+}

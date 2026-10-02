@@ -1,0 +1,74 @@
+{
+  "Name": "new-targeted",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "--filter",
+    "FullyQualifiedName~DocumentTtlSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSlidingWindowTests|FullyQualifiedName~FileStreamingDeadLetterOperationsTests|FullyQualifiedName~FileStreamingSlidingDeadLetterJourneyTests",
+    "--logger",
+    "trx;LogFileName=new-targeted.trx",
+    "--results-directory",
+    "C:\\Temp\\sdbp-81bfff26\\results",
+    "--blame-hang-timeout",
+    "2m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 12.7939909,
+  "Processes": [
+    {
+      "ProcessId": 91204,
+      "ParentProcessId": 90348,
+      "CreationDate": "2026-10-02T19:16:12.423733+08:00",
+      "CommandLine": "\"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\testhost.exe\"  --runtimeconfig \"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.deps.json\" --port 61580 --endpoint 127.0.0.1:061580 --role client --parentprocessid 90348 --datacollectionport 61579 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 8292,
+      "ParentProcessId": 60864,
+      "CreationDate": "2026-10-02T19:16:12.004511+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 90348,
+      "ParentProcessId": 61140,
+      "CreationDate": "2026-10-02T19:16:11.568129+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~DocumentTtlSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSlidingWindowTests|FullyQualifiedName~FileStreamingDeadLetterOperationsTests|FullyQualifiedName~FileStreamingSlidingDeadLetterJourneyTests\" --logger:\"trx;LogFileName=new-targeted.trx\" --resultsDirectory:C:\\Temp\\sdbp-81bfff26\\results C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --Blame:\"CollectHangDump;HangDumpType=mini;TestTimeout=2m\" --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:61140_199eea5a-1daa-4b79-98f5-fc60d445b9fe"
+    },
+    {
+      "ProcessId": 61140,
+      "ParentProcessId": 90436,
+      "CreationDate": "2026-10-02T19:16:10.459193+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Temp\\sdbp-81bfff26\\a --filter FullyQualifiedName~DocumentTtlSelectMaterializationBudgetTests|FullyQualifiedName~FileStreamingSlidingWindowTests|FullyQualifiedName~FileStreamingDeadLetterOperationsTests|FullyQualifiedName~FileStreamingSlidingDeadLetterJourneyTests --logger trx;LogFileName=new-targeted.trx --results-directory C:\\Temp\\sdbp-81bfff26\\results --blame-hang-timeout 2m --blame-hang-dump-type mini -m:1 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 93068,
+      "ParentProcessId": 91204,
+      "CreationDate": "2026-10-02T19:16:12.432826+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 60864,
+      "ParentProcessId": 90348,
+      "CreationDate": "2026-10-02T19:16:11.994887+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.runtimeconfig.json\" --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.deps.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.dll\" --port 62086 --parentprocessid 90348 "
+    },
+    {
+      "ProcessId": 80972,
+      "ParentProcessId": 61140,
+      "CreationDate": "2026-10-02T19:16:10.470814+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

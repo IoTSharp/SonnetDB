@@ -1,0 +1,6 @@
+C:\Temp\sdbp-81bfff26\a\bin\SonnetDB.Core.Tests\release\SonnetDB.Core.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+数据收集器“Blame”消息: 所有测试都已运行完毕，将不生成序列文件。
+结果文件: C:\Temp\sdbp-81bfff26\results\new-targeted.trx
+
+已通过! - 失败:     0，通过:    98，已跳过:     0，总计:    98，持续时间: 7 s - SonnetDB.Core.Tests.dll (net10.0)
