@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 ### Added
+- **M42 Document ORDER BY 物化预算（2026-10-02）**：直接文档 raw SELECT 支持单列结果名 `ORDER BY`；阻塞排序先完整扫描并逐行计入 `SqlRowRetentionBudget`，再应用排序与 `LIMIT/OFFSET`，因此 `LIMIT 1` 不能绕过全量排序工作集预算。TTL、冷开、取消和 `EXPLAIN ANALYZE` 保持固定查询时刻与既有未支持边界；聚合、JOIN、多列排序和嵌套来源仍在执行前拒绝。见本轮[验证报告](docs/audits/roadmap-next-three-closure-20261002.md)。
+- **M43 持久会话 COUNT 窗口（2026-10-02）**：新增独立版本化文件聚合器，支持等号仍桥接的不活跃 gap、乱序桥接、watermark/迟到策略、全批原子拒绝、关闭后回收防复活、状态容量/分页/操作时限及提交后 ACK 去重；状态采用 source-generated JSON、SHA-256 和单执行者 lease。真实文件订阅重开、远端传输、掉电和生产门禁仍待补。
+- **M43 持久订阅任务目录（2026-10-02）**：新增有界任务定义目录，保存稳定身份、相对路径、订阅定义和目录 revision，支持 CAS 注册/更新/删除、revision 绑定分页、容量边界、坏 JSON/hash fail closed，并通过真实 `FileStreamingSubscription` 提供状态、暂停和恢复入口。目录不伪造运行状态，不提供分布式租约、自动调度或业务副作用事务。见[任务目录合同](docs/m43-streaming-task-catalog.md)。
 - **M42 TTL 文档 SQL 物化准入（2026-10-02）**：显式预算 raw SELECT 在固定查询时刻逐文档判断 TTL，过期候选推进游标但不计结果保留、不执行过期删除；冷开与预算 EXPLAIN 跳过 TTL 全量回收，TTL 时间计算避免 Int64 相加溢出。派生索引初始化、阻塞查询、整体 heap 及远程预算仍有独立边界，见[合同](docs/benchmarks/m42-document-ttl-result-bounds.md)。
 - **M43 持久滑动窗口（2026-10-02）**：新增显式 size/slide 的 COUNT、精确 decimal 与字符串分组窗口，每事件最多 128 个重叠成员；复用提交后 ACK 与重投去重，按成员处理关闭窗口和整批拒绝。独立 v4 状态保留 v1～v3 读取与原字段哈希，见[合同](docs/m43-sliding-window-contract.md)。
 - **M43 DLQ 本地重放与删除（2026-10-02）**：持久重放身份及领取次数支持重开续处理，条件删除按独立目录 revision、原投递身份和重放回执回收容量，死信序号不复用；旧 v1 严格校验后迁移 v2。业务处理与删除不构成跨目录事务，见[运维合同](docs/m43-streaming-dlq-operations.md)。

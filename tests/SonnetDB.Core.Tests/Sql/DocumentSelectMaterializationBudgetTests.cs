@@ -188,7 +188,6 @@ public sealed class DocumentSelectMaterializationBudgetTests : IDisposable
 
     /// <summary>Document 嵌套或阻塞形状在任何候选读取前拒绝。</summary>
     [Theory]
-    [InlineData("SELECT id FROM docs ORDER BY id LIMIT 1")]
     [InlineData("SELECT COUNT(*) FROM docs")]
     [InlineData("SELECT CAST(SUM(json_value(document, '$.n')) AS INT) FROM docs")]
     [InlineData("SELECT json_value(document, '$.n') FROM docs GROUP BY json_value(document, '$.n')")]

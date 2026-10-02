@@ -81,8 +81,9 @@ public sealed class FileStreamingTaskCatalogTests
             await catalog.RegisterAsync(Task("corrupt", "corrupt"));
         }
         string statePath = System.IO.Path.Combine(corruptDirectory.Path, "tasks.catalog.json");
-        await File.AppendAllTextAsync(statePath, " ", Encoding.UTF8);
-        // 损坏文件会在 OpenAsync 中严格拒绝；这里保持文件原样以避免 Windows 异步句柄回收时序影响清理。
+        await File.AppendAllTextAsync(statePath, "x", Encoding.UTF8);
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => FileStreamingTaskCatalog.OpenAsync(corruptDirectory.Path).AsTask());
         Assert.True(new FileInfo(statePath).Length > 0);
     }
 

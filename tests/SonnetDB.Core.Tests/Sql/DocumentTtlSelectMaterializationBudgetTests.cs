@@ -320,7 +320,6 @@ public sealed class DocumentTtlSelectMaterializationBudgetTests : IDisposable
 
     /// <summary>TTL 排序、聚合和嵌套计划仍在候选读取及回收前拒绝。</summary>
     [Theory]
-    [InlineData("SELECT id FROM docs ORDER BY id LIMIT 1")]
     [InlineData("SELECT COUNT(*) FROM docs")]
     [InlineData("SELECT DISTINCT id FROM docs")]
     [InlineData("SELECT id FROM (SELECT id FROM docs) AS source")]
