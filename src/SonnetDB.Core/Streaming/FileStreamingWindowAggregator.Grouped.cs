@@ -79,36 +79,38 @@ public sealed partial class FileStreamingWindowAggregator
         foreach (StreamingEvent value in events)
         {
             token.ThrowIfCancellationRequested();
-            long startTicks = WindowStart(value.EventTimeUtc);
-            if (IsClosed(WindowEnd(startTicks), _document.WatermarkUtc))
+            List<long> starts = OpenWindowStarts(value, token);
+            if (starts.Count == 0)
             {
-                if (Definition.LateEventPolicy == StreamingWindowLateEventPolicy.Reject)
-                    throw new StreamingLateEventException(value.EventId);
                 dropped = checked(dropped + 1);
                 continue;
             }
 
             string key = ReadGroupKey(value.Payload, Definition.GroupField!, token);
             decimal numericValue = Definition.NumericField is { } field ? ReadNumericValue(value.Payload, field, token) : 0;
-            if (windows.TryGetValue((startTicks, key), out StreamingGroupedWindowAccumulator? existing))
+            foreach (long startTicks in starts)
             {
-                StreamingWindowNumericAccumulator? numeric = existing.Numeric;
-                windows[(startTicks, key)] = existing with
+                token.ThrowIfCancellationRequested();
+                if (windows.TryGetValue((startTicks, key), out StreamingGroupedWindowAccumulator? existing))
                 {
-                    Count = checked(existing.Count + 1),
-                    Numeric = numeric is null ? null : new StreamingWindowNumericAccumulator(
-                        AddExact(numeric.Sum, numericValue), Math.Min(numeric.Min, numericValue), Math.Max(numeric.Max, numericValue)),
-                };
-            }
-            else
-            {
-                if (windows.Count >= Options.MaxWindows)
-                    throw new InvalidOperationException("持久分组窗口结果容量已满；移除已关闭结果后重试批次。");
-                if (!groups.Contains(key) && groups.Count >= Options.MaxGroups!.Value)
-                    throw new InvalidOperationException("持久分组键容量已满；移除该键的全部已关闭结果后重试批次。");
-                groups.Add(key);
-                windows.Add((startTicks, key), new StreamingGroupedWindowAccumulator(startTicks, key, 1,
-                    Definition.NumericField is null ? null : new StreamingWindowNumericAccumulator(numericValue, numericValue, numericValue)));
+                    StreamingWindowNumericAccumulator? numeric = existing.Numeric;
+                    windows[(startTicks, key)] = existing with
+                    {
+                        Count = checked(existing.Count + 1),
+                        Numeric = numeric is null ? null : new StreamingWindowNumericAccumulator(
+                            AddExact(numeric.Sum, numericValue), Math.Min(numeric.Min, numericValue), Math.Max(numeric.Max, numericValue)),
+                    };
+                }
+                else
+                {
+                    if (windows.Count >= Options.MaxWindows)
+                        throw new InvalidOperationException("持久分组窗口结果容量已满；移除已关闭结果后重试批次。");
+                    if (!groups.Contains(key) && groups.Count >= Options.MaxGroups!.Value)
+                        throw new InvalidOperationException("持久分组键容量已满；移除该键的全部已关闭结果后重试批次。");
+                    groups.Add(key);
+                    windows.Add((startTicks, key), new StreamingGroupedWindowAccumulator(startTicks, key, 1,
+                        Definition.NumericField is null ? null : new StreamingWindowNumericAccumulator(numericValue, numericValue, numericValue)));
+                }
             }
         }
 
@@ -190,12 +192,13 @@ public sealed partial class FileStreamingWindowAggregator
         var keys = new HashSet<string>(StringComparer.Ordinal);
         StreamingGroupedWindowAccumulator? previous = null;
         long windowTicks = checked(document.Definition.WindowSizeMilliseconds * TimeSpan.TicksPerMillisecond);
+        long alignmentTicks = checked((document.Definition.SlideMilliseconds ?? document.Definition.WindowSizeMilliseconds) * TimeSpan.TicksPerMillisecond);
         foreach (StreamingGroupedWindowAccumulator window in document.GroupedWindows)
         {
             token.ThrowIfCancellationRequested();
             if (window is null || window.GroupKey is null || window.GroupKey.Length > 256 || window.Count < 1
                 || window.StartTicks < DateTime.MinValue.Ticks || window.StartTicks > DateTime.MaxValue.Ticks - windowTicks
-                || (window.StartTicks - DateTime.UnixEpoch.Ticks) % windowTicks != 0
+                || (window.StartTicks - DateTime.UnixEpoch.Ticks) % alignmentTicks != 0
                 || (document.Definition.NumericField is null) != (window.Numeric is null)
                 || (previous is not null && CompareGroupPosition(previous.StartTicks, previous.GroupKey, window.StartTicks, window.GroupKey) >= 0))
                 throw new InvalidDataException("持久分组窗口边界、键、排序或 COUNT 无效。");

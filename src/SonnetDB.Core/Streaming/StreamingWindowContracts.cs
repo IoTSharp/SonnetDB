@@ -12,7 +12,7 @@ public enum StreamingWindowLateEventPolicy
     Reject = 1,
 }
 
-/// <summary>以 Unix epoch 为边界的固定 UTC 滚动窗口定义，默认只计数。</summary>
+/// <summary>以 Unix epoch 为边界的固定 UTC 滚动或显式滑动窗口定义，默认只计数。</summary>
 /// <param name="FormatVersion">定义格式版本。</param>
 /// <param name="SubscriptionId">所属订阅标识。</param>
 /// <param name="StreamName">所属事件流名称。</param>
@@ -36,6 +36,12 @@ public sealed record StreamingWindowDefinition(
     /// <summary>显式选择字符串分组键的窗口定义格式版本。</summary>
     public const int GroupedFormatVersion = 3;
 
+    /// <summary>显式指定滑动步长的窗口定义格式版本。</summary>
+    public const int SlidingFormatVersion = 4;
+
+    /// <summary>单个事件最多所属的滑动窗口数量。</summary>
+    public const int MaximumSlidingOverlap = 128;
+
     /// <summary>显式选择的顶层 JSON 数值属性，按 Ordinal 匹配；为空时保持原 COUNT 合同。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NumericField { get; init; }
@@ -43,6 +49,10 @@ public sealed record StreamingWindowDefinition(
     /// <summary>显式选择的顶层 JSON 字符串分组属性，按 Ordinal 匹配并保留键原值。</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GroupField { get; init; }
+
+    /// <summary>显式滑动步长，单位为整数毫秒；为空时保持原滚动窗口合同。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? SlideMilliseconds { get; init; }
 
     /// <summary>创建并校验固定 UTC 滚动 COUNT 窗口定义。</summary>
     /// <param name="subscriptionId">所属订阅标识。</param>
@@ -150,16 +160,127 @@ public sealed record StreamingWindowDefinition(
         return definition;
     }
 
+    /// <summary>创建以 Unix epoch 对齐且有界重叠的固定 UTC 滑动 COUNT 窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="slide">正整数毫秒的滑动步长，不得超过窗口长度；每事件重叠最多一百二十八项。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的滑动窗口定义。</returns>
+    /// <remarks>Drop 仅跳过已经关闭的目标窗口，全部目标关闭时才累计一个丢弃事件；Reject 在任何目标关闭时拒绝整批。</remarks>
+    public static StreamingWindowDefinition CreateSliding(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        TimeSpan slide,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        if (slide.Ticks % TimeSpan.TicksPerMillisecond != 0)
+            throw new ArgumentOutOfRangeException(nameof(slide), "滑动步长必须为整数毫秒。");
+        StreamingWindowDefinition definition = Create(subscriptionId, streamName, windowSize, allowedLateness, lateEventPolicy) with
+        {
+            FormatVersion = SlidingFormatVersion,
+            SlideMilliseconds = slide.Ticks / TimeSpan.TicksPerMillisecond,
+        };
+        definition.Validate();
+        return definition;
+    }
+
+    /// <summary>创建提供精确 decimal SUM/MIN/MAX 与 decimal AVG 的固定 UTC 滑动窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="slide">正整数毫秒的滑动步长；每事件重叠最多一百二十八项。</param>
+    /// <param name="numericField">顶层 JSON 数值属性原名，最长为二百五十六个字符。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的滑动数值窗口定义。</returns>
+    public static StreamingWindowDefinition CreateSlidingNumeric(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        TimeSpan slide,
+        string numericField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(numericField);
+        StreamingWindowDefinition definition = CreateSliding(subscriptionId, streamName, windowSize, slide, allowedLateness, lateEventPolicy) with
+        {
+            NumericField = numericField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
+    /// <summary>创建按顶层 JSON 字符串键分组的固定 UTC 滑动 COUNT 窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="slide">正整数毫秒的滑动步长；每事件重叠最多一百二十八项。</param>
+    /// <param name="groupField">顶层 JSON 字符串分组属性原名。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的分组滑动窗口定义。</returns>
+    public static StreamingWindowDefinition CreateSlidingGrouped(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        TimeSpan slide,
+        string groupField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(groupField);
+        StreamingWindowDefinition definition = CreateSliding(subscriptionId, streamName, windowSize, slide, allowedLateness, lateEventPolicy) with
+        {
+            GroupField = groupField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
+    /// <summary>创建按字符串键分组并提供精确 decimal 数值聚合的固定 UTC 滑动窗口定义。</summary>
+    /// <param name="subscriptionId">所属订阅标识。</param>
+    /// <param name="streamName">所属事件流名称。</param>
+    /// <param name="windowSize">正整数毫秒的窗口长度，最大为一天。</param>
+    /// <param name="slide">正整数毫秒的滑动步长；每事件重叠最多一百二十八项。</param>
+    /// <param name="groupField">顶层 JSON 字符串分组属性原名。</param>
+    /// <param name="numericField">与分组属性不同的顶层 JSON 数值属性原名。</param>
+    /// <param name="allowedLateness">非负整数毫秒的允许迟到时间，最大为三十天。</param>
+    /// <param name="lateEventPolicy">已关闭窗口的新事件处理策略。</param>
+    /// <returns>已校验的分组滑动数值窗口定义。</returns>
+    public static StreamingWindowDefinition CreateSlidingGroupedNumeric(
+        string subscriptionId,
+        string streamName,
+        TimeSpan windowSize,
+        TimeSpan slide,
+        string groupField,
+        string numericField,
+        TimeSpan? allowedLateness = null,
+        StreamingWindowLateEventPolicy lateEventPolicy = StreamingWindowLateEventPolicy.Drop)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(numericField);
+        StreamingWindowDefinition definition = CreateSlidingGrouped(subscriptionId, streamName, windowSize, slide, groupField, allowedLateness, lateEventPolicy) with
+        {
+            NumericField = numericField,
+        };
+        definition.Validate();
+        return definition;
+    }
+
     /// <summary>校验版本、订阅身份和窗口时间边界。</summary>
     public void Validate()
     {
-        if (FormatVersion is not (CurrentFormatVersion or NumericFormatVersion or GroupedFormatVersion))
+        if (FormatVersion is not (CurrentFormatVersion or NumericFormatVersion or GroupedFormatVersion or SlidingFormatVersion))
             throw new InvalidDataException($"不支持窗口定义格式版本 {FormatVersion}。");
         if (FormatVersion == CurrentFormatVersion && NumericField is not null)
             throw new InvalidDataException("COUNT 版本不能包含数值属性选择。");
-        if (FormatVersion != GroupedFormatVersion && GroupField is not null)
+        if (FormatVersion is not (GroupedFormatVersion or SlidingFormatVersion) && GroupField is not null)
             throw new InvalidDataException("未分组窗口版本不能包含分组属性选择。");
-        if (FormatVersion == GroupedFormatVersion)
+        if (FormatVersion == GroupedFormatVersion || GroupField is not null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(GroupField);
             if (GroupField.Length > 256)
@@ -179,6 +300,19 @@ public sealed record StreamingWindowDefinition(
             throw new ArgumentException("窗口订阅或流标识超过长度上限。");
         ArgumentOutOfRangeException.ThrowIfLessThan(WindowSizeMilliseconds, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(WindowSizeMilliseconds, 86_400_000);
+        if (FormatVersion == SlidingFormatVersion)
+        {
+            if (SlideMilliseconds is not { } slide)
+                throw new InvalidDataException("滑动窗口定义必须显式包含滑动步长。");
+            ArgumentOutOfRangeException.ThrowIfLessThan(slide, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(slide, WindowSizeMilliseconds);
+            if ((WindowSizeMilliseconds - 1) / slide + 1 > MaximumSlidingOverlap)
+                throw new ArgumentOutOfRangeException(nameof(SlideMilliseconds), "每个事件的滑动窗口重叠数量超过一百二十八项。");
+        }
+        else if (SlideMilliseconds is not null)
+        {
+            throw new InvalidDataException("滚动窗口版本不能包含滑动步长。");
+        }
         ArgumentOutOfRangeException.ThrowIfNegative(AllowedLatenessMilliseconds);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(AllowedLatenessMilliseconds, 2_592_000_000);
         if (!Enum.IsDefined(LateEventPolicy))
