@@ -17,7 +17,7 @@ FileStreamingDeadLetterBatch? saved = await subscription.ReadDeadLetterAsync(
 
 ## 持久协议和结果未知
 
-每个订阅目录新增独立 `dead-letters/state.json`，使用单独的 v1 源生成 JSON DTO、必需字段、禁止未知字段、重复字段检查和 SHA-256。协议依次执行：
+每个订阅目录新增独立 `dead-letters/state.json`，首切片使用单独的 v1 源生成 JSON DTO、必需字段、禁止未知字段、重复字段检查和 SHA-256。2026-10-02 的重放/删除入口将严格校验后的 v1 迁移为 v2，新增独立目录 revision、序号高水位和重放身份，详见[运维合同](m43-streaming-dlq-operations.md)。隔离协议依次执行：
 
 1. 持久保存完整原事件和管理员 CAS 条件，设置唯一 pending 隔离意图。
 2. 使用原检查点 revision 条件保存该批次的新检查点。
@@ -33,7 +33,7 @@ FileStreamingDeadLetterBatch? saved = await subscription.ReadDeadLetterAsync(
 
 `FileStreamingDeadLetterOptions` 默认最多 1000 批、64 MiB 状态文件，允许上限为 10000 批、128 MiB。容量检查在任何隔离写入之前完成，满载抛出 `FileStreamingDeadLetterCapacityException` 并保留原批次、投递次数、检查点和事件空间。事件继续受原单事件、批次数、批次字节和操作时间边界约束。状态写入整体序列化并重写 journal，字节限制不是整个托管堆分配的硬上限，也不是追加式日志的性能承诺。
 
-分页每次返回 1–100 个摘要，`afterSequence` 为独立死信序号；读取一个批次返回可修改的完整副本，不会改变持久记录。当前没有永久删除、自动重新发布、自动隔离或容量回收入口，容量耗尽需要运维规划；不能把死信记录当成已完成业务副作用。
+分页每次返回 1–100 个摘要，`afterSequence` 为独立死信序号；读取一个批次返回可修改的完整副本，不会改变持久记录。2026-10-02 的[本地重放与删除合同](m43-streaming-dlq-operations.md)新增持久领取和条件删除，删除回收批次及字节容量，序号不复用。消费者负责幂等业务处理；重放不自动重新发布到原订阅，也不自动隔离，死信记录或删除回执不证明外部业务副作用已经完成。
 
 原四参数 `OpenAsync` 保留 CLR 签名和调用方式。显式配置可用五参数重载：
 

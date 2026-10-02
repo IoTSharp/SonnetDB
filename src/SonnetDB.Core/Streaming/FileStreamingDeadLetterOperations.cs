@@ -7,6 +7,9 @@ public sealed partial class FileStreamingSubscription
     /// <summary>创建或恢复时保存的独立死信容量边界。</summary>
     public FileStreamingDeadLetterOptions DeadLetterOptions => _deadLetters.State.Options;
 
+    /// <summary>最近持久提交的独立死信目录修订号；与订阅状态和确认检查点修订号不同。</summary>
+    public long DeadLetterRevision => _deadLetters.State.Revision;
+
     /// <summary>
     /// 管理员显式条件隔离当前已耗尽的批次，先持久保存完整原事件，再推进确认位点并回收事件空间。
     /// </summary>
@@ -49,7 +52,7 @@ public sealed partial class FileStreamingSubscription
             ValidateBatchEvents(delivery, events);
             StreamingSubscriptionCheckpoint checkpoint = delivery.CandidateCheckpoint with { WatermarkUtc = _state.WatermarkUtc };
             var record = new FileStreamingDeadLetterRecord(
-                _deadLetters.State.Records.Length + 1L, delivery.DeliveryId, delivery.Attempt,
+                _deadLetters.State.NextSequence, delivery.DeliveryId, delivery.Attempt,
                 reason, DateTimeOffset.UtcNow, _state.StateRevision, _state.Checkpoint, checkpoint,
                 events.Select(FileStreamingDeadLetterEvent.FromEvent).ToArray());
             FileStreamingDeadLetterState intent = _deadLetters.Prepare(record);
@@ -97,13 +100,13 @@ public sealed partial class FileStreamingSubscription
         {
             token.ThrowIfCancellationRequested();
             FileStreamingDeadLetterRecord[] records = _deadLetters.State.Records;
-            int start = (int)Math.Min(afterSequence, records.Length);
-            int count = Math.Min(maxCount, records.Length - start);
-            var summaries = new FileStreamingDeadLetterSummary[count];
-            for (int index = 0; index < count; index++)
+            var summaries = new List<FileStreamingDeadLetterSummary>(Math.Min(maxCount, records.Length));
+            // 目录最多 10,000 条，单页最多 100 条；操作令牌约束墙钟和取消。
+            for (int index = 0; index < records.Length && summaries.Count < maxCount; index++)
             {
                 token.ThrowIfCancellationRequested();
-                summaries[index] = SummarizeDeadLetter(records[start + index]);
+                if (records[index].Sequence > afterSequence)
+                    summaries.Add(SummarizeDeadLetter(records[index]));
             }
 
             return Task.FromResult<IReadOnlyList<FileStreamingDeadLetterSummary>>(summaries);
@@ -123,25 +126,167 @@ public sealed partial class FileStreamingSubscription
         {
             token.ThrowIfCancellationRequested();
             FileStreamingDeadLetterRecord[] records = _deadLetters.State.Records;
-            if (sequence > records.Length)
+            int recordIndex = FindDeadLetterIndex(records, sequence, token);
+            if (recordIndex < 0)
                 return Task.FromResult<FileStreamingDeadLetterBatch?>(null);
-            FileStreamingDeadLetterRecord record = records[(int)sequence - 1];
-            var events = new StreamingEvent[record.Events.Length];
-            for (int index = 0; index < events.Length; index++)
-            {
-                token.ThrowIfCancellationRequested();
-                events[index] = record.Events[index].ToEvent();
-            }
-
+            FileStreamingDeadLetterRecord record = records[recordIndex];
             return Task.FromResult<FileStreamingDeadLetterBatch?>(
-                new FileStreamingDeadLetterBatch(SummarizeDeadLetter(record), events));
+                new FileStreamingDeadLetterBatch(SummarizeDeadLetter(record), CopyDeadLetterEvents(record, token)));
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>条件持久领取一个本地死信重放批次，首次分配稳定重放身份，后续领取保留身份并增加次数。</summary>
+    /// <remarks>
+    /// <para>宿主须进行管理员授权。业务处理使用原事件稳定 ID 幂等执行，成功后以返回摘要条件调用 <see cref="DeleteDeadLetterAsync"/> 完成。</para>
+    /// <para>领取不自动发布到原订阅、不推进原订阅检查点。业务失败或进程退出后可重开再次领取；最多领取一百万次。</para>
+    /// <para>持久写入失败或取消的结果可能未知，当前实例停止后续操作，调用方须重开核对目录修订号和重放身份。</para>
+    /// </remarks>
+    /// <param name="sequence">已观察到的死信批次序号。</param>
+    /// <param name="expectedDeliveryId">摘要中的原投递身份，不匹配会拒绝。</param>
+    /// <param name="expectedRevision">摘要中的独立死信目录修订号，陈旧值会拒绝。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>包含已持久重放身份、领取次数和完整原事件副本的批次。</returns>
+    public async ValueTask<FileStreamingDeadLetterReplayBatch> ReplayDeadLetterAsync(
+        long sequence,
+        string expectedDeliveryId,
+        long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateDeadLetterOperationArguments(sequence, expectedDeliveryId, expectedRevision);
+        return await ExecuteAsync(async token =>
+        {
+            int index = ValidateDeadLetterCondition(sequence, expectedDeliveryId, expectedRevision, token);
+            FileStreamingDeadLetterRecord record = _deadLetters.State.Records[index];
+            FileStreamingDeadLetterReplayState? previous = record.Replay;
+            if (previous?.Attempt >= FileStreamingDeadLetterStore.MaxReplayAttempts)
+                throw new InvalidOperationException("死信批次已达到本地重放领取次数上限，须显式处理或删除。");
+            var replay = new FileStreamingDeadLetterReplayState(previous?.ReplayId ?? Guid.NewGuid().ToString("N"),
+                checked((previous?.Attempt ?? 0) + 1), DateTimeOffset.UtcNow);
+            FileStreamingDeadLetterRecord claimed = record with { Replay = replay };
+            FileStreamingDeadLetterRecord[] records = _deadLetters.State.Records.ToArray();
+            records[index] = claimed;
+            FileStreamingDeadLetterState proposed = _deadLetters.PrepareOperation(records);
+            StreamingEvent[] events = CopyDeadLetterEvents(claimed, token);
+            await CommitDeadLetterOperationAsync(proposed, token).ConfigureAwait(false);
+            return new FileStreamingDeadLetterReplayBatch(SummarizeDeadLetter(claimed), events);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>根据目录修订号、原批次身份和重放身份/次数条件删除一条死信，回收批次和持久字节容量。</summary>
+    /// <remarks>
+    /// <para>业务重放成功后传入领取回执中的全部条件，删除即完成本地重放；业务副作用与删除之间没有事务，结果未知时须重开核对。</para>
+    /// <para>管理员直接丢弃尚未领取的批次时须传入空重放身份和 0 次数。已领取批次不能使用该条件丢弃，须提供实际身份和次数。</para>
+    /// <para>删除不会修改原订阅位点、暂停标记或未确认批次，已删除序号不会再分配；删除不是业务副作用完成的证明。</para>
+    /// </remarks>
+    /// <param name="sequence">已观察到的死信批次序号。</param>
+    /// <param name="expectedDeliveryId">摘要中的原投递身份。</param>
+    /// <param name="expectedRevision">摘要中的独立死信目录修订号。</param>
+    /// <param name="expectedReplayId">摘要中的稳定重放身份；尚未领取时为空。</param>
+    /// <param name="expectedReplayAttempt">摘要中的重放领取次数；尚未领取时为 0。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>已删除身份和新的独立死信目录修订号。</returns>
+    public async ValueTask<FileStreamingDeadLetterDeletionReceipt> DeleteDeadLetterAsync(
+        long sequence,
+        string expectedDeliveryId,
+        long expectedRevision,
+        string? expectedReplayId,
+        int expectedReplayAttempt,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateDeadLetterOperationArguments(sequence, expectedDeliveryId, expectedRevision);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedReplayAttempt);
+        if (expectedReplayId is null ? expectedReplayAttempt != 0 : expectedReplayAttempt < 1)
+            throw new ArgumentException("重放身份与领取次数条件不一致。", nameof(expectedReplayAttempt));
+        if (expectedReplayId is not null)
+            ArgumentException.ThrowIfNullOrWhiteSpace(expectedReplayId);
+        return await ExecuteAsync(async token =>
+        {
+            int index = ValidateDeadLetterCondition(sequence, expectedDeliveryId, expectedRevision, token);
+            FileStreamingDeadLetterRecord record = _deadLetters.State.Records[index];
+            if (record.Replay?.ReplayId != expectedReplayId || (record.Replay?.Attempt ?? 0) != expectedReplayAttempt)
+                throw new InvalidOperationException("删除命令的重放身份或领取次数与当前死信批次不匹配。");
+            FileStreamingDeadLetterRecord[] records = _deadLetters.State.Records;
+            var remaining = new FileStreamingDeadLetterRecord[records.Length - 1];
+            records.AsSpan(0, index).CopyTo(remaining);
+            records.AsSpan(index + 1).CopyTo(remaining.AsSpan(index));
+            FileStreamingDeadLetterState proposed = _deadLetters.PrepareOperation(remaining);
+            await CommitDeadLetterOperationAsync(proposed, token).ConfigureAwait(false);
+            return new FileStreamingDeadLetterDeletionReceipt(sequence, record.DeliveryId,
+                expectedReplayId, expectedReplayAttempt, _deadLetters.State.Revision);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ValidateDeadLetterOperationArguments(long sequence, string expectedDeliveryId, long expectedRevision)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(sequence, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedDeliveryId);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+    }
+
+    private int ValidateDeadLetterCondition(long sequence, string expectedDeliveryId, long expectedRevision, CancellationToken token)
+    {
+        if (_deadLetters.State.PendingDeliveryId is not null)
+            throw new InvalidOperationException("死信隔离意图尚未恢复完成，必须重开订阅。");
+        if (_deadLetters.State.Revision != expectedRevision)
+            throw new InvalidOperationException("死信操作的预期目录修订号与当前状态不匹配。");
+        int index = FindDeadLetterIndex(_deadLetters.State.Records, sequence, token);
+        if (index < 0 || _deadLetters.State.Records[index].DeliveryId != expectedDeliveryId)
+            throw new InvalidOperationException("死信操作的批次序号或原投递身份与当前状态不匹配。");
+        return index;
+    }
+
+    private async Task CommitDeadLetterOperationAsync(FileStreamingDeadLetterState proposed, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        try
+        {
+            await _deadLetters.CommitAsync(proposed, token).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Fault(exception);
+            throw;
+        }
+    }
+
+    private static int FindDeadLetterIndex(FileStreamingDeadLetterRecord[] records, long sequence, CancellationToken token)
+    {
+        // Records 经恢复校验限制为最多 10,000 条；操作令牌约束墙钟和取消。
+        for (int index = 0; index < records.Length; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            if (records[index].Sequence == sequence)
+                return index;
+            if (records[index].Sequence > sequence)
+                break;
+        }
+
+        return -1;
+    }
+
+    private static StreamingEvent[] CopyDeadLetterEvents(FileStreamingDeadLetterRecord record, CancellationToken token)
+    {
+        var events = new StreamingEvent[record.Events.Length];
+        // 单批事件数受订阅 BatchSize（最多 100,000）限制；操作令牌约束墙钟和取消。
+        for (int index = 0; index < events.Length; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            events[index] = record.Events[index].ToEvent();
+        }
+
+        return events;
     }
 
     private FileStreamingDeadLetterSummary SummarizeDeadLetter(FileStreamingDeadLetterRecord record)
         => new(record.Sequence, record.DeliveryId, Definition.SubscriptionId, Definition.StreamName,
             record.Attempt, record.Reason, record.CreatedAtUtc, record.Events.Length,
-            record.Events[0].Sequence, record.Events[^1].Sequence, record.Checkpoint);
+            record.Events[0].Sequence, record.Events[^1].Sequence, record.Checkpoint)
+        {
+            DeadLetterRevision = _deadLetters.State.Revision,
+            ReplayId = record.Replay?.ReplayId,
+            ReplayAttempt = record.Replay?.Attempt ?? 0,
+            LastReplayClaimedAtUtc = record.Replay?.LastClaimedAtUtc,
+        };
 
     private async Task<StreamingSubscriptionCheckpoint> RecoverDeadLetterIntentAsync(
         StreamingSubscriptionCheckpoint checkpoint,

@@ -9,6 +9,7 @@
 ### Added
 - **M42 TTL 文档 SQL 物化准入（2026-10-02）**：显式预算 raw SELECT 在固定查询时刻逐文档判断 TTL，过期候选推进游标但不计结果保留、不执行过期删除；冷开与预算 EXPLAIN 跳过 TTL 全量回收，TTL 时间计算避免 Int64 相加溢出。派生索引初始化、阻塞查询、整体 heap 及远程预算仍有独立边界，见[合同](docs/benchmarks/m42-document-ttl-result-bounds.md)。
 - **M43 持久滑动窗口（2026-10-02）**：新增显式 size/slide 的 COUNT、精确 decimal 与字符串分组窗口，每事件最多 128 个重叠成员；复用提交后 ACK 与重投去重，按成员处理关闭窗口和整批拒绝。独立 v4 状态保留 v1～v3 读取与原字段哈希，见[合同](docs/m43-sliding-window-contract.md)。
+- **M43 DLQ 本地重放与删除（2026-10-02）**：持久重放身份及领取次数支持重开续处理，条件删除按独立目录 revision、原投递身份和重放回执回收容量，死信序号不复用；旧 v1 严格校验后迁移 v2。业务处理与删除不构成跨目录事务，见[运维合同](docs/m43-streaming-dlq-operations.md)。
 - **M42 文档 SQL 物化准入（2026-10-01 第四批）**：直接无 TTL 集合 raw SELECT 按文档 ID 逐条读取，在过滤、OFFSET/LIMIT 和投影后、保留结果前共享累计行/估算字节预算；排序、聚合、搜索、JOIN 和嵌套文档来源在扫描前拒绝。底层 KV 快照和单值解析仍有独立工作集，不承诺整体 heap 上限或远程预算选项。见[合同](docs/benchmarks/m42-document-result-bounds.md)。
 - **M43 持久分组窗口（2026-10-01 第四批）**：显式顶层 JSON string 键按原值分组，支持 COUNT 与精确 decimal 数值聚合、键数/结果数/字节边界、组合游标分页和关闭窗口回收；分组使用独立 v3 状态，旧 COUNT v1/数值 v2 保持原字段与 SHA-256 校验。见[合同](docs/m43-grouped-windows.md)。
 - **M43 持久 DLQ（2026-10-01 第四批）**：耗尽批次可经 delivery ID、revision 和 attempt 条件显式隔离，先保存完整事件与原因再推进确认，重开协调中断提交；有界摘要与事件读取，容量满保留原批次。独立 DLQ 状态不改变订阅 v1~v3；窗口不自动跳过隔离后的位点差距。见[合同](docs/m43-subscription-dead-letter.md)。
