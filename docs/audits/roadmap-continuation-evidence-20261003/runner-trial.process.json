@@ -1,0 +1,50 @@
+{
+  "name": "runner-trial",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "arguments": [
+    "-NoProfile",
+    "-Command",
+    "Start-Sleep -Seconds 3"
+  ],
+  "timeoutSeconds": 1,
+  "maxPolls": 2,
+  "owner": {
+    "pid": 50732,
+    "created": "2026-10-03T04:45:38.4019920Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$evidencePath = Join-Path (Get-Location) 'docs/audits/roadmap-continuation-evidence-20261003'\nNew-Item -ItemType Directory -Path $evidencePath -ErrorAction Stop | Out-Null\nCopy-Item -LiteralPath 'docs/audits/roadmap-parallel-next-evidence-20261003/run-owned.ps1' -Destination (Join-Path $evidencePath 'run-owned.ps1') -ErrorAction Stop\n& (Join-Path $evidencePath 'run-owned.ps1') -Name runner-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','Start-Sleep -Seconds 3') -TimeoutSeconds 1\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 80988,
+    "created": "2026-10-03T04:45:39.9332610Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"Start-Sleep -Seconds 3\"",
+    "parent": 50732
+  },
+  "reason": "timeout",
+  "exitCode": 124,
+  "elapsedSeconds": 6.655679,
+  "samples": [],
+  "cleanup": [
+    {
+      "action": "identity-changed-or-exited-retained",
+      "identity": {
+        "pid": 51692,
+        "created": "2026-10-03T04:45:39.9434960Z",
+        "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+        "parent": 80988
+      }
+    },
+    {
+      "action": "identity-changed-or-exited-retained",
+      "identity": {
+        "pid": 80988,
+        "created": "2026-10-03T04:45:39.9332610Z",
+        "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"Start-Sleep -Seconds 3\"",
+        "parent": 50732
+      }
+    }
+  ],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

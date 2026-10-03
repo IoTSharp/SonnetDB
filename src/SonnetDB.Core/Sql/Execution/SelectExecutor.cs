@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Runtime.ExceptionServices;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Model;
@@ -97,18 +98,21 @@ internal static class SelectExecutor
 
     internal static void ValidateMaterializationSupported(MeasurementSchema schema, SelectStatement statement)
     {
-        if (statement.OrderByList.Count != 0 || statement.GroupBy.Count != 0
+        if (statement.GroupBy.Count != 0
             || statement.Having is not null || statement.Distinct || statement.IsRecursive
             || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
             || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0
             || statement.TableValuedFunction is not null || statement.GraphTable is not null
             || ContainsBudgetedSubquery(statement.Where)
+            || statement.OrderByList.Any(static order => ContainsBudgetedSubquery(order.Expression))
             || statement.Projections.Any(static projection => ContainsBudgetedSubquery(projection.Expression)))
         {
             throw new NotSupportedException(
-                "measurement SQL 物化预算仅支持直接 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
+                "measurement SQL 物化预算仅支持直接 raw SELECT、标量投影、WHERE、ORDER BY 和 LIMIT/OFFSET；聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
         }
 
+        foreach (var projection in statement.Projections)
+            ValidateBudgetedScalar(projection.Expression, allowStar: true);
         var projections = ClassifyProjections(statement.Projections, schema);
         if (projections.Any(static projection => projection.Kind is ProjectionKind.Aggregate
             or ProjectionKind.AggregateExpression or ProjectionKind.Window))
@@ -119,9 +123,19 @@ internal static class SelectExecutor
         if (where.GeoFilters.Count != 0)
             throw new NotSupportedException("measurement SQL 物化预算尚不支持 Geo 谓词。");
         if (where.Residual is not null)
+        {
+            ValidateBudgetedScalar(where.Residual);
             ValidateResidualColumns(where.Residual, schema);
+        }
 
-        var fieldNames = GetBudgetedFieldNames(projections, schema, where);
+        var orderProjections = GetBudgetedOrderProjections(statement, schema);
+        foreach (var order in orderProjections)
+        {
+            ValidateBudgetedScalar(order.Expression);
+            SqlProjectionExpressionEvaluator.Validate(order.Expression,
+                identifier => IsMeasurementProjectionIdentifier(identifier, schema), "measurement ORDER BY");
+        }
+        var fieldNames = GetBudgetedFieldNames(projections, schema, where, orderProjections);
         foreach (string fieldName in fieldNames)
         {
             if (schema.TryGetColumn(fieldName)!.DataType is not
@@ -130,6 +144,86 @@ internal static class SelectExecutor
                 throw new NotSupportedException("measurement SQL 物化预算仅支持数值、布尔和字符串 FIELD。");
             }
         }
+    }
+
+    private static void ValidateBudgetedScalar(SqlExpression? expression, bool allowStar = false)
+    {
+        switch (expression)
+        {
+            case null or LiteralExpression or DurationLiteralExpression or IdentifierExpression:
+                return;
+            case StarExpression when allowStar:
+                return;
+            case CastExpression cast when cast.TargetType is not (SqlDataType.Vector or SqlDataType.GeoPoint):
+                ValidateBudgetedScalar(cast.Operand);
+                return;
+            case UnaryExpression unary:
+                ValidateBudgetedScalar(unary.Operand);
+                return;
+            case BinaryExpression binary:
+                ValidateBudgetedScalar(binary.Left);
+                ValidateBudgetedScalar(binary.Right);
+                return;
+            case IsNullExpression isNull:
+                ValidateBudgetedScalar(isNull.Operand);
+                return;
+            case InExpression { Subquery: null } membership:
+                ValidateBudgetedScalar(membership.Value);
+                foreach (var value in membership.Values)
+                    ValidateBudgetedScalar(value);
+                return;
+            case CaseExpression conditional:
+                foreach (var clause in conditional.WhenClauses)
+                {
+                    ValidateBudgetedScalar(clause.Condition);
+                    ValidateBudgetedScalar(clause.Result);
+                }
+                ValidateBudgetedScalar(conditional.Else);
+                return;
+            case FunctionCallExpression function when function.Over is null
+                && !function.IsStar && !function.IsDistinct
+                && FunctionRegistry.TryGetScalar(function.Name, out _):
+                SqlTableFunctionMaterialization.ValidateScalarArgumentCount(function);
+                foreach (var argument in function.Arguments)
+                    ValidateBudgetedScalar(argument);
+                return;
+            default:
+                throw new NotSupportedException(
+                    "measurement SQL 物化预算仅支持只读标准标量表达式；聚合、窗口、子查询及非标准值尚不支持。");
+        }
+    }
+
+    private static IReadOnlyList<BudgetedOrderProjection> GetBudgetedOrderProjections(
+        SelectStatement statement, MeasurementSchema schema)
+    {
+        var result = new List<BudgetedOrderProjection>(statement.OrderByList.Count);
+        foreach (var order in statement.OrderByList)
+        {
+            SqlExpression expression = order.Expression;
+            int? projectionIndex = null;
+            if (expression is IdentifierExpression { Qualifier: null } identifier)
+            {
+                var alias = statement.Projections.FirstOrDefault(item => item.Alias is not null
+                    && string.Equals(item.Alias, identifier.Name, identifier.IsQuoted || identifier.IsNameBound
+                        ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase));
+                if (alias is not null)
+                {
+                    expression = alias.Expression;
+                    int index = 0;
+                    foreach (var item in statement.Projections)
+                    {
+                        if (ReferenceEquals(item, alias))
+                        {
+                            projectionIndex = index;
+                            break;
+                        }
+                        index += item.Expression is StarExpression ? schema.Columns.Count + 1 : 1;
+                    }
+                }
+            }
+            result.Add(new BudgetedOrderProjection(expression, order.Direction, projectionIndex));
+        }
+        return result;
     }
 
     private static bool ContainsBudgetedSubquery(SqlExpression? expression) => expression switch
@@ -154,12 +248,15 @@ internal static class SelectExecutor
         var projections = ClassifyProjections(statement.Projections, schema);
         var columns = projections.Select(static projection => projection.ColumnName).ToList();
         var rows = new List<IReadOnlyList<object?>>();
+        var orderProjections = GetBudgetedOrderProjections(statement, schema);
+        bool blockingSort = orderProjections.Count != 0;
+        var candidates = blockingSort ? new List<BudgetedSortRow>() : null;
         int? fetch = statement.Pagination?.Fetch;
-        if (fetch == 0)
+        if (fetch == 0 && !blockingSort)
             return new SelectExecutionResult(columns, rows);
 
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
-        var fieldNames = GetBudgetedFieldNames(projections, schema, where);
+        var fieldNames = GetBudgetedFieldNames(projections, schema, where, orderProjections);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
         RecordEstimatedRows(tsdb, statement);
         int skipped = 0;
@@ -173,7 +270,7 @@ internal static class SelectExecutor
                 if (where.Residual is not null
                     && !ResidualHoldsAtPoint(where.Residual, pointRow.Timestamp, series, pointRow.Lookups))
                     continue;
-                if (skipped < offset)
+                if (!blockingSort && skipped < offset)
                 {
                     skipped++;
                     continue;
@@ -197,23 +294,95 @@ internal static class SelectExecutor
                         _ => throw new InvalidOperationException("内部错误：物化预算 raw 路径收到不支持的投影。"),
                     };
                 }
-                // 只保留过滤、分页后的完整结果；预算拒绝发生在追加前，不生成成功的截断结果。
+                // 非排序路径只保留 SQL 页；阻塞排序先准入全部匹配候选，不生成成功的截断结果。
                 SqlRowRetentionBudget.RetainForExecution(row);
+                if (blockingSort)
+                {
+                    var keys = new object?[orderProjections.Count];
+                    for (int i = 0; i < keys.Length; i++)
+                    {
+                        var order = orderProjections[i];
+                        keys[i] = order.ProjectionIndex is { } index ? row[index]
+                            : SqlProjectionExpressionEvaluator.Evaluate(order.Expression, identifier =>
+                                schema.TryGetColumn(identifier.Name) is { Role: MeasurementColumnRole.Tag }
+                                    ? series.Tags.TryGetValue(identifier.Name, out var tagValue) ? tagValue : null
+                                    : ResolveMeasurementProjectionIdentifier(
+                                        identifier, pointRow.Timestamp, series, pointRow.Lookups),
+                                "measurement ORDER BY");
+                    }
+                    // 键数组有自己的引用槽位和载荷；与候选投影及最终页共用累计预算。
+                    SqlRowRetentionBudget.RetainForExecution(keys);
+                    candidates!.Add(new BudgetedSortRow(row, keys, candidates!.Count));
+                    continue;
+                }
                 rows.Add(row);
                 if (fetch is { } limit && rows.Count >= limit)
                     return new SelectExecutionResult(columns, rows);
             }
         }
+        if (blockingSort)
+        {
+            // 输入全量准入后再排序；稳定 ties 使用原始 series/时间流序号，不额外复制候选。
+            try
+            {
+                candidates!.Sort(new BudgetedSortComparer(orderProjections));
+            }
+            catch (InvalidOperationException error) when (error.InnerException is not null)
+            {
+                // List.Sort 会包装比较器错误；保留取消和 SQL 比较异常的原始合同。
+                ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+                throw;
+            }
+            foreach (var candidate in candidates!)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (skipped < offset)
+                {
+                    skipped++;
+                    continue;
+                }
+                if (fetch is { } limit && rows.Count >= limit)
+                    break;
+                SqlRowRetentionBudget.RetainForExecution(candidate.Row);
+                rows.Add(candidate.Row);
+            }
+        }
         return new SelectExecutionResult(columns, rows);
     }
 
+    private readonly record struct BudgetedOrderProjection(
+        SqlExpression Expression, SortDirection Direction, int? ProjectionIndex);
+
+    private readonly record struct BudgetedSortRow(object?[] Row, object?[] Keys, int Sequence);
+
+    private sealed class BudgetedSortComparer(IReadOnlyList<BudgetedOrderProjection> orders)
+        : IComparer<BudgetedSortRow>
+    {
+        public int Compare(BudgetedSortRow left, BudgetedSortRow right)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            for (int i = 0; i < orders.Count; i++)
+            {
+                object? leftKey = left.Keys[i];
+                object? rightKey = right.Keys[i];
+                int comparison = leftKey is null ? rightKey is null ? 0 : -1
+                    : rightKey is null ? 1 : SqlScalarComparer.Compare(leftKey, rightKey)!.Value;
+                if (comparison != 0)
+                    return orders[i].Direction == SortDirection.Descending ? -comparison : comparison;
+            }
+            return left.Sequence.CompareTo(right.Sequence);
+        }
+    }
+
     private static List<string> GetBudgetedFieldNames(
-        IReadOnlyList<Projection> projections, MeasurementSchema schema, WhereClause where)
+        IReadOnlyList<Projection> projections, MeasurementSchema schema, WhereClause where,
+        IReadOnlyList<BudgetedOrderProjection> orders)
     {
         var fieldNames = projections.Where(static projection => projection.Kind == ProjectionKind.Field)
             .Select(static projection => projection.Column!.Name)
             .Concat(GetScalarFieldDependencies(projections, schema))
             .Concat(GetResidualFieldDependencies(where.Residual, schema))
+            .Concat(orders.SelectMany(order => GetScalarFieldDependencies(order.Expression, schema)))
             .Distinct(StringComparer.Ordinal).ToList();
         if (fieldNames.Count == 0)
             fieldNames.Add(schema.FieldColumns.First().Name);

@@ -9,6 +9,9 @@
 
 ### Added
 
+- **M42 measurement 排序预算（2026-10-03）**：显式累计物化准入扩展到直接 raw SELECT 多键排序，候选、辅助键和分页输出共用根预算，支持未投影标量字段；默认路径与整体 heap/首行、固定硬件门禁独立保留。见[合同](docs/benchmarks/m42-measurement-order-bounds.md)。
+- **M43 多分区与任务接线（2026-10-03）**：新增 `CdcStreamingBridgeTopology` 有界公平推进和 `FileStreamingTaskRunner` 目录身份校验/自动投递入口；真实 `--topology` 样例核对文档源、未 ACK 窗口去重及独立位点重开。远程拓扑、业务事务和发布门禁继续待补。见[合同](docs/m43-local-task-topology.md)。
+
 - **M42 表值函数物化准入（2026-10-03）**：直接 measurement `knn`、文档 `vector_search` 与文件 `json_each/json_table` 在候选及标量结果保留前使用累计行/估算字节预算；复杂来源和同名注册回调预检拒绝，默认路径保持兼容。文件预算模式逐记录读取，候选替换、排序快照与结果可能重复计费；新增 `--budgets` 真实文件/双模型向量/重开入口。见[合同](docs/benchmarks/m42-table-function-result-bounds.md)与[并行记录](docs/audits/roadmap-parallel-next-20261003.md)。
 - **M42 直接 Graph SQL 物化准入**：直接节点/边与原生固定一跳 GRAPH_TABLE 的标量 WHERE/投影/OFFSET/LIMIT 使用分页候选和累计行/估算字节预算；EXPLAIN/ANALYZE 共用根预算，复杂路径预检拒绝。默认查询、图快照和文件格式保持兼容，整体 heap/首行及远程门禁仍待验证。见[合同](docs/benchmarks/m42-graph-result-bounds.md)。
 - **M43 有界自动订阅投递**：新增显式驱动器，串行回调、成功后 ACK、失败退避与持久次数上限，默认耗尽保留或显式条件 DLQ；超时停止，回调未收敛前保留同对象租约。见[合同](docs/m43-streaming-dispatcher.md)。

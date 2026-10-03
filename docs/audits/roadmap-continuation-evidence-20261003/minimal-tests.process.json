@@ -1,0 +1,162 @@
+{
+  "name": "minimal-tests",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--filter",
+    "FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask",
+    "--logger",
+    "trx;LogFileName=minimal-tests.trx",
+    "--results-directory",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+  ],
+  "timeoutSeconds": 120,
+  "maxPolls": 61,
+  "owner": {
+    "pid": 41864,
+    "created": "2026-10-03T04:57:24.9171220Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 76448,
+    "created": "2026-10-03T04:57:27.3290350Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+    "parent": 41864
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 9.9637253,
+  "samples": [
+    {
+      "elapsedSeconds": 3.909106,
+      "chains": [
+        [
+          {
+            "pid": 31140,
+            "created": "2026-10-03T04:57:28.6639690Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask\" --logger:\"trx;LogFileName=minimal-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:76448_051161f1-ad4b-4544-98d8-e5159053a4e8",
+            "parent": 76448
+          },
+          {
+            "pid": 76448,
+            "created": "2026-10-03T04:57:27.3290350Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 41864
+          },
+          {
+            "pid": 41864,
+            "created": "2026-10-03T04:57:24.9171220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 23488,
+            "created": "2026-10-03T04:57:27.3432750Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 76448
+          },
+          {
+            "pid": 76448,
+            "created": "2026-10-03T04:57:27.3290350Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 41864
+          },
+          {
+            "pid": 41864,
+            "created": "2026-10-03T04:57:24.9171220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 76448,
+            "created": "2026-10-03T04:57:27.3290350Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 41864
+          },
+          {
+            "pid": 41864,
+            "created": "2026-10-03T04:57:24.9171220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 79180,
+            "created": "2026-10-03T04:57:29.1773770Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 52856
+          },
+          {
+            "pid": 52856,
+            "created": "2026-10-03T04:57:29.1530100Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 50135 --endpoint 127.0.0.1:050135 --role client --parentprocessid 31140 --telemetryoptedin false",
+            "parent": 31140
+          },
+          {
+            "pid": 31140,
+            "created": "2026-10-03T04:57:28.6639690Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask\" --logger:\"trx;LogFileName=minimal-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:76448_051161f1-ad4b-4544-98d8-e5159053a4e8",
+            "parent": 76448
+          },
+          {
+            "pid": 76448,
+            "created": "2026-10-03T04:57:27.3290350Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 41864
+          },
+          {
+            "pid": 41864,
+            "created": "2026-10-03T04:57:24.9171220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 52856,
+            "created": "2026-10-03T04:57:29.1530100Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 50135 --endpoint 127.0.0.1:050135 --role client --parentprocessid 31140 --telemetryoptedin false",
+            "parent": 31140
+          },
+          {
+            "pid": 31140,
+            "created": "2026-10-03T04:57:28.6639690Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask\" --logger:\"trx;LogFileName=minimal-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:76448_051161f1-ad4b-4544-98d8-e5159053a4e8",
+            "parent": 76448
+          },
+          {
+            "pid": 76448,
+            "created": "2026-10-03T04:57:27.3290350Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask --logger trx;LogFileName=minimal-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 41864
+          },
+          {
+            "pid": 41864,
+            "created": "2026-10-03T04:57:24.9171220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name minimal-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask','--logger','trx;LogFileName=minimal-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 120\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 7.510347,
+      "chains": []
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

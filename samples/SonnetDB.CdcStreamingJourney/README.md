@@ -42,5 +42,15 @@ dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release -- --budget
 
 `--budgets` 实际从 JSON 文件读取三条记录并保存至文档集合和 measurement，检查文件 TVF、文档向量和 measurement KNN 的低预算拒绝，以及失败后正常查询、flush 和数据库重开的一致结果。
 成功输出 `PASS_LOCAL_ONLY budgets imported=3 vector_id=a knn_time=0 rejected=3 reopened=true`。
-它与 `--bridge` 互斥，可组合 `--keep`；默认回收本次独占目录，三十秒总时限和 Ctrl+C 取消保持有效。
+它与 `--bridge`、`--topology` 互斥，可组合 `--keep`；默认回收本次独占目录，三十秒总时限和 Ctrl+C 取消保持有效。
 此入口验证 [M42 累计物化合同](../../docs/benchmarks/m42-table-function-result-bounds.md)，本地合成向量不计模型质量、固定硬件性能或远程证据。
+
+## 多分区桥接与目录任务重开
+
+```powershell
+dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release -- --topology
+```
+
+`--topology` 从两个真实 Document change feed 捕获三次变更，轮转推进独立桥接，首次目录任务处理持久保存窗口后返回失败，保留未 ACK 批次并关闭全部句柄。重开后追平两条独立源位点，按目录任务恢复投递，核对稳定 delivery ID、第二次投递、窗口去重和再次重开结果。同时验证未投影 FIELD 的 measurement 多键排序与 LIMIT 下累计预算拒绝。
+
+成功输出 `PASS_LOCAL_ONLY topology partitions=2 events=3 window_count=3 redelivery_attempt=2 sorted_time=1 reopened=true`。此模式与其它模式互斥，可组合 `--keep`。数量上限和三十秒总时限共同约束执行；Ctrl+C 取消，默认仅回收本次专属目录。它验证[本地接线](../../docs/m43-local-task-topology.md)及[排序预算](../../docs/benchmarks/m42-measurement-order-bounds.md)，不代表远程、掉电、跨分区业务事务、固定硬件或生产门禁完成。

@@ -45,6 +45,10 @@ public sealed class CdcStreamingBridge : IAsyncDisposable
     /// <summary>已持久保存的一批容量和超时边界。</summary>
     public CdcStreamingBridgeOptions Options => _state.Identity.Options;
 
+    internal CdcEventSpool SourceSpool => _source;
+
+    internal FileStreamingSubscription TargetSubscription => _target;
+
     /// <summary>创建或重开桥接，并完成已有 outbox 的恢复；不会读取新的源批次。</summary>
     /// <param name="statePath">专属于本桥接的状态文件路径。</param>
     /// <param name="source">只由本桥接确认的单分区 CDC spool。</param>

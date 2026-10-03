@@ -1,10 +1,10 @@
 using SonnetDB.Samples;
 
-if (args.Length > 2 || args.Any(static argument => argument is not ("--keep" or "--bridge" or "--budgets"))
+if (args.Length > 2 || args.Any(static argument => argument is not ("--keep" or "--bridge" or "--budgets" or "--topology"))
     || args.Distinct(StringComparer.Ordinal).Count() != args.Length
-    || (args.Contains("--bridge", StringComparer.Ordinal) && args.Contains("--budgets", StringComparer.Ordinal)))
+    || args.Count(static argument => argument is "--bridge" or "--budgets" or "--topology") > 1)
 {
-    Console.Error.WriteLine("Usage: SonnetDB.CdcStreamingJourney [--bridge | --budgets] [--keep]");
+    Console.Error.WriteLine("Usage: SonnetDB.CdcStreamingJourney [--bridge | --budgets | --topology] [--keep]");
     return 2;
 }
 
@@ -15,7 +15,13 @@ string directory = Directory.CreateTempSubdirectory("sonnetdb-cdc-stream-journey
 bool keep = args.Contains("--keep", StringComparer.Ordinal);
 try
 {
-    if (args.Contains("--budgets", StringComparer.Ordinal))
+    if (args.Contains("--topology", StringComparer.Ordinal))
+    {
+        CdcStreamingTaskJourneyResult result = await CdcStreamingTaskJourney.RunAsync(directory, cancellation.Token);
+        Console.WriteLine($"PASS_LOCAL_ONLY topology partitions={result.Partitions} events={result.Events} " +
+            $"window_count={result.WindowCount} redelivery_attempt={result.RedeliveryAttempt} sorted_time={result.SortedTime} reopened=true");
+    }
+    else if (args.Contains("--budgets", StringComparer.Ordinal))
     {
         SqlBudgetJourneyResult result = await SqlBudgetJourney.RunAsync(directory, cancellation.Token);
         Console.WriteLine($"PASS_LOCAL_ONLY budgets imported={result.ImportedRows} vector_id={result.VectorId} " +

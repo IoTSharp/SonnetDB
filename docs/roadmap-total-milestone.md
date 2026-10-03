@@ -14,6 +14,8 @@
 
 ## 一、当前结论
 
+2026-10-03 后续本地增量扩展 measurement raw SELECT 多键排序预算，并把独立单分区桥接接到多分区有界轮转、把任务目录接到 caller-owned 订阅投递；实际文档源与窗口重开入口为 `--topology`，见[本轮记录](audits/roadmap-continuation-20261003.md)。单分区桥接与 TVF 预算不重复交付；远程/schema/冲突、业务事务、十四能力完整矩阵及固定硬件/长稳继续待补。
+
 第四批新增无 TTL 文档 raw SELECT 累计物化准入、持久字符串分组 COUNT/decimal 窗口及条件 DLQ；分组重投与隔离后显式新基线的组合恢复见[第四批记录](audits/roadmap-next-three-closure-20261001.md)。后续 2026-10-02 增量已补 TTL、滑动窗口、DLQ 重放/删除、直接文档 ORDER BY、持久会话 COUNT 与任务目录；[下一批](audits/roadmap-parallel-next-20261002.md)已补直接 Graph 预算、有界自动投递及单分区 CDC→流恢复桥接。这些本地实现退出待实现队列，完整十四能力旅程与外部门禁仍保留。
 
 SonnetDB 当前公开定位为九种原生数据模型，加上空间/轨迹、流处理/订阅、CDC/边缘同步、AI/RAG、治理/运维五项平台能力，共十四套能力。Graph 保持 Graph Beta；“有代码入口”不等于完成容量、恢复、跨端 parity 或生产发布证据。

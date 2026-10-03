@@ -189,6 +189,23 @@ public sealed class CdcEventSpool : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>读取专用分区的位点而不复制整个分区目录；出现其它分区时返回 false。</summary>
+    internal bool TryGetDedicatedPartitionProgress(long partition, out long acknowledgedOffset, out long highWatermark)
+    {
+        lock (_stateLock)
+        {
+            acknowledgedOffset = -1;
+            highWatermark = -1;
+            if (_partitions.Count == 0)
+                return true;
+            if (_partitions.Count != 1 || !_partitions.TryGetValue(partition, out PartitionState state))
+                return false;
+            acknowledgedOffset = state.AcknowledgedOffset;
+            highWatermark = state.HighWatermark;
+            return true;
+        }
+    }
+
     /// <summary>
     /// 当 spool 只有一个已确认分区时返回该位点；多分区时返回空值。
     /// </summary>

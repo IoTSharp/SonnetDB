@@ -1,0 +1,1679 @@
+{
+  "name": "server-sql-tests",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "test",
+    "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--filter",
+    "FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests",
+    "--logger",
+    "trx;LogFileName=server-sql-tests.trx",
+    "--results-directory",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+  ],
+  "timeoutSeconds": 300,
+  "maxPolls": 151,
+  "owner": {
+    "pid": 70076,
+    "created": "2026-10-03T05:07:28.7908660Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 37880,
+    "created": "2026-10-03T05:07:30.1920850Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+    "parent": 70076
+  },
+  "reason": "exited",
+  "exitCode": 1,
+  "elapsedSeconds": 46.0915815,
+  "samples": [
+    {
+      "elapsedSeconds": 2.7976264,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 6.4212537,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 9.8475943,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 13.0854052,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 16.2903958,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 19.3253044,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 22.3085518,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 25.313782,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 28.2997973,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 31.6932766,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 34.7787141,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 37.8956497,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 41.354226,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 44.5912743,
+      "chains": [
+        [
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54120,
+            "created": "2026-10-03T05:07:30.2106550Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 34104,
+            "created": "2026-10-03T05:07:31.1166700Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 15004
+          },
+          {
+            "pid": 15004,
+            "created": "2026-10-03T05:07:31.1037180Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.deps.json\" --port 52588 --endpoint 127.0.0.1:052588 --role client --parentprocessid 80808 --telemetryoptedin false",
+            "parent": 80808
+          },
+          {
+            "pid": 80808,
+            "created": "2026-10-03T05:07:30.8628430Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --platform:x64 --testCaseFilter:\"FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests\" --logger:\"trx;LogFileName=server-sql-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:37880_2398cf40-b0f0-41c7-b101-0ae36ab9d31d",
+            "parent": 37880
+          },
+          {
+            "pid": 37880,
+            "created": "2026-10-03T05:07:30.1920850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests --logger trx;LogFileName=server-sql-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 70076
+          },
+          {
+            "pid": 70076,
+            "created": "2026-10-03T05:07:28.7908660Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name server-sql-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Tests/SonnetDB.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests','--logger','trx;LogFileName=server-sql-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

@@ -134,6 +134,8 @@ M43 只保留未实施或待外部动作的队列：
 
 ## 已完成范围索引
 
+- M42/M43 2026-10-03 后续增量：直接 measurement raw SELECT 多键排序预算、多分区本地 CDC→流公平调度和目录任务投递接线；真实 `--topology` 组合入口核对未 ACK 窗口去重、独立位点与排序重开。见[本轮记录](docs/audits/roadmap-continuation-20261003.md)；远程、固定硬件、长期和生产门禁继续独立保留。
+
 - M42 2026-10-03 表值函数增量：measurement KNN、文档 vector_search 和 JSON 文件 json_each/json_table 的候选及标量结果累计物化准入；共享入口拒绝注册回调与间接来源，真实文件→持久双模型向量→拒绝后恢复/重开入口为 `--budgets`。见[分工与验证](docs/audits/roadmap-parallel-next-20261003.md)；默认查询、底层存储工作集、远程与生产门禁分别保留边界。
 
 - M42/M43 2026-10-02 下一批：直接原生 Graph SELECT 累计物化准入、有时限/退避/独占回调的自动投递、单分区 CDC→流 outbox/目标接收凭证恢复桥接；独立代码边界、交叉审查、真实文件组合入口及分级证据见[本轮报告](docs/audits/roadmap-parallel-next-20261002.md)。跨目录未知结果须核对或显式恢复交接；整体 heap/首行、远程及生产门禁继续保留。

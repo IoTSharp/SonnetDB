@@ -227,7 +227,6 @@ public sealed class SqlMeasurementMaterializationBudgetTests : IDisposable
 
     /// <summary>无法保证执行预算的阻塞或混合查询在读取任何点之前明确拒绝。</summary>
     [Theory]
-    [InlineData("SELECT time, value FROM readings ORDER BY time LIMIT 1")]
     [InlineData("SELECT SUM(value) FROM readings")]
     [InlineData("SELECT time, SUM(value) FROM readings GROUP BY time(1s)")]
     [InlineData("SELECT DISTINCT value FROM readings")]

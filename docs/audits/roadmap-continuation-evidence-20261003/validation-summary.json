@@ -1,0 +1,477 @@
+{
+  "baseline": "a0e1dff4679f4450fc10fec87cd527515777c700",
+  "evidenceLevel": "LOCAL_ONLY",
+  "powershell": "7.6.6",
+  "maxRecords": 32,
+  "maxTraces": 8,
+  "timeoutSeconds": 60,
+  "runs": [
+    {
+      "name": "aot-publish",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 96.2031882,
+      "timeoutSeconds": 900,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "publish",
+        "samples/SonnetDB.CdcStreamingJourney/SonnetDB.CdcStreamingJourney.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "win-x64",
+        "--self-contained",
+        "true",
+        "-p:PublishAot=true",
+        "--disable-build-servers",
+        "-m:1",
+        "-p:BuildInParallel=false",
+        "-p:UseSharedCompilation=false",
+        "-o",
+        "D:\\source\\SonnetDB\\.codex-temp\\continuation-aot-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "525B724C74A4B17931ECBC2EDCF3369CEF8FE0E4FEF573675D14735888E5F889"
+    },
+    {
+      "name": "aot-topology",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 2.2968229,
+      "timeoutSeconds": 120,
+      "executable": "D:\\source\\SonnetDB\\.codex-temp\\continuation-aot-20261003\\SonnetDB.CdcStreamingJourney.exe",
+      "arguments": [
+        "--topology"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "613C51FF192C8060C6BEB5FADC5200D4B5A38A2A38554AE6BA306B45DDAEE0CA"
+    },
+    {
+      "name": "core-full",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 312.137568,
+      "timeoutSeconds": 900,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--logger",
+        "trx;LogFileName=core-full.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "9D094C9643BA21D951C0AFED3059F3F33CC67F6D39105837C35AB91B095A761C"
+    },
+    {
+      "name": "corrected-test-build",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 98.6323741,
+      "timeoutSeconds": 600,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "build",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--disable-build-servers",
+        "-m:1",
+        "-p:BuildInParallel=false",
+        "-p:UseSharedCompilation=false"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "E34586492C140FC0454857EDBEDFD345169D95BA79D87E825AF77DFCE23D5D9D"
+    },
+    {
+      "name": "final-format-corrected",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 129.7538691,
+      "timeoutSeconds": 900,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "format",
+        "SonnetDB.slnx",
+        "--verify-no-changes",
+        "--no-restore",
+        "--severity",
+        "warn",
+        "--exclude",
+        "extensions/",
+        "--verbosity",
+        "diagnostic"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "20A3D28F369DB6FF9AA571F11CB3E18A9B259944824496CA563B940768F128FB"
+    },
+    {
+      "name": "final-format",
+      "exitCode": 2,
+      "reason": "exited",
+      "seconds": 123.0669414,
+      "timeoutSeconds": 900,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "format",
+        "SonnetDB.slnx",
+        "--verify-no-changes",
+        "--no-restore",
+        "--severity",
+        "warn",
+        "--exclude",
+        "extensions/"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "BEA781DD120E0A5F96438209EAB15D4E03915B76894500E0F7DB150163AE7F0D"
+    },
+    {
+      "name": "final-restore",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 8.737701,
+      "timeoutSeconds": 600,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "restore",
+        "SonnetDB.slnx",
+        "--disable-parallel"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "76B316B29640F807385E94F0991C7C7A0F33AA3BCE874424E9D4047A0D8103F9"
+    },
+    {
+      "name": "initial-restore",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 9.6337288,
+      "timeoutSeconds": 600,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "restore",
+        "SonnetDB.slnx",
+        "--disable-parallel"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "E9AFF4C964342512530E197E5729226D99DFDC59CAE5D8F6B01EE2641349971F"
+    },
+    {
+      "name": "initial-test-build",
+      "exitCode": 1,
+      "reason": "exited",
+      "seconds": 86.2224853,
+      "timeoutSeconds": 600,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "build",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--disable-build-servers",
+        "-m:1",
+        "-p:BuildInParallel=false",
+        "-p:UseSharedCompilation=false"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "00BF5E8C51628867D136B0573B893DF887B7309AE219B32C71D29196D03559C2"
+    },
+    {
+      "name": "managed-topology",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 3.4579871,
+      "timeoutSeconds": 120,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll",
+        "--topology"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "E6D548943FE960868D332D1559E8E896EF20AD4030B401F1E3900DD9AC3CDEAF"
+    },
+    {
+      "name": "minimal-tests",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 9.9637253,
+      "timeoutSeconds": 120,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~Execute_LimitOne_ChargesCandidatesKeysAndOutput|FullyQualifiedName~RunAsync_RepeatedSingleSteps_PreservesRoundRobinAcrossCalls|FullyQualifiedName~RunAsync_AfterCatalogAndSubscriptionReopen_RunsRegisteredPersistentTask",
+        "--logger",
+        "trx;LogFileName=minimal-tests.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "06963474410C6C25F7B6C1FCA9D128520DA0CCFEE448783C55E40FE248F86DE1"
+    },
+    {
+      "name": "release-build",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 129.8345525,
+      "timeoutSeconds": 900,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "build",
+        "SonnetDB.slnx",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--disable-build-servers",
+        "-m:1",
+        "-p:BuildInParallel=false",
+        "-p:UseSharedCompilation=false"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "6C55E1E0B2835CD2C3F2DAA15E0D0A3CEFE9B7F73B388AC584A2EE7CE1717BE8"
+    },
+    {
+      "name": "runner-trial",
+      "exitCode": 124,
+      "reason": "timeout",
+      "seconds": 6.655679,
+      "timeoutSeconds": 1,
+      "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "arguments": [
+        "-NoProfile",
+        "-Command",
+        "Start-Sleep -Seconds 3"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "3DCD8E5FCBC7140A7239EFF1F663185B8D58C3749E09A805D4AE1A4DA8841BC0"
+    },
+    {
+      "name": "server-preview-retry-class",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 9.0925865,
+      "timeoutSeconds": 180,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlResultBoundsEndpointTests",
+        "--logger",
+        "trx;LogFileName=server-preview-retry-class.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "52EDAD2079A156174698C2D6C4554BFA49EBE18156A6B7EC13E9A1ABC1414209"
+    },
+    {
+      "name": "server-preview-retry",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 3.7393761,
+      "timeoutSeconds": 180,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlResultBoundsEndpointTests.InvalidPreviewBound_RejectsBeforeExecutingWrite(requested: -1)",
+        "--logger",
+        "trx;LogFileName=server-preview-retry.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "9B830ACF27D7B0B7ECA95C3DF1EB699319F5C419C25C4C7FF8FC9B57E022B7CD"
+    },
+    {
+      "name": "server-sql-tests",
+      "exitCode": 1,
+      "reason": "exited",
+      "seconds": 46.0915815,
+      "timeoutSeconds": 300,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlResultBoundsEndpointTests|FullyQualifiedName~SqlExecutionPreviewEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~TsdbRegistrySqlExecutionOptionsTests|FullyQualifiedName~GraphSqlAuthorizationTests",
+        "--logger",
+        "trx;LogFileName=server-sql-tests.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "696E244D1A059493BD6F74EB28F74AD228DE681CDDA9BC6AE415CDE3C4497BF8"
+    },
+    {
+      "name": "targeted-tests",
+      "exitCode": 0,
+      "reason": "exited",
+      "seconds": 47.1972516,
+      "timeoutSeconds": 300,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc",
+        "--logger",
+        "trx;LogFileName=targeted-tests.trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+      ],
+      "finalSnapshotAvailable": true,
+      "remaining": 0,
+      "recordSha256": "E02491E90BB09B72072C9DFDC73D6DFCBC9335A62404368B09470D4B5E5E88B9"
+    }
+  ],
+  "tests": [
+    {
+      "file": "core-full.trx",
+      "total": 6140,
+      "passed": 6140,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "53C2033E4A26695DF7D37BB78244E6EB0833F69EE352ADB9714073B5627B487E"
+    },
+    {
+      "file": "minimal-tests.trx",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "4EF3411F6109788D1B255D34329FCFC2D223386831D6ABFBE992701C5BA7B632"
+    },
+    {
+      "file": "server-preview-retry-class.trx",
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "9BEDC54D3B4E796928423FDBFACC0FBB5C9366E06733AC7C5A4283B3C8E2424B"
+    },
+    {
+      "file": "server-preview-retry.trx",
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "041569C5AA48D1EA4BAC9D979759904BB39B7A50E981E8E0086FA52A6317387C"
+    },
+    {
+      "file": "server-sql-tests.trx",
+      "total": 70,
+      "passed": 69,
+      "failed": 1,
+      "notExecuted": 0,
+      "sha256": "6C55F921DDF7B3FB1887846D9C544C45396B16CB1DB5FD9DBCDA9011E6F8EC17"
+    },
+    {
+      "file": "targeted-tests.trx",
+      "total": 528,
+      "passed": 528,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "83DD7245FF0CC1FD330A45FB36875212D301F5BC98B1E78765D62CEB7372A307"
+    }
+  ],
+  "sources": [
+    {
+      "file": "src/SonnetDB.Core/Cdc/CdcEventSpool.cs",
+      "sha256": "AE253D55F66D19EA50F81117D32FBD75D226336975C52D2FCDCD06048C607C2C"
+    },
+    {
+      "file": "src/SonnetDB.Core/Cdc/CdcStreamingBridge.cs",
+      "sha256": "9506F9B94A07C4ACE3D761527425E3FD7F4B7811BF0EFE49295BFAAE7E457D4C"
+    },
+    {
+      "file": "src/SonnetDB.Core/Cdc/CdcStreamingBridgeTopology.cs",
+      "sha256": "3F780C01F25D4AD621FDA49B967D72179E1B9A99FBDDED5A446B3E40E123D870"
+    },
+    {
+      "file": "src/SonnetDB.Core/Streaming/FileStreamingTaskRunner.cs",
+      "sha256": "82F6B4FCDE4D0A313D99272B3D67E5D6C52CFB75731E87D4F46ABEE5C2128BF6"
+    },
+    {
+      "file": "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+      "sha256": "C3ABC4A140BBDE95820428E33A7E2DAF94EC4B9A7611E915374630A2CB26C03E"
+    },
+    {
+      "file": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "99E92362AC22CE2EF160B8368233662134A9CA009A45490ACAD4DE8E44CB07D9"
+    },
+    {
+      "file": "samples/SonnetDB.CdcStreamingJourney/CdcStreamingTaskJourney.cs",
+      "sha256": "6AF70426225D84F9FA762EA6E497CAE64A41997DA05361C8D13A219831E98D90"
+    },
+    {
+      "file": "samples/SonnetDB.CdcStreamingJourney/Program.cs",
+      "sha256": "5F46F5FBFBD99F5662AF30F6E76426D3EFB33C0456353EA7B1E0550E6FAEB7CC"
+    },
+    {
+      "file": "tests/SonnetDB.Core.Tests/Sql/MeasurementOrderMaterializationBudgetTests.cs",
+      "sha256": "E65957325EA05722C963E0E38271191F91794D1116C5028A5BFDD39F730A93C5"
+    },
+    {
+      "file": "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs",
+      "sha256": "3DE0BCD780C9D1C79B4D9CD4ED91805FDAFD6DBEE3346743D4DAD9EA13FEB0AE"
+    },
+    {
+      "file": "tests/SonnetDB.Core.Tests/Cdc/CdcStreamingBridgeTopologyTests.cs",
+      "sha256": "6AFACEB98E45F658A8F475B86A08DB42A96C1D9190AF8F2AECD3EA45F1B426E5"
+    },
+    {
+      "file": "tests/SonnetDB.Core.Tests/Streaming/FileStreamingTaskRunnerTests.cs",
+      "sha256": "7C0C4B90E18B0EB27BC85E800BBDE8AD2064B990253F9C0B72880C34E5FEC337"
+    },
+    {
+      "file": "tests/SonnetDB.Core.Tests/Audits/CdcStreamingTaskJourneyTests.cs",
+      "sha256": "697B8E69086803A4F7B8A6279509837376CB06B12ADE92A246A21F2565A70DA0"
+    }
+  ]
+}
