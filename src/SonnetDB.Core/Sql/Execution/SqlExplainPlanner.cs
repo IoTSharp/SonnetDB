@@ -902,7 +902,10 @@ public static class SqlExplainPlanner
                 TagFilterCount: 0,
                 AccessPath: accessPath,
                 IndexName: indexName,
-                ScanFilter: scanFilter);
+                ScanFilter: scanFilter)
+            {
+                EstimateSource = SqlRowRetentionBudget.HasExecutionBudget ? "budgeted_estimate_omitted" : null,
+            };
         }
 
         if (HybridSearchExecutor.IsHybridSearch(statement))

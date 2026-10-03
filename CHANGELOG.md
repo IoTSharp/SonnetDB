@@ -9,6 +9,7 @@
 
 ### Added
 
+- **M42 表值函数物化准入（2026-10-03）**：直接 measurement `knn`、文档 `vector_search` 与文件 `json_each/json_table` 在候选及标量结果保留前使用累计行/估算字节预算；复杂来源和同名注册回调预检拒绝，默认路径保持兼容。文件预算模式逐记录读取，候选替换、排序快照与结果可能重复计费；新增 `--budgets` 真实文件/双模型向量/重开入口。见[合同](docs/benchmarks/m42-table-function-result-bounds.md)与[并行记录](docs/audits/roadmap-parallel-next-20261003.md)。
 - **M42 直接 Graph SQL 物化准入**：直接节点/边与原生固定一跳 GRAPH_TABLE 的标量 WHERE/投影/OFFSET/LIMIT 使用分页候选和累计行/估算字节预算；EXPLAIN/ANALYZE 共用根预算，复杂路径预检拒绝。默认查询、图快照和文件格式保持兼容，整体 heap/首行及远程门禁仍待验证。见[合同](docs/benchmarks/m42-graph-result-bounds.md)。
 - **M43 有界自动订阅投递**：新增显式驱动器，串行回调、成功后 ACK、失败退避与持久次数上限，默认耗尽保留或显式条件 DLQ；超时停止，回调未收敛前保留同对象租约。见[合同](docs/m43-streaming-dispatcher.md)。
 - **M43 CDC→流恢复桥接**：新增单分区 outbox、目标接收凭证和身份/摘要核对，交付证明先于源 ACK；未知且事件已回收的发布明确拒绝推进，保留人工恢复边界。样例新增真实文档 change feed→桥接→自动投递→持久窗口入口；无业务副作用 exactly-once 声明。见[合同](docs/m43-cdc-streaming-bridge.md)及[验证报告](docs/audits/roadmap-parallel-next-20261002.md)。

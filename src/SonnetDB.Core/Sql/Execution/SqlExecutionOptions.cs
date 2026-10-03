@@ -63,8 +63,10 @@ public sealed record SqlExecutionOptions
     /// 为空时不增加物化行数限制。显式设置此属性或 <see cref="MaxMaterializedBytes"/> 时，
     /// 支持关系表 SELECT、EXPLAIN SELECT、关系表 INSERT/UPDATE/DELETE（含 INSERT SELECT 和 RETURNING），
     /// 以及直接 measurement 的 raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET，
-    /// 以及直接文档集合（含 TTL）raw SELECT、标量投影、WHERE 和 LIMIT/OFFSET；measurement 和文档的排序、聚合、
-    /// 窗口、JOIN、去重及嵌套查询，以及例程、用户函数、DDL、事务控制及其他模型在执行前拒绝。
+    /// 以及直接文档集合（含 TTL）raw SELECT 和单列结果名排序、直接原生 Graph 标量查询，
+    /// 以及直接 knn、vector_search 和 json_each/json_table 的有界候选与标量投影。
+    /// 各模型只支持已声明的过滤和分页子集；候选、排序快照与结果可能分别计费。
+    /// 未支持的聚合、窗口、JOIN、去重、嵌套来源、例程、用户函数、DDL 与事务控制在执行前拒绝。
     /// </summary>
     public long? MaxMaterializedRows { get; init; }
 

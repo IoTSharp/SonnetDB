@@ -1,0 +1,1330 @@
+{
+  "name": "targeted",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--disable-build-servers",
+    "-m:1",
+    "--filter",
+    "FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests",
+    "--logger",
+    "trx;LogFileName=targeted.trx",
+    "--results-directory",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003"
+  ],
+  "timeoutSeconds": 600,
+  "maxPolls": 301,
+  "owner": {
+    "pid": 68808,
+    "created": "2026-10-03T03:50:58.9812860Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 60900,
+    "created": "2026-10-03T03:51:00.8476790Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+    "parent": 68808
+  },
+  "reason": "exited",
+  "exitCode": 1,
+  "elapsedSeconds": 43.6671148,
+  "samples": [
+    {
+      "elapsedSeconds": 2.938624,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 6.8213289,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 10.9426375,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 14.8256759,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 18.3575711,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 22.1891705,
+      "chains": [
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 26.465426,
+      "chains": [
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 30.1541383,
+      "chains": [
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 33.6851266,
+      "chains": [
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 37.2753328,
+      "chains": [
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 40.6252479,
+      "chains": [
+        [
+          {
+            "pid": 81836,
+            "created": "2026-10-03T03:51:00.8723570Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 70676,
+            "created": "2026-10-03T03:51:02.0967370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 49752
+          },
+          {
+            "pid": 49752,
+            "created": "2026-10-03T03:51:02.0824670Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 58084 --endpoint 127.0.0.1:058084 --role client --parentprocessid 49400 --telemetryoptedin false",
+            "parent": 49400
+          },
+          {
+            "pid": 49400,
+            "created": "2026-10-03T03:51:01.7826560Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests\" --logger:\"trx;LogFileName=targeted.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:60900_e4c959db-4cef-4939-89b9-51f139f1eed2",
+            "parent": 60900
+          },
+          {
+            "pid": 60900,
+            "created": "2026-10-03T03:51:00.8476790Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --disable-build-servers -m:1 --filter FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests --logger trx;LogFileName=targeted.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003",
+            "parent": 68808
+          },
+          {
+            "pid": 68808,
+            "created": "2026-10-03T03:50:58.9812860Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name targeted -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--disable-build-servers','-m:1','--filter','FullyQualifiedName~MaterializationBudget|FullyQualifiedName~SqlTableFunctionMaterializationTests|FullyQualifiedName~SqlBudgetJourneyTests|FullyQualifiedName~KnnBounded|FullyQualifiedName~DocumentVectorPrefilterTests|FullyQualifiedName~SqlExecutorDocumentTests|FullyQualifiedName~SqlExpressionExecutionTests','--logger','trx;LogFileName=targeted.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

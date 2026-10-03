@@ -1,0 +1,32 @@
+{
+  "name": "toolchain",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "--version"
+  ],
+  "timeoutSeconds": 10,
+  "maxPolls": 6,
+  "owner": {
+    "pid": 52616,
+    "created": "2026-10-03T03:15:35.6929610Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\ngit status --short\nGet-ChildItem -LiteralPath docs/audits/roadmap-parallel-next-evidence-20261003 -File | Select-Object Name,Length\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name toolchain -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('--version') -TimeoutSeconds 10\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 71052,
+    "created": "2026-10-03T03:15:40.4151910Z",
+    "command": "",
+    "parent": 52616
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 8.7127072,
+  "samples": [
+    {
+      "elapsedSeconds": 6.2012533,
+      "chains": []
+    }
+  ],
+  "cleanup": [],
+  "remaining": []
+}

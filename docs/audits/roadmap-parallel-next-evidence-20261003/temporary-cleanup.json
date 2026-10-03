@@ -1,0 +1,13 @@
+{
+  "task": "roadmap-parallel-next-20261003",
+  "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261003",
+  "ownershipMarker": "ownership.json",
+  "purpose": "NativeAOT local verification",
+  "status": "retained_policy_rejected",
+  "deletionExecuted": false,
+  "reason": "Automatic approval review rejected exec_command before launch: blocked by policy",
+  "attempt": "Validate ownership and exact file names, delete three known files individually, remove empty folders without recursive deletion",
+  "oldTemporaryPath": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002",
+  "oldTemporaryStatus": "retained_untouched",
+  "bypassAttempted": false
+}

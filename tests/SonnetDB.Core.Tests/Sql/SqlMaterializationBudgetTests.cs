@@ -331,7 +331,7 @@ public sealed class SqlMaterializationBudgetTests : IDisposable
     /// <summary>其它模型和系统结果路径在预算模式下明确拒绝。</summary>
     [Theory]
     [InlineData("SELECT * FROM information_schema.tables")]
-    [InlineData("SELECT * FROM json_each('[1,2]')")]
+    [InlineData("SELECT * FROM json_each('missing.json') ORDER BY id")]
     public void Execute_UnsupportedSourceWithBudget_RejectsExplicitly(string sql)
     {
         using Tsdb db = OpenItems(1);

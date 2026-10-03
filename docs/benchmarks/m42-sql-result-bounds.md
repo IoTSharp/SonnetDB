@@ -2,6 +2,8 @@
 
 2026-09-24 本地合同切片完成：REST SQL 调用方可以显式要求有界结果预览；Web SQL 控制台使用该合同。该切片不代表 SQL-002 的执行阶段内存边界或整项验收完成。
 
+截至 2026-10-03，Core opt-in 累计准入还支持直接文档 ORDER BY、直接原生 Graph，以及[直接 KNN/文档向量/JSON 文件表值函数](m42-table-function-result-bounds.md)的声明子集。下文按日期保留各轮合同；早期“文档/Graph/全部 TVF 拒绝”的范围已由后续切片收窄，复杂来源与整体 heap/首行门禁仍未闭环。
+
 ## 请求和响应
 
 2026-10-01 的执行期增量现覆盖[直接 measurement raw SELECT](m42-measurement-result-bounds.md)及[无 TTL 文档 raw SELECT](m42-document-result-bounds.md)。这两项使用 Core 显式物化预算，REST 预览和 Frame 的现有请求合同分别保持各自边界。

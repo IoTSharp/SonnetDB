@@ -27,6 +27,22 @@
   ],
   "composedJourneys": [
     {
+      "id": "json-file-document-measurement-vector-budget-reopen",
+      "capabilities": ["document", "timeseries", "vector", "governance"],
+      "entryPoint": "samples/SonnetDB.CdcStreamingJourney/SqlBudgetJourney.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/SqlBudgetJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-parallel-next-20261003.md",
+      "boundary": "Embedded --budgets reads a real JSON file into persistent document and measurement sources, rejects three cumulative materialization limits, then reconciles vector queries before and after orderly reopen. Local contract corpus only; no model-quality, whole-heap, remote, fixed-hardware or fourteen-capability completion claim."
+    },
+    {
+      "id": "document-cdc-bridge-dispatch-window-reopen",
+      "capabilities": ["document", "cdc", "streaming", "governance"],
+      "entryPoint": "samples/SonnetDB.CdcStreamingJourney/CdcStreamingBridgeJourney.cs",
+      "testPath": "tests/SonnetDB.Core.Tests/Audits/CdcStreamingBridgeJourneyTests.cs",
+      "evidencePath": "docs/audits/roadmap-parallel-next-20261002.md",
+      "boundary": "Existing --bridge actual change-feed/outbox/receipt and bounded dispatcher reconcile a durable COUNT after retry and orderly reopen. Implemented in the preceding round; no new execution claimed here, remote or side-effect transaction evidence remains open."
+    },
+    {
       "id": "document-cdc-streaming-window-reopen",
       "capabilities": ["document", "cdc", "streaming", "governance"],
       "entryPoint": "samples/SonnetDB.CdcStreamingJourney/Program.cs",

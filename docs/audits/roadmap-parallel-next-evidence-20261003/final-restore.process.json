@@ -1,0 +1,74 @@
+{
+  "name": "final-restore",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "--disable-build-servers",
+    "-m:1",
+    "-p:BuildInParallel=false",
+    "-p:UseSharedCompilation=false"
+  ],
+  "timeoutSeconds": 900,
+  "maxPolls": 451,
+  "owner": {
+    "pid": 67476,
+    "created": "2026-10-03T04:21:32.1694500Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 70428,
+    "created": "2026-10-03T04:21:34.3360960Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+    "parent": 67476
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 7.340068,
+  "samples": [
+    {
+      "elapsedSeconds": 3.7785025,
+      "chains": [
+        [
+          {
+            "pid": 70428,
+            "created": "2026-10-03T04:21:34.3360960Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 67476
+          },
+          {
+            "pid": 67476,
+            "created": "2026-10-03T04:21:32.1694500Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61792,
+            "created": "2026-10-03T04:21:34.3691450Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 70428
+          },
+          {
+            "pid": 70428,
+            "created": "2026-10-03T04:21:34.3360960Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 67476
+          },
+          {
+            "pid": 67476,
+            "created": "2026-10-03T04:21:32.1694500Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

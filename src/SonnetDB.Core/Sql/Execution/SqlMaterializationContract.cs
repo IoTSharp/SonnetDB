@@ -4,7 +4,7 @@ using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>在执行前验证显式物化预算当前支持的关系查询、直接 measurement/Document/Graph 查询和关系 DML 范围。</summary>
+/// <summary>在执行前验证显式物化预算支持的关系查询、直接模型与内建表值函数查询及关系 DML 范围。</summary>
 internal static class SqlMaterializationContract
 {
     internal static void Validate(Tsdb tsdb, SqlStatement statement)
@@ -12,10 +12,10 @@ internal static class SqlMaterializationContract
         switch (statement)
         {
             case SelectStatement select:
-                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true, allowGraph: true);
+                ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true, allowGraph: true, allowTableFunction: true);
                 return;
             case ExplainStatement { Statement: SelectStatement explainSelect }:
-                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true, allowGraph: true);
+                ValidateQuery(explainSelect, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true, allowGraph: true, allowTableFunction: true);
                 return;
             case InsertStatement insert:
                 ValidateInsert(insert);
@@ -28,7 +28,7 @@ internal static class SqlMaterializationContract
                 return;
             default:
                 throw new NotSupportedException(
-                    "SQL 物化预算仅支持关系 SELECT、直接 measurement/Document/原生 Graph 标量 SELECT、EXPLAIN SELECT 和关系表 DML；例程、DDL 与事务控制须使用未启用该预算的调用。");
+                    "SQL 物化预算仅支持关系 SELECT、直接模型与有界内建表值函数标量 SELECT、EXPLAIN SELECT 和关系表 DML；例程、DDL 与事务控制须使用未启用该预算的调用。");
         }
 
         void ValidateInsert(InsertStatement insert)
@@ -145,8 +145,11 @@ internal static class SqlMaterializationContract
         }
 
         void ValidateQuery(SelectStatement query, HashSet<string> inheritedCtes,
-            bool allowMeasurement = false, bool allowDocument = false, bool allowGraph = false)
+            bool allowMeasurement = false, bool allowDocument = false, bool allowGraph = false,
+            bool allowTableFunction = false)
         {
+            bool directlyReferencesTableFunction = query.TableValuedFunction is not null
+                && query.CommonTableExpressions.Count == 0 && query.FromSubquery is null;
             bool directlyReferencesGraph = GraphSqlExecutor.IsGraphSelect(query)
                 && query.CommonTableExpressions.Count == 0 && query.FromSubquery is null;
             bool directlyReferencesDocument = query.FromSubquery is null
@@ -163,7 +166,12 @@ internal static class SqlMaterializationContract
                 return;
             }
             if (query.TableValuedFunction is not null)
-                throw new NotSupportedException("SQL 物化预算不支持表值函数查询源。");
+            {
+                if (!allowTableFunction || !directlyReferencesTableFunction)
+                    throw new NotSupportedException("SQL 物化预算尚不支持包含表值函数的视图、CTE、嵌套查询或集合运算。");
+                SqlTableFunctionMaterialization.Validate(tsdb, query);
+                return;
+            }
 
             HashSet<string> ctes = inheritedCtes;
             if (query.CommonTableExpressions.Count != 0)

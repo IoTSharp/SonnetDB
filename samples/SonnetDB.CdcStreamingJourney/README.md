@@ -33,3 +33,14 @@ dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release -- --bridge
 此入口设三十秒总时限、三次尾部推进上限和独立驱动器批次/次数/时间边界，支持 Ctrl+C。`--keep` 可同时使用；默认仅回收本次创建的专属目录。生产使用须先恢复 bridge outbox 再启动消费者；源 ACK 和目标发布均应由桥接独占。未知接收凭证而目标事件已经回收时明确拒绝推进，需要人工恢复交接，见[桥接合同](../../docs/m43-cdc-streaming-bridge.md)和[自动投递合同](../../docs/m43-streaming-dispatcher.md)。
 
 这是本地真实嵌入式文件旅程；没有执行远程服务、跨业务副作用事务或生产门禁。
+
+## 文件与双模型向量预算组合
+
+```powershell
+dotnet run --project samples/SonnetDB.CdcStreamingJourney -c Release -- --budgets
+```
+
+`--budgets` 实际从 JSON 文件读取三条记录并保存至文档集合和 measurement，检查文件 TVF、文档向量和 measurement KNN 的低预算拒绝，以及失败后正常查询、flush 和数据库重开的一致结果。
+成功输出 `PASS_LOCAL_ONLY budgets imported=3 vector_id=a knn_time=0 rejected=3 reopened=true`。
+它与 `--bridge` 互斥，可组合 `--keep`；默认回收本次独占目录，三十秒总时限和 Ctrl+C 取消保持有效。
+此入口验证 [M42 累计物化合同](../../docs/benchmarks/m42-table-function-result-bounds.md)，本地合成向量不计模型质量、固定硬件性能或远程证据。

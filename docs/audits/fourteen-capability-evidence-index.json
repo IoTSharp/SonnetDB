@@ -18,7 +18,7 @@
       "maturity": "partial",
       "roadmap": ["M0-M13", "M19 #125", "M36 #314", "M36 #315", "M42"],
       "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB.Data/TimeSeries", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
+      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "tests/SonnetDB.Core.Tests/Sql/KnnMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
       "boundary": "High-cardinality, long-run, fixed-hardware and full recovery evidence remains open."
     },
     {
@@ -48,8 +48,8 @@
       "maturity": "partial",
       "roadmap": ["M21", "M24", "M25 #174", "M32", "M36 #326", "M43 GH-Issue #180"],
       "entryPoints": ["src/SonnetDB.Core/Documents", "src/SonnetDB.Data/Documents", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/document-store.md", "docs/json-query-contract.md", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Tests/RemoteJsonFunctionTests.cs", "docs/benchmarks/m42-document-result-bounds.md", "docs/benchmarks/m42-document-ttl-result-bounds.md", "tests/SonnetDB.Core.Tests/Sql/DocumentOrderByMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/DocumentSelectMaterializationBudgetTests.cs", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
-      "boundary": "The documented single-node subset and opt-in cumulative materialization admission for direct raw document SQL including TTL and single result-name ORDER BY are locally supported. Multi-column blocking/search/nested document budget paths, overall heap limits, remote budget options, MongoDB wire compatibility and million/ten-million capacity remain outside this slice or unverified."
+      "evidence": ["docs/document-store.md", "docs/json-query-contract.md", "docs/benchmarks/m42-table-function-result-bounds.md", "tests/SonnetDB.Core.Tests/Sql/JsonFileMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/DocumentVectorMaterializationBudgetTests.cs", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Tests/RemoteJsonFunctionTests.cs", "docs/benchmarks/m42-document-result-bounds.md", "docs/benchmarks/m42-document-ttl-result-bounds.md", "tests/SonnetDB.Core.Tests/Sql/DocumentOrderByMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/DocumentSelectMaterializationBudgetTests.cs", "docs/document-mongodb-gap.json", "docs/audits/nine-model-capability-evidence-20260905.md"],
+      "boundary": "The documented single-node subset and opt-in cumulative materialization admission for direct raw document SQL including TTL and single result-name ORDER BY are locally supported. Direct vector_search and JSON-file TVF cumulative materialization admission is also locally supported in its bounded scalar subset. Other multi-column blocking/search/nested document budget paths, overall heap limits, remote budget options, MongoDB wire compatibility and million/ten-million capacity remain outside this slice or unverified."
     },
     {
       "id": "fulltext",
@@ -68,7 +68,7 @@
       "maturity": "partial",
       "roadmap": ["M12", "M23", "M27", "M35 #298", "M36 #320", "M36 #321", "M42", "M43 GH-Issue #186"],
       "entryPoints": ["src/SonnetDB.Core/Vector", "src/SonnetDB.Data/VectorData", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/benchmarks/m42-measurement-knn-bounds.md", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
+      "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/benchmarks/m42-measurement-knn-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "samples/SonnetDB.CdcStreamingJourney/SqlBudgetJourney.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
       "boundary": "Exact fallback, bounded Top-K, VECTOR parameter binding and REST/NDJSON float[] transport are locally implemented; Core 3/3 and Kestrel REST 2/2 pass. Remote Frame E2E, generic filtered ANN, Recall@K, quality and fixed-hardware evidence remain open."
     },
     {

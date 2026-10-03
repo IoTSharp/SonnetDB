@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Documents;
@@ -13,6 +14,10 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class JsonFileSqlExecutor
 {
+    private const int MaxBudgetedFileBytes = 256 * 1024 * 1024;
+    private const int MaxBudgetedRecordBytes = 4 * 1024 * 1024;
+    private const int MaxBudgetedCandidates = 1_000_000;
+    private static readonly TimeSpan BudgetedTimeout = TimeSpan.FromMinutes(5);
     private static readonly IReadOnlyList<string> _jsonFileColumns =
         new List<string>(3) { "ordinal", "id", "document" }.AsReadOnly();
 
@@ -22,6 +27,8 @@ internal static class JsonFileSqlExecutor
         ArgumentNullException.ThrowIfNull(call);
 
         var options = BindOptions(call);
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+            return ExecuteBudgeted(statement, options);
         var rows = ReadRows(options.FilePath, options.Format, options.IdPath);
         var projections = BuildProjections(statement.Projections);
         var filtered = new List<IReadOnlyList<object?>>();
@@ -66,7 +73,238 @@ internal static class JsonFileSqlExecutor
         var call = statement.TableValuedFunction
             ?? throw new InvalidOperationException("内部错误：JSON 文件 TVF 调用为空。");
         var options = BindOptions(call);
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            int count = 0;
+            foreach (JsonFileRow row in EnumerateBudgetedRows(options, Stopwatch.GetTimestamp()))
+                count++;
+            return ("json_file_budgeted_stream", null, count);
+        }
         return ("json_file_virtual_table", null, ReadRows(options.FilePath, options.Format, options.IdPath).Count);
+    }
+
+    internal static void ValidateMaterializationSupported(Tsdb tsdb, SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        if (statement.TableValuedFunction is not { } call
+            || !(call.Name.Equals("json_each", StringComparison.OrdinalIgnoreCase)
+                || call.Name.Equals("json_table", StringComparison.OrdinalIgnoreCase))
+            || statement.GroupBy.Count != 0 || statement.Having is not null || statement.Distinct
+            || statement.IsRecursive || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
+            || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0
+            || call.IsDistinct || call.Over is not null
+            || statement.GraphTable is not null || statement.OrderByList.Count != 0)
+        {
+            throw new NotSupportedException(
+                "JSON 文件 SQL 物化预算仅支持直接 json_each/json_table、标量投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重和嵌套查询尚不支持。");
+        }
+        if (tsdb.Functions.TryGetTableValuedFunction(call.Name, out _))
+            throw new NotSupportedException("JSON 文件 SQL 物化预算不支持用户表值函数回调。");
+        JsonFileOptions options = BindOptions(call);
+        if (!string.IsNullOrWhiteSpace(options.IdPath))
+            _ = JsonPath.Parse(options.IdPath);
+        int remainingNodes = 1024;
+        foreach (SelectItem projection in statement.Projections)
+            ValidateBudgetedExpression(tsdb, projection.Expression, ref remainingNodes, depth: 0, allowStar: true);
+        ValidateBudgetedExpression(tsdb, statement.Where, ref remainingNodes, depth: 0, allowBoolean: true);
+        _ = BuildProjections(statement.Projections);
+        if (statement.Pagination is { } pagination)
+        {
+            _ = pagination.Offset;
+            _ = pagination.Fetch;
+        }
+    }
+
+    private static void ValidateBudgetedExpression(Tsdb tsdb, SqlExpression? expression,
+        ref int remainingNodes, int depth, bool allowStar = false, bool allowBoolean = false)
+    {
+        if (--remainingNodes < 0 || depth > 64)
+            throw new NotSupportedException("JSON 文件 SQL 预算表达式超过 1024 节点或 64 层预检上限。");
+        switch (expression)
+        {
+            case null or LiteralExpression:
+                return;
+            case StarExpression when allowStar:
+                return;
+            case IdentifierExpression identifier:
+                ValidateIdentifier(identifier);
+                return;
+            case CastExpression cast when cast.TargetType is not (SqlDataType.Vector or SqlDataType.GeoPoint):
+                ValidateBudgetedExpression(tsdb, cast.Operand, ref remainingNodes, depth + 1);
+                return;
+            case UnaryExpression unary when unary.Operator == SqlUnaryOperator.Negate
+                || (allowBoolean && unary.Operator == SqlUnaryOperator.Not):
+                ValidateBudgetedExpression(tsdb, unary.Operand, ref remainingNodes, depth + 1,
+                    allowBoolean: unary.Operator == SqlUnaryOperator.Not);
+                return;
+            case BinaryExpression binary when IsArithmeticOperator(binary.Operator)
+                || (allowBoolean && (IsComparisonOperator(binary.Operator)
+                    || binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or)):
+                bool logical = binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or;
+                ValidateBudgetedExpression(tsdb, binary.Left, ref remainingNodes, depth + 1, allowBoolean: logical);
+                ValidateBudgetedExpression(tsdb, binary.Right, ref remainingNodes, depth + 1, allowBoolean: logical);
+                return;
+            case IsNullExpression isNull when allowBoolean:
+                ValidateBudgetedExpression(tsdb, isNull.Operand, ref remainingNodes, depth + 1);
+                return;
+            case FunctionCallExpression function:
+                if (function.Over is not null || function.IsDistinct || function.IsStar
+                    || tsdb.Functions.TryGetScalar(function.Name, out _)
+                    || tsdb.Functions.TryGetAggregate(function.Name, out _)
+                    || tsdb.Functions.TryGetWindow(function.Name, out _)
+                    || FunctionRegistry.TryGetAggregate(function.Name, out _)
+                    || FunctionRegistry.TryGetWindow(function.Name, out _))
+                    throw new NotSupportedException("JSON 文件 SQL 物化预算不支持用户回调、聚合或窗口函数。");
+                if (function.Name.Equals("json_value", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (function.Arguments.Count != 2 || function.Arguments[1] is not
+                        LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
+                        throw new NotSupportedException("JSON 文件 SQL 物化预算要求 json_value 使用固定 JSON path。");
+                    _ = JsonPath.Parse(path);
+                }
+                else if (function.Name.Equals("regexp_like", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (function.Arguments.Count is < 2 or > 3)
+                        throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+                }
+                else if (!FunctionRegistry.TryGetScalar(function.Name, out _))
+                    throw new NotSupportedException($"JSON 文件 SQL 物化预算不支持函数 '{function.Name}'。");
+                SqlTableFunctionMaterialization.ValidateScalarArgumentCount(function);
+                foreach (SqlExpression argument in function.Arguments)
+                    ValidateBudgetedExpression(tsdb, argument, ref remainingNodes, depth + 1);
+                return;
+            default:
+                throw new NotSupportedException("JSON 文件 SQL 物化预算仅支持直接只读标量表达式；子查询和模型查询表达式尚不支持。");
+        }
+    }
+
+    private static SelectExecutionResult ExecuteBudgeted(SelectStatement statement, JsonFileOptions options)
+    {
+        long startedAt = Stopwatch.GetTimestamp();
+        ThrowIfBudgetedCancelled(startedAt);
+        Projection[] projections = BuildProjections(statement.Projections);
+        string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
+        var rows = new List<IReadOnlyList<object?>>();
+        int? fetch = statement.Pagination?.Fetch;
+        if (fetch == 0)
+            return new SelectExecutionResult(columns, rows);
+
+        int offset = statement.Pagination?.Offset ?? 0;
+        int skipped = 0;
+        SqlExecutionTelemetry.RecordAccessPath("json_file_budgeted_stream");
+        foreach (JsonFileRow row in EnumerateBudgetedRows(options, startedAt))
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            SqlExecutionTelemetry.RecordExaminedRows(1);
+            if (!EvaluateWhere(statement.Where, row))
+                continue;
+            if (skipped < offset)
+            {
+                skipped++;
+                continue;
+            }
+            var output = new object?[projections.Length];
+            for (int i = 0; i < projections.Length; i++)
+            {
+                ThrowIfBudgetedCancelled(startedAt);
+                output[i] = EvaluateScalar(projections[i].Expression, row);
+            }
+            SqlRowRetentionBudget.RetainForExecution(output);
+            rows.Add(output);
+            if (fetch is { } limit && rows.Count >= limit)
+                break;
+        }
+        return new SelectExecutionResult(columns, rows);
+    }
+
+    private static IEnumerable<JsonFileRow> EnumerateBudgetedRows(JsonFileOptions options, long startedAt)
+    {
+        using var input = new BudgetedJsonInput(options.FilePath, startedAt);
+        int first = options.Format == JsonImportFormat.Lines ? input.PeekByte() : input.SkipWhitespace();
+        if (first < 0)
+        {
+            if (options.Format == JsonImportFormat.Lines)
+                yield break;
+            throw new InvalidOperationException("JSON 文件为空。");
+        }
+        bool lines = options.Format == JsonImportFormat.Lines
+            || (options.Format == JsonImportFormat.Auto && first is not ('[' or '{'));
+        if (lines)
+        {
+            if (options.Format == JsonImportFormat.Auto)
+                input.RestartForLines();
+            // 文件字节界限制物理行数；每行读取另有固定记录字节界和取消/墙钟检查。
+            long ordinal = 0;
+            for (int line = 0; line < MaxBudgetedFileBytes; line++)
+            {
+                ThrowIfBudgetedCancelled(startedAt);
+                using MemoryStream? record = input.ReadLine();
+                if (record is null)
+                    yield break;
+                if (record.Length == 0)
+                    continue;
+                if (ordinal >= MaxBudgetedCandidates)
+                    throw new InvalidOperationException("JSON 文件 SQL 候选记录数超过 1000000 上限。");
+                yield return CreateBudgetedRow(record, ordinal++, options.IdPath);
+            }
+            throw new InvalidOperationException("JSON 文件 SQL 物理行数超过有界读取上限。");
+        }
+        if (first == '{')
+        {
+            using MemoryStream record = input.ReadValue();
+            JsonFileRow row = CreateBudgetedRow(record, 0, options.IdPath);
+            input.RequireEnd();
+            yield return row;
+            yield break;
+        }
+        if (first != '[')
+            throw new InvalidOperationException("JSON array 格式要求顶层是数组或对象。");
+        input.ReadByte();
+        if (input.SkipWhitespace() == ']')
+        {
+            input.ReadByte();
+            input.RequireEnd();
+            yield break;
+        }
+        for (int ordinal = 0; ordinal < MaxBudgetedCandidates; ordinal++)
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            using MemoryStream record = input.ReadValue();
+            JsonFileRow row = CreateBudgetedRow(record, ordinal, options.IdPath);
+            // 一个完整记录确认后即可消费；LIMIT 早停不会读取或验证尚未消费的尾部。
+            yield return row;
+            int separator = input.SkipWhitespace();
+            if (separator == ']')
+            {
+                input.ReadByte();
+                input.RequireEnd();
+                yield break;
+            }
+            if (separator != ',')
+                throw new JsonException("JSON 数组记录之间缺少逗号或数组未闭合。");
+            input.ReadByte();
+            if (input.SkipWhitespace() == ']')
+                throw new JsonException("JSON 数组不允许尾随逗号。");
+        }
+        throw new InvalidOperationException("JSON 文件 SQL 候选记录数超过 1000000 上限。");
+    }
+
+    private static JsonFileRow CreateBudgetedRow(MemoryStream record, long ordinal, string? idPath)
+    {
+        using var document = JsonDocument.Parse(record.GetBuffer().AsMemory(0, checked((int)record.Length)));
+        JsonFileRow row = CreateRow(document.RootElement, ordinal, idPath);
+        SqlExecutionTelemetry.RecordCandidateRows(1);
+        // 候选规范化 JSON、ID 及 ordinal 先计入根预算；WHERE/OFFSET 不豁免已物化载荷。
+        SqlRowRetentionBudget.RetainForExecution([row.Ordinal, row.Id, row.Document]);
+        return row;
+    }
+
+    private static void ThrowIfBudgetedCancelled(long startedAt)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        if (Stopwatch.GetElapsedTime(startedAt) >= BudgetedTimeout)
+            throw new TimeoutException("JSON 文件 SQL 物化预算查询超过五分钟执行上限。");
     }
 
     private static InsertExecutionResult ImportIntoDocumentCollection(
@@ -619,6 +857,189 @@ internal static class JsonFileSqlExecutor
     private sealed record JsonFileOptions(string FilePath, JsonImportFormat Format, string? IdPath);
 
     private sealed record JsonFileRow(long Ordinal, string Id, string Document);
+
+    /// <summary>固定缓冲的 UTF-8 分帧读取；记录再交给 JsonDocument 验证完整 JSON 语法。</summary>
+    private sealed class BudgetedJsonInput : IDisposable
+    {
+        private readonly BufferedStream _stream;
+        private readonly long _startedAt;
+        private int? _lookahead;
+        private int _bytesRead;
+        private readonly int _contentStart;
+
+        internal BudgetedJsonInput(string filePath, long startedAt)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+            _startedAt = startedAt;
+            ThrowIfBudgetedCancelled(startedAt);
+            var stream = File.OpenRead(filePath);
+            try
+            {
+                if (stream.Length > MaxBudgetedFileBytes)
+                    throw new InvalidOperationException("JSON 文件 SQL 预算路径只读取不超过 256 MiB 的文件。");
+                _stream = new BufferedStream(stream, 4096);
+                if (PeekByte() == 0xef)
+                {
+                    ReadByte();
+                    if (ReadByte() != 0xbb || ReadByte() != 0xbf)
+                        throw new JsonException("JSON 文件包含无效 UTF-8 BOM。");
+                    _contentStart = 3;
+                }
+                else if (PeekByte() is 0xff or 0xfe)
+                    throw new NotSupportedException("JSON 文件 SQL 预算路径仅支持 UTF-8 文件。");
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
+        }
+
+        internal void RestartForLines()
+        {
+            ThrowIfBudgetedCancelled(_startedAt);
+            _stream.Position = _contentStart;
+            _lookahead = null;
+            _bytesRead = _contentStart;
+        }
+
+        internal int PeekByte()
+        {
+            if (_lookahead is { } value)
+                return value;
+            if ((_bytesRead & 1023) == 0)
+                ThrowIfBudgetedCancelled(_startedAt);
+            int next = _stream.ReadByte();
+            if (next >= 0 && ++_bytesRead > MaxBudgetedFileBytes)
+                throw new InvalidOperationException("JSON 文件 SQL 读取字节数超过 256 MiB 上限。");
+            _lookahead = next;
+            return next;
+        }
+
+        internal int ReadByte()
+        {
+            int value = PeekByte();
+            _lookahead = null;
+            return value;
+        }
+
+        internal int SkipWhitespace()
+        {
+            for (int skipped = 0; skipped <= MaxBudgetedFileBytes; skipped++)
+            {
+                int value = PeekByte();
+                if (!IsWhitespace(value))
+                    return value;
+                ReadByte();
+            }
+            throw new InvalidOperationException("JSON 文件 SQL 空白读取超过文件字节上限。");
+        }
+
+        internal void RequireEnd()
+        {
+            if (SkipWhitespace() >= 0)
+                throw new JsonException("JSON 文件顶层值后存在多余数据。");
+        }
+
+        internal MemoryStream? ReadLine()
+        {
+            if (PeekByte() < 0)
+                return null;
+            var record = new MemoryStream();
+            bool hasContent = false;
+            try
+            {
+                for (int length = 0; length <= MaxBudgetedRecordBytes; length++)
+                {
+                    int value = ReadByte();
+                    if (value is < 0 or '\n')
+                    {
+                        if (!hasContent)
+                            record.SetLength(0);
+                        return record;
+                    }
+                    if (length == MaxBudgetedRecordBytes)
+                        throw RecordLimitExceeded();
+                    record.WriteByte((byte)value);
+                    hasContent |= !IsWhitespace(value);
+                }
+                throw RecordLimitExceeded();
+            }
+            catch
+            {
+                record.Dispose();
+                throw;
+            }
+        }
+
+        internal MemoryStream ReadValue()
+        {
+            int first = SkipWhitespace();
+            if (first < 0)
+                throw new JsonException("JSON 数组值未完成。");
+            var record = new MemoryStream();
+            int depth = 0;
+            bool quoted = false;
+            bool escaped = false;
+            bool structured = first is '{' or '[';
+            bool stringValue = first == '"';
+            try
+            {
+                // 每次消费一个字节；退出条件由记录字节界、结构闭合或标量分隔符共同保证。
+                for (int length = 0; length < MaxBudgetedRecordBytes; length++)
+                {
+                    int value = PeekByte();
+                    if (!structured && !stringValue && length != 0
+                        && (value is < 0 or ',' or ']' || IsWhitespace(value)))
+                        return record;
+                    if (value < 0)
+                        throw new JsonException("JSON 数组值未闭合。");
+                    ReadByte();
+                    record.WriteByte((byte)value);
+                    if (quoted)
+                    {
+                        if (escaped)
+                            escaped = false;
+                        else if (value == '\\')
+                            escaped = true;
+                        else if (value == '"')
+                        {
+                            quoted = false;
+                            if (stringValue)
+                                return record;
+                        }
+                    }
+                    else if (value == '"')
+                        quoted = true;
+                    else if (value is '{' or '[')
+                        depth++;
+                    else if (value is '}' or ']')
+                    {
+                        depth--;
+                        if (structured && depth == 0)
+                            return record;
+                    }
+                }
+                // 精确等号的标量允许以分隔符终止；结构与字符串在最后一个字节已返回。
+                int next = PeekByte();
+                if (!structured && !stringValue && (next is < 0 or ',' or ']' || IsWhitespace(next)))
+                    return record;
+                throw RecordLimitExceeded();
+            }
+            catch
+            {
+                record.Dispose();
+                throw;
+            }
+        }
+
+        private static bool IsWhitespace(int value) => value is ' ' or '\t' or '\r' or '\n';
+
+        private static InvalidOperationException RecordLimitExceeded()
+            => new("JSON 文件 SQL 单条记录或 NDJSON 物理行超过 4 MiB 上限。");
+
+        public void Dispose() => _stream.Dispose();
+    }
 
     private sealed record Projection(string ColumnName, SqlExpression Expression);
 

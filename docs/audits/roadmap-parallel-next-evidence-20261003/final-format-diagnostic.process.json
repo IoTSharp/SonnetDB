@@ -1,0 +1,2395 @@
+{
+  "name": "final-format-diagnostic",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/",
+    "--verbosity",
+    "diagnostic"
+  ],
+  "timeoutSeconds": 900,
+  "maxPolls": 451,
+  "owner": {
+    "pid": 44236,
+    "created": "2026-10-03T04:26:55.5220050Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 90924,
+    "created": "2026-10-03T04:26:57.2304720Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+    "parent": 44236
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 137.5921171,
+  "samples": [
+    {
+      "elapsedSeconds": 2.7168024,
+      "chains": [
+        [
+          {
+            "pid": 59528,
+            "created": "2026-10-03T04:26:58.2762130Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 89536
+          },
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 6.8953684,
+      "chains": [
+        [
+          {
+            "pid": 59528,
+            "created": "2026-10-03T04:26:58.2762130Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 89536
+          },
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 10.7183197,
+      "chains": [
+        [
+          {
+            "pid": 59528,
+            "created": "2026-10-03T04:26:58.2762130Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 89536
+          },
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 14.6361316,
+      "chains": [
+        [
+          {
+            "pid": 59528,
+            "created": "2026-10-03T04:26:58.2762130Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 89536
+          },
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89536,
+            "created": "2026-10-03T04:26:58.2676880Z",
+            "command": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 1a96c273-86e0-4e02-9ae4-6b2378a9084d zh-CN",
+            "parent": 8936
+          },
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 18.4488883,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 22.3511901,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 26.3134771,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 30.2052056,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 33.9711392,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 37.7794535,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 41.3691707,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 45.2189696,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 49.2789378,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 53.1052302,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 56.8635633,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 60.631158,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 64.1966036,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 67.8064817,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 71.9823833,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 75.8019307,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 79.1559267,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 83.1039745,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 86.795318,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 90.5065439,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 94.1078594,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 97.7654042,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 101.4788035,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 104.9476334,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 108.3380914,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 112.0313309,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 115.8060657,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 119.2884948,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 122.6039259,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 126.4387596,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 130.2313096,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 134.1996514,
+      "chains": [
+        [
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 8936,
+            "created": "2026-10-03T04:26:57.3911870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 32440,
+            "created": "2026-10-03T04:26:57.2399900Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 90924
+          },
+          {
+            "pid": 90924,
+            "created": "2026-10-03T04:26:57.2304720Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --verbosity diagnostic",
+            "parent": 44236
+          },
+          {
+            "pid": 44236,
+            "created": "2026-10-03T04:26:55.5220050Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name final-format-diagnostic -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('format','SonnetDB.slnx','--verify-no-changes','--no-restore','--severity','warn','--exclude','extensions/','--verbosity','diagnostic') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

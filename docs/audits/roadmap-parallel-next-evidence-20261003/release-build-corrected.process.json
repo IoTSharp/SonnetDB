@@ -1,0 +1,2424 @@
+{
+  "name": "release-build-corrected",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "build",
+    "SonnetDB.slnx",
+    "-c",
+    "Release",
+    "--no-restore",
+    "--disable-build-servers",
+    "-m:1",
+    "-p:BuildInParallel=false",
+    "-p:UseSharedCompilation=false"
+  ],
+  "timeoutSeconds": 900,
+  "maxPolls": 451,
+  "owner": {
+    "pid": 89992,
+    "created": "2026-10-03T03:59:23.1512220Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 61604,
+    "created": "2026-10-03T03:59:24.8264030Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+    "parent": 89992
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 182.1447774,
+  "samples": [
+    {
+      "elapsedSeconds": 3.3120777,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 7.2691403,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 11.6956252,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 17.8162376,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 24.9312732,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 31.7196185,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 36.8544814,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 41.8189663,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 46.3004832,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 50.6632239,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 56.6647946,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 61.8959113,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 68.2854179,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 74.3908831,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 79.9239341,
+      "chains": [
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 86.0054247,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 91.3485936,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 97.806032,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 104.5686865,
+      "chains": [
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56336,
+            "created": "2026-10-03T03:59:26.4706630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 10792
+          },
+          {
+            "pid": 10792,
+            "created": "2026-10-03T03:59:26.4569110Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpb8e660d4a2b34dbe8e919bf06d876e46.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 111.6364473,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 118.2139689,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 125.3895514,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 132.3693326,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 139.4416349,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 146.4739154,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 153.102764,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 158.9584278,
+      "chains": [
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 163.9187444,
+      "chains": [
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 170.1225697,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 176.5081602,
+      "chains": [
+        [
+          {
+            "pid": 63624,
+            "created": "2026-10-03T03:59:24.8371280Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83092,
+            "created": "2026-10-03T04:01:33.7710630Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 42476
+          },
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 42476,
+            "created": "2026-10-03T04:01:32.8890000Z",
+            "command": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\csc.exe\"  /noconfig @\"C:\\Users\\mysti\\AppData\\Local\\Temp\\MSBuildTemp1xi2d14q.aoy\\tmpd032c53706d0414db24aade2fae0e08e.rsp\"",
+            "parent": 61604
+          },
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 61604,
+            "created": "2026-10-03T03:59:24.8264030Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false",
+            "parent": 89992
+          },
+          {
+            "pid": 89992,
+            "created": "2026-10-03T03:59:23.1512220Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name release-build-corrected -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('build','SonnetDB.slnx','-c','Release','--no-restore','--disable-build-servers','-m:1','-p:BuildInParallel=false','-p:UseSharedCompilation=false') -TimeoutSeconds 900\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

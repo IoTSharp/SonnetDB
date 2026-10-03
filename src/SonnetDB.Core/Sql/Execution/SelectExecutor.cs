@@ -23,7 +23,12 @@ internal static class SelectExecutor
         OrderBySpec? orderBy = orderByItems.Count == 0 ? null : orderByItems[0];
 
         if (statement.TableValuedFunction is not null)
-            return ApplyOrderByAndPagination(TableValuedFunctionExecutor.Execute(tsdb, statement), orderBy, statement.Pagination);
+        {
+            SelectExecutionResult tableFunctionResult = TableValuedFunctionExecutor.Execute(tsdb, statement);
+            return SqlRowRetentionBudget.HasExecutionBudget
+                ? tableFunctionResult
+                : ApplyOrderByAndPagination(tableFunctionResult, orderBy, statement.Pagination);
+        }
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement)
             ?? throw new InvalidOperationException(

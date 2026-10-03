@@ -1,9 +1,10 @@
 using SonnetDB.Samples;
 
-if (args.Length > 2 || args.Any(static argument => argument is not ("--keep" or "--bridge"))
-    || args.Distinct(StringComparer.Ordinal).Count() != args.Length)
+if (args.Length > 2 || args.Any(static argument => argument is not ("--keep" or "--bridge" or "--budgets"))
+    || args.Distinct(StringComparer.Ordinal).Count() != args.Length
+    || (args.Contains("--bridge", StringComparer.Ordinal) && args.Contains("--budgets", StringComparer.Ordinal)))
 {
-    Console.Error.WriteLine("Usage: SonnetDB.CdcStreamingJourney [--bridge] [--keep]");
+    Console.Error.WriteLine("Usage: SonnetDB.CdcStreamingJourney [--bridge | --budgets] [--keep]");
     return 2;
 }
 
@@ -14,7 +15,13 @@ string directory = Directory.CreateTempSubdirectory("sonnetdb-cdc-stream-journey
 bool keep = args.Contains("--keep", StringComparer.Ordinal);
 try
 {
-    if (args.Contains("--bridge", StringComparer.Ordinal))
+    if (args.Contains("--budgets", StringComparer.Ordinal))
+    {
+        SqlBudgetJourneyResult result = await SqlBudgetJourney.RunAsync(directory, cancellation.Token);
+        Console.WriteLine($"PASS_LOCAL_ONLY budgets imported={result.ImportedRows} vector_id={result.VectorId} " +
+            $"knn_time={result.KnnTime} rejected={result.RejectedQueries} reopened=true");
+    }
+    else if (args.Contains("--bridge", StringComparer.Ordinal))
     {
         CdcStreamingBridgeJourneyResult result = await CdcStreamingBridgeJourney.RunAsync(directory, cancellation.Token);
         Console.WriteLine($"PASS_LOCAL_ONLY bridge source_offset={result.SourceOffset} target_sequence={result.TargetSequence} " +

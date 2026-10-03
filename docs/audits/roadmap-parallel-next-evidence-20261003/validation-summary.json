@@ -1,0 +1,444 @@
+{
+  "baseline": "4ad6c47ddd327d6a66f7ecdb34b0f20ec59e41da",
+  "branch": "codex/roadmap-parallel-next-20261003",
+  "checkedAt": "2026-10-03T04:37:38.2652369Z",
+  "trial": false,
+  "scope": "M42 direct measurement KNN, document vector_search and JSON-file TVF cumulative materialization admission",
+  "newCases": {
+    "knn": 44,
+    "documentVector": 43,
+    "jsonFile": 46,
+    "sharedPreflight": 11,
+    "journey": 2,
+    "total": 146
+  },
+  "tests": [
+    {
+      "name": "targeted",
+      "total": 464,
+      "passed": 447,
+      "failed": 17,
+      "notExecuted": 0,
+      "sha256": "AAB7874D981ECA498E8658F19EA09B1C8447F850196F06811446A3A30C180D87"
+    },
+    {
+      "name": "targeted-corrected",
+      "total": 466,
+      "passed": 464,
+      "failed": 2,
+      "notExecuted": 0,
+      "sha256": "978CCAADA349364478DD214D0DFED2117A785AE9E0696A01DE321902651F173F"
+    },
+    {
+      "name": "targeted-final",
+      "total": 467,
+      "passed": 467,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "1E49A3CEE66F480054CC1AA7652F58A947771E86798AC5CB95AE0BFB12660F69"
+    },
+    {
+      "name": "core-full",
+      "total": 6072,
+      "passed": 6072,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "0EC5C7377DB9AEB7BE3E0B7FCABF31673B0F8AAE204B8351CEAF315C971AB4AD"
+    }
+  ],
+  "runs": [
+    {
+      "name": "aot-journey",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 4.1586427,
+      "timeoutSeconds": 60,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": false,
+      "recordSha256": "BF3087D1FCC4127F9A687B5C5B98880D6AC740318A2A3FDCAD42E1C0451A870D"
+    },
+    {
+      "name": "aot-publish",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 105.6733189,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "591AD136732F042CAC757BC774A48CF5781C2CCDEC7A8800EE42FB4D84809F22"
+    },
+    {
+      "name": "core-full",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 451.8281096,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "49D52607C5A64C08C05B349A521B7387DFE9B090A5E7C177F8C2321A6644228B"
+    },
+    {
+      "name": "final-format-diagnostic",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 137.5921171,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "6B5B2B32C2EC29907317D900C1D4566D24BB760E855912648FBEA60717BD4F9B"
+    },
+    {
+      "name": "final-format-final",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 157.175306,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "5B877EC19991A50603075250D8C18C54B8B786C8345CA74F4B5BF3227D435D51"
+    },
+    {
+      "name": "final-format",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 183.2733058,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "6E462CA7838EC080B0560C0607B1406A6FF691CC4EB76C11964D7AF052136846"
+    },
+    {
+      "name": "final-restore-final",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 7.6286284,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "7DFE234A1355D839F1A48116C0DB123AFF9B5FA9DC8E3A6B262BAD4C5FAFDA99"
+    },
+    {
+      "name": "final-restore",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 7.340068,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "AE9C60E99C047B8EAC169F9C6E83C9441FD08F1998F47AF8448E01BBFBF65055"
+    },
+    {
+      "name": "managed-journey",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 4.4174386,
+      "timeoutSeconds": 60,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": false,
+      "recordSha256": "9C1742B64999796E7C7ED894C0A833E486B989FD3A92DF9E5B1AE1031B0ECF17"
+    },
+    {
+      "name": "release-build-complete",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 36.8929651,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "111404B1651E97CC5210EB684363D8CC60171F54D19604CEE472DAE8EE8BD16E"
+    },
+    {
+      "name": "release-build-corrected",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 182.1447774,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "7109B579D486C247234535A96DB7077B11055E7017CA0C213E71655FB3BCAD81"
+    },
+    {
+      "name": "release-build-final",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 1,
+      "reason": "exited",
+      "elapsedSeconds": 254.8683607,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "8E270A43BCE4F80F8F0DCB5E5C0E1E67787337F656D85356739EA21399DFEAC7"
+    },
+    {
+      "name": "release-build",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 1,
+      "reason": "exited",
+      "elapsedSeconds": 69.7082292,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "7243C53491774C17D12D4DD751C3B70896A982234C7E1F43F64CEE09F63712E7"
+    },
+    {
+      "name": "runner-owned-final-trial",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 124,
+      "reason": "timeout",
+      "elapsedSeconds": 7.7713857,
+      "timeoutSeconds": 2,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "C63BAB1AB40D59B021AF05B0C10352D5082548F5A20DC2643CFB6870CFDB069E"
+    },
+    {
+      "name": "runner-timeout-final-trial",
+      "runnerSha256": "26B7D14F40B4FE92D64D861D799E0548BF5853217393C8352FA26F263908BB86",
+      "exitCode": 124,
+      "reason": "timeout",
+      "elapsedSeconds": 7.5040432,
+      "timeoutSeconds": 2,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "6E614D49AE6EDBF9B32CBBB3121F6F714C3FAAFF33279CD57AD0304E7872A79C"
+    },
+    {
+      "name": "runner-timeout-trial",
+      "runnerSha256": null,
+      "exitCode": 124,
+      "reason": "timeout",
+      "elapsedSeconds": 10.2463358,
+      "timeoutSeconds": 2,
+      "finalSnapshotAvailable": null,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "6307DDB392C639FCB063CA9A3303F992D31273D55B1039DEF0B64F0143BC363B"
+    },
+    {
+      "name": "targeted-corrected",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 1,
+      "reason": "exited",
+      "elapsedSeconds": 44.7532303,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "F829F102BCFD56F291D16A41E5AE23EFEBFC22E064F6DF446DFBF8CD4978F8B4"
+    },
+    {
+      "name": "targeted-final",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 75.9432845,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "E87D53E42F88509C93FD6EB3AD68847EA458E0456FA59AA82E27866BBDBA3665"
+    },
+    {
+      "name": "targeted",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 1,
+      "reason": "exited",
+      "elapsedSeconds": 43.6671148,
+      "timeoutSeconds": 600,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "8AE11B2F5C6564C0CF987C2765EE4BADF25BD6D04BEB04D09CC9FEFAECBE8948"
+    },
+    {
+      "name": "test-build-final",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 67.5252095,
+      "timeoutSeconds": 900,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "86E16D6918CD08F30E1B320D2DD2702FF3965DBEAF1C10482C02CB4B258D18AC"
+    },
+    {
+      "name": "toolchain",
+      "runnerSha256": null,
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 8.7127072,
+      "timeoutSeconds": 10,
+      "finalSnapshotAvailable": null,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": true,
+      "recordSha256": "4A55795AC2B77A5DDB6C3E2B42F684B48BEFCC594E72B52C21288F1DE494092E"
+    }
+  ],
+  "aotBinary": {
+    "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261003\\aot\\SonnetDB.CdcStreamingJourney.exe",
+    "sha256": "AE9CED4478642B78585B62E2FED1851ACB167D6E222F26274699CA07C35B36C7",
+    "bytes": 29140992,
+    "localOnly": true
+  },
+  "resourceAudit": {
+    "recordedIdentities": 154,
+    "currentSnapshotAvailable": true,
+    "snapshotScope": "all_current_processes_max_4096",
+    "matchingLiveRecordedIdentities": [],
+    "remainingCount": 0,
+    "shortCommands": "Commands which exited before CIM captured the root have launch/exit records, not full CIM ownership proof.",
+    "exclusiveMcpStarted": false,
+    "temporary": {
+      "task": "roadmap-parallel-next-20261003",
+      "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261003",
+      "ownershipMarker": "ownership.json",
+      "purpose": "NativeAOT local verification",
+      "status": "retained_policy_rejected",
+      "deletionExecuted": false,
+      "reason": "Automatic approval review rejected exec_command before launch: blocked by policy",
+      "attempt": "Validate ownership and exact file names, delete three known files individually, remove empty folders without recursive deletion",
+      "oldTemporaryPath": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002",
+      "oldTemporaryStatus": "retained_untouched",
+      "bypassAttempted": false
+    },
+    "nativeTemporaryDirectoryExists": true,
+    "oldTemporaryDirectoryExists": true
+  },
+  "sourceManifest": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "91CCD5289D344795E438550F27CE90A2ACE64FAD431C358217DC2228621D9C31"
+    },
+    {
+      "path": "docs/audits/fourteen-capability-evidence-index.json",
+      "sha256": "D19A3E6A139577EE34A81E8322EB8D7DBEFDED3F7DBCC23EC3A20E49D0F72D21"
+    },
+    {
+      "path": "docs/audits/fourteen-capability-journey-index.json",
+      "sha256": "DBFF40AC21F1C606E9301B075DC314352743F746123D90CA319702A2EE86F3B5"
+    },
+    {
+      "path": "docs/audits/roadmap-parallel-next-20261003.md",
+      "sha256": "92C67ACBD90D0534FB155A0A237E05421B36567AF9BCA5E0B2C56B7723B8456E"
+    },
+    {
+      "path": "docs/benchmarks/m42-sql-result-bounds.md",
+      "sha256": "8FE2C59B0EFEA42300CD8106E55354D8005A836AB691298004E4501AE38EF78A"
+    },
+    {
+      "path": "docs/benchmarks/m42-table-function-result-bounds.md",
+      "sha256": "BB3389C072D087D5CAA4BD3FC1BBDB85CA2508402C6D03601C4DD0A58C7ADA0C"
+    },
+    {
+      "path": "docs/roadmap-total-milestone.md",
+      "sha256": "CED404932A27DE2810AFE69FD285FCBE6690CC4270FF9059105DB158ADBC524A"
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "D8F48EC5B29BE5A8FCBD72E469B636815B17871D21C2B252C3CD37815210A66D"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/Program.cs",
+      "sha256": "D1527AA83B68A20E3E9C2ED6BC6344674DA16F840FECFAA1A71996DE4725BB5B"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/README.md",
+      "sha256": "A9E336E919825B2042D64A595B4D851D603CDA7D767E97E4E73DD877BF6FA237"
+    },
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/SqlBudgetJourney.cs",
+      "sha256": "D3FDDE798B46338A75E1715BC44C7413E9728B5CB65CFD53BC4DB6D12777293F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Query/KnnExecutor.cs",
+      "sha256": "E72722E805FBC1278404116339605E48302904772440CCD832713B4E116E5A1E"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/DocumentVectorSearchExecutor.cs",
+      "sha256": "25F462071B1C01B525AF37738E88115E36178280A5FD36ED3997669E78B260F9"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/JsonFileSqlExecutor.cs",
+      "sha256": "FC3E9D9C78D40E404ECF190688F30CFF988707D3CE3CF9F3BE182A05445484F3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+      "sha256": "7E087110F4B94275200B407EFDB6B9A2949B955AB4A16C31F19BC33A8F83EDD2"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "A6FF4BAC005AF5BB8FBF181FB90EE20C380C7E8A5D9DF6FB436B2CFBE43A8F45"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "1854F548495443319395608FD3379E7BA9F41BA2AC2B1EB47775F99386614AA3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExplainPlanner.cs",
+      "sha256": "2A45B31CA3E41D8B290D2FAB0BC6E5E1622EE6F88121CAC7F8F5B23C2A323724"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlMaterializationContract.cs",
+      "sha256": "7B34F178D1F3259385E73E1A7820ED276C2B0A9EA35C180FCE85A3C3DB9324E3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlTableFunctionMaterialization.cs",
+      "sha256": "423E4839817769106A06C842E00D884AD14C56C34FBFEEC15F42619498455C4F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableValuedFunctionExecutor.cs",
+      "sha256": "BA2E0D4C8944E4059CDB77D15C00A613714FB6998F6D484619528A3C27BF3215"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Audits/SqlBudgetJourneyTests.cs",
+      "sha256": "0DA7F80C07BD11A4D40DF899039A09115D8A8B9A517BFE4B141BCE69A3C38B3F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/DocumentVectorMaterializationBudgetTests.cs",
+      "sha256": "26252199275D33078E0AB01C250A7C946F9455E6F41C97255D84CB7B4DE9A6C7"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/JsonFileMaterializationBudgetTests.cs",
+      "sha256": "CB6D79D81237EBA09C06405164936464BEC87493F3C19DA75D517A8BB4BCED05"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/KnnMaterializationBudgetTests.cs",
+      "sha256": "D8302CF78BD91A85C2C19C5DB10A7FCAAC53869E58EEAAEC88959B3363436C2F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlMaterializationBudgetTests.cs",
+      "sha256": "737925403D54AEE74B7E493AD357595A274098A76B43C8D8E4005315BA58517F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlTableFunctionMaterializationTests.cs",
+      "sha256": "20CA1BE0684C227689650CCEC3C0B8CFDA5F54B2371ECC721800EF9B760E4C89"
+    }
+  ],
+  "boundary": "Local contracts and orderly reopen only. No remote parity, fixed hardware, whole-heap, real model quality, long-run or production evidence."
+}
