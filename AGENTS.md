@@ -109,6 +109,10 @@ dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --e
 - 限定符、别名、CTE 名及 DDL/DML 中的名称引用遵循相同规则。解析器须把引号信息传给统一名称绑定阶段，执行器使用绑定后的原名；禁止各入口自行折叠或选择不同的比较规则。双引号内的转义 `""` 代表一个 `"`。
 - Point、Line Protocol 等摄取入口的 measurement/TAG/FIELD 名称也须解析到已有 schema 的拼写，避免仅因大小写变化而新增列或 series。此合同不改变字符串数据值、数据 collation、JSON 文档属性键或其他模型的数据键语义。
 
+### 9. 分支治理
+
+- `parity-results` 是仅用于保存 parity 结果的独立分支，严禁合并到 `main` 或其它开发分支；分支清理、同步和合并操作必须始终保留该分支及其远端引用。
+
 ---
 
 ## 代码规范
