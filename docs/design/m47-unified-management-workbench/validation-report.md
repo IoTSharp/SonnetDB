@@ -83,6 +83,13 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 事件暂停只影响本地视图，不暂停服务器；慢查询恢复只回填输入且 Explain 需手动执行；告警规则、评估、通知和运行时诊断仍为规划能力，不发送通知、不标记健康、不伪造服务器终态；Modbus 保留 Runtime/Pending/Audit、数据库绑定及批准/拒绝边界。
 - 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 Server、权限、现场写入、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
 
+## WB-02E 工作台与数据流状态合同（2026-10-05）
+
+- 原型页 `summary`、`recent`、`imports`、`transfers`、`jobs` 已补齐页面级 capabilities、`normal/empty/error/permission/readonly/longContent` 六态、专用正常态字段和任务页注入；新增 `web/tests/m47-global-flow-state-contract.test.mjs` 固化页级对象身份与边界断言。
+- `node --test web/tests/m47-global-flow-state-contract.test.mjs`：3/3；与 WB-02B/C/D 合同测试联合：11/11；`node --check`：`prototype/catalog.js`、`prototype/task-details.js`；`git diff --check`：均通过。独立只读复核：PASS；复核曾发现并促成修正 jobs 位点字段断言，最终合同与测试一致。
+- 实例概览保持九模型数据库逻辑上下文及 SonnetMQ 的 `scope=database`、`persistenceScope=instance`、共享 `.system/mq`、当前单库备份排除；最近工作区恢复只回填上下文并重校验身份/能力，不自动执行或重放写入。导入没有真实持久 resume 时要求重新选择文件；对象传输区分服务器 checksum、complete/abort 和取消终态；任务页区分 generation、revision、offset、object version，MQ 位点含 database + Topic 且恢复影响实例共享 Store 需单独核验。
+- 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 Server、权限、导入/对象现场写入、任务恢复、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
+
 ## WB-04 迁移前导航兼容预检（2026-10-05）
 
 - 新增 `web/tests/navigation-compat.test.mjs`，只读检查 `web/src/router/index.ts` 与 `web/src/views/AppShell.vue`，没有修改生产壳、导航或路由。

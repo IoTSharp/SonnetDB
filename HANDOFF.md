@@ -191,3 +191,9 @@
 - `events`、`slow-queries`、`alerts`、`runtime`、`modbus` 已补 capabilities、六态 stateMatrix、专用字段和任务注入。边界保持：视图暂停不暂停服务器；慢查询恢复不自动重跑，Explain 手动执行；告警与诊断规划能力不发通知、不伪造健康或终态；Modbus Runtime/Pending/Audit 与审批/拒绝复用现有语义。
 - 已通过：`node --test web/tests/m47-observe-flow-state-contract.test.mjs` 3/3；`node --check` 两个 JS；`git diff --check`；独立只读复核 PASS。完整仓库 `dotnet restore` 与 `dotnet format` 将在最终待提交树上运行，未通过不得提交。
 - 当前状态：WB-02D 已提交为 `07506a99`（`feat(m47): add observe and flow state contracts`）；提交包含上述 8 个专属文件，提交前 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。设计包仍为 `REVIEW_DRAFT`，不代表真实 Server、权限、现场写入、三宿主、安装、发布或 AOT 验收。后续继续选择剩余状态合同的有界切片；不得重复 WB-02D。保留 `origin/parity-results`，不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-02E，2026-10-05）
+
+- WB-02D 已闭环后，主会话冻结 WB-02E 的文件归属：子智能体 `/root/wb02e_global_flow_contracts` 仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；主会话负责新增窄测试、CHANGELOG、validation-report、work-queue、HANDOFF、验证和提交。没有修改生产 `web/src`、路由或宿主代码。
+- 目标是剩余五个工作台/数据流页面 `summary`、`recent`、`imports`、`transfers`、`jobs` 的 capabilities、六态 stateMatrix、专用字段和任务注入；实现仍为 REVIEW_DRAFT 静态原型，保留现有权限、取消、分页/预算、恢复不重放和服务器终态边界。
+- 实施者已回报完成且未提交：五页均补 capabilities、六态、normal.fields 与任务注入，`node --check` 两个 JS 和 `git diff --check` 通过；主会话新增合同测试 3/3，并与 WB-02B/C/D 联合 11/11。独立只读复核 PASS；复核发现的 jobs 位点字段断言已修正并重新通过。下一检查点是在最终待提交树运行完整 restore/format，stage 仅 WB-02E 文件并提交，再回写实际哈希。不得重复派 WB-02E 或覆盖实现者文件；保留 `origin/parity-results`。

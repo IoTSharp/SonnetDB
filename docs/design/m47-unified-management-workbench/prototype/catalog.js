@@ -10,7 +10,22 @@ window.M47_CATALOG = {
           rows: [['factory', '9 种', '128', '今天 09:42', '在线 · 示例'], ['analytics', '4 种', '64', '昨天 16:20', '在线 · 示例'], ['sandbox', '3 种', '12', '10 月 02 日', '只读 · 示例']],
           fields: [{ label: '数据库', value: '3' }, { label: '活动工作区', value: '4' }, { label: '待审批', value: '2' }, { label: '需关注', value: '1' }],
           tabs: ['总览', '资源分布', '待处理事项'], inspector: [{ label: '连接', value: 'Factory / Local' }, { label: '服务地址', value: '127.0.0.1:5080' }, { label: '数据来源', value: '设计示例，非健康证据' }],
-          empty: { title: '开始连接 SonnetDB', body: '添加一个连接后，可查看数据库、资源和最近工作区。', action: '添加连接' }
+          empty: { title: '开始连接 SonnetDB', body: '添加一个连接后，可查看数据库、资源和最近工作区。', action: '添加连接' },
+          capabilities: [
+            { id: 'summary-database-overview', status: 'existing', label: '数据库与九模型摘要', note: '沿用当前 Dashboard/数据库列表返回的可访问资源摘要；原型数值为静态示例。' },
+            { id: 'summary-health-snapshot', status: 'extension', label: '连接健康快照', note: '健康只来自明确服务响应并带检查时间；列表可见不等于服务全面健康。' },
+            { id: 'summary-pending-items', status: 'extension', label: '待处理事项摘要', note: '汇总草稿、审批和持久任务入口并标记来源，不把本地草稿当服务器终态。' },
+            { id: 'summary-workspace-entry', status: 'existing', label: '进入数据库工作台', note: '进入选中数据库的九模型逻辑上下文；MQ Topic identity 仍含 database + topic。' },
+            { id: 'summary-mq-persistence-boundary', status: 'existing', label: 'MQ 持久化边界说明', note: 'MQ 逻辑 scope=database、persistenceScope=instance，物理 Store 为共享 .system/mq；当前单库备份不含该 Store。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示连接、可访问数据库、九模型资源摘要与待处理入口；健康单独标注采样时间。', primary: '打开工作台', fields: ['连接', '数据库数', '最近访问', '待处理项', '活动工作区', '待审批', '需关注', '健康检查时间', '数据来源'] },
+            empty: { label: '空实例摘要', status: 'extension', summary: '没有可访问数据库或待处理项时保留连接状态，说明添加连接或请求授权路径。', primary: '添加连接', preserve: ['连接', '服务地址', '权限入口'] },
+            error: { label: '摘要读取错误', status: 'extension', summary: '仅替换摘要和数据库表，保留连接与最后快照并标记过期；不把旧列表当最新健康。', primary: '检查并重试', preserve: ['连接', '服务地址', '最后检查时间'], blocked: ['标记服务健康'] },
+            permission: { label: '实例/数据库权限不足', status: 'existing', summary: '隐藏数据库、资源和待处理载荷，显示当前身份可请求的实例/数据库权限。', primary: '查看权限要求', preserve: ['连接', '服务地址'], blocked: ['打开受限数据库'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看摘要并进入可读工作台；新建/删除数据库、批准事项和修改连接配置禁用。', primary: '打开工作台', blocked: ['新建数据库', '删除数据库', '批准待处理事项', '修改连接配置'] },
+            longContent: { label: '长实例摘要', status: 'extension', summary: '数据库、资源和待处理列表按记录/字节预算分页或折叠，保留原始名称和未返回全部标记。', primary: '查看下一页', limits: ['分页与摘要预算以服务端能力为准', '不虚构全量数据库数量、健康或 continuation'] }
+          }
         },
         {
           id: 'database-catalog', title: '数据库目录', tabLabel: '数据库', type: 'table', scope: 'instance', status: 'extension', existingRoute: '/admin/app/sql',
@@ -63,7 +78,21 @@ window.M47_CATALOG = {
           columns: ['工作区', '连接 / 数据库', '类型', '保存时间', '草稿'], rows: [['产线温度分析', 'Factory / Local / factory', 'SQL', '今天 09:42', '已保存'], ['Assets', 'Factory / Local / factory', '关系表', '今天 09:30', '2 处未提交'], ['设备异常排查', 'Factory Readonly · 示例 / factory', 'Notebook · 规划', '昨天 16:20', '只读']],
           fields: [{ label: '搜索工作区', value: '', kind: 'input' }], tabs: ['最近', '已固定', '离线快照'],
           inspector: [{ label: '恢复内容', value: '页签 / 输入 / 过滤器 / 结果快照' }, { label: '连接检查', value: '恢复后重新核对权限' }, { label: 'M47 状态', value: 'Workspace Registry 规划' }],
-          empty: { title: '还没有保存的工作区', body: '查询或对象浏览时可保存当前上下文。', action: '打开 SQL 工作区' }
+          empty: { title: '还没有保存的工作区', body: '查询或对象浏览时可保存当前上下文。', action: '打开 SQL 工作区' },
+          capabilities: [
+            { id: 'recent-workspace-list', status: 'planned', label: '最近/固定工作区索引', note: 'Workspace Registry 尚未提供统一存储合同；列表与固定状态只在真实宿主能力返回后显示。' },
+            { id: 'recent-context-restore', status: 'planned', label: '工作区上下文恢复', note: '只恢复页签、输入、过滤器和有界快照；恢复后重新检查身份与 capabilities，不自动执行查询或写操作。' },
+            { id: 'recent-offline-snapshot', status: 'planned', label: '离线快照查看', note: '快照必须带采集时间、预算和过期标记；联网后仍只恢复上下文。' },
+            { id: 'recent-connection-recheck', status: 'planned', label: '恢复后的连接与权限复核', note: '连接或数据库权限变化时明确阻断恢复，不从旧快照推断当前授权。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'planned', summary: '显示最近、固定和离线工作区及选中项的恢复内容；恢复只回填上下文。', primary: '恢复选中工作区', fields: ['宿主', '连接', '数据库', '对象', '工作区', '当前页签', '输入 / 过滤器', '保存时间', '快照时间', '草稿状态'] },
+            empty: { label: '空工作区', status: 'planned', summary: '没有可恢复工作区时保留当前宿主和连接，说明保存入口；不创建后端资产。', primary: '打开 SQL 工作区', preserve: ['宿主', '连接', '搜索工作区'] },
+            error: { label: '工作区读取错误', status: 'planned', summary: '只替换工作区列表，保留搜索和当前宿主；旧快照标记来源与过期状态。', primary: '检查并重试', preserve: ['宿主', '连接', '搜索工作区', '过滤页签'], blocked: ['标记恢复成功'] },
+            permission: { label: '恢复权限不足', status: 'planned', summary: '隐藏受限输入、结果和对象载荷，显示宿主/连接/数据库授权要求。', primary: '查看权限要求', preserve: ['宿主', '连接', '工作区名称'], blocked: ['恢复受限载荷'] },
+            readonly: { label: '只读', status: 'planned', summary: '可浏览工作区元数据并回填输入；执行查询、提交写入和修改保存项禁用。', primary: '查看工作区摘要', blocked: ['执行恢复后的查询', '重放写操作', '修改固定状态'] },
+            longContent: { label: '长工作区内容', status: 'planned', summary: '工作区列表、输入和快照按记录/字节预算折叠并标记未返回全部，不加载无限历史。', primary: '查看恢复预算', limits: ['列表与快照预算待 Workspace Registry 合同确认', '不虚构 continuation、任务 ID 或后台进度'] }
+          }
         }
       ]
     },
@@ -287,7 +316,22 @@ window.M47_CATALOG = {
           columns: ['任务', '模型 / 目标', '格式', '进度', '状态'], rows: [['Telemetry_1004.csv', '时序 / Telemetry', 'CSV', '预览 100 行', '待确认 · 示例'], ['Assets.csv', '关系 / Assets', 'CSV', '映射 8 列', '草稿 · 示例'], ['Manuals.ndjson', '文档 / Manuals', 'NDJSON', '校验 20 文档', '草稿 · 示例']],
           fields: [{ label: '模型', value: '全部', kind: 'select' }, { label: '任务状态', value: '全部', kind: 'select' }], tabs: ['任务列表', '字段映射', '校验与错误'],
           inspector: [{ label: '文件来源', value: '本机选择，尚未上传' }, { label: '恢复能力', value: '按模型能力显示' }, { label: '权限', value: '目标数据库写入 / 导入权限' }],
-          empty: { title: '还没有导入任务', body: '先选择模型与目标对象，检查字段映射及重复记录策略。', action: '选择导入目标' }
+          empty: { title: '还没有导入任务', body: '先选择模型与目标对象，检查字段映射及重复记录策略。', action: '选择导入目标' },
+          capabilities: [
+            { id: 'import-target-selection', status: 'extension', label: '模型与目标对象选择', note: '统一入口只索引已有模型导入器；数据库、模型和目标对象身份必须明确。' },
+            { id: 'import-field-mapping', status: 'extension', label: '字段映射预览', note: '映射保留目标 schema 的原始名称与类型，确认前只在本地草稿中展示。' },
+            { id: 'import-validation', status: 'extension', label: '行/字段校验与错误定位', note: '时间单位、重复策略和失败行为以真实端点能力为准，错误不得静默跳过。' },
+            { id: 'import-staged-preview', status: 'extension', label: '导入影响预览', note: '提交前显示行数/字节、覆盖或追加范围与权限；原型不上传、不执行。' },
+            { id: 'import-persistent-resume', status: 'planned', label: '持久导入恢复', note: '只有真实任务身份与 resume 合同存在时才开放；否则明确要求重新选择文件。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示模型、目标对象、文件、映射、校验与导入任务状态；动作停在预览或真实合同入口。', primary: '选择导入目标', fields: ['数据库', '模型', '目标对象', '源文件', '格式', '行数 / 字节', '字段映射', '重复策略', '失败策略', '错误位置', '任务状态'] },
+            empty: { label: '空导入列表', status: 'extension', summary: '没有导入任务时保留数据库和筛选条件，先选择目标并建立本地映射草稿。', primary: '选择导入目标', preserve: ['数据库', '模型筛选', '任务状态筛选'] },
+            error: { label: '导入校验错误', status: 'extension', summary: '只替换校验与错误区域，保留文件引用、映射和重复策略；不把局部校验通过当作可提交。', primary: '返回修正映射', preserve: ['数据库', '目标对象', '源文件', '字段映射', '失败策略'], blocked: ['提交导入'] },
+            permission: { label: '导入权限不足', status: 'existing', summary: '隐藏文件内容、字段值与目标载荷，显示数据库/模型导入或写入权限要求。', primary: '查看权限要求', preserve: ['数据库', '模型', '目标对象'], blocked: ['上传或提交导入'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看任务、映射与错误摘要；上传、覆盖、追加和确认导入禁用。', primary: '查看导入摘要', blocked: ['上传文件', '确认导入', '覆盖目标', '恢复导入任务'] },
+            longContent: { label: '长导入内容', status: 'extension', summary: '文件、映射和错误按行/字节预算分页或折叠，明确未返回全部；不伪造全量计数或 resume。', primary: '查看校验预算', limits: ['文件预览、错误行和映射字节上限以服务端能力为准', '无持久任务合同则只能重新选择文件'] }
+          }
         },
         {
           id: 'transfers', title: '对象传输', tabLabel: '对象传输', type: 'table', scope: 'database', status: 'extension', existingRoute: '/admin/app/sql',
@@ -295,7 +339,22 @@ window.M47_CATALOG = {
           columns: ['对象', '方向', '大小', '分片', '状态'], rows: [['evidence/2026-10-04/pump-01.jpg', '上传', '2.4 MB', '单文件', '待确认 · 示例'], ['archive/line-a-1004.zip', '上传', '128 MB', '3 / 8', '可恢复会话 · 示例'], ['manuals/pump-guide.pdf', '下载', '4.8 MB', 'Range', '未开始 · 示例']],
           fields: [{ label: 'Bucket', value: 'Evidence', kind: 'select' }, { label: '方向', value: '全部', kind: 'select' }], tabs: ['传输', 'Multipart 会话', '校验与错误'],
           inspector: [{ label: '目标 Bucket', value: 'Evidence' }, { label: '校验', value: '以服务器 checksum 为准' }, { label: '大文件', value: '按能力显示 Range 与分片' }],
-          empty: { title: '还没有对象传输', body: '选择 Bucket 与文件，检查大小、版本和校验方式。', action: '新建上传' }
+          empty: { title: '还没有对象传输', body: '选择 Bucket 与文件，检查大小、版本和校验方式。', action: '新建上传' },
+          capabilities: [
+            { id: 'transfer-session-list', status: 'extension', label: '对象传输与 Multipart 会话', note: '复用对象工作台按 Bucket/Key/版本查看真实会话；原型记录为静态示例。' },
+            { id: 'transfer-upload-preview', status: 'extension', label: '上传与 complete 预览', note: '上传、complete、abort 分步呈现，浏览器字节进度不等于服务器提交终态。' },
+            { id: 'transfer-download-range', status: 'extension', label: '下载与 Range 预览', note: '按 Range 和字节预算预览对象，不自动下载全量对象。' },
+            { id: 'transfer-checksum', status: 'extension', label: '服务器校验与错误', note: 'checksum、分片校验和版本以服务器响应为准；客户端计算不能冒充服务器确认。' },
+            { id: 'transfer-cancel', status: 'planned', label: '传输取消与终态', note: '只有真实取消接口和服务器终态可用时才显示完成/取消；本原型不发请求。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示 Bucket、Key、方向、版本、大小、分片、校验和取消状态；每个动作保留服务器边界。', primary: '新建上传', fields: ['数据库', 'Bucket', 'Key', '方向', '版本', '字节', '已完成分片', '有效期', 'checksum', '取消状态'] },
+            empty: { label: '空传输列表', status: 'extension', summary: '没有传输或会话时保留 Bucket、方向和对象筛选，说明新建上传/下载入口。', primary: '新建上传', preserve: ['数据库', 'Bucket', '方向', 'Key / Prefix'] },
+            error: { label: '传输或校验错误', status: 'extension', summary: '只替换分片/校验结果，保留 Key、版本和本地草稿；不把客户端进度当服务器终态。', primary: '检查并重试', preserve: ['Bucket', 'Key', '版本', '方向', '已完成分片'], blocked: ['标记 complete 成功'] },
+            permission: { label: '对象权限不足', status: 'existing', summary: '隐藏对象 metadata、Range 内容与上传载荷，显示 Bucket/数据库读写权限要求。', primary: '查看权限要求', preserve: ['数据库', 'Bucket', 'Key'], blocked: ['读取对象内容', '上传或删除对象'] },
+            readonly: { label: '只读', status: 'existing', summary: '可浏览会话、Range 预览、checksum 和审计；上传、complete、abort、删除与版本治理禁用。', primary: '预览指定 Range', blocked: ['上传对象', 'complete', 'abort', '删除对象版本'] },
+            longContent: { label: '长对象/长会话', status: 'extension', summary: '对象清单、分片和 Range 按条数/字节预算分页或折叠，不自动下载全量内容。', primary: '查看传输预算', limits: ['Range 与分片清单上限以服务端能力为准', 'Multipart 完成需服务器确认，不能由浏览器进度推断'] }
+          }
         },
         {
           id: 'jobs', title: '任务与位点', tabLabel: '任务与位点', type: 'table', scope: 'instance', status: 'planned',
@@ -303,7 +362,22 @@ window.M47_CATALOG = {
           columns: ['任务', '范围', '阶段', '位点 / 版本', '可用动作'], rows: [['RAG Manuals', 'factory / copilot-docs', '待续跑 · 示例', 'generation demo-07', '转至 RAG'], ['对象语义处理', 'factory / Evidence', '待处理 · 示例', 'object version demo-12', '转至对象'], ['MQ 消费', 'factory / DeviceEvents · 实例共享 Store', '浏览示例', 'offset 10240', '转至 SonnetMQ']],
           fields: [{ label: '范围', value: '实例与数据库', kind: 'select' }, { label: '阶段', value: '全部', kind: 'select' }], tabs: ['任务索引', '位点', '重试与恢复'],
           inspector: [{ label: '统一 DTO', value: '规划，尚无通用任务接口' }, { label: '恢复边界', value: '不可把客户端重试当持久 resume' }, { label: '取消', value: '区分取消请求与服务器终态' }],
-          empty: { title: '当前没有可展示的任务', body: '按模型能力查看任务或恢复入口。', action: '查看任务能力' }
+          empty: { title: '当前没有可展示的任务', body: '按模型能力查看任务或恢复入口。', action: '查看任务能力' },
+          capabilities: [
+            { id: 'jobs-model-index', status: 'planned', label: '跨模型任务索引', note: '统一 DTO 尚未提供；列表必须标明任务来源模型与数据库，不替代模型原生任务。' },
+            { id: 'jobs-rag-persistent', status: 'existing', label: 'RAG 持久任务入口', note: '复用 generation、expected revision 和 profile 合同；续跑前需匹配真实服务器任务。' },
+            { id: 'jobs-object-version', status: 'extension', label: '对象版本与传输任务', note: '对象 version、Multipart 会话和服务器终态保持独立语义。' },
+            { id: 'jobs-mq-offset', status: 'extension', label: 'SonnetMQ Topic 位点', note: 'offset 归属 database + Topic；物理持久化 scope=instance、共享 .system/mq，恢复影响其它数据库需单独核验。' },
+            { id: 'jobs-resume-boundary', status: 'planned', label: '任务恢复边界', note: '没有持久任务身份、版本和权限合同时不提供通用 resume 或立即重试；客户端取消与服务器终态分开。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'planned', summary: '按模型显示任务、位点/版本、发布点和恢复原因，并转入对应原生工作流。', primary: '查看选中任务', fields: ['范围', '数据库', '模型', '任务 ID', 'generation', 'revision', 'offset', '对象版本', '发布点', '状态', '可恢复原因'] },
+            empty: { label: '空任务索引', status: 'planned', summary: '没有统一任务记录时保留实例/数据库筛选，提示从模型原生页查看任务能力。', primary: '查看任务能力', preserve: ['范围筛选', '数据库筛选', '阶段筛选'] },
+            error: { label: '任务读取错误', status: 'planned', summary: '只替换索引结果，保留筛选和选中模型；不把客户端重试标为持久恢复。', primary: '检查并重试', preserve: ['范围', '数据库', '模型', '任务筛选'], blocked: ['立即重试任务'] },
+            permission: { label: '任务权限不足', status: 'planned', summary: '隐藏任务载荷、位点和恢复细节，说明实例/数据库/模型任务权限要求。', primary: '查看权限要求', preserve: ['范围', '数据库', '模型'], blocked: ['读取位点', '恢复或重试任务'] },
+            readonly: { label: '只读', status: 'planned', summary: '可查看任务摘要、位点和版本说明并转到原生查看页；恢复、重试、发布和删除禁用。', primary: '查看选中任务', blocked: ['恢复任务', '立即重试', '发布新版本', '删除任务'] },
+            longContent: { label: '长任务索引', status: 'planned', summary: '任务、日志和位点按记录/字节预算分页，区分未返回全部与未知状态；不拼接异构 continuation。', primary: '查看任务预算', limits: ['统一任务 DTO、分页和 continuation 待合同确认', 'generation、revision、offset、object version 不混为同一恢复数字', 'MQ 位点恢复需说明实例共享 Store 影响'] }
+          }
         }
       ]
     },

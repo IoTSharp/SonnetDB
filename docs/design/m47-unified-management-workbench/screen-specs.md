@@ -96,6 +96,16 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 
 六态主动作与字段保持一致：正常“刷新状态”，字段为数据库、源/端点、模式、地址、寄存器范围、数据库/表绑定、Runtime 状态、请求 ID、审批状态；空“查看配置说明”并保留数据库与 Runtime 筛选；错误“检查并重试”仅替换 Runtime/Pending/Audit 结果并保留请求草稿，不能把刷新失败当作现场断电；无权限“查看权限要求”并隐藏端点/寄存器/写请求载荷，禁用查看寄存器和批准/拒绝；只读“查看运行时”，禁用批准、拒绝和端点配置；长内容“查看传输限制”，端点/寄存器与 Audit 按服务端分页/字节预算展示，浏览器进度或刷新不能代替服务器写入终态。现场写入必须复用批准/拒绝流程，不能绕过确认。
 
+**WB-02E 工作台与数据流状态合同（`summary`、`recent`、`imports`、`transfers`、`jobs`）：** 五页把实例摘要、工作区恢复、导入、对象传输和跨模型任务索引连接到已有模型入口；能力标签只描述既有、延伸或规划边界，原型不发起网络请求、不写配置、不制造服务器终态。
+
+| 页面 | capabilities | 六态主动作、`normal.fields` 与边界 |
+|---|---|---|
+| 实例概览 / `summary` | `summary-database-overview`（既有九模型摘要）、`summary-health-snapshot`、`summary-pending-items`（延伸摘要）、`summary-workspace-entry`、`summary-mq-persistence-boundary`（既有边界说明）。 | 正常“打开工作台”，字段为连接、数据库数、最近访问、待处理项、活动工作区、待审批、需关注、健康检查时间、数据来源；空“添加连接”并保留连接/权限入口；错误只替换摘要并保留过期最后快照，不能标记健康；无权限隐藏数据库/资源/待处理载荷；只读允许查看并进入读工作台，禁用新建/删除/批准/连接修改；长摘要按记录/字节分页，不能虚构全量数据库、健康或 continuation。MQ 逻辑 `scope=database`、`persistenceScope=instance`，物理 `.system/mq` 共享，当前单库备份不含该 Store。 |
+| 最近工作区 / `recent` | `recent-workspace-list`、`recent-context-restore`、`recent-offline-snapshot`、`recent-connection-recheck` 均为规划。 | 正常“恢复选中工作区”，字段为宿主、连接、数据库、对象、工作区、当前页签、输入/过滤器、保存时间、快照时间、草稿状态；空“打开 SQL 工作区”只保留宿主/连接并说明保存入口；错误只替换列表并标旧快照过期；无权限隐藏输入、结果和对象载荷；只读可查看元数据/回填输入，禁用查询执行、写重放和固定状态修改；长内容按记录/字节预算折叠。Workspace Registry 未实现，恢复后须重新核验身份与能力，禁止自动重放。 |
+| 导入任务 / `imports` | `import-target-selection`、`import-field-mapping`、`import-validation`、`import-staged-preview`（延伸）；`import-persistent-resume`（规划）。 | 正常“选择导入目标”，字段为数据库、模型、目标对象、源文件、格式、行数/字节、字段映射、重复策略、失败策略、错误位置、任务状态；空“选择导入目标”；错误返回修正映射并禁止提交；无权限隐藏文件/字段载荷；只读可查看任务与错误，禁用上传/覆盖/追加/确认；长内容按行/字节预算分页，未有持久任务身份时必须重新选择文件。复用模型导入器，原始名称/类型和失败策略以真实能力为准。 |
+| 对象传输 / `transfers` | `transfer-session-list`、`transfer-upload-preview`、`transfer-download-range`、`transfer-checksum`（延伸）；`transfer-cancel`（规划）。 | 正常“新建上传”，字段为数据库、Bucket、Key、方向、版本、字节、已完成分片、有效期、checksum、取消状态；空“新建上传”保留 Bucket/方向/Key；错误只替换分片/校验并保留草稿，浏览器进度不等于服务器终态；无权限隐藏 metadata、Range 和上传载荷；只读允许会话/Range/校验查看，禁用上传、complete、abort、删除；长对象按条数/字节预算预览，不自动下载全量。Upload、complete、abort 分别预览并以服务器响应为准。 |
+| 任务与位点 / `jobs` | `jobs-model-index`、`jobs-resume-boundary`（规划）；`jobs-rag-persistent`（既有）；`jobs-object-version`、`jobs-mq-offset`（延伸）。 | 正常“查看选中任务”，字段为范围、数据库、模型、任务 ID、generation、revision、offset、对象版本、发布点、状态、可恢复原因；空“查看任务能力”并保留筛选；错误只替换索引，禁止把客户端重试当持久恢复；无权限隐藏任务载荷/位点；只读可查看并转原生页，禁用恢复/重试/发布/删除；长任务按记录/字节分页，不拼接异构 continuation。`generation`、`revision`、`offset`、`object version` 保持不同语义；MQ offset 属于数据库 Topic，物理持久化为实例共享 Store，恢复影响须单独核验。 |
+
 ## AI 与 MCP：四个二级页面
 
 | 页面 / ID / 标签 | 主任务与页面结构 | 关键字段、动作与边界 |
