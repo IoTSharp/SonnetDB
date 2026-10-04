@@ -2453,7 +2453,8 @@ public sealed partial class KvKeyspace : IDisposable
 
                 page.Add(new KvEntry(
                     pair.Key.ToArray(),
-                    pair.Value.Value.ToArray(),
+                    // 已发布覆盖层值不可变；磁盘读取值为本次独占数组，稳定只读回调无需再次复制。
+                    pair.Value.Value,
                     pair.Value.Version,
                     pair.Value.ExpiresAtUtc));
                 if (page.Count < pageSize)
