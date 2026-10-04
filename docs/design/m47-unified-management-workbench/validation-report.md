@@ -64,6 +64,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - **WB-02**：`prototype/catalog.js`、`task-details.js` 语法检查和 VM 元数据断言通过；SQL、KV、SonnetMQ、对象 Bucket、Graph Beta 五页各有专用能力/状态/字段合同，缺页注入有 guard。Bucket 未强行添加不存在的 planned 能力；其现有/延伸边界仍需真实宿主能力响应。
 - **WB-03C**：`node --experimental-vm-modules --test web/tests/management-explorer-compat.test.mjs` 通过 5/5。该测试使用 Node 实验性 `SourceTextModule`，直接省略该 flag 会失败，因此验证命令固定保留 flag。测试是静态/源码兼容证据，不覆盖真实 Server、Vue UI、AOT 或三宿主。
 - 当前仍保留两项源码边界供 WB-03：`firstExplorerKey` 在 index-only schema 下返回空；生产 MQ item key 仍是 `mq:${topic}`，跨数据库必须由外层上下文携带 database。WB-03C 只固化证据，没有擅自改源码或存储布局。
+- 切片提交：WB-01 `88fc7914`、WB-02 `11de7131`、WB-03C `828b7638`；提交后工作树 clean，未推送远端。
 
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 

@@ -156,4 +156,4 @@
 - WB-01 已完成并待提交：仅改 `prototype/app.js`、`styles.css`；页签可见性/草稿/焦点/键盘/Home-End/错误与规划动作门禁已由 Playwright 桌面与 390×844 回归，预览 PID 85328 已停止并核验不存在。
 - WB-02 已完成并待提交：仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；首批 SQL、KV、MQ、Bucket、Graph Beta 五页完成状态矩阵与能力字段，缺页注入 guard 通过。
 - WB-03C 已完成并待提交：仅新增 `web/tests/management-explorer-compat.test.mjs`；`node --experimental-vm-modules --test ...` 5/5 通过。已记录 index-only fallback 与 MQ 旧 key 需外层 database 的源码边界，未修复生产 Explorer。
-- 当前未提交文件仅属于上述三个切片。下一步由根会话复核最终 diff，执行完整 restore + Format Check，精确暂存并提交；提交后再记录实际哈希。随后冻结并派 WB-03 纯合同切片。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
+- 三个切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。提交前 restore、Format Check、Node 语法、Explorer 5/5 与 diff 检查均通过，工作树现已 clean。下一步冻结并派 WB-03 纯合同切片；所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。

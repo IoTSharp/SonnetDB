@@ -17,10 +17,10 @@
 | ID | 任务与交付 | 文件归属与依赖 | 验收 / 状态 |
 |---|---|---|---|
 | WB-00 | 接收设计包、核对现状与提交设计交付基线 | 主智能体串行维护根文档与 design 包；不动生产代码 | 现有 7/30/9/166/60 目录、MQ 逻辑/物理范围、链接、证据可追溯；restore、Format Check、脚本语法与差异检查通过；已提交 `3484aafd` |
-| WB-01 | 原型工作区页签、草稿与键盘交互闭环 | prototype/app.js、styles.css；先完成 WB-00。实施者独占这两文件 | 已完成：active 页签滚入可见、内存草稿标记/关闭后保留、只读/规划/错误动作门禁、对话框焦点恢复、箭头与 Home/End、桌面/390 Playwright 回归；未接真实服务。 |
-| WB-02 | 页面能力、字段与状态逐页定稿 | catalog.js、task-details.js、screen-specs.md；可与 WB-01 并行，各自不改对方文件 | 已完成首批五页（SQL、KV、MQ、对象 Bucket、Graph Beta）：状态矩阵、能力标签、专用字段和主动作；缺页注入有 guard。其余 34 页面留待后续批次。 |
+| WB-01 | 原型工作区页签、草稿与键盘交互闭环 | prototype/app.js、styles.css；先完成 WB-00。实施者独占这两文件 | 已完成并提交 `88fc7914`：active 页签滚入可见、内存草稿标记/关闭后保留、只读/规划/错误动作门禁、对话框焦点恢复、箭头与 Home/End、桌面/390 Playwright 回归；未接真实服务。 |
+| WB-02 | 页面能力、字段与状态逐页定稿 | catalog.js、task-details.js、screen-specs.md；可与 WB-01 并行，各自不改对方文件 | 已完成并提交 `11de7131`（首批五页：SQL、KV、MQ、对象 Bucket、Graph Beta）：状态矩阵、能力标签、专用字段和主动作；缺页注入有 guard。其余 34 页面留待后续批次。 |
 | WB-03 | 统一资源身份与能力合同的兼容切片 | 新 contracts/core 模块和窄测试；先核对 managementExplorer、API 与宿主使用情况，根智能体冻结文件范围后再派单 | MQ identity 必须含数据库+Topic，逻辑 scope 与 persistenceScope 分开；保留现有 key/路由、大小写、权限与 Graph Beta；不更改持久化布局。待启动 |
-| WB-03C | Explorer 兼容基线证据 | web/tests 下专属 contract 测试与自有 fixtures；只读消费当前 managementExplorer.ts，可与 WB-01/WB-03 并行 | 已完成：`web/tests/management-explorer-compat.test.mjs`，`node --experimental-vm-modules --test ...` 5/5；覆盖 keys、大小写/冒号、index/backup、MQ 旧 key 与外层 database 选择上下文。发现并记录 index-only fallback 与跨库 MQ key 兼容边界，未改源码。 |
+| WB-03C | Explorer 兼容基线证据 | web/tests 下专属 contract 测试与自有 fixtures；只读消费当前 managementExplorer.ts，可与 WB-01/WB-03 并行 | 已完成并提交 `828b7638`：`web/tests/management-explorer-compat.test.mjs`，`node --experimental-vm-modules --test ...` 5/5；覆盖 keys、大小写/冒号、index/backup、MQ 旧 key 与外层 database 选择上下文。发现并记录 index-only fallback 与跨库 MQ key 兼容边界，未改源码。 |
 | WB-04 | 按已确认基线迁移全局壳和一级/二级导航 | web 的壳、导航、资源树；依赖相应设计和 WB-03；避免与其它前端任务同时改共享组件 | 稳定五区、七入口、九模型统一上下文、兼容旧入口；按具体切片提供页面/行为证据。待启动 |
 | WB-05 | 结果、草稿、历史和审批工作流迁移 | 依每次任务冻结组件与测试归属；依赖 WB-04 | 能力决定视图；预算/截断/无权限/取消、审批失效、未知写结果、恢复不重放。待启动 |
 
