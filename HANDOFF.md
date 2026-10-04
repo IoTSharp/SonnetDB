@@ -175,4 +175,4 @@
 - 五个模型页 `measurement`、`table`、`document`、`vector`、`fulltext` 已补 capabilities 与 `normal/empty/error/permission/readonly/longContent` 六态，专用字段与 screen-specs 对齐；任务详情对五页全部注入同一页级合同。保留 TAG/FIELD 与 SQL 名称、JSON 属性键、显式 Profile、hash fallback、全文重建任务和质量证据边界。
 - 独立复核先发现五页 `normal.fields` 缺失 screen-specs 专用字段，已补齐并把缺口固化为测试断言：measurement 的时区/选中 Series，table 的物化预算/草稿差异，document 的 Sort/文档 ID/Payload 呈现模式，vector 的显式 Profile，fulltext 的 Analyzer/重建任务 ID。
 - 已通过：PowerShell 7.6.6；两个 `node --check`；`node --test web/tests/m47-page-state-contract.test.mjs` 2/2；五页×六态、动作/边界 30/30、任务注入 VM 断言；`git diff --check`。独立复核更新后的最终 PASS 仍需收到；随后必须在最终待提交树运行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，通过后才可提交。
-- 当前状态：WB-02B 文件已修改但尚未提交；设计包仍为 `REVIEW_DRAFT`，不能推进 WB-04 生产迁移或将静态原型写成真实 Server/权限/质量/三宿主验收。提交完成后在此段补写实际哈希、最终工作树状态和剩余 29 页状态合同边界；不 push、不发布、不部署。
+- 当前状态：WB-02B 已提交为 `c3bfc2f1`（`feat(m47): add next model state contracts`），提交后工作树保持 clean；设计包仍为 `REVIEW_DRAFT`，不能推进 WB-04 生产迁移或将静态原型写成真实 Server/权限/质量/三宿主验收。剩余 29 页状态合同待后续有界批次；不 push、不发布、不部署。
