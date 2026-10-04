@@ -44,6 +44,20 @@ test('MQ identity keeps database, topic, legacy key, and original spelling', () 
   assert.equal(identity.legacyKey, 'mq:Orders:Created');
 });
 
+test('generic MQ identities require topic and keep name aligned', () => {
+  assert.throws(() => createResourceIdentity({
+    database: 'Telemetry',
+    model: 'mq',
+    name: 'Orders:Created',
+  }), /topic/);
+  assert.throws(() => createResourceIdentity({
+    database: 'Telemetry',
+    model: 'mq',
+    name: 'Orders:Created',
+    topic: 'Other:Topic',
+  }), /name must equal topic/);
+});
+
 test('MQ descriptor separates database logic scope from instance persistence', () => {
   const descriptor = createMqResourceDescriptor('Telemetry', 'Orders:Created');
   assert.equal(descriptor.scope, 'database');

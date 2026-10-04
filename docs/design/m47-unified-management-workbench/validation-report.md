@@ -71,7 +71,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`。资源工厂保留 database、原始名称、大小写、冒号和旧 Explorer key；index/backup 路由可显式保留已有 key。
 - MQ identity 必须同时携带 database 与 topic，兼容 key 保持 `mq:${topic}`；逻辑作用域为 `database`，当前物理持久化边界为实例 `.system/mq`，共享标记为 true，单库备份标记为 false。该合同没有修改 MQ 存储或恢复实现。
 - Graph 描述始终标记 `stability=beta` 与 `beta=true`。`CapabilityRegistry` 只管理稳定能力 id 的内存快照；`resolve` 对未知 id 返回 `state=unavailable`，不执行请求、不代替权限判断；快照及条目不可变。
-- `node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs`：5/5 通过；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json`：通过；`git diff --check`：通过。
+- `node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs`：6/6 通过；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json`：通过；`git diff --check`：通过。通用 MQ 工厂拒绝缺省 topic 或 name/topic 不一致；Explorer key 文档明确只用于路由兼容，跨库选择必须配合 database。
 - 证据范围是 Web TypeScript 静态/内存合同与兼容夹具，不代表真实 Server/API、权限策略、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主或发布门禁通过；`get` 返回未登记时仍为 `undefined`，调用方应使用 `resolve` 获取安全的 unavailable 描述。
 
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。

@@ -139,8 +139,11 @@ export function createResourceIdentity(input: ResourceIdentityInput): ResourceId
   const database = requireText(input.database, 'database');
   const name = requireText(input.name, 'name');
   const topic = input.model === 'mq'
-    ? requireText(input.topic ?? input.name, 'topic')
+    ? requireText(input.topic ?? '', 'topic')
     : undefined;
+  if (topic !== undefined && topic !== name) {
+    throw new Error('MQ resource name must equal topic');
+  }
   const key = defaultResourceKey({ ...input, database, name, topic });
   const legacyKey = input.legacyKey === undefined
     ? key
@@ -238,6 +241,7 @@ export function createGraphResourceDescriptor(
 
 /**
  * 返回资源的 Explorer/路由 key，作为统一合同入口保留旧 key。
+ * 该 key 只用于路由兼容；跨数据库选择必须同时使用 resource.database。
  */
 export function explorerKeyForResource(resource: ResourceIdentity | ResourceDescriptor): string {
   return resource.key;
