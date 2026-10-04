@@ -150,3 +150,10 @@
 - 只读盘点确认主树的五个既有修改与 23 个 M47 设计文件属于本次授权交付；无冲突索引条目，其他注册 worktree clean。子智能体仅做只读盘点，未写入、暂存或提交。
 - WB-00 门禁已通过：`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、四个原型脚本 `node --check`、`git diff --check`；验证记录已写入 M47 `validation-report.md`。
 - WB-00 设计交付基线已提交：`3484aafd docs(m47): establish workbench design review baseline`。随后冻结 WB-01/WB-02/WB-03C（或合同）文件归属，分派独立实施与复核。不得把 REVIEW_DRAFT 或静态/mock 证据写成生产、真实 Server、三宿主、AOT、安装或发布 PASS。
+
+### WB-01 / WB-02 / WB-03C 当前检查点
+
+- WB-01 已完成并待提交：仅改 `prototype/app.js`、`styles.css`；页签可见性/草稿/焦点/键盘/Home-End/错误与规划动作门禁已由 Playwright 桌面与 390×844 回归，预览 PID 85328 已停止并核验不存在。
+- WB-02 已完成并待提交：仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；首批 SQL、KV、MQ、Bucket、Graph Beta 五页完成状态矩阵与能力字段，缺页注入 guard 通过。
+- WB-03C 已完成并待提交：仅新增 `web/tests/management-explorer-compat.test.mjs`；`node --experimental-vm-modules --test ...` 5/5 通过。已记录 index-only fallback 与 MQ 旧 key 需外层 database 的源码边界，未修复生产 Explorer。
+- 当前未提交文件仅属于上述三个切片。下一步由根会话复核最终 diff，执行完整 restore + Format Check，精确暂存并提交；提交后再记录实际哈希。随后冻结并派 WB-03 纯合同切片。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。

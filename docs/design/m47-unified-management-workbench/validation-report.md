@@ -58,6 +58,13 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 以上仅证明设计交付基线与静态原型证据可审查，不代表生产前端、真实 Server、三宿主、AOT、安装或发布门禁通过。
 - 设计交付基线已在本地提交 `3484aafd`；本记录与该提交同属 WB-00，未推送远端。
 
+## WB-01 / WB-02 / WB-03C 有界切片证据（2026-10-05）
+
+- **WB-01**：`node --check` 通过；本地 loopback Playwright 在桌面与 390×844 视口验证 8 个页签 active 自动滚入、active 关闭后的相邻回退、SQL 草稿关闭后重开与“草稿”标记、对话框点按/Escape 返回触发器、只读/错误/规划动作门禁、箭头与 Home/End。预览 Node 进程已按 PID/父进程核验并停止，浏览器会话已关闭。
+- **WB-02**：`prototype/catalog.js`、`task-details.js` 语法检查和 VM 元数据断言通过；SQL、KV、SonnetMQ、对象 Bucket、Graph Beta 五页各有专用能力/状态/字段合同，缺页注入有 guard。Bucket 未强行添加不存在的 planned 能力；其现有/延伸边界仍需真实宿主能力响应。
+- **WB-03C**：`node --experimental-vm-modules --test web/tests/management-explorer-compat.test.mjs` 通过 5/5。该测试使用 Node 实验性 `SourceTextModule`，直接省略该 flag 会失败，因此验证命令固定保留 flag。测试是静态/源码兼容证据，不覆盖真实 Server、Vue UI、AOT 或三宿主。
+- 当前仍保留两项源码边界供 WB-03：`firstExplorerKey` 在 index-only schema 下返回空；生产 MQ item key 仍是 `mq:${topic}`，跨数据库必须由外层上下文携带 database。WB-03C 只固化证据，没有擅自改源码或存储布局。
+
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 
 ## MQ 导航更正（2026-10-05）
