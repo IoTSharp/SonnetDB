@@ -12,4 +12,5 @@ dialog{padding:0;border:0;border-radius:8px;background:#fff;color:var(--text);wi
 
 /* Independent open and close controls; protected focus for approvals. */
 .tab-open{display:flex;align-items:center;gap:8px;min-width:0;flex:1;padding:0;text-align:left;color:inherit;font-size:12px;height:100%}.tab-open>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.workspace-tab .tab-close{flex-shrink:0;padding:0}.workspace-tab{padding-right:8px}.approval-dialog{width:min(720px,calc(100vw - 32px))}
+.tab-open .tab-draft{flex:0 0 auto;overflow:visible;font-size:10px;line-height:16px;padding:0 4px;border-radius:3px;background:#fff0c2;color:#815114}
 @media(max-width:799px){.tab-open{font-size:11px}.task-heading .section-head{flex-wrap:wrap}.task-heading .button{white-space:normal}}

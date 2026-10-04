@@ -1,7 +1,7 @@
 /* M47 评审原型：仅本机示例数据和交互，不调用 Server、AI 或 MCP。 */
 'use strict';
 const catalog = window.M47_CATALOG;
-const state = { pageId: 'sql', section: 'workbench', task: 0, resultView: '表格', mode: 'normal', host: 'web', selectedRow: 0, inspectorView: 'info', opened: ['sql'], history: [], connection: 'Factory / Local', drawerFocus: null, drafts: {} };
+const state = { pageId: 'sql', section: 'workbench', task: 0, resultView: '表格', mode: 'normal', host: 'web', selectedRow: 0, inspectorView: 'info', opened: ['sql'], history: [], connection: 'Factory / Local', drawerFocus: null, modalFocus: null, drafts: {} };
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const iconPaths = {
@@ -33,6 +33,14 @@ function findPage(id) { return allPages().find((p) => p.id === id) || catalog.mo
 function current() { return findPage(state.pageId) || allPages()[0]; }
 function currentTask() { return window.M47_TASK_DETAILS?.[state.pageId]?.[state.task]; }
 function draftKey(name) { return `${state.pageId}:${state.task}:${name}`; }
+function hasDraftFor(pageId) {
+  const prefix = `${pageId}:`;
+  return Object.keys(state.drafts).some((key) => key.startsWith(prefix));
+}
+function focusWorkspaceTab(id = state.pageId) {
+  const tab = $('workspaceTabs')?.querySelector(`[data-workspace-tab="${CSS.escape(id)}"]`);
+  if (tab) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
 function button(label, action, primary = false, glyph = '') { return `<button class="button${primary ? ' primary' : ''}" data-action="${action}">${glyph ? icon(glyph) : ''}${esc(label)}</button>`; }
 function scopeName(scope) { return scope === 'instance' ? '实例 Factory / Local' : scope === 'host' ? '当前宿主' : '数据库 factory'; }
 function isModel(page) { return catalog.models.some((m) => m.id === page.id); }
@@ -56,6 +64,7 @@ function navigate(id, add = true) {
   if (location.hash !== `#${id}`) history.pushState(null, '', `#${id}`);
   $('shell').classList.toggle('results-hidden', !['sql','notebook'].includes(page.type));
   render();
+  focusWorkspaceTab(id);
 }
 function renderRail() {
   $('rail').innerHTML = catalog.sections.map((s) => `${s.id === 'settings' ? '<div class="rail-spacer"></div>' : ''}<button class="rail-item${s.id === state.section ? ' active' : ''}" data-section="${s.id}" aria-label="${esc(s.label)}" ${s.id === state.section ? 'aria-current="page"' : ''}>${icon(s.id)}<small>${esc(s.label)}</small></button>`).join('');
@@ -75,9 +84,12 @@ function renderSidebar() {
 function renderTabs() {
   $('workspaceTabs').innerHTML = state.opened.map((id) => {
     const page = findPage(id);
-    return `<div class="workspace-tab${id === state.pageId ? ' active' : ''}"><button class="tab-open" data-page="${id}" ${id === state.pageId ? 'aria-current="page"' : ''}>${icon(isModel(page) ? page.id : page.type === 'sql' ? 'play' : page.section)}<span>${esc(page.objectName || page.tabLabel || page.title)}</span></button><button class="tab-close" aria-label="关闭 ${esc(page.objectName || page.title)}" data-close-tab="${id}">${icon('close')}</button></div>`;
+    const label = page.objectName || page.tabLabel || page.title;
+    const draft = hasDraftFor(id);
+    return `<div class="workspace-tab${id === state.pageId ? ' active' : ''}"><button class="tab-open" data-page="${id}" data-workspace-tab="${id}" ${id === state.pageId ? 'aria-current="page"' : ''}>${icon(isModel(page) ? page.id : page.type === 'sql' ? 'play' : page.section)}<span>${esc(label)}</span>${draft ? '<span class="tab-draft" title="本次预览会话中的内存草稿">草稿</span>' : ''}</button><button class="tab-close" aria-label="关闭 ${esc(label)}；内存草稿会保留在本次预览会话" data-close-tab="${id}">${icon('close')}</button></div>`;
   }).join('') + `<button class="workspace-tab tab-add" data-action="new-query" aria-label="新建查询">${icon('plus')}</button><span class="tab-spacer"></span><button class="icon-button" data-action="history" aria-label="打开历史">${icon('history')}</button>`;
   $('taskTabs').innerHTML = (current().tabs || ['概览']).map((tab, i) => `<button class="task-tab${i === state.task ? ' active' : ''}" data-task="${i}" ${i === state.task ? 'aria-current="page"' : ''}>${esc(tab)}</button>`).join('');
+  focusWorkspaceTab();
 }
 function table(columns, rows, result = false) {
   const cells = (row) => row.map((value) => {
@@ -169,7 +181,7 @@ function renderState() {
     offline:'连接已离线 · 保留最后的示例快照与草稿，写操作暂停。重新连接不会自动重放。',
     readonly:state.host === 'vscode' ? '开发者宿主只读预览 · 复杂治理交由 Web Admin / Studio。' : '当前上下文只读 · 读取和导出可用，写入需要相应权限。',
     error:'局部读取失败 · 此对象请求失败，其他分组与工作区不受影响。',
-    partial:'局部失败 · 向量分组读取失败，其他模型仍可读取；可单独重试失败分组。',
+    partial:`局部失败 · ${current().title} 分组读取失败，其他模型仍可读取；可单独重试失败分组。`,
     permission:'权限不足 · 数据载荷已隐藏，保留连接和对象上下文。',
     truncated:'结果已截断 · 达到 100 行 / 1 MiB 预算；导出只含当前已加载数据。',
     timeout:'请求超时 · 查询可取消；写请求结果需要核对，不提供盲目重试。',
@@ -207,6 +219,10 @@ function renderInspector() {
   const values= data.columns.map((label,i)=>({label,value:row[i]??'—'}));
   $('inspectorBody').innerHTML=`<div class="inspector-title"><strong>${esc(p.objectName || p.title)}</strong><small>${esc(scopeName(p.scope))} · ${p.id==='graph'?'Graph Beta':'当前选择'}</small></div>${state.inspectorView==='payload'?`<pre>${esc(JSON.stringify(Object.fromEntries(values.map((v)=>[v.label,v.value])),null,2))}</pre>`:`<h3>上下文</h3>${detail(facts)}<h3 style="margin-top:24px">${row.length?'选中记录':'对象详情'}</h3>${detail(values.slice(0,8))}`}<div class="notice">${icon('info')} 示例值只用于评审布局；实际数据、权限与刷新时间由宿主提供。</div>`;
 }
+function updateActionAvailability() {
+  document.querySelectorAll('[data-action="approve"], [data-action="import-check"], [data-action="new-resource"]').forEach((b)=>{b.disabled=blocked();b.title=blocked()?'当前宿主、视口或权限状态不支持写操作':'';});
+  document.querySelectorAll('[data-action="run"]').forEach((b)=>{b.disabled=['offline','permission','loading','error'].includes(state.mode);});
+}
 function render() {
   const p=current(); renderRail(); renderSidebar(); renderTabs();
   $('breadcrumb').innerHTML=`${esc(state.connection)}<span>/</span>${p.scope==='instance'?'实例资源':'factory'}<span>/</span>${esc(p.objectName || p.title)}`;
@@ -217,20 +233,49 @@ function render() {
   $('plannedTag').hidden=p.status!=='planned' && window.M47_TASK_DETAILS?.[p.id]?.[state.task]?.status!=='planned';
   const task = currentTask();
   const taskSpecific = state.task > 0 || p.status === 'planned' || task?.status === 'planned';
-  $('pageActions').innerHTML=`<button class="icon-button" data-action="toggle-inspector" aria-label="切换检查器">${icon('panel')}</button>${isModel(p)&&!['kv','mq','bucket'].includes(p.id)?button('SQL','new-query'):button('历史','history')}${button(taskSpecific ? task.action : p.primary|| (p.type==='sql'?'执行':'刷新'),taskSpecific ? 'task-preview' : primaryAction(p),true,p.type==='sql'?'play':'')}`;
+  const primaryLabel = state.mode === 'error' ? '检查并重试' : taskSpecific ? task.action : p.primary || (p.type === 'sql' ? '执行' : '刷新');
+  const primaryActionName = state.mode === 'error' ? 'retry' : taskSpecific ? 'task-preview' : primaryAction(p);
+  $('pageActions').innerHTML=`<button class="icon-button" data-action="toggle-inspector" aria-label="切换检查器">${icon('panel')}</button>${isModel(p)&&!['kv','mq','bucket'].includes(p.id)?button('SQL','new-query'):button('历史','history')}${button(primaryLabel,primaryActionName,true,p.type==='sql'?'play':'')}`;
   $('content').innerHTML=content(p); renderState(); renderResults(); renderInspector();
   $('statusScope').textContent=scopeName(p.scope); $('statusContext').textContent=p.title;
   $('hostName').textContent={web:'Web Admin',studio:'Studio',vscode:'VS Code'}[state.host];
   $('connectionName').textContent=state.connection; $('statusConnection').textContent=state.connection;
   $('shell').classList.toggle('theme-vscode',state.host==='vscode');
-  document.querySelectorAll('[data-action="approve"], [data-action="import-check"], [data-action="new-resource"]').forEach((b)=>{b.disabled=blocked();b.title=blocked()?'当前宿主、视口或权限状态不支持写操作':'';});
-  document.querySelectorAll('[data-action="run"]').forEach((b)=>{b.disabled=['offline','permission','loading'].includes(state.mode);});
+  updateActionAvailability();
   icons();
 }
 let toastTimer;
 function toast(message) { clearTimeout(toastTimer); $('toast').textContent=message; $('toast').hidden=false; toastTimer=setTimeout(()=>{$('toast').hidden=true;},4500); }
-function modal(title,subtitle,body,footer,review=false) { $('modal').classList.toggle('review-dialog',review); $('modal').classList.toggle('approval-dialog',title.includes('删除')||title.includes('暂存')); $('modalTitle').textContent=title; $('modalSubtitle').textContent=subtitle; $('modalBody').innerHTML=body; $('modalFooter').innerHTML=footer||button('关闭','close-dialog'); if (!$('modal').open) $('modal').showModal(); icons($('modal')); }
-function closeModal(){ $('modal').close(); }
+function focusModal() {
+  const modalElement = $('modal');
+  const target = modalElement.querySelector('[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])');
+  (target || $('modalBody')).focus();
+}
+function restoreModalFocus() {
+  const target = state.modalFocus;
+  state.modalFocus = null;
+  if (target && target.isConnected && !target.disabled && target.getClientRects().length) { target.focus(); return; }
+  focusWorkspaceTab();
+}
+function modal(title,subtitle,body,footer,review=false) {
+  const modalElement = $('modal');
+  state.modalFocus = document.activeElement;
+  $('modalBody').tabIndex = -1;
+  modalElement.classList.toggle('review-dialog',review);
+  modalElement.classList.toggle('approval-dialog',title.includes('删除')||title.includes('暂存'));
+  $('modalTitle').textContent=title;
+  $('modalSubtitle').textContent=subtitle;
+  $('modalBody').innerHTML=body;
+  $('modalFooter').innerHTML=footer||button('关闭','close-dialog');
+  if (!modalElement.open) modalElement.showModal();
+  icons(modalElement);
+  queueMicrotask(focusModal);
+}
+function closeModal(){
+  const modalElement = $('modal');
+  if (modalElement.open) modalElement.close();
+  else restoreModalFocus();
+}
 function openDrawer(title,body){state.drawerFocus=document.activeElement;$('drawerTitle').textContent=title;$('drawerBody').innerHTML=body;$('drawer').hidden=false;$('drawer').querySelector('button').focus();icons($('drawer'));}
 function closeDrawer(){ $('drawer').hidden=true;state.drawerFocus?.focus(); }
 function connectionList(){return `<div class="connection-list" style="margin-top:18px"><button class="connection-item ${state.connection==='Factory / Local'?'active':''}" data-connect="Factory / Local"><div>${icon('database')}</div><div><strong>Factory / Local</strong><small>127.0.0.1:5080 · 默认库 factory · 示例</small></div><span class="status-dot"></span></button><button class="connection-item ${state.connection==='Analytics / Remote'?'active':''}" data-connect="Analytics / Remote"><div>${icon('database')}</div><div><strong>Analytics / Remote</strong><small>db.example.test · 默认库 analytics · 示例</small></div><span class="status-dot"></span></button></div>`;}
@@ -259,7 +304,7 @@ function act(action){
     case 'inspector-info':state.inspectorView='info';renderInspector();break;
     case 'inspector-payload':state.inspectorView='payload';renderInspector();break;
     case 'refresh':case 'retry':case 'reset-filter':state.mode='normal';render();toast('已恢复正常示例状态；正式实现将重新读取当前范围。');break;
-    case 'run':if(currentTask()?.status==='planned'){act('task-preview');break;}state.resultView='表格';if(current().type==='sql'&&state.task===0)$('shell').classList.remove('results-hidden');renderResults();state.history.unshift({title:'读取 '+(current().objectName||current().title),status:'成功 · 演示',time:'刚刚',pageId:state.pageId});toast('原型结果已更新，未访问数据库。');break;
+    case 'run':if(current().status==='planned'||currentTask()?.status==='planned'){act('task-preview');break;}state.resultView='表格';if(current().type==='sql'&&state.task===0)$('shell').classList.remove('results-hidden');renderResults();state.history.unshift({title:'读取 '+(current().objectName||current().title),status:'成功 · 演示',time:'刚刚',pageId:state.pageId});toast('原型结果已更新，未访问数据库。');break;
     case 'task-preview':{const task=currentTask();modal(task.title+' · 设计预览',task.status==='planned'?'规划能力尚未实现，当前不能调用。':'核对本页输入、目标和能力后，正式流程才进入模型适配器。',`<p>${esc(task.description)}</p>${detail([{label:'目标',value:current().objectName||current().title},{label:'范围',value:scopeName(current().scope)},{label:'能力状态',value:{existing:'现有入口，需真实接线验证',extension:'现有能力的设计延伸',planned:'规划，禁止执行'}[task.status]},...task.fields.map(f=>({label:f.label,value:state.drafts[draftKey(f.label)]??f.value}))])}<div class="notice">${icon('info')} 此处仅检查静态设计，不生成真实审批或请求。</div>`,button('返回编辑','close-dialog'));break;}
     case 'format':toast('SQL 格式化布局已展示。');break;
     case 'explain':state.resultView='EXPLAIN';$('shell').classList.remove('results-hidden');renderResults();break;
@@ -290,9 +335,23 @@ function act(action){
     case 'account':modal('当前账户','示例身份，未接入认证服务。',detail([{label:'账户',value:'admin（示例）'},{label:'连接',value:state.connection},{label:'权限',value:'以服务端最新快照为准'}]),button('查看权限','permission-info')+button('关闭','close-dialog'));break;
   }
 }
+function closeWorkspaceTab(id) {
+  const index = state.opened.indexOf(id);
+  if (index < 0) return;
+  const wasActive = state.pageId === id;
+  const fallback = state.opened[index - 1] || state.opened[index + 1] || 'sql';
+  state.opened = state.opened.filter((pageId)=>pageId!==id);
+  if (!state.opened.length) state.opened = ['sql'];
+  if (wasActive) {
+    navigate(state.opened.includes(fallback) ? fallback : 'sql', false);
+    toast(hasDraftFor(id) ? '工作区已关闭；本次预览会话中的内存草稿已保留。' : '工作区已关闭；已切换到相邻工作区。');
+  } else {
+    renderTabs();
+  }
+}
 document.addEventListener('click',(event)=>{
   const close=event.target.closest('[data-close-tab]');
-  if(close){const id=close.dataset.closeTab;state.opened=state.opened.filter((p)=>p!==id);if(!state.opened.length)state.opened=['sql'];if(state.pageId===id)navigate(state.opened.at(-1),false);else renderTabs();return;}
+  if(close){closeWorkspaceTab(close.dataset.closeTab);return;}
   const page=event.target.closest('[data-page],[data-review-page],[data-restore]');
   if(page){const id=page.dataset.page||page.dataset.reviewPage||page.dataset.restore;if(page.dataset.reviewPage){if($('reviewHost'))state.host=$('reviewHost').value;if($('reviewState'))state.mode=$('reviewState').value;closeModal();}if(page.dataset.restore)closeDrawer();navigate(id);return;}
   const section=event.target.closest('[data-section]');if(section){const s=catalog.sections.find((p)=>p.id===section.dataset.section);navigate(s.pages[0].id);return;}
@@ -319,9 +378,9 @@ document.addEventListener('keydown',(event)=>{
   if(event.key==='/'&&!['INPUT','TEXTAREA'].includes(event.target.tagName)&&!event.target.isContentEditable&&!$('modal').open){event.preventDefault();$('resourceSearch').focus();}
   if(event.key==='Enter'&&event.target.dataset.row!==undefined){event.target.click();}
   if(event.key==='Enter'&&event.target.dataset.closeTab){event.preventDefault();event.target.click();}
-  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)){
     const container=event.target.closest('.task-tabs,.workspace-tabs,.result-tabs,.rail');
-    if(container){const candidates=[...container.querySelectorAll('button:not(:disabled)')];const index=candidates.indexOf(event.target);if(index>=0){event.preventDefault();candidates[(index+(['ArrowLeft','ArrowUp'].includes(event.key)?-1:1)+candidates.length)%candidates.length].focus();}}
+    if(container){const selector=container.classList.contains('workspace-tabs')?'[data-workspace-tab]':container.classList.contains('task-tabs')?'[data-task]':container.classList.contains('result-tabs')?'[data-result]':'[data-section]';const candidates=[...container.querySelectorAll(`${selector}:not(:disabled)`)];const index=candidates.indexOf(event.target);if(index>=0){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?candidates.length-1:(index+(['ArrowLeft','ArrowUp'].includes(event.key)?-1:1)+candidates.length)%candidates.length;candidates[next].focus();}}
   }
 });
 document.querySelectorAll('[data-resize]').forEach((splitter)=>{
@@ -336,7 +395,9 @@ document.querySelectorAll('[data-resize]').forEach((splitter)=>{
     splitter.addEventListener('pointermove',move);splitter.addEventListener('pointerup',done,{once:true});splitter.addEventListener('pointercancel',done,{once:true});
   });
 });
-addEventListener('resize',()=>{renderState();});
+$('modal').addEventListener('cancel',(event)=>{event.preventDefault();closeModal();});
+$('modal').addEventListener('close',restoreModalFocus);
+addEventListener('resize',()=>{renderState();updateActionAvailability();});
 addEventListener('popstate',()=>{const id=location.hash.slice(1);if(findPage(id))navigate(id);});
 addEventListener('hashchange',()=>{const id=location.hash.slice(1);if(findPage(id))navigate(id);});
 if(innerWidth<1100)$('shell').classList.add('sidebar-hidden');
