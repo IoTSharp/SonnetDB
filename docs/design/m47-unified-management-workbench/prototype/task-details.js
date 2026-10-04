@@ -268,10 +268,10 @@
     ]
   };
 
-  // WB-02 keeps one page-level state contract across the base task and every
+  // WB-02/WB-02B keeps one page-level state contract across the base task and every
   // task tab. These are review fixtures only; app.js still owns the interactive
   // global mode switch and never treats this metadata as a server capability.
-  const statefulPages = ['sql', 'kv', 'mq', 'bucket', 'graph'];
+  const statefulPages = ['sql', 'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph'];
   statefulPages.forEach((id) => {
     const page = byId.get(id);
     if (!page) return;

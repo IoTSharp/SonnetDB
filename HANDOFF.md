@@ -168,3 +168,11 @@
 - Graph 描述强制 `stability=beta` / `beta=true`。能力注册表是纯内存且快照不可变；`resolve` 对未知能力返回 unavailable，不执行请求或权限判断。
 - 独立验证：`node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs` 6/6；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 `git diff --check` 均通过。基础提交为 `b084680e feat(m47): add shared resource and capability contracts`，评审补强为 `f2158143 fix(m47): tighten MQ resource identity contract`，均未推送。
 - 边界：本切片只提供 Web 静态/内存合同，不代表真实 Server/API、权限、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主、安装或发布证据；`CapabilityRegistry.get` 未知 id 仍返回 `undefined`，需要安全回退时调用 `resolve`。
+
+## 当前 Workbench 检查点（WB-02B，2026-10-05）
+
+- 在 `main`、`HEAD 0e029fd9` 的干净基线继续实施 WB-02B；子智能体只改 `docs/design/m47-unified-management-workbench/prototype/catalog.js`、`task-details.js`、`screen-specs.md`，主会话新增 `web/tests/m47-page-state-contract.test.mjs`，未修改生产 `web/src`、路由或宿主代码。
+- 五个模型页 `measurement`、`table`、`document`、`vector`、`fulltext` 已补 capabilities 与 `normal/empty/error/permission/readonly/longContent` 六态，专用字段与 screen-specs 对齐；任务详情对五页全部注入同一页级合同。保留 TAG/FIELD 与 SQL 名称、JSON 属性键、显式 Profile、hash fallback、全文重建任务和质量证据边界。
+- 独立复核先发现五页 `normal.fields` 缺失 screen-specs 专用字段，已补齐并把缺口固化为测试断言：measurement 的时区/选中 Series，table 的物化预算/草稿差异，document 的 Sort/文档 ID/Payload 呈现模式，vector 的显式 Profile，fulltext 的 Analyzer/重建任务 ID。
+- 已通过：PowerShell 7.6.6；两个 `node --check`；`node --test web/tests/m47-page-state-contract.test.mjs` 2/2；五页×六态、动作/边界 30/30、任务注入 VM 断言；`git diff --check`。独立复核更新后的最终 PASS 仍需收到；随后必须在最终待提交树运行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，通过后才可提交。
+- 当前状态：WB-02B 文件已修改但尚未提交；设计包仍为 `REVIEW_DRAFT`，不能推进 WB-04 生产迁移或将静态原型写成真实 Server/权限/质量/三宿主验收。提交完成后在此段补写实际哈希、最终工作树状态和剩余 29 页状态合同边界；不 push、不发布、不部署。

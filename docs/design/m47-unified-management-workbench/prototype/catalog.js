@@ -290,21 +290,67 @@ window.M47_CATALOG = {
       tabs: ['数据点', 'SQL', '图表', '轨迹', 'Schema', '文件导入', '保留策略'],
       columns: ['time', 'DeviceID · TAG', 'Line · TAG', 'Temperature · FIELD', 'Pressure · FIELD'],
       rows: [['2026-10-04 09:00:00', 'Pump-01', 'Line-A', '67.4', '0.82'], ['2026-10-04 09:00:30', 'Pump-01', 'Line-A', '67.8', '0.83'], ['2026-10-04 09:01:00', 'Pump-02', 'Line-A', '65.8', '0.79'], ['2026-10-04 09:01:30', 'Pump-02', 'Line-A', '66.2', 'NULL']],
-      inspector: [{ label: '对象', value: 'factory / Telemetry' }, { label: '时间范围', value: '09:00–10:00 · Asia/Shanghai' }, { label: '选中 Series', value: 'DeviceID=Pump-01, Line=Line-A' }, { label: '缺失 FIELD', value: 'NULL，不补造数值' }, { label: '名称合同', value: 'TAG/FIELD 保留创建拼写' }, { label: '证据', value: '静态示例，非实时采样' }]
+      inspector: [{ label: '对象', value: 'factory / Telemetry' }, { label: '时间范围', value: '09:00–10:00 · Asia/Shanghai' }, { label: '选中 Series', value: 'DeviceID=Pump-01, Line=Line-A' }, { label: '缺失 FIELD', value: 'NULL，不补造数值' }, { label: '名称合同', value: 'TAG/FIELD 保留创建拼写' }, { label: '证据', value: '静态示例，非实时采样' }],
+      capabilities: [
+        { id: 'measurement-points', status: 'existing', label: '时间窗与点数据读取', note: '按数据库 Measurement、时间范围和 TAG/FIELD 返回有界点；原型数据是静态示例。' },
+        { id: 'measurement-schema', status: 'existing', label: 'TAG / FIELD Schema 检视', note: '保存创建时名称和角色；Point 摄取映射到既有拼写，不因大小写新增列。' },
+        { id: 'measurement-import', status: 'existing', label: '文件导入映射与错误预览', note: '时间单位、时区、重复策略和行/字节限制需按真实端点核对。' },
+        { id: 'measurement-chart', status: 'extension', label: '图表与轨迹结果视图', note: '只使用真实查询结果；NULL 不补零，轨迹须有适用坐标列。' },
+        { id: 'measurement-retention', status: 'planned', label: '保留策略维护', note: '接口与影响计算尚未统一；当前只显示规划边界。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前 Measurement 的时间窗、TAG/FIELD、点数和缺失值语义。', primary: '查询数据点', fields: ['数据库', 'Measurement', '时间范围', '时区', 'TAG / FIELD', '选中 Series', '结果上限'] },
+        empty: { label: '空结果', status: 'existing', summary: '查询成功但没有点，保留 Measurement、时间窗和 TAG 过滤，不把空结果解释为 Schema 或存储故障。', primary: '调整时间范围', preserve: ['数据库 / Measurement identity', '时间范围', 'TAG 过滤'] },
+        error: { label: '读取错误', status: 'extension', summary: '仅替换点结果区域，保留时间窗、TAG/FIELD 选择和其它页签。', primary: '检查并重试', preserve: ['Measurement', '时间范围', 'TAG/FIELD 选择'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏点值与 Schema 载荷，说明数据库 Measurement Read 权限来源。', primary: '查看数据库权限', preserve: ['数据库', 'Measurement'] },
+        readonly: { label: '只读', status: 'existing', summary: '查询、图表、Schema、导出可用；写入、删除、文件导入和保留策略修改禁用并说明原因。', primary: '导出当前点数据', blocked: ['写入点', '删除点', '提交文件导入', '修改保留策略'] },
+        longContent: { label: '长结果', status: 'extension', summary: '点表和图表按行/字节预算分页或折叠，保留时间、TAG、FIELD 原始拼写与 NULL；不加载无限历史。', primary: '查看有界结果', limits: ['最大点数与字节预算以服务端能力为准', '不虚构 continuation 或聚合证据'] }
+      }
     },
     {
       id: 'table', title: '关系表', objectName: 'Assets', scope: 'database', group: '关系', status: 'existing',
       intro: '复用数据、设计器、索引、ER、DDL 和导入导出；行编辑先形成可审查草稿。', primary: '新建行草稿',
       tabs: ['数据', '设计器', '索引', 'ER 图', 'DDL', '导入 / 导出', 'Explain'],
       columns: ['AssetID', 'DeviceID', 'Name', 'Line', 'CommissionedAt', 'State'], rows: [['A-001', 'Pump-01', '冷却泵 01', 'Line-A', '2025-04-16', '运行'], ['A-002', 'Pump-02', '冷却泵 02', 'Line-A', '2025-04-16', '运行'], ['A-003', 'Valve-01', '调节阀 01', 'Line-B', '2025-05-03', '维护']],
-      inspector: [{ label: '行主键', value: 'AssetID = A-001' }, { label: '选中列', value: 'DeviceID · STRING · NOT NULL' }, { label: '索引', value: '以实际 schema 返回为准' }, { label: '编辑状态', value: '草稿 → 差异预览 → 审批' }, { label: '结果限制', value: '分页与物化预算按能力显示' }]
+      inspector: [{ label: '行主键', value: 'AssetID = A-001' }, { label: '选中列', value: 'DeviceID · STRING · NOT NULL' }, { label: '索引', value: '以实际 schema 返回为准' }, { label: '编辑状态', value: '草稿 → 差异预览 → 审批' }, { label: '结果限制', value: '分页与物化预算按能力显示' }],
+      capabilities: [
+        { id: 'table-data', status: 'existing', label: '行浏览与有界筛选', note: '筛选、排序、分页和物化预算遵循服务端能力；当前表格是静态设计样例。' },
+        { id: 'table-schema', status: 'existing', label: '设计器、索引与 DDL 检视', note: '列名、类型、约束和索引以真实 schema 返回为准，SQL 名称保留原始拼写。' },
+        { id: 'table-draft-write', status: 'extension', label: '行编辑与结构变更草稿', note: '新增、修改、ALTER、索引维护都先差异预览并经过服务端权限与审批。' },
+        { id: 'table-import-export', status: 'existing', label: '导入 / 导出与列映射', note: '覆盖、追加、敏感列和失败报告必须明确范围，不把当前页当全表。' },
+        { id: 'table-explain', status: 'extension', label: '共用 SQL Explain', note: '手动进入 Explain 结果；不自动重跑或虚构 planner 输出。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前表的列、行、主键、分页与选中行 Inspector。', primary: '浏览数据', fields: ['数据库', '表', '筛选 / 排序', '分页上限', '物化预算', '选中主键', '草稿差异'] },
+        empty: { label: '空结果', status: 'existing', summary: '筛选成功但没有行，保留表、筛选和排序输入，不把空结果解释为表不存在。', primary: '调整筛选', preserve: ['数据库 / 表 identity', '筛选 / 排序'] },
+        error: { label: '读取错误', status: 'extension', summary: '只替换行结果区域，保留筛选、排序、草稿和设计器上下文。', primary: '检查并重试', preserve: ['表', '筛选 / 排序', '未提交草稿'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏行和字段载荷，说明数据库表 Read/Manage 权限要求。', primary: '查看数据库权限', preserve: ['数据库', '表'] },
+        readonly: { label: '只读', status: 'existing', summary: '浏览、Schema、DDL、Explain 和当前结果导出可用；行编辑、ALTER、索引维护、导入覆盖和删除禁用。', primary: '导出当前结果', blocked: ['确认行修改', '执行 ALTER', '删除索引', '导入覆盖'] },
+        longContent: { label: '长结果', status: 'extension', summary: '大结果按页与字节预算呈现，长字段折叠并保留类型/NULL；当前页不代表全表。', primary: '查看有界结果', limits: ['页面/物化上限以服务端能力为准', '不虚构全量行数或 continuation'] }
+      }
     },
     {
       id: 'document', title: 'JSON 文档', objectName: 'Manuals', scope: 'database', group: '文档', status: 'existing',
       intro: '复用查询、更新、Validator、索引、Change Feed 和导入导出；JSON 属性键保持原语义。', primary: '执行 Find',
       tabs: ['Find', '文档', 'Aggregate', '索引', 'Validator', 'Change Feed', '导入 / 导出'],
       columns: ['_id', 'title', 'DeviceType', 'revision', 'updatedAt'], rows: [['manual-pump-01', '冷却泵维护手册', 'Pump', '2', '2026-09-28'], ['manual-valve-01', '调节阀点检说明', 'Valve', '1', '2026-09-18'], ['note-line-a-1004', 'Line-A 交接记录', 'Line', '4', '2026-10-04']],
-      inspector: [{ label: '文档 ID', value: 'manual-pump-01' }, { label: '查看方式', value: 'JSON / Tree / Raw' }, { label: '示例 Payload', value: '{ "title": "冷却泵维护手册", "revision": 2 }' }, { label: '更新范围', value: '预览命中与局部差异' }, { label: '分页', value: '使用真实 continuation，不伪造游标' }]
+      inspector: [{ label: '文档 ID', value: 'manual-pump-01' }, { label: '查看方式', value: 'JSON / Tree / Raw' }, { label: '示例 Payload', value: '{ "title": "冷却泵维护手册", "revision": 2 }' }, { label: '更新范围', value: '预览命中与局部差异' }, { label: '分页', value: '使用真实 continuation，不伪造游标' }],
+      capabilities: [
+        { id: 'document-find', status: 'existing', label: 'Find、筛选与真实 continuation', note: 'filter、projection、sort、limit 和服务端 continuation 保持文档上下文。' },
+        { id: 'document-view', status: 'existing', label: 'JSON / Tree / Raw 检视', note: '属性键与数据值保持 JSON 原语义；长 Payload 只做有界呈现。' },
+        { id: 'document-aggregate', status: 'extension', label: '受支持 Aggregate 阶段', note: '未知阶段明确拒绝，不宣称完整 MongoDB Pipeline 兼容。' },
+        { id: 'document-index-validator', status: 'existing', label: '索引与 Validator 检查', note: '路径、字段、规则和错误位置来自真实 schema/validator 能力。' },
+        { id: 'document-change-feed', status: 'existing', label: 'Change Feed 与导入导出', note: '断线、客户端接收时间和真实位点分开；replace/insert 需显式选择。' },
+        { id: 'document-write-preview', status: 'extension', label: '更新与覆盖草稿预览', note: '写入、replace 和 Validator 变更必须展示差异、权限与影响。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前 Collection 的文档 ID、字段、查询条件和 continuation 来源。', primary: '执行 Find', fields: ['数据库', '集合', 'Filter / Projection', 'Sort', 'Limit', 'Continuation', '文档 ID', 'Payload 呈现模式'] },
+        empty: { label: '空结果', status: 'existing', summary: 'Find 成功但没有文档，保留集合、过滤和排序输入，不把空结果解释为索引损坏。', primary: '调整筛选', preserve: ['数据库 / 集合 identity', 'Filter / Projection', 'Sort'] },
+        error: { label: '读取错误', status: 'extension', summary: '只替换文档结果区域，保留查询输入、选中 ID 和未提交草稿。', primary: '检查并重试', preserve: ['集合', 'Filter / Projection', 'Continuation'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏文档载荷与变更详情，说明数据库 Collection Read/Write 权限来源。', primary: '查看数据库权限', preserve: ['数据库', '集合'] },
+        readonly: { label: '只读', status: 'existing', summary: 'Find、Tree/Raw、Change Feed、导出和索引查看可用；replace、Validator 修改、删除和导入写入禁用。', primary: '导出当前文档', blocked: ['更新文档', 'replace 覆盖', '修改 Validator', '导入写入'] },
+        longContent: { label: '长文档', status: 'extension', summary: '长 JSON 默认折叠并显示大小，Tree/Raw 只展开有界路径；分页使用真实 continuation。', primary: '查看有限 Payload', limits: ['每页文档数与字节预算', '截断明确标记，不把截断文档当完整载荷', '不伪造 continuation'] }
+      }
     },
     {
       id: 'kv', title: 'KV Keyspace', objectName: 'DeviceState', scope: 'database', group: 'KV', status: 'extension',
@@ -355,14 +401,46 @@ window.M47_CATALOG = {
       intro: '复用 raw / text embed、Top-K、过滤和索引参数；Profile 与质量证据独立展示。', primary: '执行向量检索',
       tabs: ['Search', '数据 / 导入', '索引参数', 'Profile', '命中详情', '质量证据'],
       columns: ['Rank', 'ID', 'Distance / Score', 'Source', '摘要'], rows: [['1', 'manual-pump-01#12', '0.084 · 示例', 'Manuals', '冷却泵轴承温度异常检查'], ['2', 'manual-pump-01#07', '0.112 · 示例', 'Manuals', '润滑与维护周期'], ['3', 'note-line-a#03', '0.156 · 示例', 'MaintenanceNotes', 'Line-A 温度排查记录']],
-      inspector: [{ label: 'Query mode', value: 'Raw vector / 显式 text embedding' }, { label: '维度', value: '以真实 profile 为准' }, { label: 'Metric', value: '以索引定义为准' }, { label: 'Profile 身份', value: 'Provider / model / revision / normalization' }, { label: '检索预算', value: 'Top-K = 10 · 示例' }, { label: '质量证据', value: '示例排名不代表 Recall 通过' }]
+      inspector: [{ label: 'Query mode', value: 'Raw vector / 显式 text embedding' }, { label: '维度', value: '以真实 profile 为准' }, { label: 'Metric', value: '以索引定义为准' }, { label: 'Profile 身份', value: 'Provider / model / revision / normalization' }, { label: '检索预算', value: 'Top-K = 10 · 示例' }, { label: '质量证据', value: '示例排名不代表 Recall 通过' }],
+      capabilities: [
+        { id: 'vector-search', status: 'existing', label: 'Raw vector / 显式 text 向量检索', note: '维度、metric、Top-K 与 metadata filter 必须匹配真实索引和 profile。' },
+        { id: 'vector-import', status: 'existing', label: '向量数据导入与校验', note: 'ID、维度、metadata 和错误位置先预览；长向量只做有限展示。' },
+        { id: 'vector-index', status: 'existing', label: '索引参数与维护检视', note: '只暴露服务端支持的 kind、维度和 metric，不由 UI 增加引擎能力。' },
+        { id: 'vector-profile', status: 'extension', label: '显式 Embedding Profile 身份', note: '展示 Provider/model/revision/normalization；缺 profile 时保持 raw 路径。' },
+        { id: 'vector-hit-inspector', status: 'extension', label: '命中详情与源对象跳转', note: '区分 distance 与 score，源对象跳转保持数据库和原始名称上下文。' },
+        { id: 'vector-quality-evidence', status: 'planned', label: 'Recall / 质量 / 成本证据', note: '需要真实模型、数据集、固定硬件和报告；静态排名与 hash fallback 不算证据。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示索引、查询模式、维度/metric、Top-K 和命中详情。', primary: '执行向量检索', fields: ['数据库', '索引对象', 'Query mode', '维度 / Metric', 'Top-K', 'Metadata filter', '显式 Profile 身份'] },
+        empty: { label: '空结果', status: 'existing', summary: '检索成功但没有命中，保留向量或文本输入、索引和过滤条件。', primary: '调整查询或过滤', preserve: ['数据库 / 索引 identity', 'Query mode', 'Top-K / filter'] },
+        error: { label: '检索错误', status: 'extension', summary: '维度不匹配、profile 缺失或端点失败只替换命中区，保留输入以便检查。', primary: '检查并重试', preserve: ['Query input', '维度 / Metric', 'Profile identity'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏向量、metadata 和源文档载荷，说明数据库索引 Read/Manage 权限。', primary: '查看数据库权限', preserve: ['数据库', '索引对象'] },
+        readonly: { label: '只读', status: 'existing', summary: '检索、Profile、命中查看和当前结果导出可用；导入、索引重建与参数修改禁用。', primary: '导出当前命中', blocked: ['导入向量', '重建索引', '修改索引参数'] },
+        longContent: { label: '长向量/长 metadata', status: 'extension', summary: '向量按维度与字节预算折叠，命中 metadata 和源文档摘要有界呈现；不隐式切换模型。', primary: '查看有限命中详情', limits: ['维度/Top-K/字节预算以真实能力为准', '不使用 hash fallback 充当 text embedding', '不把静态排名当 Recall 证据'] }
+      }
     },
     {
       id: 'fulltext', title: '全文索引', objectName: 'Manuals.SearchIndex', scope: 'database', group: '搜索', status: 'extension',
       intro: '复用全文查询、Analyzer、导入与索引；命中高亮、重建状态和统计共同解释结果。', primary: '执行全文检索',
       tabs: ['Search', 'Analyzer', '索引', '重建', '数据导入', '统计'],
       columns: ['ID', 'BM25', '字段', '命中摘要'], rows: [['manual-pump-01', '4.28 · 示例', 'title, body', '冷却泵…轴承温度…维护步骤'], ['note-line-a-1004', '3.61 · 示例', 'body', 'Line-A…温度告警…检查记录'], ['manual-pump-02', '2.84 · 示例', 'body', '温度传感器…校准流程']],
-      inspector: [{ label: '查询', value: '冷却泵 温度' }, { label: '匹配', value: 'all / any / phrase / fuzzy' }, { label: 'Tokenizer', value: '以当前索引配置为准' }, { label: '高亮', value: '仅呈现真实命中片段' }, { label: '重建', value: '按服务器任务状态展示进度' }, { label: '数据', value: '静态示例，不是相关性评估' }]
+      inspector: [{ label: '查询', value: '冷却泵 温度' }, { label: '匹配', value: 'all / any / phrase / fuzzy' }, { label: 'Tokenizer', value: '以当前索引配置为准' }, { label: '高亮', value: '仅呈现真实命中片段' }, { label: '重建', value: '按服务器任务状态展示进度' }, { label: '数据', value: '静态示例，不是相关性评估' }],
+      capabilities: [
+        { id: 'fulltext-search', status: 'existing', label: '全文 term / phrase / fuzzy 检索', note: 'field、匹配模式、Top-K、BM25 与高亮来自真实索引响应。' },
+        { id: 'fulltext-analyzer', status: 'existing', label: 'Analyzer token / position 检视', note: 'tokenizer 身份与分词结果需来自实际索引定义，原型示例不算实测。' },
+        { id: 'fulltext-index', status: 'existing', label: '索引字段与配置检视', note: '删除、修改和兼容性先做差异预览，不把 UI 字段当引擎能力。' },
+        { id: 'fulltext-rebuild', status: 'extension', label: '索引重建任务状态', note: '仅在真实任务 ID/终态存在时显示进度、取消或恢复。' },
+        { id: 'fulltext-import', status: 'existing', label: '文档导入与重复策略', note: 'ID 路径、insert/replace 和错误定位明确展示，replace 不悄悄转 insert。' },
+        { id: 'fulltext-stats', status: 'extension', label: '索引与词项统计', note: '只呈现服务端返回字段，缺失指标标记未提供。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前索引的查询条件、匹配模式、BM25、字段和真实高亮片段。', primary: '执行全文检索', fields: ['数据库', '索引', 'Term / Phrase', '匹配模式', '字段', 'Top-K', 'Analyzer 身份', '重建任务 ID'] },
+        empty: { label: '空结果', status: 'existing', summary: '检索成功但没有命中，保留关键词、字段和匹配模式，不把空结果解释为索引损坏。', primary: '调整检索条件', preserve: ['数据库 / 索引 identity', 'Term / Phrase', '字段 / 匹配模式'] },
+        error: { label: '检索错误', status: 'extension', summary: '只替换命中区，保留 analyzer、字段和索引上下文并显示端点错误原因。', primary: '检查并重试', preserve: ['查询输入', '索引', '匹配模式'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏命中摘要、文档文本和词项载荷，说明数据库索引/集合 Read 权限。', primary: '查看数据库权限', preserve: ['数据库', '索引'] },
+        readonly: { label: '只读', status: 'existing', summary: 'Search、Analyzer、索引查看、统计和当前命中导出可用；重建、导入、删除与配置修改禁用。', primary: '导出当前命中', blocked: ['重建索引', '导入文档', '删除索引', '修改 Analyzer'] },
+        longContent: { label: '长文本/长命中', status: 'extension', summary: '长摘要与高亮片段折叠，按文档数/字节预算加载；只展示真实命中片段，不自动拉取全文。', primary: '查看有限命中', limits: ['Top-K 与摘要字节预算以服务端能力为准', '高亮不是相关性评估证据', '无任务 ID 不显示虚构进度或 resume'] }
+      }
     },
     {
       id: 'bucket', title: '对象 Bucket', objectName: 'Evidence', scope: 'database', group: '对象', status: 'existing',

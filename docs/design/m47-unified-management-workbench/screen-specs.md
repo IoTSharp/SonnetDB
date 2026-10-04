@@ -112,6 +112,15 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 
 示例列 `DeviceID` / `Line` 为 TAG，`Temperature` / `Pressure` 为 FIELD。右侧解释选中 series 与时区；底部显示真实返回点数、截断和查询耗时。不同大小写不得新造 series/列。
 
+**WB-02B 状态合同（`measurement` 页面 status=`extension`）：** 专用字段为数据库/Measurement、时间范围、TAG/FIELD 选择、结果上限、时区和选中 Series。能力标签区分既有点读取与 Schema、延伸图表/轨迹、规划保留策略；静态点表不代表实时采样。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “查询数据点”；空结果用“调整时间范围”，显示 0 点并保留 Measurement、时间窗和 TAG 过滤。 | `existing` 点读取、Schema 和文件映射；空结果不表示 Schema 或存储故障。 |
+| 错误 / 无权限 | “检查并重试”只替换点结果；无权限隐藏点值/Schema 载荷并进入数据库 Measurement 权限说明。 | TAG/FIELD 原始拼写保留；客户端禁用不等于服务端授权。 |
+| 只读 | 查询、图表、Schema、导出可用；写入、删除、文件导入提交和保留策略修改禁用。 | 图表/轨迹只在真实结果和坐标列可用时开放；写入仍需审批。 |
+| 长结果 | 点表和图表按行/字节预算分页或折叠，NULL 不补零。 | 最大点数由服务端能力决定；不加载无限历史、不虚构 continuation 或聚合证据。 |
+
 ### 关系 `table`：Assets
 
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
@@ -123,6 +132,15 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | DDL | 既有 | 复制/导出当前定义，显示目标对象名。 | 保留大小写及正确引用，数据值不套用标识符规则。 |
 | 导入 / 导出 | 既有 | 格式、列映射、重复策略、预览与批准。 | Native bridge/Web fallback 按宿主；导出范围与敏感列明确。 |
 | Explain | 延伸 | 进入共用 SQL Explain 结果，编辑对应查询。 | 不自动重跑；物化、扫描、预算解释来源于真实 planner。 |
+
+**WB-02B 状态合同（`table` 页面 status=`existing`）：** 专用字段为数据库/表、筛选与排序、分页/物化预算、选中主键和草稿差异。能力标签区分既有行/schema/导入导出、延伸草稿写入与 Explain；样例行不代表真实表快照。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “浏览数据”；空结果用“调整筛选”，保留表、筛选和排序输入。 | `existing` 行浏览、Schema、DDL、导入/导出；空结果不表示表不存在。 |
+| 错误 / 无权限 | “检查并重试”只替换行结果；无权限隐藏行/字段载荷并显示数据库表权限要求。 | 当前页不等于全表；Manage/Write 必须由服务端授权返回。 |
+| 只读 | 浏览、Schema、DDL、Explain、导出可用；行编辑、ALTER、索引维护、导入覆盖和删除禁用。 | 草稿不得冒充已写入；Explain 需手动进入，不自动重跑。 |
+| 长结果 | 大结果按页与字节预算展示，长字段折叠并保留类型/NULL。 | 不虚构全量行数或 continuation；物化预算按真实能力显示。 |
 
 ### JSON `document`：Manuals
 
@@ -137,6 +155,15 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 导入 / 导出 | 既有 | JSON/NDJSON、ID 路径、insert/replace、预览。 | 批量错误定位；覆盖文档需显式确认。 |
 
 JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同。
+
+**WB-02B 状态合同（`document` 页面 status=`existing`）：** 专用字段为数据库/集合、filter/projection/sort、limit、真实 continuation、文档 ID 和 Payload 呈现模式。能力标签区分 Find/Tree/Raw、索引/Validator、Change Feed 与导入导出；Aggregate 和更新覆盖属于延伸合同。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “执行 Find”；空结果用“调整筛选”，保留集合、过滤和排序，不把空结果解释为索引损坏。 | `existing` Find、文档检视、Change Feed 和导入导出；continuation 必须来自服务端。 |
+| 错误 / 无权限 | “检查并重试”只替换文档结果；无权限隐藏文档/变更载荷并显示 Collection Read/Write 权限。 | JSON 属性键保持文档语义；客户端控制不能推断授权。 |
+| 只读 | Find、Tree/Raw、Change Feed、索引查看和导出可用；replace、Validator 修改、删除和导入写入禁用。 | 写入/覆盖先差异预览；不宣称完整 MongoDB Pipeline 兼容。 |
+| 长文档 | 长 JSON 默认折叠，Tree/Raw 只展开有界路径并显示大小。 | 每页文档数/字节预算按真实能力；截断明确标记，不伪造 continuation。 |
 
 ### KV `kv`：DeviceState
 
@@ -190,6 +217,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 命中详情 | 延伸 | 将现有命中 Inspector 整理为完整 Payload/metadata/score 视图。 | 区分距离与相似度，源数据跳转保持对象上下文。 |
 | 质量证据 | 规划 | 指向真实 Recall/质量/成本/模型/硬件报告，未有报告明确未就绪。 | tiny fixture、静态排名、合成模型不是语义质量证据。 |
 
+**WB-02B 状态合同（`vector` 页面 status=`extension`）：** 专用字段为数据库/索引对象、Query mode、维度、metric、Top-K、metadata filter 与显式 Profile 身份。能力标签区分既有检索/导入/索引、延伸 Profile/命中 Inspector 和规划质量证据；原型排名不代表 Recall 通过。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “执行向量检索”；空结果用“调整查询或过滤”，保留向量/文本输入、索引和 Top-K。 | `existing` raw/text 检索、导入校验和索引查看；维度与 metric 必须匹配真实定义。 |
+| 错误 / 无权限 | “检查并重试”只替换命中区；无权限隐藏向量、metadata 和源文档载荷。 | Profile 缺失或维度错误要在执行前拒绝；权限按数据库索引合同核验。 |
+| 只读 | 检索、Profile、命中查看和导出可用；导入、索引重建与参数修改禁用。 | 不把 UI 参数变成引擎能力；不暗用 hash fallback。 |
+| 长向量 / 长命中 | 按维度与字节预算折叠向量，命中 metadata 与源文档摘要有界呈现。 | Top-K/字节预算以服务端为准；静态排名、tiny fixture 和合成模型不构成质量证据。 |
+
 ### 全文 `fulltext`：Manuals.SearchIndex
 
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
@@ -200,6 +236,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 重建 | 延伸 | 现有维护入口收口为进度与取消状态，按实际返回状态。 | 无持久任务 ID 时不显示 resume；不能编造后台百分比。 |
 | 数据导入 | 既有 | ID path、insert/replace、JSON/NDJSON 校验。 | 重复 ID/错误定位；replace 不悄悄转 insert。 |
 | 统计 | 延伸 | 将既有 index stats 整理为索引/词项统计视图。 | 仅显示真实字段，未知/未返回用未提供。 |
+
+**WB-02B 状态合同（`fulltext` 页面 status=`extension`）：** 专用字段为数据库/索引、term/phrase、匹配模式、字段、Top-K、Analyzer 身份和重建任务 ID。能力标签区分既有检索/Analyzer/索引/导入、延伸重建与统计；示例 BM25 与高亮不是相关性评估。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “执行全文检索”；空结果用“调整检索条件”，保留关键词、字段和匹配模式。 | `existing` Search、Analyzer、索引查看和导入；高亮只呈现真实命中片段。 |
+| 错误 / 无权限 | “检查并重试”只替换命中区；无权限隐藏摘要、文档文本和词项载荷并显示数据库索引权限。 | tokenizer/索引定义来自服务端；客户端禁用不等于授权。 |
+| 只读 | Search、Analyzer、统计、索引查看和命中导出可用；重建、导入、删除及 Analyzer 修改禁用。 | 重建需真实任务 ID/终态；无任务不显示 resume 或伪百分比。 |
+| 长文本 / 长命中 | 长摘要和高亮片段折叠，按文档数/字节预算读取，不自动拉取全文。 | Top-K/摘要预算按真实能力；高亮和静态 BM25 不算质量门禁。 |
 
 ### 对象 `bucket`：Evidence
 
