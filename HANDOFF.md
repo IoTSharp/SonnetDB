@@ -190,4 +190,4 @@
 - 在 `main`、HEAD `f6393108` 的干净基线继续实施 WB-02D；本轮仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`、新增 `web/tests/m47-observe-flow-state-contract.test.mjs`，并更新 CHANGELOG 与本交接/队列/验证记录，未修改生产 `web/src`、路由或宿主代码。
 - `events`、`slow-queries`、`alerts`、`runtime`、`modbus` 已补 capabilities、六态 stateMatrix、专用字段和任务注入。边界保持：视图暂停不暂停服务器；慢查询恢复不自动重跑，Explain 手动执行；告警与诊断规划能力不发通知、不伪造健康或终态；Modbus Runtime/Pending/Audit 与审批/拒绝复用现有语义。
 - 已通过：`node --test web/tests/m47-observe-flow-state-contract.test.mjs` 3/3；`node --check` 两个 JS；`git diff --check`；独立只读复核 PASS。完整仓库 `dotnet restore` 与 `dotnet format` 将在最终待提交树上运行，未通过不得提交。
-- 当前状态：WB-02D 实现与共享记录已准备提交，实际提交哈希待产生；设计包仍为 `REVIEW_DRAFT`，不代表真实 Server、权限、现场写入、三宿主、安装、发布或 AOT 验收。下一步由主会话运行提交前门禁、仅 stage WB-02D 文件并提交，然后用实际哈希回写本节和队列。保留 `origin/parity-results`，不 push、不发布、不部署。
+- 当前状态：WB-02D 已提交为 `07506a99`（`feat(m47): add observe and flow state contracts`）；提交包含上述 8 个专属文件，提交前 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。设计包仍为 `REVIEW_DRAFT`，不代表真实 Server、权限、现场写入、三宿主、安装、发布或 AOT 验收。后续继续选择剩余状态合同的有界切片；不得重复 WB-02D。保留 `origin/parity-results`，不 push、不发布、不部署。
