@@ -159,7 +159,7 @@
 - WB-03 资源与能力合同已完成并纳入本地提交：新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`；评审后补强通用 MQ 工厂必须显式提供 topic 且 `name === topic`，并明确 Explorer key 只用于路由兼容。Node 6/6、TypeScript 与 `git diff --check` 通过；补强提交为 `f2158143 fix(m47): tighten MQ resource identity contract`，工作树已恢复干净。
 - WB-04 迁移前导航兼容预检已完成并通过本地提交门禁：仅新增 `web/tests/navigation-compat.test.mjs`，5/5 通过，覆盖 `/admin`/`/admin/app`、Studio/databases/trajectory-map legacy redirects、现有路由/meta、7+5 导航及管理员条件、setup/auth/admin guards 和 trajectory query→SQL；未修改 `web/src`。生产迁移仍受 `REVIEW_DRAFT` 用户确认门禁约束，提交为 `f479f54b test(m47): add navigation compatibility preflight`。
 - WB-04B Explorer→SQL 深链接兼容预检已完成并通过本地提交门禁：仅新增 `web/tests/explorer-routing-compat.test.mjs`，5/5 通过，覆盖九模型 `tool/model/node`、database selection、index/backup fallback、Open-in-SQL 边界和 route-only 不自动执行；独立复核 PASS。生产源码未修改，当前变更提交哈希以 `git log -1` 核对。
-- 三个前置切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。WB-03 已通过提交前 restore、Format Check 与最终差异检查；WB-04 预检提交前仍须执行同样门禁。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
+- 前置切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`；WB-04 `f479f54b test(m47): add navigation compatibility preflight`；WB-04B `6699a6d9 test(m47): add explorer routing compatibility preflight`。WB-03、WB-04 与 WB-04B 均通过提交前 restore、Format Check 与最终差异检查；所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
 
 ## WB-03 资源与能力合同（2026-10-05）
 
