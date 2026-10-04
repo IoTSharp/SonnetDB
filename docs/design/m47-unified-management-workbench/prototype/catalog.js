@@ -46,7 +46,20 @@ window.M47_CATALOG = {
           columns: ['time', 'DeviceID', 'AvgTemperature', 'PointCount'], rows: [['2026-10-04 09:00:00', 'Pump-01', '67.4', '120'], ['2026-10-04 09:00:00', 'Pump-02', '65.8', '118'], ['2026-10-04 09:05:00', 'Pump-01', '68.1', '120'], ['2026-10-04 09:05:00', 'Pump-02', '66.2', '119']],
           fields: [{ label: '数据库', value: 'factory', kind: 'select' }, { label: '结果上限', value: '1,000 行', kind: 'select' }, { label: '超时预算', value: '30 秒', kind: 'select' }],
           tabs: ['编辑器', '参数', '查询说明'], inspector: [{ label: '选中行', value: 'Pump-01 · 09:00' }, { label: '名称合同', value: 'DeviceID 保留原始拼写' }, { label: '结果来源', value: '静态设计数据' }, { label: '写操作', value: '转入暂存预览与审批' }],
-          empty: { title: '执行查询后查看结果', body: '支持 Table、Raw、Chart 和 Explain；分页与截断按服务端能力显示。', action: '插入 SELECT 示例' }
+          empty: { title: '执行查询后查看结果', body: '支持 Table、Raw、Chart 和 Explain；分页与截断按服务端能力显示。', action: '插入 SELECT 示例' },
+          capabilities: [
+            { id: 'sql-read', status: 'existing', label: 'SELECT / EXPLAIN 与结果视图', note: '沿用现有 SQL 工作区；原型只展示静态结果。' },
+            { id: 'sql-write-preview', status: 'extension', label: '写语句暂存预览与审批', note: '能力由服务端预检、权限和影响数量决定。' },
+            { id: 'sql-continuation', status: 'planned', label: '通用 SQL NDJSON continuation', note: '未有统一合同时不显示可恢复游标。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示已加载结果、耗时和当前预算。', primary: '执行查询', fields: ['数据库', '结果上限', '超时预算'] },
+            empty: { label: '空结果', status: 'existing', summary: '查询成功但返回 0 行，保留 SQL、参数和过滤器。', primary: '调整筛选', preserve: ['SQL 输入', '数据库上下文'] },
+            error: { label: '读取错误', status: 'existing', summary: '只替换结果面板，保留编辑器与其它页签。', primary: '检查并重试', preserve: ['SQL 输入', '参数'] },
+            permission: { label: '无权限', status: 'existing', summary: '隐藏结果载荷，显示所需数据库/对象权限。', primary: '查看所需权限', preserve: ['目标数据库', 'SQL 输入'] },
+            readonly: { label: '只读', status: 'existing', summary: '查询、Explain、导出可用；写语句转为不可提交的预览。', primary: '导出当前结果', blocked: ['确认执行', '删除'] },
+            longContent: { label: '长内容', status: 'extension', summary: '编辑器与 Result Plane 保持可滚动，结果按行/字节预算截断。', primary: '查看截断说明', limits: ['100 行 / 1 MiB（示例预算）', '不虚构 continuation'] }
+          }
         },
         {
           id: 'notebook', title: 'SQL Notebook', tabLabel: '异常排查', type: 'notebook', scope: 'database', status: 'planned',
@@ -298,14 +311,44 @@ window.M47_CATALOG = {
       intro: '复用前缀浏览、批量操作与统计；TTL 与类型化值入口合并到选中 key 的检查器。', primary: '读取 Key',
       tabs: ['浏览', '值检查器', 'TTL', '批量操作', '统计', '操作历史'],
       columns: ['Key', '类型', '大小', 'TTL', '版本 / CAS'], rows: [['device:Pump-01:state', 'JSON', '248 B', '59 秒 · 示例', '以服务端返回为准'], ['device:Pump-02:state', 'JSON', '232 B', '无过期', '以服务端返回为准'], ['line:A:last-checkpoint', 'Int64', '8 B', '无过期', '以服务端返回为准'], ['blob:calibration:01', 'Binary', '128 B', '无过期', '以服务端返回为准']],
-      inspector: [{ label: 'Key', value: 'device:Pump-01:state' }, { label: '前缀', value: 'device:' }, { label: '查看方式', value: 'Text / JSON / Hex / Base64' }, { label: 'TTL', value: '显示剩余时长与绝对到期时间' }, { label: 'CAS', value: '仅能力支持时提供条件修改' }, { label: '键语义', value: '不套用 SQL 名称大小写合同' }]
+      inspector: [{ label: 'Key', value: 'device:Pump-01:state' }, { label: '前缀', value: 'device:' }, { label: '查看方式', value: 'Text / JSON / Hex / Base64' }, { label: 'TTL', value: '显示剩余时长与绝对到期时间' }, { label: 'CAS', value: '仅能力支持时提供条件修改' }, { label: '键语义', value: '不套用 SQL 名称大小写合同' }],
+      empty: { title: '当前前缀没有 Key', body: '保留 keyspace 与前缀输入，可调整前缀或清除过滤后重新读取。', action: '调整前缀' },
+      capabilities: [
+        { id: 'kv-scan', status: 'existing', label: 'Key 浏览与有界筛选', note: '页内结果不等同全 keyspace 扫描；continuation 以服务端能力为准。' },
+        { id: 'kv-value-inspector', status: 'extension', label: 'Text / JSON / Hex / Base64 检查器', note: '保留原始字节，二进制不强制解码。' },
+        { id: 'kv-conditional-write', status: 'extension', label: 'TTL / CAS 条件修改', note: '只有真实 API 返回支持时才开放写动作。' },
+        { id: 'kv-full-stats', status: 'planned', label: '服务器全量统计', note: '当前只显示已加载页统计和未提供字段。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示 key、类型、大小、TTL 和服务端版本。', primary: '读取 Key', fields: ['Keyspace', 'Prefix', '扫描上限'] },
+        empty: { label: '空结果', status: 'existing', summary: '当前前缀没有 Key，不把空值冒充读取错误。', primary: '调整前缀', preserve: ['Keyspace', 'Prefix'] },
+        error: { label: '读取错误', status: 'existing', summary: '保留筛选与已选 key，允许只重试当前 keyspace。', primary: '检查并重试', preserve: ['Prefix', '显示格式'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏值载荷，说明数据库 Keyspace Read/Write 权限来源。', primary: '查看所需权限', preserve: ['数据库', 'Keyspace'] },
+        readonly: { label: '只读', status: 'existing', summary: '浏览、值检查和导出可用；TTL、CAS、批量删除禁用并说明原因。', primary: '导出当前已加载数据', blocked: ['预览 TTL 修改', '批量删除'] },
+        longContent: { label: '长内容', status: 'extension', summary: '大值默认折叠并显示字节数，按 Text/JSON/Hex/Base64 选择有界预览。', primary: '切换有限预览', limits: ['最大预览字节以服务端能力为准', '不把截断值当完整值'] }
+      }
     },
     {
       id: 'mq', title: 'SonnetMQ', objectName: 'DeviceEvents', scope: 'database', persistenceScope: 'instance', group: '消息 / MQ', status: 'extension',
       intro: '复用概览、消息、消费者组与配置；Topic 按数据库命名空间与权限进入统一资源树，物理 Store 共享实例 .system/mq。恢复与全局配置须核验实例影响；DLQ 页签按真实能力开放。', primary: '浏览消息',
       tabs: ['概览', '消息', '消费者组', '配置', '恢复边界', 'DLQ · 能力依赖', '审计'],
       columns: ['Offset', 'Timestamp', 'Key', 'Payload 摘要', 'Headers'], rows: [['10240', '2026-10-04 09:40:01', 'Pump-01', '{ "event": "temperature-alert", "value": 72.1 }', 'source=Line-A'], ['10241', '2026-10-04 09:40:05', 'Pump-02', '{ "event": "state-change", "state": "running" }', 'source=Line-A'], ['10242', '2026-10-04 09:40:09', 'Valve-01', '{ "event": "inspection-due" }', 'source=Line-B']],
-      inspector: [{ label: '逻辑数据库', value: 'factory / DeviceEvents' }, { label: '物理存储', value: '实例共享 .system/mq Store' }, { label: '选中 Offset', value: '10240 · 仅示例' }, { label: 'Payload', value: 'JSON / Text / Hex / Base64' }, { label: 'Consumer lag', value: '以真实运行时为准' }, { label: '权限', value: '数据库 Read/Write；全局 Store 管理另行核验' }, { label: '备份限制', value: '当前单库备份尚未覆盖实例共享 MQ Store' }]
+      inspector: [{ label: '逻辑数据库', value: 'factory / DeviceEvents' }, { label: 'Topic identity', value: 'factory + DeviceEvents' }, { label: '逻辑 scope', value: 'database' }, { label: '物理 persistenceScope', value: 'instance' }, { label: '物理存储', value: '实例共享 .system/mq Store' }, { label: '选中 Offset', value: '10240 · 仅示例' }, { label: 'Payload', value: 'JSON / Text / Hex / Base64' }, { label: 'Consumer lag', value: '以真实运行时为准' }, { label: '权限', value: '数据库 Read/Write；全局 Store 管理另行核验' }, { label: '备份限制', value: '当前单库备份尚未覆盖实例共享 MQ Store' }],
+      empty: { title: '当前 Topic 没有消息', body: '保留数据库与 Topic 身份，可调整 offset/time seek 或等待新消息；空 Topic 不等于 Store 故障。', action: '调整浏览范围' },
+      capabilities: [
+        { id: 'mq-browse', status: 'existing', label: '数据库 Topic 浏览与 seek', note: 'Read 权限按 database + Topic 校验；browse 不自动 ack。' },
+        { id: 'mq-consumer-write', status: 'existing', label: '消费者组位点与发布预览', note: 'ack/reset/publish 需要数据库 Write 和真实能力。' },
+        { id: 'mq-shared-store-boundary', status: 'extension', label: '共享 Store 恢复边界说明', note: '物理范围为实例 .system/mq，恢复可能影响多个数据库。' },
+        { id: 'mq-dlq', status: 'planned', label: 'DLQ 浏览与重放', note: '仅在服务 capabilities 提供真实合同时开放。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前数据库 Topic 的消息、offset、headers 和 consumer 摘要。', primary: '浏览消息', fields: ['数据库', 'Topic', 'Seek 模式', '最大条数'] },
+        empty: { label: '空 Topic', status: 'existing', summary: '显示 0 条消息并保留 seek 输入；不把空结果解释为物理 Store 丢失。', primary: '调整浏览范围', preserve: ['数据库 + Topic identity', 'offset/time seek'] },
+        error: { label: '运行时错误', status: 'extension', summary: '仅替换 Topic 结果区，保留逻辑身份并给出 runtime/端点错误原因。', primary: '检查并重试', preserve: ['数据库', 'Topic', 'seek'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏消息与 payload，说明数据库 Read 权限；实例 Store 管理权限单独核验。', primary: '查看数据库权限', preserve: ['数据库 + Topic identity'] },
+        readonly: { label: '只读', status: 'existing', summary: 'browse、导出和审计查看可用；ack/reset/publish、配置与恢复写动作禁用。', primary: '导出当前消息', blocked: ['ack', 'reset', 'publish', '恢复共享 Store'] },
+        longContent: { label: '长内容', status: 'extension', summary: 'payload 默认摘要，按有界字节切换 JSON/Text/Hex/Base64；浏览不自动加载无限历史。', primary: '查看有限 Payload', limits: ['最大条数与字节预算', 'offset 不是数据库备份位点'] }
+      }
     },
     {
       id: 'vector', title: '向量索引', objectName: 'ManualEmbeddings.Embedding', scope: 'database', group: '搜索', status: 'extension',
@@ -326,14 +369,44 @@ window.M47_CATALOG = {
       intro: '复用对象浏览、Range 预览、治理、上传下载、Multipart、图片语义与审计；不扩大 S3 兼容声明。', primary: '上传对象',
       tabs: ['浏览', '预览', '上传 / 下载', 'Multipart', '版本与治理', '图片语义', '审计'],
       columns: ['Key', '大小', 'Content-Type', '版本', '更新于'], rows: [['2026-10-04/pump-01.jpg', '2.4 MB', 'image/jpeg', 'v-demo-12', '09:40 · 示例'], ['2026-10-04/line-a.csv', '84 KB', 'text/csv', 'v-demo-08', '09:30 · 示例'], ['manuals/pump-guide.pdf', '4.8 MB', 'application/pdf', 'v-demo-03', '09 月 28 日 · 示例']],
-      inspector: [{ label: 'Key', value: '2026-10-04/pump-01.jpg' }, { label: 'Preview', value: 'Range 与大小预算明确' }, { label: 'Metadata', value: 'device=Pump-01, line=Line-A' }, { label: 'Checksum', value: '以服务端返回为准' }, { label: '治理', value: 'Retention / quota / legal hold / policy' }, { label: '版本', value: '版本删除与当前对象删除分开确认' }]
+      inspector: [{ label: 'Key', value: '2026-10-04/pump-01.jpg' }, { label: 'Preview', value: 'Range 与大小预算明确' }, { label: 'Metadata', value: 'device=Pump-01, line=Line-A' }, { label: 'Checksum', value: '以服务端返回为准' }, { label: '治理', value: 'Retention / quota / legal hold / policy' }, { label: '版本', value: '版本删除与当前对象删除分开确认' }],
+      empty: { title: '当前前缀没有对象', body: '保留 Bucket、prefix 和 delimiter，调整范围后重新读取；空列表不代表 Bucket 不存在。', action: '调整对象范围' },
+      capabilities: [
+        { id: 'object-list-preview', status: 'existing', label: '有界对象浏览与 Range 预览', note: '列表分页、Range 起点/长度和字节预算按真实 API。' },
+        { id: 'object-transfer', status: 'existing', label: '上传 / 下载 / Multipart', note: '浏览器进度与服务器分片确认分开；complete/abort 需单独预览。' },
+        { id: 'object-governance', status: 'existing', label: '版本与治理检查', note: 'retention、quota、legal hold 和 policy 由服务端返回。' },
+        { id: 'object-semantic', status: 'extension', label: '图片语义查询', note: '仅使用显式真实 profile；合成模型/hash fallback 不算质量证据。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '显示当前 prefix 下对象、大小、Content-Type、版本与时间。', primary: '浏览对象', fields: ['Bucket', 'Prefix', 'Delimiter', '列表上限'] },
+        empty: { label: '空列表', status: 'existing', summary: '当前 prefix 没有对象，保留筛选与 Bucket 上下文。', primary: '调整对象范围', preserve: ['Bucket', 'Prefix', 'Delimiter'] },
+        error: { label: '对象读取错误', status: 'extension', summary: '列表或 Range 失败时保留本地输入，不把浏览器缓存当服务端结果。', primary: '检查并重试', preserve: ['Key / Range', '传输草稿'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏对象 metadata/payload，提示 bucket 或数据库读取权限。', primary: '查看所需权限', preserve: ['Bucket', 'Prefix'] },
+        readonly: { label: '只读', status: 'existing', summary: '浏览、Range、导出清单和审计查看可用；上传、complete、删除与治理修改禁用。', primary: '导出当前清单', blocked: ['上传对象', 'complete', '删除版本'] },
+        longContent: { label: '长对象', status: 'existing', summary: '默认只取 Range 预览并显示大小/校验；不自动下载全量对象。', primary: '预览指定 Range', limits: ['Range 字节上限', 'Multipart 分片清单与服务器确认分开'] }
+      }
     },
     {
       id: 'graph', title: 'Graph Beta', objectName: 'FactoryTopology', scope: 'database', group: '图 · Beta', status: 'extension',
       intro: '复用有界 Canvas、Schema/诊断、受限编辑、导入导出和维护审批；SQL/PGQ 转入共用查询器。', primary: '执行有界探索',
       tabs: ['Canvas', 'Schema / 索引', 'SQL / PGQ', '受限编辑', '导入 / 导出', '维护', '审计'],
       columns: ['Vertex / Edge', 'Label', 'Identity', 'Properties', '关系'], rows: [['Vertex', 'Device', 'Pump-01', '{ "line": "Line-A", "type": "Pump" }', 'INSTALLED_AT → Station-01'], ['Vertex', 'Station', 'Station-01', '{ "name": "冷却站" }', 'PART_OF → Line-A'], ['Edge', 'CONNECTED_TO', 'e-demo-17', '{ "flow": "coolant" }', 'Pump-01 → Valve-01']],
-      inspector: [{ label: 'Graph 状态', value: 'Beta' }, { label: '有界画布', value: '最多 200 节点 / 400 边 · 设计预算' }, { label: '选中元素', value: 'Device / Pump-01' }, { label: '编辑路径', value: 'staged preview → 有效审批 → 执行' }, { label: '维护审批', value: '以服务器有效期与权限为准' }, { label: '路径证据', value: '示例关系不等同真实查询结果' }]
+      inspector: [{ label: 'Graph 状态', value: 'Beta' }, { label: '有界画布', value: '最多 200 节点 / 400 边 · 设计预算' }, { label: '选中元素', value: 'Device / Pump-01' }, { label: '编辑路径', value: 'staged preview → 有效审批 → 执行' }, { label: '维护审批', value: '以服务器有效期与权限为准' }, { label: '路径证据', value: '示例关系不等同真实查询结果' }],
+      empty: { title: '当前探索没有顶点或边', body: '保留图、起点、深度和节点/边预算，可调整探索起点后重新读取。', action: '调整探索起点' },
+      capabilities: [
+        { id: 'graph-canvas', status: 'existing', label: '有界 Canvas 探索', note: 'Graph Beta；节点/边上限和深度由真实能力与预算决定。' },
+        { id: 'graph-schema-maintenance', status: 'existing', label: 'Schema、索引与维护预览', note: '诊断、repair/rebuild、checkpoint/compact 以服务器合同为准。' },
+        { id: 'graph-edit-import', status: 'extension', label: '受限编辑与导入审批', note: 'Stage 仅生成草稿，批准前不改变图数据。' },
+        { id: 'graph-pgq', status: 'planned', label: '完整 SQL / PGQ 覆盖', note: '仅在真实 PGQ 支持矩阵提供时开放，不从原型文本推断。' }
+      ],
+      stateMatrix: {
+        normal: { label: '正常', status: 'existing', summary: '在节点/边预算内显示有界 Canvas、Schema 和选中元素。', primary: '执行有界探索', fields: ['图', '探索起点', '深度', '最大节点 / 边'] },
+        empty: { label: '空图结果', status: 'existing', summary: '显示 0 节点 / 0 边并保留探索输入，不把无关系解释为故障。', primary: '调整探索起点', preserve: ['图上下文', '深度与预算'] },
+        error: { label: '图查询错误', status: 'extension', summary: '只替换结果区域，说明 PGQ/诊断能力或服务错误来源。', primary: '检查并重试', preserve: ['SQL / PGQ 输入', '预算'] },
+        permission: { label: '无权限', status: 'existing', summary: '隐藏顶点、边和属性，显示数据库 Graph Read/管理权限要求。', primary: '查看所需权限', preserve: ['数据库', '图名'] },
+        readonly: { label: '只读', status: 'existing', summary: 'Canvas、Schema、SQL/PGQ 和导出可用；Stage、维护与导入批准禁用。', primary: '导出当前快照', blocked: ['Stage 编辑', 'repair/rebuild', '导入批准'] },
+        longContent: { label: '长属性/大图', status: 'extension', summary: '属性折叠、关系分段加载并保持节点/边预算；不无限扩展画布。', primary: '收起属性并分段加载', limits: ['最多 200 节点 / 400 边（设计预算）', '完整 Payload 需 Inspector 有界查看'] }
+      }
     }
   ]
 };

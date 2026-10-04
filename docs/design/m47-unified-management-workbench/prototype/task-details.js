@@ -20,7 +20,7 @@
   const auditColumns = ['时间', '对象', '动作', '状态', '来源'];
   const mappingColumns = ['源字段', '目标字段', '类型', '校验'];
 
-  window.M47_TASK_DETAILS = {
+  const details = {
     measurement: [
       base('measurement', 'table', 'existing'),
       task('SQL', 'sql', '在 Telemetry 上下文编写 SQL，保留 TAG/FIELD 原始拼写。', [f('SQL', 'SELECT DeviceID, AVG(Temperature) FROM Telemetry GROUP BY DeviceID;', '只展示编辑输入，不运行请求', 'textarea')], ['DeviceID', 'AVG(Temperature)'], [['Pump-01', '67.6 · 示例'], ['Pump-02', '66.0 · 示例']], '打开 SQL 输入', 'extension', [i('数据库', 'factory'), i('名称', 'DeviceID 原始拼写')]),
@@ -267,4 +267,18 @@
       task('许可证', 'notice', '许可证与第三方声明以真实发行物为准。本页不假设未核查依赖的授权文本。', [f('SonnetDB', '仓库许可证'), f('第三方声明', '发行物随附清单'), f('版本', '真实发行 manifest')], [], [], '查看许可证来源', 'existing')
     ]
   };
+
+  // WB-02 keeps one page-level state contract across the base task and every
+  // task tab. These are review fixtures only; app.js still owns the interactive
+  // global mode switch and never treats this metadata as a server capability.
+  const statefulPages = ['sql', 'kv', 'mq', 'bucket', 'graph'];
+  statefulPages.forEach((id) => {
+    const page = byId.get(id);
+    if (!page) return;
+    (details[id] || []).forEach((entry) => {
+      entry.stateMatrix = page.stateMatrix;
+      entry.capabilities = page.capabilities;
+    });
+  });
+  window.M47_TASK_DETAILS = details;
 })();

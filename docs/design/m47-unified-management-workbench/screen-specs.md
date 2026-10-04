@@ -40,6 +40,7 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 页面 / ID / 标签 | 主任务与页面结构 | 关键字段、动作与边界 |
 |---|---|---|
 | SQL 工作区 / `sql` / 既有 | 工作区页签 → 数据库/预算与执行工具条 → 编辑器/参数 → 可调 Result Plane。对象资源树和右侧当前行/Explain Inspector 常驻。 | 对象名称保留原始拼写；未引用名称不区分大小写、双引号精确绑定。执行选中/整段/EXPLAIN；Table、Raw、Chart、Trajectory、Explain 按结果能力开放。写语句转入既有 staged preview 与审批。SQL NDJSON 不被包装为已实现通用 cursor。 |
+| **WB-02 状态合同** | 页面能力：`existing` 的读取/Explain；`extension` 的写语句 staged preview；`planned` 的通用 continuation。专用字段为数据库、结果上限、超时预算。 | 正常主动作“执行查询”；空结果主动作“调整筛选”并保留 SQL/参数；错误主动作“检查并重试”且只替换结果面板；无权限隐藏载荷并进入权限说明；只读允许查询/Explain/导出、禁用写确认；长 SQL/结果按行与字节预算折叠，不能虚构 continuation。 |
 | SQL Notebook / `notebook` / 规划 | 标题与连接 → 说明/SQL 单元连续排布 → 当前单元结果，左侧可切大纲，右侧解释选中单元。 | 单元类型、输入、执行状态、结果快照、保存版本。先支持手动运行当前单元；“全部运行”需要中止与写审批合同后再开放。导出排除凭据，生产结果快照需显式选择。当前路由无 Notebook 入口。 |
 | 执行历史 / `history` / 延伸 | 连接/数据库/动作/状态/时间过滤 → 时间表 → SQL/操作细节 Inspector。可从工作台快捷入口打开。 | 时间、对象、动作、状态、耗时、返回/影响数量。恢复仅恢复输入；本地 History 与服务端 Audit 分开标记。复用 WorkbenchHistoryDrawer，不新增查询执行引擎。 |
 
@@ -148,6 +149,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 统计 | 既有 | key 数、类型、TTL 等当前端可取得统计。 | 局部加载统计与服务器全量统计分开。 |
 | 操作历史 | 延伸 | 复用共用 History 过滤为当前 keyspace。 | CAS/原子操作仅实际能力支持时启用；失败不得自动重放写入。 |
 
+**WB-02 状态合同（`kv` 页面 status=`extension`）：** 专用字段为 Keyspace、prefix、扫描上限、值格式、TTL 与版本/CAS。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “读取 Key”；无匹配时“调整前缀”，保留 Keyspace，不把空值当错误。 | `existing` 浏览；空态仍显示作用域和筛选。 |
+| 错误 / 无权限 | “检查并重试”只重试当前 keyspace；无权限隐藏值载荷并进入数据库权限说明。 | Read/Write 来自服务端，客户端禁用不是授权证据。 |
+| 只读 | 浏览、值检查、导出可用；TTL、CAS、批量删除显示禁用原因。 | `extension` 条件写入不得假装可执行。 |
+| 长内容 | 大值折叠，按 Text/JSON/Hex/Base64 做有限预览并显示原始字节数。 | 不强制 UTF-8，不把截断值当完整值。 |
+
 ### SonnetMQ `mq`：DeviceEvents（逻辑数据库范围；物理实例共享）
 
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
@@ -159,6 +169,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 恢复边界 | 延伸 | 实例共享 `.system/mq` 持久目录、恢复合同与维护说明，同时显示逻辑数据库。 | **当前单库备份尚未覆盖 MQ Store**；Store 恢复可能影响其它数据库 Topic；缺真实恢复接口时只提供范围说明。 |
 | DLQ · 能力依赖 | 规划 | 有能力时浏览当前数据库 Topic 的死信与来源；否则禁用并给出原因。 | 不假造统一 DLQ/重放页面合同；重新投递保留数据库命名空间、权限与影响预览。 |
 | 审计 | 延伸 | 当前数据库 Topic 的模型操作/批准记录；来源标签明确。 | 本地 History 与服务器审计区分；Topic offset 不是数据库备份位点。 |
+
+**WB-02 状态合同（`mq` 页面 status=`extension`；逻辑 scope=`database`，persistenceScope=`instance`）：** 专用字段为 database + Topic identity、seek 模式/offset、最大条数、headers/payload、consumer lag。物理路径固定为实例共享 `.system/mq`；当前单库备份不含该 Store。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “浏览消息”；空 Topic 用“调整浏览范围”，显示 0 条但保留 database + Topic identity。 | `existing` Read browse，不自动 ack；空结果不表示 Store 故障。 |
+| 错误 / 无权限 | “检查并重试”只替换 Topic 结果区；无权限隐藏消息/payload，进入数据库 Read 权限说明。 | 实例 Store 全局管理权限与数据库 Topic Read/Write 分开核验。 |
+| 只读 | browse、导出、审计查看可用；ack/reset/publish、配置和恢复写动作禁用。 | 写动作必须有数据库 Write、真实 API 和预览审批。 |
+| 长内容 | payload 默认摘要，按有界字节切换 JSON/Text/Hex/Base64；限制条数与字节预算。 | offset 是 Topic 位点，不是数据库备份位点；不能假造 DLQ 或跨库恢复。 |
 
 ### 向量 `vector`：ManualEmbeddings.Embedding
 
@@ -194,6 +213,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 图片语义 | 既有 | 配置、摄取/处理状态、搜索与 metadata filter。 | 不把合成模型或 hash fallback 计为真实语义证据。 |
 | 审计 | 既有 | prefix、上限、模型 Audit 表。 | 数据来源、分页/上限、访问权限；不扩大完整 S3/SigV4 兼容声明。 |
 
+**WB-02 状态合同（`bucket` 页面 status=`existing`）：** 专用字段为 Bucket、prefix/delimiter、Key、Range 起点/长度、Content-Type、版本、checksum 与 Multipart session。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “浏览对象”；空 prefix 用“调整对象范围”，保留 Bucket 和筛选。 | `existing` 有界列表与 Range 预览，空列表不表示 Bucket 不存在。 |
+| 错误 / 无权限 | “检查并重试”保留 Key/Range 草稿；无权限隐藏 metadata/payload 并进入 bucket/数据库权限说明。 | 浏览器缓存和上传进度不等于服务器结果。 |
+| 只读 | 浏览、Range、导出清单、审计可用；上传、complete、删除版本和治理修改禁用。 | Native bridge/Web fallback 需标注宿主来源。 |
+| 长对象 | 默认只取 Range 并显示大小/校验；Multipart 只显示服务器确认的分片。 | 不自动下载全量对象，不扩大 S3/SigV4 兼容声明。 |
+
 ### 图 `graph`：FactoryTopology（Graph Beta）
 
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
@@ -205,6 +233,15 @@ JSON 属性键与文档数据值保持原语义，不套用 SQL 大小写合同�
 | 导入 / 导出 | 既有 | vertices/edges 输入校验、数量预览、批准。 | 大 payload 预算、身份/关系校验、取消；无批准不执行。 |
 | 维护 | 既有 | Repair/rebuild、checkpoint、compact 选择与暂存预览。 | 服务端审批有效期与权限、拒绝原因；过期要求重新暂存。 |
 | 审计 | 延伸 | 从已有维护记录拆出浏览任务，按动作/状态筛选。 | Graph **Beta** 在树、页签、标题和能力矩阵一致保留。 |
+
+**WB-02 状态合同（`graph` 页面 status=`extension`，全程保留 Graph Beta）：** 专用字段为图名、探索起点、深度、最大节点/边、label、identity、property 与 SQL/PGQ 预算。
+
+| 状态 | 主动作与呈现 | 能力边界 |
+|---|---|---|
+| 正常 / 空 | “执行有界探索”；空图用“调整探索起点”，显示 0 节点/边并保留预算。 | `existing` 有界 Canvas、Schema 和导出；不无限扩展。 |
+| 错误 / 无权限 | “检查并重试”只替换结果区并说明 PGQ/诊断来源；无权限隐藏顶点、边、属性。 | 权限按数据库 Graph Read/管理合同，原型关系不是真实查询证据。 |
+| 只读 | Canvas、Schema、SQL/PGQ 和导出可用；Stage、维护和导入批准禁用。 | Stage 仅草稿，不代表数据已修改；维护需有效审批。 |
+| 长属性/大图 | 属性折叠、关系分段加载并保持 200 节点/400 边设计预算。 | `extension` 长内容处理；完整 payload 只在有界 Inspector 中查看。 |
 
 ## 对话框、提示与可访问性
 
