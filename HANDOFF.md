@@ -149,4 +149,4 @@
 - 交接完成消息已收到；旧会话停止写入。本会话确认使用 `D:\source\SonnetDB`、`main`、HEAD `3a59f2c9`，`origin/main` ahead 4，`origin/parity-results` 保留且未操作。
 - 只读盘点确认主树的五个既有修改与 23 个 M47 设计文件属于本次授权交付；无冲突索引条目，其他注册 worktree clean。子智能体仅做只读盘点，未写入、暂存或提交。
 - WB-00 门禁已通过：`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、四个原型脚本 `node --check`、`git diff --check`；验证记录已写入 M47 `validation-report.md`。
-- 当前待完成：提交设计交付基线并记录实际提交哈希；随后冻结 WB-01/WB-02/WB-03C（或合同）文件归属，分派独立实施与复核。不得把 REVIEW_DRAFT 或静态/mock 证据写成生产、真实 Server、三宿主、AOT、安装或发布 PASS。
+- WB-00 设计交付基线已提交：`3484aafd docs(m47): establish workbench design review baseline`。随后冻结 WB-01/WB-02/WB-03C（或合同）文件归属，分派独立实施与复核。不得把 REVIEW_DRAFT 或静态/mock 证据写成生产、真实 Server、三宿主、AOT、安装或发布 PASS。

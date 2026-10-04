@@ -56,6 +56,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --check`：`prototype/app.js`、`catalog.js`、`task-details.js`、`preview.mjs` 均通过。
 - `git diff --check`：通过；设计包链接、7/30/9/166/60 目录标记及 MQ `scope=database` / `persistenceScope=instance`、实例共享 `.system/mq` 与单库备份边界已回读核对。
 - 以上仅证明设计交付基线与静态原型证据可审查，不代表生产前端、真实 Server、三宿主、AOT、安装或发布门禁通过。
+- 设计交付基线已在本地提交 `3484aafd`；本记录与该提交同属 WB-00，未推送远端。
 
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 
