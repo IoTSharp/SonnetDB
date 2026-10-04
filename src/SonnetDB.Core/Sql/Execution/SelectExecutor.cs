@@ -35,6 +35,8 @@ internal static class SelectExecutor
             ?? throw new InvalidOperationException(
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
 
+        ValidateMeasurementAggregateClauses(schema, statement);
+
         if (SqlRowRetentionBudget.HasExecutionBudget)
         {
             ValidateMaterializationSupported(schema, statement);
@@ -51,14 +53,15 @@ internal static class SelectExecutor
         bool hasAggregate = classified.Any(p =>
             p.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression);
         var groupByTime = ResolveGroupByTime(statement.GroupBy);
+        var groupByTags = ResolveGroupByTags(statement.GroupBy, schema);
 
-        if (hasAggregate && HasUnsupportedNonAggregateProjection(classified, groupByTime))
+        if (hasAggregate && HasUnsupportedNonAggregateProjection(classified, groupByTime, groupByTags))
             throw new InvalidOperationException(
-                "SELECT 中不允许同时出现聚合函数与非聚合列（GROUP BY time(...) 查询中仅允许额外投影 time 作为 bucket 起始时间）。");
+                "SELECT 中不允许同时出现聚合函数与未分组列（measurement 仅支持 GROUP BY TAG 与 time(...)）。");
 
-        if (groupByTime is not null && !hasAggregate)
+        if ((groupByTime is not null || groupByTags.Count != 0) && !hasAggregate)
             throw new InvalidOperationException(
-                "GROUP BY time(...) 仅在聚合查询中有效。");
+                "GROUP BY TAG/time(...) 仅在聚合查询中有效。");
 
         if (!hasAggregate
             && groupByTime is null
@@ -90,10 +93,52 @@ internal static class SelectExecutor
         }
 
         SelectExecutionResult result = hasAggregate
-            ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
+            ? groupByTags.Count == 0
+                ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
+                : ExecuteGroupedAggregate(
+                    tsdb, schema, classified, matchedSeries, where, groupByTime, groupByTags)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
 
         return ApplyOrderByAndPagination(result, orderBy, statement.Pagination);
+    }
+
+    internal static void ValidateMeasurementAggregateClauses(
+        MeasurementSchema schema,
+        SelectStatement statement)
+    {
+        if (statement.Having is not null)
+            throw new NotSupportedException(
+                "measurement HAVING 尚未接入聚合分组执行器；请改用 WHERE 或关系表聚合。");
+
+        if (!statement.GroupBy.OfType<IdentifierExpression>().Any())
+            return;
+
+        foreach (var projection in statement.Projections)
+        {
+            if (projection.Expression is IdentifierExpression
+                || projection.Expression is FunctionCallExpression aggregate
+                    && FunctionRegistry.GetFunctionKind(aggregate.Name) == FunctionKind.Aggregate)
+                continue;
+            throw new NotSupportedException(
+                "measurement TAG 分组当前仅支持分组列与裸聚合函数投影；复合标量表达式暂不支持。");
+        }
+
+        var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
+        if (where.Residual is not null || where.GeoFilters.Count != 0)
+            throw new NotSupportedException(
+                "measurement TAG 分组当前仅支持可下推的 WHERE；残差/Geo 谓词暂不支持，以避免静默忽略过滤。");
+
+        if (statement.OrderByList.Count != 0
+            && (statement.OrderByList.Count != 1
+                || statement.OrderByList[0].Expression is not IdentifierExpression identifier
+                || !IsTimePseudoColumn(identifier)
+                || !statement.Projections.Any(static projection => projection.Alias is null
+                    && projection.Expression is IdentifierExpression projectedIdentifier
+                    && IsTimePseudoColumn(projectedIdentifier))))
+        {
+            throw new NotSupportedException(
+                "measurement TAG 分组仅支持对未改名的 time 投影进行单键 ORDER BY；TAG、别名与多键排序暂不支持。");
+        }
     }
 
     internal static void ValidateMaterializationSupported(MeasurementSchema schema, SelectStatement statement)
@@ -881,7 +926,8 @@ internal static class SelectExecutor
 
     private static bool HasUnsupportedNonAggregateProjection(
         IReadOnlyList<Projection> projections,
-        TimeBucketSpec? groupByTime)
+        TimeBucketSpec? groupByTime,
+        IReadOnlyList<MeasurementColumn> groupByTags)
     {
         foreach (var projection in projections)
         {
@@ -889,6 +935,11 @@ internal static class SelectExecutor
                 continue;
 
             if (groupByTime is not null && projection.Kind == ProjectionKind.Time)
+                continue;
+
+            if (projection.Kind == ProjectionKind.Tag
+                && groupByTags.Any(tag => string.Equals(
+                    tag.Name, projection.Column!.Name, StringComparison.Ordinal)))
                 continue;
 
             return true;
@@ -2039,22 +2090,51 @@ internal static class SelectExecutor
 
     private static TimeBucketSpec? ResolveGroupByTime(IReadOnlyList<SqlExpression> groupBy)
     {
-        if (groupBy.Count == 0)
-            return null;
-
-        if (groupBy.Count != 1 || groupBy[0] is not FunctionCallExpression fn
-            || !string.Equals(fn.Name, "time", StringComparison.OrdinalIgnoreCase)
-            || fn.IsStar
-            || fn.Arguments.Count != 1
-            || fn.Arguments[0] is not DurationLiteralExpression duration)
+        TimeBucketSpec? result = null;
+        foreach (var expression in groupBy)
         {
-            throw new InvalidOperationException("当前仅支持 GROUP BY time(duration)。");
+            if (expression is not FunctionCallExpression fn
+                || !string.Equals(fn.Name, "time", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (fn.IsStar || fn.Arguments.Count != 1
+                || fn.Arguments[0] is not DurationLiteralExpression duration)
+                throw new InvalidOperationException("GROUP BY time(...) 必须使用一个 duration 参数。");
+            if (duration.Milliseconds <= 0)
+                throw new InvalidOperationException("GROUP BY time(...) 桶大小必须 > 0。");
+            if (result is not null)
+                throw new InvalidOperationException("GROUP BY time(...) 只能出现一次。");
+            result = new TimeBucketSpec(duration.Milliseconds);
         }
+        return result;
+    }
 
-        if (duration.Milliseconds <= 0)
-            throw new InvalidOperationException("GROUP BY time(...) 桶大小必须 > 0。");
+    private static IReadOnlyList<MeasurementColumn> ResolveGroupByTags(
+        IReadOnlyList<SqlExpression> groupBy,
+        MeasurementSchema schema)
+    {
+        var tags = new List<MeasurementColumn>();
+        foreach (var expression in groupBy)
+        {
+            if (expression is FunctionCallExpression fn
+                && string.Equals(fn.Name, "time", StringComparison.OrdinalIgnoreCase))
+                continue;
 
-        return new TimeBucketSpec(duration.Milliseconds);
+            if (expression is not IdentifierExpression identifier)
+                throw new InvalidOperationException(
+                    "measurement GROUP BY 仅支持 TAG 标识符和 time(duration)。");
+
+            var column = schema.TryGetColumn(identifier.Name)
+                ?? throw new InvalidOperationException(
+                    $"GROUP BY 引用了未知列 '{identifier.Name}'。");
+            if (column.Role != MeasurementColumnRole.Tag)
+                throw new InvalidOperationException(
+                    $"GROUP BY 列 '{column.Name}' 必须是 TAG；FIELD 不能作为 measurement 分组键。");
+            if (tags.Any(tag => string.Equals(tag.Name, column.Name, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"GROUP BY 列 '{column.Name}' 重复。");
+            tags.Add(column);
+        }
+        return tags;
     }
 
     // #284：惰性点流。QueryEngine.Execute(PointQuery) 本就是单租约、单趟流式合并的 IEnumerable，
@@ -2190,6 +2270,157 @@ internal static class SelectExecutor
     }
 
     // ── 聚合模式 ───────────────────────────────────────────────────────────
+
+    private static SelectExecutionResult ExecuteGroupedAggregate(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        TimeBucketSpec? groupByTime,
+        IReadOnlyList<MeasurementColumn> groupByTags)
+    {
+        var aggregateCalls = projections
+            .Where(static projection =>
+                projection.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression)
+            .SelectMany(static projection => EnumerateAggregateCalls(
+                projection.Function ?? projection.ScalarExpression!))
+            .ToList();
+        var aggSpecs = aggregateCalls
+            .Select(fn => ResolveAggregateSpec(fn, FormatFunctionColumnName(fn), schema))
+            .ToList();
+        if (matchedSeries.Count > 1
+            && aggSpecs.Any(static spec => spec.LegacyAggregator is Aggregator.First or Aggregator.Last))
+        {
+            throw new InvalidOperationException(
+                "First/Last 聚合在多 series 场景下尚未支持（v1）；请用 WHERE 过滤到单一 series。");
+        }
+        var groups = new SortedDictionary<MeasurementGroupKey, AggSlot[]>(MeasurementGroupKeyComparer.Instance);
+        long bucketSizeMs = groupByTime?.BucketSizeMs ?? 0;
+
+        foreach (var series in matchedSeries)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            var tagValues = groupByTags
+                .Select(column => series.Tags.TryGetValue(column.Name, out var value) ? value : null)
+                .ToArray();
+
+            // 分组存在性由完整的行/时刻并集决定，不依赖某个被聚合 FIELD 是否有值。
+            // k-way merge 仅保留各 FIELD 的流前沿，避免 count(*) 物化全部时间戳。
+            var streams = schema.FieldColumns.Select(column =>
+                QueryPointsStream(tsdb, series.Id, column.Name, where.TimeRange));
+            foreach (long timestamp in EnumerateDistinctTimestamps(streams))
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                var key = CreateMeasurementGroupKey(tagValues, timestamp, bucketSizeMs);
+                if (!groups.TryGetValue(key, out var slots))
+                    groups[key] = slots = CreateAggSlots(aggSpecs, grouped: true);
+                for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
+                {
+                    if (aggSpecs[specIdx].IsCountStar)
+                        slots[specIdx].UpdateCount(timestamp);
+                }
+            }
+
+            for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
+            {
+                var spec = aggSpecs[specIdx];
+                if (spec.IsCountStar)
+                    continue;
+
+                if (spec.FieldName is null)
+                    throw new InvalidOperationException(
+                        $"聚合函数 '{spec.ColumnName}' 缺少可用于 measurement 分组的 FIELD。");
+                var column = schema.TryGetColumn(spec.FieldName)
+                    ?? throw new InvalidOperationException(
+                        $"聚合函数引用了未知列 '{spec.FieldName}'。");
+                foreach (var point in QueryPointsStream(
+                    tsdb, series.Id, column.Name, where.TimeRange))
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    var key = CreateMeasurementGroupKey(tagValues, point.Timestamp, bucketSizeMs);
+                    if (!groups.TryGetValue(key, out var slots))
+                        groups[key] = slots = CreateAggSlots(aggSpecs, grouped: true);
+                    if (spec.LegacyAggregator == Aggregator.Count && !spec.IsDistinct)
+                        slots[specIdx].UpdateCount(point.Timestamp);
+                    else
+                        slots[specIdx].Update(point.Timestamp, point.Value, column);
+                }
+            }
+        }
+
+        var rows = new List<IReadOnlyList<object?>>(groups.Count);
+        foreach (var (key, slots) in groups)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            var row = new object?[projections.Count];
+            var aggregateValues = new object?[slots.Length];
+            for (int slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+                aggregateValues[slotIndex] = slots[slotIndex].Finalize();
+
+            for (int i = 0; i < projections.Count; i++)
+            {
+                var projection = projections[i];
+                row[i] = projection.Kind switch
+                {
+                    ProjectionKind.Time => key.TimeBucket,
+                    ProjectionKind.Tag => key.TagValues[FindGroupTagIndex(groupByTags, projection.Column!)],
+                    ProjectionKind.Aggregate => aggregateValues[
+                        FindAggregateCallIndex(aggregateCalls, projection.Function!)],
+                    ProjectionKind.AggregateExpression => EvaluateAggregateResultExpression(
+                        projection.ScalarExpression!, aggregateCalls, aggregateValues),
+                    _ => throw new InvalidOperationException(
+                        "内部错误：measurement 分组聚合仅支持分组 TAG/time 与聚合投影。"),
+                };
+            }
+            rows.Add(row);
+        }
+
+        return new SelectExecutionResult(projections.Select(p => p.ColumnName).ToList(), rows);
+    }
+
+    private static MeasurementGroupKey CreateMeasurementGroupKey(
+        string?[] tagValues,
+        long timestamp,
+        long bucketSizeMs)
+        => new(
+            bucketSizeMs > 0 ? TimeBucket.Floor(timestamp, bucketSizeMs) : long.MinValue,
+            tagValues);
+
+    private static int FindGroupTagIndex(
+        IReadOnlyList<MeasurementColumn> groupByTags,
+        MeasurementColumn column)
+    {
+        for (int i = 0; i < groupByTags.Count; i++)
+        {
+            if (string.Equals(groupByTags[i].Name, column.Name, StringComparison.Ordinal))
+                return i;
+        }
+        throw new InvalidOperationException($"内部错误：列 '{column.Name}' 不在 measurement 分组键中。");
+    }
+
+    private sealed record MeasurementGroupKey(long TimeBucket, string?[] TagValues);
+
+    private sealed class MeasurementGroupKeyComparer : IComparer<MeasurementGroupKey>
+    {
+        public static MeasurementGroupKeyComparer Instance { get; } = new();
+
+        public int Compare(MeasurementGroupKey? x, MeasurementGroupKey? y)
+        {
+            if (ReferenceEquals(x, y)) return 0;
+            if (x is null) return -1;
+            if (y is null) return 1;
+            int timeComparison = x.TimeBucket.CompareTo(y.TimeBucket);
+            if (timeComparison != 0) return timeComparison;
+            int length = Math.Min(x.TagValues.Length, y.TagValues.Length);
+            for (int i = 0; i < length; i++)
+            {
+                int tagComparison = string.CompareOrdinal(x.TagValues[i], y.TagValues[i]);
+                if (tagComparison != 0) return tagComparison;
+            }
+            return x.TagValues.Length.CompareTo(y.TagValues.Length);
+        }
+    }
 
     private static SelectExecutionResult ExecuteAggregate(
         Tsdb tsdb,
@@ -2951,11 +3182,11 @@ internal static class SelectExecutor
         }
     }
 
-    private static AggSlot[] CreateAggSlots(IReadOnlyList<AggSpec> aggSpecs)
+    private static AggSlot[] CreateAggSlots(IReadOnlyList<AggSpec> aggSpecs, bool grouped = false)
     {
         var slots = new AggSlot[aggSpecs.Count];
         for (int i = 0; i < slots.Length; i++)
-            slots[i] = AggSlot.Create(aggSpecs[i]);
+            slots[i] = AggSlot.Create(aggSpecs[i], grouped);
         return slots;
     }
 
@@ -3093,29 +3324,34 @@ internal static class SelectExecutor
         private BucketState _legacy = BucketState.Empty;
         private readonly IAggregateAccumulator? _extended;
         private readonly HashSet<FieldValue>? _distinctValues;
+        private readonly bool _grouped;
+        private bool _hasValue;
+        private long _integerSum;
 
-        private AggSlot(AggSpec spec, IAggregateAccumulator? extended)
+        private AggSlot(AggSpec spec, IAggregateAccumulator? extended, bool grouped)
         {
             _spec = spec;
             _extended = extended;
             _distinctValues = spec.IsDistinct ? new HashSet<FieldValue>() : null;
+            _grouped = grouped;
         }
 
-        public static AggSlot Create(AggSpec spec)
+        public static AggSlot Create(AggSpec spec, bool grouped = false)
         {
             if (!spec.IsExtended)
-                return new AggSlot(spec, extended: null);
+                return new AggSlot(spec, extended: null, grouped);
 
             var accumulator = spec.ExtendedFunction!.CreateAccumulator(spec.ExtendedCall!, spec.Schema!)
                 ?? throw new InvalidOperationException(
                     $"扩展聚合 '{spec.ExtendedFunction.Name}' 未返回累加器实例。");
-            return new AggSlot(spec, accumulator);
+            return new AggSlot(spec, accumulator, grouped);
         }
 
         public void UpdateCount(long timestamp)
         {
             if (_extended is not null)
                 throw new InvalidOperationException("扩展聚合不支持 count-only 更新路径。");
+            _hasValue = true;
             _legacy = _legacy.Update(timestamp, 0.0);
         }
 
@@ -3123,6 +3359,14 @@ internal static class SelectExecutor
         {
             if (_distinctValues is not null && !_distinctValues.Add(value))
                 return;
+
+            _hasValue = true;
+            if (_grouped && _spec.FieldType == FieldType.Int64
+                && _spec.LegacyAggregator == Aggregator.Sum && _extended is null)
+            {
+                _integerSum = checked(_integerSum + value.AsLong());
+                return;
+            }
 
             if (_extended is null)
             {
@@ -3163,9 +3407,16 @@ internal static class SelectExecutor
         }
 
         public object? Finalize()
-            => _extended is not null
+        {
+            if (_grouped && !_hasValue)
+                return _spec.LegacyAggregator == Aggregator.Count && _extended is null ? 0L : null;
+            if (_grouped && _spec.FieldType == FieldType.Int64
+                && _spec.LegacyAggregator == Aggregator.Sum && _extended is null)
+                return _integerSum;
+            return _extended is not null
                 ? _extended.Finalize()
                 : ComputeLegacyAggregateValue(_spec.LegacyAggregator, _legacy);
+        }
     }
 
     private readonly record struct BucketState(

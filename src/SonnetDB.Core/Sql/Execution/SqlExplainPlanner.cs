@@ -164,6 +164,10 @@ public static class SqlExplainPlanner
         if (statement is ExplainStatement explain)
             statement = explain.Statement;
 
+        // 直接 planner/MCP 入口也必须按统一绑定器解析新增的 measurement 分组名称。
+        if (statement is SelectStatement { GroupBy.Count: > 0 })
+            statement = MeasurementSqlNameBinder.Bind(tsdb, SqlNameBinder.Bind(tsdb, statement));
+
         using var _ = UserFunctionRegistry.EnterScope(tsdb.Functions);
         SqlExplainExecutionResult result = statement switch
         {
@@ -1088,6 +1092,8 @@ public static class SqlExplainPlanner
             ?? throw new InvalidOperationException(
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
 
+        SelectExecutor.ValidateMeasurementAggregateClauses(schema, statement);
+
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var where = DecomposeWhereClause(statement.Where, schema, nowMs);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
@@ -1139,7 +1145,12 @@ public static class SqlExplainPlanner
             TagFilterCount: where.TagFilter.Count,
             AccessPath: where.TagFilter.Count > 0 ? "tag_index" : "measurement_scan",
             IndexName: null,
-            ScanFilter: scanFilter);
+            ScanFilter: scanFilter)
+        {
+            MemoryBehavior = statement.GroupBy.OfType<IdentifierExpression>().Any()
+                ? "aggregate=tag_group_blocking;group_state=O(groups*aggregate_slots);result=materialized_public_boundary"
+                : null,
+        };
     }
 
     private static SqlExplainExecutionResult ExplainRelationalComposition(
@@ -1597,12 +1608,20 @@ public static class SqlExplainPlanner
         foreach (var projection in statement.Projections)
             CollectProjectionFields(projection.Expression, schema, fields, ref hasAggregate, ref hasNonAggregate);
 
-        ValidateGroupBy(statement.GroupBy, hasAggregate);
+        ValidateGroupBy(statement.GroupBy, hasAggregate, schema);
+
+        // TAG 分组先从所有 FIELD 的时刻并集建立组；稀疏的聚合 FIELD 不应使组消失。
+        if (statement.GroupBy.OfType<IdentifierExpression>().Any())
+        {
+            foreach (var field in schema.FieldColumns)
+                fields.Add(field.Name);
+        }
 
         if (hasAggregate && hasNonAggregate)
         {
-            throw new InvalidOperationException(
-                "SELECT 中不允许同时出现聚合函数与非聚合列（v1 不支持 GROUP BY 列）。");
+            if (!HasOnlyGroupedMeasurementProjections(statement, schema))
+                throw new InvalidOperationException(
+                    "SELECT 中不允许同时出现聚合函数与未分组列（measurement 仅支持 GROUP BY TAG 与 time(...)）。");
         }
 
         if (!hasAggregate && fields.Count == 0)
@@ -1783,26 +1802,72 @@ public static class SqlExplainPlanner
         }
     }
 
-    private static void ValidateGroupBy(IReadOnlyList<SqlExpression> groupBy, bool hasAggregate)
+    private static void ValidateGroupBy(
+        IReadOnlyList<SqlExpression> groupBy,
+        bool hasAggregate,
+        MeasurementSchema schema)
     {
         if (groupBy.Count == 0)
             return;
 
         if (!hasAggregate)
-            throw new InvalidOperationException("GROUP BY time(...) 仅在聚合查询中有效。");
+            throw new InvalidOperationException("GROUP BY TAG/time(...) 仅在聚合查询中有效。");
 
-        if (groupBy.Count != 1
-            || groupBy[0] is not FunctionCallExpression
-            {
-                Name: var name,
-                IsStar: false,
-                Arguments.Count: 1,
-                Arguments: [DurationLiteralExpression]
-            }
-            || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+        bool sawTime = false;
+        var tagNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var expression in groupBy)
         {
-            throw new InvalidOperationException("当前仅支持 GROUP BY time(duration)。");
+            if (expression is FunctionCallExpression time
+                && string.Equals(time.Name, "time", StringComparison.OrdinalIgnoreCase))
+            {
+                if (sawTime || time.IsStar || time.Arguments.Count != 1
+                    || time.Arguments[0] is not DurationLiteralExpression duration
+                    || duration.Milliseconds <= 0)
+                    throw new InvalidOperationException("GROUP BY time(...) 必须使用一个正数 duration，且只能出现一次。");
+                sawTime = true;
+                continue;
+            }
+
+            if (expression is not IdentifierExpression identifier)
+                throw new InvalidOperationException(
+                    "measurement GROUP BY 仅支持 TAG 标识符和 time(duration)。");
+            var column = schema.TryGetColumn(identifier.Name)
+                ?? throw new InvalidOperationException(
+                    $"GROUP BY 引用了未知列 '{identifier.Name}'。");
+            if (column.Role != MeasurementColumnRole.Tag)
+                throw new InvalidOperationException(
+                    $"GROUP BY 列 '{column.Name}' 必须是 TAG；FIELD 不能作为 measurement 分组键。");
+            if (!tagNames.Add(column.Name))
+                throw new InvalidOperationException($"GROUP BY 列 '{column.Name}' 重复。");
         }
+    }
+
+    private static bool HasOnlyGroupedMeasurementProjections(
+        SelectStatement statement,
+        MeasurementSchema schema)
+    {
+        var groupTags = statement.GroupBy
+            .OfType<IdentifierExpression>()
+            .Select(identifier => schema.TryGetColumn(identifier.Name)?.Name)
+            .Where(static name => name is not null)
+            .ToHashSet(StringComparer.Ordinal);
+        bool hasTime = statement.GroupBy.Any(static expression =>
+            expression is FunctionCallExpression function
+                && string.Equals(function.Name, "time", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var projection in statement.Projections)
+        {
+            if (projection.Expression is FunctionCallExpression function
+                && FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Aggregate)
+                continue;
+            if (projection.Expression is IdentifierExpression identifier
+                && ((hasTime && string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+                    || (schema.TryGetColumn(identifier.Name) is { } column
+                        && groupTags.Contains(column.Name))))
+                continue;
+            return false;
+        }
+        return true;
     }
 
     private static long CountMemTableRows(MemTable memTable, ulong seriesId, string fieldName, TimeRange timeRange)

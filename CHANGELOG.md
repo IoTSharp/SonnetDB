@@ -9,6 +9,7 @@
 
 ### Added
 
+- **M45-C01 measurement TAG/time 分组首批（2026-10-04）**：支持 `GROUP BY` TAG 与 `time(duration)` 复合键的裸聚合投影，按时间桶与 TAG 原值稳定排序；稀疏 FIELD 的 COUNT 为 0、其它空聚合为 NULL，Int64 SUM 精确累加且溢出拒绝。FIELD、未知/重复分组键、残差/Geo/HAVING、复合投影与 TAG/多键排序提前拒绝，EXPLAIN 共用校验和名称绑定。覆盖多 TAG/多 series、空输入、flush/reopen、大小写及精度回归；未完成整项 M45-C01、资源预算或持续计算。见[合同](docs/benchmarks/m45-measurement-tag-grouping.md)。
 - **M42 measurement 排序预算（2026-10-03）**：显式累计物化准入扩展到直接 raw SELECT 多键排序，候选、辅助键和分页输出共用根预算，支持未投影标量字段；默认路径与整体 heap/首行、固定硬件门禁独立保留。见[合同](docs/benchmarks/m42-measurement-order-bounds.md)。
 - **M43 多分区与任务接线（2026-10-03）**：新增 `CdcStreamingBridgeTopology` 有界公平推进和 `FileStreamingTaskRunner` 目录身份校验/自动投递入口；真实 `--topology` 样例核对文档源、未 ACK 窗口去重及独立位点重开。远程拓扑、业务事务和发布门禁继续待补。见[合同](docs/m43-local-task-topology.md)。
 
