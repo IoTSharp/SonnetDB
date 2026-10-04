@@ -71,6 +71,12 @@ public sealed record KvOptions
     /// </summary>
     public int MaxConcurrentStateReads { get; init; } = KvDiskReadBudget.DefaultMaxConcurrentReads;
 
+    /// <summary>物理 KV 读等待队列的最大长度，默认 64；达到上限立即返回有界过载错误。</summary>
+    public int MaxQueuedStateReads { get; init; } = KvDiskReadBudget.DefaultMaxQueuedReads;
+
+    /// <summary>物理 KV 请求读等待许可的最长毫秒数，默认 5 秒；必须非负且有限。</summary>
+    public int StateReadWaitTimeoutMilliseconds { get; init; } = KvDiskReadBudget.DefaultReadWaitTimeoutMilliseconds;
+
     /// <summary>单次前缀扫描的默认最大返回行数。</summary>
     public int DefaultScanLimit { get; init; } = 1024;
 

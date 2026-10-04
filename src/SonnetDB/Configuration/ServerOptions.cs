@@ -153,6 +153,21 @@ public sealed class KvStorageOptions
     public int MaxSnapshotOverlayEntries { get; set; } = 100_000;
 
     /// <summary>
+    /// 同一数据库请求侧物理 KV 读并发数，默认 8；另保留一个 checkpoint 维护读槽。
+    /// </summary>
+    public int MaxConcurrentStateReads { get; set; } = 8;
+
+    /// <summary>
+    /// 同一数据库物理 KV 读等待队列最大长度，默认 64；超出后请求快速失败，避免无界堆积。
+    /// </summary>
+    public int MaxQueuedStateReads { get; set; } = 64;
+
+    /// <summary>
+    /// 单次请求读等待许可的最长毫秒数，默认 5 秒；绑定限制在 1 到 120,000 毫秒。
+    /// </summary>
+    public int StateReadWaitTimeoutMilliseconds { get; set; } = 5000;
+
+    /// <summary>
     /// 索引重建允许的 WAL 最大字节数，默认与日常预算一致为 256 MiB；
     /// 服务端绑定会把非正数修正为 1 MiB，避免部署配置意外取消恢复上限。
     /// </summary>

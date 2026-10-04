@@ -414,7 +414,10 @@ public sealed partial class KvKeyspace : IDisposable
         try
         {
             ownedDiskReadBudget = diskReadBudget is null
-                ? new KvDiskReadBudget(options.MaxConcurrentStateReads)
+                ? new KvDiskReadBudget(
+                    options.MaxConcurrentStateReads,
+                    options.MaxQueuedStateReads,
+                    TimeSpan.FromMilliseconds(options.StateReadWaitTimeoutMilliseconds))
                 : null;
             return OpenWithLifecycleLease(
                 name,
@@ -3082,7 +3085,6 @@ public sealed partial class KvKeyspace : IDisposable
             : SnapshotPath(RootDirectory, checkpoint.Sequence);
         KvDiskState? openedState = null;
         KvDiskState? oldDiskState = null;
-        bool stateSaved = false;
         bool published = false;
         try
         {
@@ -3095,7 +3097,8 @@ public sealed partial class KvKeyspace : IDisposable
                 checkpoint.DiskState,
                 prefix: [],
                 afterKey: null,
-                readDiskValues: true);
+                readDiskValues: true,
+                maintenanceRead: true);
             if (checkpoint.IsSegment)
             {
                 KvStateFile.SaveSegment(
@@ -3114,7 +3117,6 @@ public sealed partial class KvKeyspace : IDisposable
                     count,
                     checkpoint.Generation);
             }
-            stateSaved = true;
             CheckpointTestHook?.Invoke(KvCheckpointPhase.BeforeStateDirectoryFsync);
             SonnetDB.Wal.DirectoryFsync.FlushRequired(
                 Path.GetDirectoryName(statePath) ?? string.Empty);
@@ -3198,7 +3200,9 @@ public sealed partial class KvKeyspace : IDisposable
             {
                 if (invalidated && checkpointOwnsOldDisk)
                     checkpoint.DiskState?.Dispose();
-                if (stateSaved)
+                // 保存枚举中途超时或取消时，也可能已写出部分文件；
+                // 未发布的 checkpoint 文件必须删除，避免恢复时误选为最新快照。
+                if (File.Exists(statePath))
                 {
                     File.Delete(statePath);
                     SonnetDB.Wal.DirectoryFsync.FlushBestEffort(
@@ -4162,7 +4166,8 @@ public sealed partial class KvKeyspace : IDisposable
         byte[]? startInclusive = null,
         byte[]? endExclusive = null,
         CancellationToken cancellationToken = default,
-        Action? candidateVisited = null)
+        Action? candidateVisited = null,
+        bool maintenanceRead = false)
     {
         if (secondary is null)
         {
@@ -4175,7 +4180,8 @@ public sealed partial class KvKeyspace : IDisposable
                 startInclusive,
                 endExclusive,
                 cancellationToken,
-                candidateVisited))
+                candidateVisited,
+                maintenanceRead))
             {
                 yield return pair;
             }
@@ -4191,7 +4197,8 @@ public sealed partial class KvKeyspace : IDisposable
             startInclusive,
             endExclusive,
             cancellationToken,
-            candidateVisited);
+            candidateVisited,
+            maintenanceRead);
         foreach (var pair in MergeOverlayAndLowerLayer(
             primary,
             lowerLayer,
@@ -4268,7 +4275,8 @@ public sealed partial class KvKeyspace : IDisposable
         byte[]? startInclusive,
         byte[]? endExclusive,
         CancellationToken cancellationToken,
-        Action? candidateVisited)
+        Action? candidateVisited,
+        bool maintenanceRead)
     {
         using var memory = EnumerateOrderedOverlay(overlay, prefix, startInclusive, endExclusive, afterKey, cancellationToken, candidateVisited).GetEnumerator();
         using var disk = ReadDiskCandidates().GetEnumerator();
@@ -4303,7 +4311,7 @@ public sealed partial class KvKeyspace : IDisposable
                 {
                     yield return new KeyValuePair<byte[], KvValueEntry>(
                         diskEntry.Key,
-                        readDiskValues ? diskState!.Read(diskEntry, cancellationToken) : diskEntry.ToValueEntry());
+                        readDiskValues ? diskState!.Read(diskEntry, cancellationToken, maintenanceRead) : diskEntry.ToValueEntry());
                 }
                 hasDisk = disk.MoveNext();
                 continue;
@@ -4330,7 +4338,7 @@ public sealed partial class KvKeyspace : IDisposable
             {
                 yield return new KeyValuePair<byte[], KvValueEntry>(
                     currentDisk.Key,
-                    readDiskValues ? diskState!.Read(currentDisk, cancellationToken) : currentDisk.ToValueEntry());
+                    readDiskValues ? diskState!.Read(currentDisk, cancellationToken, maintenanceRead) : currentDisk.ToValueEntry());
             }
             hasDisk = disk.MoveNext();
         }

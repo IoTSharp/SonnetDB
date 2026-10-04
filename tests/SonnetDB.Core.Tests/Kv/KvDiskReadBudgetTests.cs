@@ -1,3 +1,4 @@
+using SonnetDB.Exceptions;
 using SonnetDB.Kv;
 using Xunit;
 
@@ -130,6 +131,142 @@ public sealed class KvDiskReadBudgetTests : IDisposable
             new KvOptions { MaxConcurrentStateReads = 1 });
     }
 
+    /// <summary>验证满队列立即拒绝，并且不会破坏现有读取租约。</summary>
+    [Fact]
+    public async Task Acquire_WhenQueueFull_RejectsAndPreservesExistingWaiter()
+    {
+        using var budget = new KvDiskReadBudget(1, maxQueuedReads: 1);
+        using var first = budget.Acquire(CancellationToken.None);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Task<KvDiskReadBudget.ReadLease> waiting = Task.Run(() => budget.Acquire(cancellation.Token));
+        try
+        {
+            await WaitUntilAsync(() => budget.QueuedReads == 1, TimeSpan.FromSeconds(3));
+            Assert.Throws<KvReadOverloadedException>(() => budget.Acquire(CancellationToken.None));
+            Assert.Equal(1, budget.RejectedReads);
+            Assert.Equal(1, budget.QueuedReads);
+        }
+        finally
+        {
+            first.Dispose();
+            using var resumed = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        Assert.Equal(0, budget.QueuedReads);
+        Assert.Equal(0, budget.ActiveReads);
+    }
+
+    /// <summary>验证超时释放队列名额，调用方取消保留单独语义。</summary>
+    [Fact]
+    public async Task Acquire_WhenWaitTimesOut_RejectsAndReleasesQueueSlot()
+    {
+        using var budget = new KvDiskReadBudget(1, 1, TimeSpan.FromMilliseconds(30));
+        using var first = budget.Acquire(CancellationToken.None);
+        await Assert.ThrowsAsync<KvReadOverloadedException>(() => Task.Run(
+            () => budget.Acquire(CancellationToken.None)).WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.Equal(1, budget.TimedOutWaits);
+        Assert.Equal(0, budget.QueuedReads);
+        Assert.Equal(0, budget.CanceledWaits);
+        first.Dispose();
+        using var resumed = budget.Acquire(CancellationToken.None);
+    }
+
+    /// <summary>验证关闭时现有等待者可以完成，但没有 state 引用的新请求不能继续进入。</summary>
+    [Fact]
+    public async Task Dispose_WhenReadQueued_PreservesLeaseUntilWaiterCompletes()
+    {
+        using var budget = new KvDiskReadBudget(1);
+        using var first = budget.Acquire(CancellationToken.None);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Task<KvDiskReadBudget.ReadLease> waiting = Task.Run(() => budget.Acquire(cancellation.Token));
+        await WaitUntilAsync(() => budget.QueuedReads == 1, TimeSpan.FromSeconds(3));
+        budget.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => budget.Acquire(CancellationToken.None));
+        first.Dispose();
+        using var resumed = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        resumed.Dispose();
+        resumed.Dispose();
+        Assert.Equal(0, budget.ActiveReads);
+        Assert.Equal(0, budget.QueuedReads);
+        Assert.Throws<ObjectDisposedException>(() => budget.Acquire(CancellationToken.None));
+    }
+
+    /// <summary>验证请求槽完全占满且不允许排队时，checkpoint 仍能合并旧文件。</summary>
+    [Fact]
+    public async Task CreateSnapshot_WhenRequestBudgetFull_UsesReservedMaintenanceRead()
+    {
+        using var budget = new KvDiskReadBudget(1, maxQueuedReads: 0);
+        using var keyspace = KvKeyspace.Open("checkpoint", Path.Combine(_root, "checkpoint"),
+            KvOptions.Default, budget);
+        keyspace.Set("old", new byte[] { 1 });
+        keyspace.CreateSnapshot();
+        keyspace.Set("new", new byte[] { 2 });
+        using var held = budget.Acquire(CancellationToken.None);
+        await Task.Run(() => keyspace.CreateSnapshot()).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(keyspace.LastCheckpointException);
+        Assert.Equal(0, budget.RejectedReads);
+        Assert.Equal(0, budget.MaintenanceActiveReads);
+        held.Dispose();
+        Assert.Equal(new byte[] { 1 }, keyspace.Get("old"));
+        Assert.Equal(new byte[] { 2 }, keyspace.Get("new"));
+    }
+
+    /// <summary>验证维护超时不损坏旧快照、WAL 或永久写状态，释放后可重试恢复。</summary>
+    [Fact]
+    public async Task CreateSnapshot_WhenMaintenanceWaitTimesOut_PreservesDataAndRecovers()
+    {
+        using var budget = new KvDiskReadBudget(1, maxQueuedReads: 0,
+            maintenanceReadWaitTimeout: TimeSpan.FromMilliseconds(30));
+        using var keyspace = KvKeyspace.Open("maintenance-timeout", Path.Combine(_root, "maintenance-timeout"),
+            KvOptions.Default, budget);
+        keyspace.Set("old", new byte[] { 1 });
+        keyspace.CreateSnapshot();
+        keyspace.Set("new", new byte[] { 2 });
+        using var maintenance = budget.Acquire(CancellationToken.None, maintenanceRead: true);
+        await Assert.ThrowsAsync<TimeoutException>(() => Task.Run(
+            () => keyspace.CreateSnapshot()).WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsType<TimeoutException>(keyspace.LastCheckpointException);
+        Assert.False(File.Exists(KvKeyspace.SnapshotPath(keyspace.RootDirectory, keyspace.LastSequence)));
+        Assert.Equal(0, budget.RejectedReads);
+        Assert.Equal(0, budget.TimedOutWaits);
+        Assert.Equal(new byte[] { 1 }, keyspace.Get("old"));
+        Assert.Equal(new byte[] { 2 }, keyspace.Get("new"));
+        maintenance.Dispose();
+        keyspace.Set("after-timeout", new byte[] { 3 });
+        keyspace.CreateSnapshot();
+        // 先恢复已冻结的 checkpoint，再保存超时后新增的覆盖层。
+        long sequence = keyspace.CreateSnapshot();
+        Assert.Null(keyspace.LastCheckpointException);
+        Assert.Equal(new byte[] { 3 }, keyspace.Get("after-timeout"));
+        using var restored = KvStateFile.OpenDiskState(
+            KvKeyspace.SnapshotPath(keyspace.RootDirectory, sequence));
+        restored.ValidateAllEntries();
+    }
+
+    /// <summary>验证所有者关闭后已有 state 引用继续保留快照读取能力。</summary>
+    [Fact]
+    public void Dispose_WhenStateRetained_AllowsReadUntilLastReferenceReleased()
+    {
+        using var budget = new KvDiskReadBudget(1);
+        budget.AddStateReference();
+        budget.Dispose();
+        using var retainedRead = budget.Acquire(CancellationToken.None);
+        budget.ReleaseStateReference();
+        Assert.Throws<ObjectDisposedException>(() => budget.Acquire(CancellationToken.None));
+        retainedRead.Dispose();
+        Assert.Equal(0, budget.ActiveReads);
+    }
+
+    /// <summary>验证请求预算参数拒绝非法或无限的等待配置。</summary>
+    [Theory]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, -1, 1)]
+    [InlineData(1, 1, -1)]
+    [InlineData(1, 1, 2147483648d)]
+    public void Constructor_WithInvalidBounds_Throws(int concurrency, int queued, double milliseconds)
+        => Assert.Throws<ArgumentOutOfRangeException>(() => new KvDiskReadBudget(
+            concurrency, queued, TimeSpan.FromMilliseconds(milliseconds)));
+
+    /// <summary>有界检查异步调度条件，避免测试留下无限等待。</summary>
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         int attempts = Math.Max(1, (int)Math.Ceiling(timeout.TotalMilliseconds / 10));

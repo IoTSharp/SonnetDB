@@ -683,6 +683,8 @@ internal static class SqlEndpointHandler
         string operation)
     {
         SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
+        if (detail.Code == KvReadOverloadedException.Code)
+            transportCode = KvReadOverloadedException.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
     }
 
@@ -700,12 +702,15 @@ internal static class SqlEndpointHandler
                 "forbidden" or RoutineErrorCodes.Forbidden => StatusCodes.Status403Forbidden,
                 "db_not_found" => StatusCodes.Status404NotFound,
                 "unauthorized" => StatusCodes.Status401Unauthorized,
+                KvReadOverloadedException.Code => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,
                 "modbus_write_connection_error" => StatusCodes.Status502BadGateway,
                 _ => StatusCodes.Status400BadRequest,
             };
             context.Response.ContentType = "application/json; charset=utf-8";
+            if (code == KvReadOverloadedException.Code)
+                context.Response.Headers.RetryAfter = "1";
             var err = new ErrorResponse(
                 code,
                 message,

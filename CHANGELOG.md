@@ -9,6 +9,8 @@
 
 ### Added
 
+- 新增每数据库物理 KV 请求读的服务端并发、队列容量与有限等待配置，以及活跃、排队和拒绝指标。默认并发 8、排队 64、等待 5 秒；过载通过 `kv_read_overloaded` 诊断，未开始响应的 REST 请求返回 503 和一秒重试提示。checkpoint 独立保留一个维护读槽和 120 秒等待时限，保存中途失败时删除未发布的部分 state 文件；CRC 校验前归还 I/O 许可。
+
 - **M42 measurement 排序预算（2026-10-03）**：显式累计物化准入扩展到直接 raw SELECT 多键排序，候选、辅助键和分页输出共用根预算，支持未投影标量字段；默认路径与整体 heap/首行、固定硬件门禁独立保留。见[合同](docs/benchmarks/m42-measurement-order-bounds.md)。
 - **M43 多分区与任务接线（2026-10-03）**：新增 `CdcStreamingBridgeTopology` 有界公平推进和 `FileStreamingTaskRunner` 目录身份校验/自动投递入口；真实 `--topology` 样例核对文档源、未 ACK 窗口去重及独立位点重开。远程拓扑、业务事务和发布门禁继续待补。见[合同](docs/m43-local-task-topology.md)。
 

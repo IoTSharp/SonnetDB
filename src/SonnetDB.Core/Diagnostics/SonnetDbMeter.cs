@@ -128,6 +128,22 @@ public static class SonnetDbMeter
         "sonnetdb.kv.state.read.wait.duration", unit: "ms",
         description: "Time spent waiting for an embedded KV state read permit.");
 
+    /// <summary>当前活跃 KV 物理读；kind 仅取 request 或 maintenance。</summary>
+    internal static readonly UpDownCounter<long> KvStateReadActive = Meter.CreateUpDownCounter<long>(
+        "sonnetdb.kv.state.read.active", unit: "{read}");
+
+    /// <summary>当前等待物理读许可的数量；kind 仅取 request 或 maintenance。</summary>
+    internal static readonly UpDownCounter<long> KvStateReadQueued = Meter.CreateUpDownCounter<long>(
+        "sonnetdb.kv.state.read.queued", unit: "{read}");
+
+    /// <summary>队列满或等待超时的拒绝次数；reason 使用固定低基数值。</summary>
+    internal static readonly Counter<long> KvStateReadRejected = Meter.CreateCounter<long>(
+        "sonnetdb.kv.state.read.rejected", unit: "{read}");
+
+    /// <summary>维护槽超过独立等待时限的次数；不计作请求过载拒绝。</summary>
+    internal static readonly Counter<long> KvStateReadMaintenanceTimeouts = Meter.CreateCounter<long>(
+        "sonnetdb.kv.state.read.maintenance.timeouts", unit: "{read}");
+
     /// <summary>仅在 KV state 读取耗时直方图启用时取得计时起点。</summary>
     internal static long StartKvStateReadTiming()
         => KvStateReadDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
