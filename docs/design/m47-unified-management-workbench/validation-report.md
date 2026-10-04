@@ -80,6 +80,12 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --test web/tests/navigation-compat.test.mjs`：5/5 通过；覆盖 `/admin`、`/admin/app`、Studio、databases、trajectory-map 的 legacy redirect，现有 route names 与管理员 meta，7 项 baseNavigation、5 项 adminNavigation、secondaryNavigation 的管理员条件、设置/关于入口，setup/auth/app/admin guards，以及 trajectory query 到共享 SQL 工作区的兼容映射。
 - 该预检只证明 M47 生产迁移前的 legacy 兼容基线；当前 README/navigation/validation 仍为 `REVIEW_DRAFT`，不代表七模块生产导航、视觉像素、真实权限、三宿主或发布验收已完成。未启动服务、未安装依赖。
 
+## WB-04B Explorer → SQL 深链接兼容预检（2026-10-05）
+
+- 新增 `web/tests/explorer-routing-compat.test.mjs`，只读检查 `web/src/composables/useSqlExplorerRouting.ts`，未修改生产源码、路由或依赖。
+- `node --test web/tests/explorer-routing-compat.test.mjs`：5/5 通过；覆盖 measurement/table/document/kv/mq/vector/fulltext/bucket/graph 的 `name: sql` + `tool/model/node` 深链接、先选择 database、index/backup 的 `{model,node}` legacy fallback、Open-in-SQL 的 measurement/table/document/index/vector/fulltext/backup 分支、KV/MQ/Bucket 当前排除，以及 route-only 不自动执行。
+- 与本轮其它静态合同/兼容测试联合为 21/21 通过（管理核心 6、Explorer 5、导航 5、本切片 5）。该证据只说明源码兼容基线，不代表 Vue 运行时、真实路由、Server、权限、三宿主或生产迁移已完成。
+
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 
 ## MQ 导航更正（2026-10-05）
