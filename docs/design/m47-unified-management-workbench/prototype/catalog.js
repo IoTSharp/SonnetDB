@@ -18,7 +18,21 @@ window.M47_CATALOG = {
           columns: ['名称', '访问权限', '主要资源', 'Segment', '操作'], rows: [['factory', '管理', 'Telemetry · Assets · Manuals · DeviceEvents', '128', '打开'], ['analytics', '查询', 'DailySummary · FeatureVectors', '64', '打开'], ['sandbox', '查询', 'Examples · Sessions', '12', '打开']],
           fields: [{ label: '名称筛选', value: '', kind: 'input' }, { label: '权限', value: '全部', kind: 'select' }], tabs: ['可访问数据库', '最近访问'],
           inspector: [{ label: '选中数据库', value: 'factory' }, { label: '名称解析', value: '保留原始拼写' }, { label: '危险操作', value: '删除前预览资源与影响范围' }],
-          empty: { title: '暂无可访问数据库', body: '可请求授权，管理员可新建数据库。', action: '查看当前权限' }
+          empty: { title: '暂无可访问数据库', body: '可请求授权，管理员可新建数据库。', action: '查看当前权限' },
+          capabilities: [
+            { id: 'database-catalog-read', status: 'existing', label: '可访问数据库与九模型资源摘要', note: '目录结果按实例权限返回；资源树在选中数据库后保持统一的九模型上下文。原型数据为静态示例。' },
+            { id: 'database-create-preview', status: 'extension', label: '新建数据库草稿与影响预览', note: '仅管理员可进入受控流程；SQL 名称保留创建拼写并按统一 binder 检查冲突。' },
+            { id: 'database-delete-preview', status: 'extension', label: '删除前资源影响预览', note: '必须输入精确名称并显示九模型对象与不可逆影响；客户端禁用不代表已授权。' },
+            { id: 'database-mq-context', status: 'existing', label: 'SonnetMQ 数据库逻辑上下文', note: 'Topic identity 始终包含 database + topic；物理持久化为实例共享 .system/mq，当前单库备份不含该 Store。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示可访问数据库、权限和九模型资源摘要；选中后保留数据库上下文。', primary: '打开选中数据库', fields: ['名称', '权限', '资源', 'Segment', '选中数据库'] },
+            empty: { label: '空目录', status: 'existing', summary: '没有可访问数据库时保留实例连接并说明请求授权或管理员新建路径。', primary: '查看当前权限', preserve: ['连接', '名称筛选', '权限'] },
+            error: { label: '目录读取错误', status: 'extension', summary: '只替换数据库表，保留筛选与当前连接；不把旧快照当最新目录。', primary: '检查并重试', preserve: ['连接', '名称筛选', '权限'] },
+            permission: { label: '无目录权限', status: 'existing', summary: '隐藏数据库与资源载荷，显示实例/数据库目录所需权限。', primary: '查看权限要求', preserve: ['连接', '名称筛选'] },
+            readonly: { label: '只读', status: 'existing', summary: '可打开数据库和查看九模型资源；新建、删除与修改入口显示禁用原因。', primary: '打开选中数据库', blocked: ['新建数据库', '删除数据库', '修改目录'] },
+            longContent: { label: '长目录', status: 'extension', summary: '数据库列表与资源摘要按页和字节预算呈现，保留名称原始拼写与未返回标记。', primary: '查看下一页', limits: ['分页/资源摘要上限以服务端能力为准', '不虚构全量数据库数量或 continuation'] }
+          }
         },
         {
           id: 'connections', title: '连接管理', tabLabel: '连接', type: 'connection', scope: 'host', status: 'extension', existingRoute: '/admin/app/sql',
@@ -26,7 +40,22 @@ window.M47_CATALOG = {
           columns: ['连接名称', '地址', '宿主', '凭据', '状态'], rows: [['Factory / Local', 'http://127.0.0.1:5080', 'Web / Studio', '当前会话', '已选择 · 示例'], ['Factory Readonly · 示例', 'https://db.example.internal', 'Web / VS Code', '宿主安全存储', '未测试'], ['Managed Local', 'http://127.0.0.1:5080', 'Studio', 'Windows 凭据管理器', '仅 Studio 可用']],
           fields: [{ label: '名称', value: 'Factory / Local', kind: 'input' }, { label: '服务地址', value: 'http://127.0.0.1:5080', kind: 'input' }, { label: '默认数据库', value: 'factory', kind: 'select' }, { label: '认证方式', value: 'Token', kind: 'select' }],
           tabs: ['连接库', '连接测试', '凭据说明'], inspector: [{ label: '测试状态', value: '原型未执行网络请求' }, { label: '切换连接', value: '先保留当前草稿与工作区' }, { label: '密钥', value: '不进入共享工作区文件' }],
-          empty: { title: '还没有保存的连接', body: '输入服务地址并选择凭据来源，然后测试连接。', action: '添加连接' }
+          empty: { title: '还没有保存的连接', body: '输入服务地址并选择凭据来源，然后测试连接。', action: '添加连接' },
+          capabilities: [
+            { id: 'connection-profile', status: 'existing', label: '连接 profile 与宿主安全存储边界', note: '保存名称、地址、默认数据库和认证来源；Token 只进入当前会话或宿主安全存储，不进入共享工作区。' },
+            { id: 'connection-health-check', status: 'extension', label: '服务健康检查', note: '单独报告 URL/传输可达性与服务健康；原型不发网络请求，不能返回测试成功。' },
+            { id: 'connection-auth-check', status: 'extension', label: '认证检查', note: '认证失败与服务不可达分开呈现；凭据明文不进入结果或导出。' },
+            { id: 'connection-object-permissions', status: 'planned', label: '数据库与对象权限检查', note: '需要真实 capabilities 与数据库授权合同；未知权限明确拒绝，不从 profile 推断对象可读。' },
+            { id: 'connection-host-adapter', status: 'extension', label: 'Web / Studio / VS Code 宿主适配', note: '宿主能力和凭据来源分别显示，切换连接先保留当前工作区草稿。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示已保存 profile 与最近测试时间；健康、认证、对象权限三个结果分开。', primary: '测试连接', fields: ['名称', 'URL', '默认数据库', '认证来源', '宿主', '测试时间'] },
+            empty: { label: '空连接库', status: 'extension', summary: '没有保存连接时只显示添加 profile 的表单，保存不等于测试通过。', primary: '添加连接', preserve: ['当前宿主', '默认数据库草稿'] },
+            error: { label: '连接测试错误', status: 'extension', summary: '保留 profile 草稿，分别说明 URL/健康、认证或能力检查失败；不清除其它工作区。', primary: '查看测试步骤', preserve: ['名称', '服务地址', '默认数据库', '认证方式'], blocked: ['标记为已验证'] },
+            permission: { label: '对象权限未知/不足', status: 'planned', summary: '隐藏数据库与对象载荷，显示需要的身份、数据库和对象权限；不能把认证成功当作对象授权。', primary: '查看权限要求', preserve: ['连接 profile', '目标数据库'], blocked: ['打开对象数据'] },
+            readonly: { label: '只读连接', status: 'extension', summary: '可查看 profile、测试结果和权限说明；保存 Token、修改 profile 与切换默认数据库按宿主策略禁用。', primary: '查看连接状态', blocked: ['保存凭据', '修改默认数据库'] },
+            longContent: { label: '长能力清单', status: 'extension', summary: '服务 capabilities 与诊断详情按折叠和字节预算展示，保留未知项与最后检查时间。', primary: '查看能力摘要', limits: ['能力列表与诊断载荷按宿主/服务预算截断', '不把截断列表解释为完整支持矩阵'] }
+          }
         },
         {
           id: 'recent', title: '最近工作区', tabLabel: '最近工作区', type: 'table', scope: 'host', status: 'planned',
@@ -63,19 +92,48 @@ window.M47_CATALOG = {
         },
         {
           id: 'notebook', title: 'SQL Notebook', tabLabel: '异常排查', type: 'notebook', scope: 'database', status: 'planned',
-          intro: '把说明、SQL 单元和结果快照组织成可复核的排查文档。Notebook 为 M47 规划。', primary: '运行当前单元',
+          intro: '把说明、SQL 单元和结果快照组织成可复核的排查文档。Notebook 为 M47 规划；当前原型只预览手动单元边界，不调用后端。', primary: '预览当前单元',
           columns: ['单元', '类型', '内容', '状态'], rows: [['01', '说明', '核对 Pump-01 的温度与维护记录', '已保存 · 示例'], ['02', 'SQL', 'SELECT … FROM Telemetry …', '未执行'], ['03', 'SQL', 'SELECT … FROM Assets …', '未执行'], ['04', '说明', '记录结论与证据边界', '草稿']],
-          fields: [{ label: 'Notebook 名称', value: '设备异常排查', kind: 'input' }, { label: '数据库', value: 'factory', kind: 'select' }], tabs: ['单元', '大纲', '版本与导出'],
+          fields: [{ label: 'Notebook 名称', value: '设备异常排查', kind: 'input' }, { label: '数据库', value: 'factory', kind: 'select' }, { label: '当前单元', value: '02 · SQL', kind: 'select' }, { label: '执行状态', value: '规划 · 未执行', kind: 'select' }], tabs: ['单元', '大纲', '版本与导出'],
           inspector: [{ label: '当前单元', value: '02 · SQL' }, { label: '执行范围', value: '单元内 SQL，仅手动执行' }, { label: '可提交资产', value: '不含密钥与生产数据快照' }],
-          empty: { title: '从一段说明开始', body: '添加说明或 SQL 单元，保存排查过程。', action: '添加 SQL 单元' }
+          empty: { title: '从一段说明开始', body: '添加说明或 SQL 单元，保存排查过程。', action: '添加 SQL 单元' },
+          capabilities: [
+            { id: 'notebook-draft', status: 'planned', label: '说明与 SQL 单元草稿', note: 'Notebook 入口和统一保存合同尚未提供；原型仅展示单元组织和草稿边界。' },
+            { id: 'notebook-manual-cell', status: 'planned', label: '手动运行当前 SQL 单元', note: '未来仅允许用户显式运行当前单元；本原型拒绝调用后端、自动运行和后台重放。' },
+            { id: 'notebook-result-snapshot', status: 'planned', label: '有界结果快照', note: '结果快照需用户显式选择并带数据库、预算和采样时间；不默认保存生产数据。' },
+            { id: 'notebook-export', status: 'planned', label: '脱敏导出', note: '导出合同待确认，始终排除凭据与未选择的结果载荷。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'planned', summary: '展示说明与 SQL 单元顺序、当前单元和草稿状态；执行仍是规划能力。', primary: '预览当前单元', fields: ['Notebook 名称', '数据库', '当前单元', '单元类型', '输入', '执行状态', '结果快照', '保存版本'], blocked: ['自动执行', '全部运行', '提交写操作'] },
+            empty: { label: '空 Notebook', status: 'planned', summary: '没有单元时只创建本地草稿，不建立后端 Notebook 或执行请求。', primary: '添加说明或 SQL 单元', preserve: ['Notebook 名称', '数据库'] },
+            error: { label: '规划错误', status: 'planned', summary: '显示合同缺口或单元校验问题，保留文本和草稿；原型不伪造服务错误。', primary: '查看执行边界', preserve: ['当前单元输入', 'Notebook 草稿'], blocked: ['重试后端调用'] },
+            permission: { label: '无数据库权限', status: 'planned', summary: '隐藏结果载荷并说明数据库 Read/Write 权限；规划页不会通过 UI 绕过授权。', primary: '查看数据库权限', preserve: ['数据库', 'Notebook 草稿'], blocked: ['运行 SQL 单元'] },
+            readonly: { label: '只读', status: 'planned', summary: '可编辑说明、查看草稿和导出脱敏文档；单元执行、写入和自动重放保持禁用。', primary: '导出草稿', blocked: ['运行当前单元', '全部运行', '写入数据库'] },
+            longContent: { label: '长 Notebook', status: 'planned', summary: '单元文本和快照按单元/字节预算折叠，显示未返回全部；不自动拉取结果。', primary: '查看快照预算', limits: ['单元与快照预算待真实合同确认', '不虚构 continuation、任务 ID 或后台进度'] }
+          }
         },
         {
           id: 'history', title: '执行历史', tabLabel: '执行历史', type: 'table', scope: 'host', status: 'extension', existingRoute: '/admin/app/sql',
           intro: '复用现有 History Drawer，按连接、数据库和模型找回查询上下文。', primary: '恢复输入',
           columns: ['时间', '数据库 / 对象', '动作', '状态', '耗时', '结果'], rows: [['09:42:16', 'factory / Telemetry', 'SELECT', '成功 · 示例', '24 ms', '4 行'], ['09:37:08', 'factory / Assets', '写入预览', '待确认 · 示例', '—', '2 行草稿'], ['09:31:54', 'factory / Manuals', '全文查询', '截断 · 示例', '18 ms', '前 25 条']],
-          fields: [{ label: '动作', value: '全部', kind: 'select' }, { label: '状态', value: '全部', kind: 'select' }, { label: '时间范围', value: '今天', kind: 'select' }], tabs: ['查询', '模型操作', '审批记录'],
+          fields: [{ label: '连接', value: 'Factory / Local', kind: 'select' }, { label: '数据库', value: 'factory', kind: 'select' }, { label: '模型', value: '全部', kind: 'select' }, { label: '动作', value: '全部', kind: 'select' }, { label: '状态', value: '全部', kind: 'select' }, { label: '时间范围', value: '今天', kind: 'select' }], tabs: ['查询', '模型操作', '审批记录'],
           inspector: [{ label: '恢复方式', value: '仅恢复输入，不自动执行' }, { label: '历史来源', value: '本地工作台历史' }, { label: '审计区别', value: '服务端审计请到治理' }],
-          empty: { title: '还没有执行历史', body: '手动执行查询后，这里保存输入、状态与耗时。', action: '打开 SQL 工作区' }
+          empty: { title: '还没有执行历史', body: '手动执行查询后，这里保存输入、状态与耗时。', action: '打开 SQL 工作区' },
+          capabilities: [
+            { id: 'history-local', status: 'existing', label: '本地工作台执行历史', note: '保存连接、数据库、输入、状态、耗时和返回/影响数量；当前记录为静态示例。' },
+            { id: 'history-input-restore', status: 'existing', label: '恢复输入与过滤器', note: '恢复只填回 SQL/模型输入和上下文，绝不自动执行查询或写操作。' },
+            { id: 'history-model-filter', status: 'extension', label: '按九模型与数据库筛选', note: 'MQ 按 database + topic 逻辑身份过滤；实例共享 .system/mq 物理边界单独说明。' },
+            { id: 'history-server-audit', status: 'extension', label: '服务端审计跳转', note: '本地 History 与服务端 Audit 分开标记；只有真实审计 API 返回的记录才能显示为服务器审计。' },
+            { id: 'history-write-replay', status: 'planned', label: '写操作恢复/重放', note: '当前明确拒绝自动重放；恢复写草稿必须重新预览、核对权限和获取新的审批。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '按连接、数据库、模型、动作和时间显示本地历史，并在 Inspector 标记来源。', primary: '恢复输入', fields: ['时间', '对象', '动作', '状态', '耗时', '返回/影响数量', '连接', '数据库'] },
+            empty: { label: '空历史', status: 'existing', summary: '没有本地记录时保留筛选条件并引导打开工作区；不把服务端审计当作本地历史。', primary: '打开 SQL 工作区', preserve: ['连接', '动作', '状态', '时间范围'] },
+            error: { label: '历史读取错误', status: 'extension', summary: '只替换历史列表，保留筛选和当前工作区；恢复动作等待列表有效。', primary: '检查并重试', preserve: ['筛选条件', '当前页签'], blocked: ['恢复输入'] },
+            permission: { label: '审计权限不足', status: 'extension', summary: '隐藏 SQL、Payload 和对象细节，仅显示可见元数据与所需审计权限。', primary: '查看权限要求', preserve: ['连接', '数据库', '时间范围'], blocked: ['查看结果载荷'] },
+            readonly: { label: '只读', status: 'existing', summary: '可筛选、查看和恢复输入；恢复后仍需用户手动执行，写审批与重放禁用。', primary: '恢复输入', blocked: ['自动执行', '重放写操作', '修改历史'] },
+            longContent: { label: '长历史', status: 'extension', summary: '历史按记录数/字节预算分页，长 SQL 与 Payload 折叠并标记未返回全部。', primary: '查看截断说明', limits: ['记录数、SQL 字节和 Payload 预算以真实 API 为准', '不虚构全量历史或可恢复任务 ID'] }
+          }
         }
       ]
     },
@@ -85,9 +143,24 @@ window.M47_CATALOG = {
           id: 'metrics', title: '性能指标', tabLabel: '性能指标', type: 'overview', scope: 'instance', status: 'existing', existingRoute: '/admin/app/monitoring',
           intro: '复用 Prometheus 指标与采样窗口；未启用指标时展示配置原因。原型数值为示例。', primary: '刷新指标',
           columns: ['数据库', 'MemTable', '数据点', 'Segment', '待 Flush'], rows: [['factory', '24.8 MB', '82,430', '128', '1'], ['analytics', '8.2 MB', '24,100', '64', '0'], ['sandbox', '1.1 MB', '2,050', '12', '0']],
-          fields: [{ label: '写入速率', value: '2.4k 点/秒 · 示例' }, { label: '查询 P95', value: '24 ms · 示例' }, { label: 'WAL fsync P95', value: '3.2 ms · 示例' }, { label: '窗口', value: '最近 10 分钟' }],
+          fields: [{ label: '写入速率', value: '2.4k 点/秒 · 示例' }, { label: '查询 P95', value: '24 ms · 示例' }, { label: 'WAL fsync P95', value: '3.2 ms · 示例' }, { label: '窗口', value: '最近 10 分钟' }, { label: '采样来源', value: '/metrics' }, { label: '采样时间', value: '原型未采样' }, { label: '指标能力', value: '最小指标集可单独展示' }],
           tabs: ['吞吐与延迟', '内存与存储', 'AI 用量'], inspector: [{ label: '采样来源', value: '/metrics' }, { label: '采样时间', value: '原型未采样' }, { label: '能力降级', value: '最小指标集可单独展示' }],
-          empty: { title: '等待指标采样', body: '若完整指标未启用，仍可查看最小指标集及启用说明。', action: '查看采样说明' }
+          empty: { title: '等待指标采样', body: '若完整指标未启用，仍可查看最小指标集及启用说明。', action: '查看采样说明' },
+          capabilities: [
+            { id: 'metrics-sample', status: 'existing', label: 'Prometheus 指标采样', note: '沿用 /metrics 与时间窗口；页面示例数值不等于已采样证据。' },
+            { id: 'metrics-minimal', status: 'extension', label: '最小指标降级', note: '完整指标未启用时显示实际提供的最小集合与原因，不用 0 值填充。' },
+            { id: 'metrics-offline-snapshot', status: 'extension', label: '离线最后样本', note: '离线保留最后样本并明确采样时间和过期状态；不标记为当前健康。' },
+            { id: 'metrics-ai-usage', status: 'extension', label: 'AI 用量与成本来源说明', note: '真实 Provider usage 与估算值分开；示例请求/Token 数不构成质量或成本报告。' },
+            { id: 'metrics-export', status: 'existing', label: '有界指标导出', note: '导出遵循时间窗口、行/字节预算和权限；不能扩展为全量服务器诊断。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示最近有效采样的吞吐、延迟、内存与采样时间；示例数值明确标记。', primary: '刷新指标', fields: ['窗口', '写入速率', 'query P95', 'WAL fsync P95', '内存', '采样来源', '采样时间', '指标能力'] },
+            empty: { label: '无采样', status: 'existing', summary: '窗口内没有指标时显示未采样/未启用原因，不生成 0 值图。', primary: '查看采样说明', preserve: ['窗口', '指标能力', '最后样本时间'] },
+            error: { label: '采样错误', status: 'extension', summary: '保留最后有效样本并标记过期，仅替换当前刷新结果和错误原因。', primary: '检查并重试', preserve: ['窗口', '最后样本', '采样时间'], blocked: ['标记为当前健康'] },
+            permission: { label: '指标权限不足', status: 'extension', summary: '隐藏受限指标载荷，显示 /metrics 或实例观测权限要求；不以客户端禁用推断能力。', primary: '查看权限要求', preserve: ['实例范围', '窗口'], blocked: ['导出受限指标'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看、筛选与导出已授权样本；采样配置和告警写入保持禁用。', primary: '导出当前样本', blocked: ['修改采样配置', '创建告警规则'] },
+            longContent: { label: '长时间窗', status: 'extension', summary: '时间序列按点数/字节预算降采样或折叠，保留窗口、步长与未返回全部标记。', primary: '查看采样预算', limits: ['点数与字节预算由指标端点返回', '不虚构全量历史、精确 P95 或质量/成本证据'] }
+          }
         },
         {
           id: 'events', title: '实时事件', tabLabel: '实时事件', type: 'table', scope: 'instance', status: 'existing', existingRoute: '/admin/app/events',

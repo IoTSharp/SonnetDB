@@ -111,7 +111,7 @@
     ],
     connections: [
       base('connections'),
-      task('连接测试', 'notice', '当前为未测试状态。真实流程分别检查 URL、服务健康、认证和 capabilities；原型不联网，不能返回测试成功。', [f('地址', 'http://127.0.0.1:5080'), f('测试预算', '10 秒'), f('健康', '未执行'), f('认证', '未执行'), f('能力', '未执行')], [], [], '查看测试步骤', 'extension'),
+      task('连接测试', 'notice', '当前为未测试状态。真实流程分别检查 URL、服务健康、认证、数据库/对象权限和 capabilities；原型不联网，不能返回测试成功。', [f('URL', 'http://127.0.0.1:5080'), f('测试预算', '10 秒'), f('服务健康', '未执行'), f('认证', '未执行'), f('数据库/对象权限', '未执行'), f('能力', '未执行'), f('测试时间', '未执行')], [], [], '查看测试步骤', 'extension'),
       task('凭据说明', 'notice', 'Web 使用当前会话；Studio 使用 Windows 安全存储；VS Code 使用 SecretStorage。共享 profile 与工作区不包含 Token 明文。', [f('Web', '当前会话'), f('Studio', 'Windows 凭据管理器'), f('VS Code', 'SecretStorage')], [], [], '查看凭据边界', 'extension')
     ],
     recent: [
@@ -268,10 +268,10 @@
     ]
   };
 
-  // WB-02/WB-02B keeps one page-level state contract across the base task and every
+  // WB-02/WB-02B/WB-02C keeps one page-level state contract across the base task and every
   // task tab. These are review fixtures only; app.js still owns the interactive
   // global mode switch and never treats this metadata as a server capability.
-  const statefulPages = ['sql', 'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph'];
+  const statefulPages = ['sql', 'database-catalog', 'connections', 'notebook', 'history', 'metrics', 'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph'];
   statefulPages.forEach((id) => {
     const page = byId.get(id);
     if (!page) return;

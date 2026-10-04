@@ -35,6 +35,13 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 连接管理 / `connections` / 延伸 | 连接库为主列表，选中后侧边编辑；连接测试作为独立步骤，凭据说明单独页签。 | 名称、URL、默认数据库、认证来源、宿主、测试时间。保存 profile 不等于测试通过。切换连接保存工作区草稿；凭据在宿主安全存储或当前会话，不进入可共享文件。 |
 | 最近工作区 / `recent` / 规划 | 最近 / 固定 / 离线快照三个过滤页签，列表显示工作区与未提交标识，Inspector 展示恢复内容。 | 连接、数据库、对象、输入、过滤器、快照时间。主动作“恢复选中工作区”；恢复后重新校验身份/能力。Workspace Registry 尚待实现，禁止自动重放 SQL/写入。 |
 
+**WB-02C 全局目录与连接状态合同（`database-catalog`、`connections`）：** 两页保留实例/宿主范围，但选中数据库后进入九模型统一数据库上下文。MQ Topic 的 identity 始终包含 `database + topic`，逻辑作用域为 database；其物理 Store 为实例共享 `.system/mq`，当前单库备份不含该 Store。连接测试将 URL/服务健康、认证和数据库/对象权限分开报告；保存 profile 不等于测试或授权通过，凭据不进入共享工作区。
+
+| 页面 | 能力字段（状态） | 六态主动作与边界 |
+|---|---|---|
+| 数据库目录 | `database-catalog-read`（既有）读取可访问数据库与九模型摘要；`database-create-preview`、`database-delete-preview`（延伸）只提供管理员草稿和影响预览；`database-mq-context`（既有）保留 MQ 的 database + topic identity 与实例持久化说明。 | 正常“打开选中数据库”；空“查看当前权限”并保留连接/筛选；错误“检查并重试”只替换目录表；无权限隐藏数据库与资源载荷；只读允许打开与浏览、禁用新建/删除；长目录按服务端分页/字节预算，不能虚构全量数量或 continuation。 |
+| 连接管理 | `connection-profile`（既有）保存 profile 与宿主安全存储边界；`connection-health-check`、`connection-auth-check`（延伸）分别报告健康与认证；`connection-object-permissions`（规划）未知时明确拒绝；`connection-host-adapter`（延伸）区分 Web/Studio/VS Code。 | 正常“测试连接”并分别显示三类结果；空“添加连接”；错误“查看测试步骤”保留草稿且禁止标记已验证；无权限“查看权限要求”并隐藏对象数据；只读查看状态、禁用保存凭据/改默认数据库；长能力列表折叠并标记截断，不当作完整支持矩阵。 |
+
 ## 工作台：三个二级页面
 
 | 页面 / ID / 标签 | 主任务与页面结构 | 关键字段、动作与边界 |
@@ -43,6 +50,13 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | **WB-02 状态合同** | 页面能力：`existing` 的读取/Explain；`extension` 的写语句 staged preview；`planned` 的通用 continuation。专用字段为数据库、结果上限、超时预算。 | 正常主动作“执行查询”；空结果主动作“调整筛选”并保留 SQL/参数；错误主动作“检查并重试”且只替换结果面板；无权限隐藏载荷并进入权限说明；只读允许查询/Explain/导出、禁用写确认；长 SQL/结果按行与字节预算折叠，不能虚构 continuation。 |
 | SQL Notebook / `notebook` / 规划 | 标题与连接 → 说明/SQL 单元连续排布 → 当前单元结果，左侧可切大纲，右侧解释选中单元。 | 单元类型、输入、执行状态、结果快照、保存版本。先支持手动运行当前单元；“全部运行”需要中止与写审批合同后再开放。导出排除凭据，生产结果快照需显式选择。当前路由无 Notebook 入口。 |
 | 执行历史 / `history` / 延伸 | 连接/数据库/动作/状态/时间过滤 → 时间表 → SQL/操作细节 Inspector。可从工作台快捷入口打开。 | 时间、对象、动作、状态、耗时、返回/影响数量。恢复仅恢复输入；本地 History 与服务端 Audit 分开标记。复用 WorkbenchHistoryDrawer，不新增查询执行引擎。 |
+
+**WB-02C 工作台全局状态合同（`notebook`、`history`）：** 页面状态沿用外壳的正常、空、错误、无权限、只读和长内容六态；所有记录为静态设计示例。
+
+| 页面 | 能力字段（状态） | 六态主动作与边界 |
+|---|---|---|
+| SQL Notebook | `notebook-draft`、`notebook-manual-cell`、`notebook-result-snapshot`、`notebook-export` 均为规划；原型仅组织说明/SQL 单元、手动当前单元边界和脱敏导出规则。 | 正常“预览当前单元”，明确拒绝后端调用、自动执行和全部运行；空“添加说明或 SQL 单元”只建本地草稿；错误查看规划边界并保留输入；无权限隐藏结果载荷；只读可编辑说明/导出草稿但禁用执行和写入；长 Notebook 按单元/字节预算折叠，不虚构 continuation、任务 ID 或后台进度。 |
+| 执行历史 | `history-local`、`history-input-restore`（既有）保存本地输入与恢复；`history-model-filter`、`history-server-audit`（延伸）区分九模型/数据库筛选和服务端审计；`history-write-replay`（规划）明确拒绝写重放。 | 正常“恢复输入”且不自动执行；空“打开 SQL 工作区”并保留筛选；错误只替换历史列表；无权限隐藏 SQL/Payload；只读允许筛选/恢复输入、禁用重放和修改；长历史按记录/字节预算分页并标明未返回全部，不虚构全量历史或可恢复任务。 |
 
 对象页签在 SQL/Notebook/History 同一 Workspace 注册，不再单独复制一套布局。页面标题/页签、面包屑与选中 Explorer 对象必须一致；切换对象不能悄悄改变旧 SQL 页签的数据库。
 
@@ -55,6 +69,10 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 慢查询 / `slow-queries` / 延伸 | 耗时/数据库/时间筛选 → 慢查询表 → SQL Inspector / 手动 Explain 入口。 | 阈值以服务端配置为准；状态、行数与耗时直接来自已接收事件。打开 SQL 只恢复输入，不自动重新运行慢请求。复用 Events 与 SlowQueryDrawer。 |
 | 告警规则 / `alerts` / 规划 | 规则列表 → 指标/窗口/阈值表单 → 条件预览 → 通知路由说明。 | 未确认统一后端接口；规则是草稿，通知动作不能显示已发送。需要实例管理权限、去抖窗口、通知路由合同后才可实施。 |
 | 运行时诊断 / `runtime` / 规划 | 组件索引 → 选中组件诊断摘要 → 有界采集预览。可转入 MQ/Graph 已有诊断页。 | 采集时间、预算、脱敏、取消、组件来源。没有能力时显示未提供，不能把客户端失败解释为健康。通用诊断聚合 DTO 待规划。 |
+
+**WB-02C 性能指标状态合同（`metrics`）：** `metrics-sample`（既有）沿用 `/metrics` 与时间窗口；`metrics-minimal`、`metrics-offline-snapshot`、`metrics-ai-usage`（延伸）分别处理最小指标、离线最后样本和真实 usage/估算值区分；`metrics-export`（既有）受窗口、权限和字节预算约束。所有数值示例不等于采样、质量或成本证据。
+
+六态主动作依次为：正常“刷新指标”；无采样“查看采样说明”且不造 0 值图；错误“检查并重试”并保留最后有效样本、标记过期；无权限“查看权限要求”并隐藏受限载荷；只读“导出当前样本”且禁用采样配置/告警写入；长时间窗“查看采样预算”并按点数/字节折叠，不能虚构全量历史、精确 P95 或 AI 质量/成本报告。
 
 ## 数据流：四个二级页面
 
