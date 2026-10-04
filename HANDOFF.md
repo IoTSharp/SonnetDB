@@ -155,5 +155,14 @@
 
 - WB-01 已完成并待提交：仅改 `prototype/app.js`、`styles.css`；页签可见性/草稿/焦点/键盘/Home-End/错误与规划动作门禁已由 Playwright 桌面与 390×844 回归，预览 PID 85328 已停止并核验不存在。
 - WB-02 已完成并待提交：仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；首批 SQL、KV、MQ、Bucket、Graph Beta 五页完成状态矩阵与能力字段，缺页注入 guard 通过。
-- WB-03C 已完成并待提交：仅新增 `web/tests/management-explorer-compat.test.mjs`；`node --experimental-vm-modules --test ...` 5/5 通过。已记录 index-only fallback 与 MQ 旧 key 需外层 database 的源码边界，未修复生产 Explorer。
-- 三个切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。提交前 restore、Format Check、Node 语法、Explorer 5/5 与 diff 检查均通过，工作树现已 clean。下一步冻结并派 WB-03 纯合同切片；所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
+- WB-03C 已完成并提交：仅新增 `web/tests/management-explorer-compat.test.mjs`；`node --experimental-vm-modules --test ...` 5/5 通过。已记录 index-only fallback 与 MQ 旧 key 需外层 database 的源码边界，未修复生产 Explorer。
+- WB-03 资源与能力合同已完成并纳入本地提交：新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`；Node 5/5、TypeScript 与 `git diff --check` 通过。MQ database/topic、database/instance、`.system/mq`、单库备份排除、Graph Beta、原始 key 与 unavailable 能力回退均已固化。
+- 三个前置切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。WB-03 已通过提交前 restore、Format Check 与最终差异检查；本次提交哈希以 `git log -1` 核对。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
+
+## WB-03 资源与能力合同（2026-10-05）
+
+- 新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 和 `web/tests/management-core-contract.test.mjs`。合同保留 database、原始名称/大小写、冒号与兼容 key；index/backup 可显式传入已有路由 key。
+- MQ identity 同时含 database 与 topic，旧 Explorer key 保持 `mq:${topic}`；逻辑作用域为 database，物理持久化作用域为 instance，路径 `.system/mq`、共享 true、单库备份 false。没有修改 MQ 存储、恢复或目录布局。
+- Graph 描述强制 `stability=beta` / `beta=true`。能力注册表是纯内存且快照不可变；`resolve` 对未知能力返回 unavailable，不执行请求或权限判断。
+- 独立验证：`node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs` 5/5；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`git diff --check` 通过。最终工作树待执行仓库 restore/format 后本地提交。
+- 边界：本切片只提供 Web 静态/内存合同，不代表真实 Server/API、权限、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主、安装或发布证据；`CapabilityRegistry.get` 未知 id 仍返回 `undefined`，需要安全回退时调用 `resolve`。

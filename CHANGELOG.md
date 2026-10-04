@@ -13,6 +13,7 @@
 - **M47 WB-01 原型交互闭环（2026-10-05）**：设计原型补齐工作区页签 active 可见性、内存草稿标记与关闭后保留、对话框焦点恢复、箭头/Home/End 键盘导航、窄屏动作门禁和错误/规划状态的“检查并重试”边界；桌面与 390px Playwright 证据仅覆盖静态原型，不代表生产前端或真实服务能力。
 - **M47 WB-02 首批页面状态合同（2026-10-05）**：为 SQL、KV、SonnetMQ、对象 Bucket、Graph Beta 五页补充 capabilities、状态矩阵、空态、专用字段和主动作，并把合同注入对应任务页；其余页面和真实宿主接线仍待后续批次。
 - **M47 WB-03C Explorer 兼容证据（2026-10-05）**：新增静态 Node 合同测试覆盖资源归组、旧 key、原名大小写/冒号、index/backup 特殊资源及 MQ `database + topic` 外层选择上下文；测试使用 `--experimental-vm-modules`，5/5 通过。记录了 index-only 首选 key 缺口与旧 MQ key 需保留数据库上下文的边界，未修改 Explorer 生产源码。
+- **M47 WB-03 资源与能力合同（2026-10-05）**：新增 Web `management-core` 的资源身份、逻辑/物理持久化边界、Graph Beta 标记及纯内存能力注册表；保留原始名称、大小写、冒号和现有 Explorer key，明确 MQ 的 database + topic、实例 `.system/mq` 与单库备份排除边界。Node 合同测试 5/5、TypeScript 检查通过。本条仅覆盖静态/内存合同，不代表真实 Server、权限、存储迁移、AOT、三宿主或发布门禁。
 - **M45-C01 measurement TAG/time 分组首批（2026-10-04）**：支持 `GROUP BY` TAG 与 `time(duration)` 复合键的裸聚合投影，按时间桶与 TAG 原值稳定排序；稀疏 FIELD 的 COUNT 为 0、其它空聚合为 NULL，Int64 SUM 精确累加且溢出拒绝。FIELD、未知/重复分组键、残差/Geo/HAVING、复合投影与 TAG/多键排序提前拒绝，EXPLAIN 共用校验和名称绑定。覆盖多 TAG/多 series、空输入、flush/reopen、大小写及精度回归；未完成整项 M45-C01、资源预算或持续计算。见[合同](docs/benchmarks/m45-measurement-tag-grouping.md)。
 - **M42 measurement 排序预算（2026-10-03）**：显式累计物化准入扩展到直接 raw SELECT 多键排序，候选、辅助键和分页输出共用根预算，支持未投影标量字段；默认路径与整体 heap/首行、固定硬件门禁独立保留。见[合同](docs/benchmarks/m42-measurement-order-bounds.md)。
 - **M43 多分区与任务接线（2026-10-03）**：新增 `CdcStreamingBridgeTopology` 有界公平推进和 `FileStreamingTaskRunner` 目录身份校验/自动投递入口；真实 `--topology` 样例核对文档源、未 ACK 窗口去重及独立位点重开。远程拓扑、业务事务和发布门禁继续待补。见[合同](docs/m43-local-task-topology.md)。

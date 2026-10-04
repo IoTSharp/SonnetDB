@@ -63,8 +63,16 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - **WB-01**：`node --check` 通过；本地 loopback Playwright 在桌面与 390×844 视口验证 8 个页签 active 自动滚入、active 关闭后的相邻回退、SQL 草稿关闭后重开与“草稿”标记、对话框点按/Escape 返回触发器、只读/错误/规划动作门禁、箭头与 Home/End。预览 Node 进程已按 PID/父进程核验并停止，浏览器会话已关闭。
 - **WB-02**：`prototype/catalog.js`、`task-details.js` 语法检查和 VM 元数据断言通过；SQL、KV、SonnetMQ、对象 Bucket、Graph Beta 五页各有专用能力/状态/字段合同，缺页注入有 guard。Bucket 未强行添加不存在的 planned 能力；其现有/延伸边界仍需真实宿主能力响应。
 - **WB-03C**：`node --experimental-vm-modules --test web/tests/management-explorer-compat.test.mjs` 通过 5/5。该测试使用 Node 实验性 `SourceTextModule`，直接省略该 flag 会失败，因此验证命令固定保留 flag。测试是静态/源码兼容证据，不覆盖真实 Server、Vue UI、AOT 或三宿主。
-- 当前仍保留两项源码边界供 WB-03：`firstExplorerKey` 在 index-only schema 下返回空；生产 MQ item key 仍是 `mq:${topic}`，跨数据库必须由外层上下文携带 database。WB-03C 只固化证据，没有擅自改源码或存储布局。
+- 当前仍保留两项 Explorer 源码边界：`firstExplorerKey` 在 index-only schema 下返回空；生产 MQ item key 仍是 `mq:${topic}`，跨数据库必须由外层上下文携带 database。WB-03C 固化证据，WB-03 只提供兼容合同，没有擅自改 Explorer、源码存储布局或恢复实现。
 - 切片提交：WB-01 `88fc7914`、WB-02 `11de7131`、WB-03C `828b7638`；提交后工作树 clean，未推送远端。
+
+## WB-03 资源与能力合同（2026-10-05）
+
+- 新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`。资源工厂保留 database、原始名称、大小写、冒号和旧 Explorer key；index/backup 路由可显式保留已有 key。
+- MQ identity 必须同时携带 database 与 topic，兼容 key 保持 `mq:${topic}`；逻辑作用域为 `database`，当前物理持久化边界为实例 `.system/mq`，共享标记为 true，单库备份标记为 false。该合同没有修改 MQ 存储或恢复实现。
+- Graph 描述始终标记 `stability=beta` 与 `beta=true`。`CapabilityRegistry` 只管理稳定能力 id 的内存快照；`resolve` 对未知 id 返回 `state=unavailable`，不执行请求、不代替权限判断；快照及条目不可变。
+- `node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs`：5/5 通过；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json`：通过；`git diff --check`：通过。
+- 证据范围是 Web TypeScript 静态/内存合同与兼容夹具，不代表真实 Server/API、权限策略、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主或发布门禁通过；`get` 返回未登记时仍为 `undefined`，调用方应使用 `resolve` 获取安全的 unavailable 描述。
 
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 
