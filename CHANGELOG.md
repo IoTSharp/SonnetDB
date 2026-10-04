@@ -51,6 +51,27 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- **4.5 路线规划与完成范围整理（2026-10-03）**：根 `ROADMAP.md` 增加 M44 AI 应用与可治理推理、M45 聚合与持续计算深化、M46 存储编码与执行成本优化，并沿用既有九模型、资源、恢复与真实证据队列；同步总索引和三个研究专题。新增功能均为规划，不是本条目已实现功能；TsFile 不纳入路线。下表归档的是此前已发生的实现与对应证据，未提升远程、容量、真实模型或长期状态。
+
+<a id="roadmap-completed-archive-2026-10-03-45"></a>
+
+**4.5 路线整理时归档的已完成范围（2026-10-03）**
+
+本轮从根路线图移出完成范围的详细列表，按当前切片汇总，避免重新派单。原始实现条目仍保留在本文件 `[Unreleased]` 及[2026-09-21 归档](#roadmap-completed-archive-2026-09-21)，不重复宣布发布。核查基线为 `4b004946`；静态事实、原始 TRX/摘要与源码哈希复核见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)。
+
+| 已完成范围 | 归档的实际交付与依据 | 继续保留的边界 |
+|---|---|---|
+| M27 #340 BrowserDirect / StudioNative / ServerRelay | OAuth/PKCE 获取入口、原生宿主本地合同、relay journal/单执行者/live follow/失败重放及双进程 smoke；沿用 [Browser 报告](docs/audits/m27-browser-oauth-closure-20260923.md)、[Studio 报告](docs/audits/m27-studio-native-closure-20260923.md)、[Relay 报告](docs/audits/relay-multi-instance-closure-20260923.md)。 | 真实 IdP、provider/模型质量、双网部署、WebView2/Studio 实机和生产接管未由本轮验证。 |
+| GH-Issue #177/#180/#193/#196 的已交付子集 | 关系 JOIN、JSON 查询、关系 VECTOR/GEOPOINT 类型边界，以及参数化 measurement INNER JOIN/排序/分页和能力预检；沿用 [SQL 交付记录](docs/audits/sql-provider-closure-20260923.md)与 [measurement JOIN 记录](docs/audits/measurement-join-196-closure-20260923.md)。 | 历史推送/关闭仅按报告当日记录，本轮未重新查询 GitHub；不等同全部 SQL 或固定硬件完成。 |
+| M42 覆盖索引与 REST/Web 预览 | index-only、快照/取消/回表边界、预览截断元数据与单表早停；依据[覆盖索引合同](docs/benchmarks/m42-covered-index-scans.md)和[SQL 预算合同](docs/benchmarks/m42-sql-result-bounds.md)。 | 默认 REST/Frame/嵌入式全结果、存储工作集、整体 CLR heap 和首行 gate 独立。 |
+| M42 2026-09-30~10-03 物化准入切片 | 关系 SELECT/DML、measurement raw/排序/KNN、文档 raw/TTL/排序、Graph 及直接向量/JSON 文件 TVF 累计行/估算字节；依据[并行实现](docs/audits/roadmap-parallel-implementation-20261001.md)、[TVF 报告](docs/audits/roadmap-parallel-next-20261003.md)和[后续排序报告](docs/audits/roadmap-continuation-20261003.md)。 | 预算只覆盖声明路径，不能称全链路流式、全模型总内存上限或 M42 整项 PASS。 |
+| M43 本地 CDC、窗口与订阅运维 | spool/源捕获/快照增量接收、多分区独立位点、持久滚动/滑动数值与字符串分组、会话 COUNT、暂停/恢复/重试、DLQ、任务目录；依据[第二批](docs/audits/roadmap-four-task-closure-20261001.md)、[第三批](docs/audits/roadmap-three-task-closure-20261001.md)、[第四批](docs/audits/roadmap-next-three-closure-20261001.md)、[滑动/DLQ](docs/audits/roadmap-parallel-20261002.md)和[会话/目录](docs/audits/roadmap-next-three-closure-20261002.md)。 | 文件/本地单执行者合同不升级远程 HA、全部聚合/SQL 增量语义、跨分区业务事务或掉电结论。 |
+| M43 自动投递与 CDC→流接线 | 单分区 outbox/目标接收凭证、有界退避投递、多分区公平桥接、caller-owned 任务运行和真实 `--bridge`/`--topology` 组合重开；依据[桥接报告](docs/audits/roadmap-parallel-next-20261002.md)与[后续报告](docs/audits/roadmap-continuation-20261003.md)。 | 未知结果按核对/交接处理；至少一次与窗口去重不等于任意外部副作用 exactly-once。 |
+| M43 #382~#384/#397/#398/#401 的本地文档/工具范围 | 十四能力/旅程索引、成熟度、发布汇总 verifier、资料草稿及复现索引；已有条目与[总索引](docs/roadmap-total-milestone.md)继续可追溯。 | 原始发布报告、外部提交/收录、公开案例和十四项完整验收尚未闭环。 |
+| 既有基础、M35/M36/M40/M41 的已归档代码范围 | 继续沿用[原归档](#roadmap-completed-archive-2026-09-21)与对应专题；包括时序压缩/聚合、预测/异常/变点、持久摄取、九模型客户端、图和规划器本地合同。 | 本轮不重新证明所有历史声明；真实语义质量、远程、安装、容量、跨架构和长期 gate 留在 4.5 主路线。 |
+
+复核最近两轮完整 Core 原始 TRX 分别为 6072/6072 与 6140/6140，哈希与当轮摘要一致；最近增量记录的 13 个源码哈希与规划基线一致。这是对已有本地证据的只读核查，不是本轮重新运行测试。Server 首轮 69/70 与后续按类 12/12 的历史失败/重跑记录保留，不能重写成从未失败。M42/M43 保持进行中，Graph 保持 Beta，未执行的固定硬件/真实模型/远程/长期项目不移为完成。
+
 - **M42 measurement KNN 候选有界化（2026-10-01）**：扫描时直接进入共享 Top-K 堆，替代 worker 和总结果的全量候选列表；候选入堆前过滤墓碑，复用 SQL worker/工作集预算，传播根取消并按距离、时间戳、序列 ID 稳定排序。ANN 时间窗不足时丢弃该批候选并精确补扫，修复 `k * 8` 溢出。候选保留量为 O(K)，存储页解码、首行和整体 CLR heap 门禁仍未完成。见[合同](docs/benchmarks/m42-measurement-knn-bounds.md)。
 - **GH-Issue #211 SQL 标识符规则**：表、measurement、视图/物化视图与列/TAG/FIELD 保留创建时的拼写，普通引用按 `OrdinalIgnoreCase` 匹配，双引号按 `Ordinal` 精确匹配；禁止新增或重命名为仅大小写不同的同作用域名称。旧 catalog 冲突须显式迁移，普通引用报歧义；设备摄取名称绑定到已保存的 schema 拼写。
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
