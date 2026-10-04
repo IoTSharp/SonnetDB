@@ -1,6 +1,6 @@
 # SonnetDB 交接记录
 
-交接日期：2026-10-04（Asia/Shanghai）<br>
+交接日期：2026-10-05（Asia/Shanghai）<br>
 当前分支：`main`<br>
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
@@ -10,7 +10,8 @@
 - 本地 `codex/*` 分支已全部确认可达 `main` 并删除。
 - 远端 `origin/codex/*` 已无存活分支；本地缓存引用已 prune。
 - `origin/parity-results` 仍保留，未合并、未删除、未改写。它是 parity 结果专用分支，任何后续智能体都不得把它合并到 `main` 或其它开发分支。
-- 工作树在本次交接完成后应保持干净；`bin/`、`obj/`、`.nupkg` 等构建产物不纳入提交。
+- 当前工作树有未提交的 M47 规划文档与设计评审包；不是干净工作树。用户要求先确认原型，再实施生产前端。`bin/`、`obj/`、`.nupkg` 等构建产物不纳入提交。
+- 最新授权（2026-10-05）：用户要求创建新 Workbench 会话，持续自主推进独立任务、按不冲突的文件范围并行分派智能体、定时检查、验证闭环后本地提交并继续下一项。先设计再按确认基线迁移的顺序保留；此次授权不是“166 个任务页签均已验收”的证据，可自主推进原型细化、现有语义兼容的共享合同与工作台修复。
 
 ## 会话铁律
 
@@ -64,3 +65,88 @@
 ```
 
 任何分支整理都必须再次核对并保留 `origin/parity-results`；禁止使用它作为合并来源。
+
+## 本次会话（2026-10-04）
+
+### 已完成
+
+- 只读核查 dbx、Tabularis、DBeaver/DataGrip/pgAdmin、MongoDB Compass、RedisInsight、Grafana/InfluxDB、Kafka UI/RabbitMQ、Milvus/Qdrant、OpenSearch、MinIO、Neo4j 以及 WorkBuddy MCP 公开资料。
+- 新增 [M47 统一数据库管理工作台与三面发布设计](docs/design/m47-unified-management-workbench.md)，冻结“一套核心、三个宿主、三个发布物”的产品方向、九模型工作台、竞品采纳边界、AI/MCP 入驻、原型目录、共享合同和 U01~U10 规划。
+- 在根 `ROADMAP.md` 增加 Milestone 47，并把 M47-U01~U09 纳入 4.5 必选范围、U10 保留为 P2 条件；没有重派 M29/M32/M34、M18/M24 或 #258/#259 已有实现。
+- 更新 `docs/roadmap-total-milestone.md` 的新增里程碑索引，并在 M29 设计 README 中标记 M47 为三面统一与发布层的后续基线。
+
+### 验证
+
+- `git diff --check`：通过。
+- 文档引用、M47 编号和路线图链接已通过 `rg` 核对。
+- 本次只修改规划文档，没有运行代码构建或测试；没有声明任何实现、安装、真实模型、固定硬件或长期发布门禁通过。
+
+### 未完成与下一步
+
+1. 由产品/架构评审确认 M47-U01~U10 的范围、优先级和是否纳入 4.5 完成判定。
+2. 先评审新的 M47 HTML 原型，确认外轮廓、全菜单/导航、对话框与状态，再逐页细化与确认最终像素基线。暂不直接开始 ResourceDescriptor 或生产前端开发。
+3. 已确认的设计才按 U01/U02/U03 抽出 ResourceDescriptor/Capability Registry、contracts、design tokens、Result/Approval/History 状态机，保持 key 兼容；不要先复制 Vue 页面到 VS Code。
+4. M47-U08 的 `sonnetdb mcp` stdio bridge、WorkBuddy 用户级/项目级配置生成和 tools/list/health 自检仍未实现。
+5. M47 的三面真实旅程、Studio 干净 Windows、VS Code Extension Host、版本 manifest 和发布证据仍是 `NOT_READY`。
+
+### 风险边界
+
+- M47 是 UI/宿主/发布层规划，不改变九模型存储语义、SQL 名称大小写合同、MCP 只读边界或现有写审批。
+- VS Code 不直接嵌入完整 Web Admin；共享的是 contracts/core/tokens/状态语义，宿主仍各自适配 auth、storage、文件和通知。
+- WorkBuddy 的自托管 MCP 与官方默认 Connector 是两条路径；官方目录审核、数据驻留和外部服务责任不能由本地文档推断已通过。
+
+## 本轮前端设计（2026-10-04 至 2026-10-05）
+
+### 用户方向与已完成
+
+- 用户要求结合现有底子，先全面规划菜单、顶部/左/右/下/中央布局、对话框与提示、一级/二级导航，再逐页设计；原型确认后才像素实现。这是当前推进门禁。
+- 新增 [M47 设计评审包](docs/design/m47-unified-management-workbench/README.md)：navigation、layout、interaction、screen specs、可点击 HTML、任务数据、截图与检查记录。
+- 延续 M29 浅色工业数据库 IDE、现有品牌与 Fluent 蓝。七个一级模块、30 全局页面、九模型工作区、166 任务页签（模型 60），Graph Beta。初稿按物理存储将 MQ 单列；用户提出异议后已纠正为数据库逻辑上下文内九模型统一导航，物理存储范围单独说明。
+- HTML 已覆盖外壳、典型任务、连接/命令/历史/导入/写审批/原名删除/未知写结果，以及 11 状态。所有数值为静态示例，规划能力明确拒绝执行；草稿仅页面内存，不持久保存。
+- 起初 ResourceDescriptor 切片的本轮生产源码改动已撤回。web/src 与 VS Code 生产代码无本轮变更；没有发布或调用真实服务。
+- 更新专题、ROADMAP、CHANGELOG 以“设计确认后实现”为下一步；保留进入本轮时已有未提交规划改动。
+
+### 验证与未完成
+
+- 39 个入口、166 任务页签实际点击检查，无浏览器 error；目录结构、JS 语法、git diff --check 通过。
+- 1600/1280/1100/390 布局、危险删除门禁、草稿切页恢复、无权限载荷隐藏、导入停止、aria-selected 与 11 状态已做限定检查。首轮主要问题修复后截图重捕获，最终设计复核可用于外壳/导航/共享流程评审。
+- impeccable 机械扫描降级为 regex，不能算完整机械/可访问性 PASS。完整键盘树导航、屏幕阅读器、所有状态组合、逐页最终像素、真实数据与三宿主验收仍未完成。多页签当前项自动滚入可见区域须在最终交互定稿时确认。
+- 证据范围见 [validation-report.md](docs/design/m47-unified-management-workbench/validation-report.md)。没有生产构建、Server/AI/MCP、AOT、安装或 Extension Host PASS。
+- 本轮没有调用图片模型，没有使用或安装所谓 GPT Image 2.5；采用可验证交互的 HTML。
+
+### 下次继续
+
+1. 先接收用户对外壳、导航和共享流程的评审意见；不要自行进入生产实现。
+2. 按意见调整原型与规范，然后按工作台 / 九模型 / 全局治理顺序逐页定稿，明确已有、延伸和规划能力。
+3. 已确认切片才实施共享合同与像素迁移，复用现有代码。真实 Server/宿主/发布门禁必须另取证据。
+
+当前分支 main，HEAD 仍为 3a59f2c9。未 commit/push：设计稿待确认，且本轮未执行最终工作树提交前 restore/format 门禁；不得沿用上一轮 PASS 直接提交。HANDOFF 随本轮设计改动保留待提交，origin/parity-results 仍保留。
+
+资源回收完成：两次本机白名单预览均已结束，最终 Node 66288 / 父 PowerShell 20460 核验不存在。旧服务 PID 51720 已复用为无关 MCP，未触碰。子代理报告无临时文件/长驻进程；撤回源码后留下的本轮空 management-core 目录已移除。临时浏览器视口已恢复，已加载原型标签保留；HTTP URL 不是永久地址，刷新需要重新启动 preview.mjs，普通浏览器可直接打开 HTML。
+
+### MQ 导航更正（用户跟进）
+
+用户质疑 SonnetMQ 为什么单列，指出事件/消息同样需要存储。生产代码核查发现：业务 MQ API 使用数据库命名空间与数据库权限，Server 物理日志共享在 DataRoot/.system/mq，当前采用自有追加日志。前稿混淆逻辑归属与物理存储范围；原型与规范现改为数据库资源树内九模型统一呈现，MQ 的物理持久化及恢复边界在 Inspector/备份流程单独说明。MQ 页签身份必须包含数据库和 Topic，不能删除数据库身份。没有修改生产存储、KV 或关系表；复用底层存储与跨模型原子性仍属后续架构合同，不能由导航更正推断完成。单库备份不覆盖共享 MQ 的事实保留。
+
+本次只复验受影响的 MQ 七任务、作用域、九模型分组和390巡检布局；166任务数及60模型任务数不变，浏览器无error，JS语法与diff检查通过，六张截图已同步。旧39页/166任务点击证据仍属于初稿，不能当作此次全量重验。仍未提交/未进入生产实现。
+
+本轮预览 Node PID 29892 / 父 PowerShell 16796 已通过所属会话停止，并核验不存在；临时视口已恢复。子代理无临时文件或常驻进程，已加载 MQ 原型保留。
+
+## 持续 Workbench 新会话交接（2026-10-05）
+
+用户已明确授权新会话持续实施 Workbench 任务并在验证闭环后执行本地 git commit；无须对已授权的可逆工作和普通实施选择再次请求许可。没有授权自动 push、发布、生产部署、外部消息或改写历史。先执行 [Workbench 持续任务队列](docs/design/m47-unified-management-workbench/work-queue.md)，根会话负责集成、检查与提交，子智能体只在分配的文件范围实现或复核。
+
+新会话应使用同一本地项目 D:\source\SonnetDB，接收当前所有未提交设计交付，不创建额外用户会话来充当子任务。每次定时唤醒先核对未完成任务/智能体和最新工作树，避免重复派单或与运行中的工作冲突；未完成事项推进一次有界切片并记录检查点，不用无界长循环模拟定时器。
+
+建议顺序：先冻结任务目录/文件归属和设计交付基线，再修复原型交互与逐页状态，推进与现有 API/名称/权限兼容的资源合同；已确认页面再迁移五区壳/导航、结果/草稿/审批等生产切片。所有提交必须在最终待提交树执行完整 restore + format 校验；每个独立任务包含对应 CHANGELOG、HANDOFF、验收与真实边界，不能把静态原型或定向测试写成全部生产门禁通过。
+
+最新基线仍为 main / 3a59f2c9，main 相对 origin/main ahead 4。本轮所有设计与交接仍未提交，未执行本轮完整 restore/format；首个新会话任务应核对和完成这些门禁再建立设计文档提交。origin/parity-results 必须保持独立。其他活跃会话可能触及 SonnetDB，首轮派单前检查文件归属，不 stage 或覆盖其它任务改动。
+
+已创建新会话 **持续推进 SonnetDB Workbench**：`01a10862-bcd5-7d82-ab22-c916c00221a3`，host=local，SonnetDB 本地项目。定时检查 **Workbench 持续推进与闭环**（automation ID `workbench`）已 ACTIVE，每30分钟唤醒该新会话；保存配置已核对 heartbeat 类型、目标thread与周期，无同项目重复自动化。新会话已开始只读接收并准备并行盘点，当前会话将在发出“交接完成”消息后停止仓库写入，提交与后续实施交新会话负责。本次新增 work-queue 并更新 README/HANDOFF，git diff --check 通过；无新增长驻进程、临时文件或commit/push。
+
+## 当前 Workbench 会话实施检查点（2026-10-05）
+
+- 交接完成消息已收到；旧会话停止写入。本会话确认使用 `D:\source\SonnetDB`、`main`、HEAD `3a59f2c9`，`origin/main` ahead 4，`origin/parity-results` 保留且未操作。
+- 只读盘点确认主树的五个既有修改与 23 个 M47 设计文件属于本次授权交付；无冲突索引条目，其他注册 worktree clean。子智能体仅做只读盘点，未写入、暂存或提交。
+- WB-00 门禁已通过：`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、四个原型脚本 `node --check`、`git diff --check`；验证记录已写入 M47 `validation-report.md`。
+- 当前待完成：提交设计交付基线并记录实际提交哈希；随后冻结 WB-01/WB-02/WB-03C（或合同）文件归属，分派独立实施与复核。不得把 REVIEW_DRAFT 或静态/mock 证据写成生产、真实 Server、三宿主、AOT、安装或发布 PASS。

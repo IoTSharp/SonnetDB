@@ -2,6 +2,8 @@
 
 本目录是 Milestone 29 管理界面的设计基线，不直接修改 `web/src`，也不改变现有 API、权限、写审批或模型语义。
 
+M29 的外壳、交互规范、屏幕矩阵和 VS Code 子集原型继续作为已实现工作台的基线。三面统一的资源合同、九模型 adapter、AI/MCP 入驻、原型目录重组和 Web Admin/Studio/VS Code 发布矩阵由 [M47 统一数据库管理工作台与三面发布设计](../m47-unified-management-workbench.md) 承接；M47 不重新派单 M29 已完成的页面或宿主能力。
+
 ## 交付物
 
 - `design-brief.md`：总体判断、框架尺寸与实施边界。

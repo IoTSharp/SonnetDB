@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SonnetDB Workbench · M47 设计原型</title>
+  <link rel="icon" href="logo.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="catalog.js"></script>
+  <script defer src="task-details.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到工作区</a>
+  <div class="app-shell" id="shell">
+    <header class="topbar">
+      <a class="brand" href="#sql" aria-label="SonnetDB Workbench 首页"><img src="logo.svg" alt=""><strong>SonnetDB</strong><span id="hostName">Web Admin</span></a>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <button class="command-trigger" data-action="command" aria-label="搜索命令和资源"><span data-icon="search"></span><span>搜索资源或命令</span><kbd>Ctrl K</kbd></button>
+      <button class="connection-trigger" data-action="connections"><span class="status-dot" id="connectionDot"></span><span id="connectionName">Factory / Local</span><span data-icon="chevron"></span></button>
+      <button class="icon-button" data-action="notifications" aria-label="通知"><span data-icon="bell"></span><span class="notification-dot" hidden id="notificationDot"></span></button>
+      <button class="avatar" data-action="account" aria-label="账户和退出">AD</button>
+    </header>
+    <nav class="rail" id="rail" aria-label="一级导航"></nav>
+    <aside class="sidebar" id="sidebar" aria-label="资源与二级导航">
+      <div class="sidebar-head"><strong id="sidebarTitle">资源浏览器</strong><div class="actions"><button class="icon-button" data-action="new-resource" aria-label="创建资源"><span data-icon="plus"></span></button><button class="icon-button" data-action="refresh" aria-label="刷新当前资源"><span data-icon="refresh"></span></button><button class="icon-button" data-action="toggle-sidebar" aria-label="收起导航"><span data-icon="panel"></span></button></div></div>
+      <label class="resource-search"><span data-icon="search"></span><input id="resourceSearch" placeholder="搜索名称或模型" aria-label="搜索导航与资源"><kbd>/</kbd></label>
+      <div class="sidebar-body" id="sidebarBody"></div>
+      <div class="sidebar-foot"><span class="status-dot"></span><span>示例实例 · 只读预览</span><button class="icon-button" data-action="connections" aria-label="管理连接"><span data-icon="settings"></span></button></div>
+    </aside>
+    <div class="splitter sidebar-splitter" role="separator" tabindex="0" aria-label="调整左侧导航宽度" aria-orientation="vertical" data-resize="sidebar"></div>
+    <main class="workspace" id="main" tabindex="-1">
+      <nav class="workspace-tabs" aria-label="已打开工作区" id="workspaceTabs"></nav>
+      <div class="workspace-head"><div><div class="object-path" id="objectPath"></div><div class="title-line"><h1 id="pageTitle"></h1><span class="beta-tag" hidden id="betaTag">Graph Beta</span><span class="small-tag" hidden id="plannedTag">规划</span><span class="readonly-tag" hidden id="readonlyTag">只读</span></div><p id="pageIntro"></p></div><div class="actions" id="pageActions"></div></div>
+      <nav class="task-tabs" id="taskTabs" aria-label="当前工作区二级任务"></nav>
+      <div class="state-banner" hidden id="stateBanner" role="status"></div>
+      <section class="content-plane" id="content"></section>
+      <div class="splitter result-splitter" role="separator" tabindex="0" aria-label="调整结果区高度" aria-orientation="horizontal" data-resize="results"></div>
+      <section class="result-plane" id="resultPlane" aria-label="查询结果">
+        <div class="result-head"><div class="result-tabs" id="resultTabs"></div><div class="actions"><span id="resultSummary">48 行 · 12 ms</span><button class="icon-button" data-action="copy-result" aria-label="复制结果"><span data-icon="copy"></span></button><button class="text-button" data-action="export">导出</button><button class="icon-button" data-action="toggle-results" aria-label="收起结果"><span data-icon="close"></span></button></div></div>
+        <div class="result-body" id="resultBody"></div>
+        <div class="result-footer"><span id="resultFooter">结果快照 · factory · 当前 SQL</span><div class="actions"><button class="text-button" data-action="previous-page">上一页</button><span id="pageIndicator">1 / 1</span><button class="text-button" data-action="next-page">下一页</button></div></div>
+      </section>
+    </main>
+    <div class="splitter inspector-splitter" role="separator" tabindex="0" aria-label="调整检查器宽度" aria-orientation="vertical" data-resize="inspector"></div>
+    <aside class="inspector" id="inspector" aria-label="上下文检查器">
+      <div class="inspector-head"><strong>检查器</strong><button class="icon-button" data-action="toggle-inspector" aria-label="关闭检查器"><span data-icon="close"></span></button></div>
+      <nav class="inspector-tabs" aria-label="检查器视图"><button class="selected" data-action="inspector-info">详情</button><button data-action="inspector-payload">原始值</button></nav>
+      <div id="inspectorBody" class="inspector-body"></div>
+      <div class="inspector-foot"><span data-icon="lock"></span><span>写操作进入预览与确认</span></div>
+    </aside>
+    <footer class="statusbar"><div class="actions"><span class="status-dot" id="footerDot"></span><span id="statusConnection">Factory / Local</span><span class="status-divider"></span><span id="statusScope">数据库 factory</span><span id="statusContext">SQL 工作区</span></div><div class="actions"><button data-action="toggle-sidebar">导航</button><button data-action="toggle-inspector">检查器</button><button data-action="toggle-results">结果</button><button data-action="history">历史</button><span class="status-divider"></span><button data-action="review" class="review-button">设计目录</button><span class="prototype-label">原型 · 示例数据</span></div></footer>
+  </div>
+  <dialog id="modal" aria-labelledby="modalTitle"><div class="modal-head"><div><h2 id="modalTitle"></h2><p id="modalSubtitle"></p></div><button class="icon-button" data-action="close-dialog" aria-label="关闭对话框"><span data-icon="close"></span></button></div><div class="modal-body" id="modalBody"></div><div class="modal-foot" id="modalFooter"></div></dialog>
+  <aside class="overlay-drawer" id="drawer" hidden aria-labelledby="drawerTitle"><div class="drawer-head"><h2 id="drawerTitle"></h2><button class="icon-button" data-action="close-drawer" aria-label="关闭侧面板"><span data-icon="close"></span></button></div><div id="drawerBody" class="drawer-body"></div></aside>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
