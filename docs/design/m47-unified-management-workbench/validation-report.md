@@ -74,6 +74,12 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs`：6/6 通过；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json`：通过；`git diff --check`：通过。通用 MQ 工厂拒绝缺省 topic 或 name/topic 不一致；Explorer key 文档明确只用于路由兼容，跨库选择必须配合 database。
 - 证据范围是 Web TypeScript 静态/内存合同与兼容夹具，不代表真实 Server/API、权限策略、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主或发布门禁通过；`get` 返回未登记时仍为 `undefined`，调用方应使用 `resolve` 获取安全的 unavailable 描述。
 
+## WB-04 迁移前导航兼容预检（2026-10-05）
+
+- 新增 `web/tests/navigation-compat.test.mjs`，只读检查 `web/src/router/index.ts` 与 `web/src/views/AppShell.vue`，没有修改生产壳、导航或路由。
+- `node --test web/tests/navigation-compat.test.mjs`：5/5 通过；覆盖 `/admin`、`/admin/app`、Studio、databases、trajectory-map 的 legacy redirect，现有 route names 与管理员 meta，7 项 baseNavigation、5 项 adminNavigation、secondaryNavigation 的管理员条件、设置/关于入口，setup/auth/app/admin guards，以及 trajectory query 到共享 SQL 工作区的兼容映射。
+- 该预检只证明 M47 生产迁移前的 legacy 兼容基线；当前 README/navigation/validation 仍为 `REVIEW_DRAFT`，不代表七模块生产导航、视觉像素、真实权限、三宿主或发布验收已完成。未启动服务、未安装依赖。
+
 下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
 
 ## MQ 导航更正（2026-10-05）

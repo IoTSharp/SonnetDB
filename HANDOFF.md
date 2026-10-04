@@ -10,7 +10,7 @@
 - 本地 `codex/*` 分支已全部确认可达 `main` 并删除。
 - 远端 `origin/codex/*` 已无存活分支；本地缓存引用已 prune。
 - `origin/parity-results` 仍保留，未合并、未删除、未改写。它是 parity 结果专用分支，任何后续智能体都不得把它合并到 `main` 或其它开发分支。
-- 当前工作树在 WB-03 提交 `b084680e` 后保持干净。M47 设计评审包与前置工作台切片已按各自提交记录保存；用户确认原型以前仍不进入生产前端迁移。`bin/`、`obj/`、`.nupkg` 等构建产物不纳入提交。
+- WB-04 迁移前导航兼容预检已通过最终门禁，工作树状态以 `git status` 为准；此前 WB-03 提交 `b084680e` / `f2158143` 已保持干净。M47 设计评审包与前置工作台切片已按各自提交记录保存；用户确认原型以前仍不进入生产前端迁移。`bin/`、`obj/`、`.nupkg` 等构建产物不纳入提交。
 - 最新授权（2026-10-05）：用户要求创建新 Workbench 会话，持续自主推进独立任务、按不冲突的文件范围并行分派智能体、定时检查、验证闭环后本地提交并继续下一项。先设计再按确认基线迁移的顺序保留；此次授权不是“166 个任务页签均已验收”的证据，可自主推进原型细化、现有语义兼容的共享合同与工作台修复。
 
 ## 会话铁律
@@ -156,13 +156,14 @@
 - WB-01 已完成并待提交：仅改 `prototype/app.js`、`styles.css`；页签可见性/草稿/焦点/键盘/Home-End/错误与规划动作门禁已由 Playwright 桌面与 390×844 回归，预览 PID 85328 已停止并核验不存在。
 - WB-02 已完成并待提交：仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；首批 SQL、KV、MQ、Bucket、Graph Beta 五页完成状态矩阵与能力字段，缺页注入 guard 通过。
 - WB-03C 已完成并提交：仅新增 `web/tests/management-explorer-compat.test.mjs`；`node --experimental-vm-modules --test ...` 5/5 通过。已记录 index-only fallback 与 MQ 旧 key 需外层 database 的源码边界，未修复生产 Explorer。
-- WB-03 资源与能力合同已完成并纳入本地提交：新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`；评审后补强通用 MQ 工厂必须显式提供 topic 且 `name === topic`，并明确 Explorer key 只用于路由兼容。Node 6/6、TypeScript 与 `git diff --check` 通过。MQ database/topic、database/instance、`.system/mq`、单库备份排除、Graph Beta、原始 key 与 unavailable 能力回退均已固化。
-- 三个前置切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。WB-03 已通过提交前 restore、Format Check 与最终差异检查；本次提交哈希以 `git log -1` 核对。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
+- WB-03 资源与能力合同已完成并纳入本地提交：新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 与 `web/tests/management-core-contract.test.mjs`；评审后补强通用 MQ 工厂必须显式提供 topic 且 `name === topic`，并明确 Explorer key 只用于路由兼容。Node 6/6、TypeScript 与 `git diff --check` 通过；补强提交为 `f2158143 fix(m47): tighten MQ resource identity contract`，工作树已恢复干净。
+- WB-04 迁移前导航兼容预检已完成并通过本地提交门禁：仅新增 `web/tests/navigation-compat.test.mjs`，5/5 通过，覆盖 `/admin`/`/admin/app`、Studio/databases/trajectory-map legacy redirects、现有路由/meta、7+5 导航及管理员条件、setup/auth/admin guards 和 trajectory query→SQL；未修改 `web/src`。生产迁移仍受 `REVIEW_DRAFT` 用户确认门禁约束，提交哈希以 `git log -1` 核对。
+- 三个前置切片已分别提交：WB-01 `88fc7914 feat(m47): close prototype interaction loop`；WB-02 `11de7131 docs(m47): define initial page state contracts`；WB-03C `828b7638 test(m47): add explorer compatibility evidence`。WB-03 已通过提交前 restore、Format Check 与最终差异检查；WB-04 预检提交前仍须执行同样门禁。所有静态/mock 证据仍与真实 Server、AOT、三宿主、安装和发布门禁分开。
 
 ## WB-03 资源与能力合同（2026-10-05）
 
 - 新增 `web/src/management-core/resourceDescriptor.ts`、`capabilityRegistry.ts`、`index.ts` 和 `web/tests/management-core-contract.test.mjs`。合同保留 database、原始名称/大小写、冒号与兼容 key；index/backup 可显式传入已有路由 key。
 - MQ identity 同时含 database 与 topic，旧 Explorer key 保持 `mq:${topic}`；逻辑作用域为 database，物理持久化作用域为 instance，路径 `.system/mq`、共享 true、单库备份 false。没有修改 MQ 存储、恢复或目录布局。
 - Graph 描述强制 `stability=beta` / `beta=true`。能力注册表是纯内存且快照不可变；`resolve` 对未知能力返回 unavailable，不执行请求或权限判断。
-- 独立验证：`node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs` 6/6；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 `git diff --check` 均通过。已在本地提交 `b084680e feat(m47): add shared resource and capability contracts`，评审补强待随本次修复提交，未推送，工作树待恢复干净。
+- 独立验证：`node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs` 6/6；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 `git diff --check` 均通过。基础提交为 `b084680e feat(m47): add shared resource and capability contracts`，评审补强为 `f2158143 fix(m47): tighten MQ resource identity contract`，均未推送。
 - 边界：本切片只提供 Web 静态/内存合同，不代表真实 Server/API、权限、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主、安装或发布证据；`CapabilityRegistry.get` 未知 id 仍返回 `undefined`，需要安全回退时调用 `resolve`。
