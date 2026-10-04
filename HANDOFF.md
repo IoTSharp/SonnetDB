@@ -184,3 +184,10 @@
 - 独立复核最初发现字段映射缺口，已补齐并固化测试：数据库目录名称/权限/资源/Segment，连接名称/URL/默认数据库/认证来源/宿主/测试时间，Notebook 单元类型/输入/执行状态/结果快照/保存版本，History 时间/对象/动作/状态/耗时/返回影响数量，Metrics 写入速率/query P95/WAL fsync P95/内存/采样时间/指标能力。
 - 已通过：PowerShell 7.6.6；两个 `node --check`；`node --test web/tests/m47-global-page-state-contract.test.mjs` 3/3；WB-02B 测试 2/2；VM sections=7/models=9/区域页=30/总页=39、五页六态和 taskDetails identity；`git diff --check`；独立最终复核 PASS；最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
 - 设计包仍是 `REVIEW_DRAFT`，生产迁移继续冻结；WB-02C 已提交为 `2ebc6978`（`feat(m47): add global page state contracts`），提交后工作树保持 clean。本切片不代表真实 Server、权限、三宿主、安装、发布或 AOT 验收；剩余 24 页状态合同继续按有界批次推进。不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-02D，2026-10-05）
+
+- 在 `main`、HEAD `f6393108` 的干净基线继续实施 WB-02D；本轮仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`、新增 `web/tests/m47-observe-flow-state-contract.test.mjs`，并更新 CHANGELOG 与本交接/队列/验证记录，未修改生产 `web/src`、路由或宿主代码。
+- `events`、`slow-queries`、`alerts`、`runtime`、`modbus` 已补 capabilities、六态 stateMatrix、专用字段和任务注入。边界保持：视图暂停不暂停服务器；慢查询恢复不自动重跑，Explain 手动执行；告警与诊断规划能力不发通知、不伪造健康或终态；Modbus Runtime/Pending/Audit 与审批/拒绝复用现有语义。
+- 已通过：`node --test web/tests/m47-observe-flow-state-contract.test.mjs` 3/3；`node --check` 两个 JS；`git diff --check`；独立只读复核 PASS。完整仓库 `dotnet restore` 与 `dotnet format` 将在最终待提交树上运行，未通过不得提交。
+- 当前状态：WB-02D 实现与共享记录已准备提交，实际提交哈希待产生；设计包仍为 `REVIEW_DRAFT`，不代表真实 Server、权限、现场写入、三宿主、安装、发布或 AOT 验收。下一步由主会话运行提交前门禁、仅 stage WB-02D 文件并提交，然后用实际哈希回写本节和队列。保留 `origin/parity-results`，不 push、不发布、不部署。

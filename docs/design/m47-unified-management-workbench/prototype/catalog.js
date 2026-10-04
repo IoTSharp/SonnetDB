@@ -168,7 +168,23 @@ window.M47_CATALOG = {
           columns: ['时间', '级别', '来源', '数据库', '事件'], rows: [['09:42:18', '信息', 'SQL', 'factory', '查询结束 · 示例'], ['09:40:04', '信息', 'Catalog', 'sandbox', '数据库已加载 · 示例'], ['09:35:50', '警告', 'SSE', '实例', '事件连接重连 · 示例']],
           fields: [{ label: '级别', value: '全部', kind: 'select' }, { label: '来源', value: '全部', kind: 'select' }], tabs: ['事件流', '数据库事件', '连接状态'],
           inspector: [{ label: '传输', value: 'SSE' }, { label: '连接中断', value: '保留已接收事件并显示时间' }, { label: '事件留存', value: '本地显示不等同持久审计' }],
-          empty: { title: '尚未收到事件', body: '连接建立后等待下一条运行时或数据库事件。', action: '检查事件连接' }
+          empty: { title: '尚未收到事件', body: '连接建立后等待下一条运行时或数据库事件。', action: '检查事件连接' },
+          capabilities: [
+            { id: 'events-sse-stream', status: 'existing', label: 'SSE 事件流', note: '接收数据库与运行时事件；事件时间、接收时间和来源分开呈现，原型不订阅真实流。' },
+            { id: 'events-view-pause', status: 'existing', label: '暂停当前视图', note: '暂停只停止当前页面接收/渲染；不会暂停服务器生产，也不改变其它订阅者。' },
+            { id: 'events-filter', status: 'existing', label: '级别/来源/数据库筛选', note: '筛选仅作用于当前视图，保留实例事件与数据库事件的范围标记。' },
+            { id: 'events-reconnect-state', status: 'extension', label: 'SSE 断线与重连状态', note: '显示最后帧时间、断线原因和重连状态；断线不自动声称事件已持久保存。' },
+            { id: 'events-local-buffer', status: 'extension', label: '本地已接收列表保留', note: '断线后保留本地已接收事件并标记时间；本地列表不等同服务端审计。' },
+            { id: 'events-server-audit', status: 'planned', label: '服务端事件审计', note: '持久审计入口和保留策略尚未统一；未知能力不得用本地列表补齐。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示按级别、来源和数据库筛选的事件流，并在 Inspector 区分事件时间、接收时间与 SSE 状态。', primary: '暂停视图', fields: ['级别', '来源', '数据库/实例', '事件时间', '接收时间', '正文/Payload', 'SSE 状态'] },
+            empty: { label: '空事件流', status: 'existing', summary: '连接可用但当前窗口没有事件，保留筛选并说明等待范围；空结果不表示服务器没有事件。', primary: '检查事件连接', preserve: ['级别筛选', '来源筛选', '数据库筛选', '连接状态'] },
+            error: { label: 'SSE/事件读取错误', status: 'extension', summary: '只替换当前事件结果区，保留已接收列表和筛选；显示断线原因与最后帧时间。', primary: '检查并重试', preserve: ['级别筛选', '来源筛选', '数据库筛选', '本地已接收事件'], blocked: ['标记为服务器已暂停'] },
+            permission: { label: '事件权限不足', status: 'existing', summary: '隐藏受限事件正文和 Payload，显示实例/数据库事件 Read 权限要求；不能从连接成功推断事件授权。', primary: '查看权限要求', preserve: ['级别筛选', '来源筛选', '数据库筛选'], blocked: ['查看受限 Payload'] },
+            readonly: { label: '只读', status: 'existing', summary: '可筛选、暂停本地视图、查看已授权事件并导出当前样本；服务器订阅和清理动作保持禁用。', primary: '导出当前事件', blocked: ['暂停服务器事件流', '清理服务器事件'] },
+            longContent: { label: '长事件流', status: 'extension', summary: '事件正文按条数和字节预算折叠或截断，显示未返回全部；本地缓冲仍标注接收时间。', primary: '查看事件载荷预算', limits: ['事件条数/字节预算由 SSE 与服务端能力返回', '截断事件不代表完整 Payload', '本地已接收列表不等同持久事件审计'] }
+          }
         },
         {
           id: 'slow-queries', title: '慢查询', tabLabel: '慢查询', type: 'table', scope: 'instance', status: 'extension', existingRoute: '/admin/app/events',
@@ -176,7 +192,22 @@ window.M47_CATALOG = {
           columns: ['时间', '数据库', '耗时', '行数', '状态', 'SQL 摘要'], rows: [['09:22:16', 'factory', '824 ms', '10,000', '成功 · 示例', 'SELECT … FROM Telemetry'], ['09:15:08', 'analytics', '612 ms', '0', '失败 · 示例', 'SELECT … JOIN …']],
           fields: [{ label: '数据库', value: '全部', kind: 'select' }, { label: '最短耗时', value: '500 ms', kind: 'input' }, { label: '时间范围', value: '最近 1 小时', kind: 'select' }], tabs: ['慢查询列表', '选中 SQL', '解释入口'],
           inspector: [{ label: '阈值', value: '以服务端配置为准' }, { label: 'SQL 内容', value: '按权限展示并支持脱敏' }, { label: 'EXPLAIN', value: '手动打开，避免自动重跑' }],
-          empty: { title: '窗口内没有慢查询', body: '可扩大时间窗口，或查看当前慢查询阈值。', action: '查看阈值说明' }
+          empty: { title: '窗口内没有慢查询', body: '可扩大时间窗口，或查看当前慢查询阈值。', action: '查看阈值说明' },
+          capabilities: [
+            { id: 'slow-query-events', status: 'existing', label: '慢查询事件读取', note: '耗时、状态、行数和数据库来自已接收事件；原型样例不是服务端慢查询报告。' },
+            { id: 'slow-query-filters', status: 'extension', label: '耗时/数据库/时间筛选', note: '复用 Events 与 SlowQueryDrawer 的筛选输入，阈值以服务端配置为准。' },
+            { id: 'slow-query-input-restore', status: 'existing', label: '恢复 SQL 输入', note: '只恢复选中慢查询文本、数据库和接收时间到编辑器，不自动重跑原请求。' },
+            { id: 'slow-query-explain', status: 'extension', label: '手动 Explain 入口', note: 'Explain 需用户显式打开并执行，计划状态在真实 planner 返回前保持未执行。' },
+            { id: 'slow-query-payload-permission', status: 'existing', label: 'SQL/Payload 权限呈现', note: '按数据库/对象权限显示脱敏 SQL 或隐藏正文；客户端禁用不等于授权。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示按数据库、最短耗时和时间范围筛选的慢查询事件，以及状态、行数、耗时和 SQL 摘要。', primary: '打开查询输入', fields: ['数据库', '最短耗时', '时间范围', '事件时间', '耗时', '行数', '状态', 'SQL 摘要', '阈值来源'] },
+            empty: { label: '窗口无慢查询', status: 'existing', summary: '没有符合窗口和阈值的已接收事件时保留筛选，不把空结果解释为查询健康或阈值为零。', primary: '查看阈值说明', preserve: ['数据库筛选', '最短耗时', '时间范围'] },
+            error: { label: '慢查询读取错误', status: 'extension', summary: '只替换慢查询列表，保留筛选和已选 SQL 草稿；不自动重跑失败的慢请求。', primary: '检查并重试', preserve: ['数据库筛选', '最短耗时', '时间范围', '选中 SQL 输入'], blocked: ['自动重跑慢查询'] },
+            permission: { label: 'SQL/Payload 无权限', status: 'existing', summary: '隐藏 SQL 正文、参数和结果载荷，显示数据库/对象 Read 权限要求；仍可保留无敏感摘要与耗时（若服务允许）。', primary: '查看权限要求', preserve: ['数据库筛选', '最短耗时', '时间范围'], blocked: ['查看受限 SQL', '打开受限 Payload'] },
+            readonly: { label: '只读', status: 'extension', summary: '可筛选、恢复 SQL 输入和手动打开 Explain；不自动执行、不修改慢查询阈值或删除事件。', primary: '恢复查询输入', blocked: ['自动重跑', '修改服务端阈值', '删除慢查询事件'] },
+            longContent: { label: '长慢查询', status: 'extension', summary: 'SQL、参数和事件列表按行/字节预算折叠，显示未返回全部；Explain 仍须手动执行。', primary: '查看结果预算', limits: ['慢查询条数、SQL 字节和参数预算以真实服务为准', '截断 SQL 不可直接当作可执行完整输入', '不显示虚构的 Explain 计划或 continuation'] }
+          }
         },
         {
           id: 'alerts', title: '告警规则', tabLabel: '告警规则', type: 'form', scope: 'instance', status: 'planned',
@@ -184,7 +215,21 @@ window.M47_CATALOG = {
           columns: ['规则', '指标', '窗口', '阈值', '启用'], rows: [['查询延迟', 'query P95', '5 分钟', '> 500 ms', '规划草稿'], ['磁盘容量', 'free bytes', '10 分钟', '< 10 GB', '规划草稿']],
           fields: [{ label: '规则名称', value: '查询延迟', kind: 'input' }, { label: '指标', value: 'query P95', kind: 'select' }, { label: '评估窗口', value: '5 分钟', kind: 'select' }, { label: '阈值', value: '500 ms', kind: 'input' }, { label: '通知路由', value: '尚未配置', kind: 'select' }], tabs: ['规则', '评估记录', '通知路由'],
           inspector: [{ label: '后端状态', value: '统一告警接口待规划' }, { label: '通知动作', value: '本原型不会发送消息' }, { label: '权限', value: '实例管理权限' }],
-          empty: { title: '尚未配置告警', body: '先确认指标来源和通知路由，再创建规则草稿。', action: '创建规则草稿' }
+          empty: { title: '尚未配置告警', body: '先确认指标来源和通知路由，再创建规则草稿。', action: '创建规则草稿' },
+          capabilities: [
+            { id: 'alert-rule-draft', status: 'planned', label: '规则草稿与条件预览', note: '指标、窗口、阈值、去抖和数据库/实例范围只保存为页面草稿；当前无统一告警后端。' },
+            { id: 'alert-evaluation', status: 'planned', label: '评估记录', note: '真实评估、触发和恢复记录尚未提供；样例不能显示为已触发告警。' },
+            { id: 'alert-notification-routing', status: 'planned', label: '通知路由说明', note: '邮件、Webhook 或消息通道尚未配置；规则预览绝不会发送通知。' },
+            { id: 'alert-admin-permission', status: 'planned', label: '实例管理权限检查', note: '需要服务端实例管理、指标读取与通知配置权限合同；未知权限明确保持不可用。' }
+          ],
+          stateMatrix: {
+            normal: { label: '规划正常', status: 'planned', summary: '显示规则草稿、指标来源、评估窗口、阈值、去抖和通知路由说明；不会启动评估或发送通知。', primary: '预览规则', fields: ['规则名称', '指标', '评估窗口', '阈值', '去抖窗口', '通知路由', '作用范围', '草稿状态'] },
+            empty: { label: '空规则', status: 'planned', summary: '没有规则时只创建页面内存草稿，先确认指标来源和通知路由；不建立服务端规则。', primary: '创建规则草稿', preserve: ['规则名称', '指标', '评估窗口', '阈值', '通知路由'] },
+            error: { label: '规划合同错误', status: 'planned', summary: '显示缺失的指标、窗口或通知合同，保留规则草稿；原型不伪造评估失败或重试后端调用。', primary: '查看规划边界', preserve: ['规则名称', '指标', '评估窗口', '阈值', '通知路由'], blocked: ['启用规则', '发送通知'] },
+            permission: { label: '实例管理权限不足', status: 'planned', summary: '隐藏指标载荷、评估记录和通知配置，显示实例管理与指标权限要求；不从页面表单推断授权。', primary: '查看权限要求', preserve: ['规则草稿', '作用范围'], blocked: ['保存规则', '启用规则', '配置通知'] },
+            readonly: { label: '只读', status: 'planned', summary: '可查看规则草稿和条件预览；规则保存、启用、修改通知路由与发送动作全部禁用。', primary: '查看规则草稿', blocked: ['保存规则', '启用规则', '发送通知', '修改通知路由'] },
+            longContent: { label: '长评估记录', status: 'planned', summary: '规则、评估记录和通知说明按记录数/字节预算折叠，标记未返回全部；不显示虚构的触发数量。', primary: '查看评估预算', limits: ['规则与评估历史预算待真实告警服务合同确认', '通知载荷按通道字节预算显示', '规划草稿/样例不代表已发送消息或真实告警'] }
+          }
         },
         {
           id: 'runtime', title: '运行时诊断', tabLabel: '运行时', type: 'table', scope: 'instance', status: 'planned',
@@ -192,7 +237,22 @@ window.M47_CATALOG = {
           columns: ['组件', '范围', '可见信息', '设计状态'], rows: [['WAL / Flush', '数据库', '积压、最近错误、时间戳', '能力适配待确认'], ['SonnetMQ', 'factory · Store 为实例共享', 'topic / consumer runtime', '复用已有 MQ 运行时'], ['Graph Beta', '数据库', '遍历诊断、预算、审计', '复用已有 Graph 能力']],
           fields: [{ label: '组件', value: '全部', kind: 'select' }, { label: '诊断预算', value: '30 秒 / 5 MB', kind: 'input' }], tabs: ['运行时', '诊断采集', '预算与取消'],
           inspector: [{ label: '采集边界', value: '有界、可取消、按权限脱敏' }, { label: '实现状态', value: '聚合视图规划' }, { label: '证据', value: '原型不生成运行诊断报告' }],
-          empty: { title: '当前能力未提供诊断信息', body: '可查看已暴露指标，或转入对应模型运行时。', action: '查看能力矩阵' }
+          empty: { title: '当前能力未提供诊断信息', body: '可查看已暴露指标，或转入对应模型运行时。', action: '查看能力矩阵' },
+          capabilities: [
+            { id: 'runtime-component-index', status: 'planned', label: '组件运行时索引', note: 'WAL/Flush、SonnetMQ、Graph Beta 等组件统一索引待 DTO 与权限合同；缺少能力显示未提供。' },
+            { id: 'runtime-diagnostic-collection', status: 'planned', label: '有界诊断采集', note: '采集必须受时间/字节预算、脱敏和用户取消约束；当前原型不执行采集。' },
+            { id: 'runtime-cancel', status: 'planned', label: '采集取消与服务器终态', note: '区分请求已取消、服务器仍运行和服务器终态；界面结束不能解释为健康或完成。' },
+            { id: 'runtime-native-handoff', status: 'extension', label: '转入模型原生运行时', note: '已有 MQ/Graph 诊断可跳转其原生工作台；跳转不复制或扩大能力合同。' },
+            { id: 'runtime-redaction', status: 'planned', label: '诊断载荷脱敏', note: '敏感字段在采集前按真实权限和脱敏策略处理；未知策略保持不可用。' }
+          ],
+          stateMatrix: {
+            normal: { label: '规划正常', status: 'planned', summary: '显示组件索引、范围和诊断预算；可预览未来采集边界，但不把静态组件行当作健康报告。', primary: '预览诊断采集', fields: ['组件', '范围', '可见信息', '时间预算', '字节预算', '脱敏策略', '取消能力', '证据状态'] },
+            empty: { label: '无诊断能力', status: 'planned', summary: '当前组件没有暴露诊断能力时显示未提供，并可查看能力矩阵或转入已暴露的原生页；不填充 0 值。', primary: '查看能力矩阵', preserve: ['组件筛选', '诊断预算'] },
+            error: { label: '采集错误', status: 'planned', summary: '只替换诊断采集结果，保留组件、预算和取消状态；客户端失败不解释为组件健康。', primary: '检查并重试', preserve: ['组件筛选', '诊断预算', '脱敏策略'], blocked: ['标记组件健康'] },
+            permission: { label: '诊断权限不足', status: 'planned', summary: '隐藏诊断载荷和敏感字段，显示实例/组件权限要求；未知能力与无权限分开呈现。', primary: '查看权限要求', preserve: ['组件筛选', '诊断预算'], blocked: ['查看受限诊断'] },
+            readonly: { label: '只读', status: 'planned', summary: '可查看已授权摘要、预算说明并转入原生诊断页；采集、取消服务器任务和配置修改保持禁用。', primary: '查看诊断摘要', blocked: ['开始诊断采集', '修改预算', '标记组件健康'] },
+            longContent: { label: '长诊断载荷', status: 'planned', summary: '日志、任务和组件诊断按时间/字节预算折叠，显示未返回全部并保留取消状态。', primary: '查看采集预算', limits: ['采集时间与字节预算由真实组件能力返回', '长日志默认脱敏和摘要，不自动拉取全量', '没有服务器终态不能显示完成、健康或可恢复任务'] }
+          }
         }
       ]
     },
@@ -204,7 +264,22 @@ window.M47_CATALOG = {
           columns: ['源 / 端点', '模式', '地址', '数据库 / 表', '状态'], rows: [['PumpLine-A', 'Master', '10.20.0.15:502', 'factory / Telemetry', '示例配置'], ['LocalSlave', 'Slave', '0.0.0.0:1502', 'factory / RegisterMap', '示例配置']],
           fields: [{ label: '数据库', value: 'factory', kind: 'select' }, { label: 'Runtime', value: '以服务端返回为准' }], tabs: ['运行时', '待审批写入', '审计'],
           inspector: [{ label: '选中源', value: 'PumpLine-A' }, { label: '绑定', value: 'Telemetry / RegisterMap' }, { label: '现场写入', value: '批准与拒绝复用现有流程' }],
-          empty: { title: '尚无 Modbus 源或端点', body: '由管理员配置运行时，之后可查看绑定与待审批写入。', action: '查看配置说明' }
+          empty: { title: '尚无 Modbus 源或端点', body: '由管理员配置运行时，之后可查看绑定与待审批写入。', action: '查看配置说明' },
+          capabilities: [
+            { id: 'modbus-runtime', status: 'existing', label: 'Modbus Runtime 状态', note: '复用现有运行时返回源、端点和连接状态；原型静态配置不代表现场已连接。' },
+            { id: 'modbus-bindings', status: 'existing', label: '源/端点/数据库表绑定', note: '显示地址、寄存器范围和数据库/表绑定；绑定权限按真实数据库和实例合同核验。' },
+            { id: 'modbus-pending-write', status: 'existing', label: 'Pending 待审批写入', note: '现场写入保留请求 ID、寄存器范围和影响预览，批准/拒绝沿用现有流程。' },
+            { id: 'modbus-audit', status: 'existing', label: 'Audit 审计', note: '区分预览、批准、拒绝和执行终态；审计记录来源与请求关联标识必须来自真实返回。' },
+            { id: 'modbus-write-approval', status: 'existing', label: '批准写入边界', note: '非管理员或未知权限不能绕过确认直接写现场端点；页面刷新不代表写入成功。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示数据库选择、Runtime 状态、源/端点/表绑定，以及 Pending 与 Audit 页签中的请求和终态。', primary: '刷新状态', fields: ['数据库', '源/端点', '模式', '地址', '寄存器范围', '数据库/表绑定', 'Runtime 状态', '请求 ID', '审批状态'] },
+            empty: { label: '空 Modbus 配置', status: 'existing', summary: '没有源或端点时保留数据库选择，并说明管理员配置与权限路径；空列表不表示服务异常。', primary: '查看配置说明', preserve: ['数据库选择', 'Runtime 筛选'] },
+            error: { label: 'Runtime/读取错误', status: 'extension', summary: '只替换 Runtime、Pending 或 Audit 当前结果区，保留数据库、源/端点和请求草稿；不把刷新失败当作现场断电。', primary: '检查并重试', preserve: ['数据库选择', '源/端点筛选', '寄存器范围', '选中请求'], blocked: ['确认现场写入'] },
+            permission: { label: 'Modbus 权限不足', status: 'existing', summary: '隐藏端点、寄存器和写请求载荷，显示实例/数据库与批准权限要求；不能从可见菜单推断管理员资格。', primary: '查看权限要求', preserve: ['数据库选择', '源/端点筛选'], blocked: ['查看寄存器载荷', '批准现场写入', '拒绝现场写入'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看 Runtime、Pending 摘要和 Audit；现场写入、批准/拒绝、配置修改保持禁用并说明原因。', primary: '查看运行时', blocked: ['批准现场写入', '拒绝现场写入', '修改端点配置'] },
+            longContent: { label: '长寄存器/审计内容', status: 'extension', summary: '端点、寄存器范围和 Audit 记录按页数/字节预算展示，保留请求 ID 与未返回全部标记。', primary: '查看传输限制', limits: ['端点与寄存器读取须有界并遵循服务端上限', 'Audit 按真实 continuation/分页能力显示', '浏览器进度或页面刷新不能代替现场写入服务器终态'] }
+          }
         },
         {
           id: 'imports', title: '导入任务', tabLabel: '导入任务', type: 'table', scope: 'database', status: 'extension', existingRoute: '/admin/app/sql',

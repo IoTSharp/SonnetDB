@@ -76,6 +76,13 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --experimental-vm-modules --test web/tests/management-core-contract.test.mjs`：6/6 通过；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json`：通过；`git diff --check`：通过。通用 MQ 工厂拒绝缺省 topic 或 name/topic 不一致；Explorer key 文档明确只用于路由兼容，跨库选择必须配合 database。
 - 证据范围是 Web TypeScript 静态/内存合同与兼容夹具，不代表真实 Server/API、权限策略、存储迁移、Native AOT、VS Code/Studio/WorkBuddy 三宿主或发布门禁通过；`get` 返回未登记时仍为 `undefined`，调用方应使用 `resolve` 获取安全的 unavailable 描述。
 
+## WB-02D 观测与数据流状态合同（2026-10-05）
+
+- 原型页 `events`、`slow-queries`、`alerts`、`runtime`、`modbus` 已补齐页面级 capabilities、`normal/empty/error/permission/readonly/longContent` 六态、专用正常态字段和任务页注入；新增 `web/tests/m47-observe-flow-state-contract.test.mjs` 固化页级对象身份与边界断言。
+- `node --test web/tests/m47-observe-flow-state-contract.test.mjs`：3/3；`node --check`：`prototype/catalog.js`、`prototype/task-details.js` 均通过；`git diff --check`：通过；独立只读复核：PASS。
+- 事件暂停只影响本地视图，不暂停服务器；慢查询恢复只回填输入且 Explain 需手动执行；告警规则、评估、通知和运行时诊断仍为规划能力，不发送通知、不标记健康、不伪造服务器终态；Modbus 保留 Runtime/Pending/Audit、数据库绑定及批准/拒绝边界。
+- 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 Server、权限、现场写入、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
+
 ## WB-04 迁移前导航兼容预检（2026-10-05）
 
 - 新增 `web/tests/navigation-compat.test.mjs`，只读检查 `web/src/router/index.ts` 与 `web/src/views/AppShell.vue`，没有修改生产壳、导航或路由。
