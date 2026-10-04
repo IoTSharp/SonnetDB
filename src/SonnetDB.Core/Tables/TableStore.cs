@@ -144,6 +144,22 @@ public sealed partial class TableStore : IDisposable
     /// </summary>
     internal long ActiveWalLengthForEvidence => _keyspace.ActiveWalLength;
 
+    /// <summary>供在线索引回归核对自动检查点没有被重复调度。</summary>
+    internal long AutoCheckpointScheduleCount => _keyspace.AutoCheckpointScheduleCount;
+
+    /// <summary>供在线索引回归观察已排队或运行中的自动检查点。</summary>
+    internal bool AutoCheckpointQueued => _keyspace.AutoCheckpointQueued;
+
+    /// <summary>供在线索引回归观察检查点失败及后续恢复。</summary>
+    internal Exception? LastCheckpointException => _keyspace.LastCheckpointException;
+
+    /// <summary>供在线索引回归在冻结与发布阶段建立确定性同步点。</summary>
+    internal Action<KvCheckpointPhase>? CheckpointTestHook
+    {
+        get => _keyspace.CheckpointTestHook;
+        set => _keyspace.CheckpointTestHook = value;
+    }
+
     /// <summary>公开全表扫描累计次数，供访问计划回归测试观测。</summary>
     internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
 

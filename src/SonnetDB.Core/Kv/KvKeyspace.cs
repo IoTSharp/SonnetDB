@@ -2379,7 +2379,7 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
-    /// <summary>关系表在线维护先限制覆盖层总量，再逐键可取消地启用有序访问；超限交给正常检查点消化。</summary>
+    /// <summary>关系表在线维护先限制覆盖层总量，再逐键可取消地启用有序访问；超限时按需启动一次自动检查点。</summary>
     internal bool TryEnableOrderedOverlayScans(int maximumEntries, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEntries);
@@ -2394,7 +2394,13 @@ public sealed partial class KvKeyspace : IDisposable
                     : _options.MaxSnapshotOverlayEntries);
             long totalEntries = (long)_values.Count + (_frozenValues?.Count ?? 0);
             if (totalEntries > configuredLimit)
+            {
+                // 在线门槛可能低于日常写预算；只为尚无检查点的覆盖层发起一次调度。
+                // 已排队、冻结及失败重试由现有 worker 和退避处理，避免重复强制重排。
+                if (!_autoCheckpointQueued && _checkpointState is null && _frozenValues is null)
+                    ScheduleAutoCheckpointLocked(force: true);
                 return false;
+            }
             _values.EnableOrderedScans(cancellationToken);
             if (_frozenValues is KvOrderedOverlay frozen)
                 frozen.EnableOrderedScans(cancellationToken);
