@@ -3,7 +3,7 @@ using SonnetDB.Exceptions;
 
 namespace SonnetDB.Kv;
 
-/// <summary>限制同一数据库的随机读并发和请求等待，另保留一个 checkpoint 读取槽。</summary>
+/// <summary>限制同一管理器下各 keyspace 的随机读并发和请求等待，另保留一个 checkpoint 读取槽。</summary>
 /// <remarks>许可只覆盖实际 I/O；CRC 与调用方消费不会占用物理读槽。</remarks>
 internal sealed class KvDiskReadBudget : IDisposable
 {
@@ -20,6 +20,7 @@ internal sealed class KvDiskReadBudget : IDisposable
     private int _maintenanceQueuedReads;
     private int _peakConcurrentReads;
     private int _stateReferences;
+    private int _keyspaceReferences;
     private bool _ownerReleased;
     private bool _semaphoreDisposed;
     private long _completedReads;
@@ -56,6 +57,7 @@ internal sealed class KvDiskReadBudget : IDisposable
     internal int ActiveReads => Volatile.Read(ref _activeReads);
     internal int QueuedReads => Volatile.Read(ref _queuedReads);
     internal int MaintenanceActiveReads => Volatile.Read(ref _maintenanceActiveReads);
+    internal int MaintenanceQueuedReads => Volatile.Read(ref _maintenanceQueuedReads);
     internal int PeakConcurrentReads => Volatile.Read(ref _peakConcurrentReads);
     internal long CompletedReads => Interlocked.Read(ref _completedReads);
     internal long CompletedBytes => Interlocked.Read(ref _completedBytes);
@@ -69,9 +71,34 @@ internal sealed class KvDiskReadBudget : IDisposable
         lock (_lifecycleSync)
         {
             ThrowIfSemaphoreDisposedLocked();
-            if (_ownerReleased)
+            if (_ownerReleased && _keyspaceReferences == 0)
                 throw new ObjectDisposedException(nameof(KvDiskReadBudget));
             _stateReferences = checked(_stateReferences + 1);
+        }
+    }
+
+    /// <summary>保留 keyspace 完整生命周期，使管理器关闭后的在途 checkpoint 能验证临时 state。</summary>
+    internal IDisposable AcquireKeyspaceReference()
+    {
+        lock (_lifecycleSync)
+        {
+            ThrowIfSemaphoreDisposedLocked();
+            if (_ownerReleased)
+                throw new ObjectDisposedException(nameof(KvDiskReadBudget));
+            _keyspaceReferences = checked(_keyspaceReferences + 1);
+            return new KeyspaceLease(this);
+        }
+    }
+
+    /// <summary>在 keyspace 的延迟关闭完成后释放生命周期引用。</summary>
+    private void ReleaseKeyspaceReference()
+    {
+        lock (_lifecycleSync)
+        {
+            if (_keyspaceReferences <= 0)
+                throw new InvalidOperationException("KV disk read budget keyspace 引用计数无效。");
+            _keyspaceReferences--;
+            TryDisposeSemaphoreLocked();
         }
     }
 
@@ -95,7 +122,7 @@ internal sealed class KvDiskReadBudget : IDisposable
         lock (_lifecycleSync)
         {
             ThrowIfSemaphoreDisposedLocked();
-            if (_ownerReleased && _stateReferences == 0)
+            if (_ownerReleased && _stateReferences == 0 && _keyspaceReferences == 0)
                 throw new ObjectDisposedException(nameof(KvDiskReadBudget));
             // 只有真正等待的请求才占有界队列名额。
             if (permits.Wait(0))
@@ -205,7 +232,7 @@ internal sealed class KvDiskReadBudget : IDisposable
     /// <summary>在所有引用、请求和维护读取结束后关闭信号量。</summary>
     private void TryDisposeSemaphoreLocked()
     {
-        if (_semaphoreDisposed || !_ownerReleased || _stateReferences != 0
+        if (_semaphoreDisposed || !_ownerReleased || _stateReferences != 0 || _keyspaceReferences != 0
             || _activeReads != 0 || _queuedReads != 0
             || _maintenanceActiveReads != 0 || _maintenanceQueuedReads != 0)
             return;
@@ -219,6 +246,16 @@ internal sealed class KvDiskReadBudget : IDisposable
     {
         if (_semaphoreDisposed)
             throw new ObjectDisposedException(nameof(KvDiskReadBudget));
+    }
+
+    /// <summary>以幂等租约覆盖 keyspace 与延迟 checkpoint 的存活区间。</summary>
+    private sealed class KeyspaceLease(KvDiskReadBudget owner) : IDisposable
+    {
+        private KvDiskReadBudget? _owner = owner;
+
+        /// <summary>仅归还一次 keyspace 生命周期引用。</summary>
+        public void Dispose()
+            => Interlocked.Exchange(ref _owner, null)?.ReleaseKeyspaceReference();
     }
 
     /// <summary>持有一个读取许可，允许幂等释放。</summary>

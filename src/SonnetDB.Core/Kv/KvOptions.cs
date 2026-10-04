@@ -66,7 +66,8 @@ public sealed record KvOptions
     public int MaxValueBytes { get; init; } = 16 * 1024 * 1024;
 
     /// <summary>
-    /// 同一嵌入式数据库内 KV state 文件允许并发进行的 RandomAccess 读数，默认 8。
+    /// 同一关系表管理器或 KV keyspace 管理器内，全部 state 文件共享的 RandomAccess 读数，默认 8。
+    /// 两类管理器各自持有预算；单独打开的 keyspace 使用自己的预算。
     /// 必须为正数；等待许可的读操作观察调用方取消，不占用 keyspace 写锁。
     /// </summary>
     public int MaxConcurrentStateReads { get; init; } = KvDiskReadBudget.DefaultMaxConcurrentReads;

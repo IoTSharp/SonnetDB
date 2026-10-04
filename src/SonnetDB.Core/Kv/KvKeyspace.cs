@@ -91,6 +91,7 @@ public sealed partial class KvKeyspace : IDisposable
     private readonly KvOptions _options;
     private readonly KvDiskReadBudget _diskReadBudget;
     private readonly bool _ownsDiskReadBudget;
+    private IDisposable? _diskReadBudgetKeyspaceLease;
     private KvOrderedOverlay _values;
     private Dictionary<byte[], KvValueEntry>? _frozenValues;
     private SnapshotOverlayCache? _snapshotOverlayCache;
@@ -134,6 +135,7 @@ public sealed partial class KvKeyspace : IDisposable
         _generation = generation;
         _wal = wal;
         _lifecycleLease = lifecycleLease;
+        _diskReadBudgetKeyspaceLease = diskReadBudget.AcquireKeyspaceReference();
     }
 
     /// <summary>Keyspace 名称。</summary>
@@ -469,6 +471,7 @@ public sealed partial class KvKeyspace : IDisposable
         IReadOnlyList<string> replaySealedWalPaths = sealedWalPaths;
         bool upgradedLegacyWalWithRecords = false;
         KvWalFile? wal = null;
+        KvKeyspace? keyspace = null;
 
         try
         {
@@ -584,7 +587,7 @@ public sealed partial class KvKeyspace : IDisposable
             else if (legacyResetWal && generationMetadata.Version < 2)
                 KvGenerationFile.Save(rootDirectory, state.Generation, legacyResetStartSequence);
 
-            var keyspace = new KvKeyspace(
+            keyspace = new KvKeyspace(
                 name,
                 rootDirectory,
                 options,
@@ -603,8 +606,22 @@ public sealed partial class KvKeyspace : IDisposable
         }
         catch
         {
-            wal?.Dispose();
-            state.DiskState?.Dispose();
+            try
+            {
+                wal?.Dispose();
+            }
+            finally
+            {
+                try
+                {
+                    state.DiskState?.Dispose();
+                }
+                finally
+                {
+                    // 构造完成后目录初始化仍可能失败，不能遗留共享预算的 keyspace 引用。
+                    keyspace?._diskReadBudgetKeyspaceLease?.Dispose();
+                }
+            }
             throw;
         }
     }
@@ -2745,6 +2762,7 @@ public sealed partial class KvKeyspace : IDisposable
         KvDiskState? checkpointDisk;
         KvDiskState? currentDisk;
         FileStream? lifecycleLease;
+        IDisposable? diskReadBudgetKeyspaceLease;
         lock (_sync)
         {
             if (!_disposed || _checkpointState?.IsRunning == true)
@@ -2756,6 +2774,8 @@ public sealed partial class KvKeyspace : IDisposable
             _diskState = null;
             lifecycleLease = _lifecycleLease;
             _lifecycleLease = null;
+            diskReadBudgetKeyspaceLease = _diskReadBudgetKeyspaceLease;
+            _diskReadBudgetKeyspaceLease = null;
         }
 
         Exception? failure = null;
@@ -2787,6 +2807,19 @@ public sealed partial class KvKeyspace : IDisposable
         {
             // state 句柄全部释放后才能交出目录，避免新实例与旧 checkpoint 的文件回滚重叠。
             lifecycleLease?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        try
+        {
+            // 延迟 checkpoint 已结束且目录租约已交回，才允许共享预算关闭。
+            diskReadBudgetKeyspaceLease?.Dispose();
         }
         catch (Exception) when (failure is not null)
         {

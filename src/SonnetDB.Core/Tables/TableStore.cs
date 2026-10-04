@@ -171,6 +171,10 @@ public sealed partial class TableStore : IDisposable
     /// <summary>供 TableManager 在固定顺序下原子捕获多表快照的 rowstore 同步根。</summary>
     internal object SynchronizationRoot => _sync;
 
+    /// <summary>供跨表并发回归在取得物理读取许可后建立确定性同步点。</summary>
+    internal void ConfigureDiskReadTestHook(Action? readStarted)
+        => _keyspace.ConfigureDiskReadTestHook(readStarted);
+
     /// <summary>取得当前 rowstore 的稳定读快照，供一个复合访问路径共享。</summary>
     internal KvReadSnapshot AcquireReadSnapshot()
     {
