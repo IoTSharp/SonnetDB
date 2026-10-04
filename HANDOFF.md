@@ -182,5 +182,5 @@
 - WB-02B 的 `c3bfc2f1` 与交接同步 `73266aef` 已在 `main`；本轮继续只改原型目录、状态测试和共享记录，没有改生产 `web/src`、路由或宿主代码。
 - `database-catalog`、`connections`、`notebook`、`history`、`metrics` 五个全局页面已补 capabilities、`normal/empty/error/permission/readonly/longContent` 六态、screen-specs 专用字段，并由 `task-details.js` 注入所有对应任务页。连接测试显式区分 URL/健康、认证、数据库/对象权限、capabilities 和测试时间；Notebook 全规划且不自动执行；History 恢复不重放；Metrics 示例不等于采样、质量或成本证据。
 - 独立复核最初发现字段映射缺口，已补齐并固化测试：数据库目录名称/权限/资源/Segment，连接名称/URL/默认数据库/认证来源/宿主/测试时间，Notebook 单元类型/输入/执行状态/结果快照/保存版本，History 时间/对象/动作/状态/耗时/返回影响数量，Metrics 写入速率/query P95/WAL fsync P95/内存/采样时间/指标能力。
-- 已通过：PowerShell 7.6.6；两个 `node --check`；`node --test web/tests/m47-global-page-state-contract.test.mjs` 3/3；WB-02B 测试 2/2；VM sections=7/models=9/区域页=30/总页=39、五页六态和 taskDetails identity；`git diff --check`；独立最终复核 PASS。当前 WB-02C 尚未提交，提交前仍必须在最终树运行完整 restore/format 门禁。
-- 设计包仍是 `REVIEW_DRAFT`，生产迁移继续冻结；本切片不代表真实 Server、权限、三宿主、安装、发布或 AOT 验收。提交后补写实际哈希与 clean 状态，剩余 24 页状态合同继续按有界批次推进；不 push、不发布、不部署。
+- 已通过：PowerShell 7.6.6；两个 `node --check`；`node --test web/tests/m47-global-page-state-contract.test.mjs` 3/3；WB-02B 测试 2/2；VM sections=7/models=9/区域页=30/总页=39、五页六态和 taskDetails identity；`git diff --check`；独立最终复核 PASS；最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
+- 设计包仍是 `REVIEW_DRAFT`，生产迁移继续冻结；WB-02C 已提交为 `2ebc6978`（`feat(m47): add global page state contracts`），提交后工作树保持 clean。本切片不代表真实 Server、权限、三宿主、安装、发布或 AOT 验收；剩余 24 页状态合同继续按有界批次推进。不 push、不发布、不部署。
