@@ -6,6 +6,7 @@ using SonnetDB.Coap;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 using SonnetDB.Mqtt;
 
@@ -23,6 +24,25 @@ internal static class SonnetDbRequestPipeline
     /// <param name="serverOptions">运行期服务器配置。</param>
     public static void Configure(WebApplication app, ServerOptions serverOptions)
     {
+        // 覆盖尚未开始响应的 REST 请求，防止存储过载被误报为未分类 500。
+        app.Use(async (context, next) =>
+        {
+            try
+            {
+                await next(context).ConfigureAwait(false);
+            }
+            catch (KvReadOverloadedException exception) when (!context.Response.HasStarted)
+            {
+                context.Response.Clear();
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                context.Response.Headers.RetryAfter = "1";
+                context.Response.ContentType = "application/json; charset=utf-8";
+                var error = new ErrorResponse(KvReadOverloadedException.Code, exception.Message,
+                    KvReadOverloadedException.Code);
+                await JsonSerializer.SerializeAsync(context.Response.Body, error,
+                    ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
+            }
+        });
         MqttServerBootstrap.ConfigureMiddleware(app, serverOptions);
         CoapServerBootstrap.ConfigureMiddleware(app, serverOptions);
 

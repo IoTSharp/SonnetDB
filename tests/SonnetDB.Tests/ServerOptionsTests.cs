@@ -546,6 +546,9 @@ public sealed class ServerOptionsTests
             MaxWalBytes = 1_048_576,
             MaxOverlayEntries = 50_000_000,
             MaxSnapshotOverlayEntries = 1_000_000,
+            MaxConcurrentStateReads = 32,
+            MaxQueuedStateReads = 128,
+            StateReadWaitTimeoutMilliseconds = 2000,
             IndexRebuildMaxWalBytes = 3_221_225_472,
             IndexRebuildMaxOverlayEntries = 4_000_000,
         };
@@ -553,8 +556,31 @@ public sealed class ServerOptionsTests
         Assert.Equal(server.MaxWalBytes, core.MaxWalBytes);
         Assert.Equal(server.MaxOverlayEntries, core.MaxOverlayEntries);
         Assert.Equal(server.MaxSnapshotOverlayEntries, core.MaxSnapshotOverlayEntries);
+        Assert.Equal(server.MaxConcurrentStateReads, core.MaxConcurrentStateReads);
+        Assert.Equal(server.MaxQueuedStateReads, core.MaxQueuedStateReads);
+        Assert.Equal(server.StateReadWaitTimeoutMilliseconds, core.StateReadWaitTimeoutMilliseconds);
         Assert.Equal(server.IndexRebuildMaxWalBytes, core.IndexRebuildMaxWalBytes);
         Assert.Equal(server.IndexRebuildMaxOverlayEntries, core.IndexRebuildMaxOverlayEntries);
+    }
+
+    /// <summary>验证物理读取配置接线，并收敛非法配置到有限容量和等待期限。</summary>
+    [Theory]
+    [InlineData(32, 128, 2000, 32, 128, 2000)]
+    [InlineData(0, -1, -1, 1, 0, 1)]
+    [InlineData(int.MaxValue, int.MaxValue, int.MaxValue, 256, 4096, 120000)]
+    public void Bind_WithPhysicalReadBudget_AppliesFiniteBounds(
+        int concurrency, int queue, int timeout, int expectedConcurrency, int expectedQueue, int expectedTimeout)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:Kv:MaxConcurrentStateReads"] = concurrency.ToString(),
+            ["SonnetDBServer:Kv:MaxQueuedStateReads"] = queue.ToString(),
+            ["SonnetDBServer:Kv:StateReadWaitTimeoutMilliseconds"] = timeout.ToString(),
+        }).Build();
+        var options = ServerOptionsBinder.Bind(configuration).Kv;
+        Assert.Equal(expectedConcurrency, options.MaxConcurrentStateReads);
+        Assert.Equal(expectedQueue, options.MaxQueuedStateReads);
+        Assert.Equal(expectedTimeout, options.StateReadWaitTimeoutMilliseconds);
     }
 
     /// <summary>验证关系表启动预热并发可配置，并限制在明确的资源边界内。</summary>

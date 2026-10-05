@@ -237,6 +237,7 @@
 - 验证：8 篇发布器 dry-run 通过；135/136 实际发布成功且默认社区 footer 保留；公开标题/正文对账、JSON/事件、队列哈希/sourceDocs、计划链接及 60 选题的 152 引用核验；`dotnet restore SonnetDB.slnx` 通过，完整 Format Check 退出 0（提示加载工作区警告，未报格式错误）；`git diff --check` 通过。预览临时文件已清理，子代理无常驻进程。用户已授权本次提交并推送；博客提交范围为 `docs/blogs/*` 本次文件与根 CHANGELOG/HANDOFF 的博客段，提交说明为 `docs(blog): add cnblogs series and publishing queue`，实际提交哈希/远端状态以 git log/status 为准。
 - 并发 Workbench 会话仍在主树修改 M47 work-queue 和 Web 文件；本次不得暂存其工作树改动。main 的已有本地提交将随用户授权的普通 push 同步，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，不合并、不删除、不改写。
 - 下一步：继续核对076–134的账号侧草稿/隐藏/改题状态；已发布的过时文章用修订或续篇处理，禁止重复发帖。自动任务每天 11:00 核实并维护系列、状态和每日两篇，事实或版本发生变化时暂停受影响稿件。
+- 博客正文、对账和发布队列已提交为 `f5c62423`。推送前 fetch 发现远端新增 `7d75d6ff`、`8af2dd68`、`e7d811f5`、`c28c588d`、`6a8d82d2` 五提交；在独立 `blog-publishing-sync` 工作树合并，唯一文本冲突为 CHANGELOG 的 Added 段，已保留双方全部条目，源码无冲突。主树并发 Workbench 未提交文件未复制或暂存。合并后 Core 定向回归 90/90、Server 过载/配置回归 5/5 通过；真实硬件、NativeAOT 发布与长期门禁不由本次回归推断。最终 restore/Format Check 与普通推送结果以本次工具输出和 git 远端状态为准，不改写提交历史。
 
 ## 当前 Workbench 检查点（WB-06，2026-10-05）
 

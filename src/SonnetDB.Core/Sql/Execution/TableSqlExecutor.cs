@@ -3697,7 +3697,9 @@ internal static class TableSqlExecutor
                             orderedPlan.Index,
                             orderedPlan.EqualityPrefixValues,
                             orderedPlan.Range!,
-                            candidateLimit),
+                            candidateLimit,
+                            descending,
+                            SqlQueryResources.Current?.CancellationToken ?? CancellationToken.None),
                         FormatIndexAccessPath(orderedPlan),
                         orderedPlan.Index.Name,
                         fallbackReason: null),
@@ -3924,7 +3926,8 @@ internal static class TableSqlExecutor
             store,
             schema,
             statement.Where,
-            existingPlan))
+            existingPlan,
+            allowCostScanFallback: true))
         {
             if (!TryPrepareFullyCoveredOrderedRangeCandidate(
                 schema,
@@ -3978,19 +3981,20 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
-    /// 先返回成本模型选中的计划；替代索引只有在不扩大估算候选集时才可换取 ORDER BY 顺序。
+    /// 先返回成本模型选中的计划；完整谓词的有界排序可重新评估被全分区成本淘汰的索引。
     /// </summary>
     private static IEnumerable<TableIndexAccessPlan> EnumerateOrderAwareIndexPlans(
         TableStore? store,
         TableSchema schema,
         SqlExpression where,
-        TableIndexAccessPlan? existingPlan)
+        TableIndexAccessPlan? existingPlan,
+        bool allowCostScanFallback = false)
     {
         if (existingPlan is not null)
             yield return existingPlan;
 
-        // 运行时成本模型明确选择 table scan 时，不允许排序偏好重新启用已被成本淘汰的索引。
-        if (store is not null && existingPlan is null)
+        // 基础成本未考虑 LIMIT 早停；只有上层完整覆盖校验可恢复有界排序，残余过滤继续遵守成本选择。
+        if (store is not null && existingPlan is null && !allowCostScanFallback)
             yield break;
 
         foreach (TableIndexAccessPlan candidate in CollectIndexAccessPlans(schema, where))
@@ -4311,9 +4315,6 @@ internal static class TableSqlExecutor
 
         SortDirection direction = orderBy[0].Direction;
         descending = direction == SortDirection.Descending;
-        if (descending && orderBy.Count > 1)
-            return false;
-
         int explicitStart = plan.EqualityPrefixValues.Count;
         int explicitCount = plan.Index.Columns.Count - explicitStart;
         int implicitCount = plan.Index.IsUnique ? 0 : schema.PrimaryKey.Count;

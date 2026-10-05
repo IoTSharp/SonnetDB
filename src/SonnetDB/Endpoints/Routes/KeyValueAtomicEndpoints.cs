@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
@@ -84,6 +85,12 @@ internal static partial class SonnetDbEndpoints
             catch (TimeoutException)
             {
                 await WriteSimpleErrorAsync(ctx, 503, "kv_write_timeout", "KV 写入等待超时，请检查检查点状态并核对写入结果。").ConfigureAwait(false);
+            }
+            catch (KvReadOverloadedException)
+            {
+                ctx.Response.Headers.RetryAfter = "1";
+                await WriteSimpleErrorAsync(ctx, 503, KvReadOverloadedException.Code,
+                    "物理读取繁忙，请短暂退避并核对写入结果后重试。").ConfigureAwait(false);
             }
             catch (IOException)
             {
