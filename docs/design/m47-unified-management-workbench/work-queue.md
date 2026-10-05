@@ -100,8 +100,9 @@
 | WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 已完成并提交 `1d9465fb`；干净起点 `5dec4282`，依赖 WB-12。恢复与读取预算合同、专属文件归属和验收条件见下方检查点。 |
 | WB-19 | FullText Workbench 上下文、权限载荷与预览预算 | 已提交 `2f9a5477`，从干净 `1d9465fb` 接续；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8、既有真实Kestrel兼容4/4、独立复核与最终完整门禁通过。真实权限/写终态、读取恢复与三宿主/发行物另验。 |
 | WB-20 | Vector Workbench 原始向量检索上下文、权限载荷与Top-K预览 | 从干净 `2f9a5477` 接续，依赖WB-11/WB-16与既有Vector API；原名/六态、请求快照、401/403及空Schema锁存、Top-K100与子页门禁完成本地切片。专属Node17/17、全Web201/201、TypeScript/Vite、Chrome10/10、既有导入回归1/1、真实Kestrel兼容3/3与独立复核通过；本轮提交说明 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以git log为准，最终完整门禁为提交前置。索引Profile、真实权限/恢复/预算与三宿主/发行物另验。 |
+| WB-21 | KV 权限锁存、六态与有界预览 | 本地切片已验证；专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome12/12、既有浏览器5/5、真实Kestrel兼容6/6与独立复核通过。合同/归属见下方；最终完整restore/format及staged检查为提交放行条件，实际哈希见git log。真实新客户端权限/恢复、完整atomic响应、字节/堆预算与三宿主另验。 |
 
-WB-15～WB-20已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面，先冻结一个有界任务再派单；本轮不启动下一切片。
+WB-15～WB-21已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面（MQ/Object/Graph候选），先冻结一个有界任务再派单；本轮不启动下一切片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
@@ -128,6 +129,16 @@ WB-15～WB-20已按各自本地范围推进；M47-U01～U09 仍需完整九模�
 - 高级读取合同：Aggregate 保留用户 pipeline 并在末尾追加 `$limit: 1001`；Distinct 将用户预览上限限制为 1～1000，请求多一个哨兵值。两条路径最多格式化/展示/导出 1000 项（Distinct 为所选上限），超限明确 truncated，历史记录实际预览数与不完整性。不得把末尾 limit 称为服务端扫描/中间物化/字节/总堆预算；不提供虚构分页。
 - 实施代理独占 `web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs`；UI 证据代理独占新增 `web/e2e/document-recovery-budget.spec.ts`；独立复核只读。`DocumentAdvancedWorkbench.vue` 的更新/索引/Change Feed、Server API、路由与其它宿主保持独立验收，不重复包装 WB-12。
 - 根独占共享文档、兼容证据盘点、验证 runner、完整 restore/format、stage 和 commit。最多三个活动子代理；每代理最多 25 个命名文件、25 分钟、测试最多两次，根整体验证各命令另设超时。静态/fixture、真实 Server、三宿主/安装/AOT/发布证据分别记录；旧策略保留目录只读复用 runner，不触碰删除。
+
+### WB-21 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 干净起点 `08bd329f`，只推进 KV 权限与有界预览兼容切片，依赖既有 KV API、WB-05/WB-16 共享结果与原名导航。复用游标浏览、JSONL round-trip、NX/XX、交换/删除、精确版本字符串与一次审批，不重做整页。
+- 实施代理 `/root/wb20_vector_impl` 独占 `web/src/components/KvKeyspaceWorkbench.vue`、新增 `web/tests/kv-workbench-migration.test.mjs` 和既有 `web/tests/kv-workflow.test.mjs` 的必要合同断言；必要 API 响应校验仅在先回报并追加冻结后进行。UI代理 `/root/wb20_vector_ui` 独占新增 `web/e2e/kv-workbench-migration.spec.ts`，`/root/wb19_fulltext_impl` 独立只读复核。根独占六个共享文档、runner、完整restore/format与git。最多三个活动子代理，每代理最多25个命名文件、35分钟，不自跑长验证。
+- 保留 database/keyspace 原名、旧 `kv:keyspace` key、真实 prefix/cursor；补 normal/empty/error/permission/readonly/longContent 六态、外部readonly/permission门禁，身份/实际endpoint/auth/API与同步epoch隔离迟返、ABA和卸载。401/403来自Scan/Stats/Get/Write均锁存、清值/统计/游标/结果/编辑与导入草稿/审批，固定脱敏提示；同身份刷新及空资源往返不解锁，安全恢复另验。
+- 扫描每页1～1000，累计与批量Get预览1000；先截断再映射/格式化/显示，达到上限停止Load more，超返不可复用会跳过未保留项的cursor。历史/结果记录实际预览数与完整性，不把加载页或客户端截断称为全keyspace、快照或服务端资源预算。
+- Inspector按原始字节数提示，Text/JSON/Hex/Base64最多格式化4096字节，明确截断；完整原始值仅用于既有round-trip导出，不把截断预览自动填入写草稿。readonly浏览/Get/统计/导出保留，TTL/写入/删除/导入禁用；所有程序入口亦检查门禁。
+- 审批仍一次消费并绑定发起身份；缺失/传输异常的既有unknown路径在历史保持unknown，不重放。全量atomic响应形状、导入/写字节预算、CAS及真实新客户端权限/写旅程留独立切片。Server、路由、其它模型与宿主不改。静态/fixture、真实Kestrel兼容、三宿主/安装/AOT/硬件/长稳/发布分别记录，旧策略保留Temp不删除、不重试或绕过。
+- 三代理已停止写入；独立复核首轮发现空数据库占位解锁及缺真实Axios证据，修复并补测试后第二轮PASS。最终专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite与Chrome12/12通过；既有真实Kestrel兼容6/6单列。完整Base64仍解码，不能称字节/总堆预算；raw markRaw defaults无信号的独立ABA不在证据内。根证据目录 `artifacts/wb21-validation-20261006`，本轮提交说明 `feat(m47): isolate KV permission state and bounded previews`，实际哈希以git log为准；最终完整restore/原级别format与staged diff check为提交放行条件，日志/退出值见验证记录。
 
 ## 会话与自动检查（2026-10-06已转移）
 

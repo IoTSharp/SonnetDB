@@ -7,6 +7,13 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-21 完成本地 KV 权限/预览兼容切片，从干净 `08bd329f9ec99da0654d0801d34077dbe7bb9734` 接续；本轮提交说明 `feat(m47): isolate KV permission state and bounded previews`，实际哈希以git log为准。实施代理仅改KV组件、新专属Node与既有workflow必要断言，UI代理仅改新spec，第三代理独立只读复核；三代理已停止写入，根串行维护共享文档/验证/git，没有启动下一切片。
+- 保留database/keyspace原名、旧key、真实prefix/cursor、JSONL、NX/XX、交换/删除与精确版本。六态/readonly和程序入口门禁完成；Scan/Stats/Get/Write的401/403清值、统计、游标、结果、写草稿/导入与审批并锁存，同身份刷新、空数据库/profile/端点/keyspace往返不解锁。同步epoch/固定实际API、认证与参数隔离迟返/ABA/卸载，未知写历史为unknown且不重放。真实client/Axios分派前Get数据库ABA/Write认证ABA在自有adapter中为0次。
+- 每页1～1000、累计/Get预览1000，先截断后映射/显示/导出；超返丢弃会跳过未保留项的cursor，到累计上限停Load more，历史写实际preview count/completeness。Inspector最多格式化4096原始字节，截断不自动填入编辑器；完整原始值仅为已加载记录的round-trip导出，不代表全keyspace。Base64仍完整解码，传输/字节/总堆预算与全量atomic响应形状留后续。
+- 最终专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome/BrowserDirect12/12、既有KV浏览器5/5与独立复核PASS；既有真实Kestrel兼容6/6单列（真实cursor、REST/Frame匿名与readonly拒绝、空值/版本），未连接新UI执行真实Server权限/写旅程。首轮专属15+既有12=27/27、全Web216/216和build通过后，复核发现空database解锁与缺真实Axios证据；短修并补两测试后以上最终结果复验，没有降低断言。
+- 证据在 `D:\source\SonnetDB\artifacts\wb21-validation-20261006`；有界runner记录PID/创建/完整命令/父链并finally仅回收自有树，身份核验见cleanup-before-gates/cleanup-after-commit。提交放行条件为最终待提交树完整restore、原级别Format Check与staged diff check退出0，实际命令/退出值见restore-final/format-final日志；代码再改须重跑。两处策略保留Temp不删除、不重试或绕过，无工具安装。
+- 下一次先完整接收HANDOFF/AGENTS/queue/git/代理，再盘点MQ/Object/Graph等下一未迁移Web页面，冻结一个有界切片，不重复WB-21。显式读取恢复、新客户端真实Server权限、完整atomic终态、raw markRaw defaults无信号的独立ABA、资源预算、完整九模型/三宿主、安装、Extension Host、AOT、硬件/长稳和发布仍分别待验。heartbeat保持ACTIVE，不push、发布、部署或外部沟通；`origin/parity-results`保持`e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`。
+
 - WB-20 已完成本地 Vector 原始检索兼容切片，从干净 `2f9a5477672e28bddc1fa9548c04dccaf3e97e8e` 接续；本轮提交说明为 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以 `git log` 为准。实施代理只改 Vector 组件/专属 Node，另一代理只改 UI spec 并独立只读复核实施文件；两代理均已结束写入，根串行维护共享文档、验证和 git，没有启动下一切片。
 - 保留 database、measurement/column 原名、内部 `${measurement}:${column}` 和外层 `vector:measurement:column` key。请求冻结实际 API/端点/profile/认证/Schema/epoch 与发起参数，隔离迟返、正常会话 ABA、新检索和卸载；401/403 清命中、metadata、解析/生成向量与结果，保留 raw/text/filter 输入。空 Schema 往返、同身份 Schema/auth 刷新不解除锁存，安全读取恢复另验。数据编辑复用 MeasurementWorkbench，按身份/Schema 代际重建并传递 readonly/permission；其完整写终态/真实权限旅程不在本轮范围。
 - 原始向量须有限且匹配已知维度；Top-K 沿用 1～100，先截断再校验保留命中、格式化/显示/导出，历史绑定发起身份与实际预览完整性。Inspector 标 Distance。既有 embed-preview 没有所选索引显式 Profile 绑定，文本入口显示未就绪且不分派隐式 embedding，raw 路径保留；不伪造 Profile、Recall、质量或成本证据。

@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-21 KV 权限与有界预览（2026-10-06）**：复用游标、JSONL、NX/XX、交换/删除与精确版本；新增六态和只读门禁，Scan/Stats/Get/Write 的401/403锁存并清值、统计、游标、结果、写草稿与审批。同身份刷新、空数据库/profile/端点/keyspace往返不解锁；快照与同步代际隔离迟返/ABA，真实Axios分派前取消取得本地adapter证据。扫描累计/Get最多1000项，先截断再映射，超返不复用跳过未保留项的cursor；Inspector最多格式化4096原始字节，完整原值仅用于已加载记录的round-trip导出，不预填截断写草稿。unknown历史保留未知且不重放。专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome夹具12/12与独立复核通过；既有真实Kestrel兼容6/6单列。完整Base64解码/传输与总堆预算、atomic全响应、真实新客户端权限/恢复及三宿主/安装/AOT/发布仍独立验收。
+
 - **M47 WB-20 Vector Workbench 兼容切片（2026-10-06）**：保留数据库/measurement/column 原名和旧 key，原始检索冻结连接、实际 API、认证、Schema 与查询参数，隔离迟返/ABA/卸载。401/403 清命中、metadata、解析向量和结果，保留用户输入；空 Schema 往返与同身份刷新保持权限锁存。严格有限数值/已知维度，Top-K 1～100 先截断后显示/导出与历史；距离标 Distance。缺索引 Profile 时拒绝隐式文本 embedding，数据子页复用 Measurement 并传递门禁/代际重建。专属 Node17/17、全Web201/201、TypeScript/Vite、Chrome夹具10/10、既有导入回归1/1与独立复核通过；既有真实Kestrel HTTP兼容3/3单列。真实权限/读取恢复、Profile/模型质量、服务端资源预算及三宿主/安装/AOT/发布仍独立验收。
 
 - **M47 WB-19 FullText Workbench 兼容切片（2026-10-06）**：复用检索、Analyzer、导入与索引维护审批，绑定数据库/集合/索引原名和连接/认证代际，隔离迟返与卸载。HTTP401/403清命中/文档/Token/结果和写草稿，保留检索输入；只读保留查询/Analyzer/导出并阻止写入。Top-K沿用1～100，先截断后读取文档和导出，历史记录预览完整性；重建/导入一次审批且后续批次绑定原目标，重建校验真实同步终态，未知终态不重放。专属Node15/15、全Web184/184、TypeScript/Vite、Chrome夹具8/8及独立复核通过；既有真实Kestrel HTTP兼容4/4单列。真实Server新客户端权限/写终态旅程、安全读取恢复、服务端资源预算及三宿主/安装/AOT/发布继续独立验收，详情见 M47 验证记录。

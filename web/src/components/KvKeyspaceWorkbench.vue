@@ -1,11 +1,12 @@
 <template>
-  <main class="kv-workbench" data-testid="workbench-kv">
+  <main class="kv-workbench" data-testid="workbench-kv" :data-page-state="kvState" :data-database="targetDb" :data-resource-key="`kv:${activeKeyspace}`">
     <section class="kv-toolbar">
       <div class="kv-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="success" :bordered="false">KV</n-tag>
           <n-text class="kv-toolbar__title">{{ activeKeyspace || 'No keyspace selected' }}</n-text>
           <n-tag v-if="currentPrefix" size="tiny" :bordered="false">prefix {{ currentPrefix }}</n-tag>
+          <n-tag size="tiny" :bordered="false" data-testid="kv-state">{{ kvState }}</n-tag>
         </n-space>
         <n-text depth="3" class="kv-toolbar__meta">
           {{ targetDb || 'database' }} · {{ rows.length }} loaded keys · {{ checkedRowKeys.length }} selected
@@ -17,7 +18,7 @@
           v-model:value="selectedKeyspace"
           size="small"
           :options="keyspaceOptions"
-          :disabled="keyspaceOptions.length === 0"
+          :disabled="permissionDenied || keyspaceOptions.length === 0"
           class="kv-toolbar__keyspace"
         />
         <n-input
@@ -41,19 +42,19 @@
           :options="scanLimitOptions"
           class="kv-toolbar__limit"
         />
-        <n-button size="small" secondary :disabled="!activeKeyspace" @click="applyPrefix">Scan</n-button>
-        <n-button size="small" secondary :loading="loadingScan" :disabled="!activeKeyspace" @click="() => refreshAll()">
+        <n-button size="small" secondary :disabled="permissionDenied || !activeKeyspace" @click="applyPrefix">Scan</n-button>
+        <n-button size="small" secondary :loading="loadingScan" :disabled="permissionDenied || !activeKeyspace" @click="() => refreshAll()">
           Refresh
         </n-button>
-        <n-button size="small" quaternary :disabled="rows.length === 0" @click="exportRoundTrip">
+        <n-button size="small" quaternary :disabled="permissionDenied || rows.length === 0" @click="exportRoundTrip">
           导出 round-trip
         </n-button>
-        <n-button size="small" quaternary :disabled="!activeKeyspace" @click="importFileInput?.click()">
+        <n-button size="small" quaternary :disabled="readOnly || permissionDenied || !activeKeyspace" @click="importFileInput?.click()">
           导入文件
         </n-button>
         <input ref="importFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="kv-file-input" @change="onImportFileSelected">
-        <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
-        <n-button size="small" quaternary title="查看 KV 结果" aria-label="查看 KV 结果" :disabled="!ranOnce" @click="openResult">
+        <n-button size="small" quaternary :disabled="permissionDenied" @click="historyVisible = true">History</n-button>
+        <n-button size="small" quaternary title="查看 KV 结果" aria-label="查看 KV 结果" :disabled="permissionDenied || !ranOnce" @click="openResult">
           <template #icon><PanelBottom :size="16" /></template>
         </n-button>
       </div>
@@ -66,8 +67,18 @@
       @update:model-value="activeView = $event as KvView"
     />
 
+    <n-alert v-if="permissionDenied" type="warning" class="kv-alert" data-testid="kv-permission-lock">
+      当前身份没有 KV 访问权限，值、统计、游标与写入草稿已清除。安全读取恢复尚未就绪。
+    </n-alert>
+    <n-alert v-else-if="readOnly" type="info" class="kv-alert" data-testid="kv-readonly">
+      只读连接可浏览、读取与导出；写入、TTL、删除及导入禁止执行。
+    </n-alert>
+    <n-text depth="3" class="kv-preview-budget" data-testid="kv-preview-budget">
+      {{ previewTruncated ? 'truncated preview' : 'current preview' }} · {{ rows.length }}/1000 keys；仅表示已加载预览，未声明全 keyspace 快照或服务端资源预算。
+    </n-text>
+
     <WriteApprovalPanel
-      v-if="previewPlan"
+      v-if="previewPlan && !readOnly && !permissionDenied"
       :plan="previewPlan"
       :busy="confirmBusy"
       abortable
@@ -85,14 +96,14 @@
       @close="errorMsg = ''"
     />
 
-    <section v-if="activeView === 'stats'" class="kv-stats kv-stats--page">
+    <section v-if="activeView === 'stats' && !permissionDenied" class="kv-stats kv-stats--page">
       <article v-for="item in statItems" :key="item.label" class="kv-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
     </section>
 
-    <section v-else class="kv-body" :class="{ 'is-batch': activeView === 'batch' }">
+    <section v-else-if="!permissionDenied" class="kv-body" :class="{ 'is-batch': activeView === 'batch' }">
       <aside v-if="activeView === 'browser'" class="kv-namespace">
         <div class="kv-panel-head">
           <div>
@@ -142,7 +153,7 @@
             <n-button size="small" secondary :disabled="checkedRowKeys.length === 0" @click="loadSelectedKeys">
               Get selected
             </n-button>
-            <n-button size="small" tertiary type="error" :disabled="checkedRowKeys.length === 0" @click="stageRemoveSelected">
+            <n-button size="small" tertiary type="error" :disabled="readOnly || checkedRowKeys.length === 0" @click="stageRemoveSelected">
               Remove selected
             </n-button>
           </div>
@@ -198,10 +209,13 @@
             <n-tab name="base64" tab="Base64" />
           </n-tabs>
           <pre class="kv-value-preview">{{ selectedValueText }}</pre>
+          <n-text v-if="selectedEntry.byteLength > KvInspectorByteBudget" depth="3" class="kv-preview-budget" data-testid="kv-value-budget">
+            truncated to 4096 of {{ selectedEntry.byteLength }} bytes；截断预览不会填入写入草稿，round-trip 导出保留完整原值。
+          </n-text>
         </template>
         <n-empty v-else-if="activeView === 'browser'" description="请从列表中选择一个 key。" />
 
-        <section v-if="activeView === 'batch'" class="kv-editor">
+        <section v-if="activeView === 'batch' && !readOnly" class="kv-editor">
           <n-text class="kv-editor__title">Set / edit value</n-text>
           <n-input v-model:value="editKey" size="small" placeholder="Key" />
           <div class="kv-editor__row">
@@ -258,15 +272,16 @@
           />
           <n-space size="small" align="center" :wrap="true">
             <n-button size="small" secondary @click="loadExplicitKeys">Batch get</n-button>
-            <n-button size="small" tertiary type="error" @click="stageRemoveExplicitKeys">Batch remove</n-button>
+            <n-button size="small" tertiary type="error" :disabled="readOnly" @click="stageRemoveExplicitKeys">Batch remove</n-button>
           </n-space>
           <n-input
             v-model:value="batchSetText"
+            :disabled="readOnly"
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 6 }"
             placeholder="Batch set, one key=value per line"
           />
-          <n-button size="small" secondary :disabled="!batchSetText.trim()" @click="stageBatchSet">
+          <n-button size="small" secondary :disabled="readOnly || !batchSetText.trim()" @click="stageBatchSet">
             Stage batch set
           </n-button>
           <div class="kv-batch__danger">
@@ -277,7 +292,7 @@
               :show-button="false"
               placeholder="Prefix delete limit"
             />
-            <n-button size="small" tertiary type="error" :disabled="!currentPrefix" @click="stagePrefixDelete">
+            <n-button size="small" tertiary type="error" :disabled="readOnly || !currentPrefix" @click="stagePrefixDelete">
               Stage prefix delete
             </n-button>
           </div>
@@ -289,7 +304,7 @@
               :show-button="false"
               placeholder="Clean expired limit"
             />
-            <n-button size="small" tertiary type="error" @click="stageCleanExpired">
+            <n-button size="small" tertiary type="error" :disabled="readOnly" @click="stageCleanExpired">
               Stage clean expired
             </n-button>
           </div>
@@ -298,6 +313,7 @@
     </section>
 
     <WorkbenchResultPanel
+      v-if="!permissionDenied"
       class="kv-result"
       wrap-header
       title="KV operation result"
@@ -311,6 +327,7 @@
     />
 
     <WorkbenchHistoryDrawer
+      v-if="!permissionDenied"
       v-model:show="historyVisible"
       :active-database="targetDb"
       @select="openHistoryEntry"
@@ -368,6 +385,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import {
   useWorkbenchHistoryStore,
+  type WorkbenchHistoryCompleteness,
   type WorkbenchHistoryEntry,
 } from '@/stores/workbenchHistory';
 import {
@@ -383,9 +401,15 @@ const props = withDefaults(defineProps<{
   keyspace: string;
   keyspaces?: string[];
   loading?: boolean;
+  /** 只读连接允许读取与导出，所有写入入口禁用。 */
+  readOnly?: boolean;
+  /** 权限拒绝隐藏值与统计，并清除写入草稿。 */
+  permissionDenied?: boolean;
 }>(), {
   keyspaces: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -406,6 +430,7 @@ interface KvContext {
   connectionId: string;
   connectionName: string;
   baseUrl: string | undefined;
+  profileBaseUrl: string | undefined;
   token: string | undefined;
   sourceApi: ReturnType<typeof useAuthStore>['api'];
   api: ReturnType<typeof useAuthStore>['api'];
@@ -459,6 +484,13 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+const KvPreviewEntryBudget = 1000;
+const KvInspectorByteBudget = 4096;
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => Boolean(props.permissionDenied || permissionLocked.value));
+const readOnly = computed(() => Boolean(props.readOnly));
+const previewTruncated = ref(false);
+let deniedContext: KvContext | null = null;
 
 const selectedKeyspace = computed({
   get: () => props.keyspace,
@@ -468,6 +500,7 @@ const selectedKeyspace = computed({
 const activeKeyspace = computed(() => props.keyspace || props.keyspaces[0] || '');
 
 const keyspaceOptions = computed<SelectOption[]>(() => {
+  if (permissionDenied.value) return [];
   const names = new Set(props.keyspaces);
   if (props.keyspace) names.add(props.keyspace);
   return [...names].sort().map((name) => ({ label: name, value: name }));
@@ -546,6 +579,7 @@ const ranOnce = ref(false);
 const historyVisible = ref(false);
 const maxPendingOperations = 1000;
 function openResult(): void {
+  if (disposed || permissionDenied.value) return;
   window.dispatchEvent(new CustomEvent('sndb:toggle-result', { detail: { open: true } }));
 }
 let contextRevision = 0;
@@ -559,6 +593,16 @@ let statsController: AbortController | null = null;
 let scanController: AbortController | null = null;
 let getController: AbortController | null = null;
 let writeController: AbortController | null = null;
+
+const canWrite = computed(() => !permissionDenied.value && !readOnly.value);
+const kvState = computed(() => {
+  if (permissionDenied.value) return 'permission';
+  if (readOnly.value) return 'readonly';
+  if (errorMsg.value) return 'error';
+  if (!activeKeyspace.value || (ranOnce.value && rows.value.length === 0 && !latestResult.value?.rows.length)) return 'empty';
+  if (previewTruncated.value || rows.value.length > 100 || (selectedEntry.value?.byteLength ?? 0) > KvInspectorByteBudget) return 'longContent';
+  return 'normal';
+});
 
 const selectedEntry = computed(() =>
   rows.value.find((row) => row.key === selectedKey.value) ?? null);
@@ -722,7 +766,7 @@ const dataColumns = computed<DataTableColumns<KvRow>>(() => [
     render: (row) => h(NSpace, { size: 6, wrap: false }, {
       default: () => [
         h(NButton, { size: 'tiny', secondary: true, onClick: () => copyKey(row.key) }, { default: () => 'Copy' }),
-        h(NButton, { size: 'tiny', tertiary: true, type: 'error', onClick: () => stageRemoveKeys([row.key]) }, { default: () => 'Remove' }),
+        h(NButton, { size: 'tiny', tertiary: true, type: 'error', disabled: !canWrite.value, onClick: () => stageRemoveKeys([row.key]) }, { default: () => 'Remove' }),
       ],
     }),
   },
@@ -733,18 +777,20 @@ function rowKey(row: KvRow): string {
 }
 
 function selectEntry(key: string): void {
+  if (disposed || permissionDenied.value) return;
   selectedKey.value = key;
 }
 
 async function refreshAll(updateResult = true): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   await Promise.all([
     loadStats(),
-    loadEntries(true, updateResult),
+    loadEntries(true, updateResult, false),
   ]);
 }
 
 async function loadStats(): Promise<void> {
-  if (!props.targetDb || !activeKeyspace.value) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !activeKeyspace.value) return;
   const context = captureContext();
   const requestId = ++statsRequestId;
   statsController?.abort();
@@ -753,19 +799,25 @@ async function loadStats(): Promise<void> {
     const result = await fetchKvStats(context.api, context.database, context.keyspace, controller.signal);
     if (isCurrentContext(context) && requestId === statsRequestId && !controller.signal.aborted) stats.value = result;
   } catch (error) {
-    if (isCurrentContext(context) && requestId === statsRequestId && !controller.signal.aborted) errorMsg.value = errorToMessage(error, '加载 KV 统计失败');
+    if (isCurrentContext(context) && requestId === statsRequestId && !controller.signal.aborted) {
+      if (isPermissionError(error)) lockPermission(context);
+      else errorMsg.value = errorToMessage(error, '加载 KV 统计失败');
+    }
   } finally {
     if (statsController === controller) statsController = null;
   }
 }
 
-async function loadEntries(reset: boolean, updateResult = true): Promise<void> {
-  if (!props.targetDb || !activeKeyspace.value) return;
+async function loadEntries(reset: boolean, updateResult = true, recordQueryHistory = true): Promise<void> {
+  if (disposed || permissionDenied.value || !props.targetDb || !activeKeyspace.value || (!reset && rows.value.length >= KvPreviewEntryBudget)) return;
+  if (reset) clearRows();
   const started = performance.now();
   const context = captureContext();
   const requestId = ++scanRequestId;
   const prefix = currentPrefix.value;
-  const limit = scanLimit.value;
+  const remaining = reset ? KvPreviewEntryBudget : KvPreviewEntryBudget - rows.value.length;
+  const limit = Math.min(remaining, typeof scanLimit.value === 'number' && Number.isFinite(scanLimit.value)
+    ? Math.max(1, Math.min(KvPreviewEntryBudget, Math.floor(scanLimit.value))) : 100);
   scanController?.abort();
   const controller = scanController = new AbortController();
   loadingScan.value = true;
@@ -777,18 +829,24 @@ async function loadEntries(reset: boolean, updateResult = true): Promise<void> {
       limit,
     }, controller.signal);
     if (!isCurrentContext(context) || requestId !== scanRequestId || controller.signal.aborted) return;
-    const nextRows = response.entries.map(mapEntry);
-    rows.value = reset ? nextRows : mergeRows(rows.value, nextRows);
-    cursor.value = response.nextCursor ?? null;
-    hasMore.value = response.hasMore;
+    const overflow = response.entries.length > limit;
+    const nextRows = response.entries.slice(0, limit).map(mapEntry);
+    rows.value = (reset ? nextRows : mergeRows(rows.value, nextRows)).slice(0, KvPreviewEntryBudget);
+    const capped = rows.value.length >= KvPreviewEntryBudget;
+    previewTruncated.value = overflow || Boolean(response.hasMore);
+    cursor.value = overflow || capped ? null : response.nextCursor ?? null;
+    hasMore.value = !overflow && !capped && response.hasMore && Boolean(cursor.value);
     syncSelectedAfterRows();
     if (updateResult) {
       latestCommand.value = `KV SCAN ${context.keyspace} PREFIX ${JSON.stringify(prefix)} LIMIT ${limit}`;
-      latestResult.value = resultFromEntries(rows.value, performanceElapsed(started));
+      latestResult.value = resultFromEntries(rows.value, performanceElapsed(started), previewTruncated.value);
       ranOnce.value = true;
+      if (recordQueryHistory) recordHistory('success', 'KV scan preview', 'scan', latestCommand.value, `${rows.value.length} preview keys`, -1,
+        performanceElapsed(started), context, rows.value.length, previewTruncated.value ? 'truncated' : 'complete');
     }
   } catch (error) {
     if (!isCurrentContext(context) || requestId !== scanRequestId || controller.signal.aborted) return;
+    if (isPermissionError(error)) { lockPermission(context); return; }
     const msg = errorToMessage(error, '扫描 KV key 失败');
     errorMsg.value = msg;
     latestResult.value = errorResult(msg, errorCode(error));
@@ -801,17 +859,19 @@ async function loadEntries(reset: boolean, updateResult = true): Promise<void> {
 }
 
 async function loadMore(): Promise<void> {
-  if (!hasMore.value || loadingScan.value) return;
+  if (disposed || permissionDenied.value || rows.value.length >= KvPreviewEntryBudget || !hasMore.value || loadingScan.value) return;
   await loadEntries(false);
 }
 
 function applyPrefix(): void {
+  if (disposed || permissionDenied.value) return;
   currentPrefix.value = prefixInput.value;
   checkedRowKeys.value = [];
   void loadEntries(true);
 }
 
 function openPrefix(prefix: string): void {
+  if (disposed || permissionDenied.value) return;
   currentPrefix.value = prefix;
   prefixInput.value = prefix;
   checkedRowKeys.value = [];
@@ -830,6 +890,7 @@ function clearRows(): void {
   rows.value = [];
   cursor.value = null;
   hasMore.value = false;
+  previewTruncated.value = false;
   selectedKey.value = '';
   checkedRowKeys.value = [];
 }
@@ -843,6 +904,7 @@ async function loadExplicitKeys(): Promise<void> {
 }
 
 async function loadKeys(keys: string[], action: string): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   if (keys.length === 0) {
     message.warning('No keys selected.');
     return;
@@ -854,16 +916,23 @@ async function loadKeys(keys: string[], action: string): Promise<void> {
   const requestId = ++getRequestId;
   getController?.abort();
   const controller = getController = new AbortController();
-  const command = `KV GET-MANY ${context.keyspace} ${keys.length} keys`;
+  errorMsg.value = '';
+  const requestedKeys = keys.slice(0, KvPreviewEntryBudget);
+  const command = `KV GET-MANY ${context.keyspace} ${requestedKeys.length} keys`;
   try {
-    const values = await getManyKvEntries(context.api, context.database, context.keyspace, keys, controller.signal);
+    const response = await getManyKvEntries(context.api, context.database, context.keyspace, requestedKeys, controller.signal);
     if (!isCurrentContext(context) || requestId !== getRequestId || controller.signal.aborted) return;
+    const values = response.slice(0, KvPreviewEntryBudget);
+    const truncated = keys.length > requestedKeys.length || response.length > values.length;
     latestCommand.value = command;
-    latestResult.value = resultFromValues(values, performanceElapsed(started));
+    latestResult.value = resultFromValues(values, performanceElapsed(started), truncated);
+    previewTruncated.value = truncated;
     ranOnce.value = true;
-    recordHistory('success', 'KV get-many', action, command, `${values.length} keys returned`, values.length, performanceElapsed(started), context);
+    recordHistory('success', 'KV get-many', action, command, `${values.length} preview keys returned`, -1, performanceElapsed(started), context,
+      values.length, truncated ? 'truncated' : 'complete');
   } catch (error) {
     if (!isCurrentContext(context) || requestId !== getRequestId || controller.signal.aborted) return;
+    if (isPermissionError(error)) { lockPermission(context); return; }
     const msg = errorToMessage(error, '批量读取 KV 失败');
     errorMsg.value = msg;
     latestResult.value = errorResult(msg, errorCode(error));
@@ -876,6 +945,7 @@ async function loadKeys(keys: string[], action: string): Promise<void> {
 }
 
 function stageSetFromEditor(): void {
+  if (disposed || !canWrite.value) return;
   if (confirmBusy.value || !props.targetDb || !activeKeyspace.value) return;
   const key = editKey.value.trim();
   if (!key) {
@@ -931,6 +1001,7 @@ function stageSetFromEditor(): void {
 }
 
 function stageBatchSet(): void {
+  if (disposed || !canWrite.value) return;
   const parsed = parseBatchSet(batchSetText.value);
   if (!parsed.ok) {
     message.error(parsed.message);
@@ -941,6 +1012,7 @@ function stageBatchSet(): void {
 
 async function onImportFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
+  if (disposed || !canWrite.value) { input.value = ''; return; }
   const file = input.files?.[0];
   if (!file) return;
   const context = captureContext();
@@ -954,6 +1026,7 @@ async function onImportFileSelected(event: Event): Promise<void> {
 }
 
 function exportRoundTrip(): void {
+  if (disposed || permissionDenied.value) return;
   const entries = checkedKeys().length > 0
     ? rows.value.filter((row) => checkedKeys().includes(row.key))
     : rows.value;
@@ -974,6 +1047,7 @@ function exportRoundTrip(): void {
 }
 
 function stageRoundTripImport(text: string, fileName: string): void {
+  if (disposed || !canWrite.value) return;
   const parsed = parseRoundTripEntries(text);
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
@@ -1035,6 +1109,7 @@ function parseRoundTripEntries(text: string):
 }
 
 function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtUtc: string | null, label: string, detail: string): void {
+  if (disposed || !canWrite.value) return;
   const context = captureContext();
   const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
@@ -1065,6 +1140,7 @@ function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtU
 }
 
 function stageExpireSelected(): void {
+  if (disposed || !canWrite.value) return;
   const entry = selectedEntry.value;
   if (!entry) return;
   const context = captureContext();
@@ -1098,6 +1174,7 @@ function stageExpireSelected(): void {
 }
 
 function stagePersistSelected(): void {
+  if (disposed || !canWrite.value) return;
   const entry = selectedEntry.value;
   if (!entry) return;
   const context = captureContext();
@@ -1125,14 +1202,17 @@ function stagePersistSelected(): void {
 }
 
 function stageRemoveSelected(): void {
+  if (disposed || !canWrite.value) return;
   stageRemoveKeys(checkedKeys());
 }
 
 function stageRemoveExplicitKeys(): void {
+  if (disposed || !canWrite.value) return;
   stageRemoveKeys(parseKeys(batchKeysText.value));
 }
 
 function stageRemoveKeys(keys: string[]): void {
+  if (disposed || !canWrite.value) return;
   if (keys.length === 0) {
     message.warning('No keys selected.');
     return;
@@ -1162,6 +1242,7 @@ function stageRemoveKeys(keys: string[]): void {
 }
 
 function stagePrefixDelete(): void {
+  if (disposed || !canWrite.value) return;
   if (!currentPrefix.value) {
     message.error('Prefix delete requires a non-empty namespace prefix.');
     return;
@@ -1192,6 +1273,7 @@ function stagePrefixDelete(): void {
 }
 
 function stageCleanExpired(): void {
+  if (disposed || !canWrite.value) return;
   const context = captureContext();
   const { database: db, keyspace } = context;
   if (!db || !keyspace) return;
@@ -1217,7 +1299,7 @@ function stageCleanExpired(): void {
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (confirmBusy.value || pendingOperations.value.length === 0) return;
+  if (disposed || !canWrite.value || confirmBusy.value || pendingOperations.value.length === 0) return;
   const operations = [...pendingOperations.value];
   const context = operations[0]!.context;
   if (!operations.every((operation) => isCurrentContext(operation.context))) {
@@ -1249,6 +1331,7 @@ async function confirmPendingOperations(): Promise<void> {
       } catch (error) {
         const status = (error as { response?: { status?: number } } | null)?.response?.status;
         const knownFailure = typeof status === 'number' && status >= 400 && status < 500 && status !== 408;
+        if (isPermissionError(error) && isCurrentContext(operation.context)) lockPermission(operation.context);
         outcomes.push({ action: operation.label, target: operation.detail, succeeded: false, affected: 0,
           state: knownFailure ? 'failed' : 'unknown', errorCode: errorCode(error),
           detail: knownFailure ? errorToMessage(error, '写入被拒绝') : '写入结果未知，请核对服务端状态后重新暂存；未自动重试。' });
@@ -1259,7 +1342,8 @@ async function confirmPendingOperations(): Promise<void> {
     const affected = outcomes.reduce((sum, item) => sum + item.affected, 0);
     const failure = outcomes.find((outcome) => outcome.state === 'failed' || outcome.state === 'unknown');
     const stopped = controller.signal.aborted || outcomes.length < operations.length;
-    const status = failure && !controller.signal.aborted ? 'error' : stopped ? 'cancelled' : 'success';
+    const status = failure?.state === 'failed' ? 'error'
+      : failure?.state === 'unknown' || stopped || !isCurrentContext(context) ? 'unknown' : 'success';
     const versions = outcomes.map((outcome, index) => {
       const fields = [
         ['version', displayKvVersion(outcome.versionText, outcome.version)],
@@ -1302,7 +1386,7 @@ function abortPendingOperations(): void {
 }
 
 function enqueueOperation(operation: PendingOperation): void {
-  if (confirmBusy.value || !isCurrentContext(operation.context)) return;
+  if (disposed || !canWrite.value || confirmBusy.value || !isCurrentContext(operation.context)) return;
   if (pendingOperations.value.some((pending) => !isCurrentContext(pending.context))) pendingOperations.value = [];
   if (pendingOperations.value.length >= maxPendingOperations) {
     message.error(`At most ${maxPendingOperations} staged actions are allowed.`);
@@ -1312,6 +1396,7 @@ function enqueueOperation(operation: PendingOperation): void {
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
+  if (disposed || permissionDenied.value) return;
   latestCommand.value = entry.command;
 }
 
@@ -1326,7 +1411,8 @@ function syncSelectedAfterRows(): void {
 
 function mapEntry(entry: KvEntryResponse): KvRow {
   const bytes = base64ToBytes(entry.value);
-  const kind = classifyValue(entry.value);
+  const preview = bytesToBase64(bytes.subarray(0, KvInspectorByteBudget));
+  const kind = classifyValue(preview);
   return {
     key: entry.key,
     value: entry.value,
@@ -1334,7 +1420,7 @@ function mapEntry(entry: KvEntryResponse): KvRow {
     expiresAtUtc: entry.expiresAtUtc ?? null,
     byteLength: bytes.length,
     valueKind: kind,
-    valuePreview: previewValue(entry.value, kind),
+    valuePreview: previewValue(preview, kind),
     ttlLabel: ttlLabel(entry.expiresAtUtc ?? null),
   };
 }
@@ -1347,7 +1433,7 @@ function mergeRows(existing: KvRow[], incoming: KvRow[]): KvRow[] {
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function resultFromEntries(entries: KvRow[], elapsedMs: number): SqlResultSet {
+function resultFromEntries(entries: KvRow[], elapsedMs: number, truncated: boolean): SqlResultSet {
   return {
     columns: ['key', 'type', 'version', 'ttl', 'bytes', 'preview'],
     rows: entries.map((entry) => [
@@ -1363,26 +1449,29 @@ function resultFromEntries(entries: KvRow[], elapsedMs: number): SqlResultSet {
       rowCount: entries.length,
       recordsAffected: -1,
       elapsedMs,
+      truncated,
     },
     error: null,
     hasColumns: true,
   };
 }
 
-function resultFromValues(values: KvValueItemResponse[], elapsedMs: number): SqlResultSet {
+function resultFromValues(values: KvValueItemResponse[], elapsedMs: number, truncated: boolean): SqlResultSet {
   return {
     columns: ['key', 'found', 'version', 'ttl', 'bytes', 'preview'],
     rows: values.map((item) => {
       const value = item.value ?? '';
-      const bytes = item.found && value ? base64ToBytes(value).length : 0;
-      const kind = item.found && value ? classifyValue(value) : 'text';
+      const rawBytes = item.found && value ? base64ToBytes(value) : new Uint8Array();
+      const bytes = rawBytes.length;
+      const preview = bytesToBase64(rawBytes.subarray(0, KvInspectorByteBudget));
+      const kind = item.found && value ? classifyValue(preview) : 'text';
       return [
         item.key,
         item.found,
         displayKvVersion(undefined, item.version),
         ttlLabel(item.expiresAtUtc ?? null),
         bytes,
-        item.found && value ? previewValue(value, kind) : '',
+        item.found && value ? previewValue(preview, kind) : '',
       ];
     }),
     end: {
@@ -1390,6 +1479,7 @@ function resultFromValues(values: KvValueItemResponse[], elapsedMs: number): Sql
       rowCount: values.length,
       recordsAffected: -1,
       elapsedMs,
+      truncated,
     },
     error: null,
     hasColumns: true,
@@ -1513,10 +1603,11 @@ function previewValue(base64: string, kind: ValueKind): string {
 }
 
 function formatValue(base64: string, mode: ValueView): string {
-  if (mode === 'base64') return base64;
-  const bytes = base64ToBytes(base64);
+  const bytes = base64ToBytes(base64).subarray(0, KvInspectorByteBudget);
+  const preview = bytesToBase64(bytes);
+  if (mode === 'base64') return preview;
   if (mode === 'hex') return toHex(bytes);
-  const decoded = tryDecodeUtf8(base64);
+  const decoded = tryDecodeUtf8(preview);
   if (!decoded.ok) return `Binary payload (${bytes.length} bytes). Use Hex or Base64 view.`;
   if (mode === 'json') {
     try {
@@ -1635,37 +1726,29 @@ function performanceElapsed(started: number): number {
 }
 
 function errorToMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: unknown; status?: number } }).response;
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.error === 'string') return data.error;
-    }
-    if (typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-  }
+  if (isPermissionError(error)) return '当前身份没有 KV 访问权限。';
   return fallback;
 }
 
 function errorCode(error: unknown): string {
   const value = error as { code?: unknown; response?: { data?: { code?: unknown; error?: { code?: unknown } } } } | null;
   const code = value?.response?.data?.code ?? value?.response?.data?.error?.code ?? value?.code;
-  return typeof code === 'string' ? code : 'kv_error';
+  return typeof code === 'string' && ['forbidden', 'unauthorized', 'version_conflict', 'condition_failed', 'ERR_CANCELED'].includes(code)
+    ? code : 'kv_error';
 }
 
 async function copyKey(key: string): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   try {
     await navigator.clipboard.writeText(key);
     message.success('Key copied');
   } catch {
-    message.warning(key);
+    message.warning('复制失败，请检查剪贴板权限。');
   }
 }
 
 function recordHistory(
-  status: 'success' | 'error' | 'cancelled',
+  status: 'success' | 'error' | 'unknown',
   title: string,
   action: string,
   command: string,
@@ -1673,6 +1756,8 @@ function recordHistory(
   recordsAffected: number,
   elapsedMs: number,
   context: KvContext,
+  rowCount?: number,
+  completeness?: WorkbenchHistoryCompleteness,
 ): void {
   history.record({
     kind: 'operation',
@@ -1688,6 +1773,8 @@ function recordHistory(
     summary,
     recordsAffected,
     elapsedMs,
+    rowCount,
+    completeness,
   });
 }
 
@@ -1698,13 +1785,14 @@ function captureContext(): KvContext {
   api.defaults.baseURL = baseUrl;
   return { revision: contextRevision, database: props.targetDb, keyspace: activeKeyspace.value,
     connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
-    baseUrl, token, sourceApi: auth.api, api };
+    baseUrl, profileBaseUrl: connections.activeBaseUrl, token, sourceApi: auth.api, api };
 }
 
 function isCurrentContext(context: KvContext): boolean {
-  return !disposed && context.revision === contextRevision && context.database === props.targetDb
+  return !disposed && !permissionDenied.value && context.revision === contextRevision && context.database === props.targetDb
     && context.keyspace === activeKeyspace.value && context.connectionId === connections.activeProfileId
-    && context.sourceApi === auth.api && context.baseUrl === auth.api.defaults.baseURL && context.token === auth.state?.token;
+    && context.profileBaseUrl === connections.activeBaseUrl && context.sourceApi === auth.api
+    && context.baseUrl === auth.api.defaults.baseURL && context.token === auth.state?.token;
 }
 
 function cancelRequests(): void {
@@ -1714,8 +1802,11 @@ function cancelRequests(): void {
   writeController?.abort();
 }
 
-watch(() => [props.targetDb, activeKeyspace.value, connections.activeProfileId, connections.activeBaseUrl, auth.api, auth.state?.token], () => {
+function invalidateContext(): void {
   contextRevision += 1;
+  statsRequestId += 1;
+  getRequestId += 1;
+  fileRequestId += 1;
   cancelRequests();
   clearRows();
   stats.value = null;
@@ -1733,13 +1824,50 @@ watch(() => [props.targetDb, activeKeyspace.value, connections.activeProfileId, 
   editKey.value = '';
   editValue.value = '';
   setExpiryMode.value = 'persist';
+  historyVisible.value = false;
+}
+
+function isPermissionError(error: unknown): boolean {
+  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  return status === 401 || status === 403;
+}
+
+function lockPermission(context: KvContext): void {
+  deniedContext = context;
+  permissionLocked.value = true;
+  invalidateContext();
+  errorMsg.value = '当前身份没有 KV 访问权限。';
+}
+
+watch(() => [props.targetDb, props.keyspace, activeKeyspace.value, [...props.keyspaces], connections.activeProfileId,
+  connections.activeBaseUrl, auth.api, auth.api.defaults.baseURL, auth.state, auth.state?.token, props.permissionDenied, readOnly.value], () => {
+  invalidateContext();
+  const previous = deniedContext;
+  const changedIdentity = previous && ((props.targetDb && previous.database !== props.targetDb)
+    || (connections.activeProfileId && previous.connectionId !== connections.activeProfileId)
+    || (connections.activeBaseUrl && previous.profileBaseUrl !== connections.activeBaseUrl)
+    || (auth.api.defaults.baseURL && previous.baseUrl !== auth.api.defaults.baseURL));
+  // A metadata fallback is not a newly selected resource. Keep the denied
+  // identity across empty keyspace lists until a concrete target is selected.
+  const changedKnownResource = previous && props.keyspace && props.keyspace !== previous.keyspace;
+  if (changedIdentity || changedKnownResource) {
+    permissionLocked.value = false;
+    deniedContext = null;
+  }
   const revision = contextRevision;
   void nextTick().then(() => {
-    if (!disposed && revision === contextRevision) return refreshAll();
+    if (!disposed && !permissionDenied.value && revision === contextRevision) return refreshAll();
   });
 }, { immediate: true, flush: 'sync' });
 
+watch([currentPrefix, scanLimit], clearRows, { flush: 'sync' });
+
 watch(selectedEntry, (entry) => {
+  if (!canWrite.value || (entry?.byteLength ?? 0) > KvInspectorByteBudget) {
+    editKey.value = '';
+    editValue.value = '';
+    return;
+  }
   if (activeView.value === 'batch') return;
   editKey.value = entry?.key ?? '';
   const nextMode: ValueView = entry?.valueKind === 'json'
@@ -1754,7 +1882,7 @@ watch(selectedEntry, (entry) => {
 
 watch(editMode, (mode) => {
   const entry = selectedEntry.value;
-  if (!entry || editKey.value !== entry.key) return;
+  if (!canWrite.value || !entry || entry.byteLength > KvInspectorByteBudget || editKey.value !== entry.key) return;
   editValue.value = formatValue(entry.value, mode);
 });
 
@@ -1834,6 +1962,12 @@ onBeforeUnmount(() => {
 
 .kv-alert {
   margin: 10px 12px 0;
+}
+
+.kv-preview-budget {
+  display: block;
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 .kv-stats {
