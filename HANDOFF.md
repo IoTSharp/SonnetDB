@@ -269,3 +269,11 @@
 - 缺失 database 继续使用 active/default database；未知 database 不把 node 解析到当前数据库，保留安全回退。database-only URL、profile/cache reset 和未知库后恢复均同步清理/更新 selection token；同一旧 URL 下用户手动切换数据库不会被强制切回。MQ 仍为 database + Topic，Graph Beta 和 route-only 不自动执行保持不变。
 - 验证：WB-09 自有 Node 测试 4/4；Explorer/路由兼容定向 10/10；独立复核全 Web Node 111/111；TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
 - 代码提交为 `09f5711b feat(m47): add database context to explorer deep links`；提交只包含 WB-09 生产文件、测试和 work-queue 检查点。浏览器在已手动切库后只修改同 database URL 的 model/node query 仍是后续边界。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
+
+## 当前 Workbench 检查点（WB-10，2026-10-05）
+
+- 用户确认的 M47 基线继续有效；WB-10 已完成并提交 `ee44d7bb34b0b9a95ae3e7914b82a65021bf97f3`（`fix(m47): preserve manual database route context`）。本切片只修改 `web/src/views/SqlConsoleView.vue`、`web/tests/explorer-database-route-selection.test.mjs`、M47 队列与验证记录，未改资源合同、CapabilityRegistry、MQ 存储或其它会话文件。
+- route watcher 在新的 `database` query token 变化时仍优先选择有效数据库；同一旧 URL 下用户手动切换数据库后清空旧 projection token，后续只改变 `model/node` 时在当前手动数据库解析或安全回退，不强制切回 URL 中的旧数据库。route-only 不自动执行；MQ 仍是 database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq`，Graph 仍 Beta，invalid database token 可恢复。
+- 验证：WB-10 定向 5/5；Explorer/路由/管理兼容 15/15；全 Web Node 112/112；TypeScript 通过；`npm run build`（vue-tsc + Vite）通过；`git diff --check` 通过；独立只读复核 PASS；提交前最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
+- 真实 Server、权限、三宿主、AOT、安装、发布、生产全量页面迁移及浏览器真实运行证据仍未由本切片宣称完成。`origin/parity-results` 当前仍保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，不 push、不发布、不部署。
+- 当前队列已闭环至 WB-10；下一次继续前先重新读取本文件、AGENTS.md 与 work-queue，确认是否有新的已授权 Workbench 切片，避免重复派单或将静态兼容证据扩大解释。

@@ -68,10 +68,10 @@
 
 ## WB-10 当前切片（2026-10-05）
 
-- 状态：实现完成，待最终门禁与提交；负责人：根会话集成，独占实现与独立复核已完成。依赖 WB-09 `09f5711b` / `674b675a`。
+- 状态：已完成并提交 `ee44d7bb34b0b9a95ae3e7914b82a65021bf97f3`；负责人：根会话集成，独占实现与独立复核已完成。依赖 WB-09 `09f5711b` / `674b675a`。
 - 范围：补齐用户手动切换数据库后，URL 保留旧 `database` 但只改变 `model/node` 时的投影策略；同一旧 URL 不强制切回，新的 model/node 在当前手动数据库解析或安全回退，不误选其它数据库。新 database query 仍优先切库。
 - 独占候选文件：`web/src/views/SqlConsoleView.vue`、`web/tests/explorer-database-route-selection.test.mjs`（必要时新增小型手动切库回归）；不改资源 descriptor、CapabilityRegistry 或 MQ 存储。
-- 验收：旧/新 tool/model/node/database query、metadata/token 等待、A→未知→恢复、MQ database+Topic、Graph Beta、route-only 全回归；定向 Node 5/5、Explorer/路由/管理兼容 15/15、全 Web Node 112/112，TypeScript、Vite build、`git diff --check` 通过，最终 restore/format 待在提交树执行。策略和未覆盖的真实 Server/权限/三宿主边界写入记录。
+- 验收：旧/新 tool/model/node/database query、metadata/token 等待、A→未知→恢复、MQ database+Topic、Graph Beta、route-only 全回归；定向 Node 5/5、Explorer/路由/管理兼容 15/15、全 Web Node 112/112，TypeScript、Vite build、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。策略和未覆盖的真实 Server/权限/三宿主边界写入记录。
 
 ## 会话与自动检查
 
