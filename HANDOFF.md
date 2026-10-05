@@ -225,6 +225,19 @@
 - 验证：WB-05 窄测试 9/9；全 Web Node 回归 94/94；SQL 工作流 11/11；TypeScript 通过；共享工作台 Playwright（历史抽屉、SQL 诊断、KV 审批）3/3；`git diff --check` 通过。Playwright 自有 Vite/测试 PID 32764、74764 已由脚本回收并再次核验不存在。
 - 本轮提交：`e5fc4668 feat(m47): migrate result draft history approval workflows`。提交前最终树已通过 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；提交只包含 WB-05 生产文件、测试和 M47 共享记录。其它模型工作台仍沿用各自已有审批/stale 接线，真实 Server、三宿主、AOT、安装、发布及全量页面迁移继续单独验收。保留 `origin/parity-results`，不 push、不发布、不部署。
 
+## 博客园系列与定时发布（2026-10-05）
+
+- 新增 `docs/blogs/publishing-review-2026-10-05.md`、`docs/blogs/publishing-state.json` 和 135–142 八篇新稿；更新 `docs/blogs/00-publishing-plan.md`，将系列扩展为产品/九模型、SQL、数据流、AI/RAG、连接器/三面工作台、性能可靠性和案例八大方向。
+- 仓库已有 001–134 底稿，初始没有发布凭据；现已遍历公开账号 9 页、90 篇并完成对账：001–075 确认已发布（075 是旧原稿，当前改写未证明上线），另外登记 10 篇未收录多模型专题；076–134 共 59 篇保留 `needs-reconciliation`，禁止自动重发。证据在 `publishing-reconciliation-2026-10-05.json`。P0 过时项包括旧版本/端口、旧 MCP 工具、M17/M18 路线、未经当前证据支持的性能数字和把案例/原型写成生产事实的内容。
+- 135–142 已对照当前能力索引和专题文档，`publish-cnblogs` dry-run 八篇均通过；队列原为 8 篇，按每日最多两篇串行发布。默认社区 footer 和二维码保留；无本地图片上传缺口。
+- 已立即发布两篇：135《SonnetDB 当前能力全景：九种原生模型与一套数据库目录》→ <https://www.cnblogs.com/IoTSharp/p/23202291>（postId `23202291`）；136《SonnetDB SQL 名称大小写合同：原名、双引号与安全迁移》→ <https://www.cnblogs.com/IoTSharp/p/23202334>（postId `23202334`）。`publishing-state.json` 已回填 `published`、URL、postId、发布时间和 attempts，`publishing-events.jsonl` 已记录两条审计事件。
+- `00-publishing-plan.md` 全部文章表格已增加“是否已发布”表情列：75 篇历史已发布、2 篇新稿与 10 篇额外专题标题均链接到博客园并标 ✅；59 篇待核对标 ❓，queued 标 🕒。137/138 排 10-06 11:00、139/140 排 10-07、141/142 排 10-08，无排期空日。
+- 新增 `series-backlog.md`：143–202 共 60 个具体选题、14 个系列，覆盖九模型、SQL/分析、治理恢复、设备/数据流、AI/RAG、连接器和三面工具。每条有读者任务、事实来源、边界和历史关联；状态为 `planned`，不代表正文完成。
+- 项目 cron 自动化 `sonnetdb`：`SonnetDB 博客园每日双篇发布`，ACTIVE，Asia/Shanghai 每日 11:00 运行；当天即时发布计入每日两篇额度，只发布到期 `queued`。队列不足时从 backlog 核实并写最多两篇，经去重/dry-run 后排队。成功回填状态与标题链接/表情/审计；调用前写 `publishing` 与租约，未知响应或遗留请求不重试，禁止自动 commit/push/部署。配置由 Codex app 工具创建并更新，位于用户自动化目录。
+- 验证：8 篇发布器 dry-run 通过；135/136 实际发布成功且默认社区 footer 保留；公开标题/正文对账、JSON/事件、队列哈希/sourceDocs、计划链接及 60 选题的 152 引用核验；`dotnet restore SonnetDB.slnx` 通过，完整 Format Check 退出 0（提示加载工作区警告，未报格式错误）；`git diff --check` 通过。预览临时文件已清理，子代理无常驻进程。用户已授权本次提交并推送；博客提交范围为 `docs/blogs/*` 本次文件与根 CHANGELOG/HANDOFF 的博客段，提交说明为 `docs(blog): add cnblogs series and publishing queue`，实际提交哈希/远端状态以 git log/status 为准。
+- 并发 Workbench 会话仍在主树修改 M47 work-queue 和 Web 文件；本次不得暂存其工作树改动。main 的已有本地提交将随用户授权的普通 push 同步，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，不合并、不删除、不改写。
+- 下一步：继续核对076–134的账号侧草稿/隐藏/改题状态；已发布的过时文章用修订或续篇处理，禁止重复发帖。自动任务每天 11:00 核实并维护系列、状态和每日两篇，事实或版本发生变化时暂停受影响稿件。
+
 ## 当前 Workbench 检查点（WB-06，2026-10-05）
 
 - 用户确认的 M47 基线继续有效；WB-05 已由 `e5fc4668` 完成。本轮 WB-06 仅修改 `web/src/views/AppShell.vue`、`web/src/router/index.ts`、`web/tests/workbench-shell-migration.test.mjs` 和 `web/tests/navigation-compat.test.mjs`，未触碰 Explorer、SQL 执行、MQ 存储或其它会话的博客改动。
