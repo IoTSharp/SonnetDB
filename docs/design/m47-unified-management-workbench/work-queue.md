@@ -94,13 +94,13 @@
 
 | ID | 有界下一项 | 依赖 / 验收 / 剩余边界 |
 |---|---|---|
-| WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 依赖 WB-13；先冻结准确客户端文件，再由专属子智能体实施。校验 active profile/database 原名、external/owned/stopped/failed 与 canStop；Web Node/TypeScript、Studio bridge 定向测试及本地 UI fixture。干净 Windows/WebView2、安装升级卸载仍独立验收。 |
+| WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`；五客户端文件与专属 Node 测试由 `/root/wb15_client_inventory` 实施，`web/e2e/studio-host-client.spec.ts` 由专属夹具代理实施，另一代理独立只读复核PASS。依赖WB-13；原名身份、external/owned/stopped/failed/canStop与未知合同保守门禁、bootstrap/status/save迟返、同ID endpoint认证同步和目录ABA均已收口；保存串行、宿主确认且无回授循环。专属Node10/10、全Web137/137、Studio三类定向40/40、TypeScript/Vite和StudioNative浏览器夹具8/8通过；代码最终完整restore/Format Check与staged diff check退出0。真实Server、干净Windows/WebView2、安装升级卸载、未使用旧Header及完整Explorer异步组合仍独立验收。 |
 | WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 依赖 WB-14 与 WB-08～WB-10；覆盖九模型、index/backup、混合大小写/冒号、proxy 子路径、跨库同名 MQ、无 token/SQL 和 route-only 不执行。复用 Extension Host 与 Web fixture，真实 Server 登录/权限和 VSIX 发布单列。 |
 | WB-17 | 下一模型页面按已确认基线迁移，优先 Relation Table Workbench 的身份、六态与预览/审批 | 依赖 WB-11/WB-12；先盘点既有实现与原型合同，不重做已有设计器/SQL。仅做明确差距，冻结组件/专属测试，Node/TypeScript/Vite、必要 UI、restore/format 和独立复核。 |
 | WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 依赖 WB-12；当前403会清理载荷并保持 permission，same-identity schema刷新不解除；新增恢复动作须先确定合同，读取重试不得恢复旧写审批。Aggregate/Distinct 仍沿用原结果路径，不能把 Find 1000预览预算宣称为所有路径预算。 |
 
-以上是已授权研发的可执行顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因 WB-12～WB-14 的本机 PASS 暂停整体研发。
+WB-15已按本地客户端范围闭环，WB-16～WB-18是已授权研发的后续顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
 
 ## 会话与自动检查（2026-10-06已转移）
 
-新会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。第一轮只读接收已经启动；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，真实目标与周期已从保存配置回读核实，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 完成本次最后交接文档提交后停止仓库写入，新会话在后续heartbeat或用户继续指令从WB-15取得唯一写入归属；无需重新确认已有授权。
+当前会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。已完成只读接收、从`d773a62e`接管唯一写入并提交WB-15；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，真实目标与周期已从保存配置回读核实，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在最后交接提交后停止仓库写入；下一次从WB-16接续，无需重新确认已有授权。

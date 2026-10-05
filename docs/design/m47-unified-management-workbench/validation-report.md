@@ -203,3 +203,15 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 新会话 `01a10d27-d964-7550-9b8e-066447122527`（host=local，SonnetDB local project）已创建并经wait_threads确认开始只读接收；原自动化ID workbench已更新该目标，ACTIVE、每30分钟，保存配置回读匹配。旧会话完成最后文档提交即停止仓库写入；新会话后续从WB-15接续，三个实施者均已结束，无重复派单。
 - 本轮实际验证为Web/Studio bridge/ManagedLocal/Extension Host定向证据；WebView2/干净Windows、真实Server权限、完整九模型、VSCode浏览器最终回选/认证、AI/MCP与三宿主发布仍NOT_READY，不因此暂停持续研发。无push、发布、部署或外部沟通；origin/parity-results保持独立。
 - 最后迁移记录仅修改共享文档；仍在其最终树重新执行完整restore/Format Check和diff check，未通过不提交。本交接文档提交的实际哈希以git log最后的docs(m47)提交及会话最终输出为准，不能在自身内容预写未知哈希。
+
+## WB-15 Studio Web客户端消费宿主合同（2026-10-06）
+
+- 代码提交：`e1f93a6995e6e1e24e1badfaefb2eb918f31393a`，五个客户端文件加专属Node/浏览器测试与CHANGELOG，共8文件；从`d773a62e`接续，不改Studio/Server API、存储、MQ、Graph或SQL名称合同。根串行维护共享文档与git，三个专属代理实施/夹具/只读复核，无竞争写入。
+- 身份来自连接库GET/PUT确认的`studio-desktop/profileId/baseUrl/database`，显示当前工作区数据库原名，保持同端点不同profile身份；不将身份落入浏览器连接持久化，也不伪造宿主确认。生命周期字段缺失、矛盾或URL不合法时拒绝管理，保留Health；external健康/不健康都不开放Start/Stop，Studio归属且canStop才可停止，stopped/failed区分展示。
+- bootstrap在第一个await前取代际；status/Start/Stop/openEmbedded拒绝旧响应，同ID endpoint变化同步认证上下文。目录同时保护profile/store与工作区代际，工作区库名可合法不同于连接库默认库名，A→B→A拒绝旧路径。连接PUT串行、专属连接代际与fingerprint匹配后仅消费身份；失败不伪装保存成功，确认不会产生反馈PUT。status的URL/dataRoot须完整合同确认才采纳，外部dataRoot不写本地偏好。
+- 专属`node --experimental-vm-modules --test web/tests/studio-host-client-contract.test.mjs`：10/10（3纯合同、6生产store真实Vue/Pinia、1生产composable+deferred目录）；全Web Node回归：137/137，无skip；`web`内`npm run build`（vue-tsc+Vite）退出0，既有大chunk提示保留。最终源码SHA与独立复核一致，diff check通过。
+- `dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~StudioConnectionLibraryTests|FullyQualifiedName~StudioHostContractTests|FullyQualifiedName~StudioManagedServerHostTests' --logger 'console;verbosity=minimal'`：40/40，无skip。此命令覆盖三个完整测试类，较WB-13的34项定向集合不同；含真实bridge/ManagedLocal/external的本机证据，不能混作浏览器或WebView2安装证据。
+- `SONNETDB_E2E_RUNTIME=StudioNative`、video=off、显式现有本机Chrome路径与空闲端口，使用既有`e2e/run-playwright.mjs studio-host-client.spec.ts`：8/8。覆盖原名身份、同端点profile切换、external健康/不健康与native动作拒绝、owned停止、stopped/failed、矛盾合同、迟返状态和bridge失败不伪造健康。夹具仅mock native bootstrap/API，GET/PUT分别确认默认库与当前库；不调用真实Server或桌面文件对话框。此前无runtime的skip与初始化失败不计PASS。
+- 独立复核发现的computed缓存、bootstrap覆盖、直接store绕过、保存确认丢失及目录DB误拒均已修复并用行为证据收口。最终独立复核PASS；完整`dotnet restore SonnetDB.slnx`与`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`在代码提交前最终树退出0，只有既有workspace加载警告，无降低级别；staged diff check通过。共享交接文档提交在最后文档树再次执行相同门禁。
+- 自有进程由有界runner记录PID/创建/命令/父链并finally回收；Studio编译服务和Web/e2e/复核PID已核验不存在。临时runner在最后门禁后核验绝对路径回收；忽略的依赖/构建输出与必要UI证据保留，未清理未证实归属对象。没有安装工具、push、发布、部署或外部消息；`origin/parity-results`保持`e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`。
+- 剩余边界：真实Server权限、原生WebView2/干净Windows、安装升级卸载、固定硬件/长稳/AOT发布、完整三宿主与九模型仍NOT_READY；旧未使用SqlWorkbenchHeader和Explorer全部DB/Schema异步组合不由本切片宣称已验收。下一有界切片为WB-16，然后WB-17/WB-18，heartbeat保持ACTIVE。
