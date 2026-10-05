@@ -19,6 +19,7 @@ internal sealed class StudioConnectionLibrary
     /// <param name="managedServerUrl">托管本地 server 默认地址。</param>
     public StudioConnectionLibrary(string filePath, string managedServerUrl)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         _filePath = filePath;
         _managedServerUrl = NormalizeUrl(managedServerUrl);
     }
@@ -50,6 +51,10 @@ internal sealed class StudioConnectionLibrary
         {
             return DefaultSnapshot();
         }
+        catch (ArgumentException)
+        {
+            return DefaultSnapshot();
+        }
         finally
         {
             _gate.Release();
@@ -63,15 +68,17 @@ internal sealed class StudioConnectionLibrary
     /// <param name="cancellationToken">取消令牌。</param>
     public async Task SaveAsync(StudioConnectionLibrarySnapshot snapshot, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         var normalized = NormalizeSnapshot(snapshot);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        string? tempPath = null;
         try
         {
             var directory = Path.GetDirectoryName(_filePath);
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
 
-            var tempPath = _filePath + ".tmp";
+            tempPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             await using (var stream = File.Create(tempPath))
             {
                 await JsonSerializer.SerializeAsync(
@@ -85,7 +92,15 @@ internal sealed class StudioConnectionLibrary
         }
         finally
         {
-            _gate.Release();
+            try
+            {
+                if (tempPath is not null && File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
     }
 
@@ -93,6 +108,9 @@ internal sealed class StudioConnectionLibrary
     {
         if (snapshot is null)
             return DefaultSnapshot();
+
+        if (snapshot.Profiles is null || snapshot.Profiles.Any(profile => profile is null))
+            throw new ArgumentException("Connection library profiles must be an array of connection profiles.", nameof(snapshot));
 
         var now = Now();
         var profiles = snapshot.Profiles
@@ -105,33 +123,41 @@ internal sealed class StudioConnectionLibrary
         if (profiles.All(profile => !string.Equals(profile.Id, LocalProfileId, StringComparison.OrdinalIgnoreCase)))
             profiles.Insert(0, DefaultLocalProfile(now));
 
-        var activeProfileId = profiles.Any(profile => string.Equals(profile.Id, snapshot.ActiveProfileId, StringComparison.OrdinalIgnoreCase))
-            ? snapshot.ActiveProfileId
-            : profiles[0].Id;
+        var activeProfile = profiles.FirstOrDefault(profile =>
+            string.Equals(profile.Id, snapshot.ActiveProfileId?.Trim(), StringComparison.OrdinalIgnoreCase));
         return new StudioConnectionLibrarySnapshot(
             profiles.ToArray(),
-            activeProfileId,
-            snapshot.ActiveDatabase ?? string.Empty);
+            activeProfile?.Id ?? profiles[0].Id,
+            activeProfile is null ? profiles[0].DefaultDatabase : snapshot.ActiveDatabase ?? string.Empty);
     }
 
     private StudioConnectionProfile NormalizeProfile(StudioConnectionProfile profile, long now)
     {
         var kind = string.Equals(profile.Kind, "remote", StringComparison.OrdinalIgnoreCase)
             ? "remote"
-            : "managed-local";
+            : string.Equals(profile.Kind, "managed-local", StringComparison.OrdinalIgnoreCase)
+                ? "managed-local"
+                : throw new ArgumentException("Connection kind must be remote or managed-local.", nameof(profile));
+        var id = profile.Id.Trim();
+        if (string.Equals(id, LocalProfileId, StringComparison.OrdinalIgnoreCase))
+        {
+            if (kind != "managed-local")
+                throw new ArgumentException("The managed-local profile ID is reserved for Managed Local.", nameof(profile));
+            id = LocalProfileId;
+        }
         var name = string.IsNullOrWhiteSpace(profile.Name)
             ? (kind == "remote" ? "Remote" : "Managed Local")
             : profile.Name.Trim();
-        var baseUrl = string.IsNullOrWhiteSpace(profile.BaseUrl)
-            ? (kind == "remote" ? _managedServerUrl : _managedServerUrl)
+        var baseUrl = kind == "managed-local" && (string.IsNullOrWhiteSpace(profile.BaseUrl) || profile.BaseUrl.Trim() == "/")
+            ? _managedServerUrl
             : NormalizeUrl(profile.BaseUrl);
 
         return new StudioConnectionProfile(
-            profile.Id.Trim(),
+            id,
             name,
             kind,
             baseUrl,
-            profile.DefaultDatabase?.Trim() ?? string.Empty,
+            profile.DefaultDatabase ?? string.Empty,
             "current-session",
             profile.CreatedAt > 0 ? profile.CreatedAt : now,
             profile.UpdatedAt > 0 ? profile.UpdatedAt : now);
@@ -161,9 +187,18 @@ internal sealed class StudioConnectionLibrary
 
     private static string NormalizeUrl(string value)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
         var trimmed = value.Trim();
-        if (trimmed.Length == 0 || trimmed == "/")
-            return "/";
-        return trimmed.TrimEnd('/');
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || string.IsNullOrEmpty(uri.Host)
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new ArgumentException("Connection URL must be an absolute HTTP or HTTPS URL without credentials, query or fragment.", nameof(value));
+        }
+
+        return uri.AbsoluteUri.TrimEnd('/');
     }
 }

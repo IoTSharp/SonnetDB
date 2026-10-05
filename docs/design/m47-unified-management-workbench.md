@@ -1,6 +1,6 @@
 # M47 统一数据库管理工作台与三面发布设计
 
-**状态：`📋 planned`；HTML 原型为 `REVIEW_DRAFT`。** 本专题把 Web Admin、Studio 桌面和 VS Code 扩展收敛到一套可复用的管理工具核心。当前已整理 [M47 设计评审包](m47-unified-management-workbench/README.md)，覆盖导航、五区外壳、共享对话框与提示、页面规范和静态 HTML 原型；用户确认与逐页最终视觉仍待完成，不表示生产代码、安装包或真实发布门禁通过。
+**状态：`🚧 implementing`；M47 设计基线为 `CONFIRMED_BASELINE`（2026-10-05）。** 用户已确认外壳、七个一级/二级导航、九模型数据库逻辑资源树、MQ database + Topic / instance 持久化边界、Graph Beta、共享结果/草稿/历史/审批与六态。当前按 [Workbench 队列](m47-unified-management-workbench/work-queue.md) 推进本地实现切片；[设计评审包](m47-unified-management-workbench/README.md) 的原型与历史 REVIEW_DRAFT 证据不等同逐页最终视觉、真实 Server、三宿主、安装或发布门禁全部通过。
 
 ## 1. 产品判断
 
@@ -147,7 +147,7 @@ docs/design/m47-unified-management-workbench/
 
 每个关键帧至少有正常、空、加载、局部失败、只读、离线、长内容、无权限和危险确认状态。原型导航必须能从同一个连接上下文打开 Web Admin、Studio 和 VS Code 的等价任务，并明确哪些动作需要跳转宿主。
 
-HTML 能点击、切换示例状态或打开审批对话框，仅证明设计评审路径可见。通用模板不等于逐页最终视觉完成，浏览器截图不替代真实 Server、WebView2、安装、Extension Host、固定硬件或长期运行证据。用户确认原型以前继续完善设计包，不启动 `web/src`、VS Code 或共享资源合同的生产实现。
+HTML 能点击、切换示例状态或打开审批对话框，仅证明设计评审路径可见。通用模板不等于逐页最终视觉完成，浏览器截图不替代真实 Server、WebView2、安装、Extension Host、固定硬件或长期运行证据。已确认基线允许按有界切片迁移生产实现；新视觉或语义修改仍先设计，不扩大已确认范围。
 
 ## 7. 代码与发布组织
 

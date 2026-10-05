@@ -1,11 +1,20 @@
 # SonnetDB 交接记录
 
-交接日期：2026-10-05（Asia/Shanghai）<br>
+交接日期：2026-10-06（Asia/Shanghai）<br>
 当前分支：`main`<br>
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 当前状态
+## 当前检查点（2026-10-06；后续旧记录为历史证据）
+
+- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-11 已提交，WB-11 为 `390ff526`，进入本轮的 HEAD 为 `db0afb7e`，不要重复实施。
+- 用户已授权继续 Web Admin、独立 SonnetDB Studio、VS Code Workbench 的独立切片与验证后本地提交，并选择本轮收尾后创建新会话、转移同一 `workbench` heartbeat。暂不 push、发布、部署或外部沟通。
+- WB-12（Document）已修复导入停止进度与旧文件picker竞态，专属10/10、全Web127/127、TypeScript/Vite通过，最终浏览器回归正在运行；WB-13（Studio）Release定向34/34；WB-14（VS Code）Node20/20与本机Extension Host通过。三项均已冻结实现并独立复核PASS，最终restore/format和本地提交尚未完成，三宿主整体仍未闭环。
+- 根独占共享文档、集成、stage/commit。WB-12 仅 Document 组件/专属测试；WB-13 为三个 Studio 源文件与三个专属/既有测试；WB-14 为资源 helper/types、命令/package contribution 与 Node/Host 测试。实际范围见队列，最多三个活动子智能体，不再派竞争者。
+- 当前 `workbench` 为 ACTIVE、每30分钟，仍指向旧 thread `01a10862-bcd5-7d82-ab22-c916c00221a3`。新会话尚未创建；转移成功后本节记录真实目标与最终提交，旧会话停止写入。
+- `origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，禁止合并、删除或改写。其它会话的博客文件不属于本任务。
+
+## 早期状态（历史）
 
 - 本地 `codex/*` 分支已全部确认可达 `main` 并删除。
 - 远端 `origin/codex/*` 已无存活分支；本地缓存引用已 prune。
@@ -286,3 +295,10 @@
 - 路线图已新增前置“当前完成度一览”，并把 M45/M47 总览状态与 WB 状态索引对齐；这解决了完成项和未完成项不易区分的问题。状态仍严格区分本地切片与真实 Server、固定硬件、长期运行、三宿主、安装和发布证据。
 - 最终门禁已通过：`dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`。WB-11 已提交为 `390ff526 feat(m47): migrate measurement workbench`，提交只包含本任务的 7 个文件；不要 stage 其它会话文件、构建产物或凭据；不 push、不发布、不部署。`origin/parity-results` 保持独立。
 - 后续边界：WB-12 及其它模型页面需另选有界切片并取得对应确认；Studio、VS Code、WorkBuddy/stdio bridge、真实 Server 权限旅程、全量九模型、安装与发布继续保持未闭环，不因 WB-11 本地 PASS 升级为整体完成。
+
+## 三宿主研发阶段重新启动（2026-10-06）
+
+- 用户明确要求继续研发独立 SonnetDB Studio、VS Code Workbench 与 Web Admin；上一轮 heartbeat 已从 `PAUSED` 改为 `ACTIVE`，继续每 30 分钟唤醒同一线程。当前授权仍不包含 push、发布、生产部署或外部沟通。
+- 根会话已冻结三个互不重叠的有界任务：WB-12 Web Admin Document Workbench（`web/src/components/DocumentCollectionWorkbench.vue` 与专属测试）由 `/root/wb12_web_admin_document` 实施；WB-13 Studio 宿主合同（connection library、bridge contracts、BridgeHost 与专属测试）由 `/root/wb13_studio_host_slice` 实施；WB-14 VS Code Workbench 资源/深链接合同（types、workbenchResource、extension、package contribution、Node/Host 测试）由 `/root/wb14_vscode_workbench_slice` 实施。
+- 三项均先复用已确认 M47 基线和既有 M29/M32/M34 实现；不把原型、静态合同、本地 fixture、Extension Host 或 Studio 本机构建写成三宿主整体完成。共享文档、集成、stage、restore/format、commit 由根会话串行维护，子智能体不得自行提交。
+- 当前工作树在阶段启动前 clean；实施期间根会话只修改共享记录并集中验证，避免覆盖宿主源文件。下一次检查先读取本文件、AGENTS、队列、git status 和子智能体状态，接续实际检查点。

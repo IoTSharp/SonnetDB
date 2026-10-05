@@ -173,3 +173,11 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 权限错误不仅依赖宿主 prop：SQL 返回 permission/forbidden/unauthorized/access denied 时会派生有效权限态，清理点值、Schema、监控结果和旧请求，导出按钮与导出函数同时拒绝旧载荷。切换数据库或同名 Measurement 会递增 point/monitor request token、清理旧结果并重新查询，旧成功或失败响应不能回写新资源。
 - 验证：`node --test web/tests/measurement-workbench-migration.test.mjs` 5/5；`node --experimental-vm-modules --test web/tests/*.test.mjs` 117/117；`npm --prefix web run build`（vue-tsc + Vite）通过；现有 Measurement Playwright 场景 8/8（共享合同渲染、导入审批、分批停止/恢复、监控切换、校正校验、窄桌面布局）通过；`git diff --check` 通过。
 - 证据边界：上述为生产 Web 组件、现有 API 接线和本地浏览器 fixture 证据，不等同真实 Server 权限矩阵、固定硬件、AOT、Studio/VS Code/WorkBuddy 宿主、安装、发布或全量九模型验收。最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 已通过；代码提交为 `390ff526`。
+
+## WB-13 Studio 宿主身份与生命周期（2026-10-06）
+
+- 原位扩展 `/connections` 与 `/server/status`；没有新增未接线 API。身份由 canonical profileId、HTTP(S) baseUrl（保留部署子路径）和 database 原名派生，宿主为 studio-desktop。保存拒绝相对/file/userinfo/query/fragment，保留 Managed Local 旧 `/` 的配置地址解析；非法请求返回无敏感 URL 的400。
+- JSON DTO 注册到 StudioBridgeJsonContext；客户端不能覆盖派生宿主字段，Token 不落盘。GUID临时文件在成功、失败路径均回收；未知active profile不继承旧数据库。canStop仅在running、StartedByStudio与真实PID同时满足时为true，external目标不开放停止能力。
+- Release `dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj --filter FullyQualifiedName~StudioConnectionLibraryTests|FullyQualifiedName~StudioHostContractTests|FullyQualifiedName~StartEmbeddedAsync_WithExistingDatabase_MountsItAndRejectsInvalidSwitch|FullyQualifiedName~StartAsync_WhenExternalHealthyServerOwnsTargetPort_DoesNotStartOrStopIt` Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -m:1 定向34/34（两个新增类32项与上述两个既有测试；非整个ManagedLocal类），通过Studio/Core/Server依赖构建；包含真实bridge GET/PUT与既有ManagedLocal/external实例测试。独立只读复核PASS，git diff --check通过。
+- 证据限于本轮6文件；Web客户端尚未消费新增展示字段，干净Windows/WebView2、安装升级卸载、AOT/发行物和全三宿主旅程不在PASS内。既有测试helper的循环/临时目录治理也不由本轮定向PASS宣称全量完成。
+- 根在最终待提交树串行执行完整solution restore与Format Check，未通过不提交；实际提交哈希在后续检查点记录。

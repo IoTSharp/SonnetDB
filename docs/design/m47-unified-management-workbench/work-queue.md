@@ -1,6 +1,6 @@
 # Workbench 持续推进队列
 
-状态：2026-10-05 交接启动。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
+状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
 ## 每个任务的闭环
 
@@ -80,6 +80,27 @@
 - 身份与边界：保留 database、measurement 原名/大小写和旧 key；不改 MQ 存储、Graph 语义、Server API 或三宿主发布，不把本地 UI/定向测试写成真实服务验收。
 - 验收：normal、empty、error、permission、readonly、longContent 六态有可验证生产组件合同；旧路由/深链接、查询/刷新/导出、写审批、跨库同名资源和权限错误载荷清理已覆盖。专属 Node 5/5、全 Web Node 117/117、TypeScript、Vite build、Measurement Playwright 8/8、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。代码提交为 `390ff526 feat(m47): migrate measurement workbench`。真实 Server、三宿主、安装、发布和全量九模型验收仍待补。
 
+## 新三宿主阶段（2026-10-06）
+
+用户已授权继续实现独立 SonnetDB Studio、VS Code Workbench 与 Web Admin。三项并行任务先按确认基线做有界合同/页面切片；共享文档、集成、stage、restore/format 和 commit 由根会话串行维护。
+
+| ID | 任务与文件归属 | 依赖与验收 / 状态 |
+|---|---|---|
+| WB-12 | Web Admin Document Workbench；`web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs` | 依赖 WB-11。补齐 database + collection 原名身份、六态、旧路由/深链接与 WriteApprovalPanel 边界；Node/TypeScript/Vite、必要 UI 证据、restore/format；实施中，由 `/root/wb12_web_admin_document` 负责，不提交。 |
+| WB-13 | SonnetDB Studio 宿主合同；三个 Studio 源文件、`StudioConnectionLibraryTests.cs`、`StudioHostContractTests.cs` 与现有 `StudioManagedServerHostTests.cs` 的生命周期断言 | 已完成实现并冻结；Release定向34/34（真实bridge与ManagedLocal/external）、独立复核与diff check通过。宿主/端点/profile/数据库原名身份、URL校验、source-generated JSON与canStop已验证；等待根最终restore/format与本地提交，客户端展示、安装和发布另验。 |
+| WB-14 | VS Code Workbench 资源/深链接合同；扩展 `src/core/types.ts`、`workbenchResource.ts`、`src/extension.ts`、`package.json`、`src/test/host/index.ts` 与专属测试 | 依赖现有 Remote-first 扩展；补齐 database/resource 原名、旧 key 兼容与九模型 Workbench 入口，不扩大治理权限；TypeScript/Node 测试、Extension Host 证据单列；实施中，由 `/root/wb14_vscode_workbench_slice` 负责，不提交。 |
+
 ## 会话与自动检查
+
+## 三宿主后续队列（本地切片通过不等于整体完成）
+
+| ID | 有界下一项 | 依赖 / 验收 / 剩余边界 |
+|---|---|---|
+| WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 依赖 WB-13；先冻结准确客户端文件，再由专属子智能体实施。校验 active profile/database 原名、external/owned/stopped/failed 与 canStop；Web Node/TypeScript、Studio bridge 定向测试及本地 UI fixture。干净 Windows/WebView2、安装升级卸载仍独立验收。 |
+| WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 依赖 WB-14 与 WB-08～WB-10；覆盖九模型、index/backup、混合大小写/冒号、proxy 子路径、跨库同名 MQ、无 token/SQL 和 route-only 不执行。复用 Extension Host 与 Web fixture，真实 Server 登录/权限和 VSIX 发布单列。 |
+| WB-17 | 下一模型页面按已确认基线迁移，优先 Relation Table Workbench 的身份、六态与预览/审批 | 依赖 WB-11/WB-12；先盘点既有实现与原型合同，不重做已有设计器/SQL。仅做明确差距，冻结组件/专属测试，Node/TypeScript/Vite、必要 UI、restore/format 和独立复核。 |
+| WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 依赖 WB-12；当前403会清理载荷并保持 permission，same-identity schema刷新不解除；新增恢复动作须先确定合同，读取重试不得恢复旧写审批。Aggregate/Distinct 仍沿用原结果路径，不能把 Find 1000预览预算宣称为所有路径预算。 |
+
+以上是已授权研发的可执行顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因 WB-12～WB-14 的本机 PASS 暂停整体研发。
 
 新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。

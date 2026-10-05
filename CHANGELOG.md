@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-13 Studio 宿主合同（2026-10-06）**：既有 `/connections` bridge 返回 `studio-desktop`、canonical profile/端点与数据库原名身份，连接库拒绝相对、非 HTTP(S)、凭据、query/fragment URL，保留部署子路径；既有 `/server/status` 增加进程归属、生命周期与 `canStop` 派生字段，外部实例不能由 Studio 停止。source-generated JSON、无 Token 落盘和 GUID 临时保存回收保持；Release 定向 34/34 与独立差异复核通过。Web 客户端消费、干净 Windows/WebView2、安装和三宿主发布仍待独立验收。
+
 - **博客园系列核查与自动发布队列（2026-10-05）**：新增 `docs/blogs/publishing-state.json`、事实复核记录和 135–142 八篇当前能力文章，覆盖九模型、SQL 名称大小写、KV/文档、SonnetMQ/流处理、typed MCP/RAG、语义图片检索、M47 工作台和性能证据边界；旧 001–134 底稿起初在缺少博客园 URL/postId 时暂停发布，再按下述公开记录回填，避免重复发布。Codex 项目自动化 `sonnetdb` 已配置为 Asia/Shanghai 每日 11:00 串行发布最多两篇，只有收到明确 URL 或 postId 才回填 `published`。发布状态依据实际博客园记录；数据库生产发布门禁仍按独立证据验收。
 
 - **博客园即时发布（2026-10-05）**：135《SonnetDB 当前能力全景：九种原生模型与一套数据库目录》已发布到[博客园](https://www.cnblogs.com/IoTSharp/p/23202291)，136《SonnetDB SQL 名称大小写合同：原名、双引号与安全迁移》已发布到[博客园](https://www.cnblogs.com/IoTSharp/p/23202334)；状态与审计事件已回填，发布计划新增 ✅/🕒/❓ 标记列。

@@ -223,7 +223,16 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
             return;
         }
 
-        await _connections.SaveAsync(snapshot, context.RequestAborted).ConfigureAwait(false);
+        try
+        {
+            await _connections.SaveAsync(snapshot, context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (ArgumentException)
+        {
+            await BadRequestAsync(context, "Connection library contains an invalid connection profile or URL.").ConfigureAwait(false);
+            return;
+        }
+
         var saved = await _connections.LoadAsync(context.RequestAborted).ConfigureAwait(false);
         await WriteJsonAsync(context, saved, StudioBridgeJsonContext.Default.StudioConnectionLibrarySnapshot).ConfigureAwait(false);
     }
