@@ -225,10 +225,19 @@
 - 验证：WB-05 窄测试 9/9；全 Web Node 回归 94/94；SQL 工作流 11/11；TypeScript 通过；共享工作台 Playwright（历史抽屉、SQL 诊断、KV 审批）3/3；`git diff --check` 通过。Playwright 自有 Vite/测试 PID 32764、74764 已由脚本回收并再次核验不存在。
 - 本轮提交：`e5fc4668 feat(m47): migrate result draft history approval workflows`。提交前最终树已通过 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；提交只包含 WB-05 生产文件、测试和 M47 共享记录。其它模型工作台仍沿用各自已有审批/stale 接线，真实 Server、三宿主、AOT、安装、发布及全量页面迁移继续单独验收。保留 `origin/parity-results`，不 push、不发布、不部署。
 
+## 博客园系列与定时发布（2026-10-05）
+
+- 新增 `docs/blogs/publishing-review-2026-10-05.md`、`docs/blogs/publishing-state.json` 和 135–142 八篇新稿；更新 `docs/blogs/00-publishing-plan.md`，将系列扩展为产品/九模型、SQL、数据流、AI/RAG、连接器/三面工作台、性能可靠性和案例八大方向。
+- 仓库已有 001–134 底稿，但没有博客园 URL、postId、发布时间或发布日志，不能据文件判断已发布；状态清单将其全部记为 `needs-reconciliation`，禁止自动重发。P0 过时项包括旧版本/端口、旧 MCP 工具、M17/M18 路线、未经当前证据支持的性能数字和把案例/原型写成生产事实的内容。
+- 135–142 已对照当前能力索引和专题文档，`publish-cnblogs` dry-run 八篇均通过；队列为 8 篇，按每日最多两篇串行发布。默认社区 footer 和二维码保留；无本地图片上传缺口。
+- 已创建项目 cron 自动化 `sonnetdb`：`SonnetDB 博客园每日双篇发布`，ACTIVE，Asia/Shanghai 每日 10:00 运行；只处理 `queued`，发布成功必须有 URL 或 postId 并回填状态，未知响应不重试，禁止自动 commit/push/部署。该自动化由 Codex app 工具创建，配置保存在用户自动化目录，不是仓库文件。
+- 验证：8 篇发布器 dry-run 通过；队列/sourceDocs 路径检查通过；新稿 front matter 检查通过；`git diff --check` 通过。当前工作树同时存在其它 Workbench 未提交修改，博客任务未暂存、未提交、未 push；后续提交必须先核对文件归属，不能带入其它改动。
+- 下一步：从博客园账号侧导出已发布标题/URL，逐条回填 001–134 的状态；修订 P0 文章后再排队。定时任务首次运行前应核对当前工作树、状态哈希和发布器配置，避免重复发布。
+
 ## 当前 Workbench 检查点（WB-06，2026-10-05）
 
 - 用户确认的 M47 基线继续有效；WB-05 已由 `e5fc4668` 完成。本轮 WB-06 仅修改 `web/src/views/AppShell.vue`、`web/src/router/index.ts`、`web/tests/workbench-shell-migration.test.mjs` 和 `web/tests/navigation-compat.test.mjs`，未触碰 Explorer、SQL 执行、MQ 存储或其它会话的博客改动。
 - 生产壳一级 rail 现在声明唯一七模块：概览、工作台、观测、数据流、AI 与 MCP、治理、设置；设置放入 footer，关于入口保留。查询/数据/Studio 不再作为重复一级按钮。active 映射覆盖旧 events/monitoring、Modbus、RAG/Copilot、users/grants/tokens、About/trajectory 路由；flows/govern 继续 admin-only，flows→Modbus、settings→About、ai→RAG 是当前兼容落点，planned 页面不宣称已实现。
 - 路由新增 `overview`、`workbench`、`observe`、`flows`、`ai`、`govern`、`settings` aliases，保留 `/admin`、`/admin/app`、studio/databases/trajectory-map redirects、setup/auth/admin guards、trajectory query→SQL。九模型数据库资源树、MQ database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq` 与旧 key 未改。
 - 验证：壳/导航/Explorer 路由 `13/13`；管理 Explorer `5/5`；TypeScript 通过；`git diff --check` 通过；独立只读复核 PASS。提交前仍须在最终待提交树执行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，未通过不得提交。
-- 当前仍有其它会话未提交的 `CHANGELOG.md`、`HANDOFF.md` 博客条目和 `docs/blogs/*`；提交 WB-06 时只 stage 本任务代码/测试及本节 M47 记录，不得带入博客文件或其既有行。提交后记录实际哈希并继续选择下一有界切片；不 push、不发布、不部署。
+- WB-06 代码提交为 `f5c5cf53 feat(m47): migrate workbench shell navigation`，交接记录为 `503cb6fe docs(m47): record WB-06 checkpoint`。当前仍有其它会话未提交的 `CHANGELOG.md`、`HANDOFF.md` 博客条目和 `docs/blogs/*`；不得带入博客文件或其既有行。继续选择下一有界切片；不 push、不发布、不部署。
