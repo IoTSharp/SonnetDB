@@ -30,7 +30,7 @@
 | WB-03C | Explorer 兼容基线证据 | web/tests 下专属 contract 测试与自有 fixtures；只读消费当前 managementExplorer.ts，可与 WB-01/WB-03 并行 | 已完成并提交 `828b7638`：`web/tests/management-explorer-compat.test.mjs`，`node --experimental-vm-modules --test ...` 5/5；覆盖 keys、大小写/冒号、index/backup、MQ 旧 key 与外层 database 选择上下文。发现并记录 index-only fallback 与跨库 MQ key 兼容边界，未改源码。 |
 | WB-04 | 按已确认基线迁移全局壳和一级/二级导航 | 预检仅新增 `web/tests/navigation-compat.test.mjs`；生产壳/路由文件仍冻结 | 预检已完成并通过本地提交门禁：5/5 静态断言覆盖 `/admin`、`/admin/app`、Studio/databases/trajectory-map legacy redirects、现有路由与管理员 meta、7 项 baseNavigation、5 项 adminNavigation、secondaryNavigation 管理员条件、设置/关于入口、setup/auth/admin guards 及 trajectory query→SQL；仅证明迁移前兼容基线。生产迁移仍因 `REVIEW_DRAFT` 等待用户确认，不改 `web/src`。 |
 | WB-04B | Explorer → SQL 深链接兼容预检 | 仅新增 `web/tests/explorer-routing-compat.test.mjs`；只读消费 `useSqlExplorerRouting.ts`，不改生产源码 | 已完成并通过本地提交门禁：5/5 静态断言覆盖九模型 `tool/model/node` 深链接、database selection、index/backup `{model,node}` fallback、Open-in-SQL allowlist 与 KV/MQ/Bucket 排除、route-only 不自动执行。仅证明源码兼容基线，不代表 Vue 运行时、真实路由、Server 或迁移完成。 |
-| WB-05 | 结果、草稿、历史和审批工作流迁移 | 依每次任务冻结组件与测试归属；依赖 WB-04 | 能力决定视图；预算/截断/无权限/取消、审批失效、未知写结果、恢复不重放。待启动 |
+| WB-05 | 结果、草稿、历史和审批工作流迁移 | 依每次任务冻结组件与测试归属；依赖 WB-04 | 能力决定视图；预算/截断/无权限/取消、审批失效、未知写结果、恢复不重放。等待 `REVIEW_DRAFT` 设计确认，暂不启动生产迁移 |
 
 后续模型与三宿主切片从 M47-U01~U09 的实际差距继续选取，复用现有交付，不重做 M29/M32/M34，也不自动改 MQ 存储为 KV/关系表。
 

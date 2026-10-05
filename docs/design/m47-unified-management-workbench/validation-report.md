@@ -110,7 +110,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --test web/tests/m47-settings-state-contract.test.mjs`：3/3；与 WB-02B–G 状态合同联合回归：20/20；`node --check`：`prototype/catalog.js`、`prototype/task-details.js`；`git diff --check`：通过；独立只读复核：PASS。
 - 偏好只影响当前宿主界面且不扩大服务端预算/权限；实例配置没有在线 API 时保持只读、敏感字段脱敏；Studio Web 原型不伪造 Native bridge、Managed Local 或 Start/Stop；能力矩阵在 manifest、`uiContractVersion`、校验/签名及三宿主证据未齐时保持未就绪；关于页版本来自真实发行物，诊断复制先预览脱敏。
 - 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 Server、三宿主、干净 Windows、Extension Host、安装、发布、AOT 或生产迁移通过；原型不发起网络请求。
-- 实现已提交为 `175cf674`（`feat(m47): add settings and release state contracts`）；本提交后的交接文档哈希同步仍需单独通过同一仓库门禁。
+- 实现已提交为 `175cf674`（`feat(m47): add settings and release state contracts`），交接文档哈希同步提交为 `68cd0154`（`docs(m47): record WB-02H commit checkpoint`）；两次提交前的 restore/format 门禁均通过。
 
 ## WB-04 迁移前导航兼容预检（2026-10-05）
 
