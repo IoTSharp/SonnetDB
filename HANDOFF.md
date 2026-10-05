@@ -262,3 +262,10 @@
 - `SqlConsoleView.vue` 的 route watcher 等待 active database、schema 和 management 元数据就绪后一次性设置 `activeExplorerKey`，token 在普通 SQL URL、control-plane 或缓存重置时清空；route-selection watcher 注册在对象页签 watcher 之前，避免旧 URL 异步加载时先生成默认首项页签。MQ 仍是当前 database 下的 Topic 身份，Graph Beta 不变，route-only 不执行 SQL。
 - 验证：WB-08 自有 Node 测试 5/5；Explorer/路由/壳/导航/页签定向回归 20/20；独立复核全 Web Node 回归 107/107；TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。URL 未携带 database 参数时继续使用当前 active/default database；真实 Server、权限、三宿主和发布门禁未覆盖。
 - 代码提交为 `418c21d3 fix(m47): restore legacy explorer route selection`；提交只包含 WB-08 生产文件、测试和 work-queue 检查点。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
+
+## 当前 Workbench 检查点（WB-09，2026-10-05）
+
+- WB-09 为新生成的 Explorer 深链接增加可选 `database` query，并保留旧 `tool/model/node` 字段。`useSqlExplorerRouting` 使用资源 descriptor 的 database 写新链接；`SqlConsoleView` 等待数据库列表、schema 和 management 元数据后，只选择有效的请求数据库，再按 `explorerKeyFromRoute` 回投影对象。
+- 缺失 database 继续使用 active/default database；未知 database 不把 node 解析到当前数据库，保留安全回退。database-only URL、profile/cache reset 和未知库后恢复均同步清理/更新 selection token；同一旧 URL 下用户手动切换数据库不会被强制切回。MQ 仍为 database + Topic，Graph Beta 和 route-only 不自动执行保持不变。
+- 验证：WB-09 自有 Node 测试 4/4；Explorer/路由兼容定向 10/10；独立复核全 Web Node 111/111；TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
+- 代码提交为 `09f5711b feat(m47): add database context to explorer deep links`；提交只包含 WB-09 生产文件、测试和 work-queue 检查点。浏览器在已手动切库后只修改同 database URL 的 model/node query 仍是后续边界。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
