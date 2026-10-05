@@ -1,13 +1,21 @@
 <template>
-  <main class="document-workbench" data-testid="workbench-document">
-    <section class="document-toolbar">
+  <main
+    class="document-workbench"
+    data-testid="workbench-document"
+    data-shell="five-zone"
+    :data-state="documentState"
+    :data-database="targetDb"
+    :data-resource-key="activeCollectionName"
+  >
+    <section class="document-toolbar" data-zone="toolbar">
       <div class="document-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="info" :bordered="false">Document</n-tag>
           <n-text class="document-toolbar__title">{{ activeCollectionName || 'No collection selected' }}</n-text>
-          <n-tag v-if="activeCollection?.validator" size="tiny" :bordered="false">
+          <n-tag v-if="activeCollection?.validator && !permissionDenied" size="tiny" :bordered="false">
             validator {{ activeCollection.validator.validationAction ?? 'error' }}
           </n-tag>
+          <n-tag size="tiny" :bordered="false" data-testid="document-state">{{ stateDescriptor.label }}</n-tag>
         </n-space>
         <n-text depth="3" class="document-toolbar__meta">
           {{ targetDb || 'database' }} · {{ rows.length }} loaded docs · {{ checkedRowKeys.length }} selected
@@ -19,7 +27,7 @@
           v-model:value="selectedCollectionName"
           size="small"
           :options="collectionOptions"
-          :disabled="collectionOptions.length === 0"
+          :disabled="permissionDenied || collectionOptions.length === 0"
           class="document-toolbar__collection"
         />
         <n-input-number
@@ -31,7 +39,7 @@
           placeholder="Limit"
           class="document-toolbar__limit"
         />
-        <n-button size="small" secondary :disabled="!activeCollectionName" :loading="queryBusy" @click="runFind(false)">
+        <n-button size="small" secondary :disabled="permissionDenied || !activeCollectionName" :loading="queryBusy" @click="runFind(false)">
           Browse
         </n-button>
         <n-button size="small" secondary :loading="props.loading || queryBusy" @click="$emit('refreshSchema')">
@@ -45,18 +53,21 @@
       :model-value="activeView"
       :items="documentSections"
       aria-label="文档工作区"
+      data-zone="tabs"
       @update:model-value="selectDocumentView($event as DocumentView)"
     />
 
-    <WriteApprovalPanel
-      v-if="previewPlan"
-      :plan="previewPlan"
-      :busy="confirmBusy"
-      :abortable="importProgress.running"
-      @cancel="clearPendingOperations"
-      @confirm="confirmPendingOperations"
-      @abort="cancelDocumentImport"
-    />
+    <section class="document-approval-zone" data-zone="approval">
+      <WriteApprovalPanel
+        v-if="previewPlan && !readOnly && !permissionDenied"
+        :plan="previewPlan"
+        :busy="confirmBusy"
+        :abortable="importProgress.running"
+        @cancel="clearPendingOperations"
+        @confirm="confirmPendingOperations"
+        @abort="cancelDocumentImport"
+      />
+    </section>
 
     <n-alert
       v-if="errorMsg"
@@ -67,14 +78,16 @@
       @close="errorMsg = ''"
     />
 
-    <section v-if="activeView === 'documents'" class="document-stats">
+    <section v-if="activeView === 'documents' && !permissionDenied" class="document-stats">
       <article v-for="item in statItems" :key="item.label" class="document-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
     </section>
 
-    <section class="document-body" :class="{ 'is-focused': !['documents', 'query'].includes(activeView) }">
+    <section class="document-body" data-zone="center" :class="{ 'is-focused': permissionDenied || !['documents', 'query'].includes(activeView) }">
+      <n-empty v-if="permissionDenied" description="当前身份没有 Document 读取权限，文档、Validator 与索引载荷已隐藏。" />
+      <template v-else>
       <aside v-if="activeView === 'documents' || activeView === 'query'" class="document-collections">
         <div class="document-panel-head">
           <div>
@@ -85,12 +98,12 @@
 
         <div class="document-create">
           <n-input v-model:value="collectionFilter" size="small" clearable placeholder="Filter collections" />
-          <n-input v-model:value="newCollectionName" size="small" placeholder="New collection" />
+          <n-input v-model:value="newCollectionName" size="small" :disabled="readOnly" placeholder="New collection" />
           <n-space size="small" align="center" :wrap="true">
-            <n-button size="small" type="primary" :disabled="!newCollectionName.trim()" @click="stageCreateCollection">
+            <n-button size="small" type="primary" :disabled="readOnly || !newCollectionName.trim()" @click="stageCreateCollection">
               Stage create
             </n-button>
-            <n-button size="small" tertiary type="error" :disabled="!activeCollectionName" @click="stageDropCollection">
+            <n-button size="small" tertiary type="error" :disabled="readOnly || !activeCollectionName" @click="stageDropCollection">
               Stage drop
             </n-button>
           </n-space>
@@ -122,7 +135,7 @@
             <n-button size="small" secondary :disabled="!activeCollectionName" :loading="queryBusy" @click="runFind(false)">
               Run find
             </n-button>
-            <n-button size="small" secondary :disabled="!hasMore || queryBusy" :loading="queryBusy" @click="runFind(true)">
+            <n-button size="small" secondary :disabled="!canLoadNext || queryBusy" :loading="queryBusy" @click="runFind(true)">
               Next page
             </n-button>
             <n-button size="small" quaternary :disabled="rows.length === 0" @click="exportLoadedJsonl">
@@ -243,18 +256,18 @@
           @update:checked-row-keys="checkedRowKeys = $event"
         />
 
-        <footer class="document-pager">
+        <footer class="document-pager" data-zone="status">
           <span>{{ pagerText }}</span>
           <n-space size="small" align="center">
             <n-input v-model:value="gridFilter" size="small" clearable placeholder="Filter loaded rows" class="document-grid-filter" />
-            <n-button size="small" tertiary type="error" :disabled="checkedRowKeys.length === 0" @click="stageDeleteSelected">
+            <n-button size="small" tertiary type="error" :disabled="readOnly || checkedRowKeys.length === 0" @click="stageDeleteSelected">
               Stage delete selected
             </n-button>
           </n-space>
         </footer>
       </section>
 
-      <aside class="document-inspector">
+      <aside class="document-inspector" data-zone="context">
         <div class="document-panel-head">
           <div>
             <n-text class="document-panel-head__title">{{ documentSectionTitle }}</n-text>
@@ -267,17 +280,20 @@
 
         <n-tabs v-if="activeView === 'documents'" v-model:value="inspectorTab" type="segment" size="small" class="document-tabs">
           <n-tab name="detail" tab="Detail" />
-          <n-tab name="edit" tab="Edit" />
+          <n-tab name="edit" tab="Edit" :disabled="readOnly" />
         </n-tabs>
 
         <DocumentAdvancedWorkbench
-          v-if="activeView === 'update' || activeView === 'indexes' || activeView === 'changeFeed'"
+          v-if="activeView === 'changeFeed' || !readOnly && (activeView === 'update' || activeView === 'indexes')"
+          :key="resourceIdentity"
           :mode="activeView"
           :target-db="targetDb"
           :collection="activeCollection"
           @refresh-schema="$emit('refreshSchema')"
           @refresh-documents="runFind(false)"
         />
+
+        <n-empty v-else-if="readOnly && (activeView === 'update' || inspectorTab === 'edit')" description="当前宿主为只读，文档更新与暂存提交不可用。" />
 
         <section v-else-if="inspectorTab === 'detail'" class="document-inspector-section">
           <template v-if="selectedRow">
@@ -319,15 +335,16 @@
         <section v-else-if="inspectorTab === 'validator'" class="document-inspector-section">
           <div class="document-query-row">
             <n-select v-model:value="validatorAction" size="small" :options="validatorActionOptions" />
-            <n-button size="small" secondary :disabled="!activeCollectionName" @click="stageSaveValidator">
+            <n-button size="small" secondary :disabled="readOnly || !activeCollectionName" @click="stageSaveValidator">
               Stage save
             </n-button>
-            <n-button size="small" tertiary type="error" :disabled="!activeCollectionName || !activeCollection?.validator" @click="stageDropValidator">
+            <n-button size="small" tertiary type="error" :disabled="readOnly || !activeCollectionName || !activeCollection?.validator" @click="stageDropValidator">
               Stage drop
             </n-button>
           </div>
           <n-input
             v-model:value="validatorText"
+            :disabled="readOnly"
             type="textarea"
             :autosize="{ minRows: 8, maxRows: 14 }"
             placeholder="{ &quot;rules&quot;: [{ &quot;path&quot;: &quot;$.site&quot;, &quot;required&quot;: true, &quot;type&quot;: &quot;string&quot; }], &quot;validationAction&quot;: &quot;error&quot; }"
@@ -359,16 +376,17 @@
           </div>
           <n-input
             v-model:value="importText"
+            :disabled="readOnly"
             type="textarea"
             :autosize="{ minRows: 9, maxRows: 16 }"
             placeholder="JSON array, JSONL, or { id, document } items"
           />
           <n-space size="small" align="center" :wrap="true">
-            <n-button size="small" secondary :disabled="importProgress.running" @click="pickImportFile">
+            <n-button size="small" secondary :disabled="readOnly || importProgress.running" @click="pickImportFile">
               <template #icon><FolderOpen :size="15" /></template>
               Open file
             </n-button>
-            <n-button size="small" type="primary" :disabled="!activeCollectionName || !importText.trim()" @click="stageImportDocuments">
+            <n-button size="small" type="primary" :disabled="readOnly || !activeCollectionName || !importText.trim()" @click="stageImportDocuments">
               Stage import
             </n-button>
             <n-button size="small" secondary :disabled="rows.length === 0" @click="exportLoadedJsonl">
@@ -429,10 +447,13 @@
           />
         </section>
       </aside>
+      </template>
     </section>
 
     <WorkbenchResultPanel
+      v-if="!permissionDenied"
       class="document-result"
+      data-zone="result"
       title="Document operation result"
       :sql="latestCommand"
       :result="latestResult"
@@ -443,6 +464,11 @@
       @clear-error="latestResult = null"
     />
 
+    <footer class="document-statebar" data-zone="status">
+      <span>{{ stateDescriptor.summary }}</span>
+      <span>{{ stateDescriptor.primary }}</span>
+    </footer>
+
     <WorkbenchHistoryDrawer
       v-model:show="historyVisible"
       :active-database="targetDb"
@@ -452,7 +478,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -533,9 +560,15 @@ const props = withDefaults(defineProps<{
   collection: DocumentCollectionInfo | null;
   collections?: DocumentCollectionInfo[];
   loading?: boolean;
+  /** 只读宿主保留浏览、查询与导出，禁用写入、删除和导入提交。 */
+  readOnly?: boolean;
+  /** 明确无权限时隐藏文档、Validator 与索引载荷。 */
+  permissionDenied?: boolean;
 }>(), {
   collections: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -548,6 +581,29 @@ type InspectorTab = 'detail' | 'edit' | 'validator' | 'import' | 'indexes';
 type DocumentView = 'documents' | 'query' | 'update' | 'validator' | 'indexes' | 'changeFeed' | 'import';
 type ImportMode = 'insert' | 'replace';
 type QueryInputMode = 'builder' | 'raw';
+type DocumentWorkbenchState = 'normal' | 'empty' | 'error' | 'permission' | 'readonly' | 'longContent';
+
+const DocumentPreviewMaxRows = 1000;
+const DocumentLongContentChars = 8192;
+const DocumentImportMaxDocuments = 100_000;
+const DocumentImportTimeoutMs = 10 * 60_000;
+const documentStateContract = {
+  normal: { label: '正常', primary: '浏览文档', summary: '保留当前数据库与集合原名，浏览和查询当前页文档。' },
+  empty: { label: '空', primary: '调整查询条件', summary: '没有文档时保留集合、过滤、Sort 与 Projection 输入。' },
+  error: { label: '错误', primary: '检查并重试', summary: '保留查询输入；失败不会自动重放写操作。' },
+  permission: { label: '无权限', primary: '查看数据库权限', summary: '隐藏文档、Validator 与索引载荷，保留数据库和集合身份。' },
+  readonly: { label: '只读', primary: '导出当前页', summary: '浏览、查询与导出可用，写入、删除和导入提交禁用。' },
+  longContent: { label: '长结果', primary: '缩小查询范围', summary: '当前预览最多加载 1,000 文档；JSON 长内容滚动显示，导出仅包含已加载文档。' },
+} satisfies Record<DocumentWorkbenchState, { label: string; primary: string; summary: string }>;
+
+interface DocumentContext {
+  identity: string;
+  database: string;
+  collection: string;
+  connectionId: string;
+  connectionName: string;
+  api: AxiosInstance;
+}
 
 interface QueryCondition {
   id: number;
@@ -570,7 +626,7 @@ interface PendingOperation {
   detail: string;
   severity: WriteApprovalSeverity;
   command: string;
-  run: () => Promise<OperationOutcome>;
+  run: (context: DocumentContext) => Promise<OperationOutcome>;
 }
 
 interface OperationOutcome {
@@ -593,6 +649,14 @@ const queryBusy = ref(false);
 const countBusy = ref(false);
 const confirmBusy = ref(false);
 const errorMsg = ref('');
+const permissionFailure = ref(false);
+const readOnly = computed(() => props.readOnly);
+const permissionDenied = computed(() => props.permissionDenied || permissionFailure.value);
+let queryRequestId = 0;
+let countRequestId = 0;
+let writeRequestId = 0;
+let disposed = false;
+let pendingContext: DocumentContext | null = null;
 const gridFilter = ref('');
 const checkedRowKeys = ref<DataTableRowKey[]>([]);
 const selectedId = ref('');
@@ -664,6 +728,43 @@ const collections = computed(() => props.collections);
 const activeCollection = computed(() =>
   props.collection ?? collections.value[0] ?? null);
 const activeCollectionName = computed(() => activeCollection.value?.name ?? '');
+const resourceIdentity = computed(() => JSON.stringify([
+  connections.activeProfileId, connections.activeBaseUrl, props.targetDb, activeCollectionName.value,
+]));
+const canLoadNext = computed(() => hasMore.value && rows.value.length < DocumentPreviewMaxRows);
+const documentState = computed<DocumentWorkbenchState>(() => {
+  if (permissionDenied.value) return 'permission';
+  if (!props.targetDb || !activeCollectionName.value) return 'empty';
+  if (errorMsg.value || latestResult.value?.error) return 'error';
+  if (latestResult.value?.end?.rowCount === 0 || ranOnce.value && totalCount.value === 0 && rows.value.length === 0) return 'empty';
+  if (readOnly.value) return 'readonly';
+  if (hasMore.value || latestResult.value?.end?.truncated || rows.value.length >= DocumentPreviewMaxRows
+    || selectedRow.value && selectedRow.value.rawJson.length >= DocumentLongContentChars) return 'longContent';
+  return 'normal';
+});
+const stateDescriptor = computed(() => documentStateContract[documentState.value]);
+
+function captureContext(): DocumentContext {
+  return {
+    identity: resourceIdentity.value,
+    database: props.targetDb,
+    collection: activeCollectionName.value,
+    connectionId: connections.activeProfileId,
+    connectionName: connections.activeProfile.name,
+    api: auth.api,
+  };
+}
+
+function isCurrentContext(context: DocumentContext): boolean {
+  return !disposed && context.identity === resourceIdentity.value;
+}
+
+function isPermissionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const response = (error as { response?: { status?: number; data?: { code?: string; error?: string } } }).response;
+  return response?.status === 401 || response?.status === 403
+    || /permission|forbidden|unauthori[sz]ed|access.denied/i.test(`${response?.data?.code ?? ''} ${response?.data?.error ?? ''}`);
+}
 
 const selectedCollectionName = computed({
   get: () => activeCollectionName.value,
@@ -716,7 +817,9 @@ const querySummary = computed(() => {
 
 const pagerText = computed(() => {
   const count = totalCount.value == null ? 'unknown count' : `${totalCount.value.toLocaleString()} total`;
-  const page = hasMore.value ? `next cursor expires ${formatDate(cursorExpiresAtUtc.value)}` : 'end of current page';
+  const page = rows.value.length >= DocumentPreviewMaxRows
+    ? 'preview budget reached; narrow the query before loading more'
+    : hasMore.value ? `next cursor expires ${formatDate(cursorExpiresAtUtc.value)}` : 'end of current page';
   return `${rows.value.length} loaded · ${count} · ${page}`;
 });
 
@@ -733,7 +836,7 @@ const resultSummary = computed(() => {
 });
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
-  if (pendingOperations.value.length === 0) return null;
+  if (pendingOperations.value.length === 0 || !pendingContext || !isCurrentContext(pendingContext)) return null;
   const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
     id: operation.id,
     command: operation.command,
@@ -830,7 +933,7 @@ const jsonIndexColumns = computed<DataTableColumns<DocumentJsonIndexInfo>>(() =>
     render: (row) => h(NButton, {
       size: 'tiny',
       secondary: true,
-      disabled: !activeCollectionName.value || !row.rebuildable,
+      disabled: readOnly.value || permissionDenied.value || !activeCollectionName.value || !row.rebuildable,
       onClick: () => stageRebuildIndex(row.name, 'document_json'),
     }, { default: () => 'Rebuild' }),
   },
@@ -864,7 +967,7 @@ const fullTextIndexColumns = computed<DataTableColumns<DocumentFullTextIndexInfo
     render: (row) => h(NButton, {
       size: 'tiny',
       secondary: true,
-      disabled: !activeCollectionName.value || !row.rebuildable,
+      disabled: readOnly.value || permissionDenied.value || !activeCollectionName.value || !row.rebuildable,
       onClick: () => stageRebuildIndex(row.name, 'document_fulltext'),
     }, { default: () => 'Rebuild' }),
   },
@@ -876,7 +979,9 @@ function selectCollection(name: string): void {
 }
 
 async function runFind(append: boolean): Promise<void> {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || !props.targetDb || permissionDenied.value || append && !canLoadNext.value) return;
+  const context = captureContext();
+  const requestId = ++queryRequestId;
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
@@ -888,10 +993,13 @@ async function runFind(append: boolean): Promise<void> {
   }
   const command = `documents.find ${activeCollectionName.value}\n${JSON.stringify(requestResult.request, null, 2)}`;
   try {
-    const response = await findDocuments(auth.api, props.targetDb, activeCollectionName.value, requestResult.request);
+    const response = await findDocuments(context.api, context.database, context.collection, requestResult.request);
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     applyFindResponse(response, append, elapsed, command);
   } catch (error) {
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
+    permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档查询失败');
     errorMsg.value = msg;
@@ -900,19 +1008,22 @@ async function runFind(append: boolean): Promise<void> {
     ranOnce.value = true;
     recordHistory('error', 'Document find', 'find', command, msg, 0, -1, elapsed);
   } finally {
-    queryBusy.value = false;
+    if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
   }
 }
 
 async function runCount(): Promise<void> {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || !props.targetDb || permissionDenied.value) return;
+  const context = captureContext();
+  const requestId = ++countRequestId;
   countBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
   const ids = parseIds(idsText.value);
   const command = `documents.count ${activeCollectionName.value}${ids.length > 0 ? ` ${ids.length} ids` : ''}`;
   try {
-    const response = await countDocuments(auth.api, props.targetDb, activeCollectionName.value, ids);
+    const response = await countDocuments(context.api, context.database, context.collection, ids);
+    if (requestId !== countRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     totalCount.value = response.count;
     latestCommand.value = command;
@@ -926,6 +1037,8 @@ async function runCount(): Promise<void> {
     ranOnce.value = true;
     recordHistory('success', 'Document count', 'count', command, `${response.count} documents`, 1, -1, elapsed);
   } catch (error) {
+    if (requestId !== countRequestId || !isCurrentContext(context) || permissionDenied.value) return;
+    permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档计数失败');
     errorMsg.value = msg;
@@ -934,12 +1047,14 @@ async function runCount(): Promise<void> {
     ranOnce.value = true;
     recordHistory('error', 'Document count', 'count', command, msg, 0, -1, elapsed);
   } finally {
-    countBusy.value = false;
+    if (requestId === countRequestId && isCurrentContext(context)) countBusy.value = false;
   }
 }
 
 async function runDistinct(): Promise<void> {
-  if (!activeCollectionName.value || !distinctPath.value.trim()) return;
+  if (!activeCollectionName.value || !props.targetDb || permissionDenied.value || !distinctPath.value.trim()) return;
+  const context = captureContext();
+  const requestId = ++queryRequestId;
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
@@ -950,13 +1065,16 @@ async function runDistinct(): Promise<void> {
   };
   const command = `documents.distinct ${activeCollectionName.value}\n${JSON.stringify(request, null, 2)}`;
   try {
-    const response = await distinctDocuments(auth.api, props.targetDb, activeCollectionName.value, request);
+    const response = await distinctDocuments(context.api, context.database, context.collection, request);
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     latestCommand.value = command;
     latestResult.value = resultFromDistinct(response, elapsed);
     ranOnce.value = true;
     recordHistory('success', 'Document distinct', 'distinct', command, `${response.values.length} values`, response.values.length, -1, elapsed);
   } catch (error) {
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
+    permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档 distinct 失败');
     errorMsg.value = msg;
@@ -965,30 +1083,35 @@ async function runDistinct(): Promise<void> {
     ranOnce.value = true;
     recordHistory('error', 'Document distinct', 'distinct', command, msg, 0, -1, elapsed);
   } finally {
-    queryBusy.value = false;
+    if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
   }
 }
 
 async function runAggregate(): Promise<void> {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || !props.targetDb || permissionDenied.value) return;
   const parsed = parseJson<DocumentAggregateStage[]>(aggregateText.value, 'Aggregate pipeline must be a JSON array.');
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
     return;
   }
+  const context = captureContext();
+  const requestId = ++queryRequestId;
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
   const request = { pipeline: parsed.value };
   const command = `documents.aggregate ${activeCollectionName.value}\n${JSON.stringify(request, null, 2)}`;
   try {
-    const response = await aggregateDocuments(auth.api, props.targetDb, activeCollectionName.value, request);
+    const response = await aggregateDocuments(context.api, context.database, context.collection, request);
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     latestCommand.value = command;
     latestResult.value = resultFromAggregate(response.documents, elapsed);
     ranOnce.value = true;
     recordHistory('success', 'Document aggregate', 'aggregate', command, `${response.count} documents`, response.count, -1, elapsed);
   } catch (error) {
+    if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
+    permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档聚合失败');
     errorMsg.value = msg;
@@ -997,19 +1120,21 @@ async function runAggregate(): Promise<void> {
     ranOnce.value = true;
     recordHistory('error', 'Document aggregate', 'aggregate', command, msg, 0, -1, elapsed);
   } finally {
-    queryBusy.value = false;
+    if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
   }
 }
 
 function applyFindResponse(response: DocumentFindResponse, append: boolean, elapsed: number, command: string): void {
   const mapped = response.documents.map(mapDocument);
-  rows.value = append ? mergeRows(rows.value, mapped) : mapped;
+  const merged = append ? mergeRows(rows.value, mapped) : mapped;
+  rows.value = merged.slice(0, DocumentPreviewMaxRows);
   checkedRowKeys.value = [];
   hasMore.value = response.hasMore;
   continuationToken.value = response.continuationToken ?? '';
   cursorExpiresAtUtc.value = response.cursorExpiresAtUtc ?? null;
   latestCommand.value = command;
   latestResult.value = resultFromDocuments(rows.value, elapsed);
+  if (latestResult.value.end) latestResult.value.end.truncated = response.hasMore || merged.length > DocumentPreviewMaxRows;
   ranOnce.value = true;
   syncSelectedAfterRows();
   recordHistory('success', 'Document find', 'find', command, `${mapped.length} documents`, mapped.length, -1, elapsed);
@@ -1069,6 +1194,7 @@ function buildQueryFilter(): { ok: true; value?: DocumentFilter } | { ok: false;
 }
 
 function stageCreateCollection(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value || !props.targetDb) return;
   const name = newCollectionName.value.trim();
   if (!name) return;
   setPendingOperations([{
@@ -1077,14 +1203,15 @@ function stageCreateCollection(): void {
     detail: 'Creates a document collection through the existing Document API.',
     severity: 'write',
     command: `POST /v1/db/${props.targetDb}/documents/${name}`,
-    run: async () => {
-      const response = await createDocumentCollection(auth.api, props.targetDb, name, { ifNotExists: true });
+    run: async (context) => {
+      const response = await createDocumentCollection(context.api, context.database, name, { ifNotExists: true });
       return outcomeFromCollection('create_collection', response.collection, response.status, response.status === 'created' ? 1 : 0);
     },
   }]);
 }
 
 function stageDropCollection(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const name = activeCollectionName.value;
   if (!name) return;
   setPendingOperations([{
@@ -1093,14 +1220,15 @@ function stageDropCollection(): void {
     detail: 'Drops the collection metadata and data through the existing Document API.',
     severity: 'danger',
     command: `DELETE /v1/db/${props.targetDb}/documents/${name}`,
-    run: async () => {
-      const response = await dropDocumentCollection(auth.api, props.targetDb, name);
+    run: async (context) => {
+      const response = await dropDocumentCollection(context.api, context.database, name);
       return outcomeFromCollection('drop_collection', response.collection, response.status, response.status === 'dropped' ? 1 : 0);
     },
   }]);
 }
 
 function stageInsertDocument(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const parsed = parseEditorDocument();
   if (!parsed.ok) return;
   setPendingOperations([{
@@ -1109,7 +1237,7 @@ function stageInsertDocument(): void {
     detail: `Inserts ${parsed.id} into ${activeCollectionName.value}.`,
     severity: 'write',
     command: `documents.insertOne ${activeCollectionName.value}/${parsed.id}\n${formatJson(parsed.document)}`,
-    run: async () => outcomeFromWrite('insert_one', parsed.id, await insertOneDocument(auth.api, props.targetDb, activeCollectionName.value, {
+    run: async (context) => outcomeFromWrite('insert_one', parsed.id, await insertOneDocument(context.api, context.database, context.collection, {
       id: parsed.id,
       document: parsed.document,
     })),
@@ -1117,6 +1245,7 @@ function stageInsertDocument(): void {
 }
 
 function stageReplaceDocument(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const parsed = parseEditorDocument();
   if (!parsed.ok) return;
   setPendingOperations([{
@@ -1125,7 +1254,7 @@ function stageReplaceDocument(): void {
     detail: `Replaces ${parsed.id} in ${activeCollectionName.value}.`,
     severity: 'write',
     command: `documents.updateOne ${activeCollectionName.value}/${parsed.id}\n${formatJson(parsed.document)}`,
-    run: async () => outcomeFromWrite('replace_one', parsed.id, await updateOneDocument(auth.api, props.targetDb, activeCollectionName.value, {
+    run: async (context) => outcomeFromWrite('replace_one', parsed.id, await updateOneDocument(context.api, context.database, context.collection, {
       id: parsed.id,
       document: parsed.document,
     })),
@@ -1133,12 +1262,14 @@ function stageReplaceDocument(): void {
 }
 
 function stageDeleteEditorDocument(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const id = editId.value.trim();
   if (!activeCollectionName.value || !id) return;
   setPendingOperations([deleteOperation([id])]);
 }
 
 function stageDeleteSelected(): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const ids = checkedRowKeys.value.map(String).filter(Boolean);
   if (ids.length === 0) return;
   setPendingOperations([deleteOperation(ids)]);
@@ -1151,17 +1282,17 @@ function deleteOperation(ids: string[]): PendingOperation {
     detail: ids.length === 1 ? `Deletes ${ids[0]}.` : `Deletes ${ids.length} selected documents.`,
     severity: 'danger',
     command: `documents.delete ${activeCollectionName.value}\n${ids.join('\n')}`,
-    run: async () => {
+    run: async (context) => {
       const response = ids.length === 1
-        ? await deleteOneDocument(auth.api, props.targetDb, activeCollectionName.value, { id: ids[0] })
-        : await deleteManyDocuments(auth.api, props.targetDb, activeCollectionName.value, { ids, ordered: true });
-      return outcomeFromWrite('delete', activeCollectionName.value, response);
+        ? await deleteOneDocument(context.api, context.database, context.collection, { id: ids[0] })
+        : await deleteManyDocuments(context.api, context.database, context.collection, { ids, ordered: true });
+      return outcomeFromWrite('delete', context.collection, response);
     },
   };
 }
 
 function stageSaveValidator(): void {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const parsed = parseJson<DocumentValidator>(validatorText.value, 'Validator must be a JSON object.');
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
@@ -1174,8 +1305,8 @@ function stageSaveValidator(): void {
     detail: `${validator.rules.length} rules · action ${validator.validationAction}`,
     severity: 'write',
     command: `PUT /v1/db/${props.targetDb}/documents/${activeCollectionName.value}/validator\n${JSON.stringify(validator, null, 2)}`,
-    run: async () => {
-      const response = await setDocumentValidator(auth.api, props.targetDb, activeCollectionName.value, validator);
+    run: async (context) => {
+      const response = await setDocumentValidator(context.api, context.database, context.collection, validator);
       return {
         action: 'set_validator',
         target: response.collection,
@@ -1188,15 +1319,15 @@ function stageSaveValidator(): void {
 }
 
 function stageDropValidator(): void {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || readOnly.value || permissionDenied.value || confirmBusy.value) return;
   setPendingOperations([{
     id: makeOperationId('drop_validator'),
     label: 'Drop validator',
     detail: 'Removes the collection validator.',
     severity: 'danger',
     command: `DELETE /v1/db/${props.targetDb}/documents/${activeCollectionName.value}/validator`,
-    run: async () => {
-      const response = await dropDocumentValidator(auth.api, props.targetDb, activeCollectionName.value);
+    run: async (context) => {
+      const response = await dropDocumentValidator(context.api, context.database, context.collection);
       return {
         action: 'drop_validator',
         target: response.collection,
@@ -1209,13 +1340,14 @@ function stageDropValidator(): void {
 }
 
 function stageImportDocuments(): void {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const parsed = parseImportDocuments(importText.value, importIdPath.value.trim() || '_id');
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
     return;
   }
   const items = parsed.items;
+  const mode = importMode.value;
   const requestId = makeOperationId('document_import');
   importErrors.value = [];
   setPendingOperations([{
@@ -1224,14 +1356,17 @@ function stageImportDocuments(): void {
     detail: `${items.length} documents passed local parsing; commit uses unordered mixed Bulk batches.`,
     severity: 'write',
     command: `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${activeCollectionName.value}\n${items.length} documents`,
-    run: () => runDocumentImport(items, importMode.value, requestId),
+    run: (context) => runDocumentImport(items, mode, requestId, context),
   }]);
 }
 
 async function pickImportFile(): Promise<void> {
+  if (readOnly.value || permissionDenied.value) return;
+  const context = captureContext();
   errorMsg.value = '';
   try {
     const bridge = await getStudioNativeBridge();
+    if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
     if (bridge?.manifest.capabilities.includes('dialogs.openFile')) {
       const result = await bridge.openTextFile({
         title: 'Open Document import',
@@ -1244,27 +1379,34 @@ async function pickImportFile(): Promise<void> {
       });
       if (result.error) throw new Error(result.error);
       if (result.canceled || result.content === null) return;
+      if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
       importText.value = result.content;
       message.success(`Loaded ${result.fileName ?? 'Document import file'}.`);
       return;
     }
   } catch (error) {
+    if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
     message.warning(errorToMessage(error, 'Studio file picker is unavailable.'));
   }
 
+  if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
   importFileInput.value?.click();
 }
 
 async function onImportFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file) return;
+  if (!file || readOnly.value || permissionDenied.value) return;
+  const context = captureContext();
   try {
     if (file.size > 64 * 1024 * 1024)
       throw new Error('Workbench import files are limited to 64 MiB; use sndb document import for larger migrations.');
-    importText.value = await file.text();
+    const text = await file.text();
+    if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
+    importText.value = text;
     message.success(`Loaded ${file.name}.`);
   } catch (error) {
+    if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
     errorMsg.value = errorToMessage(error, 'Unable to read the import file.');
   } finally {
     input.value = '';
@@ -1276,18 +1418,18 @@ function cancelDocumentImport(): void {
 }
 
 function stageRebuildIndex(indexName: string, targetModel: 'document_json' | 'document_fulltext'): void {
-  if (!activeCollectionName.value) return;
+  if (!activeCollectionName.value || readOnly.value || permissionDenied.value || confirmBusy.value) return;
   setPendingOperations([{
     id: makeOperationId('rebuild_index'),
     label: 'Rebuild index',
     detail: `${targetModel} ${activeCollectionName.value}.${indexName}`,
     severity: 'write',
     command: `rebuild_index ${targetModel} ${activeCollectionName.value}.${indexName}`,
-    run: async () => {
-      const response = await runMaintenance(auth.api, props.targetDb, {
+    run: async (context) => {
+      const response = await runMaintenance(context.api, context.database, {
         operation: 'rebuild_index',
         targetModel,
-        targetOwner: activeCollectionName.value,
+        targetOwner: context.collection,
         targetName: indexName,
       });
       return outcomeFromMaintenance(response);
@@ -1296,7 +1438,10 @@ function stageRebuildIndex(indexName: string, targetModel: 'document_json' | 'do
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (pendingOperations.value.length === 0) return;
+  if (readOnly.value || permissionDenied.value || confirmBusy.value || pendingOperations.value.length === 0
+    || !pendingContext || !isCurrentContext(pendingContext)) return;
+  const context = pendingContext;
+  const requestId = ++writeRequestId;
   confirmBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
@@ -1305,37 +1450,45 @@ async function confirmPendingOperations(): Promise<void> {
   try {
     const outcomes: OperationOutcome[] = [];
     for (const operation of operations) {
-      outcomes.push(await operation.run());
+      if (!isCurrentContext(context) || readOnly.value || permissionDenied.value) return;
+      outcomes.push(await operation.run(context));
     }
     const elapsed = performance.now() - started;
     const affected = outcomes.reduce((sum, item) => sum + item.affected, 0);
+    recordHistory('success', 'Document operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions · affected ${affected} · ${outcomes.map((item) => item.detail).join(' · ')}`, outcomes.length, affected, elapsed, context);
+    if (requestId !== writeRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     latestCommand.value = command;
     latestResult.value = resultFromOutcomes(outcomes, elapsed);
     ranOnce.value = true;
-    pendingOperations.value = [];
+    clearPendingOperations();
     checkedRowKeys.value = [];
-    recordHistory('success', 'Document operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions · affected ${affected}`, outcomes.length, affected, elapsed);
     message.success(`Committed ${outcomes.length} document action${outcomes.length === 1 ? '' : 's'}.`);
     emit('refreshSchema');
     await refreshAfterWrite();
   } catch (error) {
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '提交文档操作失败');
+    recordHistory('error', 'Document operation batch', 'confirm', command, msg, 0, 0, elapsed, context);
+    if (requestId !== writeRequestId || !isCurrentContext(context) || permissionDenied.value) return;
+    permissionFailure.value = isPermissionError(error);
+    clearPendingOperations();
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult('document_write_error', msg);
     ranOnce.value = true;
-    recordHistory('error', 'Document operation batch', 'confirm', command, msg, 0, 0, elapsed);
   } finally {
-    confirmBusy.value = false;
+    if (requestId === writeRequestId && isCurrentContext(context)) confirmBusy.value = false;
   }
 }
 
 function clearPendingOperations(): void {
   pendingOperations.value = [];
+  pendingContext = null;
 }
 
 function setPendingOperations(operations: PendingOperation[]): void {
+  if (readOnly.value || permissionDenied.value || confirmBusy.value) return;
+  pendingContext = captureContext();
   pendingOperations.value = operations;
   errorMsg.value = '';
 }
@@ -1350,8 +1503,9 @@ async function runDocumentImport(
   items: Array<{ id: string; document: unknown }>,
   mode: ImportMode,
   requestId: string,
+  context: DocumentContext,
 ): Promise<OperationOutcome> {
-  const collection = activeCollectionName.value;
+  const collection = context.collection;
   const totals: DocumentWriteResponse = {
     collection,
     inserted: 0,
@@ -1362,18 +1516,22 @@ async function runDocumentImport(
   };
   const errors: NonNullable<DocumentWriteResponse['errors']> = [];
   const batchSize = 100;
+  const deadline = Date.now() + DocumentImportTimeoutMs;
+  let completed = 0;
+  if (items.length > DocumentImportMaxDocuments) throw new Error('Workbench import document budget exceeded.');
   importCancelRequested = false;
   importErrors.value = [];
   importProgress.value = { done: 0, total: items.length, running: true, cancelled: false };
 
   try {
     for (let offset = 0; offset < items.length; offset += batchSize) {
-      if (importCancelRequested) break;
+      if (Date.now() >= deadline) importCancelRequested = true;
+      if (importCancelRequested || !isCurrentContext(context) || readOnly.value || permissionDenied.value) break;
       const batch = items.slice(offset, offset + batchSize);
       const operations: DocumentBulkWriteOperation[] = batch.map((item) => mode === 'replace'
         ? { type: 'replaceOne', id: item.id, document: item.document }
         : { type: 'insertOne', id: item.id, document: item.document });
-      const response = await bulkWriteDocuments(auth.api, props.targetDb, collection, {
+      const response = await bulkWriteDocuments(context.api, context.database, collection, {
         operations,
         ordered: false,
         requestId: `${requestId}-${offset / batchSize}`,
@@ -1382,32 +1540,35 @@ async function runDocumentImport(
       totals.matched += response.matched ?? 0;
       totals.modified += response.modified ?? 0;
       totals.deleted += response.deleted ?? 0;
+      completed += batch.length;
       if (response.errors) {
         errors.push(...response.errors.map((error) => ({
           ...error,
           index: error.index >= 0 ? offset + error.index : -1,
         })));
       }
+      if (!isCurrentContext(context) || permissionDenied.value) break;
       importProgress.value = {
         ...importProgress.value,
         done: Math.min(offset + batch.length, items.length),
       };
     }
   } finally {
-    const cancelled = importCancelRequested && importProgress.value.done < items.length;
-    importProgress.value = { ...importProgress.value, running: false, cancelled };
+    const cancelled = completed < items.length;
+    if (isCurrentContext(context)) importProgress.value = { ...importProgress.value, running: false, cancelled };
   }
 
   totals.errors = errors.length > 0 ? errors : null;
-  importErrors.value = errors;
+  if (isCurrentContext(context) && !permissionDenied.value) importErrors.value = errors;
   const outcome = outcomeFromWrite(mode === 'replace' ? 'replace_import' : 'insert_import', collection, totals);
-  if (importProgress.value.cancelled) {
-    outcome.detail = `${outcome.detail} · stopped after ${importProgress.value.done}/${items.length}`;
+  if (completed < items.length) {
+    outcome.detail = `${outcome.detail} · stopped after ${completed}/${items.length}`;
   }
   return outcome;
 }
 
 function precheckValidatorSample(): void {
+  if (permissionDenied.value) return;
   const validatorParsed = parseJson<DocumentValidator>(validatorText.value, 'Validator must be a JSON object.');
   if (!validatorParsed.ok) {
     validatorPrecheckResult.value = validatorParsed.message;
@@ -1425,7 +1586,7 @@ function precheckValidatorSample(): void {
 }
 
 function exportLoadedJsonl(): void {
-  if (rows.value.length === 0) return;
+  if (permissionDenied.value || rows.value.length === 0) return;
   const lines = rows.value.map((row) => JSON.stringify({ id: row.id, document: row.document }));
   const fileName = `${safeFileStem(`${props.targetDb}_${activeCollectionName.value || 'documents'}`, 'documents')}.jsonl`;
   downloadText(fileName, `${lines.join('\n')}\n`, 'application/x-ndjson;charset=utf-8');
@@ -1520,11 +1681,13 @@ function parseImportDocuments(text: string, idPath: string):
   | { ok: false; message: string } {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, message: 'Import input is empty.' };
+  if (new Blob([text]).size > 64 * 1024 * 1024) return { ok: false, message: 'Workbench import text is limited to 64 MiB; use sndb document import for larger migrations.' };
   let values: unknown[];
   if (trimmed.startsWith('[')) {
     const parsed = parseJson<unknown[]>(trimmed, 'Import JSON array is invalid.');
     if (!parsed.ok) return parsed;
     values = parsed.value;
+    if (!Array.isArray(values)) return { ok: false, message: 'Import input must be a JSON array.' };
   } else {
     const lines = trimmed.split(/\r?\n/g).map((line) => line.trim()).filter(Boolean);
     values = [];
@@ -1534,6 +1697,9 @@ function parseImportDocuments(text: string, idPath: string):
       values.push(parsed.value);
     }
   }
+
+  if (values.length > DocumentImportMaxDocuments)
+    return { ok: false, message: 'Workbench imports are limited to 100,000 documents; use sndb document import for larger migrations.' };
 
   const items: Array<{ id: string; document: unknown }> = [];
   for (let index = 0; index < values.length; index += 1) {
@@ -1839,15 +2005,16 @@ function recordHistory(
   rowCount: number,
   recordsAffected: number,
   elapsedMs: number,
+  context = captureContext(),
 ): void {
   history.record({
     kind: action === 'find' || action === 'aggregate' || action === 'distinct' || action === 'count' ? 'query' : 'operation',
     status,
     title,
-    target: activeCollectionName.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    target: context.collection,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'document',
     action,
     command,
@@ -1863,25 +2030,85 @@ watch(selectedRow, (row) => {
   editJson.value = row ? row.rawJson : editJson.value;
 });
 
-watch(activeCollection, (collection) => {
+function clearResourcePayload(): void {
+  queryRequestId += 1;
+  countRequestId += 1;
+  writeRequestId += 1;
+  importCancelRequested = true;
+  clearPendingOperations();
+  queryBusy.value = false;
+  countBusy.value = false;
+  confirmBusy.value = false;
   rows.value = [];
   selectedId.value = '';
   checkedRowKeys.value = [];
   hasMore.value = false;
   continuationToken.value = '';
+  cursorExpiresAtUtc.value = null;
   totalCount.value = null;
-  if (collection?.validator) {
+  latestResult.value = null;
+  latestCommand.value = '';
+  ranOnce.value = false;
+  editId.value = '';
+  editJson.value = '{\n  \n}';
+  importText.value = '';
+  importErrors.value = [];
+  importProgress.value = { done: 0, total: 0, running: false, cancelled: false };
+  validatorText.value = defaultValidatorText();
+  validatorPrecheckResult.value = '';
+}
+
+function syncCollectionValidator(collection: DocumentCollectionInfo | null): void {
+  if (collection?.validator && !permissionDenied.value) {
     validatorAction.value = collection.validator.validationAction === 'warn' ? 'warn' : 'error';
     validatorText.value = JSON.stringify(collection.validator, null, 2);
   } else {
     validatorAction.value = 'error';
     validatorText.value = defaultValidatorText();
   }
-  if (collection && props.targetDb) {
+}
+
+let loadedCollectionReference: DocumentCollectionInfo | null = null;
+watch(resourceIdentity, () => {
+  clearResourcePayload();
+  errorMsg.value = '';
+  permissionFailure.value = false;
+  const collection = activeCollection.value;
+  loadedCollectionReference = collection;
+  syncCollectionValidator(collection);
+  if (collection && props.targetDb && !permissionDenied.value) {
     void runCount();
     void runFind(false);
   }
-}, { immediate: true });
+}, { immediate: true, flush: 'sync' });
+
+watch(activeCollection, (collection) => {
+  if (collection === loadedCollectionReference) return;
+  loadedCollectionReference = collection;
+  // A schema refresh replaces the object while preserving its identity. Keep
+  // the import's completed/stopped progress and per-item errors visible.
+  syncCollectionValidator(collection);
+  if (collection && props.targetDb && !permissionDenied.value) {
+    void runCount();
+    void runFind(false);
+  }
+}, { flush: 'sync' });
+
+watch(permissionDenied, (denied) => {
+  if (!denied) return;
+  clearResourcePayload();
+}, { flush: 'sync' });
+
+watch(readOnly, (value) => {
+  if (!value) return;
+  importCancelRequested = true;
+  clearPendingOperations();
+}, { flush: 'sync' });
+
+onBeforeUnmount(() => {
+  disposed = true;
+  clearResourcePayload();
+});
 
 watch(validatorAction, (action) => {
   const parsed = parseJson<DocumentValidator>(validatorText.value, 'Validator must be a JSON object.');
@@ -1919,6 +2146,7 @@ watch(validatorAction, (action) => {
 }
 
 .document-toolbar__title {
+  overflow-wrap: anywhere;
   color: var(--sndb-ink-strong);
   font-size: 15px;
   font-weight: 800;
@@ -2305,6 +2533,9 @@ watch(validatorAction, (action) => {
   border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
+.document-approval-zone { flex: 0 0 auto; }
+.document-statebar { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 16px; padding: 7px 12px; border-top: 1px solid var(--sndb-border); color: var(--sndb-ink-muted); font-size: 12px; }
+
 @media (max-width: 1420px) {
   .document-body {
     grid-template-columns: 230px minmax(420px, 1fr);
@@ -2350,5 +2581,8 @@ watch(validatorAction, (action) => {
   .document-grid-filter {
     width: 100%;
   }
+
+  .document-body.is-focused { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  .document-statebar { flex-direction: column; gap: 4px; }
 }
 </style>

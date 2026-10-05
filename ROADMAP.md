@@ -184,9 +184,9 @@ M47 将 Web Admin、Studio 桌面和 VS Code 扩展规划为“一套核心、�
 | WB-05～WB-06 | 🟡 | 结果/草稿/历史/审批和生产外壳/七模块导航已完成本地切片；全量模型、真实宿主、安装、发布仍待补。 |
 | WB-07～WB-10 | 🟢 | Explorer 资源身份、旧深链接回选、database 上下文及手动切库投影已提交并通过 Web 回归。 |
 | WB-11 Measurement Workbench | 🟡 | 用户已确认页面基线；状态、动作、旧路由和 UI 证据已通过本地验证，提交为 `390ff526`。真实 Server、三宿主、安装、发布和全量九模型证据仍待补。 |
-| WB-12 Web Admin Document Workbench | 🚧 | 已启动 database + collection 身份、六态和审批边界切片；独立测试、真实 Server 权限旅程与全量九模型证据仍待补。 |
+| WB-12 Web Admin Document Workbench | 🟡 | database + collection身份、六态、审批与异步隔离切片已本地验证，Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7，等待提交；真实Server权限、403恢复与全量九模型仍待补。 |
 | WB-13 SonnetDB Studio 宿主合同 | 🟡 | 宿主身份/URL与Managed Local生命周期合同已提交 `74835847`，定向34/34、独立复核和完整提交门禁通过；Web消费、干净Windows/WebView2、安装与发行物证据仍待补。 |
-| WB-14 VS Code Workbench 合同 | 🟡 | 九模型资源/深链接入口已完成本地实现，原名与旧key保留，Node20/20与本机Extension Host通过；等待提交，最终浏览器回选/认证与VSIX另验。 |
+| WB-14 VS Code Workbench 合同 | 🟡 | 九模型资源/深链接入口已提交 `e7cf2fe5`，原名与旧key保留，Node20/20、本机Extension Host、独立复核与完整门禁通过；最终浏览器回选/认证与VSIX另验。 |
 | M47-U01～U03 | 🟡 | 设计、首批合同和共享结果/审批语义已有局部实现；三个宿主真实消费、完整分页/离线/取消证据仍待补。 |
 | M47-U04～U05 | 🚧 | 九模型专用工作台和 Web Admin 仍按页面切片迁移；WB-11 是其中一个页面样板，不代表整包完成。 |
 | M47-U06～U08 | 📋 | Studio、VS Code、WorkBuddy/stdio bridge 与配置自检尚未形成完整真实宿主验收。 |

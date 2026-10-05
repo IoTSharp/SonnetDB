@@ -178,7 +178,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 
 - 原位扩展 `/connections` 与 `/server/status`；没有新增未接线 API。身份由 canonical profileId、HTTP(S) baseUrl（保留部署子路径）和 database 原名派生，宿主为 studio-desktop。保存拒绝相对/file/userinfo/query/fragment，保留 Managed Local 旧 `/` 的配置地址解析；非法请求返回无敏感 URL 的400。
 - JSON DTO 注册到 StudioBridgeJsonContext；客户端不能覆盖派生宿主字段，Token 不落盘。GUID临时文件在成功、失败路径均回收；未知active profile不继承旧数据库。canStop仅在running、StartedByStudio与真实PID同时满足时为true，external目标不开放停止能力。
-- Release `dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj --filter FullyQualifiedName~StudioConnectionLibraryTests|FullyQualifiedName~StudioHostContractTests|FullyQualifiedName~StartEmbeddedAsync_WithExistingDatabase_MountsItAndRejectsInvalidSwitch|FullyQualifiedName~StartAsync_WhenExternalHealthyServerOwnsTargetPort_DoesNotStartOrStopIt` Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -m:1 定向34/34（两个新增类32项与上述两个既有测试；非整个ManagedLocal类），通过Studio/Core/Server依赖构建；包含真实bridge GET/PUT与既有ManagedLocal/external实例测试。独立只读复核PASS，git diff --check通过。
+- 最终命令：`dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -m:1 --filter 'FullyQualifiedName~StudioConnectionLibraryTests|FullyQualifiedName~StudioHostContractTests|FullyQualifiedName~StartEmbeddedAsync_WithExistingDatabase_MountsItAndRejectsInvalidSwitch|FullyQualifiedName~StartAsync_WhenExternalHealthyServerOwnsTargetPort_DoesNotStartOrStopIt' --logger 'console;verbosity=minimal'`。退出0，34/34（两个新增类32项与上述两个既有测试；非整个ManagedLocal类），Studio/Core/Server依赖构建通过，含真实bridge GET/PUT与ManagedLocal/external实例证据；独立复核及diff check通过。
 - 证据限于本轮6文件；Web客户端尚未消费新增展示字段，干净Windows/WebView2、安装升级卸载、AOT/发行物和全三宿主旅程不在PASS内。既有测试helper的循环/临时目录治理也不由本轮定向PASS宣称全量完成。
 - 根在最终待提交树串行执行完整solution restore与Format Check，未通过不提交；实际提交哈希在后续检查点记录。
 ## WB-14 VS Code 九模型资源与 Workbench 深链接（2026-10-06）
@@ -188,3 +188,12 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `npm test`完成TypeScript compile与Node20/20（新增8项）；设置明确本机Code.exe/VSCODE_EXECUTABLE_PATH的Extension Host smoke退出0，验证新命令注册及旧语言能力，未下载VS Code。Studio实施者独立只读六文件复核PASS，diff check通过。
 - Host smoke未执行外部浏览器导航；最终Web对象回选、真实登录/权限/Server、VSIX、安装/发布与全三宿主仍待独立验收。任务PID与Host临时目录已核验回收；Git忽略的node_modules/out保留供复用。
 - WB-13代码提交为7483584771ba7164b30047eff59f2c6f2e97e96f，已通过完整restore/Format Check。WB-14由根在其最终树再次执行完整门禁，未通过不提交；真实哈希在后续检查点记录。
+## WB-12 Document 页面与审批/异步隔离（2026-10-06）
+
+- 两文件：DocumentCollectionWorkbench.vue与document-workbench-migration.test.mjs。保留database/collection原名、大小写与旧入口；五区锚点、六态、permission清空敏感载荷、readonly阶段/确认及高级写面板门禁；Advanced组件本身未改，通过父级身份key与门禁隔离。
+- Find/count/aggregate/distinct使用context与request token；切换连接/数据库/同名集合或卸载时旧成功/错误不能回写，审批捕获API/原目标并失效，import冻结模式/items且禁止下一批跨context写。Find预览1000文档；其他读取预算不由该数字扩写。
+- 首轮现有浏览器回归6/7，暴露同一集合schema对象替换误清导入停止进度；分离identity重置与同身份metadata刷新后，停止100/101、duplicate_key和导入草稿保留。独立复核另发现旧file失败/native fallback及bridge握手后旧picker副作用，已逐项修复并加入VM行为回归。
+- 最终专属Node10/10，全Web `node --experimental-vm-modules --test web/tests/*.test.mjs` 127/127；`npm --prefix web run build`（vue-tsc + Vite）退出0；现有runner限定 `[Dd]ocument` 场景7/7（渲染、Validator/更新/索引/ChangeFeed、update preview/feed、101导入停止）；独立最终复核PASS与diff check通过。必要UI为本地fixture，无真实Server权限声明；Vite现有大chunk提示保留。
+- 403后同身份schema刷新不会恢复permission；显式安全恢复入口留WB-18，不能恢复旧写审批。Aggregate/Distinct及高级读取预算、真实权限矩阵、Studio/VSCode全旅程、安装/发布与全量九模型仍独立验收。
+- 自有Web/e2e进程由有界runner核对PID/创建/命令/父链后回收，Studio与VSCode代理亦报告自有进程/临时对象已回收；忽略的依赖/构建输出与必要UI证据保留。
+- WB-14提交为e7cf2fe512974a1cd9bdbac3f767529f2b065e1a，已通过完整restore/Format Check；WB-12由根在最终树再次执行完整门禁，实际哈希在交接检查点记录。

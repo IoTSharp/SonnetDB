@@ -9,7 +9,7 @@
 
 - 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-11 已提交，WB-11 为 `390ff526`，进入本轮的 HEAD 为 `db0afb7e`，不要重复实施。
 - 用户已授权继续 Web Admin、独立 SonnetDB Studio、VS Code Workbench 的独立切片与验证后本地提交，并选择本轮收尾后创建新会话、转移同一 `workbench` heartbeat。暂不 push、发布、部署或外部沟通。
-- WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`：Release定向34/34、独立复核、最终restore/format与diff check通过。WB-14（VS Code）Node20/20与本机Extension Host通过；WB-12（Document）专属10/10、全Web127/127、TypeScript/Vite及最终Document浏览器7/7通过，两项独立复核PASS并冻结，等待串行门禁/提交；三宿主整体仍未闭环。
+- WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，Release定向34/34；WB-14（VS Code）已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，Node20/20与本机Extension Host通过。两项独立复核、最终restore/format与diff check通过。WB-12（Document）专属10/10、全Web127/127、TypeScript/Vite与最终Document浏览器7/7通过，独立复核PASS，等待最后串行门禁/提交；三宿主整体仍未闭环。
 - 根独占共享文档、集成、stage/commit。WB-12 仅 Document 组件/专属测试；WB-13 为三个 Studio 源文件与三个专属/既有测试；WB-14 为资源 helper/types、命令/package contribution 与 Node/Host 测试。实际范围见队列，最多三个活动子智能体，不再派竞争者。
 - 当前 `workbench` 为 ACTIVE、每30分钟，仍指向旧 thread `01a10862-bcd5-7d82-ab22-c916c00221a3`。新会话尚未创建；转移成功后本节记录真实目标与最终提交，旧会话停止写入。
 - `origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，禁止合并、删除或改写。其它会话的博客文件不属于本任务。

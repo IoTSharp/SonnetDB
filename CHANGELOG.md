@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-12 Document Workbench 迁移（2026-10-06）**：保留 database/collection 原名和旧入口，补五区锚点与六态、无权限载荷清理、只读写门禁；查询/文件picker丢弃旧目标响应，审批绑定原连接/数据库/集合，导入冻结模式与项目。Find预览最多1000文档；同身份Schema刷新保留停止进度与逐项错误，101项导入停止、旧文件失败和桥接握手竞态均有回归。专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；403后显式恢复、Aggregate/Distinct预算、真实Server权限及三宿主整体旅程仍待补。
+
 - **M47 WB-14 VS Code Workbench 资源入口（2026-10-06）**：新增 `sonnetdb.openWorkbench` 命令与 Explorer 上下文入口，将九模型、index/backup 投影到保留 database、原名/大小写与 legacy key 的资源身份；MQ database + Topic / instance `.system/mq`、Graph Beta 不变。链接保留部署子路径，只含 database/model/tool/node，不携带凭据或 SQL、不自动执行。TypeScript、Node20/20与明确本机 Code.exe 的真实 Extension Host 注册 smoke通过；浏览器最终认证/权限/回选、VSIX和三宿主全旅程仍待独立证据。
 
 - **M47 WB-13 Studio 宿主合同（2026-10-06）**：既有 `/connections` bridge 返回 `studio-desktop`、canonical profile/端点与数据库原名身份，连接库拒绝相对、非 HTTP(S)、凭据、query/fragment URL，保留部署子路径；既有 `/server/status` 增加进程归属、生命周期与 `canStop` 派生字段，外部实例不能由 Studio 停止。source-generated JSON、无 Token 落盘和 GUID 临时保存回收保持；Release 定向 34/34 与独立差异复核通过。Web 客户端消费、干净 Windows/WebView2、安装和三宿主发布仍待独立验收。

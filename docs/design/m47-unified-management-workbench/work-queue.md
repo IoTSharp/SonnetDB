@@ -86,9 +86,9 @@
 
 | ID | 任务与文件归属 | 依赖与验收 / 状态 |
 |---|---|---|
-| WB-12 | Web Admin Document Workbench；`web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs` | 依赖 WB-11。补齐 database + collection 原名身份、六态、旧路由/深链接与 WriteApprovalPanel 边界；Node/TypeScript/Vite、必要 UI 证据、restore/format；实施中，由 `/root/wb12_web_admin_document` 负责，不提交。 |
+| WB-12 | Web Admin Document Workbench；`web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs` | 依赖 WB-11。补齐 database + collection 原名身份、六态、旧路由/深链接与 WriteApprovalPanel 边界；专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；两文件已冻结，等待根最终restore/format与提交。Find预览1000；403显式恢复与Aggregate/Distinct预算另验。 |
 | WB-13 | SonnetDB Studio 宿主合同；三个 Studio 源文件、`StudioConnectionLibraryTests.cs`、`StudioHostContractTests.cs` 与现有 `StudioManagedServerHostTests.cs` 的生命周期断言 | 已完成实现并冻结；Release定向34/34（真实bridge与ManagedLocal/external）、独立复核与diff check通过。宿主/端点/profile/数据库原名身份、URL校验、source-generated JSON与canStop已验证；已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，最终restore/format通过；客户端展示、安装和发布另验。 |
-| WB-14 | VS Code Workbench 资源/深链接合同；扩展 `src/core/types.ts`、`workbenchResource.ts`、`src/extension.ts`、`package.json`、`src/test/host/index.ts` 与专属测试 | 依赖现有 Remote-first 扩展；补齐 database/resource 原名、旧 key 兼容与九模型 Workbench 入口，不扩大治理权限；TypeScript/Node20/20、本机Code.exe真实Extension Host注册smoke与独立复核通过；六文件已冻结，等待根最终restore/format与提交。浏览器最终回选/认证和VSIX另验。 |
+| WB-14 | VS Code Workbench 资源/深链接合同；扩展 `src/core/types.ts`、`workbenchResource.ts`、`src/extension.ts`、`package.json`、`src/test/host/index.ts` 与专属测试 | 依赖现有 Remote-first 扩展；补齐 database/resource 原名、旧 key 兼容与九模型 Workbench 入口，不扩大治理权限；TypeScript/Node20/20、本机Code.exe真实Extension Host注册smoke与独立复核通过；已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，最终restore/format通过；浏览器最终回选/认证和VSIX另验。 |
 
 ## 会话与自动检查
 
