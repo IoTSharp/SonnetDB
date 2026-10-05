@@ -1,6 +1,14 @@
 <template>
-  <main class="relation-workbench" data-testid="workbench-table">
-    <section class="relation-toolbar">
+  <main
+    class="relation-workbench"
+    data-testid="workbench-table"
+    data-shell="five-zone"
+    :data-page-state="relationState"
+    :data-database="targetDb"
+    :data-resource-key="table?.name ?? ''"
+    :data-legacy-key="table ? `table:${table.name}` : ''"
+  >
+    <section class="relation-toolbar" data-zone="toolbar">
       <div class="relation-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="info" :bordered="false">TABLE</n-tag>
@@ -14,7 +22,7 @@
         </n-text>
       </div>
 
-      <div v-if="activeView === 'data'" class="relation-toolbar__actions">
+      <div v-if="activeView === 'data' && !permissionDenied" class="relation-toolbar__actions">
         <n-select
           v-model:value="filterColumn"
           size="small"
@@ -41,7 +49,7 @@
         </n-button>
         <n-button size="small" secondary @click="applyFilter">Apply</n-button>
         <n-button size="small" secondary :loading="loadingRows" @click="loadRows">Refresh</n-button>
-        <n-button size="small" type="primary" :disabled="!table" @click="showInsert = !showInsert">
+        <n-button size="small" type="primary" :disabled="!canWrite" @click="showInsert = !showInsert">
           {{ showInsert ? 'Close insert' : 'Insert row' }}
         </n-button>
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
@@ -49,6 +57,7 @@
     </section>
 
     <WorkbenchSectionTabs
+      data-zone="tabs"
       :model-value="activeView"
       :items="relationSections"
       aria-label="关系表工作区"
@@ -57,13 +66,14 @@
 
     <WriteApprovalPanel
       v-if="previewPlan"
+      data-zone="approval"
       :plan="previewPlan"
       :busy="confirmBusy"
       @cancel="clearPendingOperations"
       @confirm="confirmPendingOperations"
     />
 
-    <section v-if="activeView === 'data' && showInsert && table" class="relation-insert">
+    <section v-if="activeView === 'data' && showInsert && table && canWrite" class="relation-insert" data-zone="context">
       <div class="relation-insert__head">
         <div>
           <n-text class="relation-insert__title">New row</n-text>
@@ -128,8 +138,12 @@
       @close="errorMsg = ''"
     />
 
-    <template v-if="activeView === 'data'">
-      <section class="relation-grid-shell">
+    <section v-if="permissionDenied" class="relation-restricted" data-zone="center">
+      <n-empty description="当前数据库的关系表读取权限不足。表行、结果、草稿与审批已隐藏。" />
+    </section>
+
+    <template v-else-if="activeView === 'data'">
+      <section class="relation-grid-shell" data-zone="center">
         <n-empty v-if="!table" description="Select a table from Explorer." />
         <n-data-table
           v-else
@@ -147,7 +161,7 @@
         />
       </section>
 
-      <footer class="relation-pager">
+      <footer class="relation-pager" data-zone="status">
         <div class="relation-pager__meta">
           <span>{{ browseSummary }}</span>
           <span v-if="lastBrowseSql" class="relation-pager__sql">{{ lastBrowseSql }}</span>
@@ -168,6 +182,7 @@
 
       <WorkbenchResultPanel
         class="relation-result"
+        data-zone="result"
         title="Relation SQL result"
         :sql="latestResultSql"
         :result="latestResult"
@@ -179,8 +194,14 @@
       />
     </template>
 
+    <section v-else-if="readOnly && activeView !== 'ddl'" class="relation-restricted" data-zone="center">
+      <n-empty description="当前宿主为只读。数据浏览、当前结果导出与 DDL 查看可用；此子工作台尚未提供只读权限合同。" />
+    </section>
+
     <RelationalSchemaDesigner
       v-else-if="activeView === 'designer'"
+      :key="resourceInstanceKey"
+      data-zone="center"
       :target-db="targetDb"
       :table="table"
       :loading="loading"
@@ -190,6 +211,8 @@
 
     <RelationalIndexManager
       v-else-if="activeView === 'indexes'"
+      :key="resourceInstanceKey"
+      data-zone="center"
       :target-db="targetDb"
       :table="table"
       :loading="loading"
@@ -199,6 +222,8 @@
 
     <RelationalImportExport
       v-else-if="activeView === 'import'"
+      :key="resourceInstanceKey"
+      data-zone="center"
       :target-db="targetDb"
       :table="table"
       @refresh-schema="emit('refreshSchema')"
@@ -206,6 +231,8 @@
 
     <RelationalErDiagram
       v-else-if="activeView === 'er'"
+      :key="resourceInstanceKey"
+      data-zone="center"
       :table="table"
       :tables="tables"
       @refresh-schema="emit('refreshSchema')"
@@ -213,13 +240,21 @@
 
     <RelationalDdlExport
       v-else
+      :key="resourceInstanceKey"
+      data-zone="center"
       :target-db="targetDb"
       :table="table"
       :tables="tables"
       @open-sql="emit('openSql', $event)"
     />
 
+    <footer class="relation-statebar" data-zone="status">
+      <span>{{ stateDescriptor.summary }}</span>
+      <span>{{ stateDescriptor.primary }}</span>
+    </footer>
+
     <WorkbenchHistoryDrawer
+      v-if="!permissionDenied"
       v-model:show="historyVisible"
       :active-database="targetDb"
       @select="openHistoryEntry"
@@ -228,7 +263,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -282,9 +318,15 @@ const props = withDefaults(defineProps<{
   table: TableInfo | null;
   tables?: TableInfo[];
   loading?: boolean;
+  /** 只读宿主保留 SELECT 与结果导出，禁用暂存、提交和无权限合同的子工作台。 */
+  readOnly?: boolean;
+  /** 无读取权限时清理并隐藏表行、结果、草稿与审批。 */
+  permissionDenied?: boolean;
 }>(), {
   tables: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -295,6 +337,30 @@ const emit = defineEmits<{
 type SortDirection = 'asc' | 'desc';
 type RelationView = 'data' | 'designer' | 'indexes' | 'import' | 'er' | 'ddl';
 type DraftRow = Record<string, unknown>;
+type RelationWorkbenchState = 'normal' | 'empty' | 'error' | 'permission' | 'readonly' | 'longContent';
+
+const RelationPreviewMaxRows = 200;
+const RelationLongContentChars = 8192;
+const relationStateContract = {
+  normal: { primary: '浏览当前页', summary: '保留数据库与表名原始拼写；行修改先暂存，确认后才提交。' },
+  empty: { primary: '调整筛选条件', summary: '没有表或当前页没有行；保留筛选和排序输入，不自动创建资源。' },
+  error: { primary: '检查并重试读取', summary: '保留筛选和排序；失败或未知写入结果须先核对服务器，旧审批不会重放。' },
+  permission: { primary: '查看数据库权限', summary: '隐藏表行、结果、草稿与审批；不从导航菜单推断权限。' },
+  readonly: { primary: '导出当前结果', summary: 'SELECT 与当前结果导出可用；行修改和无只读合同的子工作台禁用。' },
+  longContent: { primary: '缩小查询范围', summary: '每页最多 200 行；长字段滚动或折叠，满页仅表示可请求下一页，不代表全量行数。' },
+} satisfies Record<RelationWorkbenchState, { primary: string; summary: string }>;
+
+interface RelationContext {
+  identity: string;
+  generation: number;
+  database: string;
+  table: string;
+  connectionId: string;
+  connectionName: string;
+  api: AxiosInstance;
+  sessionToken: string | undefined;
+  schemaSignature: string;
+}
 
 interface GridRow extends Record<string, unknown> {
   __rowKey: string;
@@ -318,6 +384,21 @@ const message = useMessage();
 
 const loadingRows = ref(false);
 const confirmBusy = ref(false);
+const permissionFailure = ref(false);
+const readOnly = computed(() => props.readOnly);
+const permissionDenied = computed(() => props.permissionDenied || permissionFailure.value);
+const resourceIdentity = computed(() => JSON.stringify([
+  connections.activeProfileId, connections.activeBaseUrl, props.targetDb, props.table?.name ?? '',
+]));
+const contextGeneration = ref(0);
+const resourceInstanceKey = computed(() => `${resourceIdentity.value}:${contextGeneration.value}`);
+const schemaSignature = computed(() => JSON.stringify([props.table?.columns ?? [], props.table?.primaryKey ?? []]));
+let readRequestId = 0;
+let disposed = false;
+let readController: AbortController | null = null;
+let writeController: AbortController | null = null;
+let pendingContext: RelationContext | null = null;
+let writeInFlight = false;
 const errorMsg = ref('');
 const activeView = ref<RelationView>('data');
 const relationSections: WorkbenchSectionTab[] = [
@@ -345,6 +426,8 @@ const insertDraft = reactive<DraftRow>({});
 const editDrafts = reactive<Record<string, DraftRow>>({});
 const editingRows = reactive<Record<string, boolean>>({});
 const pendingOperations = ref<PendingOperation[]>([]);
+const canWrite = computed(() => Boolean(props.table && props.targetDb)
+  && !readOnly.value && !permissionDenied.value && !confirmBusy.value && !errorMsg.value);
 
 const pageSizeOptions: SelectOption[] = [
   { label: '25 rows', value: 25 },
@@ -354,11 +437,11 @@ const pageSizeOptions: SelectOption[] = [
 ];
 
 const tableColumns = computed(() =>
-  [...(props.table?.columns ?? [])].sort((a, b) => a.ordinal - b.ordinal));
+  [...(permissionDenied.value ? [] : props.table?.columns ?? [])].sort((a, b) => a.ordinal - b.ordinal));
 const insertableColumns = computed(() =>
   tableColumns.value.filter((column) => !column.isAutoIncrement && !column.isRowVersion));
 
-const primaryKeyColumns = computed(() => props.table?.primaryKey ?? []);
+const primaryKeyColumns = computed(() => permissionDenied.value ? [] : props.table?.primaryKey ?? []);
 
 const filterColumnOptions = computed<SelectOption[]>(() => [
   { label: 'All searchable columns', value: '' },
@@ -383,10 +466,25 @@ const gridRows = computed<GridRow[]>(() => {
   }));
 });
 
-const hasNextPage = computed(() => gridRows.value.length >= pageSize.value);
+const hasNextPage = computed(() => !permissionDenied.value && !rowsResult.value?.error
+  && Boolean(rowsResult.value?.end) && gridRows.value.length >= pageSize.value);
+const relationState = computed<RelationWorkbenchState>(() => {
+  if (permissionDenied.value) return 'permission';
+  if (!props.table || !props.targetDb) return 'empty';
+  if (errorMsg.value || latestResult.value?.error) return 'error';
+  if (ranOnce.value && rowsResult.value?.end && gridRows.value.length === 0) return 'empty';
+  if (readOnly.value) return 'readonly';
+  if (hasNextPage.value || rowsResult.value?.end?.truncated || tableColumns.value.length > 12
+    || gridRows.value.some((row) => tableColumns.value.some((column) =>
+      formatSqlValue(row[column.name]).length > RelationLongContentChars))) return 'longContent';
+  return 'normal';
+});
+const stateDescriptor = computed(() => relationStateContract[relationState.value]);
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
-  if (!props.table || pendingOperations.value.length === 0) return null;
+  const operationCount = pendingOperations.value.length;
+  if (!canWrite.value || !pendingContext || !isContextCurrent(pendingContext)
+    || operationCount === 0) return null;
   const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
     id: operation.id,
     command: operation.sql,
@@ -395,9 +493,9 @@ const previewPlan = computed<WriteApprovalPlan | null>(() => {
     detail: operation.detail,
   }));
   return createWriteApprovalPlan({
-    id: `table_${props.targetDb}_${props.table.name}_${pendingOperations.value.map((item) => item.id).join('_')}`,
+    id: `table_${pendingContext.database}_${pendingContext.table}_${pendingOperations.value.map((item) => item.id).join('_')}`,
     title: 'Relation table edit batch',
-    target: `${props.targetDb}.${props.table.name}`,
+    target: `${pendingContext.database}.${pendingContext.table}`,
     items,
   });
 });
@@ -536,6 +634,7 @@ function renderDraftEditor(
 }
 
 function renderRowActions(row: GridRow) {
+  if (readOnly.value || permissionDenied.value) return null;
   if (editingRows[row.__rowKey]) {
     return h(NSpace, { size: 6, wrap: false }, {
       default: () => [
@@ -545,7 +644,7 @@ function renderRowActions(row: GridRow) {
     });
   }
 
-  const canEdit = primaryKeyColumns.value.length > 0;
+  const canEdit = canWrite.value && primaryKeyColumns.value.length > 0;
   return h(NSpace, { size: 6, wrap: false }, {
     default: () => [
       h(NButton, {
@@ -570,29 +669,65 @@ function rowKey(row: GridRow): string {
 }
 
 async function loadRows(): Promise<void> {
-  if (!props.table || !props.targetDb) return;
+  if (!props.table || !props.targetDb || permissionDenied.value || disposed) return;
+  const context = captureContext();
+  const requestId = ++readRequestId;
+  readController?.abort();
+  const controller = new AbortController();
+  readController = controller;
   loadingRows.value = true;
   errorMsg.value = '';
   try {
     const request = buildBrowseRequest();
     lastBrowseSql.value = request.sql;
-    const result = await execDataSql(auth.api, props.targetDb, request.sql, request.parameters);
-    rowsResult.value = result;
-    latestResult.value = result;
+    const result = await execDataSql(context.api, context.database, request.sql, request.parameters,
+      controller.signal, pageSize.value);
+    if (!isContextCurrent(context) || requestId !== readRequestId || permissionDenied.value) return;
+    if (isPermissionFailure(result.error)) {
+      permissionFailure.value = true;
+      return;
+    }
+    const boundedResult: SqlResultSet = {
+      ...result,
+      rows: result.error || !result.end ? [] : result.rows.slice(0, pageSize.value),
+      error: result.error ?? (!result.end
+        ? { code: 'incomplete_sql_response', message: '读取结果缺少完成标记，不能确认成功。' }
+        : null),
+      end: result.end ? {
+        ...result.end,
+        rowCount: Math.min(result.rows.length, pageSize.value),
+        truncated: result.end.truncated || result.rows.length > pageSize.value,
+      } : null,
+    };
+    rowsResult.value = boundedResult;
+    latestResult.value = boundedResult;
     latestResultSql.value = request.sql;
     ranOnce.value = true;
-    if (result.error) {
-      errorMsg.value = result.error.message;
+    if (boundedResult.error) {
+      errorMsg.value = boundedResult.error.message;
     }
   } catch (error) {
+    if (!isContextCurrent(context) || requestId !== readRequestId || controller.signal.aborted) return;
+    if (isPermissionFailure(error)) {
+      permissionFailure.value = true;
+      return;
+    }
+    rowsResult.value = null;
+    latestResult.value = null;
     errorMsg.value = error instanceof Error ? error.message : '加载表数据失败';
   } finally {
-    loadingRows.value = false;
+    if (requestId === readRequestId && isContextCurrent(context)) {
+      loadingRows.value = false;
+      readController = null;
+    }
   }
 }
 
 function buildBrowseRequest(): SqlStatementRequest {
   const table = requireTable();
+  pageSize.value = pageSizeOptions.some((option) => option.value === pageSize.value)
+    ? Math.min(pageSize.value, RelationPreviewMaxRows) : 50;
+  page.value = Number.isSafeInteger(page.value) && page.value >= 1 ? page.value : 1;
   const parameters: SqlParameters = {
     limit: sqlParameterFromValue(pageSize.value),
     offset: sqlParameterFromValue((page.value - 1) * pageSize.value),
@@ -682,6 +817,7 @@ function nextPage(): void {
 }
 
 function startEdit(row: GridRow): void {
+  if (!canWrite.value || writeInFlight) return;
   editDrafts[row.__rowKey] = createDraftFromRow(row);
   editingRows[row.__rowKey] = true;
 }
@@ -692,7 +828,7 @@ function cancelEdit(row: GridRow): void {
 }
 
 function stageInsert(): void {
-  if (!props.table) return;
+  if (!props.table || !canWrite.value || writeInFlight) return;
   const values = collectDraftValues(insertDraft, insertableColumns.value);
   if (!values.ok) {
     message.error(values.message);
@@ -716,13 +852,14 @@ function stageInsert(): void {
       ');',
     ].join('\n');
 
+  capturePendingContext();
   pendingOperations.value.push({
     id: opId,
     action: 'insert',
     sql,
     parameters,
     label: 'Insert row',
-    detail: `${insertableColumns.value.length} values`,
+    detail: previewDraftValues(insertableColumns.value, values.values),
     severity: 'write',
   });
   resetInsertDraft();
@@ -730,8 +867,9 @@ function stageInsert(): void {
 }
 
 function stageUpdate(row: GridRow): void {
-  if (!props.table) return;
+  if (!props.table || !canWrite.value || writeInFlight) return;
   const draft = editDrafts[row.__rowKey];
+  if (!draft) return;
   const editableColumns = tableColumns.value.filter((column) =>
     !column.isPrimaryKey && !column.isAutoIncrement && !column.isRowVersion);
   const values = collectDraftValues(draft, editableColumns);
@@ -761,6 +899,7 @@ function stageUpdate(row: GridRow): void {
     return `${formatSqlIdentifier(column.name)} = @${paramName}`;
   });
 
+  capturePendingContext();
   pendingOperations.value.push({
     id: opId,
     action: 'update',
@@ -771,14 +910,14 @@ function stageUpdate(row: GridRow): void {
     ].join('\n'),
     parameters,
     label: 'Update row',
-    detail: changedColumns.map((column) => column.name).join(', '),
+    detail: previewDraftValues(changedColumns, values.values, row),
     severity: 'write',
   });
   cancelEdit(row);
 }
 
 function stageDelete(row: GridRow): void {
-  if (!props.table) return;
+  if (!props.table || !canWrite.value || writeInFlight) return;
   const where = buildPrimaryKeyWhere(row, 'pk_delete');
   if (!where.ok) {
     message.error(where.message);
@@ -786,6 +925,7 @@ function stageDelete(row: GridRow): void {
   }
 
   const opId = makeOperationId('delete');
+  capturePendingContext();
   pendingOperations.value.push({
     id: opId,
     action: 'delete',
@@ -795,16 +935,29 @@ function stageDelete(row: GridRow): void {
     ].join('\n'),
     parameters: where.parameters,
     label: 'Delete row',
-    detail: primaryKeyColumns.value.map((column) => `${column}=${formatSqlValue(row[column])}`).join(', '),
+    detail: previewDraftValues(tableColumns.value.filter((column) => column.isPrimaryKey), row),
     severity: 'danger',
   });
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (!props.table || pendingOperations.value.length === 0) return;
+  if (!canWrite.value || writeInFlight || !pendingContext || !isContextCurrent(pendingContext)
+    || pendingOperations.value.length === 0) {
+    if (pendingContext && !isContextCurrent(pendingContext)) clearPendingOperations();
+    return;
+  }
+  const context = pendingContext;
+  const controller = new AbortController();
+  writeController = controller;
+  // 审批仅执行一次；响应缺失或失败都须核对服务器并重新暂存，不能重放原计划。
+  const operations = pendingOperations.value.map((operation) => ({
+    ...operation,
+    parameters: Object.fromEntries(Object.entries(operation.parameters).map(([key, value]) => [key, { ...value }])),
+  }));
+  clearPendingOperations();
+  writeInFlight = true;
   confirmBusy.value = true;
   errorMsg.value = '';
-  const operations = [...pendingOperations.value];
   const statements: SqlStatementRequest[] = [
     { sql: 'BEGIN' },
     ...operations.map((operation) => ({
@@ -816,74 +969,159 @@ async function confirmPendingOperations(): Promise<void> {
   const command = statements.map((statement) => statement.sql).join('\n');
 
   try {
-    const results = await execDataSqlBatch(auth.api, props.targetDb, statements);
+    const results = await execDataSqlBatch(context.api, context.database, statements, controller.signal);
     const errorResult = results.find((result) => result.error);
+    const complete = results.length === statements.length && results.every((result) => Boolean(result.end));
+    const unknown = controller.signal.aborted || (errorResult?.error
+      ? /^(invalid_sql_response|incomplete_sql_response|http_408|http_5\d\d)$/i.test(errorResult.error.code ?? '')
+      : !complete);
+    const errorText = unknown
+      ? unknownWriteMessage(controller.signal.aborted
+        ? '客户端因上下文改变停止了请求；这不表示服务器已经取消写入。'
+        : errorResult?.error?.message ?? '批次缺少完整服务器终态')
+      : errorResult?.error?.message ?? '';
     const affected = results.reduce((sum, result) =>
       sum + Math.max(result.end?.recordsAffected ?? 0, 0), 0);
     const elapsed = results.reduce((sum, result) => sum + (result.end?.elapsedMs ?? 0), 0);
 
+    recordHistory(context, operations, unknown ? 'unknown' : errorText ? 'error' : 'success',
+      command, affected, elapsed, errorText, unknown ? 'unknown' : complete ? 'complete' : 'partial');
+    if (!isContextCurrent(context) || readOnly.value || permissionDenied.value) return;
+    if (isPermissionFailure(errorResult?.error)) {
+      permissionFailure.value = true;
+      return;
+    }
     latestResultSql.value = command;
-    latestResult.value = errorResult ?? {
+    latestResult.value = !unknown && errorResult ? errorResult : {
       columns: [],
       rows: [],
       hasColumns: false,
-      error: null,
-      end: {
+      error: errorText ? { code: 'operation_outcome_unknown', message: errorText } : null,
+      end: complete && !unknown ? {
         type: 'end',
         rowCount: 0,
         recordsAffected: affected,
         elapsedMs: elapsed,
-      },
+      } : null,
     };
     ranOnce.value = true;
 
-    recordHistory(errorResult ? 'error' : 'success', command, affected, elapsed, errorResult?.error?.message ?? '');
-
-    if (errorResult?.error) {
-      errorMsg.value = errorResult.error.message;
-      message.error(errorResult.error.message);
+    if (errorText) {
+      rowsResult.value = null;
+      errorMsg.value = errorText;
+      message.error(errorText);
       return;
     }
 
     message.success(`Committed ${operations.length} staged edit${operations.length === 1 ? '' : 's'}.`);
-    pendingOperations.value = [];
     await loadRows();
-    emit('refreshSchema');
+    if (isContextCurrent(context) && !permissionDenied.value) emit('refreshSchema');
   } catch (error) {
-    const messageText = error instanceof Error ? error.message : '提交关系表编辑失败';
-    errorMsg.value = messageText;
-    recordHistory('error', command, 0, 0, messageText);
+    const denied = isPermissionFailure(error);
+    const detail = error instanceof Error ? error.message : '提交关系表编辑失败';
+    const messageText = denied ? detail : unknownWriteMessage(detail);
+    recordHistory(context, operations, denied ? 'error' : 'unknown', command, 0, 0,
+      messageText, denied ? 'complete' : 'unknown');
+    if (!isContextCurrent(context) || readOnly.value || permissionDenied.value) return;
+    if (denied) permissionFailure.value = true;
+    else {
+      rowsResult.value = null;
+      latestResultSql.value = command;
+      latestResult.value = {
+        columns: [], rows: [], hasColumns: false, end: null,
+        error: { code: 'operation_outcome_unknown', message: messageText },
+      };
+      ranOnce.value = true;
+      errorMsg.value = messageText;
+      message.error(messageText);
+    }
   } finally {
+    if (writeController === controller) writeController = null;
+    writeInFlight = false;
     confirmBusy.value = false;
   }
 }
 
 function recordHistory(
-  status: 'success' | 'error',
+  context: RelationContext,
+  operations: PendingOperation[],
+  status: 'success' | 'error' | 'unknown',
   command: string,
   recordsAffected: number,
   elapsedMs: number,
   error: string,
+  completeness: 'complete' | 'partial' | 'unknown',
 ): void {
   history.record({
     kind: 'operation',
     status,
-    title: `${props.table?.name ?? 'table'} edit batch`,
-    target: props.table?.name ?? '',
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    title: `${context.table} edit batch`,
+    target: context.table,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'table',
-    action: pendingOperations.value.map((operation) => operation.action).join(', '),
+    action: operations.map((operation) => operation.action).join(', '),
     command,
-    summary: error || `${pendingOperations.value.length} staged edits · affected ${recordsAffected}`,
+    summary: error || `${operations.length} staged edits · affected ${recordsAffected}`,
     recordsAffected,
     elapsedMs,
+    completeness,
   });
 }
 
 function clearPendingOperations(): void {
   pendingOperations.value = [];
+  pendingContext = null;
+}
+
+function captureContext(): RelationContext {
+  return {
+    identity: resourceIdentity.value,
+    generation: contextGeneration.value,
+    database: props.targetDb,
+    table: props.table?.name ?? '',
+    connectionId: connections.activeProfileId,
+    connectionName: connections.activeProfile.name,
+    api: auth.api,
+    sessionToken: auth.state?.token,
+    schemaSignature: schemaSignature.value,
+  };
+}
+
+function isContextCurrent(context: RelationContext): boolean {
+  return !disposed && context.generation === contextGeneration.value
+    && context.identity === resourceIdentity.value && context.api === auth.api
+    && context.sessionToken === auth.state?.token && context.schemaSignature === schemaSignature.value;
+}
+
+function capturePendingContext(): void {
+  if (!pendingContext || !isContextCurrent(pendingContext)) {
+    clearPendingOperations();
+    pendingContext = captureContext();
+  }
+}
+
+function isPermissionFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const value = error as { code?: string; response?: { status?: number; data?: { code?: string; error?: string } } };
+  return value.response?.status === 403
+    || /^(http_403|forbidden|permission_denied|access_denied|insufficient_permissions)$/i.test(
+      value.code ?? value.response?.data?.code ?? value.response?.data?.error ?? '');
+}
+
+function unknownWriteMessage(detail: string): string {
+  return `执行结果未知，请先核对服务器终态再重新预览和审批；旧审批不会重试。${detail}`;
+}
+
+function previewDraftValues(columns: TableColumnInfo[], values: DraftRow, original?: DraftRow): string {
+  return columns.map((column) => {
+    const preview = (value: unknown) => {
+      const text = formatSqlValue(value);
+      return text.length > 256 ? `${text.slice(0, 256)}…（预览已截断）` : text;
+    };
+    return `${column.name} (${column.dataType}): ${original ? `${preview(original[column.name])} → ` : ''}${preview(values[column.name])}`;
+  }).join('\n').slice(0, 2000);
 }
 
 function resetInsertDraft(): void {
@@ -1103,41 +1341,79 @@ function sameValue(a: unknown, b: unknown): boolean {
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
+  if (permissionDenied.value || disposed) return;
   emit('openSql', entry.command);
 }
 
-function resetForTable(): void {
+function clearResourcePayload(): void {
+  ++readRequestId;
+  readController?.abort();
+  readController = null;
+  loadingRows.value = false;
+  errorMsg.value = '';
+  ranOnce.value = false;
   page.value = 1;
   filterText.value = '';
   filterColumn.value = '';
   sortDirection.value = 'asc';
   sortColumn.value = primaryKeyColumns.value[0] ?? tableColumns.value[0]?.name ?? '';
-  pendingOperations.value = [];
+  clearPendingOperations();
   rowsResult.value = null;
   latestResult.value = null;
   latestResultSql.value = '';
   lastBrowseSql.value = '';
   showInsert.value = false;
+  historyVisible.value = false;
   for (const key of Object.keys(editingRows)) delete editingRows[key];
   for (const key of Object.keys(editDrafts)) delete editDrafts[key];
   resetInsertDraft();
 }
 
 watch(
-  () => [props.targetDb, props.table?.name] as const,
-  () => {
-    resetForTable();
+  () => [resourceIdentity.value, schemaSignature.value, auth.state?.token, auth.state?.username, auth.api] as const,
+  (current, previous) => {
+    ++contextGeneration.value;
+    // 原身份的 schema 刷新仅使草稿/审批失效，不能解除服务端返回的无权限状态。
+    if (current[0] !== previous[0] || current[2] !== previous[2]
+      || current[3] !== previous[3] || current[4] !== previous[4]) permissionFailure.value = false;
+    clearResourcePayload();
     void loadRows();
   },
+  { flush: 'sync' },
 );
 
-watch(tableColumns, () => {
+watch(contextGeneration, () => writeController?.abort(), { flush: 'sync' });
+
+watch(permissionDenied, (denied) => {
+  ++contextGeneration.value;
+  if (denied) clearResourcePayload();
+  else void loadRows();
+}, { flush: 'sync' });
+
+watch(() => props.permissionDenied, (denied, previous) => {
+  if (previous && !denied) permissionFailure.value = false;
+}, { flush: 'sync' });
+
+watch(readOnly, () => {
+  ++contextGeneration.value;
+  clearPendingOperations();
+  showInsert.value = false;
+  for (const key of Object.keys(editingRows)) delete editingRows[key];
+  for (const key of Object.keys(editDrafts)) delete editDrafts[key];
   resetInsertDraft();
-});
+  void loadRows();
+}, { flush: 'sync' });
 
 onMounted(() => {
-  resetForTable();
+  clearResourcePayload();
   void loadRows();
+});
+
+onBeforeUnmount(() => {
+  disposed = true;
+  writeController?.abort();
+  ++contextGeneration.value;
+  clearResourcePayload();
 });
 </script>
 
@@ -1257,6 +1533,24 @@ onMounted(() => {
   margin: 10px 12px 0;
 }
 
+.relation-restricted {
+  display: grid;
+  flex: 1;
+  min-height: 260px;
+  place-items: center;
+  padding: 16px;
+}
+
+.relation-statebar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  color: var(--sndb-ink-soft);
+  font-size: 12px;
+}
+
 .relation-grid-shell {
   flex: 1;
   min-height: 260px;
@@ -1324,7 +1618,8 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
+  /* 为右下角 Copilot 悬浮入口保留点击空间，分页操作在窄屏继续按既有布局换行。 */
+  padding: 8px 84px 8px 12px;
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   background: #fbfcfe;
