@@ -75,10 +75,10 @@
 
 ## WB-11 当前切片（2026-10-05）
 
-- 状态：已完成本地切片，提交哈希待回填；用户已确认 Measurement Workbench 页面基线，根会话负责共享文档、集成、门禁与提交，子智能体 `/root/wb10_manual_switch` 独占页面组件与专属迁移测试。依赖 WB-10 `ee44d7bb` / `d6aa81d8`。
+- 状态：已完成并提交 `390ff526`；用户已确认 Measurement Workbench 页面基线，根会话负责共享文档、集成、门禁与提交，子智能体 `/root/wb10_manual_switch` 独占页面组件与专属迁移测试。依赖 WB-10 `ee44d7bb` / `d6aa81d8`。
 - 范围：沿用已确认五区外壳与现有 measurement 路由/旧深链接；中心区域呈现数据点、导入、监控、Schema，右侧 Inspector 继续由工作台外壳承载，底部保留结果/状态；查询、刷新、导出可用，写入/删除继续进入 WriteApprovalPanel。
 - 身份与边界：保留 database、measurement 原名/大小写和旧 key；不改 MQ 存储、Graph 语义、Server API 或三宿主发布，不把本地 UI/定向测试写成真实服务验收。
-- 验收：normal、empty、error、permission、readonly、longContent 六态有可验证生产组件合同；旧路由/深链接、查询/刷新/导出、写审批、跨库同名资源和权限错误载荷清理已覆盖。专属 Node 5/5、全 Web Node 117/117、TypeScript、Vite build、Measurement Playwright 8/8、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过，提交哈希待回填。真实 Server、三宿主、安装、发布和全量九模型验收仍待补。
+- 验收：normal、empty、error、permission、readonly、longContent 六态有可验证生产组件合同；旧路由/深链接、查询/刷新/导出、写审批、跨库同名资源和权限错误载荷清理已覆盖。专属 Node 5/5、全 Web Node 117/117、TypeScript、Vite build、Measurement Playwright 8/8、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。代码提交为 `390ff526 feat(m47): migrate measurement workbench`。真实 Server、三宿主、安装、发布和全量九模型验收仍待补。
 
 ## 会话与自动检查
 
