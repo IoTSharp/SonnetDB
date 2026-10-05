@@ -95,12 +95,21 @@
 | ID | 有界下一项 | 依赖 / 验收 / 剩余边界 |
 |---|---|---|
 | WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`；五客户端文件与专属 Node 测试由 `/root/wb15_client_inventory` 实施，`web/e2e/studio-host-client.spec.ts` 由专属夹具代理实施，另一代理独立只读复核PASS。依赖WB-13；原名身份、external/owned/stopped/failed/canStop与未知合同保守门禁、bootstrap/status/save迟返、同ID endpoint认证同步和目录ABA均已收口；保存串行、宿主确认且无回授循环。专属Node10/10、全Web137/137、Studio三类定向40/40、TypeScript/Vite和StudioNative浏览器夹具8/8通过；代码最终完整restore/Format Check与staged diff check退出0。真实Server、干净Windows/WebView2、安装升级卸载、未使用旧Header及完整Explorer异步组合仍独立验收。 |
-| WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 依赖 WB-14 与 WB-08～WB-10；覆盖九模型、index/backup、混合大小写/冒号、proxy 子路径、跨库同名 MQ、无 token/SQL 和 route-only 不执行。复用 Extension Host 与 Web fixture，真实 Server 登录/权限和 VSIX 发布单列。 |
+| WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 已提交 `0bb628adde45ad160f05a67057f098fa982c4f85`，依赖WB-14与WB-08～WB-10。九模型/index/backup、原名/冒号、同名MQ、登录返回、显式base/SSE及index分组收口；Node9/9、全Web146/146、扩展20/20、根/代理构建、两部署浏览器各17/17、真实Host13节点命令调用、独立复核和代码最终完整门禁通过。真实Server权限、真实代理部署/远程SSE/同origin存储隔离与VSIX发布单列。 |
 | WB-17 | 下一模型页面按已确认基线迁移，优先 Relation Table Workbench 的身份、六态与预览/审批 | 依赖 WB-11/WB-12；先盘点既有实现与原型合同，不重做已有设计器/SQL。仅做明确差距，冻结组件/专属测试，Node/TypeScript/Vite、必要 UI、restore/format 和独立复核。 |
 | WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 依赖 WB-12；当前403会清理载荷并保持 permission，same-identity schema刷新不解除；新增恢复动作须先确定合同，读取重试不得恢复旧写审批。Aggregate/Distinct 仍沿用原结果路径，不能把 Find 1000预览预算宣称为所有路径预算。 |
 
-WB-15已按本地客户端范围闭环，WB-16～WB-18是已授权研发的后续顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
+WB-15/WB-16已按各自本地范围闭环；WB-17～WB-18为已授权后续顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
 
 ## 会话与自动检查（2026-10-06已转移）
 
-当前会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。已完成只读接收、从`d773a62e`接管唯一写入并提交WB-15；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，真实目标与周期已从保存配置回读核实，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在最后交接提交后停止仓库写入；下一次从WB-16接续，无需重新确认已有授权。
+### WB-16 文件与依赖冻结（2026-10-06；已完成的本轮记录）
+
+- 干净起点 `941550a5`，WB-15三个代理已结束。只推进WB-16，不并行启动WB-17/18。发现Web router、API默认地址与Vite固定根路径；登录守卫的已认证分支丢失redirect，需同一兼容切片验证修复。
+- 实施代理独占 `web/src/router/index.ts`、`web/src/views/LoginView.vue`、`web/src/api/client.ts`、`web/src/stores/connections.ts`、`web/vite.config.ts`，新增 `web/src/utils/workbenchNavigation.ts` 和 `web/tests/workbench-navigation-auth.test.mjs`。复核发现AppShell自动SSE订阅仍请求根路径，追加冻结 `web/src/api/events.ts` 的最小部署base修复及实际构造URL证据；不扩大remote profile SSE语义。未改旧导航测试。保留默认根部署，代理子路径使用显式 `SONNETDB_WEB_BASE_PATH` 构建配置，不从不可信URL猜测部署基址。
+- 浏览器/Host证据代理独占新增 `web/e2e/vscode-workbench-navigation.spec.ts` 与扩展 `extensions/sonnetdb-vscode/src/test/host/index.ts`；真实消费WB-14链接生成器，验证最终页面/资源与登录返回、同名MQ、仅导航字段及不执行SQL。Host的外部浏览器开启边界可拦截，仅作为真实命令调用合同证据。
+- 浏览器首轮14/17发现索引id的 `table:` 前缀使Sidebar错误展开Tables，追加实施代理独占 `web/src/components/ManagementExplorerSidebar.vue` 的精确资源group匹配；不改原名、key、路由或选中索引语义。另两项登录失败为等价URL编码断言误差，仅修fixture完整decoded字段比较。复验和独立复核按最终树重跑。
+- 独立复核代理全程只读并PASS；根独占共享文档、验证runner、集成、完整restore/format、stage与commit。最终代码提交12文件（八Web生产文件、专属Node测试、浏览器spec、Host测试与CHANGELOG），不修改Server/资源身份/存储/发布合同。初轮14/17不计完成证据；修复后根与代理浏览器各17/17，无skip。Measurement/Relation允许既有只读预览，保存草稿不执行；index/backup保留SQL工作区落点。fixture认证、SSE构造和真实Host捕获分别记录，不能计作真实Server/外部OS浏览器/VSIX验收。
+- 根临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-wb16-73be578e6aa94e93aee31d340ef55950` 删除被自动审查拒绝，仅返回blocked by policy；58个PID身份核验无任务存活，runner/日志和cleanup-status.txt保留，不重试删除或绕过。原交接保留目录亦不触碰；研发从WB-17继续，不因临时文件保留阻断。
+
+当前会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。已从`d773a62e`接管唯一写入并提交WB-15/WB-16；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在最后交接提交后停止仓库写入；下一次从WB-17接续，无需重新确认已有授权。

@@ -7,14 +7,18 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-16从干净 `941550a5` 接续并提交 `0bb628adde45ad160f05a67057f098fa982c4f85`（`fix(m47): preserve Workbench navigation across login and proxy paths`）。登录返回、安全内部目标、显式部署base和自动SSE路径已收口；Sidebar按真实资源精确展开分组，修复 `table:` 索引id错开Tables。三名专属实施/证据/独立复核代理已结束；根独占文档/git/门禁，无竞争写入。专属Node9/9、全Web146/146、扩展Node20/20、根/代理TypeScript/Vite构建、两部署浏览器各17/17、本机真实Extension Host13节点命令调用和独立复核通过；代码提交前完整restore、原级别Format Check与staged diff check退出0。交接文档另在最终文档树执行完整门禁提交。
+- 旧临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-workbench-handoff-20261006-01` 因自动审查仅返回blocked by policy而保留，全部相关进程已退出；本轮不重新删除或绕过策略。这不阻断WB-16研发。
+
 - WB-15 客户端切片已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`（`feat(m47): consume Studio host identity and lifecycle contracts`）。五个 Web 客户端文件消费 WB-13 身份与生命周期；完整合同才开放 Managed Local 操作，外部/未知状态保留 Health，迟返、同 ID 端点与目录 ABA 隔离，保存串行并只接受宿主确认身份。专属 Node 10/10（3 helper、6真实 store、1真实 composable）、全 Web 137/137、Studio 三类定向40/40、TypeScript/Vite、StudioNative 浏览器夹具8/8和独立复核均通过；代码提交前最终完整 restore/原级别 Format Check 与 staged diff check退出0，只有既有workspace/chunk提示。共享交接记录另在最终文档树执行完整门禁后提交。
-- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-15 已按各自本地切片提交；三宿主整体仍未闭环，不要重复实施已完成切片。
+- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-16 已按各自本地切片提交；三宿主整体仍未闭环，不要重复实施已完成切片。
 - 用户已授权继续 Web Admin、独立 SonnetDB Studio、VS Code Workbench 的独立切片与验证后本地提交，并选择本轮收尾后创建新会话、转移同一 `workbench` heartbeat。暂不 push、发布、部署或外部沟通。
 - WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，Release定向34/34；WB-14（VS Code）已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，Node20/20与明确本机Code.exe的真实Extension Host注册检查通过；WB-12（Document）已提交 `54c787551186f74036a1845e25a937d1a268ddc1`，专属10/10、全Web127/127、TypeScript/Vite与Document浏览器7/7。三项独立复核、各自最终完整restore/format与diff check均通过；Format Check仅提示既有工作区加载警告、退出0，没有降低级别。
 - 根独占共享文档、集成、stage/commit。WB-12 仅 Document 组件/专属测试；WB-13 为三个 Studio 源文件与三个专属/既有测试；WB-14 为资源 helper/types、命令/package contribution 与 Node/Host 测试。实际范围见队列，最多三个活动子智能体，不再派竞争者。
 - 新会话 **SonnetDB Workbench 三宿主研发与验收**：`01a10d27-d964-7550-9b8e-066447122527`，host=local，SonnetDB本地项目。已创建并开始只读接收；同一个 `workbench` heartbeat（Workbench 三宿主持续研发与闭环）已转移到该真实thread，ACTIVE、每30分钟，保存配置已回读核实，无重复自动化。
-- 唯一写入归属：旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在 `d773a62e` 后停止写入；本会话从该已核实干净基线接管并完成 WB-15，不等待重新授权。当前源代码基线为 `e1f93a69`，最后交接文档提交本身的实际哈希以 `git log -1` 为准。
-- 后续顺序：WB-16 VSCode→Web最终回选与认证边界；WB-17 Relation下一模型页面；WB-18 Document403显式安全恢复与高级读取预算。详细归属与验收先冻结再派专属子智能体。真实Server权限、完整九模型、WebView2/干净Windows、安装、AI/MCP与三面发行物仍未全量验收，不能暂停整体heartbeat。WB-15 的8/8是浏览器native bridge夹具；40/40是三个Studio测试类的真实bridge/ManagedLocal定向证据，两者不能合写为完整桌面宿主安装验收。现有Explorer数据库/Schema加载的全部异步组合亦不由本切片宣称闭环；未使用的旧SqlWorkbenchHeader另列后续边界。
+- 唯一写入归属：旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在 `d773a62e` 后停止写入；本会话接管并完成 WB-15/WB-16，不等待重新授权。当前源代码基线为 `0bb628ad`，最后交接文档提交本身的实际哈希以 `git log -1` 为准。
+- 后续顺序：WB-17 Relation下一模型页面；WB-18 Document403显式安全恢复与高级读取预算。详细归属与验收先冻结再派专属子智能体。真实Server权限、完整九模型、WebView2/干净Windows、安装、AI/MCP与三面发行物仍未全量验收，不能暂停整体heartbeat。WB-16两部署17/17使用真实Web与扩展生成器、fixture认证/API；Host13节点为真实命令调用、拦截外部开启，不能合写为真实Server/OS浏览器交接/VSIX验收。Measurement/Relation既有只读SQL预览与“不执行保存草稿”分开。真实反向代理部署、远程profile SSE、同origin跨部署认证/连接存储隔离仍待独立切片；无token/SQL只针对扩展新生成链接，旧合法SQL URL仍保留原query。Explorer全部异步组合与旧SqlWorkbenchHeader仍独立验收。
+- WB-16有界runner记录PID、创建时间、完整命令及父链并finally核验/回收自有树；58个已跟踪PID的身份核验确认无任务进程存活。本轮临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-wb16-73be578e6aa94e93aee31d340ef55950` 的删除亦被自动审查拒绝，仅返回blocked by policy；runner/日志及cleanup-status.txt保留，不再删除或绕过策略。旧被保留目录同样不触碰；这不阻断WB-17。忽略的最后Web构建输出为 `/Gateway/SonnetDB/` 测试base，非发行物；后续宿主构建须使用匹配的真实部署配置。验证范围写入validation-report，无工具安装或push/发布/部署。
 - WB-15 三名专属实施/复核代理均已结束并停止写入。根有界runner记录PID、创建时间、命令与父链，测试后仅回收自有树；Studio定向测试的自有编译服务已回收，最终Web/Vite/Playwright与reviewer复现PID核验不存在。Git忽略的既有依赖/构建输出与必要UI证据保留；其它未证实归属的旧测试目录不清理。根临时runner只服务最后门禁，结束后按绝对路径核验回收。
 - `origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，禁止合并、删除或改写。其它会话的博客文件不属于本任务。
 
