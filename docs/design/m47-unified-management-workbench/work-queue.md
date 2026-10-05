@@ -86,11 +86,9 @@
 
 | ID | 任务与文件归属 | 依赖与验收 / 状态 |
 |---|---|---|
-| WB-12 | Web Admin Document Workbench；`web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs` | 依赖 WB-11。补齐 database + collection 原名身份、六态、旧路由/深链接与 WriteApprovalPanel 边界；专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；两文件已冻结，等待根最终restore/format与提交。Find预览1000；403显式恢复与Aggregate/Distinct预算另验。 |
+| WB-12 | Web Admin Document Workbench；`web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs` | 依赖 WB-11。补齐 database + collection 原名身份、六态、旧路由/深链接与 WriteApprovalPanel 边界；专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；已提交 `54c787551186f74036a1845e25a937d1a268ddc1`，最终restore/format通过。Find预览1000；403显式恢复与Aggregate/Distinct预算另验。 |
 | WB-13 | SonnetDB Studio 宿主合同；三个 Studio 源文件、`StudioConnectionLibraryTests.cs`、`StudioHostContractTests.cs` 与现有 `StudioManagedServerHostTests.cs` 的生命周期断言 | 已完成实现并冻结；Release定向34/34（真实bridge与ManagedLocal/external）、独立复核与diff check通过。宿主/端点/profile/数据库原名身份、URL校验、source-generated JSON与canStop已验证；已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，最终restore/format通过；客户端展示、安装和发布另验。 |
 | WB-14 | VS Code Workbench 资源/深链接合同；扩展 `src/core/types.ts`、`workbenchResource.ts`、`src/extension.ts`、`package.json`、`src/test/host/index.ts` 与专属测试 | 依赖现有 Remote-first 扩展；补齐 database/resource 原名、旧 key 兼容与九模型 Workbench 入口，不扩大治理权限；TypeScript/Node20/20、本机Code.exe真实Extension Host注册smoke与独立复核通过；已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，最终restore/format通过；浏览器最终回选/认证和VSIX另验。 |
-
-## 会话与自动检查
 
 ## 三宿主后续队列（本地切片通过不等于整体完成）
 
@@ -103,4 +101,6 @@
 
 以上是已授权研发的可执行顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因 WB-12～WB-14 的本机 PASS 暂停整体研发。
 
-新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。
+## 会话与自动检查（2026-10-06已转移）
+
+新会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。第一轮只读接收已经启动；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，真实目标与周期已从保存配置回读核实，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 完成本次最后交接文档提交后停止仓库写入，新会话在后续heartbeat或用户继续指令从WB-15取得唯一写入归属；无需重新确认已有授权。

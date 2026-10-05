@@ -2,7 +2,7 @@
 
 本文件是 **4.5 版本的主执行路线**：在九种原生模型上强化 AI 应用、通用聚合与持续计算、存储编码和执行成本，并把 Web Admin、Studio 桌面和 VS Code 收敛到一套统一的数据库管理工作台核心，补齐现有能力的远程、恢复、容量、真实质量及三面发布边界。4.5 是规划目标，本文不宣布版本已发布，也不修改当前包版本。
 
-规划基线：2026-10-04，本地提交 `4b004946`；M47 设计基线已于 2026-10-05 获用户确认，生产实现按 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 的有界切片推进。当前 WB-00～WB-11 已按各自范围提交，WB-11 Measurement Workbench 提交为 `390ff526`；这些局部状态不等同 M47/U01~U09 全量完成。已完成范围归入 [CHANGELOG 本轮归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)，历史背景见[原归档](docs/roadmap-history.md)。本轮研究、证据复核与文档验证见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)及 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
+规划基线：2026-10-04，本地提交 `4b004946`；M47 设计基线已于 2026-10-05 获用户确认，生产实现按 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 的有界切片推进。当前 WB-00～WB-14 已按各自本地范围提交，WB-12 Document 为 `54c78755`、WB-13 Studio合同为 `74835847`、WB-14 VS Code资源导航为 `e7cf2fe5`；这些局部状态不等同 M47/U01~U09 全量完成。已完成范围归入 [CHANGELOG 本轮归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)，历史背景见[原归档](docs/roadmap-history.md)。本轮研究、证据复核与文档验证见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)及 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
 
 现有能力事实继续沿用[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)、[gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)和[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)，结合后续已核实切片判断。已撤回的系统性能原始报告不作为验收依据。
 
@@ -25,6 +25,9 @@
 |---|---|---|---|
 | M47 WB-00～WB-10 | 🟢 | 设计基线、原型交互/状态合同、资源身份、导航/Explorer 兼容、结果/审批工作流、外壳迁移与深链接切片均已提交；提交哈希和测试见 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md)。 | 全量九模型页面、真实 Server 旅程、Studio/VS Code/安装/发布证据仍待补。 |
 | M47 WB-11 Measurement Workbench | 🟡 | 页面基线已确认；六态、查询/刷新/导出、写审批、数据库与原始 measurement 身份兼容已完成本地实现与验证，提交 `390ff526`。 | 真实 Server 权限矩阵、三宿主、安装、发布和全量九模型证据。 |
+| M47 WB-12 Document Workbench | 🟡 | 生产组件身份/六态/异步与审批隔离切片已提交 `54c78755`；Node10/10、全Web127/127、TypeScript/Vite与Document浏览器7/7。 | 403安全恢复、高级读取预算、真实Server权限和全量九模型。 |
+| M47 WB-13 Studio宿主合同 | 🟡 | 真实bridge身份/URL与Managed Local生命周期合同已提交 `74835847`，Release定向34/34。 | Web客户端实际消费、干净Windows/WebView2、安装与发行物。 |
+| M47 WB-14 VS Code资源导航 | 🟡 | 九模型/index/backup资源与Web导航入口已提交 `e7cf2fe5`，Node20/20与本机Extension Host注册检查。 | 浏览器最终回选/认证、真实Server权限、VSIX与发布。 |
 | M47 U01～U05 | 🚧 | 设计、首批共享合同、结果/审批语义及 Web Admin 页面切片已有局部实现。 | 完整九模型适配器、分页/取消/离线组合、真实权限与全量生产旅程。 |
 | M47 U06～U08、U10 | 📋 | 已记录规划边界和退出条件。 | Studio、VS Code、WorkBuddy/stdio bridge、manifest/签名/插件安全尚未启动完整验收。 |
 | M45-C01 首批实现 | 🟡 | TAG/time 分组首批代码、SQL/EXPLAIN 合同和定向回归已完成。 | C02～C09、更新/删除修正、增量物化、恢复预算及真实性能证据。 |
@@ -76,7 +79,7 @@
 | **44** | **AI 应用与可治理推理** | **📋** | 预测/异常、证据 RAG、模型治理、可恢复推理任务与真实效果门禁。 |
 | **45** | **聚合与持续计算深化** | **🚧** | C01 首批 TAG/time 分组已完成局部实现；仍需通用 state、更新删除修正、增量物化/rollup 与批流等价。 |
 | **46** | **存储编码与执行成本优化** | **📋** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
-| **47** | **统一数据库管理工作台与三面发布** | **🚧** | WB-00～WB-10 已提交，WB-11 本地实现与验证已完成；Studio、VS Code、完整九模型适配器、AI/MCP 入驻和发布矩阵仍未闭环。 |
+| **47** | **统一数据库管理工作台与三面发布** | **🚧** | WB-00～WB-14 本地切片已提交；Studio/VS Code已增宿主合同与导航证据，完整客户端消费、九模型、AI/MCP与发布矩阵仍未闭环。 |
 
 M22 保持上层应用候选；样例验证通用合同，行业规则不直接内置引擎。M0~M13、M15~M18、M21、M23/M24/M26/M28/M30~M34/M37/M38 及其它完成代码范围只在 CHANGELOG 追溯。
 
@@ -184,7 +187,7 @@ M47 将 Web Admin、Studio 桌面和 VS Code 扩展规划为“一套核心、�
 | WB-05～WB-06 | 🟡 | 结果/草稿/历史/审批和生产外壳/七模块导航已完成本地切片；全量模型、真实宿主、安装、发布仍待补。 |
 | WB-07～WB-10 | 🟢 | Explorer 资源身份、旧深链接回选、database 上下文及手动切库投影已提交并通过 Web 回归。 |
 | WB-11 Measurement Workbench | 🟡 | 用户已确认页面基线；状态、动作、旧路由和 UI 证据已通过本地验证，提交为 `390ff526`。真实 Server、三宿主、安装、发布和全量九模型证据仍待补。 |
-| WB-12 Web Admin Document Workbench | 🟡 | database + collection身份、六态、审批与异步隔离切片已本地验证，Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7，等待提交；真实Server权限、403恢复与全量九模型仍待补。 |
+| WB-12 Web Admin Document Workbench | 🟡 | database + collection身份、六态、审批与异步隔离切片已提交 `54c78755`，Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与完整门禁通过；真实Server权限、403恢复与全量九模型仍待补。 |
 | WB-13 SonnetDB Studio 宿主合同 | 🟡 | 宿主身份/URL与Managed Local生命周期合同已提交 `74835847`，定向34/34、独立复核和完整提交门禁通过；Web消费、干净Windows/WebView2、安装与发行物证据仍待补。 |
 | WB-14 VS Code Workbench 合同 | 🟡 | 九模型资源/深链接入口已提交 `e7cf2fe5`，原名与旧key保留，Node20/20、本机Extension Host、独立复核与完整门禁通过；最终浏览器回选/认证与VSIX另验。 |
 | M47-U01～U03 | 🟡 | 设计、首批合同和共享结果/审批语义已有局部实现；三个宿主真实消费、完整分页/离线/取消证据仍待补。 |

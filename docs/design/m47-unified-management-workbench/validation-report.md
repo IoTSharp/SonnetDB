@@ -197,3 +197,9 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 403后同身份schema刷新不会恢复permission；显式安全恢复入口留WB-18，不能恢复旧写审批。Aggregate/Distinct及高级读取预算、真实权限矩阵、Studio/VSCode全旅程、安装/发布与全量九模型仍独立验收。
 - 自有Web/e2e进程由有界runner核对PID/创建/命令/父链后回收，Studio与VSCode代理亦报告自有进程/临时对象已回收；忽略的依赖/构建输出与必要UI证据保留。
 - WB-14提交为e7cf2fe512974a1cd9bdbac3f767529f2b065e1a，已通过完整restore/Format Check；WB-12由根在最终树再次执行完整门禁，实际哈希在交接检查点记录。
+## 三宿主本轮提交与会话迁移检查点（2026-10-06）
+
+- 实际源代码提交：WB-13 `7483584771ba7164b30047eff59f2c6f2e97e96f`；WB-14 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`；WB-12 `54c787551186f74036a1845e25a937d1a268ddc1`。每项均独立复核后按专属文件列表stage，提交前最终树完整restore、原级别Format Check与staged diff check退出0，未混入其它会话文件；源代码提交后工作树clean。Format Check仅有既有workspace加载提示，没有绕过/降低检查。
+- 新会话 `01a10d27-d964-7550-9b8e-066447122527`（host=local，SonnetDB local project）已创建并经wait_threads确认开始只读接收；原自动化ID workbench已更新该目标，ACTIVE、每30分钟，保存配置回读匹配。旧会话完成最后文档提交即停止仓库写入；新会话后续从WB-15接续，三个实施者均已结束，无重复派单。
+- 本轮实际验证为Web/Studio bridge/ManagedLocal/Extension Host定向证据；WebView2/干净Windows、真实Server权限、完整九模型、VSCode浏览器最终回选/认证、AI/MCP与三宿主发布仍NOT_READY，不因此暂停持续研发。无push、发布、部署或外部沟通；origin/parity-results保持独立。
+- 最后迁移记录仅修改共享文档；仍在其最终树重新执行完整restore/Format Check和diff check，未通过不提交。本交接文档提交的实际哈希以git log最后的docs(m47)提交及会话最终输出为准，不能在自身内容预写未知哈希。

@@ -7,11 +7,14 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
-- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-11 已提交，WB-11 为 `390ff526`，进入本轮的 HEAD 为 `db0afb7e`，不要重复实施。
+- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-14 已按各自本地切片提交；三宿主整体仍未闭环，不要重复实施已完成切片。
 - 用户已授权继续 Web Admin、独立 SonnetDB Studio、VS Code Workbench 的独立切片与验证后本地提交，并选择本轮收尾后创建新会话、转移同一 `workbench` heartbeat。暂不 push、发布、部署或外部沟通。
-- WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，Release定向34/34；WB-14（VS Code）已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，Node20/20与本机Extension Host通过。两项独立复核、最终restore/format与diff check通过。WB-12（Document）专属10/10、全Web127/127、TypeScript/Vite与最终Document浏览器7/7通过，独立复核PASS，等待最后串行门禁/提交；三宿主整体仍未闭环。
+- WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，Release定向34/34；WB-14（VS Code）已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，Node20/20与明确本机Code.exe的真实Extension Host注册检查通过；WB-12（Document）已提交 `54c787551186f74036a1845e25a937d1a268ddc1`，专属10/10、全Web127/127、TypeScript/Vite与Document浏览器7/7。三项独立复核、各自最终完整restore/format与diff check均通过；Format Check仅提示既有工作区加载警告、退出0，没有降低级别。
 - 根独占共享文档、集成、stage/commit。WB-12 仅 Document 组件/专属测试；WB-13 为三个 Studio 源文件与三个专属/既有测试；WB-14 为资源 helper/types、命令/package contribution 与 Node/Host 测试。实际范围见队列，最多三个活动子智能体，不再派竞争者。
-- 当前 `workbench` 为 ACTIVE、每30分钟，仍指向旧 thread `01a10862-bcd5-7d82-ab22-c916c00221a3`。新会话尚未创建；转移成功后本节记录真实目标与最终提交，旧会话停止写入。
+- 新会话 **SonnetDB Workbench 三宿主研发与验收**：`01a10d27-d964-7550-9b8e-066447122527`，host=local，SonnetDB本地项目。已创建并开始只读接收；同一个 `workbench` heartbeat（Workbench 三宿主持续研发与闭环）已转移到该真实thread，ACTIVE、每30分钟，保存配置已回读核实，无重复自动化。
+- 唯一写入归属：旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 仅完成本次最后交接文档提交，此提交成功后停止仓库写入；新会话第一轮只读、后续heartbeat或用户继续指令取得唯一写入归属，从WB-15接续，不等待重新授权。当前源代码基线为 `54c78755`，最后交接文档提交本身的实际哈希以 `git log -1` 为准。
+- 后续顺序：WB-15 Studio Web客户端消费身份/lifecycle/canStop；WB-16 VSCode→Web最终回选与认证边界；WB-17 Relation下一模型页面；WB-18 Document403显式安全恢复与高级读取预算。详细归属与验收先冻结再派专属子智能体。真实Server权限、完整九模型、WebView2/干净Windows、安装、AI/MCP与三面发行物仍未全量验收，不能暂停整体heartbeat。
+- 三名实施/交叉复核代理均已结束并停止写入；根有界runner与代理核验回收各自进程/临时对象。Git忽略的既有依赖/构建输出与必要UI证据保留；其它未证实归属的旧测试目录不清理。根临时runner只服务最后门禁，结束后按绝对路径核验回收。
 - `origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，禁止合并、删除或改写。其它会话的博客文件不属于本任务。
 
 ## 早期状态（历史）

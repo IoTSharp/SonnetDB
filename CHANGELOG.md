@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 三宿主会话交接与后续队列（2026-10-06）**：WB-12/13/14分别保存本地验证与独立提交；HANDOFF顶部集中记录真实哈希、风险边界与唯一写入归属，路线图区分本地切片和完整验收，队列列出WB-15～WB-18。用户确认的新会话已创建，同一个每30分钟workbench heartbeat转移并回读核实；旧会话最后交接提交后停止写入，三宿主整体研发继续，未push/发布/部署。
+
 - **M47 WB-12 Document Workbench 迁移（2026-10-06）**：保留 database/collection 原名和旧入口，补五区锚点与六态、无权限载荷清理、只读写门禁；查询/文件picker丢弃旧目标响应，审批绑定原连接/数据库/集合，导入冻结模式与项目。Find预览最多1000文档；同身份Schema刷新保留停止进度与逐项错误，101项导入停止、旧文件失败和桥接握手竞态均有回归。专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；403后显式恢复、Aggregate/Distinct预算、真实Server权限及三宿主整体旅程仍待补。
 
 - **M47 WB-14 VS Code Workbench 资源入口（2026-10-06）**：新增 `sonnetdb.openWorkbench` 命令与 Explorer 上下文入口，将九模型、index/backup 投影到保留 database、原名/大小写与 legacy key 的资源身份；MQ database + Topic / instance `.system/mq`、Graph Beta 不变。链接保留部署子路径，只含 database/model/tool/node，不携带凭据或 SQL、不自动执行。TypeScript、Node20/20与明确本机 Code.exe 的真实 Extension Host 注册 smoke通过；浏览器最终认证/权限/回选、VSIX和三宿主全旅程仍待独立证据。
