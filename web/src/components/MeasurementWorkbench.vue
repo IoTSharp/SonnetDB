@@ -1,22 +1,30 @@
 <template>
-  <main class="measurement-workbench" data-testid="workbench-measurement">
-    <section class="measurement-toolbar">
+  <main
+    class="measurement-workbench"
+    data-testid="workbench-measurement"
+    data-shell="five-zone"
+    :data-state="measurementState"
+    :data-database="targetDb"
+    :data-resource-key="measurement?.name ?? ''"
+  >
+    <section class="measurement-toolbar" data-zone="toolbar">
       <div class="measurement-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="success" :bordered="false">MEASUREMENT</n-tag>
           <n-text class="measurement-toolbar__title">{{ measurement?.name ?? 'No measurement selected' }}</n-text>
           <n-tag v-if="tagColumns.length" size="tiny" :bordered="false">{{ tagColumns.length }} TAG</n-tag>
           <n-tag v-if="fieldColumns.length" size="tiny" :bordered="false">{{ fieldColumns.length }} FIELD</n-tag>
+          <n-tag size="tiny" :bordered="false" data-testid="measurement-state">{{ stateDescriptor.label }}</n-tag>
         </n-space>
         <n-text depth="3" class="measurement-toolbar__meta">
           {{ targetDb || 'database' }} · 点级编辑、文件导入与目标级实时监控
         </n-text>
       </div>
       <n-space v-if="activeView === 'points'" size="small" align="center" :wrap="true">
-        <n-button size="small" secondary :loading="loadingPoints" @click="loadPoints">刷新</n-button>
-        <n-button size="small" quaternary :disabled="pointRows.length === 0" @click="exportVisiblePoints('csv')">导出 CSV</n-button>
-        <n-button size="small" quaternary :disabled="pointRows.length === 0" @click="exportVisiblePoints('json')">导出 JSON</n-button>
-        <n-button size="small" type="primary" :disabled="!measurement" @click="openNewPoint">新增数据点</n-button>
+        <n-button size="small" secondary :loading="loadingPoints" :disabled="permissionDenied" @click="loadPoints">刷新</n-button>
+        <n-button size="small" quaternary :disabled="permissionDenied || pointRows.length === 0" @click="exportVisiblePoints('csv')">导出 CSV</n-button>
+        <n-button size="small" quaternary :disabled="permissionDenied || pointRows.length === 0" @click="exportVisiblePoints('json')">导出 JSON</n-button>
+        <n-button size="small" type="primary" :disabled="!measurement || readOnly || permissionDenied" @click="openNewPoint">新增数据点</n-button>
         <n-button size="small" quaternary @click="historyVisible = true">历史</n-button>
       </n-space>
     </section>
@@ -25,21 +33,32 @@
       :model-value="activeView"
       :items="sections"
       aria-label="时序数据工作区"
+      data-zone="tabs"
       @update:model-value="activeView = $event as MeasurementView"
     />
 
-    <WriteApprovalPanel
-      v-if="approvalPlan"
-      :plan="approvalPlan"
-      :busy="writeBusy"
-      :abortable="pendingOperations.some((item) => item.action === 'import')"
-      @cancel="clearPendingOperations"
-      @confirm="confirmPendingOperations"
-      @abort="importCancelRequested = true"
-    />
+    <section class="measurement-approval-zone" data-zone="approval">
+      <WriteApprovalPanel
+        v-if="approvalPlan && !readOnly && !permissionDenied"
+        :plan="approvalPlan"
+        :busy="writeBusy"
+        :abortable="pendingOperations.some((item) => item.action === 'import')"
+        @cancel="clearPendingOperations"
+        @confirm="confirmPendingOperations"
+        @abort="importCancelRequested = true"
+      />
+    </section>
+
+    <!-- The parent workbench owns the five-zone shell. These anchors keep the
+         center data plane and right Inspector context connectable without
+         changing the legacy measurement route or resource key. -->
+    <div class="measurement-zone-anchors" aria-hidden="true">
+      <span data-zone="center" data-slot="measurement-data" />
+      <span data-zone="context" data-slot="measurement-inspector" />
+    </div>
 
     <template v-if="activeView === 'points'">
-      <section class="measurement-filterbar">
+      <section class="measurement-filterbar" data-zone="center">
         <label>
           <span>起始时间</span>
           <input v-model="fromTime" type="datetime-local" />
@@ -60,12 +79,12 @@
           <span>行数</span>
           <n-select v-model:value="pointLimit" size="small" :options="limitOptions" />
         </label>
-        <n-button size="small" secondary :loading="loadingPoints" @click="loadPoints">查询</n-button>
+        <n-button size="small" secondary :loading="loadingPoints" :disabled="permissionDenied" @click="loadPoints">查询</n-button>
       </section>
 
       <n-alert v-if="errorMessage" type="error" :title="errorMessage" closable class="measurement-alert" @close="errorMessage = ''" />
 
-      <section v-if="editorOpen && measurement" class="point-editor">
+      <section v-if="editorOpen && measurement && !readOnly && !permissionDenied" class="point-editor">
         <header class="point-editor__head">
           <div>
             <n-text class="point-editor__title">{{ editingSource ? '校正数据点' : '新增数据点' }}</n-text>
@@ -120,7 +139,8 @@
       </section>
 
       <section class="measurement-grid-shell">
-        <n-empty v-if="!measurement" description="请从资源浏览器选择 Measurement。" />
+        <n-empty v-if="permissionDenied" description="当前身份没有 Measurement 读取权限，点值已隐藏。" />
+        <n-empty v-else-if="!measurement" description="请从资源浏览器选择 Measurement。" />
         <n-data-table
           v-else
           :columns="pointTableColumns"
@@ -135,31 +155,31 @@
           class="measurement-grid"
         />
       </section>
-      <footer class="measurement-statusbar">
+      <footer class="measurement-statusbar" data-zone="status">
         <span>{{ pointSummary }}</span>
         <code v-if="lastPointSql">{{ lastPointSql }}</code>
       </footer>
     </template>
 
-    <section v-else-if="activeView === 'import'" class="measurement-import">
+    <section v-else-if="activeView === 'import'" class="measurement-import" data-zone="center">
       <section class="measurement-toolband">
         <div>
           <n-text class="measurement-section-title">Measurement 文件导入</n-text>
           <n-text depth="3">CSV / JSON / JSONL，自动映射列、类型校验、分批提交并记录操作历史。</n-text>
         </div>
         <n-space size="small" align="center" :wrap="true">
-          <n-radio-group v-model:value="importFormat" size="small">
+          <n-radio-group v-model:value="importFormat" size="small" :disabled="readOnly || permissionDenied">
             <n-radio-button value="csv">CSV</n-radio-button>
             <n-radio-button value="json">JSON / JSONL</n-radio-button>
           </n-radio-group>
           <input ref="fileInput" type="file" class="measurement-file-input" accept=".csv,.json,.jsonl,.ndjson,text/csv,application/json" @change="onFileSelected" />
-          <n-button size="small" secondary @click="fileInput?.click()">选择文件</n-button>
-          <n-button size="small" type="primary" :disabled="!importText.trim()" @click="analyzeImport">解析</n-button>
-          <n-button size="small" quaternary @click="clearImport">清空</n-button>
+          <n-button size="small" secondary :disabled="readOnly || permissionDenied" @click="fileInput?.click()">选择文件</n-button>
+          <n-button size="small" type="primary" :disabled="readOnly || permissionDenied || !importText.trim()" @click="analyzeImport">解析</n-button>
+          <n-button size="small" quaternary :disabled="readOnly || permissionDenied" @click="clearImport">清空</n-button>
         </n-space>
       </section>
 
-      <n-input v-model:value="importText" type="textarea" :autosize="{ minRows: 4, maxRows: 8 }" placeholder="粘贴 CSV、JSON 数组或 JSONL 数据" />
+      <n-input v-model:value="importText" type="textarea" :disabled="readOnly || permissionDenied" :autosize="{ minRows: 4, maxRows: 8 }" placeholder="粘贴 CSV、JSON 数组或 JSONL 数据" />
 
       <section v-if="importParsed && measurement" class="measurement-import-grid">
         <div class="measurement-import-map">
@@ -188,8 +208,8 @@
 
       <section class="measurement-import-actions">
         <n-space size="small" align="center" :wrap="true">
-          <n-button size="small" secondary :disabled="!importParsed" @click="validateImportOnly">校验</n-button>
-          <n-button size="small" type="primary" :disabled="!importParsed || importBusy" @click="stageImport">暂存导入</n-button>
+          <n-button size="small" secondary :disabled="permissionDenied || !importParsed" @click="validateImportOnly">校验</n-button>
+          <n-button size="small" type="primary" :disabled="readOnly || permissionDenied || !importParsed || importBusy" @click="stageImport">暂存导入</n-button>
         </n-space>
         <n-progress v-if="importProgress.total" type="line" :percentage="importProgressPercent" :height="8" processing />
       </section>
@@ -205,7 +225,7 @@
       />
     </section>
 
-    <section v-else-if="activeView === 'monitor'" class="measurement-monitor">
+    <section v-else-if="activeView === 'monitor'" class="measurement-monitor" data-zone="center">
       <section class="monitor-controls">
         <n-radio-group v-model:value="monitorModel" size="small">
           <n-radio-button value="measurement">Measurement</n-radio-button>
@@ -214,8 +234,8 @@
         <n-select v-model:value="monitorTarget" size="small" :options="monitorTargetOptions" class="monitor-controls__target" />
         <n-select v-model:value="monitorInterval" size="small" :options="intervalOptions" class="monitor-controls__interval" />
         <n-select v-model:value="monitorLimit" size="small" :options="monitorLimitOptions" class="monitor-controls__interval" />
-        <n-button size="small" secondary :loading="monitorLoading" @click="refreshMonitor(true)">立即刷新</n-button>
-        <n-button size="small" :type="monitorRunning ? 'warning' : 'primary'" @click="toggleMonitor">
+        <n-button size="small" secondary :loading="monitorLoading" :disabled="permissionDenied" @click="refreshMonitor(true)">立即刷新</n-button>
+        <n-button size="small" :type="monitorRunning ? 'warning' : 'primary'" :disabled="permissionDenied" @click="toggleMonitor">
           <template #icon><Pause v-if="monitorRunning" :size="15" /><Play v-else :size="15" /></template>
           {{ monitorRunning ? '暂停' : '开始' }}
         </n-button>
@@ -245,7 +265,7 @@
       </section>
     </section>
 
-    <section v-else class="measurement-schema">
+    <section v-else class="measurement-schema" data-zone="center">
       <header>
         <div>
           <n-text class="measurement-section-title">Measurement Schema</n-text>
@@ -253,7 +273,8 @@
         </div>
         <n-button size="small" secondary @click="emit('openSql', `DESCRIBE MEASUREMENT ${formatSqlIdentifier(measurement?.name ?? '')}`)">在 SQL 中查看</n-button>
       </header>
-      <n-data-table :columns="schemaTableColumns" :data="columns" :bordered="false" :pagination="false" size="small" />
+      <n-empty v-if="permissionDenied" description="当前身份没有 Measurement Schema 权限，结构载荷已隐藏。" />
+      <n-data-table v-else :columns="schemaTableColumns" :data="columns" :bordered="false" :pagination="false" size="small" />
     </section>
 
     <WorkbenchHistoryDrawer v-model:show="historyVisible" :active-database="targetDb" />
@@ -325,10 +346,16 @@ const props = withDefaults(defineProps<{
   measurements?: MeasurementInfo[];
   tables?: TableInfo[];
   loading?: boolean;
+  /** 只读宿主仍可查询、导出和查看 Schema，但不能暂存或提交写入。 */
+  readOnly?: boolean;
+  /** 服务端明确拒绝 Measurement 载荷时隐藏点值与 Schema。 */
+  permissionDenied?: boolean;
 }>(), {
   measurements: () => [],
   tables: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -338,6 +365,25 @@ const emit = defineEmits<{
 
 type MeasurementView = 'points' | 'import' | 'monitor' | 'schema';
 type MonitorModel = 'measurement' | 'table';
+type MeasurementWorkbenchState = 'normal' | 'empty' | 'error' | 'permission' | 'readonly' | 'longContent';
+interface MeasurementStateDescriptor {
+  label: string;
+  primary: string;
+  summary: string;
+}
+
+/**
+ * 生产 Measurement 工作台的六态合同；具体载荷仍由服务端结果决定。
+ * 该表供外壳/Inspector 接线和回归测试读取，不能把静态状态当作服务端证据。
+ */
+const measurementStateContract: Record<MeasurementWorkbenchState, MeasurementStateDescriptor> = {
+  normal: { label: '正常', primary: '查询数据点', summary: '显示当前 Measurement 的时间窗、TAG/FIELD 与有界点结果。' },
+  empty: { label: '空', primary: '调整时间范围', summary: '没有可显示点时保留 Measurement、时间窗和 TAG 过滤。' },
+  error: { label: '错误', primary: '检查并重试', summary: '只替换点结果并保留当前查询输入。' },
+  permission: { label: '无权限', primary: '查看数据库权限', summary: '隐藏点值与 Schema 载荷，说明数据库 Measurement Read 权限。' },
+  readonly: { label: '只读', primary: '导出当前结果', summary: '查询、刷新、导出和 Schema 可用，写入/删除/导入提交禁用。' },
+  longContent: { label: '长结果', primary: '查看结果预算', summary: '按服务端行数或字节预算展示，不能加载无限历史。' },
+};
 interface PointGridRow extends Record<string, unknown> { __key: string; __row: number }
 interface PendingOperation {
   id: string;
@@ -365,6 +411,7 @@ const tagColumns = computed(() => columns.value.filter((column) => columnRole(co
 const fieldColumns = computed(() => columns.value.filter((column) => columnRole(column) === 'field'));
 const pointResult = ref<SqlResultSet | null>(null);
 const loadingPoints = ref(false);
+let pointRequestId = 0;
 const errorMessage = ref('');
 const lastPointSql = ref('');
 const fromTime = ref('');
@@ -396,6 +443,27 @@ const pointSummary = computed(() => {
   if (pointResult.value?.end) return `${pointRows.value.length} 个点 · ${pointResult.value.end.elapsedMs.toFixed(2)} ms`;
   return props.measurement ? '准备查询' : '未选择 Measurement';
 });
+const readOnly = computed(() => props.readOnly);
+const permissionError = computed(() => {
+  const error = pointResult.value?.error;
+  const detail = `${error?.code ?? ''} ${error?.message ?? errorMessage.value}`.toLowerCase();
+  return /permission|forbidden|unauthori[sz]ed|access.denied/.test(detail);
+});
+const permissionDenied = computed(() => props.permissionDenied || permissionError.value);
+const measurementState = computed<MeasurementWorkbenchState>(() => {
+  if (!props.measurement) return 'empty';
+  if (permissionDenied.value) return 'permission';
+  const error = pointResult.value?.error;
+  if (error || errorMessage.value) {
+    const detail = `${error?.code ?? ''} ${error?.message ?? errorMessage.value}`.toLowerCase();
+    return /permission|forbidden|unauthori[sz]ed|access.denied/.test(detail) ? 'permission' : 'error';
+  }
+  if (pointResult.value?.end && pointRows.value.length === 0) return 'empty';
+  if (readOnly.value) return 'readonly';
+  if (pointResult.value?.end?.truncated || pointRows.value.length >= pointLimit.value) return 'longContent';
+  return 'normal';
+});
+const stateDescriptor = computed(() => measurementStateContract[measurementState.value]);
 
 const pointTableColumns = computed<DataTableColumns<PointGridRow>>(() => [
   { title: '#', key: '__row', width: 54, fixed: 'left' },
@@ -415,8 +483,8 @@ const pointTableColumns = computed<DataTableColumns<PointGridRow>>(() => [
     width: 148,
     fixed: 'right',
     render: (row: PointGridRow) => h(NSpace, { size: 4, wrap: false }, { default: () => [
-      h(NButton, { size: 'tiny', secondary: true, onClick: () => openEditPoint(row) }, { default: () => '校正' }),
-      h(NButton, { size: 'tiny', tertiary: true, type: 'error', onClick: () => stageDelete(row) }, { default: () => '删除' }),
+      h(NButton, { size: 'tiny', secondary: true, disabled: readOnly.value || permissionDenied.value, onClick: () => openEditPoint(row) }, { default: () => '校正' }),
+      h(NButton, { size: 'tiny', tertiary: true, type: 'error', disabled: readOnly.value || permissionDenied.value, onClick: () => stageDelete(row) }, { default: () => '删除' }),
     ] }),
   },
 ]);
@@ -440,7 +508,10 @@ const approvalPlan = computed<WriteApprovalPlan | null>(() => {
 });
 
 async function loadPoints(): Promise<void> {
-  if (!props.measurement || !props.targetDb) return;
+  if (!props.measurement || !props.targetDb || permissionDenied.value) return;
+  const requestId = ++pointRequestId;
+  const requestDatabase = props.targetDb;
+  const requestMeasurement = props.measurement.name;
   loadingPoints.value = true;
   errorMessage.value = '';
   const parameters: SqlParameters = { limit: sqlParameterFromValue(pointLimit.value) };
@@ -466,17 +537,20 @@ async function loadPoints(): Promise<void> {
   ].filter(Boolean).join('\n');
   lastPointSql.value = sql;
   try {
-    const result = await execDataSql(auth.api, props.targetDb, sql, parameters);
+    const result = await execDataSql(auth.api, requestDatabase, sql, parameters);
+    if (requestId !== pointRequestId || requestDatabase !== props.targetDb || requestMeasurement !== props.measurement?.name) return;
     pointResult.value = result;
     if (result.error) errorMessage.value = result.error.message;
   } catch (error) {
+    if (requestId !== pointRequestId || requestDatabase !== props.targetDb || requestMeasurement !== props.measurement?.name) return;
     errorMessage.value = error instanceof Error ? error.message : '加载数据点失败。';
   } finally {
-    loadingPoints.value = false;
+    if (requestId === pointRequestId) loadingPoints.value = false;
   }
 }
 
 function openNewPoint(): void {
+  if (readOnly.value || permissionDenied.value) return;
   resetPointDraft();
   pointDraft.time = new Date().toISOString();
   editingSource.value = null;
@@ -484,6 +558,7 @@ function openNewPoint(): void {
 }
 
 function openEditPoint(row: PointGridRow): void {
+  if (readOnly.value || permissionDenied.value) return;
   resetPointDraft();
   for (const column of columns.value) {
     pointDraft[column.name] = row[column.name];
@@ -504,7 +579,7 @@ function resetPointDraft(): void {
 }
 
 function stagePoint(): void {
-  if (!props.measurement) return;
+  if (!props.measurement || readOnly.value || permissionDenied.value) return;
   const validation = validateMeasurementPoint(props.measurement, pointDraft);
   pointValidationErrors.value = validation.errors;
   if (validation.errors.length > 0) return;
@@ -532,7 +607,7 @@ function stagePoint(): void {
 }
 
 function stageDelete(row: PointGridRow): void {
-  if (!props.measurement) return;
+  if (!props.measurement || readOnly.value || permissionDenied.value) return;
   pendingOperations.value.push({
     id: `delete_${Date.now().toString(36)}_${row.__row}`,
     action: 'delete',
@@ -548,7 +623,7 @@ function clearPendingOperations(): void {
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (!props.measurement || pendingOperations.value.length === 0) return;
+  if (!props.measurement || readOnly.value || permissionDenied.value || pendingOperations.value.length === 0) return;
   writeBusy.value = true;
   const operations = [...pendingOperations.value];
   const statements = operations.flatMap((operation) => operation.statements);
@@ -604,7 +679,7 @@ async function confirmPendingOperations(): Promise<void> {
 }
 
 async function exportVisiblePoints(format: 'csv' | 'json'): Promise<void> {
-  if (!props.measurement || !pointResult.value?.hasColumns) return;
+  if (!props.measurement || permissionDenied.value || !pointResult.value?.hasColumns) return;
   const rows = pointRows.value.map(({ __key: _key, __row: _row, ...row }) => row);
   const content = format === 'csv'
     ? buildCsv(rows, pointResult.value.columns)
@@ -685,7 +760,7 @@ async function onFileSelected(event: Event): Promise<void> {
 }
 
 function analyzeImport(): void {
-  if (!props.measurement) return;
+  if (!props.measurement || readOnly.value || permissionDenied.value) return;
   importParsed.value = parseMeasurementImport(importFormat.value, importText.value);
   importMapping.value = buildMeasurementImportMapping(props.measurement, importParsed.value.headers);
   importValidation.value = null;
@@ -706,6 +781,7 @@ function currentImportValidation(): MeasurementImportValidation | null {
 }
 
 function validateImportOnly(): void {
+  if (permissionDenied.value) return;
   const validation = currentImportValidation();
   if (!validation) return;
   if (validation.errors.length) message.error(`发现 ${validation.errors.length} 个导入问题。`);
@@ -713,7 +789,7 @@ function validateImportOnly(): void {
 }
 
 function stageImport(): void {
-  if (!props.measurement) return;
+  if (!props.measurement || readOnly.value || permissionDenied.value) return;
   const validation = currentImportValidation();
   if (!validation || validation.errors.length > 0 || validation.rows.length === 0) {
     message.error(validation?.errors.length ? '请先修复导入问题。' : '没有可导入的数据点。');
@@ -780,6 +856,7 @@ function buildMonitorSql(): string {
 }
 
 async function refreshMonitor(allowOverlap = false): Promise<void> {
+  if (permissionDenied.value) return;
   const sql = buildMonitorSql();
   if (!sql || (monitorLoading.value && !allowOverlap)) return;
   const requestId = ++monitorRequestId;
@@ -792,6 +869,7 @@ async function refreshMonitor(allowOverlap = false): Promise<void> {
     monitorUpdatedAt.value = Date.now();
     if (result.error) monitorError.value = result.error.message;
   } catch (error) {
+    if (requestId !== monitorRequestId) return;
     monitorError.value = error instanceof Error ? error.message : '实时监控查询失败。';
   } finally {
     monitorLoading.value = false;
@@ -843,8 +921,13 @@ function recordOperation(
   });
 }
 
-watch(() => props.measurement?.name, () => {
+watch(() => `${props.targetDb}\u0000${props.measurement?.name ?? ''}`, () => {
+  pointRequestId += 1;
+  monitorRequestId += 1;
   pointResult.value = null;
+  errorMessage.value = '';
+  monitorResult.value = null;
+  monitorError.value = '';
   closeEditor();
   clearPendingOperations();
   if (props.measurement) {
@@ -852,6 +935,15 @@ watch(() => props.measurement?.name, () => {
     void loadPoints();
   }
 }, { immediate: true });
+
+watch(permissionDenied, (denied) => {
+  if (!denied) return;
+  pointRequestId += 1;
+  monitorRequestId += 1;
+  pointResult.value = null;
+  monitorResult.value = null;
+  monitorError.value = '';
+});
 
 watch(monitorModel, () => {
   monitorTarget.value = monitorModel.value === 'measurement' ? props.measurements[0]?.name ?? '' : props.tables[0]?.name ?? '';
@@ -873,6 +965,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .measurement-workbench { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
+.measurement-zone-anchors { display: none; }
+.measurement-approval-zone:empty { display: none; }
 .measurement-toolbar { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 11px 16px; border-bottom: 1px solid var(--sndb-border); }
 .measurement-toolbar__identity { min-width: 0; }
 .measurement-toolbar__title { font-size: 20px; font-weight: 650; }

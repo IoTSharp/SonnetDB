@@ -277,3 +277,12 @@
 - 验证：WB-10 定向 5/5；Explorer/路由/管理兼容 15/15；全 Web Node 112/112；TypeScript 通过；`npm run build`（vue-tsc + Vite）通过；`git diff --check` 通过；独立只读复核 PASS；提交前最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
 - 真实 Server、权限、三宿主、AOT、安装、发布、生产全量页面迁移及浏览器真实运行证据仍未由本切片宣称完成。`origin/parity-results` 当前仍保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，不 push、不发布、不部署。
 - 当前队列已闭环至 WB-10；下一次继续前先重新读取本文件、AGENTS.md 与 work-queue，确认是否有新的已授权 Workbench 切片，避免重复派单或将静态兼容证据扩大解释。
+
+## 当前 Workbench 检查点（WB-11，2026-10-05）
+
+- 用户已明确确认 Measurement Workbench：沿用现有 measurement 路由和旧深链接、五区外壳、查询/刷新/导出，写入/删除继续预览与审批；保留 database、measurement 原始名称/大小写和旧 key；不改 MQ 存储、Graph 语义、Server API 或三宿主发布。
+- 实现文件仅为 `web/src/components/MeasurementWorkbench.vue` 与 `web/tests/measurement-workbench-migration.test.mjs`。组件已增加五区锚点、六态 `normal/empty/error/permission/readonly/longContent`、只读写操作门禁、权限错误派生与点值/Schema/监控载荷清理、导出禁用、跨数据库同名切换的 request token 隔离；监控成功和失败路径均防止旧响应回写。
+- 验证已完成：专属 Node 5/5；`node --experimental-vm-modules --test web/tests/*.test.mjs` 117/117；`npm --prefix web run build`（vue-tsc + Vite）通过；现有 Measurement Playwright 场景 8/8 通过（渲染、导入审批、停止/恢复、监控切换、校正校验、窄桌面布局）；`git diff --check` 通过。独立只读复核 PASS。
+- 路线图已新增前置“当前完成度一览”，并把 M45/M47 总览状态与 WB 状态索引对齐；这解决了完成项和未完成项不易区分的问题。状态仍严格区分本地切片与真实 Server、固定硬件、长期运行、三宿主、安装和发布证据。
+- 最终门禁已通过：`dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`。下一步只 stage 本次 7 个任务文件并提交，随后回填实际提交哈希并核对提交内容；不要 stage 其它会话文件、构建产物或凭据；不 push、不发布、不部署。`origin/parity-results` 保持独立。
+- 后续边界：WB-12 及其它模型页面需另选有界切片并取得对应确认；Studio、VS Code、WorkBuddy/stdio bridge、真实 Server 权限旅程、全量九模型、安装与发布继续保持未闭环，不因 WB-11 本地 PASS 升级为整体完成。

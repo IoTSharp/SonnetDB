@@ -73,6 +73,13 @@
 - 独占候选文件：`web/src/views/SqlConsoleView.vue`、`web/tests/explorer-database-route-selection.test.mjs`（必要时新增小型手动切库回归）；不改资源 descriptor、CapabilityRegistry 或 MQ 存储。
 - 验收：旧/新 tool/model/node/database query、metadata/token 等待、A→未知→恢复、MQ database+Topic、Graph Beta、route-only 全回归；定向 Node 5/5、Explorer/路由/管理兼容 15/15、全 Web Node 112/112，TypeScript、Vite build、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。策略和未覆盖的真实 Server/权限/三宿主边界写入记录。
 
+## WB-11 当前切片（2026-10-05）
+
+- 状态：已完成本地切片，提交哈希待回填；用户已确认 Measurement Workbench 页面基线，根会话负责共享文档、集成、门禁与提交，子智能体 `/root/wb10_manual_switch` 独占页面组件与专属迁移测试。依赖 WB-10 `ee44d7bb` / `d6aa81d8`。
+- 范围：沿用已确认五区外壳与现有 measurement 路由/旧深链接；中心区域呈现数据点、导入、监控、Schema，右侧 Inspector 继续由工作台外壳承载，底部保留结果/状态；查询、刷新、导出可用，写入/删除继续进入 WriteApprovalPanel。
+- 身份与边界：保留 database、measurement 原名/大小写和旧 key；不改 MQ 存储、Graph 语义、Server API 或三宿主发布，不把本地 UI/定向测试写成真实服务验收。
+- 验收：normal、empty、error、permission、readonly、longContent 六态有可验证生产组件合同；旧路由/深链接、查询/刷新/导出、写审批、跨库同名资源和权限错误载荷清理已覆盖。专属 Node 5/5、全 Web Node 117/117、TypeScript、Vite build、Measurement Playwright 8/8、`git diff --check`、最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过，提交哈希待回填。真实 Server、三宿主、安装、发布和全量九模型验收仍待补。
+
 ## 会话与自动检查
 
 新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。

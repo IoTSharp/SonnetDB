@@ -165,3 +165,11 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `SqlConsoleView` 的 route watcher 在新的 `database` token 变化时仍优先选择有效数据库；同一旧 URL 下用户手动切换数据库后，清空旧 projection token，让后续只改变 `model/node` 的导航在当前数据库解析并安全回退，不强制切回 URL 中的旧数据库。route-only 不自动执行 SQL。
 - 验证：`node --experimental-vm-modules --test web/tests/explorer-database-route-selection.test.mjs` 5/5；`node --experimental-vm-modules --test web/tests/*.test.mjs` 112/112；Explorer/路由/管理兼容定向 15/15；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`npm run build`（vue-tsc + Vite）通过；`git diff --check` 通过；独立只读复核 PASS。
 - MQ 仍使用 database + Topic 身份，Graph 仍 Beta，invalid database token 恢复路径未回归。证据不覆盖真实 Server、权限、三宿主、AOT、安装、发布或全量页面迁移；最终仓库 restore/format 门禁在提交前单独执行。
+
+## WB-11 Measurement Workbench（2026-10-05）
+
+- `MeasurementWorkbench.vue` 沿用现有 measurement 路由和旧深链接，在组件上暴露五区外壳锚点、database 与原始 measurement 名称/大小写/旧 key 身份；不改 MQ 存储、Graph 语义、Server API 或三宿主发布。
+- 生产组件合同覆盖 `normal`、`empty`、`error`、`permission`、`readonly`、`longContent` 六态。查询、刷新、CSV/JSON 导出和 Measurement/关系表监控保持可用；写入、删除、导入暂存与确认继续唯一进入 `WriteApprovalPanel`，只读和无权限状态禁用写操作。
+- 权限错误不仅依赖宿主 prop：SQL 返回 permission/forbidden/unauthorized/access denied 时会派生有效权限态，清理点值、Schema、监控结果和旧请求，导出按钮与导出函数同时拒绝旧载荷。切换数据库或同名 Measurement 会递增 point/monitor request token、清理旧结果并重新查询，旧成功或失败响应不能回写新资源。
+- 验证：`node --test web/tests/measurement-workbench-migration.test.mjs` 5/5；`node --experimental-vm-modules --test web/tests/*.test.mjs` 117/117；`npm --prefix web run build`（vue-tsc + Vite）通过；现有 Measurement Playwright 场景 8/8（共享合同渲染、导入审批、分批停止/恢复、监控切换、校正校验、窄桌面布局）通过；`git diff --check` 通过。
+- 证据边界：上述为生产 Web 组件、现有 API 接线和本地浏览器 fixture 证据，不等同真实 Server 权限矩阵、固定硬件、AOT、Studio/VS Code/WorkBuddy 宿主、安装、发布或全量九模型验收。最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 已通过。
