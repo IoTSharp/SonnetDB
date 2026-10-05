@@ -181,3 +181,10 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - Release `dotnet test tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj --filter FullyQualifiedName~StudioConnectionLibraryTests|FullyQualifiedName~StudioHostContractTests|FullyQualifiedName~StartEmbeddedAsync_WithExistingDatabase_MountsItAndRejectsInvalidSwitch|FullyQualifiedName~StartAsync_WhenExternalHealthyServerOwnsTargetPort_DoesNotStartOrStopIt` Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -m:1 定向34/34（两个新增类32项与上述两个既有测试；非整个ManagedLocal类），通过Studio/Core/Server依赖构建；包含真实bridge GET/PUT与既有ManagedLocal/external实例测试。独立只读复核PASS，git diff --check通过。
 - 证据限于本轮6文件；Web客户端尚未消费新增展示字段，干净Windows/WebView2、安装升级卸载、AOT/发行物和全三宿主旅程不在PASS内。既有测试helper的循环/临时目录治理也不由本轮定向PASS宣称全量完成。
 - 根在最终待提交树串行执行完整solution restore与Format Check，未通过不提交；实际提交哈希在后续检查点记录。
+## WB-14 VS Code 九模型资源与 Workbench 深链接（2026-10-06）
+
+- 六文件：core/types、workbenchResource、新专属Node测试、extension命令注册、package contribution与host/index注册断言；tree/sqlText未改，package-lock未改。恢复315个既有lock依赖时禁用scripts，没有新增工具或依赖。
+- Explorer九模型与index/backup保留database、原名、大小写、冒号和旧key；MQ身份含database+Topic，物理instance/.system/mq与单库备份排除，Graph Beta。Open Workbench只导航到部署子路径下的Web Admin，以白名单database/model/tool/node投影，不携带query正文/Token/SecretStorage、不自动SQL或扩大治理权限。
+- `npm test`完成TypeScript compile与Node20/20（新增8项）；设置明确本机Code.exe/VSCODE_EXECUTABLE_PATH的Extension Host smoke退出0，验证新命令注册及旧语言能力，未下载VS Code。Studio实施者独立只读六文件复核PASS，diff check通过。
+- Host smoke未执行外部浏览器导航；最终Web对象回选、真实登录/权限/Server、VSIX、安装/发布与全三宿主仍待独立验收。任务PID与Host临时目录已核验回收；Git忽略的node_modules/out保留供复用。
+- WB-13代码提交为7483584771ba7164b30047eff59f2c6f2e97e96f，已通过完整restore/Format Check。WB-14由根在其最终树再次执行完整门禁，未通过不提交；真实哈希在后续检查点记录。

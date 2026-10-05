@@ -47,6 +47,7 @@
     "onCommand:sonnetdb.runSelection",
     "onCommand:sonnetdb.explainQuery",
     "onCommand:sonnetdb.newQuery",
+    "onCommand:sonnetdb.openWorkbench",
     "onCommand:sonnetdb.openCopilot",
     "onCommand:sonnetdb.askCopilot",
     "onCommand:sonnetdb.queryDocumentCollection",
@@ -114,6 +115,11 @@
       {
         "command": "sonnetdb.newQuery",
         "title": "SonnetDB: New Query"
+      },
+      {
+        "command": "sonnetdb.openWorkbench",
+        "title": "SonnetDB: Open Workbench in Web Admin",
+        "icon": "$(link-external)"
       },
       {
         "command": "sonnetdb.openCopilot",
@@ -239,6 +245,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "sonnetdb.openWorkbench",
+          "when": "view == sonnetdb.explorer && (viewItem == database || viewItem == measurement || viewItem == table || viewItem == documentCollection || viewItem == index || viewItem == backupStatus || viewItem == kvKeyspace || viewItem == vectorIndex || viewItem == fullTextIndex || viewItem == graph || viewItem == mqTopic || viewItem == objectBucket)",
+          "group": "navigation@5"
+        },
         {
           "command": "sonnetdb.testConnection",
           "when": "view == sonnetdb.explorer && viewItem =~ /^connection/",

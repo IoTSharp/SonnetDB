@@ -8,6 +8,37 @@ export interface SonnetDbConnectionProfile {
   dataRoot?: string;
 }
 
+/** 工作台资源模型；只描述导航，不声明服务器能力或权限。 */
+export type WorkbenchResourceModel =
+  | 'measurement' | 'table' | 'document' | 'kv' | 'index' | 'vector'
+  | 'fulltext' | 'mq' | 'bucket' | 'graph' | 'backup';
+
+/** 保留数据库、资源原始拼写和现有 Explorer key 的宿主导航身份。 */
+export interface WorkbenchResource {
+  readonly database: string;
+  readonly model: WorkbenchResourceModel;
+  readonly name: string;
+  readonly key: string;
+  readonly legacyKey: string;
+  readonly topic?: string;
+  readonly scope: 'database';
+  readonly persistenceScope: 'database' | 'instance';
+  readonly persistence: {
+    readonly scope: 'database' | 'instance';
+    readonly path?: string;
+    readonly shared: boolean;
+    readonly includedInDatabaseBackup: boolean;
+  };
+  readonly stability: 'stable' | 'beta';
+  readonly beta: boolean;
+}
+
+/** 深链接目标；数据库导航可以不指定资源。 */
+export interface WorkbenchTarget {
+  readonly database: string;
+  readonly resource?: WorkbenchResource;
+}
+
 export interface DatabaseListResponse {
   databases: string[];
 }

@@ -6,6 +6,7 @@ const RequiredCommands = [
   'sonnetdb.runQuery',
   'sonnetdb.previewObjectBucket',
   'sonnetdb.showRuntimeMonitor',
+  'sonnetdb.openWorkbench',
 ];
 
 /**
