@@ -1083,9 +1083,12 @@ watch(
           return;
         }
       } else if (db !== requestedDatabase) {
-        // The URL was already applied. A later targetDb change came from the
-        // user, so preserve that choice instead of forcing the URL database.
-        return;
+        // The URL database was already applied. A later targetDb change came
+        // from the user, so preserve that choice instead of forcing the URL
+        // database. Keep evaluating the model/node against the current db;
+        // this lets a browser navigation that only changes model/node resolve
+        // in the manually selected database and safely fall back locally.
+        routeSelectionToken.value = '';
       }
     }
 

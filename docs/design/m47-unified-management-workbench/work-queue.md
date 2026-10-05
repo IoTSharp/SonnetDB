@@ -64,7 +64,14 @@
 - 状态：已完成并提交 `09f5711b feat(m47): add database context to explorer deep links`；负责人：根会话集成，子智能体 `/root/wb09_database_route` 独占实现，`/root/wb06_shell_reviewer` 独立复核。依赖 WB-08 `418c21d3` / `9c3ace1f`。
 - 范围：为新的 Explorer 深链接补可选 `database` 上下文，同时保留旧无 database 的 `tool/model/node` query、旧 redirects、当前 active/default DB 回退和 route-only 不自动执行。
 - 独占候选文件：`web/src/composables/useSqlExplorerRouting.ts`（生成链接携 database，保留旧字段）、`web/src/views/SqlConsoleView.vue`（校验 route.query.database，数据库列表加载后选择指定库，再按现有 helper 回选）、必要时 `web/src/composables/useSqlExplorer.ts`、新增 `web/tests/explorer-database-route-selection.test.mjs` 与兼容测试。不得接入 CapabilityRegistry 或改变 MQ/Graph 资源合同。
-- 验收：九模型、index、backup、大小写/冒号、MQ database+Topic、Graph Beta；有效 database 等待列表后选择，缺失/未知 database 安全回退 active/default，database-only 与 A→未知→恢复路径有 token 保护，用户手动切库不被同一旧 URL 强制切回；旧 query 与 route-only 全回归。自有 Node 4/4，Explorer/路由兼容定向 10/10，独立复核全 Web Node 111/111，TypeScript/Vite、`git diff --check` 和最终 restore/format 通过。浏览器在已手动切库后只改变同 database URL 的 model/node query 仍是后续边界；真实 Server、权限、三宿主和发布证据分开。
+- 验收：九模型、index、backup、大小写/冒号、MQ database+Topic、Graph Beta；有效 database 等待列表后选择，缺失/未知 database 安全回退 active/default，database-only 与 A→未知→恢复路径有 token 保护，用户手动切库不被同一旧 URL 强制切回；旧 query 与 route-only 全回归。自有 Node 4/4，Explorer/路由兼容定向 10/10，独立复核全 Web Node 111/111，TypeScript/Vite、`git diff --check` 和最终 restore/format 通过。手动切库后只改变同 database URL 的 model/node query 由 WB-10 补齐；真实 Server、权限、三宿主和发布证据分开。
+
+## WB-10 当前切片（2026-10-05）
+
+- 状态：实现完成，待最终门禁与提交；负责人：根会话集成，独占实现与独立复核已完成。依赖 WB-09 `09f5711b` / `674b675a`。
+- 范围：补齐用户手动切换数据库后，URL 保留旧 `database` 但只改变 `model/node` 时的投影策略；同一旧 URL 不强制切回，新的 model/node 在当前手动数据库解析或安全回退，不误选其它数据库。新 database query 仍优先切库。
+- 独占候选文件：`web/src/views/SqlConsoleView.vue`、`web/tests/explorer-database-route-selection.test.mjs`（必要时新增小型手动切库回归）；不改资源 descriptor、CapabilityRegistry 或 MQ 存储。
+- 验收：旧/新 tool/model/node/database query、metadata/token 等待、A→未知→恢复、MQ database+Topic、Graph Beta、route-only 全回归；定向 Node 5/5、Explorer/路由/管理兼容 15/15、全 Web Node 112/112，TypeScript、Vite build、`git diff --check` 通过，最终 restore/format 待在提交树执行。策略和未覆盖的真实 Server/权限/三宿主边界写入记录。
 
 ## 会话与自动检查
 

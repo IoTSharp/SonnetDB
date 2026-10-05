@@ -37,12 +37,25 @@ test('database-bearing route selection waits for the list and chooses only valid
   assert.match(viewSource, /routeDatabaseSelectionToken\.value = `invalid-db/);
   assert.match(viewSource, /routeDatabaseSelectionToken\.value !== requestedDatabase/);
   assert.match(viewSource, /else if \(db !== requestedDatabase\)/);
+  assert.match(viewSource, /preserve that choice instead of forcing the URL[\s\S]{0,260}routeSelectionToken\.value = ''/);
   assert.match(viewSource, /explorerKeyFromRoute\(model, node, dbSchema, management\)/);
   assert.ok(
     viewSource.indexOf('const routeDatabaseListReady') < viewSource.indexOf('watch(\n  [')
       && viewSource.indexOf('routeDatabaseListReady.value = true') < viewSource.indexOf('applyRouteDatabaseSelection();'),
     'database selection guard must be established before route key projection',
   );
+});
+
+test('a manual database switch keeps the old URL token but projects later model/node changes locally', () => {
+  const databaseBranchStart = viewSource.indexOf('if (requestedDatabase) {');
+  const projectionStart = viewSource.indexOf('if (!db || db === CONTROL_PLANE_KEY || !dbSchema || !management) return;', databaseBranchStart);
+  assert.ok(databaseBranchStart >= 0 && projectionStart > databaseBranchStart, 'database guard should precede local projection');
+  const branch = viewSource.slice(databaseBranchStart, projectionStart);
+  assert.match(branch, /if \(routeDatabaseSelectionToken\.value !== requestedDatabase\)/);
+  assert.match(branch, /if \(db !== requestedDatabase\) \{[\s\S]{0,180}selectDatabase\(requestedDatabase\);[\s\S]{0,80}return;/);
+  assert.match(branch, /else if \(db !== requestedDatabase\) \{[\s\S]{0,500}routeSelectionToken\.value = '';/);
+  assert.doesNotMatch(branch, /else if \(db !== requestedDatabase\) \{[\s\S]{0,500}return;/);
+  assert.match(viewSource, /const token = `\$\{requestedDatabase \?\? ''\}\\u0000\$\{db\}\\u0000\$\{model\}/);
 });
 
 test('legacy links without database keep active/default database fallback and route-only behavior', () => {

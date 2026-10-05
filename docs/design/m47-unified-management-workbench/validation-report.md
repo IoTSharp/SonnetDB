@@ -152,3 +152,16 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - active 模块映射覆盖 events、monitoring、Modbus、RAG/Copilot、users/grants/tokens、About 等现有二级/管理员路由；About 与 Settings 不会同时高亮。九模型 Explorer、MQ database + Topic / `scope=database` / `persistenceScope=instance` / `.system/mq` 及旧 key 未修改。
 - 验证：`node --test web/tests/workbench-shell-migration.test.mjs web/tests/navigation-compat.test.mjs web/tests/explorer-routing-compat.test.mjs` 13/13；`node --experimental-vm-modules --test web/tests/management-explorer-compat.test.mjs` 5/5；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`git diff --check` 通过。独立只读复核 PASS。
 - 证据边界：普通用户按现有权限隐藏治理/数据流模块；模块兼容落点和静态/TypeScript 证据不代表 Vue 运行时、真实 Server、三宿主、AOT、安装、发布或全量页面迁移已验收。
+
+## WB-07～WB-09 Explorer 资源身份与深链接（2026-10-05）
+
+- WB-07 将九模型、index 和 backup Explorer 节点投影为 `ResourceDescriptor`，对象页签携带 database/resource/legacyKey；MQ 保持 database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq` 与单库备份排除，Graph 保持 Beta。自有测试 5/5、Explorer/路由/壳联合 18/18、全 Web Node 102/102、TypeScript/Vite build 通过。
+- WB-08 为旧 `tool/model/node`（及 tool-only）链接恢复数据库内对象回选，覆盖九模型、index、backup、原名大小写/冒号与缺失/未知回退；route-only 不执行 SQL。自有测试 5/5、定向回归 20/20、全 Web Node 107/107、TypeScript/Vite build 通过。
+- WB-09 为新生成链接增加可选 `database` query，保留旧字段；有效数据库等待列表后选择，未知/缺失数据库安全回退，database-only 与 token 恢复路径可重试。自有测试 4/4、Explorer/路由兼容 10/10、全 Web Node 111/111、TypeScript/Vite build 通过。
+- 上述证据均为现有 Web 源码/运行时静态与本地构建范围，不代表真实 Server、权限、三宿主、AOT、安装、发布或全量页面迁移验收。
+
+## WB-10 手动切库后的深链接投影（2026-10-05）
+
+- `SqlConsoleView` 的 route watcher 在新的 `database` token 变化时仍优先选择有效数据库；同一旧 URL 下用户手动切换数据库后，清空旧 projection token，让后续只改变 `model/node` 的导航在当前数据库解析并安全回退，不强制切回 URL 中的旧数据库。route-only 不自动执行 SQL。
+- 验证：`node --experimental-vm-modules --test web/tests/explorer-database-route-selection.test.mjs` 5/5；`node --experimental-vm-modules --test web/tests/*.test.mjs` 112/112；Explorer/路由/管理兼容定向 15/15；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`npm run build`（vue-tsc + Vite）通过；`git diff --check` 通过；独立只读复核 PASS。
+- MQ 仍使用 database + Topic 身份，Graph 仍 Beta，invalid database token 恢复路径未回归。证据不覆盖真实 Server、权限、三宿主、AOT、安装、发布或全量页面迁移；最终仓库 restore/format 门禁在提交前单独执行。
