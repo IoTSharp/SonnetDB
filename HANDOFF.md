@@ -7,6 +7,11 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- **WB-23 本地切片已验证**：干净起点 `759f3691`，本轮只推进 Graph 权限/有界画布兼容切片，合同及归属冻结在queue顶部。实施 `/root/wb20_vector_impl` 独占Graph组件/API/Node，UI `/root/wb20_vector_ui` 独占新spec，`/root/wb19_fulltext_impl` 只读复核；根独占共享文档/验证/git。原名/Graph Beta不变，提交说明 `feat(m47): isolate Graph canvas and approval outcomes`，实际哈希以git log为准；下一片再盘点Object。
+- 根取得专属Node **27/27**、全Web **260/260**、Graph Chrome **16/16**、既有Graph浏览器 **3/3**、TypeScript/Vite，以及既有真实 Kestrel Graph兼容 **4/4**（权限/预算、点读、operations+JSON round-trip、维护审批重启审计）；证据 `artifacts/wb23-validation-20261006`，门禁前49个进程身份核验0存活，活进程小输入亦证明审计可检出任务自身。UI/API均为fixture，不能计新UI真实权限/三宿主。DOM/ResizeObserver重建和unsafe数字ID/版本最小拒绝门禁已修复并复核；未宣称完整Graph Int64字符串合同。
+- 最终树完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和 staged diff check 均为本地提交放行前置，命令/退出值见 `restore-final2`、`format-final2` 与 `final-gates.json`；源码SHA256绑定验证/门禁树。仅提交本任务11文件，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`；不push、发布、部署或外部沟通。
+- 下一次先接收HANDOFF/AGENTS/queue/git与代理，按WB-24盘点Object的浏览/选中对象/Range隔离；不要仅修list就宣称整页权限闭环，自动治理/tags/hold/版本/processing/thumbnail也需迟返屏障，multipart/语义及审批终态可独立冻结。显式读取恢复、完整Graph Int64字符串/metadata/传输/字节/总堆预算、新UI真实Server权限/写、九模型/三宿主、安装/Extension Host/AOT/硬件/长稳/发布仍待验。heartbeat保持ACTIVE；两处策略保留Temp不删除、不重试或绕过。
+
 - WB-22 完成本地 MQ 权限/请求隔离/有界预览切片，从干净 `92c73a5baa3bfd9aff7a4553eba24382e6420ba5` 接续；本轮提交说明 `feat(m47): isolate MQ preview context and approval outcomes`，实际哈希以git log为准。实施代理只改MQ组件、六个API helper的optional signal、management中单个Topics helper与新Node；UI代理只改新spec，第三代理独立只读复核PASS。三代理已停止写入，根维护六共享文档、验证与git，本轮不启动下一切片。
 - database/Topic/consumerGroup保留原名，MQ仍为database逻辑作用域、database+Topic身份与实例`.system/mq`持久化，单库备份不覆盖实例MQ。六态/readonly与程序入口门禁、全路401/403清旧topics/消息/header/metadata/trend/结果/草稿/审批并锁存；同身份刷新、空数据库/Topic/profile/端点往返不解锁。固定实际API/认证与同步epoch隔离迟返/同名跨库/ABA/卸载，实际fallback Topic改变亦清旧载荷并使审批失效；裸markRaw defaults无响应式信号的独立ABA不夸大。
 - Browse请求1～1000，先截断后映射/显示/导出，下一页只沿保留尾项的真实安全offset前进；unsafe JSON整数offset禁止Ack/分页/Seek。payload最多格式化4096原始字节，header预览32项/4096字符，JSONL保留已加载消息完整payloadBase64与headers。Seek最多25窗/60秒含最终Browse，auto采样最多12轮/60秒单飞且只取消自身请求，旧轮迟返不能清新轮归属或误取消手工Sample。审批dispatch前一次消费、每项冻结原Topic/API/身份，Publish/Ack验证真实目标和安全offset/nextOffset；缺失/错目标/传输异常记unknown，已派写不能冒称未执行，不重放旧审批。

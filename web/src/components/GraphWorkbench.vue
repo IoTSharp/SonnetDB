@@ -1,7 +1,7 @@
 <template>
-  <section class="graph-workbench" data-testid="workbench-graph">
+  <section class="graph-workbench" data-testid="workbench-graph" :data-page-state="graphState" :data-database="targetDb" :data-resource-key="`graph:${graph}`">
     <WriteApprovalPanel
-      v-if="approvalPlan"
+      v-if="approvalPlan && canWrite"
       :plan="approvalPlan"
       :busy="writeBusy"
       @cancel="clearApproval"
@@ -13,6 +13,7 @@
         <div class="graph-head__title-row">
           <Network :size="18" />
           <strong>{{ graph || 'Graph workbench' }}</strong>
+          <n-tag size="tiny" :bordered="false" type="warning" data-testid="graph-beta">Graph Beta</n-tag>
           <n-tag v-if="overview" size="tiny" :bordered="false" type="info">
             snapshot {{ overview.snapshotSequence }}
           </n-tag>
@@ -25,10 +26,11 @@
           size="small"
           :value="graph"
           :options="graphOptions"
+          :disabled="permissionDenied"
           placeholder="选择 Graph"
           @update:value="$emit('select-graph', String($event))"
         />
-        <n-button size="small" secondary :loading="busy" title="刷新 Graph 运维数据" @click="refreshAll">
+        <n-button size="small" secondary :disabled="permissionDenied" :loading="busy" title="刷新 Graph 运维数据" @click="refreshAll">
           <template #icon><RefreshCw :size="15" /></template>
           刷新
         </n-button>
@@ -37,7 +39,10 @@
 
     <WorkbenchSectionTabs v-model="activeSection" :items="sectionTabs" aria-label="Graph 运维视图" />
 
-    <n-alert v-if="errorMsg" type="error" closable @close="errorMsg = ''">{{ errorMsg }}</n-alert>
+    <n-alert v-if="permissionDenied" type="warning" data-testid="graph-permission">当前身份没有 Graph 访问权限。</n-alert>
+    <n-alert v-else-if="readOnly" type="info" data-testid="graph-readonly">当前 Graph 为只读；元素写入、导入及维护决策已禁用。</n-alert>
+    <n-alert v-if="errorMsg && !permissionDenied" type="error" closable @close="errorMsg = ''">{{ errorMsg }}</n-alert>
+    <template v-if="!permissionDenied">
     <div v-if="!graph" class="graph-empty">
       <Network :size="34" />
       <strong>当前数据库没有可打开的 Graph</strong>
@@ -55,14 +60,16 @@
           <span>元素上限</span>
           <n-input-number v-model:value="visualizationLimit" size="small" :min="10" :max="1000" :step="50" />
         </label>
-        <n-button size="small" secondary :loading="visualizationBusy" @click="loadVisualization">重新采样</n-button>
+        <n-button size="small" secondary :disabled="!canVisualize" :loading="visualizationBusy" @click="loadVisualization">重新采样</n-button>
       </div>
 
       <n-alert v-if="visualization?.truncated" type="warning" :show-icon="true">
-        当前画布是有界快照；请缩小分析范围，不要把它视为全图导出。
+        当前画布已截断 truncated，是有界快照；请缩小分析范围，不要把它视为全图导出。
       </n-alert>
+      <n-alert v-if="!canVisualize" type="info" data-testid="graph-visualization-unavailable">服务器未声明 boundedVisualization=true；画布安全不可用。</n-alert>
+      <span data-testid="graph-preview-budget">客户端画布总元素最多 {{ boundedVisualizationLimit() }}；Server limit 为顶点上限，边另有服务端边界。</span>
 
-      <div class="graph-canvas-layout">
+      <div v-if="canVisualize" class="graph-canvas-layout">
         <div ref="chartElement" class="graph-canvas" role="img" :aria-label="`${graph} 属性图可视化`" />
         <aside class="graph-inspector">
           <template v-if="selectedElement">
@@ -75,7 +82,7 @@
             <dl>
               <div><dt>version</dt><dd>{{ selectedElement.data.elementVersion }}</dd></div>
               <template v-if="selectedElement.kind === 'vertex'">
-                <div><dt>labels</dt><dd>{{ selectedElement.data.labels.join(', ') || '-' }}</dd></div>
+                <div><dt>labels</dt><dd>{{ selectedElement.data.labels.slice(0, 32).join(', ') || '-' }}</dd></div>
               </template>
               <template v-else>
                 <div><dt>from → to</dt><dd>{{ selectedElement.data.sourceId }} → {{ selectedElement.data.targetId }}</dd></div>
@@ -84,6 +91,7 @@
               <div><dt>properties</dt><dd>{{ selectedElement.data.properties.length }}</dd></div>
             </dl>
             <pre>{{ formatProperties(selectedElement.data.properties) }}</pre>
+            <span data-testid="graph-property-budget">属性最多预览 32 项、4096 字符；超限截断，完整编辑与 JSON 导出保留原数据。</span>
             <n-button size="small" secondary @click="editSelectedElement">在受限编辑器中打开</n-button>
           </template>
           <template v-else>
@@ -163,11 +171,11 @@
             <n-input v-model:value="uniquePropertiesText" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
           </label>
           <div class="editor-actions">
-            <n-button type="primary" :disabled="!validEditor" @click="stageElementSave">
+            <n-button type="primary" :disabled="!canWrite || !validEditor" @click="stageElementSave">
               <template #icon><Save :size="15" /></template>
               暂存 Upsert
             </n-button>
-            <n-button tertiary type="error" :disabled="!validEditorId || editorVersion <= 0" @click="stageElementDelete">
+            <n-button tertiary type="error" :disabled="!canWrite || !validEditorId || !validEditorVersion || editorVersion <= 0" @click="stageElementDelete">
               <template #icon><Trash2 :size="15" /></template>
               暂存删除
             </n-button>
@@ -196,14 +204,14 @@
           <p>单批最多 10,000 个元素；写入前会展示目标、数量和幂等 request ID。</p>
           <input ref="fileInput" class="sr-only" type="file" accept="application/json,.json" @change="readImportFile" />
           <div class="import-actions">
-            <n-button secondary @click="fileInput?.click()">
+            <n-button secondary :disabled="!canWrite" @click="fileInput?.click()">
               <template #icon><FolderOpen :size="15" /></template>
               选择 JSON
             </n-button>
             <span>{{ importFileName || '尚未选择文件' }}</span>
           </div>
           <n-input v-model:value="importText" type="textarea" :autosize="{ minRows: 8, maxRows: 16 }" placeholder="{ &quot;vertices&quot;: [], &quot;edges&quot;: [] }" />
-          <n-button type="primary" :disabled="!importText.trim()" @click="stageImport">
+          <n-button type="primary" :disabled="!canWrite || !importText.trim()" @click="stageImport">
             <template #icon><ShieldCheck :size="15" /></template>
             校验并暂存导入
           </n-button>
@@ -221,7 +229,7 @@
           <n-alert type="warning" :show-icon="true">
             Stage 不会修改数据。服务端返回十分钟有效的审批记录后，还需再次批准才会执行。
           </n-alert>
-          <n-button type="warning" @click="stageMaintenanceRequest">
+          <n-button type="warning" :disabled="!canWrite" @click="stageMaintenanceRequest">
             <template #icon><ShieldAlert :size="15" /></template>
             预览并暂存
           </n-button>
@@ -238,8 +246,8 @@
             </dl>
             <n-input v-model:value="rejectReason" placeholder="拒绝原因（可选）" />
             <div class="approval-actions">
-              <n-button type="error" :loading="writeBusy" @click="stageApprovalDecision('approve')">批准并执行</n-button>
-              <n-button secondary :loading="writeBusy" @click="rejectStagedApproval">拒绝</n-button>
+              <n-button type="error" :disabled="!canWrite" :loading="writeBusy" @click="stageApprovalDecision('approve')">批准并执行</n-button>
+              <n-button secondary :disabled="!canWrite" :loading="writeBusy" @click="rejectStagedApproval">拒绝</n-button>
             </div>
           </template>
           <div v-else class="maintenance-empty">
@@ -258,11 +266,12 @@
         <n-data-table :columns="auditColumns" :data="audit" size="small" :bordered="false" />
       </article>
     </div>
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, h, markRaw, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -325,12 +334,14 @@ import {
   type GraphLabelStatistic,
   type GraphMaintenanceAction,
   type GraphMaintenanceApproval,
+  type GraphMutationResponse,
   type GraphOperationsOverview,
   type GraphProperty,
   type GraphSlowTraversal,
   type GraphVertex,
   type GraphVisualization,
 } from '@/api/graphs';
+import { createApiClient } from '@/api/client';
 import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -348,18 +359,25 @@ type GraphContext = {
   database: string;
   graph: string;
   api: ReturnType<typeof useAuthStore>['api'];
+  sourceApi: ReturnType<typeof useAuthStore>['api'];
   baseUrl: string | undefined;
   token: string | undefined;
   connectionId: string;
   connectionName: string;
+  profileBaseUrl: string | undefined;
+  authorization: unknown;
 };
-type PendingAction = { plan: WriteApprovalPlan; context: GraphContext; inputs: string; run: () => Promise<void> };
+type ActionOutcome = { state: 'completed' | 'staged' | 'paused' | 'applying' | 'rejected' | 'failed' | 'unknown';
+  summary: string; approval?: GraphMaintenanceApproval; refresh?: 'element' | 'overview' | 'audit' };
+type PendingAction = { plan: WriteApprovalPlan; context: GraphContext; inputs: string; run: (signal: AbortSignal) => Promise<ActionOutcome>; consumeMaintenance?: boolean };
 
 const props = defineProps<{
   targetDb: string;
   graph: string;
   graphs: GraphInfo[];
   loading?: boolean;
+  readOnly?: boolean;
+  permissionDenied?: boolean;
 }>();
 
 defineEmits<{ 'select-graph': [graph: string]; 'refresh-graphs': [] }>();
@@ -368,6 +386,10 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => Boolean(props.permissionDenied || permissionLocked.value));
+const readOnly = computed(() => Boolean(props.readOnly));
+const canWrite = computed(() => Boolean(!disposed && !permissionDenied.value && !readOnly.value && props.targetDb && props.graph && !writeBusy.value));
 const activeSection = ref<GraphSection>('canvas');
 const busy = ref(false);
 const visualizationBusy = ref(false);
@@ -392,6 +414,19 @@ let auditRequestId = 0;
 let transferRequestId = 0;
 let importFileRequestId = 0;
 let writeRequestId = 0;
+let deniedContext: GraphContext | null = null;
+let overviewController: AbortController | null = null;
+let visualizationController: AbortController | null = null;
+let editorController: AbortController | null = null;
+let auditController: AbortController | null = null;
+let transferController: AbortController | null = null;
+let writeController: AbortController | null = null;
+const canVisualize = computed(() => !permissionDenied.value && overview.value?.capabilities?.boundedVisualization === true);
+const graphState = computed(() => permissionDenied.value ? 'permission' : readOnly.value ? 'readonly' : errorMsg.value ? 'error'
+  : !props.graph || (overview.value?.vertexCount === 0 && overview.value?.edgeCount === 0)
+    || (visualization.value && visualization.value.vertices.length === 0 && visualization.value.edges.length === 0) ? 'empty'
+  : visualization.value?.truncated || (selectedElement.value?.data.properties.length ?? 0) > 32
+    || formatProperties(selectedElement.value?.data.properties ?? []).length >= 4096 ? 'longContent' : 'normal');
 
 const editorKind = ref<EditorKind>('vertex');
 const editorId = ref<number | null>(null);
@@ -425,16 +460,17 @@ const sectionTabs = computed<WorkbenchSectionTab[]>(() => [
   { key: 'maintenance', label: 'Maintenance', icon: Wrench, count: audit.value.length },
 ]);
 
-const graphOptions = computed<SelectOption[]>(() => props.graphs.map((item) => ({ label: item.name, value: item.name })));
+const graphOptions = computed<SelectOption[]>(() => permissionDenied.value ? [] : props.graphs.map((item) => ({ label: item.name, value: item.name })));
 const maintenanceOptions: SelectOption[] = [
   { label: 'Repair / rebuild', value: 'RepairRebuild' },
   { label: 'Checkpoint', value: 'Checkpoint' },
   { label: 'Compact', value: 'Compact' },
 ];
-const validEditorId = computed(() => Number.isInteger(editorId.value) && Number(editorId.value) > 0);
-const validEditor = computed(() => validEditorId.value
+const validEditorId = computed(() => isSafeGraphId(editorId.value));
+const validEditorVersion = computed(() => isSafeGraphVersion(editorVersion.value));
+const validEditor = computed(() => validEditorId.value && validEditorVersion.value
   && (editorKind.value === 'vertex'
-    || (Number(sourceId.value) > 0 && Number(targetId.value) > 0 && Number(edgeLabelId.value) > 0)));
+    || (isSafeGraphId(sourceId.value) && isSafeGraphId(targetId.value) && isSafeGraphId(edgeLabelId.value))));
 
 const labelColumns: DataTableColumns<GraphLabelStatistic> = [
   { title: 'Label ID', key: 'labelId', width: 120 },
@@ -467,59 +503,74 @@ const auditColumns: DataTableColumns<GraphMaintenanceApproval> = [
 ];
 
 async function refreshAll(): Promise<void> {
-  if (!props.graph) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !props.graph) return;
   const context = captureContext();
   const overviewRequest = ++overviewRequestId;
   const visualizationRequest = ++visualizationRequestId;
+  overviewController?.abort();
+  visualizationController?.abort();
+  const controller = overviewController = new AbortController();
   busy.value = true;
   errorMsg.value = '';
   try {
-    const [overviewResult, visualizationResult] = await Promise.all([
-      fetchGraphOperationsOverview(context.api, context.database, context.graph),
-      fetchGraphVisualization(context.api, context.database, context.graph, visualizationLimit.value ?? 250),
-    ]);
-    if (!isCurrentContext(context)) return;
-    if (overviewRequest === overviewRequestId) overview.value = overviewResult;
-    if (visualizationRequest === visualizationRequestId) {
-      visualization.value = visualizationResult;
+    const overviewResult = await fetchGraphOperationsOverview(context.api, context.database, context.graph, controller.signal);
+    if (!isCurrentContext(context) || overviewRequest !== overviewRequestId || controller.signal.aborted) return;
+    if (overviewResult?.graph?.name !== context.graph) { errorMsg.value = 'Graph overview 目标不匹配。'; return; }
+    overview.value = overviewResult;
+    if (!canVisualize.value) {
+      visualizationController?.abort();
+      visualizationRequestId += 1;
+      visualization.value = null;
       selectedElement.value = null;
-      await renderChart();
+      disposeChart();
+    } else if (visualizationRequest === visualizationRequestId) {
+      await readVisualization(context, visualizationRequest, boundedVisualizationLimit());
     }
   } catch (error) {
-    if (isCurrentContext(context) && overviewRequest === overviewRequestId) handleError(error, '加载 Graph 运维数据失败');
+    if (isCurrentContext(context) && overviewRequest === overviewRequestId && !controller.signal.aborted) handleError(error, '加载 Graph 运维数据失败', '', 0, context);
   } finally {
+    if (overviewController === controller) overviewController = null;
     if (isCurrentContext(context) && overviewRequest === overviewRequestId) busy.value = false;
     if (isCurrentContext(context) && visualizationRequest === visualizationRequestId) visualizationBusy.value = false;
   }
 }
 
 async function loadVisualization(): Promise<void> {
-  if (!props.graph) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !props.graph || !canVisualize.value) return;
   const context = captureContext();
   const requestId = ++visualizationRequestId;
+  await readVisualization(context, requestId, boundedVisualizationLimit());
+}
+
+async function readVisualization(context: GraphContext, requestId: number, limit: number): Promise<void> {
+  visualizationController?.abort();
+  const controller = visualizationController = new AbortController();
   visualizationBusy.value = true;
   errorMsg.value = '';
   try {
-    const result = await fetchGraphVisualization(context.api, context.database, context.graph, visualizationLimit.value ?? 250);
-    if (!isCurrentContext(context) || requestId !== visualizationRequestId) return;
-    visualization.value = result;
+    const result = await fetchGraphVisualization(context.api, context.database, context.graph, limit, controller.signal);
+    if (!isCurrentContext(context) || requestId !== visualizationRequestId || controller.signal.aborted || !canVisualize.value) return;
+    visualization.value = boundVisualization(result, limit);
     selectedElement.value = null;
     await renderChart();
   } catch (error) {
-    if (isCurrentContext(context) && requestId === visualizationRequestId) handleError(error, '加载 Graph 可视化失败');
+    if (isCurrentContext(context) && requestId === visualizationRequestId && !controller.signal.aborted) handleError(error, '加载 Graph 可视化失败', '', 0, context);
   } finally {
+    if (visualizationController === controller) visualizationController = null;
     if (isCurrentContext(context) && requestId === visualizationRequestId) visualizationBusy.value = false;
   }
 }
 
 async function renderChart(): Promise<void> {
-  if (activeSection.value !== 'canvas') return;
+  if (disposed || permissionDenied.value || !canVisualize.value || activeSection.value !== 'canvas') return;
   const context = captureContext();
+  const requestId = visualizationRequestId;
   await nextTick();
-  if (!isCurrentContext(context) || !chartElement.value || !visualization.value) return;
+  if (!isCurrentContext(context) || requestId !== visualizationRequestId || !canVisualize.value || !chartElement.value || !visualization.value) return;
+  if (chart && chart.getDom() !== chartElement.value) disposeChart();
   chart ??= echarts.init(chartElement.value);
   const vertexById = new Map(visualization.value.vertices.map((vertex) => [vertex.id, vertex]));
-  const categories = [...new Set(visualization.value.vertices.flatMap((vertex) => vertex.labels))]
+  const categories = [...new Set(visualization.value.vertices.flatMap((vertex) => vertex.labels.slice(0, 32)))]
     .map((label) => ({ name: `Label ${label}` }));
   const categoryByLabel = new Map(categories.map((category, index) => [Number(category.name.slice(6)), index]));
   const option: GraphChartOption = {
@@ -561,6 +612,7 @@ async function renderChart(): Promise<void> {
   chart.setOption(option, true);
   chart.off('click');
   chart.on('click', (params) => {
+    if (!isCurrentContext(context) || requestId !== visualizationRequestId || !canVisualize.value) return;
     const id = Number(params.dataType === 'edge' ? (params.data as { id?: string }).id : (params.data as { id?: string }).id);
     selectedElement.value = params.dataType === 'edge'
       ? visualization.value?.edges.find((item) => item.id === id)
@@ -576,6 +628,13 @@ async function renderChart(): Promise<void> {
   }
 }
 
+function disposeChart(): void {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  chart?.dispose();
+  chart = null;
+}
+
 function graphTooltip(params: unknown): string {
   const item = params as { dataType?: string; data?: { id?: string; source?: string; target?: string; value?: number }; name?: string };
   if (item.dataType === 'edge') return `${item.name ?? 'edge'}<br/>${item.data?.source ?? '?'} → ${item.data?.target ?? '?'}`;
@@ -583,38 +642,48 @@ function graphTooltip(params: unknown): string {
 }
 
 async function loadElement(): Promise<void> {
-  if (!validEditorId.value || !props.graph) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !props.graph) return;
+  if (!validEditorId.value || !validEditorVersion.value) { rejectUnsupportedEditor(); return; }
   const context = captureContext();
   const requestId = ++editorRequestId;
   const kind = editorKind.value;
   const id = Number(editorId.value);
+  editorController?.abort();
+  const controller = editorController = new AbortController();
   editorBusy.value = true;
   errorMsg.value = '';
   try {
     if (kind === 'vertex') {
-      const result = await fetchGraphVertex(context.api, context.database, context.graph, id);
-      if (isCurrentContext(context) && requestId === editorRequestId && kind === editorKind.value && id === editorId.value) setVertexEditor(result);
+      const result = await fetchGraphVertex(context.api, context.database, context.graph, id, controller.signal);
+      if (isCurrentContext(context) && requestId === editorRequestId && !controller.signal.aborted && kind === editorKind.value && id === editorId.value && result?.id === id) setVertexEditor(result);
     } else {
-      const result = await fetchGraphEdge(context.api, context.database, context.graph, id);
-      if (isCurrentContext(context) && requestId === editorRequestId && kind === editorKind.value && id === editorId.value) setEdgeEditor(result);
+      const result = await fetchGraphEdge(context.api, context.database, context.graph, id, controller.signal);
+      if (isCurrentContext(context) && requestId === editorRequestId && !controller.signal.aborted && kind === editorKind.value && id === editorId.value && result?.id === id) setEdgeEditor(result);
     }
   } catch (error) {
-    if (isCurrentContext(context) && requestId === editorRequestId) handleError(error, '读取 Graph 元素失败');
+    if (isCurrentContext(context) && requestId === editorRequestId && !controller.signal.aborted) handleError(error, '读取 Graph 元素失败', '', 0, context);
   } finally {
+    if (editorController === controller) editorController = null;
     if (isCurrentContext(context) && requestId === editorRequestId) editorBusy.value = false;
   }
 }
 
-function setVertexEditor(vertex: GraphVertex): void {
+function setVertexEditor(vertex: GraphVertex): boolean {
+  if (disposed || permissionDenied.value) return false;
+  if (!isSafeGraphId(vertex.id) || !isSafeGraphVersion(vertex.elementVersion)) { rejectUnsupportedEditor(); return false; }
   editorKind.value = 'vertex';
   editorId.value = vertex.id;
   editorVersion.value = vertex.elementVersion;
   labelsText.value = JSON.stringify(vertex.labels, null, 2);
   propertiesText.value = JSON.stringify(vertex.properties, null, 2);
   uniquePropertiesText.value = '[]';
+  return true;
 }
 
-function setEdgeEditor(edge: GraphEdge): void {
+function setEdgeEditor(edge: GraphEdge): boolean {
+  if (disposed || permissionDenied.value) return false;
+  if (!isSafeGraphId(edge.id) || !isSafeGraphVersion(edge.elementVersion) || !isSafeGraphId(edge.sourceId)
+    || !isSafeGraphId(edge.targetId) || !isSafeGraphId(edge.labelId)) { rejectUnsupportedEditor(); return false; }
   editorKind.value = 'edge';
   editorId.value = edge.id;
   editorVersion.value = edge.elementVersion;
@@ -623,22 +692,30 @@ function setEdgeEditor(edge: GraphEdge): void {
   edgeLabelId.value = edge.labelId;
   propertiesText.value = JSON.stringify(edge.properties, null, 2);
   uniquePropertiesText.value = '[]';
+  return true;
 }
 
 function editSelectedElement(): void {
-  if (!selectedElement.value) return;
-  if (selectedElement.value.kind === 'vertex') setVertexEditor(selectedElement.value.data);
-  else setEdgeEditor(selectedElement.value.data);
-  activeSection.value = 'edit';
+  if (disposed || permissionDenied.value || !selectedElement.value) return;
+  const opened = selectedElement.value.kind === 'vertex' ? setVertexEditor(selectedElement.value.data) : setEdgeEditor(selectedElement.value.data);
+  if (opened) activeSection.value = 'edit';
 }
 
 function stageElementSave(): void {
-  if (!validEditor.value) return;
+  if (!canWrite.value) return;
+  if (!validEditor.value) { rejectUnsupportedEditor(); return; }
   try {
     const context = captureContext();
     const properties = parseJsonArray<GraphProperty>(propertiesText.value, 'Properties 必须是 JSON 数组。');
     const uniquePropertyIds = parseIntegerArray(uniquePropertiesText.value, 'Unique property IDs');
     const id = Number(editorId.value);
+    const kind = editorKind.value;
+    const expectedElementVersion = editorVersion.value;
+    const requestId = crypto.randomUUID();
+    const vertexRequest = { id, expectedElementVersion, labels: kind === 'vertex' ? parseIntegerArray(labelsText.value, 'Labels') : [],
+      properties, uniquePropertyIds, requestId };
+    const edgeRequest = { id, expectedElementVersion, sourceId: Number(sourceId.value), targetId: Number(targetId.value),
+      labelId: Number(edgeLabelId.value), properties, uniquePropertyIds, requestId };
     const command = editorKind.value === 'vertex'
       ? `upsert vertex ${id} expectedVersion=${editorVersion.value}`
       : `upsert edge ${id} ${sourceId.value}->${targetId.value} label=${edgeLabelId.value} expectedVersion=${editorVersion.value}`;
@@ -646,30 +723,12 @@ function stageElementSave(): void {
       context,
       inputs: approvalInputKey(),
       plan: makePlan('Graph 元素 Upsert', command, 'write'),
-      run: async () => {
-        const result = editorKind.value === 'vertex'
-          ? await upsertGraphVertex(context.api, context.database, context.graph, {
-            id,
-            expectedElementVersion: editorVersion.value,
-            labels: parseIntegerArray(labelsText.value, 'Labels'),
-            properties,
-            uniquePropertyIds,
-            requestId: crypto.randomUUID(),
-          })
-          : await upsertGraphEdge(context.api, context.database, context.graph, {
-            id,
-            expectedElementVersion: editorVersion.value,
-            sourceId: Number(sourceId.value),
-            targetId: Number(targetId.value),
-            labelId: Number(edgeLabelId.value),
-            properties,
-            uniquePropertyIds,
-            requestId: crypto.randomUUID(),
-          });
-        if (!isCurrentContext(context)) return;
-        message.success(`Graph 元素已写入 sequence ${result.sequence}。`);
-        await refreshAll();
-        if (isCurrentContext(context)) await loadElement();
+      run: async (signal) => {
+        const result = kind === 'vertex'
+          ? await upsertGraphVertex(context.api, context.database, context.graph, vertexRequest, signal)
+          : await upsertGraphEdge(context.api, context.database, context.graph, edgeRequest, signal);
+        validateMutation(result);
+        return { state: 'completed', summary: `sequence ${result.sequence} · duplicate ${result.isDuplicate}`, refresh: 'element' };
       },
     };
   } catch (error) {
@@ -678,35 +737,43 @@ function stageElementSave(): void {
 }
 
 function stageElementDelete(): void {
-  if (!validEditorId.value || editorVersion.value <= 0) return;
+  if (!canWrite.value) return;
+  if (!validEditorId.value || !validEditorVersion.value) { rejectUnsupportedEditor(); return; }
+  if (editorVersion.value <= 0) return;
   const context = captureContext();
   const id = Number(editorId.value);
+  const kind = editorKind.value;
+  const expectedVersion = editorVersion.value;
   pendingAction.value = {
     context,
     inputs: approvalInputKey(),
     plan: makePlan('删除 Graph 元素', `delete ${editorKind.value} ${id} expectedVersion=${editorVersion.value}`, 'danger'),
-    run: async () => {
-      const result = await deleteGraphElement(context.api, context.database, context.graph, editorKind.value, id, editorVersion.value);
-      if (!isCurrentContext(context)) return;
-      message.success(`Graph 元素已删除，sequence ${result.sequence}。`);
-      resetEditor();
-      await refreshAll();
+    run: async (signal) => {
+      const result = await deleteGraphElement(context.api, context.database, context.graph, kind, id, expectedVersion, signal);
+      validateMutation(result);
+      return { state: 'completed', summary: `sequence ${result.sequence} · duplicate ${result.isDuplicate}`, refresh: 'overview' };
     },
   };
 }
 
 async function readImportFile(event: Event): Promise<void> {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !canWrite.value) { input.value = ''; return; }
   const context = captureContext();
   const requestId = ++importFileRequestId;
-  const text = await file.text();
-  if (!isCurrentContext(context) || requestId !== importFileRequestId) return;
-  importFileName.value = file.name;
-  importText.value = text;
+  try {
+    const text = await file.text();
+    if (!isCurrentContext(context) || requestId !== importFileRequestId || !canWrite.value) return;
+    importFileName.value = file.name;
+    importText.value = text;
+  } catch (error) {
+    if (isCurrentContext(context) && requestId === importFileRequestId) handleError(error, '读取 Graph 导入文件失败');
+  } finally { input.value = ''; }
 }
 
 function stageImport(): void {
+  if (!canWrite.value) return;
   try {
     const context = captureContext();
     const document = JSON.parse(importText.value) as Partial<GraphExportDocument & GraphImportRequest>;
@@ -729,16 +796,21 @@ function stageImport(): void {
     }));
     const count = vertices.length + edges.length;
     if (count < 1 || count > 10000) throw new Error('Graph 导入批次必须包含 1 到 10,000 个元素。');
+    if (vertices.some((item) => !isSafeGraphId(item.id) || !isSafeGraphVersion(item.expectedElementVersion))
+      || edges.some((item) => !isSafeGraphId(item.id) || !isSafeGraphVersion(item.expectedElementVersion)
+        || !isSafeGraphId(item.sourceId) || !isSafeGraphId(item.targetId) || !isSafeGraphId(item.labelId))) {
+      throw new Error('Unsupported Graph numeric identity');
+    }
     const request: GraphImportRequest = { requestId: crypto.randomUUID(), vertices, edges };
     pendingAction.value = {
       context,
       inputs: approvalInputKey(),
       plan: makePlan('导入 Graph JSON', `${vertices.length} vertices · ${edges.length} edges\nrequestId=${request.requestId}`, 'write'),
-      run: async () => {
-        const result = await importGraphJson(context.api, context.database, context.graph, request);
-        if (!isCurrentContext(context)) return;
-        message.success(`已导入 ${result.vertexCount} vertices / ${result.edgeCount} edges。`);
-        await refreshAll();
+      run: async (signal) => {
+        const result = await importGraphJson(context.api, context.database, context.graph, request, signal);
+        validateMutation(result);
+        if (result.vertexCount !== vertices.length || result.edgeCount !== edges.length) throw new Error('Missing Graph import terminal');
+        return { state: 'completed', summary: `${result.vertexCount} vertices · ${result.edgeCount} edges · sequence ${result.sequence}`, refresh: 'overview' };
       },
     };
   } catch (error) {
@@ -747,28 +819,34 @@ function stageImport(): void {
 }
 
 async function exportGraph(): Promise<void> {
+  if (disposed || permissionDenied.value || !props.targetDb || !props.graph) return;
   const context = captureContext();
   const requestId = ++transferRequestId;
+  transferController?.abort();
+  const controller = transferController = new AbortController();
+  const limit = exportLimit.value ?? 100000;
   transferBusy.value = true;
   errorMsg.value = '';
   try {
-    const blob = await downloadGraphExport(context.api, context.database, context.graph, exportLimit.value ?? 100000);
-    if (!isCurrentContext(context) || requestId !== transferRequestId) return;
+    const blob = await downloadGraphExport(context.api, context.database, context.graph, limit, controller.signal);
+    if (!isCurrentContext(context) || requestId !== transferRequestId || controller.signal.aborted) return;
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `${context.graph}.graph.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    recordHistory('success', 'Graph JSON export', `maxElements=${exportLimit.value ?? 100000}`, 'export completed');
+    recordHistory('success', 'Graph JSON export', `maxElements=${limit}`, 'export completed · 文档完整性以 truncated 为准', 0, context);
   } catch (error) {
-    if (isCurrentContext(context) && requestId === transferRequestId) handleError(error, 'Graph 导出失败');
+    if (isCurrentContext(context) && requestId === transferRequestId && !controller.signal.aborted) handleError(error, 'Graph 导出失败', '', 0, context);
   } finally {
+    if (transferController === controller) transferController = null;
     if (isCurrentContext(context) && requestId === transferRequestId) transferBusy.value = false;
   }
 }
 
 function stageMaintenanceRequest(): void {
+  if (!canWrite.value) return;
   const context = captureContext();
   const request = {
     action: maintenanceAction.value,
@@ -779,85 +857,128 @@ function stageMaintenanceRequest(): void {
     context,
     inputs: approvalInputKey(),
     plan: makePlan('暂存 Graph 维护', `${request.action} maxWorkUnits=${request.maxWorkUnits} compact=${request.compactOnCompletion}`, 'danger'),
-    run: async () => {
-      const result = await stageGraphMaintenance(context.api, context.database, context.graph, request);
-      if (!isCurrentContext(context)) return;
-      stagedApproval.value = result;
-      message.warning(`维护已暂存，审批 ${stagedApproval.value.approvalId} 尚未执行。`);
-      await loadAudit();
+    run: async (signal) => {
+      const result = await stageGraphMaintenance(context.api, context.database, context.graph, request, signal);
+      validateMaintenance(result, context, request.action);
+      if (result.state !== 'staged') throw new Error('Missing staged Graph terminal');
+      return { state: 'staged', summary: `staged · approval ${result.approvalId} 尚未执行`, approval: result, refresh: 'audit' };
     },
   };
 }
 
 function stageApprovalDecision(decision: 'approve'): void {
-  if (!stagedApproval.value) return;
+  if (!canWrite.value || !stagedApproval.value || stagedApproval.value.state !== 'staged') return;
   const context = captureContext();
-  const approval = stagedApproval.value;
+  const approval = { ...stagedApproval.value };
+  try { validateMaintenance(approval, context, approval.action); } catch { errorMsg.value = 'Graph 维护审批目标不匹配。'; return; }
   pendingAction.value = {
     context,
     inputs: approvalInputKey(),
     plan: makePlan('批准 Graph 维护', `${decision} ${approval.action}\napproval=${approval.approvalId}`, 'danger'),
-    run: async () => {
-      const result = await approveGraphMaintenance(context.api, context.database, context.graph, approval.approvalId);
-      if (!isCurrentContext(context)) return;
-      stagedApproval.value = result;
-      message.success(`Graph 维护状态：${stagedApproval.value.state}。`);
-      await refreshAll();
+    consumeMaintenance: true,
+    run: async (signal) => {
+      const result = await approveGraphMaintenance(context.api, context.database, context.graph, approval.approvalId, signal);
+      validateMaintenance(result, context, approval.action, approval.approvalId);
+      if (result.state === 'completed') {
+        if (result.result?.isComplete !== true || result.result.action !== approval.action || !isSafeSequence(result.result.sequence)) throw new Error('Missing completed Graph terminal');
+        return { state: 'completed', summary: `completed · approval ${result.approvalId} · sequence ${result.result.sequence}`, approval: result, refresh: 'overview' };
+      }
+      if (result.state === 'paused' || result.state === 'applying') return { state: result.state, summary: `${result.state} · 维护尚未完成`, approval: result, refresh: 'audit' };
+      if (['failed', 'expired', 'interrupted'].includes(result.state)) return { state: 'failed', summary: `${result.state} · 维护未完成`, approval: result, refresh: 'audit' };
+      throw new Error('Missing Graph maintenance terminal');
     },
   };
 }
 
 async function rejectStagedApproval(): Promise<void> {
-  if (!stagedApproval.value || writeBusy.value) return;
+  if (!canWrite.value || !stagedApproval.value || stagedApproval.value.state !== 'staged') return;
   const context = captureContext();
-  const requestId = ++writeRequestId;
-  writeBusy.value = true;
-  try {
-    const result = await rejectGraphMaintenance(context.api, context.database, context.graph, stagedApproval.value.approvalId, rejectReason.value);
-    if (!isCurrentContext(context)) return;
-    stagedApproval.value = result;
-    message.info('Graph 维护审批已拒绝。');
-    await loadAudit();
-  } catch (error) {
-    if (isCurrentContext(context)) handleError(error, '拒绝 Graph 维护审批失败');
-  } finally {
-    if (isCurrentContext(context) && requestId === writeRequestId) writeBusy.value = false;
-  }
+  const approval = { ...stagedApproval.value };
+  const reason = rejectReason.value;
+  try { validateMaintenance(approval, context, approval.action); } catch { errorMsg.value = 'Graph 维护审批目标不匹配。'; return; }
+  await executeAction({ context, inputs: approvalInputKey(), consumeMaintenance: true,
+    plan: makePlan('拒绝 Graph 维护', `reject ${approval.action}\napproval=${approval.approvalId}`, 'danger'),
+    run: async (signal) => {
+      const result = await rejectGraphMaintenance(context.api, context.database, context.graph, approval.approvalId, reason, signal);
+      validateMaintenance(result, context, approval.action, approval.approvalId);
+      if (result.state !== 'rejected') throw new Error('Missing rejected Graph terminal');
+      return { state: 'rejected', summary: `rejected · approval ${result.approvalId}`, approval: result, refresh: 'audit' };
+    } });
 }
 
 async function loadAudit(): Promise<void> {
-  if (!props.graph) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !props.graph) return;
   const context = captureContext();
   const requestId = ++auditRequestId;
+  auditController?.abort();
+  const controller = auditController = new AbortController();
   auditBusy.value = true;
   try {
-    const result = await fetchGraphMaintenanceAudit(context.api, context.database, context.graph);
-    if (!isCurrentContext(context) || requestId !== auditRequestId) return;
+    const result = await fetchGraphMaintenanceAudit(context.api, context.database, context.graph, 200, controller.signal);
+    if (!isCurrentContext(context) || requestId !== auditRequestId || controller.signal.aborted) return;
     audit.value = result;
   } catch (error) {
-    if (isCurrentContext(context) && requestId === auditRequestId) handleError(error, '加载 Graph 维护审计失败');
+    if (isCurrentContext(context) && requestId === auditRequestId && !controller.signal.aborted) handleError(error, '加载 Graph 维护审计失败', '', 0, context);
   } finally {
+    if (auditController === controller) auditController = null;
     if (isCurrentContext(context) && requestId === auditRequestId) auditBusy.value = false;
   }
 }
 
 async function confirmApproval(): Promise<void> {
-  if (!pendingAction.value || writeBusy.value) return;
+  if (!canWrite.value || !pendingAction.value || writeBusy.value) return;
   const action = pendingAction.value;
   if (!isCurrentContext(action.context) || action.inputs !== approvalInputKey()) { pendingAction.value = null; return; }
+  await executeAction(action);
+}
+
+async function executeAction(action: PendingAction): Promise<void> {
+  if (!canWrite.value || !isCurrentContext(action.context)) return;
   const requestId = ++writeRequestId;
+  const controller = writeController = new AbortController();
+  overviewController?.abort();
+  visualizationController?.abort();
+  editorController?.abort();
+  auditController?.abort();
+  transferController?.abort();
+  busy.value = visualizationBusy.value = editorBusy.value = auditBusy.value = transferBusy.value = false;
+  // Consume both the local plan and the server staged decision before dispatch.
+  pendingAction.value = null;
+  if (action.consumeMaintenance) stagedApproval.value = null;
   writeBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
   try {
-    await action.run();
-    recordHistory('success', action.plan.title, action.plan.items[0]?.command ?? '', 'completed', performance.now() - started, action.context);
-    if (pendingAction.value?.plan.id === action.plan.id) pendingAction.value = null;
+    const outcome = await action.run(controller.signal);
+    const late = !isCurrentContext(action.context) || controller.signal.aborted;
+    const status = late || ['unknown', 'paused', 'applying'].includes(outcome.state) ? 'unknown'
+      : outcome.state === 'staged' ? 'dry-run' : outcome.state === 'rejected' ? 'cancelled' : outcome.state === 'failed' ? 'error' : 'success';
+    const summary = late ? '写入结果未知；请核对服务端状态，未自动重试。' : outcome.summary;
+    recordHistory(status, action.plan.title, action.plan.items[0]?.command ?? '', summary, performance.now() - started, action.context);
+    if (!isCurrentContext(action.context) || requestId !== writeRequestId) return;
+    if (outcome.approval) stagedApproval.value = outcome.approval;
+    if (status === 'success') message.success(outcome.summary);
+    else if (status === 'cancelled') message.info(outcome.summary);
+    else { message.warning(summary); if (status === 'unknown') errorMsg.value = summary; }
+    // Follow-up reads own their errors. A proved mutation terminal stays proved.
+    if (!late) {
+      if (outcome.refresh === 'audit') void loadAudit();
+      else if (outcome.refresh) {
+        void refreshAll();
+        if (outcome.refresh === 'element') void loadElement();
+      }
+    }
   } catch (error) {
-    const detail = errorToMessage(error, `${action.plan.title}失败`);
+    const statusCode = (error as { response?: { status?: number } } | null)?.response?.status;
+    const knownFailure = isCurrentContext(action.context) && typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 && statusCode !== 408;
+    const detail = knownFailure ? 'Graph 写入被拒绝。' : '写入结果未知；请核对服务端状态，未自动重试。';
+    if (isPermissionError(error) && isCurrentContext(action.context)) lockPermission(action.context);
     if (isCurrentContext(action.context)) errorMsg.value = detail;
-    recordHistory('error', action.plan.title, action.plan.items[0]?.command ?? '', detail, performance.now() - started, action.context);
+    recordHistory(knownFailure ? 'error' : 'unknown', action.plan.title, action.plan.items[0]?.command ?? '', detail, performance.now() - started, action.context);
   } finally {
+    clearTimeout(timeout);
+    if (writeController === controller) writeController = null;
     if (isCurrentContext(action.context) && requestId === writeRequestId) writeBusy.value = false;
   }
 }
@@ -881,6 +1002,14 @@ function resetEditor(): void {
   targetId.value = null;
   edgeLabelId.value = null;
 }
+function isSafeGraphId(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
+function isSafeGraphVersion(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
+function rejectUnsupportedEditor(): void {
+  pendingAction.value = null;
+  editorId.value = null;
+  resetEditor();
+  errorMsg.value = 'Graph 元素 ID、版本或端点超出安全整数范围，无法安全编辑。';
+}
 function parseJsonArray<T>(text: string, error: string): T[] {
   const value = JSON.parse(text) as unknown;
   if (!Array.isArray(value)) throw new Error(error);
@@ -888,12 +1017,28 @@ function parseJsonArray<T>(text: string, error: string): T[] {
 }
 function parseIntegerArray(text: string, label: string): number[] {
   const value = parseJsonArray<unknown>(text, `${label} 必须是 JSON 数组。`);
-  if (value.some((item) => !Number.isInteger(item) || Number(item) <= 0)) throw new Error(`${label} 只能包含正整数。`);
+  if (value.some((item) => !isSafeGraphId(item))) throw new Error(`${label} 只能包含安全正整数。`);
   return value.map(Number);
 }
 function formatNumber(value: number): string { return new Intl.NumberFormat().format(value); }
 function formatDate(value: string | number): string { return new Date(value).toLocaleString(); }
-function formatProperties(properties: GraphProperty[]): string { return JSON.stringify(properties, null, 2); }
+function formatProperties(properties: GraphProperty[]): string {
+  let remaining = 4096;
+  const preview = properties.slice(0, 32).map((property) => {
+    const value: GraphProperty['value'] = { kind: property.value.kind, int64: property.value.int64,
+      float64: property.value.float64, boolean: property.value.boolean, string: property.value.string,
+      dateTime: property.value.dateTime, blobBase64: property.value.blobBase64, json: property.value.json };
+    for (const key of ['string', 'dateTime', 'blobBase64', 'json'] as const) {
+      if (typeof value[key] === 'string') {
+        const text = value[key]!.slice(0, Math.max(0, remaining));
+        remaining -= text.length;
+        value[key] = text;
+      }
+    }
+    return { propertyId: property.propertyId, value };
+  });
+  return JSON.stringify(preview, null, 2).slice(0, 4096);
+}
 function auditTagType(state: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (state === 'completed') return 'success';
   if (state === 'staged' || state === 'paused' || state === 'applying') return 'warning';
@@ -902,41 +1047,106 @@ function auditTagType(state: string): 'success' | 'warning' | 'error' | 'info' |
 }
 function auditSummary(row: GraphMaintenanceApproval): string {
   if (row.result) return `seq ${row.result.sequence} · repaired ${row.result.repairedEntries} · removed ${row.result.removedEntries}`;
-  return row.reason || row.errorCode || '-';
+  return row.state === 'failed' || row.state === 'interrupted' ? '维护未完成；请核对服务端状态。' : '-';
 }
 function errorToMessage(error: unknown, fallback: string): string {
-  if (typeof error === 'object' && error && 'response' in error) {
-    const data = (error as { response?: { data?: { message?: string } } }).response?.data;
-    if (data?.message) return data.message;
-  }
-  return error instanceof Error ? error.message : fallback;
+  return isPermissionError(error) ? '当前身份没有 Graph 访问权限。' : fallback;
 }
-function handleError(error: unknown, fallback: string, command = '', elapsedMs = 0): void {
+function handleError(error: unknown, fallback: string, command = '', elapsedMs = 0, context = captureContext()): void {
+  if (isPermissionError(error)) { lockPermission(context); return; }
   const detail = errorToMessage(error, fallback);
   errorMsg.value = detail;
-  recordHistory('error', fallback, command, detail, elapsedMs);
+  recordHistory('error', fallback, command, detail, elapsedMs, context);
 }
-function recordHistory(status: 'success' | 'error', title: string, command: string, summary: string, elapsedMs = 0, context = captureContext()): void {
+function recordHistory(status: 'success' | 'error' | 'unknown' | 'dry-run' | 'cancelled', title: string, command: string, summary: string, elapsedMs = 0, context = captureContext()): void {
   history.record({
     kind: 'operation', status, title, target: context.graph, database: context.database,
     connectionId: context.connectionId, connectionName: context.connectionName,
     model: 'graph', action: title.toLowerCase().replaceAll(' ', '_'), command, summary, elapsedMs,
+    completeness: status === 'unknown' ? 'unknown' : undefined,
   });
 }
 
 function captureContext(): GraphContext {
+  const token = auth.state?.token;
+  const baseUrl = auth.api.defaults.baseURL;
+  const authorization = auth.api.defaults.headers?.common?.Authorization;
+  const api = markRaw(createApiClient(() => token ?? null));
+  api.defaults.baseURL = baseUrl;
+  if (typeof authorization === 'string') api.defaults.headers.common.Authorization = authorization;
   return {
     revision: contextRevision, database: props.targetDb, graph: props.graph,
-    api: auth.api, baseUrl: auth.api.defaults.baseURL, token: auth.state?.token,
+    api, sourceApi: auth.api, baseUrl, token, authorization, profileBaseUrl: connections.activeBaseUrl,
     connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
   };
 }
 
 function isCurrentContext(context: GraphContext): boolean {
-  return !disposed && context.revision === contextRevision
+  return !disposed && !permissionDenied.value && context.revision === contextRevision
     && context.database === props.targetDb && context.graph === props.graph
-    && context.api === auth.api && context.baseUrl === auth.api.defaults.baseURL
+    && context.sourceApi === auth.api && context.baseUrl === auth.api.defaults.baseURL
+    && context.authorization === auth.api.defaults.headers?.common?.Authorization && context.profileBaseUrl === connections.activeBaseUrl
     && context.token === auth.state?.token && context.connectionId === connections.activeProfileId;
+}
+
+function isPermissionError(error: unknown): boolean {
+  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  return status === 401 || status === 403;
+}
+
+function isSafeSequence(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function validateMutation(value: GraphMutationResponse | null): void {
+  if (!value || !isSafeSequence(value.sequence) || typeof value.isDuplicate !== 'boolean') throw new Error('Missing Graph mutation terminal');
+}
+
+function validateMaintenance(value: GraphMaintenanceApproval | null, context: GraphContext, action: GraphMaintenanceAction, approvalId?: string): void {
+  if (!value || value.database !== context.database || value.graph !== context.graph || value.action !== action
+    || typeof value.approvalId !== 'string' || !value.approvalId.trim() || (approvalId && value.approvalId !== approvalId)) throw new Error('Missing Graph maintenance terminal');
+}
+
+function boundedVisualizationLimit(): number {
+  return typeof visualizationLimit.value === 'number' && Number.isFinite(visualizationLimit.value)
+    ? Math.max(10, Math.min(1000, Math.floor(visualizationLimit.value))) : 250;
+}
+
+function boundVisualization(result: GraphVisualization, limit: number): GraphVisualization {
+  const vertices = (Array.isArray(result.vertices) ? result.vertices : []).slice(0, limit);
+  const ids = new Set(vertices.map((vertex) => vertex.id));
+  const edges = (Array.isArray(result.edges) ? result.edges : []).slice(0, Math.max(0, limit - vertices.length))
+    .filter((edge) => ids.has(edge.sourceId) && ids.has(edge.targetId));
+  return { ...result, vertices, edges, truncated: result.truncated === true
+    || vertices.length < (result.vertices?.length ?? 0) || edges.length < (result.edges?.length ?? 0) };
+}
+
+function cancelRequests(): void {
+  overviewController?.abort(); visualizationController?.abort(); editorController?.abort();
+  auditController?.abort(); transferController?.abort(); writeController?.abort();
+}
+
+function invalidateContext(): void {
+  contextRevision += 1;
+  overviewRequestId += 1; visualizationRequestId += 1; editorRequestId += 1; auditRequestId += 1;
+  transferRequestId += 1; importFileRequestId += 1;
+  cancelRequests();
+  pendingAction.value = null;
+  busy.value = visualizationBusy.value = editorBusy.value = auditBusy.value = transferBusy.value = writeBusy.value = false;
+  errorMsg.value = '';
+  disposeChart();
+  overview.value = null; visualization.value = null; selectedElement.value = null;
+  stagedApproval.value = null; audit.value = []; editorId.value = null;
+  importText.value = ''; importFileName.value = ''; rejectReason.value = '';
+  maintenanceAction.value = 'RepairRebuild'; maxWorkUnits.value = 64; compactOnCompletion.value = false;
+  resetEditor();
+}
+
+function lockPermission(context: GraphContext): void {
+  deniedContext = context;
+  permissionLocked.value = true;
+  invalidateContext();
+  errorMsg.value = '当前身份没有 Graph 访问权限。';
 }
 
 function approvalInputKey(): string {
@@ -949,40 +1159,41 @@ function approvalInputKey(): string {
 }
 
 watch(approvalInputKey, () => { pendingAction.value = null; }, { flush: 'sync' });
-watch(() => [props.targetDb, props.graph, connections.activeProfileId, connections.activeBaseUrl, auth.state?.token, auth.api], () => {
-  contextRevision += 1;
-  pendingAction.value = null;
-  busy.value = false;
-  visualizationBusy.value = false;
-  editorBusy.value = false;
-  auditBusy.value = false;
-  transferBusy.value = false;
-  writeBusy.value = false;
-  errorMsg.value = '';
-  chart?.clear();
-  overview.value = null;
-  visualization.value = null;
-  selectedElement.value = null;
-  stagedApproval.value = null;
-  audit.value = [];
-  editorId.value = null;
-  resetEditor();
+watch(() => [props.targetDb, props.graph, connections.activeProfileId, connections.activeBaseUrl, auth.state, auth.state?.token,
+  auth.api, auth.api.defaults.baseURL, auth.api.defaults.headers?.common?.Authorization, props.permissionDenied, readOnly.value], () => {
+  invalidateContext();
+  const previous = deniedContext;
+  const changedIdentity = previous && ((props.targetDb && props.targetDb !== previous.database)
+    || (props.graph && props.graph !== previous.graph)
+    || (connections.activeProfileId && connections.activeProfileId !== previous.connectionId)
+    || (connections.activeBaseUrl && connections.activeBaseUrl !== previous.profileBaseUrl)
+    || (auth.api.defaults.baseURL && auth.api.defaults.baseURL !== previous.baseUrl));
+  if (changedIdentity) { permissionLocked.value = false; deniedContext = null; }
   const revision = contextRevision;
   void nextTick().then(() => {
-    if (!disposed && revision === contextRevision) return refreshAll();
+    if (!disposed && !permissionDenied.value && revision === contextRevision) return refreshAll();
   });
 }, { immediate: true, flush: 'sync' });
 watch(activeSection, (section) => {
   if (section === 'canvas') void renderChart();
+  else disposeChart();
   if (section === 'maintenance' && audit.value.length === 0) void loadAudit();
 });
-watch(editorKind, resetEditor);
+watch(editorKind, resetEditor, { flush: 'sync' });
+watch([editorKind, editorId], () => {
+  editorRequestId += 1; editorController?.abort(); editorBusy.value = false;
+}, { flush: 'sync' });
+watch(visualizationLimit, () => {
+  visualizationRequestId += 1; visualizationController?.abort(); visualizationBusy.value = false;
+  selectedElement.value = null;
+  if (visualization.value) visualization.value = boundVisualization(visualization.value, boundedVisualizationLimit());
+  void renderChart();
+}, { flush: 'sync' });
 onBeforeUnmount(() => {
   disposed = true;
   contextRevision += 1;
-  resizeObserver?.disconnect();
-  chart?.dispose();
-  chart = null;
+  cancelRequests();
+  disposeChart();
 });
 </script>
 

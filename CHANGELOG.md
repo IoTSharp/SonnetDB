@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-23 Graph 权限与有界画布（2026-10-06）**：Graph Beta 工作台消费能力矩阵并锁存 401/403，清理画布、诊断、元素、导入与维护审批载荷；只读保留浏览、元素读取与导出，写入/导入/维护入口均受门禁。请求绑定数据库、Graph、端点、认证和连接代际，隔离迟返、ABA、卸载并支持分派前取消；画布客户端按 10～1000 总元素预算先截断并保留边端点，Inspector 限制 32 项/4096 字符。元素数字 ID/版本超出安全整数时拒绝读取或写审批，维护 staged/paused/applying 不记完成，未知终态不重放。专属 Node **27/27**、全 Web **260/260**、Graph Chrome **16/16**、既有 Graph 浏览器 **3/3**、TypeScript/Vite 与真实 Kestrel Graph 兼容 **4/4** 通过；fixture/UI 与真实服务证据分开，完整 Int64 字符串、真实新 UI 权限/恢复及三宿主仍待独立验收。
+
 - **M47 WB-22 MQ 权限与有界预览（2026-10-06）**：复用发布、Ack、JSONL、真实 offset 分页和监控；补六态、readonly、401/403 载荷/草稿/审批清理与锁存，实际 Topic/连接/认证同步代际隔离迟返和 fallback ABA。审批一次消费，按每项原 Topic/消费者组验证终态，缺失或传输异常记 unknown 且不重放；不安全整数 offset 禁止 Ack/分页/Seek。Browse 每窗最多1000条、先截断后映射，Inspector最多格式化4096原始字节与有界header，完整已加载JSONL保留。Seek最多25窗/60秒；自动监控最多12轮/60秒且只取消自身请求。专属Node22/22、全Web240/240、TypeScript/Vite、Chrome夹具16/16、既有MQ浏览器3/3和独立复核通过；既有真实Kestrel兼容2/2单列。完整Base64解码/传输/总堆预算、读取恢复、新UI真实Server权限、三宿主/安装/AOT/发布仍独立验收。
 
 - **M47 WB-21 KV 权限与有界预览（2026-10-06）**：复用游标、JSONL、NX/XX、交换/删除与精确版本；新增六态和只读门禁，Scan/Stats/Get/Write 的401/403锁存并清值、统计、游标、结果、写草稿与审批。同身份刷新、空数据库/profile/端点/keyspace往返不解锁；快照与同步代际隔离迟返/ABA，真实Axios分派前取消取得本地adapter证据。扫描累计/Get最多1000项，先截断再映射，超返不复用跳过未保留项的cursor；Inspector最多格式化4096原始字节，完整原值仅用于已加载记录的round-trip导出，不预填截断写草稿。unknown历史保留未知且不重放。专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome夹具12/12与独立复核通过；既有真实Kestrel兼容6/6单列。完整Base64解码/传输与总堆预算、atomic全响应、真实新客户端权限/恢复及三宿主/安装/AOT/发布仍独立验收。

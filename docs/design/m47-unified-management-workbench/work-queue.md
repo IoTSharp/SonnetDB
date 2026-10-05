@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-23 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 干净起点 `759f36912fdb6a82edc008db6c02d181b66ebb9e`，WB-22 三代理均结束；本轮只推进 Graph 权限/有界画布兼容切片，复用原有 Canvas、Schema、元素编辑、JSON transfer 与维护审批，不重做 M40 引擎或 Object 复杂子页。Graph 保持 Beta、database/Graph 原名与旧 key/入口。
+- 实施代理 `/root/wb20_vector_impl` 独占 `web/src/components/GraphWorkbench.vue`、`web/src/api/graphs.ts` optional signal、`web/tests/graph-workflow.test.mjs` 必要兼容断言及新增 `web/tests/graph-workbench-migration.test.mjs`。UI代理 `/root/wb20_vector_ui` 独占新增 `web/e2e/graph-workbench-migration.spec.ts`；`/root/wb19_fulltext_impl` 独立只读复核。根独占六共享文档、runner、兼容证据、集成、restore/format、stage/commit；最多三个活动子代理，每代理25个命名文件/35分钟，不自跑长验证、不另派子代理。
+- 补 normal/empty/error/permission/readonly/longContent 六态，401/403 来自 overview/visualization/element/audit/export/write 均清旧画布/metadata/元素/导入草稿/维护载荷/审批并锁存。readonly 浏览/元素读取/导出保留，全部暂存/确认/导入文件/维护批准拒绝的按钮与程序入口禁写；同身份刷新和空身份往返不解锁，显式读取恢复另验。错误正文固定脱敏，不入历史。
+- 固定实际 API/endpoint/Authorization/token/profile/database/Graph 与同步 epoch，隔离迟返、跨库同名、ABA、新读和卸载；API optional signal 支持分派前取消，已派写取消不冒称 Server 未执行。消费 overview 的 boundedVisualization 能力，缺失或 false 不请求/不显示画布。画布按所选 10～1000 总元素上限先截断再映射/渲染，边必须指向保留顶点；保留 Server truncated 且客户端超限明确不完整，不虚构分页/全图。属性检查器预览有界，不改完整已加载编辑/JSON round-trip 合同，不称传输/扫描/字节/总堆预算。
+- 审批 dispatch 前一次消费并绑定发起身份/冻结输入；元素写需完整 mutation 终态，维护需匹配 database/Graph/审批身份和实际 state，不把 staged/paused/applying 称执行完成。缺失/错目标/传输异常为 unknown 且不重放，历史保留原目标。完整长期维护、服务端预算、新UI真实权限与三宿主另验。
+- 复核追加最小安全门禁：现有 JSON number 的 unsafe ID/elementVersion/edge endpoint 不可用于元素读取/编辑/写审批，阻止四舍五入后的错误目标；不实施全 Graph Int64 字符串合同。画布容器重建时重建 ECharts 并更新 ResizeObserver 归属，真实 DOM 实例须由浏览器证据验证。
+- 验收为专属及全 Web Node、TypeScript/Vite、真实 Chrome fixture、既有 Graph 浏览器和既有真实 Kestrel Graph 合同分开记录，另由只读代理复核。Server/路由/其它模型/宿主代码不改；旧策略保留 Temp 不删除、不重试或绕过。所有循环/搜索/重试同时限制项目数与墙钟，长进程记录身份/父链并 finally 仅清自有树，临时路径先解析核验。最终树完整 restore 与原级别 format、staged diff check 通过才本地提交，不 push/发布/部署/外部沟通。
+- 最终本地验证：专属 Node `27/27`、全 Web `260/260`、Graph Chrome `16/16`、既有 Graph 浏览器 `3/3`、TypeScript/Vite、真实 Kestrel Graph 兼容 `4/4`，独立只读复核 PASS；证据目录 `artifacts/wb23-validation-20261006`，最后进程审计 `43` 条且 `liveOwned=[]`。完整 Graph Int64 字符串、真实新 UI 权限/恢复、三宿主与发行证据仍分别待验；提交说明 `feat(m47): isolate Graph canvas and approval outcomes`，实际哈希以git log为准；最终树完整restore/原级别format与staged diff check均退出0才提交。
+
 ## 每个任务的闭环
 
 1. 读取 HANDOFF、AGENTS、当前 git 状态与本队列，选择有证据的最小切片；记录任务 ID、负责人、文件归属、依赖和验收条件。
