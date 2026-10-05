@@ -999,29 +999,99 @@ function selectGraph(graph: string): void {
 // name. Apply that selection once after the active database has both schema
 // and management metadata; route-only links still do not execute SQL.
 const routeSelectionToken = ref('');
+// A database-bearing link must wait until the database list has been loaded.
+// This prevents the initial active/default database from resolving the node
+// while the requested database is still unknown.
+const routeDatabaseListReady = ref(false);
+// Tracks the database query value already applied for this connection. A
+// user changing the Explorer database must not be redirected by the same URL;
+// only a new query value or a fresh database-list load can drive selection.
+const routeDatabaseSelectionToken = ref('');
+
+function routeDatabaseQuery(): string | undefined {
+  const value = route.query.database;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function applyRouteDatabaseSelection(): 'missing' | 'pending' | 'valid' | 'invalid' {
+  const requested = routeDatabaseQuery();
+  if (!requested) {
+    routeDatabaseSelectionToken.value = '';
+    return 'missing';
+  }
+  if (!routeDatabaseListReady.value) return 'pending';
+  if (!databases.value.includes(requested)) return 'invalid';
+  if (routeDatabaseSelectionToken.value !== requested) {
+    routeDatabaseSelectionToken.value = requested;
+    routeSelectionToken.value = '';
+    if (targetDb.value !== requested) selectDatabase(requested);
+  }
+  return 'valid';
+}
+
 watch(
   [
     () => route.query.tool,
     () => route.query.model,
     () => route.query.node,
+    () => route.query.database,
     targetDb,
+    databases,
+    routeDatabaseListReady,
     currentSchemaResponse,
     () => (targetDb.value ? managementByDb.value[targetDb.value] : undefined),
   ],
-  ([toolValue, modelValue, nodeValue, db, dbSchema, management]) => {
+  ([toolValue, modelValue, nodeValue, _databaseValue, db, _databases, dbListReady, dbSchema, management]) => {
     const rawModel = typeof modelValue === 'string' ? modelValue : undefined;
     const tool = typeof toolValue === 'string' ? toolValue : undefined;
     const model = rawModel ?? (tool && [
       'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph', 'index', 'backup',
     ].includes(tool) ? tool : undefined);
     const node = typeof nodeValue === 'string' ? nodeValue : undefined;
+    const requestedDatabase = routeDatabaseQuery();
     if (!model) {
+      if (!requestedDatabase) {
+        routeDatabaseSelectionToken.value = '';
+      } else if (!dbListReady) {
+        return;
+      } else if (!_databases.includes(requestedDatabase)) {
+        routeDatabaseSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        routeSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+      } else if (routeDatabaseSelectionToken.value !== requestedDatabase) {
+        routeDatabaseSelectionToken.value = requestedDatabase;
+        if (db !== requestedDatabase) selectDatabase(requestedDatabase);
+      }
       routeSelectionToken.value = '';
       return;
     }
+
+    if (requestedDatabase && !dbListReady) return;
+    if (requestedDatabase) {
+      if (!_databases.includes(requestedDatabase)) {
+        // An unknown database must not resolve its node against the active
+        // database's first item. Keep the active/default database intact and
+        // leave Explorer selection untouched until the URL is corrected.
+        routeDatabaseSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        routeSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        return;
+      }
+      if (routeDatabaseSelectionToken.value !== requestedDatabase) {
+        routeDatabaseSelectionToken.value = requestedDatabase;
+        routeSelectionToken.value = '';
+        if (db !== requestedDatabase) {
+          selectDatabase(requestedDatabase);
+          return;
+        }
+      } else if (db !== requestedDatabase) {
+        // The URL was already applied. A later targetDb change came from the
+        // user, so preserve that choice instead of forcing the URL database.
+        return;
+      }
+    }
+
     if (!db || db === CONTROL_PLANE_KEY || !dbSchema || !management) return;
 
-    const token = `${model}\u0000${node ?? ''}`;
+    const token = `${requestedDatabase ?? ''}\u0000${db}\u0000${model}\u0000${node ?? ''}`;
     if (routeSelectionToken.value === token) return;
     routeSelectionToken.value = token;
     activeExplorerKey.value = explorerKeyFromRoute(model, node, dbSchema, management);
@@ -1073,11 +1143,15 @@ watch(targetDb, (db) => {
 watch(() => connections.activeProfileId, async () => {
   auth.setApiBaseUrl(connections.activeBaseUrl);
   routeSelectionToken.value = '';
+  routeDatabaseSelectionToken.value = '';
+  routeDatabaseListReady.value = false;
   resetExplorerCache();
   if (connections.activeDatabase) {
     targetDb.value = connections.activeDatabase;
   }
   await reloadDbs();
+  routeDatabaseListReady.value = true;
+  applyRouteDatabaseSelection();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     expandedDatabases.value = {
       ...expandedDatabases.value,
@@ -1126,6 +1200,8 @@ onMounted(async () => {
   }
   void refreshConnectionHealth();
   await reloadDbs();
+  routeDatabaseListReady.value = true;
+  applyRouteDatabaseSelection();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     await loadSchema(targetDb.value, true);
     expandedDatabases.value = {

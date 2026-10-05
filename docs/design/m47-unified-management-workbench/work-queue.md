@@ -59,6 +59,13 @@
 - 独占候选文件：`web/src/utils/managementExplorer.ts`（route node→legacy key helper）、`web/src/views/SqlConsoleView.vue`（route/db/schema/management 就绪后一次性选择 watcher）、`web/tests/explorer-route-selection.test.mjs` 与必要兼容测试。不得接入 CapabilityRegistry 或改变 MQ/Graph 资源合同。
 - 验收：覆盖 measurement/table/document/kv/mq/vector/fulltext/bucket/graph/index/backup、大小写/冒号、缺失/未知 node 回退、tool-only、MQ database+Topic、Graph Beta、metadata 等待、watcher 顺序和 route-only；自有 Node 测试 5/5，Explorer/路由/壳/导航/页签定向回归 20/20，独立复核全 Web Node 107/107，TypeScript/Vite、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。URL 无 database 参数的 active/default DB 边界单独记录。
 
+## WB-09 当前切片（2026-10-05）
+
+- 状态：实现完成，待根会话门禁与提交；负责人：根会话集成，子智能体 `/root/wb09_database_route` 独占实现，`/root/wb06_shell_reviewer` 独立复核。依赖 WB-08 `418c21d3` / `9c3ace1f`。
+- 范围：为新的 Explorer 深链接补可选 `database` 上下文，同时保留旧无 database 的 `tool/model/node` query、旧 redirects、当前 active/default DB 回退和 route-only 不自动执行。
+- 独占候选文件：`web/src/composables/useSqlExplorerRouting.ts`（生成链接携 database，保留旧字段）、`web/src/views/SqlConsoleView.vue`（校验 route.query.database，数据库列表加载后选择指定库，再按现有 helper 回选）、必要时 `web/src/composables/useSqlExplorer.ts`、新增 `web/tests/explorer-database-route-selection.test.mjs` 与兼容测试。不得接入 CapabilityRegistry 或改变 MQ/Graph 资源合同。
+- 验收：九模型、index、backup、大小写/冒号、MQ database+Topic、Graph Beta；有效 database 等待列表后选择，缺失/未知 database 安全回退 active/default，database-only 与 A→未知→恢复路径有 token 保护，用户手动切库不被同一旧 URL 强制切回；旧 query 与 route-only 全回归。自有 Node 4/4，Explorer/路由兼容定向 10/10，独立复核全 Web Node 111/111，TypeScript/Vite、`git diff --check` 和最终 restore/format 通过。浏览器在已手动切库后只改变同 database URL 的 model/node query 仍是后续边界；真实 Server、权限、三宿主和发布证据分开。
+
 ## 会话与自动检查
 
 新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。

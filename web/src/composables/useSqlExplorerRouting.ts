@@ -126,27 +126,35 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
 
   function routeExplorerItem(db: string, item: ExplorerItem): void {
     selectExplorerItem(db, item);
+    // Keep the established tool/model/node query contract and add the
+    // database context as an optional projection for newly generated links.
+    // Legacy URLs without database continue to resolve against the active
+    // database in SqlConsoleView.
+    const query = item.model === 'table'
+      ? { tool: 'table', model: item.model, node: item.name }
+      : item.model === 'document'
+        ? { tool: 'document', model: item.model, node: item.name }
+      : item.model === 'kv'
+        ? { tool: 'kv', model: item.model, node: item.name }
+      : item.model === 'mq'
+        ? { tool: 'mq', model: item.model, node: item.name }
+      : item.model === 'vector'
+        ? { tool: 'vector', model: item.model, node: item.name }
+      : item.model === 'fulltext'
+        ? { tool: 'fulltext', model: item.model, node: item.name }
+      : item.model === 'bucket'
+        ? { tool: 'bucket', model: item.model, node: item.name }
+      : item.model === 'graph'
+        ? { tool: 'graph', model: item.model, node: item.name }
+      : item.model === 'measurement'
+        ? { tool: 'measurement', model: item.model, node: item.name }
+        : { model: item.model, node: item.name };
     void router.replace({
       name: 'sql',
-      query: item.model === 'table'
-        ? { tool: 'table', model: item.model, node: item.name }
-        : item.model === 'document'
-          ? { tool: 'document', model: item.model, node: item.name }
-        : item.model === 'kv'
-          ? { tool: 'kv', model: item.model, node: item.name }
-        : item.model === 'mq'
-          ? { tool: 'mq', model: item.model, node: item.name }
-        : item.model === 'vector'
-          ? { tool: 'vector', model: item.model, node: item.name }
-        : item.model === 'fulltext'
-          ? { tool: 'fulltext', model: item.model, node: item.name }
-        : item.model === 'bucket'
-          ? { tool: 'bucket', model: item.model, node: item.name }
-        : item.model === 'graph'
-          ? { tool: 'graph', model: item.model, node: item.name }
-        : item.model === 'measurement'
-          ? { tool: 'measurement', model: item.model, node: item.name }
-          : { model: item.model, node: item.name },
+      query: {
+        ...query,
+        database: item.resource.database || db,
+      },
     });
   }
 
