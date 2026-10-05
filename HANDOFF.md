@@ -197,3 +197,9 @@
 - WB-02D 已闭环后，主会话冻结 WB-02E 的文件归属：子智能体 `/root/wb02e_global_flow_contracts` 仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；主会话负责新增窄测试、CHANGELOG、validation-report、work-queue、HANDOFF、验证和提交。没有修改生产 `web/src`、路由或宿主代码。
 - 目标是剩余五个工作台/数据流页面 `summary`、`recent`、`imports`、`transfers`、`jobs` 的 capabilities、六态 stateMatrix、专用字段和任务注入；实现仍为 REVIEW_DRAFT 静态原型，保留现有权限、取消、分页/预算、恢复不重放和服务器终态边界。
 - 实施者已回报完成：五页均补 capabilities、六态、normal.fields 与任务注入，`node --check` 两个 JS 和 `git diff --check` 通过；主会话新增合同测试 3/3，并与 WB-02B/C/D 联合 11/11。独立只读复核 PASS；复核发现的 jobs 位点字段断言已修正并重新通过。WB-02E 已提交为 `5cbd759a`（`feat(m47): add workbench flow state contracts`），提交前 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。设计包仍为 REVIEW_DRAFT，不代表真实 Server、权限、任务恢复、三宿主或生产迁移验收；不得重复派 WB-02E。保留 `origin/parity-results`，不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-02F，2026-10-05）
+
+- WB-02E 已闭环后，主会话冻结 WB-02F 文件归属：实现者仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；主会话负责新增窄测试、CHANGELOG、validation-report、work-queue、HANDOFF、验证和提交。生产 `web/src`、路由与宿主代码继续冻结。
+- 目标是 AI 与 MCP 四个页面 `ai-connect`、`copilot-settings`、`rag`、`tool-permissions` 的 capabilities、六态 stateMatrix、专用字段和任务注入。需保留 typed HTTP/stdio bridge 尚未实现边界、模型质量/成本独立证据、RAG 持久任务 profile/generation/revision 合同、默认只读工具与显式数据外发策略。
+- 实施者已回报完成且未提交：四页均补 capabilities、六态、normal.fields 与任务注入，`node --check` 两个 JS 和 `git diff --check` 通过；主会话新增合同测试 3/3，并与 WB-02B/C/D/E 联合 14/14。独立只读复核 PASS，确认 typed HTTP/stdio bridge、Provider 质量/成本、RAG profile/generation/revision、权限交集、默认只读和数据外发边界。下一检查点是在最终待提交树运行完整 restore/format，stage 仅 WB-02F 文件并提交，再回写实际哈希。不得重复 WB-02F 或覆盖其它会话文件；保留 `origin/parity-results`。

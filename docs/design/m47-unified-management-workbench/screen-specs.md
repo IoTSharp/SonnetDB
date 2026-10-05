@@ -115,6 +115,15 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | RAG 管理 / `rag` / 既有 | 数据库/Stream → 已发布 revision/profile → 持久任务 → 派生重建/换代 → 清理退役版本 → 审计。 | 内容/分块、generation、expected revision、Profile identity。续跑必须匹配已配置 profile；新版本完整发布前保留当前；安全整数溢出时禁写。复用现有服务器权限与 WriteApprovalPanel。 |
 | 工具权限与外发 / `tool-permissions` / 规划 | 实际工具清单 → 用户/宿主有效权限 → 预算 → 数据范围 → 调用记录。 | 权限是用户权限、工具边界、宿主策略的交集。默认只读，MCP 无直接写入口；工作台审批不能通过 AI 提示绕过。不存在通用权限管理 API 的字段只读/禁用并标原因。 |
 
+**WB-02F AI 与 MCP 状态合同（`ai-connect`、`copilot-settings`、`rag`、`tool-permissions`）：** 四页把已有 typed HTTP、账号/Provider、RAG 持久任务和权限边界整理为页面级元数据；静态原型不发起网络请求、不写客户端配置、不伪造 `tools/list`、Provider、usage、质量/成本或任务终态。
+
+| 页面 | capabilities | 六态主动作、`normal.fields` 与边界 |
+|---|---|---|
+| AI Connect / `ai-connect` | `ai-connect-streamable-http`（既有 typed Streamable HTTP）；`ai-connect-config-wizard`、`ai-connect-stdio-bridge`、`ai-connect-tools-list`、`ai-connect-egress-policy`（规划）。 | 正常“生成配置预览”，字段为客户端、传输方式、数据库、配置范围、HTTP Endpoint、结果预算、工具清单状态、外发策略；空“开始接入向导”只保留向导输入；错误保留 Endpoint/预算并标失败步骤，不能标记接入已验证；无权限隐藏工具与数据库载荷并显示实例/数据库/宿主权限；只读可查看边界，禁用配置写入、stdio 安装、工具调用和外发批准；长工具/诊断按条数/字节预算折叠，不能虚构完整清单或 continuation。typed HTTP 已有，`sonnetdb mcp` stdio bridge 与配置向导仍是 M47-U08 规划。默认只读、MCP 无直接写/删入口，凭据永不外发。 |
+| Copilot 与 Provider / `copilot-settings` | `copilot-account-binding`、`copilot-model-catalog`、`copilot-provider-test`（既有）；`copilot-usage-evidence`（延伸）；`copilot-quality-cost-gate`（规划）。 | 正常“预览配置变更”，字段为 Provider、Chat 模型、Embedding profile、账号状态、Token 到期、usage 时间窗、实际/估算标记、外发范围、质量/成本证据；空“查看配置步骤”；错误仅替换目录/usage 并保留配置，不能将连接成功当质量 PASS；无权限隐藏模型、usage、凭据状态；只读可查看 profile/目录/口径，禁用绑定、保存和外发修改；长目录/usage 按记录/字节分页，不能伪造模型 ID、价格、质量分数或成本报告。真实模型质量与成本证据独立验收。 |
+| RAG 管理 / `rag` | `rag-published-snapshot`、`rag-persistent-task`、`rag-profile-identity`、`rag-derived-rebuild`、`rag-retirement-cleanup`（既有）；`rag-audit`（延伸）。 | 正常“预览重建 / 换代”，字段为数据库、Stream、Active revision、Profile identity、Generation、Expected revision、内容/分块、任务 ID、发布状态、清理范围；空“查看摄取说明”；错误保留 profile/generation/expected revision，不能把客户端重试当持久续跑；无权限隐藏内容/分块/任务载荷；只读可查看快照、任务、审计，禁用重建、续跑、发布和清理；长内容/日志按记录/字节分页且保留 profile、generation、revision 关系。续跑必须匹配 profile、generation 与 expected revision；安全整数溢出或范围异常时拒绝写入。 |
+| 工具权限与外发 / `tool-permissions` | `tool-permissions-intersection`、`tool-permissions-readonly-default`、`tool-permissions-egress`、`tool-permissions-call-audit`（规划）；`tool-permissions-budget`（延伸）。 | 正常“预览权限范围”，字段为客户端、用户身份、数据库、工具类别、有效权限交集、`maxRows`、字节预算、超时/取消、数据外发范围、调用记录来源；空“打开 AI Connect”且不把静态类别当实际授权；错误保留身份/数据库筛选，不能将缓存标成有效权限；无权限隐藏工具 schema、数据范围与载荷；只读可查看边界与预算，禁用策略修改、外发批准和写/删；长 schema/调用记录按条数/字节折叠，不伪造完整 `tools/list`。有效权限是用户授权 × 工具边界 × 宿主策略交集，默认只读，MCP 无直接写入口，显式允许的数据范围之外不外发，凭据永不进入工具结果。 |
+
 ## 治理：五个二级页面
 
 | 页面 / ID / 标签 | 主任务与页面结构 | 关键字段、动作与边界 |

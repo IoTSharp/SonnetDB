@@ -389,7 +389,22 @@ window.M47_CATALOG = {
           columns: ['客户端', '传输', '配置范围', '当前设计状态'], rows: [['WorkBuddy', 'HTTP / stdio', '用户 / 项目', '配置向导规划'], ['Claude', 'HTTP / stdio', '用户 / 项目', '配置向导规划'], ['Cursor', 'HTTP / stdio', '项目', '配置向导规划'], ['Codex', 'HTTP / stdio', '用户 / 项目', '配置向导规划']],
           fields: [{ label: '客户端', value: 'WorkBuddy', kind: 'select' }, { label: '传输方式', value: 'Streamable HTTP', kind: 'select' }, { label: '数据库', value: 'factory', kind: 'select' }, { label: '配置范围', value: '用户', kind: 'select' }, { label: '结果预算', value: '最多 100 行 / 1 MB / 30 秒', kind: 'input' }],
           tabs: ['连接向导', '配置预览', '工具列表', '自检', '数据外发'], inspector: [{ label: 'HTTP Endpoint', value: '/mcp/factory' }, { label: '工具边界', value: '默认只读' }, { label: 'stdio bridge', value: 'M47-U08 规划' }, { label: '凭据', value: '配置示例使用环境变量引用' }],
-          empty: { title: '连接一个 AI 客户端', body: '先选择客户端与数据库，检查工具范围和配置落点。', action: '开始接入向导' }
+          empty: { title: '连接一个 AI 客户端', body: '先选择客户端与数据库，检查工具范围和配置落点。', action: '开始接入向导' },
+          capabilities: [
+            { id: 'ai-connect-streamable-http', status: 'existing', label: 'typed Streamable HTTP MCP', note: '服务端 typed HTTP 入口已经存在；原型不发起请求，也不把静态 Endpoint 当作连通证据。' },
+            { id: 'ai-connect-config-wizard', status: 'planned', label: '客户端配置向导', note: 'WorkBuddy/Claude/Cursor/Codex 的用户/项目配置生成仍待 M47-U08；预览不能写入用户或项目配置。' },
+            { id: 'ai-connect-stdio-bridge', status: 'planned', label: 'sonnetdb mcp stdio bridge', note: 'stdio bridge 与配置自检尚未实现，不能显示安装、启动或 tools/list 成功。' },
+            { id: 'ai-connect-tools-list', status: 'planned', label: '实际 tools/list 与只读清单', note: '工具清单必须来自真实身份和服务响应；默认只读，写入/删除不由 MCP 直接提供。' },
+            { id: 'ai-connect-egress-policy', status: 'planned', label: '显式数据外发预览', note: '出域范围由用户授权、工具边界和宿主策略共同决定；凭据永不作为工具结果外发。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'planned', summary: '展示客户端、typed HTTP 传输、数据库、配置范围、结果预算与自检待执行状态；配置与 tools/list 仍是预览。', primary: '生成配置预览', fields: ['客户端', '传输方式', '数据库', '配置范围', 'HTTP Endpoint', '结果预算', '工具清单状态', '外发策略'] },
+            empty: { label: '未接入', status: 'planned', summary: '没有已保存接入 profile 时只保留向导输入；不创建配置、不调用 HTTP/stdio。', primary: '开始接入向导', preserve: ['客户端', '数据库', '配置范围'] },
+            error: { label: '接入自检错误', status: 'planned', summary: '保留传输、Endpoint、预算和配置草稿，仅标记实际失败步骤；不能把局部连接成功写成 tools/list 或质量成功。', primary: '查看自检步骤', preserve: ['客户端', '传输方式', 'Endpoint', '配置范围'], blocked: ['标记接入已验证', '写入客户端配置'] },
+            permission: { label: '接入权限不足', status: 'planned', summary: '隐藏工具清单与数据库载荷，显示需要的实例/数据库身份和宿主配置权限。', primary: '查看权限要求', preserve: ['客户端', '数据库', '配置范围'], blocked: ['查看受限工具', '导出受限数据'] },
+            readonly: { label: '只读', status: 'planned', summary: '可查看传输说明、预算和外发规则；配置写入、stdio 安装、工具调用与任何写入入口禁用。', primary: '查看接入边界', blocked: ['保存客户端配置', '安装 stdio bridge', '调用写工具', '批准数据外发'] },
+            longContent: { label: '长工具与诊断内容', status: 'planned', summary: 'tools/list、schema、诊断和外发规则按条数/字节预算折叠并标记未返回全部；不虚构 continuation 或自检终态。', primary: '查看接入预算', limits: ['工具清单与诊断上限由服务和宿主合同提供', '截断清单不代表完整能力矩阵', '凭据与敏感字段始终脱敏'] }
+          }
         },
         {
           id: 'copilot-settings', title: 'Copilot 与 Provider', tabLabel: 'Provider', type: 'form', scope: 'instance', status: 'existing', existingRoute: '/admin/app/ai-settings',
@@ -397,7 +412,22 @@ window.M47_CATALOG = {
           columns: ['用途', 'Provider / 模型', '配置来源', '状态'], rows: [['Chat', '平台模型 / 由服务端返回', 'sonnetdb.com 账号', '未读取 · 原型'], ['Embedding', '显式 profile', '服务端配置', '未读取 · 原型']],
           fields: [{ label: 'Provider', value: '以当前服务器配置为准', kind: 'select' }, { label: 'Chat 模型', value: '尚未加载模型目录', kind: 'select' }, { label: '外发范围', value: '仅显式允许内容', kind: 'select' }, { label: '凭据', value: '••••••••', kind: 'secret' }],
           tabs: ['Provider', '账号绑定', '模型目录', '用量', '测试'], inspector: [{ label: '管理权限', value: '实例管理员' }, { label: '测试边界', value: '连接成功不等同质量门禁' }, { label: '估算用量', value: '缺 usage 时单独标注估算' }],
-          empty: { title: 'Provider 尚未配置', body: '管理员可绑定账号或配置受支持 Provider。', action: '查看配置步骤' }
+          empty: { title: 'Provider 尚未配置', body: '管理员可绑定账号或配置受支持 Provider。', action: '查看配置步骤' },
+          capabilities: [
+            { id: 'copilot-account-binding', status: 'existing', label: '账号绑定与 Provider profile', note: '复用既有 sonnetdb.com 设备码/授权边界；原型不发起授权、轮询或保存凭据。' },
+            { id: 'copilot-model-catalog', status: 'existing', label: '真实模型目录', note: '模型 ID、Provider 与 embedding profile 只能来自服务端实际目录，不预设不存在的模型。' },
+            { id: 'copilot-usage-evidence', status: 'extension', label: 'usage 与成本口径', note: '实际 usage、估算 usage、请求数和成本分开记录；缺 usage 时不把估算当真实证据。' },
+            { id: 'copilot-provider-test', status: 'existing', label: '连接与配置测试', note: '连接/认证测试与真实模型质量、成本门禁分开；连接成功不能升级为质量 PASS。' },
+            { id: 'copilot-quality-cost-gate', status: 'planned', label: '真实模型质量与成本门禁', note: '需要独立真实模型、质量、成本与固定环境证据；原型静态目录不构成通过。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '展示服务器返回的 Provider/profile、模型目录、Token 到期、usage 口径与外发范围；测试结果与质量/成本证据分开。', primary: '预览配置变更', fields: ['Provider', 'Chat 模型', 'Embedding profile', '账号状态', 'Token 到期', 'usage 时间窗', '实际/估算标记', '外发范围', '质量/成本证据'] },
+            empty: { label: '未配置 Provider', status: 'existing', summary: '没有已配置 Provider 时保留实例身份与配置步骤，不预填模型 ID、不生成账号绑定结果。', primary: '查看配置步骤', preserve: ['实例连接', 'Provider 选择', '外发范围'] },
+            error: { label: 'Provider/目录读取错误', status: 'extension', summary: '仅替换 Provider、模型或 usage 面板，保留已加载配置并标记过期；不把连接测试或缓存目录当质量证据。', primary: '检查读取步骤', preserve: ['Provider', '外发范围', '账号草稿'], blocked: ['标记模型质量通过', '标记成本通过'] },
+            permission: { label: '实例管理权限不足', status: 'existing', summary: '隐藏模型目录、usage 与凭据状态，显示实例管理员或 Provider 读取权限要求。', primary: '查看权限要求', preserve: ['实例连接', '目标 Provider'], blocked: ['查看敏感配置', '修改 Provider'] },
+            readonly: { label: '只读', status: 'existing', summary: '可浏览 profile、模型目录、usage 口径与测试边界；账号绑定、Provider 修改和外发范围保存禁用。', primary: '查看 Provider 状态', blocked: ['绑定账号', '保存 Provider', '修改外发范围', '执行质量/成本门禁'] },
+            longContent: { label: '长模型与 usage 内容', status: 'extension', summary: '模型目录、版本、usage 明细和测试日志按记录/字节预算分页或折叠，保留实际/估算标记。', primary: '查看 usage 预算', limits: ['目录与 usage 上限以服务端返回为准', '不虚构模型 ID、价格、质量分数或成本报告', '脱敏后才可导出诊断'] }
+          }
         },
         {
           id: 'rag', title: 'RAG 管理', tabLabel: 'RAG', type: 'table', scope: 'database', status: 'existing', existingRoute: '/admin/app/rag',
@@ -405,7 +435,23 @@ window.M47_CATALOG = {
           columns: ['Stream', 'Active revision', 'Profile', '内容 / 分块', '待续跑任务'], rows: [['copilot-docs', '7 · 示例', 'factory-text-v2 · 示例', '128 / 864 · 示例', '待处理 · 示例'], ['maintenance-notes', '3 · 示例', 'factory-text-v2 · 示例', '42 / 210 · 示例', '无 · 示例']],
           fields: [{ label: '数据库', value: 'factory', kind: 'select' }, { label: 'Stream', value: 'copilot-docs', kind: 'input' }, { label: '目标 profile', value: '选择服务器已配置 profile', kind: 'select' }], tabs: ['已发布快照', '持久任务', '派生重建', '退役清理', '审计'],
           inspector: [{ label: '模型身份', value: 'Provider / model / revision / dimensions' }, { label: '发布边界', value: '新版本完整发布前保留当前版本' }, { label: '写入', value: '服务器校验数据库管理权限' }],
-          empty: { title: '尚无已发布快照', body: '先通过实际摄取入口创建首个版本，再在这里重建与维护。', action: '查看摄取说明' }
+          empty: { title: '尚无已发布快照', body: '先通过实际摄取入口创建首个版本，再在这里重建与维护。', action: '查看摄取说明' },
+          capabilities: [
+            { id: 'rag-published-snapshot', status: 'existing', label: '已发布快照与 active revision', note: '复用数据库 RAG 已发布快照；新版本完整发布前继续保留当前 active revision。' },
+            { id: 'rag-persistent-task', status: 'existing', label: '持久任务与受控续跑', note: '续跑必须匹配真实任务、generation、expected revision 与 profile identity；没有持久任务 ID 不显示 resume。' },
+            { id: 'rag-profile-identity', status: 'existing', label: 'Profile / Provider / dimensions 身份', note: '目标 profile 必须来自服务端已配置项；profile 不匹配时拒绝续跑或发布。' },
+            { id: 'rag-derived-rebuild', status: 'existing', label: '派生重建与换代预览', note: '重建、换代和发布经过数据库权限与写审批；仅展示影响预览，不自动执行。' },
+            { id: 'rag-retirement-cleanup', status: 'existing', label: '退役与清理预览', note: '使用中的版本延期处理，原始主数据保留；版本计数和范围来自服务器。' },
+            { id: 'rag-audit', status: 'extension', label: 'RAG 审计与 continuation', note: '审计按真实 continuation 分页；原型不伪造任务状态、进度或服务器终态。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '展示数据库 Stream、active revision、profile、generation/expected revision、持久任务和受控重建入口。', primary: '预览重建 / 换代', fields: ['数据库', 'Stream', 'Active revision', 'Profile identity', 'Generation', 'Expected revision', '内容 / 分块', '任务 ID', '发布状态', '清理范围'] },
+            empty: { label: '空 RAG 目录', status: 'existing', summary: '没有已发布快照或任务时保留数据库/Stream/profile 输入，说明实际摄取入口；不创建派生资源。', primary: '查看摄取说明', preserve: ['数据库', 'Stream', '目标 profile'] },
+            error: { label: 'RAG 任务/快照错误', status: 'extension', summary: '仅替换快照或任务结果，保留 Stream、profile、generation 和 expected revision；不把客户端重试当持久续跑。', primary: '检查并重试', preserve: ['数据库', 'Stream', 'Profile identity', 'Generation', 'Expected revision'], blocked: ['自动续跑', '发布新 revision'] },
+            permission: { label: '数据库 RAG 权限不足', status: 'existing', summary: '隐藏内容、分块和任务载荷，显示数据库对象/任务管理权限要求。', primary: '查看数据库权限', preserve: ['数据库', 'Stream', 'Profile identity'], blocked: ['读取内容', '恢复任务', '清理版本'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看快照、profile、任务和审计；重建、发布、清理、续跑与删除全部禁用并说明原因。', primary: '查看 RAG 状态', blocked: ['重建派生版本', '续跑任务', '发布 revision', '清理退役版本'] },
+            longContent: { label: '长文档与任务日志', status: 'extension', summary: '文档、分块、任务日志和审计按记录/字节预算分页，保留 profile、generation 和 revision 关系；不拼接异构 continuation。', primary: '查看任务预算', limits: ['内容与日志上限由服务端合同提供', '安全整数溢出或范围异常时拒绝写入', '截断内容不视为完整文档或任务终态'] }
+          }
         },
         {
           id: 'tool-permissions', title: '工具权限与外发', tabLabel: '工具权限', type: 'table', scope: 'database', status: 'planned',
@@ -413,7 +459,22 @@ window.M47_CATALOG = {
           columns: ['工具类别', '数据范围', '权限', '预算', '外发'], rows: [['Schema / describe', 'factory schema', '只读', '有界 metadata', '按宿主配置'], ['SQL select / explain', 'factory', '只读', '100 行 / 1 MB / 30 秒', '按显式允许范围'], ['模型 browse / search', '已授权对象', '只读', '按模型预算', '按宿主配置'], ['写入 / 删除', '工作台审批', 'MCP 不提供', '—', '—']],
           fields: [{ label: '客户端', value: '全部', kind: 'select' }, { label: '工具类别', value: '全部', kind: 'select' }], tabs: ['工具权限', '结果预算', '数据外发', '调用记录'],
           inspector: [{ label: '有效权限', value: '用户权限 ∩ 工具权限 ∩ 宿主策略' }, { label: '权限状态', value: '设计示例，不是实际授权' }, { label: '服务端校验', value: '任何客户端开关不能扩大权限' }],
-          empty: { title: '尚未加载工具清单', body: 'AI Connect 自检成功后，按当前身份显示实际 tools/list。', action: '打开 AI Connect' }
+          empty: { title: '尚未加载工具清单', body: 'AI Connect 自检成功后，按当前身份显示实际 tools/list。', action: '打开 AI Connect' },
+          capabilities: [
+            { id: 'tool-permissions-intersection', status: 'planned', label: '有效权限交集', note: '有效权限是用户授权 × 工具边界 × 宿主策略；界面开关不能扩大服务器授权。' },
+            { id: 'tool-permissions-readonly-default', status: 'planned', label: '默认只读工具边界', note: 'Schema/describe、SQL select/explain 与模型 browse/search 默认只读；MCP 不提供直接写入/删除入口。' },
+            { id: 'tool-permissions-budget', status: 'extension', label: '结果预算与截断', note: 'maxRows、字节、超时和取消由服务端能力约束；客户端偏好不能扩大上限。' },
+            { id: 'tool-permissions-egress', status: 'planned', label: '显式数据外发策略', note: '只允许用户明确选择且通过宿主策略的 schema/metadata/结果范围；凭据和未授权敏感字段永不外发。' },
+            { id: 'tool-permissions-call-audit', status: 'planned', label: '调用记录与留存', note: '调用来源、工具版本、范围和留存权限需真实记录合同；原型不显示工具执行成功。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'planned', summary: '展示实际工具清单（若服务返回）、用户/工具/宿主有效权限交集、预算、数据范围与调用记录来源。', primary: '预览权限范围', fields: ['客户端', '用户身份', '数据库', '工具类别', '有效权限交集', 'maxRows', '字节预算', '超时/取消', '数据外发范围', '调用记录来源'] },
+            empty: { label: '未加载工具清单', status: 'planned', summary: '没有真实 tools/list 或权限响应时保留客户端/数据库筛选，不能把静态类别当实际授权。', primary: '打开 AI Connect', preserve: ['客户端', '数据库', '工具类别'] },
+            error: { label: '权限/工具读取错误', status: 'planned', summary: '仅替换工具与预算结果，保留身份、数据库和筛选；不把缓存或客户端开关标成有效权限。', primary: '检查并重试', preserve: ['客户端', '用户身份', '数据库', '工具类别'], blocked: ['标记工具可用', '扩大结果预算'] },
+            permission: { label: '权限不足', status: 'planned', summary: '隐藏工具 schema、数据范围和调用载荷，显示缺少的实例/数据库/宿主权限。', primary: '查看权限要求', preserve: ['客户端', '用户身份', '数据库'], blocked: ['查看受限工具', '外发受限数据'] },
+            readonly: { label: '只读', status: 'planned', summary: '可查看工具边界、预算和外发说明；修改策略、批准外发、写入/删除与直接 MCP 写工具全部禁用。', primary: '查看只读边界', blocked: ['保存权限策略', '批准数据外发', '执行写入/删除', '修改服务器预算'] },
+            longContent: { label: '长工具与结果 schema', status: 'planned', summary: '工具 schema、字段说明、调用记录和结果预览按条数/字节预算折叠，标记未返回全部；不伪造完整 tools/list。', primary: '查看工具预算', limits: ['schema/调用记录上限以真实服务和宿主合同为准', '截断结果不代表完整数据', '凭据永不进入工具结果或导出'] }
+          }
         }
       ]
     },
