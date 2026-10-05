@@ -278,6 +278,12 @@ import {
   useSqlConsoleStore,
 } from '@/stores/sqlConsole';
 import { useWorkbenchHistoryStore } from '@/stores/workbenchHistory';
+import {
+  createGraphResourceDescriptor,
+  createMqResourceDescriptor,
+  createResourceDescriptor,
+  type ResourceDescriptor,
+} from '@/management-core/resourceDescriptor';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 
 const asyncWorkbenchOptions = { loadingComponent: AsyncWorkbenchLoading, delay: 120, suspensible: false };
@@ -549,31 +555,130 @@ const selectedGraph = computed(() => {
 });
 
 const activeObjectIdentity = computed(() => {
+  if (activeWorkbenchTool.value === 'trajectory') {
+    return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory', resource: null };
+  }
+  // Object descriptors are database-scoped. During initial connection setup
+  // (or on the control plane) keep the empty workbench state without creating
+  // a synthetic resource identity.
+  if (!targetDb.value || targetDb.value === CONTROL_PLANE_KEY) return null;
+
   switch (activeWorkbenchTool.value) {
     case 'measurement':
-      return { label: selectedMeasurement.value?.name ?? 'Measurement', key: selectedMeasurement.value?.name ?? 'measurement' };
+      if (!selectedMeasurement.value) return null;
+      return {
+        label: selectedMeasurement.value.name,
+        key: selectedMeasurement.value.name,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'measurement',
+          name: selectedMeasurement.value.name,
+          key: selectedMeasurement.value.name,
+          legacyKey: selectedMeasurement.value.name,
+        }),
+      };
     case 'table':
-      return { label: selectedTable.value?.name ?? '关系表', key: selectedTable.value ? `table:${selectedTable.value.name}` : 'table' };
+      if (!selectedTable.value) return null;
+      return {
+        label: selectedTable.value.name,
+        key: `table:${selectedTable.value.name}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'table',
+          name: selectedTable.value.name,
+          key: `table:${selectedTable.value.name}`,
+          legacyKey: `table:${selectedTable.value.name}`,
+        }),
+      };
     case 'document':
-      return { label: selectedDocumentCollection.value?.name ?? '文档集合', key: selectedDocumentCollection.value ? `document:${selectedDocumentCollection.value.name}` : 'document' };
+      if (!selectedDocumentCollection.value) return null;
+      return {
+        label: selectedDocumentCollection.value.name,
+        key: `document:${selectedDocumentCollection.value.name}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'document',
+          name: selectedDocumentCollection.value.name,
+          key: `document:${selectedDocumentCollection.value.name}`,
+          legacyKey: `document:${selectedDocumentCollection.value.name}`,
+        }),
+      };
     case 'kv':
-      return { label: selectedKvKeyspace.value || 'KV Keyspace', key: selectedKvKeyspace.value ? `kv:${selectedKvKeyspace.value}` : 'kv' };
+      if (!selectedKvKeyspace.value) return null;
+      return {
+        label: selectedKvKeyspace.value,
+        key: `kv:${selectedKvKeyspace.value}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'kv',
+          name: selectedKvKeyspace.value,
+          key: `kv:${selectedKvKeyspace.value}`,
+          legacyKey: `kv:${selectedKvKeyspace.value}`,
+        }),
+      };
     case 'mq':
-      return { label: selectedMqTopic.value || 'MQ Topic', key: selectedMqTopic.value ? `mq:${selectedMqTopic.value}` : 'mq' };
+      if (!selectedMqTopic.value) return null;
+      return {
+        label: selectedMqTopic.value,
+        key: `mq:${selectedMqTopic.value}`,
+        resource: createMqTabResourceDescriptor(targetDb.value, selectedMqTopic.value),
+      };
     case 'vector': {
       const index = selectedVectorIndex.value;
-      return { label: index ? `${index.measurement}.${index.column}` : '向量索引', key: index ? vectorIndexKey(index) : 'vector' };
+      if (!index) return null;
+      const key = vectorIndexKey(index);
+      return {
+        label: `${index.measurement}.${index.column}`,
+        key,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'vector',
+          name: `${index.measurement}.${index.column}`,
+          key,
+          legacyKey: key,
+        }),
+      };
     }
     case 'fulltext': {
       const index = selectedFullTextIndex.value;
-      return { label: index ? `${index.collection}.${index.name}` : '全文索引', key: index ? fullTextIndexKey(index) : 'fulltext' };
+      if (!index) return null;
+      const key = fullTextIndexKey(index);
+      return {
+        label: `${index.collection}.${index.name}`,
+        key,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'fulltext',
+          name: `${index.collection}.${index.name}`,
+          key,
+          legacyKey: key,
+        }),
+      };
     }
     case 'bucket':
-      return { label: selectedObjectBucket.value || '对象桶', key: selectedObjectBucket.value ? `bucket:${selectedObjectBucket.value}` : 'bucket' };
+      if (!selectedObjectBucket.value) return null;
+      return {
+        label: selectedObjectBucket.value,
+        key: `bucket:${selectedObjectBucket.value}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'bucket',
+          name: selectedObjectBucket.value,
+          key: `bucket:${selectedObjectBucket.value}`,
+          legacyKey: `bucket:${selectedObjectBucket.value}`,
+        }),
+      };
     case 'graph':
-      return { label: selectedGraph.value || '属性图', key: selectedGraph.value ? `graph:${selectedGraph.value}` : 'graph' };
-    case 'trajectory':
-      return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory' };
+      if (!selectedGraph.value) return null;
+      return {
+        label: selectedGraph.value,
+        key: `graph:${selectedGraph.value}`,
+        resource: createGraphResourceDescriptor(
+          targetDb.value,
+          selectedGraph.value,
+          `graph:${selectedGraph.value}`,
+        ),
+      };
     default:
       return null;
   }
@@ -586,6 +691,7 @@ const workspaceTabs = computed<StudioWorkspaceTab[]>(() => [
     tool: 'sql' as WorkbenchTool,
     db: tab.db,
     objectKey: tab.id,
+    resourceIdentity: undefined,
     closable: sqlConsole.tabs.length > 1,
   })),
   ...objectWorkspaceTabs.value,
@@ -686,6 +792,10 @@ const {
 
 function objectTabId(tool: WorkbenchTool, db: string, objectKey: string): string {
   return `object:${tool}:${db}:${objectKey}`;
+}
+
+function createMqTabResourceDescriptor(database: string, topic: string): ResourceDescriptor {
+  return createMqResourceDescriptor(database, topic);
 }
 
 function selectWorkspaceTab(id: string): void {
@@ -896,6 +1006,11 @@ watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, d
     tool,
     db,
     objectKey: identity.key,
+    resourceIdentity: identity.resource ? {
+      database: identity.resource.database,
+      resource: identity.resource,
+      legacyKey: identity.resource.legacyKey,
+    } : undefined,
     closable: true,
   };
   if (existing >= 0) {

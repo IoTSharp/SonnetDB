@@ -45,6 +45,13 @@
 
 定时检查在未变化或无可执行事项时保持安静；仅有实质完成（含提交哈希）、失败、阻断或用户需要处理的事项才通知。全部已授权任务确实完成且队列没有下一项后，记录完成并暂停该 heartbeat；不删除工作成果或自动归档会话。
 
+## WB-07 当前切片（2026-10-05）
+
+- 状态：已完成并提交 `3ad20c6a feat(m47): project canonical resource identity into workspace tabs`；负责人：根会话集成，子智能体 `/root/wb07_resource_identity` 独占生产 Explorer/页签文件与自有测试。
+- 范围：Explorer item 投影统一 `ResourceDescriptor`，页签携带 database/resource/legacy key；保留旧 `tool/model/node` 深链接和 route-only 语义。
+- 边界：MQ 仍为 database + Topic，`scope=database`、`persistenceScope=instance`、`.system/mq`、单库备份不覆盖；Graph 保持 Beta；不接入 CapabilityRegistry 权限判定，不改博客改动或共享文档。
+- 验收：WB-07 自有测试 5/5、Explorer/路由/壳联合回归 18/18，独立复核全 Web Node 回归 102/102，TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。直接浏览器旧 `tool/model/node` URL 的 `node` 选择仍是后续切片边界。
+
 ## 会话与自动检查
 
 新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。

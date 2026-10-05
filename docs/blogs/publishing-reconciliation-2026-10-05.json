@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "Public IoTSharp homepage reconciliation; exact normalized titles only; no credential access",
+  "scope": "Public IoTSharp homepage reconciliation by unique normalized title, plus Git historical Markdown and four public-body excerpts for 075; no credential access",
   "checkedAt": "2026-10-05T13:14:57.2128867+08:00",
   "completedAt": "2026-10-05T13:18:47.9091481+08:00",
   "bounds": {

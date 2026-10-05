@@ -119,7 +119,17 @@ import {
   X,
 } from 'lucide-vue-next';
 import type { StudioManagedServerStatus } from '@/api/studioNativeBridge';
+import type { ResourceDescriptor } from '@/management-core/resourceDescriptor';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
+
+export interface StudioWorkspaceResourceIdentity {
+  /** 资源所属数据库；不能仅由显示名或 Topic 推断。 */
+  database: string;
+  /** 统一资源描述，包含模型、逻辑/物理边界和原始名称。 */
+  resource: ResourceDescriptor;
+  /** 兼容现有 Explorer 与深链接的旧 key。 */
+  legacyKey: string;
+}
 
 export interface StudioWorkspaceTab {
   id: string;
@@ -127,6 +137,8 @@ export interface StudioWorkspaceTab {
   tool: WorkbenchTool;
   db: string;
   objectKey: string;
+  /** 对象页签的数据库限定资源身份；SQL 页签没有对象资源。 */
+  resourceIdentity?: StudioWorkspaceResourceIdentity;
   closable: boolean;
 }
 

@@ -5,10 +5,22 @@ import { SourceTextModule } from 'node:vm';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../src/utils/managementExplorer.ts', import.meta.url), 'utf8');
+const descriptorSource = readFileSync(new URL('../src/management-core/resourceDescriptor.ts', import.meta.url), 'utf8');
 const explorerModule = await (async () => {
-  const module = new SourceTextModule(stripTypeScriptTypes(source, { mode: 'transform' }));
+  const descriptorModule = new SourceTextModule(stripTypeScriptTypes(descriptorSource, { mode: 'transform' }), {
+    identifier: 'resourceDescriptor.ts',
+  });
+  await descriptorModule.link((specifier) => {
+    throw new Error(`resourceDescriptor.ts should have no runtime dependency: ${specifier}`);
+  });
+  await descriptorModule.evaluate({ timeout: 3000 });
+
+  const module = new SourceTextModule(stripTypeScriptTypes(source, { mode: 'transform' }), {
+    identifier: 'managementExplorer.ts',
+  });
   await module.link((specifier) => {
-    throw new Error(`managementExplorer.ts should have no runtime dependency: ${specifier}`);
+    if (specifier === '@/management-core/resourceDescriptor') return descriptorModule;
+    throw new Error(`unexpected managementExplorer.ts dependency: ${specifier}`);
   });
   await module.evaluate({ timeout: 3000 });
   return module.namespace;
@@ -162,6 +174,12 @@ test('Explorer groups preserve model order and special index/backup keys', () =>
   ]);
   assert.equal(groups.find((group) => group.key === 'indexes').items[0].model, 'index');
   assert.equal(groups.find((group) => group.key === 'backup').items[0].model, 'backup');
+
+  const byKey = new Map(groups.flatMap((group) => group.items).map((item) => [item.key, item]));
+  assert.equal(byKey.get(measurement.name).resource.database, 'alpha');
+  assert.equal(byKey.get(measurement.name).resource.identity.name, measurement.name);
+  assert.equal(byKey.get(lifecycleIndex.id).resource.legacyKey, lifecycleIndex.id);
+  assert.equal(byKey.get('backup-status').resource.key, 'backup-status');
 });
 
 test('Exact case and colon-bearing names remain addressable while case variants fall back', () => {
@@ -239,4 +257,15 @@ test('Legacy mq:${topic} keys are database-local and require the outer database 
     'beta/Orders:Created',
   ]);
   assert.notEqual(`${selections[0].database}/${selections[0].key}`, `${selections[1].database}/${selections[1].key}`);
+
+  assert.equal(alphaItem.resource.identity.database, 'alpha');
+  assert.equal(alphaItem.resource.identity.topic, alphaItem.name);
+  assert.equal(alphaItem.resource.scope, 'database');
+  assert.equal(alphaItem.resource.persistenceScope, 'instance');
+  assert.equal(alphaItem.resource.persistence.path, '.system/mq');
+  assert.equal(alphaItem.resource.persistence.includedInDatabaseBackup, false);
+  assert.equal(
+    explorerGroups(databaseNode('alpha')).find((group) => group.key === 'graphs').items[0].resource.beta,
+    true,
+  );
 });

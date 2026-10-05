@@ -13,6 +13,12 @@ import type {
   SchemaResponse,
   TableInfo,
 } from '@/api/schema';
+import {
+  createGraphResourceDescriptor,
+  createMqResourceDescriptor,
+  createResourceDescriptor,
+  type ResourceDescriptor,
+} from '@/management-core/resourceDescriptor';
 
 export type ExplorerModel =
   | 'measurement'
@@ -44,6 +50,8 @@ export interface ExplorerItem {
   meta: string;
   title: string;
   className: string;
+  /** 统一的数据库资源身份与逻辑/物理边界。 */
+  resource: ResourceDescriptor;
   payload:
     | MeasurementInfo
     | TableInfo
@@ -226,6 +234,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: measurement.name,
         model: 'measurement',
         name: measurement.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'measurement',
+          name: measurement.name,
+          key: measurement.name,
+          legacyKey: measurement.name,
+        }),
         meta: measurementMeta(measurement),
         title: measurementMeta(measurement),
         className: 'schema-item--measurement',
@@ -240,6 +255,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `table:${table.name}`,
         model: 'table',
         name: table.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'table',
+          name: table.name,
+          key: `table:${table.name}`,
+          legacyKey: `table:${table.name}`,
+        }),
         meta: tableMeta(table),
         title: tableMeta(table),
         className: 'schema-item--table',
@@ -254,6 +276,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `document:${collection.name}`,
         model: 'document',
         name: collection.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'document',
+          name: collection.name,
+          key: `document:${collection.name}`,
+          legacyKey: `document:${collection.name}`,
+        }),
         meta: documentCollectionMeta(collection),
         title: documentCollectionMeta(collection),
         className: 'schema-item--document',
@@ -268,6 +297,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `kv:${keyspace}`,
         model: 'kv',
         name: keyspace,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'kv',
+          name: keyspace,
+          key: `kv:${keyspace}`,
+          legacyKey: `kv:${keyspace}`,
+        }),
         meta: 'keyspace',
         title: 'KV keyspace',
         className: 'schema-item--kv',
@@ -282,6 +318,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: index.id,
         model: 'index',
         name: index.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'index',
+          name: index.name,
+          key: index.id,
+          legacyKey: index.id,
+        }),
         meta: indexMeta(index),
         title: indexMeta(index),
         className: 'schema-item--index',
@@ -296,6 +339,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `vector:${index.measurement}:${index.column}`,
         model: 'vector',
         name: `${index.measurement}.${index.column}`,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'vector',
+          name: `${index.measurement}.${index.column}`,
+          key: `vector:${index.measurement}:${index.column}`,
+          legacyKey: `vector:${index.measurement}:${index.column}`,
+        }),
         meta: vectorIndexMeta(index),
         title: vectorIndexMeta(index),
         className: 'schema-item--vector',
@@ -310,6 +360,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `fulltext:${index.collection}:${index.name}`,
         model: 'fulltext',
         name: `${index.collection}.${index.name}`,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'fulltext',
+          name: `${index.collection}.${index.name}`,
+          key: `fulltext:${index.collection}:${index.name}`,
+          legacyKey: `fulltext:${index.collection}:${index.name}`,
+        }),
         meta: fullTextIndexMeta(index),
         title: fullTextIndexMeta(index),
         className: 'schema-item--fulltext',
@@ -324,6 +381,7 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `mq:${topic.topic}`,
         model: 'mq',
         name: topic.topic,
+        resource: createMqResourceDescriptor(dbNode.name, topic.topic),
         meta: mqTopicMeta(topic),
         title: mqTopicMeta(topic),
         className: 'schema-item--mq',
@@ -338,6 +396,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `bucket:${bucket.name}`,
         model: 'bucket',
         name: bucket.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'bucket',
+          name: bucket.name,
+          key: `bucket:${bucket.name}`,
+          legacyKey: `bucket:${bucket.name}`,
+        }),
         meta: `${bucket.objectCount ?? 0} objects · ${bucket.totalBytes ?? 0} bytes`,
         title: `${bucket.objectCount ?? 0} objects · ${bucket.totalBytes ?? 0} bytes`,
         className: 'schema-item--bucket',
@@ -352,6 +417,7 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `graph:${graph.name}`,
         model: 'graph',
         name: graph.name,
+        resource: createGraphResourceDescriptor(dbNode.name, graph.name, `graph:${graph.name}`),
         meta: `format v${graph.recordFormatVersion}`,
         title: `storage ${graph.storageId}`,
         className: 'schema-item--graph',
@@ -369,6 +435,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: 'backup-status',
         model: 'backup',
         name: 'Backup status',
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'backup',
+          name: 'backup-status',
+          key: 'backup-status',
+          legacyKey: 'backup-status',
+        }),
         meta: backupMeta(dbNode.backupStatus),
         title: backupMeta(dbNode.backupStatus),
         className: 'schema-item--backup',
