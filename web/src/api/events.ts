@@ -57,7 +57,7 @@ export function subscribeServerEvents(token: string, opts: SseSubscribeOptions):
   if (opts.channels && opts.channels.length > 0) {
     params.set('stream', opts.channels.join(','));
   }
-  const url = `/v1/events?${params.toString()}`;
+  const url = `${import.meta.env.BASE_URL}v1/events?${params.toString()}`;
   const es = new EventSource(url);
 
   const handlers: Array<[string, (e: MessageEvent) => void]> = [];

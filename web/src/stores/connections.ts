@@ -47,6 +47,7 @@ interface StoredConnectionsState {
 
 const StorageKey = 'sndb.connection.library.v1';
 const LocalProfileId = 'managed-local';
+const DeploymentBasePath = import.meta.env?.BASE_URL ?? '/';
 
 function now(): number {
   return Date.now();
@@ -67,7 +68,7 @@ function normalizeBaseUrl(value: string): string {
   return trimmed.replace(/\/+$/u, '');
 }
 
-function localProfile(baseUrl = '/'): ConnectionProfile {
+function localProfile(baseUrl = DeploymentBasePath): ConnectionProfile {
   const ts = now();
   return {
     id: LocalProfileId,
@@ -85,7 +86,9 @@ function normalizeProfile(input: Partial<ConnectionProfile>, index: number): Con
   const fallback = localProfile();
   const ts = now();
   const id = typeof input.id === 'string' && input.id ? input.id : makeId('remote');
-  const baseUrl = normalizeBaseUrl(typeof input.baseUrl === 'string' ? input.baseUrl : fallback.baseUrl);
+  const storedBaseUrl = typeof input.baseUrl === 'string' ? input.baseUrl : fallback.baseUrl;
+  const baseUrl = normalizeBaseUrl(id === LocalProfileId && input.kind !== 'remote' && !input.identity && storedBaseUrl === '/'
+    ? DeploymentBasePath : storedBaseUrl);
   const identity = input.identity && input.identity.host === 'studio-desktop'
     && input.identity.profileId === id && input.identity.baseUrl === baseUrl
     && input.identity.database === input.defaultDatabase
@@ -164,7 +167,7 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const activeDisplayUrl = computed(() => {
     const baseUrl = activeBaseUrl.value;
-    return baseUrl === '/' ? currentOrigin() : baseUrl;
+    return baseUrl.startsWith('/') ? `${currentOrigin()}${baseUrl === '/' ? '' : baseUrl}` : baseUrl;
   });
 
   const studioBridgeAvailable = computed(() => studioBridge.value !== null);

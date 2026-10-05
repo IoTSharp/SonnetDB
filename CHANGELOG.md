@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-16 VS Code→Web 导航与认证证据（2026-10-06）**：登录返回统一校验内部管理路由并保留目标数据库/资源；显式 `SONNETDB_WEB_BASE_PATH` 联动 Vite 资产、路由、初始 API、本地连接及 SSE，默认根部署保持兼容。资源树按真实条目匹配活动分组，修复 `table:` 索引 id 错误展开 Tables 的问题。专属 Node 9/9、全 Web 146/146、扩展 Node 20/20、根/代理两次 TypeScript/Vite 构建、浏览器两部署各17/17及独立复核通过；本机真实 Extension Host 调用13节点命令并在外部开启边界捕获链接。九模型/index/backup、原名/冒号、跨库同名MQ、导航字段白名单及草稿不执行已取本地证据；Measurement/Relation既有只读预览单列。真实Server认证/权限、实际代理部署、远程SSE、同origin跨部署存储隔离、VSIX与发布仍独立验收。
+
 - **M47 WB-15 Studio 客户端宿主合同（2026-10-06）**：现有 Web 工作区消费 WB-13 的宿主/profile/端点/数据库原名身份与生命周期；完整合同确认后才开放 Managed Local 操作，external/unknown 保留 Health 并拒绝 Start/Stop。初始化、状态、保存和目录对话框隔离迟返与 A→B→A，端点变化同步认证上下文；连接保存串行、只消费匹配的宿主身份且不产生回授 PUT。专属 Node 10/10、全 Web 137/137、Studio 三类定向 40/40、TypeScript/Vite、StudioNative 浏览器夹具 8/8与独立复核通过。真实 Server 权限、WebView2/干净 Windows、安装升级卸载及三宿主发布继续独立验收。
 
 - **M47 三宿主会话交接与后续队列（2026-10-06）**：WB-12/13/14分别保存本地验证与独立提交；HANDOFF顶部集中记录真实哈希、风险边界与唯一写入归属，路线图区分本地切片和完整验收，队列列出WB-15～WB-18。用户确认的新会话已创建，同一个每30分钟workbench heartbeat转移并回读核实；旧会话最后交接提交后停止写入，三宿主整体研发继续，未push/发布/部署。

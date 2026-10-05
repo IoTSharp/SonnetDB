@@ -48,6 +48,7 @@ import { NButton, NForm, NFormItem, NInput, NText } from 'naive-ui';
 import BrandLogo from '@/components/BrandLogo.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
+import { validatedLoginRedirect } from '@/utils/workbenchNavigation';
 
 const username = ref('');
 const password = ref('');
@@ -72,7 +73,7 @@ async function onSubmit(): Promise<void> {
   error.value = null;
   try {
     await auth.login(username.value, password.value);
-    const redirect = (route.query.redirect as string | undefined) ?? '/admin/app/dashboard';
+    const redirect = validatedLoginRedirect(route.query.redirect, router) ?? '/admin/app/dashboard';
     await router.replace(redirect);
   } catch (cause: unknown) {
     error.value = (cause as { response?: { data?: { message?: string } } })?.response?.data?.message

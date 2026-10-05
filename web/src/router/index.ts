@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import WelcomeView from '@/views/WelcomeView.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
+import { validatedLoginRedirect } from '@/utils/workbenchNavigation';
 
 const SetupView = () => import('@/views/SetupView.vue');
 const LoginView = () => import('@/views/LoginView.vue');
@@ -22,7 +23,7 @@ const ModbusView = () => import('@/views/ModbusView.vue');
 const AboutView = () => import('@/views/AboutView.vue');
 
 const router = createRouter({
-  history: createWebHistory('/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     // 产品官网首页（匿名可访问，单 SPA 单 base）
     { path: '/', name: 'home', component: WelcomeView, meta: { anon: true, marketing: true } },
@@ -92,7 +93,7 @@ router.beforeEach(async (to) => {
     await setup.ensureLoaded();
   } catch {
     if (to.meta.app) {
-      return { name: 'login' };
+      return { name: 'login', query: { redirect: to.fullPath } };
     }
     return true;
   }
@@ -110,7 +111,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
-    return { name: 'dashboard' };
+    return validatedLoginRedirect(to.query.redirect, router) ?? { name: 'dashboard' };
   }
 
   if (to.meta.app && !auth.isAuthenticated) {

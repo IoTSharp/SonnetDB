@@ -34,7 +34,7 @@ export function loadAuth(): AuthState | null {
 
 export function createApiClient(getToken: () => string | null): AxiosInstance {
   const client = axios.create({
-    baseURL: '/',
+    baseURL: import.meta.env.BASE_URL,
     timeout: 30_000,
   });
   client.interceptors.request.use((cfg) => {
