@@ -255,3 +255,10 @@
 - 路由仍使用 `tool/model/node` query，Explorer 点击仍先选择数据库和 legacy key，未改变 route-only、不自动执行语义。独立复核指出直接浏览器旧 query 的 `node` 当前不会反向选择活动对象；该兼容缺口留给后续有界切片，不在 WB-07 扩大范围。
 - 验证：WB-07 自有 Node 测试 5/5；Explorer、路由、壳和导航联合回归 18/18；独立复核全 Web Node 回归 102/102；TypeScript 与 Vite build 通过；`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
 - 代码提交为 `3ad20c6a feat(m47): project canonical resource identity into workspace tabs`；提交只包含 WB-07 生产文件、测试和 work-queue 检查点。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
+
+## 当前 Workbench 检查点（WB-08，2026-10-05）
+
+- WB-08 修复旧 SQL 深链接的对象回选：`explorerKeyFromRoute` 将 `model/node` 与 tool-only URL 精确映射到当前数据库的 Explorer legacy key，覆盖 measurement、table、document、kv、mq、vector、fulltext、bucket、graph、index、backup，保留大小写和冒号；未知/缺失 node 复用首项回退。
+- `SqlConsoleView.vue` 的 route watcher 等待 active database、schema 和 management 元数据就绪后一次性设置 `activeExplorerKey`，token 在普通 SQL URL、control-plane 或缓存重置时清空；route-selection watcher 注册在对象页签 watcher 之前，避免旧 URL 异步加载时先生成默认首项页签。MQ 仍是当前 database 下的 Topic 身份，Graph Beta 不变，route-only 不执行 SQL。
+- 验证：WB-08 自有 Node 测试 5/5；Explorer/路由/壳/导航/页签定向回归 20/20；独立复核全 Web Node 回归 107/107；TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。URL 未携带 database 参数时继续使用当前 active/default database；真实 Server、权限、三宿主和发布门禁未覆盖。
+- 代码提交为 `418c21d3 fix(m47): restore legacy explorer route selection`；提交只包含 WB-08 生产文件、测试和 work-queue 检查点。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
