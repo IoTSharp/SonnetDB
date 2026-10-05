@@ -97,6 +97,13 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - AI Connect 保留 typed Streamable HTTP 已有、配置向导/stdio bridge/tools/list 规划且不发网络请求；Copilot 连接/目录/usage 与真实质量、成本门禁分开；RAG 续跑要求真实任务、profile、generation、expected revision，安全整数溢出拒写；工具权限按用户授权、工具边界、宿主策略交集，默认只读，显式数据外发且凭据永不外发。
 - 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 MCP/tools/list、Provider、模型质量/成本、权限、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
 
+## WB-02G 治理页面状态合同（2026-10-05）
+
+- 原型页 `users`、`grants`、`tokens`、`approvals`、`backup` 已补齐页面级 capabilities、`normal/empty/error/permission/readonly/longContent` 六态、专用正常态字段和任务页注入；新增 `web/tests/m47-governance-state-contract.test.mjs` 固化页级对象身份与边界断言。
+- `node --test web/tests/m47-governance-state-contract.test.mjs`：3/3；与 WB-02B/C/D/E/F 合同测试联合：17/17；`node --check`：`prototype/catalog.js`、`prototype/task-details.js`；`git diff --check`：均通过。独立只读复核：PASS，逐页确认 5 页六态、normal.fields、任务页级对象复用与治理边界。
+- 用户/实例控制平面与数据库 grant 分开；MQ Topic Read/Write 使用 database grant，实例共享 Store 恢复/全局配置另行核验。Token 明文只在创建成功时一次显示，列表/历史/导出脱敏且有效期来自真实服务。审批保留影响、风险、有效期、请求 ID、服务器终态和审计来源，错误不自动重试；备份保留 manifest/checksum/验证/覆盖预览，当前单库备份不覆盖共享 `.system/mq`，跨库恢复需独立合同。
+- 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实权限、Token、审批执行、灾备恢复、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
+
 ## WB-04 迁移前导航兼容预检（2026-10-05）
 
 - 新增 `web/tests/navigation-compat.test.mjs`，只读检查 `web/src/router/index.ts` 与 `web/src/views/AppShell.vue`，没有修改生产壳、导航或路由。

@@ -134,6 +134,16 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 审批与审计 / `approvals` / 延伸 | 待处理列表 → 影响差异 → 风险/有效期 → 执行终态 → Audit。各模型已有审批保持专属合同。 | 连接、数据库/实例、模型、对象、影响数量、风险、发起人、有效期。统一索引尚需 DTO 适配；本地草稿与服务端暂存分开。确认不改权限，错误后保持草稿、不自动重试写操作。 |
 | 数据库备份与恢复 / `backup` / 延伸 | 数据库能力与范围 → 路径 → 备份预览 → 验证 → 恢复目标/覆盖预览 → 独立审计。 | 版本、目录、manifest/校验、目标数据库、覆盖风险。复用现有 backupStatus/verify；不把验证通过表示为实机灾备通过。MQ Topic 逻辑属于数据库，但**当前单库备份尚未覆盖实例共享 `.system/mq` Store**；不能假称统一备份已实现。MQ Store 恢复可能影响多个数据库，须独立合同、权限与证据。 |
 
+**WB-02G 治理页面状态合同（`users`、`grants`、`tokens`、`approvals`、`backup`）：** 五页只补齐 REVIEW_DRAFT 原型的页面能力、字段和状态矩阵；不发起请求、不生成凭据、不确认权限或服务器终态。任务页签通过同一页级对象复用 `capabilities` 与六态合同。
+
+| 页面 | capabilities | 六态主动作、`normal.fields` 与边界 |
+|---|---|---|
+| 用户 / `users` | `users-control-plane-list`、`users-credential-management`、`users-database-grants-link`（既有）；`users-delete-impact-preview`（延伸）。 | 正常“新建用户”，字段为实例身份、用户名、超级用户、创建时间、Token 数、关联授权数、凭据状态、最后变更时间；空“清除筛选”并保留连接/名称筛选；错误仅替换用户结果并保留筛选，禁止自动创建、改密或删除；无权限隐藏用户/凭据载荷，显示实例控制平面权限，不能用数据库 grant 推断用户管理权；只读可查看并跳转授权，禁用新建、改密、删除和凭据变更；长目录按记录/字节分页，用户名原始拼写和敏感字段脱敏。 |
+| 数据库授权 / `grants` | `grants-database-access`、`grants-mq-database-scope`、`grants-instance-store-boundary`（既有）；`grants-effective-permission-preview`（延伸）。 | 正常“预览授权”，字段为实例身份、用户、数据库、权限、MQ Topic 范围、来源、有效权限、撤销影响；空“清除筛选”并保留用户/数据库/权限；错误不把缓存 grant 当当前授权且不自动授予/撤销；无权限隐藏 grant、Topic 和撤销载荷；只读可查看数据库授权，授予/撤销及实例共享 Store 恢复/全局配置禁用。MQ Topic Read/Write 按 database grant，实例共享 Store 权限另行核验。 |
+| 访问 Token / `tokens` | `tokens-list-redacted`、`tokens-create-once-display`、`tokens-revoke-preview`（既有）；`tokens-expiry-contract`（延伸）。 | 正常“创建 Token”，字段为实例身份、所属用户、脱敏 Token 标识、创建时间、有效期（服务端）、状态、最后使用时间、撤销影响；空“选择用户”；错误保留创建表单，不自动重发或撤销；无权限隐藏标识与状态载荷；只读可查看脱敏列表，创建、复制明文、撤销和轮换禁用；长历史分页且永不含明文。明文只在创建成功时一次性显示，关闭后不可恢复；有效期只能来自真实服务合同，不得假造。 |
+| 审批与审计 / `approvals` | `approvals-staged-operation-index`、`approvals-impact-risk-expiry`、`approvals-server-terminal-state`、`approvals-audit-source-separation`、`approvals-no-write-auto-retry`（既有/延伸）。 | 正常“查看影响预览”，字段为连接、数据库/实例范围、模型、对象、动作、影响数量、风险、发起人、有效期、请求 ID、服务器终态、审计来源；空“查看审计”；错误保留草稿、影响和请求 ID，不自动重试写入、不标记未知终态成功；无权限隐藏差异/载荷/终态；只读禁用确认、拒绝、取消、恢复和重试。精确影响/风险/有效期与服务器终态必须来自真实能力；本地草稿不等同服务端审计。 |
+| 数据库备份与恢复 / `backup` | `backup-status-scope`、`backup-manifest-checksum`、`backup-restore-impact-preview`、`backup-mq-shared-store-boundary`（既有/延伸）；`backup-independent-restore-contract`（规划）。 | 正常“预览备份”，字段为实例身份、数据库、源目录/文件、版本、manifest、checksum、备份范围、验证状态、目标数据库、目标目录、覆盖确认、恢复影响、MQ Store 范围；空“查看备份能力”；错误保留路径和恢复草稿，不能把局部读取当验证通过；无权限隐藏路径/manifest/校验/恢复载荷；只读仅查看状态/边界，禁用创建、验证写入、覆盖恢复和共享 Store 恢复；长 manifest/日志按记录/字节分页。当前单库备份不覆盖共享 `.system/mq`，跨数据库 MQ Store 恢复须独立合同、权限、影响预览和服务器证据。 |
+
 ## 设置：五个二级页面
 
 | 页面 / ID / 标签 | 主任务与页面结构 | 关键字段、动作与边界 |

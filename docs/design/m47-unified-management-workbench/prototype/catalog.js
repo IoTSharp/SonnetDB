@@ -486,7 +486,21 @@ window.M47_CATALOG = {
           columns: ['用户名', '超级用户', '创建时间', 'Token 数', '操作'], rows: [['admin', '是', '2026-09-01 · 示例', '2', '改密'], ['analyst', '否', '2026-09-12 · 示例', '1', '授权 / 改密'], ['collector', '否', '2026-09-20 · 示例', '1', '授权 / 改密']],
           fields: [{ label: '名称筛选', value: '', kind: 'input' }], tabs: ['用户列表', '选中用户授权', '凭据管理'],
           inspector: [{ label: '选中用户', value: 'analyst' }, { label: '权限', value: '仅超级用户管理' }, { label: '删除用户', value: '确认名称与关联凭据影响' }],
-          empty: { title: '没有匹配的用户', body: '调整名称过滤条件。仅有权限的管理员可创建用户。', action: '清除筛选' }
+          empty: { title: '没有匹配的用户', body: '调整名称过滤条件。仅有权限的管理员可创建用户。', action: '清除筛选' },
+          capabilities: [
+            { id: 'users-control-plane-list', status: 'existing', label: '控制平面用户目录', note: '用户列表、超级用户标记和关联 Token 摘要来自实例控制平面；原型记录为静态示例。' },
+            { id: 'users-credential-management', status: 'existing', label: '用户凭据管理', note: 'CREATE/ALTER USER 的密码字段只在受控表单中短暂存在，不进入表格、历史、审计或配置导出。' },
+            { id: 'users-database-grants-link', status: 'existing', label: '用户与数据库授权关联', note: '选中用户可进入数据库授权页；控制平面身份与数据库对象权限保持两个边界。' },
+            { id: 'users-delete-impact-preview', status: 'extension', label: '删除影响预览', note: '删除前必须确认精确用户名、关联 Token 与授权影响；客户端禁用不代表服务器已授权。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示实例控制平面可见的用户、超级用户标记、关联凭据摘要和授权入口。', primary: '新建用户', fields: ['实例身份', '用户名', '超级用户', '创建时间', 'Token 数', '关联授权数', '凭据状态', '最后变更时间'] },
+            empty: { label: '空用户目录', status: 'existing', summary: '没有匹配用户时保留实例连接和名称筛选，说明管理员创建或请求控制平面权限的路径。', primary: '清除筛选', preserve: ['实例连接', '名称筛选'] },
+            error: { label: '用户目录读取错误', status: 'extension', summary: '仅替换用户表和关联摘要，保留筛选及最后检查时间；不把旧列表当最新身份状态。', primary: '检查并重试', preserve: ['实例连接', '名称筛选'], blocked: ['自动创建用户', '自动重试密码或删除'] },
+            permission: { label: '控制平面权限不足', status: 'existing', summary: '隐藏用户、凭据和授权载荷，显示所需实例用户管理权限；不能从数据库 grant 推断控制平面权限。', primary: '查看权限要求', preserve: ['实例连接', '名称筛选'], blocked: ['查看凭据状态', '创建/修改/删除用户'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看用户摘要并跳转数据库授权；创建、改密、删除和凭据变更显示禁用原因。', primary: '查看用户摘要', blocked: ['新建用户', '修改密码', '删除用户', '变更凭据'] },
+            longContent: { label: '长用户目录', status: 'extension', summary: '用户、关联授权和 Token 摘要按记录/字节预算分页，保留原始用户名和未返回全部标记。', primary: '查看下一页', limits: ['分页与摘要上限以控制平面服务为准', '不虚构用户总数、权限或 Token 明文', '敏感字段始终脱敏'] }
+          }
         },
         {
           id: 'grants', title: '数据库授权', tabLabel: '数据库授权', type: 'table', scope: 'instance', status: 'existing', existingRoute: '/admin/app/grants',
@@ -494,7 +508,21 @@ window.M47_CATALOG = {
           columns: ['用户', '数据库', '权限', '来源', '操作'], rows: [['analyst', 'factory', '查询', '直接授权 · 示例', '查看 / 撤销'], ['collector', 'factory', '写入', '直接授权 · 示例', '查看 / 撤销'], ['analyst', 'analytics', '查询', '直接授权 · 示例', '查看 / 撤销']],
           fields: [{ label: '用户', value: 'analyst', kind: 'select' }, { label: '数据库', value: 'factory', kind: 'select' }, { label: '权限', value: '查询', kind: 'select' }], tabs: ['授权列表', '授权预览', '有效权限'],
           inspector: [{ label: '权限范围', value: 'MQ Topic Read/Write 按数据库授权；实例 Store 恢复/全局配置另行核验' }, { label: '撤销', value: '预览受影响身份与工作区' }, { label: '前端', value: '禁用动作并展示原因' }],
-          empty: { title: '没有匹配的授权', body: '选择用户和数据库查看授权，管理员可添加授权草稿。', action: '清除筛选' }
+          empty: { title: '没有匹配的授权', body: '选择用户和数据库查看授权，管理员可添加授权草稿。', action: '清除筛选' },
+          capabilities: [
+            { id: 'grants-database-access', status: 'existing', label: '数据库授权目录', note: '授予/撤销以真实数据库权限合同为准；用户控制平面权限不能替代数据库 grant。' },
+            { id: 'grants-mq-database-scope', status: 'existing', label: 'MQ Topic 数据库范围', note: 'MQ Topic Read/Write 按 database grant；Topic identity 仍包含 database + topic。' },
+            { id: 'grants-effective-permission-preview', status: 'extension', label: '有效权限预览', note: '预览用户、数据库、权限来源和撤销影响；界面勾选不扩大服务器实际授权。' },
+            { id: 'grants-instance-store-boundary', status: 'existing', label: '实例 Store 权限边界', note: '共享 .system/mq Store 的恢复或全局配置需要实例级权限与跨数据库影响核验，不能由 Topic grant 推断。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示用户与数据库授权、来源及有效权限预览；MQ Topic 读写明确落在数据库范围。', primary: '预览授权', fields: ['实例身份', '用户', '数据库', '权限', 'MQ Topic 范围', '来源', '有效权限', '撤销影响'] },
+            empty: { label: '空授权目录', status: 'existing', summary: '没有匹配授权时保留用户、数据库和权限筛选，说明添加授权或请求数据库权限路径。', primary: '清除筛选', preserve: ['用户', '数据库', '权限'] },
+            error: { label: '授权读取错误', status: 'extension', summary: '仅替换授权结果和有效权限摘要，保留筛选；不把缓存 grant 当当前授权。', primary: '检查并重试', preserve: ['用户', '数据库', '权限'], blocked: ['自动授予', '自动撤销', '扩大 MQ 权限'] },
+            permission: { label: '授权管理权限不足', status: 'existing', summary: '隐藏 grant 行、Topic 载荷和撤销影响，显示实例/数据库授权管理权限；控制平面可见不等于 grant 可见。', primary: '查看权限要求', preserve: ['用户', '数据库'], blocked: ['查看有效权限', '授予或撤销授权', '查看实例 Store 恢复范围'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看数据库授权与 MQ Topic 读写范围；授予、撤销、实例 Store 恢复和全局配置均禁用。', primary: '查看权限依据', blocked: ['授予数据库权限', '撤销数据库权限', '修改实例 Store 配置', '批准跨数据库恢复'] },
+            longContent: { label: '长授权目录', status: 'extension', summary: '用户、数据库、Topic 与权限来源按记录预算分页，保留原始名称和未返回全部标记。', primary: '查看下一页', limits: ['分页和有效权限摘要上限以服务端为准', '不拼接跨数据库授权或伪造继承关系', '实例 Store 恢复范围须单独返回'] }
+          }
         },
         {
           id: 'tokens', title: '访问 Token', tabLabel: 'Token', type: 'table', scope: 'instance', status: 'existing', existingRoute: '/admin/app/tokens',
@@ -502,7 +530,21 @@ window.M47_CATALOG = {
           columns: ['标识', '所属用户', '创建时间', '有效期', '状态'], rows: [['tk_…a71c', 'analyst', '2026-10-01 · 示例', '30 天 · 示例', '有效 · 示例'], ['tk_…b209', 'collector', '2026-09-20 · 示例', '以服务端合同为准', '有效 · 示例']],
           fields: [{ label: '用户', value: '全部', kind: 'select' }, { label: '状态', value: '全部', kind: 'select' }], tabs: ['Token 列表', '创建', '安全说明'],
           inspector: [{ label: 'Token 内容', value: '不可在列表中恢复显示' }, { label: '复制', value: '创建成功后的一次性提示' }, { label: '撤销', value: '确认标识与所属用户' }],
-          empty: { title: '尚无可显示的 Token', body: '管理员可为已存在用户创建凭据。', action: '选择用户' }
+          empty: { title: '尚无可显示的 Token', body: '管理员可为已存在用户创建凭据。', action: '选择用户' },
+          capabilities: [
+            { id: 'tokens-list-redacted', status: 'existing', label: '脱敏 Token 列表', note: '列表、历史、工作区和配置导出只显示部分标识及服务器返回的状态，绝不恢复明文。' },
+            { id: 'tokens-create-once-display', status: 'existing', label: '创建成功一次性显示', note: '明文只在服务器确认创建成功后显示一次；关闭或离开后不可恢复，复制失败必须明确提示。' },
+            { id: 'tokens-revoke-preview', status: 'existing', label: 'Token 撤销预览', note: '撤销按精确标识与所属用户确认关联客户端影响，不把客户端删除当服务器撤销终态。' },
+            { id: 'tokens-expiry-contract', status: 'extension', label: '有效期合同', note: '有效期、轮换和到期语义仅在服务端真实支持时显示；原型示例不能假造到期时间。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示脱敏 Token 标识、所属用户、服务端创建时间、有效期口径和状态；创建流程单独显示一次性凭据。', primary: '创建 Token', fields: ['实例身份', '所属用户', 'Token 标识（脱敏）', '创建时间', '有效期（服务端）', '状态', '最后使用时间', '撤销影响'] },
+            empty: { label: '空 Token 列表', status: 'existing', summary: '没有可显示 Token 时保留用户与状态筛选，说明管理员创建入口；不预填明文或有效期。', primary: '选择用户', preserve: ['用户筛选', '状态筛选'] },
+            error: { label: 'Token 读取错误', status: 'extension', summary: '仅替换列表或撤销结果，保留创建表单；错误后不自动重发 Token、不把本地草稿当已发放。', primary: '检查并重试', preserve: ['用户筛选', '状态筛选', '创建表单'], blocked: ['自动创建', '自动撤销'] },
+            permission: { label: 'Token 管理权限不足', status: 'existing', summary: '隐藏 Token 标识、用户关联和状态载荷，显示实例凭据管理权限；数据库 grant 不能代替控制平面权限。', primary: '查看权限要求', preserve: ['用户筛选'], blocked: ['查看 Token 列表', '创建 Token', '撤销 Token'] },
+            readonly: { label: '只读', status: 'existing', summary: '可查看脱敏列表与安全说明；创建、复制明文、撤销和轮换均禁用并说明原因。', primary: '查看凭据边界', blocked: ['创建 Token', '显示或复制明文', '撤销 Token', '修改有效期'] },
+            longContent: { label: '长 Token 历史', status: 'extension', summary: 'Token 列表与历史按记录/字节预算分页，所有标识持续脱敏；不加载明文或假造完整历史。', primary: '查看下一页', limits: ['历史与状态上限以服务端为准', '明文永不进入列表、历史或导出', '有效期仅显示服务端实际返回的口径'] }
+          }
         },
         {
           id: 'approvals', title: '审批与审计', tabLabel: '审批与审计', type: 'table', scope: 'instance', status: 'extension', existingRoute: '/admin/app/sql',
@@ -510,7 +552,22 @@ window.M47_CATALOG = {
           columns: ['审批', '范围 / 对象', '动作', '影响', '状态'], rows: [['draft-001', 'factory / Assets', '更新记录', '2 行 · 示例', '本地草稿'], ['demo-graph-002', 'factory / Graph Beta', '维护', '预算预览 · 示例', '暂存示例'], ['demo-modbus-003', '实例 / LocalSlave', '端点写入', '4 个寄存器 · 示例', '待审批示例']],
           fields: [{ label: '范围', value: '全部', kind: 'select' }, { label: '状态', value: '全部', kind: 'select' }], tabs: ['待处理', '影响预览', '执行记录', '审计'],
           inspector: [{ label: '统一列表', value: '延伸设计，未有通用审批 DTO' }, { label: '确认信息', value: '连接 / 范围 / 对象 / 数量 / 风险' }, { label: '审计', value: '本地草稿与服务器记录分开' }],
-          empty: { title: '没有待处理审批', body: '危险操作先形成草稿并预览影响，确认后才执行。', action: '查看审计' }
+          empty: { title: '没有待处理审批', body: '危险操作先形成草稿并预览影响，确认后才执行。', action: '查看审计' },
+          capabilities: [
+            { id: 'approvals-staged-operation-index', status: 'extension', label: '暂存操作索引', note: '统一列表仅索引已有模型审批；各模型仍使用原生请求/审批合同，静态草稿不代表服务器记录。' },
+            { id: 'approvals-impact-risk-expiry', status: 'existing', label: '影响、风险与有效期预览', note: '确认前必须显示连接、范围、对象、精确影响数量、风险、发起人和服务器有效期；未知影响不能确认。' },
+            { id: 'approvals-server-terminal-state', status: 'existing', label: '服务器执行终态', note: '客户端请求、取消和服务器终态分开展示；仅服务器响应可证明成功、拒绝或失败。' },
+            { id: 'approvals-audit-source-separation', status: 'existing', label: '本地草稿与服务器审计分离', note: '本地 History/草稿不等同服务端审计；审计来源、请求 ID 和留存范围必须由真实能力返回。' },
+            { id: 'approvals-no-write-auto-retry', status: 'existing', label: '写错误不自动重试', note: '写操作出错或终态未知时保留草稿和请求上下文，等待人工检查，不自动重放或扩大影响。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示待处理审批、精确影响/风险/有效期、服务器执行终态和审计来源；各模型保留专属语义。', primary: '查看影响预览', fields: ['连接', '范围（数据库/实例）', '模型', '对象', '动作', '影响数量', '风险', '发起人', '有效期', '请求 ID', '服务器终态', '审计来源'] },
+            empty: { label: '无待处理审批', status: 'extension', summary: '没有待处理项时保留范围和状态筛选，仍可查看真实审计；不创建虚假服务器草稿。', primary: '查看审计', preserve: ['范围筛选', '状态筛选'] },
+            error: { label: '审批/终态读取错误', status: 'extension', summary: '仅替换审批结果或执行状态，保留草稿、影响预览和请求 ID；写错误不自动重试。', primary: '检查执行终态', preserve: ['连接', '范围', '对象', '动作', '影响预览', '请求 ID'], blocked: ['自动重试写入', '标记成功', '提交未知影响'] },
+            permission: { label: '审批权限不足', status: 'existing', summary: '隐藏对象差异、载荷和执行终态，显示实例/数据库/模型所需审批权限；本地草稿仍不算服务端审计。', primary: '查看权限要求', preserve: ['连接', '范围', '状态筛选'], blocked: ['查看受限差异', '确认', '拒绝', '执行恢复'] },
+            readonly: { label: '只读', status: 'existing', summary: '可浏览影响预览、服务器终态和审计来源；确认、拒绝、取消写入、恢复和重试全部禁用。', primary: '查看执行状态解释', blocked: ['确认审批', '拒绝审批', '重试写操作', '恢复或发布'] },
+            longContent: { label: '长审批与审计', status: 'extension', summary: '差异、影响对象、执行日志和审计按记录/字节预算分页，保持请求 ID 与服务器终态关联。', primary: '查看审计预算', limits: ['差异与审计上限以真实接口为准', '未返回终态不得推断成功或失败', '不同模型 continuation 不拼成统一游标'] }
+          }
         },
         {
           id: 'backup', title: '数据库备份与恢复', tabLabel: '数据库备份', type: 'table', scope: 'database', status: 'extension', existingRoute: '/admin/app/sql',
@@ -518,7 +575,22 @@ window.M47_CATALOG = {
           columns: ['备份', '数据库', '范围', '验证', '设计状态'], rows: [['factory_snapshot_demo', 'factory', '单数据库', '未执行', '备份示例'], ['factory_restore_demo', 'factory', '数据库恢复', '未执行', '恢复草稿']],
           fields: [{ label: '数据库', value: 'factory', kind: 'select' }, { label: '备份位置', value: '由服务端或 Studio 文件对话框选择', kind: 'input' }, { label: '恢复目标', value: '新数据库 / 明确选择', kind: 'select' }], tabs: ['备份状态', '备份预览', '验证', '恢复预览', '范围说明'],
           inspector: [{ label: '持久化边界', value: '当前单库备份为数据库目录' }, { label: 'SonnetMQ', value: '数据库逻辑命名空间；物理 .system/mq 共享实例 Store，未纳入单库备份' }, { label: '恢复风险', value: '必须检查版本、目录和覆盖目标；MQ Store 恢复另行核验' }],
-          empty: { title: '尚未选择备份', body: '先检查数据库备份能力、路径和覆盖范围。', action: '查看备份能力' }
+          empty: { title: '尚未选择备份', body: '先检查数据库备份能力、路径和覆盖范围。', action: '查看备份能力' },
+          capabilities: [
+            { id: 'backup-status-scope', status: 'existing', label: '数据库备份状态与范围', note: '备份对象、目录和数据库范围来自真实 backupStatus/管理能力；原型静态行不表示已执行。' },
+            { id: 'backup-manifest-checksum', status: 'extension', label: 'manifest 与校验验证', note: '验证必须读取版本、manifest 和 checksum；未选择文件或未取得服务响应时不能显示通过。' },
+            { id: 'backup-restore-impact-preview', status: 'extension', label: '恢复目标与覆盖预览', note: '恢复前明确源备份、目标数据库/目录、覆盖对象与影响；默认不能覆盖当前数据库。' },
+            { id: 'backup-mq-shared-store-boundary', status: 'existing', label: 'MQ 共享 Store 边界', note: 'MQ 逻辑 scope=database、persistenceScope=instance；共享 .system/mq 当前不在单库备份内，恢复可能影响多个数据库 Topic。' },
+            { id: 'backup-independent-restore-contract', status: 'planned', label: '实例 Store 独立恢复合同', note: '跨数据库 MQ Store 恢复需要独立权限、影响预览、版本与灾备证据，不能由数据库备份按钮隐式覆盖。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示数据库备份能力、版本/manifest/checksum、恢复目标和覆盖影响；MQ 共享 Store 边界单独标注。', primary: '预览备份', fields: ['实例身份', '数据库', '源目录/文件', '版本', 'manifest', 'checksum', '备份范围', '验证状态', '目标数据库', '目标目录', '覆盖确认', '恢复影响', 'MQ Store 范围'] },
+            empty: { label: '未选择备份', status: 'extension', summary: '没有备份文件或服务能力响应时保留数据库、位置和恢复目标输入，说明选择与验证步骤。', primary: '查看备份能力', preserve: ['数据库', '备份位置', '恢复目标'] },
+            error: { label: '备份/验证读取错误', status: 'extension', summary: '仅替换状态、manifest 或校验结果，保留路径和恢复草稿；不把局部文件读取当验证通过。', primary: '检查并重试', preserve: ['数据库', '备份位置', '恢复目标', '覆盖确认'], blocked: ['自动恢复', '标记校验通过', '覆盖当前数据库'] },
+            permission: { label: '备份/恢复权限不足', status: 'extension', summary: '隐藏路径、manifest、校验和恢复载荷，显示数据库与实例 Store 所需权限；数据库 grant 不能自动授权跨实例恢复。', primary: '查看权限要求', preserve: ['数据库', '恢复目标'], blocked: ['读取备份内容', '验证备份', '恢复数据库', '恢复共享 MQ Store'] },
+            readonly: { label: '只读', status: 'extension', summary: '可查看备份状态、范围、manifest/校验结果和恢复说明；创建、验证写入、覆盖恢复及共享 Store 恢复禁用。', primary: '查看持久化边界', blocked: ['创建备份', '执行验证写入', '恢复或覆盖数据库', '恢复实例共享 .system/mq'] },
+            longContent: { label: '长 manifest 与恢复日志', status: 'extension', summary: 'manifest、校验项、目录清单和恢复日志按记录/字节预算分页，明确未返回全部；不拼接跨数据库 Store 结果。', primary: '查看验证预算', limits: ['manifest/日志上限以服务端和宿主文件能力为准', '单库备份不覆盖共享 .system/mq', '跨数据库恢复必须有独立合同与服务器终态'] }
+          }
         }
       ]
     },
