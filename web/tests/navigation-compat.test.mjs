@@ -50,8 +50,13 @@ test('AppShell preserves the existing base and administrator navigation surfaces
   }
   assert.equal((adminNavigation.match(/label:/g) ?? []).length, 5);
   assert.match(shellSource, /\.\.\.\(auth\.isSuperuser \? adminNavigation : \[\]\)/);
-  assert.match(shellSource, /\{ label: '设置', key: auth\.isSuperuser \? 'ai-settings' : 'dashboard'/);
   assert.match(shellSource, /\{ label: '关于', key: 'about'/);
+  const secondaryStart = shellSource.indexOf('const secondaryNavigation = computed(() => [');
+  const secondaryEnd = shellSource.indexOf(']);', secondaryStart);
+  assert.notEqual(secondaryStart, -1);
+  assert.ok(secondaryEnd > secondaryStart);
+  const secondaryNavigation = shellSource.slice(secondaryStart, secondaryEnd);
+  assert.match(secondaryNavigation, /moduleNavigation\.filter\(\(item\) => item\.key === 'settings'\)/);
 });
 
 test('router guards retain setup, authentication, redirect, and admin boundaries', () => {

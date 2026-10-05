@@ -144,3 +144,11 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 原来的 39 页/166 任务点击记录属于初稿证据；更正后的验证限定 MQ 七任务、统一导航、数据库上下文与持久化说明，另记录结果，避免把旧检查写成新版全部验收。
 
 更正验证：七个 MQ 任务均已实际打开，逻辑数据库与对象上下文保持 factory / DeviceEvents，物理范围说明含 .system/mq；整体恢复任务保留 factory 上下文并明确实例共享 Store 范围。首次断言过度要求恢复说明合并显示“数据库 / Topic”，实际整体恢复以数据库上下文加实例存储说明呈现，读 DOM 核对后调整断言，未修改恢复能力。浏览器 error 日志为空，39/166/60/7 结构与 Node 语法、git diff --check 通过。390 巡检未横向溢出，重复底部结果仍关闭。记录见 [mq-scope-checks.json](screenshots/mq-scope-checks.json)，[更新后的 MQ 页面](screenshots/desktop-mq.png)；原有五张截图已同步新导航。
+
+## WB-06 生产外壳与七模块导航迁移（2026-10-05）
+
+- `web/src/views/AppShell.vue` 将一级 rail 收敛为唯一七模块 descriptor：概览、工作台、观测、数据流、AI 与 MCP、治理、设置；设置按确认的外轮廓置于 footer，关于入口保留。查询/数据/Studio 旧同义入口不再重复渲染为一级按钮。
+- `web/src/router/index.ts` 增加 `overview`、`workbench`、`observe`、`flows`、`ai`、`govern`、`settings` 兼容入口，映射到当前真实页面；flows→Modbus、settings→About、ai→RAG 明确是兼容落点，不代表 planned 页面已实现。flows/govern 维持管理员守卫，旧 studio/databases/trajectory-map、setup/auth/admin guards 和 trajectory query→SQL 合同保留。
+- active 模块映射覆盖 events、monitoring、Modbus、RAG/Copilot、users/grants/tokens、About 等现有二级/管理员路由；About 与 Settings 不会同时高亮。九模型 Explorer、MQ database + Topic / `scope=database` / `persistenceScope=instance` / `.system/mq` 及旧 key 未修改。
+- 验证：`node --test web/tests/workbench-shell-migration.test.mjs web/tests/navigation-compat.test.mjs web/tests/explorer-routing-compat.test.mjs` 13/13；`node --experimental-vm-modules --test web/tests/management-explorer-compat.test.mjs` 5/5；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；`git diff --check` 通过。独立只读复核 PASS。
+- 证据边界：普通用户按现有权限隐藏治理/数据流模块；模块兼容落点和静态/TypeScript 证据不代表 Vue 运行时、真实 Server、三宿主、AOT、安装、发布或全量页面迁移已验收。

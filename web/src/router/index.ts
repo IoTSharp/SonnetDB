@@ -44,6 +44,19 @@ const router = createRouter({
       redirect: { name: 'dashboard' },
       children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
+        // M47 module entry aliases keep the seven-module rail stable while
+        // landing on the currently implemented page for each module.
+        { path: 'overview', name: 'overview', redirect: { name: 'dashboard' } },
+        { path: 'workbench', name: 'workbench', redirect: { name: 'sql' } },
+        { path: 'observe', name: 'observe', redirect: { name: 'monitoring' } },
+        // Data-flow pages are still represented by the existing Modbus view;
+        // this route is an explicit compatibility landing, not a new page.
+        { path: 'flows', name: 'flows', redirect: { name: 'modbus' }, meta: { admin: true } },
+        { path: 'ai', name: 'ai', redirect: { name: 'rag' } },
+        { path: 'govern', name: 'govern', redirect: { name: 'users' }, meta: { admin: true } },
+        // Settings currently lands on the existing About view until planned
+        // preference/server-host pages receive their own production routes.
+        { path: 'settings', name: 'settings', redirect: { name: 'about' } },
         { path: 'studio', redirect: { name: 'sql' } },
         { path: 'sql', name: 'sql', component: SqlConsoleView },
         { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },
