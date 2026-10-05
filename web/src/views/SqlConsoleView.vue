@@ -78,6 +78,8 @@
           :connection-options="connectionOptions"
           :studio-bridge-available="studioBridgeAvailable"
           :native-server-status="nativeServerStatus"
+          :native-server-presentation="nativeServerPresentation"
+          :studio-active-identity="studioActiveIdentity"
           :native-server-busy="nativeServerBusy"
           :native-data-root="nativeDataRoot"
           :connection-health-busy="connectionHealthBusy"
@@ -378,6 +380,8 @@ const {
   connectionForm,
   studioBridgeAvailable,
   nativeServerStatus,
+  nativeServerPresentation,
+  studioActiveIdentity,
   nativeServerBusy,
   nativeDataRoot,
   connectionHealthBusy,
@@ -1143,7 +1147,9 @@ watch(targetDb, (db) => {
   }
 }, { immediate: false });
 
-watch(() => connections.activeProfileId, async () => {
+watch([() => connections.activeProfileId, () => connections.activeBaseUrl], async (_profile, _previous, onCleanup) => {
+  let cancelled = false;
+  onCleanup(() => { cancelled = true; });
   auth.setApiBaseUrl(connections.activeBaseUrl);
   routeSelectionToken.value = '';
   routeDatabaseSelectionToken.value = '';
@@ -1153,6 +1159,7 @@ watch(() => connections.activeProfileId, async () => {
     targetDb.value = connections.activeDatabase;
   }
   await reloadDbs();
+  if (cancelled) return;
   routeDatabaseListReady.value = true;
   applyRouteDatabaseSelection();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
@@ -1161,6 +1168,7 @@ watch(() => connections.activeProfileId, async () => {
       [targetDb.value]: true,
     };
     await loadSchema(targetDb.value, true);
+    if (cancelled) return;
     expandedDatabases.value = {
       ...expandedDatabases.value,
       [targetDb.value]: true,
@@ -1198,6 +1206,7 @@ onMounted(async () => {
   handleWorkbenchResize();
   const bridgeReady = await connections.connectStudioBridge();
   if (bridgeReady) {
+    if (connections.studioActiveIdentity) targetDb.value = connections.activeDatabase;
     auth.setApiBaseUrl(connections.activeBaseUrl);
     await refreshNativeServerStatus();
   }

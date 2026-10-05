@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-15 Studio 客户端宿主合同（2026-10-06）**：现有 Web 工作区消费 WB-13 的宿主/profile/端点/数据库原名身份与生命周期；完整合同确认后才开放 Managed Local 操作，external/unknown 保留 Health 并拒绝 Start/Stop。初始化、状态、保存和目录对话框隔离迟返与 A→B→A，端点变化同步认证上下文；连接保存串行、只消费匹配的宿主身份且不产生回授 PUT。专属 Node 10/10、全 Web 137/137、Studio 三类定向 40/40、TypeScript/Vite、StudioNative 浏览器夹具 8/8与独立复核通过。真实 Server 权限、WebView2/干净 Windows、安装升级卸载及三宿主发布继续独立验收。
+
 - **M47 三宿主会话交接与后续队列（2026-10-06）**：WB-12/13/14分别保存本地验证与独立提交；HANDOFF顶部集中记录真实哈希、风险边界与唯一写入归属，路线图区分本地切片和完整验收，队列列出WB-15～WB-18。用户确认的新会话已创建，同一个每30分钟workbench heartbeat转移并回读核实；旧会话最后交接提交后停止写入，三宿主整体研发继续，未push/发布/部署。
 
 - **M47 WB-12 Document Workbench 迁移（2026-10-06）**：保留 database/collection 原名和旧入口，补五区锚点与六态、无权限载荷清理、只读写门禁；查询/文件picker丢弃旧目标响应，审批绑定原连接/数据库/集合，导入冻结模式与项目。Find预览最多1000文档；同身份Schema刷新保留停止进度与逐项错误，101项导入停止、旧文件失败和桥接握手竞态均有回归。专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；403后显式恢复、Aggregate/Distinct预算、真实Server权限及三宿主整体旅程仍待补。

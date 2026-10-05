@@ -1,4 +1,4 @@
-import { computed, h, ref, type WritableComputedRef } from 'vue';
+import { computed, h, ref, watch, type WritableComputedRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { DropdownOption } from 'naive-ui';
 import { Circle, CircleCheck, CircleX, LoaderCircle } from 'lucide-vue-next';
@@ -6,6 +6,7 @@ import type { useAuthStore } from '@/stores/auth';
 import type { useConnectionsStore, ConnectionProfile } from '@/stores/connections';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 import { CONTROL_PLANE_KEY } from '@/stores/sqlConsole';
+import { studioManagedServerPresentation } from '@/api/studioNativeBridge';
 
 type AuthStore = ReturnType<typeof useAuthStore>;
 type ConnectionsStore = ReturnType<typeof useConnectionsStore>;
@@ -32,6 +33,9 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   const nativeServerBusy = ref(false);
   const nativeDataRoot = ref(readNativeDataRoot());
   const connectionHealthBusy = ref(false);
+  let contextGeneration = 0;
+  watch([() => connections.activeProfileId, () => connections.activeBaseUrl, () => targetDb.value],
+    () => { contextGeneration++; }, { flush: 'sync' });
 
   const activeWorkbenchTool = computed<WorkbenchTool>(() => {
     if (route.query.tool === 'trajectory') return 'trajectory';
@@ -108,6 +112,10 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
 
   const studioBridgeAvailable = computed(() => connections.studioBridgeAvailable);
   const nativeServerStatus = computed(() => connections.studioManagedServerStatus);
+  const nativeServerPresentation = computed(() => connections.studioManagedServerPresentation);
+  const studioActiveIdentity = computed(() => connections.studioActiveIdentity
+    ? { ...connections.studioActiveIdentity, database: targetDb.value }
+    : null);
 
   function setWorkbenchTool(tool: WorkbenchTool): void {
     if (activeWorkbenchTool.value === tool) return;
@@ -168,11 +176,12 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   }
 
   async function refreshNativeServerStatus(): Promise<void> {
-    if (!connections.studioBridgeAvailable) return;
+    if (!connections.studioBridgeAvailable || nativeServerBusy.value) return;
     nativeServerBusy.value = true;
     try {
       const status = await connections.refreshStudioServerStatus();
-      if (status?.dataRoot && !status.mountedDatabasePath && (status.startedByStudio || !nativeDataRoot.value)) setNativeDataRoot(status.dataRoot);
+      if (studioManagedServerPresentation(status).confirmed && status?.dataRoot
+        && status.startedByStudio && !status.mountedDatabasePath) setNativeDataRoot(status.dataRoot);
     } finally {
       nativeServerBusy.value = false;
     }
@@ -188,11 +197,13 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   }
 
   async function startNativeServer(dataRoot?: string): Promise<void> {
-    if (!connections.studioBridgeAvailable) return;
+    if (!connections.studioBridgeAvailable || nativeServerBusy.value || !nativeServerPresentation.value.canStart) return;
+    const context = contextGeneration;
     nativeServerBusy.value = true;
     try {
       const selectedRoot = dataRoot?.trim() || nativeDataRoot.value.trim() || undefined;
       const status = await connections.startStudioManagedServer(selectedRoot);
+      if (context !== contextGeneration || !studioManagedServerPresentation(status).confirmed) return;
       if (status?.dataRoot) setNativeDataRoot(status.dataRoot);
       if (status?.healthy) {
         connections.setActiveProfile('managed-local');
@@ -209,12 +220,17 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   }
 
   async function openNativeEmbeddedDatabase(): Promise<boolean> {
-    if (!connections.studioBridgeAvailable) return false;
-    const selected = await connections.selectStudioDirectory('选择已有 SonnetDB 嵌入式数据库目录');
-    if (!selected) return false;
+    if (!connections.studioBridgeAvailable || nativeServerBusy.value || !nativeServerPresentation.value.canStart) return false;
+    const context = contextGeneration;
+    const contextVersion = connections.studioContextVersion();
+    const contextProfileId = connections.activeProfileId;
     nativeServerBusy.value = true;
     try {
+      const selected = await connections.selectStudioDirectory('选择已有 SonnetDB 嵌入式数据库目录');
+      if (!selected || context !== contextGeneration
+        || !connections.isStudioContextCurrent(contextVersion, contextProfileId)) return false;
       const status = await connections.openStudioEmbeddedDatabase(selected);
+      if (context !== contextGeneration || !studioManagedServerPresentation(status).confirmed) return false;
       if (status?.error || !status?.healthy || !status.startedByStudio || !status.mountedDatabaseName)
         throw new Error(status?.error || '无法打开所选数据库：本地 Server 未接管该目录。');
       connections.setActiveProfile('managed-local');
@@ -236,7 +252,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   }
 
   async function stopNativeServer(): Promise<void> {
-    if (!connections.studioBridgeAvailable) return;
+    if (!connections.studioBridgeAvailable || nativeServerBusy.value || !nativeServerPresentation.value.canStop) return;
     nativeServerBusy.value = true;
     try {
       await connections.stopStudioManagedServer();
@@ -250,6 +266,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     connectionForm,
     studioBridgeAvailable,
     nativeServerStatus,
+    nativeServerPresentation,
+    studioActiveIdentity,
     nativeServerBusy,
     nativeDataRoot,
     connectionHealthBusy,

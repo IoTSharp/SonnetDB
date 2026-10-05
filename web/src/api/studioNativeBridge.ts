@@ -50,6 +50,15 @@ export interface StudioConnectionLibrarySnapshot {
   profiles: StudioConnectionProfile[];
   activeProfileId: string;
   activeDatabase: string;
+  activeIdentity?: StudioConnectionIdentity | null;
+}
+
+/** 宿主确认的连接身份；数据库名称保留原始拼写，不代表访问授权。 */
+export interface StudioConnectionIdentity {
+  host: 'studio-desktop';
+  profileId: string;
+  baseUrl: string;
+  database: string;
 }
 
 export interface StudioConnectionProfile {
@@ -61,6 +70,7 @@ export interface StudioConnectionProfile {
   tokenMode: 'current-session';
   createdAt: number;
   updatedAt: number;
+  identity?: StudioConnectionIdentity;
 }
 
 export interface StudioFileDialogFilter {
@@ -103,6 +113,50 @@ export interface StudioManagedServerStatus {
   error: string | null;
   mountedDatabasePath?: string | null;
   mountedDatabaseName?: string | null;
+  processOwner?: 'studio' | 'external' | 'none';
+  lifecycleState?: 'running' | 'external-running' | 'unhealthy' | 'stopped' | 'failed';
+  canStop?: boolean;
+}
+
+/** 校验宿主返回的完整身份，拒绝旧字段或不匹配的连接/数据库。 */
+export function readStudioConnectionIdentity(
+  value: unknown,
+  profile: { id: string; baseUrl: string },
+  database: string,
+): StudioConnectionIdentity | null {
+  if (!value || typeof value !== 'object') return null;
+  const identity = value as Partial<StudioConnectionIdentity>;
+  if (identity.host !== 'studio-desktop' || identity.profileId !== profile.id
+    || identity.baseUrl !== profile.baseUrl || identity.database !== database) return null;
+  return { host: identity.host, profileId: profile.id, baseUrl: profile.baseUrl, database };
+}
+
+/** 将完整宿主生命周期合同投影到 UI；缺失或互相矛盾时默认禁止管理。 */
+export function studioManagedServerPresentation(status: StudioManagedServerStatus | null) {
+  const unknown = {
+    confirmed: false, label: '宿主合同无法确认', tagType: 'warning' as const,
+    canStart: false, canStop: false,
+  };
+  if (!status || typeof status.isRunning !== 'boolean' || typeof status.startedByStudio !== 'boolean'
+    || typeof status.healthy !== 'boolean' || typeof status.url !== 'string'
+    || typeof status.dataRoot !== 'string' || (status.error !== null && typeof status.error !== 'string')
+    || (status.processId !== null && (!Number.isSafeInteger(status.processId) || status.processId > 2_147_483_647))) return unknown;
+  try {
+    const endpoint = new URL(status.url);
+    if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password
+      || endpoint.search || endpoint.hash) return unknown;
+  } catch { return unknown; }
+  const owner = status.isRunning ? (status.startedByStudio ? 'studio' : 'external') : 'none';
+  const lifecycle = !status.isRunning ? (status.error ? 'failed' : 'stopped')
+    : !status.healthy ? 'unhealthy' : status.startedByStudio ? 'running' : 'external-running';
+  const canStop = status.isRunning && status.startedByStudio && (status.processId ?? 0) > 0;
+  if (status.processOwner !== owner || status.lifecycleState !== lifecycle || status.canStop !== canStop) return unknown;
+  const label = lifecycle === 'stopped' ? 'Studio 已停止' : lifecycle === 'failed' ? 'Studio 启动失败'
+    : owner === 'external' ? (status.healthy ? '外部实例运行中' : '外部实例不健康')
+      : status.healthy ? 'Studio 运行中' : 'Studio 不健康';
+  const tagType: 'default' | 'success' | 'warning' | 'error' = lifecycle === 'failed' ? 'error'
+    : lifecycle === 'unhealthy' ? 'warning' : status.healthy ? 'success' : 'default';
+  return { confirmed: true, label, tagType, canStart: !status.isRunning, canStop };
 }
 
 export interface StudioNativeBridgeClient {

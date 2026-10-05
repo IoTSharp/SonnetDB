@@ -54,22 +54,25 @@
       </n-button>
 
       <div v-if="studioBridgeAvailable" class="native-bridge-controls">
-        <span class="native-state" :class="`is-${nativeServerTagType}`">{{ nativeServerLabel }}</span>
-        <n-button quaternary :loading="nativeServerBusy" @click="$emit('refresh-native-server')">Health</n-button>
+        <span data-testid="studio-host-identity" class="native-host-identity">{{ identityLabel }}</span>
+        <span data-testid="studio-managed-state" class="native-state" :class="`is-${nativeServerPresentation.tagType}`">{{ nativeServerPresentation.label }}</span>
+        <span v-if="!nativeServerPresentation.confirmed" data-testid="studio-managed-contract-warning" class="native-contract-warning">无法确认宿主合同</span>
+        <n-button data-testid="studio-managed-health" quaternary :loading="nativeServerBusy" @click="$emit('refresh-native-server')">Health</n-button>
         <n-button
-          v-if="!canStopNativeServer"
+          v-if="nativeServerPresentation.canStart"
+          data-testid="studio-managed-start"
           secondary
           :loading="nativeServerBusy"
           @click="$emit('start-native-server')"
         >Start</n-button>
-        <n-button v-else quaternary :loading="nativeServerBusy" @click="$emit('stop-native-server')">Stop</n-button>
+        <n-button v-if="nativeServerPresentation.canStop" data-testid="studio-managed-stop" quaternary :loading="nativeServerBusy" @click="$emit('stop-native-server')">Stop</n-button>
         <n-popover trigger="click" placement="bottom-end" :width="440">
           <template #trigger>
             <n-button quaternary title="配置本地 Server"><Settings2 :size="16" /></n-button>
           </template>
           <div class="native-server-settings">
             <strong>Managed Local Server</strong>
-            <n-button secondary size="small" :loading="nativeServerBusy" @click="$emit('open-embedded-database')">
+            <n-button secondary size="small" :loading="nativeServerBusy" :disabled="!nativeServerPresentation.canStart" @click="$emit('open-embedded-database')">
               <template #icon><FolderOpen :size="16" /></template>
               打开已有嵌入式数据库
             </n-button>
@@ -81,7 +84,7 @@
               <n-button size="small" secondary @click="$emit('choose-native-data-root')">浏览</n-button>
             </div>
             <small>{{ nativeServerStatus?.url || 'http://127.0.0.1:5080' }}</small>
-            <n-button v-if="!canStopNativeServer" type="primary" size="small" :loading="nativeServerBusy" :disabled="!nativeDataRoot.trim()" @click="$emit('start-native-server', nativeDataRoot)">
+            <n-button v-if="nativeServerPresentation.canStart" type="primary" size="small" :loading="nativeServerBusy" :disabled="!nativeDataRoot.trim()" @click="$emit('start-native-server', nativeDataRoot)">
               使用此目录启动
             </n-button>
           </div>
@@ -149,6 +152,14 @@ const props = defineProps<{
   connectionOptions: DropdownOption[];
   studioBridgeAvailable: boolean;
   nativeServerStatus: StudioManagedServerStatus | null;
+  nativeServerPresentation: {
+    confirmed: boolean;
+    label: string;
+    tagType: 'default' | 'success' | 'warning' | 'error';
+    canStart: boolean;
+    canStop: boolean;
+  };
+  studioActiveIdentity: { host: string; profileId: string; baseUrl: string; database: string } | null;
   nativeServerBusy: boolean;
   nativeDataRoot: string;
   connectionHealthBusy: boolean;
@@ -172,21 +183,11 @@ defineEmits<{
   'show-diagnostics': [];
 }>();
 
-const nativeServerLabel = computed(() => {
-  if (!props.nativeServerStatus) return 'Studio';
-  if (props.nativeServerStatus.healthy) return 'Local healthy';
-  if (props.nativeServerStatus.isRunning) return 'Local starting';
-  return 'Local stopped';
+const identityLabel = computed(() => {
+  const identity = props.studioActiveIdentity;
+  if (!identity) return '宿主身份不可确认';
+  return `${identity.host} · ${identity.profileId} · ${identity.baseUrl} · ${identity.database || 'public'}`;
 });
-
-const nativeServerTagType = computed(() => {
-  if (!props.nativeServerStatus) return 'info';
-  if (props.nativeServerStatus.healthy) return 'success';
-  if (props.nativeServerStatus.isRunning) return 'warning';
-  return 'default';
-});
-
-const canStopNativeServer = computed(() => Boolean(props.nativeServerStatus?.startedByStudio));
 
 function tabIcon(tool: WorkbenchTool): Component {
   return {
@@ -340,6 +341,20 @@ function tabIcon(tool: WorkbenchTool): Component {
   padding: 2px 7px;
   color: var(--sndb-ink-muted);
   font-size: 12px;
+}
+
+.native-host-identity {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--sndb-ink-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-contract-warning {
+  color: var(--sndb-warning);
+  font-size: 11px;
 }
 
 .native-state.is-success {
