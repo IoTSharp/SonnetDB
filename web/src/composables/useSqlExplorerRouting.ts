@@ -117,8 +117,11 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
   }
 
   function selectExplorerItem(db: string, item: ExplorerItem): void {
-    selectDatabase(db);
-    activeExplorerKey.value = item.key;
+    // The descriptor is authoritative for database-local identity. Keep the
+    // legacy key in the active Explorer state so existing deep links continue
+    // to resolve without changing the tool/model/node query contract.
+    selectDatabase(item.resource.database || db);
+    activeExplorerKey.value = item.resource.legacyKey;
   }
 
   function routeExplorerItem(db: string, item: ExplorerItem): void {
