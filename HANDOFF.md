@@ -276,7 +276,7 @@
 - route watcher 在新的 `database` query token 变化时仍优先选择有效数据库；同一旧 URL 下用户手动切换数据库后清空旧 projection token，后续只改变 `model/node` 时在当前手动数据库解析或安全回退，不强制切回 URL 中的旧数据库。route-only 不自动执行；MQ 仍是 database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq`，Graph 仍 Beta，invalid database token 可恢复。
 - 验证：WB-10 定向 5/5；Explorer/路由/管理兼容 15/15；全 Web Node 112/112；TypeScript 通过；`npm run build`（vue-tsc + Vite）通过；`git diff --check` 通过；独立只读复核 PASS；提交前最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
 - 真实 Server、权限、三宿主、AOT、安装、发布、生产全量页面迁移及浏览器真实运行证据仍未由本切片宣称完成。`origin/parity-results` 当前仍保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，不 push、不发布、不部署。
-- 当前队列已闭环至 WB-10；下一次继续前先重新读取本文件、AGENTS.md 与 work-queue，确认是否有新的已授权 Workbench 切片，避免重复派单或将静态兼容证据扩大解释。
+- 当前队列已闭环至 WB-11；下一次继续前先重新读取本文件、AGENTS.md 与 work-queue，确认是否有新的已授权 Workbench 切片，避免重复派单或将静态兼容证据扩大解释。
 
 ## 当前 Workbench 检查点（WB-11，2026-10-05）
 
