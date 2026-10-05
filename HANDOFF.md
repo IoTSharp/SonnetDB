@@ -7,17 +7,24 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-17 从干净 `fefcc72e` 接续，代码已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`（`feat(m47): migrate Relation Workbench with isolated approval outcomes`）。只改 Relation 组件、专属 Node/UI 测试和 CHANGELOG；三名专属实施/浏览器夹具/独立只读复核代理均已结束。database/表原名/旧 key、六态、200 行预览、迟返与审批隔离完成本地切片，未重做设计器或修改 Server/宿主。
+- 专属 Node **15/15**、全 Web **161/161**、最终根 base `/` 的 TypeScript/Vite、Chrome **12/12**、既有设计器 **2/2** 与独立复核通过。UI 初轮 **10/12** 不计完成证据：真实 Copilot FAB 遮挡 Next，已为分页栏留右侧空间；取消按钮选择器同时命中 header/footer，已限定 footer，复验保留真实指针点击。
+- HTTP 403（含无 code 的 `http_403`）清除行/字段/结果/草稿/审批并锁存；同身份 Schema 刷新不能解除权限态。审批展示参数值及前后差异，Schema/主键/profile/endpoint/auth/只读变化失效；首次预览缓存、双确认与 Axios 异步 Token 分派竞态已收口。缺终态、损坏响应、传输异常及 HTTP 408/5xx 记录 `unknown`，历史绑定发起时上下文，不重放原审批；客户端 abort 不等于 Server 已取消。
+- 只读保留 SELECT、结果导出与纯 DDL；设计器/索引/导入/ER 等没有独立只读合同的子工作台暂隐藏，不能写成这些页面的全量权限验收。readonly 浏览器场景为真实组件 harness，认证/API 为 fixture；实际 SQL API/Axios 测试使用自有 adapter，未连接真实 Server。真实权限、Server 物化/字节预算、Studio/VS Code、安装、AOT、硬件/长稳与发布继续分开验收。
+- 代码提交前最终完整 restore、原级别 Format Check 与 staged diff check 退出 0；只有既有 workspace/chunk/Node 提示。代码门禁后 **46** 个已跟踪 PID 身份核验、**0** 个任务进程存活。验证规格/日志作为证据保留于 `D:\source\SonnetDB\artifacts\wb17-validation-20261006`，无新建临时目录；复用旧 runner 时只读，不删除或绕过两处策略保留目录。最终文档树另运行完整门禁后提交，收尾再核验新门禁进程。
+- 下一次只推进 **WB-18 Document 403 显式安全恢复与高级读取预算**，先重新接收 HANDOFF/AGENTS/queue/git/代理状态，不重复 WB-17。整体三宿主未闭环，heartbeat 保持 ACTIVE；不 push、发布、部署或外部沟通，`origin/parity-results` 保持独立。
+
 - WB-16从干净 `941550a5` 接续并提交 `0bb628adde45ad160f05a67057f098fa982c4f85`（`fix(m47): preserve Workbench navigation across login and proxy paths`）。登录返回、安全内部目标、显式部署base和自动SSE路径已收口；Sidebar按真实资源精确展开分组，修复 `table:` 索引id错开Tables。三名专属实施/证据/独立复核代理已结束；根独占文档/git/门禁，无竞争写入。专属Node9/9、全Web146/146、扩展Node20/20、根/代理TypeScript/Vite构建、两部署浏览器各17/17、本机真实Extension Host13节点命令调用和独立复核通过；代码提交前完整restore、原级别Format Check与staged diff check退出0。交接文档另在最终文档树执行完整门禁提交。
 - 旧临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-workbench-handoff-20261006-01` 因自动审查仅返回blocked by policy而保留，全部相关进程已退出；本轮不重新删除或绕过策略。这不阻断WB-16研发。
 
 - WB-15 客户端切片已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`（`feat(m47): consume Studio host identity and lifecycle contracts`）。五个 Web 客户端文件消费 WB-13 身份与生命周期；完整合同才开放 Managed Local 操作，外部/未知状态保留 Health，迟返、同 ID 端点与目录 ABA 隔离，保存串行并只接受宿主确认身份。专属 Node 10/10（3 helper、6真实 store、1真实 composable）、全 Web 137/137、Studio 三类定向40/40、TypeScript/Vite、StudioNative 浏览器夹具8/8和独立复核均通过；代码提交前最终完整 restore/原级别 Format Check 与 staged diff check退出0，只有既有workspace/chunk提示。共享交接记录另在最终文档树执行完整门禁后提交。
-- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-16 已按各自本地切片提交；三宿主整体仍未闭环，不要重复实施已完成切片。
+- 用户已确认 M47 外壳、七模块导航、九模型数据库资源树、共享结果/草稿/历史/审批及六态；MQ database + Topic、instance `.system/mq` 与单库备份缺口、Graph Beta 和原名/旧 key 合同继续有效。WB-00～WB-17 已按各自本地切片提交；三宿主整体仍未闭环，不要重复实施已完成切片。
 - 用户已授权继续 Web Admin、独立 SonnetDB Studio、VS Code Workbench 的独立切片与验证后本地提交，并选择本轮收尾后创建新会话、转移同一 `workbench` heartbeat。暂不 push、发布、部署或外部沟通。
 - WB-13（Studio）已提交 `7483584771ba7164b30047eff59f2c6f2e97e96f`，Release定向34/34；WB-14（VS Code）已提交 `e7cf2fe512974a1cd9bdbac3f767529f2b065e1a`，Node20/20与明确本机Code.exe的真实Extension Host注册检查通过；WB-12（Document）已提交 `54c787551186f74036a1845e25a937d1a268ddc1`，专属10/10、全Web127/127、TypeScript/Vite与Document浏览器7/7。三项独立复核、各自最终完整restore/format与diff check均通过；Format Check仅提示既有工作区加载警告、退出0，没有降低级别。
 - 根独占共享文档、集成、stage/commit。WB-12 仅 Document 组件/专属测试；WB-13 为三个 Studio 源文件与三个专属/既有测试；WB-14 为资源 helper/types、命令/package contribution 与 Node/Host 测试。实际范围见队列，最多三个活动子智能体，不再派竞争者。
 - 新会话 **SonnetDB Workbench 三宿主研发与验收**：`01a10d27-d964-7550-9b8e-066447122527`，host=local，SonnetDB本地项目。已创建并开始只读接收；同一个 `workbench` heartbeat（Workbench 三宿主持续研发与闭环）已转移到该真实thread，ACTIVE、每30分钟，保存配置已回读核实，无重复自动化。
-- 唯一写入归属：旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在 `d773a62e` 后停止写入；本会话接管并完成 WB-15/WB-16，不等待重新授权。当前源代码基线为 `0bb628ad`，最后交接文档提交本身的实际哈希以 `git log -1` 为准。
-- 后续顺序：WB-17 Relation下一模型页面；WB-18 Document403显式安全恢复与高级读取预算。详细归属与验收先冻结再派专属子智能体。真实Server权限、完整九模型、WebView2/干净Windows、安装、AI/MCP与三面发行物仍未全量验收，不能暂停整体heartbeat。WB-16两部署17/17使用真实Web与扩展生成器、fixture认证/API；Host13节点为真实命令调用、拦截外部开启，不能合写为真实Server/OS浏览器交接/VSIX验收。Measurement/Relation既有只读SQL预览与“不执行保存草稿”分开。真实反向代理部署、远程profile SSE、同origin跨部署认证/连接存储隔离仍待独立切片；无token/SQL只针对扩展新生成链接，旧合法SQL URL仍保留原query。Explorer全部异步组合与旧SqlWorkbenchHeader仍独立验收。
+- 唯一写入归属：旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在 `d773a62e` 后停止写入；本会话接管并完成 WB-15/WB-16，不等待重新授权。当前源代码基线为 `f1978263`，最后交接文档提交本身的实际哈希以 `git log -1` 为准。
+- 后续顺序：WB-18 Document403显式安全恢复与高级读取预算。详细归属与验收先冻结再派专属子智能体。真实Server权限、完整九模型、WebView2/干净Windows、安装、AI/MCP与三面发行物仍未全量验收，不能暂停整体heartbeat。WB-16两部署17/17使用真实Web与扩展生成器、fixture认证/API；Host13节点为真实命令调用、拦截外部开启，不能合写为真实Server/OS浏览器交接/VSIX验收。Measurement/Relation既有只读SQL预览与“不执行保存草稿”分开。真实反向代理部署、远程profile SSE、同origin跨部署认证/连接存储隔离仍待独立切片；无token/SQL只针对扩展新生成链接，旧合法SQL URL仍保留原query。Explorer全部异步组合与旧SqlWorkbenchHeader仍独立验收。
 - WB-16有界runner记录PID、创建时间、完整命令及父链并finally核验/回收自有树；58个已跟踪PID的身份核验确认无任务进程存活。本轮临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-wb16-73be578e6aa94e93aee31d340ef55950` 的删除亦被自动审查拒绝，仅返回blocked by policy；runner/日志及cleanup-status.txt保留，不再删除或绕过策略。旧被保留目录同样不触碰；这不阻断WB-17。忽略的最后Web构建输出为 `/Gateway/SonnetDB/` 测试base，非发行物；后续宿主构建须使用匹配的真实部署配置。验证范围写入validation-report，无工具安装或push/发布/部署。
 - WB-15 三名专属实施/复核代理均已结束并停止写入。根有界runner记录PID、创建时间、命令与父链，测试后仅回收自有树；Studio定向测试的自有编译服务已回收，最终Web/Vite/Playwright与reviewer复现PID核验不存在。Git忽略的既有依赖/构建输出与必要UI证据保留；其它未证实归属的旧测试目录不清理。根临时runner只服务最后门禁，结束后按绝对路径核验回收。
 - `origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，禁止合并、删除或改写。其它会话的博客文件不属于本任务。
@@ -305,6 +312,12 @@
 - 后续边界：WB-12 及其它模型页面需另选有界切片并取得对应确认；Studio、VS Code、WorkBuddy/stdio bridge、真实 Server 权限旅程、全量九模型、安装与发布继续保持未闭环，不因 WB-11 本地 PASS 升级为整体完成。
 
 ## 三宿主研发阶段重新启动（2026-10-06）
+
+### WB-17 本轮文件冻结（2026-10-06）
+
+- 从干净 `main / fefcc72e` 接续；WB-16 三代理已结束，不重复派单。本轮仅 Relation Table Workbench 身份、六态、预览/审批隔离。
+- 实施者独占 `RelationalTableWorkbench.vue` 与专属 Node 测试；UI 证据者独占新增 Relation 浏览器 spec；独立复核只读。根维护队列/ROADMAP/CHANGELOG/验证、进程 runner、完整 restore/Format Check、git 与最终交接。具体路径和依赖见 work-queue 的 WB-17 文件冻结段。
+- 复用已有设计器/索引/导入导出/ER/DDL；子工作台没有权限合同的入口保守隐藏，不冒称独立页面迁移。导航不执行保存草稿，现有自动只读 SELECT 预览保留。旧两处临时目录及策略拒绝边界保持。
 
 - 用户明确要求继续研发独立 SonnetDB Studio、VS Code Workbench 与 Web Admin；上一轮 heartbeat 已从 `PAUSED` 改为 `ACTIVE`，继续每 30 分钟唤醒同一线程。当前授权仍不包含 push、发布、生产部署或外部沟通。
 - 根会话已冻结三个互不重叠的有界任务：WB-12 Web Admin Document Workbench（`web/src/components/DocumentCollectionWorkbench.vue` 与专属测试）由 `/root/wb12_web_admin_document` 实施；WB-13 Studio 宿主合同（connection library、bridge contracts、BridgeHost 与专属测试）由 `/root/wb13_studio_host_slice` 实施；WB-14 VS Code Workbench 资源/深链接合同（types、workbenchResource、extension、package contribution、Node/Host 测试）由 `/root/wb14_vscode_workbench_slice` 实施。

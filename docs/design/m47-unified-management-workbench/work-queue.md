@@ -96,10 +96,10 @@
 |---|---|---|
 | WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`；五客户端文件与专属 Node 测试由 `/root/wb15_client_inventory` 实施，`web/e2e/studio-host-client.spec.ts` 由专属夹具代理实施，另一代理独立只读复核PASS。依赖WB-13；原名身份、external/owned/stopped/failed/canStop与未知合同保守门禁、bootstrap/status/save迟返、同ID endpoint认证同步和目录ABA均已收口；保存串行、宿主确认且无回授循环。专属Node10/10、全Web137/137、Studio三类定向40/40、TypeScript/Vite和StudioNative浏览器夹具8/8通过；代码最终完整restore/Format Check与staged diff check退出0。真实Server、干净Windows/WebView2、安装升级卸载、未使用旧Header及完整Explorer异步组合仍独立验收。 |
 | WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 已提交 `0bb628adde45ad160f05a67057f098fa982c4f85`，依赖WB-14与WB-08～WB-10。九模型/index/backup、原名/冒号、同名MQ、登录返回、显式base/SSE及index分组收口；Node9/9、全Web146/146、扩展20/20、根/代理构建、两部署浏览器各17/17、真实Host13节点命令调用、独立复核和代码最终完整门禁通过。真实Server权限、真实代理部署/远程SSE/同origin存储隔离与VSIX发布单列。 |
-| WB-17 | 下一模型页面按已确认基线迁移，优先 Relation Table Workbench 的身份、六态与预览/审批 | 依赖 WB-11/WB-12；先盘点既有实现与原型合同，不重做已有设计器/SQL。仅做明确差距，冻结组件/专属测试，Node/TypeScript/Vite、必要 UI、restore/format 和独立复核。 |
+| WB-17 | Relation Table Workbench 的身份、六态与预览/审批 | 已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`，依赖 WB-11/WB-12/WB-16；复用分页/设计器/审批。原名、200 行预览、会话/Schema/迟返隔离、403 锁存、一次审批及 unknown 终态收口；Node15/15、全Web161/161、TypeScript/Vite、Chrome12/12、既有设计器2/2、独立复核及代码最终完整门禁通过。readonly 仅安全 DDL/浏览/结果导出；真实Server权限、物化/字节预算、三宿主和发行物另验。 |
 | WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 依赖 WB-12；当前403会清理载荷并保持 permission，same-identity schema刷新不解除；新增恢复动作须先确定合同，读取重试不得恢复旧写审批。Aggregate/Distinct 仍沿用原结果路径，不能把 Find 1000预览预算宣称为所有路径预算。 |
 
-WB-15/WB-16已按各自本地范围闭环；WB-17～WB-18为已授权后续顺序，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
+WB-15～WB-17已按各自本地范围闭环；下一项为已授权的 WB-18，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
 
 ## 会话与自动检查（2026-10-06已转移）
 
@@ -112,4 +112,13 @@ WB-15/WB-16已按各自本地范围闭环；WB-17～WB-18为已授权后续顺�
 - 独立复核代理全程只读并PASS；根独占共享文档、验证runner、集成、完整restore/format、stage与commit。最终代码提交12文件（八Web生产文件、专属Node测试、浏览器spec、Host测试与CHANGELOG），不修改Server/资源身份/存储/发布合同。初轮14/17不计完成证据；修复后根与代理浏览器各17/17，无skip。Measurement/Relation允许既有只读预览，保存草稿不执行；index/backup保留SQL工作区落点。fixture认证、SSE构造和真实Host捕获分别记录，不能计作真实Server/外部OS浏览器/VSIX验收。
 - 根临时目录 `C:\Users\mysti\AppData\Local\Temp\sonnetdb-wb16-73be578e6aa94e93aee31d340ef55950` 删除被自动审查拒绝，仅返回blocked by policy；58个PID身份核验无任务存活，runner/日志和cleanup-status.txt保留，不重试删除或绕过。原交接保留目录亦不触碰；研发从WB-17继续，不因临时文件保留阻断。
 
-当前会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。已从`d773a62e`接管唯一写入并提交WB-15/WB-16；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在最后交接提交后停止仓库写入；下一次从WB-17接续，无需重新确认已有授权。
+当前会话：**SonnetDB Workbench 三宿主研发与验收**，ID `01a10d27-d964-7550-9b8e-066447122527`，host `local`，SonnetDB本地项目。已从`d773a62e`接管唯一写入并提交WB-15～WB-17；同一个heartbeat `workbench`（Workbench 三宿主持续研发与闭环）保持ACTIVE、每30分钟，没有创建重复自动化。旧thread `01a10862-bcd5-7d82-ab22-c916c00221a3` 在最后交接提交后停止仓库写入；下一次从WB-18接续，无需重新确认已有授权。
+
+### WB-17 文件与依赖冻结（2026-10-06；已完成的本轮记录）
+
+- 干净起点 `fefcc72e`，WB-16 三代理均结束；本轮只推进 Relation Table Workbench，依赖已提交 WB-11/WB-12/WB-16。
+- 实施代理独占 `web/src/components/RelationalTableWorkbench.vue` 与新增 `web/tests/relational-workbench-migration.test.mjs`。复用已有 SELECT 分页、行编辑、设计器、索引、导入导出、ER/DDL 和 WriteApprovalPanel；补 database/原名身份、六态、读请求迟返隔离和写审批上下文门禁。子工作台权限合同不足时保守隐藏，不能把本页门禁计作其独立迁移。
+- UI 证据代理独占新增 `web/e2e/relational-workbench-migration.spec.ts`，覆盖实际组件状态、跨库同名、权限载荷清理、分页与审批；另一个代理只读复核。根独占共享文档、验证 runner、完整门禁、stage 和 commit；不改路由、Server、MQ 或其它宿主代码。
+- 自动只读 SELECT 预览仍允许；打开历史/SQL 草稿不执行。静态、fixture 与真实 Server、三宿主、安装/AOT/发布证据分开。两处已被策略保留的临时目录不触碰。
+- 最小差距已盘点：旧行浏览没有上下文/卸载迟返校验，审批没有只读/权限/连接门禁，batch 结果不足也可能记 success。迁移合同为读取快照与 epoch 隔离；403 清理载荷/草稿/审批；只有请求语句数与完整终态全部匹配才记写成功，断连/不完整为 unknown 且旧审批不可再确认；历史始终保留发起时上下文。只读保留本页 SELECT 与结果导出，未具备只读合同的子工作台暂隐藏。
+- 最终纯 DDL 经只读复核进入 readonly allowlist；403 仍隐藏全部子页。Node15/15（含真实 Axios/SQL API 分派 adapter）、全Web161/161、Chrome12/12和既有设计器2/2；初轮UI10/12的实际 FAB 遮挡及 selector 歧义已修复并复验。代码提交 `f1978263` 前完整 restore/Format Check/staged diff check 通过，根维护实际哈希、门禁和共享记录，不把 fixture 写成真实 Server/三宿主完成。
