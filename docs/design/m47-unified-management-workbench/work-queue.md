@@ -97,9 +97,20 @@
 | WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`；五客户端文件与专属 Node 测试由 `/root/wb15_client_inventory` 实施，`web/e2e/studio-host-client.spec.ts` 由专属夹具代理实施，另一代理独立只读复核PASS。依赖WB-13；原名身份、external/owned/stopped/failed/canStop与未知合同保守门禁、bootstrap/status/save迟返、同ID endpoint认证同步和目录ABA均已收口；保存串行、宿主确认且无回授循环。专属Node10/10、全Web137/137、Studio三类定向40/40、TypeScript/Vite和StudioNative浏览器夹具8/8通过；代码最终完整restore/Format Check与staged diff check退出0。真实Server、干净Windows/WebView2、安装升级卸载、未使用旧Header及完整Explorer异步组合仍独立验收。 |
 | WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 已提交 `0bb628adde45ad160f05a67057f098fa982c4f85`，依赖WB-14与WB-08～WB-10。九模型/index/backup、原名/冒号、同名MQ、登录返回、显式base/SSE及index分组收口；Node9/9、全Web146/146、扩展20/20、根/代理构建、两部署浏览器各17/17、真实Host13节点命令调用、独立复核和代码最终完整门禁通过。真实Server权限、真实代理部署/远程SSE/同origin存储隔离与VSIX发布单列。 |
 | WB-17 | Relation Table Workbench 的身份、六态与预览/审批 | 已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`，依赖 WB-11/WB-12/WB-16；复用分页/设计器/审批。原名、200 行预览、会话/Schema/迟返隔离、403 锁存、一次审批及 unknown 终态收口；Node15/15、全Web161/161、TypeScript/Vite、Chrome12/12、既有设计器2/2、独立复核及代码最终完整门禁通过。readonly 仅安全 DDL/浏览/结果导出；真实Server权限、物化/字节预算、三宿主和发行物另验。 |
-| WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 已完成并提交 `1e0930a1`；干净起点 `5dec4282`，依赖 WB-12。恢复与读取预算合同、专属文件归属和验收条件见下方检查点。 |
+| WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 已完成并提交 `1d9465fb`；干净起点 `5dec4282`，依赖 WB-12。恢复与读取预算合同、专属文件归属和验收条件见下方检查点。 |
+| WB-19 | FullText Workbench 上下文、权限载荷与预览预算 | 已完成本地实现与验证，从干净 `1d9465fb` 接续；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8、既有真实Kestrel兼容4/4与独立复核通过。本轮提交说明 `feat(m47): isolate FullText context and approval outcomes`，实际哈希以git log为准；提交须取得最终完整restore/format与staged diff check通过。真实权限/写终态、读取恢复与三宿主/发行物另验。 |
 
-WB-15～WB-18已按各自本地范围闭环；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
+WB-15～WB-19已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面，先冻结一个有界任务再派单；本轮不启动下一切片。
+
+### WB-19 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 实施代理独占 `web/src/components/FullTextSearchWorkbench.vue` 与新增 `web/tests/fulltext-workbench-migration.test.mjs`；浏览器证据代理独占新增 `web/e2e/fulltext-workbench-migration.spec.ts`；第三代理独立只读复核。根独占共享文档、验证 runner、集成、完整 restore/format、stage 与 commit，最多三个活动子代理，25 个命名文件、45 分钟、代理测试最多两次；根每条长命令另设超时。
+- 保留 database、collection/index 原名、现有 `fulltext:collection:index` key 与 route-only 不执行；补六态与只读/无权限门禁，搜索、Analyzer 和 Find 按发起时 profile/endpoint/auth/epoch/API 与参数快照隔离迟返、ABA 和卸载。
+- HTTP 401/403 清命中、文档、Token、结果、写草稿和审批，保留检索输入；同身份 Schema/认证刷新不得解锁。安全读取恢复入口留后续独立切片，不凭刷新或本地按钮宣称权限恢复。错误正文固定脱敏。
+- 沿用既有 search-preview API，Top-K 限 1～100；返回先截断到发起 Top-K 再 Find、格式化、分页和导出。超返明确 truncated，历史写实际 preview count/完整性；本地分页只覆盖该结果，不代表所有匹配文档、不新增哨兵请求或虚构 continuation。服务端扫描/物化/字节/总堆预算仍待验收。
+- 重建/导入仍复用一次审批；冻结原上下文、API、模式和项目，批次前后校验 epoch，已派请求不声称未执行，缺终态/传输断连记 unknown 且不重放旧审批。不改 DocumentAdvanced、Server API、路由和其它宿主；fixture、真实 Server 兼容、三宿主/安装/AOT/发布证据分别记录。
+- 重建终态匹配真实 Handler 的 `rebuild_index/ok/success`、completedUtc、index check 与 document/原 owner/name/fulltext/sync_touch/planned=false；planned、缺失或错目标不得记 success。导入最多1000文档，文件10MiB、文本10MiB字符，批次窗口60秒并使用既有30秒请求超时。首次已派批次后ABA记原身份unknown，后续批次为0；真实Axios分派前同步切身份adapter为0属于独立本地证据。
+- 最终专属Node15/15、全Web184/184、TypeScript/Vite与Chrome8/8通过；真实Kestrel既有FullText与Maintenance兼容4/4，未连接新UI执行真实权限/写旅程。根证据目录 `artifacts/wb19-validation-20261006` 保留最终规格/日志与自有进程核验；初轮14/15夹具复制问题已修正，reviewer早期无完整身份记录的阶段运行不计最终证据。提交以最终完整restore/format与diff门禁为前提，真实宿主/AOT/安装/硬件/长稳/发布继续分开。
 
 ### WB-18 合同与文件冻结（2026-10-06；已完成）
 

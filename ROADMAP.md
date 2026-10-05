@@ -31,6 +31,7 @@
 | M47 WB-15 Studio客户端 | 🟡 | 宿主身份/lifecycle、保守操作门禁与迟返隔离已提交 `e1f93a69`；Node10/10、全Web137/137、Studio定向40/40、TypeScript/Vite与浏览器夹具8/8。 | 真实Server、WebView2/干净Windows、安装与三宿主全旅程；旧Header与完整Explorer异步组合另验。 |
 | M47 WB-16 导航/认证与部署base | 🟡 | 已提交 `0bb628ad`；登录返回、base/SSE和index分组修复，Node9/9、全Web146/146、两部署浏览器各17/17、根/代理构建、本机真实Host13节点命令调用及独立复核/完整门禁通过。 | 真实Server权限/代理部署、远程SSE、同origin存储隔离、VSIX与三宿主全旅程。 |
 | M47 WB-17 Relation Workbench | 🟡 | 已提交 `f1978263`；原名/六态、200行预览、403锁存、会话/Schema隔离与unknown审批结果收口，Node15/15、全Web161/161、Chrome12/12、既有设计器2/2及完整代码门禁通过。 | 真实Server权限、物化/字节预算、完整九模型/三宿主、安装/AOT/发布。 |
+| M47 WB-19 FullText Workbench | 🟡 | 原名上下文、六态、迟返/401/403载荷清理、Top-K100与一次审批/真实重建终态已完成本地切片；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8与独立复核通过，既有真实 Kestrel HTTP 兼容回归4/4。 | 新客户端真实Server权限/写终态旅程、读取恢复、服务端扫描/物化/字节预算、完整三宿主和发行物。 |
 | M47 U01～U05 | 🚧 | 设计、首批共享合同、结果/审批语义及 Web Admin 页面切片已有局部实现。 | 完整九模型适配器、分页/取消/离线组合、真实权限与全量生产旅程。 |
 | M47 U06～U08、U10 | 📋 | 已记录规划边界和退出条件。 | Studio、VS Code、WorkBuddy/stdio bridge、manifest/签名/插件安全尚未启动完整验收。 |
 | M45-C01 首批实现 | 🟡 | TAG/time 分组首批代码、SQL/EXPLAIN 合同和定向回归已完成。 | C02～C09、更新/删除修正、增量物化、恢复预算及真实性能证据。 |

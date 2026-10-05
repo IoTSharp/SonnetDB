@@ -302,6 +302,12 @@ Aggregate 保留输入 pipeline 并追加末尾 `$limit: 1001`；Distinct 所选
 
 ### 全文 `fulltext`：Manuals.SearchIndex
 
+**WB-19 生产兼容切片合同（2026-10-06）：** 复用检索、Analyzer、Document 导入和维护审批。database/collection/index 原名、`fulltext:collection:index` legacy key、连接/实际 API 端点、认证与代际共同绑定请求和审批；请求参数在发起时冻结，跨库同名、会话 ABA、新查询与卸载隔离旧响应。401/403 清除命中、文档、分析 Token、结果、写草稿和审批，保留检索输入；Schema 或认证刷新不解除同资源锁存，安全读取恢复另验。只读保留检索/Analyzer/导出，禁止重建与导入暂存/确认。
+
+沿用现有 Top-K 1～100，不另加哨兵或虚构 continuation；先截断到发起 Top-K，再读取命中文档、呈现、导出和记录实际预览完整性。本地分页仅覆盖当前 Top-K；即使响应未超限，也不能把它称为全部匹配文档或服务端扫描/物化/字节预算。导入/重建冻结原上下文并仅确认一次；导入后续批不得跨上下文写入，已派请求失去终态按 unknown 核对，不自动重放。
+
+重建成功须匹配现有 Maintenance 同步终态（operation/status、原集合/索引、fulltext、sync_touch、planned=false 与 index check），planned/缺终态/错目标不能提示已完成；确定失败与未知结果分别记录。导入本地上限1000文档，文件10MiB、文本10MiB字符，60秒批次窗口；身份变化清原始导入文本，保留检索输入。上述本地限制与完整服务端资源预算分别验收。
+
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
 |---|---|---|---|
 | Search | 既有 | term/phrase/fuzzy、field、all/any、Top-K。 | BM25、字段、高亮和文档 ID；仅真实匹配片段高亮。 |

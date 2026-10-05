@@ -1,14 +1,24 @@
 <template>
-  <main class="fulltext-workbench" data-testid="workbench-fulltext">
+  <main
+    class="fulltext-workbench"
+    data-testid="workbench-fulltext"
+    :data-page-state="fulltextState"
+    :data-database="contextSnapshot.database"
+    :data-resource-key="activeIndexKey"
+    :data-legacy-key="activeIndexKey"
+  >
     <section class="fulltext-toolbar">
       <div class="fulltext-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="default" :bordered="false">FullText</n-tag>
           <n-text class="fulltext-toolbar__title">{{ activeIndexLabel || 'No fulltext index selected' }}</n-text>
-          <n-tag v-if="activeIndex" size="tiny" :bordered="false">{{ activeIndex.tokenizer }}</n-tag>
+          <n-tag v-if="activeIndex && !permissionDenied" size="tiny" :bordered="false">{{ activeIndex.tokenizer }}</n-tag>
         </n-space>
         <n-text depth="3" class="fulltext-toolbar__meta">
-          {{ targetDb || 'database' }} · {{ formatStat(activeIndex?.documentCount) }} docs · {{ formatStat(activeIndex?.termCount) }} terms
+          {{ targetDb || 'database' }}<template v-if="!permissionDenied"> · {{ formatStat(activeIndex?.documentCount) }} docs · {{ formatStat(activeIndex?.termCount) }} terms</template>
+        </n-text>
+        <n-text depth="3" class="fulltext-toolbar__context" data-testid="fulltext-context">
+          {{ contextSnapshot.database || 'database' }} · {{ contextSnapshot.collection || 'collection' }} · {{ contextSnapshot.index || 'index' }}
         </n-text>
       </div>
 
@@ -33,7 +43,7 @@
         <n-button size="small" secondary :loading="loadingIndexes || searching" @click="$emit('refreshSchema')">
           Refresh
         </n-button>
-        <n-button size="small" secondary :disabled="!activeIndex" @click="stageRebuild">
+        <n-button size="small" secondary :disabled="!activeIndex || permissionDenied || readOnly || confirmBusy" @click="stageRebuild">
           Rebuild
         </n-button>
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
@@ -64,7 +74,17 @@
       @close="errorMsg = ''"
     />
 
-    <section class="fulltext-stats">
+    <n-alert
+      v-if="permissionDenied"
+      type="warning"
+      title="FullText read permission required"
+      data-testid="fulltext-permission-lock"
+      class="fulltext-alert"
+    >
+      当前身份没有全文检索读取权限；查询草稿已保留，命中与文档载荷已清除。
+    </n-alert>
+
+    <section v-if="!permissionDenied" class="fulltext-stats">
       <article v-for="item in statItems" :key="item.label" class="fulltext-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
@@ -72,7 +92,7 @@
     </section>
 
     <section class="fulltext-body" :class="`is-${activeView}`">
-      <aside v-if="activeView !== 'analyzer'" class="fulltext-indexes">
+      <aside v-if="activeView !== 'analyzer' && !permissionDenied" class="fulltext-indexes">
         <div class="fulltext-panel-head">
           <div>
             <n-text class="fulltext-panel-head__title">FullText indexes</n-text>
@@ -177,7 +197,9 @@
         />
 
         <footer class="fulltext-pager">
-          <span>{{ pageSummary }}</span>
+          <span :data-truncated="hitsTruncated ? 'true' : 'false'">
+            {{ pageSummary }}<template v-if="hitsTruncated"> · truncated to {{ hits.length }} rows</template>
+          </span>
           <n-space size="small" align="center">
             <n-select v-model:value="pageSize" size="small" :options="pageSizeOptions" class="fulltext-page-size" />
             <n-button size="small" secondary :disabled="page <= 1" @click="page -= 1">Previous</n-button>
@@ -186,7 +208,7 @@
         </footer>
       </section>
 
-      <section v-if="activeView === 'import'" class="fulltext-import-panel">
+      <section v-if="activeView === 'import' && !permissionDenied && !readOnly" class="fulltext-import-panel">
         <div class="fulltext-panel-head">
           <div>
             <n-text class="fulltext-panel-head__title">独立全文数据导入</n-text>
@@ -194,7 +216,7 @@
               写入 {{ activeIndex?.collection ?? 'collection' }}，由 {{ activeIndex?.name ?? 'fulltext index' }} 自动更新派生索引
             </n-text>
           </div>
-          <n-button size="small" secondary :disabled="!activeIndex" @click="fullTextFileInput?.click()">选择文件</n-button>
+          <n-button size="small" secondary :disabled="!activeIndex || permissionDenied || readOnly || confirmBusy" @click="fullTextFileInput?.click()">选择文件</n-button>
           <input ref="fullTextFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="fulltext-file-input" @change="onFullTextFileSelected">
         </div>
         <div class="fulltext-import-options">
@@ -212,12 +234,14 @@
           <span>{{ importSummary }}</span>
           <n-space size="small">
             <n-button size="small" quaternary :disabled="!importText" @click="clearFullTextImport">清空</n-button>
-            <n-button size="small" type="primary" :disabled="!activeIndex || !importText.trim()" @click="stageFullTextImport">解析并暂存</n-button>
+            <n-button size="small" type="primary" :disabled="!activeIndex || !importText.trim() || permissionDenied || readOnly || confirmBusy" @click="stageFullTextImport">解析并暂存</n-button>
           </n-space>
         </div>
       </section>
 
-      <aside class="fulltext-inspector">
+      <n-empty v-if="activeView === 'import' && readOnly && !permissionDenied" description="当前宿主为只读，全文导入不可用。" />
+
+      <aside v-if="!permissionDenied" class="fulltext-inspector">
         <div class="fulltext-panel-head">
           <div>
             <n-text class="fulltext-panel-head__title">
@@ -264,8 +288,8 @@
           <n-text class="fulltext-section-title fulltext-section-title--standalone">Analyzer preview</n-text>
           <div class="fulltext-analyzer-row">
             <n-select v-model:value="analyzeTokenizer" size="small" :options="tokenizerOptions" />
-            <n-button size="small" secondary :loading="analyzing" @click="runAnalyze(false)">Analyze</n-button>
-            <n-button size="small" quaternary :disabled="!queryText.trim()" @click="runAnalyze(true)">
+            <n-button size="small" secondary :disabled="permissionDenied" :loading="analyzing" @click="runAnalyze(false)">Analyze</n-button>
+            <n-button size="small" quaternary :disabled="!queryText.trim() || permissionDenied" @click="runAnalyze(true)">
               Query
             </n-button>
           </div>
@@ -293,12 +317,13 @@
             <div><dt>Terms</dt><dd>{{ formatStat(activeIndex?.termCount) }}</dd></div>
             <div><dt>Fields</dt><dd>{{ activeIndex?.fields.join(', ') || '-' }}</dd></div>
           </dl>
-          <n-button type="primary" :disabled="!activeIndex" @click="stageRebuild">暂存重建索引</n-button>
+          <n-button type="primary" :disabled="!activeIndex || permissionDenied || readOnly || confirmBusy" @click="stageRebuild">暂存重建索引</n-button>
         </section>
       </aside>
     </section>
 
     <WorkbenchResultPanel
+      v-if="!permissionDenied"
       class="fulltext-result"
       title="FullText search result"
       :sql="latestCommand"
@@ -319,7 +344,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -336,14 +362,16 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import type { FullTextIndexStat } from '@/api/management';
-import type { DocumentItemResponse, DocumentWriteResponse } from '@/api/documents';
-import { findDocuments, insertManyDocuments, updateOneDocument } from '@/api/documents';
+import { createApiClient } from '@/api/client';
+import type { DocumentFindResponse, DocumentItemResponse, DocumentWriteResponse } from '@/api/documents';
+import { insertManyDocuments, updateOneDocument } from '@/api/documents';
 import {
-  analyzeFullText,
-  searchFullTextPreview,
+  type FullTextAnalyzeResponse,
   type FullTextQueryKind,
   type FullTextSearchMode,
   type FullTextSearchPreviewHit,
+  type FullTextSearchPreviewRequest,
+  type FullTextSearchPreviewResponse,
   type FullTextTokenInfo,
 } from '@/api/fulltext';
 import type { SqlResultSet } from '@/api/sql';
@@ -360,6 +388,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import {
   useWorkbenchHistoryStore,
+  type WorkbenchHistoryCompleteness,
   type WorkbenchHistoryEntry,
 } from '@/stores/workbenchHistory';
 import { createWriteApprovalPlan, type WriteApprovalPlan } from '@/utils/writeApproval';
@@ -370,9 +399,15 @@ const props = withDefaults(defineProps<{
   index: FullTextIndexStat | null;
   indexes?: FullTextIndexStat[];
   loading?: boolean;
+  /** 只读宿主保留检索、分词预览和导出，禁用全文重建和导入。 */
+  readOnly?: boolean;
+  /** 外部权限拒绝隐藏全文命中、文档与索引载荷。 */
+  permissionDenied?: boolean;
 }>(), {
   indexes: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -398,6 +433,23 @@ interface HitRow {
   version?: number;
   raw: FullTextSearchPreviewHit;
 }
+
+interface FullTextContextSnapshot {
+  connectionId: string;
+  connectionName: string;
+  endpoint: string;
+  profileEndpoint: string;
+  database: string;
+  collection: string;
+  index: string;
+  authToken: string;
+  schemaSignature: string;
+  api: AxiosInstance;
+  requestApi?: AxiosInstance;
+}
+
+const FullTextLocalHitBudget = 100;
+const FullTextImportMaxDocuments = 1000;
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();
@@ -425,7 +477,13 @@ const searching = ref(false);
 const analyzing = ref(false);
 const confirmBusy = ref(false);
 const errorMsg = ref('');
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => props.permissionDenied || permissionLocked.value);
+const readOnly = computed(() => props.readOnly);
 const hits = ref<FullTextSearchPreviewHit[]>([]);
+const hitsTruncated = ref(false);
+const resultField = ref('*');
+const resultQuery = ref('');
 const documentsById = ref<Record<string, DocumentItemResponse>>({});
 const selectedId = ref('');
 const analyzeText = ref('Pump alarm in north station');
@@ -438,6 +496,9 @@ const ranOnce = ref(false);
 const historyVisible = ref(false);
 const previewPlan = ref<WriteApprovalPlan | null>(null);
 const pendingRebuild = ref<FullTextIndexStat | null>(null);
+const pendingWriteContext = ref<FullTextContextSnapshot | null>(null);
+let pendingWriteEpoch = -1;
+let pendingImportMode: 'insert' | 'replace' = 'insert';
 const fullTextFileInput = ref<HTMLInputElement | null>(null);
 const importText = ref('');
 const importIdPath = ref('_id');
@@ -449,6 +510,16 @@ const importModeOptions: SelectOption[] = [
   { label: 'Replace（按 ID 替换）', value: 'replace' },
 ];
 
+let disposed = false;
+let contextEpoch = 0;
+let searchRequestId = 0;
+let analyzeRequestId = 0;
+let documentRequestId = 0;
+let searchController: AbortController | null = null;
+let analyzeController: AbortController | null = null;
+let documentController: AbortController | null = null;
+let writeController: AbortController | null = null;
+
 const loadingIndexes = computed(() => props.loading);
 const indexes = computed(() => props.indexes);
 
@@ -456,6 +527,42 @@ const activeIndex = computed(() => props.index ?? indexes.value[0] ?? null);
 const activeIndexKey = computed(() => activeIndex.value ? indexKey(activeIndex.value) : '');
 const activeIndexLabel = computed(() =>
   activeIndex.value ? `${activeIndex.value.collection}.${activeIndex.value.name}` : '');
+
+function liveContext(): FullTextContextSnapshot {
+  return {
+  connectionId: connections.activeProfile.id,
+  connectionName: connections.activeProfile.name,
+  endpoint: auth.api.defaults.baseURL ?? '/',
+  profileEndpoint: connections.activeProfile.baseUrl,
+  database: props.targetDb,
+  collection: activeIndex.value?.collection ?? '',
+  index: activeIndex.value?.name ?? '',
+  authToken: auth.state?.token ?? '',
+  schemaSignature: JSON.stringify([activeIndex.value?.fields ?? [], activeIndex.value?.tokenizer ?? '']),
+  api: auth.api,
+  };
+}
+
+const contextSnapshot = computed<FullTextContextSnapshot>(() => liveContext());
+const schemaSignature = computed(() => contextSnapshot.value.schemaSignature);
+
+const contextFingerprint = computed(() => [
+  contextSnapshot.value.connectionId,
+  contextSnapshot.value.endpoint,
+  contextSnapshot.value.profileEndpoint,
+  contextSnapshot.value.database,
+  contextSnapshot.value.collection,
+  contextSnapshot.value.index,
+].join('\u001f'));
+
+const fulltextState = computed(() => {
+  if (permissionDenied.value) return 'permission';
+  if (readOnly.value) return 'readonly';
+  if (errorMsg.value) return 'error';
+  if (!activeIndex.value || (ranOnce.value && hits.value.length === 0)) return 'empty';
+  if (hitsTruncated.value || hits.value.length > pageSize.value) return 'longContent';
+  return 'normal';
+});
 
 const selectedIndexKey = computed({
   get: () => activeIndexKey.value,
@@ -472,7 +579,7 @@ const indexOptions = computed<SelectOption[]>(() =>
   })));
 
 const fieldOptions = computed<SelectOption[]>(() => {
-  const fields = activeIndex.value?.fields ?? [];
+  const fields = permissionDenied.value ? [] : activeIndex.value?.fields ?? [];
   return [
     { label: 'All indexed fields (*)', value: '*' },
     ...fields.map((value) => ({ label: value, value })),
@@ -535,10 +642,10 @@ const querySummary = computed(() => {
 });
 
 const canSearch = computed(() =>
-  Boolean(props.targetDb && activeIndex.value && queryText.value.trim()));
+  Boolean(props.targetDb && activeIndex.value && queryText.value.trim() && !permissionDenied.value));
 
 const highlightTerms = computed(() => {
-  const source = searchTokens.value.length > 0 ? searchTokens.value : extractQueryTerms(queryText.value);
+  const source = searchTokens.value.length > 0 ? searchTokens.value : extractQueryTerms(resultQuery.value);
   return [...new Set(source.map((term) => term.trim()).filter((term) => term.length > 0))]
     .sort((a, b) => b.length - a.length);
 });
@@ -623,92 +730,333 @@ function selectIndex(index: FullTextIndexStat): void {
   emit('selectIndex', index);
 }
 
+function captureContext(): FullTextContextSnapshot {
+  const snapshot = liveContext();
+  const api = createApiClient(() => snapshot.authToken || null);
+  api.defaults.baseURL = snapshot.endpoint;
+  snapshot.requestApi = api;
+  return snapshot;
+}
+
+function sameContext(left: FullTextContextSnapshot, right: FullTextContextSnapshot): boolean {
+  return left.connectionId === right.connectionId
+    && left.endpoint === right.endpoint
+    && left.profileEndpoint === right.profileEndpoint
+    && left.database === right.database
+    && left.collection === right.collection
+    && left.index === right.index
+    && left.authToken === right.authToken
+    && left.schemaSignature === right.schemaSignature
+    && left.api === right.api;
+}
+
+function isWriteContextCurrent(snapshot: FullTextContextSnapshot, epoch: number): boolean {
+  return !disposed && !permissionDenied.value && !readOnly.value
+    && contextEpoch === epoch && sameContext(snapshot, liveContext());
+}
+
+function isRequestCurrent(
+  snapshot: FullTextContextSnapshot,
+  epoch: number,
+  requestId: number,
+  kind: 'search' | 'analyze' | 'document',
+): boolean {
+  const currentId = kind === 'search' ? searchRequestId
+    : kind === 'analyze' ? analyzeRequestId : documentRequestId;
+  return !disposed
+    && contextEpoch === epoch
+    && currentId === requestId
+    && sameContext(snapshot, liveContext());
+}
+
+function cancelRequests(): void {
+  searchController?.abort();
+  analyzeController?.abort();
+  documentController?.abort();
+  writeController?.abort();
+  searchController = null;
+  analyzeController = null;
+  documentController = null;
+  writeController = null;
+}
+
+function clearReadPayload(): void {
+  hits.value = [];
+  hitsTruncated.value = false;
+  documentsById.value = {};
+  selectedId.value = '';
+  searchTokens.value = [];
+  resultField.value = '*';
+  resultQuery.value = '';
+  analyzeTokens.value = [];
+  latestResult.value = null;
+  latestCommand.value = '';
+  ranOnce.value = false;
+}
+
+function invalidateContext(): void {
+  contextEpoch += 1;
+  searchRequestId += 1;
+  analyzeRequestId += 1;
+  documentRequestId += 1;
+  cancelRequests();
+  searching.value = false;
+  analyzing.value = false;
+  clearReadPayload();
+  pendingRebuild.value = null;
+  pendingWriteContext.value = null;
+  pendingWriteEpoch = -1;
+  pendingImportItems.value = [];
+  importText.value = '';
+  importSummary.value = '尚未解析文件。';
+  previewPlan.value = null;
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; name?: unknown; message?: unknown };
+  return candidate.code === 'ERR_CANCELED'
+    || candidate.name === 'CanceledError'
+    || candidate.name === 'AbortError'
+    || candidate.message === 'canceled';
+}
+
+function isPermissionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const status = (error as { response?: { status?: unknown } }).response?.status;
+  return status === 401 || status === 403;
+}
+
+function isKnownWriteRejection(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const status = (error as { response?: { status?: number } }).response?.status;
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 408;
+}
+
+function isRebuildTerminal(response: MaintenanceResponse, context: FullTextContextSnapshot): boolean {
+  if (!response || response.operation !== 'rebuild_index'
+    || typeof response.completedUtc !== 'string' || !Number.isFinite(Date.parse(response.completedUtc))
+    || !Array.isArray(response.checks)) return false;
+  if (response.success === false) {
+    return response.status === 'failed'
+      && response.checks.some((check) => check?.name === 'request' && check.status === 'error');
+  }
+  const index = response.index;
+  return response.success === true && response.status === 'ok'
+    && index?.model === 'document' && index.owner === context.collection && index.name === context.index
+    && index.kind === 'fulltext' && index.mode === 'sync_touch'
+    && index.planned === false && index.rebuildable === true
+    && typeof index.documentCount === 'number' && Number.isSafeInteger(index.documentCount) && index.documentCount >= 0
+    && response.checks.some((check) => check?.name === 'index' && check.status === 'ok');
+}
+
+function lockReadPermission(): void {
+  contextEpoch += 1;
+  searchRequestId += 1;
+  analyzeRequestId += 1;
+  documentRequestId += 1;
+  cancelRequests();
+  searching.value = false;
+  analyzing.value = false;
+  permissionLocked.value = true;
+  clearReadPayload();
+  previewPlan.value = null;
+  pendingRebuild.value = null;
+  pendingWriteContext.value = null;
+  pendingWriteEpoch = -1;
+  pendingImportItems.value = [];
+  importText.value = '';
+  importSummary.value = '尚未解析文件。';
+  errorMsg.value = '当前身份没有 FullText 读取权限。';
+}
+
 async function runSearch(): Promise<void> {
-  if (!canSearch.value || !activeIndex.value) return;
+  if (!canSearch.value || !activeIndex.value || permissionDenied.value) return;
+  searchController?.abort();
+  documentController?.abort();
+  analyzeController?.abort();
+  documentRequestId += 1;
+  analyzeRequestId += 1;
+  analyzing.value = false;
+  const snapshot = captureContext();
+  const epoch = contextEpoch;
+  const requestId = ++searchRequestId;
+  const controller = new AbortController();
+  searchController = controller;
   searching.value = true;
   errorMsg.value = '';
+  clearReadPayload();
   const idx = activeIndex.value;
+  const request: FullTextSearchPreviewRequest = {
+    collection: snapshot.collection,
+    index: snapshot.index,
+    field: effectiveField.value,
+    query: queryText.value.trim(),
+    topK: normalizedTopK(),
+    mode: mode.value,
+    queryKind: queryKind.value,
+  };
+  const tokenizer = idx.tokenizer;
   const started = performance.now();
-  const command = buildCommand(idx);
+  const command = buildCommand(idx, request);
   try {
-    const response = await searchFullTextPreview(auth.api, props.targetDb, {
-      collection: idx.collection,
-      index: idx.name,
-      field: effectiveField.value,
-      query: queryText.value.trim(),
-      topK: topK.value ?? 20,
-      mode: mode.value,
-      queryKind: queryKind.value,
-    });
-    hits.value = Array.isArray(response.hits) ? response.hits : [];
+    const response = await snapshot.requestApi!.post<FullTextSearchPreviewResponse>(
+      `/v1/db/${encodeURIComponent(snapshot.database)}/fulltext/search-preview`, request, { signal: controller.signal });
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'search')) return;
+    if (!Array.isArray(response.data?.hits)) throw new Error('Invalid fulltext response.');
+    const serverHits = response.data.hits;
+    const resultBudget = Math.min(request.topK ?? 20, FullTextLocalHitBudget);
+    const preview = serverHits.slice(0, resultBudget);
+    if (!preview.every((hit) => typeof hit.documentId === 'string' && typeof hit.score === 'number' && Number.isFinite(hit.score))) {
+      throw new Error('Invalid fulltext hit.');
+    }
+    hitsTruncated.value = serverHits.length > resultBudget;
+    resultField.value = request.field;
+    resultQuery.value = request.query;
+    hits.value = preview;
     page.value = 1;
     selectedId.value = hits.value[0]?.documentId ?? '';
-    await loadHitDocuments(idx.collection, hits.value);
-    await analyzeQueryForHighlight(idx.tokenizer);
+    await loadHitDocuments(snapshot, epoch, idx.collection, hits.value);
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'search')) return;
+    await analyzeQueryForHighlight(snapshot, epoch, tokenizer, request.query);
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'search')) return;
     const elapsed = performance.now() - started;
     latestCommand.value = command;
-    latestResult.value = resultFromHits(hitRows.value, elapsed);
+    latestResult.value = resultFromHits(hitRows.value, elapsed, hitsTruncated.value);
     ranOnce.value = true;
-    recordHistory('success', 'FullText search preview', 'search', command, `${hits.value.length} hits`, hits.value.length, -1, elapsed);
+    recordHistory(
+      'success',
+      'FullText search preview',
+      'search',
+      command,
+      `${hits.value.length} hits${hitsTruncated.value ? ' · truncated' : ''}`,
+      hits.value.length,
+      -1,
+      elapsed,
+      snapshot,
+      hitsTruncated.value ? 'truncated' : 'complete',
+    );
   } catch (error) {
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'search') || isAbortError(error)) return;
     const elapsed = performance.now() - started;
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      recordHistory('error', 'FullText search preview', 'search', command, '当前身份没有 FullText 读取权限。', 0, -1, elapsed, snapshot);
+      return;
+    }
     const msg = errorToMessage(error, '全文检索失败');
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult('fulltext_error', msg);
     ranOnce.value = true;
-    recordHistory('error', 'FullText search preview', 'search', command, msg, 0, -1, elapsed);
+    recordHistory('error', 'FullText search preview', 'search', command, msg, 0, -1, elapsed, snapshot);
   } finally {
-    searching.value = false;
+    if (isRequestCurrent(snapshot, epoch, requestId, 'search')) searching.value = false;
   }
 }
 
-async function loadHitDocuments(collection: string, items: FullTextSearchPreviewHit[]): Promise<void> {
+async function loadHitDocuments(
+  snapshot: FullTextContextSnapshot,
+  epoch: number,
+  collection: string,
+  items: FullTextSearchPreviewHit[],
+): Promise<void> {
   documentsById.value = {};
   const ids = [...new Set(items.map((hit) => hit.documentId).filter(Boolean))];
   if (ids.length === 0) return;
-  const response = await findDocuments(auth.api, props.targetDb, collection, {
+  documentController?.abort();
+  const requestId = ++documentRequestId;
+  const controller = new AbortController();
+  documentController = controller;
+  try {
+    const response = await snapshot.requestApi!.post<DocumentFindResponse>(
+      `/v1/db/${encodeURIComponent(snapshot.database)}/documents/${encodeURIComponent(collection)}/find`, {
     ids,
     limit: Math.min(ids.length, 1000),
-  });
-  const next: Record<string, DocumentItemResponse> = {};
-  for (const item of response.documents ?? []) {
-    next[item.id] = item;
+      }, { signal: controller.signal });
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'document')) return;
+    const next: Record<string, DocumentItemResponse> = {};
+    if (response.data?.collection !== collection || !Array.isArray(response.data.documents)
+      || response.data.documents.length > ids.length
+      || !response.data.documents.every((item) => item && typeof item.id === 'string' && ids.includes(item.id)
+        && typeof item.version === 'number' && Object.hasOwn(item, 'document'))) {
+      throw new Error('Invalid document response.');
+    }
+    for (const item of response.data.documents) {
+      next[item.id] = item;
+    }
+    documentsById.value = next;
+  } catch (error) {
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'document') || isAbortError(error)) return;
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      return;
+    }
+    throw error;
   }
-  documentsById.value = next;
 }
 
-async function analyzeQueryForHighlight(tokenizer: string): Promise<void> {
+async function analyzeQueryForHighlight(
+  snapshot: FullTextContextSnapshot,
+  epoch: number,
+  tokenizer: string,
+  query: string,
+): Promise<void> {
+  analyzeController?.abort();
+  const requestId = ++analyzeRequestId;
+  const controller = new AbortController();
+  analyzeController = controller;
   try {
-    const response = await analyzeFullText(auth.api, props.targetDb, {
+    const response = await snapshot.requestApi!.post<FullTextAnalyzeResponse>(
+      `/v1/db/${encodeURIComponent(snapshot.database)}/fulltext/analyze`, {
       tokenizer,
-      text: queryText.value.trim(),
-    });
-    searchTokens.value = response.tokens.map((token) => token.text);
-  } catch {
-    searchTokens.value = extractQueryTerms(queryText.value);
+      text: query,
+      }, { signal: controller.signal });
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'analyze')) return;
+    searchTokens.value = Array.isArray(response.data.tokens) ? response.data.tokens.slice(0, 1000).map((token) => token.text) : [];
+  } catch (error) {
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'analyze') || isAbortError(error)) return;
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      return;
+    }
+    searchTokens.value = extractQueryTerms(query);
   }
 }
 
 async function runAnalyze(useQuery: boolean): Promise<void> {
   const text = useQuery ? queryText.value.trim() : analyzeText.value;
-  if (!text) {
+  if (!text || permissionDenied.value || !props.targetDb || disposed) {
     analyzeTokens.value = [];
     return;
   }
   if (useQuery) analyzeText.value = text;
+  analyzeController?.abort();
+  const snapshot = captureContext();
+  const epoch = contextEpoch;
+  const requestId = ++analyzeRequestId;
+  const controller = new AbortController();
+  const tokenizer = analyzeTokenizer.value;
+  analyzeController = controller;
   analyzing.value = true;
   errorMsg.value = '';
   try {
-    const response = await analyzeFullText(auth.api, props.targetDb, {
-      tokenizer: analyzeTokenizer.value,
+    const response = await snapshot.requestApi!.post<FullTextAnalyzeResponse>(
+      `/v1/db/${encodeURIComponent(snapshot.database)}/fulltext/analyze`, {
+      tokenizer,
       text,
-    });
-    analyzeTokens.value = Array.isArray(response.tokens) ? response.tokens : [];
+      }, { signal: controller.signal });
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'analyze')) return;
+    analyzeTokens.value = Array.isArray(response.data.tokens) ? response.data.tokens.slice(0, 1000) : [];
   } catch (error) {
+    if (!isRequestCurrent(snapshot, epoch, requestId, 'analyze') || isAbortError(error)) return;
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      return;
+    }
     errorMsg.value = errorToMessage(error, '分词预览失败');
   } finally {
-    analyzing.value = false;
+    if (isRequestCurrent(snapshot, epoch, requestId, 'analyze')) analyzing.value = false;
   }
 }
 
@@ -730,8 +1078,11 @@ function applyFuzzyBuilder(): void {
 
 function stageRebuild(): void {
   const idx = activeIndex.value;
-  if (!idx) return;
-  pendingRebuild.value = idx;
+  if (!idx || disposed || readOnly.value || permissionDenied.value || confirmBusy.value) return;
+  pendingImportItems.value = [];
+  pendingRebuild.value = { ...idx, fields: [...idx.fields] };
+  pendingWriteContext.value = captureContext();
+  pendingWriteEpoch = contextEpoch;
   previewPlan.value = createWriteApprovalPlan({
     id: `fulltext_rebuild_${props.targetDb}_${idx.collection}_${idx.name}_${Date.now().toString(36)}`,
     title: 'FullText index rebuild',
@@ -747,43 +1098,71 @@ function stageRebuild(): void {
 }
 
 async function confirmPendingWrite(): Promise<void> {
+  const stagedContext = pendingWriteContext.value;
+  const epoch = pendingWriteEpoch;
+  if (confirmBusy.value || !previewPlan.value) return;
+  if (!stagedContext || !isWriteContextCurrent(stagedContext, epoch)) {
+    clearPreviewPlan();
+    errorMsg.value = '审批上下文已变化，请重新暂存当前全文操作。';
+    return;
+  }
   if (pendingImportItems.value.length > 0) {
     await confirmFullTextImport();
     return;
   }
   const idx = pendingRebuild.value;
   if (!idx) return;
+  clearPreviewPlan();
+  const controller = new AbortController();
+  writeController = controller;
+  stagedContext.requestApi!.defaults.signal = controller.signal;
   confirmBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
   const command = `rebuild_index document_fulltext ${idx.collection}.${idx.name}`;
   try {
-    const result = await runMaintenance(auth.api, props.targetDb, {
+    const result = await runMaintenance(stagedContext.requestApi!, stagedContext.database, {
       operation: 'rebuild_index',
       targetModel: 'document_fulltext',
       targetOwner: idx.collection,
       targetName: idx.name,
     });
     const elapsed = performance.now() - started;
+    if (!isWriteContextCurrent(stagedContext, epoch)) {
+      recordHistory('unknown', 'FullText index rebuild', 'rebuild', command, '请求已发出后上下文变化；请核对原数据库的服务端终态。', 0, -1, elapsed, stagedContext, 'unknown');
+      return;
+    }
+    if (!isRebuildTerminal(result, stagedContext)) throw new Error('Invalid maintenance terminal response.');
     latestCommand.value = command;
     latestResult.value = resultFromMaintenance(result, elapsed);
     ranOnce.value = true;
     previewPlan.value = null;
     pendingRebuild.value = null;
-    recordHistory('success', 'FullText index rebuild', 'rebuild', command, result.message, 0, result.index?.documentCount ?? 0, elapsed);
-    message.success(result.index?.documentCount != null
-      ? `Rebuilt ${result.index.documentCount} documents.`
-      : result.message);
+    recordHistory(result.success ? 'success' : 'error', 'FullText index rebuild', 'rebuild', command,
+      result.success ? '全文索引重建已完成。' : '全文索引重建未成功。', 0, result.index?.documentCount ?? 0, elapsed, stagedContext, 'complete');
+    if (result.success) message.success('全文索引重建已完成。');
     emit('refreshSchema');
   } catch (error) {
     const elapsed = performance.now() - started;
-    const msg = errorToMessage(error, '全文索引重建失败');
+    if (!isWriteContextCurrent(stagedContext, epoch)) {
+      recordHistory('unknown', 'FullText index rebuild', 'rebuild', command, '请求已发出后上下文变化；请核对原数据库的服务端终态。', 0, -1, elapsed, stagedContext, 'unknown');
+      return;
+    }
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      errorMsg.value = '当前身份没有 FullText 写入权限。';
+      recordHistory('error', 'FullText index rebuild', 'rebuild', command, '当前身份没有 FullText 写入权限。', 0, 0, elapsed, stagedContext);
+      return;
+    }
+    const knownRejection = isKnownWriteRejection(error);
+    const msg = errorToMessage(error, knownRejection ? '全文索引重建失败。' : '全文索引重建结果未知；请核对服务端终态后重新暂存。');
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult('fulltext_rebuild_error', msg);
     ranOnce.value = true;
-    recordHistory('error', 'FullText index rebuild', 'rebuild', command, msg, 0, 0, elapsed);
+    recordHistory(knownRejection ? 'error' : 'unknown', 'FullText index rebuild', 'rebuild', command, msg, 0, -1, elapsed, stagedContext, knownRejection ? 'complete' : 'unknown');
   } finally {
+    if (writeController === controller) writeController = null;
     confirmBusy.value = false;
   }
 }
@@ -791,9 +1170,17 @@ async function confirmPendingWrite(): Promise<void> {
 async function onFullTextFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file) return;
+  if (!file || readOnly.value || permissionDenied.value || confirmBusy.value || disposed) return;
+  const snapshot = captureContext();
+  const epoch = contextEpoch;
   try {
-    importText.value = await file.text();
+    if (file.size > 10 * 1024 * 1024) {
+      errorMsg.value = '全文导入文件预览上限为 10 MiB。';
+      return;
+    }
+    const text = await file.text();
+    if (!isWriteContextCurrent(snapshot, epoch)) return;
+    importText.value = text;
     importSummary.value = `${file.name} · ${(file.size / 1024).toFixed(1)} KiB`;
   } finally {
     input.value = '';
@@ -802,7 +1189,7 @@ async function onFullTextFileSelected(event: Event): Promise<void> {
 
 function stageFullTextImport(): void {
   const idx = activeIndex.value;
-  if (!idx) return;
+  if (!idx || disposed || readOnly.value || permissionDenied.value || confirmBusy.value) return;
   const parsed = parseFullTextDocuments(importText.value, importIdPath.value.trim() || '_id');
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
@@ -811,6 +1198,9 @@ function stageFullTextImport(): void {
   }
   pendingImportItems.value = parsed.items;
   pendingRebuild.value = null;
+  pendingWriteContext.value = captureContext();
+  pendingWriteEpoch = contextEpoch;
+  pendingImportMode = importMode.value;
   importSummary.value = `${parsed.items.length} documents · ${importMode.value}`;
   previewPlan.value = createWriteApprovalPlan({
     id: `fulltext_import_${props.targetDb}_${idx.collection}_${Date.now().toString(36)}`,
@@ -830,19 +1220,38 @@ function stageFullTextImport(): void {
 async function confirmFullTextImport(): Promise<void> {
   const idx = activeIndex.value;
   const items = [...pendingImportItems.value];
-  if (!idx || items.length === 0) return;
+  const stagedContext = pendingWriteContext.value;
+  const epoch = pendingWriteEpoch;
+  const stagedMode = pendingImportMode;
+  if (confirmBusy.value) return;
+  if (!idx || items.length === 0 || !stagedContext || !isWriteContextCurrent(stagedContext, epoch)) {
+    clearPreviewPlan();
+    errorMsg.value = '审批上下文已变化，请重新暂存当前全文导入。';
+    return;
+  }
+  clearPreviewPlan();
+  const controller = new AbortController();
+  writeController = controller;
+  stagedContext.requestApi!.defaults.signal = controller.signal;
   confirmBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
-  const command = `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${idx.collection}\n${items.length} documents`;
+  const command = `documents.${stagedMode === 'replace' ? 'replaceMany' : 'insertMany'} ${idx.collection}\n${items.length} documents`;
+  const deadline = started + 60_000;
   try {
     const totals: DocumentWriteResponse = { collection: idx.collection, inserted: 0, matched: 0, modified: 0, deleted: 0, errors: null };
-    if (importMode.value === 'insert') {
+    if (stagedMode === 'insert') {
       for (let offset = 0; offset < items.length; offset += 100) {
-        const result = await insertManyDocuments(auth.api, props.targetDb, idx.collection, {
+        if (!isWriteContextCurrent(stagedContext, epoch) || performance.now() >= deadline) {
+          recordHistory('unknown', 'FullText document import', 'import', command,
+            '已停止后续批次；请核对原数据库已发送请求的服务端终态。', 0, -1, performance.now() - started, stagedContext, 'unknown');
+          return;
+        }
+        const result = await insertManyDocuments(stagedContext.requestApi!, stagedContext.database, stagedContext.collection, {
           documents: items.slice(offset, offset + 100),
           ordered: false,
         });
+        validateImportResponse(result, stagedContext.collection);
         totals.inserted += result.inserted ?? 0;
         totals.matched += result.matched ?? 0;
         totals.modified += result.modified ?? 0;
@@ -850,12 +1259,23 @@ async function confirmFullTextImport(): Promise<void> {
       }
     } else {
       for (const item of items) {
-        const result = await updateOneDocument(auth.api, props.targetDb, idx.collection, item);
+        if (!isWriteContextCurrent(stagedContext, epoch) || performance.now() >= deadline) {
+          recordHistory('unknown', 'FullText document import', 'import', command,
+            '已停止后续批次；请核对原数据库已发送请求的服务端终态。', 0, -1, performance.now() - started, stagedContext, 'unknown');
+          return;
+        }
+        const result = await updateOneDocument(stagedContext.requestApi!, stagedContext.database, stagedContext.collection, item);
+        validateImportResponse(result, stagedContext.collection);
         totals.inserted += result.inserted ?? 0;
         totals.matched += result.matched ?? 0;
         totals.modified += result.modified ?? 0;
         if (result.errors?.length) totals.errors = [...(totals.errors ?? []), ...result.errors];
       }
+    }
+    if (!isWriteContextCurrent(stagedContext, epoch)) {
+      recordHistory('unknown', 'FullText document import', 'import', command,
+        '请求已发出后上下文变化；请核对原数据库的服务端终态。', 0, -1, performance.now() - started, stagedContext, 'unknown');
+      return;
     }
     const elapsed = performance.now() - started;
     const affected = totals.inserted + totals.modified;
@@ -864,19 +1284,37 @@ async function confirmFullTextImport(): Promise<void> {
     ranOnce.value = true;
     previewPlan.value = null;
     pendingImportItems.value = [];
+    pendingWriteContext.value = null;
     importSummary.value = `${affected}/${items.length} documents written`;
-    recordHistory('success', 'FullText document import', 'import', command, importSummary.value, items.length, affected, elapsed);
-    message.success(`已写入 ${affected} 个全文文档。`);
+    const completed = !(totals.errors ?? []).some((error) => error.severity !== 'warning')
+      && (stagedMode === 'insert' ? totals.inserted === items.length : totals.matched === items.length);
+    recordHistory(completed ? 'success' : 'error', 'FullText document import', 'import', command,
+      importSummary.value, items.length, affected, elapsed, stagedContext, completed ? 'complete' : 'partial');
+    if (completed) message.success(`已写入 ${affected} 个全文文档。`);
+    else errorMsg.value = '全文导入仅取得部分写入结果，请核对原数据库；旧审批已消费。';
     emit('refreshSchema');
   } catch (error) {
     const elapsed = performance.now() - started;
-    const msg = errorToMessage(error, '全文数据导入失败');
+    if (!isWriteContextCurrent(stagedContext, epoch)) {
+      recordHistory('unknown', 'FullText document import', 'import', command,
+        '请求已发出后上下文变化；请核对原数据库的服务端终态。', 0, -1, elapsed, stagedContext, 'unknown');
+      return;
+    }
+    const knownRejection = isKnownWriteRejection(error);
+    const msg = isPermissionError(error) ? '当前身份没有 FullText 写入权限。'
+      : errorToMessage(error, knownRejection ? '全文数据导入失败。' : '全文数据导入结果未知；请核对服务端终态后重新暂存。');
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      recordHistory('error', 'FullText document import', 'import', command, msg, items.length, -1, elapsed, stagedContext, 'partial');
+      return;
+    }
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult('fulltext_import_error', msg);
     ranOnce.value = true;
-    recordHistory('error', 'FullText document import', 'import', command, msg, items.length, 0, elapsed);
+    recordHistory(knownRejection ? 'error' : 'unknown', 'FullText document import', 'import', command, msg, items.length, -1, elapsed, stagedContext, knownRejection ? 'partial' : 'unknown');
   } finally {
+    if (writeController === controller) writeController = null;
     confirmBusy.value = false;
   }
 }
@@ -886,11 +1324,13 @@ function parseFullTextDocuments(text: string, idPath: string):
   | { ok: false; message: string } {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, message: '导入内容为空。' };
+  if (text.length > 10 * 1024 * 1024) return { ok: false, message: '全文导入文本预览上限为 10 MiB 字符。' };
   try {
     const source: unknown = trimmed.startsWith('[')
       ? JSON.parse(trimmed) as unknown
       : trimmed.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as unknown);
     const documents = Array.isArray(source) ? source : [source];
+    if (documents.length > FullTextImportMaxDocuments) throw new Error('单次全文导入上限为 1000 个文档。');
     const seen = new Set<string>();
     const items = documents.map((document, index) => {
       if (!document || typeof document !== 'object' || Array.isArray(document)) {
@@ -909,6 +1349,17 @@ function parseFullTextDocuments(text: string, idPath: string):
   }
 }
 
+function validateImportResponse(response: DocumentWriteResponse, collection: string): void {
+  if (!response || response.collection !== collection
+    || ![response.inserted, response.matched, response.modified, response.deleted]
+      .every((count) => Number.isSafeInteger(count) && count >= 0)
+    || (response.errors != null && (!Array.isArray(response.errors)
+      || response.errors.length > FullTextImportMaxDocuments
+      || !response.errors.every((error) => error && typeof error.severity === 'string')))) {
+    throw new Error('Invalid document write response.');
+  }
+}
+
 function resultFromDocumentImport(result: DocumentWriteResponse, elapsedMs: number): SqlResultSet {
   const affected = (result.inserted ?? 0) + (result.modified ?? 0);
   return {
@@ -924,6 +1375,7 @@ function clearFullTextImport(): void {
   importText.value = '';
   importSummary.value = '尚未解析文件。';
   pendingImportItems.value = [];
+  pendingWriteContext.value = null;
   if (!pendingRebuild.value) previewPlan.value = null;
 }
 
@@ -931,6 +1383,7 @@ function clearPreviewPlan(): void {
   previewPlan.value = null;
   pendingRebuild.value = null;
   pendingImportItems.value = [];
+  pendingWriteContext.value = null;
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
@@ -944,14 +1397,14 @@ function rowKey(row: HitRow): string {
 function mapHitRow(hit: FullTextSearchPreviewHit, index: number): HitRow {
   const doc = documentsById.value[hit.documentId];
   const rawJson = doc ? formatDocument(doc.document) : '';
-  const fieldText = doc ? extractFieldText(doc.document, effectiveField.value) : '';
+  const fieldText = doc ? extractFieldText(doc.document, resultField.value) : '';
   const snippet = buildSnippet(fieldText || rawJson, highlightTerms.value);
   return {
     key: `${hit.documentId}:${index}`,
     rank: index + 1,
     documentId: hit.documentId,
     score: hit.score,
-    fieldName: effectiveField.value,
+    fieldName: resultField.value,
     fieldText,
     snippetText: snippet.text,
     snippetParts: snippet.parts,
@@ -1061,7 +1514,7 @@ function formatDocument(value: unknown): string {
   }
 }
 
-function resultFromHits(rows: HitRow[], elapsedMs: number): SqlResultSet {
+function resultFromHits(rows: HitRow[], elapsedMs: number, truncated: boolean): SqlResultSet {
   return {
     columns: ['rank', 'document_id', 'score', 'field', 'snippet'],
     rows: rows.map((row) => [row.rank, row.documentId, row.score, row.fieldName, row.snippetText]),
@@ -1070,6 +1523,7 @@ function resultFromHits(rows: HitRow[], elapsedMs: number): SqlResultSet {
       rowCount: rows.length,
       recordsAffected: -1,
       elapsedMs,
+      truncated,
     },
     error: null,
     hasColumns: true,
@@ -1079,7 +1533,8 @@ function resultFromHits(rows: HitRow[], elapsedMs: number): SqlResultSet {
 function resultFromMaintenance(result: MaintenanceResponse, elapsedMs: number): SqlResultSet {
   return {
     columns: ['operation', 'status', 'success', 'message', 'documents'],
-    rows: [[result.operation, result.status, result.success, result.message, result.index?.documentCount ?? null]],
+    rows: [[result.operation, result.status, result.success,
+      result.success ? '全文索引重建已完成。' : '全文索引重建未成功。', result.index?.documentCount ?? null]],
     end: {
       type: 'end',
       rowCount: 1,
@@ -1101,19 +1556,24 @@ function errorResult(code: string, messageText: string): SqlResultSet {
   };
 }
 
-function buildCommand(index: FullTextIndexStat): string {
-  const top = topK.value ?? 20;
-  const fieldArg = effectiveField.value === '*' ? '*' : quote(effectiveField.value);
+function normalizedTopK(): number {
+  const value = topK.value;
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(1, Math.min(FullTextLocalHitBudget, Math.floor(value))) : 20;
+}
+
+function buildCommand(index: FullTextIndexStat, request: FullTextSearchPreviewRequest): string {
+  const fieldArg = request.field === '*' ? '*' : quote(request.field);
   return [
     `SELECT id, score, document`,
     `FROM ${formatSqlIdentifier(index.collection)}`,
-    `WHERE match(${formatSqlIdentifier(index.name)}, ${fieldArg}, ${quote(queryText.value.trim())}, ${top}, ${quote(mode.value)})`,
-    `-- queryKind: ${queryKind.value}`,
+    `WHERE match(${formatSqlIdentifier(index.name)}, ${fieldArg}, ${quote(request.query)}, ${request.topK}, ${quote(request.mode ?? 'exact')})`,
+    `-- queryKind: ${request.queryKind}`,
   ].join('\n');
 }
 
 function recordHistory(
-  status: 'success' | 'error',
+  status: 'success' | 'error' | 'unknown',
   title: string,
   action: string,
   command: string,
@@ -1121,15 +1581,17 @@ function recordHistory(
   rowCount: number,
   recordsAffected: number,
   elapsedMs: number,
+  context: FullTextContextSnapshot = captureContext(),
+  completeness?: WorkbenchHistoryCompleteness,
 ): void {
   history.record({
     kind: action === 'search' ? 'query' : 'operation',
     status,
     title,
-    target: activeIndexLabel.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    target: context.collection && context.index ? `${context.collection}.${context.index}` : activeIndexLabel.value,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'fulltext',
     action,
     command,
@@ -1137,6 +1599,7 @@ function recordHistory(
     rowCount,
     recordsAffected,
     elapsedMs,
+    completeness,
   });
 }
 
@@ -1159,28 +1622,15 @@ function formatStat(value?: number | null): string {
 }
 
 function errorToMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: unknown; status?: number } }).response;
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.error === 'string') return data.error;
-    }
-    if (typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-  }
+  if (isPermissionError(error)) return '当前身份没有 FullText 读取权限。';
   return fallback;
 }
 
 watch(activeIndex, (index) => {
+  invalidateContext();
   field.value = '*';
   analyzeTokenizer.value = index?.tokenizer || 'unicode';
-  hits.value = [];
-  documentsById.value = {};
-  latestResult.value = null;
-  ranOnce.value = false;
-}, { immediate: true });
+}, { immediate: true, flush: 'sync' });
 
 watch(queryKind, (kind) => {
   if (kind === 'phrase' && mode.value === 'fuzzy') {
@@ -1198,11 +1648,35 @@ watch([hitRows, pageSize], () => {
   if (page.value > pageCount.value) page.value = pageCount.value;
 });
 
-watch(() => props.targetDb, () => {
-  hits.value = [];
-  documentsById.value = {};
-  latestResult.value = null;
-  ranOnce.value = false;
+watch(contextFingerprint, () => {
+  invalidateContext();
+  permissionLocked.value = false;
+  errorMsg.value = '';
+}, { immediate: true, flush: 'sync' });
+
+watch([() => auth.state, () => auth.state?.token, () => auth.api], () => {
+  invalidateContext();
+}, { flush: 'sync' });
+
+watch(schemaSignature, () => {
+  invalidateContext();
+}, { flush: 'sync' });
+
+watch(() => props.permissionDenied, () => {
+  invalidateContext();
+}, { flush: 'sync' });
+
+watch(readOnly, () => {
+  contextEpoch += 1;
+  cancelRequests();
+  searching.value = false;
+  analyzing.value = false;
+  clearPreviewPlan();
+}, { flush: 'sync' });
+
+onBeforeUnmount(() => {
+  disposed = true;
+  invalidateContext();
 });
 </script>
 
