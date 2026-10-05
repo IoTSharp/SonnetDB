@@ -101,8 +101,9 @@
 | WB-19 | FullText Workbench 上下文、权限载荷与预览预算 | 已提交 `2f9a5477`，从干净 `1d9465fb` 接续；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8、既有真实Kestrel兼容4/4、独立复核与最终完整门禁通过。真实权限/写终态、读取恢复与三宿主/发行物另验。 |
 | WB-20 | Vector Workbench 原始向量检索上下文、权限载荷与Top-K预览 | 从干净 `2f9a5477` 接续，依赖WB-11/WB-16与既有Vector API；原名/六态、请求快照、401/403及空Schema锁存、Top-K100与子页门禁完成本地切片。专属Node17/17、全Web201/201、TypeScript/Vite、Chrome10/10、既有导入回归1/1、真实Kestrel兼容3/3与独立复核通过；本轮提交说明 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以git log为准，最终完整门禁为提交前置。索引Profile、真实权限/恢复/预算与三宿主/发行物另验。 |
 | WB-21 | KV 权限锁存、六态与有界预览 | 本地切片已验证；专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome12/12、既有浏览器5/5、真实Kestrel兼容6/6与独立复核通过。合同/归属见下方；最终完整restore/format及staged检查为提交放行条件，实际哈希见git log。真实新客户端权限/恢复、完整atomic响应、字节/堆预算与三宿主另验。 |
+| WB-22 | MQ 权限锁存、实际Topic/请求隔离与有界预览 | 本地切片已验证，合同/归属见下方；专属Node22/22、全Web240/240、TypeScript/Vite、Chrome16/16、既有MQ浏览器3/3、真实Kestrel兼容2/2及独立复核PASS。最终完整restore/format和staged检查为提交前置，实际哈希见git log。新UI真实权限/恢复、完整metadata/解码/总预算、三宿主另验。 |
 
-WB-15～WB-21已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面（MQ/Object/Graph候选），先冻结一个有界任务再派单；本轮不启动下一切片。
+WB-15～WB-22已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面（Object/Graph候选），先冻结一个有界任务再派单；本轮不启动下一切片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
@@ -161,3 +162,13 @@ WB-15～WB-21已按各自本地范围推进；M47-U01～U09 仍需完整九模�
 - 自动只读 SELECT 预览仍允许；打开历史/SQL 草稿不执行。静态、fixture 与真实 Server、三宿主、安装/AOT/发布证据分开。两处已被策略保留的临时目录不触碰。
 - 最小差距已盘点：旧行浏览没有上下文/卸载迟返校验，审批没有只读/权限/连接门禁，batch 结果不足也可能记 success。迁移合同为读取快照与 epoch 隔离；403 清理载荷/草稿/审批；只有请求语句数与完整终态全部匹配才记写成功，断连/不完整为 unknown 且旧审批不可再确认；历史始终保留发起时上下文。只读保留本页 SELECT 与结果导出，未具备只读合同的子工作台暂隐藏。
 - 最终纯 DDL 经只读复核进入 readonly allowlist；403 仍隐藏全部子页。Node15/15（含真实 Axios/SQL API 分派 adapter）、全Web161/161、Chrome12/12和既有设计器2/2；初轮UI10/12的实际 FAB 遮挡及 selector 歧义已修复并复验。代码提交 `f1978263` 前完整 restore/Format Check/staged diff check 通过，根维护实际哈希、门禁和共享记录，不把 fixture 写成真实 Server/三宿主完成。
+
+### WB-22 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 干净起点 `92c73a5baa3bfd9aff7a4553eba24382e6420ba5`；只推进 MQ 权限、请求隔离与有界预览兼容切片，依赖 WB-16、既有 Browse/Publish/Ack API 与共享结果/审批。复用 Overview/Messages/Consumers/Configuration、JSONL、真实 offset 窗口和趋势，不重做页面。
+- 实施代理 `/root/wb20_vector_impl` 独占 `web/src/components/SonnetMqWorkbench.vue`、`web/src/api/mq.ts` 六 helper 的 optional signal、`web/src/api/management.ts` 仅 `fetchMqTopics` 的 optional signal、新增 `web/tests/mq-workbench-migration.test.mjs`；UI代理 `/root/wb20_vector_ui` 独占新增 `web/e2e/mq-workbench-migration.spec.ts`；`/root/wb19_fulltext_impl` 独立只读复核。根独占六共享文档、runner、集成、restore/format、stage/commit；最多三个活动子代理，每代理最多25个命名文件、35分钟，不自跑长验证。
+- 保留 database/Topic 原名、旧 `mq:Topic` key、scope=database、identity=database+Topic、persistenceScope=instance 与 `.system/mq`。补六态、readonly/permission 程序与按钮门禁；冻结实际 API/endpoint/auth/profile/database/Topic 和同步 epoch，隔离迟返、ABA、同名跨库、新读与卸载。Topics/Browse/Stats/Offsets/Retention/Write 的401/403清旧 topics/消息/header/metadata/trend/结果/写草稿/审批并锁存；同身份刷新、空身份往返不解锁，显式安全恢复另验。错误正文固定脱敏。
+- Browse请求1～1000，返回先截断再map/分类/显示/导出，历史写实际 preview count 与窗口/截断完整性；下一页沿最后保留消息真实offset前进，不使用超返尾项、不虚构cursor或全Topic快照。Inspector payload最多格式化4096原始字节，header有界预览；完整已加载payload仅为既有JSONL round-trip。完整Base64解码/传输/服务端扫描/字节/总堆预算单列。unsafe JSON整数offset不得用于Ack/分页/Seek，不伪造字符串精度。
+- Seek保持最多25窗口，每窗最多1000消息，补60秒墙钟、严格前进、请求快照/取消；自动采样最多12轮/60秒且单飞，用户可显式重启。审批绑定原API/身份/项目，dispatch前一次消费；批次最多1000项/60秒，缺失/错目标/传输异常终态记unknown且不重放，401/403仍锁存。Publish真实终态topic+安全非负offset，Ack为topic+原consumerGroup+安全nextOffset；客户端abort不能声称Server未执行。
+- Server、路由、其它模型和三宿主代码不改。Fixture/真实Kestrel既有兼容、新UI真实Server权限旅程、三宿主/安装/Extension Host/AOT/硬件/长稳/发行物分别记录；旧策略保留Temp不删除、不重试或绕过，禁止Graphify、广域工具扫描及未授权安装。
+- 三代理已停止写入，第三冻结独立复核PASS；high-water自身safe门禁、Seek最终Browse/selection与总deadline、auto请求归属及fallback实际Topic同步epoch已补行为证据。最终专属Node22/22、全Web240/240、Chrome16/16、既有MQ浏览器3/3、TypeScript/Vite通过；既有真实Kestrel兼容2/2单列。初轮Chrome13/16发现结果抽屉内共享Panel缺inline的实际组合问题，修复后未降低Raw/deny断言。根证据目录`artifacts/wb22-validation-20261006`，门禁/清理见validation-report；完整metadata/解码/传输/总堆预算与真实新UI权限/三宿主另验。

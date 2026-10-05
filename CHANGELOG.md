@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-22 MQ 权限与有界预览（2026-10-06）**：复用发布、Ack、JSONL、真实 offset 分页和监控；补六态、readonly、401/403 载荷/草稿/审批清理与锁存，实际 Topic/连接/认证同步代际隔离迟返和 fallback ABA。审批一次消费，按每项原 Topic/消费者组验证终态，缺失或传输异常记 unknown 且不重放；不安全整数 offset 禁止 Ack/分页/Seek。Browse 每窗最多1000条、先截断后映射，Inspector最多格式化4096原始字节与有界header，完整已加载JSONL保留。Seek最多25窗/60秒；自动监控最多12轮/60秒且只取消自身请求。专属Node22/22、全Web240/240、TypeScript/Vite、Chrome夹具16/16、既有MQ浏览器3/3和独立复核通过；既有真实Kestrel兼容2/2单列。完整Base64解码/传输/总堆预算、读取恢复、新UI真实Server权限、三宿主/安装/AOT/发布仍独立验收。
+
 - **M47 WB-21 KV 权限与有界预览（2026-10-06）**：复用游标、JSONL、NX/XX、交换/删除与精确版本；新增六态和只读门禁，Scan/Stats/Get/Write 的401/403锁存并清值、统计、游标、结果、写草稿与审批。同身份刷新、空数据库/profile/端点/keyspace往返不解锁；快照与同步代际隔离迟返/ABA，真实Axios分派前取消取得本地adapter证据。扫描累计/Get最多1000项，先截断再映射，超返不复用跳过未保留项的cursor；Inspector最多格式化4096原始字节，完整原值仅用于已加载记录的round-trip导出，不预填截断写草稿。unknown历史保留未知且不重放。专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome夹具12/12与独立复核通过；既有真实Kestrel兼容6/6单列。完整Base64解码/传输与总堆预算、atomic全响应、真实新客户端权限/恢复及三宿主/安装/AOT/发布仍独立验收。
 
 - **M47 WB-20 Vector Workbench 兼容切片（2026-10-06）**：保留数据库/measurement/column 原名和旧 key，原始检索冻结连接、实际 API、认证、Schema 与查询参数，隔离迟返/ABA/卸载。401/403 清命中、metadata、解析向量和结果，保留用户输入；空 Schema 往返与同身份刷新保持权限锁存。严格有限数值/已知维度，Top-K 1～100 先截断后显示/导出与历史；距离标 Distance。缺索引 Profile 时拒绝隐式文本 embedding，数据子页复用 Measurement 并传递门禁/代际重建。专属 Node17/17、全Web201/201、TypeScript/Vite、Chrome夹具10/10、既有导入回归1/1与独立复核通过；既有真实Kestrel HTTP兼容3/3单列。真实权限/读取恢复、Profile/模型质量、服务端资源预算及三宿主/安装/AOT/发布仍独立验收。

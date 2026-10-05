@@ -65,8 +65,8 @@ export async function fetchFullTextIndexes(api: AxiosInstance, db: string): Prom
   return Array.isArray(resp.data.indexes) ? resp.data.indexes : [];
 }
 
-export async function fetchMqTopics(api: AxiosInstance, db: string): Promise<MqTopicInfo[]> {
-  const resp = await api.post<MqTopicListResponse>(`/v1/db/${encodeURIComponent(db)}/mq/topics`);
+export async function fetchMqTopics(api: AxiosInstance, db: string, signal?: AbortSignal): Promise<MqTopicInfo[]> {
+  const resp = await api.post<MqTopicListResponse>(`/v1/db/${encodeURIComponent(db)}/mq/topics`, undefined, { signal });
   return Array.isArray(resp.data.topics) ? resp.data.topics : [];
 }
 

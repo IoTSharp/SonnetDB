@@ -1,6 +1,6 @@
 # M47 管理工作台设计评审包
 
-状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；生产兼容切片推进至WB-21 KV权限/预览，范围和分开的本地/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、真实 Server、三宿主、安装、发布或 AOT 验收完成。
+状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；生产兼容切片推进至WB-22 MQ权限/请求隔离/预览，范围和分开的本地/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、真实 Server、三宿主、安装、发布或 AOT 验收完成。
 
 ## 建议评审顺序
 

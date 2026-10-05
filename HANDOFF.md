@@ -7,6 +7,13 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-22 完成本地 MQ 权限/请求隔离/有界预览切片，从干净 `92c73a5baa3bfd9aff7a4553eba24382e6420ba5` 接续；本轮提交说明 `feat(m47): isolate MQ preview context and approval outcomes`，实际哈希以git log为准。实施代理只改MQ组件、六个API helper的optional signal、management中单个Topics helper与新Node；UI代理只改新spec，第三代理独立只读复核PASS。三代理已停止写入，根维护六共享文档、验证与git，本轮不启动下一切片。
+- database/Topic/consumerGroup保留原名，MQ仍为database逻辑作用域、database+Topic身份与实例`.system/mq`持久化，单库备份不覆盖实例MQ。六态/readonly与程序入口门禁、全路401/403清旧topics/消息/header/metadata/trend/结果/草稿/审批并锁存；同身份刷新、空数据库/Topic/profile/端点往返不解锁。固定实际API/认证与同步epoch隔离迟返/同名跨库/ABA/卸载，实际fallback Topic改变亦清旧载荷并使审批失效；裸markRaw defaults无响应式信号的独立ABA不夸大。
+- Browse请求1～1000，先截断后映射/显示/导出，下一页只沿保留尾项的真实安全offset前进；unsafe JSON整数offset禁止Ack/分页/Seek。payload最多格式化4096原始字节，header预览32项/4096字符，JSONL保留已加载消息完整payloadBase64与headers。Seek最多25窗/60秒含最终Browse，auto采样最多12轮/60秒单飞且只取消自身请求，旧轮迟返不能清新轮归属或误取消手工Sample。审批dispatch前一次消费、每项冻结原Topic/API/身份，Publish/Ack验证真实目标和安全offset/nextOffset；缺失/错目标/传输异常记unknown，已派写不能冒称未执行，不重放旧审批。
+- 最终专属Node22/22、全Web240/240、TypeScript/Vite、Chrome16/16、既有MQ浏览器3/3与独立复核PASS；既有真实KestrelMQ兼容2/2单列，没有用新UI执行真实权限/实例恢复旅程。首轮Node17/17和build通过；初轮Chrome13/16发现新NDrawer内共享ResultPanel缺inline而隐藏，修复后保留真实Raw载荷/deny清理断言。复核发现high-water减1、Seek后续迟返/总截止、auto归属与fallback ABA缺口，均修复并补最终行为证据。
+- 证据在 `D:\source\SonnetDB\artifacts\wb22-validation-20261006`；根有界runner记录PID/创建/完整命令/父链，finally仅回收自有树。门禁前46个身份核验、0个自有进程存活，PID复用保留；本轮audit显式按UTC字符串读JSON，活进程小输入检查正确检出任务树，退出后核验为0。最终待提交树完整restore、原级别Format Check和staged diff check必须退出0才提交，命令/退出值见restore-final/format-final及final-gates；代码再改须重跑。无工具安装/新Temp目录，两处策略保留目录不删除、不重试或绕过。
+- 下次先完整接收HANDOFF/AGENTS/queue/git/代理，再盘点Object/Graph下一未迁移Web模型，先冻结一个有界切片，不重复WB-22。显式权限恢复、新UI真实Server权限/写与实例恢复、完整metadata/传输/解码/字节/总堆预算、完整九模型/三宿主、安装、Extension Host、AOT、硬件/长稳和发布仍分别待验。heartbeat保持ACTIVE，不push、发布、部署或外部沟通；`origin/parity-results`保持`e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`。
+
 - WB-21 完成本地 KV 权限/预览兼容切片，从干净 `08bd329f9ec99da0654d0801d34077dbe7bb9734` 接续；本轮提交说明 `feat(m47): isolate KV permission state and bounded previews`，实际哈希以git log为准。实施代理仅改KV组件、新专属Node与既有workflow必要断言，UI代理仅改新spec，第三代理独立只读复核；三代理已停止写入，根串行维护共享文档/验证/git，没有启动下一切片。
 - 保留database/keyspace原名、旧key、真实prefix/cursor、JSONL、NX/XX、交换/删除与精确版本。六态/readonly和程序入口门禁完成；Scan/Stats/Get/Write的401/403清值、统计、游标、结果、写草稿/导入与审批并锁存，同身份刷新、空数据库/profile/端点/keyspace往返不解锁。同步epoch/固定实际API、认证与参数隔离迟返/ABA/卸载，未知写历史为unknown且不重放。真实client/Axios分派前Get数据库ABA/Write认证ABA在自有adapter中为0次。
 - 每页1～1000、累计/Get预览1000，先截断后映射/显示/导出；超返丢弃会跳过未保留项的cursor，到累计上限停Load more，历史写实际preview count/completeness。Inspector最多格式化4096原始字节，截断不自动填入编辑器；完整原始值仅为已加载记录的round-trip导出，不代表全keyspace。Base64仍完整解码，传输/字节/总堆预算与全量atomic响应形状留后续。
