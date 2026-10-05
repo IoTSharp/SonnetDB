@@ -47,10 +47,10 @@
 
 ## WB-07 当前切片（2026-10-05）
 
-- 状态：实现完成，待根会话门禁与提交；负责人：根会话集成，子智能体 `/root/wb07_resource_identity` 独占生产 Explorer/页签文件与自有测试。
+- 状态：已完成并提交 `3ad20c6a feat(m47): project canonical resource identity into workspace tabs`；负责人：根会话集成，子智能体 `/root/wb07_resource_identity` 独占生产 Explorer/页签文件与自有测试。
 - 范围：Explorer item 投影统一 `ResourceDescriptor`，页签携带 database/resource/legacy key；保留旧 `tool/model/node` 深链接和 route-only 语义。
 - 边界：MQ 仍为 database + Topic，`scope=database`、`persistenceScope=instance`、`.system/mq`、单库备份不覆盖；Graph 保持 Beta；不接入 CapabilityRegistry 权限判定，不改博客改动或共享文档。
-- 验收：WB-07 自有测试 5/5、Explorer/路由/壳联合回归 18/18，Web TypeScript/Vite build 与 `git diff --check` 已通过；独立复核确认全 Web Node 回归 102/102。根会话仍需在最终树执行 restore/format，串行更新 CHANGELOG/HANDOFF 并仅提交 WB-07 文件。直接浏览器旧 `tool/model/node` URL 的 `node` 选择仍是后续切片边界。
+- 验收：WB-07 自有测试 5/5、Explorer/路由/壳联合回归 18/18，独立复核全 Web Node 回归 102/102，TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。直接浏览器旧 `tool/model/node` URL 的 `node` 选择仍是后续切片边界。
 
 ## 会话与自动检查
 

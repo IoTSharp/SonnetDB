@@ -245,3 +245,11 @@
 - 路由新增 `overview`、`workbench`、`observe`、`flows`、`ai`、`govern`、`settings` aliases，保留 `/admin`、`/admin/app`、studio/databases/trajectory-map redirects、setup/auth/admin guards、trajectory query→SQL。九模型数据库资源树、MQ database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq` 与旧 key 未改。
 - 验证：壳/导航/Explorer 路由 `13/13`；管理 Explorer `5/5`；TypeScript 通过；`git diff --check` 通过；独立只读复核 PASS。提交前仍须在最终待提交树执行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，未通过不得提交。
 - WB-06 代码提交为 `f5c5cf53 feat(m47): migrate workbench shell navigation`，交接记录为 `503cb6fe docs(m47): record WB-06 checkpoint`。当前仍有其它会话未提交的 `CHANGELOG.md`、`HANDOFF.md` 博客条目和 `docs/blogs/*`；不得带入博客文件或其既有行。继续选择下一有界切片；不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-07，2026-10-05）
+
+- 用户确认的 M47 基线继续有效；WB-07 完成 Explorer 到 canonical resource identity 的兼容投影。仅修改 `web/src/utils/managementExplorer.ts`、`web/src/composables/useSqlExplorerRouting.ts`、`web/src/views/SqlConsoleView.vue`、`web/src/components/StudioWorkspaceTabs.vue`、Explorer 兼容测试和 WB-07 自有测试；未接入 CapabilityRegistry 权限判定，也未修改 MQ 存储或真实服务。
+- 每个数据库 Explorer item 现在携带 `ResourceDescriptor`。九模型、index、backup 保留现有原始名称与 legacy key；MQ 使用 database + Topic 身份，`scope=database`、`persistenceScope=instance`、`.system/mq`、共享物理边界和单库备份排除；Graph 始终 `beta=true`。对象页签携带 `database/resource/legacyKey`，SQL 与 trajectory 页签保持无对象资源身份。
+- 路由仍使用 `tool/model/node` query，Explorer 点击仍先选择数据库和 legacy key，未改变 route-only、不自动执行语义。独立复核指出直接浏览器旧 query 的 `node` 当前不会反向选择活动对象；该兼容缺口留给后续有界切片，不在 WB-07 扩大范围。
+- 验证：WB-07 自有 Node 测试 5/5；Explorer、路由、壳和导航联合回归 18/18；独立复核全 Web Node 回归 102/102；TypeScript 与 Vite build 通过；`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。
+- 代码提交为 `3ad20c6a feat(m47): project canonical resource identity into workspace tabs`；提交只包含 WB-07 生产文件、测试和 work-queue 检查点。保留 `origin/parity-results`，不 push、不发布、不部署；不带入博客会话文件或构建产物。
