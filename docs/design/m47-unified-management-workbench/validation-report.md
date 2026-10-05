@@ -104,6 +104,13 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 用户/实例控制平面与数据库 grant 分开；MQ Topic Read/Write 使用 database grant，实例共享 Store 恢复/全局配置另行核验。Token 明文只在创建成功时一次显示，列表/历史/导出脱敏且有效期来自真实服务。审批保留影响、风险、有效期、请求 ID、服务器终态和审计来源，错误不自动重试；备份保留 manifest/checksum/验证/覆盖预览，当前单库备份不覆盖共享 `.system/mq`，跨库恢复需独立合同。
 - 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实权限、Token、审批执行、灾备恢复、三宿主、AOT、安装、发布或生产迁移通过；原型不发起网络请求。
 
+## WB-02H 设置与发布页面状态合同（2026-10-05）
+
+- 原型页 `preferences`、`server-settings`、`studio-host`、`capability-matrix`、`about` 已补齐页面级 capabilities、`normal/empty/error/permission/readonly/longContent` 六态、专用正常态字段和任务页注入；新增 `web/tests/m47-settings-state-contract.test.mjs` 固化页级对象身份与证据边界。
+- `node --test web/tests/m47-settings-state-contract.test.mjs`：3/3；与 WB-02B–G 状态合同联合回归：20/20；`node --check`：`prototype/catalog.js`、`prototype/task-details.js`；`git diff --check`：通过；独立只读复核：PASS。
+- 偏好只影响当前宿主界面且不扩大服务端预算/权限；实例配置没有在线 API 时保持只读、敏感字段脱敏；Studio Web 原型不伪造 Native bridge、Managed Local 或 Start/Stop；能力矩阵在 manifest、`uiContractVersion`、校验/签名及三宿主证据未齐时保持未就绪；关于页版本来自真实发行物，诊断复制先预览脱敏。
+- 证据仍限于 REVIEW_DRAFT 静态原型与 Node 合同测试，不代表真实 Server、三宿主、干净 Windows、Extension Host、安装、发布、AOT 或生产迁移通过；原型不发起网络请求。
+
 ## WB-04 迁移前导航兼容预检（2026-10-05）
 
 - 新增 `web/tests/navigation-compat.test.mjs`，只读检查 `web/src/router/index.ts` 与 `web/src/views/AppShell.vue`，没有修改生产壳、导航或路由。

@@ -209,3 +209,10 @@
 - WB-02F 已闭环后，主会话冻结 WB-02G 文件归属：实现者仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；主会话负责新增窄测试、CHANGELOG、validation-report、work-queue、HANDOFF、验证和提交。生产 `web/src`、路由与宿主代码继续冻结。
 - 目标是治理五个页面 `users`、`grants`、`tokens`、`approvals`、`backup` 的 capabilities、六态 stateMatrix、专用字段和任务注入。需保留控制平面权限、MQ Topic 按数据库 grant 且实例共享 Store 另核验、Token 明文只展示一次、审批错误不自动重试写操作、单库备份不覆盖实例共享 `.system/mq` 的事实。
 - 实施者已回报完成：五页均补 capabilities、六态、normal.fields 与任务注入，`node --check` 两个 JS 和 `git diff --check` 通过；主会话新增合同测试 3/3，并与 WB-02B–F 联合 17/17。独立只读复核 PASS，逐页确认五页六态、normal.fields、任务页级对象复用及治理边界。WB-02G 已提交为 `c6781b4d`（`feat(m47): add governance state contracts`），提交前 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。设计包仍为 REVIEW_DRAFT，不代表真实权限、Token、审批执行、灾备恢复、三宿主或生产迁移验收；不得重复派 WB-02G。保留 `origin/parity-results`，不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-02H，2026-10-05）
+
+- WB-02G 已闭环后，主会话冻结 WB-02H 文件归属：实现者仅改 `prototype/catalog.js`、`task-details.js`、`screen-specs.md`；主会话负责新增窄测试、CHANGELOG、validation-report、work-queue、HANDOFF、验证和提交。生产 `web/src`、路由与宿主代码继续冻结。
+- 目标是设置与发布五个页面 `preferences`、`server-settings`、`studio-host`、`capability-matrix`、`about` 的 capabilities、六态 stateMatrix、专用字段和任务注入。需保留宿主范围/服务器配置只读、Studio 安装与 Extension Host 证据独立、manifest/签名未就绪不显示 PASS、版本来自真实发行物及诊断敏感字段预览边界。
+- 实施已完成：五页均补 capabilities、六态、normal.fields 与任务注入；`node --test web/tests/m47-settings-state-contract.test.mjs` 3/3，WB-02B–H 联合回归 20/20，两个 JS `node --check`、`git diff --check` 通过，独立只读复核 PASS。偏好、实例配置、Studio 宿主、发布矩阵和关于页的宿主/预算/敏感字段/真实发行物边界已固化；仍为 REVIEW_DRAFT 静态原型，不代表真实 Server、三宿主、安装、发布或生产迁移验收。
+- 下一检查点：在最终待提交树执行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，通过后仅暂存本切片 8 个文件并提交；随后回写实际提交哈希并重新核对 clean tree、`origin/parity-results` 和 WB-05 依赖。不得重复 WB-02H 或覆盖其它会话文件；不 push、不发布、不部署。

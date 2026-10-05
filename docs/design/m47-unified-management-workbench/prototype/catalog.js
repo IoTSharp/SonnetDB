@@ -601,7 +601,21 @@ window.M47_CATALOG = {
           intro: '规划三面一致的密度、编辑器、结果与布局偏好；以当前 Fluent 浅色工作台为默认。', primary: '保存偏好草稿',
           columns: [], rows: [], fields: [{ label: '主题', value: 'Fluent 浅色', kind: 'select' }, { label: '密度', value: '标准 · 42px 行高', kind: 'select' }, { label: '编辑器字号', value: '13 px', kind: 'input' }, { label: '默认结果上限', value: '1,000 行', kind: 'input' }, { label: 'Explorer', value: '304 px · 可调整', kind: 'input' }, { label: 'Inspector', value: '344 px · 可调整', kind: 'input' }],
           tabs: ['外观', '编辑器', '结果', '快捷键', '工作区'], inspector: [{ label: '保存位置', value: '当前宿主本地偏好' }, { label: '不含内容', value: '凭据、服务器权限与预算上限' }, { label: '重置', value: '仅重置界面偏好' }],
-          empty: { title: '使用默认工作台偏好', body: '可调整布局、密度和编辑器，设置不扩大服务端预算。', action: '恢复默认偏好' }
+          empty: { title: '使用默认工作台偏好', body: '可调整布局、密度和编辑器，设置不扩大服务端预算。', action: '恢复默认偏好' },
+          capabilities: [
+            { id: 'preferences-host-local', status: 'planned', label: '当前宿主本地偏好', note: '偏好只影响当前 Web、Studio 或 VS Code 宿主的界面与输入恢复，不写入服务器配置。' },
+            { id: 'preferences-ui-preview', status: 'extension', label: '实时界面影响预览', note: '预览密度、字号、布局和快捷键影响；静态原型不保存用户偏好。' },
+            { id: 'preferences-result-budget-boundary', status: 'existing', label: '结果预算边界说明', note: '默认结果上限是客户端提示，不能扩大服务端 maxRows、字节或超时预算。' },
+            { id: 'preferences-reset-scope', status: 'planned', label: '宿主范围重置', note: '保存与重置必须标明当前宿主范围，不能重置服务器权限、凭据或数据库内容。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示当前宿主的外观、编辑器、结果、快捷键和工作区偏好预览。', primary: '预览偏好影响', fields: ['宿主', '主题', '密度', '编辑器字号', '默认结果上限', 'Explorer 宽度', 'Inspector 宽度', '保存范围'] },
+            empty: { label: '使用默认值', status: 'planned', summary: '尚无已保存偏好时使用宿主默认值，保留宿主选择和可调整字段。', primary: '恢复默认偏好', preserve: ['宿主', '默认主题', '默认密度', '布局字段'] },
+            error: { label: '偏好读取错误', status: 'planned', summary: '只替换本地偏好载荷并保留当前输入；不把失败显示成服务器配置错误。', primary: '重试读取', preserve: ['宿主', '未保存输入', '默认值'], blocked: ['扩大服务器预算', '修改服务器权限'] },
+            permission: { label: '宿主存储受限', status: 'planned', summary: '无法写入当前宿主偏好时显示原因并保留预览；宿主存储权限不等同数据库权限。', primary: '查看宿主存储说明', preserve: ['宿主', '当前预览'], blocked: ['保存偏好'] },
+            readonly: { label: '只读宿主', status: 'existing', summary: '可查看和预览界面偏好；保存、重置持久化以及任何服务器预算/权限修改禁用。', primary: '预览偏好影响', blocked: ['保存偏好', '重置持久化偏好', '扩大服务器预算', '修改服务器权限'] },
+            longContent: { label: '长快捷键与工作区', status: 'extension', summary: '快捷键、工作区分组和布局项按宿主能力折叠或分页，保留未加载项提示。', primary: '查看下一组', limits: ['仅呈现有界偏好条目', '不虚构宿主支持的快捷键或持久化能力'] }
+          }
         },
         {
           id: 'server-settings', title: '实例配置', tabLabel: '实例配置', type: 'form', scope: 'instance', status: 'planned',
@@ -609,7 +623,22 @@ window.M47_CATALOG = {
           columns: ['配置领域', '当前来源', '修改方式', '设计状态'], rows: [['可观测性', 'appsettings.json', '配置文件 / 重启', '只读说明'], ['请求预算', '服务端能力', '按真实管理接口', '待适配'], ['MQ 持久目录', '实例运行配置', '实例维护流程', '只读说明']],
           fields: [{ label: 'Prometheus', value: '以服务端状态为准' }, { label: 'SQL 预算', value: '以能力响应为准' }, { label: 'MQ 持久目录', value: '实例共享 .system/mq；Topic 逻辑按数据库划分' }], tabs: ['服务配置', '预算', '可观测性', '重启影响'],
           inspector: [{ label: '管理员', value: '只读配置摘要与变更说明' }, { label: '在线保存', value: '仅真实接口支持后启用' }, { label: '凭据', value: '摘要不展示敏感字段' }],
-          empty: { title: '实例未提供配置摘要', body: '查看配置说明，或请求管理员提供允许读取的配置。', action: '查看服务能力' }
+          empty: { title: '实例未提供配置摘要', body: '查看配置说明，或请求管理员提供允许读取的配置。', action: '查看服务能力' },
+          capabilities: [
+            { id: 'server-settings-config-summary', status: 'planned', label: '实例配置摘要', note: '仅在真实管理能力返回时读取配置来源、预算和重启影响；静态表格不是服务响应。' },
+            { id: 'server-settings-source-provenance', status: 'extension', label: '配置来源与修改路径', note: '区分 appsettings.json、实例运行参数和管理 API；没有在线 API 时保持只读说明。' },
+            { id: 'server-settings-sensitive-redaction', status: 'existing', label: '敏感字段脱敏', note: '凭据、密钥和连接机密只显示脱敏摘要，不能复制或进入共享工作区。' },
+            { id: 'server-settings-restart-impact', status: 'planned', label: '重启影响预览', note: '重启影响须由真实宿主/实例生命周期和待处理请求合同返回，不提供假 Start/Stop。' },
+            { id: 'server-settings-budget-boundary', status: 'existing', label: '服务预算只读边界', note: 'SQL、MCP、对象传输等预算来自 capabilities；页面不能把客户端偏好当服务端上限修改。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示可读取的实例配置来源、脱敏摘要、预算和重启影响。', primary: '查看配置说明', fields: ['实例', '配置来源', 'Prometheus 来源', 'SQL / MCP / Object 预算', '敏感字段摘要', '是否需重启', '管理员权限', 'MQ 持久化范围'] },
+            empty: { label: '无配置摘要', status: 'planned', summary: '实例未提供可读配置摘要时保留实例身份和能力入口，不生成默认值或可保存表单。', primary: '查看服务能力', preserve: ['实例', '配置来源提示', '管理员权限'] },
+            error: { label: '配置读取错误', status: 'planned', summary: '只替换配置结果并标记过期，保留实例和修改路径；缓存值不能当当前配置。', primary: '检查并重试', preserve: ['实例', '配置来源', '重启草稿'], blocked: ['保存配置', '标记已重启'] },
+            permission: { label: '实例配置无权限', status: 'existing', summary: '隐藏敏感字段、预算和路径载荷，显示所需实例管理权限；数据库 grant 不能推断实例配置权。', primary: '查看实例权限要求', preserve: ['实例', '权限入口'], blocked: ['查看受限配置', '保存配置'] },
+            readonly: { label: '只读配置', status: 'existing', summary: '可查看来源、脱敏摘要和重启说明；没有真实在线 API 时保存、应用和重启动作禁用。', primary: '查看重启影响', blocked: ['保存配置', '应用配置', '重启实例'] },
+            longContent: { label: '长配置与日志', status: 'extension', summary: '配置项、预算说明和重启影响按键/字节预算分页或折叠，保留未返回全部标记。', primary: '查看下一页', limits: ['敏感字段始终脱敏', '不虚构全量配置、日志或 continuation', '重启影响以真实实例响应为准'] }
+          }
         },
         {
           id: 'studio-host', title: 'Studio 宿主', tabLabel: 'Studio 宿主', type: 'connection', scope: 'host', status: 'extension',
@@ -617,7 +646,22 @@ window.M47_CATALOG = {
           columns: ['能力', 'Web Admin', 'Studio', 'VS Code'], rows: [['原生文件对话框', '浏览器选择', 'Native bridge', '扩展文件 API'], ['Managed Local', '不适用', '已有宿主合同', 'Remote-first'], ['凭据存储', '当前会话', 'Windows 安全存储', 'SecretStorage']],
           fields: [{ label: '宿主', value: 'Web Admin · 原型', kind: 'select' }, { label: 'Managed Local', value: '仅 Studio 显示' }, { label: 'Data root', value: '宿主返回后显示' }, { label: '进程状态', value: '未读取 · 原型' }], tabs: ['宿主状态', 'Managed Local', '文件与凭据', '安装与升级', '进程生命周期'],
           inspector: [{ label: 'Web 降级', value: 'Native bridge 不可用时显示原因' }, { label: 'Start / Stop', value: '只管理宿主归属 Server' }, { label: '验收', value: '浏览器原型不替代干净 Windows 证据' }],
-          empty: { title: '当前为浏览器宿主', body: '原生文件、托管本地服务和安装信息在 Studio 内可用。', action: '查看宿主边界' }
+          empty: { title: '当前为浏览器宿主', body: '原生文件、托管本地服务和安装信息在 Studio 内可用。', action: '查看宿主边界' },
+          capabilities: [
+            { id: 'studio-host-native-bridge', status: 'existing', label: 'Native bridge 状态', note: 'M29 宿主合同区分 Web、Studio 与 VS Code 的原生能力；原型不连接 bridge。' },
+            { id: 'studio-host-managed-local', status: 'existing', label: 'Managed Local 与 data root', note: '只在真实 Studio bridge 返回归属、data root 和进程信息后显示；Web 不伪造本地服务。' },
+            { id: 'studio-host-host-adapters', status: 'extension', label: '三宿主文件与凭据适配', note: 'Web/Studio/VS Code 使用各自文件 API 与凭据存储，不能把一个宿主证据复制到其它宿主。' },
+            { id: 'studio-host-install-evidence', status: 'planned', label: '安装与升级证据', note: '干净 Windows、WebView2、升级/卸载和回收需要独立实机证据，浏览器 fixture 不升级为 PASS。' },
+            { id: 'studio-host-lifecycle-boundary', status: 'existing', label: 'Server 生命周期归属', note: 'Start/Stop 仅允许管理宿主明确拥有且可回收的 Server；Web 原型没有进程控制。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示所选宿主、bridge、Managed Local/data root、凭据适配和进程归属。', primary: '检查宿主能力', fields: ['宿主', 'Native bridge', 'Managed Local', 'Data root', '凭据存储', 'Server 版本', 'PID / 启动时间', '进程归属'] },
+            empty: { label: '浏览器宿主', status: 'existing', summary: '当前 Web 宿主没有 Native bridge、Managed Local 或本地进程载荷，保留宿主边界说明。', primary: '查看宿主边界', preserve: ['宿主', 'Web 文件 API', 'Web 凭据范围'], blocked: ['Start Server', 'Stop Server'] },
+            error: { label: '宿主能力读取错误', status: 'extension', summary: '只替换 bridge/进程结果并保留宿主选择；错误不能显示 Server 健康或安装成功。', primary: '检查并重试', preserve: ['宿主', '安装草稿', '生命周期说明'], blocked: ['Start Server', 'Stop Server'] },
+            permission: { label: '宿主权限不足', status: 'extension', summary: '隐藏 data root、凭据和进程载荷，说明宿主授权；不能以数据库权限替代本地宿主权限。', primary: '查看宿主权限要求', preserve: ['宿主', 'bridge 状态'], blocked: ['读取凭据', '管理归属 Server'] },
+            readonly: { label: '只读宿主', status: 'existing', summary: '可查看宿主适配、安装边界和已有进程信息；Web 不提供假 Start/Stop，安装/卸载动作禁用。', primary: '查看生命周期合同', blocked: ['Start Server', 'Stop Server', '安装或升级', '卸载宿主'] },
+            longContent: { label: '长安装与进程记录', status: 'extension', summary: '安装日志、版本证明和进程记录按记录/字节预算分页，显示证据来源与未返回全部提示。', primary: '查看下一页', limits: ['不把局部 browser fixture 当干净 Windows 或 Extension Host 证据', '仅回收归属明确的进程'] }
+          }
         },
         {
           id: 'capability-matrix', title: '能力与发布矩阵', tabLabel: '能力矩阵', type: 'table', scope: 'host', status: 'planned',
@@ -625,7 +669,22 @@ window.M47_CATALOG = {
           columns: ['能力', 'Web Admin', 'Studio', 'VS Code', '设计状态'], rows: [['SQL / schema / Explain', '完整', '完整', '开发者入口', '已有基线'], ['九模型管理', '模型工作台', '同一 Web 工作台', '只读子集', '统一合同规划'], ['写审批 / 恢复', '治理面', '治理面 + native bridge', '深链接转交', '按模型合同'], ['MCP 配置 / 自检', '规划向导', '规划向导', '宿主适配', 'M47-U08'], ['安装 / 市场发布', '独立门禁', '干净 Windows 门禁', 'Extension Host 门禁', '未就绪']],
           fields: [{ label: '宿主', value: '全部', kind: 'select' }, { label: '能力状态', value: '全部', kind: 'select' }], tabs: ['宿主能力', '契约版本', '兼容性', '发布证据'],
           inspector: [{ label: '版本来源', value: 'manifest 待统一' }, { label: '局部证据', value: '不能升级为三面发布完成' }, { label: 'Graph', value: '保留 Beta 标记' }],
-          empty: { title: '尚无统一 manifest', body: '可以查看规划矩阵，实际版本与能力由宿主和服务响应填充。', action: '查看规划范围' }
+          empty: { title: '尚无统一 manifest', body: '可以查看规划矩阵，实际版本与能力由宿主和服务响应填充。', action: '查看规划范围' },
+          capabilities: [
+            { id: 'capability-matrix-manifest', status: 'planned', label: '统一发布 manifest', note: 'manifest 需要同时声明发行物、能力、契约版本、校验与签名；原型不生成 manifest。' },
+            { id: 'capability-matrix-server-capabilities', status: 'existing', label: 'Server capabilities 对照', note: '只把真实服务 capabilities 与宿主合同对照，未知能力保持 unavailable。' },
+            { id: 'capability-matrix-ui-contract', status: 'planned', label: 'uiContractVersion', note: 'UI/API/MCP 契约版本待统一；固定示例版本不能暗示已发布兼容。' },
+            { id: 'capability-matrix-signature-evidence', status: 'planned', label: '校验与签名证据', note: '校验和签名必须来自实际发行物，缺证据时显示未就绪并禁止 PASS。' },
+            { id: 'capability-matrix-three-host-evidence', status: 'planned', label: '三宿主发布证据', note: 'Web、干净 Windows Studio 和 VS Code Extension Host 分开验收，局部 fixture 不替代其它宿主。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'extension', summary: '显示三宿主能力对照、契约版本、兼容性和每个发行物的真实证据来源。', primary: '查看发布检查项', fields: ['宿主', 'manifest', 'Server capabilities', 'API contract', 'MCP contract', 'uiContractVersion', '发行版本', '校验 / 签名', 'Web/Studio/VS Code 证据', 'Graph 稳定性'] },
+            empty: { label: '无 manifest', status: 'planned', summary: '尚无统一 manifest 时保留宿主筛选和规划矩阵，所有发布项显示未就绪。', primary: '查看规划范围', preserve: ['宿主筛选', '能力类别', '契约版本入口'], blocked: ['标记发布 PASS'] },
+            error: { label: '发布证据读取错误', status: 'planned', summary: '只替换证据结果并保留宿主/能力筛选；缓存或局部检查不能升级为发布通过。', primary: '检查并重试', preserve: ['宿主', '能力类别', '已知证据来源'], blocked: ['标记兼容', '发布 PASS'] },
+            permission: { label: '证据无权限', status: 'planned', summary: '隐藏受限 manifest、签名和发行物载荷，说明所需发布/宿主权限。', primary: '查看证据权限要求', preserve: ['宿主', '能力类别'], blocked: ['查看受限签名', '标记发布 PASS'] },
+            readonly: { label: '只读矩阵', status: 'existing', summary: '可检视能力和证据状态；不能修改 manifest、签名、版本或把未就绪项目标为 PASS。', primary: '查看兼容性说明', blocked: ['编辑 manifest', '上传发行物', '标记发布 PASS'] },
+            longContent: { label: '长能力与证据矩阵', status: 'extension', summary: '能力行、兼容性说明和证明记录按宿主/发行物分页，保留每条证据来源与状态。', primary: '查看下一页', limits: ['不虚构完整能力清单或 continuation', 'Web/Studio/VS Code 证据分别计数', 'Graph 保持 Beta'] }
+          }
         },
         {
           id: 'about', title: '关于与帮助', tabLabel: '关于', type: 'overview', scope: 'host', status: 'existing', existingRoute: '/admin/app/about',
@@ -633,7 +692,22 @@ window.M47_CATALOG = {
           columns: ['入口', '内容', '范围'], rows: [['工作台指南', '连接 → 对象 → 查询 → 结果', '三个宿主'], ['模型指南', '九模型语义与限制', '数据库 / 实例'], ['安全与权限', '凭据、审批、外发和预算', '身份与宿主'], ['问题反馈', '诊断信息与版本摘要', '去除敏感数据']],
           fields: [{ label: '产品', value: 'SonnetDB Workbench' }, { label: '当前宿主', value: 'Web Admin 原型' }, { label: '版本', value: '以真实发行物为准' }, { label: '原型', value: 'M47 · 2026-10-04' }], tabs: ['产品信息', '指南', '快捷键', '许可证'],
           inspector: [{ label: '诊断摘要', value: '复制前预览敏感字段' }, { label: '发行物', value: 'Web Admin / Studio / VSIX' }, { label: '实现进度', value: '由路线图和验证记录判断' }],
-          empty: { title: '查看 SonnetDB 使用指南', body: '从连接与查询开始，也可按模型查看专用工作台。', action: '打开工作台指南' }
+          empty: { title: '查看 SonnetDB 使用指南', body: '从连接与查询开始，也可按模型查看专用工作台。', action: '打开工作台指南' },
+          capabilities: [
+            { id: 'about-product-guide', status: 'existing', label: '产品与三宿主指南', note: '说明 Web Admin、Studio 与 VS Code 的任务入口和边界，内容来自实际发行物/文档。' },
+            { id: 'about-model-semantics', status: 'extension', label: '九模型语义帮助', note: '帮助页解释各模型原生语义、权限与 Beta 边界，不把示例数据当真实能力证据。' },
+            { id: 'about-release-version', status: 'existing', label: '真实发行版本', note: '版本必须来自当前发行物 manifest 或宿主返回，不能用固定原型日期暗示发布完成。' },
+            { id: 'about-diagnostic-preview', status: 'extension', label: '诊断摘要预览', note: '复制诊断前逐字段预览并脱敏端点、凭据和路径；用户确认后才允许复制。' },
+            { id: 'about-license-feedback', status: 'existing', label: '许可证与反馈边界', note: '许可证、第三方声明与反馈渠道随发行物提供；反馈不自动外发敏感诊断。' }
+          ],
+          stateMatrix: {
+            normal: { label: '正常', status: 'existing', summary: '显示产品名称、真实发行物版本、三宿主指南、九模型帮助、快捷键与许可证入口。', primary: '查看使用指南', fields: ['产品', '当前宿主', '发行物', '真实版本来源', '九模型语义', '快捷键', '许可证', '诊断摘要范围'] },
+            empty: { label: '指南未加载', status: 'existing', summary: '指南或帮助索引为空时保留产品、宿主和版本来源说明，不生成固定版本。', primary: '打开工作台指南', preserve: ['产品', '当前宿主', '版本来源', '许可证入口'] },
+            error: { label: '版本/帮助读取错误', status: 'extension', summary: '只替换帮助或发行物信息并保留产品与宿主；不能把静态原型版本当当前发行版本。', primary: '检查并重试', preserve: ['产品', '当前宿主', '许可证入口'], blocked: ['确认发行版本'] },
+            permission: { label: '诊断载荷受限', status: 'extension', summary: '隐藏受限诊断字段并保留指南/许可证入口；复制前必须遵守敏感字段预览边界。', primary: '查看诊断权限说明', preserve: ['产品', '宿主', '帮助入口'], blocked: ['复制未预览诊断'] },
+            readonly: { label: '只读帮助', status: 'existing', summary: '指南、模型语义、快捷键和许可证可查看；发行物信息只读，诊断复制需先预览并不改变服务器。', primary: '查看指南目录', blocked: ['修改发行物信息', '复制未预览诊断', '外发敏感反馈'] },
+            longContent: { label: '长帮助与许可证', status: 'extension', summary: '指南、模型说明、许可证和第三方声明按章节分页或折叠，保留当前章节和来源。', primary: '查看下一章节', limits: ['长文本按宿主字节预算呈现', '不截断许可证为可执行结论', '诊断摘要始终逐字段脱敏预览'] }
+          }
         }
       ]
     }

@@ -154,6 +154,16 @@ SonnetMQ 的 `/v1/db/{db}/mq` 路由按数据库 Read/Write 权限校验，`Qual
 | 能力与发布矩阵 / `capability-matrix` / 规划 | 三面能力对照 → API/MCP/UI 契约版本 → 兼容性 → 每发行物真实证据。 | manifest、server capabilities、uiContractVersion、版本、校验/签名。统一 manifest 待建；没有证据时为未就绪，不显示 PASS。局部 browser fixture 不能代表 Studio 安装或 Extension Host。 |
 | 关于与帮助 / `about` / 既有 | 产品/真实版本 → 三宿主指南 → 模型语义 → 快捷键 → 许可证与反馈。 | 品牌 SonnetDB Workbench，发行物 Web Admin/Studio/VSIX。复制诊断摘要前预览敏感字段；运行时版本从真实发行物获得，不用固定示例版本暗示发布完成。 |
 
+**WB-02H 设置与发布状态合同（`preferences`、`server-settings`、`studio-host`、`capability-matrix`、`about`）：** 五页只补齐 REVIEW_DRAFT 原型的能力、专用字段和六态矩阵；静态页面不写宿主偏好、不保存实例配置、不启动/停止 Server、不生成 manifest 或发行证据。任务页签复用同一页级对象的 `capabilities` 与六态。
+
+| 页面 | capabilities | 六态主动作、`normal.fields` 与边界 |
+|---|---|---|
+| 工作台偏好 / `preferences` | `preferences-host-local`、`preferences-ui-preview`、`preferences-result-budget-boundary`、`preferences-reset-scope`（规划/延伸/既有边界）。 | 正常“预览偏好影响”，字段为宿主、主题、密度、编辑器字号、默认结果上限、Explorer/Inspector 宽度、保存范围；空使用宿主默认值并保留输入；错误只替换本地偏好载荷；无权限说明宿主存储受限且不等同数据库权限；只读禁用保存/重置持久化及扩大服务器预算/权限；长快捷键和工作区按宿主能力分页。偏好只影响当前宿主 UI，不能扩大服务器预算或修改权限。 |
+| 实例配置 / `server-settings` | `server-settings-config-summary`、`server-settings-source-provenance`、`server-settings-sensitive-redaction`、`server-settings-restart-impact`、`server-settings-budget-boundary`（规划/延伸/既有边界）。 | 正常“查看配置说明”，字段为实例、配置来源、Prometheus 来源、SQL/MCP/Object 预算、敏感字段摘要、是否需重启、管理员权限、MQ 持久化范围；空无摘要时不生成可保存表单；错误保留来源和重启草稿、不把缓存当当前配置；无权限隐藏敏感字段/预算/路径；只读无在线 API 时禁用保存、应用和重启；长配置和日志按键/字节预算分页。敏感字段脱敏，未有在线 API 不显示可保存；重启影响来自真实实例合同。 |
+| Studio 宿主 / `studio-host` | `studio-host-native-bridge`、`studio-host-managed-local`、`studio-host-host-adapters`、`studio-host-install-evidence`、`studio-host-lifecycle-boundary`（既有/延伸/规划）。 | 正常“检查宿主能力”，字段为宿主、Native bridge、Managed Local、data root、凭据存储、Server 版本、PID/启动时间、进程归属；空浏览器宿主保留边界且禁用 Start/Stop；错误只替换 bridge/进程结果；无权限隐藏 data root/凭据/进程载荷；只读可检视但禁用 Start/Stop、安装/升级/卸载；长安装日志按记录/字节预算分页。Web 不提供假 Start/Stop；M29 安装包、干净 Windows、WebView2、升级/卸载和回收证据分开验收。 |
+| 能力与发布矩阵 / `capability-matrix` | `capability-matrix-manifest`、`capability-matrix-server-capabilities`、`capability-matrix-ui-contract`、`capability-matrix-signature-evidence`、`capability-matrix-three-host-evidence`（既有/规划）。 | 正常“查看发布检查项”，字段为宿主、manifest、Server capabilities、API/MCP/uiContractVersion、发行版本、校验/签名、Web/Studio/VS Code 证据、Graph 稳定性；空无 manifest 时所有发布项未就绪；错误保留筛选且不把缓存标 PASS；无权限隐藏 manifest/签名载荷；只读不能编辑 manifest、上传发行物或标记 PASS；长能力/证据矩阵按宿主分页。统一 manifest、签名和三宿主证据缺一不可，局部 browser fixture 不代表 Studio/Extension Host。 |
+| 关于与帮助 / `about` | `about-product-guide`、`about-model-semantics`、`about-release-version`、`about-diagnostic-preview`、`about-license-feedback`（既有/延伸）。 | 正常“查看使用指南”，字段为产品、当前宿主、发行物、真实版本来源、九模型语义、快捷键、许可证、诊断摘要范围；空保留产品/宿主/版本来源并打开指南；错误只替换帮助或版本载荷且不使用固定原型版本；无权限隐藏受限诊断并要求预览；只读可查看指南/许可证，诊断复制仍需敏感字段预览；长帮助/许可证按章节分页。版本来自真实发行物；复制诊断先预览并脱敏，不自动外发反馈。 |
+
 ## 九模型：资源树与页签详细设计
 
 九模型共享“对象页签 → 任务页签 → 输入/操作 → Result Plane → Inspector”。页签只描述任务，不要求为每个页签新增后端。九模型目录独立于 30 个区域页面；每对象都显示范围、原始名称、权限、最近加载时间与实现标签。
