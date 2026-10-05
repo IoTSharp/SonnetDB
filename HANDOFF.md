@@ -224,3 +224,11 @@
 - 已完成边界：结果预览统一复用 `DEFAULT_RESULT_PREVIEW_MAX_ROWS`（10,000）并保留服务端截断标记；关闭草稿可恢复/丢弃且不自动执行；历史支持 `unknown`/`completeness`，对文本和 JSON/JSONL 敏感值脱敏；取消、传输中断、无完成标记和损坏响应写入 `unknown`，显式服务器错误仍为 `error`；SQL 审批绑定连接、端点、数据库和草稿指纹，失效则 stale 并重新预览/审批；未知/待核对结果不自动重试或重放，保留请求 ID、服务器终态和审计来源字段。
 - 验证：WB-05 窄测试 9/9；全 Web Node 回归 94/94；SQL 工作流 11/11；TypeScript 通过；共享工作台 Playwright（历史抽屉、SQL 诊断、KV 审批）3/3；`git diff --check` 通过。Playwright 自有 Vite/测试 PID 32764、74764 已由脚本回收并再次核验不存在。
 - 本轮提交：`e5fc4668 feat(m47): migrate result draft history approval workflows`。提交前最终树已通过 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；提交只包含 WB-05 生产文件、测试和 M47 共享记录。其它模型工作台仍沿用各自已有审批/stale 接线，真实 Server、三宿主、AOT、安装、发布及全量页面迁移继续单独验收。保留 `origin/parity-results`，不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-06，2026-10-05）
+
+- 用户确认的 M47 基线继续有效；WB-05 已由 `e5fc4668` 完成。本轮 WB-06 仅修改 `web/src/views/AppShell.vue`、`web/src/router/index.ts`、`web/tests/workbench-shell-migration.test.mjs` 和 `web/tests/navigation-compat.test.mjs`，未触碰 Explorer、SQL 执行、MQ 存储或其它会话的博客改动。
+- 生产壳一级 rail 现在声明唯一七模块：概览、工作台、观测、数据流、AI 与 MCP、治理、设置；设置放入 footer，关于入口保留。查询/数据/Studio 不再作为重复一级按钮。active 映射覆盖旧 events/monitoring、Modbus、RAG/Copilot、users/grants/tokens、About/trajectory 路由；flows/govern 继续 admin-only，flows→Modbus、settings→About、ai→RAG 是当前兼容落点，planned 页面不宣称已实现。
+- 路由新增 `overview`、`workbench`、`observe`、`flows`、`ai`、`govern`、`settings` aliases，保留 `/admin`、`/admin/app`、studio/databases/trajectory-map redirects、setup/auth/admin guards、trajectory query→SQL。九模型数据库资源树、MQ database + Topic、`scope=database`、`persistenceScope=instance`、`.system/mq` 与旧 key 未改。
+- 验证：壳/导航/Explorer 路由 `13/13`；管理 Explorer `5/5`；TypeScript 通过；`git diff --check` 通过；独立只读复核 PASS。提交前仍须在最终待提交树执行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，未通过不得提交。
+- 当前仍有其它会话未提交的 `CHANGELOG.md`、`HANDOFF.md` 博客条目和 `docs/blogs/*`；提交 WB-06 时只 stage 本任务代码/测试及本节 M47 记录，不得带入博客文件或其既有行。提交后记录实际哈希并继续选择下一有界切片；不 push、不发布、不部署。
