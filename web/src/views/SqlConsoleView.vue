@@ -251,6 +251,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
+import { useRoute } from 'vue-router';
 import AsyncWorkbenchLoading from '@/components/AsyncWorkbenchLoading.vue';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
@@ -284,6 +285,7 @@ import {
   createResourceDescriptor,
   type ResourceDescriptor,
 } from '@/management-core/resourceDescriptor';
+import { explorerKeyFromRoute } from '@/utils/managementExplorer';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 
 const asyncWorkbenchOptions = { loadingComponent: AsyncWorkbenchLoading, delay: 120, suspensible: false };
@@ -332,6 +334,7 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const sqlConsole = useSqlConsoleStore();
 const workbenchHistory = useWorkbenchHistoryStore();
+const route = useRoute();
 const message = useMessage();
 const explorerCollapsed = ref(false);
 const globalHistoryVisible = ref(false);
@@ -992,6 +995,40 @@ function selectGraph(graph: string): void {
   setWorkbenchTool('graph');
 }
 
+// A legacy tool/model/node URL identifies the Explorer item by its display
+// name. Apply that selection once after the active database has both schema
+// and management metadata; route-only links still do not execute SQL.
+const routeSelectionToken = ref('');
+watch(
+  [
+    () => route.query.tool,
+    () => route.query.model,
+    () => route.query.node,
+    targetDb,
+    currentSchemaResponse,
+    () => (targetDb.value ? managementByDb.value[targetDb.value] : undefined),
+  ],
+  ([toolValue, modelValue, nodeValue, db, dbSchema, management]) => {
+    const rawModel = typeof modelValue === 'string' ? modelValue : undefined;
+    const tool = typeof toolValue === 'string' ? toolValue : undefined;
+    const model = rawModel ?? (tool && [
+      'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph', 'index', 'backup',
+    ].includes(tool) ? tool : undefined);
+    const node = typeof nodeValue === 'string' ? nodeValue : undefined;
+    if (!model) {
+      routeSelectionToken.value = '';
+      return;
+    }
+    if (!db || db === CONTROL_PLANE_KEY || !dbSchema || !management) return;
+
+    const token = `${model}\u0000${node ?? ''}`;
+    if (routeSelectionToken.value === token) return;
+    routeSelectionToken.value = token;
+    activeExplorerKey.value = explorerKeyFromRoute(model, node, dbSchema, management);
+  },
+  { immediate: true },
+);
+
 watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, db]) => {
   if (tool === 'sql' || !identity) return;
   if (identity.key !== tool) {
@@ -1035,6 +1072,7 @@ watch(targetDb, (db) => {
 
 watch(() => connections.activeProfileId, async () => {
   auth.setApiBaseUrl(connections.activeBaseUrl);
+  routeSelectionToken.value = '';
   resetExplorerCache();
   if (connections.activeDatabase) {
     targetDb.value = connections.activeDatabase;

@@ -52,6 +52,13 @@
 - 边界：MQ 仍为 database + Topic，`scope=database`、`persistenceScope=instance`、`.system/mq`、单库备份不覆盖；Graph 保持 Beta；不接入 CapabilityRegistry 权限判定，不改博客改动或共享文档。
 - 验收：WB-07 自有测试 5/5、Explorer/路由/壳联合回归 18/18，独立复核全 Web Node 回归 102/102，TypeScript/Vite build、`git diff --check`、最终树 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均通过。直接浏览器旧 `tool/model/node` URL 的 `node` 选择仍是后续切片边界。
 
+## WB-08 当前切片（2026-10-05）
+
+- 状态：实现完成，待根会话门禁与提交；负责人：根会话集成，子智能体 `/root/wb08_route_selection` 独占实现，`/root/wb06_shell_reviewer` 独立复核。依赖 WB-07 `3ad20c6a`。
+- 范围：修复旧 `tool/model/node` 直达 URL 的 `node→activeExplorerKey` 回选；保持旧 query 形状、当前 active/default database、Explorer 点击路径和 route-only 不自动执行。
+- 独占候选文件：`web/src/utils/managementExplorer.ts`（route node→legacy key helper）、`web/src/views/SqlConsoleView.vue`（route/db/schema/management 就绪后一次性选择 watcher）、`web/tests/explorer-route-selection.test.mjs` 与必要兼容测试。不得接入 CapabilityRegistry 或改变 MQ/Graph 资源合同。
+- 验收：覆盖 measurement/table/document/kv/mq/vector/fulltext/bucket/graph/index/backup、大小写/冒号、缺失/未知 node 回退、tool-only、MQ database+Topic、Graph Beta、metadata 等待、watcher 顺序和 route-only；自有 Node 测试 5/5，Explorer/路由/壳/导航/页签定向回归 20/20，独立复核全 Web Node 107/107，TypeScript/Vite 与 `git diff --check` 已通过。根会话仍需最终 restore/format。URL 无 database 参数的 active/default DB 边界单独记录。
+
 ## 会话与自动检查
 
 新会话：持续推进 SonnetDB Workbench，ID `01a10862-bcd5-7d82-ab22-c916c00221a3`，host `local`，本地 SonnetDB 项目。heartbeat：`workbench`（Workbench 持续推进与闭环），ACTIVE，每30分钟检查同一新会话。已从保存配置核对 kind=heartbeat、目标thread及周期；不是每次新建独立会话。旧会话在交接完成消息后停止修改工作区，新会话接管写入、验证和提交。

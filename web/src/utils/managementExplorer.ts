@@ -136,6 +136,84 @@ export function normalizeActiveExplorerKey(
   return firstExplorerKey(dbSchema, management);
 }
 
+/**
+ * 将旧 SQL 深链接中的 model/node 投影回 Explorer 的数据库本地 legacy key。
+ *
+ * 路由中的 node 保留资源原名（包括大小写与冒号），而 Explorer 对带模型
+ * 前缀的资源使用兼容 key。未知或缺失的 node 按既有 Explorer 首项规则回退。
+ */
+export function explorerKeyFromRoute(
+  model: string | undefined,
+  node: string | undefined,
+  dbSchema: SchemaResponse,
+  management: ManagementExplorerInfo = emptyManagementInfo(),
+): string {
+  if (!model || !node) return normalizeActiveExplorerKey('', dbSchema, management);
+
+  let key: string | undefined;
+  switch (model) {
+    case 'measurement':
+      key = dbSchema.measurements?.find((measurement) => measurement.name === node)?.name;
+      break;
+    case 'table': {
+      const table = dbSchema.tables?.find((item) => item.name === node || `table:${item.name}` === node);
+      key = table ? `table:${table.name}` : undefined;
+      break;
+    }
+    case 'document': {
+      const collection = dbSchema.documentCollections?.find((item) => item.name === node || `document:${item.name}` === node);
+      key = collection ? `document:${collection.name}` : undefined;
+      break;
+    }
+    case 'kv': {
+      const keyspace = management.kvKeyspaces.find((item) => item === node || `kv:${item}` === node);
+      key = keyspace ? `kv:${keyspace}` : undefined;
+      break;
+    }
+    case 'mq': {
+      const topic = management.mqTopics.find((item) => item.topic === node || `mq:${item.topic}` === node);
+      key = topic ? `mq:${topic.topic}` : undefined;
+      break;
+    }
+    case 'vector': {
+      const index = management.vectorIndexes.find((item) =>
+        `${item.measurement}.${item.column}` === node
+        || `vector:${item.measurement}:${item.column}` === node);
+      key = index ? `vector:${index.measurement}:${index.column}` : undefined;
+      break;
+    }
+    case 'fulltext': {
+      const index = management.fullTextIndexes.find((item) =>
+        `${item.collection}.${item.name}` === node
+        || `fulltext:${item.collection}:${item.name}` === node);
+      key = index ? `fulltext:${index.collection}:${index.name}` : undefined;
+      break;
+    }
+    case 'bucket': {
+      const bucket = management.buckets.find((item) => item.name === node || `bucket:${item.name}` === node);
+      key = bucket ? `bucket:${bucket.name}` : undefined;
+      break;
+    }
+    case 'graph': {
+      const graph = management.graphs.find((item) => item.name === node || `graph:${item.name}` === node);
+      key = graph ? `graph:${graph.name}` : undefined;
+      break;
+    }
+    case 'index': {
+      const index = dbSchema.indexes?.find((item) => item.name === node || item.id === node);
+      key = index?.id;
+      break;
+    }
+    case 'backup':
+      if (dbSchema.backupStatus && (node === 'Backup status' || node === 'backup-status')) key = 'backup-status';
+      break;
+    default:
+      break;
+  }
+
+  return normalizeActiveExplorerKey(key ?? '', dbSchema, management);
+}
+
 export function firstExplorerKey(dbSchema: SchemaResponse, management: ManagementExplorerInfo): string {
   return dbSchema.measurements?.[0]?.name
     ?? (dbSchema.tables?.[0] ? `table:${dbSchema.tables[0].name}` : undefined)
