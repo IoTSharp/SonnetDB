@@ -103,6 +103,7 @@
         v-model:active-tab-id="activeTabId"
         v-model:sql="sql"
         :tabs="sqlConsole.tabs"
+        :closed-tabs="sqlConsole.closedTabs"
         :active-tab="activeTab"
         :target-db="targetDb"
         :current-schema="currentSchema"
@@ -118,6 +119,8 @@
         :file-name="sqlDraftTitle()"
         @create-tab="createTab"
         @close-tab="closeTab"
+        @reopen-closed-tab="reopenClosedTab"
+        @discard-closed-tab="discardClosedTab"
         @run="run"
         @explain="explainSql"
         @format="formatSql"
@@ -697,6 +700,17 @@ function selectWorkspaceTab(id: string): void {
   if (tab.db && targetDb.value !== tab.db) targetDb.value = tab.db;
   activeExplorerKey.value = tab.objectKey;
   setWorkbenchTool(tab.tool);
+}
+
+function reopenClosedTab(id: string): void {
+  const tab = sqlConsole.reopenTab(id);
+  if (!tab) return;
+  setWorkbenchTool('sql');
+  void loadSchema(tab.db);
+}
+
+function discardClosedTab(id: string): void {
+  sqlConsole.discardClosedTab(id);
 }
 
 function closeWorkspaceTab(id: string): void {

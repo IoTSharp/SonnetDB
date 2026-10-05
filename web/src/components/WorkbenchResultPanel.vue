@@ -39,6 +39,24 @@
 
     <div class="workbench-result-panel__body">
       <n-alert
+        v-if="isTruncated"
+        type="warning"
+        :show-icon="true"
+        class="workbench-result-panel__alert"
+      >
+        结果已截断：{{ resultScopeText }}。复制和导出只包含当前已加载行。
+      </n-alert>
+
+      <n-alert
+        v-else-if="hasUnconfirmedResult"
+        type="warning"
+        :show-icon="true"
+        class="workbench-result-panel__alert"
+      >
+        执行结果待核对：服务端没有返回完成标记，不会将此操作显示为成功。
+      </n-alert>
+
+      <n-alert
         v-if="errorMessage && !result?.error"
         type="error"
         :title="errorMessage"
@@ -59,13 +77,13 @@
         :available-views="availableViews"
       />
 
-      <n-empty v-else-if="ranOnce" description="Statement executed without rows." />
+      <n-empty v-else-if="ranOnce && !hasUnconfirmedResult" description="Statement executed without rows." />
       <n-empty v-else :description="emptyDescription" />
     </div>
 
     <div class="workbench-result-panel__status">
       <span>{{ footerText }}</span>
-      <span>{{ filteredRows.length }} rows</span>
+      <span>{{ resultScopeText }}</span>
     </div>
   </section>
   </Teleport>
@@ -101,6 +119,8 @@ const props = withDefaults(defineProps<{
   viewMode?: 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
   showViewSwitcher?: boolean;
   availableViews?: Array<'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map'>;
+  /** 客户端显示用预算；服务端截断标记始终优先。 */
+  resultBudget?: number;
 }>(), {
   title: 'Results',
   sql: '',
@@ -114,6 +134,7 @@ const props = withDefaults(defineProps<{
   viewMode: undefined,
   showViewSwitcher: true,
   availableViews: () => ['plan', 'table', 'raw', 'json', 'chart', 'map'],
+  resultBudget: 10_000,
 });
 
 defineEmits<{
@@ -140,15 +161,33 @@ const displayRows = computed(() =>
     ? []
     : filteredRows.value.map((row) => columns.value.map((column) => row[column])));
 
-const canExport = computed(() => Boolean(props.result?.hasColumns && columns.value.length > 0));
+const isTruncated = computed(() => props.result?.end?.truncated === true);
+const hasUnconfirmedResult = computed(() => Boolean(
+  props.ranOnce && props.result && !props.result.error && !props.result.end,
+));
+const canExport = computed(() => Boolean(
+  !hasUnconfirmedResult.value && props.result?.hasColumns && columns.value.length > 0,
+));
+
+const resultScopeText = computed(() => {
+  if (isTruncated.value) {
+    const budget = Number.isFinite(props.resultBudget) && props.resultBudget > 0
+      ? `（客户端提示上限 ${props.resultBudget.toLocaleString()} 行）`
+      : '';
+    return `仅当前已加载结果${budget}，未返回全部数据`;
+  }
+  if (hasUnconfirmedResult.value) return '未取得服务端完成标记，结果待核对';
+  return `${filteredRows.value.length} rows`;
+});
 
 const headerText = computed(() => {
   if (props.result?.error) {
     return `Error · ${props.result.error.code ?? 'error'}`;
   }
   if (props.result?.end) {
-    return `Executed in ${props.result.end.elapsedMs.toFixed(2)} ms`;
+    return `Executed in ${props.result.end.elapsedMs.toFixed(2)} ms${isTruncated.value ? ' · Preview truncated' : ''}`;
   }
+  if (hasUnconfirmedResult.value) return 'Execution status pending confirmation';
   return props.summary || 'Ready';
 });
 
@@ -164,9 +203,11 @@ const footerText = computed(() => {
     if (props.result.end.recordsAffected >= 0) {
       parts.push(`affected ${props.result.end.recordsAffected}`);
     }
+    if (isTruncated.value) parts.push('preview truncated');
     parts.push(`${props.result.end.elapsedMs.toFixed(2)} ms`);
     return parts.join(' · ');
   }
+  if (hasUnconfirmedResult.value) return 'Execution status pending confirmation';
   return props.ranOnce ? (props.summary || 'Statement executed.') : 'Ready';
 });
 
@@ -174,7 +215,7 @@ async function copyCsv(): Promise<void> {
   if (!canExport.value) return;
   const ok = await copyText(buildCsv(filteredRows.value, columns.value));
   if (ok) {
-    message.success('CSV copied');
+    message.success(isTruncated.value ? 'CSV copied · loaded preview only' : 'CSV copied');
   } else {
     message.warning('Clipboard is unavailable');
   }
@@ -188,7 +229,7 @@ async function downloadCsv(): Promise<void> {
       buildCsv(filteredRows.value, columns.value),
       'text/csv;charset=utf-8',
     );
-    if (outcome === 'native') message.success('CSV saved');
+    if (outcome === 'native') message.success(isTruncated.value ? 'CSV saved · loaded preview only' : 'CSV saved');
   } catch (error) {
     message.error(error instanceof Error ? error.message : 'CSV export failed');
   }
@@ -202,7 +243,7 @@ async function downloadJson(): Promise<void> {
       buildJson(filteredRows.value, columns.value),
       'application/json;charset=utf-8',
     );
-    if (outcome === 'native') message.success('JSON saved');
+    if (outcome === 'native') message.success(isTruncated.value ? 'JSON saved · loaded preview only' : 'JSON saved');
   } catch (error) {
     message.error(error instanceof Error ? error.message : 'JSON export failed');
   }

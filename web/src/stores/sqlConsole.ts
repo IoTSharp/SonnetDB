@@ -6,7 +6,11 @@ export const CONTROL_PLANE_KEY = '__control_plane__';
 
 const STORAGE_KEY = 'sndb.sql.console.tabs.v1';
 const MaxTabs = 30;
+const MaxClosedTabs = 20;
 const DefaultStarterSql = ['SHOW MEASUREMENTS', 'SHOW DATABASES'];
+
+/** SQL 结果预览的客户端提示上限；服务端预算始终优先。 */
+export const DEFAULT_RESULT_PREVIEW_MAX_ROWS = 10_000;
 
 export interface PendingSqlExecution {
   db: string;
@@ -41,6 +45,8 @@ export interface SqlConsoleTab {
 interface StoredState {
   tabs: SqlConsoleTab[];
   activeTabId: string | null;
+  /** 最近关闭的草稿，仅用于恢复输入，不代表已执行结果仍然有效。 */
+  closedTabs?: SqlConsoleTab[];
 }
 
 function now(): number {
@@ -113,13 +119,26 @@ function normalizeResultSet(result: Partial<SqlResultSet> | null | undefined): S
   const columns = Array.isArray(result?.columns)
     ? result.columns.filter((column): column is string => typeof column === 'string')
     : [];
-  const rows = Array.isArray(result?.rows)
+  const sourceRows = Array.isArray(result?.rows)
     ? result.rows.filter(Array.isArray) as unknown[][]
     : [];
+  const rows = sourceRows.slice(0, DEFAULT_RESULT_PREVIEW_MAX_ROWS);
+  const normalizedEnd = normalizeResultEnd(result?.end);
+  const end = sourceRows.length > rows.length
+    ? {
+        ...(normalizedEnd ?? {
+          type: 'end' as const,
+          recordsAffected: -1,
+          elapsedMs: 0,
+        }),
+        rowCount: rows.length,
+        truncated: true,
+      }
+    : normalizedEnd;
   return {
     columns,
     rows,
-    end: normalizeResultEnd(result?.end),
+    end,
     error: typeof result?.error?.message === 'string'
       ? {
           code: typeof result.error?.code === 'string' ? result.error.code : undefined,
@@ -171,26 +190,29 @@ function loadState(): StoredState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       const tab = defaultTab();
-      return { tabs: [tab], activeTabId: tab.id };
+      return { tabs: [tab], activeTabId: tab.id, closedTabs: [] };
     }
 
     const parsed = JSON.parse(raw) as Partial<StoredState>;
     const tabs = Array.isArray(parsed.tabs)
       ? parsed.tabs.slice(0, MaxTabs).map((tab, index) => normalizeTab(tab, index))
       : [];
+    const closedTabs = Array.isArray(parsed.closedTabs)
+      ? parsed.closedTabs.slice(0, MaxClosedTabs).map((tab, index) => normalizeTab(tab, index))
+      : [];
     if (tabs.length === 0) {
       const tab = defaultTab();
-      return { tabs: [tab], activeTabId: tab.id };
+      return { tabs: [tab], activeTabId: tab.id, closedTabs };
     }
 
     const activeTabId = typeof parsed.activeTabId === 'string'
         && tabs.some((tab) => tab.id === parsed.activeTabId)
       ? parsed.activeTabId
       : tabs[0].id;
-    return { tabs, activeTabId };
+    return { tabs, activeTabId, closedTabs };
   } catch {
     const tab = defaultTab();
-    return { tabs: [tab], activeTabId: tab.id };
+    return { tabs: [tab], activeTabId: tab.id, closedTabs: [] };
   }
 }
 
@@ -205,6 +227,7 @@ function saveState(state: StoredState): void {
 export const useSqlConsoleStore = defineStore('sqlConsole', () => {
   const initial = loadState();
   const tabs = ref<SqlConsoleTab[]>(initial.tabs);
+  const closedTabs = ref<SqlConsoleTab[]>(initial.closedTabs ?? []);
   const activeTabId = ref<string | null>(initial.activeTabId);
   const pendingExecution = ref<PendingSqlExecution | null>(null);
 
@@ -244,15 +267,22 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
 
     tabs.value.push(tab);
     if (tabs.value.length > MaxTabs) {
-      tabs.value.splice(0, tabs.value.length - MaxTabs);
+      const evicted = tabs.value.splice(0, tabs.value.length - MaxTabs);
+      evicted.forEach((item) => rememberClosedTab(item));
     }
     activeTabId.value = tab.id;
     return tab;
   }
 
+  function rememberClosedTab(tab: SqlConsoleTab): void {
+    closedTabs.value = [tab, ...closedTabs.value.filter((item) => item.id !== tab.id)].slice(0, MaxClosedTabs);
+  }
+
   function closeTab(id: string): void {
     const index = tabs.value.findIndex((tab) => tab.id === id);
     if (index < 0) return;
+
+    rememberClosedTab(tabs.value[index]);
 
     if (tabs.value.length === 1) {
       const fresh = defaultTab();
@@ -266,6 +296,31 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
       const next = tabs.value[Math.min(index, tabs.value.length - 1)];
       activeTabId.value = next?.id ?? null;
     }
+  }
+
+  /**
+   * 恢复最近关闭的 SQL 草稿。恢复只重新打开输入和结果快照，不会自动执行 SQL。
+   */
+  function reopenTab(id?: string): SqlConsoleTab | null {
+    const index = id
+      ? closedTabs.value.findIndex((tab) => tab.id === id)
+      : 0;
+    if (index < 0 || index >= closedTabs.value.length) return null;
+
+    const [tab] = closedTabs.value.splice(index, 1);
+    if (!tab || tabs.value.some((item) => item.id === tab.id)) return null;
+    tabs.value.push(tab);
+    if (tabs.value.length > MaxTabs) {
+      const evicted = tabs.value.shift();
+      if (evicted && evicted.id !== tab.id) rememberClosedTab(evicted);
+    }
+    activeTabId.value = tab.id;
+    return tab;
+  }
+
+  /** 丢弃最近关闭的草稿；不会影响当前可见页签。 */
+  function discardClosedTab(id: string): void {
+    closedTabs.value = closedTabs.value.filter((tab) => tab.id !== id);
   }
 
   function patchTab(id: string, patch: Partial<Omit<SqlConsoleTab, 'id' | 'createdAt'>>): void {
@@ -366,13 +421,14 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
   }
 
   watch(
-    [tabs, activeTabId],
-    () => saveState({ tabs: tabs.value, activeTabId: activeTabId.value }),
+    [tabs, activeTabId, closedTabs],
+    () => saveState({ tabs: tabs.value, activeTabId: activeTabId.value, closedTabs: closedTabs.value }),
     { deep: true },
   );
 
   return {
     tabs,
+    closedTabs,
     activeTabId,
     activeTab,
     pendingExecution,
@@ -381,6 +437,8 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
     activateTab,
     createTab,
     closeTab,
+    reopenTab,
+    discardClosedTab,
     patchTab,
     patchActiveTab,
     setCurrent,

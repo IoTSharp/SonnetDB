@@ -18,11 +18,16 @@ import type { useAuthStore } from '@/stores/auth';
 import type { useConnectionsStore } from '@/stores/connections';
 import {
   CONTROL_PLANE_KEY,
+  DEFAULT_RESULT_PREVIEW_MAX_ROWS,
   type SqlConsoleExecutedStatement,
   type SqlConsoleTab,
   type useSqlConsoleStore,
 } from '@/stores/sqlConsole';
 import type { useWorkbenchHistoryStore, WorkbenchHistoryEntry } from '@/stores/workbenchHistory';
+import {
+  canConfirmWriteApproval,
+  markWriteApprovalStale,
+} from '@/utils/writeApproval';
 import {
   buildCreateDraft,
   buildPreviewPlan,
@@ -45,7 +50,31 @@ type ConnectionsStore = ReturnType<typeof useConnectionsStore>;
 type SqlConsoleStore = ReturnType<typeof useSqlConsoleStore>;
 type WorkbenchHistoryStore = ReturnType<typeof useWorkbenchHistoryStore>;
 
-const consolePreviewMaxRows = 10_000;
+const consolePreviewMaxRows = DEFAULT_RESULT_PREVIEW_MAX_ROWS;
+
+/**
+ * 将 SQL 响应映射为历史状态；没有服务端终态时不能记录为成功。
+ * 取消、传输中断和损坏/不完整的 ndjson 响应都可能意味着服务端已经执行，
+ * 因此必须保留 unknown 状态，交由用户核对后再决定是否重试。
+ */
+export function classifySqlHistoryResult(result: Pick<SqlResultSet, 'end' | 'error'>): {
+  status: 'success' | 'error' | 'unknown';
+  completeness?: 'complete' | 'truncated' | 'unknown';
+} {
+  const code = result.error?.code;
+  if (code === 'sql_execution_cancelled'
+    || code === 'sql_transport_error'
+    || code === 'incomplete_sql_response'
+    || code === 'invalid_sql_response') {
+    return { status: 'unknown', completeness: 'unknown' };
+  }
+  if (result.error) return { status: 'error' };
+  if (!result.end) return { status: 'unknown', completeness: 'unknown' };
+  return {
+    status: 'success',
+    completeness: result.end.truncated ? 'truncated' : 'complete',
+  };
+}
 
 export interface SqlExecutionOptions {
   auth: AuthStore;
@@ -155,10 +184,10 @@ export function useSqlExecution(options: SqlExecutionOptions) {
   ): void {
     const database = db === CONTROL_PLANE_KEY ? 'system' : db;
     const end = result.end;
-    const status = result.error ? 'error' : 'success';
+    const outcome = classifySqlHistoryResult(result);
     workbenchHistory.record({
       kind: statement.severity === 'read' ? 'query' : 'operation',
-      status,
+      status: outcome.status,
       title: statementTitle(statement.sql),
       target: database,
       database,
@@ -171,6 +200,7 @@ export function useSqlExecution(options: SqlExecutionOptions) {
       rowCount: end?.rowCount,
       recordsAffected: end && end.recordsAffected >= 0 ? end.recordsAffected : undefined,
       elapsedMs: end?.elapsedMs,
+      completeness: outcome.completeness,
     });
   }
 
@@ -318,6 +348,22 @@ export function useSqlExecution(options: SqlExecutionOptions) {
 
     const plan = previewPlan.value;
     previewPlan.value = null;
+    const currentApprovalContext = {
+      connectionId: connections.activeProfileId,
+      endpoint: auth.api.defaults.baseURL,
+      database: targetDb.value,
+      draftFingerprint: normalizeSql(sql.value),
+    };
+    if (!canConfirmWriteApproval(plan, currentApprovalContext)) {
+      const stalePlan = markWriteApprovalStale(plan, '审批上下文已变化，请重新预览。');
+      previewPlan.value = {
+        ...stalePlan,
+        tabId: plan.tabId,
+        db: plan.db,
+        statements: plan.statements,
+      };
+      return;
+    }
     await executeStatements(tab.id, plan.statements);
   }
 
@@ -330,8 +376,17 @@ export function useSqlExecution(options: SqlExecutionOptions) {
 
     const plan = buildPreviewPlan(statementTexts, tab.id, targetDb.value);
     if (plan.writeCount > 0) {
+      const contextualPlan = {
+        ...plan,
+        context: Object.freeze({
+          connectionId: connections.activeProfileId,
+          endpoint: auth.api.defaults.baseURL,
+          database: targetDb.value,
+          draftFingerprint: normalizeSql(sql.value),
+        }),
+      };
       previewConnection = { id: connections.activeProfileId, baseUrl: auth.api.defaults.baseURL, token: auth.state?.token };
-      previewPlan.value = plan;
+      previewPlan.value = contextualPlan;
       return;
     }
 

@@ -10,6 +10,15 @@
         <n-dropdown trigger="click" placement="bottom-start" :options="quickSqlOptions" @select="$emit('quick-sql-select', $event)">
           <n-button size="small">Quick SQL</n-button>
         </n-dropdown>
+        <n-dropdown
+          v-if="closedTabs.length > 0"
+          trigger="click"
+          placement="bottom-start"
+          :options="closedTabOptions"
+          @select="onClosedTabAction"
+        >
+          <n-button size="small">恢复草稿 ({{ closedTabs.length }})</n-button>
+        </n-dropdown>
         <n-button size="small" disabled title="SonnetDB 当前版本尚未暴露 active process 列表接口">Processes</n-button>
       </n-space>
 
@@ -122,6 +131,7 @@ import type { EditorCursorInfo, StagedPreview } from '@/utils/sqlWorkbench';
 
 const props = defineProps<{
   tabs: SqlConsoleTab[];
+  closedTabs: SqlConsoleTab[];
   activeTabId: string;
   activeTab: SqlConsoleTab | null;
   sql: string;
@@ -139,11 +149,13 @@ const props = defineProps<{
   fileName: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update:activeTabId': [value: string];
   'update:sql': [value: string];
   'create-tab': [];
   'close-tab': [id: string];
+  'reopen-closed-tab': [id: string];
+  'discard-closed-tab': [id: string];
   run: [];
   explain: [];
   format: [];
@@ -183,6 +195,11 @@ const resultPanelTitle = computed(() => {
   return 'SQL 结果';
 });
 
+const closedTabOptions = computed<DropdownOption[]>(() => props.closedTabs.flatMap((tab) => [
+  { label: `恢复：${tab.title}`, key: `reopen:${tab.id}` },
+  { label: `丢弃：${tab.title}`, key: `discard:${tab.id}` },
+]));
+
 const messageTitle = computed(() => {
   if (props.running) return '正在执行';
   return props.ranOnce ? '执行完成' : '等待执行';
@@ -197,6 +214,15 @@ const messageDescription = computed(() => {
 
 function selectSection(section: SqlSection): void {
   activeSection.value = section;
+}
+
+function onClosedTabAction(key: string | number): void {
+  const action = String(key);
+  if (action.startsWith('reopen:')) {
+    emit('reopen-closed-tab', action.slice('reopen:'.length));
+  } else if (action.startsWith('discard:')) {
+    emit('discard-closed-tab', action.slice('discard:'.length));
+  }
 }
 
 function focusResultRegion(): void {

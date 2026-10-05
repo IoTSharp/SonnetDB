@@ -126,6 +126,15 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 
 下一步：按已确认基线推进 WB-05 结果/草稿/历史/审批切片；逐页最终像素、真实 Server、三宿主、安装、发布和 AOT 证据继续独立验收。
 
+## WB-05 结果、草稿、历史与审批工作流迁移（2026-10-05）
+
+- 结果与草稿：`sqlConsole` 将客户端预览限制统一为 `DEFAULT_RESULT_PREVIEW_MAX_ROWS`（10,000），服务端 `end.truncated` 优先；结果面板在截断时显示当前预览范围，导出/复制只说明已加载行；没有服务端完成标记时不显示成功且禁止导出。关闭 SQL 页签保存到有界 `closedTabs`，SQL 工作区提供恢复/丢弃入口，恢复只回填草稿与已有快照，不自动执行。
+- 历史：新增 `unknown` 与 `completeness`（`complete` / `truncated` / `partial` / `unknown`），未知结果在历史中显示待核对且没有恢复按钮；敏感文本及 JSON/JSONL 的 `token`、`authorization`、`access_token`、`password`、`secret`、`apiKey` 等字段做有界脱敏，避免凭据进入本地历史载荷。
+- SQL 接线：取消、传输中断、无 `end` 完成标记及损坏/不完整响应记录为 `unknown + completeness=unknown`，显式服务器错误仍为 `error`；写预览绑定连接、端点、数据库和草稿指纹，确认前通过共享审批上下文校验，失效则标记 stale 并要求重新预览/审批。未知写结果保留请求、服务器终态和审计来源合同，客户端不自动重试或重放。
+- 审批面板：显示请求 ID、影响范围、风险、服务器终态、审计来源与未知/待核对提示；`pending`、`unknown`、`stale` 状态禁用确认或要求重新审批。
+- 验证：`node --experimental-vm-modules --test web/tests/wb05-results-drafts-history.test.mjs web/tests/wb05-approval-unknown.test.mjs web/tests/wb05-sql-unknown-integration.test.mjs` 9/9；`node --experimental-vm-modules --test web/tests/*.test.mjs` 94/94；`web/node_modules/.bin/tsc.cmd --noEmit --pretty false --project web/tsconfig.json` 通过；共享工作台 Playwright（历史抽屉、SQL 诊断、KV 审批）3/3；`git diff --check` 通过。
+- 证据边界：本切片验证的是现有 Web 工作台的合同、状态和宿主接线；不宣称真实 Server 终态查询、跨宿主持久化、AOT、安装、发布或全量页面迁移已验收。其它模型工作台继续沿用各自已有 stale/审批接线，待后续统一迁移批次补齐。
+
 ## MQ 导航更正（2026-10-05）
 
 用户指出消息与事件也需要存储，质疑 MQ 为什么被独立分组。核查生产代码后更正初稿：Topic 已按数据库名称限定并使用数据库读写权限，物理日志由 Server 实例共享。前稿把物理存储范围直接用于导航与页签身份，造成数据库语义丢失；现调整为九模型统一在数据库资源树，MQ 同时标明逻辑 scope=database / persistenceScope=instance。仅更正设计，未改变消息存储实现。
