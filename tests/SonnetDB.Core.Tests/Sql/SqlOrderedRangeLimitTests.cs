@@ -1,23 +1,28 @@
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace SonnetDB.Core.Tests.Sql;
 
 /// <summary>
-/// 验证关系表复合升序范围查询的候选上限下推及安全回退。
+/// 验证关系表复合有序范围查询的候选上限下推及安全回退。
 /// </summary>
 public sealed class SqlOrderedRangeLimitTests : IDisposable
 {
     private readonly string _root;
+    private readonly ITestOutputHelper _output;
 
     /// <summary>
     /// 为每个测试创建独立数据库目录。
     /// </summary>
-    public SqlOrderedRangeLimitTests()
+    public SqlOrderedRangeLimitTests(ITestOutputHelper output)
     {
+        _output = output;
         _root = Path.Combine(Path.GetTempPath(), "sndb-ordered-range-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
     }
@@ -232,10 +237,10 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
     }
 
     /// <summary>
-    /// 验证降序复合排序不能使用升序范围候选截断。
+    /// 验证降序复合排序按反向范围读取并在完整边界组之后停止。
     /// </summary>
     [Fact]
-    public void CompositeRange_DescendingOrder_DoesNotPushCandidateLimit()
+    public void CompositeRange_DescendingOrder_PushesCandidateLimit()
     {
         using var db = CreateDatabase(
             "CaptureTime, Id",
@@ -251,7 +256,7 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
             """));
 
         Assert.Equal("c", Assert.Single(result.Rows)[0]);
-        Assert.Equal([int.MaxValue], observedLimits);
+        Assert.Equal([2], observedLimits);
     }
 
     /// <summary>
@@ -637,8 +642,180 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
     }
 
     /// <summary>
-    /// 创建带指定普通二级索引和初始抓拍行的测试数据库。
+    /// 验证跨零范围及显式或隐式 Unicode 主键保持 SQL 字符串排序和 OFFSET 语义。
     /// </summary>
+    [Theory]
+    [InlineData("CaptureTime, Id", "ASC")]
+    [InlineData("CaptureTime, Id", "DESC")]
+    [InlineData("CaptureTime", "DESC")]
+    public void CompositeRange_SignedDirectionAndImplicitId_PreservesSqlTieOrder(string indexColumns, string direction)
+    {
+        using var db = CreateDatabase(indexColumns,
+            "('z', 'north', -1, 'keep'),('aa', 'north', -1, 'keep'),"
+            + "('b', 'north', 0, 'keep'),('cccc', 'north', 0, 'keep'),"
+            + "('\uE000', 'north', 0, 'keep'),('\U00010000', 'north', 0, 'keep'),('high', 'north', 1, 'keep')");
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            $"SELECT Id FROM ordered_captures WHERE CaptureTime >= -1 ORDER BY CaptureTime {direction}, Id {direction} LIMIT 5 OFFSET 1"));
+
+        // UTF-8 字节顺序与 UTF-16 Ordinal 顺序对补充平面字符不同，必须读取完整组后应用 SQL 比较器。
+        string[] expected = direction == "DESC" ? ["\uE000", "\U00010000", "cccc", "b", "z"] : ["z", "b", "cccc", "\U00010000", "\uE000"];
+        Assert.Equal(expected,
+            result.Rows.Select(static row => (string)row[0]!).ToArray());
+    }
+
+    /// <summary>验证降序 DATETIME 时间组跨页续读，Id 长度前缀差异不能截断 SQL 字符串排序。</summary>
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(100)]
+    public void CompositeRange_DescendingDateTimeTieGroup_ContinuesStrictlyAfterPage(int pageByteLimit)
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE ordered_events (Id STRING NOT NULL, OccurredAt DATETIME NOT NULL, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_ordered_events ON ordered_events (OccurredAt, Id)");
+        SqlExecutor.Execute(db, "INSERT INTO ordered_events (Id, OccurredAt) VALUES ('z', 1000), ('aa', 1000), ('b', 1000), ('older', 0)");
+        var continuations = new List<bool>();
+        db.Tables.Open("ordered_events").RangeScanContinuationTestHook = continuations.Add;
+        db.Tables.Open("ordered_events").RangeScanPageByteLimitTestOverride = pageByteLimit;
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT Id FROM ordered_events WHERE OccurredAt >= 0 ORDER BY OccurredAt DESC, Id DESC LIMIT 1 OFFSET 1"));
+
+        Assert.Equal("b", Assert.Single(result.Rows)[0]);
+        Assert.Equal(pageByteLimit == int.MaxValue ? new[] { false, true } : new[] { false, true, true }, continuations);
+    }
+
+    /// <summary>验证磁盘上大时间组的降序分页保持稳定结果，同时候选和 payload 读取显著少于全分区排序。</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(12000)]
+    public void CompositeRange_DescendingPersistedLargeTieGroup_ReadsLessThanFullPartition(int otherPartitionRows)
+    {
+        using var db = CreateDatabase("Lane, CaptureTime, Id", "('seed', 'north', 1, 'keep')");
+        var store = db.Tables.Open("ordered_captures");
+        string[] tiedIds = Enumerable.Range(0, 600).Select(static index => index.ToString()).ToArray();
+        store.InsertMany(Enumerable.Range(0, 4000).Select(static index => (IReadOnlyList<object?>)new object?[]
+            { $"old-{index:D4}", "north", 1L, "keep" }).Concat(
+            tiedIds.Select(static id => (IReadOnlyList<object?>)new object?[] { id, "north", 1000L, "keep" })).Concat(
+            Enumerable.Range(0, otherPartitionRows).Select(static index => (IReadOnlyList<object?>)new object?[]
+                { $"other-{index:D5}", "south", 1000L, "keep" })).ToArray());
+        store.RefreshStatistics();
+        store.CreateSnapshot();
+        const string query = "SELECT Id FROM ordered_captures WHERE Lane = 'north' ORDER BY CaptureTime DESC, Id DESC LIMIT 5 OFFSET 2";
+        if (otherPartitionRows == 0)
+        {
+            // 单一宽分区的基础成本确实选择表扫描；完整有序 LIMIT 仍必须恢复有界索引执行。
+            TableSchema schema = db.Tables.Catalog.TryGet("ordered_captures")!;
+            var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(query));
+            Assert.Null(TableSqlExecutor.ChooseBestIndexAccessPlan(store, schema, statement.Where));
+        }
+        var optimizedMetrics = new SqlExecutionMetrics();
+        SelectExecutionResult optimized;
+        using (SqlExecutionTelemetry.Enter(optimizedMetrics))
+            optimized = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, query));
+        SqlExecutionMetricsSnapshot optimizedSnapshot = optimizedMetrics.Complete();
+
+        // Marker 在本数据集中恒定；插入该非索引排序列产生等价的全分区排序基线。
+        var baselineMetrics = new SqlExecutionMetrics();
+        SelectExecutionResult baseline;
+        using (SqlExecutionTelemetry.Enter(baselineMetrics))
+            baseline = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT Id FROM ordered_captures WHERE Lane = 'north' ORDER BY CaptureTime DESC, Marker DESC, Id DESC LIMIT 5 OFFSET 2"));
+        SqlExecutionMetricsSnapshot baselineSnapshot = baselineMetrics.Complete();
+        _output.WriteLine($"DESC persisted reads: optimized={optimizedSnapshot.PhysicalReads}, full={baselineSnapshot.PhysicalReads}; candidates={optimizedSnapshot.CandidateRows}/{baselineSnapshot.CandidateRows}");
+        string[] expected = tiedIds.OrderByDescending(static id => id, StringComparer.Ordinal).Skip(2).Take(5).ToArray();
+        Assert.Equal(expected, optimized.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.Equal(expected, baseline.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.Equal(600, optimizedSnapshot.CandidateRows);
+        Assert.Equal(4601 + otherPartitionRows, baselineSnapshot.CandidateRows);
+        Assert.True(optimizedSnapshot.PhysicalReadSnapshotComplete && baselineSnapshot.PhysicalReadSnapshotComplete);
+        Assert.True(optimizedSnapshot.PhysicalReads > 0);
+        Assert.True(optimizedSnapshot.PhysicalReads * 2 < baselineSnapshot.PhysicalReads,
+            $"optimized={optimizedSnapshot.PhysicalReads}, full={baselineSnapshot.PhysicalReads}");
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "EXPLAIN ANALYZE " + query));
+        var values = explain.Rows.ToDictionary(static row => (string)row[0]!, static row => row[1], StringComparer.Ordinal);
+        Assert.Equal("idx_ordered_captures", values["actual_index_name"]);
+        Assert.Equal(600L, Convert.ToInt64(values["actual_candidate_rows"]));
+        Assert.Equal(5L, Convert.ToInt64(values["actual_rows"]));
+    }
+
+    /// <summary>验证 DESC 多列排序先过滤完整时间组，再按有效结果执行 OFFSET/LIMIT，并跳过后续历史分区。</summary>
+    [Fact]
+    public void OrderedResidualRange_DescendingMultipleColumns_FiltersBeforePagination()
+    {
+        using var db = CreateDatabase("CaptureTime, Id", "('old', 'north', 1, 'keep')");
+        var store = db.Tables.Open("ordered_captures");
+        store.InsertMany(Enumerable.Range(0, 600).Select(static index => (IReadOnlyList<object?>)new object?[]
+            { index.ToString(), "north", 1000L, index % 2 == 0 ? "keep" : "drop" }).Concat(
+            Enumerable.Range(0, 1000).Select(static index => (IReadOnlyList<object?>)new object?[]
+                { $"old-{index:D4}", "north", 1L, "keep" })).ToArray());
+        var metrics = new SqlExecutionMetrics();
+        SelectExecutionResult result;
+        using (SqlExecutionTelemetry.Enter(metrics))
+            result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT Id FROM ordered_captures WHERE CaptureTime >= 0 AND Marker = 'keep' ORDER BY CaptureTime DESC, Id DESC LIMIT 3 OFFSET 1"));
+
+        Assert.Equal(Enumerable.Range(0, 600).Where(static index => index % 2 == 0).Select(static index => index.ToString())
+            .OrderByDescending(static id => id, StringComparer.Ordinal).Skip(1).Take(3).ToArray(),
+            result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.Equal(601, metrics.Complete().CandidateRows);
+    }
+
+    /// <summary>验证边界组读取中途取消会抛出异常并释放快照，后续查询仍能正常续页。</summary>
+    [Fact]
+    public void CompositeRange_DescendingTieGroup_CancelsBetweenPages()
+    {
+        using var db = CreateDatabase("CaptureTime, Id", string.Join(",",
+            Enumerable.Range(0, 40).Select(static index => $"('{index}', 'north', 10, 'keep')")));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var store = db.Tables.Open("ordered_captures");
+        store.RangeScanContinuationTestHook = continued => { if (continued) cancellation.Cancel(); };
+        const string query = "SELECT Id FROM ordered_captures WHERE CaptureTime >= 0 ORDER BY CaptureTime DESC, Id DESC LIMIT 1";
+        Assert.ThrowsAny<OperationCanceledException>(() => SqlExecutor.Execute(db, null, query, null, null,
+            SqlExecutionOptions.Default with { CancellationToken = cancellation.Token }));
+        store.RangeScanContinuationTestHook = null;
+        Assert.Equal("9", Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, query)).Rows)[0]);
+    }
+
+    /// <summary>验证 NULL 和不同长度字符串后缀使用统一 SQL 比较，而混合方向仍保留完整排序回退。</summary>
+    [Fact]
+    public void CompositeRange_DescendingNullableSuffixAndMixedDirection_PreservesSqlComparison()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE nullable_events (Id STRING NOT NULL, OccurredAt INT NOT NULL, Label STRING NULL, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_nullable_events ON nullable_events (OccurredAt, Label, Id)");
+        SqlExecutor.Execute(db, "INSERT INTO nullable_events (Id, OccurredAt, Label) VALUES ('null', 10, NULL), ('short', 10, 'z'), ('long', 10, 'aa'), ('old', 0, 'z')");
+        var descending = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT Id FROM nullable_events WHERE OccurredAt >= 0 ORDER BY OccurredAt DESC, Label DESC, Id DESC LIMIT 3"));
+        Assert.Equal(["short", "long", "null"], descending.Rows.Select(static row => (string)row[0]!).ToArray());
+        var mixed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT Id FROM nullable_events WHERE OccurredAt >= 0 ORDER BY OccurredAt DESC, Label ASC, Id ASC LIMIT 3"));
+        Assert.Equal(["null", "long", "short"], mixed.Rows.Select(static row => (string)row[0]!).ToArray());
+    }
+
+    /// <summary>验证第一页全为缺失主行的旧索引项时仍严格按索引键续页，不能误判为已经读完。</summary>
+    [Fact]
+    public void CompositeRange_DescendingDanglingIndexPage_ContinuesToValidTieGroup()
+    {
+        using var db = CreateDatabase("CaptureTime, Id", "('seed', 'north', 0, 'keep')");
+        TableSchema schema = db.Tables.Catalog.TryGet("ordered_captures")!;
+        using var keyspace = KvKeyspace.Open("dangling", Path.Combine(_root, "dangling"), new KvOptions());
+        using var store = new TableStore(schema, keyspace);
+        store.InsertMany(new IReadOnlyList<object?>[] {
+            new object?[] { "zz-0", "north", 10L, "keep" }, new object?[] { "zz-1", "north", 10L, "keep" },
+            new object?[] { "a", "north", 10L, "keep" }, new object?[] { "b", "north", 10L, "keep" },
+            new object?[] { "old", "north", 0L, "keep" } });
+        // 仅删主行，模拟仍存在的旧索引项；两个悬空项占满最初的一页。
+        keyspace.Delete(TableIndexCodec.EncodePrimaryRowKey(TableKeyCodec.EncodePrimaryKeyValues(schema, ["zz-0"])));
+        keyspace.Delete(TableIndexCodec.EncodePrimaryRowKey(TableKeyCodec.EncodePrimaryKeyValues(schema, ["zz-1"])));
+        var continuations = new List<bool>();
+        store.RangeScanContinuationTestHook = continuations.Add;
+        var range = new TableIndexRange(schema.TryGetColumn("CaptureTime")!, Lower: null, Upper: null);
+        IReadOnlyList<TableRow> rows = store.GetByIndexRangeThroughValueGroup(schema.Indexes[0], [], range, 1, descending: true);
+        Assert.Equal(["b", "a"], rows.Select(static row => (string)row.Values[0]!).ToArray());
+        Assert.Equal([false, true], continuations);
+    }
+
+    /// <summary>创建带指定普通二级索引和初始抓拍行的测试数据库。</summary>
     private Tsdb CreateDatabase(string indexColumns, string values)
     {
         var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

@@ -178,6 +178,9 @@ public sealed partial class TableStore : IDisposable
     /// <summary>测试范围分页是否从上一页索引键继续扫描。</summary>
     internal Action<bool>? RangeScanContinuationTestHook { get; set; }
 
+    /// <summary>测试并列组因页字节预算截页时的续读；生产仍使用原 Int32 字节上限。</summary>
+    internal int? RangeScanPageByteLimitTestOverride { get; set; }
+
     /// <summary>测试普通查询实际解码的关系行数，验证分页完成后是否提前停止。</summary>
     internal Action<int>? RowDecodedTestHook { get; set; }
 
@@ -1351,12 +1354,16 @@ public sealed partial class TableStore : IDisposable
     /// <param name="equalityPrefixValues">索引连续等值前缀。</param>
     /// <param name="range">等值前缀后范围列的边界。</param>
     /// <param name="candidateLimit">SQL OFFSET 加 LIMIT 得到的候选行数。</param>
+    /// <param name="descending">按范围值降序读取；并列组仍由 SQL 层校正排序。</param>
+    /// <param name="cancellationToken">查询取消或墙钟超时令牌。</param>
     /// <returns>包含分页边界范围值完整并列组的候选行。</returns>
     internal IReadOnlyList<TableRow> GetByIndexRangeThroughValueGroup(
         TableIndex index,
         IReadOnlyList<object?> equalityPrefixValues,
         TableIndexRange range,
-        int candidateLimit)
+        int candidateLimit,
+        bool descending = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(equalityPrefixValues);
@@ -1387,11 +1394,19 @@ public sealed partial class TableStore : IDisposable
         bool boundaryReached = false;
         int pageLimit = candidateLimit == int.MaxValue ? int.MaxValue : candidateLimit + 1;
 
-        foreach (var keyRange in BuildSignedKeyRanges(index, equalityPrefixValues, range, schema))
+        IReadOnlyList<TableIndexKeyRange> keyRanges = BuildSignedKeyRanges(index, equalityPrefixValues, range, schema);
+        for (int rangeIndex = 0; rangeIndex < keyRanges.Count; rangeIndex++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            TableIndexKeyRange keyRange = descending
+                ? keyRanges[keyRanges.Count - 1 - rangeIndex]
+                : keyRanges[rangeIndex];
             byte[] afterKey = [];
-            while (true)
+            bool rangeExhausted = false;
+            // 页容量饱和倍增，32 页足以覆盖 Int32 大小的索引；超过边界明确失败，避免无界续页。
+            for (int pageNumber = 0; pageNumber < 32; pageNumber++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 RangeScanLimitTestHook?.Invoke(pageLimit);
                 RangeScanContinuationTestHook?.Invoke(afterKey.Length != 0);
                 using KvRangeCursor cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
@@ -1400,13 +1415,15 @@ public sealed partial class TableStore : IDisposable
                     StartInclusive = keyRange.StartInclusive,
                     EndExclusive = keyRange.EndExclusive,
                     AfterKey = afterKey,
+                    Descending = descending,
                     PageSize = pageLimit,
-                    MaxPageBytes = int.MaxValue,
+                    MaxPageBytes = RangeScanPageByteLimitTestOverride ?? int.MaxValue,
                 });
-                IReadOnlyList<KvEntry> entries = cursor.ReadNextPage();
+                IReadOnlyList<KvEntry> entries = cursor.ReadNextPage(cancellationToken);
                 foreach (var entry in entries)
                 {
-                    TableRow? row = TryMaterializeIndexEntry(tableSnapshot.Snapshot, schema, entry);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    TableRow? row = TryMaterializeIndexEntry(tableSnapshot.Snapshot, schema, entry, cancellationToken);
                     if (row is null)
                         continue;
 
@@ -1429,12 +1446,18 @@ public sealed partial class TableStore : IDisposable
                     rows.Add(row);
                 }
 
-                if (entries.Count < pageLimit)
+                // 不足一页也可能只是字节预算截页，必须由游标确认范围耗尽。
+                if (cursor.IsExhausted)
+                {
+                    rangeExhausted = true;
                     break;
+                }
 
                 afterKey = entries[^1].Key.ToArray();
                 pageLimit = DoubleRangeScanPageLimit(pageLimit);
             }
+            if (!rangeExhausted)
+                throw new InvalidOperationException("范围并列组续页超过有界读取次数，查询未返回截断结果。");
         }
 
         return rows;
@@ -1522,11 +1545,12 @@ public sealed partial class TableStore : IDisposable
     private static TableRow? TryMaterializeIndexEntry(
         KvReadSnapshot snapshot,
         TableSchema schema,
-        KvEntry entry)
+        KvEntry entry,
+        CancellationToken cancellationToken = default)
     {
         byte[] primaryKey = entry.Value.Span.ToArray();
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-        KvEntry? payload = snapshot.GetEntry(rowKey);
+        KvEntry? payload = snapshot.GetEntry(rowKey, cancellationToken);
         return payload is null
             ? null
             : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), primaryKey);
