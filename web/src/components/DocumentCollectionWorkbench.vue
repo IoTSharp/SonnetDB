@@ -86,7 +86,18 @@
     </section>
 
     <section class="document-body" data-zone="center" :class="{ 'is-focused': permissionDenied || !['documents', 'query'].includes(activeView) }">
-      <n-empty v-if="permissionDenied" description="当前身份没有 Document 读取权限，文档、Validator 与索引载荷已隐藏。" />
+      <section v-if="permissionDenied" class="document-permission-recovery">
+        <n-empty description="当前身份没有 Document 读取权限，文档、Validator 与索引载荷已隐藏。" />
+        <n-button
+          data-testid="document-recover-read-permission"
+          size="small"
+          secondary
+          :loading="permissionRecoveryBusy"
+          :disabled="props.permissionDenied || !permissionFailure || permissionRecoveryBusy || !activeCollectionName || !targetDb"
+          @click="recoverReadPermission"
+        >重新验证读取权限</n-button>
+        <n-text depth="3">使用空过滤重新读取最多 100 行；旧写草稿与审批不会恢复。</n-text>
+      </section>
       <template v-else>
       <aside v-if="activeView === 'documents' || activeView === 'query'" class="document-collections">
         <div class="document-panel-head">
@@ -218,6 +229,7 @@
           </template>
 
           <template v-else-if="queryTab === 'aggregate'">
+            <n-text depth="3" data-testid="document-preview-budget">Aggregate 预览最多 1,000 项；末尾追加 limit 仅限制输出，不限制扫描、中间结果或字节数。</n-text>
             <n-input
               v-model:value="aggregateText"
               type="textarea"
@@ -230,9 +242,10 @@
           </template>
 
           <template v-else>
+            <n-text depth="3" data-testid="document-preview-budget">Distinct 预览最多 {{ boundedDistinctLimit }} 项；超出时标记截断，不提供游标分页或扫描、字节预算。</n-text>
             <div class="document-query-row document-query-row--distinct">
               <n-input v-model:value="distinctPath" size="small" placeholder="$.site" />
-              <n-input-number v-model:value="distinctLimit" size="small" :min="1" :show-button="false" placeholder="Limit" />
+              <n-input-number v-model:value="distinctLimit" data-testid="document-distinct-limit" size="small" :min="1" :max="1000" :precision="0" :show-button="false" placeholder="Limit" />
               <n-button size="small" secondary :disabled="!activeCollectionName || !distinctPath.trim()" :loading="queryBusy" @click="runDistinct">
                 Run distinct
               </n-button>
@@ -457,6 +470,7 @@
       title="Document operation result"
       :sql="latestCommand"
       :result="latestResult"
+      :result-budget="resultPreviewLimit"
       :ran-once="ranOnce"
       :summary="resultSummary"
       :file-name="`${targetDb}_${activeCollectionName || 'documents'}`"
@@ -545,6 +559,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import {
   useWorkbenchHistoryStore,
+  type WorkbenchHistoryCompleteness,
   type WorkbenchHistoryEntry,
 } from '@/stores/workbenchHistory';
 import { downloadText, safeFileStem } from '@/utils/resultExport';
@@ -598,6 +613,8 @@ const documentStateContract = {
 
 interface DocumentContext {
   identity: string;
+  epoch: number;
+  authState: typeof auth.state;
   database: string;
   collection: string;
   connectionId: string;
@@ -650,17 +667,21 @@ const countBusy = ref(false);
 const confirmBusy = ref(false);
 const errorMsg = ref('');
 const permissionFailure = ref(false);
+const permissionRecoveryBusy = ref(false);
 const readOnly = computed(() => props.readOnly);
 const permissionDenied = computed(() => props.permissionDenied || permissionFailure.value);
 let queryRequestId = 0;
 let countRequestId = 0;
 let writeRequestId = 0;
+let recoveryRequestId = 0;
+let contextEpoch = 0;
 let disposed = false;
 let pendingContext: DocumentContext | null = null;
 const gridFilter = ref('');
 const checkedRowKeys = ref<DataTableRowKey[]>([]);
 const selectedId = ref('');
 const queryTab = ref<QueryTab>('find');
+const resultMode = ref<QueryTab | 'count' | 'operation'>('find');
 const inspectorTab = ref<InspectorTab>('detail');
 const activeView = ref<DocumentView>('documents');
 const documentSections: WorkbenchSectionTab[] = [
@@ -695,6 +716,9 @@ const sortText = ref('');
 const aggregateText = ref('[\n  { "$limit": 20 }\n]');
 const distinctPath = ref('$.site');
 const distinctLimit = ref<number | null>(50);
+const boundedDistinctLimit = computed(() => Number.isFinite(distinctLimit.value)
+  ? Math.min(DocumentPreviewMaxRows, Math.max(1, Math.floor(distinctLimit.value as number)))
+  : 50);
 const limit = ref<number | null>(100);
 const skip = ref<number | null>(0);
 const continuationToken = ref('');
@@ -720,6 +744,7 @@ const importProgressPercent = computed(() => importProgress.value.total > 0
 let importCancelRequested = false;
 const pendingOperations = ref<PendingOperation[]>([]);
 const latestResult = ref<SqlResultSet | null>(null);
+const resultPreviewLimit = ref(DocumentPreviewMaxRows);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
@@ -731,7 +756,7 @@ const activeCollectionName = computed(() => activeCollection.value?.name ?? '');
 const resourceIdentity = computed(() => JSON.stringify([
   connections.activeProfileId, connections.activeBaseUrl, props.targetDb, activeCollectionName.value,
 ]));
-const canLoadNext = computed(() => hasMore.value && rows.value.length < DocumentPreviewMaxRows);
+const canLoadNext = computed(() => resultMode.value === 'find' && hasMore.value && rows.value.length < DocumentPreviewMaxRows);
 const documentState = computed<DocumentWorkbenchState>(() => {
   if (permissionDenied.value) return 'permission';
   if (!props.targetDb || !activeCollectionName.value) return 'empty';
@@ -747,6 +772,8 @@ const stateDescriptor = computed(() => documentStateContract[documentState.value
 function captureContext(): DocumentContext {
   return {
     identity: resourceIdentity.value,
+    epoch: contextEpoch,
+    authState: auth.state,
     database: props.targetDb,
     collection: activeCollectionName.value,
     connectionId: connections.activeProfileId,
@@ -756,7 +783,8 @@ function captureContext(): DocumentContext {
 }
 
 function isCurrentContext(context: DocumentContext): boolean {
-  return !disposed && context.identity === resourceIdentity.value;
+  return !disposed && context.identity === resourceIdentity.value && context.epoch === contextEpoch
+    && context.authState === auth.state && context.api === auth.api;
 }
 
 function isPermissionError(error: unknown): boolean {
@@ -816,6 +844,9 @@ const querySummary = computed(() => {
 });
 
 const pagerText = computed(() => {
+  if (resultMode.value === 'aggregate' || resultMode.value === 'distinct') {
+    return `${latestResult.value?.end?.rowCount ?? 0} preview items · ${latestResult.value?.end?.truncated ? 'truncated preview' : 'complete output'} · no cursor pagination`;
+  }
   const count = totalCount.value == null ? 'unknown count' : `${totalCount.value.toLocaleString()} total`;
   const page = rows.value.length >= DocumentPreviewMaxRows
     ? 'preview budget reached; narrow the query before loading more'
@@ -1003,9 +1034,9 @@ async function runFind(append: boolean): Promise<void> {
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档查询失败');
     errorMsg.value = msg;
-    latestCommand.value = command;
-    latestResult.value = errorResult('document_find_error', msg);
-    ranOnce.value = true;
+    latestCommand.value = permissionFailure.value ? '' : command;
+    latestResult.value = permissionFailure.value ? null : errorResult('document_find_error', msg);
+    ranOnce.value = !permissionFailure.value;
     recordHistory('error', 'Document find', 'find', command, msg, 0, -1, elapsed);
   } finally {
     if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
@@ -1026,6 +1057,7 @@ async function runCount(): Promise<void> {
     if (requestId !== countRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     totalCount.value = response.count;
+    resultMode.value = 'count';
     latestCommand.value = command;
     latestResult.value = {
       columns: ['collection', 'count'],
@@ -1042,9 +1074,9 @@ async function runCount(): Promise<void> {
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档计数失败');
     errorMsg.value = msg;
-    latestCommand.value = command;
-    latestResult.value = errorResult('document_count_error', msg);
-    ranOnce.value = true;
+    latestCommand.value = permissionFailure.value ? '' : command;
+    latestResult.value = permissionFailure.value ? null : errorResult('document_count_error', msg);
+    ranOnce.value = !permissionFailure.value;
     recordHistory('error', 'Document count', 'count', command, msg, 0, -1, elapsed);
   } finally {
     if (requestId === countRequestId && isCurrentContext(context)) countBusy.value = false;
@@ -1055,32 +1087,38 @@ async function runDistinct(): Promise<void> {
   if (!activeCollectionName.value || !props.targetDb || permissionDenied.value || !distinctPath.value.trim()) return;
   const context = captureContext();
   const requestId = ++queryRequestId;
+  resetAdvancedRead('distinct');
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
   const request = {
     path: distinctPath.value.trim(),
     ids: parseIds(idsText.value),
-    limit: distinctLimit.value ?? null,
+    limit: boundedDistinctLimit.value + 1,
   };
+  const previewLimit = request.limit - 1;
+  resultPreviewLimit.value = previewLimit;
   const command = `documents.distinct ${activeCollectionName.value}\n${JSON.stringify(request, null, 2)}`;
   try {
     const response = await distinctDocuments(context.api, context.database, context.collection, request);
     if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     const elapsed = performance.now() - started;
     latestCommand.value = command;
-    latestResult.value = resultFromDistinct(response, elapsed);
+    latestResult.value = resultFromDistinct(response, elapsed, previewLimit);
     ranOnce.value = true;
-    recordHistory('success', 'Document distinct', 'distinct', command, `${response.values.length} values`, response.values.length, -1, elapsed);
+    const previewCount = latestResult.value.rows.length;
+    const truncated = latestResult.value.end?.truncated === true;
+    recordHistory('success', 'Document distinct', 'distinct', command,
+      `${previewCount} preview values${truncated ? ' · truncated' : ''}`, previewCount, -1, elapsed, context, truncated ? 'truncated' : 'complete');
   } catch (error) {
     if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档 distinct 失败');
     errorMsg.value = msg;
-    latestCommand.value = command;
-    latestResult.value = errorResult('document_distinct_error', msg);
-    ranOnce.value = true;
+    latestCommand.value = permissionFailure.value ? '' : command;
+    latestResult.value = permissionFailure.value ? null : errorResult('document_distinct_error', msg);
+    ranOnce.value = !permissionFailure.value;
     recordHistory('error', 'Document distinct', 'distinct', command, msg, 0, -1, elapsed);
   } finally {
     if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
@@ -1094,12 +1132,18 @@ async function runAggregate(): Promise<void> {
     errorMsg.value = parsed.message;
     return;
   }
+  if (!Array.isArray(parsed.value)) {
+    errorMsg.value = 'Aggregate pipeline must be a JSON array.';
+    return;
+  }
   const context = captureContext();
   const requestId = ++queryRequestId;
+  resetAdvancedRead('aggregate');
+  resultPreviewLimit.value = DocumentPreviewMaxRows;
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
-  const request = { pipeline: parsed.value };
+  const request = { pipeline: [...parsed.value, { $limit: DocumentPreviewMaxRows + 1 }] };
   const command = `documents.aggregate ${activeCollectionName.value}\n${JSON.stringify(request, null, 2)}`;
   try {
     const response = await aggregateDocuments(context.api, context.database, context.collection, request);
@@ -1108,23 +1152,88 @@ async function runAggregate(): Promise<void> {
     latestCommand.value = command;
     latestResult.value = resultFromAggregate(response.documents, elapsed);
     ranOnce.value = true;
-    recordHistory('success', 'Document aggregate', 'aggregate', command, `${response.count} documents`, response.count, -1, elapsed);
+    const previewCount = latestResult.value.rows.length;
+    const truncated = latestResult.value.end?.truncated === true;
+    recordHistory('success', 'Document aggregate', 'aggregate', command,
+      `${previewCount} preview documents${truncated ? ' · truncated' : ''}`, previewCount, -1, elapsed, context, truncated ? 'truncated' : 'complete');
   } catch (error) {
     if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     permissionFailure.value = isPermissionError(error);
     const elapsed = performance.now() - started;
     const msg = errorToMessage(error, '文档聚合失败');
     errorMsg.value = msg;
-    latestCommand.value = command;
-    latestResult.value = errorResult('document_aggregate_error', msg);
-    ranOnce.value = true;
+    latestCommand.value = permissionFailure.value ? '' : command;
+    latestResult.value = permissionFailure.value ? null : errorResult('document_aggregate_error', msg);
+    ranOnce.value = !permissionFailure.value;
     recordHistory('error', 'Document aggregate', 'aggregate', command, msg, 0, -1, elapsed);
   } finally {
     if (requestId === queryRequestId && isCurrentContext(context)) queryBusy.value = false;
   }
 }
 
+function resetAdvancedRead(mode: 'aggregate' | 'distinct'): void {
+  countRequestId += 1;
+  countBusy.value = false;
+  resultMode.value = mode;
+  rows.value = [];
+  selectedId.value = '';
+  checkedRowKeys.value = [];
+  hasMore.value = false;
+  continuationToken.value = '';
+  cursorExpiresAtUtc.value = null;
+  latestResult.value = null;
+}
+
+async function recoverReadPermission(): Promise<void> {
+  if (disposed || props.permissionDenied || !permissionFailure.value || permissionRecoveryBusy.value
+    || !props.targetDb || !activeCollectionName.value) return;
+  // Invalidate all prior reads and approvals before capturing this one recovery attempt.
+  clearResourcePayload();
+  const context = captureContext();
+  const requestId = ++recoveryRequestId;
+  permissionRecoveryBusy.value = true;
+  errorMsg.value = '';
+  const request: DocumentFindRequest = { limit: 100, skip: 0, collation: 'ordinal' };
+  const command = `documents.find ${context.collection}\n${JSON.stringify(request, null, 2)}`;
+  const started = performance.now();
+  try {
+    const response = await findDocuments(context.api, context.database, context.collection, request);
+    if (requestId !== recoveryRequestId || !isCurrentContext(context) || props.permissionDenied) return;
+    if (response.collection !== context.collection || !Array.isArray(response.documents)
+      || response.documents.length > request.limit!
+      || typeof response.hasMore !== 'boolean'
+      || !response.documents.every((item) => item && typeof item.id === 'string'
+        && Number.isFinite(item.version) && Object.hasOwn(item, 'document'))) {
+      throw new Error('读取权限验证返回了无效的集合响应。');
+    }
+    queryTab.value = 'find';
+    activeView.value = 'documents';
+    inspectorTab.value = 'detail';
+    idsText.value = '';
+    filterText.value = '';
+    queryConditions.value = [];
+    projectionText.value = '';
+    sortText.value = '';
+    limit.value = 100;
+    skip.value = 0;
+    queryCollation.value = 'ordinal';
+    permissionFailure.value = false;
+    syncCollectionValidator(activeCollection.value);
+    applyFindResponse(response, false, performance.now() - started, command);
+  } catch {
+    if (requestId !== recoveryRequestId || !isCurrentContext(context) || props.permissionDenied) return;
+    // Keep every recovery failure opaque while the permission latch is still active.
+    errorMsg.value = '读取权限重新验证失败；旧写草稿与审批不会恢复。';
+    recordHistory('error', 'Document read permission recovery', 'find', command, errorMsg.value, 0, -1,
+      performance.now() - started, context, 'unknown');
+  } finally {
+    if (requestId === recoveryRequestId && isCurrentContext(context)) permissionRecoveryBusy.value = false;
+  }
+}
+
 function applyFindResponse(response: DocumentFindResponse, append: boolean, elapsed: number, command: string): void {
+  resultMode.value = 'find';
+  resultPreviewLimit.value = DocumentPreviewMaxRows;
   const mapped = response.documents.map(mapDocument);
   const merged = append ? mergeRows(rows.value, mapped) : mapped;
   rows.value = merged.slice(0, DocumentPreviewMaxRows);
@@ -1854,21 +1963,23 @@ function resultFromDocuments(items: DocumentRow[], elapsedMs: number): SqlResult
   };
 }
 
-function resultFromDistinct(response: DocumentDistinctResponse, elapsedMs: number): SqlResultSet {
+function resultFromDistinct(response: DocumentDistinctResponse, elapsedMs: number, previewLimit: number): SqlResultSet {
+  const values = response.values.slice(0, previewLimit);
   return {
     columns: ['path', 'value'],
-    rows: response.values.map((value) => [response.path, formatJson(value)]),
-    end: { type: 'end', rowCount: response.values.length, recordsAffected: -1, elapsedMs },
+    rows: values.map((value) => [response.path, formatJson(value)]),
+    end: { type: 'end', rowCount: values.length, recordsAffected: -1, elapsedMs, truncated: response.values.length > previewLimit },
     error: null,
     hasColumns: true,
   };
 }
 
 function resultFromAggregate(documents: unknown[], elapsedMs: number): SqlResultSet {
+  const preview = documents.slice(0, DocumentPreviewMaxRows);
   return {
     columns: ['row', 'json'],
-    rows: documents.map((document, index) => [index + 1, formatJson(document)]),
-    end: { type: 'end', rowCount: documents.length, recordsAffected: -1, elapsedMs },
+    rows: preview.map((document, index) => [index + 1, formatJson(document)]),
+    end: { type: 'end', rowCount: preview.length, recordsAffected: -1, elapsedMs, truncated: documents.length > DocumentPreviewMaxRows },
     error: null,
     hasColumns: true,
   };
@@ -1973,6 +2084,8 @@ function makeOperationId(prefix: string): string {
 }
 
 function errorToMessage(error: unknown, fallback: string): string {
+  // Permission error bodies may themselves contain denied document or validator data.
+  if (isPermissionError(error)) return '当前身份没有 Document 读取权限；请修复权限后显式重新验证读取。';
   if (error && typeof error === 'object') {
     const response = (error as { response?: { data?: unknown } }).response;
     if (response?.data && typeof response.data === 'object') {
@@ -2006,6 +2119,7 @@ function recordHistory(
   recordsAffected: number,
   elapsedMs: number,
   context = captureContext(),
+  completeness?: WorkbenchHistoryCompleteness,
 ): void {
   history.record({
     kind: action === 'find' || action === 'aggregate' || action === 'distinct' || action === 'count' ? 'query' : 'operation',
@@ -2022,6 +2136,7 @@ function recordHistory(
     rowCount,
     recordsAffected,
     elapsedMs,
+    completeness,
   });
 }
 
@@ -2031,6 +2146,8 @@ watch(selectedRow, (row) => {
 });
 
 function clearResourcePayload(): void {
+  contextEpoch += 1;
+  recoveryRequestId += 1;
   queryRequestId += 1;
   countRequestId += 1;
   writeRequestId += 1;
@@ -2039,6 +2156,7 @@ function clearResourcePayload(): void {
   queryBusy.value = false;
   countBusy.value = false;
   confirmBusy.value = false;
+  permissionRecoveryBusy.value = false;
   rows.value = [];
   selectedId.value = '';
   checkedRowKeys.value = [];
@@ -2049,6 +2167,8 @@ function clearResourcePayload(): void {
   latestResult.value = null;
   latestCommand.value = '';
   ranOnce.value = false;
+  resultMode.value = 'find';
+  resultPreviewLimit.value = DocumentPreviewMaxRows;
   editId.value = '';
   editJson.value = '{\n  \n}';
   importText.value = '';
@@ -2085,6 +2205,7 @@ watch(resourceIdentity, () => {
 watch(activeCollection, (collection) => {
   if (collection === loadedCollectionReference) return;
   loadedCollectionReference = collection;
+  if (permissionRecoveryBusy.value) clearResourcePayload();
   // A schema refresh replaces the object while preserving its identity. Keep
   // the import's completed/stopped progress and per-item errors visible.
   syncCollectionValidator(collection);
@@ -2097,6 +2218,21 @@ watch(activeCollection, (collection) => {
 watch(permissionDenied, (denied) => {
   if (!denied) return;
   clearResourcePayload();
+}, { flush: 'sync' });
+
+// Observe the external deny separately: the merged flag stays true while locally latched.
+watch(() => props.permissionDenied, () => {
+  clearResourcePayload();
+}, { flush: 'sync' });
+
+watch([() => auth.state, () => auth.state?.token, () => auth.api], () => {
+  // Authentication changes invalidate ABA responses but do not unlock a prior denial.
+  clearResourcePayload();
+  errorMsg.value = '';
+  if (activeCollection.value && props.targetDb && !permissionDenied.value) {
+    void runCount();
+    void runFind(false);
+  }
 }, { flush: 'sync' });
 
 watch(readOnly, (value) => {
@@ -2224,6 +2360,16 @@ watch(validatorAction, (action) => {
   padding: 20px;
   overflow: auto;
   background: var(--sndb-surface);
+}
+
+.document-permission-recovery {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
 }
 
 .document-body.is-focused .document-inspector {

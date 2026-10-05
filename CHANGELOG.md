@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-18 Document 读取恢复与高级预览（2026-10-06）**：本地 401/403 锁存后提供显式全新 Find100 验证；失败、会话/资源 ABA、Schema 刷新、外部无权限和卸载隔离迟返，旧草稿与审批不恢复或重放。权限及恢复错误正文不进入页面/历史。Aggregate 保留用户 pipeline 并追加末尾 1001 项输出上限；Distinct 按 1～1000 所选上限多取一个哨兵值，先截断再格式化/导出，历史记录实际预览数与完整性，清除旧 Find 游标。专属 Node 18/18、全 Web 169/169、TypeScript/Vite 与独立复核通过；浏览器结果见 M47 验证记录。既有真实 Kestrel HTTP 回归 3/3 作为独立兼容证据，新恢复/1001 请求的真实 Server 旅程、扫描/中间物化/字节预算、Advanced 子页及三宿主/安装/AOT/发布仍单列。
+
 - **M47 WB-17 Relation Table Workbench 迁移（2026-10-06）**：复用既有分页、行编辑、设计器与审批，补数据库/表原名身份和六态；SELECT 预览最多 200 行，连接/端点/会话/Schema 变化及卸载隔离迟返。HTTP 403 清载荷并锁存权限态；只读保留浏览、结果导出和纯 DDL，写子工作台受限。审批展示值及前后差异、绑定原上下文且仅确认一次；缺终态、损坏响应、传输异常及 HTTP 408/5xx 记 unknown，不重放旧审批。实际 SQL API/Axios 异步发送取消已取本地 adapter 证据；专属 Node 15/15、全 Web 161/161、TypeScript/Vite、Chrome 夹具 12/12 与独立复核通过；修复满页分页按钮被 Copilot 悬浮入口遮挡。真实 Server 权限、物化/字节预算、完整三宿主、安装、AOT 和发布继续独立验收。
 
 - **M47 WB-16 VS Code→Web 导航与认证证据（2026-10-06）**：登录返回统一校验内部管理路由并保留目标数据库/资源；显式 `SONNETDB_WEB_BASE_PATH` 联动 Vite 资产、路由、初始 API、本地连接及 SSE，默认根部署保持兼容。资源树按真实条目匹配活动分组，修复 `table:` 索引 id 错误展开 Tables 的问题。专属 Node 9/9、全 Web 146/146、扩展 Node 20/20、根/代理两次 TypeScript/Vite 构建、浏览器两部署各17/17及独立复核通过；本机真实 Extension Host 调用13节点命令并在外部开启边界捕获链接。九模型/index/backup、原名/冒号、跨库同名MQ、导航字段白名单及草稿不执行已取本地证据；Measurement/Relation既有只读预览单列。真实Server认证/权限、实际代理部署、远程SSE、同origin跨部署存储隔离、VSIX与发布仍独立验收。

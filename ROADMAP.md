@@ -25,7 +25,7 @@
 |---|---|---|---|
 | M47 WB-00～WB-10 | 🟢 | 设计基线、原型交互/状态合同、资源身份、导航/Explorer 兼容、结果/审批工作流、外壳迁移与深链接切片均已提交；提交哈希和测试见 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md)。 | 全量九模型页面、真实 Server 旅程、Studio/VS Code/安装/发布证据仍待补。 |
 | M47 WB-11 Measurement Workbench | 🟡 | 页面基线已确认；六态、查询/刷新/导出、写审批、数据库与原始 measurement 身份兼容已完成本地实现与验证，提交 `390ff526`。 | 真实 Server 权限矩阵、三宿主、安装、发布和全量九模型证据。 |
-| M47 WB-12 Document Workbench | 🟡 | 生产组件身份/六态/异步与审批隔离切片已提交 `54c78755`；Node10/10、全Web127/127、TypeScript/Vite与Document浏览器7/7。 | 403安全恢复、高级读取预算、真实Server权限和全量九模型。 |
+| M47 WB-12/WB-18 Document Workbench | 🟡 | WB-12 生产组件身份/六态/异步与审批隔离已提交 `54c78755`；WB-18 补显式 Find100 权限恢复、Aggregate/Distinct 输出预算与安全错误隔离，专属 Node18/18、全Web169/169、TypeScript/Vite、Chrome11/11、真实 Kestrel 既有 Document HTTP 回归3/3。 | 真实 Server 新恢复/1001 旅程、扫描/中间物化/字节预算、Advanced 子页与全量九模型。 |
 | M47 WB-13 Studio宿主合同 | 🟡 | 真实bridge身份/URL与Managed Local生命周期合同已提交 `74835847`，Release定向34/34；客户端消费由WB-15另验。 | 干净Windows/WebView2、安装与发行物。 |
 | M47 WB-14 VS Code资源导航 | 🟡 | 九模型/index/backup资源与Web导航入口已提交 `e7cf2fe5`，Node20/20与本机Extension Host注册检查；浏览器回选/认证夹具由WB-16补证据。 | 真实Server权限、外部OS浏览器交接、VSIX与发布。 |
 | M47 WB-15 Studio客户端 | 🟡 | 宿主身份/lifecycle、保守操作门禁与迟返隔离已提交 `e1f93a69`；Node10/10、全Web137/137、Studio定向40/40、TypeScript/Vite与浏览器夹具8/8。 | 真实Server、WebView2/干净Windows、安装与三宿主全旅程；旧Header与完整Explorer异步组合另验。 |

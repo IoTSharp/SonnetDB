@@ -241,3 +241,10 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 代码提交前最终完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均退出 0，Format Check 仅既有 workspace 加载提示；最终 staged diff check 通过。返修和 CSS 改动后未沿用旧门禁。共享交接文档提交在最终文档树另执行同一完整门禁。
 - 有界 runner 规格 30～900 秒、最多 1800 次轮询/192 个自有进程，记录 PID/创建时间/完整命令/父链并 finally 核身份清理自有树。代码门禁后核验 **46** 个已跟踪身份，**0** 个任务进程存活；最终文档门禁完成后另核验。规格、日志和 cleanup-status 作为验证证据保留于 `D:\source\SonnetDB\artifacts\wb17-validation-20261006`，未创建新的临时目录；旧策略保留的两处 Temp 目录不删除、不换工具绕过。子代理无临时对象/长进程。
 - 仍未验收：真实 Server 权限与事务/终态旅程、Server 物化/字节预算、安全子页完整权限、三宿主/九模型全旅程、安装升级卸载、AOT、固定硬件/长稳、AI/MCP 与发布。下一次为 WB-18，heartbeat 保持 ACTIVE；未 push、发布、部署或外部沟通，`origin/parity-results` 不合并或改写。
+
+## WB-18 Document 读取恢复与高级预览预算（2026-10-06）
+
+- 从干净 `5dec4282` 接续；三个专属代理分别实施 Document 组件/Node 合同、浏览器证据和独立只读复核。生产实现仅修改 `DocumentCollectionWorkbench.vue` 与其专属 Node 测试；浏览器证据新增 `document-recovery-budget.spec.ts`。没有修改 Server API、DocumentAdvancedWorkbench 的更新/索引/Change Feed、路由或其它宿主。
+- HTTP 401/403 后保持 permission 并清除行、字段、结果、旧游标、写草稿和审批。显式“重新验证读取权限”只发当前数据库/原名集合、当前 profile/endpoint/auth/epoch 的全新 Find `{ limit: 100, skip: 0, collation: "ordinal" }`；不恢复旧过滤器、投影、排序或写操作。成功校验集合原名、文档数组、`id/version/document` 形状和最多 100 项后才解除锁存；失败、迟返、Schema/认证/数据库 ABA、外部 permissionDenied 和卸载均不能解锁。恢复失败使用固定提示，不把响应正文写入页面或历史。
+- Aggregate 保留用户 pipeline 并在末尾追加 `$limit: 1001`，Distinct 将 1～1000 的所选预览上限加一个哨兵值；结果先截断再格式化，最多显示/导出 1000 或所选上限，历史记录实际 preview count 与 `complete/truncated`，无 continuation 或虚构下一页。页面明确这些只约束输出/客户端预览，不代表服务端扫描、中间物化、字节或总堆预算。
+- 验证：专属 Node **18/18**；全 Web Node **169/169**；最终 TypeScript/Vite build 通过；Chrome/BrowserDirect、单 worker、retries=0 的恢复/迟返/readonly/审批清载荷/Aggregate/Distinct/导出/history 夹具 **11/11**；既有真实 Kestrel `DocumentEndpointTests` HTTP CRUD、权限与 Aggregate 回归 **3/3**。Node、Chrome 与 build 使用有界 runner，记录 PID/创建时间/完整命令/父链并 finally 只回收自有树；最终文档门禁另行执行。真实 Server 新恢复/1001 旅程、服务端物化/字节预算、Advanced 子页、三宿主、安装/AOT/固定硬件/长稳/发布仍未验收。

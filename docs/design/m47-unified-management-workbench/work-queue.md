@@ -97,9 +97,16 @@
 | WB-15 | Studio Web 客户端消费真实 bridge 身份与生命周期合同，复用现有 native bridge、连接库和 Managed Local UI | 已提交 `e1f93a6995e6e1e24e1badfaefb2eb918f31393a`；五客户端文件与专属 Node 测试由 `/root/wb15_client_inventory` 实施，`web/e2e/studio-host-client.spec.ts` 由专属夹具代理实施，另一代理独立只读复核PASS。依赖WB-13；原名身份、external/owned/stopped/failed/canStop与未知合同保守门禁、bootstrap/status/save迟返、同ID endpoint认证同步和目录ABA均已收口；保存串行、宿主确认且无回授循环。专属Node10/10、全Web137/137、Studio三类定向40/40、TypeScript/Vite和StudioNative浏览器夹具8/8通过；代码最终完整restore/Format Check与staged diff check退出0。真实Server、干净Windows/WebView2、安装升级卸载、未使用旧Header及完整Explorer异步组合仍独立验收。 |
 | WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 已提交 `0bb628adde45ad160f05a67057f098fa982c4f85`，依赖WB-14与WB-08～WB-10。九模型/index/backup、原名/冒号、同名MQ、登录返回、显式base/SSE及index分组收口；Node9/9、全Web146/146、扩展20/20、根/代理构建、两部署浏览器各17/17、真实Host13节点命令调用、独立复核和代码最终完整门禁通过。真实Server权限、真实代理部署/远程SSE/同origin存储隔离与VSIX发布单列。 |
 | WB-17 | Relation Table Workbench 的身份、六态与预览/审批 | 已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`，依赖 WB-11/WB-12/WB-16；复用分页/设计器/审批。原名、200 行预览、会话/Schema/迟返隔离、403 锁存、一次审批及 unknown 终态收口；Node15/15、全Web161/161、TypeScript/Vite、Chrome12/12、既有设计器2/2、独立复核及代码最终完整门禁通过。readonly 仅安全 DDL/浏览/结果导出；真实Server权限、物化/字节预算、三宿主和发行物另验。 |
-| WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 依赖 WB-12；当前403会清理载荷并保持 permission，same-identity schema刷新不解除；新增恢复动作须先确定合同，读取重试不得恢复旧写审批。Aggregate/Distinct 仍沿用原结果路径，不能把 Find 1000预览预算宣称为所有路径预算。 |
+| WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 已完成并提交 `1e0930a1`；干净起点 `5dec4282`，依赖 WB-12。恢复与读取预算合同、专属文件归属和验收条件见下方检查点。 |
 
-WB-15～WB-17已按各自本地范围闭环；下一项为已授权的 WB-18，尚未实现。M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
+WB-15～WB-18已按各自本地范围闭环；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。
+
+### WB-18 合同与文件冻结（2026-10-06；已完成）
+
+- 恢复合同：本地 401/403 锁存后仅显式“重新验证读取权限”可发起一次全新 Find，默认空过滤、100 行、无旧游标。运行期间保持 permission 且隐藏载荷；仅当前 database/原名集合/profile/endpoint/auth/epoch 的有效成功响应解除本地锁存。失败、迟返、卸载和身份 ABA 不解除；外部 permissionDenied 不能被本地动作覆盖。恢复不还原旧写草稿/审批、不自动执行写入，不恢复旧高级查询或 Change Feed。
+- 高级读取合同：Aggregate 保留用户 pipeline 并在末尾追加 `$limit: 1001`；Distinct 将用户预览上限限制为 1～1000，请求多一个哨兵值。两条路径最多格式化/展示/导出 1000 项（Distinct 为所选上限），超限明确 truncated，历史记录实际预览数与不完整性。不得把末尾 limit 称为服务端扫描/中间物化/字节/总堆预算；不提供虚构分页。
+- 实施代理独占 `web/src/components/DocumentCollectionWorkbench.vue`、`web/tests/document-workbench-migration.test.mjs`；UI 证据代理独占新增 `web/e2e/document-recovery-budget.spec.ts`；独立复核只读。`DocumentAdvancedWorkbench.vue` 的更新/索引/Change Feed、Server API、路由与其它宿主保持独立验收，不重复包装 WB-12。
+- 根独占共享文档、兼容证据盘点、验证 runner、完整 restore/format、stage 和 commit。最多三个活动子代理；每代理最多 25 个命名文件、25 分钟、测试最多两次，根整体验证各命令另设超时。静态/fixture、真实 Server、三宿主/安装/AOT/发布证据分别记录；旧策略保留目录只读复用 runner，不触碰删除。
 
 ## 会话与自动检查（2026-10-06已转移）
 

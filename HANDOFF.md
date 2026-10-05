@@ -7,6 +7,11 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-18 已完成并提交 `1e0930a1948aafb40f80ee56d6014689aa323575`（`feat(m47): add document recovery and advanced read budgets`）：从干净 `5dec4282` 接续，实施 `DocumentCollectionWorkbench.vue` 与专属 Node 测试，浏览器证据新增 `web/e2e/document-recovery-budget.spec.ts`。HTTP 401/403 后保持 permission 并清除所有文档载荷、游标、写草稿和审批；显式恢复只发当前身份的空过滤 Find100，成功校验集合/文档形状后解除，失败、迟返、Schema/认证/数据库 ABA、外部 deny 和卸载均不能解锁。恢复错误正文固定脱敏提示。
+- Aggregate 保留用户 pipeline 并末尾追加 `$limit: 1001`；Distinct 使用所选 1～1000 上限加一个哨兵值。结果先截断再格式化/导出，历史写入实际 preview count 与 completeness，清除旧 Find 分页状态；页面明确不代表 Server 扫描、中间物化、字节或总堆预算，也不提供虚构 continuation。DocumentAdvancedWorkbench 更新/索引/Change Feed、Server API、路由和其它宿主未改。
+- 最终本地证据：专属 Node **18/18**，全 Web Node **169/169**，TypeScript/Vite build 通过，Chrome/BrowserDirect **11/11**（恢复、错误载荷清除、迟返/ABA、readonly/审批、Aggregate/Distinct cap+1、导出与历史），既有真实 Kestrel Document HTTP 回归 **3/3**。Node/build/Chrome 使用有界 runner，PID/创建时间/完整命令/父链已记录并 finally 回收自有树；规格、日志、UI 输出在 `D:\source\SonnetDB\artifacts\wb18-validation-20261006`。提交前最终 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均退出0，staged diff check通过。
+- WB-18 的独立只读复核最终 PASS；真实 Server 新恢复/1001 旅程、服务端扫描/物化/字节预算、Advanced 子页、完整九模型、三宿主、安装、AOT、硬件/长稳和发布仍未验收。heartbeat 保持 ACTIVE，下一项按队列选择，不因本地切片 PASS 暂停整体研发；不 push、发布、部署或外部沟通，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`。
+
 - WB-17 从干净 `fefcc72e` 接续，代码已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`（`feat(m47): migrate Relation Workbench with isolated approval outcomes`）。只改 Relation 组件、专属 Node/UI 测试和 CHANGELOG；三名专属实施/浏览器夹具/独立只读复核代理均已结束。database/表原名/旧 key、六态、200 行预览、迟返与审批隔离完成本地切片，未重做设计器或修改 Server/宿主。
 - 专属 Node **15/15**、全 Web **161/161**、最终根 base `/` 的 TypeScript/Vite、Chrome **12/12**、既有设计器 **2/2** 与独立复核通过。UI 初轮 **10/12** 不计完成证据：真实 Copilot FAB 遮挡 Next，已为分页栏留右侧空间；取消按钮选择器同时命中 header/footer，已限定 footer，复验保留真实指针点击。
 - HTTP 403（含无 code 的 `http_403`）清除行/字段/结果/草稿/审批并锁存；同身份 Schema 刷新不能解除权限态。审批展示参数值及前后差异，Schema/主键/profile/endpoint/auth/只读变化失效；首次预览缓存、双确认与 Axios 异步 Token 分派竞态已收口。缺终态、损坏响应、传输异常及 HTTP 408/5xx 记录 `unknown`，历史绑定发起时上下文，不重放原审批；客户端 abort 不等于 Server 已取消。

@@ -33,7 +33,7 @@ async function loadWorkbench(overrides = {}, getStudioNativeBridge = async () =>
   const connection = reactive({ activeProfileId: 'Profile:A', activeBaseUrl: '/', activeProfile: { name: 'Connection A' } });
   const historyEntries = [];
   const cleanups = [];
-  const auth = { api: {} };
+  const auth = reactive({ api: {}, state: { token: 'Token:A', username: 'reader', isSuperuser: false } });
   const documents = {
     aggregateDocuments: async () => ({ documents: [], count: 0 }),
     bulkWriteDocuments: async () => ({ collection: 'Device:Profiles', inserted: 1 }),
@@ -75,14 +75,16 @@ async function loadWorkbench(overrides = {}, getStudioNativeBridge = async () =>
     editId, editJson, importText, importMode, importProgress, importErrors, errorMsg, importFileInput,
     onImportFileSelected, pickImportFile, cancelDocumentImport, pendingOperations, previewPlan, permissionDenied, hasMore, canLoadNext,
     runFind, runCount, runDistinct, runAggregate, stageInsertDocument, stageDeleteSelected, stageImportDocuments,
-    confirmPendingOperations, applyFindResponse, clearResourcePayload, captureContext, parseImportDocuments };`;
+    confirmPendingOperations, applyFindResponse, clearResourcePayload, captureContext, parseImportDocuments,
+    recoverReadPermission, permissionRecoveryBusy, permissionFailure, activeView, queryTab, idsText, filterText,
+    projectionText, sortText, continuationToken, limit, skip, aggregateText, distinctLimit, resultPreviewLimit, totalCount };`;
   const module = new SourceTextModule(stripTypeScriptTypes(`import { props as fixtureProps } from 'fixture';\n${injected}\n${script}\n${exports}`, { mode: 'transform' }), { identifier: sourcePath.href });
   await module.link((specifier) => {
     assert.ok(dependencies[specifier], `Unexpected dependency: ${specifier}`);
     return dependencies[specifier];
   });
   await module.evaluate({ timeout: 3000 });
-  return { ...module.namespace, props, connection, historyEntries, cleanup: () => cleanups.forEach((item) => item()) };
+  return { ...module.namespace, props, connection, auth, historyEntries, cleanup: () => cleanups.forEach((item) => item()) };
 }
 
 test('Document migration keeps database/original collection identity and the existing shell, tabs and approvals', { timeout: 5000 }, () => {
@@ -310,5 +312,261 @@ test('current permission failures clear document payload and ordinary failures e
     assert.equal(workbench.documentState.value, 'permission');
     assert.equal(workbench.rows.value.length, 0);
     assert.equal(workbench.pendingOperations.value.length, 0);
+  } finally { workbench.cleanup(); }
+});
+
+const forbidden = { response: { status: 403, data: { code: 'forbidden', message: 'denied-secret-payload' } } };
+
+test('permission recovery is a single explicit empty Find100 and never restores write approvals', { timeout: 5000 }, async () => {
+  const response = deferred();
+  const requests = [];
+  let denied = false;
+  let recovery = false;
+  let writes = 0;
+  const workbench = await loadWorkbench({
+    findDocuments: async (_api, database, name, request) => {
+      requests.push({ database, name, request });
+      if (recovery) return response.promise;
+      if (denied) throw forbidden;
+      return { ...findResponse('initial'), continuationToken: 'old-cursor', hasMore: true };
+    },
+    insertOneDocument: async () => { writes += 1; return { inserted: 1 }; },
+  });
+  try {
+    workbench.props.collection = collection();
+    await nextTick();
+    await nextTick();
+    workbench.editId.value = 'old-write';
+    workbench.editJson.value = '{"oldDraft":true}';
+    workbench.stageInsertDocument();
+    assert.ok(workbench.previewPlan.value);
+    workbench.activeView.value = 'query';
+    workbench.queryTab.value = 'aggregate';
+    workbench.idsText.value = 'old-id';
+    workbench.filterText.value = '{"path":"$.secret"}';
+    workbench.projectionText.value = '[{"path":"$.secret"}]';
+    workbench.sortText.value = '$.secret desc';
+    workbench.skip.value = 99;
+    denied = true;
+    await workbench.runFind(false);
+    assert.equal(workbench.documentState.value, 'permission');
+    assert.equal(workbench.previewPlan.value, null);
+    assert.equal(workbench.errorMsg.value.includes('denied-secret-payload'), false);
+    assert.equal(JSON.stringify(workbench.historyEntries).includes('denied-secret-payload'), false);
+    const readCount = requests.length;
+    workbench.props.collection = collection();
+    workbench.auth.state = { ...workbench.auth.state, token: 'Token:repaired' };
+    await workbench.runFind(false);
+    assert.equal(requests.length, readCount, 'schema/auth refresh cannot bypass explicit recovery');
+    recovery = true;
+    const attempt = workbench.recoverReadPermission();
+    await workbench.recoverReadPermission();
+    assert.equal(requests.length, readCount + 1);
+    assert.deepEqual(requests.at(-1), { database: 'North:DB', name: 'Device:Profiles', request: { limit: 100, skip: 0, collation: 'ordinal' } });
+    assert.equal(workbench.permissionRecoveryBusy.value, true);
+    assert.equal(workbench.documentState.value, 'permission');
+    assert.equal(workbench.latestResult.value, null);
+    response.resolve(findResponse('fresh-read'));
+    await attempt;
+    assert.equal(workbench.permissionDenied.value, false);
+    assert.equal(workbench.rows.value[0].id, 'fresh-read');
+    assert.equal(workbench.activeView.value, 'documents');
+    assert.equal(workbench.queryTab.value, 'find');
+    assert.equal(workbench.idsText.value, '');
+    assert.equal(workbench.filterText.value, '');
+    assert.equal(workbench.projectionText.value, '');
+    assert.equal(workbench.sortText.value, '');
+    assert.equal(workbench.continuationToken.value, '');
+    assert.equal(workbench.pendingOperations.value.length, 0);
+    await workbench.confirmPendingOperations();
+    assert.equal(writes, 0);
+  } finally { workbench.cleanup(); }
+});
+
+test('recovery failures and malformed or wrong-collection HTTP200 responses remain permission without payloads', { timeout: 5000 }, async () => {
+  for (const result of [new Error('network failed'), forbidden,
+    { response: { status: 503, data: { message: 'denied-secret-payload' } } },
+    { ...findResponse('secret'), collection: 'Other' },
+    { ...findResponse('secret'), documents: [{ id: 'bad', document: {} }] }]) {
+    let recovering = false;
+    const workbench = await loadWorkbench({ findDocuments: async () => {
+      if (!recovering) throw forbidden;
+      if (result instanceof Error || result.response) throw result;
+      return result;
+    } });
+    try {
+      workbench.props.collection = collection();
+      await nextTick();
+      await nextTick();
+      recovering = true;
+      await workbench.recoverReadPermission();
+      assert.equal(workbench.permissionDenied.value, true);
+      assert.equal(workbench.permissionRecoveryBusy.value, false);
+      assert.equal(workbench.rows.value.length, 0);
+      assert.equal(workbench.latestResult.value, null);
+      assert.equal(workbench.pendingOperations.value.length, 0);
+      assert.equal(workbench.errorMsg.value.includes('denied-secret-payload'), false);
+      assert.equal(JSON.stringify(workbench.historyEntries).includes('denied-secret-payload'), false);
+    } finally { workbench.cleanup(); }
+  }
+});
+
+test('auth ABA, database ABA, external deny ABA and unmount invalidate recovery successes', { timeout: 5000 }, async () => {
+  for (const change of ['auth', 'database', 'external', 'unmount']) {
+    const pending = deferred();
+    let recovering = false;
+    let recoveryCalls = 0;
+    const workbench = await loadWorkbench({ findDocuments: async () => {
+      if (!recovering) throw forbidden;
+      recoveryCalls += 1;
+      return recoveryCalls === 1 ? pending.promise : Promise.reject(forbidden);
+    } });
+    try {
+      workbench.props.collection = collection();
+      await nextTick();
+      await nextTick();
+      recovering = true;
+      const attempt = workbench.recoverReadPermission();
+      if (change === 'auth') {
+        const state = workbench.auth.state;
+        workbench.auth.state = { ...state, token: 'Token:B' };
+        workbench.auth.state = state;
+      } else if (change === 'database') {
+        workbench.props.targetDb = 'South:DB';
+        workbench.props.targetDb = 'North:DB';
+      } else if (change === 'external') {
+        workbench.props.permissionDenied = true;
+        workbench.props.permissionDenied = false;
+      } else workbench.cleanup();
+      await nextTick();
+      await nextTick();
+      pending.resolve(findResponse('stale-recovery-secret'));
+      await attempt;
+      assert.equal(workbench.rows.value.length, 0, change);
+      assert.equal(workbench.latestResult.value, null, change);
+      assert.equal(workbench.permissionDenied.value, true, change);
+      assert.equal(workbench.permissionRecoveryBusy.value, false, change);
+    } finally { workbench.cleanup(); }
+  }
+});
+
+test('an external permission denial cannot be overridden by the local recovery action', { timeout: 5000 }, async () => {
+  let calls = 0;
+  const workbench = await loadWorkbench({ findDocuments: async () => { calls += 1; throw forbidden; } });
+  try {
+    workbench.props.collection = collection();
+    await nextTick();
+    await nextTick();
+    workbench.props.permissionDenied = true;
+    const count = calls;
+    await workbench.recoverReadPermission();
+    assert.equal(calls, count);
+    assert.equal(workbench.permissionDenied.value, true);
+  } finally { workbench.cleanup(); }
+});
+
+test('old Count success or permission failure cannot replace or relock a recovered Find result', { timeout: 5000 }, async () => {
+  for (const countFails of [false, true]) {
+    const count = deferred();
+    let recovered = false;
+    const workbench = await loadWorkbench({ countDocuments: () => count.promise,
+      findDocuments: async () => { if (!recovered) throw forbidden; return findResponse('recovered'); } });
+    try {
+      workbench.props.collection = collection();
+      await nextTick();
+      await nextTick();
+      recovered = true;
+      await workbench.recoverReadPermission();
+      if (countFails) count.reject(forbidden);
+      else count.resolve({ collection: 'Device:Profiles', count: 999 });
+      await nextTick();
+      await nextTick();
+      assert.equal(workbench.permissionDenied.value, false);
+      assert.equal(workbench.rows.value[0].id, 'recovered');
+      assert.equal(workbench.latestResult.value.columns[0], 'id');
+      assert.equal(workbench.totalCount.value, null);
+    } finally { workbench.cleanup(); }
+  }
+});
+
+test('Aggregate appends its output sentinel without mutating pipeline and slices before formatting or export', { timeout: 5000 }, async () => {
+  const requests = [];
+  let sentinelFormatted = false;
+  const sentinel = { toJSON() { sentinelFormatted = true; return 'never-format-sentinel'; } };
+  const workbench = await loadWorkbench({ aggregateDocuments: async (_api, _db, _name, request) => {
+    requests.push(request);
+    return { documents: [...Array.from({ length: 1000 }, (_, index) => ({ value: index })), sentinel], count: 9999 };
+  } });
+  try {
+    workbench.props.collection = collection();
+    await nextTick();
+    await nextTick();
+    workbench.applyFindResponse({ ...findResponse('old-find'), hasMore: true, continuationToken: 'old-cursor' }, false, 1, 'find');
+    const original = '[{"$limit":20},{"$sort":[{"path":"$.value","descending":true}]}]';
+    workbench.aggregateText.value = original;
+    await workbench.runAggregate();
+    assert.deepEqual(requests[0].pipeline, [{ $limit: 20 }, { $sort: [{ path: '$.value', descending: true }] }, { $limit: 1001 }]);
+    assert.equal(workbench.aggregateText.value, original);
+    assert.equal(workbench.latestResult.value.rows.length, 1000);
+    assert.equal(workbench.latestResult.value.end.truncated, true);
+    assert.equal(workbench.resultPreviewLimit.value, 1000);
+    assert.equal(sentinelFormatted, false);
+    assert.equal(workbench.canLoadNext.value, false);
+    assert.equal(workbench.continuationToken.value, '');
+    assert.equal(workbench.rows.value.length, 0);
+    const entry = workbench.historyEntries.at(-1);
+    assert.equal(entry.rowCount, 1000);
+    assert.equal(entry.completeness, 'truncated');
+    workbench.aggregateText.value = '{}';
+    await workbench.runAggregate();
+    assert.equal(requests.length, 1, 'non-array input is rejected before API invocation');
+  } finally { workbench.cleanup(); }
+});
+
+test('Distinct clamps finite integer preview limits and requests one sentinel with accurate history completeness', { timeout: 5000 }, async () => {
+  const requests = [];
+  let overflowFormatted = false;
+  const workbench = await loadWorkbench({ distinctDocuments: async (_api, _db, _name, request) => {
+    requests.push(request);
+    return { path: '$.site', values: [...Array.from({ length: request.limit - 1 }, (_, index) => index),
+      { toJSON() { overflowFormatted = true; return 'overflow'; } }] };
+  } });
+  try {
+    workbench.props.collection = collection();
+    await nextTick();
+    await nextTick();
+    for (const [input, expectedCap] of [[2000, 1000], [0, 1], [2.9, 2], [null, 50], [Number.POSITIVE_INFINITY, 50]]) {
+      workbench.distinctLimit.value = input;
+      await workbench.runDistinct();
+      assert.equal(requests.at(-1).limit, expectedCap + 1);
+      assert.equal(workbench.latestResult.value.rows.length, expectedCap);
+      assert.equal(workbench.resultPreviewLimit.value, expectedCap);
+      assert.equal(workbench.latestResult.value.end.truncated, true);
+      assert.equal(workbench.historyEntries.at(-1).rowCount, expectedCap);
+      assert.equal(workbench.historyEntries.at(-1).completeness, 'truncated');
+      assert.equal(workbench.canLoadNext.value, false);
+    }
+    assert.equal(overflowFormatted, false);
+  } finally { workbench.cleanup(); }
+});
+
+test('short and exact-cap advanced output remains complete and stores the returned preview count', { timeout: 5000 }, async () => {
+  const workbench = await loadWorkbench({
+    aggregateDocuments: async () => ({ documents: [{}], count: 999 }),
+    distinctDocuments: async () => ({ path: '$.site', values: ['one', 'two'] }),
+  });
+  try {
+    workbench.props.collection = collection();
+    await nextTick();
+    await nextTick();
+    await workbench.runAggregate();
+    assert.equal(workbench.historyEntries.at(-1).rowCount, 1);
+    assert.equal(workbench.historyEntries.at(-1).completeness, 'complete');
+    assert.equal(workbench.latestResult.value.end.truncated, false);
+    workbench.distinctLimit.value = 2;
+    await workbench.runDistinct();
+    assert.equal(workbench.historyEntries.at(-1).rowCount, 2);
+    assert.equal(workbench.historyEntries.at(-1).completeness, 'complete');
+    assert.equal(workbench.latestResult.value.end.truncated, false);
   } finally { workbench.cleanup(); }
 });
