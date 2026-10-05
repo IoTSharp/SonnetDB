@@ -216,3 +216,10 @@
 - 目标是设置与发布五个页面 `preferences`、`server-settings`、`studio-host`、`capability-matrix`、`about` 的 capabilities、六态 stateMatrix、专用字段和任务注入。需保留宿主范围/服务器配置只读、Studio 安装与 Extension Host 证据独立、manifest/签名未就绪不显示 PASS、版本来自真实发行物及诊断敏感字段预览边界。
 - 实施已完成：五页均补 capabilities、六态、normal.fields 与任务注入；`node --test web/tests/m47-settings-state-contract.test.mjs` 3/3，WB-02B–H 联合回归 20/20，两个 JS `node --check`、`git diff --check` 通过，独立只读复核 PASS。偏好、实例配置、Studio 宿主、发布矩阵和关于页的宿主/预算/敏感字段/真实发行物边界已固化；仍为 REVIEW_DRAFT 静态原型，不代表真实 Server、三宿主、安装、发布或生产迁移验收。
 - WB-02H 实现提交为 `175cf674`（`feat(m47): add settings and release state contracts`），交接哈希同步提交为 `68cd0154`（`docs(m47): record WB-02H commit checkpoint`）；两次提交前最终工作树均通过 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`。当前工作树干净，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`；WB-05 仍等待 `REVIEW_DRAFT` 设计确认，不能进入生产迁移。不得重复 WB-02H 或覆盖其它会话文件；不 push、不发布、不部署。
+
+## 当前 Workbench 检查点（WB-05，2026-10-05）
+
+- 用户已确认 M47 设计基线：外壳与布局、七个一级/二级导航、九模型统一数据库逻辑资源树、MQ `database + Topic` 身份与 `persistenceScope=instance` / `.system/mq` 物理边界、Graph Beta、共享对话框以及结果/草稿/历史/审批/六态语义。确认记录只授权按基线实施，不代表全量生产、真实 Server、三宿主、安装、发布或 AOT 验收；设计包状态更新为 `CONFIRMED_BASELINE`。
+- WB-05 已冻结两个无冲突文件范围并派出专属实现者：WB-05A 仅改 `web/src/stores/sqlConsole.ts`、`web/src/stores/workbenchHistory.ts`、`web/src/components/WorkbenchResultPanel.vue`、`web/src/components/WorkbenchHistoryDrawer.vue` 及自有测试；WB-05B 仅改 `web/src/components/WriteApprovalPanel.vue`、`web/src/utils/writeApproval.ts` 及自有测试。主会话独占 `CHANGELOG.md`、`HANDOFF.md`、`work-queue.md`、验证记录、集成、stage 和 commit；`SqlConsoleView.vue` 暂由根会话保留，避免切片冲突。
+- 目标边界：结果预算/截断和局部错误可见，草稿切页/关闭/重开与刷新边界明确，历史字段与恢复不重放；审批过期/权限变化/目标变化拒绝确认，取消或断连后的写结果标记 `unknown`/`pending`，不自动重试或重放，保留请求 ID、服务器终态和审计来源。静态原型、真实 Server、三宿主和发布证据继续分开。
+- 下一检查点：接收两个实现者报告和独立复核，串行集成根视图接线；完成窄测试、TypeScript/Node 检查、必要 UI 证据，再在最终树运行完整 restore/format 后提交。保留 `origin/parity-results`，不 push、不发布、不部署。

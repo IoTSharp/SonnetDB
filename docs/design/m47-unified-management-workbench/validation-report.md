@@ -1,6 +1,6 @@
 # M47 原型检查记录
 
-日期：2026-10-05（Asia/Shanghai）。结论：**可交付外轮廓、导航、典型页面与共享流程评审，仍为 REVIEW_DRAFT。** 用户尚未确认，生产前端实现未开始。
+日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
 ## 实际检查
 
@@ -124,7 +124,7 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - `node --test web/tests/explorer-routing-compat.test.mjs`：5/5 通过；覆盖 measurement/table/document/kv/mq/vector/fulltext/bucket/graph 的 `name: sql` + `tool/model/node` 深链接、先选择 database、index/backup 的 `{model,node}` legacy fallback、Open-in-SQL 的 measurement/table/document/index/vector/fulltext/backup 分支、KV/MQ/Bucket 当前排除，以及 route-only 不自动执行。
 - 与本轮其它静态合同/兼容测试联合为 21/21 通过（管理核心 6、Explorer 5、导航 5、本切片 5）。该证据只说明源码兼容基线，不代表 Vue 运行时、真实路由、Server、权限、三宿主或生产迁移已完成。
 
-下一步：先确认外壳和导航，再确认共享流程，随后按页面逐项定稿；只有确认的设计进入生产实现。
+下一步：按已确认基线推进 WB-05 结果/草稿/历史/审批切片；逐页最终像素、真实 Server、三宿主、安装、发布和 AOT 证据继续独立验收。
 
 ## MQ 导航更正（2026-10-05）
 
