@@ -98,9 +98,19 @@
 | WB-16 | VS Code → Web Workbench 的最终资源回选与认证边界证据 | 已提交 `0bb628adde45ad160f05a67057f098fa982c4f85`，依赖WB-14与WB-08～WB-10。九模型/index/backup、原名/冒号、同名MQ、登录返回、显式base/SSE及index分组收口；Node9/9、全Web146/146、扩展20/20、根/代理构建、两部署浏览器各17/17、真实Host13节点命令调用、独立复核和代码最终完整门禁通过。真实Server权限、真实代理部署/远程SSE/同origin存储隔离与VSIX发布单列。 |
 | WB-17 | Relation Table Workbench 的身份、六态与预览/审批 | 已提交 `f19782638789279e8099d7cbdf6f82b40cac12c0`，依赖 WB-11/WB-12/WB-16；复用分页/设计器/审批。原名、200 行预览、会话/Schema/迟返隔离、403 锁存、一次审批及 unknown 终态收口；Node15/15、全Web161/161、TypeScript/Vite、Chrome12/12、既有设计器2/2、独立复核及代码最终完整门禁通过。readonly 仅安全 DDL/浏览/结果导出；真实Server权限、物化/字节预算、三宿主和发行物另验。 |
 | WB-18 | Document 权限修复后的显式安全恢复入口与剩余高级读取/预算证据 | 已完成并提交 `1d9465fb`；干净起点 `5dec4282`，依赖 WB-12。恢复与读取预算合同、专属文件归属和验收条件见下方检查点。 |
-| WB-19 | FullText Workbench 上下文、权限载荷与预览预算 | 已完成本地实现与验证，从干净 `1d9465fb` 接续；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8、既有真实Kestrel兼容4/4与独立复核通过。本轮提交说明 `feat(m47): isolate FullText context and approval outcomes`，实际哈希以git log为准；提交须取得最终完整restore/format与staged diff check通过。真实权限/写终态、读取恢复与三宿主/发行物另验。 |
+| WB-19 | FullText Workbench 上下文、权限载荷与预览预算 | 已提交 `2f9a5477`，从干净 `1d9465fb` 接续；专属Node15/15、全Web184/184、TypeScript/Vite、Chrome8/8、既有真实Kestrel兼容4/4、独立复核与最终完整门禁通过。真实权限/写终态、读取恢复与三宿主/发行物另验。 |
+| WB-20 | Vector Workbench 原始向量检索上下文、权限载荷与Top-K预览 | 从干净 `2f9a5477` 接续，依赖WB-11/WB-16与既有Vector API；原名/六态、请求快照、401/403及空Schema锁存、Top-K100与子页门禁完成本地切片。专属Node17/17、全Web201/201、TypeScript/Vite、Chrome10/10、既有导入回归1/1、真实Kestrel兼容3/3与独立复核通过；本轮提交说明 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以git log为准，最终完整门禁为提交前置。索引Profile、真实权限/恢复/预算与三宿主/发行物另验。 |
 
-WB-15～WB-19已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面，先冻结一个有界任务再派单；本轮不启动下一切片。
+WB-15～WB-20已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面，先冻结一个有界任务再派单；本轮不启动下一切片。
+
+### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 实施代理独占 `web/src/components/VectorSearchWorkbench.vue` 和新增 `web/tests/vector-workbench-migration.test.mjs`；UI代理独占新增 `web/e2e/vector-workbench-migration.spec.ts`；独立复核只读。根独占六个共享文档、验证runner、完整restore/format、stage和commit；最多三个活动子代理，每代理最多25个命名文件、35分钟、无自跑长验证，根统一执行有界验证。
+- 保留database、measurement/column原名和现有内部`${measurement}:${column}`选择键；外层Explorer的`vector:measurement:column` key不改。六态、只读/无权限、发起profile/实际endpoint/auth/Schema/epoch/API和参数快照隔离迟返、同名跨库、ABA、新查询和卸载；401/403清命中/metadata/生成向量/结果，保留用户raw/text/filter输入，同身份刷新不解锁，显式安全恢复另验。
+- 原始向量须有限且维度匹配；Top-K沿用Server1～100，先截断再格式化/显示/导出，历史绑定发起身份及实际preview count/完整性，不新增哨兵或continuation。服务端扫描/中间物化/字节/总堆、Recall和真实模型质量独立验收。
+- 既有`embed-preview`只返回vector/dimension且未给出所选索引的显式Profile绑定。本轮不伪造Profile，不用图片语义搜索status代替，不调用未验证的隐式文本embedding；文本入口明确Profile未就绪并保留raw路径，Profile合同留后续，不改变Server或Provider实现。
+- 数据编辑/导入继续复用MeasurementWorkbench；按资源/身份/Schema代际key重建子页，使旧草稿/审批不能跟随新上下文；传递readonly/permission门禁，不重新迁移子页写执行器或声称其完整写终态/权限旅程已验收。Server、路由、其它模型、三宿主代码与策略保留Temp目录不改。
+- 两名实际专属代理分别独占组件/Node与UI spec；UI代理在自身交付冻结后独立只读复核组件/Node，根集中取得最终运行证据。空Schema→同资源恢复不解除deny；最终Node17/17、全Web201/201、Chrome10/10、既有Vector导入1/1、build与独立复核通过。初轮UI9/10、下一轮8/10均为抽屉定位/Chart模式夹具缺口，修后真实打开Raw、断言旧载荷可见及deny后目标panel0，未降低断言。真实Kestrel兼容3/3单列，证据与门禁/清理见validation-report。
 
 ### WB-19 合同与文件冻结（2026-10-06；本地切片已验证）
 

@@ -1,13 +1,20 @@
 <template>
-  <main class="vector-workbench" data-testid="workbench-vector">
+  <main
+    class="vector-workbench"
+    data-testid="workbench-vector"
+    :data-page-state="vectorState"
+    :data-database="contextSnapshot.database"
+    :data-resource-key="activeIndexKey"
+  >
     <section class="vector-toolbar">
       <div class="vector-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
           <n-tag size="small" type="warning" :bordered="false">Vector</n-tag>
           <n-text class="vector-toolbar__title">{{ activeIndexLabel || 'No vector index selected' }}</n-text>
-          <n-tag v-if="activeIndex" size="tiny" :bordered="false">{{ activeIndex.kind }}</n-tag>
+          <n-tag v-if="activeIndex && !permissionDenied" size="tiny" :bordered="false">{{ activeIndex.kind }}</n-tag>
+          <n-tag size="tiny" :bordered="false" data-testid="vector-state">{{ vectorState }}</n-tag>
         </n-space>
-        <n-text depth="3" class="vector-toolbar__meta">
+        <n-text v-if="!permissionDenied" depth="3" class="vector-toolbar__meta">
           {{ targetDb || 'database' }} · dim {{ activeIndex?.dimension ?? '-' }} · {{ activeIndex?.metric ?? 'metric' }} · {{ formatStat(activeIndex?.rowCount) }} rows
         </n-text>
       </div>
@@ -17,15 +24,16 @@
           v-model:value="selectedIndexKey"
           size="small"
           :options="indexOptions"
-          :disabled="indexOptions.length === 0"
+          :disabled="permissionDenied || indexOptions.length === 0"
           class="vector-toolbar__index"
         />
-        <n-select v-model:value="metric" size="small" :options="metricOptions" class="vector-toolbar__metric" />
+        <n-select v-model:value="metric" size="small" :options="metricOptions" :disabled="permissionDenied" class="vector-toolbar__metric" />
         <n-input-number
           v-model:value="topK"
           size="small"
           :min="1"
           :max="100"
+          :disabled="permissionDenied"
           :show-button="false"
           placeholder="Top-K"
           class="vector-toolbar__topk"
@@ -33,7 +41,7 @@
         <n-button size="small" secondary :loading="loadingIndexes || searching" @click="$emit('refreshSchema')">
           Refresh
         </n-button>
-        <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
+        <n-button size="small" quaternary :disabled="permissionDenied" @click="historyVisible = true">History</n-button>
       </div>
     </section>
 
@@ -44,6 +52,17 @@
       @update:model-value="activeView = $event as VectorView"
     />
 
+    <n-text depth="3" class="vector-context" data-testid="vector-context">
+      {{ contextSnapshot.connectionName }} · {{ targetDb || 'database' }} · {{ activeIndexLabel || 'vector' }}
+      · preview Top-K 1–100
+    </n-text>
+    <n-alert v-if="permissionDenied" type="warning" class="vector-alert" data-testid="vector-permission-lock">
+      当前身份没有 Vector 读取权限，命中、标签、字段与结果已隐藏。安全读取恢复尚未就绪。
+    </n-alert>
+    <n-alert v-else-if="readOnly" type="info" class="vector-alert" data-testid="vector-readonly">
+      只读连接可检索与导出；数据编辑 / 导入禁止写入。
+    </n-alert>
+
     <n-alert
       v-if="errorMsg"
       type="error"
@@ -53,7 +72,7 @@
       @close="errorMsg = ''"
     />
 
-    <section class="vector-stats">
+    <section v-if="!permissionDenied" class="vector-stats">
       <article v-for="item in statItems" :key="item.label" class="vector-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
@@ -62,17 +81,20 @@
 
     <MeasurementWorkbench
       v-if="activeView === 'data'"
+      :key="dataWorkbenchKey"
       class="vector-data-workbench"
       :target-db="targetDb"
-      :measurement="measurement"
-      :measurements="measurement ? [measurement] : []"
+      :measurement="permissionDenied ? null : measurement"
+      :measurements="permissionDenied ? [] : measurement ? [measurement] : []"
       :tables="[]"
       :loading="loading"
+      :read-only="readOnly"
+      :permission-denied="permissionDenied"
       @refresh-schema="$emit('refreshSchema')"
     />
 
     <section v-else class="vector-body" :class="{ 'is-index-view': activeView === 'index' }">
-      <aside class="vector-indexes">
+      <aside v-if="!permissionDenied" class="vector-indexes">
         <div class="vector-panel-head">
           <div>
             <n-text class="vector-panel-head__title">Vector indexes</n-text>
@@ -112,7 +134,7 @@
             <n-button size="small" secondary :disabled="!canSearch" :loading="searching" @click="runSearch">
               Search
             </n-button>
-            <n-button size="small" quaternary :disabled="!queryVector.length" @click="copyVector">
+            <n-button size="small" quaternary :disabled="permissionDenied || !queryVector.length" @click="copyVector">
               Copy vector
             </n-button>
           </n-space>
@@ -133,24 +155,27 @@
               @blur="parseRawVector"
             />
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary @click="parseRawVector">Parse</n-button>
-              <n-button size="small" quaternary @click="fillZeroVector">Zero vector</n-button>
-              <n-button size="small" quaternary @click="clearVector">Clear</n-button>
+              <n-button size="small" secondary :disabled="permissionDenied" @click="parseRawVector">Parse</n-button>
+              <n-button size="small" quaternary :disabled="permissionDenied" @click="fillZeroVector">Zero vector</n-button>
+              <n-button size="small" quaternary :disabled="permissionDenied" @click="clearVector">Clear</n-button>
             </n-space>
           </template>
 
           <template v-else>
+            <n-alert type="info" :show-icon="false" data-testid="vector-profile-not-ready">
+              Text embed 未就绪：所选索引尚无可验证的 Embedding Profile。请使用维度匹配的原始向量。
+            </n-alert>
             <n-input
               v-model:value="embedText"
               type="textarea"
               :autosize="{ minRows: 5, maxRows: 10 }"
-              placeholder="Text to embed with the configured Copilot embedding provider"
+              placeholder="Text draft — requires an index-bound Embedding Profile"
             />
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary :disabled="!embedText.trim()" :loading="embedding" @click="embedTextToVector">
+              <n-button size="small" secondary disabled @click="embedTextToVector">
                 Embed text
               </n-button>
-              <n-button size="small" quaternary :disabled="!queryVector.length" @click="syncVectorToRaw">
+              <n-button size="small" quaternary :disabled="permissionDenied || !queryVector.length" @click="syncVectorToRaw">
                 Use as raw
               </n-button>
             </n-space>
@@ -166,7 +191,7 @@
             <n-tag size="small" :bordered="false" :type="dimensionState.type">{{ dimensionState.label }}</n-tag>
           </div>
 
-          <div class="vector-param-strip">
+          <div v-if="!permissionDenied" class="vector-param-strip">
             <span>
               <small>Query dim</small>
               <strong>{{ queryVector.length || '-' }}</strong>
@@ -186,6 +211,10 @@
           </div>
         </section>
 
+        <n-text depth="3" class="vector-preview-budget" data-testid="vector-preview-budget">
+          {{ hitsTruncated ? `truncated to ${hits.length} hits` : 'Top-K preview only' }}；仅显示当前预览，未声明全部匹配、服务端扫描或内存预算。
+        </n-text>
+
         <n-data-table
           :columns="hitColumns"
           :data="hitRows"
@@ -201,7 +230,7 @@
         />
       </section>
 
-      <aside class="vector-inspector">
+      <aside v-if="!permissionDenied" class="vector-inspector">
         <div class="vector-panel-head">
           <div>
             <n-text class="vector-panel-head__title">{{ activeView === 'search' ? '命中详情' : '索引参数' }}</n-text>
@@ -209,7 +238,7 @@
               {{ activeView === 'search' ? (selectedHit ? `rank ${selectedHit.rank}` : '尚未选择命中项') : activeIndexLabel }}
             </n-text>
           </div>
-          <n-tag v-if="selectedHit" size="tiny" :bordered="false">score {{ formatDistance(selectedHit.distance) }}</n-tag>
+          <n-tag v-if="selectedHit" size="tiny" :bordered="false">distance {{ formatDistance(selectedHit.distance) }}</n-tag>
         </div>
 
         <template v-if="activeView === 'search' && selectedHit">
@@ -250,6 +279,7 @@
     </section>
 
     <WorkbenchResultPanel
+      v-if="!permissionDenied"
       class="vector-result"
       title="Vector search result"
       :sql="latestCommand"
@@ -262,6 +292,7 @@
     />
 
     <WorkbenchHistoryDrawer
+      v-if="!permissionDenied"
       v-model:show="historyVisible"
       :active-database="targetDb"
       @select="openHistoryEntry"
@@ -270,7 +301,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -289,13 +321,15 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import type { VectorIndexStat } from '@/api/management';
+import { createApiClient } from '@/api/client';
 import type { MeasurementInfo } from '@/api/schema';
 import type { SqlResultSet } from '@/api/sql';
+import { quote } from '@/api/sql';
 import {
-  embedVectorText,
   searchVectorPreview,
   type KeyValueInfo,
   type VectorSearchPreviewHit,
+  type VectorSearchPreviewRequest,
 } from '@/api/vector';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import MeasurementWorkbench from '@/components/MeasurementWorkbench.vue';
@@ -305,8 +339,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import {
   useWorkbenchHistoryStore,
+  type WorkbenchHistoryCompleteness,
   type WorkbenchHistoryEntry,
 } from '@/stores/workbenchHistory';
+import { formatSqlIdentifier } from '@/utils/sqlWorkbench';
 
 const props = withDefaults(defineProps<{
   targetDb: string;
@@ -314,10 +350,16 @@ const props = withDefaults(defineProps<{
   indexes?: VectorIndexStat[];
   measurement?: MeasurementInfo | null;
   loading?: boolean;
+  /** 只读连接允许检索与导出，数据子页禁止写入。 */
+  readOnly?: boolean;
+  /** 权限拒绝隐藏检索与索引载荷，保留用户输入。 */
+  permissionDenied?: boolean;
 }>(), {
   indexes: () => [],
   measurement: null,
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -334,6 +376,22 @@ interface HitRow {
   fieldText: string;
   raw: VectorSearchPreviewHit;
 }
+
+interface VectorContextSnapshot {
+  connectionId: string;
+  connectionName: string;
+  endpoint: string;
+  profileEndpoint: string;
+  database: string;
+  measurement: string;
+  column: string;
+  authToken: string;
+  schemaSignature: string;
+  api: AxiosInstance;
+  requestApi?: AxiosInstance;
+}
+
+const VectorLocalHitBudget = 100;
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();
@@ -356,14 +414,23 @@ const metric = ref('cosine');
 const topK = ref<number | null>(10);
 const indexFilter = ref('');
 const searching = ref(false);
-const embedding = ref(false);
 const errorMsg = ref('');
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => props.permissionDenied || permissionLocked.value);
+const readOnly = computed(() => props.readOnly);
 const hits = ref<VectorSearchPreviewHit[]>([]);
+const hitsTruncated = ref(false);
 const selectedKey = ref('');
 const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+const dataGeneration = ref(0);
+let contextEpoch = 0;
+let searchRequestId = 0;
+let disposed = false;
+let searchController: AbortController | null = null;
+let deniedContext: VectorContextSnapshot | null = null;
 
 const loadingIndexes = computed(() => props.loading);
 const indexes = computed(() => props.indexes);
@@ -377,6 +444,38 @@ const activeIndexKey = computed(() => activeIndex.value ? indexKey(activeIndex.v
 const activeIndexLabel = computed(() =>
   activeIndex.value ? `${activeIndex.value.measurement}.${activeIndex.value.column}` : '');
 
+function liveContext(): VectorContextSnapshot {
+  return {
+    connectionId: connections.activeProfile.id,
+    connectionName: connections.activeProfile.name,
+    endpoint: auth.api.defaults.baseURL ?? '/',
+    profileEndpoint: connections.activeProfile.baseUrl,
+    database: props.targetDb,
+    measurement: activeIndex.value?.measurement ?? '',
+    column: activeIndex.value?.column ?? '',
+    authToken: auth.state?.token ?? '',
+    schemaSignature: JSON.stringify([activeIndex.value, props.measurement]),
+    api: auth.api,
+  };
+}
+
+const contextSnapshot = computed(() => liveContext());
+const schemaSignature = computed(() => contextSnapshot.value.schemaSignature);
+const contextFingerprint = computed(() => JSON.stringify([
+  contextSnapshot.value.connectionId, contextSnapshot.value.endpoint, contextSnapshot.value.profileEndpoint,
+  contextSnapshot.value.database, contextSnapshot.value.measurement, contextSnapshot.value.column,
+]));
+const dataWorkbenchKey = computed(() => `${contextFingerprint.value}:${dataGeneration.value}`);
+
+const vectorState = computed(() => {
+  if (permissionDenied.value) return 'permission';
+  if (readOnly.value) return 'readonly';
+  if (errorMsg.value) return 'error';
+  if (!activeIndex.value || (ranOnce.value && hits.value.length === 0)) return 'empty';
+  if (hitsTruncated.value || hits.value.length > 10) return 'longContent';
+  return 'normal';
+});
+
 const selectedIndexKey = computed({
   get: () => activeIndexKey.value,
   set: (value: string) => {
@@ -386,7 +485,7 @@ const selectedIndexKey = computed({
 });
 
 const indexOptions = computed<SelectOption[]>(() =>
-  indexes.value.map((item) => ({
+  (permissionDenied.value ? [] : indexes.value).map((item) => ({
     label: `${item.measurement}.${item.column}`,
     value: indexKey(item),
   })));
@@ -403,6 +502,7 @@ const filteredIndexes = computed(() => {
 });
 
 const metricOptions = computed<SelectOption[]>(() => {
+  if (permissionDenied.value) return [];
   const values = new Set(['cosine', 'l2', 'inner_product']);
   if (activeIndex.value?.metric) values.add(activeIndex.value.metric);
   return [...values].map((value) => ({ label: value, value }));
@@ -424,15 +524,21 @@ const querySummary = computed(() => {
 });
 
 const dimensionState = computed<{ type: 'default' | 'success' | 'warning' | 'error'; label: string }>(() => {
+  if (permissionDenied.value) return { type: 'default', label: 'permission required' };
   const indexDim = activeIndex.value?.dimension ?? null;
   if (queryVector.value.length === 0) return { type: 'default', label: 'empty query' };
-  if (!indexDim) return { type: 'warning', label: `${queryVector.value.length} dims` };
+  if (!indexDim || !Number.isSafeInteger(indexDim) || indexDim < 1) return { type: 'warning', label: 'index dimension unavailable' };
   if (queryVector.value.length === indexDim) return { type: 'success', label: 'dimension match' };
   return { type: 'error', label: `expected ${indexDim}` };
 });
 
-const canSearch = computed(() =>
-  Boolean(props.targetDb && activeIndex.value && queryVector.value.length > 0 && dimensionState.value.type !== 'error'));
+const canSearch = computed(() => {
+  const parsed = parseVector(rawVectorText.value);
+  const dim = activeIndex.value?.dimension;
+  return !disposed && !permissionDenied.value && queryMode.value === 'raw'
+    && Boolean(props.targetDb && activeIndex.value && typeof dim === 'number' && Number.isSafeInteger(dim) && dim > 0
+      && parsed.ok && parsed.vector.length === dim);
+});
 
 const hitRows = computed<HitRow[]>(() =>
   hits.value.map((hit, index) => ({
@@ -500,67 +606,169 @@ function indexKey(index: VectorIndexStat): string {
 }
 
 function selectIndex(index: VectorIndexStat): void {
+  if (permissionDenied.value || disposed) return;
   emit('selectIndex', index);
   metric.value = index.metric || 'cosine';
 }
 
+function captureContext(): VectorContextSnapshot {
+  const snapshot = liveContext();
+  const api = createApiClient(() => snapshot.authToken || null);
+  api.defaults.baseURL = snapshot.endpoint;
+  snapshot.requestApi = api;
+  return snapshot;
+}
+
+function sameContext(left: VectorContextSnapshot, right: VectorContextSnapshot): boolean {
+  return left.connectionId === right.connectionId && left.endpoint === right.endpoint
+    && left.profileEndpoint === right.profileEndpoint && left.database === right.database
+    && left.measurement === right.measurement && left.column === right.column
+    && left.authToken === right.authToken && left.schemaSignature === right.schemaSignature && left.api === right.api;
+}
+
+function isRequestCurrent(snapshot: VectorContextSnapshot, epoch: number, requestId: number): boolean {
+  return !disposed && !permissionDenied.value && contextEpoch === epoch && searchRequestId === requestId
+    && sameContext(snapshot, liveContext());
+}
+
+function clearReadPayload(): void {
+  hits.value = [];
+  hitsTruncated.value = false;
+  selectedKey.value = '';
+  queryVector.value = [];
+  latestResult.value = null;
+  latestCommand.value = '';
+  ranOnce.value = false;
+}
+
+function invalidateContext(): void {
+  contextEpoch += 1;
+  searchRequestId += 1;
+  searchController?.abort();
+  searchController = null;
+  searching.value = false;
+  dataGeneration.value += 1;
+  clearReadPayload();
+  historyVisible.value = false;
+}
+
+function isPermissionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const status = (error as { response?: { status?: unknown } }).response?.status;
+  return status === 401 || status === 403;
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { name?: unknown; code?: unknown };
+  return candidate.code === 'ERR_CANCELED' || candidate.name === 'CanceledError' || candidate.name === 'AbortError';
+}
+
+function lockReadPermission(): void {
+  deniedContext = liveContext();
+  permissionLocked.value = true;
+  invalidateContext();
+  errorMsg.value = '当前身份没有 Vector 读取权限。';
+}
+
+function validPairs(items: unknown): boolean {
+  return items == null || (Array.isArray(items)
+    && items.every((item) => item && typeof item.key === 'string' && typeof item.value === 'string'));
+}
+
+function validHit(hit: VectorSearchPreviewHit): boolean {
+  return Boolean(hit && typeof hit.timestampUtc === 'number' && Number.isSafeInteger(hit.timestampUtc)
+    && typeof hit.distance === 'number' && Number.isFinite(hit.distance) && validPairs(hit.tags) && validPairs(hit.fields));
+}
+
+function normalizedTopK(): number {
+  return typeof topK.value === 'number' && Number.isFinite(topK.value)
+    ? Math.max(1, Math.min(VectorLocalHitBudget, Math.floor(topK.value))) : 10;
+}
+
 async function runSearch(): Promise<void> {
-  if (!canSearch.value || !activeIndex.value) return;
+  if (disposed || permissionDenied.value || queryMode.value !== 'raw' || !activeIndex.value) return;
+  parseRawVector();
+  if (!canSearch.value) return;
+  searchController?.abort();
+  const snapshot = captureContext();
+  const epoch = contextEpoch;
+  const requestId = ++searchRequestId;
+  const controller = new AbortController();
+  searchController = controller;
+  snapshot.requestApi!.defaults.signal = controller.signal;
+  const request: VectorSearchPreviewRequest = {
+    measurement: snapshot.measurement,
+    column: snapshot.column,
+    query: [...queryVector.value],
+    topK: normalizedTopK(),
+    metric: metric.value,
+    filter: filterText.value.trim() || null,
+  };
+  clearReadPayload();
+  queryVector.value = [...request.query];
   searching.value = true;
   errorMsg.value = '';
   const started = performance.now();
-  const command = buildCommand();
+  const command = buildCommand(request);
   try {
-    const response = await searchVectorPreview(auth.api, props.targetDb, {
-      measurement: activeIndex.value.measurement,
-      column: activeIndex.value.column,
-      query: queryVector.value,
-      topK: topK.value ?? 10,
-      metric: metric.value,
-      filter: filterText.value.trim() || null,
-    });
+    const response = await searchVectorPreview(snapshot.requestApi!, snapshot.database, request);
+    if (!isRequestCurrent(snapshot, epoch, requestId)) return;
+    if (!response || !Array.isArray(response.hits)) throw new Error('invalid vector response');
+    // Slice before validating, formatting or exporting the retained preview.
+    const preview = response.hits.slice(0, request.topK!);
+    if (!preview.every(validHit)) throw new Error('invalid vector hit');
     const elapsed = performance.now() - started;
-    hits.value = Array.isArray(response.hits) ? response.hits : [];
+    hits.value = preview;
+    hitsTruncated.value = response.hits.length > request.topK!;
     selectedKey.value = hitRows.value[0]?.key ?? '';
     latestCommand.value = command;
-    latestResult.value = resultFromHits(hits.value, elapsed);
+    latestResult.value = resultFromHits(hits.value, elapsed, hitsTruncated.value);
     ranOnce.value = true;
-    recordHistory('success', command, `${hits.value.length} hits`, hits.value.length, elapsed);
+    recordHistory('success', command, `${hits.value.length} preview hits`, hits.value.length, elapsed, snapshot,
+      hitsTruncated.value ? 'truncated' : 'complete');
   } catch (error) {
+    if (!isRequestCurrent(snapshot, epoch, requestId) || isAbortError(error)) return;
     const elapsed = performance.now() - started;
-    const msg = errorToMessage(error, '向量检索失败');
+    const msg = isPermissionError(error) ? '当前身份没有 Vector 读取权限。' : '向量检索失败或响应无效，请检查当前连接与检索参数。';
+    if (isPermissionError(error)) {
+      lockReadPermission();
+      recordHistory('error', command, msg, 0, elapsed, snapshot);
+      return;
+    }
+    clearReadPayload();
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult(msg);
     ranOnce.value = true;
-    recordHistory('error', command, msg, 0, elapsed);
+    recordHistory('error', command, msg, 0, elapsed, snapshot);
   } finally {
-    searching.value = false;
+    if (!disposed && contextEpoch === epoch && searchRequestId === requestId) {
+      searching.value = false;
+      searchController = null;
+      // A markRaw Axios defaults mutation is not watchable; completion must
+      // still clear the old payload and rebuild the data child generation.
+      if (!sameContext(snapshot, liveContext())) invalidateContext();
+    }
   }
 }
 
 async function embedTextToVector(): Promise<void> {
-  const text = embedText.value.trim();
-  if (!text) return;
-  embedding.value = true;
-  errorMsg.value = '';
-  try {
-    const response = await embedVectorText(auth.api, props.targetDb, text);
-    queryVector.value = response.vector;
-    rawVectorText.value = vectorToText(response.vector);
-    queryMode.value = 'raw';
-    message.success(`Embedded ${response.dimension} dimensions`);
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '生成 embedding 失败');
-  } finally {
-    embedding.value = false;
-  }
+  if (disposed || permissionDenied.value) return;
+  errorMsg.value = 'Text embed 未就绪：所选索引没有可验证的 Embedding Profile。请使用原始向量。';
 }
 
 function parseRawVector(): void {
+  if (disposed || permissionDenied.value) return;
   const parsed = parseVector(rawVectorText.value);
   if (!parsed.ok) {
     errorMsg.value = parsed.message;
+    queryVector.value = [];
+    return;
+  }
+  const dimension = activeIndex.value?.dimension;
+  if (typeof dimension !== 'number' || !Number.isSafeInteger(dimension) || dimension < 1 || parsed.vector.length !== dimension) {
+    errorMsg.value = '原始向量必须与所选索引的已知维度完全匹配。';
     queryVector.value = [];
     return;
   }
@@ -570,17 +778,24 @@ function parseRawVector(): void {
 }
 
 function fillZeroVector(): void {
-  const dim = activeIndex.value?.dimension ?? 3;
+  if (disposed || permissionDenied.value) return;
+  const dim = activeIndex.value?.dimension;
+  if (typeof dim !== 'number' || !Number.isSafeInteger(dim) || dim < 1 || dim > 65536) {
+    errorMsg.value = '当前索引维度不适合生成零向量，请输入维度匹配的原始向量。';
+    return;
+  }
   queryVector.value = Array.from({ length: dim }, () => 0);
   rawVectorText.value = vectorToText(queryVector.value);
 }
 
 function clearVector(): void {
+  if (disposed || permissionDenied.value) return;
   queryVector.value = [];
   rawVectorText.value = '';
 }
 
 function syncVectorToRaw(): void {
+  if (disposed || permissionDenied.value) return;
   rawVectorText.value = vectorToText(queryVector.value);
   queryMode.value = 'raw';
 }
@@ -590,15 +805,17 @@ async function copyVector(): Promise<void> {
 }
 
 async function copyText(text: string, success: string): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   try {
     await navigator.clipboard.writeText(text);
     message.success(success);
   } catch {
-    message.warning(text);
+    message.warning('复制失败，请检查剪贴板权限。');
   }
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
+  if (disposed || permissionDenied.value) return;
   latestCommand.value = entry.command;
 }
 
@@ -606,7 +823,7 @@ function rowKey(row: HitRow): string {
   return row.key;
 }
 
-function resultFromHits(items: VectorSearchPreviewHit[], elapsedMs: number): SqlResultSet {
+function resultFromHits(items: VectorSearchPreviewHit[], elapsedMs: number, truncated: boolean): SqlResultSet {
   return {
     columns: ['rank', 'time', 'distance', 'tags', 'fields'],
     rows: items.map((hit, index) => [
@@ -621,6 +838,7 @@ function resultFromHits(items: VectorSearchPreviewHit[], elapsedMs: number): Sql
       rowCount: items.length,
       recordsAffected: -1,
       elapsedMs,
+      truncated,
     },
     error: null,
     hasColumns: true,
@@ -637,16 +855,11 @@ function errorResult(messageText: string): SqlResultSet {
   };
 }
 
-function buildCommand(): string {
-  const idx = activeIndex.value;
-  if (!idx) return 'VECTOR SEARCH';
-  const filter = filterText.value.trim();
-  const query = queryVector.value.length > 8
-    ? `[${queryVector.value.slice(0, 8).map(formatNumber).join(', ')}, ... ${queryVector.value.length} dims]`
-    : vectorToText(queryVector.value);
+function buildCommand(request: VectorSearchPreviewRequest): string {
+  const query = vectorToText(request.query);
   return [
-    `SELECT * FROM knn(${idx.measurement}, ${idx.column}, ${query}, ${topK.value ?? 10}, '${metric.value}')`,
-    filter ? `WHERE ${filter}` : '',
+    `SELECT * FROM knn(${formatSqlIdentifier(request.measurement)}, ${formatSqlIdentifier(request.column)}, ${query}, ${request.topK}, ${quote(request.metric ?? 'cosine')})`,
+    request.filter ? `WHERE ${request.filter}` : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -656,22 +869,25 @@ function recordHistory(
   summary: string,
   rowCount: number,
   elapsedMs: number,
+  context: VectorContextSnapshot,
+  completeness?: WorkbenchHistoryCompleteness,
 ): void {
   history.record({
     kind: 'query',
     status,
     title: 'Vector search preview',
-    target: activeIndexLabel.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    target: `${context.measurement}.${context.column}`,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'vector',
-    action: queryMode.value === 'text' ? 'embed_search' : 'search',
+    action: 'search',
     command,
     summary,
     rowCount,
     recordsAffected: -1,
     elapsedMs,
+    completeness,
   });
 }
 
@@ -683,13 +899,12 @@ function parseVector(text: string): { ok: true; vector: number[] } | { ok: false
     try {
       const parsed = JSON.parse(source) as unknown;
       if (!Array.isArray(parsed)) return { ok: false, message: 'Vector JSON must be an array.' };
-      const vector = parsed.map((value) => Number(value));
-      if (vector.some((value) => !Number.isFinite(value))) {
+      if (parsed.length === 0 || parsed.some((value) => typeof value !== 'number' || !Number.isFinite(value))) {
         return { ok: false, message: 'Vector contains a non-numeric component.' };
       }
-      return { ok: true, vector };
-    } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : 'Invalid vector JSON.' };
+      return { ok: true, vector: parsed };
+    } catch {
+      return { ok: false, message: 'Invalid vector JSON.' };
     }
   }
   source = source.replace(/^\[/, '').replace(/\]$/, '');
@@ -727,32 +942,37 @@ function formatStat(value?: number | null): string {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '-';
 }
 
-function errorToMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: unknown; status?: number } }).response;
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.error === 'string') return data.error;
-    }
-    if (typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-  }
-  return fallback;
-}
-
 watch(activeIndex, (index) => {
+  invalidateContext();
   metric.value = index?.metric || 'cosine';
-  if (queryVector.value.length === 0 && index?.dimension && index.dimension <= 8) {
-    fillZeroVector();
-  }
-}, { immediate: true });
+}, { immediate: true, flush: 'sync' });
 
-watch(() => props.targetDb, () => {
-  hits.value = [];
-  latestResult.value = null;
-  ranOnce.value = false;
+watch(contextFingerprint, () => {
+  invalidateContext();
+  const current = liveContext();
+  const previous = deniedContext;
+  // A Schema refresh may temporarily omit every index. Missing metadata is
+  // not evidence that a denied resource or its permissions have changed.
+  const newIdentity = previous && (previous.connectionId !== current.connectionId
+    || previous.endpoint !== current.endpoint || previous.profileEndpoint !== current.profileEndpoint
+    || previous.database !== current.database);
+  const differentKnownResource = previous && current.measurement && current.column
+    && (previous.measurement !== current.measurement || previous.column !== current.column);
+  if (newIdentity || differentKnownResource) {
+    permissionLocked.value = false;
+    deniedContext = null;
+  }
+  if (!permissionLocked.value) errorMsg.value = '';
+}, { immediate: true, flush: 'sync' });
+
+watch([() => auth.state, () => auth.state?.token, () => auth.api], invalidateContext, { flush: 'sync' });
+watch(schemaSignature, invalidateContext, { flush: 'sync' });
+watch(() => props.permissionDenied, invalidateContext, { flush: 'sync' });
+watch(readOnly, invalidateContext, { flush: 'sync' });
+
+onBeforeUnmount(() => {
+  disposed = true;
+  invalidateContext();
 });
 </script>
 
@@ -821,6 +1041,13 @@ watch(() => props.targetDb, () => {
 
 .vector-alert {
   margin: 10px 12px 0;
+}
+
+.vector-context,
+.vector-preview-budget {
+  display: block;
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 .vector-stats {

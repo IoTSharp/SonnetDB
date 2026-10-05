@@ -7,6 +7,12 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- WB-20 已完成本地 Vector 原始检索兼容切片，从干净 `2f9a5477672e28bddc1fa9548c04dccaf3e97e8e` 接续；本轮提交说明为 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以 `git log` 为准。实施代理只改 Vector 组件/专属 Node，另一代理只改 UI spec 并独立只读复核实施文件；两代理均已结束写入，根串行维护共享文档、验证和 git，没有启动下一切片。
+- 保留 database、measurement/column 原名、内部 `${measurement}:${column}` 和外层 `vector:measurement:column` key。请求冻结实际 API/端点/profile/认证/Schema/epoch 与发起参数，隔离迟返、正常会话 ABA、新检索和卸载；401/403 清命中、metadata、解析/生成向量与结果，保留 raw/text/filter 输入。空 Schema 往返、同身份 Schema/auth 刷新不解除锁存，安全读取恢复另验。数据编辑复用 MeasurementWorkbench，按身份/Schema 代际重建并传递 readonly/permission；其完整写终态/真实权限旅程不在本轮范围。
+- 原始向量须有限且匹配已知维度；Top-K 沿用 1～100，先截断再校验保留命中、格式化/显示/导出，历史绑定发起身份与实际预览完整性。Inspector 标 Distance。既有 embed-preview 没有所选索引显式 Profile 绑定，文本入口显示未就绪且不分派隐式 embedding，raw 路径保留；不伪造 Profile、Recall、质量或成本证据。
+- 最终专属 Node **17/17**、全 Web **201/201**、TypeScript/Vite、Chrome/BrowserDirect **10/10**、既有 Vector 数据校验/导入暂存浏览器回归 **1/1** 与独立复核通过。既有真实 Kestrel Vector HTTP 兼容 **3/3** 单列；没有通过新客户端执行真实 Server 权限旅程。初轮 UI 9/10 为 Teleport 抽屉定位错误，下一轮 8/10 为默认 Chart 不显示 metadata；改为真实打开目标抽屉/Raw 后最终 10/10，没有放宽载荷清理、截断或导出断言。复核发现的空 Schema 解锁缺口已修复并加入 Node/UI 证据。
+- 证据保留于 `D:\source\SonnetDB\artifacts\wb20-validation-20261006`；根有界 runner 记录 PID/创建/完整命令/父链并 finally 回收自有树。门禁前 **46** 个记录身份核验、**0** 个自有进程存活；门禁/提交后另核验。提交必须取得最终待提交树完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和 staged diff check 通过，最终命令与退出值在 `restore-final`/`format-final` 日志；代码再改须重跑。旧两处策略保留 Temp 目录不删除、不重试或绕过。
+- 下一次先完整接收 HANDOFF/AGENTS/queue/git/代理，盘点下一未迁移 Web 九模型页面并冻结一个有界切片，不重复 WB-20。新客户端真实 Server 权限/读取恢复、索引 Profile、服务端扫描/物化/字节/总堆预算、完整九模型与三宿主、安装、Extension Host、AOT、固定硬件/长稳和发布仍分别待验。heartbeat 保持 ACTIVE；不 push、发布、部署或外部沟通，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`。
 - WB-19 已完成本地 FullText Workbench 上下文/权限/Top-K 预览兼容切片，从干净 `1d9465fb` 接续；本轮提交说明为 `feat(m47): isolate FullText context and approval outcomes`，实际哈希以 `git log` 为准。实施代理仅改组件与专属 Node 测试，浏览器代理仅新增 FullText spec，另一代理独立只读复核 PASS；根维护共享文档、最终验证和 git，没有启动下一切片。
 - 保留 database、collection/index 原名和 `fulltext:collection:index` key。六态、发起参数/实际 API 快照、同步 epoch/Abort 隔离迟返、同名跨库、认证/Schema ABA 和卸载；401/403 清命中、文档、Token、结果、导入文本和审批，保留检索输入。同身份刷新不解锁，安全读取恢复留后续。Top-K 沿用 1～100，先截断再 Find/显示/导出，历史记录实际预览完整性，不代表全部匹配或服务端总资源预算。
 - 重建/导入一次审批并绑定原上下文、API、模式与项目。重建仅接受真实同步 `rebuild_index/ok` 目标终态，planned/缺失/错目标或传输异常为 unknown；确定 failed 为 error。导入最多 1000 文档、60 秒批次窗口与 30 秒请求超时；切身份停止后续批次，已派请求不冒称未执行，unknown 不恢复或重放旧审批。

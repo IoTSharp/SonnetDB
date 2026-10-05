@@ -282,6 +282,10 @@ Aggregate 保留输入 pipeline 并追加末尾 `$limit: 1001`；Distinct 所选
 
 ### 向量 `vector`：ManualEmbeddings.Embedding
 
+**WB-20 生产兼容切片合同（2026-10-06）：** 保留数据库、measurement/column 原名和内部 `${measurement}:${column}` 选择键；外层 `vector:measurement:column` Explorer key 不改。原始向量检索冻结发起时的 profile、实际 API 端点、认证、Schema/epoch 与查询参数，隔离同名跨库、正常会话 ABA、新查询、迟返和卸载。401/403 清命中、metadata、已解析/生成向量与结果，保留用户 raw/text/filter 输入；同身份刷新不能解除权限锁存，安全读取恢复另验。数据编辑继续复用 MeasurementWorkbench，资源/身份/Schema 变化重建子页并传递 readonly/permission 门禁，不验收子页完整写执行终态。
+
+向量必须为有限数值且与已知索引维度匹配；Top-K 沿用 1～100，响应先截断到发起预算，再格式化、显示与导出，历史记录发起身份和实际预览完整性。没有哨兵、continuation 或全部匹配承诺；服务端扫描/中间物化/字节/总堆预算与真实 Recall、质量、成本另验。既有 embed-preview 未提供所选索引的显式 Profile 绑定，因此文本入口显示未就绪并禁止隐式 embedding 分派；保持 raw 路径，不用图片语义搜索状态或 hash fallback 代替索引 Profile。
+
 | 页签 | 状态 | 中央主任务与必要输入 | Inspector / 动作边界 |
 |---|---|---|---|
 | Search | 既有 | raw vector 或显式 text embed，Top-K、metadata filter。 | 维度不匹配在执行前拒绝；metric/score 方向按真实定义。 |
