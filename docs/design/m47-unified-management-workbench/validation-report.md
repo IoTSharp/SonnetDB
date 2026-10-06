@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-32 Vector 新Web真实旅程（2026-10-07；本地切片已验证）
+
+- 独立源码/成功证据复核PASS：600导出单元和子页100行逐项对拍，24真实run身份/完整command/父链核验；首restore退出0，首format的工具会话中断未取得结果，不计PASS。用户更新持续任务规则后最终文档树重跑完整restore/原级别format，退出结果单独落盘，原总预算不重置。定时任务继续现有工作，三宿主闭环后迁移唯一heartbeat到新会话并每30分钟监督各类后续任务；具体规则见queue/HANDOFF，实际最终门禁和本地提交以final-gates/commit-checkpoint为准。
+
+- 新增Vector薄入口与真实spec，不改生产组件/API/共享runner/Server/路由或其它宿主。普通非超级用户READ通过真实API登录安装token；151条VECTOR(3) seed与原measurement/column名，L2 raw Top-K20/100的timestamp、distance、TAG/FIELD及当前JSON/CSV逐项对拍，index声明参数和原身份history可查。API登录不计登录UI/readonly宿主props；当前Top-K不计全索引分页/快照/ANN实现/Recall/模型质量或Server扫描/物化/传输/字节/堆预算。
+- 首轮真实Chrome→隔离Kestrel **3/3**、无mock/skip/retry；实际REVOKE后Search403清外层hits/metadata/共享结果，重授READ/同tokenSchema200仍锁存，data子页受父prop拒绝不重放。第三条实际Measurement SQL403只清并锁当前子页，外层旧Vector命中仍保留；权限无上行、Schema/view重挂载可能丢子页局部锁是已发现的生产缺口，下一片优先修复，不能把第三条PASS写成外层完整权限隔离/恢复。
+- 全Web Node **321/321**、既有Vector Chrome fixture **10/10**、TypeScript/Vite与Server Release **0警告/错误**通过。首Node命令漏现有测试所需VM modules参数失败，修命令后通过，日志保留；生产代码未为该失败修改。测试各120秒，控制API10秒、浏览器响应/下载事件等待15秒，生产Axios30秒分别记录；同仓库Vite/build/Playwright串行。
+- 成功run `vector-real-2026-10-06T16-39-30-358Z-74824e3c-a074-4e5a-866a-fb891adb5996` 的三JSON合计 **146028字节**，绝对runRoot/wx落盘、凭据拒写、24份/单1MiB/总8MiB，manifest尺寸/SHA256/原名根核验通过；源码和成功证据再由独立代理只读复核。根证据 `artifacts/wb32-validation-20261007`，命令/结果/hash/最终完整restore/原级别format/staged检查与提交见validation-results/final-gates/final-tree-hashes/commit-checkpoint；必须取得最终门禁退出0才commit。
+- 门禁前 **48** 条记录/0自有存活，真实run完整身份父链、contentRoot清理与记录Chrome profile不存在分别核验。短命PID90972有创建/parent而CIM command缺失；旧wrapper可能漏短命workers、代理短语法命令未保留完整OS身份，不冒称全部捕获。两政策保留Temp不删除/重试/绕过，origin/parity-results保留，无安装/fetch/push/发布/部署/外部沟通。75分钟/16长命令/真实run最多3次总预算不重置；三宿主、OS/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别待验，heartbeat保持ACTIVE。
+
 ## WB-31 Measurement 新Web真实旅程（2026-10-06；本地切片已验证）
 
 - 只新增Measurement真实薄入口/spec及共享runner审计最小修复/10项Node；生产Measurement、SQL/API、Server和其它宿主未改，三专属代理停止写入。最终共享源码与完整成功证据独立复核PASS，Measurement四JSON/manifest、实际响应/当前导出/history及Document回归、两run完整身份和退出/数据根清理证据已分别核对；整体三宿主仍未完成。

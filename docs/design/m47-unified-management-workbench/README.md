@@ -1,6 +1,6 @@
 # M47 管理工作台设计评审包
 
-状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；WB-30客户端切片已有提交；WB-31 Measurement新Web真实四旅程4/4、共享runner Document回归3/3、审计Node10/10/全Web321/321及成功证据独立落盘/核验及独立复核通过；最终完整restore/format为本地提交放行条件，实际门禁与提交见验证记录及git log。完整写终态/Server预算与根验证预算时区错误边界分别记录。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
+状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；WB-30客户端切片已有提交；WB-31 Measurement新Web真实四旅程4/4、共享runner Document回归3/3、审计Node10/10/全Web321/321及成功证据独立落盘/核验及独立复核通过；最终完整restore/format为本地提交放行条件，实际门禁与提交见验证记录及git log。完整写终态/Server预算与根验证预算时区错误边界分别记录。WB-32补Vector真实首轮3/3、READ Top-K20/100/当前JSON/CSV/history及Search403锁存；独立child SQL403未上行外层且remount局部锁边界列为下一优先修复，不计完整权限闭环。全Web321/321、Vector fixture10/10与build通过，三JSON/manifest已核验，最终完整门禁为本地提交前置。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
 
 ## 建议评审顺序
 

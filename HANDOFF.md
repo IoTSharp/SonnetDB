@@ -1,9 +1,20 @@
 # SonnetDB 交接记录
 
-交接日期：2026-10-06（Asia/Shanghai）<br>
+交接日期：2026-10-07（Asia/Shanghai）<br>
 当前分支：`main`<br>
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
+
+## 当前检查点（WB-32，2026-10-07；本地切片已验证）
+
+- 用户2026-10-07追加并已落实定时任务规则：旧任务继续；Workbench三宿主真正闭环后创建SonnetDB本地新会话，将唯一workbench heartbeat迁移过去，保持每30分钟ACTIVE检查各类后续任务，不自动暂停。没有在执行的任务时从仓库待办/真实缺口选一项冻结后交给专属子智能体，主智能体监督/验收/共享文档/本地提交；没有现成待办时先有界盘点，不重复包装完成事项。现有禁止push/发布/部署/外部沟通和执行/清理/完整门禁边界继续有效；当前未闭环，不提前新建接续会话。自动化配置已回读确认。
+
+- 接续已提交WB-31 `16acfafc`，本轮只补Vector新UI真实raw检索/当前导出及撤权锁存；专属runner/UI/只读复核三代理与文件归属、依赖、验收、75分钟总墙钟和16长命令上限已冻结于work-queue顶部。根独占共享文档/验证/审计/最终完整restore-format/git；生产代码兼容缺口须先冻结归属。Object WB-25不重复；三博客文件和本文件尾hunk保留不暂存，origin/parity-results不改。
+- 索引Profile、显式恢复、Recall/模型质量/Server预算和其它宿主另验；三宿主未闭环，heartbeat保持ACTIVE，不push/发布/部署/外部沟通。所有进程/临时路径有归属与finally清理，两政策保留Temp不触碰。
+- 最终真实首轮3/3，READ raw L2 Top-K20/100、原timestamp/TAG/FIELD/index参数、当前JSON/CSV与history对拍；Search REVOKE403清外层载荷，重授READ/同tokenSchema200仍锁存。第三条只证当前Measurement子页SQL403局部锁存；外层旧Vector结果仍显示且子页remount可能丢局部锁。下一片优先冻结子页权限上行/父级锁存的最小生产修复，不以三条测试PASS消除该缺口，不重复本片旅程包装。
+- 全Web321/321、Vector fixture10/10、TypeScript/Vite、Server Release0警告错误通过；首Node命令漏VM modules参数导致失败，修命令后通过，失败日志保留。控制API10秒、浏览器response/download事件wait15秒、生产Axios30秒分别记录，三测试各120秒/retries0。成功run `vector-real-2026-10-06T16-39-30-358Z-74824e3c-a074-4e5a-866a-fb891adb5996` 三JSON146028字节/manifest根核验；证据在 `artifacts/wb32-validation-20261007`，最终源码/成功证据独立复核与最终完整restore/format/staged检查为提交前置，实际退出与提交见final-gates/commit-checkpoint及git log。
+- 门禁前48条记录无自有存活，真实数据根已清理、记录Chrome profile不存在；短命PS PID90972缺CIM command及旧wrapper可能漏短命workers、代理短语法命令未保留完整OS身份均单列，不称所有进程捕获完整。共享runner/生产/API/Server不改，仅八任务文件；博客文件和HANDOFF尾hunk继续保留不暂存。heartbeat已回读ACTIVE、每30分钟、当前thread；本轮不启动WB-33。
+- 独立源码及成功证据复核PASS：20/100命中共600导出单元、子页100行逐项对拍，24真实run身份/完整command/父链及清理核验通过。首restore退出0；首format工具会话中断、退出结果及stdout/stderr未取得，已录format-interruption且已知root/parent不存活，不计PASS。定时规则文档更新后重跑最终完整restore/原级别format，只有可核验退出0才stage/commit；原75分钟/16长命令总预算不重置，实际最终结果见final-gates/commit-checkpoint。
 
 ## 当前检查点（WB-31，2026-10-06；本地切片已验证）
 

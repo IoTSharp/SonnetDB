@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-32 Vector真实Web证据（2026-10-07）**：新增复用隔离runner的Vector入口与三条真实旅程，READ身份raw L2 Top-K20/100、原名metadata、当前JSON/CSV与history逐项对拍；Search撤权403清外层载荷，重授READ/同tokenSchema200仍锁存。独立SQL403仅锁当前Measurement子页，外层旧Vector命中保留、子页重挂载可能丢锁的缺口明确留待下一片。真实首轮3/3、全Web321/321、Vector fixture10/10、Web/Server Release构建通过；成功三JSON/manifest独立落盘，最终完整restore/format为本地提交前置。不计Profile、显式恢复、Recall、Server预算或三宿主整体完成。
+
 - **M47 WB-31 Measurement真实Web旅程（2026-10-06）**：补100/500/61当前窗口与JSON/CSV、普通WRITE两点逐INSERT终态、真实撤权审批/monitor锁存四旅程PASS；共享真实runner分开身份遍历与有界日志，保留完整父链与安全双错，Node10/10、全Web321/321、Document真实3/3通过。成功证据独立复核通过，最终完整restore/format作为本地提交放行条件，实际门禁/提交见M47验证记录；根预算时区错误及失败记录保留；不计完整写终态/Server预算或三宿主完成。
 
 - **M47 WB-30 Measurement 客户端隔离（2026-10-06）**：现有点读取、目标监控、文件导入及审批统一精确401/403锁存与脱敏，清载荷/草稿且readonly程序入口禁写；连接/auth/原名/Schema同步代际隔离迟返、同结构Schema刷新与旧finally，原审批一次消费，已派取消记原身份unknown。点与监控先截断至500行，auto最多12轮/60秒，导入准入1000语句/10批/60秒；正常100+1停止后新审批兼容。Node16/16、全Web311/311、Chrome fixture20/20、旧Measurement/Vector子页8/8与build通过，既有Kestrel SQL预览兼容3/3单列；新UI真实Server权限、完整写终态/Int64、Server预算及三宿主/发行物另验。
