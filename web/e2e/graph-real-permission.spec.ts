@@ -110,7 +110,7 @@ test.beforeAll(async ({ request }) => {
 
 test.afterAll(async () => {
   if (evidenceRoot && savedEvidence.length > 0) {
-    await persistEvidence('evidence-manifest', { files: [...savedEvidence], totalBytes: evidenceBytes,
+    await persistEvidence('evidence-manifest', { files: [...savedEvidence], expectedFiles: 4, totalBytes: evidenceBytes,
       limits: { files: 24, perFileBytes: 1_048_576, totalBytes: 8_388_608 }, credentialsSaved: false,
       timeoutsMs: { test: 120_000, controlApi: apiTimeout, browserResponseAndDownloadEvent: responseTimeout, productAxios: 30_000 },
       scope: 'Graph Beta with safe-number identities; visualization and independent export snapshots are separate contracts.' });
@@ -142,6 +142,19 @@ test('ordinary READ preserves Graph Beta identity, bounded canvas10/1000 and typ
   expect(smallExport.document).toMatchObject({ truncated: true, elementCount: 10 });
   const smallHistory = await latestHistory(page, 'Graph JSON export');
   assertExportHistory(smallHistory, 10);
+
+  const boundaryExport = await exportGraph(page, vertexCount);
+  const boundaryHistory = await latestHistory(page, 'Graph JSON export');
+  // Preserve the old Server's actual response/download/history before the
+  // truncated assertion fails; this observation alone never claims success.
+  await persistEvidence('graph-export-boundary-observation', { maxElements: vertexCount, expectedTruncated: true,
+    export: boundaryExport, history: boundaryHistory, observationStage: 'before-boundary-assertion' });
+  assertExport(boundaryExport.document, vertexCount);
+  expect(boundaryExport.document).toMatchObject({ elementCount: 151, truncated: true });
+  expect(boundaryExport.document.vertices).toHaveLength(151);
+  expect(boundaryExport.document.edges).toHaveLength(0);
+  assertExportHistory(boundaryHistory, vertexCount);
+
   const largeExport = await exportGraph(page, 1000);
   assertExport(largeExport.document, 1000);
   expect(largeExport.document).toEqual(seeded);
@@ -152,8 +165,11 @@ test('ordinary READ preserves Graph Beta identity, bounded canvas10/1000 and typ
   assertEvidence(evidence);
   await persistEvidence('real-graph-read-canvas-export', { requests: evidence.requests, seedTerminal, overview, initial, initialCanvas,
     small, smallCanvas, large, largeCanvas, typedVertex: read, smallExport, smallHistory, largeExport, largeHistory,
+    boundaryExportObservation: { file: 'graph-export-boundary-observation.json', maxElements: vertexCount,
+      snapshotSequence: boundaryExport.document.snapshotSequence, elementCount: boundaryExport.document.elementCount,
+      vertices: boundaryExport.document.vertices.length, edges: boundaryExport.document.edges.length, truncated: boundaryExport.document.truncated }, boundaryHistory,
     databaseGrant: 'READ', isSuperuser: false, graphBeta: true,
-    scope: 'Normal canvas with public read-only ECharts observation. Exports are separate Server snapshots and history records; no browse history, graph pagination or Server resource-budget claim.' });
+    scope: 'Normal canvas with public read-only ECharts observation. Exports at maxElements10/151/1000 are separate Server snapshots and history records; no browse history, graph pagination or Server resource-budget claim.' });
 });
 
 test('ordinary WRITE normally approves one existing safe vertex Upsert with sequence/duplicate terminal, typed administrator Get and original operation history', async ({ page, request }) => {
@@ -580,9 +596,11 @@ async function initializeEvidenceRoot(): Promise<void> {
   const info = await lstat(configured);
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('The real evidence runRoot must be an existing ordinary directory.');
   const root = await realpath(configured);
-  const expectedParent = resolve('D:/source/SonnetDB/artifacts/wb35-validation-20261007');
-  if (!samePath(dirname(root), expectedParent) || !/^graph-real-[0-9TZ.-]+-[0-9a-f-]{36}$/u.test(basename(root))) {
-    throw new Error('Evidence runRoot must be a graph-real run immediately inside the named WB35 validation artifact directory.');
+  const expectedParents = [resolve('D:/source/SonnetDB/artifacts/wb35-validation-20261007'),
+    resolve('D:/source/SonnetDB/artifacts/wb36-validation-20261007')];
+  const expectedParent = expectedParents.find((candidate) => samePath(dirname(root), candidate));
+  if (!expectedParent || !/^graph-real-[0-9TZ.-]+-[0-9a-f-]{36}$/u.test(basename(root))) {
+    throw new Error('Evidence runRoot must be a graph-real run immediately inside the named WB35 or WB36 validation artifact directory.');
   }
   const parentInfo = await lstat(expectedParent);
   if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink() || !samePath(await realpath(expectedParent), expectedParent)) {

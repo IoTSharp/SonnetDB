@@ -163,6 +163,7 @@
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- **M47 WB-36 Graph精确导出预算（2026-10-07）**：修复顶点恰满maxElements且仍有边时误报truncated=false；同快照零剩余预算探测一条边，保顶点优先、总元素上限与source-generated JSON。旧DLL真实Web失败观察保留，GraphEndpointTests17/17含8条有界Kestrel回归、Server Release/trim-AOT分析0警告错误、修复后真实Web3/3通过；四JSON1015208字节/manifest核验，最终完整restore/原级别format为提交前置。Graph Beta、NativeAOTpublish、通用资源预算及三宿主整体另验，详见M47验证记录。
 - **GH-Issue #210 批量 schema-on-write 原子性**：`WriteMany` 先在临时计划中完整合并并校验整块 measurement schema，全部通过后先持久化再一次性发布和写入；后续点发生 TAG/FIELD 角色或字段类型冲突时，不再残留前面点推断出的 measurement、新列、类型提升或提前密封的 MemTable。schema 文件保存失败时，单点、批量、显式创建和删除都不会发布未持久化的内存 schema。
 - `DROP MEASUREMENT` 增加持久化删除意图和启动重放：schema 删除后若段、VECTOR 替换记录或 series catalog 清理失败，同名重建会被阻止，重启后按已提交 schema 决定完成清理；新段、替换 manifest 和 catalog 在删除意图移除前按顺序持久化。受管理的 measurement catalog 在审计回调内也不能直接修改。
 - 修复发布就绪门禁将当前手动发布 workflow 误判为自身预检，以及 GitHub Pages 的 `upload-pages-artifact` 不作为持久 Actions artifact 导致稳定发布被阻断的问题。

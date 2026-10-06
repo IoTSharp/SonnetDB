@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-36 Graph 精确导出预算截断（2026-10-07；本地切片已验证）
+
+- WB-35候选经旧Release DLL正常Web导出maxElements151定向复现：200/snapshot1/151顶点0边/count151，仍有未导出的150条边却truncated=false。READ在预期true断言失败，两后续旅程未执行；独立实际response/download/history在断言前落盘202301字节，manifest仅1/预期4份如实保留。根核旧DLL45207D4C与生产B8EB9A5A在run未变，才放行生产修复；失败run`graph-real-2026-10-06T18-58-02-023Z-d091d688-a7a5-4487-b64d-1ccf70078d91`保留。
+- 生产仅两行：未已截断时扫描边，包括written==maxElements；remaining=0时PageSize1/MaxResults1探测剩余边，发现即置truncated且不写超预算元素，无边则false，正remaining仍用原PageSize256。原GraphReadSession、顶点优先、总元素上限、source-generated JSON与Graph Beta保持；游标页物化与底层扫描不是相同预算，不能声称通用扫描/字节/heap有界。专属runner独占Server/test、UI独占既有spec扩151，第三代理独立只读复核，根维护共享文档/验证/git。
+- 新Theory8例各30秒取消、最多256顶点2边，实际Kestrel分别核空图、顶点恰满无边/有边、总元素恰满、边不足、顶点不足及256页边界，逐项typed ID/labels/properties/version1、原名、snapshot、数量/顺序/truncated。根GraphEndpointTests17/17、8新增例全Passed/无skip（TRX独立核验），wrapper36秒；Server正常Release构建111秒、0警告错误，既有IsAotCompatible启trim/AOT分析，无新DTO/依赖，不计NativeAOTpublish或跨架构。
+- 修复后新Web→隔离Release Kestrel首轮3/3、20.8秒测试/49秒wrapper、retries0，READ正常10/151/1000各独立snapshot JSON/download/history，151实际truncatedtrue且151v/0e/count151；既有Canvas250/10/1000、typed vertex、单vertex Upsert/version+1与REVOKE403/READ重授/同tokenSchema200/internal tabs锁存继续通过。正常UI与safe-number合同不扩大，生产Web/薄入口/共享runner未改。本片未重跑WB-35全Web327/327、fixture16/16、TypeScript/Vite，其证据仍属WB-35。
+- 成功run`graph-real-2026-10-06T19-03-45-981Z-a33d5cd9-f8a4-4979-9dc2-85afb611efed`四JSON202299/649192/5614/158103字节，共1015208；根核exact四份manifest/各大小hash、绝对named runRoot/wx/无凭据及实际response/download/history。根首operational checker把boundary缺requests视为null请求误拒，仅修未提交checker的该文件分支后通过，checker-adjustment保留；代码/spec冻结hash未变，不降低旅程断言、不重跑真实旅程。独立源码/旧观察/最终成功证据与归属复核为提交前置，记录见independent-source-before-review/independent-success-review。
+- 真实后66记录身份0自有存活，两run的contentRoot和两Chrome profiles已清；4短后代缺command、外部Windows祖先缺command/末祖先未解析及旧wrapper短命捕获限制单列，不称全OS身份完备。根18:48:13Z起75分钟至20:03:13Z、16长命令/3真实run上限不重置；PowerShell7、有界执行/归属/finally与两政策保留Temp边界保持，无Graphify/广域扫描/安装/fetch/push/发布/部署/外部沟通，保留origin/parity-results外部更新。
+- 最终九任务文件/六共享文档，HANDOFF只顶部任务hunk；博客三文件、新oschina目录/外来尾hunk保留不暂存。证据根`artifacts/wb36-validation-20261007`，完整最终restore/原级别format/staged diff退出0才本地commit，代码再改重跑，实际最终门禁/树/提交/进程见final-gates/final-tree-hashes/commit-checkpoint/final-process-audit。三宿主、安装、Extension Host、NativeAOT、固定硬件、长稳与发布未闭环；下一片Object真实新UI旅程、已实现WB-25写终态不重复，再接Studio/VS Code。唯一heartbeat已回读ACTIVE每30分钟，不因单片完成暂停或提前迁新会话，本轮不启动WB-37。
+
 ## WB-35 Graph 新Web真实旅程（2026-10-07；本地切片已验证）
 
 - 仅两新增源码：Graph薄入口复用既有隔离runner，真实spec由专属UI实施、runner完整只读复核，根独立核入口/源码/实际失败定位和成功记录。生产Graph/API/Server/共享runner/路由/其它宿主不改；Graph Beta与database+Graph/profile原名身份保持基线，固定safe-number子集，不计完整Int64/edge/delete/import/maintenance矩阵。

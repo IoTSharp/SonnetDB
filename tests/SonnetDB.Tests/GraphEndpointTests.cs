@@ -718,6 +718,194 @@ public sealed class GraphEndpointTests : IAsyncLifetime
         Assert.Equal(overview.EdgeCount, copy.EdgeCount);
     }
 
+    /// <summary>
+    /// 验证真实 Kestrel 导出在空图、精确元素预算和页边界下保留类型与快照截断信息。
+    /// </summary>
+    /// <param name="vertexCount">种子顶点数量，最多 256 个。</param>
+    /// <param name="edgeCount">种子边数量，最多 2 条。</param>
+    /// <param name="maxElements">导出的总元素预算。</param>
+    /// <param name="expectedVertices">预期导出的顶点数量。</param>
+    /// <param name="expectedEdges">预期导出的边数量。</param>
+    /// <param name="expectedTruncated">是否仍有未导出的元素。</param>
+    [Theory]
+    [InlineData(0, 0, 1, 0, 0, false)] // 空图。
+    [InlineData(2, 0, 2, 2, 0, false)] // 顶点恰满且无边。
+    [InlineData(2, 1, 2, 2, 0, true)] // 顶点恰满但仍有边。
+    [InlineData(2, 2, 4, 2, 2, false)] // 总元素数恰满。
+    [InlineData(2, 2, 3, 2, 1, true)] // 边预算不足。
+    [InlineData(3, 1, 2, 2, 0, true)] // 顶点预算不足。
+    [InlineData(256, 0, 256, 256, 0, false)] // 顶点页恰满且无边。
+    [InlineData(256, 2, 256, 256, 0, true)] // 顶点页恰满但仍有边。
+    public async Task GraphOperations_ExportWithBoundedElementBudget_PreservesTypedSnapshotAndTruncation(
+        int vertexCount,
+        int edgeCount,
+        int maxElements,
+        int expectedVertices,
+        int expectedEdges,
+        bool expectedTruncated)
+    {
+        Assert.InRange(vertexCount, 0, 256);
+        Assert.InRange(edgeCount, 0, 2);
+        Assert.InRange(maxElements, 1, 258);
+        Assert.InRange(expectedVertices, 0, vertexCount);
+        Assert.InRange(expectedEdges, 0, edgeCount);
+        Assert.True(edgeCount == 0 || vertexCount >= 2);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        CancellationToken cancellationToken = timeout.Token;
+        using HttpClient admin = CreateClient(AdminToken);
+        using HttpClient reader = CreateClient(ReadOnlyToken);
+        const string graphName = "BudgetGraph_Original";
+        const string graphPath = "/v1/db/graphapi/graphs/" + graphName;
+        using HttpResponseMessage create = await admin.PostAsJsonAsync(
+            "/v1/db/graphapi/graphs",
+            new GraphCreateRequest { Name = graphName },
+            ServerJsonContext.Default.GraphCreateRequest,
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        GraphInfoDto created = Assert.IsType<GraphInfoDto>(await create.Content.ReadFromJsonAsync(
+            ServerJsonContext.Default.GraphInfoDto,
+            cancellationToken));
+        Assert.Equal(graphName, created.Name);
+
+        long? seedSequence = null;
+        if (vertexCount > 0)
+        {
+            GraphImportVertexDto[] vertices = Enumerable.Range(1, vertexCount)
+                .Select(id => new GraphImportVertexDto
+                {
+                    Id = id,
+                    ExpectedElementVersion = 0,
+                    Labels = [10],
+                    Properties =
+                    [
+                        new GraphPropertyDto
+                        {
+                            PropertyId = 20,
+                            Value = new GraphValueDto { Kind = GraphPropertyKind.String, String = $"Vertex_Original_{id}" },
+                        },
+                        new GraphPropertyDto
+                        {
+                            PropertyId = 21,
+                            Value = new GraphValueDto { Kind = GraphPropertyKind.Int64, Int64 = id },
+                        },
+                        new GraphPropertyDto
+                        {
+                            PropertyId = 22,
+                            Value = new GraphValueDto { Kind = GraphPropertyKind.Boolean, Boolean = id % 2 == 0 },
+                        },
+                    ],
+                }).ToArray();
+            GraphImportEdgeDto[] edges = Enumerable.Range(0, edgeCount)
+                .Select(index => new GraphImportEdgeDto
+                {
+                    Id = 1001 + index,
+                    ExpectedElementVersion = 0,
+                    SourceId = index == 0 ? 1 : 2,
+                    TargetId = index == 0 ? 2 : 1,
+                    LabelId = 30,
+                    Properties =
+                    [
+                        new GraphPropertyDto
+                        {
+                            PropertyId = 40,
+                            Value = new GraphValueDto { Kind = GraphPropertyKind.String, String = $"Edge_Original_{1001 + index}" },
+                        },
+                    ],
+                }).ToArray();
+            using HttpResponseMessage import = await admin.PostAsJsonAsync(
+                graphPath + "/import",
+                new GraphImportRequest { RequestId = Guid.NewGuid(), Vertices = vertices, Edges = edges },
+                ServerJsonContext.Default.GraphImportRequest,
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, import.StatusCode);
+            GraphImportResponse imported = Assert.IsType<GraphImportResponse>(await import.Content.ReadFromJsonAsync(
+                ServerJsonContext.Default.GraphImportResponse,
+                cancellationToken));
+            Assert.False(imported.IsDuplicate);
+            Assert.Equal(vertexCount, imported.VertexCount);
+            Assert.Equal(edgeCount, imported.EdgeCount);
+            seedSequence = imported.Sequence;
+        }
+
+        using HttpResponseMessage overviewResponse = await reader.GetAsync(graphPath + "/operations/overview", cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, overviewResponse.StatusCode);
+        GraphOperationsOverviewDto overview = Assert.IsType<GraphOperationsOverviewDto>(await overviewResponse.Content.ReadFromJsonAsync(
+            ServerJsonContext.Default.GraphOperationsOverviewDto,
+            cancellationToken));
+        Assert.Equal(vertexCount, overview.VertexCount);
+        Assert.Equal(edgeCount, overview.EdgeCount);
+        if (seedSequence is { } committedSequence)
+            Assert.Equal(committedSequence, overview.SnapshotSequence);
+
+        using HttpResponseMessage export = await reader.GetAsync(
+            graphPath + $"/operations/export?maxElements={maxElements}",
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        await using Stream exportStream = await export.Content.ReadAsStreamAsync(cancellationToken);
+        using JsonDocument document = await JsonDocument.ParseAsync(exportStream, cancellationToken: cancellationToken);
+        JsonElement root = document.RootElement;
+        Assert.Equal(overview.SnapshotSequence, root.GetProperty("snapshotSequence").GetInt64());
+        Assert.Equal(expectedTruncated, root.GetProperty("truncated").GetBoolean());
+        Assert.Equal(expectedVertices + expectedEdges, root.GetProperty("elementCount").GetInt32());
+        Assert.InRange(root.GetProperty("elementCount").GetInt32(), 0, maxElements);
+        JsonElement exportedVertices = root.GetProperty("vertices");
+        JsonElement exportedEdges = root.GetProperty("edges");
+        Assert.Equal(expectedVertices, exportedVertices.GetArrayLength());
+        Assert.Equal(expectedEdges, exportedEdges.GetArrayLength());
+
+        int vertexIndex = 0;
+        foreach (JsonElement item in exportedVertices.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            GraphVertexDto vertex = Assert.IsType<GraphVertexDto>(item.Deserialize(ServerJsonContext.Default.GraphVertexDto));
+            long expectedId = vertexIndex + 1;
+            Assert.Equal(expectedId, vertex.Id);
+            Assert.Equal(1L, vertex.ElementVersion);
+            Assert.Equal([10], vertex.Labels);
+            Assert.Collection(vertex.Properties,
+                property =>
+                {
+                    Assert.Equal(20, property.PropertyId);
+                    Assert.Equal(GraphPropertyKind.String, property.Value.Kind);
+                    Assert.Equal($"Vertex_Original_{expectedId}", property.Value.String);
+                },
+                property =>
+                {
+                    Assert.Equal(21, property.PropertyId);
+                    Assert.Equal(GraphPropertyKind.Int64, property.Value.Kind);
+                    Assert.Equal((long?)expectedId, property.Value.Int64);
+                },
+                property =>
+                {
+                    Assert.Equal(22, property.PropertyId);
+                    Assert.Equal(GraphPropertyKind.Boolean, property.Value.Kind);
+                    Assert.Equal((bool?)(expectedId % 2 == 0), property.Value.Boolean);
+                });
+            vertexIndex++;
+        }
+        Assert.Equal(expectedVertices, vertexIndex);
+
+        int edgeIndex = 0;
+        foreach (JsonElement item in exportedEdges.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            GraphEdgeDto edge = Assert.IsType<GraphEdgeDto>(item.Deserialize(ServerJsonContext.Default.GraphEdgeDto));
+            long expectedId = 1001 + edgeIndex;
+            Assert.Equal(expectedId, edge.Id);
+            Assert.Equal(1L, edge.ElementVersion);
+            Assert.Equal(edgeIndex == 0 ? 1L : 2L, edge.SourceId);
+            Assert.Equal(edgeIndex == 0 ? 2L : 1L, edge.TargetId);
+            Assert.Equal(30, edge.LabelId);
+            GraphPropertyDto property = Assert.Single(edge.Properties);
+            Assert.Equal(40, property.PropertyId);
+            Assert.Equal(GraphPropertyKind.String, property.Value.Kind);
+            Assert.Equal($"Edge_Original_{expectedId}", property.Value.String);
+            edgeIndex++;
+        }
+        Assert.Equal(expectedEdges, edgeIndex);
+    }
+
     [Fact]
     public async Task GraphMaintenance_RequiresAdminAndPersistsStagedDecisionAuditAcrossRestart()
     {

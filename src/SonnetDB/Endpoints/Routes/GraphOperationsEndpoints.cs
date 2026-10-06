@@ -399,12 +399,12 @@ internal static partial class SonnetDbEndpoints
         }
         writer.WriteEndArray();
         writer.WriteStartArray("edges");
-        if (!truncated && written < maxElements)
+        if (!truncated)
         {
             int remaining = maxElements - written;
             using GraphCursor<GraphEdge> cursor = read.ScanEdges(new GraphCursorOptions
             {
-                PageSize = 256,
+                PageSize = remaining == 0 ? 1 : 256,
                 MaxResults = remaining + 1,
             });
             while (written <= maxElements)

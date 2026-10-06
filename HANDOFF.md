@@ -5,6 +5,20 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-36，2026-10-07；本地切片已验证）
+
+- 从WB-35本地提交`9788645e1b47b538061f351f069479f7a0635c9f`接续；最新HANDOFF/AGENTS/queue/ROADMAP完整Raw接收，hash对拍上一片最终已读树，git/路线图/已存在提交/代理核验。上一片145记录身份0存活，3短command缺口保留；旧两代理完成，WB-25～WB-35不重复。博客三文件及HANDOFF外来尾段保留不暂存。
+- 仅冻结Graph导出恰满顶点maxElements且仍有边的截断候选缺口：先复用旧Release DLL取得真实Web导出151的失败观察，再允许最小Server边哨兵探测修复；保持单statement snapshot、顶点优先/总元素上限、source-generated JSON及Graph Beta。Server/API形式/Graph存储/其它模型与三宿主基线不扩大。正常无剩余边时不得误报truncated，精确总元素、边预算和页边界由有界Kestrel测试分开核验。
+- 复用专属`/root/wb34_runner`独占GraphOperationsEndpoints.cs与GraphEndpointTests.cs，先只增回归测试、生产修复等待根真实复现放行；`/root/wb34_ui`独占既有graph-real-permission.spec.ts扩导出151与named WB-36证据父目录，保WB-35真实基线和正常UI定位/数字提交；`/root/wb33_ui`只读独立源码/真实证据复核。根独占六共享文档、验证/进程审计、集成、完整restore/原级别format/stage/commit，最多三活动子代理。
+- 根18:48:13Z起75分钟至20:03:13Z，最多16长命令/3真实run；代理35分钟至19:23:13Z、最多25命名文件/30定向搜索（每次80匹配/15秒）、短语法最多2次各30秒，无自跑长验证。PowerShell7固定pwsh；禁止Graphify/广域工具扫描/未授权安装；所有循环/等待/重试同时有限次数/项目与墙钟，长进程PID/创建/完整command/父链与finally仅回收已核验自有树，临时绝对路径核验。两政策保留Temp不碰，证据/失败不覆盖，保留当前origin/parity-results（WB-35后外部fetch更新至9b82287f，原固定hash guard事后报警已单列，不改回外部引用）。不push/发布/部署/外部沟通；最终九任务文件完整门禁通过才本地提交，三宿主未闭环，heartbeat仍ACTIVE每30分钟，本轮不启动WB-37。
+
+- 旧DLL真实正常UI导出151已复现：READ在truncated断言失败（expected true / actual false），200、snapshot1、151顶点/0边/count151，response/download逐项相等且原身份history maxElements=151；两个后续旅程未执行。202301字节独立失败观察及不完整manifest保留，生产/DLL在该run未变，根验证后才放行两行修复。只将edge scan条件改为!truncated、零剩余预算PageSize1/正预算256，MaxResults=remaining+1及同read保持；生产9905FDA6、测试5BFB080F、spec318A8D44已冻结。
+- 根串行Server Release构建退出0、0警告/错误（既有IsAotCompatible启trim/AOT分析，不计NativeAOT发布）；GraphEndpointTests17/17、其中新增8例全PASS/无skip，各30秒取消/最多256顶点2边。修复后真实首轮3/3、20.8秒测试/49秒wrapper、retries0，保WB-35 READ/WRITE/REVOKE，新增151导出truncated=true；空图/无边精确预算、总量恰满/边不足/顶点不足/256页边界分别由Kestrel测试覆盖，不夸大通用资源预算。
+- 成功run`graph-real-2026-10-06T19-03-45-981Z-a33d5cd9-f8a4-4979-9dc2-85afb611efed`四JSON共1015208字节（202299/649192/5614/158103）/manifest大小hash、实际下载和原身份history根核验通过。根首operational checker把独立boundary不存在的requests当null请求误拒；仅修未提交checker、保checker-adjustment记录后通过，不改源码/降低断言/重跑真实旅程。独立源码、旧观察和最终成功证据复核为提交前置，详见`artifacts/wb36-validation-20261007`。
+- 修复后真实审计66记录身份0自有存活、四短command缺口保留；两run contentRoots和两记录Chrome profiles已清，最终门禁后的归属审计另见final-process-audit。外部祖先缺command/末祖先未解析、旧wrapper短命捕获限制仍单列，不称全OS完备；两政策保留Temp不触碰，博客三文件/新oschina目录/外来尾hunk保留不暂存。
+- 最终九任务文件完整restore/原级别format/staged diff退出0才本地提交，实际门禁、冻结树/独立复核/提交见final-gates/final-tree-hashes/commit-checkpoint与git log。生产Web/共享runner不改，WB-35全Web327/327/Graph fixture16/16/build是旧片证据，本片没有重复冒称新PASS。Graph Beta、完整Int64/edge/import/维护、显式恢复、Server预算及三宿主/安装/Extension Host/NativeAOT/固定硬件/长稳/发行物另验。
+- 下一次先完整接收最新交接/AGENTS/队列/ROADMAP、git/提交/活动代理，从WB-36实际提交接续；优先Object新UI真实权限/读取与已实现写终态证据，再接Studio/VS Code未闭环事项；WB-25 Object写终态不重复实施。本轮不启动WB-37。唯一workbench已回读ACTIVE、每30分钟、当前thread；三宿主未闭环，旧任务继续，完成后才迁同一heartbeat到新接续会话监督各类型后续任务。
+
 ## 当前检查点（WB-35，2026-10-07；本地切片已验证）
 
 - 从WB-34本地提交`328378d8c0d7130b1dde302dd4a1d2c2eff8793f`接续；最新交接/AGENTS/queue已完整Raw接收并hash对拍上一片final-tree，路线图/git/提交/代理核验，100记录身份0自有存活，旧两代理完成。保留博客三文件与本文件博客/OSChina外来尾hunk，不重复WB-25～WB-34，origin/parity-results保护。
