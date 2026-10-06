@@ -1,5 +1,5 @@
 <template>
-  <main class="object-workbench" data-testid="workbench-bucket">
+  <main class="object-workbench" data-testid="workbench-bucket" :data-page-state="objectState" :data-database="targetDb" :data-resource-key="`bucket:${activeBucket}`">
     <section class="object-toolbar">
       <div class="object-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
@@ -53,6 +53,9 @@
       @update:model-value="inspectorTab = $event as InspectorTab"
     />
 
+    <n-alert v-if="permissionDenied" type="warning" data-testid="object-permission">当前身份没有 Object 访问权限。</n-alert>
+    <n-alert v-else-if="readOnly" type="info" data-testid="object-readonly">只读模式：可浏览、读取和下载，写入操作不可用。</n-alert>
+    <p data-testid="object-preview-budget">对象列表最多保留 1000 条预览；{{ listIncomplete ? '当前预览不完整。' : '仅显示当前已加载窗口。' }}</p>
     <WriteApprovalPanel
       v-if="previewPlan"
       :plan="previewPlan"
@@ -70,14 +73,14 @@
       @close="errorMsg = ''"
     />
 
-    <section class="object-stats">
+    <section v-if="!permissionDenied" class="object-stats">
       <article v-for="item in statItems" :key="item.label" class="object-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
     </section>
 
-    <section class="object-body" :class="{ 'is-focused': inspectorTab !== 'preview' }">
+    <section v-if="!permissionDenied" class="object-body" :class="{ 'is-focused': inspectorTab !== 'preview' }">
       <aside v-if="inspectorTab === 'preview'" class="object-nav">
         <div class="object-panel-head">
           <div>
@@ -90,10 +93,10 @@
           <n-input v-model:value="newBucketName" size="small" placeholder="New bucket" />
           <n-input v-model:value="newBucketPurpose" size="small" placeholder="Purpose" />
           <n-space size="small" align="center" :wrap="true">
-            <n-button size="small" type="primary" :disabled="!newBucketName.trim()" @click="stageCreateBucket">
+            <n-button size="small" type="primary" :disabled="!canWrite || (!newBucketName.trim())" @click="stageCreateBucket">
               Stage create
             </n-button>
-            <n-button size="small" tertiary type="error" :disabled="!activeBucket" @click="stageDeleteBucket">
+            <n-button size="small" tertiary type="error" :disabled="!canWrite || (!activeBucket)" @click="stageDeleteBucket">
               Stage drop
             </n-button>
           </n-space>
@@ -162,7 +165,7 @@
             <n-button size="small" secondary :disabled="!selectedObject" @click="downloadSelectedObject">
               Download
             </n-button>
-            <n-button size="small" tertiary type="error" :disabled="checkedRowKeys.length === 0" @click="stageDeleteSelected">
+            <n-button size="small" tertiary type="error" :disabled="!canWrite || (checkedRowKeys.length === 0)" @click="stageDeleteSelected">
               Stage delete
             </n-button>
           </div>
@@ -215,11 +218,12 @@
             </div>
             <div class="object-preview-controls">
               <n-input-number v-model:value="rangeStart" size="small" :min="0" :show-button="false" placeholder="Start" />
-              <n-input-number v-model:value="rangeLength" size="small" :min="1" :show-button="false" placeholder="Bytes" />
+              <n-input-number v-model:value="rangeLength" size="small" :min="1" :max="4096" :show-button="false" placeholder="Bytes" />
               <n-select v-model:value="previewMode" size="small" :options="previewModeOptions" />
               <n-button size="small" secondary :loading="loadingPreview" @click="() => loadPreview()">Range read</n-button>
             </div>
             <pre class="object-preview">{{ previewText || 'Load a byte range to preview this object.' }}</pre>
+            <p data-testid="object-range-budget">Range 预览最多 4096 字节；{{ rangeNotice || '不代表完整对象或传输预算。' }}</p>
             <div class="object-section-title">
               <span>Versions</span>
               <n-button size="tiny" quaternary @click="() => loadVersions()">Refresh</n-button>
@@ -236,7 +240,7 @@
             <div class="object-presign">
               <n-select v-model:value="presignMethod" size="small" :options="presignMethodOptions" />
               <n-input-number v-model:value="presignMinutes" size="small" :min="1" :max="1440" :show-button="false" />
-              <n-button size="small" secondary @click="stagePresign">Stage URL</n-button>
+              <n-button :disabled="!canWrite" size="small" secondary @click="stagePresign">Stage URL</n-button>
             </div>
             <n-input
               v-if="presignedUrl"
@@ -278,8 +282,8 @@
               <n-input-number v-model:value="lifecycleDraft.expireDeleteMarkerAfterDays" size="small" :min="0" :show-button="false" placeholder="Marker days" />
             </div>
             <n-space size="small" align="center">
-              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetLifecycle">Stage save</n-button>
-              <n-button size="small" tertiary type="error" :disabled="!activeBucket" @click="stageApplyLifecycle">Stage apply</n-button>
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSetLifecycle">Stage save</n-button>
+              <n-button size="small" tertiary type="error" :disabled="!canWrite || (!activeBucket)" @click="stageApplyLifecycle">Stage apply</n-button>
             </n-space>
           </div>
 
@@ -294,8 +298,8 @@
               <n-input-number v-model:value="quotaDraft.maxObjectVersions" size="small" :min="0" :show-button="false" placeholder="Max versions" />
             </div>
             <n-space size="small" align="center">
-              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetRetention">Stage retention</n-button>
-              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetQuota">Stage quota</n-button>
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSetRetention">Stage retention</n-button>
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSetQuota">Stage quota</n-button>
             </n-space>
           </div>
 
@@ -307,7 +311,7 @@
               :autosize="{ minRows: 4, maxRows: 8 }"
               placeholder="{ }"
             />
-            <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetPolicy">Stage policy</n-button>
+            <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSetPolicy">Stage policy</n-button>
           </div>
 
           <div class="object-form-block">
@@ -318,7 +322,7 @@
                 <template #unchecked>Off</template>
               </n-switch>
               <n-input v-model:value="legalHoldReason" size="small" placeholder="Reason" :disabled="!selectedObject" />
-              <n-button size="small" secondary :disabled="!selectedObject" @click="stageSetLegalHold">
+              <n-button size="small" secondary :disabled="!canWrite || (!selectedObject)" @click="stageSetLegalHold">
                 Stage hold
               </n-button>
             </div>
@@ -353,11 +357,11 @@
               <n-input-number v-model:value="semanticOptionsDraft.thumbnailQuality" size="small" :min="1" :max="100" placeholder="WebP 质量" />
             </div>
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetSemanticOptions">
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSetSemanticOptions">
                 <template #icon><Save :size="15" /></template>
                 暂存配置
               </n-button>
-              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSemanticBackfill">
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket)" @click="stageSemanticBackfill">
                 <template #icon><Layers3 :size="15" /></template>
                 补录当前对象
               </n-button>
@@ -389,7 +393,7 @@
                   <template #icon><RefreshCw :size="15" /></template>
                   刷新
                 </n-button>
-                <n-button size="small" secondary :disabled="!selectedObject" @click="stageRequeueSelectedObject">
+                <n-button size="small" secondary :disabled="!canWrite || (!selectedObject)" @click="stageRequeueSelectedObject">
                   <template #icon><RotateCcw :size="15" /></template>
                   重新入队
                 </n-button>
@@ -503,8 +507,8 @@
             <n-text class="object-section-title object-section-title--standalone">Put object</n-text>
             <n-input v-model:value="uploadKey" size="small" placeholder="Object key" />
             <n-input v-model:value="uploadContentType" size="small" placeholder="Content-Type" />
-            <input ref="uploadFileInput" type="file" class="object-file-input" @change="onUploadFileChange">
-            <n-button size="small" secondary @click="pickUploadFile">
+            <input ref="uploadFileInput" type="file" :disabled="!canWrite" class="object-file-input" @change="onUploadFileChange">
+            <n-button :disabled="!canWrite" size="small" secondary @click="pickUploadFile">
               {{ uploadFile ? uploadFile.name : '选择上传文件' }}
             </n-button>
             <n-input
@@ -518,10 +522,10 @@
               <n-input v-model:value="tagsText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="Tags key=value" />
             </div>
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" type="primary" :disabled="!activeBucket || !uploadKey.trim() || !uploadFile" @click="stageUploadFile">
+              <n-button size="small" type="primary" :disabled="!canWrite || (!activeBucket || !uploadKey.trim() || !uploadFile)" @click="stageUploadFile">
                 Stage file upload
               </n-button>
-              <n-button size="small" secondary :disabled="!activeBucket || !uploadKey.trim() || !uploadText" @click="stageUploadText">
+              <n-button size="small" secondary :disabled="!canWrite || (!activeBucket || !uploadKey.trim() || !uploadText)" @click="stageUploadText">
                 Stage text upload
               </n-button>
             </n-space>
@@ -538,9 +542,9 @@
             />
             <n-input v-model:value="copyTargetKey" size="small" placeholder="Copy target key" :disabled="!selectedObject" />
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary :disabled="!selectedObject" @click="stageSetTags">Stage tags</n-button>
-              <n-button size="small" secondary :disabled="!selectedObject || !copyTargetKey.trim()" @click="stageCopySelected">Stage copy</n-button>
-              <n-button size="small" tertiary type="error" :disabled="!selectedObject" @click="stageDeleteCurrent">
+              <n-button size="small" secondary :disabled="!canWrite || (!selectedObject)" @click="stageSetTags">Stage tags</n-button>
+              <n-button size="small" secondary :disabled="!canWrite || (!selectedObject || !copyTargetKey.trim())" @click="stageCopySelected">Stage copy</n-button>
+              <n-button size="small" tertiary type="error" :disabled="!canWrite || (!selectedObject)" @click="stageDeleteCurrent">
                 Stage delete
               </n-button>
             </n-space>
@@ -568,7 +572,7 @@
             <n-input v-model:value="multipartContentType" size="small" placeholder="Content-Type" />
             <div class="object-form-row">
               <n-input-number v-model:value="multipartExpiresHours" size="small" :min="1" :show-button="false" placeholder="Expires hours" />
-              <n-button size="small" type="primary" :disabled="!activeBucket || !multipartKey.trim()" @click="stageInitiateMultipart">
+              <n-button size="small" type="primary" :disabled="!canWrite || (!activeBucket || !multipartKey.trim())" @click="stageInitiateMultipart">
                 Stage initiate
               </n-button>
             </div>
@@ -585,20 +589,20 @@
 
           <div class="object-form-block">
             <div class="object-form-row">
-              <n-input-number v-model:value="multipartPartNumber" size="small" :min="1" :show-button="false" placeholder="Part number" :disabled="activeMultipartStatus !== 'active'" />
-              <input ref="multipartFileInput" type="file" class="object-file-input" :disabled="activeMultipartStatus !== 'active'" @change="onMultipartFileChange">
-              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active'" @click="pickMultipartFile">
+              <n-input-number v-model:value="multipartPartNumber" size="small" :min="1" :show-button="false" placeholder="Part number" :disabled="!canWrite || activeMultipartStatus !== 'active'" />
+              <input ref="multipartFileInput" type="file" class="object-file-input" :disabled="!canWrite || activeMultipartStatus !== 'active'" @change="onMultipartFileChange">
+              <n-button size="small" secondary :disabled="!canWrite || (activeMultipartStatus !== 'active')" @click="pickMultipartFile">
                 {{ multipartFile ? multipartFile.name : '选择分片文件' }}
               </n-button>
             </div>
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active' || !multipartFile" @click="stageUploadPart">
+              <n-button size="small" secondary :disabled="!canWrite || (activeMultipartStatus !== 'active' || !multipartFile)" @click="stageUploadPart">
                 Stage upload part
               </n-button>
-              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active' || multipartParts.length === 0" @click="stageCompleteMultipart">
+              <n-button size="small" secondary :disabled="!canWrite || (activeMultipartStatus !== 'active' || multipartParts.length === 0)" @click="stageCompleteMultipart">
                 Stage complete
               </n-button>
-              <n-button size="small" tertiary type="error" :disabled="!activeMultipart" @click="stageAbortMultipart">
+              <n-button size="small" tertiary type="error" :disabled="!canWrite || (!activeMultipart)" @click="stageAbortMultipart">
                 Stage abort
               </n-button>
             </n-space>
@@ -657,7 +661,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, h, markRaw, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { createApiClient } from '@/api/client';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -774,9 +780,13 @@ const props = withDefaults(defineProps<{
   bucket: string;
   buckets?: ObjectBucketInfo[];
   loading?: boolean;
+  readOnly?: boolean;
+  permissionDenied?: boolean;
 }>(), {
   buckets: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -808,6 +818,13 @@ interface PendingOperation {
   run: () => Promise<OperationOutcome>;
 }
 
+interface ObjectContext {
+  revision: number; database: string; bucket: string; api: AxiosInstance; sourceApi: AxiosInstance;
+  baseUrl: string | undefined; authorization: unknown; token: string | null | undefined;
+  connectionId: string; connectionName: string; profileBaseUrl: string;
+}
+interface ReadTicket { context: ObjectContext; controller: AbortController; slot: string; selected: boolean; selection: string; }
+
 interface OperationOutcome {
   action: string;
   target: string;
@@ -820,6 +837,22 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+let disposed = false;
+let contextRevision = 0;
+let deniedContext: ObjectContext | null = null;
+const readTickets = new Map<string, ReadTicket>();
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => Boolean(props.permissionDenied || permissionLocked.value));
+const readOnly = computed(() => Boolean(props.readOnly));
+const canRead = computed(() => !disposed && !permissionDenied.value && Boolean(props.targetDb));
+const canWrite = computed(() => canRead.value && !readOnly.value && !confirmBusy.value);
+let approvalContext: ObjectContext | null = null;
+let approvalInputs = '';
+let uploadPickerContext: ObjectContext | null = null;
+let multipartPickerContext: ObjectContext | null = null;
+const listIncomplete = ref(false);
+const rangeNotice = ref('');
+const usedListTokens = new Set<string>();
 
 const localBuckets = ref<ObjectBucketResponse[]>([]);
 const rows = ref<ObjectRow[]>([]);
@@ -972,6 +1005,8 @@ const presignMethodOptions: SelectOption[] = [
 ];
 
 const activeBucket = computed(() => props.bucket || localBuckets.value[0]?.name || '');
+const objectState = computed(() => permissionDenied.value ? 'permission' : readOnly.value ? 'readonly' : errorMsg.value ? 'error'
+  : listIncomplete.value || rangeNotice.value.includes('截断') ? 'longContent' : rows.value.length === 0 && !loadingObjects.value ? 'empty' : 'normal');
 
 const processingTagType = computed<'default' | 'error' | 'info' | 'success' | 'warning'>(() => {
   switch (processingStatus.value?.status) {
@@ -984,7 +1019,7 @@ const processingTagType = computed<'default' | 'error' | 'info' | 'success' | 'w
 });
 
 const canRunSemanticSearch = computed(() => {
-  if (!props.targetDb || searchingSemantic.value) return false;
+  if (!canRead.value || searchingSemantic.value) return false;
   if (semanticSearchMode.value === 'text') return semanticText.value.trim().length > 0;
   if (semanticSearchMode.value === 'image') return semanticImageFile.value !== null;
   return similarImageId.value.trim().length > 0;
@@ -996,13 +1031,14 @@ const selectedBucket = computed({
 });
 
 const bucketOptions = computed<SelectOption[]>(() => {
+  if (permissionDenied.value) return [];
   const names = new Set(localBuckets.value.map((bucket) => bucket.name));
   if (props.bucket) names.add(props.bucket);
   return [...names].sort().map((name) => ({ label: name, value: name }));
 });
 
 const filteredBuckets = computed(() =>
-  [...localBuckets.value].sort((a, b) => a.name.localeCompare(b.name)));
+  permissionDenied.value ? [] : [...localBuckets.value].sort((a, b) => a.name.localeCompare(b.name)));
 
 const selectedObject = computed(() =>
   rows.value.find((row) => row.key === selectedKey.value) ?? null);
@@ -1071,7 +1107,7 @@ const statItems = computed(() => [
 ]);
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
-  if (pendingOperations.value.length === 0) return null;
+  if (!canWrite.value && !confirmBusy.value || permissionDenied.value || readOnly.value || pendingOperations.value.length === 0) return null;
   const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
     id: operation.id,
     command: operation.command,
@@ -1177,181 +1213,184 @@ const auditColumns: DataTableColumns<ObjectAuditEntryResponse> = [
   { title: 'Details', key: 'details', minWidth: 180, ellipsis: { tooltip: true }, render: (row) => mapSummary(row.details) },
 ];
 
+function captureContext(): ObjectContext {
+  const token = auth.state?.token;
+  const baseUrl = auth.api.defaults.baseURL;
+  const authorization = auth.api.defaults.headers?.common?.Authorization;
+  const api = markRaw(createApiClient(() => token ?? null));
+  api.defaults.baseURL = baseUrl;
+  if (typeof authorization === 'string') api.defaults.headers.common.Authorization = authorization;
+  return { revision: contextRevision, database: props.targetDb, bucket: activeBucket.value, api, sourceApi: auth.api,
+    baseUrl, authorization, token, connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+    profileBaseUrl: connections.activeBaseUrl };
+}
+function isCurrentContext(context: ObjectContext): boolean {
+  return canRead.value && context.revision === contextRevision && context.database === props.targetDb && context.bucket === activeBucket.value
+    && context.sourceApi === auth.api && context.baseUrl === auth.api.defaults.baseURL
+    && context.authorization === auth.api.defaults.headers?.common?.Authorization && context.token === auth.state?.token
+    && context.connectionId === connections.activeProfileId && context.profileBaseUrl === connections.activeBaseUrl;
+}
+function selectionIdentity(): string { return JSON.stringify([selectedKey.value, selectedObject.value?.versionId ?? '']); }
+function beginRead(slot: string, selected = false): ReadTicket {
+  cancelRead(slot);
+  const ticket = { context: captureContext(), controller: new AbortController(), slot, selected, selection: selectionIdentity() };
+  readTickets.set(slot, ticket); return ticket;
+}
+function currentRead(ticket: ReadTicket): boolean {
+  return isCurrentContext(ticket.context) && readTickets.get(ticket.slot) === ticket && !ticket.controller.signal.aborted
+    && (!ticket.selected || ticket.selection === selectionIdentity());
+}
+function cancelRead(slot: string): void { readTickets.get(slot)?.controller.abort(); readTickets.delete(slot); }
+function finishRead(ticket: ReadTicket): void { if (readTickets.get(ticket.slot) === ticket) readTickets.delete(ticket.slot); }
+function isPermissionError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status; return status === 401 || status === 403;
+}
+function readError(error: unknown, ticket: ReadTicket, fallback: string): void {
+  if (!currentRead(ticket)) return;
+  if (isPermissionError(error)) {
+    deniedContext = ticket.context; permissionLocked.value = true; invalidateContext(); localBuckets.value = [];
+    errorMsg.value = '当前身份没有 Object 访问权限。';
+  } else errorMsg.value = fallback;
+}
+async function readValue<T>(promise: Promise<T>, ticket: ReadTicket): Promise<T> {
+  try { return await promise; } catch (error) { readError(error, ticket, 'Object 读取失败。'); throw error; }
+}
+async function readGroup<T extends readonly unknown[]>(promises: { [K in keyof T]: Promise<T[K]> }, ticket: ReadTicket): Promise<T> {
+  const results = await Promise.allSettled(promises.map((promise) => readValue(promise, ticket)));
+  return results.map((result) => { if (result.status === 'rejected') throw result.reason; return result.value; }) as unknown as T;
+}
+function normalizedPrefix(value: string): string { return value.replace(/^\/+/, ''); }
+function boundedListLimit(): number { return Number.isFinite(listLimit.value) ? Math.max(1, Math.min(1000, Math.floor(listLimit.value))) : 100; }
+function validObjectTarget(item: ObjectInfoResponse, context: ObjectContext, prefix = ''): boolean {
+  return item?.bucket === context.bucket && typeof item.key === 'string' && item.key.startsWith(prefix)
+    && typeof item.versionId === 'string' && typeof item.contentType === 'string'
+    && item.metadata !== null && typeof item.metadata === 'object' && item.tags !== null && typeof item.tags === 'object';
+}
+
 async function refreshAll(): Promise<void> {
-  if (!props.targetDb) return;
-  loading.value = true;
-  errorMsg.value = '';
+  if (!canRead.value) return;
+  const ticket = beginRead('refresh'); loading.value = true; errorMsg.value = '';
   try {
-    await loadBucketList();
-    if (activeBucket.value) {
-      await Promise.all([
-        loadObjects(true),
-        loadGovernance(activeBucket.value),
-        loadVersions(),
-        loadAudit(),
-        loadMultipartSessions(true),
-      ]);
-    } else {
-      clearRows();
-      clearBucketMetadata();
-    }
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '加载对象桶工作台失败');
-  } finally {
-    loading.value = false;
-  }
+    await loadBucketList(); if (!currentRead(ticket)) return;
+    if (ticket.context.bucket) await Promise.all([loadObjects(true), loadGovernance(ticket.context.bucket), loadVersions(), loadAudit(), loadMultipartSessions(true)]);
+    else { clearRows(); clearBucketMetadata(); }
+  } catch (error) { readError(error, ticket, '加载对象桶工作台失败'); }
+  finally { if (currentRead(ticket)) loading.value = false; finishRead(ticket); }
 }
-
 async function loadBucketList(): Promise<void> {
-  const buckets = await listObjectBuckets(auth.api, props.targetDb);
-  localBuckets.value = buckets;
-  if (!props.bucket && buckets[0]) {
-    emit('selectBucket', buckets[0].name);
-  }
-}
-
-async function loadGovernance(bucket: string): Promise<void> {
-  const [nextStats, lifecycle, retention, quota, policy, semanticOptions, runtime] = await Promise.all([
-    getBucketStats(auth.api, props.targetDb, bucket),
-    getBucketLifecycle(auth.api, props.targetDb, bucket),
-    getBucketRetention(auth.api, props.targetDb, bucket),
-    getBucketQuota(auth.api, props.targetDb, bucket),
-    getBucketPolicy(auth.api, props.targetDb, bucket),
-    getBucketSemanticOptions(auth.api, props.targetDb, bucket),
-    getSemanticSearchStatus(auth.api),
-  ]);
-  stats.value = nextStats;
-  lifecycleDraft.expireCurrentAfterDays = lifecycle.expireCurrentAfterDays ?? null;
-  lifecycleDraft.expireNoncurrentAfterDays = lifecycle.expireNoncurrentAfterDays ?? null;
-  lifecycleDraft.expireDeleteMarkerAfterDays = lifecycle.expireDeleteMarkerAfterDays ?? null;
-  retentionDraft.retainCurrentForDays = retention.retainCurrentForDays ?? null;
-  retentionDraft.retainNoncurrentForDays = retention.retainNoncurrentForDays ?? null;
-  quotaDraft.maxSizeBytes = quota.maxSizeBytes ?? null;
-  quotaDraft.maxObjectVersions = quota.maxObjectVersions ?? null;
-  policyDraft.value = policy.policyJson ?? '';
-  semanticOptionsDraft.asyncIngestionEnabled = semanticOptions.asyncIngestionEnabled;
-  semanticOptionsDraft.thumbnailEnabled = semanticOptions.thumbnailEnabled;
-  semanticOptionsDraft.thumbnailMaxWidth = semanticOptions.thumbnailMaxWidth;
-  semanticOptionsDraft.thumbnailMaxHeight = semanticOptions.thumbnailMaxHeight;
-  semanticOptionsDraft.thumbnailQuality = semanticOptions.thumbnailQuality;
-  semanticRuntime.value = runtime;
-  semanticFilterBucket.value = bucket;
-}
-
-async function loadObjects(reset: boolean): Promise<void> {
-  const bucket = activeBucket.value;
-  if (!props.targetDb || !bucket) return;
-  loadingObjects.value = true;
-  errorMsg.value = '';
+  if (!canRead.value) return;
+  const ticket = beginRead('buckets');
   try {
-    const response = await listObjects(auth.api, props.targetDb, bucket, {
-      prefix: currentPrefix.value,
-      maxKeys: listLimit.value,
-      continuationToken: reset ? null : cursor.value,
-    });
-    const mapped = response.objects.map(mapObject);
-    rows.value = reset ? mapped : mergeRows(rows.value, mapped);
-    cursor.value = response.nextContinuationToken ?? null;
-    hasMore.value = response.isTruncated;
+    const buckets = await listObjectBuckets(ticket.context.api, ticket.context.database, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    localBuckets.value = buckets;
+    if (!props.bucket && buckets[0] && canRead.value) emit('selectBucket', buckets[0].name);
+  } catch (error) { readError(error, ticket, '加载对象桶失败'); }
+  finally { finishRead(ticket); }
+}
+async function loadGovernance(bucket: string): Promise<void> {
+  if (!canRead.value || !bucket || bucket !== activeBucket.value) return;
+  const ticket = beginRead('governance'); const { api, database } = ticket.context; const signal = ticket.controller.signal;
+  try {
+    const [nextStats, lifecycle, retention, quota, policy, semanticOptions, runtime] = await readGroup([
+      readValue(getBucketStats(api, database, bucket, signal), ticket), readValue(getBucketLifecycle(api, database, bucket, signal), ticket),
+      readValue(getBucketRetention(api, database, bucket, signal), ticket), readValue(getBucketQuota(api, database, bucket, signal), ticket),
+      readValue(getBucketPolicy(api, database, bucket, signal), ticket), readValue(getBucketSemanticOptions(api, database, bucket, signal), ticket),
+      readValue(getSemanticSearchStatus(api, signal), ticket),
+    ] as const, ticket);
+    if (!currentRead(ticket)) return;
+    if ([nextStats, lifecycle, retention, quota, policy, semanticOptions].some((item) => item.bucket !== bucket)) throw new Error('Wrong bucket');
+    stats.value = nextStats;
+    Object.assign(lifecycleDraft, { expireCurrentAfterDays: lifecycle.expireCurrentAfterDays ?? null, expireNoncurrentAfterDays: lifecycle.expireNoncurrentAfterDays ?? null, expireDeleteMarkerAfterDays: lifecycle.expireDeleteMarkerAfterDays ?? null });
+    Object.assign(retentionDraft, { retainCurrentForDays: retention.retainCurrentForDays ?? null, retainNoncurrentForDays: retention.retainNoncurrentForDays ?? null });
+    Object.assign(quotaDraft, { maxSizeBytes: quota.maxSizeBytes ?? null, maxObjectVersions: quota.maxObjectVersions ?? null });
+    policyDraft.value = policy.policyJson ?? '';
+    Object.assign(semanticOptionsDraft, { asyncIngestionEnabled: semanticOptions.asyncIngestionEnabled, thumbnailEnabled: semanticOptions.thumbnailEnabled,
+      thumbnailMaxWidth: semanticOptions.thumbnailMaxWidth, thumbnailMaxHeight: semanticOptions.thumbnailMaxHeight, thumbnailQuality: semanticOptions.thumbnailQuality });
+    semanticRuntime.value = runtime; semanticFilterBucket.value = bucket;
+  } catch (error) { readError(error, ticket, '加载对象桶治理失败'); }
+  finally { finishRead(ticket); }
+}
+async function loadObjects(reset: boolean): Promise<void> {
+  if (!canRead.value || !activeBucket.value || (!reset && (!hasMore.value || !cursor.value || rows.value.length >= 1000))) return;
+  const ticket = beginRead('objects'); const { api, database, bucket } = ticket.context;
+  const prefix = normalizedPrefix(currentPrefix.value); const token = reset ? null : cursor.value;
+  const limit = Math.min(boundedListLimit(), reset ? 1000 : 1000 - rows.value.length);
+  if (reset) { clearRows(); usedListTokens.clear(); listIncomplete.value = false; }
+  loadingObjects.value = true; errorMsg.value = '';
+  try {
+    const response = await listObjects(api, database, bucket, { prefix, maxKeys: limit, continuationToken: token }, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (response.bucket !== bucket || response.prefix !== prefix || (response.continuationToken ?? '') !== (token ?? '')) throw new Error('Wrong list target');
+    const retained = response.objects.slice(0, limit);
+    if (retained.some((item) => !validObjectTarget(item, ticket.context, prefix))) throw new Error('Wrong object target');
+    const mapped = retained.map(mapObject); const next = response.nextContinuationToken ?? null;
+    const overreturned = response.objects.length > limit;
+    if (!overreturned && response.isTruncated && (!next || next === token || usedListTokens.has(next))) throw new Error('Non advancing list token');
+    if (token) usedListTokens.add(token);
+    rows.value = (reset ? mapped : mergeRows(rows.value, mapped)).slice(0, 1000);
+    cursor.value = !overreturned && rows.value.length < 1000 && response.isTruncated ? next : null;
+    hasMore.value = Boolean(cursor.value); listIncomplete.value = overreturned || response.isTruncated || Boolean(token);
     syncSelectedAfterRows();
-    latestCommand.value = `GET /v1/db/${props.targetDb}/s3/${bucket}?list-type=2&prefix=${currentPrefix.value}`;
-    latestResult.value = resultFromObjects(mapped, 0);
+    latestCommand.value = `GET /v1/db/${database}/s3/${bucket}?list-type=2&prefix=${prefix}`;
+    const result = resultFromObjects(mapped, 0); if (result.end) result.end.truncated = listIncomplete.value;
+    latestResult.value = result;
     ranOnce.value = true;
-    recordHistory('success', 'Object list', 'browse', latestCommand.value, `${mapped.length} objects`, mapped.length, -1, 0);
+    recordHistory('success', 'Object list', 'browse', latestCommand.value, `${mapped.length} objects · ${listIncomplete.value ? '预览不完整' : '当前列表窗口'}`, mapped.length, -1, 0, ticket.context, listIncomplete.value ? 'truncated' : 'complete');
   } catch (error) {
-    const msg = errorToMessage(error, '加载对象列表失败');
-    errorMsg.value = msg;
-    latestResult.value = errorResult(msg);
-    ranOnce.value = true;
-  } finally {
-    loadingObjects.value = false;
-  }
+    if (currentRead(ticket)) { readError(error, ticket, '加载对象列表失败'); if (currentRead(ticket)) { latestResult.value = errorResult('加载对象列表失败'); ranOnce.value = true; cursor.value = null; hasMore.value = false; } }
+  } finally { if (currentRead(ticket)) loadingObjects.value = false; finishRead(ticket); }
 }
-
-async function loadMore(): Promise<void> {
-  if (!hasMore.value || !cursor.value) return;
-  await loadObjects(false);
-}
-
+async function loadMore(): Promise<void> { if (!loadingObjects.value) await loadObjects(false); }
 async function loadVersions(versionKey?: string): Promise<void> {
-  const bucket = activeBucket.value;
+  if (!canRead.value || !activeBucket.value) return;
+  const ticket = beginRead('versions', true); const { api, database, bucket } = ticket.context;
   const key = versionKey ?? selectedObject.value?.key ?? '';
-  if (!props.targetDb || !bucket) {
-    versions.value = [];
-    return;
-  }
-  const response = await listObjectVersions(auth.api, props.targetDb, bucket, key || null);
-  versions.value = response.versions;
+  try {
+    const response = await listObjectVersions(api, database, bucket, key || null, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (response.bucket !== bucket || (response.key ?? '') !== key || response.versions.some((item) => !validObjectTarget(item, ticket.context) || key && item.key !== key)) throw new Error('Wrong versions');
+    versions.value = response.versions;
+  } catch (error) { readError(error, ticket, '加载对象版本失败'); }
+  finally { finishRead(ticket); }
 }
-
 async function loadAudit(): Promise<void> {
-  const bucket = activeBucket.value;
-  if (!props.targetDb || !bucket) {
-    auditEntries.value = [];
-    return;
-  }
+  if (!canRead.value || !activeBucket.value) return;
+  const ticket = beginRead('audit'); const { api, database, bucket } = ticket.context;
+  const prefix = auditPrefix.value || currentPrefix.value; const max = auditMaxEntries.value;
   loadingAudit.value = true;
   try {
-    const response = await listBucketAudit(auth.api, props.targetDb, bucket, auditPrefix.value || currentPrefix.value, auditMaxEntries.value);
+    const response = await listBucketAudit(api, database, bucket, prefix, max, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (response.bucket !== bucket || response.entries.some((item) => item.bucket !== bucket)) throw new Error('Wrong audit');
     auditEntries.value = response.entries;
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '加载对象桶审计失败');
-  } finally {
-    loadingAudit.value = false;
-  }
+  } catch (error) { readError(error, ticket, '加载对象桶审计失败'); }
+  finally { if (currentRead(ticket)) loadingAudit.value = false; finishRead(ticket); }
 }
-
 async function loadMultipartSessions(reset: boolean): Promise<void> {
-  const bucket = activeBucket.value;
-  if (!props.targetDb || !bucket) {
-    multipartSessions.value = [];
-    multipartSessionsCursor.value = null;
-    multipartSessionsHasMore.value = false;
-    return;
-  }
-  loadingMultipartSessions.value = true;
+  if (!canRead.value || !activeBucket.value) return;
+  const ticket = beginRead('multipart'); const { api, database, bucket } = ticket.context;
+  const token = reset ? null : multipartSessionsCursor.value; loadingMultipartSessions.value = true;
   try {
-    const response = await listMultipartUploads(
-      auth.api,
-      props.targetDb,
-      bucket,
-      100,
-      reset ? null : multipartSessionsCursor.value,
-    );
-    multipartSessions.value = reset
-      ? response.uploads
-      : mergeMultipartSessions(multipartSessions.value, response.uploads);
-    multipartSessionsCursor.value = response.nextContinuationToken ?? null;
-    multipartSessionsHasMore.value = response.isTruncated;
-    if (activeMultipart.value) {
-      const refreshed = multipartSessions.value.find((session) => session.upload.uploadId === activeMultipart.value?.uploadId);
-      if (refreshed) applyMultipartSession(refreshed);
-    }
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '加载 Multipart 会话失败');
-  } finally {
-    loadingMultipartSessions.value = false;
-  }
+    const response = await listMultipartUploads(api, database, bucket, 100, token, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (response.bucket !== bucket || response.uploads.some((item) => item.upload.bucket !== bucket)) throw new Error('Wrong multipart');
+    multipartSessions.value = reset ? response.uploads : mergeMultipartSessions(multipartSessions.value, response.uploads);
+    multipartSessionsCursor.value = response.nextContinuationToken ?? null; multipartSessionsHasMore.value = response.isTruncated;
+    if (activeMultipart.value) { const refreshed = multipartSessions.value.find((item) => item.upload.uploadId === activeMultipart.value?.uploadId); if (refreshed) applyMultipartSession(refreshed); }
+  } catch (error) { readError(error, ticket, '加载 Multipart 会话失败'); }
+  finally { if (currentRead(ticket)) loadingMultipartSessions.value = false; finishRead(ticket); }
 }
-
 function resumeMultipartSession(uploadId: string | null): void {
-  if (!uploadId) {
-    activeMultipart.value = null;
-    multipartParts.value = [];
-    multipartFile.value = null;
-    return;
-  }
-  const session = multipartSessions.value.find((item) => item.upload.uploadId === uploadId);
-  if (session) applyMultipartSession(session);
+  if (!canRead.value) return;
+  if (!uploadId) { activeMultipart.value = null; multipartParts.value = []; multipartFile.value = null; return; }
+  const session = multipartSessions.value.find((item) => item.upload.uploadId === uploadId); if (session) applyMultipartSession(session);
 }
-
 function applyMultipartSession(session: MultipartUploadSessionResponse): void {
-  activeMultipart.value = session.upload;
-  multipartParts.value = [...session.parts].sort((left, right) => left.partNumber - right.partNumber);
-  multipartKey.value = session.upload.key;
-  multipartContentType.value = session.upload.contentType;
-  multipartPartNumber.value = (multipartParts.value.at(-1)?.partNumber ?? 0) + 1;
-  multipartFile.value = null;
+  if (!canRead.value || session.upload.bucket !== activeBucket.value) return;
+  activeMultipart.value = session.upload; multipartParts.value = [...session.parts].sort((left, right) => left.partNumber - right.partNumber);
+  multipartKey.value = session.upload.key; multipartContentType.value = session.upload.contentType;
+  multipartPartNumber.value = (multipartParts.value.at(-1)?.partNumber ?? 0) + 1; multipartFile.value = null;
 }
 
 function selectBucket(bucket: string): void {
@@ -1364,7 +1403,7 @@ function selectObject(key: string): void {
 }
 
 function applyPrefix(): void {
-  currentPrefix.value = prefixInput.value.trim();
+  currentPrefix.value = normalizedPrefix(prefixInput.value);
   cursor.value = null;
   hasMore.value = false;
   rows.value = [];
@@ -1374,7 +1413,7 @@ function applyPrefix(): void {
 
 function openPrefix(prefix: string): void {
   prefixInput.value = prefix;
-  currentPrefix.value = prefix;
+  currentPrefix.value = normalizedPrefix(prefix);
   cursor.value = null;
   rows.value = [];
   void loadObjects(true);
@@ -1426,213 +1465,142 @@ function clearBucketMetadata(): void {
 }
 
 async function loadSelectedProcessing(): Promise<void> {
-  const row = selectedObject.value;
-  processingStatus.value = null;
-  clearSelectedThumbnail();
-  if (!row) return;
-  loadingProcessing.value = true;
+  const row = selectedObject.value; if (!canRead.value || !row) return;
+  const ticket = beginRead('processing', true); processingStatus.value = null; clearSelectedThumbnail(); loadingProcessing.value = true;
+  const { api, database } = ticket.context;
   try {
-    const status = await getObjectProcessingStatus(auth.api, props.targetDb, row.bucket, row.key);
-    processingStatus.value = status;
-    if (status.semanticImageId) similarImageId.value = status.semanticImageId;
+    const status = await getObjectProcessingStatus(api, database, row.bucket, row.key, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (status.bucket !== row.bucket || status.key !== row.key || status.versionId !== row.versionId) throw new Error('Wrong processing target');
+    processingStatus.value = status; if (status.semanticImageId) similarImageId.value = status.semanticImageId;
     if (status.thumbnailUrl) {
-      const blob = await getObjectThumbnailBlob(auth.api, props.targetDb, row.bucket, row.key);
+      const blob = await getObjectThumbnailBlob(api, database, row.bucket, row.key, ticket.controller.signal);
+      if (!currentRead(ticket)) return;
       selectedThumbnailUrl.value = URL.createObjectURL(blob);
     }
-  } catch {
-    // 未开启派生处理或任务尚未创建时保持空状态。
-  } finally {
-    loadingProcessing.value = false;
-  }
+  } catch (error) { readError(error, ticket, '读取对象处理状态失败'); }
+  finally { if (currentRead(ticket)) loadingProcessing.value = false; finishRead(ticket); }
 }
-
 async function searchSimilarToSelected(): Promise<void> {
-  const id = processingStatus.value?.semanticImageId;
-  if (!id) return;
-  similarImageId.value = id;
-  semanticSearchMode.value = 'similar';
-  await runSemanticSearch();
+  if (!canRead.value) return;
+  const id = processingStatus.value?.semanticImageId; if (!id) return;
+  similarImageId.value = id; semanticSearchMode.value = 'similar'; await runSemanticSearch();
 }
-
 function onSemanticFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
+  if (!canRead.value) { input.value = ''; return; }
   semanticImageFile.value = input.files?.[0] ?? null;
 }
-
 async function runSemanticSearch(): Promise<void> {
   if (!canRunSemanticSearch.value) return;
-  const metadata = parseKeyValueMap(semanticMetadataText.value);
-  if (!metadata.ok) {
-    errorMsg.value = metadata.message;
-    return;
-  }
-  const tags = parseKeyValueMap(semanticTagsText.value);
-  if (!tags.ok) {
-    errorMsg.value = tags.message;
-    return;
-  }
-
-  const filter = buildSemanticFilter(metadata.value, tags.value);
-  const request = {
-    topK: semanticTopK.value,
-    minScore: semanticMinScore.value,
-    filter,
-    explain: semanticExplain.value,
-  };
-  searchingSemantic.value = true;
-  errorMsg.value = '';
-  const started = performance.now();
+  const metadata = parseKeyValueMap(semanticMetadataText.value); const tags = parseKeyValueMap(semanticTagsText.value);
+  if (!metadata.ok || !tags.ok) { errorMsg.value = '图片语义过滤条件无效。'; return; }
+  const ticket = beginRead('search'); cancelRead('images'); clearSemanticHitUrls();
+  const { api, database } = ticket.context; const mode = semanticSearchMode.value;
+  const text = semanticText.value.trim(); const image = semanticImageFile.value; const id = similarImageId.value.trim();
+  const request = { topK: semanticTopK.value, minScore: semanticMinScore.value, filter: buildSemanticFilter(metadata.value, tags.value), explain: semanticExplain.value };
+  searchingSemantic.value = true; errorMsg.value = ''; const started = performance.now();
+  const command = mode === 'text' ? `POST /v1/db/${database}/images/search/text` : mode === 'image' ? `POST /v1/db/${database}/images/search/image` : `POST /v1/db/${database}/images/${id}/similar`;
   try {
-    let response: ImageSearchResponse;
-    let command: string;
-    if (semanticSearchMode.value === 'text') {
-      command = `POST /v1/db/${props.targetDb}/images/search/text`;
-      response = await searchImagesByText(auth.api, props.targetDb, semanticText.value.trim(), request);
-    } else if (semanticSearchMode.value === 'image') {
-      command = `POST /v1/db/${props.targetDb}/images/search/image`;
-      response = await searchImagesByImage(auth.api, props.targetDb, semanticImageFile.value!, request);
-    } else {
-      const id = similarImageId.value.trim();
-      command = `POST /v1/db/${props.targetDb}/images/${id}/similar`;
-      response = await searchSimilarImages(auth.api, props.targetDb, id, request);
-    }
-
-    semanticSearchResult.value = response;
-    latestCommand.value = command;
-    latestResult.value = resultFromSemanticHits(response.hits, performanceElapsed(started));
-    ranOnce.value = true;
-    recordHistory(
-      'success',
-      'Semantic image search',
-      'search',
-      command,
-      `${response.hits.length} hits via ${response.backend}`,
-      response.hits.length,
-      -1,
-      performanceElapsed(started),
-    );
-    await loadSemanticHitPreviews(response.hits);
+    const response = mode === 'text' ? await searchImagesByText(api, database, text, request, ticket.controller.signal)
+      : mode === 'image' ? await searchImagesByImage(api, database, image!, request, ticket.controller.signal)
+        : await searchSimilarImages(api, database, id, request, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    semanticSearchResult.value = response; latestCommand.value = command; latestResult.value = resultFromSemanticHits(response.hits, performanceElapsed(started)); ranOnce.value = true;
+    recordHistory('success', 'Semantic image search', 'search', command, `${response.hits.length} hits via ${response.backend}`, response.hits.length, -1, performanceElapsed(started), ticket.context);
+    await loadSemanticHitPreviews(response.hits, ticket);
   } catch (error) {
-    const msg = errorToMessage(error, '图片语义检索失败');
-    errorMsg.value = msg;
-    latestResult.value = errorResult(msg);
-    ranOnce.value = true;
-  } finally {
-    searchingSemantic.value = false;
-  }
+    readError(error, ticket, '图片语义检索失败'); if (currentRead(ticket)) { latestResult.value = errorResult('图片语义检索失败'); ranOnce.value = true; }
+  } finally { if (currentRead(ticket)) searchingSemantic.value = false; finishRead(ticket); }
 }
-
-function buildSemanticFilter(
-  metadata: Record<string, string>,
-  tags: Record<string, string>,
-): ImageSearchFilter | null {
-  const filter: ImageSearchFilter = {
-    sourceBucket: semanticFilterBucket.value.trim() || null,
-    sourceKeyPrefix: semanticFilterPrefix.value.trim() || null,
-    contentType: semanticFilterContentType.value.trim() || null,
-    metadata: Object.keys(metadata).length > 0 ? metadata : null,
-    tags: Object.keys(tags).length > 0 ? tags : null,
-  };
-  return filter.sourceBucket
-    || filter.sourceKeyPrefix
-    || filter.contentType
-    || filter.metadata
-    || filter.tags
-    ? filter
-    : null;
+function buildSemanticFilter(metadata: Record<string, string>, tags: Record<string, string>): ImageSearchFilter | null {
+  const filter = { sourceBucket: semanticFilterBucket.value.trim() || null, sourceKeyPrefix: semanticFilterPrefix.value.trim() || null,
+    contentType: semanticFilterContentType.value.trim() || null, metadata: Object.keys(metadata).length > 0 ? metadata : null, tags: Object.keys(tags).length > 0 ? tags : null };
+  return filter.sourceBucket || filter.sourceKeyPrefix || filter.contentType || filter.metadata || filter.tags ? filter : null;
 }
-
 function selectSemanticHit(hit: ImageSearchHit): void {
-  similarImageId.value = hit.id;
-  semanticSearchMode.value = 'similar';
-  if (hit.sourceBucket === activeBucket.value && hit.sourceKey) {
-    const row = rows.value.find((item) => item.key === hit.sourceKey);
-    if (row) selectedKey.value = row.key;
-  }
+  if (!canRead.value) return;
+  similarImageId.value = hit.id; semanticSearchMode.value = 'similar';
+  if (hit.sourceBucket === activeBucket.value && hit.sourceKey) { const row = rows.value.find((item) => item.key === hit.sourceKey); if (row) selectedKey.value = row.key; }
 }
-
-async function loadSemanticHitPreviews(hits: ImageSearchHit[]): Promise<void> {
-  clearSemanticHitUrls();
-  await Promise.all(hits.slice(0, 24).map(async (hit) => {
-    const source = hit.thumbnailUrl || hit.contentUrl;
-    if (!source) return;
-    try {
-      const blob = await getProtectedImageBlob(auth.api, source);
-      semanticHitUrls.value = {
-        ...semanticHitUrls.value,
-        [hit.id]: URL.createObjectURL(blob),
-      };
-    } catch {
-      // 单张预览失败不影响其余检索结果和相似度信息。
-    }
-  }));
+async function loadSemanticHitPreviews(hits: ImageSearchHit[], parent?: ReadTicket): Promise<void> {
+  if (!canRead.value || parent && !currentRead(parent)) return;
+  const ticket = beginRead('images'); clearSemanticHitUrls();
+  const deadline = Date.now() + 60000;
+  try {
+    await Promise.all(hits.slice(0, 24).map(async (hit) => {
+      const source = hit.thumbnailUrl || hit.contentUrl; if (!source || Date.now() >= deadline) return;
+      try {
+        const blob = await getProtectedImageBlob(ticket.context.api, source, ticket.controller.signal);
+        if (!currentRead(ticket) || parent && !currentRead(parent) || Date.now() >= deadline) return;
+        semanticHitUrls.value = { ...semanticHitUrls.value, [hit.id]: URL.createObjectURL(blob) };
+      } catch (error) { if (!parent || currentRead(parent)) readError(error, ticket, '读取图片预览失败'); }
+    }));
+  } finally { finishRead(ticket); }
 }
-
-function clearSelectedThumbnail(): void {
-  if (selectedThumbnailUrl.value) URL.revokeObjectURL(selectedThumbnailUrl.value);
-  selectedThumbnailUrl.value = '';
-}
-
+function clearSelectedThumbnail(): void { if (selectedThumbnailUrl.value) URL.revokeObjectURL(selectedThumbnailUrl.value); selectedThumbnailUrl.value = ''; }
 function clearSemanticHitUrls(): void {
-  for (const url of Object.values(semanticHitUrls.value)) URL.revokeObjectURL(url);
+  for (const url of Object.values(semanticHitUrls.value).slice(0, 24)) URL.revokeObjectURL(url);
   semanticHitUrls.value = {};
 }
-
 async function loadPreview(versionId?: string | null): Promise<void> {
-  const row = selectedObject.value;
-  if (!row) return;
-  loadingPreview.value = true;
-  errorMsg.value = '';
+  const row = selectedObject.value; if (!canRead.value || !row) return;
+  const start = rangeStart.value ?? 0; const requestedLength = rangeLength.value ?? 4096;
+  if (!Number.isSafeInteger(start) || start < 0 || !Number.isSafeInteger(requestedLength) || requestedLength <= 0) { errorMsg.value = 'Range 必须使用安全非负起点与正整数长度。'; return; }
+  const length = Math.min(4096, requestedLength);
+  if (start > Number.MAX_SAFE_INTEGER - (length - 1)) { errorMsg.value = 'Range 终点超出安全整数范围。'; return; }
+  const end = start + (length - 1);
+  if (!Number.isSafeInteger(end)) { errorMsg.value = 'Range 终点超出安全整数范围。'; return; }
+  const ticket = beginRead('range', true); const mode = previewMode.value; const version = versionId ?? row.versionId;
+  loadingPreview.value = true; errorMsg.value = ''; rangeNotice.value = '';
   try {
-    const start = Math.max(0, rangeStart.value ?? 0);
-    const length = Math.max(1, rangeLength.value ?? 4096);
-    const response = await getObjectBlob(auth.api, props.targetDb, row.bucket, row.key, {
-      versionId: versionId ?? null,
-      range: { start, end: start + length - 1 },
-    });
-    const bytes = new Uint8Array(await response.blob.arrayBuffer());
-    previewText.value = formatBytesForPreview(bytes, previewMode.value, response.head.contentType);
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '读取对象预览失败');
-  } finally {
-    loadingPreview.value = false;
-  }
+    const response = await getObjectBlob(ticket.context.api, ticket.context.database, row.bucket, row.key, { versionId: version, range: { start, end } }, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (version && response.head.versionId !== version) throw new Error('Wrong object version');
+    let total = row.sizeBytes; let retainedLength = length;
+    if (response.status === 206) {
+      const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.contentRange ?? '');
+      if (!match || !match.slice(1).every((value) => Number.isSafeInteger(Number(value))) || Number(match[1]) !== start || Number(match[2]) < start || Number(match[2]) > end || Number(match[3]) <= Number(match[2])
+        || response.blob.size < Number(match[2]) - start + 1) throw new Error('Invalid range response');
+      total = Number(match[3]);
+      retainedLength = Math.min(length, Number(match[2]) - start + 1);
+    } else if (response.status !== undefined && (response.status !== 200 || start !== 0)) throw new Error('Unsupported range response');
+    const clipped = response.blob.slice(0, retainedLength); const bytes = new Uint8Array(await clipped.arrayBuffer());
+    if (!currentRead(ticket)) return;
+    previewText.value = formatBytesForPreview(bytes, mode, response.head.contentType);
+    const incomplete = start > 0 || total > start + bytes.length || response.blob.size > retainedLength || requestedLength > length;
+    rangeNotice.value = `Range ${start}–${start + Math.max(0, bytes.length - 1)} · ${bytes.length} 字节${incomplete ? ' · 截断/局部预览' : ' · 当前对象读取'}，不代表传输预算。`;
+    recordHistory('success', 'Object Range', 'range', `GET ${ticket.context.database}/${row.bucket}/${row.key}?versionId=${version}`, rangeNotice.value, 0, -1, 0, ticket.context, incomplete ? 'truncated' : 'complete');
+  } catch (error) { readError(error, ticket, '读取对象预览失败'); }
+  finally { if (currentRead(ticket)) loadingPreview.value = false; finishRead(ticket); }
 }
-
 async function loadVersionPreview(versionId: string): Promise<void> {
+  const row = selectedObject.value;
+  if (!row || !versions.value.some((item) => item.bucket === row.bucket && item.key === row.key && item.versionId === versionId)) return;
   await loadPreview(versionId);
 }
-
 async function downloadSelectedObject(): Promise<void> {
-  const row = selectedObject.value;
-  if (!row) return;
+  const row = selectedObject.value; if (!canRead.value || !row) return;
+  const ticket = beginRead('download', true);
   try {
-    const response = await getObjectBlob(auth.api, props.targetDb, row.bucket, row.key);
+    const response = await getObjectBlob(ticket.context.api, ticket.context.database, row.bucket, row.key, { versionId: row.versionId }, ticket.controller.signal);
+    if (!currentRead(ticket)) return;
+    if (row.versionId && response.head.versionId !== row.versionId) throw new Error('Wrong download version');
     const bridge = currentStudioNativeBridge();
     if (bridge) {
-      const saved = await bridge.saveBinaryFile({
-        title: `保存 ${row.key}`,
-        suggestedName: fileNameFromKey(row.key),
-        content: response.blob,
-      });
-      if (!saved.canceled) message.success(`已保存 ${saved.fileName ?? fileNameFromKey(row.key)}`);
-      return;
+      const saved = await bridge.saveBinaryFile({ title: `保存 ${row.key}`, suggestedName: fileNameFromKey(row.key), content: response.blob });
+      if (currentRead(ticket) && !saved.canceled) message.success(`已保存 ${saved.fileName ?? fileNameFromKey(row.key)}`); return;
     }
     const url = URL.createObjectURL(response.blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileNameFromKey(row.key);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    message.success('Download started');
-  } catch (error) {
-    errorMsg.value = errorToMessage(error, '下载对象失败');
-  }
+    try { if (!currentRead(ticket)) return; const link = document.createElement('a'); link.href = url; link.download = fileNameFromKey(row.key); document.body.appendChild(link); link.click(); link.remove(); message.success('Download started'); }
+    finally { URL.revokeObjectURL(url); }
+  } catch (error) { readError(error, ticket, '下载对象失败'); }
+  finally { finishRead(ticket); }
 }
 
 function stageCreateBucket(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const bucket = newBucketName.value.trim();
   if (!bucket) return;
   const purpose = newBucketPurpose.value.trim();
@@ -1641,9 +1609,11 @@ function stageCreateBucket(): void {
     label: 'Create bucket',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}`,
     run: async () => {
-      await createObjectBucket(auth.api, props.targetDb, bucket, purpose || null);
+      assertWriteContext(context);
+      await createObjectBucket(context.api, context.database, bucket, purpose || null);
+      assertWriteContext(context);
       newBucketName.value = '';
       newBucketPurpose.value = '';
       return { action: 'bucket.create', target: bucket, succeeded: true, affected: 1, detail: purpose || 'created' };
@@ -1652,23 +1622,29 @@ function stageCreateBucket(): void {
 }
 
 function stageDeleteBucket(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_delete'),
     label: 'Delete bucket',
     detail: bucket,
     severity: 'danger',
-    command: `DELETE /v1/db/${props.targetDb}/s3/${bucket}`,
+    command: `DELETE /v1/db/${context.database}/s3/${bucket}`,
     run: async () => {
-      await deleteObjectBucket(auth.api, props.targetDb, bucket);
+      assertWriteContext(context);
+      await deleteObjectBucket(context.api, context.database, bucket);
+      assertWriteContext(context);
       return { action: 'bucket.delete', target: bucket, succeeded: true, affected: 1, detail: 'deleted' };
     },
   }];
 }
 
 function stageUploadFile(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   const key = uploadKey.value.trim();
   const file = uploadFile.value;
   if (!bucket || !key || !file) return;
@@ -1683,20 +1659,24 @@ function stageUploadFile(): void {
     label: 'Put object',
     detail: `${key} · ${formatBytes(file.size)}`,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}/${key}`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}/${key}`,
     run: async () => {
-      const response = await putObject(auth.api, props.targetDb, bucket, key, file, {
+      assertWriteContext(context);
+      const response = await putObject(context.api, context.database, bucket, key, file, {
         contentType,
         metadata: maps.metadata,
         tags: maps.tags,
       });
+      assertWriteContext(context);
       return { action: 'object.put', target: key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
 }
 
 function stageUploadText(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   const key = uploadKey.value.trim();
   if (!bucket || !key) return;
   const maps = parseUploadMaps();
@@ -1711,19 +1691,23 @@ function stageUploadText(): void {
     label: 'Put text object',
     detail: `${key} · ${formatBytes(blob.size)}`,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}/${key}`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}/${key}`,
     run: async () => {
-      const response = await putObject(auth.api, props.targetDb, bucket, key, blob, {
+      assertWriteContext(context);
+      const response = await putObject(context.api, context.database, bucket, key, blob, {
         contentType,
         metadata: maps.metadata,
         tags: maps.tags,
       });
+      assertWriteContext(context);
       return { action: 'object.put', target: key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
 }
 
 function stageSetTags(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const row = selectedObject.value;
   if (!row) return;
   const parsed = parseKeyValueMap(selectedTagsText.value);
@@ -1736,15 +1720,19 @@ function stageSetTags(): void {
     label: 'Set tags',
     detail: row.key,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${row.bucket}/${row.key}?tagging`,
+    command: `PUT /v1/db/${context.database}/s3/${row.bucket}/${row.key}?tagging`,
     run: async () => {
-      await setObjectTags(auth.api, props.targetDb, row.bucket, row.key, parsed.value);
+      assertWriteContext(context);
+      await setObjectTags(context.api, context.database, row.bucket, row.key, parsed.value);
+      assertWriteContext(context);
       return { action: 'object.tags.set', target: row.key, succeeded: true, affected: 1, detail: `${Object.keys(parsed.value).length} tags` };
     },
   }];
 }
 
 function stageCopySelected(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const row = selectedObject.value;
   const targetKey = copyTargetKey.value.trim();
   if (!row || !targetKey) return;
@@ -1755,51 +1743,63 @@ function stageCopySelected(): void {
     severity: 'write',
     command: `COPY ${row.bucket}/${row.key} TO ${row.bucket}/${targetKey}`,
     run: async () => {
-      const response = await copyObject(auth.api, props.targetDb, row.bucket, row.key, row.bucket, targetKey);
+      assertWriteContext(context);
+      const response = await copyObject(context.api, context.database, row.bucket, row.key, row.bucket, targetKey);
+      assertWriteContext(context);
       return { action: 'object.copy', target: targetKey, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
 }
 
 function stageDeleteCurrent(): void {
+  if (!canWrite.value) return;
   const row = selectedObject.value;
   if (!row) return;
   pendingOperations.value = [deleteOperation(row.key)];
 }
 
 function stageDeleteSelected(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const keys = checkedRowKeys.value.map(String).filter(Boolean);
-  if (!activeBucket.value || keys.length === 0) return;
+  if (!context.bucket || keys.length === 0) return;
   pendingOperations.value = [{
     id: makeOperationId('object_delete_many'),
     label: 'Delete selected',
     detail: `${keys.length} objects`,
     severity: 'danger',
-    command: `POST /v1/db/${props.targetDb}/s3/${activeBucket.value}?delete`,
+    command: `POST /v1/db/${context.database}/s3/${context.bucket}?delete`,
     run: async () => {
-      const response = await deleteManyObjects(auth.api, props.targetDb, activeBucket.value, keys);
+      assertWriteContext(context);
+      const response = await deleteManyObjects(context.api, context.database, context.bucket, keys);
+      assertWriteContext(context);
       const affected = response.deleted.filter((item) => !item.errorCode).length;
-      return { action: 'object.delete_many', target: activeBucket.value, succeeded: true, affected, detail: `${affected}/${keys.length} deleted` };
+      return { action: 'object.delete_many', target: context.bucket, succeeded: true, affected, detail: `${affected}/${keys.length} deleted` };
     },
   }];
 }
 
 function deleteOperation(key: string): PendingOperation {
-  const bucket = activeBucket.value;
+  const context = captureContext();
+  const bucket = context.bucket;
   return {
     id: makeOperationId('object_delete'),
     label: 'Delete object',
     detail: key,
     severity: 'danger',
-    command: `DELETE /v1/db/${props.targetDb}/s3/${bucket}/${key}`,
+    command: `DELETE /v1/db/${context.database}/s3/${bucket}/${key}`,
     run: async () => {
-      await deleteObject(auth.api, props.targetDb, bucket, key);
+      assertWriteContext(context);
+      await deleteObject(context.api, context.database, bucket, key);
+      assertWriteContext(context);
       return { action: 'object.delete', target: key, succeeded: true, affected: 1, detail: 'delete marker created' };
     },
   };
 }
 
 function stagePresign(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const row = selectedObject.value;
   if (!row) return;
   const minutes = Math.max(1, Math.min(1440, presignMinutes.value ?? 60));
@@ -1809,43 +1809,54 @@ function stagePresign(): void {
     label: 'Create presigned URL',
     detail: `${method} ${row.key} · ${minutes} min`,
     severity: 'write',
-    command: `POST /v1/db/${props.targetDb}/s3/${row.bucket}/${row.key}?presign`,
+    command: `POST /v1/db/${context.database}/s3/${row.bucket}/${row.key}?presign`,
     run: async () => {
-      const response = await createPresignedObjectUrl(auth.api, props.targetDb, row.bucket, row.key, method, minutes);
+      assertWriteContext(context);
+      const response = await createPresignedObjectUrl(context.api, context.database, row.bucket, row.key, method, minutes);
+      assertWriteContext(context);
       presignedUrl.value = response.url;
       await copyText(response.url, 'Presigned URL copied');
+      assertWriteContext(context);
       return { action: 'object.presign.create', target: row.key, succeeded: true, affected: 1, detail: response.expiresUtc };
     },
   }];
 }
 
 function stageSetLifecycle(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_lifecycle'),
     label: 'Set lifecycle',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?lifecycle`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}?lifecycle`,
     run: async () => {
-      await setBucketLifecycle(auth.api, props.targetDb, bucket, nullifyDraft(lifecycleDraft));
+      assertWriteContext(context);
+      await setBucketLifecycle(context.api, context.database, bucket, nullifyDraft(lifecycleDraft));
+      assertWriteContext(context);
       return { action: 'bucket.lifecycle.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
 }
 
 function stageApplyLifecycle(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_lifecycle_apply'),
     label: 'Apply lifecycle',
     detail: bucket,
     severity: 'danger',
-    command: `POST /v1/db/${props.targetDb}/s3/${bucket}?lifecycle`,
+    command: `POST /v1/db/${context.database}/s3/${bucket}?lifecycle`,
     run: async () => {
-      const response = await applyBucketLifecycle(auth.api, props.targetDb, bucket);
+      assertWriteContext(context);
+      const response = await applyBucketLifecycle(context.api, context.database, bucket);
+      assertWriteContext(context);
       const affected = response.expiredCurrentObjects + response.removedNoncurrentVersions + response.removedDeleteMarkers;
       return { action: 'bucket.lifecycle.apply', target: bucket, succeeded: true, affected, detail: `${affected} versions/markers affected` };
     },
@@ -1853,22 +1864,26 @@ function stageApplyLifecycle(): void {
 }
 
 function stageSetSemanticOptions(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_semantic_options'),
     label: 'Set semantic image options',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?semantic`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}?semantic`,
     run: async () => {
-      const response = await setBucketSemanticOptions(auth.api, props.targetDb, bucket, {
+      assertWriteContext(context);
+      const response = await setBucketSemanticOptions(context.api, context.database, bucket, {
         asyncIngestionEnabled: semanticOptionsDraft.asyncIngestionEnabled,
         thumbnailEnabled: semanticOptionsDraft.thumbnailEnabled,
         thumbnailMaxWidth: semanticOptionsDraft.thumbnailMaxWidth ?? 320,
         thumbnailMaxHeight: semanticOptionsDraft.thumbnailMaxHeight ?? 320,
         thumbnailQuality: semanticOptionsDraft.thumbnailQuality ?? 80,
       });
+      assertWriteContext(context);
       return {
         action: 'bucket.semantic.set',
         target: bucket,
@@ -1881,16 +1896,20 @@ function stageSetSemanticOptions(): void {
 }
 
 function stageSemanticBackfill(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_semantic_backfill'),
     label: 'Backfill semantic images',
     detail: bucket,
     severity: 'write',
-    command: `POST /v1/db/${props.targetDb}/s3/${bucket}?semantic`,
+    command: `POST /v1/db/${context.database}/s3/${bucket}?semantic`,
     run: async () => {
-      const response = await backfillBucketSemanticObjects(auth.api, props.targetDb, bucket);
+      assertWriteContext(context);
+      const response = await backfillBucketSemanticObjects(context.api, context.database, bucket);
+      assertWriteContext(context);
       return {
         action: 'bucket.semantic.backfill',
         target: bucket,
@@ -1903,6 +1922,8 @@ function stageSemanticBackfill(): void {
 }
 
 function stageRequeueSelectedObject(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const row = selectedObject.value;
   if (!row) return;
   pendingOperations.value = [{
@@ -1910,66 +1931,79 @@ function stageRequeueSelectedObject(): void {
     label: 'Requeue image processing',
     detail: row.key,
     severity: 'write',
-    command: `POST /v1/db/${props.targetDb}/s3/${row.bucket}/${row.key}?processing`,
+    command: `POST /v1/db/${context.database}/s3/${row.bucket}/${row.key}?processing`,
     run: async () => {
-      processingStatus.value = await enqueueObjectProcessing(
-        auth.api,
-        props.targetDb,
+      assertWriteContext(context);
+      const response = await enqueueObjectProcessing(
+        context.api,
+        context.database,
         row.bucket,
         row.key,
       );
+      assertWriteContext(context);
+      processingStatus.value = response;
       return {
         action: 'object.semantic.requeue',
         target: row.key,
         succeeded: true,
         affected: 1,
-        detail: processingStatus.value.jobId,
+        detail: response.jobId,
       };
     },
   }];
 }
 
 function stageSetRetention(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_retention'),
     label: 'Set retention',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?retention`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}?retention`,
     run: async () => {
-      await setBucketRetention(auth.api, props.targetDb, bucket, nullifyDraft(retentionDraft));
+      assertWriteContext(context);
+      await setBucketRetention(context.api, context.database, bucket, nullifyDraft(retentionDraft));
+      assertWriteContext(context);
       return { action: 'bucket.retention.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
 }
 
 function stageSetQuota(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_quota'),
     label: 'Set quota',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?quota`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}?quota`,
     run: async () => {
-      await setBucketQuota(auth.api, props.targetDb, bucket, nullifyDraft(quotaDraft));
+      assertWriteContext(context);
+      await setBucketQuota(context.api, context.database, bucket, nullifyDraft(quotaDraft));
+      assertWriteContext(context);
       return { action: 'bucket.quota.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
 }
 
 function stageSetPolicy(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   if (!bucket) return;
   const policy = policyDraft.value.trim();
   if (policy) {
     try {
       JSON.parse(policy);
     } catch (error) {
-      errorMsg.value = error instanceof Error ? error.message : 'Policy JSON is invalid.';
+      errorMsg.value = 'Policy JSON is invalid.';
       return;
     }
   }
@@ -1978,15 +2012,19 @@ function stageSetPolicy(): void {
     label: 'Set policy',
     detail: bucket,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?policy`,
+    command: `PUT /v1/db/${context.database}/s3/${bucket}?policy`,
     run: async () => {
-      await setBucketPolicy(auth.api, props.targetDb, bucket, policy || null);
+      assertWriteContext(context);
+      await setBucketPolicy(context.api, context.database, bucket, policy || null);
+      assertWriteContext(context);
       return { action: 'bucket.policy.set', target: bucket, succeeded: true, affected: 1, detail: policy ? 'saved' : 'cleared' };
     },
   }];
 }
 
 function stageSetLegalHold(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const row = selectedObject.value;
   if (!row) return;
   const versionId = versions.value.find((version) => version.versionId === row.versionId)?.versionId ?? row.versionId;
@@ -1995,16 +2033,20 @@ function stageSetLegalHold(): void {
     label: legalHoldEnabled.value ? 'Enable legal hold' : 'Disable legal hold',
     detail: row.key,
     severity: legalHoldEnabled.value ? 'write' : 'danger',
-    command: `PUT /v1/db/${props.targetDb}/s3/${row.bucket}/${row.key}?legal-hold&versionId=${versionId}`,
+    command: `PUT /v1/db/${context.database}/s3/${row.bucket}/${row.key}?legal-hold&versionId=${versionId}`,
     run: async () => {
-      await setObjectLegalHold(auth.api, props.targetDb, row.bucket, row.key, legalHoldEnabled.value, legalHoldReason.value || null, versionId);
+      assertWriteContext(context);
+      await setObjectLegalHold(context.api, context.database, row.bucket, row.key, legalHoldEnabled.value, legalHoldReason.value || null, versionId);
+      assertWriteContext(context);
       return { action: legalHoldEnabled.value ? 'object.legal_hold.enable' : 'object.legal_hold.disable', target: row.key, succeeded: true, affected: 1, detail: versionId };
     },
   }];
 }
 
 function stageInitiateMultipart(): void {
-  const bucket = activeBucket.value;
+  if (!canWrite.value) return;
+  const context = captureContext();
+  const bucket = context.bucket;
   const key = multipartKey.value.trim();
   if (!bucket || !key) return;
   const maps = parseUploadMaps();
@@ -2017,23 +2059,28 @@ function stageInitiateMultipart(): void {
     label: 'Initiate multipart',
     detail: key,
     severity: 'write',
-    command: `POST /v1/db/${props.targetDb}/s3/${bucket}/${key}?uploads`,
+    command: `POST /v1/db/${context.database}/s3/${bucket}/${key}?uploads`,
     run: async () => {
-      const response = await initiateMultipartUpload(auth.api, props.targetDb, bucket, key, {
+      assertWriteContext(context);
+      const response = await initiateMultipartUpload(context.api, context.database, bucket, key, {
         contentType: multipartContentType.value || 'application/octet-stream',
         metadata: maps.metadata,
         tags: maps.tags,
         expiresHours: multipartExpiresHours.value,
       });
+      assertWriteContext(context);
       activeMultipart.value = response;
       multipartParts.value = [];
       await loadMultipartSessions(true);
+      assertWriteContext(context);
       return { action: 'multipart.initiate', target: key, succeeded: true, affected: 1, detail: response.uploadId };
     },
   }];
 }
 
 function stageUploadPart(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const upload = activeMultipart.value;
   const file = multipartFile.value;
   const partNumber = multipartPartNumber.value ?? 1;
@@ -2043,19 +2090,24 @@ function stageUploadPart(): void {
     label: 'Upload part',
     detail: `part ${partNumber} · ${formatBytes(file.size)}`,
     severity: 'write',
-    command: `PUT /v1/db/${props.targetDb}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}&partNumber=${partNumber}`,
+    command: `PUT /v1/db/${context.database}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}&partNumber=${partNumber}`,
     run: async () => {
-      const part = await uploadMultipartPart(auth.api, props.targetDb, upload.bucket, upload.key, upload.uploadId, partNumber, file);
+      assertWriteContext(context);
+      const part = await uploadMultipartPart(context.api, context.database, upload.bucket, upload.key, upload.uploadId, partNumber, file);
+      assertWriteContext(context);
       multipartParts.value = mergeParts(multipartParts.value, part);
       multipartPartNumber.value = partNumber + 1;
       multipartFile.value = null;
       await loadMultipartSessions(true);
+      assertWriteContext(context);
       return { action: 'multipart.part.put', target: upload.key, succeeded: true, affected: 1, detail: `part ${part.partNumber}` };
     },
   }];
 }
 
 function stageCompleteMultipart(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const upload = activeMultipart.value;
   if (!upload || multipartParts.value.length === 0) return;
   const partNumbers = multipartParts.value.map((part) => part.partNumber).sort((a, b) => a - b);
@@ -2064,18 +2116,23 @@ function stageCompleteMultipart(): void {
     label: 'Complete multipart',
     detail: `${partNumbers.length} parts`,
     severity: 'write',
-    command: `POST /v1/db/${props.targetDb}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}`,
+    command: `POST /v1/db/${context.database}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}`,
     run: async () => {
-      const response = await completeMultipartUpload(auth.api, props.targetDb, upload.bucket, upload.key, upload.uploadId, partNumbers);
+      assertWriteContext(context);
+      const response = await completeMultipartUpload(context.api, context.database, upload.bucket, upload.key, upload.uploadId, partNumbers);
+      assertWriteContext(context);
       activeMultipart.value = null;
       multipartParts.value = [];
       await loadMultipartSessions(true);
+      assertWriteContext(context);
       return { action: 'multipart.complete', target: response.key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
 }
 
 function stageAbortMultipart(): void {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const upload = activeMultipart.value;
   if (!upload) return;
   pendingOperations.value = [{
@@ -2083,55 +2140,68 @@ function stageAbortMultipart(): void {
     label: 'Abort multipart',
     detail: upload.uploadId,
     severity: 'danger',
-    command: `DELETE /v1/db/${props.targetDb}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}`,
+    command: `DELETE /v1/db/${context.database}/s3/${upload.bucket}/${upload.key}?uploadId=${upload.uploadId}`,
     run: async () => {
-      await abortMultipartUpload(auth.api, props.targetDb, upload.bucket, upload.key, upload.uploadId);
+      assertWriteContext(context);
+      await abortMultipartUpload(context.api, context.database, upload.bucket, upload.key, upload.uploadId);
+      assertWriteContext(context);
       activeMultipart.value = null;
       multipartParts.value = [];
       await loadMultipartSessions(true);
+      assertWriteContext(context);
       return { action: 'multipart.abort', target: upload.key, succeeded: true, affected: 1, detail: 'aborted' };
     },
   }];
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (pendingOperations.value.length === 0) return;
+  const context = approvalContext;
+  if (!canWrite.value || !context || !isCurrentContext(context) || approvalInputs !== approvalInputKey() || pendingOperations.value.length === 0) { clearPendingOperations(); return; }
+  const operations = [...pendingOperations.value];
+  if (operations.length > 1000) { clearPendingOperations(); return; }
   confirmBusy.value = true;
   errorMsg.value = '';
-  const operations = [...pendingOperations.value];
+  clearPendingOperations();
   const command = operations.map((operation) => operation.command).join('\n');
   const started = performance.now();
   try {
     const outcomes: OperationOutcome[] = [];
+    const deadline = Date.now() + 60000;
     for (const operation of operations) {
+      if (Date.now() >= deadline) throw new Error('Object batch deadline');
+      assertWriteContext(context);
       outcomes.push(await operation.run());
     }
+    assertWriteContext(context);
     const elapsed = performanceElapsed(started);
     latestCommand.value = command;
     latestResult.value = resultFromOutcomes(outcomes, elapsed);
     ranOnce.value = true;
     pendingOperations.value = [];
     checkedRowKeys.value = [];
-    recordHistory('success', 'Object operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions`, outcomes.length, outcomes.reduce((sum, item) => sum + item.affected, 0), elapsed);
+    recordHistory('success', 'Object operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions`, outcomes.length, outcomes.reduce((sum, item) => sum + item.affected, 0), elapsed, context);
     message.success(`Committed ${outcomes.length} object action${outcomes.length === 1 ? '' : 's'}.`);
     await refreshAll();
-    emit('refreshSchema');
+    if (isCurrentContext(context)) emit('refreshSchema');
   } catch (error) {
     const elapsed = performanceElapsed(started);
     const msg = errorToMessage(error, '提交对象桶操作失败');
+    if (!isCurrentContext(context)) { recordHistory('unknown', 'Object operation batch', 'confirm', command, '上下文已变化，请核对原目标结果。', 0, 0, elapsed, context, 'unknown'); return; }
+    if (isPermissionError(error)) { const ticket = beginRead('write-denial'); readError(error, ticket, '提交对象桶操作失败'); return; }
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult(msg);
     ranOnce.value = true;
-    recordHistory('error', 'Object operation batch', 'confirm', command, msg, 0, 0, elapsed);
+    recordHistory('error', 'Object operation batch', 'confirm', command, msg, 0, 0, elapsed, context);
   } finally {
-    confirmBusy.value = false;
+    if (isCurrentContext(context)) confirmBusy.value = false;
   }
 }
 
 function clearPendingOperations(): void {
   pendingOperations.value = [];
 }
+function assertWriteContext(context: ObjectContext): void { if (!isCurrentContext(context) || readOnly.value) throw new Error('Object write context changed'); }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
   latestCommand.value = entry.command;
@@ -2139,6 +2209,8 @@ function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
 
 function onUploadFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
+  const pickerContext = uploadPickerContext; uploadPickerContext = null;
+  if (!canWrite.value || pickerContext && !isCurrentContext(pickerContext)) { input.value = ''; return; }
   uploadFile.value = input.files?.[0] ?? null;
   if (uploadFile.value) {
     uploadKey.value ||= currentPrefix.value + uploadFile.value.name;
@@ -2147,44 +2219,52 @@ function onUploadFileChange(event: Event): void {
 }
 
 async function pickUploadFile(): Promise<void> {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const bridge = currentStudioNativeBridge();
   if (!bridge) {
+    uploadPickerContext = context;
     uploadFileInput.value?.click();
     return;
   }
   try {
     const selected = await bridge.openBinaryFile({ title: '选择要上传的对象文件' });
-    if (selected.canceled || !selected.content) return;
+    if (!isCurrentContext(context) || !canWrite.value || selected.canceled || !selected.content) return;
     const name = selected.fileName || 'upload.bin';
     uploadFile.value = new File([selected.content], name, { type: selected.content.type || 'application/octet-stream' });
     uploadKey.value ||= currentPrefix.value + name;
     uploadContentType.value = uploadFile.value.type || uploadContentType.value;
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '打开对象文件失败');
+    if (isCurrentContext(context) && canWrite.value) errorMsg.value = errorToMessage(error, '打开对象文件失败');
   }
 }
 
 function onMultipartFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
+  const pickerContext = multipartPickerContext; multipartPickerContext = null;
+  if (!canWrite.value || pickerContext && !isCurrentContext(pickerContext)) { input.value = ''; return; }
   multipartFile.value = input.files?.[0] ?? null;
 }
 
 async function pickMultipartFile(): Promise<void> {
+  if (!canWrite.value) return;
+  const context = captureContext();
   const bridge = currentStudioNativeBridge();
   if (!bridge) {
+    multipartPickerContext = context;
     multipartFileInput.value?.click();
     return;
   }
   try {
     const selected = await bridge.openBinaryFile({ title: '选择 Multipart 分片文件' });
-    if (selected.canceled || !selected.content) return;
+    if (!isCurrentContext(context) || !canWrite.value || selected.canceled || !selected.content) return;
     multipartFile.value = new File(
       [selected.content],
       selected.fileName || `part-${multipartPartNumber.value ?? 1}.bin`,
       { type: selected.content.type || 'application/octet-stream' },
     );
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '打开分片文件失败');
+    if (isCurrentContext(context) && canWrite.value) errorMsg.value = errorToMessage(error, '打开分片文件失败');
   }
 }
 
@@ -2413,128 +2493,90 @@ function performanceElapsed(started: number): number {
   return started > 0 ? performance.now() - started : 0;
 }
 
-function errorToMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: unknown; status?: number } }).response;
-    if (response?.data instanceof Blob) {
-      return fallback;
-    }
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.error === 'string') return data.error;
-    }
-    if (typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-  }
-  return fallback;
-}
+function errorToMessage(error: unknown, fallback: string): string { return isPermissionError(error) ? '当前身份没有 Object 访问权限。' : fallback; }
 
 async function copyText(text: string, success: string): Promise<void> {
+  const context = captureContext(); if (!isCurrentContext(context)) return;
   try {
     await navigator.clipboard.writeText(text);
-    message.success(success);
+    if (isCurrentContext(context)) message.success(success);
   } catch {
-    message.warning(text);
+    if (isCurrentContext(context)) message.warning('复制失败。');
   }
 }
 
-function recordHistory(
-  status: 'success' | 'error',
-  title: string,
-  action: string,
-  command: string,
-  summary: string,
-  rowCount: number,
-  recordsAffected: number,
-  elapsedMs: number,
-): void {
-  history.record({
-    kind: action === 'browse' || action === 'search' ? 'query' : 'operation',
-    status,
-    title,
-    target: activeBucket.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
-    model: 'object',
-    action,
-    command,
-    summary,
-    rowCount,
-    recordsAffected,
-    elapsedMs,
-  });
+function recordHistory(status: 'success' | 'error' | 'unknown', title: string, action: string, command: string, summary: string,
+  rowCount: number, recordsAffected: number, elapsedMs: number, context = captureContext(), completeness?: 'complete' | 'truncated' | 'unknown'): void {
+  history.record({ kind: action === 'browse' || action === 'search' ? 'query' : 'operation', status, title,
+    target: context.bucket, database: context.database, connectionId: context.connectionId, connectionName: context.connectionName,
+    model: 'object', action, command, summary, rowCount, recordsAffected, elapsedMs, completeness });
 }
-
-watch(
-  () => props.buckets,
-  (buckets) => {
-    if (buckets.length > 0 && localBuckets.value.length === 0) {
-      localBuckets.value = buckets.map((bucket) => ({
-        name: bucket.name,
-        purpose: bucket.purpose,
-        createdUtc: bucket.createdUtc,
-        updatedUtc: bucket.updatedUtc,
-      }));
-    }
-  },
-  { immediate: true },
-);
-
-watch(
-  () => [props.targetDb, props.bucket] as const,
-  () => {
-    clearRows();
-    currentPrefix.value = '';
-    prefixInput.value = '';
-    pendingOperations.value = [];
-    previewText.value = '';
-    presignedUrl.value = '';
-    if (props.targetDb) {
-      void refreshAll();
-    }
-  },
-);
-
-watch(selectedObject, async (row) => {
-  selectedTagsText.value = row ? formatMap(row.tags) : '';
-  copyTargetKey.value = row ? `${row.key}.copy` : '';
-  uploadKey.value = row?.key ?? currentPrefix.value;
-  multipartKey.value = row?.key ?? currentPrefix.value;
-  previewText.value = '';
-  presignedUrl.value = '';
-  versions.value = [];
-  legalHoldEnabled.value = false;
-  legalHoldReason.value = '';
-  processingStatus.value = null;
-  clearSelectedThumbnail();
-  if (row) {
-    try {
-      const [tags, hold] = await Promise.all([
-        getObjectTags(auth.api, props.targetDb, row.bucket, row.key),
-        getObjectLegalHold(auth.api, props.targetDb, row.bucket, row.key, row.versionId),
-      ]);
-      selectedTagsText.value = formatMap(tags);
-      legalHoldEnabled.value = hold.enabled;
-      legalHoldReason.value = hold.reason ?? '';
-    } catch {
-      // 对象可能在列表后被删除，下一次 refresh 会同步状态。
-    }
-    await loadVersions(row.key);
-    await loadSelectedProcessing();
-  }
-});
-
-onMounted(() => {
-  void refreshAll();
-});
-
-onBeforeUnmount(() => {
-  clearSelectedThumbnail();
-  clearSemanticHitUrls();
-});
+function approvalInputKey(): string {
+  return JSON.stringify([selectionIdentity(), currentPrefix.value, checkedRowKeys.value, newBucketName.value, newBucketPurpose.value,
+    uploadKey.value, uploadContentType.value, uploadText.value, metadataText.value, tagsText.value, selectedTagsText.value, copyTargetKey.value,
+    presignMethod.value, presignMinutes.value, multipartKey.value, multipartContentType.value, multipartExpiresHours.value, multipartPartNumber.value,
+    activeMultipart.value?.uploadId, multipartParts.value, legalHoldEnabled.value, legalHoldReason.value, policyDraft.value,
+    lifecycleDraft, retentionDraft, quotaDraft, semanticOptionsDraft]);
+}
+function invalidateContext(): void {
+  contextRevision += 1;
+  for (const ticket of [...readTickets.values()].slice(0, 32)) ticket.controller.abort();
+  readTickets.clear(); clearRows(); clearBucketMetadata(); clearPendingOperations();
+  loading.value = loadingObjects.value = loadingPreview.value = loadingAudit.value = loadingProcessing.value = loadingMultipartSessions.value = searchingSemantic.value = confirmBusy.value = false;
+  latestResult.value = null; latestCommand.value = ''; ranOnce.value = false; errorMsg.value = ''; rangeNotice.value = ''; listIncomplete.value = false; usedListTokens.clear();
+  presignedUrl.value = ''; newBucketName.value = ''; newBucketPurpose.value = ''; uploadKey.value = ''; uploadFile.value = null; uploadText.value = '';
+  metadataText.value = ''; tagsText.value = ''; selectedTagsText.value = ''; copyTargetKey.value = ''; multipartKey.value = ''; multipartFile.value = null;
+  legalHoldEnabled.value = false; legalHoldReason.value = ''; similarImageId.value = ''; semanticText.value = ''; semanticImageFile.value = null;
+  semanticFilterPrefix.value = ''; semanticFilterContentType.value = ''; semanticMetadataText.value = ''; semanticTagsText.value = '';
+}
+async function loadSelection(): Promise<void> {
+  const row = selectedObject.value; if (!canRead.value || !row) return;
+  const ticket = beginRead('selection', true); const { api, database } = ticket.context; const signal = ticket.controller.signal;
+  try {
+    const [tags, hold] = await readGroup([getObjectTags(api, database, row.bucket, row.key, signal), getObjectLegalHold(api, database, row.bucket, row.key, row.versionId, signal)] as const, ticket);
+    if (!currentRead(ticket)) return;
+    if (hold.bucket !== row.bucket || hold.key !== row.key || hold.versionId !== row.versionId) throw new Error('Wrong legal hold target');
+    selectedTagsText.value = formatMap(tags); legalHoldEnabled.value = hold.enabled; legalHoldReason.value = hold.reason ?? '';
+  } catch (error) { readError(error, ticket, '读取对象详情失败'); }
+  finally { finishRead(ticket); }
+}
+watch(() => props.buckets, (buckets) => {
+  if (canRead.value && buckets.length > 0 && localBuckets.value.length === 0) localBuckets.value = buckets.map((bucket) => ({ name: bucket.name, purpose: bucket.purpose, createdUtc: bucket.createdUtc, updatedUtc: bucket.updatedUtc }));
+}, { immediate: true, flush: 'sync' });
+watch(pendingOperations, (operations) => { approvalContext = operations.length ? captureContext() : null; approvalInputs = operations.length ? approvalInputKey() : ''; }, { flush: 'sync' });
+watch(approvalInputKey, clearPendingOperations, { flush: 'sync' });
+watch([uploadFile, multipartFile], clearPendingOperations, { flush: 'sync' });
+watch(() => [props.targetDb, activeBucket.value, connections.activeProfileId, connections.activeBaseUrl, auth.state, auth.state?.token,
+  auth.api, auth.api.defaults.baseURL, auth.api.defaults.headers?.common?.Authorization, props.permissionDenied, readOnly.value], (_values, previous) => {
+  invalidateContext(); currentPrefix.value = ''; prefixInput.value = '';
+  if (previous && previous[0] !== props.targetDb) localBuckets.value = [];
+  const denied = deniedContext;
+  const changed = denied && (props.targetDb && props.targetDb !== denied.database || activeBucket.value && activeBucket.value !== denied.bucket
+    || connections.activeProfileId && connections.activeProfileId !== denied.connectionId || connections.activeBaseUrl && connections.activeBaseUrl !== denied.profileBaseUrl
+    || auth.api.defaults.baseURL && auth.api.defaults.baseURL !== denied.baseUrl);
+  if (changed) { permissionLocked.value = false; deniedContext = null; }
+  if (permissionDenied.value) { localBuckets.value = []; errorMsg.value = '当前身份没有 Object 访问权限。'; }
+  const revision = contextRevision;
+  void nextTick().then(() => { if (canRead.value && revision === contextRevision) return refreshAll(); });
+}, { immediate: true, flush: 'sync' });
+watch(selectionIdentity, () => {
+  for (const ticket of [...readTickets.values()].slice(0, 32)) if (ticket.selected) cancelRead(ticket.slot);
+  loadingPreview.value = loadingProcessing.value = false;
+  selectedTagsText.value = ''; copyTargetKey.value = ''; previewText.value = ''; presignedUrl.value = ''; versions.value = [];
+  legalHoldEnabled.value = false; legalHoldReason.value = ''; processingStatus.value = null; clearSelectedThumbnail(); rangeNotice.value = '';
+  const row = selectedObject.value;
+  if (row && canRead.value) { selectedTagsText.value = formatMap(row.tags); copyTargetKey.value = `${row.key}.copy`; uploadKey.value = row.key; multipartKey.value = row.key;
+    void loadSelection(); void loadVersions(row.key); void loadSelectedProcessing(); }
+}, { flush: 'sync' });
+watch([currentPrefix, listLimit], () => { cancelRead('objects'); cancelRead('audit'); loadingObjects.value = loadingAudit.value = false; cursor.value = null; hasMore.value = false; }, { flush: 'sync' });
+watch([rangeStart, rangeLength, previewMode], () => { cancelRead('range'); loadingPreview.value = false; previewText.value = ''; rangeNotice.value = ''; }, { flush: 'sync' });
+watch([auditPrefix, auditMaxEntries], () => { cancelRead('audit'); loadingAudit.value = false; }, { flush: 'sync' });
+watch(() => JSON.stringify([semanticSearchMode.value, semanticText.value, similarImageId.value, semanticTopK.value, semanticMinScore.value,
+  semanticFilterBucket.value, semanticFilterPrefix.value, semanticFilterContentType.value, semanticMetadataText.value, semanticTagsText.value, semanticExplain.value]), () => {
+  cancelRead('search'); cancelRead('images'); searchingSemantic.value = false; semanticSearchResult.value = null; clearSemanticHitUrls();
+}, { flush: 'sync' });
+watch(semanticImageFile, () => { cancelRead('search'); cancelRead('images'); searchingSemantic.value = false; clearSemanticHitUrls(); }, { flush: 'sync' });
+onBeforeUnmount(() => { disposed = true; invalidateContext(); });
 </script>
 
 <style scoped>

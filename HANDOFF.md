@@ -7,6 +7,13 @@
 
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
+- **WB-24 本地切片已验证**：从干净 `main / cb32050b54e5f5d3b767f09b7593460ce18152d1` 接续，WB-23 三代理均结束后复用。本轮只推进 Object 浏览/选中对象/Range 读取隔离与有界预览；实施者四专属文件、UI新spec、第三代理只读复核均停止写入，根维护六共享文档/验证/git。提交说明 `feat(m47): isolate Object reads and bounded previews`，实际哈希以git log为准，本轮仅提交11个任务文件。
+- database/Bucket/key/version 原名与旧key保留；所有自动治理、tags/hold、版本、processing/thumbnail、Multipart、审计、语义及下载读取冻结实际API/认证/连接与同步代际，列表prefix/opaque token、选中key/version和格式模式隔离迟返/ABA/卸载。逐路401/403清载荷/派生URL/写草稿/审批并锁存，治理先500后兄弟403亦不漏；空身份/同身份刷新不解锁，readonly保留读取/下载且22个stage与confirm禁写。审批身份/草稿失效、native与Web文件选择器迟返不填新目标。
+- 列表每页1～1000、累计1000、先截断再map，校验bucket/prefix/条目目标和token推进，超返不复用会跳项cursor，结果/历史保留实际预览数与不完整性。Range安全差值校验防左结合整数舍入，206验证真实Content-Range与冻结version，先slice至请求/声明长度/4096后arrayBuffer/格式化；200仅start0首窗降级。Blob已接收，不能称传输/扫描/总堆预算；完整Multipart/语义预算和写终态/unknown/一次消费另片。
+- 最终专属Node **20/20**、全Web **280/280**、TypeScript/Vite、Chrome **15/15**、既有Object/语义浏览器 **4/4**、既有真实Kestrel兼容 **4/4**与独立复核PASS。初轮Node17/18与build失败修复为真实Range舍入漏洞/未用变量；初轮Chrome9/15经创建stack证明缺失URL属MapLibre模块全局worker，最终只排除该精确来源，实际Object图片及所有未知URL仍逐条回收。证据 `artifacts/wb24-validation-20261006`；新UI API/auth、文件dialog行为均为fixture，不计真实Server权限或真实OS。
+- 门禁前 **53** 条进程身份核验、0自有进程存活；根runner有明确timeout/PID/创建/完整命令/父链并finally仅清自有树，审计保留复用PID。最终树完整restore、原级别format与staged diff check为本地提交放行条件，命令/退出值见restore-final/format-final/final-gates，代码再改须重跑；验证源码SHA256单列。`origin/parity-results`保持`e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`，无push/发布/部署/外部沟通，无工具安装，两处策略保留Temp不删除、不重试或绕过。
+- 下一次先完整接收HANDOFF/AGENTS/queue/git/代理，不重复WB-24。优先冻结Object写执行器终态/一次消费/unknown与批次预算的最小后续片，再补九模型新UI真实权限/恢复及Studio/VS Code剩余合同与旅程；真实OS对话框、安装/Extension Host/AOT、固定硬件、长期运行、AI/MCP和发行物仍分别待验。heartbeat保持ACTIVE，本轮不启动下一片。
+
 - **WB-23 本地切片已验证**：干净起点 `759f3691`，本轮只推进 Graph 权限/有界画布兼容切片，合同及归属冻结在queue顶部。实施 `/root/wb20_vector_impl` 独占Graph组件/API/Node，UI `/root/wb20_vector_ui` 独占新spec，`/root/wb19_fulltext_impl` 只读复核；根独占共享文档/验证/git。原名/Graph Beta不变，提交说明 `feat(m47): isolate Graph canvas and approval outcomes`，实际哈希以git log为准；下一片再盘点Object。
 - 根取得专属Node **27/27**、全Web **260/260**、Graph Chrome **16/16**、既有Graph浏览器 **3/3**、TypeScript/Vite，以及既有真实 Kestrel Graph兼容 **4/4**（权限/预算、点读、operations+JSON round-trip、维护审批重启审计）；证据 `artifacts/wb23-validation-20261006`，门禁前49个进程身份核验0存活，活进程小输入亦证明审计可检出任务自身。UI/API均为fixture，不能计新UI真实权限/三宿主。DOM/ResizeObserver重建和unsafe数字ID/版本最小拒绝门禁已修复并复核；未宣称完整Graph Int64字符串合同。
 - 最终树完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和 staged diff check 均为本地提交放行前置，命令/退出值见 `restore-final2`、`format-final2` 与 `final-gates.json`；源码SHA256绑定验证/门禁树。仅提交本任务11文件，`origin/parity-results` 保持 `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`；不push、发布、部署或外部沟通。

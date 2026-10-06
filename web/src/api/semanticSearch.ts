@@ -60,8 +60,8 @@ function imageBaseUrl(db: string): string {
   return `/v1/db/${encodeURIComponent(db)}/images`;
 }
 
-export async function getSemanticSearchStatus(api: AxiosInstance): Promise<SemanticSearchStatusResponse> {
-  const resp = await api.get<SemanticSearchStatusResponse>('/v1/semantic-search/status');
+export async function getSemanticSearchStatus(api: AxiosInstance, signal?: AbortSignal): Promise<SemanticSearchStatusResponse> {
+  const resp = await api.get<SemanticSearchStatusResponse>('/v1/semantic-search/status', { signal });
   return resp.data;
 }
 
@@ -70,6 +70,7 @@ export async function searchImagesByText(
   db: string,
   text: string,
   request: ImageSearchRequest,
+  signal?: AbortSignal,
 ): Promise<ImageSearchResponse> {
   const resp = await api.post<ImageSearchResponse>(`${imageBaseUrl(db)}/search/text`, {
     text,
@@ -77,7 +78,7 @@ export async function searchImagesByText(
     minScore: request.minScore ?? null,
     filter: request.filter ?? null,
     explain: request.explain ?? false,
-  });
+  }, { signal });
   return normalizeSearchResponse(resp.data);
 }
 
@@ -86,12 +87,13 @@ export async function searchImagesByImage(
   db: string,
   image: Blob,
   request: ImageSearchRequest,
+  signal?: AbortSignal,
 ): Promise<ImageSearchResponse> {
   const params = searchQueryParams(request);
   const resp = await api.post<ImageSearchResponse>(
     `${imageBaseUrl(db)}/search/image?${params.toString()}`,
     image,
-    { headers: { 'Content-Type': image.type || 'application/octet-stream' } },
+    { signal, headers: { 'Content-Type': image.type || 'application/octet-stream' } },
   );
   return normalizeSearchResponse(resp.data);
 }
@@ -101,6 +103,7 @@ export async function searchSimilarImages(
   db: string,
   id: string,
   request: ImageSearchRequest,
+  signal?: AbortSignal,
 ): Promise<ImageSearchResponse> {
   const resp = await api.post<ImageSearchResponse>(
     `${imageBaseUrl(db)}/${encodeURIComponent(id)}/similar`,
@@ -110,12 +113,13 @@ export async function searchSimilarImages(
       filter: request.filter ?? null,
       explain: request.explain ?? false,
     },
+    { signal },
   );
   return normalizeSearchResponse(resp.data);
 }
 
-export async function getProtectedImageBlob(api: AxiosInstance, url: string): Promise<Blob> {
-  const resp = await api.get<Blob>(url, { responseType: 'blob' });
+export async function getProtectedImageBlob(api: AxiosInstance, url: string, signal?: AbortSignal): Promise<Blob> {
+  const resp = await api.get<Blob>(url, { signal, responseType: 'blob' });
   return resp.data;
 }
 

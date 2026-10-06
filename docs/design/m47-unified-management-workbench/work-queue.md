@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-24 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 干净起点 `cb32050b54e5f5d3b767f09b7593460ce18152d1`，WB-23 三代理均结束；本轮只推进 Object 桶浏览/选中对象/Range 的兼容隔离切片，复用现有六页签、v2 continuation、版本/下载、native dialogs、Multipart 与图片语义。不改 Server、路由、其它模型或宿主代码。
+- `/root/wb20_vector_impl` 独占 `web/src/components/ObjectBucketWorkbench.vue`、`web/src/api/objectStorage.ts` 的读取 optional signal、必要 `web/src/api/semanticSearch.ts` 读取 optional signal 和新增 `web/tests/object-workbench-migration.test.mjs`。`/root/wb20_vector_ui` 独占新增 `web/e2e/object-workbench-migration.spec.ts`；`/root/wb19_fulltext_impl` 独立只读复核。根独占六共享文档、runner、兼容证据、集成、完整 restore/format、stage/commit；最多三个活动子代理，每代理25个命名文件/35分钟，不另派代理或自行长验证。
+- 保留 database/Bucket/key/version 原名与旧 `bucket:` key。同步实际 API/endpoint/Authorization/token/profile/database/Bucket 代际，列表 prefix/continuation 和选中 key/version 各自请求快照；全部自动伴随读取及其错误/finally/URL/历史隔离迟返、ABA、新读取与卸载。401/403 清载荷、派生 URL、结果、写草稿和审批并锁存；同身份刷新/空身份往返不解锁，显式恢复另验。readonly 保留浏览/读取/下载，全部写暂存/确认程序与按钮入口门禁；六态与固定脱敏错误。
+- 列表每页1～1000、累计预览1000，先截断再映射；校验响应 bucket/prefix、条目目标和 token 严格推进，不复用超返导致跳项的游标。结果/历史保留实际数量与不完整性，不称全桶快照。Range start/length/end 为安全整数，长度最多4096，冻结格式模式与版本，响应 Blob 先 slice 再 arrayBuffer/格式化；明确 Range/客户端截断，不称传输、扫描或总堆预算。
+- Server 兼容复核：prefix 按现有 `TrimStart('/')` 规范化，首 continuation null/空串等价，opaque token 只验证非空/变化/不重复，不要求字面 v2。`getObjectBlob` 可兼容增 optional status/contentRange，验证真实206/Content-Range与冻结版本；head.bucket/key 是客户端回填，sizeBytes 是 Range Content-Length，不用这些值虚构 Server 目标回显或全对象长度。
+- Multipart/图片语义仅补读取归属和权限隔离，不声称完整分页/语义预算；写执行器终态、未知结果和批次预算另开切片，当前补审批身份失效与门禁且禁止旧上下文回写。fixture、既有真实 Kestrel 兼容、新 UI 真实权限、三宿主/安装/Extension Host/AOT/硬件/长稳/发布分别记录。
+- PowerShell7；禁止 Graphify、广域工具扫描与未授权安装；循环/搜索/重试同时有项目/迭代上限及墙钟，长进程记录 PID/创建时间/完整命令/父链并 finally 仅清自有树，临时路径先核验。两处策略保留 Temp 不删除、不重试或绕过。最终树完整 restore、原级别 format 与 staged diff check 通过才本地提交；保留 origin/parity-results，不 push/发布/部署/外部沟通。
+- 最终第三生产树专属Node20/20、全Web280/280、TypeScript/Vite、Chrome15/15、既有Object/语义浏览器4/4、既有真实Kestrel兼容4/4及独立复核PASS。补安全Range差值/声明长度与两Web picker ABA；URL诊断只排除已证明的MapLibre全局worker，Object图片/未知URL回收断言保持。53条进程身份0存活；证据目录 `artifacts/wb24-validation-20261006`。提交说明 `feat(m47): isolate Object reads and bounded previews`，实际哈希见git log；根最终完整门禁通过才提交。本轮不启动下一片，优先后续Object写终态/一次消费/unknown与批次预算，整体三宿主继续ACTIVE。
+
 ### WB-23 合同与文件冻结（2026-10-06；本地切片已验证）
 
 - 干净起点 `759f36912fdb6a82edc008db6c02d181b66ebb9e`，WB-22 三代理均结束；本轮只推进 Graph 权限/有界画布兼容切片，复用原有 Canvas、Schema、元素编辑、JSON transfer 与维护审批，不重做 M40 引擎或 Object 复杂子页。Graph 保持 Beta、database/Graph 原名与旧 key/入口。
@@ -113,8 +124,10 @@
 | WB-20 | Vector Workbench 原始向量检索上下文、权限载荷与Top-K预览 | 从干净 `2f9a5477` 接续，依赖WB-11/WB-16与既有Vector API；原名/六态、请求快照、401/403及空Schema锁存、Top-K100与子页门禁完成本地切片。专属Node17/17、全Web201/201、TypeScript/Vite、Chrome10/10、既有导入回归1/1、真实Kestrel兼容3/3与独立复核通过；本轮提交说明 `feat(m47): isolate Vector preview context and permission payloads`，实际哈希以git log为准，最终完整门禁为提交前置。索引Profile、真实权限/恢复/预算与三宿主/发行物另验。 |
 | WB-21 | KV 权限锁存、六态与有界预览 | 本地切片已验证；专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome12/12、既有浏览器5/5、真实Kestrel兼容6/6与独立复核通过。合同/归属见下方；最终完整restore/format及staged检查为提交放行条件，实际哈希见git log。真实新客户端权限/恢复、完整atomic响应、字节/堆预算与三宿主另验。 |
 | WB-22 | MQ 权限锁存、实际Topic/请求隔离与有界预览 | 本地切片已验证，合同/归属见下方；专属Node22/22、全Web240/240、TypeScript/Vite、Chrome16/16、既有MQ浏览器3/3、真实Kestrel兼容2/2及独立复核PASS。最终完整restore/format和staged检查为提交前置，实际哈希见git log。新UI真实权限/恢复、完整metadata/解码/总预算、三宿主另验。 |
+| WB-23 | Graph 权限/请求隔离与有界画布 | 已提交 `cb32050b`，专属Node27/27、全Web260/260、Chrome16/16、既有浏览器3/3、真实Kestrel兼容4/4、build及独立复核通过。Graph Beta、完整Int64字符串/新UI真实权限/三宿主边界见顶部冻结。 |
+| WB-24 | Object 读取隔离、权限门禁与有界列表/Range | 本地切片已验证，顶部冻结；Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、真实Kestrel兼容4/4、build与独立复核PASS。最终完整门禁为提交前置，实际哈希见git log。写终态/unknown/一次消费、完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
 
-WB-15～WB-22已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Web 九模型下一未迁移页面（Object/Graph候选），先冻结一个有界任务再派单；本轮不启动下一切片。
+WB-15～WB-24已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Object 写终态/一次消费/unknown 与批次预算的后续兼容切片，再继续真实权限与宿主差距；先冻结一个有界任务再派单，本轮不启动下一片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
