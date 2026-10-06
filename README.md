@@ -226,7 +226,7 @@ code --install-extension iotsharp.sonnetdb-vscode
 
 README 只保留项目概览和最短入门路径，完整说明在专题文档中：
 
-Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS946×556 与652×476（DPR1.5、Explorer已自动收起）均验证身份/状态/Health、Managed Local Health/Stop/Start、普通原生关闭退出0与四端口/进程回收；fixture12/12与最终Web/Server/Studio构建通过。原失败保留，首轮验证runtime删除被策略拒绝而保留，不能计完整清理通过。展开Explorer、库身份同步/恢复、登录UI、文件对话框、安装/AOT及三宿主整体仍待验，详情见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS946×556 与652×476（DPR1.5、Explorer已自动收起）均验证身份/状态/Health、Managed Local Health/Stop/Start、普通原生关闭退出0与四端口/进程回收；fixture12/12与最终Web/Server/Studio构建通过。原失败保留，首轮验证runtime删除被策略拒绝而保留，不能计完整清理通过。WB-41新增SQL原生文件诊断入口；首轮真实Open POST后桌面工具未看到picker且激活失败，超时未通过，后三步未运行，失败证据与任务资源回收已核验。展开Explorer、库身份同步/恢复、登录UI、文件对话框、安装/AOT及三宿主整体仍待验，详情见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
 
 | 主题 | 文档 |
 | --- | --- |

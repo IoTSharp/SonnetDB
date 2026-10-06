@@ -2,6 +2,19 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-41 合同与文件冻结（2026-10-07；诊断入口已验证，原生旅程失败待续）
+
+- 依赖WB-40实际提交 `0a9834bd`，完整receipt+fresh exact SHA256确认HANDOFF/AGENTS/queue/ROADMAP相同；git/已存在提交/完成代理核对。现有SQL Ctrl+O/Ctrl+S、原生Open SQL/Save SQL As、typed bridge及WinForms Service已有实现。独立inventory只读盘点8短读/11rg/11命名源文件后停止，无进程或临时对象，不将已有功能重新包装。
+- 唯一切片：普通DOM Ctrl+O通过真实OS picker打开任务自有SQL，再正常取消Open；Ctrl+S保存至唯一任务自有新输出，再正常取消Save。保存工具返回OS窗口/截图、实际bridge DTO、SQL/tab与输出bytes/hash；取消不新建tab、不改SQL、不提示成功、无额外输出。只验证这四步，不执行SQL，最后普通退出/四端口/归属进程/三runtime分别核验；API认证准备非登录UI。
+- 文件归属：专属runner代理仅existing `web/e2e/run-studio-native-real.mjs` 显式sql-dialogs场景与new `web/e2e/run-studio-native-dialog-real.mjs` 薄入口；独立review只读；根六共享docs/Computer Use Windows交互/验证/最终门禁/stage/commit。生产Vue/API/Studio/Server、helper/evidence与旧lifecycle默认行为冻结；真实Windows输入仅node_repl/@oai/sky且每次工具观察→唯一返回窗口→单动作→刷新，不混PS UIAutomation，不碰其它窗口或登录/安全提示。
+- 根新 `artifacts/wb41-validation-20261007` 至00:05Z、10wrapper命令/2actual run/0build项目；runner23:16Z、18短读各30秒/20命名文件/16rg各60匹配15秒，review23:43Z、16短读/24命名文件；Windows调用48次/25分钟、单调用20秒，phase次数+60秒墙钟，原48file/512KiB/凭据/terminal门禁保持。构建复用WB40已核hash产物，真实picker/bridge/mock/安装/AOT证据不混。
+- PowerShell7、禁止Graphify/广域扫描/未授权安装；有界执行/微输入比较退出、PID/creation/full command/父链/finally归属回收和绝对临时路径规则继续；policy拒绝删除不绕过。Foreign footer/博客/oschina/parity、两个Temp及WB40策略保留runtime不动，无push/发布/部署/外部沟通。最终八任务文件完整restore/原级别format前后freeze/hash通过后本地commit；binary/目录/owner与超时矩阵/库恢复/安装/完整三宿主仍待验，唯一heartbeat ACTIVE30分钟，本片不启动下一片。
+
+- 最终runner `03C1162B…AB68C`/thin `078EB0F2…6AB5B9`，显式四phase/真实DTO、普通DOM SQL/tab/toast、磁盘bytes/BOM/SHA对拍与失败终态；旧default lifecycle/生产/helper/evidence与六旧产物不改，初/final Node syntax通过、0新build。实跑后仅三处说明文案明确验证范围与OS/per-phase必须另证，原失败文件不改。
+- actual1 `77847de9-98d9-4588-9288-fced310cb6dd`，旧source4230C285、wrapper1/232秒：Ctrl+O真实POST open-file已观察，response=null、无ack、60秒超时；Open成功FAILED，Open取消/Save成功/Save取消NOT_RUN，无saved输出/SQL执行。sky4调用只见Studio11996610，snapshot实际仅桌面背景，activate失败后fresh list仍无picker；无文件输入或按钮动作、无其它UIA绕过，不盲用第二run额度。JPEG118207B及OS观测独立保存；disabled pane/静态boundary/桥请求都不替代可见picker，也不能将激活失败归为产品Open故障。
+- 未执行后续Health/Stop/Start/普通关闭；normalExit=false、Studio fallback exit4294967295。finally9完整身份单PID回收、0helper reclaim、18helpers退出0、六终态齐全；四ports与三runtime释放。根failure-checkpoint只验失败证据/20文件≤512KiB/JPEG+输入hash/无输出ack/fresh端口/完整fallback引用与49记录身份无业务存活，独立review直接实际文件/JPEG同结论；不是四phase或正常生命周期PASS。
+- 八文件最终完整restore/原级别format及前后freeze/hash/时间/精确命令、白名单stage/diff/本地commit见本片final-gates与commit-checkpoint；foreign/footer/parity和旧policy目录不碰。后续先确认桌面工具可观测/正常激活再接WB41真实四phase；未恢复前可从未完成VS Code队列选独立有界任务，不跳过或取消旧Workbench工作。整体未闭环、唯一heartbeat ACTIVE30分钟；本片不启动下一片。
+
 ### WB-40 合同与文件冻结（2026-10-07；本机默认/窄窗 Health 已验证）
 
 - 依赖 WB-15 客户端与 WB-39 普通 native 生命周期，从实际 `db7f0ca1` 接续；文档/最终 SHA256、git/路线图/提交及三个完成代理核对。1440×920 默认 native 参数在本机 DPR 下可能 CSS≤1100，组件响应式当前隐藏 Health/state；≤720 整 toolbar 隐藏。仅修此已证入口缺口，不重做宿主或九模型页面。

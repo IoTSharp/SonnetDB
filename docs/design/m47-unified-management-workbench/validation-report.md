@@ -2,6 +2,17 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-41 SQL 原生文件诊断（2026-10-07；真实对话框旅程失败，回收已验证）
+
+- 接续WB40实际 `0a9834bd`，完整已接收文档与fresh SHA/git/路线图/完成代理核对。冻结两runner与六共享文档共八文件，inventory只读、专属runner实施、独立review只读、root独占Windows操作/验证/文档/集成。窗口至00:05Z/最多10wrapper/2actual/0build，sky48调用/25分钟/单调用20秒；原有PowerShell7、有界执行、归属进程/finally、绝对路径与policy拒绝不绕过规则保持。
+- 显式sql-dialogs薄入口复用生产Ctrl+O/Ctrl+S、typed bridge/WinForms，不新做已有功能。四phase各120次/60秒、合计290秒、DOM读2秒/最多140次，正常请求与响应白名单、SQL/tab/toast、输入/输出bytes/BOM/SHA和cancel无输出/状态不变分别断言；42非终态+6终态保留、总48文件与凭据门禁保持。旧default lifecycle不改；生产九文件和WB40六构建产物hash保持，0新build。最终runner `03C1162B…AB68C`、thin `078EB0F2…6AB5B9`；根初/final Node syntax exit0。
+- 唯一actual run `studio-native-real-77847de9-98d9-4588-9288-fced310cb6dd` 使用修改说明前source `4230C285…18F54B`，wrapperexit1/232秒。初native bootstrap/manifest/同WebView2运行状态为局部证据；23:08:56.586Z正常DOM Ctrl+O确有真实POST `/studio-bridge/dialogs/open-file`、title“打开 SQL 文件”、SQL/TXT filters/maxBytes4194304；response=null、无OS ack，到23:09:56.586Z失败。Open成功FAILED，余三phase NOT_RUN，输入64B/无BOM/SHA `D8A35ACA…546A73`，无saved文件，SQL未执行。
+- sky只返回任务Studio11996610，state树含disabled pane，但直接截图仅桌面背景；未见SQL modal，一次activate返回 `failed to activate captured window`，fresh list仍同Studio。4调用，无文件输入/按钮动作/ack，不用其它UIA绕过、不盲重跑第二次。实际工具原JPEG118207B/hash与controller-observation存sibling OS evidence组，不能视为四phase OS截图或可见picker。原run/await成功语气boundary是旧固定说明，保留原证据并用失败flags/root观测澄清；实跑后仅三处source文字改为keyboard issued/验证范围/per-phase与OS必须独立证实，不改变行为、未再次实跑，不倒改原run。截图失败/disabled pane/桥POST不足以认定产品Open故障或锁屏原因。
+- 后续Health/Stop/Start/普通CloseMainWindow未执行；normal-exit attempted=false/accepted=false/normalExit=false，Studio fallback exit4294967295，非正常生命周期PASS。finally按完整PID+creation+command+父链9次KillSingleVerifiedProcess、0helper reclaim、18 PS7 helper exit0；normal-exit/cleanup/bridge-responses/process-events/sql-dialog-failure/result六终态独立保存，cleanupProven=true、四端口释放、三runtime分别正常移除。原失败与终态保持，不把fallback计普通关闭或恢复。
+- Root failure-checkpoint验证20 retained run文件每份≤512KiB、JPEG118207B/hash、输入64B/hash、无ack/phase/output、60秒deadline/身份对拍、fallback身份表引用、fresh四port bind、三runtime不存在及9生产/6产物/foreign hashes。49记录身份无自有业务存活（验证器单列），wrapperexit0仅代表失败证据/资源回收核验，nativeJourneyPassed=false/normalLifecyclePassed=false。独立review直接5JSON/process-events/JPEG确认POST/null响应、窗口不可观测、fallback/完整父链/18helper与失败边界，不推定全部短命进程或外部祖先完整。
+- 最终八文件完整 `dotnet restore SonnetDB.slnx` 和 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 必须在最终冻结树通过并绑定hash/时间/精确命令后才白名单本地commit，实际门禁/提交见本片final-gates/final-tree-hashes/commit-checkpoint/git log。HANDOFF仅本顶部hunk，foreign54行footer/博客/oschina/origin/parity-results与旧policy目录保留，无push/发布/部署/外部沟通。
+- 下一次先确认native窗口可观测与正常激活条件，再接四phase；未恢复前不盲重复实跑，可另取未完成VS Code有界切片。登录UI/其它picker/owner与超时矩阵、native库同步/恢复、安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT/固定硬件/长稳/发行物及整体三宿主仍分别未闭环。旧任务继续，唯一heartbeat ACTIVE每30分钟，本片不启动下一片、不迁移或暂停。
+
 ## WB-40 默认/窄窗 Studio Health（2026-10-07；本机收起 Explorer 的切片已验证）
 
 - 从 `db7f0ca1` 接续，完整已接收文档与fresh hashes/git/路线图/三个完成代理对拍；冻结三源码、六共享文档，共九任务文件。UI代理仅Vue/既有fixture，runner代理仅native runner，独立只读复核；root独占验证/文档/集成/最终门禁和commit。至23:32Z、最多16wrapper命令/3actual run/3build项目，不重置WB-38/39；生产Studio/Server与helper/evidence库不改。

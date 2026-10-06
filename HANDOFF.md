@@ -5,6 +5,20 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-41，2026-10-07；诊断入口已验证，原生对话框旅程失败待续）
+
+- 从实际提交 `0a9834bdaaa89971fd8fe95286876d1c2160823f` 接续；最新HANDOFF/AGENTS/queue/ROADMAP完整文件读取与已完整接收WB-40最终树SHA256核对相同，git/路线图/提交与已完成子代理核验。独立inventory确认Ctrl+O/Ctrl+S及原生菜单file.open/file.save已实现，复用既有Web→bridge→WinForms picker，不重做生产功能。
+- 本片冻结正常SQL文本Open成功→Open取消→Save成功→Save取消，仅任务自有SQL输入/唯一新输出，均以普通DOM快捷键与真实OS对话框进行，不执行SQL、不直接HTTP代替动作。保存实际OS窗口/截图、桥DTO、SQL/tab与实际输出bytes/hash，取消对拍内容/tab不变且无额外文件；最后普通原生退出、四端口/任务进程及runtime回收另验。
+- 专属runner代理仅既有 `web/e2e/run-studio-native-real.mjs` 的显式sql-dialogs场景及新薄入口 `web/e2e/run-studio-native-dialog-real.mjs`；独立review只读。生产Vue/API/Studio/Server、native helper/evidence库与旧默认lifecycle场景冻结。根独占六共享文档、Computer Use真实Windows操作、长验证、最终restore/format、stage和commit。Windows动作只用已读computer-use技能的node_repl/@oai/sky，不混PowerShell UIAutomation；native picker目标须来自工具返回的唯一任务Studio窗口，普通FileName/Open/Save/Cancel，不操作其它窗口或登录/安全提示。
+- 新窗口 `artifacts/wb41-validation-20261007` 根最多10wrapper命令/2actual run/0新build项目，至00:05Z；runner至23:16Z，18短读各30秒/20命名文件/16定向rg各60匹配15秒；review至23:43Z，16短读/24命名文件。根Windows调用最多48次/25分钟，单调用≤20秒；每phase ack/poll有次数和60秒墙钟，禁止无界等待、fake bridge、私有事件/组件API/force click，原48文件/512KiB/凭据门禁与独立terminal不放宽。构建只复用WB40已核hash产物，非本片新构建或安装证据。
+- PowerShell7固定pwsh；禁Graphify/广域扫描/未授权安装；所有循环/搜索/等待/重试有次数和墙钟、微输入先核比较，长进程完整PID/creation/command/父链和finally仅核验回收自有树；临时对象绝对路径核验，policy拒绝不绕过。54行foreign HANDOFF footer/博客/oschina/origin/parity-results、两拒删Temp及WB40首run策略保留runtime不碰，不fetch/push/发布/部署/外部沟通。OS owner/超时矩阵、binary/目录picker、登录UI/库恢复、安装/AOT/完整Studio/VS Code与整体三宿主仍另验。旧任务继续，唯一heartbeat每30分钟ACTIVE，本片不启动下一片。
+
+- 最终两runner源码冻结 `source-freeze-final-2.json`：existing runner `03C1162B…AB68C`、薄入口 `078EB0F2…6AB5B9`。显式sql-dialogs四phase使用普通DOM快捷键、真实POST/响应DTO、可见SQL/tab/toast与磁盘bytes/BOM/SHA；每phase120次/60秒、四phase290秒、DOM读2秒/最多140次、42非终态+6终态保留/总48文件门禁。旧default lifecycle不改，生产九文件与WB40六产物hash保持，0新构建；根初/final Node syntax均通过。实跑后仅三处证据说明改为验证范围/keyboard issued，不改变行为、不重跑或改写旧证据。
+- 首actual `studio-native-real-77847de9-98d9-4588-9288-fced310cb6dd`，旧runner `4230C285…18F54B`，wrapper1/232秒。23:08:56.586Z正常Ctrl+O确有真实POST open-file/title/SQL+TXT/4MiB；response=null、无ack、60秒超时，Open成功失败，后三phase NOT_RUN。任务输入64字节/无BOM/SHA `D8A35ACA…546A73`，无saved输出，SQL未执行。初native bootstrap/manifest与运行状态是局部证据，不能推导实际picker成功。
+- Computer Use只返回唯一Studio窗口11996610；snapshot树含disabled pane而截图仅桌面背景，无可见SQL picker。一次activate返回 `failed to activate captured window`，fresh list恢复仍只有Studio；4调用、无文件输入/按钮动作或ack，不绕过其它UIA、不盲重跑第二次。原JPEG118207字节/hash与观测存 sibling OS组，非四phase截图或本机对话框证明。旧run/await中成功语气boundary为旧静态文案，原样保留；必须以实际phase/OS/failure字段判失败，不能将其当实证或据激活失败定产品Open故障。
+- 普通Health/Stop/Start/CloseMainWindow后续未执行，normalExit=false/Studio fallback退出4294967295，非正常生命周期PASS。finally9次完整identity核验KillSingleVerifiedProcess、0helper reclaim，18 PS7 helpers退出0；六终态独立落盘。cleanupProven=true、四端口释放、profile/data/server-content三runtime正常移除。根失败checkpoint核验20run文件均≤512KiB、JPEG/hash、输入/无输出/ack、fresh四port bind、三目录不存在与fallback身份引用；49记录身份无自有业务存活，验证器单列。根检查通过只证明失败证据与回收，真实SQL旅程仍FAILED；独立review直接JSON/完整父链与JPEG确认相同边界。
+- 根最终八任务文件完整restore/原级别format需在final-tree-hashes冻结树通过并前后hash/时间/精确命令绑定，才白名单stage/diff-check与本地commit；实际结果与提交见本片final-gates/commit-checkpoint/git log。54行foreign HANDOFF footer/博客/oschina/parity与旧policy保留目录保持不stage/不删除，无push。下一次先核原生窗口可观测与正常激活条件，未恢复不盲重跑；其它未完成VS Code队列可另取有界切片，旧Workbench任务仍继续。四phase、native数据库同步/恢复、其它picker/安装/AOT/三宿主整体仍未闭环，唯一heartbeat ACTIVE30分钟，不迁移/暂停或另建重复任务。
+
 ## 当前检查点（WB-40，2026-10-07；本机默认/窄窗 Health 已验证）
 
 - 从实际提交 `db7f0ca1bb3bb3d9558e9d7488e5ce47f4199df3` 接续；最新 HANDOFF/AGENTS/queue/ROADMAP 已读取并与已完整接收的 WB-39 最终树 SHA256 对拍，git/路线图/提交和三个已完成代理核验。原生默认尺寸为 1440×920；已确认组件在 CSS≤1100 隐藏 Health/state、≤720 隐藏整个 toolbar，不能将上片宽窗成功升级为默认/窄窗可用性。
