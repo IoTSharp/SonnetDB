@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-28 FullText 新Web UI真实Top-K、同步重建终态与撤权锁存（2026-10-06）
+
+- 起点 `main / 53cb9df4`，完整接收HANDOFF/AGENTS/queue并核对已提交Object/Document/Relation及旧代理。三个专属代理分别只新增FullText薄runner、真实spec、独立只读审查；根维护六共享文档/集成/验证/git，只提交八个任务文件。三博客文件及HANDOFF末尾博客hunk不暂存；生产FullText组件、Server与共享真实runner未改，源码SHA256对比一致。
+- 复用隔离Release Server、Vite proxy和真实Chrome；loopback HTTP、独占contentRoot/DataRoot、非HTTP协议及外联关闭，缺配置失败、不skip。三测试各120秒、请求10秒、retries0、runner10分钟，151文档单批seed。API初始化/登录装入真实token不计登录UI或host readonly props；无API mock或prop harness。UI发起Top-K20/100，Find精确匹配命中IDs和limit，Unicode Analyzer返回真实tokens，Next仅本地切页，两份JSON下载逐行等于各自响应且不足151；历史保留原名/连接/真实100项当前窗口。满Top-K的complete仅解释所请求窗口，不声称穷尽全部匹配或虚构cursor。
+- 非超级用户的数据库Admin通过正常UI一次批准 `rebuild_index/document_fulltext/原collection/原index`。实际200完整终态为document/fulltext/sync_touch、planned=false、rebuildable=true、有效completedUtc/index check、documentCount151；history success/complete/recordsAffected151。超级管理员独立读取原文档/索引并查询100命中，数据保持。成功后Schema刷新可清瞬时结果面板，真实HTTP终态和持久history分别证明完成，不把清面板当作写失败。
+- 撤权旅程先取得命中/文档/Analyzer载荷并填导入草稿，保留搜索query后暂存重建；真实REVOKE后的旧审批返回403，清命中/文档/Token/结果/导入草稿/审批与Inspector，query保留，history error/0，超级管理员确认导入目标未写入。重授READ、同tokenSchema200刷新与切页签仍permission，Search/Rebuild禁用，无新模型读写、无重放；显式安全恢复另片。此处证明数据库授权与锁存，不替代routed readonly props或完整权限矩阵。
+- 最终 `fulltext-real-final` **3/3**、退出0、无skip/retry，run `fulltext-real-2026-10-06T03-56-33-655Z-d9fedb17-08d7-4bb0-8283-e39a8e2f6bf9`，测试19.9秒/根runner63秒。Node15/15、全Web300/300（concurrency2）、TypeScript/Vite、Chrome fixture8/8及Server Release0警告/错误通过；同仓库Vite/build/Playwright串行。生产源码不变，未重复共享runner Document/Relation真实回归或已有API测试。
+- 首run **1通过/1失败/1未运行**，维护响应实际403：spec授WRITE，但ControlPlaneEndpoints的/maintenance非health_check要求DatabasePermission.Admin，后续Schema等待未发生。只修spec为GRANT ADMIN并明确isSuperuser=false；撤权/regrant READ与所有终态/数据断言保持。失败stdout/screenshot/trace与首项成功JSON保留；未读取trace或安装工具。根首次pre-run误用未设置LASTEXITCODE而在成功审计后停止，随后修正调用并实际执行两轮，未跳过验证。
+- 成功证据根 `artifacts/wb28-validation-20261006`：三份实际响应/下载/history JSON分别70684、11804、5660字节，加独立SHA256 manifest；根逐份大小与hash复核一致，见success-evidence-verification。helper核验绝对runRoot/父目录/命名/run.json，wx拒覆盖，最多24份、每份1MiB、累计8MiB，拒写password/token/tokenId；下载finally删除。日志/源码hash、失败trace单列，成功证据不依赖list reporter内存attach。
+- 两隔离contentRoot和已记录Chrome profiles均按归属清理；最终身份审计数量及0存活见audit-after-gates/commit。根有界runner记录PID/创建时间/完整命令/父链，finally只回收核验自有树；短命command未捕获但已退出记录与复用PID分别保留。两处策略保留Temp不删除/重试/绕过。最终八文件完整restore、原级别format、staged diff退出0才本地提交，实际命令/日志hash/提交见final-gates/final-tree-hashes/commit-checkpoint；不push/发布/部署/外部沟通，origin/parity-results不变。
+- 显式恢复、typed `/fulltext/search` 的opaque分页/facet/highlight、完整权限、Server扫描/物化/传输/字节/总堆预算，与其它模型、Studio/VS Code/OS对话框/安装/Extension Host/AOT/硬件/长稳/AI/MCP/发行物分别待验。三宿主整体仍未闭环，heartbeat保持ACTIVE，本轮不启动WB-29。
+
 ## WB-27 Relation 新Web UI真实分页、事务终态与撤权锁存（2026-10-06）
 
 - 起点 `main / b3b2d3cd`；原WB-25/WB-26及代理状态已接收，不重复Object/Document。三专属代理独占共享runner/Relation组件与Node、真实spec/既有fixture、独立只读复核，均停止写入且最终复核PASS；根维护六共享文档、验证、进程审计与git，仅本任务13文件，三博客文件及HANDOFF末尾博客发布hunk保留未暂存。Server、SQL名称格式规则和其它宿主代码不改。

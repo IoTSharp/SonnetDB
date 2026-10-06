@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-28 合同与文件冻结（2026-10-06；本机 FullText Web 旅程已验证）
+
+- 从 `main / 53cb9df4` 接续，WB-25～WB-27均已提交、旧代理均结束；三博客文件及HANDOFF末尾博客发布hunk属于其它会话，保留不暂存。本轮只补FullText新Web UI→隔离真实本机Kestrel的Top-K/当前结果导出、同步重建审批终态及实际撤权锁存，依赖WB-19、WB-16与WB-27共享真实runner，不重做页面，不改Server、路由或其它宿主。
+- `/root/wb28_runner`独占新增 `web/e2e/run-fulltext-real.mjs`，只调用既有共享runner的FullText配置；若真实证据揭示兼容缺口，先回报后冻结同一代理的候选 `web/src/components/FullTextSearchWorkbench.vue` 与 `web/tests/fulltext-workbench-migration.test.mjs` 最小修复。`/root/wb28_ui`独占新增 `web/e2e/fulltext-real-permission.spec.ts`；`/root/wb28_review`独立只读复核真实Handler/既有测试/最终diff。根独占六共享文档、验证runner、集成/审计、完整restore/format、stage和commit；最多三个活动子代理，每代理25命名文件/35分钟，不自跑长验证或另派代理。
+- 真实Release Server使用任务独占contentRoot/DataRoot与loopback HTTP，关闭非HTTP协议和外联；缺配置直接失败、不skip。最多三浏览器旅程，各120秒、retries=0，总runner10分钟，readiness120次/60秒、HTTP请求10秒；最多151种子文档，Top-K沿用1～100，验证实际search-preview/Find/Analyzer响应、当前结果下载与原身份历史，不把本地分页称全匹配或Server扫描/物化/字节/总堆预算。
+- 重建由非超级用户的数据库Admin通过正常UI暂存、审批确认一次消费（现有/maintenance要求数据库Admin，WRITE不足），精确核对真实同步维护终态与原database/collection/index，超级管理员独立查证；实际撤权后旧审批或读取403清旧命中/文档/Token/结果/导入草稿/审批，重新授READ及同tokenSchema刷新仍锁存且不重放。显式安全恢复另片，不凭regrant解锁；API登录装入真实token不称登录UI/host readonly props验收。
+- 成功运行的脱敏实际响应/下载/history证据须在已核验绝对runRoot内单独落盘（最多24份、每份1MiB、累计8MiB），不能依赖list reporter的内存attach；禁止保存token/密码。fixture、真实Server、其它宿主/OS对话框/安装/Extension Host/AOT/固定硬件/长稳/发行物分别记录。
+- PowerShell7；禁止Graphify、广域工具扫描与未授权安装。所有循环/搜索/等待/重试有项目/迭代和墙钟上限并先小输入；长进程记录PID/创建/完整命令/父链、finally仅回收已核验自有树；临时绝对路径先核验，两处策略保留Temp不删除/重试/绕过。最终树完整restore、原级别format和staged diff退出0才本地提交，保留origin/parity-results，不push/发布/部署/外部沟通。三宿主仍未闭环，heartbeat保持ACTIVE，本轮不启动WB-29。
+- 最终真实 `fulltext-real-final` 3/3、退出0、无retry/skip；Node15/15、全Web300/300、Chrome fixture8/8、TypeScript/Vite与Server Release0警告/错误通过。151种子→20/100精确命中与导出，数据库Admin一次重建sync_touch/planned=false/151且history权威151，撤权403后重授READ/Schema200刷新仍锁存。首run1通过/1失败/1未运行为spec误授WRITE导致维护403，只修授权/说明，不改生产。成功三JSON+manifest大小/哈希核验一致，两独占数据根清理；根证据 `artifacts/wb28-validation-20261006`，独立复核及八文件完整restore/format/staged检查为提交前置，实际退出/提交见final-gates/commit-checkpoint。显式恢复、typed全文分页、Server预算与三宿主继续另验。
+
 ### WB-27 合同与文件冻结（2026-10-06；本机 Relation Web 旅程已验证）
 
 - 起点 `main / b3b2d3cd`，WB-25/WB-26提交已核验，原三代理均结束；三博客文件及HANDOFF末尾博客发布hunk属于其它会话，保留且不暂存。本轮只补Relation新Web UI到真实本机Kestrel的分页/当前结果导出、审批批次完整终态及真实撤权清载荷，依赖WB-17、WB-16与WB-26隔离runner，不重复页面迁移。
@@ -161,8 +171,9 @@
 | WB-25 | Object 写终态、一次审批消费与批次预算 | 本地切片已验证，顶部冻结；Node32/32、全Web292/292、Chrome5/5、既有浏览器4/4、真实Kestrel Object4/4+Multipart2/2、build与独立复核PASS。最终完整restore/format/staged检查为本地提交放行条件，实际哈希见git log；完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
 | WB-26 | Document 新Web UI真实权限、显式恢复与输出预算 | 本机Web→Kestrel 3/3、Node21/21、全Web295/295、Chrome fixture11/11、build与独立复核PASS；空IDs省略，Distinct满1000完整性unknown。最终完整门禁与实际11文件提交见证据目录；API登录、READ拒写与真实登录UI/readonly props分开，Advanced/Server资源预算及三宿主另验。 |
 | WB-27 | Relation 新Web UI真实分页/导出、事务终态与撤权锁存 | 本机Relation→Kestrel3/3、共享runner Document真实3/3、Node20/20、全Web300/300、Chrome fixture12/12、build和独立复核PASS；返回编辑保留暂存并显式丢弃，COMMIT权威影响数避免重复，真实冲突error/partial/0与撤权403保持锁存。13文件最终完整门禁/实际提交见证据目录；显式恢复、Server预算/完整SQL矩阵、其它宿主及发行物另验。 |
+| WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
 
-WB-15～WB-27已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点Measurement/FullText/KV等新UI真实权限/恢复与Studio/VS Code剩余合同，再按一个有界切片推进；不重复WB-25～WB-27，本轮不启动下一片。
+WB-15～WB-28已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点Measurement/KV等新UI真实权限/恢复与Studio/VS Code剩余合同，再按一个有界切片推进；不重复WB-25～WB-28，本轮不启动下一片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 

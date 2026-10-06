@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-28 FullText 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的FullText入口和三条Chrome→Kestrel旅程，验证Top-K20/100、精确文档/Analyzer、当前结果导出与原身份历史，数据库Admin一次批准同步重建完整终态，以及实际撤权403后重授READ/同token刷新仍锁存不重放。三份成功响应/下载/history证据与SHA256 manifest独立落盘且拒写凭据；真实3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过。生产组件/Server不改；首run错误WRITE授权失败、显式恢复、typed全文分页/服务端预算和三宿主/发行物边界见M47验证记录。
+
 - **M47 WB-27 Relation 真实 Web 事务与权限（2026-10-06）**：新增本机隔离Kestrel/Vite/Chrome分页/当前结果导出、两条审批插入完整终态、COMMIT唯一键冲突与实际撤权403锁存旅程。返回编辑保留暂存并提供重新预览/显式丢弃，隐藏审批不可确认；完整成功事务使用COMMIT权威影响数，避免两行误报四行，失败或缺失COMMIT不把暂存计为持久写入。抽出共享真实runner并保留Document兼容入口。Relation真实3/3、Document真实回归3/3、Node20/20、全Web300/300、Chrome fixture12/12与build通过；失败记录、显式恢复、完整权限/SQL矩阵、Server预算、三宿主与发行物边界见M47验证记录。
 
 - **M47 WB-26 Document 真实 Web 权限与输出预算（2026-10-06）**：新增隔离本机 Kestrel/Vite/Chrome 旅程，使用普通用户的真实撤权、拒写、重新授 READ 与显式 Find100 恢复，并核对实际响应、下载与历史。修正 Distinct 的真实请求兼容：空IDs省略，显式IDs保留；请求最多1000项，小于1000的预览用哨兵证明截断，恰1000项满窗明确完整性未知，保留真实响应终态且不虚构分页。真实Web→Kestrel3/3、Node21/21、全Web295/295、Chrome fixture11/11与build通过；其它宿主、登录UI/readonly props、安装、AOT、扫描/物化/字节预算及发布证据分开，范围和失败记录见 M47 验证记录。

@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-28，2026-10-06；本机 FullText Web 旅程已验证）
+
+- 从 `main / 53cb9df4` 接续，完整接收HANDOFF/AGENTS/queue并核对git、路线图、已提交WB-25～WB-27和运行中代理；Object写终态已提交，不重复。三博客文件及本文件末尾博客发布hunk属于其它会话，保留不暂存；HANDOFF只暂存本段。heartbeat已回读ACTIVE、每30分钟、当前thread，三宿主仍未闭环。
+- 本片只补FullText新Web→隔离本机Kestrel的Top-K/当前结果导出、同步重建审批终态与撤权锁存。三专属代理分别独占薄runner、真实spec、只读复核，均冻结停止写入；根维护六共享文档、验证/审计和git。本片不改生产FullText组件、Server、共享真实runner或其它宿主，提交仅八个任务文件。
+- 最终 `fulltext-real-final` 真实 **3/3**、退出0、无retry/skip：151文档→Top-K20/100，实际Search→Find精确IDs→Analyzer，当前JSON导出逐行等于响应，本地Next不再检索；原database/collection/index与profile历史保持。非超级用户的数据库Admin批准一次重建，真实200为document/fulltext/sync_touch、planned=false、完整终态/documentCount151，历史success/complete/151，超级管理员独立查原文档和索引。实际REVOKE后旧审批403清命中/文档/Token/结果/导入草稿/审批但保query，重授READ/同tokenSchema刷新仍锁存、不重放；显式恢复另片。
+- 首run为 **1通过/1失败/1未运行**：spec误授WRITE，而UI的/maintenance要求数据库Admin，真实重建403，随后Schema等待未发生。只改spec授权为ADMIN（仍isSuperuser=false）及证据说明，不改Server/UI或降低断言；失败日志/trace与首项成功证据保留。根首次pre-run误检查未设置的LASTEXITCODE而在审计通过后停止，修正调用后启动真实运行，没有跳过验证。
+- 专属Node **15/15**、全Web **300/300**、TypeScript/Vite、Chrome fixture **8/8**、Server Release **0警告/错误**通过。成功证据在 `artifacts/wb28-validation-20261006/fulltext-real-2026-10-06T03-56-33-655Z-d9fedb17-08d7-4bb0-8283-e39a8e2f6bf9`，三份JSON与SHA256 manifest独立落盘，根核验大小/哈希一致；最多24份、每份1MiB、总8MiB且拒写凭据。成功Schema刷新可清瞬时结果面板，HTTP终态与持久history单独证明完成。
+- 根有界runner记录PID/创建时间/完整命令/父链并finally只回收自有树，两隔离contentRoot均清理；最终身份审计和完整restore、原级别format、staged diff退出见final-gates/commit-checkpoint，全部通过才本地提交。两处策略保留Temp不删除/重试/绕过，origin/parity-results保持独立，无安装/push/发布/部署/外部沟通。
+- 下次先完整接收交接/队列/git/代理，不重复WB-25～WB-28；优先盘点Measurement/KV等新UI真实权限与Studio/VS Code剩余合同，冻结一个有界切片。Top-K/local分页只证明当前窗口，不称穷尽匹配或Server扫描/物化/字节/堆预算；API登录不计登录UI/readonly props。typed全文分页/facet/highlight、显式恢复、三宿主/OS/安装/Extension Host/AOT、硬件/长稳/AI/MCP与发行物分别待验；heartbeat继续ACTIVE，本轮不启动WB-29。
+
 ## 当前检查点（WB-27，2026-10-06；本机 Relation Web 旅程已验证）
 
 - 从 `main / b3b2d3cd` 接续，完整接收HANDOFF/AGENTS/queue并核验git/路线图/已提交WB-25/WB-26/代理，三个旧代理均结束。三博客文件及本文件末尾博客发布段落归其它会话，不覆盖或暂存；HANDOFF仅暂存WB-27顶部hunk。heartbeat配置ACTIVE、每30分钟、同thread，三宿主整体未闭环。
