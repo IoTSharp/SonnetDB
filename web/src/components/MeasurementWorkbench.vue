@@ -355,18 +355,28 @@ const props = withDefaults(defineProps<{
   readOnly?: boolean;
   /** 服务端明确拒绝 Measurement 载荷时隐藏点值与 Schema。 */
   permissionDenied?: boolean;
+  /** 父宿主渲染代际，仅用于隔离当前子页权限通知。 */
+  permissionGeneration?: number;
 }>(), {
   measurements: () => [],
   tables: () => [],
   loading: false,
   readOnly: false,
   permissionDenied: false,
+  permissionGeneration: 0,
 });
 
 const emit = defineEmits<{
   openSql: [sql: string];
   refreshSchema: [];
+  permissionRejected: [denial: MeasurementPermissionDenial];
 }>();
+
+interface MeasurementPermissionDenial {
+  database: string;
+  measurement: string;
+  generation: number;
+}
 
 type MeasurementView = 'points' | 'import' | 'monitor' | 'schema';
 type MonitorModel = 'measurement' | 'table';
@@ -402,6 +412,7 @@ interface PendingOperation {
 
 interface MeasurementContext {
   epoch: number;
+  permissionGeneration: number;
   database: string;
   measurement: string;
   connectionId: string;
@@ -566,13 +577,13 @@ async function loadPoints(): Promise<void> {
   try {
     const result = await execDataSql(context.api, context.database, sql, parameters, controller.signal, limit);
     if (!isCurrentContext(context) || requestId !== pointRequestId || controller.signal.aborted || permissionDenied.value) return;
-    if (isPermissionFailure(result.error)) { lockPermission(); return; }
+    if (isPermissionFailure(result.error)) { lockPermission(context); return; }
     pointResult.value = boundedReadResult(result, limit);
     if (pointResult.value.error) errorMessage.value = pointResult.value.error.message;
     recordRead(context, context.measurement, sql, pointResult.value, 'points');
   } catch (error) {
     if (!isCurrentContext(context) || requestId !== pointRequestId || controller.signal.aborted) return;
-    if (isPermissionFailure(error)) { lockPermission(); return; }
+    if (isPermissionFailure(error)) { lockPermission(context); return; }
     pointResult.value = null;
     errorMessage.value = '加载数据点失败，请检查连接后重试。';
   } finally {
@@ -696,8 +707,8 @@ async function confirmPendingOperations(): Promise<void> {
       const failedIndex = results.findIndex((result) => result.error);
       if (failedIndex >= 0) {
         const failure = results[failedIndex]!.error;
-        const current = isCurrentContext(context);
-        if (current && isPermissionFailure(failure)) lockPermission();
+        const current = isCurrentContext(context) && requestId === writeRequestId && !controller.signal.aborted;
+        if (current && isPermissionFailure(failure)) lockPermission(context);
         affected += isImport ? failedIndex : 0;
         status = current ? isUncertainSqlFailure(failure) ? 'unknown' : 'error' : 'unknown';
         detail = isPermissionFailure(failure) ? '时序写入被权限拒绝。' : status === 'unknown' ? '写入结果未知，请核对服务端状态；未自动重试。' : '时序写入被服务端拒绝。';
@@ -711,8 +722,8 @@ async function confirmPendingOperations(): Promise<void> {
     }
     if (completedStatements < statements.length && status === 'success') status = 'unknown';
   } catch (error) {
-    const current = isCurrentContext(context) && !controller.signal.aborted;
-    if (current && isPermissionFailure(error)) lockPermission();
+    const current = isCurrentContext(context) && requestId === writeRequestId && !controller.signal.aborted;
+    if (current && isPermissionFailure(error)) lockPermission(context);
     const httpStatus = (error as { response?: { status?: number } } | null)?.response?.status;
     status = current && typeof httpStatus === 'number' && httpStatus >= 400 && httpStatus < 500 && httpStatus !== 408 ? 'error' : 'unknown';
     detail = status === 'error' ? '时序写入被服务端拒绝。' : '写入结果未知，请核对服务端状态；未自动重试。';
@@ -968,14 +979,14 @@ async function refreshMonitor(allowOverlap = false): Promise<void> {
   try {
     const result = await execDataSql(context.api, context.database, sql, undefined, controller.signal, limit);
     if (!isCurrentContext(context) || requestId !== monitorRequestId || generation !== monitorGeneration || controller.signal.aborted || permissionDenied.value) return;
-    if (isPermissionFailure(result.error)) { lockPermission(); return; }
+    if (isPermissionFailure(result.error)) { lockPermission(context); return; }
     monitorResult.value = boundedReadResult(result, limit);
     monitorUpdatedAt.value = Date.now();
     if (monitorResult.value.error) monitorError.value = monitorResult.value.error.message;
     recordRead(context, target, sql, monitorResult.value, 'monitor');
   } catch (error) {
     if (!isCurrentContext(context) || requestId !== monitorRequestId || generation !== monitorGeneration || controller.signal.aborted) return;
-    if (isPermissionFailure(error)) { lockPermission(); return; }
+    if (isPermissionFailure(error)) { lockPermission(context); return; }
     monitorResult.value = null;
     monitorUpdatedAt.value = 0;
     monitorError.value = '实时监控查询失败，请检查连接后重试。';
@@ -1066,7 +1077,8 @@ function recordOperation(
 
 function captureContext(): MeasurementContext {
   return {
-    epoch: contextEpoch, database: props.targetDb, measurement: props.measurement?.name ?? '',
+    epoch: contextEpoch, permissionGeneration: props.permissionGeneration,
+    database: props.targetDb, measurement: props.measurement?.name ?? '',
     connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
     endpoint: auth.api.defaults.baseURL ?? '/', profileEndpoint: connections.activeBaseUrl,
     token: auth.state?.token ?? '', schema: JSON.stringify([props.measurement, props.measurements, props.tables]), api: auth.api,
@@ -1076,7 +1088,8 @@ function captureContext(): MeasurementContext {
 function isCurrentContext(context: MeasurementContext): boolean {
   if (disposed || context.epoch !== contextEpoch) return false;
   const current = captureContext();
-  return context.database === current.database && context.measurement === current.measurement
+  return context.permissionGeneration === current.permissionGeneration
+    && context.database === current.database && context.measurement === current.measurement
     && context.connectionId === current.connectionId && context.endpoint === current.endpoint
     && context.profileEndpoint === current.profileEndpoint && context.token === current.token
     && context.schema === current.schema && context.api === current.api;
@@ -1133,10 +1146,15 @@ function invalidateContext(clearReads = true): void {
   clearImport();
 }
 
-function lockPermission(): void {
+function lockPermission(context?: MeasurementContext): void {
+  if (context && (!isCurrentContext(context) || permissionDenied.value)) return;
+  const denial: MeasurementPermissionDenial | null = context && context.database && context.measurement ? {
+    database: context.database, measurement: context.measurement, generation: context.permissionGeneration,
+  } : null;
   permissionLocked.value = true;
   invalidateContext();
   errorMessage.value = '当前身份没有 Measurement 权限。';
+  if (denial) emit('permissionRejected', denial);
 }
 
 function openSchemaSql(): void {
@@ -1165,6 +1183,7 @@ watch([() => auth.state, () => auth.state?.token, () => auth.api,
 }, { flush: 'sync' });
 
 watch(readOnly, () => { invalidateContext(false); }, { flush: 'sync' });
+watch(() => props.permissionGeneration, () => { invalidateContext(); }, { flush: 'sync' });
 watch(() => props.permissionDenied, (denied) => {
   if (denied) lockPermission();
 }, { immediate: true, flush: 'sync' });

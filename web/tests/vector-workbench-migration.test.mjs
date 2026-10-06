@@ -81,7 +81,8 @@ async function loadWorkbench(post, options = {}) {
   dependencies.fixture = synthetic({ props });
   const exports = `export { runSearch, parseRawVector, embedTextToVector, hits, hitsTruncated, latestResult, latestCommand,
     permissionLocked, permissionDenied, vectorState, rawVectorText, embedText, filterText, queryVector, queryMode, metric,
-    topK, errorMsg, contextSnapshot, captureContext, canSearch, hitRows, dataWorkbenchKey };`;
+    topK, errorMsg, contextSnapshot, captureContext, canSearch, hitRows, dataWorkbenchKey,
+    activeView, dataGeneration, searching, onMeasurementPermissionRejected };`;
   const moduleSource = options.mount
     ? compileScript(parse(source).descriptor, { id: 'vector-fixture', inlineTemplate: true }).content
     : `import { props as fixtureProps } from 'fixture';
@@ -275,6 +276,68 @@ test('same-identity Schema/auth refresh cannot unlock a denied Vector page or di
   } finally { workbench.cleanup(); }
 });
 
+test('current Measurement child denial locks Vector and survives Schema, authentication, view remount and empty identity ABA', { timeout: 5000 }, async () => {
+  const workbench = await loadWorkbench(async () => ({ data: { hits: [hit()] } }));
+  try {
+    workbench.props.readOnly = true;
+    await workbench.runSearch(); workbench.activeView.value = 'data';
+    assert.equal(workbench.hits.value.length, 1);
+    workbench.onMeasurementPermissionRejected({ database: 'North:DB', measurement: 'Vectors:Original', generation: workbench.dataGeneration.value });
+    assert.equal(workbench.permissionDenied.value, true); assert.equal(workbench.vectorState.value, 'permission');
+    assert.equal(workbench.hits.value.length, 0); assert.equal(workbench.hitRows.value.length, 0); assert.equal(workbench.latestResult.value, null);
+    assert.equal(workbench.latestCommand.value, ''); assert.equal(workbench.queryVector.value.length, 0);
+    assert.equal(workbench.historyEntries[0].database, 'North:DB'); assert.equal(workbench.historyEntries[0].status, 'success');
+    const count = workbench.calls.length;
+    workbench.props.measurement = measurement(); workbench.auth.state = { token: 'token-a', username: 'reader' };
+    workbench.activeView.value = 'search'; workbench.activeView.value = 'data';
+    workbench.props.targetDb = ''; workbench.props.targetDb = 'North:DB';
+    workbench.connection.activeProfile.id = ''; workbench.connection.activeProfile.id = 'profile-a';
+    workbench.connection.activeProfile.baseUrl = ''; workbench.connection.activeProfile.baseUrl = '/gateway';
+    workbench.props.index = null; workbench.props.indexes = []; workbench.props.measurement = null;
+    workbench.props.index = index(); workbench.props.indexes = [index()]; workbench.props.measurement = measurement();
+    await workbench.runSearch();
+    assert.equal(workbench.permissionDenied.value, true); assert.equal(workbench.calls.length, count);
+  } finally { workbench.cleanup(); }
+});
+
+test('wrong-target, old-generation and old-authority child denials cannot clear a current Vector busy owner', { timeout: 5000 }, async () => {
+  const deadline = Date.now() + 4500;
+  for (const change of ['database-event', 'measurement-event', 'generation-event', 'view-aba', 'database-aba', 'schema', 'auth-aba', 'live-endpoint']) {
+    assert.ok(Date.now() < deadline, 'Child denial matrix exceeded its wall-clock budget');
+    const pending = deferred(); const workbench = await loadWorkbench(() => pending.promise);
+    try {
+      workbench.activeView.value = 'data';
+      const denial = { database: 'North:DB', measurement: 'Vectors:Original', generation: workbench.dataGeneration.value };
+      if (change === 'database-event') denial.database = 'South:DB';
+      else if (change === 'measurement-event') denial.measurement = 'Other:Measurement';
+      else if (change === 'generation-event') denial.generation -= 1;
+      else if (change === 'view-aba') { workbench.activeView.value = 'search'; workbench.activeView.value = 'data'; }
+      else if (change === 'database-aba') { workbench.props.targetDb = 'South:DB'; workbench.props.targetDb = 'North:DB'; }
+      else if (change === 'schema') workbench.props.measurement.columns[0].dataType = 'float64';
+      else if (change === 'auth-aba') { workbench.auth.state = { token: 'other' }; workbench.auth.state = { token: 'token-a', username: 'reader' }; }
+      else workbench.auth.api.defaults.baseURL = '/new-live-endpoint';
+      const generation = workbench.dataGeneration.value; const run = workbench.runSearch();
+      workbench.onMeasurementPermissionRejected(denial);
+      assert.equal(workbench.permissionDenied.value, false); assert.equal(workbench.searching.value, true); assert.equal(workbench.dataGeneration.value, generation);
+      pending.resolve({ data: { hits: [hit(2, 'current-resource')] } }); await run;
+      assert.equal(workbench.hits.value[0].timestampUtc, 2); assert.equal(workbench.latestResult.value.rows.length, 1);
+    } finally { pending.resolve({ data: { hits: [] } }); workbench.cleanup(); }
+  }
+});
+
+test('an unmounted parent and a hidden Measurement view reject permission notifications', { timeout: 5000 }, async () => {
+  const workbench = await loadWorkbench(async () => ({ data: { hits: [hit()] } }));
+  try {
+    await workbench.runSearch();
+    workbench.onMeasurementPermissionRejected({ database: 'North:DB', measurement: 'Vectors:Original', generation: workbench.dataGeneration.value });
+    assert.equal(workbench.permissionDenied.value, false); assert.equal(workbench.hits.value.length, 1);
+    workbench.activeView.value = 'data';
+    const denial = { database: 'North:DB', measurement: 'Vectors:Original', generation: workbench.dataGeneration.value };
+    workbench.cleanup(); workbench.onMeasurementPermissionRejected(denial);
+    assert.equal(workbench.permissionDenied.value, false);
+  } finally { workbench.cleanup(); }
+});
+
 test('external deny isolates an in-flight response and readonly still permits raw search', { timeout: 5000 }, async () => {
   const pending = deferred();
   const workbench = await loadWorkbench(() => pending.promise);
@@ -465,9 +528,10 @@ function memoryRenderer() {
 test('compiled Vector template passes readonly/permission and rebuilds Measurement child on identity/Schema generations', { timeout: 5000 }, async () => {
   const children = [];
   const child = vue.defineComponent({
-    props: ['targetDb', 'measurement', 'measurements', 'tables', 'loading', 'readOnly', 'permissionDenied'],
-    setup(props) {
-      const state = { props, unmounted: false };
+    props: ['targetDb', 'measurement', 'measurements', 'tables', 'loading', 'readOnly', 'permissionDenied', 'permissionGeneration'],
+    emits: ['permissionRejected'],
+    setup(props, { emit }) {
+      const state = { props, unmounted: false, reject: (denial) => emit('permissionRejected', denial) };
       children.push(state);
       vue.onBeforeUnmount(() => { state.unmounted = true; });
       return () => h('div');
@@ -492,6 +556,7 @@ test('compiled Vector template passes readonly/permission and rebuilds Measureme
     assert.equal(children.length, 1);
     assert.equal(children[0].props.targetDb, 'North:DB');
     assert.equal(children[0].props.measurement.name, 'Vectors:Original');
+    assert.equal(typeof children[0].props.permissionGeneration, 'number');
     assert.equal(children[0].props.readOnly, false);
     workbench.props.readOnly = true;
     await nextTick();
@@ -504,7 +569,8 @@ test('compiled Vector template passes readonly/permission and rebuilds Measureme
     workbench.props.targetDb = 'South:DB';
     await nextTick();
     assert.equal(children.at(-1).props.targetDb, 'South:DB');
-    workbench.props.permissionDenied = true;
+    const current = children.at(-1);
+    current.reject({ database: 'South:DB', measurement: 'Vectors:Original', generation: current.props.permissionGeneration });
     await nextTick();
     assert.equal(children.at(-1).props.permissionDenied, true);
     assert.equal(children.at(-1).props.measurement, null);

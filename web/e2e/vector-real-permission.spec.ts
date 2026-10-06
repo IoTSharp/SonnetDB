@@ -7,8 +7,9 @@ import { expect, test, type APIRequestContext, type Page, type Response } from '
 // session is installed through API login. Top-K/export evidence covers current
 // windows, not a full index snapshot, physical ANN/Recall, embedding quality,
 // Server resource budgets, login UI, host readonly props or other host gates.
-// Measurement SQL403 locks only the currently mounted child: it does not clear
-// the outer Vector result or prove child recovery across remount/Schema refresh.
+// A current Measurement SQL403 propagates a typed resource/generation refusal
+// to the outer Vector latch. Same-token READ regrant, Schema refresh and child
+// remount must retain refusal without replay; explicit recovery is separate.
 const database = 'wb32';
 const measurement = 'DeviceVectors_Original';
 const vectorColumn = 'Embedding_Original';
@@ -103,7 +104,7 @@ test.afterAll(async () => {
   if (evidenceRoot && savedEvidence.length > 0) {
     await persistEvidence('evidence-manifest', { files: [...savedEvidence], totalBytes: evidenceBytes,
       limits: { files: 24, perFileBytes: 1_048_576, totalBytes: 8_388_608 }, credentialsSaved: false,
-      childPermissionBoundary: 'SQL403 locks the current Measurement child only; previous outer Vector results remain, and remount/Schema recovery is not asserted.' });
+      childPermissionBoundary: 'A current child SQL403 clears outer Vector hits/metadata/result and locks the parent; same-token READ regrant, Schema200 and child remount cannot refill or replay.' });
   }
 });
 
@@ -208,7 +209,7 @@ test('actual search REVOKE403 clears Vector payloads and READ/same-token Schema2
     scope: 'Search403 supplies the outer latch; same-token Schema refresh and subpage visits cannot refill or replay. Explicit recovery is separate.' });
 });
 
-test('independent Measurement SQL403 locks only the mounted Vector data child while the previous outer Vector result remains', async ({ page, request }) => {
+test('actual child Measurement SQL403 clears the previous outer Vector result and survives READ/same-token Schema200 and child remount', async ({ page, request }) => {
   const { evidence, index } = await openVector(page);
   await configureSearch(page, 20);
   const successfulResponse = await perform(page, searchPath, () => searchButton(page).click());
@@ -232,34 +233,61 @@ test('independent Measurement SQL403 locks only the mounted Vector data child wh
   const initialHistory = await latestHistory(page, 'points');
   expect(initialHistory).toMatchObject({ status: 'success', database, target: measurement, connectionId: profileId,
     connectionName: profileName, rowCount: 100, recordsAffected: -1 });
+  await childTab(page, '文件导入');
+  const importDraft = `time,DeviceID,Payload_Original,${vectorColumn}\n${seedStart + seedCount * 1_000},ChildImportDraftMustDisappear,ChildImportPayloadMustDisappear,"[1,0,0]"`;
+  await child(page).getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据').fill(importDraft);
+  await child(page).getByRole('button', { name: '解析', exact: true }).click();
+  await expect(child(page).locator('.measurement-import-grid')).toContainText('ChildImportDraftMustDisappear');
+  await childTab(page, '数据点');
   await controlSql(request, `REVOKE ON DATABASE ${database} FROM ${username}`);
   const denied = await perform(page, sqlPath, () => child(page).getByRole('button', { name: /^(?:loading\s+)?刷新$/u }).click());
   const rejection = await actualPermissionFailure(denied);
-  await hiddenChildPayload(page, true);
+  await hiddenVectorPayload(page);
+  await hiddenChildPayload(page, false);
   const lockedRequests = evidence.requests.length;
   await childTab(page, 'Schema');
-  await hiddenChildPayload(page, true);
+  await hiddenChildPayload(page, false);
   await childTab(page, '实时监控');
-  await hiddenChildPayload(page, true);
+  await hiddenChildPayload(page, false);
   await expect(child(page).getByRole('button', { name: /^(?:loading\s+)?立即刷新$/u })).toBeDisabled();
   await childTab(page, '文件导入');
-  await hiddenChildPayload(page, true);
+  await hiddenChildPayload(page, false);
   await expect(child(page).getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据', { exact: true })).toHaveValue('');
   await expect(child(page).getByRole('button', { name: '选择文件', exact: true })).toBeDisabled();
-  await expect(surface(page)).toHaveAttribute('data-page-state', 'longContent');
-  await expect(surface(page).getByTestId('vector-permission-lock')).toHaveCount(0);
-  const priorResult = await openResult(page);
-  await priorResult.locator('.n-tabs-tab[data-name="raw"]').click();
-  await expect(priorResult.locator('.workbench-result-panel__result')).toContainText(seedPayload(0));
-  await priorResult.getByTitle('关闭结果', { exact: true }).click();
+  await expect(surface(page)).not.toContainText('ChildImportDraftMustDisappear');
+  await expect(surface(page)).not.toContainText('ChildImportPayloadMustDisappear');
+  await controlSql(request, `GRANT READ ON DATABASE ${database} TO ${username}`);
+  const schemaStatus = await refreshRealSchema(page);
+  await hiddenVectorPayload(page);
+  await hiddenChildPayload(page, false);
+  await vectorTab(page, '向量检索');
+  await hiddenVectorPayload(page);
+  await expect(rawEditor(page)).toHaveValue(rawDraft);
+  await expect(surface(page).locator('.vector-filter-row input')).toHaveValue(filterDraft);
+  await expect(searchButton(page)).toBeDisabled();
+  await vectorTab(page, '索引参数');
+  await hiddenVectorPayload(page);
+  await vectorTab(page, '数据编辑 / 导入');
+  await hiddenVectorPayload(page);
+  await hiddenChildPayload(page, false);
+  await childTab(page, '文件导入');
+  await hiddenChildPayload(page, false);
+  await expect(child(page).getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据')).toHaveValue('');
+  await expect(child(page).getByRole('button', { name: '暂存导入', exact: true })).toBeDisabled();
+  await vectorTab(page, '向量检索');
+  await hiddenVectorPayload(page);
+  await expect(searchButton(page)).toBeDisabled();
   expect(evidence.requests).toHaveLength(lockedRequests);
+  expect(evidence.requests.filter((entry) => entry.path === searchPath)).toHaveLength(1);
+  expect(evidence.requests.filter((entry) => entry.path === sqlPath)).toHaveLength(2);
   const sameSession = await hasSameSession(page);
   expect(sameSession).toBe(true);
   assertEvidence(evidence);
-  await persistEvidence('real-vector-child-only-sql-rejection', { requests: evidence.requests, index, successful, initial, initialHistory,
-    deniedStatus: denied.status(), rejection, sameSession, mountedChildPermissionLocked: true, childPayloadCleared: true,
-    outerPermissionLocked: false, previousOuterVectorResultRemains: true, noFurtherRequestsWithinMountedChild: true,
-    scope: 'Current Measurement child only. SQL refusal does not propagate to outer Vector; no parent view switch, child remount, Schema refresh or recovery assertion.' });
+  await persistEvidence('real-vector-child-sql-rejection', { requests: evidence.requests, index, successful, initial, initialHistory,
+    deniedStatus: denied.status(), rejection, sameSession, regrant: 'READ', schemaStatus, childPermissionLocked: true,
+    childPayloadAndImportDraftCleared: true, outerPermissionLocked: true, previousOuterVectorResultCleared: true,
+    outerHitMetadataAndIndexPayloadCleared: true, noFurtherRequestsAfterChildRefusal: true,
+    scope: 'Current child SQL403 propagates to the outer resource/generation latch. READ regrant with same token, Schema200 and child remount cannot refill or replay. No explicit recovery or host/OS claim.' });
 });
 
 function surface(page: Page) { return page.getByTestId('workbench-vector'); }
@@ -545,10 +573,14 @@ async function initializeEvidenceRoot(): Promise<void> {
   const info = await lstat(configured);
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('The real evidence runRoot must be an existing ordinary directory.');
   const root = await realpath(configured);
-  const parent = await realpath(resolve(process.cwd(), '..', 'artifacts', 'wb32-validation-20261007'));
-  if (!samePath(dirname(root), parent) || !/^vector-real-[0-9TZ.-]+-[0-9a-f-]{36}$/u.test(basename(root))) {
-    throw new Error('Evidence runRoot must be a vector-real run immediately inside artifacts/wb32-validation-20261007.');
+  const allowedParents = ['wb32-validation-20261007', 'wb33-validation-20261007'];
+  const configuredParent = dirname(root);
+  const matchedParent = allowedParents.find((name) => samePath(configuredParent, resolve(process.cwd(), '..', 'artifacts', name)));
+  if (!matchedParent || !/^vector-real-[0-9TZ.-]+-[0-9a-f-]{36}$/u.test(basename(root))) {
+    throw new Error('Evidence runRoot must be a vector-real run immediately inside the named WB32 or WB33 validation artifact directory.');
   }
+  const parent = await realpath(resolve(process.cwd(), '..', 'artifacts', matchedParent));
+  if (!samePath(configuredParent, parent)) throw new Error('The evidence parent realpath escaped the named validation directory.');
   const runInfo = await readFile(join(root, 'run.json'), { encoding: 'utf8', signal: AbortSignal.timeout(apiTimeout) });
   if (Buffer.byteLength(runInfo, 'utf8') > 65_536) throw new Error('Runner marker exceeded64KiB.');
   const marker = JSON.parse(runInfo) as { runId?: string; test?: string; baseUrl?: string };

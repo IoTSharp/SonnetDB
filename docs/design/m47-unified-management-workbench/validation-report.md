@@ -2,6 +2,17 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-33 Vector/Measurement子页权限上行与父锁存（2026-10-07；本地切片已验证）
+
+- 修复WB-32已记录的生产缺口，仅两组件/两Node/两Vector spec；Server/API/路由/共享runner/其它宿主不改。Measurement当前点/monitor/write精确401/403或SQL权限终态经epoch/requestId/signal/原身份核验，清载荷后emit原database、measurement和父render generation，无正文或凭据；继承parent deny不emit。写timeout后迟返拒绝不上行，仍记原身份unknown，不把取消当回滚。Vector验证data视图、child/index原measurement、database、代际与冻结authority/liveContext后沿父latch清hits、metadata、共享结果及子页草稿/审批。
+- 同token认证/Schema刷新、Schema空index、view重挂及空身份ABA保持父锁；旧代际/错目标/卸载/迟返拒绝不能清新结果或新busy。正常raw/readonly读取、原身份history与已确认写进度保持兼容，Profile与显式安全恢复不在本片。六源码冻结hash与独立源码复核PASS见`source-freeze-hashes/independent-source-review.json`。
+- 定向Node **39/39**、全Web **327/327**（VM modules/concurrency2）、TypeScript/Vite PASS；Vector Chrome fixture **13/13**（当前SQL403清父载荷和未确认import审批、Schema/auth/view保持锁、两个旧child迟返隔离），独立Measurement Chrome fixture **20/20**（读取/monitor/write/readonly/导入与取消兼容）。同仓库Vite/build/Playwright串行，retries0；Node每项5秒、fixture每项30秒。Vite既有chunk提示与NO_COLOR提示不计失败，不降断言。
+- 新Web→隔离真实Release Kestrel首轮 **3/3**、无mock/skip/retry。前两旅程继续逐项对拍151seed的raw L2 Top-K20/100、timestamp/TAG/FIELD/index原metadata、当前JSON/CSV/history及Search403/regrant锁存；第三普通READ当前child实际SQL403清父旧hits/metadata/结果及child导入草稿，重授READ/同tokenSchema200、child重挂后无模型请求或重放。真实READ未产生写审批；审批清理由fixture/Node独立证明。API登录装入token不计登录UI、routed readonly props或真实OS对话框。
+- 成功run `vector-real-2026-10-06T17-26-36-929Z-282e1447-f243-4385-84f1-da865a85ca76` 三JSON分别98321/11425/36402字节、合计 **146148**，manifest大小/SHA256与绝对runRoot根核验一致，最多24份/单1MiB/总8MiB且不写凭据；只接受named WB-32/WB-33两证据父目录的realpath。旧WB-32证据不覆盖，其child-only结论仍作为修复前记录保留。成功证据独立只读复核PASS：600导出/400子页数据单元、两份CSV原文与102NDJSON帧逐项一致，25真实owned身份/264父链边及退出/数据根清理核验；外部Windows祖先command缺失/末祖先未解析仍单列，不作全OS身份完整声明。根证据`artifacts/wb33-validation-20261007`。
+- 门禁前 **70** 记录身份/0自有存活/无缺command记录；真实run PID/创建/完整command/父链及cleanup分别核验，contentRoot已清理、三记录Chrome profiles不存在。旧wrapper可能漏短命worker、代理短读取未逐条完整OS捕获的限制保留，不能宣称所有进程捕获完整。两政策保留Temp不触碰，不安装/fetch/push/发布/部署/外部沟通，origin/parity-results保护。Server二进制复用WB-32零警告/错误Release构建与本轮hash，不称本轮重新构建或AOT证据。
+- 六共享文档/集成/git由根串行，仅十二任务文件、HANDOFF仅顶部本任务hunk，博客三文件/尾hunk保留。17:14Z起75分钟、16长命令/最多3真实run不重置，完整最终`dotnet restore SonnetDB.slnx`及原级别`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`/staged diff退出0才本地提交；实际最终日志/退出/hash与提交见validation-results/final-gates/final-tree-hashes/commit-checkpoint。代码再改后重跑。
+- 当前Top-K/fixture与真实HTTP证据不计全索引快照/Recall/真实模型质量、完整Measurement写终态、Server扫描/物化/传输/字节/堆预算。其它模型/Studio/VS Code/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别待验，三宿主整体未闭环，唯一heartbeat ACTIVE、每30分钟；下一次再冻结MQ新UI真实权限等一个有界切片，本轮不启动WB-34。
+
 ## WB-32 Vector 新Web真实旅程（2026-10-07；本地切片已验证）
 
 - 独立源码/成功证据复核PASS：600导出单元和子页100行逐项对拍，24真实run身份/完整command/父链核验；首restore退出0，首format的工具会话中断未取得结果，不计PASS。用户更新持续任务规则后最终文档树重跑完整restore/原级别format，退出结果单独落盘，原总预算不重置。定时任务继续现有工作，三宿主闭环后迁移唯一heartbeat到新会话并每30分钟监督各类后续任务；具体规则见queue/HANDOFF，实际最终门禁和本地提交以final-gates/commit-checkpoint为准。

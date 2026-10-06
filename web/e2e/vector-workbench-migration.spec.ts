@@ -31,13 +31,17 @@ interface Evidence {
   writes: Array<{ database: string; path: string; body: unknown }>;
   unexpected: string[];
 }
-interface FixtureOptions { search?: (route: Route, request: SearchRequest) => Promise<void> }
+interface FixtureOptions {
+  search?: (route: Route, request: SearchRequest) => Promise<void>;
+  sqlRead?: (route: Route, request: SearchRequest) => Promise<void>;
+}
 interface Harness {
   setDatabase: (database: string) => Promise<void>;
   setReadOnly: (value: boolean) => Promise<void>;
   refreshSchema: () => Promise<void>;
   clearSchema: () => Promise<void>;
   restoreSchema: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
   unmount: () => void;
 }
 type HarnessWindow = Window & { wb20VectorHarness: Harness; __wb20Exports?: string[] };
@@ -288,7 +292,152 @@ test('readonly host allows raw search and Measurement reads while rejecting chil
   assertFixtureEvidence(evidence);
 });
 
+test('current child SQL403 clears outer Vector hits, metadata, result and staged import across same-token Schema and view remounts', async ({ page }) => {
+  let deny = false;
+  let pending = 0;
+  let completed = 0;
+  const gate = boundedGate();
+  const evidence = await prepare(page, { search: (route, request) => searchResult(route, request.database, secret),
+    sqlRead: async (route) => {
+      if (!deny) return sqlResult(route);
+      pending += 1;
+      await gate.wait;
+      try { await json(route, { code: 'forbidden', message: secret }, 403); }
+      catch (error) { if (!/closed|cancel|abort|intercept/iu.test(String(error))) throw error; }
+      finally { completed += 1; }
+    } });
+  try {
+    await openVector(page, east);
+    await mountHarness(page);
+    await queryMode(page, 'text');
+    await rawEditor(page).fill(textDraft);
+    await queryMode(page, 'raw');
+    await surface(page).locator('.vector-filter-row input').fill(filterDraft);
+    await search(page);
+    await expect(surface(page)).toContainText(secret);
+    const previous = await openResultDrawer(page);
+    await previous.locator('.n-tabs-tab[data-name="raw"]').click();
+    await expect(previous.locator('.workbench-result-panel__result')).toContainText(secret);
+    await previous.getByTitle('关闭结果', { exact: true }).click();
+    await vectorTab(page, '数据编辑 / 导入');
+    await expect(child(page).locator('.measurement-grid')).toContainText('fixture-device');
+    deny = true;
+    await child(page).getByRole('button', { name: /^(?:loading\s+)?刷新$/u }).click();
+    await expect.poll(() => pending, { timeout: 5_000 }).toBe(1);
+    await childTab(page, '文件导入');
+    const importDraft = `time,DeviceID,${columnName}\n1780000000000,ChildDraftMustDisappear,"[0.1,0.2,0.3]"`;
+    await child(page).getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据').fill(importDraft);
+    await child(page).getByRole('button', { name: '解析', exact: true }).click();
+    await child(page).getByRole('button', { name: '暂存导入', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Measurement import' })).toContainText(measurementName);
+    gate.release();
+    await expect.poll(() => completed, { timeout: 5_000 }).toBe(1);
+    await hiddenVectorPermission(page);
+    await hiddenChildPermission(page);
+    const lockedReads = evidence.sqlReads.length;
+    await harness(page, 'refreshAuth');
+    await harness(page, 'clearSchema');
+    await harness(page, 'restoreSchema');
+    await harness(page, 'refreshSchema');
+    await hiddenVectorPermission(page);
+    await hiddenChildPermission(page);
+    await childTab(page, '文件导入');
+    await expect(child(page).getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据')).toHaveValue('');
+    await expect(child(page).getByRole('button', { name: '暂存导入', exact: true })).toBeDisabled();
+    await vectorTab(page, '索引参数');
+    await hiddenVectorPermission(page);
+    await vectorTab(page, '数据编辑 / 导入');
+    await hiddenChildPermission(page);
+    await childTab(page, 'Schema');
+    await hiddenChildPermission(page);
+    await childTab(page, '实时监控');
+    await hiddenChildPermission(page);
+    await expect(child(page).getByRole('button', { name: /^(?:loading\s+)?立即刷新$/u })).toBeDisabled();
+    await vectorTab(page, '向量检索');
+    await hiddenVectorPermission(page);
+    await expect(rawEditor(page)).toHaveValue(rawDraft);
+    await expect(surface(page).locator('.vector-filter-row input')).toHaveValue(filterDraft);
+    await expect(surface(page).getByRole('button', { name: 'Search', exact: true })).toBeDisabled();
+    await queryMode(page, 'text');
+    await expect(rawEditor(page)).toHaveValue(textDraft);
+    expect(evidence.searches).toHaveLength(1);
+    expect(evidence.sqlReads).toHaveLength(lockedReads);
+    expect(evidence.sqlReads.filter((request) => request.database === east)).toHaveLength(2);
+    assertFixtureEvidence(evidence);
+  } finally { gate.release(); }
+});
+
+for (const invalidation of ['view-remount', 'database-aba'] as const) {
+  test(`late child SQL403 after ${invalidation} cannot latch or erase the current Vector identity`, async ({ page }) => {
+    let delayed = false;
+    let pending = 0;
+    let completed = 0;
+    const gate = boundedGate();
+    const evidence = await prepare(page, { sqlRead: async (route) => {
+      if (!delayed || pending > 0) return sqlResult(route);
+      pending += 1;
+      await gate.wait;
+      try { await json(route, { code: 'forbidden', message: 'OldChild403MustNotRender' }, 403); }
+      catch (error) { if (!/closed|cancel|abort|intercept/iu.test(String(error))) throw error; }
+      finally { completed += 1; }
+    } });
+    try {
+      await openVector(page, east);
+      await mountHarness(page);
+      await search(page);
+      await expect(surface(page)).toContainText('East vector payload');
+      await vectorTab(page, '数据编辑 / 导入');
+      await expect(child(page).locator('.measurement-grid')).toContainText('fixture-device');
+      delayed = true;
+      await child(page).getByRole('button', { name: /^(?:loading\s+)?刷新$/u }).click();
+      await expect.poll(() => pending, { timeout: 5_000 }).toBe(1);
+      if (invalidation === 'database-aba') {
+        await harness(page, 'setDatabase', west);
+        await expect(child(page)).toHaveAttribute('data-database', west);
+        await harness(page, 'setDatabase', east);
+      } else {
+        await vectorTab(page, '向量检索');
+        await vectorTab(page, '数据编辑 / 导入');
+      }
+      await expect(child(page).locator('.measurement-grid')).toContainText('fixture-device');
+      gate.release();
+      await expect.poll(() => completed, { timeout: 5_000 }).toBe(1);
+      await expect(child(page)).toHaveAttribute('data-state', 'normal');
+      await expect(child(page).getByTestId('measurement-permission-lock')).toHaveCount(0);
+      await expect(surface(page).getByTestId('vector-permission-lock')).toHaveCount(0);
+      await expect(surface(page)).not.toContainText('OldChild403MustNotRender');
+      await vectorTab(page, '向量检索');
+      if (invalidation === 'database-aba') await search(page);
+      await expect(surface(page)).toHaveAttribute('data-page-state', 'normal');
+      await expect(surface(page)).toContainText('East vector payload');
+      await expect(surface(page).getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
+      expect(evidence.searches).toHaveLength(invalidation === 'database-aba' ? 2 : 1);
+      assertFixtureEvidence(evidence);
+    } finally { gate.release(); }
+  });
+}
+
 function surface(page: Page) { return page.getByTestId('workbench-vector'); }
+function child(page: Page) { return surface(page).getByTestId('workbench-measurement'); }
+async function childTab(page: Page, name: string): Promise<void> {
+  await child(page).locator('.workbench-section-tabs').getByRole('button', { name, exact: true }).click();
+}
+async function hiddenVectorPermission(page: Page): Promise<void> {
+  await expect(surface(page)).toHaveAttribute('data-page-state', 'permission');
+  await expect(surface(page).getByTestId('vector-permission-lock')).toBeVisible();
+  await expect(surface(page).locator('.vector-rank-button, .vector-kv-section, .vector-stats, .vector-toolbar__meta, .vector-index-card, .vector-index-params, .vector-param-strip')).toHaveCount(0);
+  await expect(vectorResultPanel(page)).toHaveCount(0);
+  await expect(surface(page)).not.toContainText(secret);
+  await expect(surface(page)).not.toContainText('HiddenIndexParamPayload');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+}
+async function hiddenChildPermission(page: Page): Promise<void> {
+  await expect(child(page)).toHaveAttribute('data-state', 'permission');
+  await expect(child(page).getByTestId('measurement-permission-lock')).toBeVisible();
+  await expect(child(page).locator('.measurement-grid .n-data-table-td, .measurement-schema .n-data-table-td, .monitor-grid-panel .n-data-table-td, .point-editor, .measurement-import-grid')).toHaveCount(0);
+  await expect(child(page).locator('.measurement-approval-zone')).toBeEmpty();
+  await expect(child(page)).not.toContainText('ChildDraftMustDisappear');
+}
 function rawEditor(page: Page) { return surface(page).locator('.vector-query-editor textarea'); }
 async function queryMode(page: Page, mode: 'raw' | 'text'): Promise<void> {
   await surface(page).locator(`.vector-query-editor .n-tabs-tab[data-name="${mode}"]`).click();
@@ -326,6 +475,7 @@ async function harness(page: Page, operation: keyof Harness, value?: string | bo
     else if (operation === 'refreshSchema') await target.refreshSchema();
     else if (operation === 'clearSchema') await target.clearSchema();
     else if (operation === 'restoreSchema') await target.restoreSchema();
+    else if (operation === 'refreshAuth') await target.refreshAuth();
     else target.unmount();
   }, { operation, value });
 }
@@ -362,6 +512,7 @@ async function mountHarness(page: Page, options: { readOnly?: boolean } = {}): P
       refreshSchema: async () => { props.index = structuredClone(index); props.indexes = [props.index]; await vue.nextTick(); },
       clearSchema: async () => { props.index = null; props.indexes = []; await vue.nextTick(); },
       restoreSchema: async () => { props.index = structuredClone(index); props.indexes = [props.index]; await vue.nextTick(); },
+      refreshAuth: async () => { const store = auth.useAuthStore(pinia); store.apply({ ...store.state }); await vue.nextTick(); },
       unmount: () => app.unmount(),
     };
   }, { modules, componentPath, authPath, database: east, index, measurement, options });
@@ -416,11 +567,7 @@ async function prepare(page: Page, options: FixtureOptions = {}): Promise<Eviden
         const request = { database, body: route.request().postDataJSON() as Record<string, unknown> };
         if (/^\s*SELECT\b/iu.test(String(request.body.sql))) {
           evidence.sqlReads.push(request);
-          return route.fulfill({ status: 200, contentType: 'application/x-ndjson', body: [
-            JSON.stringify({ type: 'meta', columns: ['time', 'DeviceID', columnName] }),
-            JSON.stringify([1_780_000_000_000, 'fixture-device', [0.1, 0.2, 0.3]]),
-            JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMs: 1 }),
-          ].join('\n') });
+          return options.sqlRead ? options.sqlRead(route, request) : sqlResult(route);
         }
       }
       if (route.request().method() !== 'GET') {
@@ -432,6 +579,13 @@ async function prepare(page: Page, options: FixtureOptions = {}): Promise<Eviden
     return json(route, { code: 'wb20_contract_not_mocked', message: path }, 501);
   });
   return evidence;
+}
+async function sqlResult(route: Route): Promise<void> {
+  await route.fulfill({ status: 200, contentType: 'application/x-ndjson', body: [
+    JSON.stringify({ type: 'meta', columns: ['time', 'DeviceID', columnName] }),
+    JSON.stringify([1_780_000_000_000, 'fixture-device', [0.1, 0.2, 0.3]]),
+    JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMs: 1 }),
+  ].join('\n') });
 }
 async function searchResult(route: Route, database: string, payload = `${database === east ? 'East' : 'West'} vector payload`): Promise<void> {
   await json(route, { hits: [{ timestampUtc: 1_780_000_000_000, distance: 0.123,

@@ -5,6 +5,17 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-33，2026-10-07；本地切片已验证）
+
+- WB-32已提交 `89744d29646463a365e019d39e74410229ba8853`，八任务文件/独立复核/真实3/3/全Web321/321/fixture10/10/最终完整restore和原级别format退出0；104记录身份无自有存活，真实数据根/记录Chrome profile清理，已知短命捕获限制保留。本轮完整读取最新交接/AGENTS/queue并核对hash、路线图、git和代理，无活动旧代理，不重复已闭环任务。
+- 仅冻结WB-33 Vector/Measurement子页拒绝权限上行与父级锁存修复：实施专属代理独占两组件/两Node测试，UI代理独占Vector fixture/real spec，第三只读复核；根独占六共享文档、验证/审计/最终完整门禁/git。精确有效拒绝绑定原身份及父child代际，继承prop不形成事件回路；迟返/卸载/错目标不锁新身份，父锁清旧命中/载荷/审批，Schema与子页重挂不解锁，不扩Profile/显式恢复/Server预算/三宿主完成。
+- 文件归属/依赖/验收及17:14Z起75分钟、最多16长命令/3真实run、代理35分钟边界已记queue。博客文件及HANDOFF尾hunk保留不暂存；两保留Temp不触碰，origin/parity-results不改。更新后的heartbeat ACTIVE，旧任务继续，整体闭环后再迁新会话每半小时监督各类后续任务。本轮不启动WB-34。
+- 六源码最终冻结、两实施代理停止写入，独立源码复核PASS。Measurement仅在当前请求精确HTTP401/403或SQL权限终态清载荷后通知`{database, measurement, generation}`；继承父prop不发事件。Vector校验当前data视图/原目标/渲染代际/冻结authority与liveContext，沿父锁清旧hits、metadata、结果及子页草稿/审批；view、Schema/auth和空身份ABA不解锁，迟返/卸载/错代际不锁新上下文。超时写拒绝不上行，保留原身份unknown及已确认进度，不声称取消回滚。
+- 定向Node39/39、全Web327/327、Vector Chrome fixture13/13、独立Measurement fixture20/20、TypeScript/Vite通过。真实Vector首轮3/3、retries0：前两旅程保留Top-K20/100当前JSON/CSV/history与外层撤权回归；第三实际child SQL403清父旧结果，READ重授/同tokenSchema200/子页重挂仍锁存无请求重放。真实READ只填导入草稿；写审批清理由fixture与Node另证，不冒称真实写审批旅程。
+- 成功run `vector-real-2026-10-06T17-26-36-929Z-282e1447-f243-4385-84f1-da865a85ca76`，三JSON共146148字节与manifest根逐份大小/hash/凭据门禁核验通过；独立成功证据复核PASS：600导出/400子页单元、两CSV原文及102帧对拍，25自有身份/264父链边和退出/数据根清理核验；外部Windows祖先command缺失与末祖先未解析单列，不作全OS完整声明。根证据`artifacts/wb33-validation-20261007`；门禁前70记录身份0自有存活/无缺command记录，真实contentRoot已清理、三记录Chrome profile不存在。旧wrapper可能漏短命worker、代理短读取未逐条捕获完整OS身份仍单列，不能声称所有进程捕获完整。
+- 六共享文档由根串行维护；仅本任务12文件，HANDOFF只暂存本顶部hunk。最终完整restore/原级别format/staged diff及实际本地提交见final-gates/final-tree-hashes/commit-checkpoint；未取得最终退出0不得commit，代码再变重跑。Server/API/共享runner/路由/其它宿主不改，Release Server复用WB-32零警告错误构建，不能称本轮重新编译或AOT证据。
+- 下一次完整接收交接/AGENTS/queue/ROADMAP、git/提交/进行中代理，从WB-33实际提交接续；优先冻结MQ新UI真实权限/有界读取旅程，再盘点Graph/Object及Studio/VS Code剩余合同，不重复WB-25～WB-33。本轮不启动下一片。Profile、显式恢复、完整写终态/Server预算、登录UI/宿主readonly props、三宿主/OS/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别待验；heartbeat保持ACTIVE、每30分钟，整体未闭环，不提前创建接续会话或暂停。
+
 ## 当前检查点（WB-32，2026-10-07；本地切片已验证）
 
 - 用户2026-10-07追加并已落实定时任务规则：旧任务继续；Workbench三宿主真正闭环后创建SonnetDB本地新会话，将唯一workbench heartbeat迁移过去，保持每30分钟ACTIVE检查各类后续任务，不自动暂停。没有在执行的任务时从仓库待办/真实缺口选一项冻结后交给专属子智能体，主智能体监督/验收/共享文档/本地提交；没有现成待办时先有界盘点，不重复包装完成事项。现有禁止push/发布/部署/外部沟通和执行/清理/完整门禁边界继续有效；当前未闭环，不提前新建接续会话。自动化配置已回读确认。

@@ -38,7 +38,7 @@ async function fixture({ autoReads = true, honorAbort = true, actualAxios = fals
     for (; index < entries.length && Date.now() < deadline; index += 1) this.setExport(...entries[index]);
     assert.equal(index, entries.length, 'Fixture module export binding exceeded its wall-clock budget');
   }, { context });
-  const props = vue.reactive({ targetDb: 'North:DB', measurement: null, measurements: [], tables: [], loading: false, readOnly: false, permissionDenied: false });
+  const props = vue.reactive({ targetDb: 'North:DB', measurement: null, measurements: [], tables: [], loading: false, readOnly: false, permissionDenied: false, permissionGeneration: 7 });
   const connections = vue.reactive({ activeProfileId: 'Profile:Original', activeBaseUrl: 'http://first.invalid', activeProfile: { name: 'Original profile' } });
   const auth = vue.reactive({ state: { token: 'first' }, api: null });
   const post = (url, body, config = {}) => {
@@ -126,7 +126,9 @@ test('points and monitor exact HTTP/NDJSON authorization codes clear all payload
       const run = index < 4 ? f.loadPoints() : f.refreshMonitor(true); f.latest().results([result([], { code: codes[index % 4], message: 'server-secret' })]); await run;
       assert.equal(f.permissionDenied.value, true); assert.equal(f.pointRows.value.length, 0); assert.equal(f.monitorResult.value, null); assert.equal(f.columns.value.length, 0);
       assert.equal(Object.keys(f.pointDraft).length, 0); assert.equal(f.importText.value, ''); assert.equal(f.pendingOperations.value.length, 0); assert.equal(f.approvalPlan.value, null);
+      assert.deepEqual(JSON.parse(JSON.stringify(f.events)), [['permissionRejected', { database: 'North:DB', measurement: 'DeviceID:Original', generation: 7 }]]);
       const count = f.calls.length; await f.loadPoints(); await f.refreshMonitor(true); await f.confirmPendingOperations(); assert.equal(f.calls.length, count); assert.ok(!JSON.stringify(f.history).includes('server-secret'));
+      assert.equal(f.events.length, 1);
     } finally { f.dispose(); }
   }
 });
@@ -134,9 +136,11 @@ test('points and monitor exact HTTP/NDJSON authorization codes clear all payload
 test('thrown HTTP401/403 lock while unrelated SQL error text is sanitized without permission false positive', { timeout: 5000 }, async () => {
   for (const status of [401, 403]) { const f = await fixture({ autoReads: false }); try {
     await f.select(); const run = f.loadPoints(); f.latest().reject({ response: { status, data: { message: 'server-secret' } } }); await run; assert.equal(f.permissionDenied.value, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(f.events)), [['permissionRejected', { database: 'North:DB', measurement: 'DeviceID:Original', generation: 7 }]]);
   } finally { f.dispose(); } }
   const f = await fixture({ autoReads: false }); try { await f.select(); f.latest().results([result([], { code: 'sql_error', message: 'permission forbidden server-secret' })]); await flush();
     assert.equal(f.permissionDenied.value, false); assert.equal(f.measurementState.value, 'error'); assert.ok(!f.errorMessage.value.includes('server-secret'));
+    assert.equal(f.events.length, 0);
   } finally { f.dispose(); }
 });
 
@@ -169,6 +173,7 @@ test('same-name database/auth/endpoint/profile/Schema ABA and unmount ignore old
     else if (change === 'schema') { f.props.measurement.columns[2].dataType = 'STRING'; f.props.measurement.columns[2].dataType = 'DOUBLE'; } else f.dispose();
     old.results([result([[1, 'old-secret', 99]])]); oldMonitor.results([result([], { code: 'forbidden', message: 'old-secret' })]); await monitor; await flush();
     assert.equal(f.pointRows.value.length, 0); assert.equal(f.monitorResult.value, null); assert.equal(f.permissionDenied.value, false); assert.equal(old.signal.aborted, true);
+    assert.equal(f.events.length, 0);
   } finally { f.dispose(); } }
 });
 
@@ -206,8 +211,49 @@ test('approved write consumes once; precise permission terminal clears approval 
   const f = await fixture(); try {
     await f.select(); f.stage(); const run = f.confirmPendingOperations(); await f.confirmPendingOperations(); assert.equal(f.calls.filter((call) => call.batch).length, 1);
     f.latest(true).results([result([], { code: 'forbidden', message: 'server-secret' })]); await run; assert.equal(f.permissionDenied.value, true); assert.equal(f.approvalPlan.value, null);
+    assert.deepEqual(JSON.parse(JSON.stringify(f.events)), [['permissionRejected', { database: 'North:DB', measurement: 'DeviceID:Original', generation: 7 }]]);
     const entry = f.history.filter((item) => item.kind === 'operation').at(-1); assert.equal(entry.status, 'error'); assert.equal(entry.database, 'North:DB'); assert.equal(entry.target, 'DeviceID:Original'); assert.equal(entry.recordsAffected, 0);
     assert.ok(!JSON.stringify(entry).includes('server-secret')); await f.confirmPendingOperations(); assert.equal(f.calls.filter((call) => call.batch).length, 1);
+  } finally { f.dispose(); }
+});
+
+test('inherited permission and reentrant parent deny never repeat a child permission event', { timeout: 5000 }, async () => {
+  const f = await fixture({ autoReads: false }); try {
+    await f.select(); const run = f.loadPoints(); f.latest().error(403); await run;
+    assert.equal(f.events.length, 1);
+    f.props.permissionDenied = true; f.props.permissionDenied = false; f.props.permissionDenied = true;
+    assert.equal(f.events.length, 1); assert.equal(f.permissionDenied.value, true);
+  } finally { f.dispose(); }
+  const inherited = await fixture(); try {
+    await inherited.select(); inherited.props.permissionDenied = true;
+    assert.equal(inherited.permissionDenied.value, true); assert.equal(inherited.events.length, 0);
+  } finally { inherited.dispose(); }
+});
+
+test('parent generation change rejects late point, monitor and write denials without clearing new busy owner', { timeout: 5000 }, async () => {
+  const f = await fixture({ autoReads: false, honorAbort: false }); try {
+    await f.select(); const oldPoint = f.latest(); const oldMonitorRun = f.refreshMonitor(true); const oldMonitor = f.latest();
+    f.stage(); const oldWriteRun = f.confirmPendingOperations(); const oldWrite = f.latest(true);
+    f.props.permissionGeneration = 8;
+    const currentPointRun = f.loadPoints(); const currentPoint = f.latest(); f.stage(); const currentWriteRun = f.confirmPendingOperations(); const currentWrite = f.latest(true);
+    oldPoint.error(403); oldMonitor.results([result([], { code: 'forbidden', message: 'old-secret' })]); oldWrite.results([result([], { code: 'forbidden', message: 'old-secret' })]);
+    await oldMonitorRun; await oldWriteRun; await flush();
+    assert.equal(f.events.length, 0); assert.equal(f.permissionDenied.value, false); assert.equal(f.loadingPoints.value, true); assert.equal(f.writeBusy.value, true);
+    assert.equal(f.history.filter((entry) => entry.kind === 'operation').at(-1).status, 'unknown');
+    currentPoint.results([result()]); await currentPointRun; currentWrite.results([terminal()]); await currentWriteRun;
+    assert.equal(f.events.length, 0); assert.equal(f.history.filter((entry) => entry.kind === 'operation').at(-1).status, 'success');
+  } finally { f.dispose(); }
+});
+
+test('timed-out dispatched write ignores a late precise denial and retains original unknown history', { timeout: 5000 }, async () => {
+  const f = await fixture({ honorAbort: false }); try {
+    await f.select(); f.stage(); const run = f.confirmPendingOperations(); const write = f.latest(true);
+    await f.advance(60_000); assert.equal(write.signal.aborted, true);
+    write.results([result([], { code: 'forbidden', message: 'server-secret' })]); await run;
+    assert.equal(f.permissionDenied.value, false); assert.equal(f.events.length, 0); assert.equal(f.approvalPlan.value, null);
+    const entry = f.history.filter((item) => item.kind === 'operation').at(-1);
+    assert.equal(entry.status, 'unknown'); assert.equal(entry.database, 'North:DB'); assert.equal(entry.target, 'DeviceID:Original');
+    assert.ok(!JSON.stringify(entry).includes('server-secret'));
   } finally { f.dispose(); }
 });
 

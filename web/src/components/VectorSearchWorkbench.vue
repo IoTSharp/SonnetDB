@@ -90,6 +90,8 @@
       :loading="loading"
       :read-only="readOnly"
       :permission-denied="permissionDenied"
+      :permission-generation="dataGeneration"
+      @permission-rejected="onMeasurementPermissionRejected"
       @refresh-schema="$emit('refreshSchema')"
     />
 
@@ -391,6 +393,12 @@ interface VectorContextSnapshot {
   requestApi?: AxiosInstance;
 }
 
+interface MeasurementPermissionDenial {
+  database: string;
+  measurement: string;
+  generation: number;
+}
+
 const VectorLocalHitBudget = 100;
 
 const auth = useAuthStore();
@@ -431,6 +439,7 @@ let searchRequestId = 0;
 let disposed = false;
 let searchController: AbortController | null = null;
 let deniedContext: VectorContextSnapshot | null = null;
+let dataAuthority: { generation: number; context: VectorContextSnapshot } | null = null;
 
 const loadingIndexes = computed(() => props.loading);
 const indexes = computed(() => props.indexes);
@@ -647,9 +656,15 @@ function invalidateContext(): void {
   searchController?.abort();
   searchController = null;
   searching.value = false;
-  dataGeneration.value += 1;
+  advanceDataGeneration();
   clearReadPayload();
   historyVisible.value = false;
+}
+
+function advanceDataGeneration(): void {
+  const generation = dataGeneration.value + 1;
+  dataAuthority = { generation, context: liveContext() };
+  dataGeneration.value = generation;
 }
 
 function isPermissionError(error: unknown): boolean {
@@ -669,6 +684,15 @@ function lockReadPermission(): void {
   permissionLocked.value = true;
   invalidateContext();
   errorMsg.value = '当前身份没有 Vector 读取权限。';
+}
+
+function onMeasurementPermissionRejected(denial: MeasurementPermissionDenial): void {
+  if (disposed || permissionDenied.value || activeView.value !== 'data' || !denial
+    || denial.generation !== dataGeneration.value || !denial.database || !denial.measurement
+    || denial.database !== props.targetDb || denial.measurement !== props.measurement?.name
+    || denial.measurement !== activeIndex.value?.measurement || dataAuthority?.generation !== denial.generation
+    || !sameContext(dataAuthority.context, liveContext())) return;
+  lockReadPermission();
 }
 
 function validPairs(items: unknown): boolean {
@@ -953,10 +977,11 @@ watch(contextFingerprint, () => {
   const previous = deniedContext;
   // A Schema refresh may temporarily omit every index. Missing metadata is
   // not evidence that a denied resource or its permissions have changed.
-  const newIdentity = previous && (previous.connectionId !== current.connectionId
+  const validIdentity = Boolean(current.connectionId && current.endpoint && current.profileEndpoint && current.database);
+  const newIdentity = previous && validIdentity && (previous.connectionId !== current.connectionId
     || previous.endpoint !== current.endpoint || previous.profileEndpoint !== current.profileEndpoint
     || previous.database !== current.database);
-  const differentKnownResource = previous && current.measurement && current.column
+  const differentKnownResource = previous && validIdentity && current.measurement && current.column
     && (previous.measurement !== current.measurement || previous.column !== current.column);
   if (newIdentity || differentKnownResource) {
     permissionLocked.value = false;
@@ -969,6 +994,7 @@ watch([() => auth.state, () => auth.state?.token, () => auth.api], invalidateCon
 watch(schemaSignature, invalidateContext, { flush: 'sync' });
 watch(() => props.permissionDenied, invalidateContext, { flush: 'sync' });
 watch(readOnly, invalidateContext, { flush: 'sync' });
+watch(activeView, advanceDataGeneration, { flush: 'sync' });
 
 onBeforeUnmount(() => {
   disposed = true;

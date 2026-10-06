@@ -516,6 +516,8 @@
 
 ### Fixed
 
+- **M47 WB-33 Vector子页权限上行与父锁存（2026-10-07）**：Measurement当前有效请求精确401/403或SQL拒绝仅发送原数据库、measurement与父渲染代际；Vector核验目标/代际/authority后清旧命中、metadata、结果及子页草稿/审批。继承prop不回路，Schema/auth刷新、重挂与空身份ABA不解锁；旧拒绝不影响新上下文，超时写保留原身份unknown。Node39/39、全Web327/327、Vector/Measurement fixture13/13与20/20、build及真实Vector首轮3/3通过；第三真实旅程证明child SQL403清外层、READ重授/Schema200/重挂不重放。证据/最终完整restore-format见M47记录；不计显式恢复、完整写终态/Server预算或三宿主整体完成。
+
 - **CI 格式检查**：修正 M35/M36 合同、SDK 和测试中的初始化器换行、多余空格及 `using` 顺序，补齐完整格式检查报告中的问题；不改变运行行为。
 
 - **Graph 证据进程清理测试**：launcher 先退出时为剩余进程组增加受剩余期限约束的轮询间隔，避免 50 次轮询在 5 秒期限前快速耗尽；保留父进程退出后完整清理的原有时限和断言。

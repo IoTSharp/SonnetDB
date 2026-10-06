@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-33 合同与文件冻结（2026-10-07；本地切片已验证）
+
+- 从 `main / 89744d29646463a365e019d39e74410229ba8853` 接续已闭环WB-32；HANDOFF/AGENTS/queue完整读取，前两共享记录与WB-32最终树hash一致，路线图/git/已提交事项及代理核验完毕。104条已记录身份无自有存活，复用PID保留；无活动旧子代理。博客三文件及HANDOFF尾hunk仍属其它会话，不暂存/覆盖；Object WB-25与WB-26～WB-32不重复。
+- 本片只修Vector嵌入Measurement子页实际401/403或精确SQL权限终态未上行的问题。子页只在当前有效请求/原身份确认本地拒绝时发出有界typed通知，绑定database/原measurement与父级渲染代际，不携带正文/凭据；继承父permission prop不重复上行。父页仅接受当前child代际/身份通知，沿现有lock清hits/metadata/共享结果及子页载荷/草稿/审批；同tokenSchema/认证刷新、页签重挂、空身份ABA仍锁存，不自动恢复或重放。迟返、卸载、错误目标/代际事件不锁新身份；保留正常/readonly/已确认写进度及原身份history，已派写不声称回滚。
+- 文件归属冻结：`/root/wb33_impl`独占`web/src/components/MeasurementWorkbench.vue`、`web/src/components/VectorSearchWorkbench.vue`、`web/tests/measurement-workbench-migration.test.mjs`、`web/tests/vector-workbench-migration.test.mjs`；`/root/wb33_ui`独占`web/e2e/vector-workbench-migration.spec.ts`与`web/e2e/vector-real-permission.spec.ts`最小增量；`/root/wb33_review`独立只读复核。真实spec复用WB-32前两旅程，第三改为child SQL403触发父锁/清旧hits与Schema200/重挂仍拒绝，旧成功证据保留；证据父路径仅明确允许WB-32/WB-33两个核验目录，沿绝对runRoot/wx/manifest/凭据门禁。不新增同页或重复包装整页，Server/API/共享runner/路由/其它宿主不改；根独占六共享文档、统一验证/审计/集成/restore-format/stage/commit。
+- 2026-10-06T17:14Z起总75分钟至18:29Z、根最多16条长命令/真实run最多3次；代理35分钟至17:50Z、最多25命名文件/30定向搜索，每搜索最多80匹配/15秒，不自跑长验证/另派代理，最多三活动子代理。Node每测试5秒，fixture每测试30秒/retries0；真实三旅程每测试120秒、控制API10秒/browser响应下载等待15秒/生产Axios30秒分别记录，共享runner10分钟/readiness120次60秒。代码最终完整restore/原级别format通过后不改代码，改后重跑。
+- PowerShell7固定 `C:\Program Files\PowerShell\7\pwsh.exe`；禁Graphify/广域工具扫描/未授权安装，所有循环/搜索/等待/重试同时限定次数/项目与墙钟、先极小输入人工核对比较退出。长进程登记PID/创建/完整command/父链、finally仅回收已核验自有树；临时路径绝对核验清理，交付物保留，两政策保留Temp不删除/重试/绕过。保留origin/parity-results，无fetch/push/发布/部署/外部沟通。真实Server与fixture、三宿主/OS/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物继续分开，整体未闭环，更新后的唯一heartbeat保持ACTIVE。
+- 六源码最终冻结、两实施代理停止写入，独立源码复核PASS；Node39/39、全Web327/327、Vector fixture13/13、独立Measurement fixture20/20与TypeScript/Vite通过。真实Vector首轮3/3：Top-K20/100/当前导出/原history与Search403回归保留，第三真实child SQL403清父旧结果/metadata及child草稿；READ重授/同tokenSchema200/子页重挂仍锁无请求重放。真实READ草稿与fixture写审批清理分开，不冒称真实写审批；超时写迟返拒绝不上行而保留原身份unknown。
+- 根证据`artifacts/wb33-validation-20261007`，成功run `vector-real-2026-10-06T17-26-36-929Z-282e1447-f243-4385-84f1-da865a85ca76`三JSON146148字节/manifest根大小/hash与凭据门禁通过；独立成功证据复核PASS（1000单元/两CSV/102帧、25自有身份/264父链边/退出与清理核验），最终完整restore/原级别format/staged检查为提交前置，十二文件实际提交见final-gates/commit-checkpoint。门禁前70身份0自有存活、数据根/三Chrome profiles清理；短命捕获限制仍单列。Server复用WB-32Release不改，Profile/恢复/完整写终态/Server预算/三宿主另验，本轮不启动WB-34。
+
 ### WB-32 合同与文件冻结（2026-10-07；本地切片已验证）
 
 - 从 `main / 16acfafc8811a16503fdf71aaddab5efd2863b22` 接续；最新HANDOFF/AGENTS/queue、路线图/git与三旧代理已接收核验，WB-31提交及135身份无自有存活已复核。WB-25 Object写终态与WB-26～WB-31不重复；三博客文件/HANDOFF尾hunk保留不暂存。只补Vector新Web→隔离本机真实Kestrel的原始向量Top-K/当前导出及实际撤权锁存，不重做页面，不实现索引Profile或显式权限恢复。
@@ -217,7 +227,7 @@
 | WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
 | WB-29 | KV 新Web UI真实游标/Get/JSONL、条件写/交换终态子集与撤权锁存 | 本机Web→Kestrel首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过；普通WRITE三审批NX成功/未应用影响0/交换，真实版本+原身份history与管理员Get对拍；REVOKE403清旧导入审批、重授READ/同token刷新仍锁存。三成功JSON+manifest独立落盘核验；八任务文件最终完整门禁/实际提交见证据目录，生产组件/Server/共享runner不改，完整atomic/恢复/Server预算/三宿主另验。 |
 
-WB-15～WB-32已按各自本地范围验证，实际提交以git log与各证据目录为准；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次接续WB-32实际提交，优先冻结WB-33 Vector/Measurement子页拒绝上行与父级权限锁存最小修复，再盘点其余模型新UI真实权限/恢复与Studio/VS Code剩余合同；不重复WB-25～WB-32，本轮不启动WB-33。
+WB-15～WB-33已按各自本地范围验证，实际提交以git log与各证据目录为准；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次接续WB-33实际提交，优先盘点并冻结MQ新UI真实权限/有界读取旅程，再盘点Graph/Object与Studio/VS Code剩余合同；不重复WB-25～WB-33，本轮不启动WB-34。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
