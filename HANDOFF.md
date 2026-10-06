@@ -5,6 +5,14 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-25，2026-10-06；本地切片已验证）
+
+- 从 `a2bc3f1a6af69df5e4716f0f41c80013ca7c64e3` 接续。本轮仅收口 Object 写执行器：审批快照一次消费、最多1000项、客户端新操作启动窗口60秒；写响应核对目标/必要字段，批删逐项匹配批准 key，明确失败与 unknown 分离，已确认影响数量保留；401/403仍锁存并清理载荷。生命周期、保留、配额、语义配置和 Multipart 请求均冻结审批时的输入快照。
+- `web/src/components/ObjectBucketWorkbench.vue`、`web/src/api/objectStorage.ts`、`web/tests/object-workbench-migration.test.mjs` 与 `web/e2e/object-write-terminal.spec.ts` 为本任务文件；共享文档由根维护。DELETE/删桶/Multipart abort 验证真实 HTTP 204，单对象 DELETE 还要求 delete-marker、version-id、ETag；processing/backfill 只记录入队/枚举终态，不冒称派生处理完成。Multipart 写终态在已证明成功后不被伴随刷新拒绝推翻。
+- 已验证：专属 Node **32/32**，全 Web Node **292/292**，TypeScript/Vite build PASS，新 Chrome fixture **5/5**（端口4211），既有 Object/语义浏览器 **4/4**（端口4210），既有真实 Kestrel Object **4/4** 与 Multipart **2/2**，独立只读复核 PASS。fixture/API 与真实 Server 证据分开；证据在 `artifacts/wb25-validation-20261006`，门禁前24条进程身份核验、0自有进程存活。代理均停止写入，无新Temp或安装，两处策略保留Temp不删除、不重试或绕过。
+- 最终完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 staged diff check 为本地提交前置，退出值见证据目录 `final-gates.json`；首轮完整门禁退出0，format报工作区加载警告但无格式差异，文档收口后按最终待提交树复验。提交说明 `feat(m47): validate Object write terminal outcomes`，实际哈希以git log为准，仅包含本任务10文件，`commit-checkpoint.json`绑定实际提交和文件；保留 `origin/parity-results`，无push/发布/部署/外部沟通。
+- 下一次完整接收HANDOFF/AGENTS/queue/git/代理，接续实际提交，不重复WB-25。优先盘点九模型新UI真实权限/恢复与Studio/VS Code剩余合同/旅程，冻结一个有界任务后推进；完整Multipart/语义/Server预算、真实OS对话框、安装/Extension Host/AOT、固定硬件/长稳、AI/MCP和发行物继续独立验收。heartbeat 保持 ACTIVE，三宿主整体仍未闭环。
+
 ## 当前检查点（2026-10-06；后续旧记录为历史证据）
 
 - **WB-24 本地切片已验证**：从干净 `main / cb32050b54e5f5d3b767f09b7593460ce18152d1` 接续，WB-23 三代理均结束后复用。本轮只推进 Object 浏览/选中对象/Range 读取隔离与有界预览；实施者四专属文件、UI新spec、第三代理只读复核均停止写入，根维护六共享文档/验证/git。提交说明 `feat(m47): isolate Object reads and bounded previews`，实际哈希以git log为准，本轮仅提交11个任务文件。

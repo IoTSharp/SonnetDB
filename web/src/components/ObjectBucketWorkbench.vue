@@ -811,6 +811,7 @@ interface NamespaceFolder {
 
 interface PendingOperation {
   id: string;
+  expectedTarget: string;
   label: string;
   detail: string;
   severity: WriteApprovalSeverity;
@@ -831,6 +832,14 @@ interface OperationOutcome {
   succeeded: boolean;
   affected: number;
   detail: string;
+}
+
+class UnknownObjectOperationError extends Error {
+  public readonly code = 'OBJECT_UNKNOWN_TERMINAL';
+}
+
+class FailedObjectOperationError extends Error {
+  public readonly code = 'OBJECT_FAILED_TERMINAL';
 }
 
 const auth = useAuthStore();
@@ -1606,14 +1615,16 @@ function stageCreateBucket(): void {
   const purpose = newBucketPurpose.value.trim();
   pendingOperations.value = [{
     id: makeOperationId('bucket_create'),
+    expectedTarget: bucket,
     label: 'Create bucket',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}`,
     run: async () => {
       assertWriteContext(context);
-      await createObjectBucket(context.api, context.database, bucket, purpose || null);
+      const response = await createObjectBucket(context.api, context.database, bucket, purpose || null);
       assertWriteContext(context);
+      validateBucketResponse(response, bucket);
       newBucketName.value = '';
       newBucketPurpose.value = '';
       return { action: 'bucket.create', target: bucket, succeeded: true, affected: 1, detail: purpose || 'created' };
@@ -1628,6 +1639,7 @@ function stageDeleteBucket(): void {
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_delete'),
+    expectedTarget: bucket,
     label: 'Delete bucket',
     detail: bucket,
     severity: 'danger',
@@ -1656,6 +1668,7 @@ function stageUploadFile(): void {
   const contentType = uploadContentType.value.trim() || file.type || 'application/octet-stream';
   pendingOperations.value = [{
     id: makeOperationId('object_put_file'),
+    expectedTarget: key,
     label: 'Put object',
     detail: `${key} · ${formatBytes(file.size)}`,
     severity: 'write',
@@ -1668,6 +1681,7 @@ function stageUploadFile(): void {
         tags: maps.tags,
       });
       assertWriteContext(context);
+      validateObjectInfoResponse(response, bucket, key);
       return { action: 'object.put', target: key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
@@ -1688,6 +1702,7 @@ function stageUploadText(): void {
   const blob = new Blob([uploadText.value], { type: contentType });
   pendingOperations.value = [{
     id: makeOperationId('object_put_text'),
+    expectedTarget: key,
     label: 'Put text object',
     detail: `${key} · ${formatBytes(blob.size)}`,
     severity: 'write',
@@ -1700,6 +1715,7 @@ function stageUploadText(): void {
         tags: maps.tags,
       });
       assertWriteContext(context);
+      validateObjectInfoResponse(response, bucket, key);
       return { action: 'object.put', target: key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
@@ -1708,7 +1724,7 @@ function stageUploadText(): void {
 function stageSetTags(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const row = selectedObject.value;
+  const row = selectedObject.value ? { ...selectedObject.value } : null;
   if (!row) return;
   const parsed = parseKeyValueMap(selectedTagsText.value);
   if (!parsed.ok) {
@@ -1717,14 +1733,16 @@ function stageSetTags(): void {
   }
   pendingOperations.value = [{
     id: makeOperationId('object_tags'),
+    expectedTarget: row.key,
     label: 'Set tags',
     detail: row.key,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${row.bucket}/${row.key}?tagging`,
     run: async () => {
       assertWriteContext(context);
-      await setObjectTags(context.api, context.database, row.bucket, row.key, parsed.value);
+      const response = await setObjectTags(context.api, context.database, row.bucket, row.key, parsed.value);
       assertWriteContext(context);
+      validateObjectInfoResponse(response, row.bucket, row.key);
       return { action: 'object.tags.set', target: row.key, succeeded: true, affected: 1, detail: `${Object.keys(parsed.value).length} tags` };
     },
   }];
@@ -1733,11 +1751,12 @@ function stageSetTags(): void {
 function stageCopySelected(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const row = selectedObject.value;
+  const row = selectedObject.value ? { ...selectedObject.value } : null;
   const targetKey = copyTargetKey.value.trim();
   if (!row || !targetKey) return;
   pendingOperations.value = [{
     id: makeOperationId('object_copy'),
+    expectedTarget: targetKey,
     label: 'Copy object',
     detail: `${row.key} -> ${targetKey}`,
     severity: 'write',
@@ -1746,6 +1765,7 @@ function stageCopySelected(): void {
       assertWriteContext(context);
       const response = await copyObject(context.api, context.database, row.bucket, row.key, row.bucket, targetKey);
       assertWriteContext(context);
+      validateCopyResponse(response);
       return { action: 'object.copy', target: targetKey, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
@@ -1765,6 +1785,7 @@ function stageDeleteSelected(): void {
   if (!context.bucket || keys.length === 0) return;
   pendingOperations.value = [{
     id: makeOperationId('object_delete_many'),
+    expectedTarget: context.bucket,
     label: 'Delete selected',
     detail: `${keys.length} objects`,
     severity: 'danger',
@@ -1773,8 +1794,8 @@ function stageDeleteSelected(): void {
       assertWriteContext(context);
       const response = await deleteManyObjects(context.api, context.database, context.bucket, keys);
       assertWriteContext(context);
-      const affected = response.deleted.filter((item) => !item.errorCode).length;
-      return { action: 'object.delete_many', target: context.bucket, succeeded: true, affected, detail: `${affected}/${keys.length} deleted` };
+      const { affected, failures } = validateDeleteManyResponse(response, context.bucket, keys);
+      return { action: 'object.delete_many', target: context.bucket, succeeded: failures === 0, affected, detail: `${affected}/${keys.length} deleted; ${failures} failed` };
     },
   }];
 }
@@ -1784,6 +1805,7 @@ function deleteOperation(key: string): PendingOperation {
   const bucket = context.bucket;
   return {
     id: makeOperationId('object_delete'),
+    expectedTarget: key,
     label: 'Delete object',
     detail: key,
     severity: 'danger',
@@ -1800,12 +1822,13 @@ function deleteOperation(key: string): PendingOperation {
 function stagePresign(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const row = selectedObject.value;
+  const row = selectedObject.value ? { ...selectedObject.value } : null;
   if (!row) return;
   const minutes = Math.max(1, Math.min(1440, presignMinutes.value ?? 60));
   const method = presignMethod.value;
   pendingOperations.value = [{
     id: makeOperationId('object_presign'),
+    expectedTarget: row.key,
     label: 'Create presigned URL',
     detail: `${method} ${row.key} · ${minutes} min`,
     severity: 'write',
@@ -1814,6 +1837,7 @@ function stagePresign(): void {
       assertWriteContext(context);
       const response = await createPresignedObjectUrl(context.api, context.database, row.bucket, row.key, method, minutes);
       assertWriteContext(context);
+      validatePresignResponse(response, row.bucket, row.key, method);
       presignedUrl.value = response.url;
       await copyText(response.url, 'Presigned URL copied');
       assertWriteContext(context);
@@ -1827,16 +1851,19 @@ function stageSetLifecycle(): void {
   const context = captureContext();
   const bucket = context.bucket;
   if (!bucket) return;
+  const request = nullifyDraft(lifecycleDraft);
   pendingOperations.value = [{
     id: makeOperationId('bucket_lifecycle'),
+    expectedTarget: bucket,
     label: 'Set lifecycle',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}?lifecycle`,
     run: async () => {
       assertWriteContext(context);
-      await setBucketLifecycle(context.api, context.database, bucket, nullifyDraft(lifecycleDraft));
+      const response = await setBucketLifecycle(context.api, context.database, bucket, request);
       assertWriteContext(context);
+      validateBucketSetterResponse(response, bucket, request);
       return { action: 'bucket.lifecycle.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
@@ -1849,6 +1876,7 @@ function stageApplyLifecycle(): void {
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_lifecycle_apply'),
+    expectedTarget: bucket,
     label: 'Apply lifecycle',
     detail: bucket,
     severity: 'danger',
@@ -1857,6 +1885,8 @@ function stageApplyLifecycle(): void {
       assertWriteContext(context);
       const response = await applyBucketLifecycle(context.api, context.database, bucket);
       assertWriteContext(context);
+      validateBucketFieldResponse(response, bucket);
+      if (![response.expiredCurrentObjects, response.removedNoncurrentVersions, response.removedDeleteMarkers, response.semanticCleanupJobs].every(validCount)) throw new UnknownObjectOperationError('Invalid lifecycle terminal.');
       const affected = response.expiredCurrentObjects + response.removedNoncurrentVersions + response.removedDeleteMarkers;
       return { action: 'bucket.lifecycle.apply', target: bucket, succeeded: true, affected, detail: `${affected} versions/markers affected` };
     },
@@ -1868,22 +1898,25 @@ function stageSetSemanticOptions(): void {
   const context = captureContext();
   const bucket = context.bucket;
   if (!bucket) return;
+  const request = {
+    asyncIngestionEnabled: semanticOptionsDraft.asyncIngestionEnabled,
+    thumbnailEnabled: semanticOptionsDraft.thumbnailEnabled,
+    thumbnailMaxWidth: semanticOptionsDraft.thumbnailMaxWidth ?? 320,
+    thumbnailMaxHeight: semanticOptionsDraft.thumbnailMaxHeight ?? 320,
+    thumbnailQuality: semanticOptionsDraft.thumbnailQuality ?? 80,
+  };
   pendingOperations.value = [{
     id: makeOperationId('bucket_semantic_options'),
+    expectedTarget: bucket,
     label: 'Set semantic image options',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}?semantic`,
     run: async () => {
       assertWriteContext(context);
-      const response = await setBucketSemanticOptions(context.api, context.database, bucket, {
-        asyncIngestionEnabled: semanticOptionsDraft.asyncIngestionEnabled,
-        thumbnailEnabled: semanticOptionsDraft.thumbnailEnabled,
-        thumbnailMaxWidth: semanticOptionsDraft.thumbnailMaxWidth ?? 320,
-        thumbnailMaxHeight: semanticOptionsDraft.thumbnailMaxHeight ?? 320,
-        thumbnailQuality: semanticOptionsDraft.thumbnailQuality ?? 80,
-      });
+      const response = await setBucketSemanticOptions(context.api, context.database, bucket, request);
       assertWriteContext(context);
+      validateBucketSetterResponse(response, bucket, request);
       return {
         action: 'bucket.semantic.set',
         target: bucket,
@@ -1902,6 +1935,7 @@ function stageSemanticBackfill(): void {
   if (!bucket) return;
   pendingOperations.value = [{
     id: makeOperationId('bucket_semantic_backfill'),
+    expectedTarget: bucket,
     label: 'Backfill semantic images',
     detail: bucket,
     severity: 'write',
@@ -1910,12 +1944,17 @@ function stageSemanticBackfill(): void {
       assertWriteContext(context);
       const response = await backfillBucketSemanticObjects(context.api, context.database, bucket);
       assertWriteContext(context);
+      validateBucketFieldResponse(response, bucket);
+      if (![response.scannedObjects, response.queuedObjects, response.skippedObjects].every(validCount)
+        || response.queuedObjects + response.skippedObjects !== response.scannedObjects
+        || typeof response.hasMore !== 'boolean' || typeof response.completed !== 'boolean'
+        || response.hasMore === response.completed || response.continuationToken != null && typeof response.continuationToken !== 'string') throw new UnknownObjectOperationError('Invalid backfill terminal.');
       return {
         action: 'bucket.semantic.backfill',
         target: bucket,
         succeeded: true,
         affected: response.queuedObjects,
-        detail: `${response.queuedObjects}/${response.scannedObjects} queued`,
+        detail: `${response.queuedObjects}/${response.scannedObjects} queued; backfill ${response.completed ? 'enumerated' : 'pending'}; derived processing unverified`,
       };
     },
   }];
@@ -1924,10 +1963,11 @@ function stageSemanticBackfill(): void {
 function stageRequeueSelectedObject(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const row = selectedObject.value;
+  const row = selectedObject.value ? { ...selectedObject.value } : null;
   if (!row) return;
   pendingOperations.value = [{
     id: makeOperationId('object_semantic_requeue'),
+    expectedTarget: row.key,
     label: 'Requeue image processing',
     detail: row.key,
     severity: 'write',
@@ -1941,13 +1981,17 @@ function stageRequeueSelectedObject(): void {
         row.key,
       );
       assertWriteContext(context);
+      if (!response || response.bucket !== row.bucket || response.key !== row.key || response.versionId !== row.versionId
+        || response.operation !== 'upsert' || !nonemptyString(response.jobId)
+        || !['pending', 'processing', 'retry', 'completed', 'failed', 'cancelled', 'superseded'].includes(response.status)) throw new UnknownObjectOperationError('Invalid processing terminal.');
+      if (['failed', 'cancelled', 'superseded'].includes(response.status)) return { action: 'object.semantic.requeue', target: row.key, succeeded: false, affected: 0, detail: `processing ${response.status}` };
       processingStatus.value = response;
       return {
         action: 'object.semantic.requeue',
         target: row.key,
         succeeded: true,
         affected: 1,
-        detail: response.jobId,
+        detail: `${response.jobId}: task accepted/current status ${response.status}; derived processing unverified`,
       };
     },
   }];
@@ -1958,16 +2002,19 @@ function stageSetRetention(): void {
   const context = captureContext();
   const bucket = context.bucket;
   if (!bucket) return;
+  const request = nullifyDraft(retentionDraft);
   pendingOperations.value = [{
     id: makeOperationId('bucket_retention'),
+    expectedTarget: bucket,
     label: 'Set retention',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}?retention`,
     run: async () => {
       assertWriteContext(context);
-      await setBucketRetention(context.api, context.database, bucket, nullifyDraft(retentionDraft));
+      const response = await setBucketRetention(context.api, context.database, bucket, request);
       assertWriteContext(context);
+      validateBucketSetterResponse(response, bucket, request);
       return { action: 'bucket.retention.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
@@ -1978,16 +2025,19 @@ function stageSetQuota(): void {
   const context = captureContext();
   const bucket = context.bucket;
   if (!bucket) return;
+  const request = nullifyDraft(quotaDraft);
   pendingOperations.value = [{
     id: makeOperationId('bucket_quota'),
+    expectedTarget: bucket,
     label: 'Set quota',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}?quota`,
     run: async () => {
       assertWriteContext(context);
-      await setBucketQuota(context.api, context.database, bucket, nullifyDraft(quotaDraft));
+      const response = await setBucketQuota(context.api, context.database, bucket, request);
       assertWriteContext(context);
+      validateBucketSetterResponse(response, bucket, request);
       return { action: 'bucket.quota.set', target: bucket, succeeded: true, affected: 1, detail: 'saved' };
     },
   }];
@@ -2009,14 +2059,16 @@ function stageSetPolicy(): void {
   }
   pendingOperations.value = [{
     id: makeOperationId('bucket_policy'),
+    expectedTarget: bucket,
     label: 'Set policy',
     detail: bucket,
     severity: 'write',
     command: `PUT /v1/db/${context.database}/s3/${bucket}?policy`,
     run: async () => {
       assertWriteContext(context);
-      await setBucketPolicy(context.api, context.database, bucket, policy || null);
+      const response = await setBucketPolicy(context.api, context.database, bucket, policy || null);
       assertWriteContext(context);
+      validateBucketSetterResponse(response, bucket, { policyJson: policy || null });
       return { action: 'bucket.policy.set', target: bucket, succeeded: true, affected: 1, detail: policy ? 'saved' : 'cleared' };
     },
   }];
@@ -2025,20 +2077,24 @@ function stageSetPolicy(): void {
 function stageSetLegalHold(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const row = selectedObject.value;
+  const row = selectedObject.value ? { ...selectedObject.value } : null;
   if (!row) return;
   const versionId = versions.value.find((version) => version.versionId === row.versionId)?.versionId ?? row.versionId;
+  const enabled = legalHoldEnabled.value;
+  const reason = legalHoldReason.value.trim() || null;
   pendingOperations.value = [{
     id: makeOperationId('object_legal_hold'),
-    label: legalHoldEnabled.value ? 'Enable legal hold' : 'Disable legal hold',
+    expectedTarget: row.key,
+    label: enabled ? 'Enable legal hold' : 'Disable legal hold',
     detail: row.key,
-    severity: legalHoldEnabled.value ? 'write' : 'danger',
+    severity: enabled ? 'write' : 'danger',
     command: `PUT /v1/db/${context.database}/s3/${row.bucket}/${row.key}?legal-hold&versionId=${versionId}`,
     run: async () => {
       assertWriteContext(context);
-      await setObjectLegalHold(context.api, context.database, row.bucket, row.key, legalHoldEnabled.value, legalHoldReason.value || null, versionId);
+      const response = await setObjectLegalHold(context.api, context.database, row.bucket, row.key, enabled, reason, versionId);
       assertWriteContext(context);
-      return { action: legalHoldEnabled.value ? 'object.legal_hold.enable' : 'object.legal_hold.disable', target: row.key, succeeded: true, affected: 1, detail: versionId };
+      validateBucketSetterResponse(response, row.bucket, { key: row.key, versionId, enabled, reason });
+      return { action: enabled ? 'object.legal_hold.enable' : 'object.legal_hold.disable', target: row.key, succeeded: true, affected: 1, detail: versionId };
     },
   }];
 }
@@ -2054,25 +2110,27 @@ function stageInitiateMultipart(): void {
     errorMsg.value = maps.message;
     return;
   }
+  const options = {
+    contentType: multipartContentType.value || 'application/octet-stream',
+    metadata: maps.metadata,
+    tags: maps.tags,
+    expiresHours: multipartExpiresHours.value,
+  };
   pendingOperations.value = [{
     id: makeOperationId('multipart_init'),
+    expectedTarget: key,
     label: 'Initiate multipart',
     detail: key,
     severity: 'write',
     command: `POST /v1/db/${context.database}/s3/${bucket}/${key}?uploads`,
     run: async () => {
       assertWriteContext(context);
-      const response = await initiateMultipartUpload(context.api, context.database, bucket, key, {
-        contentType: multipartContentType.value || 'application/octet-stream',
-        metadata: maps.metadata,
-        tags: maps.tags,
-        expiresHours: multipartExpiresHours.value,
-      });
+      const response = await initiateMultipartUpload(context.api, context.database, bucket, key, options);
       assertWriteContext(context);
+      if (!response || response.bucket !== bucket || response.key !== key || !nonemptyString(response.uploadId)
+        || response.contentType !== options.contentType || !validTerminalDate(response.initiatedUtc) || !validTerminalDate(response.expiresUtc)) throw new UnknownObjectOperationError('Invalid multipart terminal.');
       activeMultipart.value = response;
       multipartParts.value = [];
-      await loadMultipartSessions(true);
-      assertWriteContext(context);
       return { action: 'multipart.initiate', target: key, succeeded: true, affected: 1, detail: response.uploadId };
     },
   }];
@@ -2081,12 +2139,13 @@ function stageInitiateMultipart(): void {
 function stageUploadPart(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const upload = activeMultipart.value;
+  const upload = activeMultipart.value ? { ...activeMultipart.value } : null;
   const file = multipartFile.value;
   const partNumber = multipartPartNumber.value ?? 1;
   if (!upload || !file || partNumber <= 0) return;
   pendingOperations.value = [{
     id: makeOperationId('multipart_part'),
+    expectedTarget: upload.key,
     label: 'Upload part',
     detail: `part ${partNumber} · ${formatBytes(file.size)}`,
     severity: 'write',
@@ -2095,11 +2154,11 @@ function stageUploadPart(): void {
       assertWriteContext(context);
       const part = await uploadMultipartPart(context.api, context.database, upload.bucket, upload.key, upload.uploadId, partNumber, file);
       assertWriteContext(context);
+      if (!part || part.partNumber !== partNumber || part.sizeBytes !== file.size || !Number.isSafeInteger(part.sizeBytes)
+        || part.sizeBytes < 0 || !nonemptyString(part.eTag) || !nonemptyString(part.sha256)) throw new UnknownObjectOperationError('Invalid multipart part terminal.');
       multipartParts.value = mergeParts(multipartParts.value, part);
       multipartPartNumber.value = partNumber + 1;
       multipartFile.value = null;
-      await loadMultipartSessions(true);
-      assertWriteContext(context);
       return { action: 'multipart.part.put', target: upload.key, succeeded: true, affected: 1, detail: `part ${part.partNumber}` };
     },
   }];
@@ -2108,11 +2167,12 @@ function stageUploadPart(): void {
 function stageCompleteMultipart(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const upload = activeMultipart.value;
+  const upload = activeMultipart.value ? { ...activeMultipart.value } : null;
   if (!upload || multipartParts.value.length === 0) return;
   const partNumbers = multipartParts.value.map((part) => part.partNumber).sort((a, b) => a - b);
   pendingOperations.value = [{
     id: makeOperationId('multipart_complete'),
+    expectedTarget: upload.key,
     label: 'Complete multipart',
     detail: `${partNumbers.length} parts`,
     severity: 'write',
@@ -2121,10 +2181,9 @@ function stageCompleteMultipart(): void {
       assertWriteContext(context);
       const response = await completeMultipartUpload(context.api, context.database, upload.bucket, upload.key, upload.uploadId, partNumbers);
       assertWriteContext(context);
+      validateObjectInfoResponse(response, upload.bucket, upload.key);
       activeMultipart.value = null;
       multipartParts.value = [];
-      await loadMultipartSessions(true);
-      assertWriteContext(context);
       return { action: 'multipart.complete', target: response.key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
@@ -2133,10 +2192,11 @@ function stageCompleteMultipart(): void {
 function stageAbortMultipart(): void {
   if (!canWrite.value) return;
   const context = captureContext();
-  const upload = activeMultipart.value;
+  const upload = activeMultipart.value ? { ...activeMultipart.value } : null;
   if (!upload) return;
   pendingOperations.value = [{
     id: makeOperationId('multipart_abort'),
+    expectedTarget: upload.key,
     label: 'Abort multipart',
     detail: upload.uploadId,
     severity: 'danger',
@@ -2147,8 +2207,6 @@ function stageAbortMultipart(): void {
       assertWriteContext(context);
       activeMultipart.value = null;
       multipartParts.value = [];
-      await loadMultipartSessions(true);
-      assertWriteContext(context);
       return { action: 'multipart.abort', target: upload.key, succeeded: true, affected: 1, detail: 'aborted' };
     },
   }];
@@ -2164,13 +2222,22 @@ async function confirmPendingOperations(): Promise<void> {
   clearPendingOperations();
   const command = operations.map((operation) => operation.command).join('\n');
   const started = performance.now();
+  const outcomes: OperationOutcome[] = [];
+  let startedOperations = 0;
+  const counts = () => `${operations.length} approved; ${startedOperations} started; ${outcomes.length} confirmed`;
+  const affected = () => outcomes.reduce((sum, item) => sum + item.affected, 0);
+  let successRecorded = false;
   try {
-    const outcomes: OperationOutcome[] = [];
+    // 60 秒约束新操作的启动窗口；在途请求沿用 Axios 的 30 秒超时，不代表服务端取消或网络发送计量。
     const deadline = Date.now() + 60000;
     for (const operation of operations) {
       if (Date.now() >= deadline) throw new Error('Object batch deadline');
       assertWriteContext(context);
-      outcomes.push(await operation.run());
+      startedOperations += 1;
+      const outcome = await operation.run();
+      validateOperationOutcome(operation, outcome);
+      outcomes.push(outcome);
+      if (!outcome.succeeded) throw new FailedObjectOperationError('对象操作已明确失败。');
     }
     assertWriteContext(context);
     const elapsed = performanceElapsed(started);
@@ -2179,23 +2246,123 @@ async function confirmPendingOperations(): Promise<void> {
     ranOnce.value = true;
     pendingOperations.value = [];
     checkedRowKeys.value = [];
-    recordHistory('success', 'Object operation batch', operations.map((operation) => operation.label).join(', '), command, `${outcomes.length} actions`, outcomes.length, outcomes.reduce((sum, item) => sum + item.affected, 0), elapsed, context);
+    recordHistory('success', 'Object operation batch', operations.map((operation) => operation.label).join(', '), command, counts(), outcomes.length, affected(), elapsed, context);
+    successRecorded = true;
     message.success(`Committed ${outcomes.length} object action${outcomes.length === 1 ? '' : 's'}.`);
     await refreshAll();
     if (isCurrentContext(context)) emit('refreshSchema');
   } catch (error) {
+    // 已证实的写终态不因后续只读刷新失败而改写或重复记录。
+    if (successRecorded) return;
     const elapsed = performanceElapsed(started);
     const msg = errorToMessage(error, '提交对象桶操作失败');
-    if (!isCurrentContext(context)) { recordHistory('unknown', 'Object operation batch', 'confirm', command, '上下文已变化，请核对原目标结果。', 0, 0, elapsed, context, 'unknown'); return; }
-    if (isPermissionError(error)) { const ticket = beginRead('write-denial'); readError(error, ticket, '提交对象桶操作失败'); return; }
-    errorMsg.value = msg;
+    if (!isCurrentContext(context)) { recordHistory('unknown', 'Object operation batch', 'confirm', command, `结果未知，请核对原目标；不要重放审批。 ${counts()}`, outcomes.length, affected(), elapsed, context, 'unknown'); return; }
+    if (isPermissionError(error)) {
+      const ticket = beginRead('write-denial'); readError(error, ticket, '提交对象桶操作失败');
+      recordHistory('error', 'Object operation batch', 'confirm', command, `当前身份没有 Object 写入权限。 ${counts()}`, outcomes.length, affected(), elapsed, context);
+      return;
+    }
+    const unknown = isUnknownOperationError(error);
+    const safeMessage = unknown ? '结果未知，请核对原目标；不要重放审批。' : msg;
+    errorMsg.value = safeMessage;
     latestCommand.value = command;
-    latestResult.value = errorResult(msg);
+    latestResult.value = errorResult(safeMessage);
+    if (unknown && latestResult.value.error) latestResult.value.error.code = 'OBJECT_UNKNOWN_TERMINAL';
     ranOnce.value = true;
-    recordHistory('error', 'Object operation batch', 'confirm', command, msg, 0, 0, elapsed, context);
+    recordHistory(unknown ? 'unknown' : 'error', 'Object operation batch', 'confirm', command, `${safeMessage} ${counts()}`, outcomes.length, affected(), elapsed, context, unknown ? 'unknown' : undefined);
   } finally {
     if (isCurrentContext(context)) confirmBusy.value = false;
   }
+}
+
+function validateOperationOutcome(operation: PendingOperation, outcome: OperationOutcome): void {
+  if (!outcome || typeof outcome !== 'object' || typeof outcome.action !== 'string' || !outcome.action.trim()
+    || typeof outcome.target !== 'string' || outcome.target !== operation.expectedTarget
+    || typeof outcome.succeeded !== 'boolean' || !Number.isSafeInteger(outcome.affected) || outcome.affected < 0
+    || typeof outcome.detail !== 'string' || !outcome.detail.trim()) {
+    throw new UnknownObjectOperationError(`Object operation ${operation.id} returned an invalid terminal.`);
+  }
+}
+
+function validateObjectInfoResponse(value: unknown, bucket: string, key: string): void {
+  const response = value as Partial<ObjectInfoResponse> | null;
+  if (!response || response.bucket !== bucket || response.key !== key || !nonemptyString(response.versionId)
+    || !nonemptyString(response.contentType) || response.isDeleteMarker !== false || !Number.isSafeInteger(response.sizeBytes)
+    || (response.sizeBytes ?? -1) < 0 || !nonemptyString(response.eTag) || !nonemptyString(response.sha256)
+    || !validTerminalDate(response.createdUtc) || !validTerminalDate(response.updatedUtc)) throw new UnknownObjectOperationError('Invalid object terminal.');
+}
+
+function validateBucketResponse(value: unknown, bucket: string): void {
+  const response = value as { name?: unknown; createdUtc?: unknown; updatedUtc?: unknown } | null;
+  if (!response || response.name !== bucket || typeof response.createdUtc !== 'string' || typeof response.updatedUtc !== 'string') throw new UnknownObjectOperationError('Invalid bucket terminal.');
+}
+
+function validateBucketFieldResponse(value: unknown, bucket: string): void {
+  const response = value as { bucket?: unknown } | null;
+  if (!response || response.bucket !== bucket) throw new UnknownObjectOperationError('Invalid bucket terminal.');
+}
+
+function validateBucketSetterResponse(value: unknown, bucket: string, expected: Record<string, unknown>): void {
+  validateBucketFieldResponse(value, bucket);
+  const response = value as Record<string, unknown>;
+  const fields = Object.entries(expected);
+  if (!validTerminalDate(response.updatedUtc) || fields.length > 16) throw new UnknownObjectOperationError('Invalid bucket setter terminal.');
+  const deadline = Date.now() + 1000;
+  for (let index = 0; index < fields.length; index += 1) {
+    const [name, expectedValue] = fields[index]!;
+    // ServerJsonContext 的 WhenWritingNull 会省略真实 nullable null；非 null 回显必须存在。
+    if (Date.now() >= deadline || (expectedValue === null ? response[name] != null
+      : !Object.prototype.hasOwnProperty.call(response, name) || response[name] !== expectedValue)) throw new UnknownObjectOperationError('Invalid bucket setter terminal.');
+  }
+}
+
+function nonemptyString(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0; }
+function validTerminalDate(value: unknown): boolean { return nonemptyString(value) && Number.isFinite(Date.parse(value)); }
+function validCount(value: unknown): boolean { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
+
+function validateDeleteManyResponse(value: unknown, bucket: string, keys: readonly string[]): { affected: number; failures: number } {
+  const response = value as { bucket?: unknown; deleted?: unknown } | null;
+  if (!response || response.bucket !== bucket || !Array.isArray(response.deleted) || keys.length > 1000
+    || response.deleted.length !== keys.length) throw new UnknownObjectOperationError('Invalid delete terminal.');
+  const expected = new Set(keys);
+  if (expected.size !== keys.length) throw new UnknownObjectOperationError('Invalid approved delete targets.');
+  let affected = 0; let failures = 0;
+  const deadline = Date.now() + 1000;
+  for (let index = 0; index < response.deleted.length; index += 1) {
+    const item = response.deleted[index] as { key?: unknown; versionId?: unknown; deleteMarker?: unknown; errorCode?: unknown; errorMessage?: unknown } | null;
+    if (Date.now() >= deadline || !item || typeof item.key !== 'string' || !expected.delete(item.key)
+      || typeof item.versionId !== 'string' || typeof item.deleteMarker !== 'boolean') throw new UnknownObjectOperationError('Invalid delete item terminal.');
+    if (item.errorCode != null) {
+      if (!nonemptyString(item.errorCode) || !nonemptyString(item.errorMessage) || item.deleteMarker !== false) throw new UnknownObjectOperationError('Invalid failed delete terminal.');
+      failures += 1;
+    } else {
+      if (!nonemptyString(item.versionId) || item.deleteMarker !== true || item.errorMessage != null) throw new UnknownObjectOperationError('Invalid successful delete terminal.');
+      affected += 1;
+    }
+  }
+  if (expected.size !== 0) throw new UnknownObjectOperationError('Missing delete terminal.');
+  return { affected, failures };
+}
+
+function validatePresignResponse(value: unknown, bucket: string, key: string, method: string): void {
+  const response = value as { bucket?: unknown; key?: unknown; url?: unknown; method?: unknown; expiresUtc?: unknown } | null;
+  if (!response || response.bucket !== bucket || response.key !== key || typeof response.url !== 'string' || !response.url.trim()
+    || response.method !== method || !validTerminalDate(response.expiresUtc)) throw new UnknownObjectOperationError('Invalid presign terminal.');
+}
+
+function validateCopyResponse(value: unknown): void {
+  const response = value as { eTag?: unknown; sha256?: unknown; versionId?: unknown } | null;
+  if (!response || typeof response.eTag !== 'string' || !response.eTag.trim() || typeof response.sha256 !== 'string'
+    || !response.sha256.trim() || typeof response.versionId !== 'string' || !response.versionId.trim()) throw new UnknownObjectOperationError('Invalid copy terminal.');
+}
+
+function isUnknownOperationError(error: unknown): boolean {
+  if (error instanceof UnknownObjectOperationError) return true;
+  if (error instanceof FailedObjectOperationError) return false;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === 'ERR_CANCELED' || code === 'ECONNABORTED' || code === 'ETIMEDOUT' || code === 'OBJECT_UNKNOWN_TERMINAL') return true;
+  const response = (error as { response?: { status?: unknown } } | null)?.response;
+  return !response || response.status === 408 || (typeof response.status === 'number' && response.status >= 500);
 }
 
 function clearPendingOperations(): void {

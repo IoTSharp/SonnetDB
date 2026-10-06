@@ -330,3 +330,16 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 - 根有界runner每命令明确timeout/最多1800轮/192PID/12层，记录PID/创建/完整命令/父链并finally仅清自有树。最终门禁前 **53** 条身份核验、0自有进程存活，复用PID保留；日志/规格/身份/trace/审计与源码SHA256保留于 `D:\source\SonnetDB\artifacts\wb24-validation-20261006`。无新Temp目录或工具安装，两处策略保留Temp未删除、不重试或绕过。
 - 最终待提交树完整 `dotnet restore SonnetDB.slnx` 与原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、staged diff check均为本地提交放行前置，命令/退出值见restore-final/format-final/final-gates；代码再改须重跑。仅提交本任务11文件，保留origin/parity-results `e4c558538f8d4cc0aa0ba9ffc1f49a8a499376b9`；不push/发布/部署/外部沟通。
 - 下一片优先Object写终态/unknown/一次消费及批次预算；完整语义/Multipart/Server资源预算、新UI真实权限/恢复、真实OS对话框、九模型/三宿主、安装/Extension Host/AOT、固定硬件/长稳、AI/MCP与发行物仍分别待验。heartbeat保持ACTIVE，本轮不启动下一片。
+
+## WB-25 Object 写终态、一次消费与批次预算（2026-10-06）
+
+- 本地切片从 `a2bc3f1a6af69df5e4716f0f41c80013ca7c64e3` 接续；范围限于现有 Object 22 个暂存入口及审批执行器，不改 Server、路由或其它宿主。生产改动为 `web/src/components/ObjectBucketWorkbench.vue`、`web/src/api/objectStorage.ts`，Node 合同为 `web/tests/object-workbench-migration.test.mjs`，浏览器证据为 `web/e2e/object-write-terminal.spec.ts`。
+- 审批快照在 dispatch 前一次消费；最多1000项，60秒只约束客户端启动新操作，单请求继续沿用现有 Axios 超时，不解释为 Server 已取消。原 context/API/身份/输入在 stage 时冻结，草稿变化不能改变批准请求；重复确认、并发确认、超限批次均不重放或新增 dispatch。
+- 成功必须验证实际响应目标及必要字段：ObjectInfo、桶 setter、presign、copy、Multipart init/part/complete、legal hold、processing 入队、semantic backfill 枚举与批删逐项批准 key。批删缺失、重复、外来 key 或损坏项为 unknown；完整明确单项错误为 error，并保留已确认影响数。处理与语义结果只证明入队/枚举，不称派生处理完成。
+- void DELETE/删桶/Multipart abort API helper 验证 HTTP 204；单对象 DELETE 另验证 `x-amz-delete-marker=true`、非空 `x-amz-version-id` 和 ETag。Server 省略 nullable 字段按实际 source-generated JSON 合同兼容；非 null 批准字段必须回显且更新时间有效。已证明 Multipart 写终态不被伴随读取刷新失败改成 unknown。
+- 结果未知使用固定脱敏提示“结果未知，请核对原目标；不要重放审批。”并写入 history `status=unknown`、`completeness=unknown`、原 database/bucket/context；401/403 保持权限锁存并记录脱敏 error。失败/断连/缺终态/错目标不记录 success，已开始和已确认计数单列。
+- 验证：专属 Node **32/32**；全 Web Node **292/292**；Vite/TypeScript build PASS；Chrome fixture **5/5**（端口4211，真实组件+fixture API，含并发重复确认、真实 PUT 错目标/缺终态、断连及 synthetic 1000/1001 批次）；既有 Object/语义浏览器 **4/4**（端口4210）；既有真实 Kestrel Object **4/4** 与 Multipart **2/2**。新 UI fixture 与真实 Server 结果分开，未宣称真实新 UI 权限或三宿主验收。
+- 独立只读复核 PASS：真实 Server DTO/Handler、nullable省略、DELETE status/头、Copy/Part无目标回显边界、processing/backfill任务接受、partial计数、Multipart刷新隔离与UI请求路径均核对。桶创建响应日期目前只校验字符串类型，真实Server返回合法DateTimeOffset；没有将本片写成全响应Schema验证或新UI真实Server权限旅程。
+- 证据根 `artifacts/wb25-validation-20261006`，runner 每命令设置 timeout、PID/创建时间/完整命令/父链并 finally 仅回收自有树；门禁前24条身份核验、0自有进程存活。started计数只表示客户端开始执行，不是实际网络发送计量；虚拟时钟测试证明60秒后停止下一操作并保留首项确认的影响。无新Temp或安装，两处策略保留Temp不触碰。
+- 最终完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 staged diff check 为提交前置；首轮两命令退出0，format有工作区加载警告、无格式差异，文档收口后按最终树复验。退出值与源码SHA256单列于final-gates/final-tree-hashes，实际提交见commit-checkpoint，提交说明 `feat(m47): validate Object write terminal outcomes`，仅本任务10文件；无push/发布/部署/外部沟通，parity-results保留。
+- 下一次优先九模型新UI真实权限/恢复与Studio/VS Code剩余合同/旅程，不重复WB-25。三宿主、安装、Extension Host、AOT、固定硬件、长稳、发布、完整Multipart/语义与Server资源预算继续 NOT_READY；heartbeat保持ACTIVE。

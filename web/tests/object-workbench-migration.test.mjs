@@ -32,7 +32,7 @@ async function fixture({ actualAxios = false, honorAbort = true } = {}) {
     const action = url === '/v1/semantic-search/status' ? 'runtime' : url.includes('/images/') ? method === 'get' ? 'protected' : 'search'
       : path.length === 5 ? 'buckets' : params.has('list-type') ? 'objects' : params.has('tagging') ? 'tags' : params.has('legal-hold') ? 'hold'
         : params.has('versions') ? 'versions' : params.has('audit') ? 'audit' : params.has('uploads') ? 'multipart'
-          : ['stats', 'lifecycle', 'retention', 'quota', 'policy', 'semantic', 'processing', 'thumbnail', 'presign'].find((name) => params.has(name))
+          : params.has('delete') ? 'delete-many' : ['stats', 'lifecycle', 'retention', 'quota', 'policy', 'semantic', 'processing', 'thumbnail', 'presign'].find((name) => params.has(name))
             ?? (config.headers?.Range ? 'range' : key ? 'download' : 'bucket');
     return { action, bucket, key, params, parsed };
   };
@@ -54,7 +54,7 @@ async function fixture({ actualAxios = false, honorAbort = true } = {}) {
     else if (action === 'multipart') data = { bucket, uploads: [], isTruncated: false };
     else if (action === 'runtime') data = { enabled: true, ready: true, provider: 'fixture', profile: 'fixture', dimensions: 2, capabilities: [] };
     else if (action === 'search') data = { queryKind: 'text', profile: 'fixture', backend: 'fixture', hits: [{ id: 'image1', score: 1, distance: 0, contentType: 'image/png', contentUrl: '/v1/db/alpha/images/image1/content', sourceBucket: bucket, sourceKey: key, sizeBytes: 10 }] };
-    else if (action === 'presign') data = { url: 'presign-secret', bucket, key, expiresUtc: '2026-10-06' };
+    else if (action === 'presign') data = { url: 'presign-secret', method: call.body?.method || 'GET', bucket, key, expiresUtc: '2026-10-06' };
     else data = { bucket, currentObjectCount: 1, policyJson: '{"secret":"policy-secret"}', thumbnailEnabled: true, thumbnailMaxWidth: 320, thumbnailMaxHeight: 320, thumbnailQuality: 80 };
     return { data, headers, status, statusText: 'OK', config: call.config };
   };
@@ -326,4 +326,177 @@ test('production Axios cancels Range before adapter dispatch on synchronous auth
     f.component.rangeStart.value = 777; const run = f.component.loadPreview(); f.auth.state = { token: 'second' }; f.auth.state = { token: 'first' }; await run; await settle();
     assert.ok(!f.calls.some((call) => call.action === 'range' && call.config.headers.Range.startsWith('bytes=777-')));
   } finally { f.dispose(); }
+});
+
+test('approval snapshot is consumed once and repeated confirmation dispatches zero operations', { timeout: 10000 }, async () => {
+  const f = await fixture();
+  try {
+    let runs = 0;
+    f.component.pendingOperations.value = [{ id: 'once', expectedTarget: 'fixture-key', label: 'Fixture write', detail: 'fixture', severity: 'write', command: 'fixture', run: async () => {
+      runs += 1; return { action: 'fixture.write', target: 'fixture-key', succeeded: true, affected: 1, detail: 'completed' };
+    } }];
+    await f.component.confirmPendingOperations(); await f.component.confirmPendingOperations();
+    assert.equal(runs, 1); assert.equal(f.writes().length, 0); assert.equal(f.history.filter((entry) => entry.title === 'Object operation batch').length, 1);
+  } finally { f.dispose(); }
+});
+
+test('missing, wrong-target and damaged operation terminals remain unknown and never record success', { timeout: 10000 }, async () => {
+  const terminals = [null, { action: 'fixture.write', target: 'wrong', succeeded: true, affected: 1, detail: 'completed' },
+    { action: 'fixture.write', target: 'fixture-key', succeeded: true, affected: Number.MAX_SAFE_INTEGER + 1, detail: 'completed' }];
+  for (const terminal of terminals) {
+    const f = await fixture();
+    try {
+      f.component.pendingOperations.value = [{ id: 'damaged', expectedTarget: 'fixture-key', label: 'Fixture write', detail: 'fixture', severity: 'write', command: 'fixture', run: async () => terminal }];
+      await f.component.confirmPendingOperations();
+      const entry = f.history.find((item) => item.title === 'Object operation batch'); assert.equal(entry.status, 'unknown'); assert.equal(entry.completeness, 'unknown');
+      assert.equal(f.history.some((item) => item.status === 'success' && item.title === 'Object operation batch'), false);
+    } finally { f.dispose(); }
+  }
+});
+
+test('transport failure is unknown while explicit failed terminal is error', { timeout: 10000 }, async () => {
+  for (const mode of ['transport', 'failed']) {
+    const f = await fixture();
+    try {
+      f.component.pendingOperations.value = [{ id: mode, expectedTarget: 'fixture-key', label: 'Fixture write', detail: 'fixture', severity: 'write', command: 'fixture', run: async () => {
+        if (mode === 'transport') throw new Error('connection-secret');
+        return { action: 'fixture.write', target: 'fixture-key', succeeded: false, affected: 0, detail: 'server rejected' };
+      } }];
+      await f.component.confirmPendingOperations(); const entry = f.history.find((item) => item.title === 'Object operation batch');
+      assert.equal(entry.status, mode === 'transport' ? 'unknown' : 'error'); assert.ok(!JSON.stringify(f.history).includes('connection-secret'));
+    } finally { f.dispose(); }
+  }
+});
+
+test('batch over 1000 operations is rejected before any operation runs', { timeout: 10000 }, async () => {
+  const f = await fixture(); let runs = 0;
+  try {
+    f.component.pendingOperations.value = Array.from({ length: 1001 }, (_, index) => ({ id: `op-${index}`, expectedTarget: 'fixture-key', label: 'Fixture write', detail: 'fixture', severity: 'write', command: 'fixture', run: async () => {
+      runs += 1; return { action: 'fixture.write', target: 'fixture-key', succeeded: true, affected: 1, detail: 'completed' };
+    } }));
+    await f.component.confirmPendingOperations(); assert.equal(runs, 0); assert.equal(f.writes().length, 0); assert.equal(f.component.pendingOperations.value.length, 0);
+  } finally { f.dispose(); }
+});
+
+test('real put API missing, wrong-target and incomplete terminals remain unknown', { timeout: 10000 }, async () => {
+  const terminals = [null, object('wrong-key'), { ...object('Draft:Original'), versionId: '' }, { ...object('Draft:Original'), isDeleteMarker: true }];
+  for (const terminal of terminals) {
+    const f = await fixture();
+    try {
+      f.stage(); const run = f.component.confirmPendingOperations(); const call = f.writes().at(-1);
+      assert.equal(call.method, 'put'); assert.equal(call.key, 'Draft:Original'); call.resolve(terminal); await run;
+      const entry = f.history.find((item) => item.title === 'Object operation batch');
+      assert.equal(entry.status, 'unknown'); assert.equal(entry.completeness, 'unknown'); assert.equal(entry.database, 'alpha');
+      assert.equal(f.component.latestResult.value.error.code, 'OBJECT_UNKNOWN_TERMINAL'); assert.match(entry.summary, /1 started; 0 confirmed/u);
+      const count = f.writes().length; await f.component.confirmPendingOperations(); assert.equal(f.writes().length, count);
+    } finally { f.dispose(); }
+  }
+});
+
+test('real lifecycle setter requires dated terminal and every frozen field echo', { timeout: 10000 }, async () => {
+  const request = { expireCurrentAfterDays: 2, expireNoncurrentAfterDays: 3, expireDeleteMarkerAfterDays: 4 };
+  const responses = [{ bucket: 'Bucket:Original' }, { bucket: 'wrong', ...request, updatedUtc: '2026-10-06' },
+    { bucket: 'Bucket:Original', ...request, expireCurrentAfterDays: 9, updatedUtc: '2026-10-06' }];
+  for (const response of responses) {
+    const f = await fixture();
+    try {
+      Object.assign(f.component.lifecycleDraft, request); f.component.stageSetLifecycle(); const run = f.component.confirmPendingOperations();
+      const call = f.writes().at(-1); assert.deepEqual(call.body, request); call.resolve(response); await run;
+      assert.equal(f.history.find((item) => item.title === 'Object operation batch').status, 'unknown');
+    } finally { f.dispose(); }
+  }
+});
+
+test('lifecycle request keeps approved draft snapshot even when live draft changes before execution', { timeout: 10000 }, async () => {
+  const f = await fixture();
+  try {
+    const request = { expireCurrentAfterDays: 2, expireNoncurrentAfterDays: 3, expireDeleteMarkerAfterDays: 4 };
+    Object.assign(f.component.lifecycleDraft, request); f.component.stageSetLifecycle(); const approved = f.component.pendingOperations.value[0];
+    f.component.lifecycleDraft.expireCurrentAfterDays = 99; assert.equal(f.component.pendingOperations.value.length, 0);
+    const run = approved.run(); const call = f.writes().at(-1); assert.deepEqual(call.body, request);
+    call.resolve({ bucket: 'Bucket:Original', ...request, updatedUtc: '2026-10-06' }); assert.equal((await run).succeeded, true);
+  } finally { f.dispose(); }
+});
+
+test('delete-many matches approved keys exactly and distinguishes complete explicit failure', { timeout: 10000 }, async () => {
+  const deleted = (key, extras = {}) => ({ key, versionId: 'delete-version', deleteMarker: true, errorCode: null, errorMessage: null, ...extras });
+  const cases = [
+    { items: [deleted('A')], status: 'unknown', affected: 0 },
+    { items: [deleted('A'), deleted('A')], status: 'unknown', affected: 0 },
+    { items: [deleted('A'), deleted('external')], status: 'unknown', affected: 0 },
+    { items: [deleted('A'), deleted('B', { versionId: '' })], status: 'unknown', affected: 0 },
+    { items: [deleted('A'), deleted('B', { versionId: '', deleteMarker: false, errorCode: 'retained', errorMessage: 'Object is retained.' })], status: 'error', affected: 1 },
+    { items: [deleted('B'), deleted('A')], status: 'success', affected: 2 },
+  ];
+  for (const item of cases) {
+    const f = await fixture();
+    try {
+      f.component.checkedRowKeys.value = ['A', 'B']; f.component.stageDeleteSelected(); const run = f.component.confirmPendingOperations();
+      const call = f.latest('delete-many'); assert.deepEqual(call.body.keys, ['A', 'B']); call.resolve({ bucket: 'Bucket:Original', deleted: item.items }); await run;
+      const entry = f.history.find((entry) => entry.title === 'Object operation batch'); assert.equal(entry.status, item.status); assert.equal(entry.recordsAffected, item.affected);
+      if (item.status === 'error') assert.match(entry.summary, /1 started; 1 confirmed/u);
+    } finally { f.dispose(); }
+  }
+});
+
+test('void delete APIs require real 204 and object delete marker headers', { timeout: 10000 }, async () => {
+  const cases = [
+    { stage: 'stageDeleteBucket', status: 200, headers: {}, expected: 'unknown' },
+    { stage: 'stageDeleteBucket', status: 204, headers: {}, expected: 'success' },
+    { stage: 'stageDeleteCurrent', status: 204, headers: {}, expected: 'unknown' },
+    { stage: 'stageDeleteCurrent', status: 204, headers: { 'x-amz-delete-marker': 'false', 'x-amz-version-id': 'v', etag: 'tag' }, expected: 'unknown' },
+    { stage: 'stageDeleteCurrent', status: 204, headers: { 'x-amz-delete-marker': 'true', 'x-amz-version-id': 'v', etag: 'tag' }, expected: 'success' },
+  ];
+  for (const item of cases) {
+    const f = await fixture();
+    try {
+      f.component[item.stage](); const run = f.component.confirmPendingOperations(); const call = f.writes().at(-1);
+      assert.equal(call.method, 'delete'); call.resolve(null, item.headers, item.status); await run;
+      assert.equal(f.history.find((entry) => entry.title === 'Object operation batch').status, item.expected);
+    } finally { f.dispose(); }
+  }
+});
+
+test('write denial retains original batch identity and confirmed prior operation counts', { timeout: 10000 }, async () => {
+  const f = await fixture();
+  try {
+    f.component.pendingOperations.value = [
+      { id: 'confirmed', expectedTarget: 'first-target', label: 'First write', detail: 'fixture', severity: 'write', command: 'first', run: async () => ({ action: 'fixture.write', target: 'first-target', succeeded: true, affected: 2, detail: 'completed' }) },
+      { id: 'denied', expectedTarget: 'second-target', label: 'Second write', detail: 'fixture', severity: 'write', command: 'second', run: async () => { throw deny(403); } },
+    ];
+    await f.component.confirmPendingOperations(); const entry = f.history.find((entry) => entry.title === 'Object operation batch');
+    assert.equal(f.component.permissionDenied.value, true); assert.equal(entry.status, 'error'); assert.equal(entry.database, 'alpha'); assert.equal(entry.target, 'Bucket:Original');
+    assert.equal(entry.rowCount, 1); assert.equal(entry.recordsAffected, 2); assert.match(entry.summary, /2 started; 1 confirmed/u);
+    assert.equal(f.component.latestResult.value, null); assert.ok(!JSON.stringify(entry).includes('server-secret'));
+  } finally { f.dispose(); }
+});
+
+test('proven multipart completion stays successful when following read refresh is denied', { timeout: 10000 }, async () => {
+  const f = await fixture();
+  try {
+    f.component.activeMultipart.value = { bucket: 'Bucket:Original', key: 'Multi', uploadId: 'upload', contentType: 'text/plain', initiatedUtc: '2026-10-06', expiresUtc: '2026-10-07', metadata: {}, tags: {} };
+    f.component.multipartParts.value = [{ partNumber: 1, sizeBytes: 1, eTag: 'etag', sha256: 'sha' }];
+    f.pause('multipart'); f.component.stageCompleteMultipart(); const run = f.component.confirmPendingOperations();
+    f.writes().at(-1).resolve(object('Multi')); await settle(); const refresh = f.latest('multipart'); assert.ok(refresh); refresh.reject(deny(403)); await run;
+    const batches = f.history.filter((entry) => entry.title === 'Object operation batch'); assert.equal(batches.length, 1); assert.equal(batches[0].status, 'success');
+    assert.equal(f.component.permissionDenied.value, true); assert.equal(f.component.latestResult.value, null);
+  } finally { f.dispose(); }
+});
+
+test('60-second operation start window stops the next operation while retaining confirmed effects', { timeout: 10000 }, async () => {
+  const f = await fixture(); const originalNow = Date.now; let clock = originalNow(); let secondRuns = 0;
+  try {
+    Date.now = () => clock;
+    f.component.pendingOperations.value = [
+      { id: 'first', expectedTarget: 'first-target', label: 'First write', detail: 'fixture', severity: 'write', command: 'first', run: async () => {
+        clock += 60000; return { action: 'fixture.write', target: 'first-target', succeeded: true, affected: 3, detail: 'completed' };
+      } },
+      { id: 'second', expectedTarget: 'second-target', label: 'Second write', detail: 'fixture', severity: 'write', command: 'second', run: async () => {
+        secondRuns += 1; return { action: 'fixture.write', target: 'second-target', succeeded: true, affected: 1, detail: 'completed' };
+      } },
+    ];
+    await f.component.confirmPendingOperations(); const entry = f.history.find((entry) => entry.title === 'Object operation batch');
+    assert.equal(secondRuns, 0); assert.equal(entry.status, 'unknown'); assert.equal(entry.completeness, 'unknown'); assert.equal(entry.recordsAffected, 3);
+    assert.equal(entry.rowCount, 1); assert.match(entry.summary, /2 approved; 1 started; 1 confirmed/u);
+  } finally { Date.now = originalNow; f.dispose(); }
 });

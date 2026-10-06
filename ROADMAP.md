@@ -2,7 +2,7 @@
 
 本文件是 **4.5 版本的主执行路线**：在九种原生模型上强化 AI 应用、通用聚合与持续计算、存储编码和执行成本，并把 Web Admin、Studio 桌面和 VS Code 收敛到一套统一的数据库管理工作台核心，补齐现有能力的远程、恢复、容量、真实质量及三面发布边界。4.5 是规划目标，本文不宣布版本已发布，也不修改当前包版本。
 
-规划基线：2026-10-04，本地提交 `4b004946`；M47 设计基线已于 2026-10-05 获用户确认，生产实现按 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 的有界切片推进。当前 WB-00～WB-24 已按各自本地范围推进，提交与验证见队列，WB-12 Document 为 `54c78755`、WB-13 Studio合同为 `74835847`、WB-14 VS Code资源导航为 `e7cf2fe5`、WB-15 Studio客户端为 `e1f93a69`、WB-16导航/认证为 `0bb628ad`、WB-17 Relation为 `f1978263`；这些局部状态不等同 M47/U01~U09 全量完成。已完成范围归入 [CHANGELOG 本轮归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)，历史背景见[原归档](docs/roadmap-history.md)。本轮研究、证据复核与文档验证见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)及 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
+规划基线：2026-10-04，本地提交 `4b004946`；M47 设计基线已于 2026-10-05 获用户确认，生产实现按 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 的有界切片推进。当前 WB-00～WB-25 已按各自本地范围推进，提交与验证见队列，WB-12 Document 为 `54c78755`、WB-13 Studio合同为 `74835847`、WB-14 VS Code资源导航为 `e7cf2fe5`、WB-15 Studio客户端为 `e1f93a69`、WB-16导航/认证为 `0bb628ad`、WB-17 Relation为 `f1978263`；这些局部状态不等同 M47/U01~U09 全量完成。已完成范围归入 [CHANGELOG 本轮归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)，历史背景见[原归档](docs/roadmap-history.md)。本轮研究、证据复核与文档验证见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)及 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
 
 现有能力事实继续沿用[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)、[gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)和[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)，结合后续已核实切片判断。已撤回的系统性能原始报告不作为验收依据。
 
@@ -36,7 +36,7 @@
 | M47 WB-21 KV Workbench | 🟡 | 原名/六态、401/403及空身份锁存、readonly、1000项预览与4096字节格式化完成本地切片；专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome12/12、既有浏览器5/5、真实Kestrel兼容6/6与独立复核通过。 | 显式恢复、新客户端真实权限、完整atomic响应、Base64解码/传输/字节/堆预算、三宿主和发行物。 |
 | M47 WB-22 MQ Workbench | 🟡 | 原名/六态、401/403与空身份锁存、实际Topic/ABA隔离、一次审批和unknown、1000条/4096字节预览、Seek25窗/60秒与auto12轮/60秒完成本地切片；Node22/22、全Web240/240、Chrome16/16、既有MQ3/3、真实Kestrel兼容2/2及独立复核通过。 | 新UI真实权限/恢复、metadata/解码/传输/总堆预算、实例恢复、三宿主和发行物。 |
 | M47 WB-23 Graph Workbench | 🟡 / Graph Beta | 权限锁存、只读浏览/元素读取/导出、请求代际隔离、客户端 10～1000 总元素画布预算、32项/4096字符 Inspector、safe-number ID 门禁及维护终态校验完成本地切片；Node27/27、Graph Chrome16/16、既有浏览器3/3、真实Kestrel兼容4/4及独立复核通过。 | 完整 Graph Int64 字符串身份、真实新 UI 权限/恢复、服务端长期预算、三宿主、AOT、固定硬件和发行物。 |
-| M47 WB-24 Object Workbench | 🟡 | 全读取权限锁存/六态、实际API与桶/prefix/token/key/version代际隔离、readonly、列表累计1000/Range4096及安全声明区间、审批/文件选择器身份失效完成本地切片；Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、真实Kestrel兼容4/4、build及独立复核通过。 | 写终态/unknown/一次消费与批次预算、完整语义/Multipart/Server预算、新UI真实权限/恢复、真实OS对话框、三宿主与发行物。 |
+| M47 WB-24/WB-25 Object Workbench | 🟡 | WB-24读取权限锁存/六态、实际API与桶/prefix/token/key/version代际隔离、readonly、列表累计1000/Range4096及安全声明区间；WB-25补写终态、审批一次消费、1000项/60秒客户端启动窗口、响应目标与HTTP204核验、unknown/明确失败分离。Node32/32、全Web292/292、Chrome5/5、既有浏览器4/4、真实Kestrel兼容Object4/4+Multipart2/2、build及独立复核通过。 | 完整语义/Multipart/Server资源预算、新UI真实权限/恢复、真实OS对话框、三宿主与发行物。 |
 | M47 U01～U05 | 🚧 | 设计、首批共享合同、结果/审批语义及 Web Admin 页面切片已有局部实现。 | 完整九模型适配器、分页/取消/离线组合、真实权限与全量生产旅程。 |
 | M47 U06～U08、U10 | 📋 | 已记录规划边界和退出条件。 | Studio、VS Code、WorkBuddy/stdio bridge、manifest/签名/插件安全尚未启动完整验收。 |
 | M45-C01 首批实现 | 🟡 | TAG/time 分组首批代码、SQL/EXPLAIN 合同和定向回归已完成。 | C02～C09、更新/删除修正、增量物化、恢复预算及真实性能证据。 |

@@ -144,6 +144,9 @@ export interface ObjectBucketSemanticBackfillResponse {
   scannedObjects: number;
   queuedObjects: number;
   skippedObjects: number;
+  hasMore: boolean;
+  completed: boolean;
+  continuationToken?: string | null;
 }
 
 export interface ObjectProcessingStatusResponse {
@@ -300,7 +303,8 @@ export async function createObjectBucket(
 }
 
 export async function deleteObjectBucket(api: AxiosInstance, db: string, bucket: string): Promise<void> {
-  await api.delete(bucketUrl(db, bucket));
+  const response = await api.delete(bucketUrl(db, bucket));
+  validateNoContentTerminal(response);
 }
 
 export async function getObjectBucket(api: AxiosInstance, db: string, bucket: string, signal?: AbortSignal): Promise<ObjectBucketResponse> {
@@ -381,7 +385,11 @@ export async function getObjectBlob(
 }
 
 export async function deleteObject(api: AxiosInstance, db: string, bucket: string, key: string): Promise<void> {
-  await api.delete(objectUrl(db, bucket, key));
+  const response = await api.delete(objectUrl(db, bucket, key));
+  validateNoContentTerminal(response);
+  const headers = response.headers;
+  if (headers['x-amz-delete-marker'] !== 'true' || typeof headers['x-amz-version-id'] !== 'string'
+    || !headers['x-amz-version-id'].trim() || typeof headers.etag !== 'string' || !headers.etag.trim()) throw unknownWriteTerminal();
 }
 
 export async function deleteManyObjects(
@@ -759,7 +767,16 @@ export async function abortMultipartUpload(
   key: string,
   uploadId: string,
 ): Promise<void> {
-  await api.delete(`${objectUrl(db, bucket, key)}?uploadId=${encodeURIComponent(uploadId)}`);
+  const response = await api.delete(`${objectUrl(db, bucket, key)}?uploadId=${encodeURIComponent(uploadId)}`);
+  validateNoContentTerminal(response);
+}
+
+function unknownWriteTerminal(): Error & { code: string } {
+  return Object.assign(new Error('Object write terminal is unknown.'), { code: 'OBJECT_UNKNOWN_TERMINAL' });
+}
+
+function validateNoContentTerminal(response: AxiosResponse<unknown>): void {
+  if (!response || response.status !== 204) throw unknownWriteTerminal();
 }
 
 function headInfoFromResponse(resp: AxiosResponse<unknown>, bucket: string, key: string): ObjectHeadInfo {

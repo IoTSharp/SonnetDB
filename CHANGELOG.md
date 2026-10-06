@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-25 Object 写终态与一次审批消费（2026-10-06）**：补 Object 写执行器的审批快照一次消费、最多1000项批次和60秒客户端新操作启动窗口；冻结写入输入并核验对象/桶/Multipart/语义响应的目标与必要字段，批删逐项匹配批准 key，明确失败与传输/缺失/损坏终态的 unknown 分开记录并保留已确认影响数量。DELETE/删桶/Multipart abort 校验 HTTP 204，单对象 DELETE 校验 delete-marker、version-id、ETag；已证明的 Multipart 写终态不被伴随刷新拒绝推翻。Node32/32、全Web292/292、Vite build、新 Chrome fixture5/5、既有 Object 浏览器4/4、真实 Kestrel Object4/4+Multipart2/2通过；真实新UI权限、完整传输/资源预算、三宿主、安装与发布仍独立验收。
+
 - **M47 WB-24 Object 读取隔离与有界预览（2026-10-06）**：复用既有桶浏览、版本、治理、Multipart 和图片语义；补六态、readonly 程序/按钮门禁及全读取路径401/403载荷/URL/草稿/审批清理与锁存。实际连接/API/认证、桶、prefix/token、选中key/version和请求代际隔离迟返、ABA与卸载；审批及native/Web文件选择器绑定原身份。列表先截断再映射，每页及累计最多1000，拒绝错误目标/不前进token且超返不复用跳项游标；Range先校验安全整数和真实206声明区间/版本，再slice至请求/声明长度/4096字节后读取格式化。专属Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、TypeScript/Vite、独立复核和既有真实Kestrel兼容4/4通过；写终态/一次消费、完整语义/Multipart与服务端预算、新UI真实权限、真实OS对话框及三宿主仍独立验收。
 
 - **M47 WB-23 Graph 权限与有界画布（2026-10-06）**：Graph Beta 工作台消费能力矩阵并锁存 401/403，清理画布、诊断、元素、导入与维护审批载荷；只读保留浏览、元素读取与导出，写入/导入/维护入口均受门禁。请求绑定数据库、Graph、端点、认证和连接代际，隔离迟返、ABA、卸载并支持分派前取消；画布客户端按 10～1000 总元素预算先截断并保留边端点，Inspector 限制 32 项/4096 字符。元素数字 ID/版本超出安全整数时拒绝读取或写审批，维护 staged/paused/applying 不记完成，未知终态不重放。专属 Node **27/27**、全 Web **260/260**、Graph Chrome **16/16**、既有 Graph 浏览器 **3/3**、TypeScript/Vite 与真实 Kestrel Graph 兼容 **4/4** 通过；fixture/UI 与真实服务证据分开，完整 Int64 字符串、真实新 UI 权限/恢复及三宿主仍待独立验收。

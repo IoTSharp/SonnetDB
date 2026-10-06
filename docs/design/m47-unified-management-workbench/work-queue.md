@@ -2,6 +2,15 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-25 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 干净起点 `a2bc3f1a6af69df5e4716f0f41c80013ca7c64e3`；WB-24 三代理已结束，不重复派单。本轮仅 Object 现有写审批执行器终态兼容切片，依赖 WB-24 的身份/权限门禁，复用 22 个暂存入口，不改 Server、路由、其它模型或宿主代码。
+- `/root/wb20_vector_impl` 独占 `web/src/components/ObjectBucketWorkbench.vue`、`web/tests/object-workbench-migration.test.mjs`，复核后追加 `web/src/api/objectStorage.ts` 的必要 DELETE HTTP终态验证；`/root/wb20_vector_ui` 独占新增 `web/e2e/object-write-terminal.spec.ts`；`/root/wb19_fulltext_impl` 独立只读复核真实 Handler/DTO 与最终 diff。根独占六共享文档、runner、验证、集成、完整 restore/format、stage/commit。最多三个活动子代理；初轮25命名文件/35分钟，必要修复另开15文件/15分钟有界 turn，代理不自跑长验证或 git。
+- 审批在派发前一次消费；冻结原身份/API/输入，最多1000个操作，60秒客户端新操作启动窗口与现有30秒单请求超时。只有实际响应的目标、必要完成字段和批准参数相符才记 success；批删逐项匹配批准 key，缺/重复/外来终态为 unknown，完整明确拒绝为 error。已开始操作的缺失/损坏/断连/408/5xx/身份变化为 unknown，历史保留原目标、已确认影响和不完整性，不重放审批；401/403继续锁存并清载荷。started计数为客户端执行入口，不冒称实际网络发送计量。
+- Void DELETE 与 Copy/Part 响应沿用真实 HTTP/DTO 能力，不能伪造 Server 未回显的目标。图片处理/backfill 的入队接受不称异步处理完成；完整 Multipart/语义/字节/Server预算、新UI真实权限与三宿主另验。验收为专属/全Web Node、TypeScript/Vite、Chrome fixture、既有Object/语义浏览器和真实Kestrel兼容分别记录，再做独立复核及最终代码门禁。
+- PowerShell7；禁止Graphify、广域工具扫描与未授权安装；循环/搜索/重试同时有次数/项目数及墙钟，长进程记录PID/创建时间/完整命令/父链并finally仅清自有树，临时绝对路径先核验。两处策略保留Temp不删除、不重试或绕过；保留origin/parity-results，不push/发布/部署/外部沟通。三宿主未闭环，heartbeat继续ACTIVE。
+- 最终专属Node32/32、全Web292/292、TypeScript/Vite、新Chrome5/5、既有Object/语义浏览器4/4、既有真实Kestrel Object4/4+Multipart2/2和独立复核PASS。DELETE校验204/对象marker+version+ETag，nullable setter匹配实际Server省略null合同；Multipart写后刷新拒绝不推翻已证明终态。证据 `artifacts/wb25-validation-20261006`，门禁前24条身份0存活；完整restore/原级别format/staged检查退出0才本地提交，最终门禁与实际提交绑定见final-gates/commit-checkpoint，提交说明 `feat(m47): validate Object write terminal outcomes`，仅本任务10文件。
+
 ### WB-24 合同与文件冻结（2026-10-06；本地切片已验证）
 
 - 干净起点 `cb32050b54e5f5d3b767f09b7593460ce18152d1`，WB-23 三代理均结束；本轮只推进 Object 桶浏览/选中对象/Range 的兼容隔离切片，复用现有六页签、v2 continuation、版本/下载、native dialogs、Multipart 与图片语义。不改 Server、路由、其它模型或宿主代码。
@@ -126,8 +135,9 @@
 | WB-22 | MQ 权限锁存、实际Topic/请求隔离与有界预览 | 本地切片已验证，合同/归属见下方；专属Node22/22、全Web240/240、TypeScript/Vite、Chrome16/16、既有MQ浏览器3/3、真实Kestrel兼容2/2及独立复核PASS。最终完整restore/format和staged检查为提交前置，实际哈希见git log。新UI真实权限/恢复、完整metadata/解码/总预算、三宿主另验。 |
 | WB-23 | Graph 权限/请求隔离与有界画布 | 已提交 `cb32050b`，专属Node27/27、全Web260/260、Chrome16/16、既有浏览器3/3、真实Kestrel兼容4/4、build及独立复核通过。Graph Beta、完整Int64字符串/新UI真实权限/三宿主边界见顶部冻结。 |
 | WB-24 | Object 读取隔离、权限门禁与有界列表/Range | 本地切片已验证，顶部冻结；Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、真实Kestrel兼容4/4、build与独立复核PASS。最终完整门禁为提交前置，实际哈希见git log。写终态/unknown/一次消费、完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
+| WB-25 | Object 写终态、一次审批消费与批次预算 | 本地切片已验证，顶部冻结；Node32/32、全Web292/292、Chrome5/5、既有浏览器4/4、真实Kestrel Object4/4+Multipart2/2、build与独立复核PASS。最终完整restore/format/staged检查为本地提交放行条件，实际哈希见git log；完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
 
-WB-15～WB-24已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点 Object 写终态/一次消费/unknown 与批次预算的后续兼容切片，再继续真实权限与宿主差距；先冻结一个有界任务再派单，本轮不启动下一片。
+WB-15～WB-25已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点九模型新UI真实权限/恢复与Studio/VS Code剩余合同和旅程，再按一个有界切片推进；不重复WB-25，本轮不启动下一片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
