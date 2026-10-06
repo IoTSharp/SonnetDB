@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-30 合同与文件冻结（2026-10-06；Measurement 客户端切片已验证）
+
+- 从 `main / 46d3f513` 接续，完整接收最新HANDOFF/AGENTS/queue且哈希与WB-29最终树一致；WB-25～WB-29及旧代理均完成，不重复派单。三博客文件与HANDOFF末尾博客hunk继续保留不暂存。源代码盘点发现Measurement权限仅从错误文本推导，监控错误不进入统一锁存，读取/写审批/文件迟返缺少完整会话代际；本片只补客户端权限/请求/审批隔离与现有预览上限，不重做页面或完整写执行器。
+- 专属实施代理独占 `web/src/components/MeasurementWorkbench.vue` 与 `web/tests/measurement-workbench-migration.test.mjs`；UI代理独占新增 `web/e2e/measurement-workbench-migration.spec.ts`，以及必要的 `web/e2e/management-workbenches.spec.ts` Measurement夹具兼容hunk；第三代理独立只读复核真实SQL/helper合同与最终diff。已存在SQL helpers支持signal，保持共享API/Server/路由/其它宿主不改；根独占六共享文档/验证/集成/完整restore-format/stage/commit。每代理25命名文件/35分钟，不自跑长验证或另派代理，最多三个活动子代理。
+- 原database/measurement/monitor目标与六态、旧SQL/深链接保留。HTTP401/403或精确授权错误来自点读取、监控或写均清点/监控/Schema可见载荷、结果、editor/import/审批并锁存；错误正文固定脱敏，同身份Schema/auth刷新、空身份往返不解锁，显式恢复另片。readonly保留读取/导出，所有暂存/文件/确认程序与按钮入口禁写。
+- 冻结实际API/endpoint/auth/token/profile/database/measurement与同步epoch，隔离迟返/跨库同名/ABA/新读/卸载；监控model/target/limit亦独立代际，旧finally不得清新busy。新请求使用既有optional signal及SQL previewMaxRows，分派前取消可查adapter证据；已派写取消不冒称回滚，历史保留原目标与unknown，不恢复旧审批。上下文/权限/readonly失效清草稿，文件选择迟返不填新身份；正常同上下文主动停止的已确认导入进度与重新审批兼容另行核对，不扩为完整COMMIT/影响数/Int64写终态矩阵。
+- 点与监控沿用最多500行，先截断再map/显示/导出，保留Server截断及当前预览范围；非全measurement快照，扫描/物化/传输/字节/总堆预算另验。监控最多12轮/60秒，timer归属与finally清理；审批导入准入最多1000语句、最多10批、60秒新批次窗口，不扩完整文件字节/解析内存预算。浏览器夹具每测试30秒/retries0，根同仓库Vite/build/Playwright串行、每runner10分钟/本片验证35分钟窗口；fixture与真实新UI Server/三宿主/安装/Extension Host/AOT/硬件/长稳/发行物分别记录。
+- 仅PowerShell7；禁止Graphify/广域工具扫描/未授权安装；搜索/循环/等待/重试设置明确项目/迭代及墙钟、先极小输入检查退出比较；长进程记录PID/创建/完整命令/父链，finally仅回收已核验自有树，临时绝对路径核验清理。两处策略保留Temp不删除/重试/绕过；完整最终树restore、原级别format/staged diff通过才本地提交，保留当前origin/parity-results、不fetch/push/发布/部署/外部沟通。三宿主仍未闭环，heartbeat保持ACTIVE，本轮不启动WB-31。
+- 最终组件/Node/UI四文件冻结，第三只读复核PASS。专属Node16/16（实际Axios同tick取消adapter0与独立同结构Schema clone）、全Web311/311、TypeScript/Vite、Chrome新fixture20/20及旧Measurement/Vector子页/monitor8/8通过；既有真实Kestrel SQL预览端点3/3属共享SQL/关系表兼容，不计Measurement新UI真实权限。点/monitor501→500、当前导出、主动stop后100确认+fresh1审批、unknown原身份与auto12/60有行为证据。
+- 首Node0/15为夹具Vue exports静默前100截断漏ref，修为256项/1秒完整绑定；独立复核另发现生产同结构Schema引用刷新不失效，已增加引用watch+保留JSON。首Chrome18/20仅loading accessible name定位不匹配，修两locator并保留busy/no secret/gate断言；最终20/20。日志/失败trace与源码hash在artifacts/wb30-validation-20261006，门禁前46身份/0自有存活，三Chrome profiles和测试数据根/编译响应目录清理，短命Node command捕获缺口单列。根完整restore/原级别format/staged diff退出0才提交十任务文件，实际结果见final-gates/commit-checkpoint；raw markRaw defaults无信号endpoint ABA、新UI真实权限、完整写终态/Server预算/三宿主分别待验。
+
 ### WB-29 合同与文件冻结（2026-10-06；本机 KV Web 旅程已验证）
 
 - 从 `main / f03bbfd9` 接续，完整读取最新HANDOFF/AGENTS/queue且SHA256与WB-28最终工作树一致；WB-25～WB-28与三个旧代理已完成，不重复派单。三博客文件及HANDOFF末尾博客hunk属于其它会话，保留不暂存。只补KV新Web→隔离本机Kestrel的真实cursor/Get/round-trip、条件写/交换终态子集及撤权锁存，依赖WB-21、WB-16、WB-27共享真实runner与WB-28成功证据合同；不重做页面，不改Server/路由/其它宿主。
@@ -184,7 +195,7 @@
 | WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
 | WB-29 | KV 新Web UI真实游标/Get/JSONL、条件写/交换终态子集与撤权锁存 | 本机Web→Kestrel首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过；普通WRITE三审批NX成功/未应用影响0/交换，真实版本+原身份history与管理员Get对拍；REVOKE403清旧导入审批、重授READ/同token刷新仍锁存。三成功JSON+manifest独立落盘核验；八任务文件最终完整门禁/实际提交见证据目录，生产组件/Server/共享runner不改，完整atomic/恢复/Server预算/三宿主另验。 |
 
-WB-15～WB-29已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点Measurement等剩余新UI真实权限/恢复与Studio/VS Code合同，再按一个有界切片推进；不重复WB-25～WB-29，本轮不启动WB-30。
+WB-15～WB-30已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先冻结Measurement新Web→真实Server权限/读取与写终态最小旅程，再盘点其它新UI真实权限/恢复与Studio/VS Code合同，按一个有界切片推进；不重复WB-25～WB-30，本轮不启动WB-31。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 

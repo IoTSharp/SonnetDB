@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-30 Measurement 权限、请求与审批隔离的客户端切片（2026-10-06）
+
+- 从`main / 46d3f513`接续，三专属代理分别独占Measurement组件/Node、新Chrome spec及旧Measurement/Vector子页夹具hunk、只读复核；最终均停止写入且复核PASS。根维护六共享文档/验证/审计/git，仅十任务文件，三博客文件与HANDOFF末尾博客hunk保留不暂存。共享SQL/API、Server、路由及其它宿主不改；Object写终态WB-25已完成，不重复。
+- 所有点读取/目标monitor/write的HTTP401/403、精确SQL forbidden/unauthorized/http_401/http_403等授权码统一锁存并清点/monitor/可见Schema/结果/editor/import/审批，错误固定脱敏；同身份Schema/auth刷新、空名/空数据库/profile/endpoint往返不解锁。readonly读/导出保留，全部写/文件程序入口拒绝。冻结实际API/endpoint/auth/连接/database/原名及同步epoch，隔离迟返/跨库同名/ABA/卸载；monitor model/target/limit独立代际，旧finally不能清新busy。
+- Schema引用和JSON内容共同监听；最初只JSON同结构clone不触发，第三复核定位并补无auth先导的独立clone测试：新请求、旧signal已abort、旧finally不清新busy、新payload保留。生产createApiClient+真实Axios/SQL helper另证明confirm后同tickauth/API/profile变化adapter0。无响应式信号的markRaw defaults原地endpoint ABA未验，不由响应后字符串比对声称完整覆盖。
+- 一次确认消费原审批/原API与语句快照；已派写的身份失效/断连/不完整终态为原身份unknown，不恢复旧审批或声称Server回滚。导入最多1000语句、10批、60秒客户端新批启动窗口；正常同上下文用户主动停止取得100项完整终态后生成全新剩余1项审批，并可再次确认。现有计数兼容不等同完整COMMIT/权威影响数/Int64写终态矩阵。文件选择迟返与context/readonly/权限变化清理均有运行时证据，完整文件字节/解析内存预算另片。
+- 点与monitor最多500行，helper发送previewMaxRows并先slice再map/图表/显示/当前导出；501→500、末保留行0499/排除0500及truncated/history预览数有行为证据。Server truncated继续保留，当前预览不等同完整measurement快照或Server扫描/物化/传输/字节/总堆预算。auto单飞最多12轮/60秒，interval/deadline timer在停止/失效/卸载回收；page.clock验证12轮，Node虚拟时钟验证12轮与60秒边界。
+- 最终专属Node **16/16**（约1.3秒测试）、全Web **311/311**（concurrency2，约14.5秒）、产品TypeScript/Vite PASS（原有chunk提示）；Chrome新fixture **20/20**（约1.2分钟，retries0）、旧Measurement/Vector内嵌/target monitor等兼容 **8/8**。所有同仓库Vite/build/Playwright串行。既有真实Kestrel SQL预览端点 **3/3**：溢出/恰限终态、WHERE/OFFSET/LIMIT前缀、扫描取消后继续查询，属共享SQL端点兼容，涉及关系表数据，不能计新Measurement UI真实权限旅程。
+- 失败保留：首Node **0/15** 全部因测试SyntheticModule只绑定前100Vue exports漏ref；修为最多256项/1秒、逐项全绑定/超限throw，未为测试错误改生产。首Chrome **18/20** 两项busy断言的精确按钮名受loading图标影响（实际loading 查询/立即刷新），仅两个locator改锚定optional loading正则，busy class、gate次序、新payload/no secret均保留，最终完整20/20。首build通过但在Schema最终修订前，只作发现运行；最终build以修订源码重跑。失败日志/trace保留为交付物。
+- 证据目录`artifacts/wb30-validation-20261006`，命令/退出/源码hash见validation-results、verification-source-final2-hashes与final-gates；运行内断言当前下载/历史，成功附件未独立持久化为Server证据。门禁前46条身份、0自有存活，3记录Chrome profiles、Kestrel测试独占数据根和精确编译响应目录均清理；短命Node PID77280创建/父链有记录而CIM command缺失，wrapper完整命令/退出0及单独存活核验分别记录。两处策略保留Temp不触碰，无安装/push/发布/部署/外部沟通，保留当前origin/parity-results。
+- 最终待提交树必须完整`dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`和staged diff全部退出0才本地commit，实际结果/十文件hash/提交见final-gates/final-tree-hashes/commit-checkpoint。新Measurement Web→真实Server权限/读取/完整写终态、显式恢复、raw无信号ABA、Server预算、Studio/VS Code/OS/安装/Extension Host/AOT/硬件/长稳/AI/MCP/发行物分别待验。heartbeat保持ACTIVE，三宿主仍未闭环，本轮不启动WB-31。
+
 ## WB-29 KV 新Web UI真实游标、条件写/交换终态子集与撤权锁存（2026-10-06）
 
 - 起点 `main / f03bbfd9`，完整接收HANDOFF/AGENTS/queue、git/路线图/已提交WB-25～WB-28和代理，不重复Object写终态。两个独占代理只新增KV薄入口与真实spec，第三专属代理独立只读复核；根维护六共享文档、验证/审计/完整门禁/git，仅提交八任务文件。三博客文件及HANDOFF末尾博客hunk保留不暂存。生产KV组件/API、Server和共享runner未改；独立初审确认无需生产修复。

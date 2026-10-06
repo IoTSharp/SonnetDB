@@ -42,12 +42,16 @@
         v-if="approvalPlan && !readOnly && !permissionDenied"
         :plan="approvalPlan"
         :busy="writeBusy"
-        :abortable="pendingOperations.some((item) => item.action === 'import')"
+        :abortable="(writeBusy ? runningOperations : pendingOperations).some((item) => item.action === 'import')"
         @cancel="clearPendingOperations"
         @confirm="confirmPendingOperations"
-        @abort="importCancelRequested = true"
+        @abort="stopImport"
       />
     </section>
+
+    <n-alert v-if="permissionDenied" type="warning" data-testid="measurement-permission-lock" class="measurement-alert">
+      当前身份没有 Measurement 权限，点值、监控与写草稿已隐藏；刷新不会解除权限锁存。
+    </n-alert>
 
     <!-- The parent workbench owns the five-zone shell. These anchors keep the
          center data plane and right Inspector context connectable without
@@ -271,7 +275,7 @@
           <n-text class="measurement-section-title">Measurement Schema</n-text>
           <n-text depth="3">时序身份由 time + TAG 确定，FIELD 存放可采样值。</n-text>
         </div>
-        <n-button size="small" secondary @click="emit('openSql', `DESCRIBE MEASUREMENT ${formatSqlIdentifier(measurement?.name ?? '')}`)">在 SQL 中查看</n-button>
+        <n-button size="small" secondary :disabled="permissionDenied" @click="openSchemaSql">在 SQL 中查看</n-button>
       </header>
       <n-empty v-if="permissionDenied" description="当前身份没有 Measurement Schema 权限，结构载荷已隐藏。" />
       <n-data-table v-else :columns="schemaTableColumns" :data="columns" :bordered="false" :pagination="false" size="small" />
@@ -283,6 +287,7 @@
 
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import type { AxiosInstance } from 'axios';
 import {
   NAlert,
   NButton,
@@ -382,7 +387,7 @@ const measurementStateContract: Record<MeasurementWorkbenchState, MeasurementSta
   error: { label: '错误', primary: '检查并重试', summary: '只替换点结果并保留当前查询输入。' },
   permission: { label: '无权限', primary: '查看数据库权限', summary: '隐藏点值与 Schema 载荷，说明数据库 Measurement Read 权限。' },
   readonly: { label: '只读', primary: '导出当前结果', summary: '查询、刷新、导出和 Schema 可用，写入/删除/导入提交禁用。' },
-  longContent: { label: '长结果', primary: '查看结果预算', summary: '按服务端行数或字节预算展示，不能加载无限历史。' },
+  longContent: { label: '长结果', primary: '查看当前预览', summary: '当前窗口最多 500 行，不代表全部点或服务端资源预算。' },
 };
 interface PointGridRow extends Record<string, unknown> { __key: string; __row: number }
 interface PendingOperation {
@@ -392,12 +397,40 @@ interface PendingOperation {
   detail: string;
   statements: SqlStatementRequest[];
   rowCount: number;
+  context: MeasurementContext;
+}
+
+interface MeasurementContext {
+  epoch: number;
+  database: string;
+  measurement: string;
+  connectionId: string;
+  connectionName: string;
+  endpoint: string;
+  profileEndpoint: string;
+  token: string;
+  schema: string;
+  api: AxiosInstance;
 }
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => props.permissionDenied || permissionLocked.value);
+const readOnly = computed(() => props.readOnly);
+const canWrite = computed(() => !disposed && !readOnly.value && !permissionDenied.value && Boolean(props.targetDb && props.measurement));
+let disposed = false;
+let contextEpoch = 0;
+let lastValidIdentity = '';
+let pointController: AbortController | null = null;
+let monitorController: AbortController | null = null;
+let writeController: AbortController | null = null;
+let fileRequestId = 0;
+let writeRequestId = 0;
+const PreviewMaxRows = 500;
+const MaxWriteStatements = 1000;
 const activeView = ref<MeasurementView>('points');
 const sections: WorkbenchSectionTab[] = [
   { key: 'points', label: '数据点' },
@@ -406,7 +439,7 @@ const sections: WorkbenchSectionTab[] = [
   { key: 'schema', label: 'Schema' },
 ];
 
-const columns = computed(() => measurementColumns(props.measurement));
+const columns = computed(() => permissionDenied.value ? [] : measurementColumns(props.measurement));
 const tagColumns = computed(() => columns.value.filter((column) => columnRole(column) === 'tag'));
 const fieldColumns = computed(() => columns.value.filter((column) => columnRole(column) === 'field'));
 const pointResult = ref<SqlResultSet | null>(null);
@@ -424,6 +457,7 @@ const editingSource = ref<Record<string, unknown> | null>(null);
 const pointDraft = reactive<Record<string, unknown>>({});
 const pointValidationErrors = ref<ImportRowError[]>([]);
 const pendingOperations = ref<PendingOperation[]>([]);
+const runningOperations = ref<PendingOperation[]>([]);
 const writeBusy = ref(false);
 const historyVisible = ref(false);
 
@@ -443,24 +477,13 @@ const pointSummary = computed(() => {
   if (pointResult.value?.end) return `${pointRows.value.length} 个点 · ${pointResult.value.end.elapsedMs.toFixed(2)} ms`;
   return props.measurement ? '准备查询' : '未选择 Measurement';
 });
-const readOnly = computed(() => props.readOnly);
-const permissionError = computed(() => {
-  const error = pointResult.value?.error;
-  const detail = `${error?.code ?? ''} ${error?.message ?? errorMessage.value}`.toLowerCase();
-  return /permission|forbidden|unauthori[sz]ed|access.denied/.test(detail);
-});
-const permissionDenied = computed(() => props.permissionDenied || permissionError.value);
 const measurementState = computed<MeasurementWorkbenchState>(() => {
-  if (!props.measurement) return 'empty';
   if (permissionDenied.value) return 'permission';
-  const error = pointResult.value?.error;
-  if (error || errorMessage.value) {
-    const detail = `${error?.code ?? ''} ${error?.message ?? errorMessage.value}`.toLowerCase();
-    return /permission|forbidden|unauthori[sz]ed|access.denied/.test(detail) ? 'permission' : 'error';
-  }
-  if (pointResult.value?.end && pointRows.value.length === 0) return 'empty';
   if (readOnly.value) return 'readonly';
-  if (pointResult.value?.end?.truncated || pointRows.value.length >= pointLimit.value) return 'longContent';
+  if (!props.measurement) return 'empty';
+  if (pointResult.value?.error || errorMessage.value || monitorError.value) return 'error';
+  if (pointResult.value?.end && pointRows.value.length === 0) return 'empty';
+  if (pointResult.value?.end?.truncated || pointRows.value.length >= previewLimit(pointLimit.value)) return 'longContent';
   return 'normal';
 });
 const stateDescriptor = computed(() => measurementStateContract[measurementState.value]);
@@ -490,15 +513,17 @@ const pointTableColumns = computed<DataTableColumns<PointGridRow>>(() => [
 ]);
 
 const approvalPlan = computed<WriteApprovalPlan | null>(() => {
-  if (!props.measurement || pendingOperations.value.length === 0) return null;
+  const operations = writeBusy.value ? runningOperations.value : pendingOperations.value;
+  if (!canWrite.value || operations.length === 0 || !operations.every((operation) => isCurrentContext(operation.context))) return null;
+  const context = operations[0]!.context;
   return createWriteApprovalPlan({
-    id: `measurement_${props.targetDb}_${props.measurement.name}_${Date.now().toString(36)}`,
-    title: pendingOperations.value.some((item) => item.action === 'import') ? 'Measurement import' : 'Measurement point changes',
-    target: `${props.targetDb}.${props.measurement.name}`,
-    items: pendingOperations.value.map((operation) => ({
+    id: `measurement_${context.database}_${context.measurement}_${operations.map((item) => item.id).join('_')}`,
+    title: operations.some((item) => item.action === 'import') ? 'Measurement import' : 'Measurement point changes',
+    target: `${context.database}.${context.measurement}`,
+    items: operations.map((operation) => ({
       id: operation.id,
       command: operation.action === 'import'
-        ? `INSERT ${operation.rowCount} POINTS INTO ${formatSqlIdentifier(props.measurement!.name)}`
+        ? `INSERT ${operation.rowCount} POINTS INTO ${formatSqlIdentifier(context.measurement)}`
         : operation.statements.map((statement) => statement.sql).join('\n'),
       severity: operation.action === 'delete' || operation.action === 'replace' ? 'danger' : 'write',
       label: operation.label,
@@ -508,13 +533,15 @@ const approvalPlan = computed<WriteApprovalPlan | null>(() => {
 });
 
 async function loadPoints(): Promise<void> {
-  if (!props.measurement || !props.targetDb || permissionDenied.value) return;
+  if (disposed || !props.measurement || !props.targetDb || permissionDenied.value) return;
+  const context = captureContext();
   const requestId = ++pointRequestId;
-  const requestDatabase = props.targetDb;
-  const requestMeasurement = props.measurement.name;
+  pointController?.abort();
+  const controller = pointController = new AbortController();
+  const limit = previewLimit(pointLimit.value);
   loadingPoints.value = true;
   errorMessage.value = '';
-  const parameters: SqlParameters = { limit: sqlParameterFromValue(pointLimit.value) };
+  const parameters: SqlParameters = { limit: sqlParameterFromValue(limit) };
   const predicates: string[] = [];
   if (fromTime.value) {
     parameters.from = sqlParameterFromValue(Date.parse(fromTime.value));
@@ -530,27 +557,32 @@ async function loadPoints(): Promise<void> {
   }
   const sql = [
     `SELECT ${columns.value.map((column) => formatSqlIdentifier(column.name)).join(', ')}`,
-    `FROM ${formatSqlIdentifier(props.measurement.name)}`,
+    `FROM ${formatSqlIdentifier(context.measurement)}`,
     predicates.length ? `WHERE ${predicates.join(' AND ')}` : '',
     `ORDER BY ${formatSqlIdentifier('time')} DESC`,
     'LIMIT @limit;',
   ].filter(Boolean).join('\n');
   lastPointSql.value = sql;
   try {
-    const result = await execDataSql(auth.api, requestDatabase, sql, parameters);
-    if (requestId !== pointRequestId || requestDatabase !== props.targetDb || requestMeasurement !== props.measurement?.name) return;
-    pointResult.value = result;
-    if (result.error) errorMessage.value = result.error.message;
+    const result = await execDataSql(context.api, context.database, sql, parameters, controller.signal, limit);
+    if (!isCurrentContext(context) || requestId !== pointRequestId || controller.signal.aborted || permissionDenied.value) return;
+    if (isPermissionFailure(result.error)) { lockPermission(); return; }
+    pointResult.value = boundedReadResult(result, limit);
+    if (pointResult.value.error) errorMessage.value = pointResult.value.error.message;
+    recordRead(context, context.measurement, sql, pointResult.value, 'points');
   } catch (error) {
-    if (requestId !== pointRequestId || requestDatabase !== props.targetDb || requestMeasurement !== props.measurement?.name) return;
-    errorMessage.value = error instanceof Error ? error.message : '加载数据点失败。';
+    if (!isCurrentContext(context) || requestId !== pointRequestId || controller.signal.aborted) return;
+    if (isPermissionFailure(error)) { lockPermission(); return; }
+    pointResult.value = null;
+    errorMessage.value = '加载数据点失败，请检查连接后重试。';
   } finally {
-    if (requestId === pointRequestId) loadingPoints.value = false;
+    if (pointController === controller) pointController = null;
+    if (!disposed && requestId === pointRequestId) loadingPoints.value = false;
   }
 }
 
 function openNewPoint(): void {
-  if (readOnly.value || permissionDenied.value) return;
+  if (!canWrite.value || writeBusy.value) return;
   resetPointDraft();
   pointDraft.time = new Date().toISOString();
   editingSource.value = null;
@@ -558,7 +590,7 @@ function openNewPoint(): void {
 }
 
 function openEditPoint(row: PointGridRow): void {
-  if (readOnly.value || permissionDenied.value) return;
+  if (!canWrite.value || writeBusy.value) return;
   resetPointDraft();
   for (const column of columns.value) {
     pointDraft[column.name] = row[column.name];
@@ -579,7 +611,7 @@ function resetPointDraft(): void {
 }
 
 function stagePoint(): void {
-  if (!props.measurement || readOnly.value || permissionDenied.value) return;
+  if (!props.measurement || !canWrite.value || writeBusy.value) return;
   const validation = validateMeasurementPoint(props.measurement, pointDraft);
   pointValidationErrors.value = validation.errors;
   if (validation.errors.length > 0) return;
@@ -595,26 +627,28 @@ function stagePoint(): void {
   const statements = replacing
     ? [buildMeasurementDeleteStatement(props.measurement, editingSource.value!), insert]
     : [insert];
-  pendingOperations.value.push({
+  enqueueOperation({
     id: `point_${Date.now().toString(36)}`,
     action: replacing ? 'replace' : 'insert',
     label: replacing ? 'Correct point identity' : 'Insert point',
     detail: identityLabel(validation.values),
     statements,
     rowCount: 1,
+    context: captureContext(),
   });
   closeEditor();
 }
 
 function stageDelete(row: PointGridRow): void {
-  if (!props.measurement || readOnly.value || permissionDenied.value) return;
-  pendingOperations.value.push({
+  if (!props.measurement || !canWrite.value || writeBusy.value) return;
+  enqueueOperation({
     id: `delete_${Date.now().toString(36)}_${row.__row}`,
     action: 'delete',
     label: 'Delete point',
     detail: identityLabel(row),
     statements: [buildMeasurementDeleteStatement(props.measurement, row)],
     rowCount: 1,
+    context: captureContext(),
   });
 }
 
@@ -623,63 +657,109 @@ function clearPendingOperations(): void {
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (!props.measurement || readOnly.value || permissionDenied.value || pendingOperations.value.length === 0) return;
-  writeBusy.value = true;
+  if (!canWrite.value || writeBusy.value || pendingOperations.value.length === 0) return;
   const operations = [...pendingOperations.value];
-  const statements = operations.flatMap((operation) => operation.statements);
+  const context = operations[0]!.context;
+  if (!operations.every((operation) => isCurrentContext(operation.context))) { clearPendingOperations(); return; }
+  const statements = operations.flatMap((operation) => operation.statements.map((statement) => ({
+    ...statement,
+    parameters: statement.parameters ? Object.fromEntries(Object.entries(statement.parameters).map(([key, value]) => [key, { ...value }])) : undefined,
+  })));
+  if (statements.length > MaxWriteStatements) { clearPendingOperations(); message.error('每次审批最多 1000 条时序语句。'); return; }
+  const requestId = ++writeRequestId;
+  const controller = writeController = new AbortController();
+  // 消费原审批；仅主动停止且服务端已确认的导入批次可以生成全新的剩余审批。
+  pendingOperations.value = [];
+  runningOperations.value = operations;
+  writeBusy.value = true;
   const isImport = operations.some((item) => item.action === 'import');
   importBusy.value = isImport;
   importCancelRequested.value = false;
   const started = performance.now();
+  const deadline = Date.now() + 60_000;
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  let affected = 0;
+  let completedStatements = 0;
+  let dispatched = false;
+  let status: 'success' | 'error' | 'unknown' = 'success';
+  let detail = '';
+  let stoppedByUser = false;
   try {
     const batchSize = isImport ? 100 : Math.max(statements.length, 1);
-    let affected = 0;
     importProgress.value = { done: 0, total: operations.reduce((sum, item) => sum + item.rowCount, 0) };
-    for (let offset = 0; offset < statements.length; offset += batchSize) {
-      if (importCancelRequested.value) throw new Error('已停止后续导入批次。');
+    for (let offset = 0, batch = 0; offset < statements.length && batch < 10 && Date.now() < deadline; offset += batchSize, batch += 1) {
+      if (!isCurrentContext(context) || !canWrite.value || controller.signal.aborted) { status = 'unknown'; break; }
+      if (importCancelRequested.value) { stoppedByUser = true; status = 'error'; break; }
       const chunk = statements.slice(offset, offset + batchSize);
-      const results = await execDataSqlBatch(auth.api, props.targetDb, chunk);
+      dispatched = true;
+      const results = await execDataSqlBatch(context.api, context.database, chunk, controller.signal);
       const failedIndex = results.findIndex((result) => result.error);
       if (failedIndex >= 0) {
+        const failure = results[failedIndex]!.error;
+        const current = isCurrentContext(context);
+        if (current && isPermissionFailure(failure)) lockPermission();
         affected += isImport ? failedIndex : 0;
-        importProgress.value = { done: Math.min(affected, importProgress.value.total), total: importProgress.value.total };
-        throw new Error(results[failedIndex].error?.message ?? '批次写入失败。');
+        status = current ? isUncertainSqlFailure(failure) ? 'unknown' : 'error' : 'unknown';
+        detail = isPermissionFailure(failure) ? '时序写入被权限拒绝。' : status === 'unknown' ? '写入结果未知，请核对服务端状态；未自动重试。' : '时序写入被服务端拒绝。';
+        break;
       }
+      if (results.length !== chunk.length || results.some((result) => !result.end)) { status = 'unknown'; break; }
+      completedStatements += chunk.length;
       affected += isImport ? chunk.length : operations.reduce((sum, item) => sum + item.rowCount, 0);
+      if (!isCurrentContext(context) || !canWrite.value || controller.signal.aborted) { status = 'unknown'; break; }
       importProgress.value = { done: Math.min(affected, importProgress.value.total), total: importProgress.value.total };
     }
-    recordOperation('success', isImport ? 'import' : 'edit', statements, affected, performance.now() - started, '');
-    message.success(`已提交 ${affected} 个时序点。`);
-    pendingOperations.value = [];
-    importProgress.value = { done: affected, total: affected };
-    await loadPoints();
+    if (completedStatements < statements.length && status === 'success') status = 'unknown';
   } catch (error) {
-    const baseDetail = error instanceof Error ? error.message : '时序写入失败。';
-    const remaining = isImport ? statements.slice(importProgress.value.done) : statements;
-    const detail = isImport && importProgress.value.done > 0
-      ? `${baseDetail} 已完成 ${importProgress.value.done} 点，保留 ${remaining.length} 点待重试。`
-      : baseDetail;
-    if (isImport) {
-      pendingOperations.value = remaining.length > 0
-        ? [{
-          ...operations[0],
-          id: `measurement_import_resume_${Date.now().toString(36)}`,
-          detail: `${remaining.length} remaining points · resume import`,
-          statements: remaining,
-          rowCount: remaining.length,
-        }]
-        : [];
-    }
-    recordOperation('error', isImport ? 'import' : 'edit', statements, importProgress.value.done, performance.now() - started, detail);
-    message.error(detail);
+    const current = isCurrentContext(context) && !controller.signal.aborted;
+    if (current && isPermissionFailure(error)) lockPermission();
+    const httpStatus = (error as { response?: { status?: number } } | null)?.response?.status;
+    status = current && typeof httpStatus === 'number' && httpStatus >= 400 && httpStatus < 500 && httpStatus !== 408 ? 'error' : 'unknown';
+    detail = status === 'error' ? '时序写入被服务端拒绝。' : '写入结果未知，请核对服务端状态；未自动重试。';
   } finally {
-    writeBusy.value = false;
-    importBusy.value = false;
+    clearTimeout(timeout);
+    if (writeController === controller) writeController = null;
+    const current = isCurrentContext(context) && requestId === writeRequestId && canWrite.value;
+    if (!current && status === 'success') status = 'unknown';
+    if (status === 'unknown' && !detail) detail = '写入结果未知，请核对服务端状态；未自动重试。客户端取消不代表服务端回滚。';
+    if (current && stoppedByUser && isImport) {
+      const remaining = statements.slice(completedStatements);
+      detail = `已停止后续导入批次。已完成 ${affected} 点，剩余 ${remaining.length} 点需要重新审批。`;
+      pendingOperations.value = remaining.length ? [{ ...operations[0]!, context,
+        id: `measurement_import_resume_${Date.now().toString(36)}`,
+        detail: `${remaining.length} remaining points · resume import`, statements: remaining, rowCount: remaining.length }] : [];
+    }
+    if (dispatched) recordOperation(context, status, isImport ? 'import' : 'edit', statements, affected, performance.now() - started, detail);
+    if (!disposed && requestId === writeRequestId) {
+      writeBusy.value = false;
+      importBusy.value = false;
+      runningOperations.value = [];
+      if (current) {
+        if (status === 'success') {
+          importProgress.value = { done: affected, total: affected };
+          message.success(`已提交 ${affected} 个时序点。`);
+          void loadPoints();
+        } else message.error(detail);
+      }
+    }
   }
 }
 
+function stopImport(): void {
+  if (!disposed && writeBusy.value && runningOperations.value.some((operation) => operation.action === 'import')) importCancelRequested.value = true;
+}
+
+function enqueueOperation(operation: PendingOperation): void {
+  if (!canWrite.value || writeBusy.value || !isCurrentContext(operation.context)) return;
+  if (pendingOperations.value.reduce((count, item) => count + item.statements.length, 0) + operation.statements.length > MaxWriteStatements) {
+    message.error('每次审批最多 1000 条时序语句。'); return;
+  }
+  pendingOperations.value.push(operation);
+}
+
 async function exportVisiblePoints(format: 'csv' | 'json'): Promise<void> {
-  if (!props.measurement || permissionDenied.value || !pointResult.value?.hasColumns) return;
+  if (disposed || !props.measurement || permissionDenied.value || !pointResult.value?.hasColumns) return;
+  const context = captureContext();
   const rows = pointRows.value.map(({ __key: _key, __row: _row, ...row }) => row);
   const content = format === 'csv'
     ? buildCsv(rows, pointResult.value.columns)
@@ -689,7 +769,7 @@ async function exportVisiblePoints(format: 'csv' | 'json'): Promise<void> {
     content,
     format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json;charset=utf-8',
   );
-  if (outcome !== 'cancelled') message.success(`已导出 ${rows.length} 个时序点。`);
+  if (isCurrentContext(context) && !permissionDenied.value && outcome !== 'cancelled') message.success(`已导出 ${rows.length} 个时序点。`);
 }
 
 function identityLabel(point: Record<string, unknown>): string {
@@ -750,17 +830,25 @@ const importErrorColumns: DataTableColumns<ImportRowError & { key: string }> = [
 
 async function onFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
+  if (!canWrite.value || writeBusy.value) { input.value = ''; return; }
   const file = input.files?.[0];
   if (!file) return;
-  importText.value = await file.text();
-  const lower = file.name.toLowerCase();
-  importFormat.value = lower.endsWith('.json') || lower.endsWith('.jsonl') || lower.endsWith('.ndjson') ? 'json' : 'csv';
-  analyzeImport();
-  input.value = '';
+  const context = captureContext();
+  const requestId = ++fileRequestId;
+  try {
+    const text = await file.text();
+    if (!isCurrentContext(context) || requestId !== fileRequestId || !canWrite.value || writeBusy.value) return;
+    importText.value = text;
+    const lower = file.name.toLowerCase();
+    importFormat.value = lower.endsWith('.json') || lower.endsWith('.jsonl') || lower.endsWith('.ndjson') ? 'json' : 'csv';
+    analyzeImport();
+  } catch {
+    if (isCurrentContext(context) && requestId === fileRequestId && canWrite.value) message.error('读取导入文件失败。');
+  } finally { input.value = ''; }
 }
 
 function analyzeImport(): void {
-  if (!props.measurement || readOnly.value || permissionDenied.value) return;
+  if (!props.measurement || !canWrite.value || writeBusy.value) return;
   importParsed.value = parseMeasurementImport(importFormat.value, importText.value);
   importMapping.value = buildMeasurementImportMapping(props.measurement, importParsed.value.headers);
   importValidation.value = null;
@@ -768,6 +856,7 @@ function analyzeImport(): void {
 }
 
 function updateImportMapping(column: string, source: string): void {
+  if (!canWrite.value || writeBusy.value) return;
   importMapping.value = { ...importMapping.value, [column]: source };
   importValidation.value = null;
   clearPendingOperations();
@@ -781,7 +870,7 @@ function currentImportValidation(): MeasurementImportValidation | null {
 }
 
 function validateImportOnly(): void {
-  if (permissionDenied.value) return;
+  if (disposed || permissionDenied.value) return;
   const validation = currentImportValidation();
   if (!validation) return;
   if (validation.errors.length) message.error(`发现 ${validation.errors.length} 个导入问题。`);
@@ -789,7 +878,8 @@ function validateImportOnly(): void {
 }
 
 function stageImport(): void {
-  if (!props.measurement || readOnly.value || permissionDenied.value) return;
+  if (!props.measurement || !canWrite.value || writeBusy.value) return;
+  if ((importParsed.value?.rows.length ?? 0) > MaxWriteStatements) { message.error('每次审批导入最多 1000 个时序点。'); return; }
   const validation = currentImportValidation();
   if (!validation || validation.errors.length > 0 || validation.rows.length === 0) {
     message.error(validation?.errors.length ? '请先修复导入问题。' : '没有可导入的数据点。');
@@ -804,6 +894,7 @@ function stageImport(): void {
     detail: `${statements.length} points · ${importFormat.value.toUpperCase()} · ${Object.values(importMapping.value).filter(Boolean).length} mapped columns`,
     statements,
     rowCount: statements.length,
+    context: captureContext(),
   }];
 }
 
@@ -826,17 +917,22 @@ const monitorResult = ref<SqlResultSet | null>(null);
 const monitorError = ref('');
 const monitorUpdatedAt = ref(0);
 let monitorTimer: number | null = null;
+let monitorDeadlineTimer: number | null = null;
 let monitorRequestId = 0;
+let monitorGeneration = 0;
+let autoMonitorId = 0;
+let monitorRounds = 0;
+let monitorDeadline = 0;
 const intervalOptions: SelectOption[] = [1000, 2000, 5000, 10000, 30000].map((value) => ({ label: `${value / 1000} 秒`, value }));
 const monitorLimitOptions: SelectOption[] = [50, 100, 250, 500].map((value) => ({ label: `${value} 行`, value }));
-const monitorTargetOptions = computed<SelectOption[]>(() => (monitorModel.value === 'measurement'
+const monitorTargetOptions = computed<SelectOption[]>(() => permissionDenied.value ? [] : (monitorModel.value === 'measurement'
   ? props.measurements.map((item) => ({ label: item.name, value: item.name }))
   : props.tables.map((item) => ({ label: item.name, value: item.name }))));
 const monitorRows = computed(() => monitorResult.value ? rowsToObjects<Record<string, unknown>>(monitorResult.value) : []);
 const monitorGridRows = computed(() => monitorRows.value.map((row, index) => ({ __key: index, ...row })));
 const monitorElapsedLabel = computed(() => monitorResult.value?.end ? `${monitorResult.value.end.elapsedMs.toFixed(2)} ms` : '—');
 const monitorUpdatedLabel = computed(() => monitorUpdatedAt.value ? new Date(monitorUpdatedAt.value).toLocaleTimeString() : '—');
-const monitorSql = computed(() => buildMonitorSql());
+const monitorSql = computed(() => permissionDenied.value ? '' : buildMonitorSql());
 const monitorTableColumns = computed<DataTableColumns<Record<string, unknown>>>(() => (monitorResult.value?.columns ?? []).map((column) => ({
   title: column,
   key: column,
@@ -847,45 +943,90 @@ const monitorTableColumns = computed<DataTableColumns<Record<string, unknown>>>(
 
 function buildMonitorSql(): string {
   if (!monitorTarget.value) return '';
+  const limit = previewLimit(monitorLimit.value);
   if (monitorModel.value === 'measurement') {
-    return `SELECT * FROM ${formatSqlIdentifier(monitorTarget.value)} ORDER BY ${formatSqlIdentifier('time')} DESC LIMIT ${monitorLimit.value};`;
+    return `SELECT * FROM ${formatSqlIdentifier(monitorTarget.value)} ORDER BY ${formatSqlIdentifier('time')} DESC LIMIT ${limit};`;
   }
   const table = props.tables.find((item) => item.name === monitorTarget.value);
   const order = table?.primaryKey[0] ? ` ORDER BY ${formatSqlIdentifier(table.primaryKey[0])} DESC` : '';
-  return `SELECT * FROM ${formatSqlIdentifier(monitorTarget.value)}${order} LIMIT ${monitorLimit.value};`;
+  return `SELECT * FROM ${formatSqlIdentifier(monitorTarget.value)}${order} LIMIT ${limit};`;
 }
 
 async function refreshMonitor(allowOverlap = false): Promise<void> {
-  if (permissionDenied.value) return;
+  if (disposed || !props.targetDb || permissionDenied.value) return;
   const sql = buildMonitorSql();
   if (!sql || (monitorLoading.value && !allowOverlap)) return;
+  const context = captureContext();
+  const target = monitorTarget.value;
+  const generation = monitorGeneration;
+  const limit = previewLimit(monitorLimit.value);
   const requestId = ++monitorRequestId;
+  monitorController?.abort();
+  const controller = monitorController = new AbortController();
   monitorLoading.value = true;
   monitorError.value = '';
   try {
-    const result = await execDataSql(auth.api, props.targetDb, sql);
-    if (requestId !== monitorRequestId) return;
-    monitorResult.value = result;
+    const result = await execDataSql(context.api, context.database, sql, undefined, controller.signal, limit);
+    if (!isCurrentContext(context) || requestId !== monitorRequestId || generation !== monitorGeneration || controller.signal.aborted || permissionDenied.value) return;
+    if (isPermissionFailure(result.error)) { lockPermission(); return; }
+    monitorResult.value = boundedReadResult(result, limit);
     monitorUpdatedAt.value = Date.now();
-    if (result.error) monitorError.value = result.error.message;
+    if (monitorResult.value.error) monitorError.value = monitorResult.value.error.message;
+    recordRead(context, target, sql, monitorResult.value, 'monitor');
   } catch (error) {
-    if (requestId !== monitorRequestId) return;
-    monitorError.value = error instanceof Error ? error.message : '实时监控查询失败。';
+    if (!isCurrentContext(context) || requestId !== monitorRequestId || generation !== monitorGeneration || controller.signal.aborted) return;
+    if (isPermissionFailure(error)) { lockPermission(); return; }
+    monitorResult.value = null;
+    monitorUpdatedAt.value = 0;
+    monitorError.value = '实时监控查询失败，请检查连接后重试。';
   } finally {
-    monitorLoading.value = false;
+    if (monitorController === controller) monitorController = null;
+    if (!disposed && requestId === monitorRequestId) monitorLoading.value = false;
   }
 }
 
 function toggleMonitor(): void {
-  monitorRunning.value = !monitorRunning.value;
-  scheduleMonitor();
-  if (monitorRunning.value) void refreshMonitor();
+  if (disposed || permissionDenied.value || !props.targetDb || !monitorTarget.value) return;
+  if (monitorRunning.value) { stopMonitor(); return; }
+  monitorRunning.value = true;
+  monitorRounds = 0;
+  monitorDeadline = Date.now() + 60_000;
+  const runId = ++autoMonitorId;
+  monitorDeadlineTimer = window.setTimeout(() => { if (runId === autoMonitorId) stopMonitor(); }, 60_000);
+  void runMonitorRound(runId);
 }
 
 function scheduleMonitor(): void {
-  if (monitorTimer !== null) window.clearInterval(monitorTimer);
+  if (monitorTimer !== null) window.clearTimeout(monitorTimer);
   monitorTimer = null;
-  if (monitorRunning.value) monitorTimer = window.setInterval(() => { void refreshMonitor(); }, monitorInterval.value);
+  if (!monitorRunning.value) return;
+  if (monitorRounds >= 12 || Date.now() >= monitorDeadline) { stopMonitor(false); return; }
+  const runId = autoMonitorId;
+  const interval = Math.min(30_000, Math.max(1000, Number.isFinite(monitorInterval.value) ? monitorInterval.value : 2000));
+  monitorTimer = window.setTimeout(() => { monitorTimer = null; void runMonitorRound(runId); }, Math.min(interval, monitorDeadline - Date.now()));
+}
+
+async function runMonitorRound(runId: number): Promise<void> {
+  if (disposed || !monitorRunning.value || runId !== autoMonitorId) return;
+  if (monitorRounds >= 12 || Date.now() >= monitorDeadline) { stopMonitor(); return; }
+  monitorRounds += 1;
+  await refreshMonitor();
+  if (!disposed && runId === autoMonitorId && monitorRunning.value) scheduleMonitor();
+}
+
+function stopMonitor(cancelRequest = true): void {
+  autoMonitorId += 1;
+  monitorRunning.value = false;
+  if (monitorTimer !== null) window.clearTimeout(monitorTimer);
+  if (monitorDeadlineTimer !== null) window.clearTimeout(monitorDeadlineTimer);
+  monitorTimer = null;
+  monitorDeadlineTimer = null;
+  if (cancelRequest) {
+    monitorRequestId += 1;
+    monitorController?.abort();
+    monitorController = null;
+    monitorLoading.value = false;
+  }
 }
 
 const schemaTableColumns: DataTableColumns<ColumnInfo> = [
@@ -897,7 +1038,8 @@ const schemaTableColumns: DataTableColumns<ColumnInfo> = [
 ];
 
 function recordOperation(
-  status: 'success' | 'error',
+  context: MeasurementContext,
+  status: 'success' | 'error' | 'unknown',
   action: string,
   statements: SqlStatementRequest[],
   affected: number,
@@ -907,59 +1049,149 @@ function recordOperation(
   history.record({
     kind: 'operation',
     status,
-    title: `${props.measurement?.name ?? 'measurement'} ${action}`,
-    target: props.measurement?.name ?? '',
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    title: `${context.measurement || 'measurement'} ${action}`,
+    target: context.measurement,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'measurement',
     action,
     command: statements.map((statement) => statement.sql).join('\n'),
     summary: error || `${affected} points`,
     recordsAffected: affected,
     elapsedMs,
+    completeness: status === 'unknown' ? 'unknown' : status === 'error' ? 'partial' : 'complete',
   });
 }
 
-watch(() => `${props.targetDb}\u0000${props.measurement?.name ?? ''}`, () => {
+function captureContext(): MeasurementContext {
+  return {
+    epoch: contextEpoch, database: props.targetDb, measurement: props.measurement?.name ?? '',
+    connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+    endpoint: auth.api.defaults.baseURL ?? '/', profileEndpoint: connections.activeBaseUrl,
+    token: auth.state?.token ?? '', schema: JSON.stringify([props.measurement, props.measurements, props.tables]), api: auth.api,
+  };
+}
+
+function isCurrentContext(context: MeasurementContext): boolean {
+  if (disposed || context.epoch !== contextEpoch) return false;
+  const current = captureContext();
+  return context.database === current.database && context.measurement === current.measurement
+    && context.connectionId === current.connectionId && context.endpoint === current.endpoint
+    && context.profileEndpoint === current.profileEndpoint && context.token === current.token
+    && context.schema === current.schema && context.api === current.api;
+}
+
+function isPermissionFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; response?: { status?: unknown; data?: { code?: unknown } } };
+  return candidate.response?.status === 401 || candidate.response?.status === 403
+    || ['forbidden', 'unauthorized', 'permission_denied', 'access_denied', 'http_401', 'http_403'].includes(String(candidate.code ?? candidate.response?.data?.code ?? ''));
+}
+
+function isUncertainSqlFailure(error: SqlResultSet['error']): boolean {
+  const code = error?.code ?? '';
+  return ['invalid_sql_response', 'incomplete_sql_response', 'http_408'].includes(code) || /^http_5[0-9]{2}$/.test(code);
+}
+
+function previewLimit(value: number): number {
+  return Math.min(PreviewMaxRows, Math.max(1, Number.isFinite(value) ? Math.trunc(value) : 100));
+}
+
+function boundedReadResult(result: SqlResultSet, limit: number): SqlResultSet {
+  const error = result.error ? { code: result.error.code, message: '时序查询被服务端拒绝或响应无效，请检查后重试。' }
+    : !result.end ? { code: 'incomplete_sql_response', message: '读取缺少完成标记，请检查后重试。' } : null;
+  const rows = error ? [] : result.rows.slice(0, limit);
+  return { ...result, rows, error, end: result.end ? { ...result.end, rowCount: rows.length,
+    truncated: result.end.truncated === true || result.rows.length > rows.length } : null };
+}
+
+function recordRead(context: MeasurementContext, target: string, sql: string, result: SqlResultSet, action: string): void {
+  history.record({ kind: 'query', status: result.error ? 'error' : 'success', title: `${target} ${action}`,
+    target, database: context.database, connectionId: context.connectionId, connectionName: context.connectionName,
+    model: 'measurement', action, command: sql, summary: result.error?.message ?? `${result.rows.length} preview rows`,
+    rowCount: result.rows.length, recordsAffected: -1, elapsedMs: result.end?.elapsedMs ?? 0,
+    completeness: result.error ? 'partial' : result.end?.truncated ? 'truncated' : 'complete' });
+}
+
+function invalidateContext(clearReads = true): void {
+  contextEpoch += 1;
   pointRequestId += 1;
   monitorRequestId += 1;
-  pointResult.value = null;
+  fileRequestId += 1;
+  writeRequestId += 1;
+  pointController?.abort(); monitorController?.abort(); writeController?.abort();
+  pointController = null; monitorController = null; writeController = null;
+  loadingPoints.value = false; monitorLoading.value = false; writeBusy.value = false; importBusy.value = false;
+  stopMonitor();
+  if (clearReads) { pointResult.value = null; monitorResult.value = null; monitorUpdatedAt.value = 0; lastPointSql.value = ''; }
   errorMessage.value = '';
-  monitorResult.value = null;
   monitorError.value = '';
   closeEditor();
-  clearPendingOperations();
+  resetPointDraft();
+  runningOperations.value = [];
+  clearImport();
+}
+
+function lockPermission(): void {
+  permissionLocked.value = true;
+  invalidateContext();
+  errorMessage.value = '当前身份没有 Measurement 权限。';
+}
+
+function openSchemaSql(): void {
+  if (disposed || permissionDenied.value || !props.measurement) return;
+  emit('openSql', `DESCRIBE MEASUREMENT ${formatSqlIdentifier(props.measurement.name)}`);
+}
+
+const identity = computed(() => [props.targetDb, props.measurement?.name ?? '', connections.activeProfileId,
+  connections.activeBaseUrl, auth.api.defaults.baseURL ?? '/'].join('\u001f'));
+
+watch(identity, (value) => {
+  const valid = Boolean(props.targetDb && props.measurement?.name && connections.activeProfileId && connections.activeBaseUrl && auth.api.defaults.baseURL);
+  if (valid && value !== lastValidIdentity) { permissionLocked.value = false; lastValidIdentity = value; }
+  invalidateContext();
   if (props.measurement) {
     monitorTarget.value = props.measurement.name;
     void loadPoints();
   }
-}, { immediate: true });
+}, { immediate: true, flush: 'sync' });
 
-watch(permissionDenied, (denied) => {
-  if (!denied) return;
-  pointRequestId += 1;
+watch([() => auth.state, () => auth.state?.token, () => auth.api,
+  () => props.measurement, () => props.measurements, () => props.tables,
+  () => JSON.stringify([props.measurement, props.measurements, props.tables])], () => {
+  invalidateContext();
+  if (!permissionDenied.value) void loadPoints();
+}, { flush: 'sync' });
+
+watch(readOnly, () => { invalidateContext(false); }, { flush: 'sync' });
+watch(() => props.permissionDenied, (denied) => {
+  if (denied) lockPermission();
+}, { immediate: true, flush: 'sync' });
+
+watch([monitorModel, monitorTarget, monitorLimit], () => {
+  monitorGeneration += 1;
   monitorRequestId += 1;
-  pointResult.value = null;
+  monitorController?.abort();
+  monitorController = null;
+  monitorLoading.value = false;
   monitorResult.value = null;
+  monitorUpdatedAt.value = 0;
   monitorError.value = '';
-});
+  if (monitorRunning.value) void refreshMonitor(true);
+}, { flush: 'sync' });
 
 watch(monitorModel, () => {
   monitorTarget.value = monitorModel.value === 'measurement' ? props.measurements[0]?.name ?? '' : props.tables[0]?.name ?? '';
-  monitorResult.value = null;
-});
-watch(monitorInterval, scheduleMonitor);
-watch(monitorTarget, () => { if (monitorRunning.value) void refreshMonitor(true); });
+}, { flush: 'sync' });
+watch(monitorInterval, scheduleMonitor, { flush: 'sync' });
 watch(activeView, (view) => {
-  if (view !== 'monitor' && monitorRunning.value) {
-    monitorRunning.value = false;
-    scheduleMonitor();
-  }
-});
+  if (view !== 'monitor') stopMonitor();
+}, { flush: 'sync' });
 
 onBeforeUnmount(() => {
-  if (monitorTimer !== null) window.clearInterval(monitorTimer);
+  disposed = true;
+  invalidateContext();
 });
 </script>
 

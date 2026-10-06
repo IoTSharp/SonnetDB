@@ -849,6 +849,12 @@ async function mockManagementContracts(page: Page): Promise<void> {
     }
     if (path === `/v1/db/${database}/graphs/plant_topology/vertices/1`) return json(route, graphVertices[0]);
     if (path === `/v1/db/${database}/sql`) return ndjson(route);
+    if (path === `/v1/db/${database}/sql/batch`) {
+      const body = request.postDataJSON() as { statements?: Array<{ sql?: string }> } | null;
+      // Only the existing Measurement/Vector child-import fixture is handled
+      // here. Other model contracts retain their own explicit handlers.
+      if (body?.statements?.length && body.statements.every((statement) => /\bsensor_readings\b/iu.test(statement.sql ?? ''))) return ndjson(route);
+    }
     if (path === `/v1/db/${database}/documents/device_profiles/find`) {
       return json(route, {
         collection: 'device_profiles',
@@ -1072,7 +1078,13 @@ function graphApproval(state: string): Record<string, unknown> {
 }
 
 async function ndjson(route: Route): Promise<void> {
-  const request = route.request().postDataJSON() as { sql?: string } | null;
+  const request = route.request().postDataJSON() as { sql?: string; statements?: Array<{ sql?: string }> } | null;
+  if (request?.statements?.length && request.statements.every((statement) => /\bsensor_readings\b/iu.test(statement.sql ?? ''))) {
+    if (request.statements.length > 1000) throw new Error('Measurement fixture batch exceeded1000 statements.');
+    await route.fulfill({ status: 200, contentType: 'application/x-ndjson', body: request.statements.map(() =>
+      JSON.stringify({ type: 'end', rowCount: 0, recordsAffected: 1, elapsedMs: 1.2 })).join('\n') });
+    return;
+  }
   const isMeasurementQuery = /\bFROM\s+sensor_readings\b/iu.test(request?.sql ?? '');
   const columns = isMeasurementQuery
     ? ['time', 'device_id', 'temperature', 'embedding']

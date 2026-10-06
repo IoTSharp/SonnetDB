@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-30，2026-10-06；Measurement 客户端切片已验证）
+
+- 从 `main / 46d3f513` 接续，完整接收HANDOFF/AGENTS/queue并核对git/路线图/提交及旧代理；WB-25 Object写终态与WB-26～WB-29均不重复。三博客文件及本文件末尾博客发布hunk继续保留不暂存；HANDOFF只暂存本段。heartbeat回读ACTIVE、每30分钟、当前thread，三宿主仍未闭环。
+- 本片只补Measurement现有点读取/监控/文件/审批的权限与上下文隔离、有界预览。实施代理独占组件/Node，UI代理独占新spec及旧Measurement/Vector子页夹具hunk，第三代理只读复核PASS，均停止写入；根串行维护六共享文档/验证/审计/git，仅十任务文件。共享SQL/API、Server、路由和其它宿主不改，不扩为完整写终态执行器。
+- 点/monitor/write的401/403或精确授权code清点/监控/可见Schema/结果/editor/import/审批并锁存，正文固定脱敏；同身份auth/Schema刷新及空身份往返不解锁。readonly保留读取/导出、程序入口禁写；实际API/连接/auth/database/原名与同步epoch隔离迟返/ABA/卸载，monitor目标/模型/limit独立代际，旧finally不清新busy，已派写取消保留原身份unknown且不声称回滚或重放。文件迟返不填新身份。
+- 点/监控最多500行，先截断再map/图表/显示/当前导出，保留Server truncated；监控单飞最多12轮/60秒，导入审批最多1000语句/10批/60秒新批窗口。正常同上下文主动stop保留100已确认点与新1点审批，完整COMMIT/权威影响数/Int64矩阵另片。同名同结构Schema clone最初未触发失效，复核后增加引用信号并保留JSON原地变化，专属无auth先导测试验证旧signal和新busy。
+- 最终专属Node **16/16**（真实SQL/helper及生产Axios同tickauth/API/profile取消adapter0）、全Web **311/311**、产品TypeScript/Vite、Chrome fixture **20/20**与旧Measurement/Vector子页/monitor浏览器 **8/8**通过。既有真实Kestrel SQL预览端点兼容 **3/3**单列，不计新Measurement UI真实Server权限。首Node0/15为测试SyntheticModule只绑定前100Vue exports漏ref，修为256项/1秒完整绑定；首Chrome18/20为loading图标改变按钮accessible name，仅两定位器修正并保留busy断言，失败日志/trace保留。
+- 证据 `artifacts/wb30-validation-20261006`，最终源码hash/命令/日志见verification-source-final2-hashes与validation-results。门禁前46条身份、0自有存活，三Chrome profiles与Kestrel临时数据根/编译响应目录均已退出或清理；一条短命Node PID77280捕获创建/父链但CIM command缺失，wrapper记录完整命令/退出0，单独核验无存活，不隐藏此限制。两处策略保留Temp不触碰。最终完整restore、原级别format与staged diff退出0才本地提交，实际退出与提交见final-gates/commit-checkpoint；提交说明 `fix(m47): isolate Measurement requests and approvals`，哈希以git log为准。保留`origin/parity-results`当前`b1bca13d47c49c46314a783302721b8a2999c56f`，不fetch/push/安装/发布/部署/外部沟通。
+- 下一次完整接收交接/queue/git/代理，优先冻结新Measurement Web→真实Server权限/读取与写终态最小旅程，再补其余模型真实权限/恢复及Studio/VS Code剩余合同。无响应式信号的markRaw defaults原地endpoint ABA、文件完整字节/解析内存、Server扫描/物化/传输/字节/总堆预算、显式恢复、三宿主/OS/安装/Extension Host/AOT/硬件/长稳/AI/MCP/发行物分别待验。heartbeat保持ACTIVE，本轮不启动WB-31。
+
 ## 当前检查点（WB-29，2026-10-06；本机 KV Web 旅程已验证）
 
 - 从 `main / f03bbfd9` 接续，完整接收HANDOFF/AGENTS/queue并核对git/路线图/已提交WB-25～WB-28及旧代理；Object写终态已提交，不重复。三博客文件及本文件末尾博客发布hunk属于其它会话，保留不暂存；HANDOFF只暂存本段。heartbeat已回读，保持ACTIVE，三宿主整体仍未闭环。

@@ -1,6 +1,6 @@
 # M47 管理工作台设计评审包
 
-状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；切片推进至 WB-29 KV 新Web→本机Kestrel游标/Get/当前JSONL、普通WRITE审批NX成功/未应用影响0/交换及撤权锁存首轮真实3/3，三份成功JSON与SHA256 manifest独立落盘。生产组件/Server/共享runner不改，完整atomic/恢复/Server预算另验。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
+状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；切片推进至 WB-30 Measurement客户端权限锁存/Schema与连接代际/审批隔离及500行预览，Node16/16、全Web311/311、Chrome fixture20/20、旧Measurement/Vector子页8/8与build通过，既有Kestrel SQL预览兼容3/3单列。新Measurement UI真实Server权限、完整写终态与Server预算另验。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
 
 ## 建议评审顺序
 
