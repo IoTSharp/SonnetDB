@@ -5,6 +5,17 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-37，2026-10-07；本地切片已验证）
+
+- 接续`main / 4e7374eda57bb11d1a75e728768179812a6139ab`，最新HANDOFF/AGENTS/queue/ROADMAP已接收、继承完整读取记录并与上轮八文件checkpoint hashes对拍不变；git/既有提交/三个完成代理核验，不重复WB-25～WB-36。生产Object/API/Server/共享runner/其它宿主冻结不改，根只维护六共享文档与八任务文件，HANDOFF只本顶部hunk；博客三文件/oschina目录/41行外来尾hunk保留不stage，origin/parity-results保留。
+- 原`artifacts/wb37-validation-20261007`窗口三run额度耗尽、budget/失败与READ局部证据原样保留。首run正常结果selector/默认Chart遗漏、第二PUT实际ERR_CONNECTION_RESET且Server是否写入未知、第三PUT200后Blob不可观察假设失败均不改为成功。两次READ与第三1/3 manifest仍为原窗口局部证据；最终Blob修正明确unavailable/null，保完整HTTP/DTO/管理员bytes与拒写断言。
+- 新接续窗口`artifacts/wb37-continuation-20261007-01`冻结19:57:17Z至21:12:17Z、根12长命令/3真实run。复用原UI代理仅追加明确named parent，最终spec`9EF343C4C268E60686FE5EC488EF833E3C4B87A80A848324CD9484D62EDBBA5D`执行前冻结；薄入口`5C2611A4…4494087CD`不改。独立review新窗口25文件/30搜索/20:33Z截止；短命令歧义明确修订为12次只读shell各30秒，禁止自跑构建/真实run。所有代理完成后停止写入/查询。
+- 接续首run真实3/3、27.8秒测试/54秒wrapper、retries0：READ151管理员PUT receipts与100/51 opaque continuation/累计原key、当前51/truncated结果、206 Range4096/8192和完整正常Download8192字节/hash/version及list/Range history；Download无自己的history。WRITE正常可见text输入/Stage/一次审批→PUT200/69字节/MD5 ETag/SHA/opaque version/metadata/tags，管理员独立Get实际bytes/hash/text及list DTO相等，原身份batch history影响1。Blob request body仍unavailable/null，不冒称观察到原始上传bytes。
+- REVOKE旧正常text审批实际403，管理员拒写key404且先前批准值/版本保持；清已加载列表/selected载荷/Range/可见文本草稿/审批。READ重授/同token Schema200与六内部tabs仍锁存且selectedBucket请求数不增长，不重放；parent Explorer刷新与显式恢复分开，未产生的文件/image/Multipart草稿不称清理。仅一text PUT/拒写，不计全写矩阵/恢复/Multipart/Server预算。
+- 成功run`object-real-2026-10-06T19-58-02-191Z-ee72bca6-783d-403d-ba27-b082a06187d9`三JSON234671/13884/86826、共335381字节/manifest根完整核验，typed映射按键和值比较、数组保序，极小typed比较试验通过。独立源码PASS；完整成功复核为提交门禁，实际见independent-success-review。真实后30记录身份0自有存活/无缺command，contentRoot与记录Chrome profile已清；最终门禁后审计另见final-process-audit。旧wrapper短命捕获/代理短helper和外部父链限制保留，不称全OS完整。
+- 最终八文件完整`dotnet restore SonnetDB.slnx`与`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、staged diff退出0才本地commit；实际日志/hash/提交见接续目录final-gates/final-tree-hashes/commit-checkpoint与git log，代码再改重跑。旧独立TS18环境诊断不计typecheck PASS，旧Node32/32/Web292/292/fixture5/5与WB-36 Release/trim-AOT证据不冒称本片新验证。
+- PowerShell7；禁Graphify/广域扫描/未授权安装，循环/搜索/等待/重试有次数和墙钟、长进程PID/创建/完整command/父链和finally核验自有树，绝对临时路径核验清理；两政策保留Temp不碰。无fetch/push/发布/部署/外部沟通。下一次按最新检查点优先Studio真实宿主/native bridge/Managed Local/文件对话框/生命周期有界缺口，再VS Code连接/Query/Notebook/分页/LSP/EXPLAIN/治理深链接；完整Web九模型矩阵/显式恢复、三宿主/安装/Extension Host/NativeAOT/固定硬件/长稳/发行物另验。本片不启动WB-38，整体未闭环，唯一heartbeat ACTIVE每30分钟，真正整体闭环后才迁同一heartbeat到新接续会话持续各类型任务。
+
 ## 当前检查点（WB-36，2026-10-07；本地切片已验证）
 
 - 从WB-35本地提交`9788645e1b47b538061f351f069479f7a0635c9f`接续；最新HANDOFF/AGENTS/queue/ROADMAP完整Raw接收，hash对拍上一片最终已读树，git/路线图/已存在提交/代理核验。上一片145记录身份0存活，3短command缺口保留；旧两代理完成，WB-25～WB-35不重复。博客三文件及HANDOFF外来尾段保留不暂存。

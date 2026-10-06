@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-37 合同与文件冻结（2026-10-07；本地切片已验证）
+
+- 依赖WB-24/25既有Object读取/写终态、WB-16导航和WB-27/31隔离runner，从`4e7374ed`接续，不重做已有页面。初始三run窗口budget/失败/READ局部产物冻结；新接续`artifacts/wb37-continuation-20261007-01`19:57:17Z至21:12:17Z、根12长命令/3真实run，首run真实3/3（27.8秒/54秒wrapper）通过，旧三个失败不改为PASS。
+- 原UI代理独占`web/e2e/object-real-permission.spec.ts`仅named parent最小追加，最终9EF343C4冻结后真实执行；原薄入口`web/e2e/run-object-real.mjs`不变。独立review新窗口25命名文件/30定向搜索/20:33Z截止、12只读shell各30秒（初始短命令提示歧义已修订），无自跑验证或另派代理。生产组件/API/Server/路由/共享runner/其它宿主冻结；根独占六共享文档/验证/审计/集成/git，八任务文件/HANDOFF只顶部任务hunk。
+- 三serial正常UI旅程，无mock/skip/forced click/组件setup/prop/program-entry harness，API登录装普通真实非superuser token不计登录UI或宿主readonly props。READ151 seed/45秒、100/51 opaque continuation原key/typed DTO与管理员receipts相等、累计151，当前结果51/truncated；真实206 Range4096/8192和正常Download200/8192字节/hash/version、已有list/Range history相等，Download无自己的history。不称全bucket快照或Server预算；bucket合法小写，key原大小写/冒号保持。
+- WRITE正常可见text/metadata/tags暂存→一次审批→实际PUT200完整Object DTO/69字节/MD5 ETag/SHA/opaque version；管理员独立Get实际bytes/hash/text与list DTO相等，原身份history1。Playwright Blob body不可观察明确unavailable/null，非null仍严格核原bytes，不称原始上传body观测。REVOKE旧审批实际403/管理员key404/先前批准值保持，清加载列表/selection/Range/可见草稿/审批；READ重授/同tokenSchema200/六tabs仍锁存，selectedBucket无新增请求/重放，Explorer可另刷新，不冒称显式恢复或未发生文件/image/Multipart草稿清理。
+- 每test120秒/retries0、控制API10秒/browser响应与download事件15秒/生产Axios30秒分开；成功wx/manifest最多24份/1MiB/8MiB，两个明确ordinary named parents/直接run子目录/marker/realpath/凭据门禁。三JSON234671/13884/86826共335381，根typed结构比较与manifest核验；独立源码PASS、完整成功复核为提交门禁，实际见independent-success-review。
+- 初始失败分别为正常Teleport class/Chart遗漏、实际未知提交PUT连接reset、正常Blob postDataBuffer=null观察假设；失败trace/typed PUT观察/1of3 manifest保留，reset原因未知/Vite stdio ignore限制保留。两次READ旧证据不计初始整体3/3，接续实际3/3单独记录；旧TS18环境诊断不计全typecheck。
+- 真实后30记录身份0自有存活/无缺command，contentRoot/Chrome profile清理；旧wrapper短命/helper/外部父链限制保留。PowerShell7固定pwsh、禁Graphify/广域扫描/未授权安装，所有循环/搜索/等待/重试同时有项目/次数和墙钟、先小输入检查比较退出；长进程完整身份/父链和finally仅收核验自有树、临时绝对核验，两个policy Temp不碰。保护博客/oschina/HANDOFF外来尾hunk与origin/parity-results，无fetch/push/发布/部署/外部沟通。
+- 最终八任务文件完整restore/原级别format/staged diff退出0才commit，代码改后重跑；实际门禁/树/提交见接续final-gates/final-tree-hashes/commit-checkpoint及git log。三宿主未闭环、完整权限/语义/Multipart/显式恢复/Server预算/OS对话框/安装/Extension Host/AOT/固定硬件/长稳/发行物另验；下一片优先Studio真实宿主/native bridge/Managed Local/文件对话框/生命周期，再VS Code开发者面。本片不启动WB-38，唯一heartbeat ACTIVE30分钟。
+
 ### WB-36 合同与文件冻结（2026-10-07；本地切片已验证）
 
 - 依赖WB-35实际提交`9788645e1b47b538061f351f069479f7a0635c9f`；完整Raw接收最新HANDOFF/AGENTS/queue/ROADMAP/hash对拍，git/路线图/提交及旧代理核验，145记录身份0存活；3短command捕获缺口沿既有证据保留。博客三文件/HANDOFF尾hunk保留不暂存，WB-25～WB-35不重复，三宿主未闭环，唯一heartbeat ACTIVE每30分钟。

@@ -6,6 +6,8 @@ WB-35另取得Graph Beta新Web→隔离Release Kestrel第三轮3/3：实际Canva
 
 WB-36已定向复现并修复上述精确顶点预算缺口：旧DLL正常导出151实际truncated=false失败观察保留；两行Server修复在零剩余预算探测一条边，保总预算/顶点优先/原快照与source-generated JSON。新增8例真实Kestrel矩阵随GraphEndpointTests17/17通过，Server Release/trim-AOT分析0警告错误；修复后真实Web首轮3/3，151响应/下载/history实际truncated=true，四JSON1015208字节/manifest核验。最终独立复核、完整restore/原级别format与九文件本地提交见[验证记录](validation-report.md)和git log；WB-35全Web/fixture仍是旧片证据，NativeAOT发布、通用Server预算、Object新UI与Studio/VS Code继续另验，三宿主未闭环，heartbeat保持ACTIVE每30分钟。
 
+WB-37 Object新Web真实旅程已在单独接续窗口首run取得3/3：151管理员PUT receipts与100/51 opaque continuation、当前51/truncated结果、Range206/4096和正常Download200/8192字节/hash/version及已有list/Range history；正常text一次审批PUT200完整69字节终态、管理员独立GET/list与history1；旧审批REVOKE403/管理员key404/先前批准值保持，READ重授同tokenSchema200六tabs锁存无selectedBucket重放。Blob不可观察body明确unavailable/null；原三run失败/耗尽budget/局部READ证据保留，连接reset原因未知。接续三JSON335381字节/manifest根核验、独立源码PASS，完整成功复核/最终restore-format/八文件本地提交见[验证记录](validation-report.md)和git log。生产/共享runner不改，不计完整写矩阵/Multipart/显式恢复/OS对话框/Server预算或三宿主完成；下一片Studio优先，唯一heartbeat保持ACTIVE每30分钟。
+
 ## 建议评审顺序
 
 1. 看顶部、一级轨、左导航、中央、右检查器、下结果和状态栏的外轮廓。

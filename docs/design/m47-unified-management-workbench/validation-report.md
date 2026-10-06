@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-37 Object 真实Web旅程（2026-10-07；本地切片已验证）
+
+- 新薄入口复用隔离runner，UI仅新增真实spec；生产Object/API/Server/共享runner/其它宿主不改，WB-25写终态不重做。初始`artifacts/wb37-validation-20261007`三run额度耗尽、budget原样保留；另冻`artifacts/wb37-continuation-20261007-01`19:57:17Z至21:12:17Z、12长命令/3真实run，不重置旧预算或覆盖失败。
+- 原窗口首READ失败是正常Teleport未透传object-result class且默认Chart，真实结果已存在；仅修正常title scope/Table点击。第二READ通过后PUT实际net::ERR_CONNECTION_RESET/status-1，产品unknown/消费审批，未到管理员Get，Server是否写入未知；Vite stdio ignore无proxy stderr限制保留。第三fresh实例PUT200/69字节/MD5 ETag/SHA/opaque version/metadata/tags后，正常Blob postDataBuffer=null假设使spec失败，管理员Get/history与REVOKE未跑；该run仅READ JSON234112字节/manifest1of3与typed PUT观察，不能改为完整成功。
+- Blob修正将unavailable body/bytes/hash明确null，非null仍核原bytes，保严格method/path/noquery/headers/完整PUT DTO与管理员独立GET/list。接续仅追加第二明确named parent，最终spec9EF343C4C268E60686FE5EC488EF833E3C4B87A80A848324CD9484D62EDBBA5D执行前freeze且执行后不变；入口5C2611A4…4494087CD不改。
+- 接续首run真实3/3、27.8秒测试/54秒wrapper、retries0、正常routed Vue→Vite proxy→fresh Release Kestrel；READ151个管理员PUT receipts与实际100/51 opaque continuation窗口逐项typed对拍、累计151原key/metadata/tags/ETag/SHA/版本，当前共享结果51/truncated。Range206/0..4095/4096字节/8192声明与原版本、正常Download200/8192字节/hash/version和实际下载相等并finally删除；既有list/Range history保原身份，Download无独立history。
+- WRITE普通非超级用户正常text/metadata/tags→Stage→一次审批→PUT200、69字节完整DTO/headers；管理员独立Get实际text/bytes/hash/ETag/version与list DTO相等，原身份Object operation batch history1 approved/started/confirmed、row1/affected1。PUT request body实际unavailable/null，不冒称观察到了上传raw bytes。REVOKE旧text审批实际403，管理员拒写key404且先前批准对象/版本/bytes保持；清列表/selection/Range/可见原文本/metadata/tags草稿/审批，READ重授/同tokenSchema200和六tabs仍锁，selectedBucket请求数不增加、不重放。
+- 成功run`object-real-2026-10-06T19-58-02-191Z-ee72bca6-783d-403d-ba27-b082a06187d9`三JSON234671/13884/86826共335381字节，manifest完整3份、wx/普通绝对runRoot/marker/1MiB单份/8MiB总量/无凭据门禁根核验PASS。根checker映射按原键和值typed结构比较、数组保序，键序/数组序/number对string极小试验通过，151typed DTO核验与管理员写/拒写对拍PASS。独立source PASS，完整成功复核为提交门禁，实际见independent-success-review。
+- 真实后30记录身份0自有存活/无缺command，contentRoot与记录Chrome profile不存在/cleanupProven。原窗口78身份0存活及其两短command缺口另保留，旧wrapper可能漏短命worker、代理helper身份未全捕获和外部父链限制单列，不称全OS完整；两个policy Temp不碰，博客/oschina/41外来HANDOFF行保留不stage。独立review新的25文件/30搜索/20:33Z硬限、总shell12次各30秒明确修订了初始提示歧义，无构建/真实run/安装/另派。
+- 根串行六共享文档/八文件白名单；最终完整restore/原级别format与staged diff退出0才本地commit，实际final-gates/final-tree-hashes/staged-checkpoint/commit-checkpoint及最终process audit见接续目录，代码再改重跑。旧TS18缺@types/node环境诊断不计完整typecheck，transpile0仅语法；旧Node32/32、Web292/292、fixture5/5和WB-36 Release/trim-AOT仅属既有证据，本片不重跑冒称。
+- 合法小写bucket/原key与opaque version保持；API安装普通真实token不计登录UI/routed readonly宿主props。仅一text PUT与旧审批拒写，不称完整写/语义/Multipart/图片/文件OS对话框、全bucket快照/扫描/物化/传输/字节/堆预算/显式恢复。Explorer可另刷新，未实际产生的file/image/Multipart草稿不称清理。真实Server、三宿主、安装/Extension Host/NativeAOT/固定硬件/长稳/发布分别未闭环；PowerShell7/禁Graphify与广域扫描及未授权安装/有界执行/身份finally回收边界保持，origin/parity-results保留，无fetch/push/发布/部署/外部沟通。下一片Studio宿主与Managed Local生命周期优先，唯一heartbeat ACTIVE30分钟，不启动WB-38于本片。
+
 ## WB-36 Graph 精确导出预算截断（2026-10-07；本地切片已验证）
 
 - WB-35候选经旧Release DLL正常Web导出maxElements151定向复现：200/snapshot1/151顶点0边/count151，仍有未导出的150条边却truncated=false。READ在预期true断言失败，两后续旅程未执行；独立实际response/download/history在断言前落盘202301字节，manifest仅1/预期4份如实保留。根核旧DLL45207D4C与生产B8EB9A5A在run未变，才放行生产修复；失败run`graph-real-2026-10-06T18-58-02-023Z-d091d688-a7a5-4487-b64d-1ccf70078d91`保留。

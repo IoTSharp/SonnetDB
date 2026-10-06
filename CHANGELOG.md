@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-37 Object真实Web证据（2026-10-07）**：新增隔离runner薄入口和三正常旅程；接续首run3/3补100/51 continuation/151原DTO/当前51截断结果、206 Range4096与正常Download8192、一次text审批PUT200/管理员独立Get与history1、旧审批REVOKE403/管理员404/批准值保持和READ重授同tokenSchema200六tabs锁存。Blob不可观察body明确null；三JSON335381字节/manifest核验，初始三失败/耗尽budget与未知reset保留。生产/共享runner不改，完整独立复核、最终restore/原级别format与八文件本地提交见M47验证记录；Multipart/恢复/Server预算/三宿主/发行物另验。
+
 - **M47 WB-35 Graph真实Web证据（2026-10-07）**：新增复用隔离runner的Graph薄入口和三旅程，普通READ核实际Canvas250/10/1000、typed vertex、独立snapshot JSON导出10/1000及原身份history；普通WRITE一次审批取得单vertex Upsert sequence/isDuplicate终态与管理员Get/version+1；旧审批REVOKE403清画布/overview/编辑器/可见import草稿并在READ重授/同tokenSchema200保持锁存。真实第三轮3/3、Node27/27、全Web327/327、Graph fixture16/16/build通过，前两轮正常控件定位/数字提交失败记录保留；三JSON811899字节/manifest核验。Graph Beta、完整Int64/edge/import/维护及三宿主继续另验，恰满顶点预算的导出截断候选缺口留下一片；最终完整restore/原级别format为提交前置，实际见M47验证记录。
 
 - **M47 WB-34 MQ真实Web证据（2026-10-07）**：新增复用隔离runner的MQ薄入口与三旅程；普通READ fromOffset0/100的100/51当前JSONL/原身份history、WRITE正常Publish201/Ack200一次审批与管理员对拍、旧Publisher审批REVOKE403清载荷/草稿/审批且READ重授/同tokenSchema200仍锁存。真实首轮3/3、Node22/22、全Web327/327、MQ fixture16/16/build通过，三JSON195806字节/manifest核验；生产/API/Server/共享runner不改，真实冒号Topic400、无实际文件导入、实例恢复/Server预算/三宿主未闭环边界单列。独立复核和最终完整restore/原级别format为本地提交前置，实际结果见M47验证记录。
