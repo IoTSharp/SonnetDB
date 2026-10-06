@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-26 Document 真实 Web 权限与输出预算（2026-10-06）**：新增隔离本机 Kestrel/Vite/Chrome 旅程，使用普通用户的真实撤权、拒写、重新授 READ 与显式 Find100 恢复，并核对实际响应、下载与历史。修正 Distinct 的真实请求兼容：空IDs省略，显式IDs保留；请求最多1000项，小于1000的预览用哨兵证明截断，恰1000项满窗明确完整性未知，保留真实响应终态且不虚构分页。真实Web→Kestrel3/3、Node21/21、全Web295/295、Chrome fixture11/11与build通过；其它宿主、登录UI/readonly props、安装、AOT、扫描/物化/字节预算及发布证据分开，范围和失败记录见 M47 验证记录。
+
 - **M47 WB-25 Object 写终态与一次审批消费（2026-10-06）**：补 Object 写执行器的审批快照一次消费、最多1000项批次和60秒客户端新操作启动窗口；冻结写入输入并核验对象/桶/Multipart/语义响应的目标与必要字段，批删逐项匹配批准 key，明确失败与传输/缺失/损坏终态的 unknown 分开记录并保留已确认影响数量。DELETE/删桶/Multipart abort 校验 HTTP 204，单对象 DELETE 校验 delete-marker、version-id、ETag；已证明的 Multipart 写终态不被伴随刷新拒绝推翻。Node32/32、全Web292/292、Vite build、新 Chrome fixture5/5、既有 Object 浏览器4/4、真实 Kestrel Object4/4+Multipart2/2通过；真实新UI权限、完整传输/资源预算、三宿主、安装与发布仍独立验收。
 
 - **M47 WB-24 Object 读取隔离与有界预览（2026-10-06）**：复用既有桶浏览、版本、治理、Multipart 和图片语义；补六态、readonly 程序/按钮门禁及全读取路径401/403载荷/URL/草稿/审批清理与锁存。实际连接/API/认证、桶、prefix/token、选中key/version和请求代际隔离迟返、ABA与卸载；审批及native/Web文件选择器绑定原身份。列表先截断再映射，每页及累计最多1000，拒绝错误目标/不前进token且超返不复用跳项游标；Range先校验安全整数和真实206声明区间/版本，再slice至请求/声明长度/4096字节后读取格式化。专属Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、TypeScript/Vite、独立复核和既有真实Kestrel兼容4/4通过；写终态/一次消费、完整语义/Multipart与服务端预算、新UI真实权限、真实OS对话框及三宿主仍独立验收。

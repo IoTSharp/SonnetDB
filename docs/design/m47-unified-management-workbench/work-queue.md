@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-26 合同与文件冻结（2026-10-06；本机 Document Web 旅程已验证）
+
+- 干净起点 `8a4c64c8b96536f67f0b124471790e05ef441bdb`；WB-25三代理已结束且提交已核验，不重复Object。仅补Document新Web UI连接真实本机Kestrel的权限/显式恢复与高级读取输出预算旅程，依赖WB-12/WB-18和既有Server控制面/Document API；组件只补真实Distinct兼容，不改生产Server、路由或其它宿主。
+- `/root/wb20_vector_impl`独占新增 `web/e2e/run-document-real.mjs`，真实合同复核后追加 `web/src/components/DocumentCollectionWorkbench.vue` 与 `web/tests/document-workbench-migration.test.mjs` 的Distinct满窗完整性修复；`/root/wb20_vector_ui`独占新增 `web/e2e/document-real-permission.spec.ts` 与既有 `web/e2e/document-recovery-budget.spec.ts` 的必要请求上限断言；`/root/wb19_fulltext_impl`独立只读复核。根独占六共享文档、Server build、验证/runner/审计、集成、完整restore/format、stage/commit。每代理最多25命名文件、35分钟；必要修复另开15文件/15分钟有界turn，不自行长验证/git/另派代理。
+- Runner仅启动本任务隔离contentRoot/DataRoot的真实Release Server，loopback HTTP、关闭MQTT/CoAP/UDP/Modbus/语义外联，复用现有Vite/Playwright入口与真实代理。必需配置缺失直接失败，不skip；最多三浏览器测试、各120秒、总10分钟，readiness最多120次/60秒、HTTP请求10秒，不安装工具。API响应不得mock，不能用prop harness替代真实路由。
+- 动态普通用户先获写权限：浏览/暂存插入审批，真实撤权后确认获得403并清旧载荷/草稿/审批；恢复尝试仍403保持锁存；重新授READ后普通Refresh不解锁，显式恢复仅一次空条件Find100/skip0/无旧cursor，同token/原名目标并校验实际返回，恢复不重放旧写。管理员独立查证被拒绝文档未落库。真实只读Server拒写与routed host的readonly props证据分开。
+- Aggregate保留用户pipeline并追加limit1001，真实返回哨兵后预览/导出最多1000；Distinct真实Server把limit封顶1000，故请求min(cap+1,1000)，仍保留用户1～1000预览。cap<1000的哨兵证明truncated；cap=1000且实际返回恰1000时，页面/历史明确完整性unknown，不写complete或虚构下一页；返回不足cap为complete，意外超返仍先截断。真实Distinct场景覆盖500/501哨兵及1000满窗，最多1001个本任务种子文档。不称扫描/中间物化/字节/总堆预算、进程重启恢复或全部九模型验收；登录API产生真实token并装入浏览器会话，不称登录UI验收。
+- PowerShell7；禁止Graphify、广域工具扫描与未授权安装；循环/搜索/等待/重试有次数/项目数及墙钟，先小输入；长进程记录PID/创建/完整命令/父链，finally仅回收已核验自有树。临时路径绝对核验，隔离数据结束后只清本任务目录；两处策略保留Temp不删除不绕过。fixture、真实新UI、三宿主/安装/Extension Host/AOT/固定硬件/长稳/发行物分别记录。保留origin/parity-results，不push/发布/部署/外部沟通；三宿主仍未闭环，heartbeat保持ACTIVE。
+- 真实证据发现空IDs发送[]会选择空目标集，追加同一组件/Node最小修复：空输入省略ids，显式IDs仍保留原值；路径$.site及501/1000断言不变。三代理已冻结停止写入，独立复核PASS。最终专属Node21/21、全Web295/295、TypeScript/Vite、Chrome fixture11/11、真实Web→本机Kestrel `document-real-final4` 3/3（无skip/retry）通过；Server Release0警告/错误。
+- 首四run依次为非法集合名setup400、编辑区定位、2/3真实空IDs兼容缺口、并行验证首次Find连接中断；日志/trace保留，不计整体PASS。相同冻结源码单独第五run3/3；第四runVite中断根因未确认，后续同仓库Vite/Playwright验证串行。门禁前合并162条进程记录0存活，五个隔离contentRoot均清理；证据 `artifacts/wb26-validation-20261006`。完整restore/原级别format/staged diff为本地提交前置，实际门禁与11任务文件提交绑定见final-gates/commit-checkpoint；三宿主与服务端资源预算继续另验。
+
 ### WB-25 合同与文件冻结（2026-10-06；本地切片已验证）
 
 - 干净起点 `a2bc3f1a6af69df5e4716f0f41c80013ca7c64e3`；WB-24 三代理已结束，不重复派单。本轮仅 Object 现有写审批执行器终态兼容切片，依赖 WB-24 的身份/权限门禁，复用 22 个暂存入口，不改 Server、路由、其它模型或宿主代码。
@@ -136,8 +147,9 @@
 | WB-23 | Graph 权限/请求隔离与有界画布 | 已提交 `cb32050b`，专属Node27/27、全Web260/260、Chrome16/16、既有浏览器3/3、真实Kestrel兼容4/4、build及独立复核通过。Graph Beta、完整Int64字符串/新UI真实权限/三宿主边界见顶部冻结。 |
 | WB-24 | Object 读取隔离、权限门禁与有界列表/Range | 本地切片已验证，顶部冻结；Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、真实Kestrel兼容4/4、build与独立复核PASS。最终完整门禁为提交前置，实际哈希见git log。写终态/unknown/一次消费、完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
 | WB-25 | Object 写终态、一次审批消费与批次预算 | 本地切片已验证，顶部冻结；Node32/32、全Web292/292、Chrome5/5、既有浏览器4/4、真实Kestrel Object4/4+Multipart2/2、build与独立复核PASS。最终完整restore/format/staged检查为本地提交放行条件，实际哈希见git log；完整语义/Multipart/Server预算、新UI真实权限/OS/三宿主另验。 |
+| WB-26 | Document 新Web UI真实权限、显式恢复与输出预算 | 本机Web→Kestrel 3/3、Node21/21、全Web295/295、Chrome fixture11/11、build与独立复核PASS；空IDs省略，Distinct满1000完整性unknown。最终完整门禁与实际11文件提交见证据目录；API登录、READ拒写与真实登录UI/readonly props分开，Advanced/Server资源预算及三宿主另验。 |
 
-WB-15～WB-25已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点九模型新UI真实权限/恢复与Studio/VS Code剩余合同和旅程，再按一个有界切片推进；不重复WB-25，本轮不启动下一片。
+WB-15～WB-26已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点其它九模型新UI真实权限/恢复与Studio/VS Code剩余合同和旅程，再按一个有界切片推进；不重复WB-25/WB-26，本轮不启动下一片。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 

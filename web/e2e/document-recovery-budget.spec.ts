@@ -310,7 +310,7 @@ test('Aggregate preserves user pipeline, appends a 1001 sentinel limit and bound
 });
 
 for (const cap of [7, 1_000]) {
-  test(`Distinct uses the selected ${cap} preview cap plus one sentinel and keeps exports bounded`, async ({ page }) => {
+  test(`Distinct bounds the selected ${cap} preview request and keeps over-return exports bounded`, async ({ page }) => {
     const evidence = await prepare(page, { more: true, read: (route, request) => request.action === 'distinct'
       ? json(route, { collection: collectionName, path: '$.site', values: Array.from({ length: cap + 1 }, (_, index) => index === cap ? 'DistinctSentinelMustNotExport' : `DistinctPreview:${index}`) })
       : defaultRead(route, request, true) });
@@ -319,7 +319,7 @@ for (const cap of [7, 1_000]) {
     await surface(page).getByTestId('document-distinct-limit').locator('input').fill(String(cap));
     await surface(page).getByRole('button', { name: 'Run distinct', exact: true }).click();
     await expect(page.locator('.workbench-result-panel__alert')).toContainText('结果已截断');
-    expect(evidence.reads.at(-1)).toMatchObject({ action: 'distinct', body: { path: '$.site', limit: cap + 1 } });
+    expect(evidence.reads.at(-1)).toMatchObject({ action: 'distinct', body: { path: '$.site', limit: Math.min(cap + 1, 1_000) } });
     await expect(surface(page).getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
     const exported = await exportResultJson(page);
     expect(exported).toHaveLength(cap);

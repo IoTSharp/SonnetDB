@@ -77,7 +77,8 @@ async function loadWorkbench(overrides = {}, getStudioNativeBridge = async () =>
     runFind, runCount, runDistinct, runAggregate, stageInsertDocument, stageDeleteSelected, stageImportDocuments,
     confirmPendingOperations, applyFindResponse, clearResourcePayload, captureContext, parseImportDocuments,
     recoverReadPermission, permissionRecoveryBusy, permissionFailure, activeView, queryTab, idsText, filterText,
-    projectionText, sortText, continuationToken, limit, skip, aggregateText, distinctLimit, resultPreviewLimit, totalCount };`;
+    projectionText, sortText, continuationToken, limit, skip, aggregateText, distinctLimit, resultPreviewLimit, totalCount,
+    advancedReadCompleteness, pagerText, resetAdvancedRead, clearLatestResult };`;
   const module = new SourceTextModule(stripTypeScriptTypes(`import { props as fixtureProps } from 'fixture';\n${injected}\n${script}\n${exports}`, { mode: 'transform' }), { identifier: sourcePath.href });
   await module.link((specifier) => {
     assert.ok(dependencies[specifier], `Unexpected dependency: ${specifier}`);
@@ -523,12 +524,13 @@ test('Aggregate appends its output sentinel without mutating pipeline and slices
   } finally { workbench.cleanup(); }
 });
 
-test('Distinct clamps finite integer preview limits and requests one sentinel with accurate history completeness', { timeout: 5000 }, async () => {
+test('Distinct clamps finite preview limits to the real Server maximum and slices overreturned sentinels', { timeout: 5000 }, async () => {
   const requests = [];
   let overflowFormatted = false;
+  let previewCap = 1000;
   const workbench = await loadWorkbench({ distinctDocuments: async (_api, _db, _name, request) => {
     requests.push(request);
-    return { path: '$.site', values: [...Array.from({ length: request.limit - 1 }, (_, index) => index),
+    return { path: '$.site', values: [...Array.from({ length: previewCap }, (_, index) => index),
       { toJSON() { overflowFormatted = true; return 'overflow'; } }] };
   } });
   try {
@@ -536,9 +538,10 @@ test('Distinct clamps finite integer preview limits and requests one sentinel wi
     await nextTick();
     await nextTick();
     for (const [input, expectedCap] of [[2000, 1000], [0, 1], [2.9, 2], [null, 50], [Number.POSITIVE_INFINITY, 50]]) {
+      previewCap = expectedCap;
       workbench.distinctLimit.value = input;
       await workbench.runDistinct();
-      assert.equal(requests.at(-1).limit, expectedCap + 1);
+      assert.equal(requests.at(-1).limit, Math.min(expectedCap + 1, 1000));
       assert.equal(workbench.latestResult.value.rows.length, expectedCap);
       assert.equal(workbench.resultPreviewLimit.value, expectedCap);
       assert.equal(workbench.latestResult.value.end.truncated, true);
@@ -568,5 +571,59 @@ test('short and exact-cap advanced output remains complete and stores the return
     assert.equal(workbench.historyEntries.at(-1).rowCount, 2);
     assert.equal(workbench.historyEntries.at(-1).completeness, 'complete');
     assert.equal(workbench.latestResult.value.end.truncated, false);
+  } finally { workbench.cleanup(); }
+});
+
+test('Distinct 500/501 truncates while Server-full 1000/1000 remains unknown and 999 is complete', { timeout: 5000 }, async () => {
+  let returnedCount = 501;
+  const requests = [];
+  const workbench = await loadWorkbench({ distinctDocuments: async (_api, _db, _name, request) => {
+    requests.push(request); return { path: '$.site', values: Array.from({ length: returnedCount }, (_, index) => index) };
+  } });
+  try {
+    workbench.props.collection = collection(); await nextTick(); await nextTick();
+    for (const [cap, count, expectedLimit, completeness] of [[500, 501, 501, 'truncated'], [1000, 1000, 1000, 'unknown'], [1000, 999, 1000, 'complete']]) {
+      workbench.distinctLimit.value = cap; returnedCount = count; await workbench.runDistinct();
+      assert.equal(requests.at(-1).limit, expectedLimit); assert.equal(workbench.resultPreviewLimit.value, cap);
+      assert.equal(workbench.latestResult.value.rows.length, Math.min(cap, count)); assert.equal(workbench.latestResult.value.end.rowCount, Math.min(cap, count));
+      assert.equal(workbench.advancedReadCompleteness.value, completeness); assert.equal(workbench.historyEntries.at(-1).completeness, completeness);
+      assert.equal(workbench.latestResult.value.end.truncated, completeness === 'truncated'); assert.equal(workbench.latestResult.value.error, null);
+      if (completeness === 'unknown') { assert.match(workbench.pagerText.value, /unknown completeness/u); assert.doesNotMatch(workbench.pagerText.value, /complete output/u); }
+    }
+    assert.match(source, /data-testid="document-distinct-completeness"/u);
+    assert.match(source, /服务端最多返回 1,000 项；当前结果是否还有更多值未知。导出仅包含已加载项。/u);
+  } finally { workbench.cleanup(); }
+});
+
+test('Distinct unknown completeness resets for Aggregate, Find, cleared results and permission payload clearing', { timeout: 5000 }, async () => {
+  const workbench = await loadWorkbench({ distinctDocuments: async () => ({ path: '$.site', values: Array.from({ length: 1000 }, (_, index) => index) }),
+    aggregateDocuments: async () => ({ documents: [{}], count: 1 }) });
+  try {
+    workbench.props.collection = collection(); await nextTick(); await nextTick(); workbench.distinctLimit.value = 1000;
+    await workbench.runDistinct(); assert.equal(workbench.advancedReadCompleteness.value, 'unknown');
+    await workbench.runAggregate(); assert.equal(workbench.advancedReadCompleteness.value, 'complete'); assert.doesNotMatch(workbench.pagerText.value, /unknown completeness/u);
+    await workbench.runDistinct(); workbench.resetAdvancedRead('aggregate'); assert.equal(workbench.advancedReadCompleteness.value, null);
+    await workbench.runDistinct(); workbench.applyFindResponse(findResponse('fresh-find'), false, 1, 'find'); assert.equal(workbench.advancedReadCompleteness.value, null);
+    await workbench.runDistinct(); workbench.clearLatestResult(); assert.equal(workbench.advancedReadCompleteness.value, null); assert.equal(workbench.latestResult.value, null);
+    await workbench.runDistinct(); workbench.props.permissionDenied = true; assert.equal(workbench.advancedReadCompleteness.value, null); assert.equal(workbench.latestResult.value, null);
+  } finally { workbench.cleanup(); }
+});
+
+test('Distinct omits empty IDs to scan the collection and preserves explicit original IDs', { timeout: 5000 }, async () => {
+  const requests = [];
+  const workbench = await loadWorkbench({ distinctDocuments: async (_api, _db, _name, request) => {
+    requests.push(request);
+    // Core treats missing/null IDs as a collection scan, but an explicit empty array selects nothing.
+    return { path: '$.site', values: request.ids == null ? ['collection-value'] : request.ids.map((id) => `value:${id}`) };
+  } });
+  try {
+    workbench.props.collection = collection(); await nextTick(); await nextTick();
+    workbench.idsText.value = ' ,\n '; await workbench.runDistinct();
+    assert.equal(Object.hasOwn(requests.at(-1), 'ids'), false);
+    assert.equal(Object.hasOwn(JSON.parse(JSON.stringify(requests.at(-1))), 'ids'), false);
+    assert.equal(workbench.latestResult.value.rows[0][1], '"collection-value"');
+    workbench.idsText.value = 'Device:One, Device:TWO\nDevice:One'; await workbench.runDistinct();
+    assert.deepEqual(requests.at(-1).ids, ['Device:One', 'Device:TWO']);
+    assert.equal(workbench.latestResult.value.rows.length, 2); assert.equal(workbench.historyEntries.at(-1).completeness, 'complete');
   } finally { workbench.cleanup(); }
 });

@@ -78,6 +78,13 @@
       @close="errorMsg = ''"
     />
 
+    <n-alert
+      v-if="!permissionDenied && resultMode === 'distinct' && advancedReadCompleteness === 'unknown' && latestResult"
+      type="warning"
+      data-testid="document-distinct-completeness"
+      class="document-alert"
+    >服务端最多返回 1,000 项；当前结果是否还有更多值未知。导出仅包含已加载项。</n-alert>
+
     <section v-if="activeView === 'documents' && !permissionDenied" class="document-stats">
       <article v-for="item in statItems" :key="item.label" class="document-stat">
         <span>{{ item.label }}</span>
@@ -475,7 +482,7 @@
       :summary="resultSummary"
       :file-name="`${targetDb}_${activeCollectionName || 'documents'}`"
       empty-description="Browse a collection or stage document operations to see results."
-      @clear-error="latestResult = null"
+      @clear-error="clearLatestResult"
     />
 
     <footer class="document-statebar" data-zone="status">
@@ -745,6 +752,7 @@ let importCancelRequested = false;
 const pendingOperations = ref<PendingOperation[]>([]);
 const latestResult = ref<SqlResultSet | null>(null);
 const resultPreviewLimit = ref(DocumentPreviewMaxRows);
+const advancedReadCompleteness = ref<WorkbenchHistoryCompleteness | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
@@ -845,7 +853,9 @@ const querySummary = computed(() => {
 
 const pagerText = computed(() => {
   if (resultMode.value === 'aggregate' || resultMode.value === 'distinct') {
-    return `${latestResult.value?.end?.rowCount ?? 0} preview items · ${latestResult.value?.end?.truncated ? 'truncated preview' : 'complete output'} · no cursor pagination`;
+    const completeness = latestResult.value?.end?.truncated ? 'truncated preview'
+      : advancedReadCompleteness.value === 'unknown' ? 'unknown completeness' : 'complete output';
+    return `${latestResult.value?.end?.rowCount ?? 0} preview items · ${completeness} · no cursor pagination`;
   }
   const count = totalCount.value == null ? 'unknown count' : `${totalCount.value.toLocaleString()} total`;
   const page = rows.value.length >= DocumentPreviewMaxRows
@@ -1058,6 +1068,7 @@ async function runCount(): Promise<void> {
     const elapsed = performance.now() - started;
     totalCount.value = response.count;
     resultMode.value = 'count';
+    advancedReadCompleteness.value = null;
     latestCommand.value = command;
     latestResult.value = {
       columns: ['collection', 'count'],
@@ -1091,12 +1102,13 @@ async function runDistinct(): Promise<void> {
   queryBusy.value = true;
   errorMsg.value = '';
   const started = performance.now();
+  const previewLimit = boundedDistinctLimit.value;
+  const ids = parseIds(idsText.value);
   const request = {
     path: distinctPath.value.trim(),
-    ids: parseIds(idsText.value),
-    limit: boundedDistinctLimit.value + 1,
+    ...(ids.length > 0 ? { ids } : {}),
+    limit: Math.min(previewLimit + 1, DocumentPreviewMaxRows),
   };
-  const previewLimit = request.limit - 1;
   resultPreviewLimit.value = previewLimit;
   const command = `documents.distinct ${activeCollectionName.value}\n${JSON.stringify(request, null, 2)}`;
   try {
@@ -1108,8 +1120,11 @@ async function runDistinct(): Promise<void> {
     ranOnce.value = true;
     const previewCount = latestResult.value.rows.length;
     const truncated = latestResult.value.end?.truncated === true;
+    const completeness = truncated ? 'truncated'
+      : previewLimit === DocumentPreviewMaxRows && response.values.length === previewLimit ? 'unknown' : 'complete';
+    advancedReadCompleteness.value = completeness;
     recordHistory('success', 'Document distinct', 'distinct', command,
-      `${previewCount} preview values${truncated ? ' · truncated' : ''}`, previewCount, -1, elapsed, context, truncated ? 'truncated' : 'complete');
+      `${previewCount} preview values${completeness === 'complete' ? '' : ` · ${completeness}`}`, previewCount, -1, elapsed, context, completeness);
   } catch (error) {
     if (requestId !== queryRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     permissionFailure.value = isPermissionError(error);
@@ -1154,6 +1169,7 @@ async function runAggregate(): Promise<void> {
     ranOnce.value = true;
     const previewCount = latestResult.value.rows.length;
     const truncated = latestResult.value.end?.truncated === true;
+    advancedReadCompleteness.value = truncated ? 'truncated' : 'complete';
     recordHistory('success', 'Document aggregate', 'aggregate', command,
       `${previewCount} preview documents${truncated ? ' · truncated' : ''}`, previewCount, -1, elapsed, context, truncated ? 'truncated' : 'complete');
   } catch (error) {
@@ -1182,6 +1198,12 @@ function resetAdvancedRead(mode: 'aggregate' | 'distinct'): void {
   continuationToken.value = '';
   cursorExpiresAtUtc.value = null;
   latestResult.value = null;
+  advancedReadCompleteness.value = null;
+}
+
+function clearLatestResult(): void {
+  latestResult.value = null;
+  advancedReadCompleteness.value = null;
 }
 
 async function recoverReadPermission(): Promise<void> {
@@ -1233,6 +1255,7 @@ async function recoverReadPermission(): Promise<void> {
 
 function applyFindResponse(response: DocumentFindResponse, append: boolean, elapsed: number, command: string): void {
   resultMode.value = 'find';
+  advancedReadCompleteness.value = null;
   resultPreviewLimit.value = DocumentPreviewMaxRows;
   const mapped = response.documents.map(mapDocument);
   const merged = append ? mergeRows(rows.value, mapped) : mapped;
@@ -1568,6 +1591,7 @@ async function confirmPendingOperations(): Promise<void> {
     if (requestId !== writeRequestId || !isCurrentContext(context) || permissionDenied.value) return;
     latestCommand.value = command;
     latestResult.value = resultFromOutcomes(outcomes, elapsed);
+    advancedReadCompleteness.value = null;
     ranOnce.value = true;
     clearPendingOperations();
     checkedRowKeys.value = [];
@@ -2169,6 +2193,7 @@ function clearResourcePayload(): void {
   ranOnce.value = false;
   resultMode.value = 'find';
   resultPreviewLimit.value = DocumentPreviewMaxRows;
+  advancedReadCompleteness.value = null;
   editId.value = '';
   editJson.value = '{\n  \n}';
   importText.value = '';

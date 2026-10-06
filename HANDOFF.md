@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-26，2026-10-06；本机 Document Web 旅程已验证）
+
+- 从干净 `main / 8a4c64c8b96536f67f0b124471790e05ef441bdb` 接续；完整接收HANDOFF/AGENTS/queue，核验路线图、提交、代理及ACTIVE heartbeat。WB-25已提交，不重复Object写终态；三宿主仍未闭环。
+- 本片只补Document新Web UI真实本机Kestrel的撤权403、旧审批拒绝、显式Find100读取恢复和Aggregate/Distinct输出预算。实施者独占runner及Document组件/Node兼容修复，UI代理独占新真实spec与既有fixture断言，第三代理独立只读复核PASS；三代理均冻结且停止写入。根维护六共享文档、Server build、验证、进程审计及git/最终完整门禁，仅提交本任务11文件。
+- Distinct请求min(cap+1,1000)：500/501为truncated，1000满窗完整性unknown，保留实际end和已加载导出，不虚构分页。真实运行发现空IDs被发送为[]而Server视为空目标集，现与Find/Count一致省略空ids，显式原名IDs仍保留；不改Server的null/[]合同。Aggregate仍追加1001哨兵；真实seed1001，不称扫描/物化/字节/总堆预算。
+- 最终真实 `document-real-final4` **3/3**、退出0，无skip/retry：普通用户实际撤权后审批403、管理员确认未落库、失败恢复仍锁存、授READ/同身份Refresh不解锁、同token显式空Find100成功且旧草稿/审批不恢复；Aggregate真实1001→导出1000，Distinct真实501→500与1000→unknown/导出1000。API登录安装真实token，不计登录UI；READ拒写不计routed readonly props适配。Server Release **0警告/错误**、专属Node **21/21**、全Web **295/295**、TypeScript/Vite、Chrome fixture **11/11** 与独立复核PASS；证据 `artifacts/wb26-validation-20261006`。
+- 失败证据保留：首run非法冒号集合名导致setup400；第二run编辑区定位失败；第三run2/3暴露真实空ids兼容缺口；第四run首次Find等待超时、后两项未启动，trace确认4226连接重置/拒绝连接但Vite中断根因未确认。相同冻结源码单独第五run3/3通过。后续同仓库Vite/Playwright验证串行，避免共享缓存/运行环境交叠，不将疑因写成确证。
+- 门禁前根合并审计 **162** 条记录、0自有进程存活，包含5条短命进程command未捕获且已退出记录；复用PID保留，五个隔离contentRoot均已清理。最终完整restore、原级别format与staged diff check必须退出0才本地提交；命令/退出值与源码SHA256、实际提交见final-gates/final-tree-hashes/commit-checkpoint，提交说明 `feat(m47): verify Document permissions against real Server`，实际哈希以git log为准。两处策略保留Temp不删除、不重试或绕过；无安装/push/发布/部署/外部沟通，origin/parity-results保持独立。
+- 下一次先完整接收HANDOFF/AGENTS/queue/git/代理，不重复WB-25/WB-26；优先盘点其它九模型新UI真实权限/恢复，再推进Studio/VS Code剩余合同/旅程。Document Advanced完整读写、服务端资源预算、真实OS对话框、安装/Extension Host/AOT发布、固定硬件/长稳、AI/MCP与发行物继续分别待验；三宿主仍未闭环，heartbeat保持ACTIVE，本轮不启动下一片。
+
 ## 当前检查点（WB-25，2026-10-06；本地切片已验证）
 
 - 从 `a2bc3f1a6af69df5e4716f0f41c80013ca7c64e3` 接续。本轮仅收口 Object 写执行器：审批快照一次消费、最多1000项、客户端新操作启动窗口60秒；写响应核对目标/必要字段，批删逐项匹配批准 key，明确失败与 unknown 分离，已确认影响数量保留；401/403仍锁存并清理载荷。生命周期、保留、配额、语义配置和 Multipart 请求均冻结审批时的输入快照。
