@@ -187,11 +187,36 @@ try {
             $taskProcess = [Diagnostics.Process]::GetProcessById([int] $taskExpected.processId)
             try {
                 if ($Action -eq 'close') {
-                    $taskProcess.Refresh()
-                    $taskWindowHandle = $taskProcess.MainWindowHandle.ToInt64()
-                    if ($taskWindowHandle -eq 0) { throw 'The owned Studio has no native main window.' }
-                    $taskAccepted = $taskProcess.CloseMainWindow()
-                    $taskResult = @{ acted = $taskAccepted; method = 'CloseMainWindow'; mainWindowHandle = $taskWindowHandle }
+                    # .NET MainWindowHandle discovers an owned visible,
+                    # ownerless top-level window. Refresh clears its cached
+                    # window lookup; zero alone does not diagnose the product.
+                    $taskWindowWatch = [Diagnostics.Stopwatch]::StartNew()
+                    $taskWindowHandle = 0L
+                    $taskWindowTitle = ''
+                    $taskWindowAttempts = 0
+                    for ($taskWindowAttempt = 0; $taskWindowAttempt -lt 10 -and $taskWindowWatch.Elapsed.TotalSeconds -lt 2; $taskWindowAttempt++) {
+                        Assert-TaskBudget
+                        $taskWindowAttempts++
+                        $taskProcess.Refresh()
+                        if ($taskProcess.HasExited) { break }
+                        $taskWindowHandle = $taskProcess.MainWindowHandle.ToInt64()
+                        $taskWindowTitle = $taskProcess.MainWindowTitle
+                        if ($taskWindowHandle -ne 0) { break }
+                        Start-Sleep -Milliseconds 100
+                    }
+                    $taskDiscovery = @{ strategy = 'System.Diagnostics.Process.Refresh/MainWindowHandle'; attempts = $taskWindowAttempts;
+                        elapsedMilliseconds = $taskWindowWatch.ElapsedMilliseconds; mainWindowHandle = $taskWindowHandle;
+                        mainWindowTitle = $taskWindowTitle; processExitedBeforeClose = $taskProcess.HasExited }
+                    if ($taskWindowHandle -eq 0) {
+                        $taskResult = @{ acted = $false; method = 'CloseMainWindow'; discovery = $taskDiscovery; reason = 'native-main-window-not-identified' }
+                    }
+                    else {
+                        Assert-TaskBudget
+                        $taskBeforeClose = Convert-TaskIdentity (Get-TaskCim ([int] $taskExpected.processId) -Fresh)
+                        if (-not (Test-TaskIdentity $taskExpected $taskBeforeClose)) { throw 'Studio identity changed during native window discovery; close refused.' }
+                        $taskAccepted = $taskProcess.CloseMainWindow()
+                        $taskResult = @{ acted = $taskAccepted; method = 'CloseMainWindow'; discovery = $taskDiscovery }
+                    }
                 }
                 else {
                     # Each descendant is separately recorded and revalidated by

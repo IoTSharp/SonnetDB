@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-39 合同与文件冻结（2026-10-07；本机宽窗原生生命周期已验证）
+
+- 从本地`2a6eadbf`接续，完整文档读取记录与最新SHA256对拍无变化，git/路线图/提交/三个完成子代理已核对。只修真实Studio烟测的窗口关闭发现与有界终态落盘；WB-38三失败/16命令窗口不改不重置，生产Studio/Web/Server及旧fixture冻结。`windowsHide`仅为未证假设，正常关闭须重新核验准确任务身份及原生入口，不能将force kill/CDP关闭冒称正常退出。
+- 专属`/root/wb34_runner`独占两个既有native runner/helper及必要新`studio-native-evidence.mjs`/`.test.mjs`；`/root/wb34_ui`只读独立审查；根独占六共享文档、全部验证/审计、stage/完整restore-format与本地commit。新`artifacts/wb39-validation-20261007`窗口至22:52Z、最多16长命令/3真实run、0生产构建项目，复用WB-38产物先核hash且单列旧构建证据。代理至22:10Z、24命名文件/24定向搜索（每次80匹配/15秒）/16短读各30秒，不启动长验证或实跑。
+- 验收保真实native bootstrap/manifest与正常可见DOM Health→Stop→Start；普通原生关闭exit0/signalnull、旧/新Server身份消失、四端口释放且不需fallback才判生命周期通过。终态文件独立落盘，详细证据尺寸/凭据门禁不放宽；故障注入证明过大详细文件不能压掉cleanup/result，不假造旧缺文件。默认/窄窗、原生文件对话框、安装/AOT和三宿主整体仍另验。
+- PowerShell7固定pwsh；禁Graphify/广域扫描/未授权安装；循环/搜索/等待/重试有次数、项目及墙钟，先微输入核比较退出；长进程PID/创建时间/完整command/父链及finally只回收核验任务树，临时对象绝对路径核验。两政策保留Temp不碰，外来HANDOFF footer/博客/oschina不stage、origin/parity-results保留；无fetch/push/发布/部署/外部沟通。最终树完整restore/原级别format通过后只提交本任务文件，整体未闭环、唯一heartbeat每30分钟ACTIVE，不启动下一片。
+- 四源码最终freeze见source-freeze-final；普通visible Studio/.NET刷新主窗10次2秒、fresh core/父链不引interop。schema2最多256完整identity/父链keys、24events/64helpers/1秒，单份512KiB/wx/凭据门禁；三essential独立写，result留3秒，16纯内存故障注入/PS AST/3Node syntax通过。六旧构建产物hash匹配，0新生产构建项目。
+- 首actual run1已接受普通CloseMainWindow，但root monitor逐历史PID查询超15秒batch后强停自有任务，原五terminal/stdout/stderr缺失保留，不能判生命周期PASS；18身份根核0存活，三runtime独立remediation清理。root只改两次batch CIM/复用完整行，原15秒/192进程/12层不延、单PID身份核验/退出证明/失败drain；不改变四源码或覆盖run1。
+- actual run2`52a83a3b-3b32-4b19-b457-552bc85f82f8`145秒/exit0：同一实际WebView2 native manifest/DOM Health→Stop→Start→Health，Studio97792-owned Server41480→77576；普通HWND27267142/title SonnetDB Studio/1次8ms关闭，Studio退出0/null、四端口与旧新身份释放、零fallback/reclaim。normal-exit754/cleanup2275/result1268/process-events46989字节及bridge独立保存，33表身份/15helpers；typed引用/命令/父链/源码hash根核验通过，综合63身份0存活、六runtime不存在。root-native-acceptance/after-native-process-audit与独立成功复核为最终门禁，首run原失败另列。
+- 十文件最终freeze在完整restore/原级别format前，前后hash/命令/时间绑定见final-gates；工具/成功独立复核及白名单diff通过才本地commit，实际见commit-checkpoint/git log。HANDOFF只顶部任务hunk，54外来footer/博客/oschina不stage。仅宽窗CSS1266×663/DPR1.5，不推断旧windowsHide原因/Server优雅恢复；下一片默认/窄窗Health，再native对话框/VS Code。整体未闭环、唯一heartbeat ACTIVE30分钟，不在本片启动下一片。
+
 ### WB-38 合同与文件冻结（2026-10-07；局部真实证据，正常退出未闭环）
 
 - 集成接续：上轮完整restore/format退出0但根封装器在Git启动前因两条路径失败，未stage/commit，原窗口16/16长命令/3实跑及失败不重置。2026-10-07从`2b21279f`与八文件未提交hash核对接续，新`artifacts/wb38-integration-20261007-01`仅35分钟/6长命令/0实跑，根复核首Git路径/命名数组/未启动finally，read-only Git极小输入PASS。复用UI代理仅8命名文件/8只读shell、21:18Z硬限独立工具复核；根独占六共享文档/所有mutation，最终八文件树完整restore/原级别format、进程审计、白名单diff和工具复核通过后本地提交，实际见新证据/git log。两源码/生产冻结，不重复实跑，不启动WB-39。

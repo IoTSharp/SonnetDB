@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-39 原生烟测终态与普通关闭（2026-10-07）**：诊断入口请求普通可见Studio、以有界.NET主窗刷新及fresh任务身份执行CloseMainWindow；新增schema2进程身份/父链去重与独立normal-exit/cleanup/detail/result写入，保512KiB/凭据门禁并为结果保留3秒，失败不得PASS。16纯内存故障注入与语法检查通过；第二真实run本机宽窗退出0/signalnull、四端口/旧新Server身份释放、零fallback与五terminal保存通过。首轮根monitor超时/缺终态与WB-38原失败保留，生产不改、构建产物hash复用单列；最终完整门禁/十文件本地提交见M47记录，默认窄窗/对话框/安装/AOT/三宿主整体另验。
+
 - **M47 WB-38 Studio原生诊断入口（2026-10-07）**：新增实际Studio/WebView2 CDP附着runner与PowerShell7进程身份helper；本机宽窗native bootstrap、Managed Local Health/Stop/Start及旧/新Server归属已有真实局部证据。三次实跑全部保留失败：默认窗Health隐藏、正常关闭窗口句柄未发现、终态process-events超512KiB落盘中断等仍待接续；不称完整生命周期通过。Web build、Server/Studio Release和根回收审计通过，生产未改；最终完整restore/原级别format及本地八文件提交见M47验证记录，安装/对话框/AOT/三宿主整体另验。
 
 - **M47 WB-37 Object真实Web证据（2026-10-07）**：新增隔离runner薄入口和三正常旅程；接续首run3/3补100/51 continuation/151原DTO/当前51截断结果、206 Range4096与正常Download8192、一次text审批PUT200/管理员独立Get与history1、旧审批REVOKE403/管理员404/批准值保持和READ重授同tokenSchema200六tabs锁存。Blob不可观察body明确null；三JSON335381字节/manifest核验，初始三失败/耗尽budget与未知reset保留。生产/共享runner不改，完整独立复核、最终restore/原级别format与八文件本地提交见M47验证记录；Multipart/恢复/Server预算/三宿主/发行物另验。

@@ -226,7 +226,7 @@ code --install-extension iotsharp.sonnetdb-vscode
 
 README 只保留项目概览和最短入门路径，完整说明在专题文档中：
 
-Studio 本机实窗已取得 native bridge 与宽窗 Managed Local Health/Stop/Start 的局部证据；WB-38 完整生命周期烟测仍失败，正常关闭窗口发现、终态证据落盘及默认窄窗 Health 可用性待补。安装、文件对话框与三宿主整体状态见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+Studio WB-39 本机宽窗已验证真实 native bridge、Managed Local Health/Stop/Start、普通原生关闭退出0与四端口/进程回收，并独立保存终态证据。WB-38 原失败与本片首轮监测封装器失败保留；默认/窄窗 Health、文件对话框、安装及三宿主整体仍待验，详情见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
 
 | 主题 | 文档 |
 | --- | --- |

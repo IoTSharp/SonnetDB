@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-39 本机宽窗 Studio 原生生命周期（2026-10-07；本地切片已验证）
+
+- 接续WB-38实际提交`2a6eadbf`，完整已读文档与fresh SHA256、git/路线图/完成代理核对，四诊断源码/六共享文档为本片十文件范围。生产Studio/Web/Server与旧fixture不改，六构建产物hash匹配后复用，0新生产build；WB-38三失败/耗尽预算及缺失文件冻结。新窗口至22:52Z、16长命令/3真实run，实际2run，不重置旧窗口或重复派单。
+- 实际Studio仅改普通visible launch；helper有界10次/2秒.NET Refresh/MainWindowHandle、完整fresh身份/父链与关闭前core复核，无interop/CDP关闭/force作为正常退出。终态normal-exit/cleanup先独立保存、两detail独立尝试、result保留3秒；每份512KiB/wx/凭据门禁保持，失败不能PASS。schema2按PID+创建时间去重完整command/parent/exe及父链keys，256表项/24events/64helpers/1秒，不截断命令。16纯内存故障注入、PS AST及三Node语法检查PASS，无临时目录/模拟宿主证据。
+- 首run`19f83142-f573-4d1b-ac86-83b91531d2ea`正常native manifest/Health/Stop/Start已观察，普通CloseMainWindow已accepted（HWND38078036/title SonnetDB Studio）；根monitor历史PID逐项CIM查询超15秒batch，finally严格单PID终止核验任务，wrapper退出1。五terminal/stdout/stderr缺失如实保留，不还原runner退出结果；18记录身份0存活、三runtime经绝对路径/marker核验独立root-remediation清理。原观察/缺失与remediation分文件，不计正常生命周期PASS。root monitor只改每batch两次fresh CIM查询/复用完整行，原时间/192进程/12层不放宽，launch失捕/短命边界、失败drain与单PID退出证明保留。
+- 第二run`52a83a3b-3b32-4b19-b457-552bc85f82f8`真实PASS，145秒wrapper/exit0；同一Studio/WebView2 page/native bootstrap/manifest/connection身份与四正常DOM无合同警告，普通Health→Stop→Start→Health通过。Studio97792及初始Server41480/重启77576的完整command/creation/parent-chain相符，Stop旧身份消失且HTTP/Frame释放，重启Health对应新PID。API setup/login与localStorage仅认证准备，不计登录UI。原生1920×1080对应CSS1266×663/DPR1.5、未注入viewport/改CSS/强制点击或调用私有Vue。
+- 普通native关闭实际HWND27267142/title SonnetDB Studio/一次8ms、CloseMainWindow accepted；Studio退出0/signalnull，旧/新Server身份消失，四端口均释放、所有已记录子进程退出，零fallback/零helper reclaim，三runtime正常删除。五terminal各自persisted=true：normal-exit754、cleanup2275、result1268、process-events46989字节及bridge-responses；33完整身份表/15helpers均可解引用，父链有序/命令保真。根独立typed/源码和产物hash/manifest/终态核验见root-native-acceptance，源码冻结后未改；独立最终成功复核为提交前置。
+- 实跑后after-native-process-audit核63身份0自有存活、两run六runtime不存在；首root-remediated/runner terminal缺失与第二正常退出分开，短命/外部祖先不称全OS捕获完备。两个policy保留Temp不碰，外来54行HANDOFF footer、博客/oschina逐hash保留不stage、origin/parity-results保持。根最终十文件完整restore/原级别format前后freeze SHA/命令/时间绑定、独立工具复核/白名单diff及本地提交与最终进程审计见final-gates/final-tree-hashes/commit-checkpoint/git log，代码再改重跑，无fetch/push/发布/部署/外部沟通。
+- 本机宽窗成功不证明旧windowsHide因果，不把Studio内部有界强停Server视为Server优雅关闭/恢复。默认/窄窗Health仍隐藏，native文件对话框、干净安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT/固定硬件/长稳/发行物及整体三宿主分别未闭环。下一片先正常窄窗可用性，随后文件对话框/VS Code队列；本片不启动下一片，唯一heartbeat ACTIVE每30分钟继续。
+
 ## WB-38 Studio 原生宿主诊断（2026-10-07；局部真实证据，完整生命周期失败）
 
 - 集成接续窗口：上轮完整restore/format退出0、工作区加载警告保留，根封装器在Git启动前因Get-Command两路径处理失败，未stage/commit；原16长命令/3真实run与integration-failure-checkpoint不改。2026-10-07从`2b21279f`/八文件未提交hash接续，新`artifacts/wb38-integration-20261007-01`独立35分钟/6长命令/0实跑，完整文档/hash/git/路线图/三个完成代理复核，两源码及生产不改。只读Git极小输入确认首路径/命名数组/未启动finally修正PASS；独立工具复核8文件/8读、21:18Z截止。新最终八文件完整restore/原级别format、进程审计/白名单diff和工具复核均通过才本地commit，实际门禁/树hash/提交见新窗口与git log；不把上轮旧门禁当本轮新树通过，不重复真实运行或称生命周期PASS。

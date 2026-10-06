@@ -1,4 +1,4 @@
-// WB-38: one actual NativeWebApp/WebView2 window, actual native bootstrap and
+// WB-39: one actual NativeWebApp/WebView2 window, actual native bootstrap and
 // isolated Studio-owned Server. No browser launch, routes, nativeWeb injection,
 // custom events, private Vue APIs, or simulated host contracts are used here.
 import { spawn } from 'node:child_process';
@@ -9,9 +9,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
+import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence } from './studio-native-evidence.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const evidenceParent = path.join(repository, 'artifacts', 'wb38-validation-20261007');
+const evidenceParent = path.join(repository, 'artifacts', 'wb39-validation-20261007');
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
 const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 const helper = path.join(repository, 'web', 'e2e', 'studio-native-process.ps1');
@@ -29,10 +30,11 @@ const profileRoot = path.join(runRoot, 'profile');
 const dataRoot = path.join(runRoot, 'data');
 const contentRoot = path.join(runRoot, 'server-content');
 const libraryPath = path.join(contentRoot, 'connections.json');
-const markerName = '.wb38-owned.json';
+const markerName = '.wb39-owned.json';
 const startedAt = Date.now();
 const totalDeadline = startedAt + 600_000;
 const mainDeadline = totalDeadline - 60_000;
+const cleanupDeadline = totalDeadline - 15_000;
 const cancellation = new AbortController();
 const cancel = () => cancellation.abort(new Error('Native Studio validation cancelled.'));
 process.once('SIGINT', cancel);
@@ -42,7 +44,7 @@ const records = [];
 const helpers = [];
 const owned = new Map();
 const bridgeEvidence = [];
-const counters = { helpers: 0, requests: 0, bridgeResponses: 0, pageRequests: 0, filesWritten: 0, pageErrors: 0 };
+const counters = { helpers: 0, requests: 0, bridgeResponses: 0, pageRequests: 0, filesWritten: 0, fileWriteAttempts: 0, pageErrors: 0 };
 const secretValues = new Set();
 let studio;
 let studioIdentity;
@@ -56,9 +58,12 @@ let fatal;
 let asynchronousFailure;
 const streamCounts = { stdoutBytes: 0, stderrBytes: 0 };
 const maxOwnedProcesses = 16;
+const nativeClose = { attempted: false, accepted: false, method: 'CloseMainWindow', discovery: null,
+  studioIdentityExited: false, oldServerIdentityExited: false, newServerIdentityExited: false,
+  studioExitCode: null, studioExitSignal: null, allFourPortsReleased: false };
 
 function check(final = false) {
-  if (Date.now() >= (final ? totalDeadline : mainDeadline)) throw new Error('Native Studio wall-clock budget exhausted.');
+  if (Date.now() >= (final ? cleanupDeadline : mainDeadline)) throw new Error('Native Studio wall-clock budget exhausted.');
   if (!final) cancellation.signal.throwIfAborted();
   if (asynchronousFailure && !final) throw asynchronousFailure;
 }
@@ -74,16 +79,12 @@ function safeMessage(error) {
     .replace(/\b[0-9a-f]{48}\b/giu, '[redacted bridge credential]');
 }
 
-async function evidence(name, value) {
-  if (!/^[a-z0-9.-]+$/u.test(name) || counters.filesWritten >= 48) throw new Error('Evidence filename/count cap exceeded.');
-  const text = JSON.stringify(value, null, 2);
-  if (Buffer.byteLength(text) > 524_288) throw new Error('Evidence JSON size cap exceeded.');
-  const expires = Date.now() + 1000;
-  for (const secret of [...secretValues].slice(0, 16)) {
-    if (Date.now() >= expires) throw new Error('Evidence credential check deadline exceeded.');
-    if (text.includes(secret)) throw new Error('Refusing to persist an authentication credential.');
-  }
-  await writeFile(path.join(runRoot, name), `${text}\n`, { flag: 'wx' });
+async function evidence(name, value, { signal, terminal = false } = {}) {
+  const limit = terminal ? 48 : 32; // Reserve terminal attempts independently.
+  if (!/^[a-z0-9.-]+$/u.test(name) || counters.filesWritten >= limit || counters.fileWriteAttempts >= limit) throw new Error('Evidence filename/count cap exceeded.');
+  counters.fileWriteAttempts += 1;
+  const text = encodeNativeEvidence(value, secretValues, { deadline: Math.min(Date.now() + 1000, totalDeadline) });
+  await writeFile(path.join(runRoot, name), text, { flag: 'wx', signal: signal ?? (terminal ? undefined : cancellation.signal) });
   counters.filesWritten += 1;
 }
 
@@ -126,7 +127,7 @@ async function processAction(action, payload, final = false) {
     }
   });
   child.stderr.on('data', (buffer) => { stderrBytes += buffer.length; });
-  const helperTimeout = Math.min(25_000, (final ? totalDeadline : mainDeadline) - Date.now());
+  const helperTimeout = Math.min(25_000, (final ? cleanupDeadline : mainDeadline) - Date.now());
   let helperTimer;
   const code = await new Promise((resolve, reject) => {
     helperTimer = setTimeout(() => {
@@ -204,7 +205,7 @@ async function api(method, apiPath, body, auth) {
 }
 
 async function boundedPoll(label, test, { attempts = 20, timeoutMs = 20_000, intervalMs = 500, final = false } = {}) {
-  const expires = Math.min(Date.now() + timeoutMs, final ? totalDeadline : mainDeadline);
+  const expires = Math.min(Date.now() + timeoutMs, final ? cleanupDeadline : mainDeadline);
   let last;
   for (let attempt = 0; attempt < attempts && Date.now() < expires; attempt += 1) {
     check(final);
@@ -336,7 +337,7 @@ async function removeOwnedDirectory(directory) {
   const pending = [{ directory, depth: 0 }];
   const files = [];
   const directories = [];
-  const scanDeadline = Math.min(Date.now() + 8000, totalDeadline);
+  const scanDeadline = Math.min(Date.now() + 8000, cleanupDeadline);
   let entries = 0;
   for (let index = 0; index < pending.length && index < 512; index += 1) {
     if (Date.now() >= scanDeadline) throw new Error('Owned directory scan deadline exceeded.');
@@ -363,9 +364,10 @@ async function removeOwnedDirectory(directory) {
 
 try {
   if (process.platform !== 'win32' || !configuredEvidence || path.resolve(configuredEvidence).toLowerCase() !== evidenceParent.toLowerCase()
-    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with the fixed WB-38 evidence parent.');
-  const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url)];
-  if (prerequisiteFiles.length > 8) throw new Error('Prerequisite file cap exceeded.');
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with the fixed WB-39 evidence parent.');
+  const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
+    path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs')];
+  if (prerequisiteFiles.length > 10) throw new Error('Prerequisite file cap exceeded.');
   for (const file of prerequisiteFiles) { check(); await access(file); }
   for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error(`Required loopback port ${port} is already occupied; no host was started.`);
   await mkdir(evidenceParent, { recursive: true });
@@ -393,12 +395,13 @@ try {
     '--connection-library', libraryPath, '--server-exe', serverDll, '--auto-start-server', '--width', '1920', '--height', '1080',
     '--route', '/admin/app/sql?tool=table'];
   const environment = isolatedEnvironment();
-  await evidence('launch.json', { executable: studioExe, args, parentIdentity: runnerIdentity,
+  await evidence('launch.json', { executable: studioExe, args, parentIdentity: runnerIdentity, windowsHideRequested: false,
+    nativeWindowBoundary: 'Ordinary visible launch requested; prior MainWindowHandle=0 did not prove a windowsHide or product defect.',
     childEnvironment: { DOTNET_ENVIRONMENT: environment.DOTNET_ENVIRONMENT, ASPNETCORE_ENVIRONMENT: environment.ASPNETCORE_ENVIRONMENT,
       ASPNETCORE_CONTENTROOT: contentRoot, ASPNETCORE_WEBROOT: serverWebRoot, WEBVIEW2_USER_DATA_FOLDER: profileRoot,
       SONNETDB_Kestrel__Endpoints__Http__Protocols: 'Http1', SONNETDB_Kestrel__Endpoints__FrameH2__Protocols: 'Http2',
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS } });
-  studio = spawn(studioExe, args, { cwd: contentRoot, env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  studio = spawn(studioExe, args, { cwd: contentRoot, env: environment, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
   studio.stdout.on('data', (buffer) => { streamCounts.stdoutBytes += buffer.length; if (streamCounts.stdoutBytes > 4_194_304) asynchronousFailure = new Error('Studio stdout byte cap exceeded.'); });
   studio.stderr.on('data', (buffer) => { streamCounts.stderrBytes += buffer.length; if (streamCounts.stderrBytes > 4_194_304) asynchronousFailure = new Error('Studio stderr byte cap exceeded.'); });
   studio.on('error', () => { asynchronousFailure = new Error('Actual Studio executable could not be started.'); });
@@ -412,16 +415,16 @@ try {
   stage = 'real setup and API login';
   const setup = await api('GET', '/v1/setup/status');
   if (setup.needsSetup !== true || !setup.suggestedServerId) throw new Error('Managed Local was not a fresh isolated Server.');
-  const password = `WB38_${randomBytes(18).toString('hex')}!`;
-  const bearerToken = `wb38_${randomBytes(24).toString('hex')}`;
+  const password = `WB39_${randomBytes(18).toString('hex')}!`;
+  const bearerToken = `wb39_${randomBytes(24).toString('hex')}`;
   secretValues.add(password); secretValues.add(bearerToken);
-  const administrator = await api('POST', '/v1/setup/initialize', { serverId: setup.suggestedServerId, organization: 'WB38 isolated native desktop evidence', username: 'wb38_admin', password, bearerToken });
+  const administrator = await api('POST', '/v1/setup/initialize', { serverId: setup.suggestedServerId, organization: 'WB39 isolated native desktop evidence', username: 'wb39_admin', password, bearerToken });
   if (administrator.token) secretValues.add(administrator.token);
   if (administrator.tokenId) secretValues.add(administrator.tokenId);
-  const identity = await api('POST', '/v1/auth/login', { username: 'wb38_admin', password });
+  const identity = await api('POST', '/v1/auth/login', { username: 'wb39_admin', password });
   if (identity.token) secretValues.add(identity.token);
   if (identity.tokenId) secretValues.add(identity.tokenId);
-  if (identity.username !== 'wb38_admin' || identity.isSuperuser !== true || !identity.token || !identity.tokenId) throw new Error('Real API login did not return a valid Studio session.');
+  if (identity.username !== 'wb39_admin' || identity.isSuperuser !== true || !identity.token || !identity.tokenId) throw new Error('Real API login did not return a valid Studio session.');
   await evidence('authentication-boundary.json', { setupWasRequired: true, initializationSucceeded: true, apiLoginSucceeded: true, username: identity.username, isSuperuser: identity.isSuperuser, tokenStoredVia: 'sndb.auth localStorage only', loginUiVerified: false });
   stage = 'actual WebView2 loopback CDP';
   const cdpVersion = await boundedPoll('WebView2 CDP environment passthrough', async () => {
@@ -486,6 +489,7 @@ try {
   if (stopped.isRunning !== false || stopped.processOwner !== 'none' || stopped.lifecycleState !== 'stopped' || stopped.canStop !== false || stopped.processId != null) throw new Error('Real bridge Stop did not report an unowned stopped state.');
   await dom('stopped', 'Studio 已停止');
   await boundedPoll('Old managed Server PID exit', () => gone(oldServer), { attempts: 6, timeoutMs: 20_000, intervalMs: 500 });
+  nativeClose.oldServerIdentityExited = true;
   for (const port of [ports.http, ports.frame]) if (!await portFree(port)) throw new Error('Managed Server Stop did not release its loopback ports.');
   await evidence('stop-result.json', { oldIdentity: oldServer, oldIdentityExited: true, httpAndFramePortsReleased: true, status: stopped });
   stage = 'normal DOM Start';
@@ -502,26 +506,32 @@ try {
   if (healthy.processId !== newServer.processId) throw new Error('Health did not retain the restarted actual Server PID.');
   stage = 'normal native main-window exit';
   await captureOwned('before-native-close');
+  nativeClose.attempted = true;
   const closed = await processAction('close', { identity: studioIdentity });
+  nativeClose.accepted = closed.acted === true;
+  nativeClose.discovery = closed.discovery ?? null;
+  await evidence('native-close-discovery.json', { studioIdentityKey: key(studioIdentity), ...closed });
   if (closed.acted !== true || closed.method !== 'CloseMainWindow') throw new Error('Normal native main-window close was not accepted.');
   await boundedPoll('Studio normal desktop exit', () => gone(studioIdentity), { attempts: 6, timeoutMs: 25_000, intervalMs: 500 });
+  nativeClose.studioIdentityExited = true;
   await boundedPoll('Studio exit event', async () => studio.exitCode !== null || studio.signalCode !== null, { attempts: 10, timeoutMs: 2000, intervalMs: 100 });
+  nativeClose.studioExitCode = studio.exitCode;
+  nativeClose.studioExitSignal = studio.signalCode;
   if (studio.exitCode !== 0 || studio.signalCode !== null) throw new Error('Native Studio exited abnormally after CloseMainWindow.');
   await boundedPoll('Restarted managed Server exit', () => gone(newServer), { attempts: 6, timeoutMs: 20_000, intervalMs: 500 });
+  nativeClose.newServerIdentityExited = true;
   for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error('Normal Studio exit did not release all four loopback ports.');
   normalExit = true;
-  await evidence('normal-exit.json', { method: 'CloseMainWindow', studioIdentityExited: true, oldServerIdentityExited: true, newServerIdentityExited: true,
-    studioExitCode: studio.exitCode, studioExitSignal: studio.signalCode, allFourPortsReleased: true, fallbackUsedBeforeThisEvidence: false,
-    serverShutdownBoundary: 'Studio itself may force-terminate its managed console Server after its bounded close wait; this does not prove graceful Server shutdown or recovery.' });
+  nativeClose.allFourPortsReleased = true;
 } catch (error) {
   fatal = { stage, message: safeMessage(error) };
-  console.error(`WB-38 native validation failed at ${stage}: ${fatal.message}`);
+  console.error(`WB-39 native validation failed at ${stage}: ${fatal.message}`);
 } finally {
   clearTimeout(timeout);
   stage = 'owned process cleanup';
   const cleanup = { normalExit, fallbackActions: [], helperReclaims: [], identityChecks: [], directories: [], errors: [], allFourPortsReleased: false };
   const pendingHelpers = helpers.filter((item) => !item.exitedAtUtc).slice(0, 64);
-  const helperReclaimDeadline = Math.min(Date.now() + 20_000, totalDeadline);
+  const helperReclaimDeadline = Math.min(Date.now() + 20_000, cleanupDeadline);
   for (const pending of pendingHelpers) {
     if (Date.now() >= helperReclaimDeadline) { cleanup.errors.push('Helper reclamation deadline exceeded.'); break; }
     try {
@@ -564,17 +574,32 @@ try {
   if (normalExit && cleanup.fallbackActions.length) fatal ??= { stage: 'normal exit child-process audit', message: 'A Studio-owned descendant survived normal desktop exit; cleanup fallback was necessary.' };
   if (!cleanupProven || cleanup.errors.length) fatal ??= { stage: 'cleanup', message: 'Owned process/directory cleanup was not fully proved; inspect cleanup.json.' };
   try {
-    await access(runRoot);
-    await evidence('bridge-responses.json', bridgeEvidence);
-    await evidence('process-events.json', { runnerIdentity, studioIdentity, events: records, helpers, streamCounts, rawConsoleOrHeadersPersisted: false });
-    await evidence('cleanup.json', { ...cleanup, cleanupProven });
-    await evidence('result.json', { runId, passed: !fatal && normalExit && cleanupProven, fatal: fatal ?? null, normalExit, cleanupProven, counters,
-      finishedAtUtc: new Date().toISOString(), elapsedSeconds: (Date.now() - startedAt) / 1000, evidenceRoot: runRoot,
-      limitations: ['API setup/login with real auth localStorage; login UI not verified.', 'No native file dialog, installation, NativeAOT or full three-host acceptance.', 'Managed Server shutdown may use the existing Studio bounded forced termination.'] });
-  } catch (error) { console.error(`Evidence persistence failed: ${safeMessage(error)}`); fatal ??= { stage: 'evidence', message: 'Evidence could not be persisted.' }; }
+    const compactActions = (items) => items.map((item) => ({ identityKey: nativeIdentityKey(item.identity), processId: item.identity.processId,
+      method: item.result.method, acted: item.result.acted === true, exited: item.result.exited === true }));
+    const essentialCleanup = { normalExit, cleanupProven, allFourPortsReleased: cleanup.allFourPortsReleased,
+      fallbackActions: compactActions(cleanup.fallbackActions), helperReclaims: compactActions(cleanup.helperReclaims),
+      identityChecks: cleanup.identityChecks.map((item) => ({ identityKey: nativeIdentityKey(item.identity), processId: item.identity.processId, exitedBeforeFallback: item.exitedBeforeFallback })),
+      directories: cleanup.directories, errors: cleanup.errors };
+    const terminal = await persistNativeTerminalEvidence({
+      write: (name, value, options) => evidence(name, value, { ...options, terminal: true }),
+      secrets: secretValues, deadline: totalDeadline,
+      normalExit: { ...nativeClose, normalExit, fallbackUsedBeforeThisEvidence: cleanup.fallbackActions.length > 0 || cleanup.helperReclaims.length > 0,
+        serverShutdownBoundary: 'Studio may force-terminate its managed console Server after its bounded close wait; this does not prove graceful Server shutdown or recovery.' },
+      cleanup: essentialCleanup,
+      result: { runId, passed: !fatal && normalExit && cleanupProven, fatal: fatal ?? null, normalExit, cleanupProven, counters,
+        finishedAtUtc: new Date().toISOString(), elapsedSeconds: (Date.now() - startedAt) / 1000, evidenceRoot: runRoot,
+        limitations: ['API setup/login with real auth localStorage; login UI not verified.', 'No native file dialog, installation, NativeAOT or full three-host acceptance.', 'Managed Server shutdown may use the existing Studio bounded forced termination.'] },
+      details: [
+        { name: 'bridge-responses.json', value: () => bridgeEvidence },
+        { name: 'process-events.json', value: () => compactNativeProcessEvidence({ runnerIdentity, studioIdentity, events: records, helpers, streamCounts }) },
+      ],
+    });
+    if (!terminal.passed) fatal ??= terminal.result.fatal ?? { stage: 'evidence', message: 'Independent terminal evidence did not prove acceptance.' };
+    console.log(`WB-39 terminal writes: ${JSON.stringify(terminal.outcomes)}`);
+  } catch (error) { console.error(`Terminal evidence preparation failed: ${safeMessage(error)}`); fatal ??= { stage: 'evidence', message: 'Terminal evidence could not be prepared.' }; }
   process.removeListener('SIGINT', cancel);
   process.removeListener('SIGTERM', cancel);
-  console.log(`WB-38 ${fatal ? 'FAIL' : 'PASS'}: ${runRoot}`);
+  console.log(`WB-39 ${fatal ? 'FAIL' : 'PASS'}: ${runRoot}`);
   // A CDP attachment may retain a Node transport after the native host exits.
   // All native-process checks and evidence are complete before ending Node.
   process.exit(fatal ? 1 : 0);
