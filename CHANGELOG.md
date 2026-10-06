@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-31 Measurement真实Web旅程（2026-10-06）**：补100/500/61当前窗口与JSON/CSV、普通WRITE两点逐INSERT终态、真实撤权审批/monitor锁存四旅程PASS；共享真实runner分开身份遍历与有界日志，保留完整父链与安全双错，Node10/10、全Web321/321、Document真实3/3通过。成功证据独立复核通过，最终完整restore/format作为本地提交放行条件，实际门禁/提交见M47验证记录；根预算时区错误及失败记录保留；不计完整写终态/Server预算或三宿主完成。
+
 - **M47 WB-30 Measurement 客户端隔离（2026-10-06）**：现有点读取、目标监控、文件导入及审批统一精确401/403锁存与脱敏，清载荷/草稿且readonly程序入口禁写；连接/auth/原名/Schema同步代际隔离迟返、同结构Schema刷新与旧finally，原审批一次消费，已派取消记原身份unknown。点与监控先截断至500行，auto最多12轮/60秒，导入准入1000语句/10批/60秒；正常100+1停止后新审批兼容。Node16/16、全Web311/311、Chrome fixture20/20、旧Measurement/Vector子页8/8与build通过，既有Kestrel SQL预览兼容3/3单列；新UI真实Server权限、完整写终态/Int64、Server预算及三宿主/发行物另验。
 
 - **M47 WB-29 KV 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的KV入口与三条Chrome→Kestrel旅程，验证Scan100/opaque cursor尾51、Get原值/安全版本与当前已加载JSONL逐行对拍；普通数据库WRITE身份经三次正常审批取得NX成功、NX未应用影响0及交换实际版本/原身份历史，管理员Get独立核验。实际REVOKE拒绝旧导入审批403，重授READ/同tokenSchema刷新仍锁存不重放。真实首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过，三份成功JSON与SHA256 manifest独立落盘。生产组件/Server/共享runner不改；完整atomic/Int64/TTL/CAS、瞬时结果表展示、显式恢复、Server预算与三宿主/发行物另验。

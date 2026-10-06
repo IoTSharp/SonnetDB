@@ -5,6 +5,18 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-31，2026-10-06；本地切片已验证）
+
+- 接续 `main / 866dd04b32de4ba1f37e73f886aaf44cfafcc9d7`；08:04 heartbeat完整接收最新HANDOFF/AGENTS/queue，核对git/路线图/已存在提交、三旧代理及131身份无自有存活。Object写终态已在WB-25完成，不重复；三博客文件及本文件末尾博客hunk原样保留不暂存，三宿主未闭环，heartbeat ACTIVE、每30分钟、当前thread。
+- 本片四源码文件冻结：Measurement薄入口/spec、共享runner审计最小修复及专属Node；runner SHA256 `05A2F0D93BDE40D649503389C7728CEC4F22EF58A690E6104ED94EA194F2ADC4`、Node `3D9FF2476E6A9B92073BF7AABCB81BC37F448F84E0B088D49DA608A12B22FA8E`、spec `6D322275A9A4A7215005CEDB145B0D4C66CB116BE5DBB4ACEAE66F9114E79514`、入口 `7F6B62FEAB99B936DE1C26129C2462354E7929644981716B94EC72EE6443A632`。生产Measurement、SQL/API、Server及其它宿主不改。原三代理停止写入，复用第三代理专属只读成功证据复核PASS；源码未变不重复测试/派单。
+- Measurement Web→隔离真实Kestrel最终4/4，无retry/skip/mock：501种子→100/500与分钟边界61行、原time/TAG/FIELD/typed参数、当前JSON/CSV逐行对拍；普通非超级用户WRITE正常CSV审批，一次batch两个完整INSERT end各affected1，管理员独立SELECT和原身份history2；旧审批REVOKE403拒写不落库、清点/monitor/Schema/editor/import/审批，重授READ/同tokenSchema200仍锁存；独立monitor403清载荷且无后续模型请求。Document共享runner真实回归3/3单列。
+- Measurement成功run为 `artifacts/wb31-validation-20261006/measurement-real-2026-10-06T07-27-11-732Z-e1b21440-21ca-4d3c-8378-1cd60d3adf73`，四JSON共396558字节及SHA256 manifest逐份核验；Document run为 `document-real-2026-10-06T07-02-00-347Z-56387898-27da-47da-991c-af068bbc43aa`。最终审计Node10/10、全Web321/321；未改产品的Measurement16/16、Chrome fixture20/20、TypeScript/Vite、Server Release零警告/错误证据复用。
+- Windows stdout受控即读0ms/迟读阻塞5192ms；共享runner将日志移出3秒纯遍历，先登记身份/发现时间，异常增量仍独立10秒落盘、完整父链磁盘/stdout短摘要，PID复用拒绝、auditPending全程，顶层最多两安全原因并隐藏未知正文/stack/argv/凭据。原两pre-browser超时及spec `FIELD DOUBLE`误写400、datetime-local含零秒Malformed value失败均保留；仅spec修真实FLOAT和分钟200～260，不改Server或强制UI。
+- 合并131身份无自有存活，6contentRoot/4记录Chrome profiles清理，新Node测试Temp无残留；两成功run各自完整身份/父链与清理证据核验。三短命command缺失、syntax PID93080完整身份缺失、诊断父PS89736创建/祖先快照缺失仍单列，不称所有身份捕获完整。两政策保留Temp不删除/重试/绕过；无安装/fetch/push/发布/部署/外部沟通，保留origin/parity-results `b1bca13d47c49c46314a783302721b8a2999c56f`。
+- 旧恢复窗口UTC06:46:41起因根临时预算工具UTC/本地DateTime比较错误，07:30实测43.49分钟超35分钟，7次未超14次；已修DateTimeOffset.UtcDateTime并保留过期记录/失败证据。这不放宽仓库runner10分钟/3秒/10秒上限，不能声称旧窗口墙钟合规。本次另建30分钟/最多3长命令的final-gates-only窗口，仅完整restore、原级别format与本地commit，旧预算不重置，不启动WB-32。
+- 根只串行维护六共享文档及十文件集成/stage。最终待提交树完整 `dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和staged diff均须退出0才本地提交；实际退出/最终源码hash/十文件提交与进程核验保存在证据目录final-gates/final-tree-hashes/commit-checkpoint/audit-closeout-after-commit。提交说明 `test(m47): verify Measurement workbench against real Server`，实际哈希以git log为准；HANDOFF只暂存本顶部hunk。
+- 下一次完整接收交接/queue/git/代理并接续实际提交，不重复WB-25～WB-31；优先盘点其余模型新UI真实权限/恢复和Studio/VS Code剩余合同，再冻结一个有界切片。当前窗口不计完整measurement快照/COMMIT权威计数/Int64写终态矩阵、显式恢复、Server扫描/物化/传输/字节/总堆预算；登录UI/readonly宿主props、三宿主/OS/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别待验。heartbeat保持ACTIVE。
+
 ## 当前检查点（WB-30，2026-10-06；Measurement 客户端切片已验证）
 
 - 从 `main / 46d3f513` 接续，完整接收HANDOFF/AGENTS/queue并核对git/路线图/提交及旧代理；WB-25 Object写终态与WB-26～WB-29均不重复。三博客文件及本文件末尾博客发布hunk继续保留不暂存；HANDOFF只暂存本段。heartbeat回读ACTIVE、每30分钟、当前thread，三宿主仍未闭环。

@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { access, appendFile, lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,162 @@ const repositoryRoot = path.resolve(webRoot, '..');
 const serverDll = path.join(repositoryRoot, 'src', 'SonnetDB', 'bin', 'Release', 'net10.0', 'SonnetDB.dll');
 const powershell = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 const dotnet = process.platform === 'win32' ? 'C:\\Program Files\\dotnet\\dotnet.exe' : 'dotnet';
+
+const safeOwnedFailureMessages = new Set([
+  'Owned process discovery input budget exceeded.',
+  'Owned process traversal exceeded three seconds.',
+  'Owned process identity budget exceeded.',
+  'Owned process tree exceeded depth/time budget.',
+  'Owned process audit input budget exceeded.',
+  'Owned process audit exceeded three seconds.',
+  'Owned event logging input budget exceeded.',
+  'Owned event logging exceeded ten seconds.',
+  'Owned event logging byte budget exceeded.',
+  'Owned traversal and identity logging both failed.',
+  'Owned process discovery budget exceeded.',
+  'Owned descendant cleanup budget exceeded.',
+  'Owned descendant cleanup exceeded 30 seconds.',
+  'Could not capture exact owned root identity; root process audit is required.',
+  'PID/creation/command/parent-chain ownership changed; process preserved.',
+  'Missing process identity; cleanup must be reviewed by the root.',
+  'Real Kestrel was not ready within 60 seconds/120 attempts.',
+]);
+const safeOwnedFailureCodes = new Set(['EACCES', 'EPERM', 'ENOENT', 'EIO', 'EBADF', 'EMFILE', 'ENOSPC', 'EBUSY', 'EROFS', 'ETIMEDOUT', 'ABORT_ERR']);
+
+function safeOwnedFailure(error, stage) {
+  const message = error instanceof Error ? error.message : '';
+  if (safeOwnedFailureMessages.has(message)) return message;
+  if (/^Recorded PID [0-9]{1,10} was reused; preserve the replacement process\.$/u.test(message)) return message;
+  const code = typeof error?.code === 'string' && safeOwnedFailureCodes.has(error.code) ? error.code : null;
+  return code ? `Owned ${stage} failed (${code}).` : `Owned ${stage} failed; detailed message omitted.`;
+}
+
+/** 为顶层失败日志生成最多两个安全原因，禁止输出堆栈、命令参数或未知错误正文。 */
+export function formatOwnedProcessFailure(error) {
+  const causes = [];
+  const errors = error instanceof AggregateError && Array.isArray(error.errors) ? error.errors : [];
+  for (let index = 0; index < Math.min(errors.length, 2); index += 1) {
+    causes.push({ stage: index === 0 ? 'traversal' : 'identity logging',
+      message: safeOwnedFailure(errors[index], index === 0 ? 'traversal' : 'identity logging').slice(0, 256) });
+  }
+  return { message: safeOwnedFailure(error, 'validation').slice(0, 256), ...(causes.length ? { causes } : {}) };
+}
+
+function sameProcessIdentity(left, right) {
+  return left && right && left.pid === right.pid && left.created === right.created
+    && left.parentPid === right.parentPid && left.commandLine === right.commandLine;
+}
+
+function ownedParentChain(identity, snapshot, identities, clock = Date.now) {
+  const chain = [];
+  let parentPid = identity.parentPid;
+  const expires = clock() + 1_000;
+  for (let depth = 0; depth < 16 && parentPid > 0 && clock() < expires; depth += 1) {
+    const parent = identities.get(parentPid) ?? snapshot.find((item) => item.pid === parentPid);
+    if (!parent) { chain.push({ pid: parentPid, unavailable: true }); break; }
+    chain.push({ pid: parent.pid, created: parent.created, parentPid: parent.parentPid, commandLine: parent.commandLine });
+    if (chain.slice(0, -1).some((item) => item.pid === parent.parentPid)) break;
+    parentPid = parent.parentPid;
+  }
+  return chain;
+}
+
+/** 在三秒纯遍历预算内登记已核验子进程，返回随后需要持久记录的身份。 */
+export function discoverOwnedProcessIdentities(snapshot, identities, roots, clock = Date.now) {
+  if (!Array.isArray(snapshot) || snapshot.length > 4096 || identities.size > 128 || roots.length > 2) {
+    throw new Error('Owned process discovery input budget exceeded.');
+  }
+  const discovered = [];
+  const expires = clock() + 3_000;
+  for (let depth = 0; depth < 16 && clock() < expires; depth += 1) {
+    let added = 0;
+    for (let index = 0; index < snapshot.length && index < 4096; index += 1) {
+      if (clock() >= expires) throw new Error('Owned process traversal exceeded three seconds.');
+      const child = snapshot[index];
+      const parent = identities.get(child.parentPid);
+      if (!parent || identities.has(child.pid) || Date.parse(child.created) < Date.parse(parent.created)) continue;
+      const currentParent = snapshot.find((item) => item.pid === parent.pid);
+      const root = roots.find((item) => item.pid === parent.pid);
+      if (currentParent && !sameProcessIdentity(currentParent, parent)) continue;
+      if (!currentParent && (!root?.exitedAtUtc || Date.parse(child.created) > Date.parse(root.exitedAtUtc))) continue;
+      if (identities.size >= 128) throw new Error('Owned process identity budget exceeded.');
+      child.parentChain = ownedParentChain(child, snapshot, identities, clock);
+      child.discoveredAtUtc = new Date(clock()).toISOString();
+      identities.set(child.pid, child);
+      discovered.push(child);
+      added += 1;
+    }
+    if (added === 0) return discovered;
+  }
+  throw new Error('Owned process tree exceeded depth/time budget.');
+}
+
+/** 返回仍匹配记录身份的进程；PID 被复用时拒绝清理替代进程。 */
+export function liveOwnedProcessIdentities(snapshot, identities) {
+  if (!Array.isArray(snapshot) || snapshot.length > 4096 || identities.size > 128) throw new Error('Owned process audit input budget exceeded.');
+  const live = [];
+  const expires = Date.now() + 3_000;
+  for (const identity of identities.values()) {
+    if (Date.now() >= expires) throw new Error('Owned process audit exceeded three seconds.');
+    const current = snapshot.find((item) => item.pid === identity.pid);
+    if (current && !sameProcessIdentity(current, identity)) throw new Error(`Recorded PID ${identity.pid} was reused; preserve the replacement process.`);
+    if (current) live.push(identity);
+  }
+  return live;
+}
+
+/** 在独立十秒总预算内保留完整身份日志，返回适合控制台的短摘要。 */
+export async function writeOwnedProcessEvents(identityLog, values, { signal, final = false, append = writeFile } = {}) {
+  if (!path.isAbsolute(identityLog) || !Array.isArray(values) || values.length > 128) throw new Error('Owned event logging input budget exceeded.');
+  if (values.length === 0) return null;
+  const logSignal = final || !signal ? AbortSignal.timeout(10_000) : AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
+  logSignal.throwIfAborted();
+  const expires = Date.now() + 10_000;
+  const lines = [];
+  let bytes = 0;
+  for (let index = 0; index < values.length && index < 128; index += 1) {
+    logSignal.throwIfAborted();
+    if (Date.now() >= expires) throw new Error('Owned event logging exceeded ten seconds.');
+    const line = JSON.stringify({ timestampUtc: new Date().toISOString(), ...values[index] });
+    bytes += Buffer.byteLength(line) + 1;
+    if (bytes > 4 * 1024 * 1024) throw new Error('Owned event logging byte budget exceeded.');
+    lines.push(line);
+  }
+  let aborted;
+  const cancellation = new Promise((_, reject) => {
+    aborted = () => reject(logSignal.reason);
+    logSignal.addEventListener('abort', aborted, { once: true });
+  });
+  try {
+    await Promise.race([append(identityLog, `${lines.join('\n')}\n`, { flag: 'a', signal: logSignal }), cancellation]);
+  } finally { logSignal.removeEventListener('abort', aborted); }
+  logSignal.throwIfAborted();
+  if (Date.now() >= expires) throw new Error('Owned event logging exceeded ten seconds.');
+  return JSON.stringify({ event: String(values[0].event ?? 'owned-process-events').slice(0, 80), events: values.length,
+    ...(values.length === 1 && Number.isSafeInteger(values[0].pid) ? { pid: values[0].pid } : {}) });
+}
+
+/** 即使部分遍历失败，也独立有界保存已登记身份；保留遍历及日志失败原因。 */
+export async function auditOwnedProcessSnapshot(snapshot, identities, roots, identityLog, {
+  signal, final = false, clock = Date.now, append = writeFile, eventName = 'descendant-discovered',
+} = {}) {
+  const knownPids = new Set(identities.keys());
+  let traversalFailure;
+  try { discoverOwnedProcessIdentities(snapshot, identities, roots, clock); }
+  catch (error) { traversalFailure = error; }
+  const discovered = [...identities.values()].filter((identity) => !knownPids.has(identity.pid));
+  let summary;
+  try {
+    summary = await writeOwnedProcessEvents(identityLog, discovered.map((identity) => ({
+      event: eventName, timestampUtc: identity.discoveredAtUtc, ...identity,
+    })), { signal, final: final || Boolean(traversalFailure), append });
+  } catch (loggingFailure) {
+    if (traversalFailure) throw new AggregateError([traversalFailure, loggingFailure], 'Owned traversal and identity logging both failed.');
+    throw loggingFailure;
+  }
+  if (traversalFailure) throw traversalFailure;
+  return summary;
+}
 
 /** 运行指定模型的隔离真实 Server 工作台验证，并保留有界执行与归属清理证据。 */
 export async function runRealWorkbench({ modelName, environmentPrefix, runPrefix, specFile }) {
@@ -44,6 +200,7 @@ export async function runRealWorkbench({ modelName, environmentPrefix, runPrefix
   let auditTimer = null;
   let cleanupProven = true;
   let contentCreated = false;
+  let finalizing = false;
   const cancel = () => cancellation.abort(new Error(`${modelName} real Server run cancelled.`));
   const maximumRun = setTimeout(() => cancellation.abort(new Error(`${modelName} real Server run exceeded 10 minutes.`)), 10 * 60_000);
   process.on('SIGINT', cancel);
@@ -99,9 +256,11 @@ export async function runRealWorkbench({ modelName, environmentPrefix, runPrefix
     process.exitCode = await waitForExit(tests.child, cancellation.signal);
   } catch (error) {
     process.exitCode = 1;
-    console.error(error instanceof Error ? error.message : String(error));
-    await event({ event: `${runPrefix}-failed`, message: error instanceof Error ? error.message : String(error) });
+    const failure = formatOwnedProcessFailure(error);
+    console.error(failure.message);
+    await event({ event: `${runPrefix}-failed`, ...failure }, true);
   } finally {
+    finalizing = true;
     clearTimeout(maximumRun);
     clearInterval(auditTimer);
     process.removeListener('SIGINT', cancel);
@@ -171,10 +330,13 @@ export async function runRealWorkbench({ modelName, environmentPrefix, runPrefix
     return environment;
   }
 
-  async function event(value) {
-    const line = JSON.stringify({ timestampUtc: new Date().toISOString(), ...value });
-    await appendFile(identityLog, `${line}\n`);
-    console.log(line);
+  async function event(value, final = finalizing) {
+    await events([value], final);
+  }
+
+  async function events(values, final = finalizing) {
+    const summary = await writeOwnedProcessEvents(identityLog, values, { signal: cancellation.signal, final });
+    if (summary) console.log(summary);
   }
 
   async function startRoot(executable, args, environment, label) {
@@ -273,58 +435,25 @@ export async function runRealWorkbench({ modelName, environmentPrefix, runPrefix
   }
 
   function sameIdentity(left, right) {
-    return left && right && left.pid === right.pid && left.created === right.created
-      && left.parentPid === right.parentPid && left.commandLine === right.commandLine;
+    return sameProcessIdentity(left, right);
   }
 
   function parentChain(identity, snapshot) {
-    const chain = [];
-    let parentPid = identity.parentPid;
-    const expires = Date.now() + 1_000;
-    for (let depth = 0; depth < 16 && parentPid > 0 && Date.now() < expires; depth += 1) {
-      const parent = identities.get(parentPid) ?? snapshot.find((item) => item.pid === parentPid);
-      if (!parent) { chain.push({ pid: parentPid, unavailable: true }); break; }
-      chain.push({ pid: parent.pid, created: parent.created, parentPid: parent.parentPid, commandLine: parent.commandLine });
-      if (chain.slice(0, -1).some((item) => item.pid === parent.parentPid)) break;
-      parentPid = parent.parentPid;
-    }
-    return chain;
+    return ownedParentChain(identity, snapshot, identities);
   }
 
   async function auditOwnedProcesses(final = false) {
     if (!final && (auditCount >= 300 || Date.now() >= deadline)) throw new Error('Owned process discovery budget exceeded.');
     auditCount += 1;
     const snapshot = await windowsSnapshot();
-    const expires = Date.now() + 3_000;
-    for (let depth = 0; depth < 16 && Date.now() < expires; depth += 1) {
-      let added = 0;
-      for (let index = 0; index < snapshot.length && index < 4096; index += 1) {
-        if (Date.now() >= expires) throw new Error('Owned process traversal exceeded three seconds.');
-        const child = snapshot[index];
-        const parent = identities.get(child.parentPid);
-        if (!parent || identities.has(child.pid) || Date.parse(child.created) < Date.parse(parent.created)) continue;
-        const currentParent = snapshot.find((item) => item.pid === parent.pid);
-        const root = roots.find((item) => item.pid === parent.pid);
-        if (currentParent && !sameIdentity(currentParent, parent)) continue;
-        if (!currentParent && (!root?.exitedAtUtc || Date.parse(child.created) > Date.parse(root.exitedAtUtc))) continue;
-        if (identities.size >= 128) throw new Error('Owned process identity budget exceeded.');
-        child.parentChain = parentChain(child, snapshot);
-        identities.set(child.pid, child); added += 1;
-        await event({ event: `${runPrefix}-descendant-discovered`, ...child });
-      }
-      if (added === 0) return;
-    }
-    throw new Error('Owned process tree exceeded depth/time budget.');
+    const summary = await auditOwnedProcessSnapshot(snapshot, identities, roots, identityLog, {
+      signal: cancellation.signal, final: final || finalizing, eventName: `${runPrefix}-descendant-discovered`,
+    });
+    if (summary) console.log(summary);
   }
 
   function liveOwned(snapshot) {
-    const live = [];
-    for (const identity of [...identities.values()].slice(0, 128)) {
-      const current = snapshot.find((item) => item.pid === identity.pid);
-      if (current && !sameIdentity(current, identity)) throw new Error(`Recorded PID ${identity.pid} was reused; preserve the replacement process.`);
-      if (current) live.push(identity);
-    }
-    return live;
+    return liveOwnedProcessIdentities(snapshot, identities);
   }
 
   async function stopOwnedTree(identity) {

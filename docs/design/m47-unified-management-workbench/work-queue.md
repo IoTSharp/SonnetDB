@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-31 合同与文件冻结（2026-10-06；本地切片已验证）
+
+- 从 `main / 866dd04b`接续WB-30；08:04 heartbeat完整接收HANDOFF/AGENTS/queue并核对git/路线图/已存在提交/三旧代理及进程。Object WB-25与WB-26～WB-30不重复；三博客文件及HANDOFF尾hunk保留不暂存。只补Measurement新Web→隔离真实Kestrel的当前读取/导出、正常审批写终态子集和实际撤权锁存，不改生产组件、SQL/API、Server、路由或其它宿主。
+- 文件归属：`/root/wb29_runner`独占新增 `web/e2e/run-measurement-real.mjs`、追加冻结 `web/e2e/run-workbench-real.mjs` 审计/日志最小修复与 `web/tests/workbench-real-runner-audit.test.mjs`；`/root/wb29_ui`独占新增 `web/e2e/measurement-real-permission.spec.ts`；`/root/wb28_review`独立只读复核源码及最终成功证据PASS。三个实施/复核源任务已停止写入，根独占六共享文档、验证/进程审计、集成/restore/format/stage/commit，仅十任务文件。没有重复源码派单或启动WB-32。
+- 四真实旅程各120秒、HTTP10秒、retries0、无mock/skip/prop harness，真实runner10分钟/readiness120次60秒；有界501seed→100/500与分钟200～260的61行、原名/typed参数及当前JSON/CSV逐行比较。普通非超级用户WRITE经正常CSV解析/审批，一次batch两个INSERT完整end各affected1，管理员独立SELECT与原身份history2。旧导入审批实际REVOKE403拒写不落库、清点/monitor/Schema/editor/import/审批；重授READ/同tokenSchema200仍锁存且不重放；独立monitor403清载荷并拒后续模型请求。最终4/4，Document共享runner真实回归3/3单列。
+- 沿用WB-30点/monitor最多500、auto12轮/60秒、审批1000语句/10批/60秒。SQL LIMIT/preview与当前导出不计全measurement快照/Server扫描/物化/传输/字节/总堆预算；API安装token不计登录UI/readonly宿主props，逐INSERT子集不计完整COMMIT/权威影响数/Int64/恢复或其它权限矩阵。成功证据在已核验runRoot独立wx落盘，24份/单1MiB/总8MiB、marker/凭据门禁及下载finally清理保持。
+- 共享runner只将日志I/O移出3秒纯遍历：4096snapshot/128identity/16depth/300audit及PID复用/父链不放宽，发现时先登记身份与时间，异常已登记增量仍独立10秒日志落盘，磁盘完整parentChain/stdout短摘要，auditPending覆盖全程。顶层失败最多两安全原因，未知正文/stack/argv/凭据不输出。Windows受控stdout立即读0ms/延迟读5192ms证明原日志阻塞，append/console占比未分拆。审计Node10/10、全Web321/321；源码未变产品Measurement16/16、Chrome fixture20/20、TypeScript/Vite及Server Release0警告/错误复用。
+- 最终Measurement成功run `measurement-real-2026-10-06T07-27-11-732Z-e1b21440-21ca-4d3c-8378-1cd60d3adf73`，四JSON396558字节/manifest根与独立复核一致；Document run `document-real-2026-10-06T07-02-00-347Z-56387898-27da-47da-991c-af068bbc43aa`。两pre-browser遍历失败及DDL DOUBLE/实际FLOAT、datetime-local零秒Malformed value失败保留，仅spec按实际合同修正后四旅程通过。合并131身份0自有存活、6contentRoot/4记录Chrome profiles清理；短命command、syntax身份与诊断父链捕获缺口继续单列，不冒称完整捕获。
+- 根旧恢复验证7次，但UTC/本地DateTime比较错误造成43.49分钟超35分钟；修为DateTimeOffset.UtcDateTime、保留过期预算和错误记录。本次08:04 heartbeat另开30分钟/最多3长命令的final-gates-only窗口，只完整restore/原级别format与本地commit，不复跑已通过旅程。最终待提交十任务文件完整门禁和staged diff须退出0才提交；实际命令/退出/树hash/提交与最终进程审计见 `artifacts/wb31-validation-20261006/final-gates.json`、`final-tree-hashes.json`、`commit-checkpoint.json`及 `audit-closeout-after-commit.json`，提交说明 `test(m47): verify Measurement workbench against real Server`，哈希以git log为准。
+- PowerShell7；禁止Graphify/广域工具扫描/未授权安装，搜索/循环/等待/重试明确项目/次数与墙钟并先小输入。长进程记录PID/创建/完整命令/父链，finally仅清核验自有树，临时路径绝对核验；两政策保留Temp不删除/重试/绕过。保留origin/parity-results，不fetch/push/发布/部署/外部沟通；真实Server、fixture、三宿主/OS/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别记录。三宿主仍未闭环，heartbeat ACTIVE。
+
 ### WB-30 合同与文件冻结（2026-10-06；Measurement 客户端切片已验证）
 
 - 从 `main / 46d3f513` 接续，完整接收最新HANDOFF/AGENTS/queue且哈希与WB-29最终树一致；WB-25～WB-29及旧代理均完成，不重复派单。三博客文件与HANDOFF末尾博客hunk继续保留不暂存。源代码盘点发现Measurement权限仅从错误文本推导，监控错误不进入统一锁存，读取/写审批/文件迟返缺少完整会话代际；本片只补客户端权限/请求/审批隔离与现有预览上限，不重做页面或完整写执行器。
@@ -195,7 +206,7 @@
 | WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
 | WB-29 | KV 新Web UI真实游标/Get/JSONL、条件写/交换终态子集与撤权锁存 | 本机Web→Kestrel首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过；普通WRITE三审批NX成功/未应用影响0/交换，真实版本+原身份history与管理员Get对拍；REVOKE403清旧导入审批、重授READ/同token刷新仍锁存。三成功JSON+manifest独立落盘核验；八任务文件最终完整门禁/实际提交见证据目录，生产组件/Server/共享runner不改，完整atomic/恢复/Server预算/三宿主另验。 |
 
-WB-15～WB-30已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先冻结Measurement新Web→真实Server权限/读取与写终态最小旅程，再盘点其它新UI真实权限/恢复与Studio/VS Code合同，按一个有界切片推进；不重复WB-25～WB-30，本轮不启动WB-31。
+WB-15～WB-31已按各自本地范围验证，实际提交以git log与各证据目录为准；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次接续WB-31实际提交，优先盘点其余模型新UI真实权限/恢复与Studio/VS Code剩余合同，再冻结一个有界切片；不重复WB-25～WB-31，本轮不启动WB-32。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 

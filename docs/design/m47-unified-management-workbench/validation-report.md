@@ -2,6 +2,17 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-31 Measurement 新Web真实旅程（2026-10-06；本地切片已验证）
+
+- 只新增Measurement真实薄入口/spec及共享runner审计最小修复/10项Node；生产Measurement、SQL/API、Server和其它宿主未改，三专属代理停止写入。最终共享源码与完整成功证据独立复核PASS，Measurement四JSON/manifest、实际响应/当前导出/history及Document回归、两run完整身份和退出/数据根清理证据已分别核对；整体三宿主仍未完成。
+- 最终Measurement真实4/4、无retry/skip/mock：501种子后的100/500和分钟边界61行窗口、原time/TAG/FIELD/typed参数及JSON/CSV逐行对拍；普通非超级用户WRITE两点正常文件审批、一次batch两个完整end各affected1，管理员原值与history2独立核对；旧审批实际REVOKE403不落库并清点/monitor/Schema/editor/import/审批，READ同tokenSchema200仍锁存；独立monitor403无后续模型请求。API安装真实token不计登录UI/readonly宿主props，逐点INSERT子集不计完整COMMIT/影响数/Int64矩阵。
+- 成功run `measurement-real-2026-10-06T07-27-11-732Z-e1b21440-21ca-4d3c-8378-1cd60d3adf73`，33.7秒测试/65秒runner。四成功JSON共396558字节、独立manifest与根SHA256/字节核验通过（success-evidence-verification）；24份/1MiB每份/8MiB总量、wx拒覆盖、runRoot/marker/凭据门禁、下载finally删除保持。当前窗口不等于全measurement快照或Server资源预算。
+- 共享runner Document真实回归3/3，run `document-real-2026-10-06T07-02-00-347Z-56387898-27da-47da-991c-af068bbc43aa`，22.6秒测试/61秒runner；属于既有Document权限/恢复与预算兼容，不增算新Measurement或其它宿主。最终审计Node10/10、全Web321/321；此前源码未变产品回归Measurement16/16、全Web311/311、Chrome fixture20/20、TypeScript/Vite、Server Release零警告/错误复用，未重复旧Kestrel SQL端点测试。
+- 修复原审计I/O占用3秒遍历：受控stdout即读0ms/迟读5192ms，原两run3145/3148ms失败但实际append/console占比未分拆。纯遍历3秒/4096snapshot/128identity/16depth/300audit不放宽；发现时间与身份先登记，异常增量仍独立10秒日志，全父链磁盘/控制台短摘要，auditPending覆盖两阶段，最终清理等待；双错顶层保存最多两安全原因，unknown/stack/argv/凭据不落盘。10行为测试含慢日志、真超时、日志失败、取消、PID复用及异常增量/安全原因。
+- 失败保留：两次pre-browser审计失败、恢复首run1失败/3未运行的DDL `DOUBLE`→实际SQL只接受`FLOAT`，第二run100/500与导出已通过但native datetime-local `04:30:00`归一`04:30`导致Malformed value，后三未运行。仅spec改真实FLOAT与分钟200～260/61行，不改生产或force/mock；最终四旅程完整PASS。
+- 成功后合并131身份/0自有存活，6个contentRoot/4个记录Chrome profiles清理，新测试Temp无残留；3条短命CIM command缺失、syntax完整身份缺失与受控诊断父PS完整快照缺失明确单列。两策略保留Temp不删除/重试/绕过，无安装/push/发布/部署/外部沟通，origin/parity-results保留。
+- 恢复验证7次，但根PowerShell预算门控错误比较UTC与本地DateTime，07:30实测43.49分钟超35分钟；已改DateTimeOffset.UtcDateTime（budget-timezone-correction），停止新增长验证。这不影响各已完成runner自身10分钟及源码纯遍历/日志上限，但不能宣称本轮整体墙钟合规。旧窗口保持过期记录。本次08:04 heartbeat另建30分钟/最多3长命令的final-gates-only收尾窗口，UTC使用DateTimeOffset，禁止复跑已通过旅程或开启WB-32。最终十任务文件完整restore/原级别format和staged diff均须退出0才本地提交；实际命令/退出、最终树hash和提交绑定见artifacts/wb31-validation-20261006/final-gates.json、final-tree-hashes.json与commit-checkpoint.json，提交说明test(m47): verify Measurement workbench against real Server，实际哈希以git log为准。博客三文件和HANDOFF尾hunk保持不暂存，origin/parity-results保留，heartbeat ACTIVE，三宿主未闭环。
+
 ## WB-30 Measurement 权限、请求与审批隔离的客户端切片（2026-10-06）
 
 - 从`main / 46d3f513`接续，三专属代理分别独占Measurement组件/Node、新Chrome spec及旧Measurement/Vector子页夹具hunk、只读复核；最终均停止写入且复核PASS。根维护六共享文档/验证/审计/git，仅十任务文件，三博客文件与HANDOFF末尾博客hunk保留不暂存。共享SQL/API、Server、路由及其它宿主不改；Object写终态WB-25已完成，不重复。
