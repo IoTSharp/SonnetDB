@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-29 KV 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的KV入口与三条Chrome→Kestrel旅程，验证Scan100/opaque cursor尾51、Get原值/安全版本与当前已加载JSONL逐行对拍；普通数据库WRITE身份经三次正常审批取得NX成功、NX未应用影响0及交换实际版本/原身份历史，管理员Get独立核验。实际REVOKE拒绝旧导入审批403，重授READ/同tokenSchema刷新仍锁存不重放。真实首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过，三份成功JSON与SHA256 manifest独立落盘。生产组件/Server/共享runner不改；完整atomic/Int64/TTL/CAS、瞬时结果表展示、显式恢复、Server预算与三宿主/发行物另验。
+
 - **M47 WB-28 FullText 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的FullText入口和三条Chrome→Kestrel旅程，验证Top-K20/100、精确文档/Analyzer、当前结果导出与原身份历史，数据库Admin一次批准同步重建完整终态，以及实际撤权403后重授READ/同token刷新仍锁存不重放。三份成功响应/下载/history证据与SHA256 manifest独立落盘且拒写凭据；真实3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过。生产组件/Server不改；首run错误WRITE授权失败、显式恢复、typed全文分页/服务端预算和三宿主/发行物边界见M47验证记录。
 
 - **M47 WB-27 Relation 真实 Web 事务与权限（2026-10-06）**：新增本机隔离Kestrel/Vite/Chrome分页/当前结果导出、两条审批插入完整终态、COMMIT唯一键冲突与实际撤权403锁存旅程。返回编辑保留暂存并提供重新预览/显式丢弃，隐藏审批不可确认；完整成功事务使用COMMIT权威影响数，避免两行误报四行，失败或缺失COMMIT不把暂存计为持久写入。抽出共享真实runner并保留Document兼容入口。Relation真实3/3、Document真实回归3/3、Node20/20、全Web300/300、Chrome fixture12/12与build通过；失败记录、显式恢复、完整权限/SQL矩阵、Server预算、三宿主与发行物边界见M47验证记录。

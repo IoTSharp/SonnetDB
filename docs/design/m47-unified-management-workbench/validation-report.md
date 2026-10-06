@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-29 KV 新Web UI真实游标、条件写/交换终态子集与撤权锁存（2026-10-06）
+
+- 起点 `main / f03bbfd9`，完整接收HANDOFF/AGENTS/queue、git/路线图/已提交WB-25～WB-28和代理，不重复Object写终态。两个独占代理只新增KV薄入口与真实spec，第三专属代理独立只读复核；根维护六共享文档、验证/审计/完整门禁/git，仅提交八任务文件。三博客文件及HANDOFF末尾博客hunk保留不暂存。生产KV组件/API、Server和共享runner未改；独立初审确认无需生产修复。
+- 复用隔离Release Kestrel/Vite proxy/Chrome，独占contentRoot/DataRoot、loopback HTTP、关闭非HTTP协议/外联；无API mock/prop harness/安装，缺配置失败、不skip。三测试各120秒、HTTP10秒、response等待15秒、retries0、runner10分钟/readiness120次60秒；单批151种子key，一项原子写目标、一项拒写目标。数据库/原名keyspace与带冒号key、旧深链接和profile历史保留。
+- 首读Scan100沿实际opaque nextCursor请求尾51，key顺序/Base64/安全numeric版本逐项匹配seed，Get-many2返回原值/版本且可见Raw结果含两值；两份实际JSONL下载分别只含100/151已加载行并逐行匹配相应响应，不把当前窗口当全keyspace快照。cursor末页hasMore=false/无nextCursor，history记录实际151和原身份。普通Scan/Get只证明本次安全整数版本，不宣称完整Int64字符串读合同。
+- 非超级用户数据库WRITE经正常UI逐次暂存/审批NX成功、NX未应用、Get-and-set，实际写请求恰三且每审批一次消费。成功响应applied=true/version2/versionText2，history success/affected1；未应用HTTP200实际JSON仅applied=false，history success/affected0、管理员Get值/版本与前次完全相同；交换真实previous原Base64/version2/previousVersionText2和mutationVersion3/mutationVersionText3，history affected1及字符串绑定，管理员Get新值/version3。此处证明实际响应与持久原身份history，不把成功Schema刷新后的瞬时结果表完整展示计为本片已验；完整atomic/Int64/TTL/CAS矩阵另片。
+- 撤权旅程先读取值/结果/统计并填editor/batch草稿，正常buffer-backed文件选择器暂存一条JSONL导入set-many审批；真实REVOKE后旧审批403，页面清值/统计/cursor/结果/editor/batch/import/审批，history error/0，管理员Get拒写key不存在。重授READ、同tokenSchema200刷新及三个页签仍permission，Scan/导出/导入禁用，无新keyspace请求或审批重放；显式安全恢复另片。API登录安装真实WRITE token，不计登录UI/host readonly props；文件handler不计真实OS文件对话框。
+- 首轮 `kv-real` **3/3**、退出0、无skip/retry，测试22.7秒/根runner66秒，run `kv-real-2026-10-06T04-23-52-381Z-0d585cd8-64e3-4de4-98fd-10c015b118a7`。Node17/17、全Web300/300（concurrency2）、TypeScript/Vite、Chrome fixture12/12和Server Release0警告/错误通过；同仓库Vite/build/Playwright串行，共享runner未改，无故重复其它模型真实回归或已有API测试均未进行。
+- 根证据 `artifacts/wb29-validation-20261006`，三成功JSON分别73913/6773/15054字节、合计95740，与SHA256 manifest独立落盘，根逐份大小/hash验证一致。helper核验绝对runRoot/命名/父目录/run.json，wx拒覆盖，最多24份、1MiB/份、8MiB/run且拒写password/token/tokenId；成功不依赖list reporter内存附件，下载finally删除，源码/命令/退出日志分别留档。
+- 门禁前合并审计48身份、0自有存活，无缺command记录；独占数据根和两Chrome profiles已按归属清理，精确compiler response目录已不存在。长进程记录PID/创建/完整命令/父链，finally仅清核验自有树；两处策略保留Temp不删除/重试/绕过。最终八文件完整restore、原级别format/staged diff退出0才本地提交，实际结果/源码hash/提交见final-gates/final-tree-hashes/commit-checkpoint，提交说明 `test(m47): verify KV workbench against real Server`；本任务未修改origin/parity-results；最终核查发现另一轮fetch已更新为`b1bca13d47c49c46314a783302721b8a2999c56f`，保留新引用并重跑最终门禁，无push/发布/部署/外部沟通。
+- 完整atomic/Int64/TTL/CAS、显式安全恢复、瞬时原子结果表展示、全keyspace一致性快照、Server扫描/物化/传输/字节/总堆预算，与其它模型/Studio/VS Code/真实OS对话框/安装/Extension Host/AOT/硬件/长稳/AI/MCP/发行物分别待验。三宿主整体仍未闭环，heartbeat保持ACTIVE，本轮不启动WB-30。
+
 ## WB-28 FullText 新Web UI真实Top-K、同步重建终态与撤权锁存（2026-10-06）
 
 - 起点 `main / 53cb9df4`，完整接收HANDOFF/AGENTS/queue并核对已提交Object/Document/Relation及旧代理。三个专属代理分别只新增FullText薄runner、真实spec、独立只读审查；根维护六共享文档/集成/验证/git，只提交八个任务文件。三博客文件及HANDOFF末尾博客hunk不暂存；生产FullText组件、Server与共享真实runner未改，源码SHA256对比一致。

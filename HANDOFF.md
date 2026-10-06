@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-29，2026-10-06；本机 KV Web 旅程已验证）
+
+- 从 `main / f03bbfd9` 接续，完整接收HANDOFF/AGENTS/queue并核对git/路线图/已提交WB-25～WB-28及旧代理；Object写终态已提交，不重复。三博客文件及本文件末尾博客发布hunk属于其它会话，保留不暂存；HANDOFF只暂存本段。heartbeat已回读，保持ACTIVE，三宿主整体仍未闭环。
+- 本片只补KV新Web→隔离本机Kestrel的Scan/Get/已加载round-trip、条件写/交换终态子集和撤权锁存。专属runner/UI/只读复核代理分别独占两新增入口/spec与审查；根维护六共享文档/验证/审计/git，仅提交八个任务文件。生产KV组件/API、Server、共享runner与其它宿主均未改，未发现需生产修复的真实兼容缺口。
+- 首轮 `kv-real` 真实 **3/3**、退出0、无retry/skip：151种子→Scan100+真实opaque cursor尾51，Get2原Base64/安全版本与两份已加载JSONL逐行匹配；普通非超级用户WRITE分别审批NX成功、NX未应用影响0、交换共三请求，实际versionText2/previousVersionText2/mutationVersionText3与原身份history绑定，管理员Get确认未应用前后值/版本不变及交换新值。未应用实际JSON仅applied=false，无版本字段；不虚构影响1或完整Int64读合同。
+- 正常文件导入暂存一项set-many旧审批，实际REVOKE后403清值/统计/cursor/结果/editor/batch/import/审批，history error/0、管理员Get拒写key不存在；重授READ/同tokenSchema200刷新及切页签仍锁存，无新模型请求/重放。API登录不计登录UI/readonly props；瞬时原子结果表完整展示和显式安全恢复另片。
+- 专属Node **17/17**、全Web **300/300**、TypeScript/Vite、Chrome fixture **12/12** 与Server Release **0警告/错误**通过；同仓库Vite/build/Playwright串行。证据 `artifacts/wb29-validation-20261006/kv-real-2026-10-06T04-23-52-381Z-0d585cd8-64e3-4de4-98fd-10c015b118a7`，三成功JSON合计95740字节与SHA256 manifest独立落盘/根核验，成功不依赖list reporter内存附件；下载finally删除。
+- 门禁前48条进程身份、0自有存活，独占数据根和两Chrome profiles均已清理；记录PID/创建/完整命令/父链并finally仅回收自有树，两处策略保留Temp不删除/重试/绕过。八文件最终完整restore、原级别format与staged diff退出0才本地提交，实际命令/退出/源码hash/提交见final-gates/final-tree-hashes/commit-checkpoint；提交说明 `test(m47): verify KV workbench against real Server`，实际哈希以git log为准。本任务未修改origin/parity-results；最终核查发现另一轮fetch已更新为`b1bca13d47c49c46314a783302721b8a2999c56f`，保留新引用并重跑最终门禁，无安装/push/发布/部署/外部沟通。
+- 下一次完整接收交接/队列/git/代理，不重复WB-25～WB-29；优先盘点Measurement等剩余新UI真实权限与Studio/VS Code合同，冻结一个有界切片。完整atomic/Int64/TTL/CAS、当前窗口之外快照、Server扫描/物化/传输/字节/总堆预算、三宿主/OS/安装/Extension Host/AOT/硬件/长稳/AI/MCP/发行物分别待验。heartbeat保持ACTIVE，本轮不启动WB-30。
+
 ## 当前检查点（WB-28，2026-10-06；本机 FullText Web 旅程已验证）
 
 - 从 `main / 53cb9df4` 接续，完整接收HANDOFF/AGENTS/queue并核对git、路线图、已提交WB-25～WB-27和运行中代理；Object写终态已提交，不重复。三博客文件及本文件末尾博客发布hunk属于其它会话，保留不暂存；HANDOFF只暂存本段。heartbeat已回读ACTIVE、每30分钟、当前thread，三宿主仍未闭环。

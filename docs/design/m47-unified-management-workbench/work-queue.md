@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-29 合同与文件冻结（2026-10-06；本机 KV Web 旅程已验证）
+
+- 从 `main / f03bbfd9` 接续，完整读取最新HANDOFF/AGENTS/queue且SHA256与WB-28最终工作树一致；WB-25～WB-28与三个旧代理已完成，不重复派单。三博客文件及HANDOFF末尾博客hunk属于其它会话，保留不暂存。只补KV新Web→隔离本机Kestrel的真实cursor/Get/round-trip、条件写/交换终态子集及撤权锁存，依赖WB-21、WB-16、WB-27共享真实runner与WB-28成功证据合同；不重做页面，不改Server/路由/其它宿主。
+- 专属实施代理独占新增 `web/e2e/run-kv-real.mjs`；专属UI代理独占新增 `web/e2e/kv-real-permission.spec.ts`；第三代理独立只读复核。真实兼容缺口先回报并追加冻结，候选只限同实施者 `web/src/components/KvKeyspaceWorkbench.vue` 与 `web/tests/kv-workbench-migration.test.mjs` 最小修复；不得预先扩大成完整atomic合同。根独占六共享文档/验证/集成/审计/完整restore-format/stage/commit，每代理25命名文件/35分钟，不自跑长验证或另派代理，最多三个活动子代理。
+- 三真实浏览器旅程，各120秒、HTTP10秒、retries0、共享runner10分钟/readiness120次60秒，根最多三次真实run/35分钟验证窗口。最多151种子key、一项条件写目标和一项拒写目标；原database/keyspace/key大小写及冒号保持。Scan最多100每窗沿实际opaque cursor加载尾页，Get实际Base64/版本，round-trip只导出已加载记录；不称全keyspace快照、Server扫描/物化/传输/字节/总堆预算。
+- 普通非超级用户的数据库WRITE会话经正常UI分别批准NX成功、NX未应用和交换（需要时精确get-and-delete收口）最多四操作，每审批一次消费；实际响应/versionText/previousVersionText/mutationVersionText、原目标history及管理员独立Get共同查证，不把HTTP200/applied=false称影响一项或重放审批。完整atomic/Int64精度/TTL/CAS矩阵另片。
+- 已读载荷和待批准写操作遭实际REVOKE后确认403，清值/统计/cursor/结果/写草稿/导入/审批；重授READ及同tokenSchema刷新保持锁存不重放。显式安全恢复另片，API登录不计登录UI/host readonly props。成功响应/下载/history按核验绝对runRoot单独落盘，最多24份、每份1MiB、累计8MiB，拒写凭据并生成SHA256 manifest。
+- 仅PowerShell7；禁止Graphify/广域工具扫描/未授权安装；所有搜索/循环/等待/重试明确项目/迭代上限与墙钟，先极小输入检查退出比较；长进程记录PID/创建/完整命令/父链，finally仅清核验自有树。临时绝对路径核验回收，两处策略保留Temp不删除/重试/绕过。fixture/真实服务/三宿主/安装/Extension Host/AOT/硬件/长稳/发行物分开；最终树完整restore/原级别format/staged diff退出0才本地提交，保留origin/parity-results、不push/发布/部署/外部沟通。heartbeat保持ACTIVE，本轮不启动WB-30。
+- 首轮 `kv-real`真实3/3、退出0、无retry/skip；Node17/17、全Web300/300、Chrome fixture12/12、TypeScript/Vite与Server Release0警告/错误通过。Scan100+opaque cursor尾51/Get2/JSONL逐行对拍，NX成功versionText2、未应用影响0/管理员Get不变、交换previousVersionText2/mutationVersionText3及history绑定；旧导入审批REVOKE403清载荷，重授READ/同tokenSchema200仍锁存不重放。三成功JSON95740字节+manifest根核验，48身份0自有存活，数据根/Chrome profiles清理；证据 `artifacts/wb29-validation-20261006`。生产组件/API/Server/共享runner不改，八任务文件最终完整门禁为本地提交前置，实际结果/提交见final-gates/commit-checkpoint；瞬时原子结果表展示、完整atomic/Int64/TTL/CAS/显式恢复/Server预算/三宿主另验。
+
 ### WB-28 合同与文件冻结（2026-10-06；本机 FullText Web 旅程已验证）
 
 - 从 `main / 53cb9df4` 接续，WB-25～WB-27均已提交、旧代理均结束；三博客文件及HANDOFF末尾博客发布hunk属于其它会话，保留不暂存。本轮只补FullText新Web UI→隔离真实本机Kestrel的Top-K/当前结果导出、同步重建审批终态及实际撤权锁存，依赖WB-19、WB-16与WB-27共享真实runner，不重做页面，不改Server、路由或其它宿主。
@@ -172,8 +182,9 @@
 | WB-26 | Document 新Web UI真实权限、显式恢复与输出预算 | 本机Web→Kestrel 3/3、Node21/21、全Web295/295、Chrome fixture11/11、build与独立复核PASS；空IDs省略，Distinct满1000完整性unknown。最终完整门禁与实际11文件提交见证据目录；API登录、READ拒写与真实登录UI/readonly props分开，Advanced/Server资源预算及三宿主另验。 |
 | WB-27 | Relation 新Web UI真实分页/导出、事务终态与撤权锁存 | 本机Relation→Kestrel3/3、共享runner Document真实3/3、Node20/20、全Web300/300、Chrome fixture12/12、build和独立复核PASS；返回编辑保留暂存并显式丢弃，COMMIT权威影响数避免重复，真实冲突error/partial/0与撤权403保持锁存。13文件最终完整门禁/实际提交见证据目录；显式恢复、Server预算/完整SQL矩阵、其它宿主及发行物另验。 |
 | WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
+| WB-29 | KV 新Web UI真实游标/Get/JSONL、条件写/交换终态子集与撤权锁存 | 本机Web→Kestrel首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过；普通WRITE三审批NX成功/未应用影响0/交换，真实版本+原身份history与管理员Get对拍；REVOKE403清旧导入审批、重授READ/同token刷新仍锁存。三成功JSON+manifest独立落盘核验；八任务文件最终完整门禁/实际提交见证据目录，生产组件/Server/共享runner不改，完整atomic/恢复/Server预算/三宿主另验。 |
 
-WB-15～WB-28已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点Measurement/KV等新UI真实权限/恢复与Studio/VS Code剩余合同，再按一个有界切片推进；不重复WB-25～WB-28，本轮不启动下一片。
+WB-15～WB-29已按各自本地范围推进；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次优先盘点Measurement等剩余新UI真实权限/恢复与Studio/VS Code合同，再按一个有界切片推进；不重复WB-25～WB-29，本轮不启动WB-30。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
