@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-38 Studio原生诊断入口（2026-10-07）**：新增实际Studio/WebView2 CDP附着runner与PowerShell7进程身份helper；本机宽窗native bootstrap、Managed Local Health/Stop/Start及旧/新Server归属已有真实局部证据。三次实跑全部保留失败：默认窗Health隐藏、正常关闭窗口句柄未发现、终态process-events超512KiB落盘中断等仍待接续；不称完整生命周期通过。Web build、Server/Studio Release和根回收审计通过，生产未改；最终完整restore/原级别format及本地八文件提交见M47验证记录，安装/对话框/AOT/三宿主整体另验。
+
 - **M47 WB-37 Object真实Web证据（2026-10-07）**：新增隔离runner薄入口和三正常旅程；接续首run3/3补100/51 continuation/151原DTO/当前51截断结果、206 Range4096与正常Download8192、一次text审批PUT200/管理员独立Get与history1、旧审批REVOKE403/管理员404/批准值保持和READ重授同tokenSchema200六tabs锁存。Blob不可观察body明确null；三JSON335381字节/manifest核验，初始三失败/耗尽budget与未知reset保留。生产/共享runner不改，完整独立复核、最终restore/原级别format与八文件本地提交见M47验证记录；Multipart/恢复/Server预算/三宿主/发行物另验。
 
 - **M47 WB-35 Graph真实Web证据（2026-10-07）**：新增复用隔离runner的Graph薄入口和三旅程，普通READ核实际Canvas250/10/1000、typed vertex、独立snapshot JSON导出10/1000及原身份history；普通WRITE一次审批取得单vertex Upsert sequence/isDuplicate终态与管理员Get/version+1；旧审批REVOKE403清画布/overview/编辑器/可见import草稿并在READ重授/同tokenSchema200保持锁存。真实第三轮3/3、Node27/27、全Web327/327、Graph fixture16/16/build通过，前两轮正常控件定位/数字提交失败记录保留；三JSON811899字节/manifest核验。Graph Beta、完整Int64/edge/import/维护及三宿主继续另验，恰满顶点预算的导出截断候选缺口留下一片；最终完整restore/原级别format为提交前置，实际见M47验证记录。

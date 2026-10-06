@@ -1,0 +1,581 @@
+// WB-38: one actual NativeWebApp/WebView2 window, actual native bootstrap and
+// isolated Studio-owned Server. No browser launch, routes, nativeWeb injection,
+// custom events, private Vue APIs, or simulated host contracts are used here.
+import { spawn } from 'node:child_process';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { access, lstat, mkdir, readFile, readdir, realpath, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import net from 'node:net';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
+import { chromium } from '@playwright/test';
+
+const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const evidenceParent = path.join(repository, 'artifacts', 'wb38-validation-20261007');
+const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
+const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+const helper = path.join(repository, 'web', 'e2e', 'studio-native-process.ps1');
+const studioExe = path.join(repository, 'src', 'SonnetDB.Studio', 'bin', 'Release', 'net10.0-windows', 'SonnetDB.Studio.exe');
+const studioDll = path.join(path.dirname(studioExe), 'SonnetDB.Studio.dll');
+const serverDll = path.join(repository, 'src', 'SonnetDB', 'bin', 'Release', 'net10.0', 'SonnetDB.dll');
+const serverWebRoot = path.join(path.dirname(serverDll), 'wwwroot');
+const ports = Object.freeze({ http: 18338, frame: 18339, bridge: 55338, cdp: 9338 });
+const origin = `http://127.0.0.1:${ports.http}`;
+const bridgeOrigin = `http://127.0.0.1:${ports.bridge}`;
+const cdpOrigin = `http://127.0.0.1:${ports.cdp}`;
+const runId = `studio-native-real-${randomUUID()}`;
+const runRoot = path.join(evidenceParent, runId);
+const profileRoot = path.join(runRoot, 'profile');
+const dataRoot = path.join(runRoot, 'data');
+const contentRoot = path.join(runRoot, 'server-content');
+const libraryPath = path.join(contentRoot, 'connections.json');
+const markerName = '.wb38-owned.json';
+const startedAt = Date.now();
+const totalDeadline = startedAt + 600_000;
+const mainDeadline = totalDeadline - 60_000;
+const cancellation = new AbortController();
+const cancel = () => cancellation.abort(new Error('Native Studio validation cancelled.'));
+process.once('SIGINT', cancel);
+process.once('SIGTERM', cancel);
+const timeout = setTimeout(cancel, mainDeadline - Date.now());
+const records = [];
+const helpers = [];
+const owned = new Map();
+const bridgeEvidence = [];
+const counters = { helpers: 0, requests: 0, bridgeResponses: 0, pageRequests: 0, filesWritten: 0, pageErrors: 0 };
+const secretValues = new Set();
+let studio;
+let studioIdentity;
+let runnerIdentity;
+let browser;
+let page;
+let stage = 'prerequisites';
+let normalExit = false;
+let cleanupProven = false;
+let fatal;
+let asynchronousFailure;
+const streamCounts = { stdoutBytes: 0, stderrBytes: 0 };
+const maxOwnedProcesses = 16;
+
+function check(final = false) {
+  if (Date.now() >= (final ? totalDeadline : mainDeadline)) throw new Error('Native Studio wall-clock budget exhausted.');
+  if (!final) cancellation.signal.throwIfAborted();
+  if (asynchronousFailure && !final) throw asynchronousFailure;
+}
+
+function safeMessage(error) {
+  let value = String(error?.message ?? error).slice(0, 4000);
+  const expires = Date.now() + 1000;
+  for (const secret of [...secretValues].slice(0, 16)) {
+    if (Date.now() >= expires) return 'Error message redaction deadline exceeded.';
+    value = value.split(secret).join('[redacted]');
+  }
+  return value.replace(/(?:bearer\s+)[A-Za-z0-9_.-]+/giu, 'Bearer [redacted]')
+    .replace(/\b[0-9a-f]{48}\b/giu, '[redacted bridge credential]');
+}
+
+async function evidence(name, value) {
+  if (!/^[a-z0-9.-]+$/u.test(name) || counters.filesWritten >= 48) throw new Error('Evidence filename/count cap exceeded.');
+  const text = JSON.stringify(value, null, 2);
+  if (Buffer.byteLength(text) > 524_288) throw new Error('Evidence JSON size cap exceeded.');
+  const expires = Date.now() + 1000;
+  for (const secret of [...secretValues].slice(0, 16)) {
+    if (Date.now() >= expires) throw new Error('Evidence credential check deadline exceeded.');
+    if (text.includes(secret)) throw new Error('Refusing to persist an authentication credential.');
+  }
+  await writeFile(path.join(runRoot, name), `${text}\n`, { flag: 'wx' });
+  counters.filesWritten += 1;
+}
+
+function key(identity) { return `${identity.processId}:${identity.creationTimeUtc}`; }
+function sameIdentity(a, b) {
+  return a && b && a.processId === b.processId && a.parentProcessId === b.parentProcessId
+    && a.creationTimeUtc === b.creationTimeUtc && a.commandLine === b.commandLine && a.executablePath === b.executablePath;
+}
+
+async function processAction(action, payload, final = false) {
+  check(final);
+  if (counters.helpers >= (final ? 64 : 40)) throw new Error('PowerShell helper invocation cap exceeded (24 calls reserved for cleanup).');
+  counters.helpers += 1;
+  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', helper, '-Action', action];
+  const input = JSON.stringify(payload);
+  if (Buffer.byteLength(input) >= 524_288) throw new Error('Process payload size cap exceeded.');
+  const child = spawn(pwsh, args, { cwd: repository, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  const record = { processId: child.pid, parentProcessId: process.pid, startedAtUtc: new Date().toISOString(), command: [pwsh, ...args], action, identity: null, exitCode: null };
+  helpers.push(record);
+  child.stdin.on('error', () => {});
+  child.stdin.end(input);
+  let output = '';
+  let stderrBytes = 0;
+  let exceeded = false;
+  let handshakeBuffer = '';
+  child.stdout.on('data', (buffer) => {
+    if (Buffer.byteLength(output) + buffer.length > 524_288) exceeded = true;
+    else output += buffer.toString('utf8');
+    if (!record.identity && handshakeBuffer.length < 262_144) {
+      handshakeBuffer += buffer.toString('utf8');
+      const end = handshakeBuffer.indexOf('\n');
+      if (end >= 0) {
+        try {
+          const message = JSON.parse(handshakeBuffer.slice(0, end));
+          if (message.kind === 'helper' && message.identity.processId === child.pid && message.identity.parentProcessId === process.pid && /^7\./u.test(message.version)) {
+            record.identity = message.identity;
+          }
+        } catch { exceeded = true; }
+      }
+    }
+  });
+  child.stderr.on('data', (buffer) => { stderrBytes += buffer.length; });
+  const helperTimeout = Math.min(25_000, (final ? totalDeadline : mainDeadline) - Date.now());
+  let helperTimer;
+  const code = await new Promise((resolve, reject) => {
+    helperTimer = setTimeout(() => {
+      // Finally reclaims a timed-out helper through a fresh CIM identity check.
+      // If the handshake never arrived, preserve it and report incomplete
+      // ownership rather than terminating an unverified PID.
+      record.timedOut = true;
+      reject(new Error(`Owned PowerShell ${action} helper exceeded its ${helperTimeout}ms deadline.`));
+    }, helperTimeout);
+    child.once('error', reject);
+    child.once('exit', (exitCode) => { record.exitCode = exitCode; record.exitedAtUtc = new Date().toISOString(); });
+    child.once('close', (exitCode) => resolve(exitCode));
+  }).finally(() => clearTimeout(helperTimer));
+  if (exceeded) throw new Error('PowerShell helper output cap exceeded.');
+  const lines = output.trim().split(/\r?\n/u);
+  if (lines.length > 3) throw new Error('Unexpected PowerShell helper output.');
+  const messages = lines.filter(Boolean).map((line) => JSON.parse(line));
+  const handshake = messages.find((item) => item.kind === 'helper');
+  record.identity = handshake?.identity ?? record.identity;
+  record.stderrBytes = stderrBytes;
+  if (!record.identity || record.identity.processId !== child.pid || record.identity.parentProcessId !== process.pid || !String(handshake.version).startsWith('7.')) {
+    throw new Error('PowerShell 7 helper launch identity could not be proved.');
+  }
+  const result = messages.find((item) => item.kind === 'result');
+  if (code !== 0 || !result) throw new Error(messages.find((item) => item.kind === 'error')?.message ?? `Process helper ${action} failed.`);
+  return result.result;
+}
+
+async function snapshot(processIds, descendants = false, final = false) {
+  const result = await processAction('snapshot', { processIds: [...new Set(processIds)].slice(0, 8), descendants }, final);
+  if (!Array.isArray(result.identities) || result.identities.length > 64) throw new Error('Process snapshot count cap exceeded.');
+  return result.identities;
+}
+
+async function captureOwned(label, final = false) {
+  if (!studioIdentity) return [];
+  const live = await snapshot([studioIdentity.processId], true, final);
+  const root = live.find((item) => item.processId === studioIdentity.processId);
+  if (root && !sameIdentity(root, studioIdentity)) throw new Error('The Studio PID was replaced.');
+  if (root) {
+    for (const identity of live) {
+      check(final);
+      if (identity.processId !== root.processId) {
+        const ancestor = identity.parentChain?.find((item) => sameIdentity(item, studioIdentity));
+        if (!ancestor || Date.parse(identity.creationTimeUtc) < Date.parse(root.creationTimeUtc)) throw new Error('Descendant ownership could not be established.');
+      }
+      if (owned.size >= maxOwnedProcesses && !owned.has(key(identity))) throw new Error('Owned process identity cap exceeded; remaining processes require parent review.');
+      owned.set(key(identity), identity);
+    }
+  }
+  records.push({ event: label, atUtc: new Date().toISOString(), identities: live });
+  if (records.length > 24) throw new Error('Process event cap exceeded.');
+  return live;
+}
+
+async function api(method, apiPath, body, auth) {
+  check();
+  if (++counters.requests > 80) throw new Error('Real API/CDP request cap exceeded.');
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  cancellation.signal.addEventListener('abort', stop, { once: true });
+  const requestTimeout = setTimeout(stop, Math.min(5000, mainDeadline - Date.now()));
+  try {
+    const response = await fetch(`${origin}${apiPath}`, { method, signal: controller.signal,
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined });
+    if (!response.ok) throw new Error(`Real API ${method} ${apiPath} returned ${response.status}.`);
+    const text = await response.text();
+    if (Buffer.byteLength(text) > 524_288) throw new Error('Real API response size cap exceeded.');
+    return apiPath === '/healthz' ? { healthyHttpStatus: response.status } : text ? JSON.parse(text) : null;
+  } finally {
+    clearTimeout(requestTimeout);
+    cancellation.signal.removeEventListener('abort', stop);
+  }
+}
+
+async function boundedPoll(label, test, { attempts = 20, timeoutMs = 20_000, intervalMs = 500, final = false } = {}) {
+  const expires = Math.min(Date.now() + timeoutMs, final ? totalDeadline : mainDeadline);
+  let last;
+  for (let attempt = 0; attempt < attempts && Date.now() < expires; attempt += 1) {
+    check(final);
+    try { const result = await test(); if (result) return result; } catch (error) { last = error; }
+    if (attempt % 10 === 0) console.log(`${label}: attempt ${attempt + 1}/${attempts}`);
+    await delay(Math.min(intervalMs, Math.max(1, expires - Date.now())), undefined, final ? {} : { signal: cancellation.signal });
+  }
+  throw new Error(`${label} failed within ${attempts} attempts/${timeoutMs}ms${last ? `: ${safeMessage(last)}` : '.'}`);
+}
+
+async function portFree(port, final = false) {
+  check(final);
+  return new Promise((resolve, reject) => {
+    const listener = net.createServer();
+    const portTimer = setTimeout(() => { listener.close(); reject(new Error('Loopback bind check timed out.')); }, 1500);
+    listener.once('error', (error) => { clearTimeout(portTimer); if (error.code === 'EADDRINUSE') resolve(false); else reject(error); });
+    listener.listen({ host: '127.0.0.1', port, exclusive: true }, () => listener.close(() => { clearTimeout(portTimer); resolve(true); }));
+  });
+}
+
+function status(body) {
+  return { isRunning: body.isRunning, startedByStudio: body.startedByStudio, healthy: body.healthy,
+    processId: body.processId, url: body.url, dataRoot: body.dataRoot, processOwner: body.processOwner,
+    lifecycleState: body.lifecycleState, canStop: body.canStop, hasError: Boolean(body.error) };
+}
+
+function assertOwnedRunning(body) {
+  if (body.isRunning !== true || body.startedByStudio !== true || body.healthy !== true || body.processOwner !== 'studio'
+    || body.lifecycleState !== 'running' || body.canStop !== true || !Number.isInteger(body.processId) || body.processId <= 0
+    || body.url !== origin || path.resolve(body.dataRoot).toLowerCase() !== dataRoot.toLowerCase()) {
+    throw new Error('Real bridge status did not prove a healthy Studio-owned isolated Server.');
+  }
+}
+
+function watchPage() {
+  page.on('pageerror', () => { counters.pageErrors += 1; });
+  page.on('request', () => {
+    if (++counters.pageRequests > 240) asynchronousFailure = new Error('Native page request cap exceeded.');
+  });
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (url.origin !== bridgeOrigin || !['/studio-bridge/manifest', '/studio-bridge/connections', '/studio-bridge/server/status', '/studio-bridge/server/start', '/studio-bridge/server/stop'].includes(url.pathname)) return;
+    if (++counters.bridgeResponses > 64) { asynchronousFailure = new Error('Bridge response cap exceeded.'); return; }
+    // Only a public response body whitelist is retained. No request headers,
+    // bootstrap event values, Console messages, HAR or raw trace is recorded.
+    void response.json().then((body) => {
+      let publicBody;
+      if (url.pathname.endsWith('/manifest')) publicBody = { mode: body.mode, version: body.version, serverUrl: body.serverUrl,
+        managedServerUrl: body.managedServerUrl, dataRoot: body.dataRoot, capabilities: Array.isArray(body.capabilities) ? body.capabilities.slice(0, 32) : [], managedServer: status(body.managedServer ?? {}) };
+      else if (url.pathname.endsWith('/connections')) publicBody = { activeProfileId: body.activeProfileId, activeDatabase: body.activeDatabase,
+        activeIdentity: body.activeIdentity ? { host: body.activeIdentity.host, profileId: body.activeIdentity.profileId, baseUrl: body.activeIdentity.baseUrl, database: body.activeIdentity.database } : null };
+      else publicBody = status(body);
+      bridgeEvidence.push({ sequence: bridgeEvidence.length + 1, atUtc: new Date().toISOString(), method: response.request().method(), path: url.pathname, httpStatus: response.status(), body: publicBody });
+    }).catch(() => { asynchronousFailure = new Error('A real bridge response could not be decoded.'); });
+  });
+}
+
+async function latestBridge(apiPath, after = 0) {
+  return boundedPoll(`Real bridge ${apiPath}`, async () => bridgeEvidence.slice(after).findLast((item) => item.path === apiPath && item.httpStatus === 200), { attempts: 30, timeoutMs: 15_000, intervalMs: 250 });
+}
+
+async function dom(label, expectedState) {
+  check();
+  await boundedPoll(`DOM ${label}`, async () => {
+    const identity = await page.getByTestId('studio-host-identity').first().textContent({ timeout: 2000 });
+    const stateText = await page.getByTestId('studio-managed-state').first().textContent({ timeout: 2000 });
+    return identity?.includes('studio-desktop') && identity.includes('managed-local') && identity.includes(origin) && stateText === expectedState;
+  }, { attempts: 20, timeoutMs: 15_000, intervalMs: 250 });
+  const body = { label, url: page.url(), identity: await page.getByTestId('studio-host-identity').first().innerText(),
+    state: await page.getByTestId('studio-managed-state').first().innerText(),
+    canStart: await page.getByTestId('studio-managed-start').first().count() === 1,
+    canStop: await page.getByTestId('studio-managed-stop').first().count() === 1,
+    contractWarning: await page.getByTestId('studio-managed-contract-warning').first().count() > 0 };
+  if (body.contractWarning || body.canStop !== (expectedState === 'Studio 运行中') || body.canStart !== (expectedState === 'Studio 已停止')) throw new Error('Normal DOM controls disagreed with the real bridge lifecycle contract.');
+  await evidence(`dom-${label}.json`, body);
+  check();
+  if (++counters.filesWritten > 48) throw new Error('Evidence file cap exceeded.');
+  await page.screenshot({ path: path.join(runRoot, `${label}.png`), fullPage: false, timeout: 5000 });
+  return body;
+}
+
+async function identifyServer(body, label) {
+  assertOwnedRunning(body);
+  const live = await captureOwned(label);
+  const identity = live.find((item) => item.processId === body.processId);
+  if (!identity || identity.parentProcessId !== studioIdentity.processId || !identity.commandLine.toLowerCase().includes(serverDll.toLowerCase())
+    || !identity.parentChain.some((item) => sameIdentity(item, studioIdentity))) throw new Error('Bridge Server PID did not match an actual Studio-owned Server DLL process.');
+  await evidence(`${label}-identity.json`, identity);
+  return identity;
+}
+
+async function gone(identity, final = false) {
+  const live = await snapshot([identity.processId], false, final);
+  return !live.some((item) => sameIdentity(item, identity));
+}
+
+async function sourceHash(file) {
+  const details = await stat(file);
+  if (!details.isFile() || details.size > 134_217_728) throw new Error('Named prerequisite file size/type cap exceeded.');
+  return { path: file, bytes: details.size, sha256: createHash('sha256').update(await readFile(file)).digest('hex') };
+}
+
+function isolatedEnvironment() {
+  const environment = { ...process.env };
+  const names = Object.keys(environment);
+  if (names.length > 2048) throw new Error('Environment count cap exceeded.');
+  const expires = Date.now() + 1000;
+  for (let index = 0; index < names.length && index < 2048; index += 1) {
+    if (Date.now() >= expires) throw new Error('Environment filtering deadline exceeded.');
+    if (/^(SONNETDB_|ASPNETCORE_|DOTNET_ENVIRONMENT$|WEBVIEW2_|SonnetDBServer(?:__|:)|Kestrel(?:__|:)|ConnectionStrings(?:__|:)|URLS$)/iu.test(names[index])) delete environment[names[index]];
+  }
+  return { ...environment, DOTNET_ENVIRONMENT: 'Production', ASPNETCORE_ENVIRONMENT: 'Production',
+    ASPNETCORE_CONTENTROOT: contentRoot, ASPNETCORE_WEBROOT: serverWebRoot,
+    SONNETDB_Kestrel__Endpoints__Http__Protocols: 'Http1',
+    SONNETDB_Kestrel__Endpoints__FrameH2__Protocols: 'Http2',
+    WEBVIEW2_USER_DATA_FOLDER: profileRoot,
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${ports.cdp}` };
+}
+
+async function removeOwnedDirectory(directory) {
+  check(true);
+  const expected = path.resolve(directory);
+  const resolved = await realpath(directory);
+  if (![dataRoot, profileRoot, contentRoot].includes(expected) || path.dirname(expected) !== runRoot || resolved.toLowerCase() !== expected.toLowerCase() || (await lstat(directory)).isSymbolicLink()) throw new Error('Owned directory path verification failed.');
+  const markerFile = path.join(directory, markerName);
+  if ((await stat(markerFile)).size > 4096) throw new Error('Owned marker size cap exceeded.');
+  const marker = JSON.parse(await readFile(markerFile, 'utf8'));
+  if (marker.runId !== runId || marker.runnerPid !== process.pid || marker.absolutePath !== expected) throw new Error('Owned directory marker verification failed.');
+  const pending = [{ directory, depth: 0 }];
+  const files = [];
+  const directories = [];
+  const scanDeadline = Math.min(Date.now() + 8000, totalDeadline);
+  let entries = 0;
+  for (let index = 0; index < pending.length && index < 512; index += 1) {
+    if (Date.now() >= scanDeadline) throw new Error('Owned directory scan deadline exceeded.');
+    const current = pending[index];
+    const children = await readdir(current.directory, { withFileTypes: true });
+    if (children.length > 4096 || current.depth > 16) throw new Error('Owned directory entry/depth cap exceeded.');
+    for (const child of children) {
+      if (++entries > 4096 || Date.now() >= scanDeadline) throw new Error('Owned directory scan count/deadline exceeded.');
+      const childPath = path.join(current.directory, child.name);
+      if ((await lstat(childPath)).isSymbolicLink()) throw new Error('Owned directory contains a link; removal refused.');
+      if (child.isDirectory()) pending.push({ directory: childPath, depth: current.depth + 1 });
+      else if (child.isFile()) files.push(childPath);
+      else throw new Error('Owned directory contains an unsupported entry.');
+    }
+    directories.push(current.directory);
+  }
+  if (pending.length > 512) throw new Error('Owned directory count cap exceeded.');
+  // Scan completes before any deletion. Only these individually checked paths
+  // are deleted; there is no broad recursive Remove-Item/rm operation.
+  for (const file of files) { check(true); await unlink(file); }
+  for (const item of directories.reverse()) { check(true); await rmdir(item); }
+  return { path: expected, entriesRemoved: entries + 1, removed: true };
+}
+
+try {
+  if (process.platform !== 'win32' || !configuredEvidence || path.resolve(configuredEvidence).toLowerCase() !== evidenceParent.toLowerCase()
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with the fixed WB-38 evidence parent.');
+  const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url)];
+  if (prerequisiteFiles.length > 8) throw new Error('Prerequisite file cap exceeded.');
+  for (const file of prerequisiteFiles) { check(); await access(file); }
+  for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error(`Required loopback port ${port} is already occupied; no host was started.`);
+  await mkdir(evidenceParent, { recursive: true });
+  if ((await realpath(evidenceParent)).toLowerCase() !== evidenceParent.toLowerCase() || (await lstat(evidenceParent)).isSymbolicLink()) throw new Error('Evidence parent resolves outside the fixed path.');
+  await mkdir(runRoot);
+  const hashes = [];
+  for (const file of prerequisiteFiles) { check(); hashes.push(await sourceHash(file)); }
+  await evidence('run.json', { runId, runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: 600, ports, origin, bridgeOrigin, cdpOrigin,
+    studioExe, serverDll, contentRoot, dataRoot, profileRoot, serverWebRoot, libraryPath, hashes,
+    runtimePrerequisite: 'WebView2 154.0.4258.53 checked by the parent; actual attachment remains required.',
+    boundary: 'Actual Studio/WebView2 native bootstrap and Managed Local lifecycle. API setup/login auth storage only; no login UI, OS dialog, installation, NativeAOT, permission matrix or full three-host parity claim.' });
+  for (const directory of [profileRoot, dataRoot, contentRoot]) {
+    check();
+    await mkdir(directory);
+    await writeFile(path.join(directory, markerName), JSON.stringify({ runId, runnerPid: process.pid, absolutePath: directory }), { flag: 'wx' });
+  }
+  await writeFile(path.join(contentRoot, 'appsettings.json'), JSON.stringify({ Logging: { LogLevel: { Default: 'Warning' } }, AllowedHosts: '127.0.0.1',
+    SonnetDBServer: { DataRoot: dataRoot, AutoLoadExistingDatabases: true, AllowAnonymousProbes: true, Tokens: {},
+      Mqtt: { Enabled: false, Sparkplug: { Enabled: false }, ExternalClient: { Enabled: false } }, Coap: { Enabled: false, Dtls: { Enabled: false } },
+      LineProtocolUdp: { Enabled: false }, Modbus: { Enabled: false }, SemanticSearch: { Enabled: false } } }, null, 2), { flag: 'wx' });
+  runnerIdentity = (await snapshot([process.pid]))[0];
+  if (!runnerIdentity || runnerIdentity.processId !== process.pid) throw new Error('Runner process identity was not inspectable.');
+  stage = 'actual Studio launch';
+  const args = ['--server-url', origin, '--managed-server-url', origin, '--bridge-port', String(ports.bridge), '--data-root', dataRoot,
+    '--connection-library', libraryPath, '--server-exe', serverDll, '--auto-start-server', '--width', '1920', '--height', '1080',
+    '--route', '/admin/app/sql?tool=table'];
+  const environment = isolatedEnvironment();
+  await evidence('launch.json', { executable: studioExe, args, parentIdentity: runnerIdentity,
+    childEnvironment: { DOTNET_ENVIRONMENT: environment.DOTNET_ENVIRONMENT, ASPNETCORE_ENVIRONMENT: environment.ASPNETCORE_ENVIRONMENT,
+      ASPNETCORE_CONTENTROOT: contentRoot, ASPNETCORE_WEBROOT: serverWebRoot, WEBVIEW2_USER_DATA_FOLDER: profileRoot,
+      SONNETDB_Kestrel__Endpoints__Http__Protocols: 'Http1', SONNETDB_Kestrel__Endpoints__FrameH2__Protocols: 'Http2',
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS } });
+  studio = spawn(studioExe, args, { cwd: contentRoot, env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  studio.stdout.on('data', (buffer) => { streamCounts.stdoutBytes += buffer.length; if (streamCounts.stdoutBytes > 4_194_304) asynchronousFailure = new Error('Studio stdout byte cap exceeded.'); });
+  studio.stderr.on('data', (buffer) => { streamCounts.stderrBytes += buffer.length; if (streamCounts.stderrBytes > 4_194_304) asynchronousFailure = new Error('Studio stderr byte cap exceeded.'); });
+  studio.on('error', () => { asynchronousFailure = new Error('Actual Studio executable could not be started.'); });
+  studio.on('exit', (code, signal) => records.push({ event: 'studio-exit', atUtc: new Date().toISOString(), processId: studio.pid, code, signal }));
+  studioIdentity = (await snapshot([studio.pid]))[0];
+  if (!studioIdentity || studioIdentity.parentProcessId !== process.pid || studioIdentity.executablePath.toLowerCase() !== studioExe.toLowerCase()
+    || !studioIdentity.commandLine.includes(dataRoot) || !studioIdentity.parentChain.some((item) => sameIdentity(item, runnerIdentity))) throw new Error('Actual Studio launch ownership could not be proved.');
+  owned.set(key(studioIdentity), studioIdentity);
+  await evidence('studio-identity.json', studioIdentity);
+  await boundedPoll('Managed Server health', async () => { const result = await api('GET', '/healthz'); return result || true; }, { attempts: 30, timeoutMs: 60_000, intervalMs: 1000 });
+  stage = 'real setup and API login';
+  const setup = await api('GET', '/v1/setup/status');
+  if (setup.needsSetup !== true || !setup.suggestedServerId) throw new Error('Managed Local was not a fresh isolated Server.');
+  const password = `WB38_${randomBytes(18).toString('hex')}!`;
+  const bearerToken = `wb38_${randomBytes(24).toString('hex')}`;
+  secretValues.add(password); secretValues.add(bearerToken);
+  const administrator = await api('POST', '/v1/setup/initialize', { serverId: setup.suggestedServerId, organization: 'WB38 isolated native desktop evidence', username: 'wb38_admin', password, bearerToken });
+  if (administrator.token) secretValues.add(administrator.token);
+  if (administrator.tokenId) secretValues.add(administrator.tokenId);
+  const identity = await api('POST', '/v1/auth/login', { username: 'wb38_admin', password });
+  if (identity.token) secretValues.add(identity.token);
+  if (identity.tokenId) secretValues.add(identity.tokenId);
+  if (identity.username !== 'wb38_admin' || identity.isSuperuser !== true || !identity.token || !identity.tokenId) throw new Error('Real API login did not return a valid Studio session.');
+  await evidence('authentication-boundary.json', { setupWasRequired: true, initializationSucceeded: true, apiLoginSucceeded: true, username: identity.username, isSuperuser: identity.isSuperuser, tokenStoredVia: 'sndb.auth localStorage only', loginUiVerified: false });
+  stage = 'actual WebView2 loopback CDP';
+  const cdpVersion = await boundedPoll('WebView2 CDP environment passthrough', async () => {
+    check();
+    if (++counters.requests > 80) throw new Error('API/CDP request cap exceeded.');
+    const response = await fetch(`${cdpOrigin}/json/version`, { signal: AbortSignal.timeout(1500) });
+    const value = await response.json();
+    return response.ok && typeof value.webSocketDebuggerUrl === 'string' && value.webSocketDebuggerUrl.startsWith(`ws://127.0.0.1:${ports.cdp}/`) ? { Browser: value.Browser, 'Protocol-Version': value['Protocol-Version'] } : false;
+  }, { attempts: 30, timeoutMs: 45_000, intervalMs: 500 });
+  await evidence('actual-cdp-version.json', cdpVersion);
+  browser = await chromium.connectOverCDP(cdpOrigin, { timeout: 15_000 });
+  if (browser.contexts().length !== 1) throw new Error('Expected one real Studio WebView2 browser context.');
+  const context = browser.contexts()[0];
+  if (context.pages().length > 4) throw new Error('WebView2 page count cap exceeded.');
+  const matching = context.pages().filter((candidate) => {
+    try { const url = new URL(candidate.url()); return url.origin === origin && url.pathname.startsWith('/admin/'); } catch { return false; }
+  });
+  if (matching.length !== 1) throw new Error('A unique actual Studio managed-Server page was not found; no substitute page is created.');
+  page = matching[0];
+  const initialNativeUrl = page.url();
+  page.setDefaultTimeout(8000);
+  page.setDefaultNavigationTimeout(15_000);
+  await captureOwned('cdp-attached');
+  if (![...owned.values()].some((item) => item.commandLine.toLowerCase().includes(profileRoot.toLowerCase()) && item.commandLine.includes(`--remote-debugging-port=${ports.cdp}`))) throw new Error('An actual Studio descendant did not prove the private WebView2 profile/CDP launch.');
+  watchPage();
+  // The only browser script mutation is a valid identity returned by the real
+  // auth API. Navigation in this same native page runs the ordinary routed app
+  // and native bootstrap; an initial setup/login redirect is not assumed away.
+  await page.evaluate((auth) => localStorage.setItem('sndb.auth', JSON.stringify(auth)), { username: identity.username, token: identity.token, tokenId: identity.tokenId, isSuperuser: identity.isSuperuser });
+  await page.goto(`${origin}/admin/app/sql?tool=table`, { waitUntil: 'domcontentloaded' });
+  if (new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== '/admin/app/sql') throw new Error('Native main-window URL is outside the normal Workbench route.');
+  await evidence('native-window-route.json', { initialNativeUrl, finalNativeUrl: page.url(), sameExistingNativePage: true, substitutePageCreated: false });
+  stage = 'normal native window CSS viewport';
+  const nativeViewport = await page.evaluate(() => ({ innerWidth: window.innerWidth, innerHeight: window.innerHeight, devicePixelRatio: window.devicePixelRatio }));
+  await evidence('native-window-viewport.json', { ...nativeViewport, requestedNativeWindow: { width: 1920, height: 1080 },
+    requiredCssWidthGreaterThan: 1100, viewportInjected: false,
+    boundary: 'The default native window can produce a CSS viewport at or below1100px where state/Health are hidden by the existing responsive layout. Native window options provide this test prerequisite; the prior failure remains evidence.' });
+  if (!Number.isFinite(nativeViewport.innerWidth) || nativeViewport.innerWidth <= 1100
+    || !Number.isFinite(nativeViewport.innerHeight) || nativeViewport.innerHeight <= 0
+    || !Number.isFinite(nativeViewport.devicePixelRatio) || nativeViewport.devicePixelRatio <= 0) throw new Error('Actual native CSS viewport does not satisfy the visible state/Health prerequisite.');
+  await page.getByText('Studio 运行中', { exact: true }).first().waitFor({ state: 'visible', timeout: 8000 });
+  await page.getByTestId('studio-managed-health').first().waitFor({ state: 'visible', timeout: 8000 });
+  stage = 'normal DOM native identity and manifest';
+  await dom('initial-running', 'Studio 运行中');
+  const manifest = await latestBridge('/studio-bridge/manifest');
+  if (manifest.body.mode !== 'studio-desktop' || manifest.body.serverUrl !== origin || manifest.body.managedServerUrl !== origin
+    || !manifest.body.capabilities.includes('server.managedLocal') || !manifest.body.capabilities.includes('menu.native')) throw new Error('Actual native bootstrap did not produce the Studio desktop manifest.');
+  const connections = await latestBridge('/studio-bridge/connections');
+  if (connections.body.activeProfileId !== 'managed-local' || connections.body.activeIdentity?.host !== 'studio-desktop'
+    || connections.body.activeIdentity?.baseUrl !== origin) throw new Error('Real native connection library identity did not match the DOM.');
+  const oldServer = await identifyServer(manifest.body.managedServer, 'initial-server');
+  stage = 'normal DOM Health';
+  let after = bridgeEvidence.length;
+  await page.getByTestId('studio-managed-health').first().click();
+  assertOwnedRunning((await latestBridge('/studio-bridge/server/status', after)).body);
+  await dom('health-running', 'Studio 运行中');
+  stage = 'normal DOM Stop';
+  after = bridgeEvidence.length;
+  await captureOwned('before-stop');
+  await page.getByTestId('studio-managed-stop').first().click();
+  const stopped = (await latestBridge('/studio-bridge/server/stop', after)).body;
+  if (stopped.isRunning !== false || stopped.processOwner !== 'none' || stopped.lifecycleState !== 'stopped' || stopped.canStop !== false || stopped.processId != null) throw new Error('Real bridge Stop did not report an unowned stopped state.');
+  await dom('stopped', 'Studio 已停止');
+  await boundedPoll('Old managed Server PID exit', () => gone(oldServer), { attempts: 6, timeoutMs: 20_000, intervalMs: 500 });
+  for (const port of [ports.http, ports.frame]) if (!await portFree(port)) throw new Error('Managed Server Stop did not release its loopback ports.');
+  await evidence('stop-result.json', { oldIdentity: oldServer, oldIdentityExited: true, httpAndFramePortsReleased: true, status: stopped });
+  stage = 'normal DOM Start';
+  after = bridgeEvidence.length;
+  await page.getByTestId('studio-managed-start').first().click();
+  const restarted = (await latestBridge('/studio-bridge/server/start', after)).body;
+  const newServer = await identifyServer(restarted, 'restarted-server');
+  if (sameIdentity(newServer, oldServer)) throw new Error('Start did not produce a new actual managed Server identity.');
+  await dom('restarted-running', 'Studio 运行中');
+  after = bridgeEvidence.length;
+  await page.getByTestId('studio-managed-health').first().click();
+  const healthy = (await latestBridge('/studio-bridge/server/status', after)).body;
+  assertOwnedRunning(healthy);
+  if (healthy.processId !== newServer.processId) throw new Error('Health did not retain the restarted actual Server PID.');
+  stage = 'normal native main-window exit';
+  await captureOwned('before-native-close');
+  const closed = await processAction('close', { identity: studioIdentity });
+  if (closed.acted !== true || closed.method !== 'CloseMainWindow') throw new Error('Normal native main-window close was not accepted.');
+  await boundedPoll('Studio normal desktop exit', () => gone(studioIdentity), { attempts: 6, timeoutMs: 25_000, intervalMs: 500 });
+  await boundedPoll('Studio exit event', async () => studio.exitCode !== null || studio.signalCode !== null, { attempts: 10, timeoutMs: 2000, intervalMs: 100 });
+  if (studio.exitCode !== 0 || studio.signalCode !== null) throw new Error('Native Studio exited abnormally after CloseMainWindow.');
+  await boundedPoll('Restarted managed Server exit', () => gone(newServer), { attempts: 6, timeoutMs: 20_000, intervalMs: 500 });
+  for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error('Normal Studio exit did not release all four loopback ports.');
+  normalExit = true;
+  await evidence('normal-exit.json', { method: 'CloseMainWindow', studioIdentityExited: true, oldServerIdentityExited: true, newServerIdentityExited: true,
+    studioExitCode: studio.exitCode, studioExitSignal: studio.signalCode, allFourPortsReleased: true, fallbackUsedBeforeThisEvidence: false,
+    serverShutdownBoundary: 'Studio itself may force-terminate its managed console Server after its bounded close wait; this does not prove graceful Server shutdown or recovery.' });
+} catch (error) {
+  fatal = { stage, message: safeMessage(error) };
+  console.error(`WB-38 native validation failed at ${stage}: ${fatal.message}`);
+} finally {
+  clearTimeout(timeout);
+  stage = 'owned process cleanup';
+  const cleanup = { normalExit, fallbackActions: [], helperReclaims: [], identityChecks: [], directories: [], errors: [], allFourPortsReleased: false };
+  const pendingHelpers = helpers.filter((item) => !item.exitedAtUtc).slice(0, 64);
+  const helperReclaimDeadline = Math.min(Date.now() + 20_000, totalDeadline);
+  for (const pending of pendingHelpers) {
+    if (Date.now() >= helperReclaimDeadline) { cleanup.errors.push('Helper reclamation deadline exceeded.'); break; }
+    try {
+      if (!pending.identity) throw new Error(`Helper PID ${pending.processId} has no complete launch identity; preserved for parent review.`);
+      cleanup.helperReclaims.push({ identity: pending.identity, result: await processAction('kill', { identity: pending.identity }, true) });
+    } catch (error) { cleanup.errors.push(safeMessage(error)); }
+  }
+  try {
+    // CDP is only an attachment. Closing the browser through CDP would change
+    // the native lifecycle being measured, so Browser.close() is never called.
+    if (studioIdentity && !normalExit) await captureOwned('cleanup-discovery', true);
+    const targets = [...owned.values()].sort((a, b) => (b.parentChain?.length ?? 0) - (a.parentChain?.length ?? 0));
+    if (targets.length > maxOwnedProcesses) throw new Error('Cleanup target cap exceeded.');
+    const snapshotIds = targets.map((item) => item.processId);
+    const live = [];
+    for (let index = 0; index < snapshotIds.length && index < maxOwnedProcesses; index += 8) live.push(...await snapshot(snapshotIds.slice(index, index + 8), false, true));
+    for (const target of targets) {
+      check(true);
+      const current = live.find((item) => sameIdentity(item, target));
+      cleanup.identityChecks.push({ identity: target, exitedBeforeFallback: !current });
+      if (current) {
+        const result = await processAction('kill', { identity: target }, true);
+        cleanup.fallbackActions.push({ identity: target, result });
+      }
+    }
+    const remaining = [];
+    for (let index = 0; index < snapshotIds.length && index < maxOwnedProcesses; index += 8) remaining.push(...await snapshot(snapshotIds.slice(index, index + 8), false, true));
+    if (targets.some((target) => remaining.some((item) => sameIdentity(item, target)))) throw new Error('A recorded owned process remains alive after cleanup.');
+    for (const port of Object.values(ports)) if (!await portFree(port, true)) throw new Error('A required loopback port remains occupied after cleanup.');
+    cleanup.allFourPortsReleased = true;
+    if (studio && !studioIdentity && studio.exitCode === null) throw new Error('Studio ownership was not established; process and directories are preserved for manual review.');
+    if (helpers.some((item) => !item.exitedAtUtc)) throw new Error('An owned helper has not proved exit; parent process review is required.');
+    cleanupProven = cleanup.errors.length === 0;
+    for (const directory of [profileRoot, dataRoot, contentRoot]) {
+      try { await access(directory); cleanup.directories.push(await removeOwnedDirectory(directory)); }
+      catch (error) { if (error.code !== 'ENOENT') cleanup.errors.push(safeMessage(error)); }
+    }
+  } catch (error) { cleanup.errors.push(safeMessage(error)); }
+  cleanupProven = cleanupProven && cleanup.errors.length === 0;
+  if (normalExit && cleanup.fallbackActions.length) fatal ??= { stage: 'normal exit child-process audit', message: 'A Studio-owned descendant survived normal desktop exit; cleanup fallback was necessary.' };
+  if (!cleanupProven || cleanup.errors.length) fatal ??= { stage: 'cleanup', message: 'Owned process/directory cleanup was not fully proved; inspect cleanup.json.' };
+  try {
+    await access(runRoot);
+    await evidence('bridge-responses.json', bridgeEvidence);
+    await evidence('process-events.json', { runnerIdentity, studioIdentity, events: records, helpers, streamCounts, rawConsoleOrHeadersPersisted: false });
+    await evidence('cleanup.json', { ...cleanup, cleanupProven });
+    await evidence('result.json', { runId, passed: !fatal && normalExit && cleanupProven, fatal: fatal ?? null, normalExit, cleanupProven, counters,
+      finishedAtUtc: new Date().toISOString(), elapsedSeconds: (Date.now() - startedAt) / 1000, evidenceRoot: runRoot,
+      limitations: ['API setup/login with real auth localStorage; login UI not verified.', 'No native file dialog, installation, NativeAOT or full three-host acceptance.', 'Managed Server shutdown may use the existing Studio bounded forced termination.'] });
+  } catch (error) { console.error(`Evidence persistence failed: ${safeMessage(error)}`); fatal ??= { stage: 'evidence', message: 'Evidence could not be persisted.' }; }
+  process.removeListener('SIGINT', cancel);
+  process.removeListener('SIGTERM', cancel);
+  console.log(`WB-38 ${fatal ? 'FAIL' : 'PASS'}: ${runRoot}`);
+  // A CDP attachment may retain a Node transport after the native host exits.
+  // All native-process checks and evidence are complete before ending Node.
+  process.exit(fatal ? 1 : 0);
+}

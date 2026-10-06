@@ -2,6 +2,21 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-38 合同与文件冻结（2026-10-07；局部真实证据，正常退出未闭环）
+
+- 集成接续：上轮完整restore/format退出0但根封装器在Git启动前因两条路径失败，未stage/commit，原窗口16/16长命令/3实跑及失败不重置。2026-10-07从`2b21279f`与八文件未提交hash核对接续，新`artifacts/wb38-integration-20261007-01`仅35分钟/6长命令/0实跑，根复核首Git路径/命名数组/未启动finally，read-only Git极小输入PASS。复用UI代理仅8命名文件/8只读shell、21:18Z硬限独立工具复核；根独占六共享文档/所有mutation，最终八文件树完整restore/原级别format、进程审计、白名单diff和工具复核通过后本地提交，实际见新证据/git log。两源码/生产冻结，不重复实跑，不启动WB-39。
+
+- 从`2b21279f`接续，继承完整Raw读取并对拍最新HANDOFF/AGENTS/queue/ROADMAP；外来HANDOFF尾部已追加到54行，全部保留不stage；博客/oschina逐文件fresh baseline、origin/parity-results保护。WB-37及其旧失败窗口不重跑/改写，旧代理均完成，本轮只推进实际Studio native/bootstrap与Managed Local生命周期烟测。
+- 实施代理`/root/wb34_runner`独占新增`web/e2e/run-studio-native-real.mjs`与必要的`web/e2e/studio-native-process.ps1`；`/root/wb33_ui`独立只读合同/源码/证据复核。根独占六共享文档、构建/真实run/审计/最终restore-format/stage/本地commit。生产Studio/Web/Server、旧mock spec与共享runner先冻结；实际失败若需生产修复先证据/最小放行，不猜测native双注册故障。
+- 使用实际Studio exe/NativeWebApp/Win32/WebView2 Runtime154.0.4258.53，私有env CDP附着现有Playwright；实际native bootstrap/manifest和正常Workbench DOM身份、Health/Stop/Start、旧/新Server完整身份对拍，正常退出只用核验自有Studio CloseMainWindow。不得注入替换nativeWeb、fake事件/mock route/私有组件入口，API setup/login装实际token仅属认证准备、不计登录UI。正常退出与finally fallback清理分别记录。OS文件对话框/干净安装/升级卸载/全宿主旅程/三宿主完成均不在本片证据内。
+- 新证据`artifacts/wb38-validation-20261007`根75分钟/16长命令/3真实run，两命名dotnet构建项目；各真实run600秒。子代理新窗口20:19Z至20:49Z，各25命名文件/25定向搜索（80结果/15秒）/12短只读shell各30秒，不自跑launch/build或写共享文档。全部循环/搜索/等待/重试有限次数/项目及墙钟、先微输入核比较退出；长进程PID/创建/完整command/父链、finally仅回收核验自有树，marker/绝对路径核验清理独占profile/data，审计/证据保留。PowerShell7固定pwsh；禁Graphify/广域扫描/未授权安装，两个政策保留Temp不碰，不fetch/push/发布/部署/外部沟通。
+- 根按Web build→Server Release→Studio Release刷新产物，再冻结runner作最多三次真实烟测；不把旧binary/hash或fixture当本片新宿主证据。最终完整`dotnet restore SonnetDB.slnx`及原级别format通过后本地白名单commit，代码再改重跑，三宿主未闭环且唯一heartbeat ACTIVE每30分钟。本片不启动WB-39、不提前新建接续会话。
+- 三run已用满：首轮CIM祖先查询超20秒，缓存只限当前helper、动作目标与父链仍fresh；第二轮默认窗CSS隐藏Health，另有JSON ISO日期被转DateTime的清理误拒；两个失败及原cleanup=false不改。实施代理12/12短读耗尽后明确转交两文件给`/root/wb34_ui`，仅修native宽窗参数/只读geometry/可见前提和`-DateKind String`；最终源码/hash与极小身份kill验证见source-freeze-final/final-source-review/micro-mutation-result。
+- 第三run实际Edg154.0.4258.53，正常native bootstrap/manifest/connection identity、Health/Stop/Start与old/new Studio-owned Server PID通过；原生1920×1080对应CSS1266×663/DPR1.5，没有viewport注入、fake事件、mock route或强制点击。只证宽窗条件，默认/窄窗Health不可见仍为真实UI缺口。
+- 第三正常关闭helper主窗口句柄为0、报`The owned Studio has no native main window.`，未执行CloseMainWindow；随后process-events超过512KiB使normal-exit/process-events/cleanup/result未保存，wrapper退出1。bridge/四DOM/截图/身份/Stop局部证据保留，根单独failure observation，不能把无终态/根回收改成实际生命周期PASS。独立review20:49Z硬截止只读到局部证据，完整终态未独立PASS。
+- 根审计89记录身份0自有存活、三run九runtime目录均不存在，首两根remediation及第三28身份核验另存；原cleanup false/缺失不改，第三fallback数未知，短命捕获/外部祖先与缺process-events边界明确。Web build通过且保Vite chunk警告；两命名Release构建0警告/错误及三个index.html同hash。生产不改，八文件白名单/本HANDOFF仅顶部任务hunk，完整最终门禁与commit以证据/git log为准。
+- 接续优先项：原生窗口关闭入口的可验证发现与终态证据分拆/保证落盘，独立有界切片重新真实验收；再默认/窄窗Health可用性与OS文件对话框。不得将helper无句柄直接判作Studio产品退出缺陷，不得在本耗尽窗口追加第四run。三宿主/安装/NativeAOT/硬件/长稳/发布仍分别未闭环。
+
 ### WB-37 合同与文件冻结（2026-10-07；本地切片已验证）
 
 - 依赖WB-24/25既有Object读取/写终态、WB-16导航和WB-27/31隔离runner，从`4e7374ed`接续，不重做已有页面。初始三run窗口budget/失败/READ局部产物冻结；新接续`artifacts/wb37-continuation-20261007-01`19:57:17Z至21:12:17Z、根12长命令/3真实run，首run真实3/3（27.8秒/54秒wrapper）通过，旧三个失败不改为PASS。

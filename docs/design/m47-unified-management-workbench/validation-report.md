@@ -2,6 +2,20 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-38 Studio 原生宿主诊断（2026-10-07；局部真实证据，完整生命周期失败）
+
+- 集成接续窗口：上轮完整restore/format退出0、工作区加载警告保留，根封装器在Git启动前因Get-Command两路径处理失败，未stage/commit；原16长命令/3真实run与integration-failure-checkpoint不改。2026-10-07从`2b21279f`/八文件未提交hash接续，新`artifacts/wb38-integration-20261007-01`独立35分钟/6长命令/0实跑，完整文档/hash/git/路线图/三个完成代理复核，两源码及生产不改。只读Git极小输入确认首路径/命名数组/未启动finally修正PASS；独立工具复核8文件/8读、21:18Z截止。新最终八文件完整restore/原级别format、进程审计/白名单diff和工具复核均通过才本地commit，实际门禁/树hash/提交见新窗口与git log；不把上轮旧门禁当本轮新树通过，不重复真实运行或称生命周期PASS。
+
+- 从`2b21279f`接续，两新增文件`web/e2e/run-studio-native-real.mjs`与`studio-native-process.ps1`，生产Studio/Web/Server及既有fixture/runner冻结。根窗口20:20:16Z至21:35:16Z、16长命令/3真实run、两命名构建项目，不重置额度。专属runner实施，短读耗尽后明确转移两文件最小修正给UI代理；只读review至20:49Z，根独占文档/验证/集成/最终门禁/本地提交。
+- 根Web TypeScript/Vite build通过，保大chunk警告；Server Release、Studio Release各0警告/错误。Web与两个宿主index.html同SHA256，DLL/exe实际hash见`built-artifact-hashes.json`。运行已安装WebView2 Runtime154.0.4258.53、实际CDP Edg154.0.4258.53/protocol1.3，无下载/安装/发布。既有AOT分析构建不升级成NativeAOT发布证据。
+- 首轮`studio-native-real-7d8c2d60-d0c0-4db4-ad0b-041a2b3b48ce`在descendant snapshot因重复CIM查询超20秒失败；helper修为单次PID/full-row/null缓存，仍64进程/160查询/20秒/12层，close/kill目标与父链fresh。原result/cleanup=false保留，wrapper回收与16身份根remediation另列，不改成PASS。
+- 第二轮`studio-native-real-77a4d2b7-b2c8-4df7-b954-0b38b9115d18`已有真实manifest/正常DOM/Studio-owned Server，Health正常点击因既有max-width1100响应式CSS隐藏而失败，无forced click。清理严格日期比较误拒来自ConvertFrom-Json自动DateTime转换，独立date-parsing-observation与根remediation保留；helper仅改`-DateKind String`，不弱化身份字段。
+- 最终mjs `FB6D2829BA3D5662B53DF84A068F76F63A2CDEF1AC86D89D0DB97A1AD7758477`、PS `F1237EF78B01ADEF1611ED2B2AE96CA76E28518D7D579D4CAF5F60FEBF6D7A31`；AST/Node syntax与实际自有sleeping child snapshot/exact-identity kill极小输入通过。原生参数1920×1080，readonly evaluate记录实际CSS1266×663/DPR1.5，前提宽度>1100且state/Health正常可见；不注入viewport/替换nativeWeb/改CSS/调用私有Vue/fake事件/mock route/新建浏览器page。仅证宽窗条件，默认/窄窗可用性未通过。
+- 第三轮`studio-native-real-0840e975-d68d-488a-80cb-f10fefa2fb2b`在同一实际Studio/WebView2页面运行普通路由，实际bridge manifest/connections与DOM身份一致。API setup/login及真实token localStorage只属认证准备，不计登录UI；仅保存白名单公开响应，无header/token/原始bootstrap/console/HAR。正常Health、Stop、Start、重启Health得到200，四DOM/截图无合同警告。原Server PID10616/创建20:47:04Z与新60836/20:48:00Z均以command/parent chain绑定Studio59760；Stop旧身份消失、HTTP/Frame两端口释放，最后Health仍匹配新PID。root与独立review已对拍这些局部证据。
+- 完整生命周期**FAIL**：正常关闭前helper的MainWindowHandle为0，报`The owned Studio has no native main window.`，CloseMainWindow没有执行，不能判正常Studio退出或产品关闭故障。随后process-events超过单JSON512KiB导致证据保存序列中断，仅bridge-responses完成；normal-exit/process-events/cleanup/result均缺失。wrapper退出1、289秒任务执行，失败stdout/stderr与根`root-native-run3-observation.json`保留；不补造缺失runner文件。独立review在硬截止时尚无终态，仅`independent-actual-partial-review.json`局部PASS，不能称完整成功独立复核。
+- 原生失败后的回收与正常退出分开：首两run原cleanup=false保持；第三runner回收文件缺失/fallback数未知，但28wrapper记录身份根复核无存活，profile/data/content已不存在。综合`after-native-process-audit.json`核89身份、0自有存活/无缺command、三run九目录均不存在；根remediation均单独保存，不更改原失败。第三缺process-events、wrapper短命捕获与外部父链限制保留，不称全OS完整。两个policy保留Temp不触碰；本片自有runtime核验允许且已回收，不写成blocked。
+- 根最终八文件树完整restore、原级别format与白名单staged diff作为本地提交前置，实际退出/日志/hash/commit与门禁后归属审计见`artifacts/wb38-validation-20261007`。HANDOFF仅顶部任务hunk，54行外来footer和博客/oschina不stage，origin/parity-results保护。新增runner为诊断入口，当前完整烟测仍失败；下一片先修窗口发现与小而必达的终态落盘，再重新真实验收，不在本片跑第四次。文件对话框/干净安装/升级卸载/完整Studio与VS Code/Extension Host/NativeAOT/固定硬件/长稳/发行物和整体三宿主分别未闭环；唯一heartbeat ACTIVE每30分钟，不迁会话、不启动WB-39。
+
 ## WB-37 Object 真实Web旅程（2026-10-07；本地切片已验证）
 
 - 新薄入口复用隔离runner，UI仅新增真实spec；生产Object/API/Server/共享runner/其它宿主不改，WB-25写终态不重做。初始`artifacts/wb37-validation-20261007`三run额度耗尽、budget原样保留；另冻`artifacts/wb37-continuation-20261007-01`19:57:17Z至21:12:17Z、12长命令/3真实run，不重置旧预算或覆盖失败。

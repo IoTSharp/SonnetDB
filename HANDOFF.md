@@ -5,6 +5,17 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-38，2026-10-07；真实局部证据已采集，正常退出失败）
+
+- **集成接续**：上轮完整restore/format退出0（工作区加载警告保留），根封装器因两条Git路径在Git启动前失败、未stage/commit；旧16/16长命令与3/3真实run窗口/失败冻结不重置。2026-10-07从`2b21279f`和八文件未提交hash接续，最新完整文档/hash、路线图/git/三个完成代理重新核对。新`artifacts/wb38-integration-20261007-01`为35分钟/最多6长命令/0实跑的独立集成窗口，只复核根工具与最终八文件门禁/白名单提交；首Git路径/命名数组/未启动finally修正的只读极小Git输入PASS。原UI代理仅新增8文件/8读、21:18Z截止的独立工具复核，根仍独占所有写入/stage/commit。最终树完整restore/原级别format、进程审计及独立工具复核通过才提交；实际结果/hash/提交见新窗口final-gates/final-tree-hashes/commit-checkpoint和git log。原integration-failure-checkpoint保留，生产/两源码不再改，无第四实跑，本片不启动WB-39。
+
+- 从WB-37提交`2b21279f`接续，完整读取记录与最新HANDOFF/AGENTS/queue/ROADMAP对拍，git/已存在提交/代理已核验。只新增实际Studio/WebView2诊断runner与PowerShell7身份helper；生产Studio/Web/Server、旧fixture和共享runner不改，WB-37旧失败窗口不重跑。根独占六共享文档、验证/审计/完整门禁和八文件本地提交；外来HANDOFF54行footer、博客三文件/oschina保留不stage，origin/parity-results保留。
+- 专属`/root/wb34_runner`实施两文件，12/12短读耗尽后明确将最小修正归属移给`/root/wb34_ui`；最终mjs SHA256 `FB6D2829BA3D5662B53DF84A068F76F63A2CDEF1AC86D89D0DB97A1AD7758477`、PS `F1237EF78B01ADEF1611ED2B2AE96CA76E28518D7D579D4CAF5F60FEBF6D7A31`，全部代理停止写入。`/root/wb33_ui`独立源码/第三轮局部真实证据复核至20:49Z，终态未落盘，不能称完整生命周期独立PASS。
+- Web build、Server Release与Studio Release通过，后两者0警告/错误；Web/两宿主index.html哈希一致，WebView2实际Edg154.0.4258.53/CDP1.3。第三轮实际native bootstrap/manifest/connections和正常DOM Health→Stop→Start通过，Server PID10616/20:47:04Z→60836/20:48:00Z均归属Studio59760；Stop旧身份退出且HTTP/Frame端口释放，重启Health仍匹配新PID。API setup/login及localStorage只属真实认证准备，不计登录UI。
+- 三次实跑额度耗尽，失败原样保留：首轮CIM重复祖先查询超20秒，修单次helper缓存仍保fresh动作目标/父链；第二轮默认窗口Health被既有max-width1100 CSS隐藏，另发现JSON日期自动转换影响严格身份比较，修`-DateKind String`。第三轮请求原生1920×1080，实际CSS1266×663/DPR1.5且Health可见，未注入viewport/改CSS/强制点击；正常关闭前helper报`The owned Studio has no native main window.`，CloseMainWindow未执行，完整正常退出仍失败。随后process-events超过512KiB使终态保存中断，只有bridge-responses保存；normal-exit/process-events/cleanup/result缺失，不补造或判PASS。
+- 根证据`artifacts/wb38-validation-20261007`；第三run`studio-native-real-0840e975-d68d-488a-80cb-f10fefa2fb2b`wrapper退出1，原stdout/stderr、源冻结、四DOM/截图、old/new identity、stop与bridge保留。根另写root-native-run3-observation，三run原失败/cleanup false或缺失不变。回收审计89记录身份0自有存活/无缺command，三run九个runtime目录均不存在；第三28记录身份单列根核验PASS，原runner完整回收证明仍缺失。短命进程/外部祖先及第三缺process-events限制保留，不称全OS完备。两个policy保留Temp不碰。
+- 根窗口20:20:16Z至21:35:16Z、最多16长命令/3真实run不重置、不第四跑；最终八文件树完整restore/原级别format及白名单diff通过才本地commit，代码再改重跑，实际门禁/hash/commit见证据目录与git log。下一片先冻结原生窗口关闭入口与小而必达的终态证据落盘修复/验证，再单独处理默认/窄窗Health可用性及native文件对话框；不把helper发现失败冒称产品关闭故障。安装/全Studio与VS Code旅程/Extension Host/NativeAOT/固定硬件/长稳/发行物分别待验。整体未闭环，唯一heartbeat保持ACTIVE每30分钟，旧任务继续，不提前迁会话，本轮不启动WB-39。
+
 ## 当前检查点（WB-37，2026-10-07；本地切片已验证）
 
 - 接续`main / 4e7374eda57bb11d1a75e728768179812a6139ab`，最新HANDOFF/AGENTS/queue/ROADMAP已接收、继承完整读取记录并与上轮八文件checkpoint hashes对拍不变；git/既有提交/三个完成代理核验，不重复WB-25～WB-36。生产Object/API/Server/共享runner/其它宿主冻结不改，根只维护六共享文档与八任务文件，HANDOFF只本顶部hunk；博客三文件/oschina目录/41行外来尾hunk保留不stage，origin/parity-results保留。
