@@ -5,6 +5,17 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-34，2026-10-07；本地切片已验证）
+
+- 从WB-33提交`6bc0fea1022562ca8128911d2e222217d52b55ee`接续；最新交接/AGENTS/queue、路线图/git/已存在提交/代理已接收核对，上一片119记录身份0自有存活。Object写终态WB-25及WB-26～WB-33不重复。博客三文件及本文件尾hunk原样保留不暂存，origin/parity-results保护。
+- 仅新增MQ薄入口与真实spec；专属runner/UI代理已冻结两源码，runner冻结后兼任只读Server/spec/成功证据复核，根独立复核其四参数薄入口。新增第三review及复用wb33_review都被thread总数上限拒绝，使用本片可执行复核归属，不重复派单。生产MQ/API/Server/共享runner/路由/其它宿主不改；根串行维护六共享文档、统一验证/审计/集成/完整restore-format/stage/commit。
+- 新Web→隔离Release Kestrel首轮3/3、21.5秒测试/43秒runner，无mock/skip/retry。普通READ实际publish-batch151种子，fromOffset0/100、maxCount100两当前窗口100/51，逐项对拍原timestamp/header/Base64、各当前JSONL与原database+Topic/profile history。合法MixedCase Topic原名保持；真实冒号Topic额外probe400 bad_request，冒号保真仅既有fixture，不改Server或声称真实支持。
+- 普通非超级用户WRITE通过正常Publisher/Ack各一次审批：Publish201匹配Topic/offset151、管理员Browse与原history影响1；Ack200匹配原group、批准offset0→nextOffset1、管理员Offsets与history影响1。Retention按真实retainedStartOffset独立观察，不假设立即trim。第三旧正常Publisher审批实际REVOKE403，管理员确认拒写payload未落库/tail152未前进；清消息/header/metadata/trend/result/editor/approval，READ重授/同tokenSchema200/四section页签仍锁且selectedTopic无新请求或重放。仅证空native文件input与导入按钮disabled，没有真实文件导入草稿；Explorer刷新Topic列表可发生，不能称所有MQ网络静默。
+- 定向Node22/22、全Web327/327、MQ Chrome fixture16/16、TypeScript/Vite通过；fixture/API登录/真实Server证据分开，不计登录UI、routed readonly props或OS对话框。成功run`mq-real-2026-10-06T17-57-06-535Z-1604490b-dab0-4d96-8d93-b4bf39d87ef5`三JSON102582/5901/87323字节共195806，manifest大小/hash/绝对runRoot/凭据拒写门禁根核验通过；独立源码和成功证据复核结果见`independent-source-review/independent-success-review.json`，完整复核为提交前置。
+- 根证据`artifacts/wb34-validation-20261007`；真实后51记录身份0自有存活/无缺command记录，两Chrome profiles不存在，真实contentRoot已清理、cleanupProven=true。外部Windows祖先command缺失/末祖先未解析及旧wrapper可能漏短命worker、代理短语法命令未逐条完整OS身份捕获仍单列，不作全OS完整声明。两政策保留Temp不删除/重试/绕过。Server二进制复用WB-32零警告错误Release及本轮hash，不称本轮重新构建或AOT证据。
+- 17:45Z起75分钟至19:00Z、最多16长命令/3真实run不重置，本轮一真实run。六共享文档/八任务文件最终树完整`dotnet restore SonnetDB.slnx`和原级别`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`及staged diff必须退出0才本地提交；实际门禁/最终hash/八文件提交见final-gates/final-tree-hashes/staged-checkpoint/commit-checkpoint，未取得PASS不得commit，代码再改重跑。HANDOFF只暂存本顶部hunk，外来尾hunk保留。
+- MQ逻辑scope=database、identity=database+Topic、persistenceScope=instance和.system/mq不改；当前窗口/两写终态不计全实例快照、跨库物理隔离、单库备份覆盖MQ、实例恢复、Int64/Nack全矩阵、Server扫描/物化/解码/传输/字节/总堆预算或显式恢复。下一次完整接收交接/AGENTS/queue/ROADMAP/git/提交/活动代理，接续本片实际提交，优先冻结Graph/Object新UI真实旅程再推进Studio/VS Code剩余合同，不启动WB-35于本轮。三宿主/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物分别待验；唯一heartbeat已回读ACTIVE、每30分钟，当前会话继续旧任务，整体真正闭环后才迁同一heartbeat至新会话继续各类型后续任务。
+
 ## 当前检查点（WB-33，2026-10-07；本地切片已验证）
 
 - WB-32已提交 `89744d29646463a365e019d39e74410229ba8853`，八任务文件/独立复核/真实3/3/全Web321/321/fixture10/10/最终完整restore和原级别format退出0；104记录身份无自有存活，真实数据根/记录Chrome profile清理，已知短命捕获限制保留。本轮完整读取最新交接/AGENTS/queue并核对hash、路线图、git和代理，无活动旧代理，不重复已闭环任务。

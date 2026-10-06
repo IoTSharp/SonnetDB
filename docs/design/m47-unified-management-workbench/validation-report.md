@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-34 MQ 新Web真实旅程（2026-10-07；本地切片已验证）
+
+- 仅两新增源码：MQ薄入口复用既有隔离runner，真实spec经过专属runner/UI及源码只读复核；根独立复核薄入口。第三代理新建及旧review复用受thread总数上限拒绝，冻结入口后由runner兼任只读复核，不重复派单。生产MQ/API/Server/共享runner/路由/其它宿主不改，MQ逻辑scope=database、identity=database+Topic、persistenceScope=instance与物理.system/mq保持基线。
+- 普通READ，真实管理员单publish-batch建立151条合法MixedCase Topic种子；Browse fromOffset0/100、maxCount100得100/51两当前窗口，逐项核timestamp/header/Base64、各当前JSONL和原database+Topic/profile history，尾51不混入前100。真实REST对冒号Topic额外probe400 bad_request；名称保冒号的UI能力仅沿既有fixture，不计真实支持或擅自改Server。
+- 普通非超级用户WRITE，经正常UI各审批一次Publish及Ack；Publish201匹配Topic/安全offset151，原payload/headers与管理员Browse/history影响1对拍；Ack200匹配原consumerGroup/批准offset0/安全nextOffset1，管理员Offsets/history影响1一致。Retention按实际retainedStartOffset观察，不假设Ack立即trim，不验证30秒retention worker/实例重启或完整Int64/Nack矩阵。
+- 旧正常Publisher审批实际REVOKE后403，清消息/header/metadata/trend/result/editor/approval；管理员按真实retainedStartOffset Browse200查拒写payload不存在、批准payload保留/tail152不变。READ重授/同tokenSchema200/四section页签保持permission，selectedTopic路径无新读写或重放。真实未staged文件导入，只证空native file input和导入按钮disabled；Explorer可随Schema刷新Topic列表。API登录装入真实token不计登录UI/routed readonly props/OS对话框。
+- 根串行验证：定向Node22/22、全Web327/327（VM modules/concurrency2）、MQ Chrome fixture16/16、TypeScript/Vite PASS；新Web→隔离Release Kestrel首轮3/3、21.5秒测试/43秒runner，无mock/skip/retry。每旅程120秒，控制API10秒/browser响应与下载事件wait15秒/生产Axios30秒分开；runner10分钟/readiness120次60秒，fixture每项30秒。既有chunk/NO_COLOR提示不计失败，不降断言。
+- 成功run`mq-real-2026-10-06T17-57-06-535Z-1604490b-dab0-4d96-8d93-b4bf39d87ef5`三JSON102582/5901/87323字节共195806，绝对runRoot/wx、最多24份/单1MiB/总8MiB、凭据拒写和manifest尺寸/hash根核验通过；源码/成功证据独立复核见independent-source-review/independent-success-review，完整复核PASS是提交前置。证据根`artifacts/wb34-validation-20261007`，失败和过程证据不覆盖。
+- 真实后51记录身份0自有存活/无缺command记录；两Chrome profiles不存在、contentRoot清理/cleanupProven=true。完整真实PID/创建/command/父链与归属审计分别记录；外部Windows祖先command缺失/末祖先未解析，旧wrapper可能漏短命worker和代理短语法命令未逐条完整OS捕获均单列，不声称全OS完整。两政策保留Temp不触碰；Server复用WB-32零警告错误Release和本轮hash，不称新构建或AOT证据。
+- 六共享文档/集成/git根串行；只八任务文件，HANDOFF只本顶部hunk，博客三文件/尾hunk保留。17:45Z起75分钟/16长命令/最多3真实run不重置；最终完整restore/原级别format/staged diff退出0才本地commit，实际退出/日志/hash/提交见validation-results/final-gates/final-tree-hashes/commit-checkpoint，代码再改重跑。禁止Graphify/广域扫描/未授权安装，无fetch/push/发布/部署/外部沟通，origin/parity-results保护。
+- 不计全Topic/实例快照、跨库物理隔离、单库备份覆盖MQ、实例恢复、Server扫描/物化/解码/传输/字节/总堆预算或显式读取恢复。Graph/Object新UI和Studio/VS Code/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物继续分别待验；三宿主未闭环，唯一heartbeat回读ACTIVE/每30分钟，继续旧队列，整体闭环后迁同一heartbeat至新会话监督各类后续任务。本轮不启动WB-35。
+
 ## WB-33 Vector/Measurement子页权限上行与父锁存（2026-10-07；本地切片已验证）
 
 - 修复WB-32已记录的生产缺口，仅两组件/两Node/两Vector spec；Server/API/路由/共享runner/其它宿主不改。Measurement当前点/monitor/write精确401/403或SQL权限终态经epoch/requestId/signal/原身份核验，清载荷后emit原database、measurement和父render generation，无正文或凭据；继承parent deny不emit。写timeout后迟返拒绝不上行，仍记原身份unknown，不把取消当回滚。Vector验证data视图、child/index原measurement、database、代际与冻结authority/liveContext后沿父latch清hits、metadata、共享结果及子页草稿/审批。
