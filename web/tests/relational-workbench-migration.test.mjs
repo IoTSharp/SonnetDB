@@ -71,9 +71,10 @@ async function loadWorkbench(overrides = {}) {
     ${script}
     export { relationState, stateDescriptor, gridRows, tableColumns, rowsResult, latestResult, latestResultSql,
       errorMsg, permissionDenied, loadingRows, confirmBusy, page, pageSize, hasNextPage,
-      filterText, sortColumn, sortDirection, insertDraft, editDrafts, pendingOperations, previewPlan,
+      filterText, sortColumn, sortDirection, insertDraft, editDrafts, pendingOperations, previewPlan, previewVisible,
       loadRows, stageInsert, startEdit, stageUpdate, stageDelete, confirmPendingOperations,
-      clearPendingOperations, buildBrowseRequest, openHistoryEntry };`, { mode: 'transform' }), { identifier: sourcePath.href });
+      clearPendingOperations, previewPendingOperations, hidePendingPreview,
+      buildBrowseRequest, openHistoryEntry };`, { mode: 'transform' }), { identifier: sourcePath.href });
   await module.link((specifier) => { assert.ok(dependencies[specifier], `Unexpected dependency: ${specifier}`); return dependencies[specifier]; });
   await module.evaluate({ timeout: 3000 });
   mounts.forEach((callback) => callback());
@@ -224,6 +225,159 @@ test('approvals show captured insert values and update differences without putti
     assert.equal(workbench.historyEntries[0].status, 'success');
     assert.equal(JSON.stringify(workbench.historyEntries).includes('changed-value'), false);
   } finally { workbench.cleanup(); }
+});
+
+test('returning to edit preserves staged rows and a fresh preview commits both captured inserts once', { timeout: 5000 }, async () => {
+  const calls = [];
+  const workbench = await loadWorkbench({ execDataSqlBatch: async (...args) => {
+    calls.push(args);
+    return args[2].map(() => result([]));
+  } });
+  try {
+    await selectTable(workbench);
+    stageRow(workbench, 'first-approved');
+    const firstId = workbench.previewPlan.value.id;
+    workbench.hidePendingPreview();
+    assert.equal(workbench.previewVisible.value, false);
+    assert.equal(workbench.previewPlan.value, null);
+    assert.equal(workbench.pendingOperations.value.length, 1);
+    await workbench.confirmPendingOperations();
+    assert.equal(calls.length, 0);
+    assert.equal(workbench.historyEntries.length, 0);
+    workbench.insertDraft.DeviceID = 'second-id';
+    workbench.insertDraft.Label = 'second-approved';
+    workbench.stageInsert();
+    assert.equal(workbench.previewVisible.value, true);
+    assert.equal(workbench.previewPlan.value.items.length, 2);
+    assert.notEqual(workbench.previewPlan.value.id, firstId);
+    assert.match(workbench.previewPlan.value.items[0].detail, /first-approved/u);
+    assert.match(workbench.previewPlan.value.items[1].detail, /second-approved/u);
+    workbench.hidePendingPreview();
+    workbench.previewPendingOperations();
+    assert.equal(workbench.previewVisible.value, true);
+    assert.equal(workbench.previewPlan.value.items.length, 2);
+    await workbench.confirmPendingOperations();
+    await workbench.confirmPendingOperations();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][2].length, 4);
+    assert.equal(calls[0][2][0].sql, 'BEGIN');
+    assert.equal(calls[0][2][3].sql, 'COMMIT');
+    assert.equal(Object.values(calls[0][2][1].parameters).some((value) => value.stringValue === 'first-approved'), true);
+    assert.equal(Object.values(calls[0][2][2].parameters).some((value) => value.stringValue === 'second-approved'), true);
+    assert.equal(workbench.pendingOperations.value.length, 0);
+    assert.equal(workbench.previewVisible.value, false);
+    assert.equal(workbench.previewPlan.value, null);
+    assert.equal(workbench.historyEntries[0].status, 'success');
+    assert.equal(workbench.historyEntries[0].completeness, 'complete');
+  } finally { workbench.cleanup(); }
+});
+
+test('a complete two-insert transaction records the COMMIT count once even after context cancellation', { timeout: 5000 }, async () => {
+  for (const changeContext of [false, true]) {
+    const response = deferred();
+    let calls = 0;
+    let submitted;
+    const workbench = await loadWorkbench({ execDataSqlBatch: async (_api, database, statements) => {
+      calls += 1;
+      submitted = { database, statements };
+      return response.promise;
+    } });
+    try {
+      await selectTable(workbench);
+      stageRow(workbench, 'first-committed');
+      workbench.hidePendingPreview();
+      workbench.insertDraft.DeviceID = 'second-id';
+      workbench.insertDraft.Label = 'second-committed';
+      workbench.stageInsert();
+      const confirm = workbench.confirmPendingOperations();
+      if (changeContext) workbench.props.targetDb = 'FactoryDB:West';
+      response.resolve([0, 1, 1, 2].map((recordsAffected) => ({
+        ...result([]), end: { type: 'end', rowCount: 0, recordsAffected, elapsedMs: 1 },
+      })));
+      await confirm;
+      await workbench.confirmPendingOperations();
+      assert.equal(calls, 1);
+      assert.equal(submitted.statements.length, 4);
+      assert.equal(workbench.historyEntries.length, 1);
+      assert.equal(workbench.historyEntries[0].database, 'FactoryDB:East');
+      assert.equal(workbench.historyEntries[0].recordsAffected, 2);
+      assert.equal(workbench.historyEntries[0].status, changeContext ? 'unknown' : 'success');
+      assert.equal(workbench.historyEntries[0].completeness, changeContext ? 'unknown' : 'complete');
+      assert.equal(workbench.previewPlan.value, null);
+    } finally { workbench.cleanup(); }
+  }
+});
+
+test('failed or missing COMMIT never reports transaction-local insert counts as durable writes or replays', { timeout: 5000 }, async () => {
+  for (const outcome of ['commit-conflict', 'missing-commit']) {
+    let calls = 0;
+    const workbench = await loadWorkbench({ execDataSqlBatch: async () => {
+      calls += 1;
+      const results = [0, 1].map((recordsAffected) => ({
+        ...result([]), end: { type: 'end', rowCount: 0, recordsAffected, elapsedMs: 1 },
+      }));
+      if (outcome === 'commit-conflict') results.push({
+        ...result([]), end: null, error: { code: 'constraint', message: 'COMMIT rejected duplicate primary key' },
+      });
+      return results;
+    } });
+    try {
+      await selectTable(workbench);
+      stageRow(workbench, 'uncommitted');
+      await workbench.confirmPendingOperations();
+      await workbench.confirmPendingOperations();
+      assert.equal(calls, 1);
+      assert.equal(workbench.historyEntries.length, 1);
+      assert.equal(workbench.historyEntries[0].recordsAffected, 0);
+      assert.equal(workbench.historyEntries[0].status, outcome === 'commit-conflict' ? 'error' : 'unknown');
+      assert.equal(workbench.historyEntries[0].completeness, outcome === 'commit-conflict' ? 'partial' : 'unknown');
+      assert.equal(workbench.pendingOperations.value.length, 0);
+      assert.equal(workbench.previewPlan.value, null);
+      assert.equal(workbench.messages.filter((item) => item.name === 'success').length, 0);
+    } finally { workbench.cleanup(); }
+  }
+});
+
+test('explicit discard clears hidden staged edits without dispatching a write or recording an outcome', { timeout: 5000 }, async () => {
+  let writes = 0;
+  const workbench = await loadWorkbench({ execDataSqlBatch: async () => { writes += 1; return []; } });
+  try {
+    await selectTable(workbench);
+    stageRow(workbench, 'discard-secret');
+    workbench.hidePendingPreview();
+    workbench.clearPendingOperations();
+    workbench.previewPendingOperations();
+    await workbench.confirmPendingOperations();
+    assert.equal(workbench.pendingOperations.value.length, 0);
+    assert.equal(workbench.previewVisible.value, false);
+    assert.equal(workbench.previewPlan.value, null);
+    assert.equal(writes, 0);
+    assert.equal(workbench.historyEntries.length, 0);
+  } finally { workbench.cleanup(); }
+});
+
+test('hidden staged edits clear on identity, schema, permission, read-only changes and unmount', { timeout: 5000 }, async () => {
+  for (const change of ['database', 'schema', 'permission', 'readonly', 'unmount']) {
+    let writes = 0;
+    const workbench = await loadWorkbench({ execDataSqlBatch: async () => { writes += 1; return []; } });
+    try {
+      await selectTable(workbench);
+      stageRow(workbench, 'hidden-secret');
+      workbench.hidePendingPreview();
+      if (change === 'database') workbench.props.targetDb = 'FactoryDB:West';
+      if (change === 'schema') workbench.props.table = { ...table(), columns: [...table().columns, column('NewColumn', 'string', 2)] };
+      if (change === 'permission') workbench.props.permissionDenied = true;
+      if (change === 'readonly') workbench.props.readOnly = true;
+      if (change === 'unmount') workbench.cleanup();
+      workbench.previewPendingOperations();
+      await workbench.confirmPendingOperations();
+      assert.equal(workbench.pendingOperations.value.length, 0, change);
+      assert.equal(workbench.previewVisible.value, false, change);
+      assert.equal(workbench.previewPlan.value, null, change);
+      assert.equal(writes, 0, change);
+      assert.equal(workbench.historyEntries.length, 0, change);
+    } finally { if (change !== 'unmount') workbench.cleanup(); }
+  }
 });
 
 test('database, schema and read-only changes synchronously invalidate a previously approved write', { timeout: 5000 }, async () => {

@@ -52,6 +52,12 @@
         <n-button size="small" type="primary" :disabled="!canWrite" @click="showInsert = !showInsert">
           {{ showInsert ? 'Close insert' : 'Insert row' }}
         </n-button>
+        <n-button v-if="pendingOperations.length" size="small" secondary :disabled="!canWrite" @click="previewPendingOperations">
+          Preview staged edits
+        </n-button>
+        <n-button v-if="pendingOperations.length" size="small" quaternary :disabled="!canWrite" @click="clearPendingOperations">
+          Discard staged edits
+        </n-button>
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
       </div>
     </section>
@@ -65,11 +71,11 @@
     />
 
     <WriteApprovalPanel
-      v-if="previewPlan"
+      v-if="previewVisible && previewPlan"
       data-zone="approval"
       :plan="previewPlan"
       :busy="confirmBusy"
-      @cancel="clearPendingOperations"
+      @cancel="hidePendingPreview"
       @confirm="confirmPendingOperations"
     />
 
@@ -426,6 +432,7 @@ const insertDraft = reactive<DraftRow>({});
 const editDrafts = reactive<Record<string, DraftRow>>({});
 const editingRows = reactive<Record<string, boolean>>({});
 const pendingOperations = ref<PendingOperation[]>([]);
+const previewVisible = ref(false);
 const canWrite = computed(() => Boolean(props.table && props.targetDb)
   && !readOnly.value && !permissionDenied.value && !confirmBusy.value && !errorMsg.value);
 
@@ -483,7 +490,7 @@ const stateDescriptor = computed(() => relationStateContract[relationState.value
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
   const operationCount = pendingOperations.value.length;
-  if (!canWrite.value || !pendingContext || !isContextCurrent(pendingContext)
+  if (!previewVisible.value || !canWrite.value || !pendingContext || !isContextCurrent(pendingContext)
     || operationCount === 0) return null;
   const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
     id: operation.id,
@@ -864,6 +871,7 @@ function stageInsert(): void {
   });
   resetInsertDraft();
   showInsert.value = false;
+  previewPendingOperations();
 }
 
 function stageUpdate(row: GridRow): void {
@@ -914,6 +922,7 @@ function stageUpdate(row: GridRow): void {
     severity: 'write',
   });
   cancelEdit(row);
+  previewPendingOperations();
 }
 
 function stageDelete(row: GridRow): void {
@@ -938,10 +947,25 @@ function stageDelete(row: GridRow): void {
     detail: previewDraftValues(tableColumns.value.filter((column) => column.isPrimaryKey), row),
     severity: 'danger',
   });
+  previewPendingOperations();
+}
+
+function previewPendingOperations(): void {
+  if (!canWrite.value || writeInFlight || !pendingContext || !isContextCurrent(pendingContext)
+    || pendingOperations.value.length === 0) {
+    if (pendingContext && !isContextCurrent(pendingContext)) clearPendingOperations();
+    return;
+  }
+  previewVisible.value = true;
+}
+
+function hidePendingPreview(): void {
+  if (confirmBusy.value || writeInFlight) return;
+  previewVisible.value = false;
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (!canWrite.value || writeInFlight || !pendingContext || !isContextCurrent(pendingContext)
+  if (!previewVisible.value || !canWrite.value || writeInFlight || !pendingContext || !isContextCurrent(pendingContext)
     || pendingOperations.value.length === 0) {
     if (pendingContext && !isContextCurrent(pendingContext)) clearPendingOperations();
     return;
@@ -980,8 +1004,9 @@ async function confirmPendingOperations(): Promise<void> {
         ? '客户端因上下文改变停止了请求；这不表示服务器已经取消写入。'
         : errorResult?.error?.message ?? '批次缺少完整服务器终态')
       : errorResult?.error?.message ?? '';
-    const affected = results.reduce((sum, result) =>
-      sum + Math.max(result.end?.recordsAffected ?? 0, 0), 0);
+    // 事务内语句仅暂存修改；COMMIT 已返回实际提交数量，不能再次累加暂存计数。
+    const affected = complete && !errorResult
+      ? Math.max(results.at(-1)?.end?.recordsAffected ?? 0, 0) : 0;
     const elapsed = results.reduce((sum, result) => sum + (result.end?.elapsedMs ?? 0), 0);
 
     recordHistory(context, operations, unknown ? 'unknown' : errorText ? 'error' : 'success',
@@ -1071,6 +1096,7 @@ function recordHistory(
 }
 
 function clearPendingOperations(): void {
+  previewVisible.value = false;
   pendingOperations.value = [];
   pendingContext = null;
 }

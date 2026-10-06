@@ -206,7 +206,7 @@ test('same-name table ignores a delayed East response after selecting West', asy
   } finally { delayed.release(); }
 });
 
-test('staged insert and dangerous delete can be cancelled without sending a write', async ({ page }) => {
+test('returning to edit retains staged rows and explicit discard clears them without sending a write', async ({ page }) => {
   const evidence = await prepare(page);
   await openTable(page);
   await assertIdentity(page, east, 'normal');
@@ -217,12 +217,22 @@ test('staged insert and dangerous delete can be cancelled without sending a writ
   expect(evidence.writes).toEqual([]);
   await approval.locator('.write-approval__actions').getByRole('button', { name: '返回编辑', exact: true }).click();
   await expect(approval).toHaveCount(0);
+  await expect(page.locator('.relation-toolbar__meta')).toContainText('1 staged edits');
+  await page.getByRole('button', { name: 'Preview staged edits', exact: true }).click();
+  await expect(approval).toContainText('INSERT INTO "DeviceID:Main"');
+  await approval.locator('.write-approval__actions').getByRole('button', { name: '返回编辑', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard staged edits', exact: true }).click();
+  await expect(page.locator('.relation-toolbar__meta')).toContainText('0 staged edits');
+  await expect(page.getByRole('button', { name: 'Preview staged edits', exact: true })).toHaveCount(0);
   await page.locator('.relation-grid').getByRole('button', { name: 'Delete', exact: true }).first().click();
   approval = page.getByRole('dialog', { name: 'Relation table edit batch' });
   await expect(approval).toContainText('DELETE FROM "DeviceID:Main"');
   await expect(approval.getByRole('button', { name: '确认执行 1 项高风险操作', exact: true })).toBeDisabled();
   await page.keyboard.press('Escape');
   await expect(approval).toHaveCount(0);
+  await expect(page.locator('.relation-toolbar__meta')).toContainText('1 staged edits');
+  await page.getByRole('button', { name: 'Discard staged edits', exact: true }).click();
+  await expect(page.locator('.relation-toolbar__meta')).toContainText('0 staged edits');
   assertReadOnlyEvidence(evidence);
 });
 

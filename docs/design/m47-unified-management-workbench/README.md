@@ -1,6 +1,6 @@
 # M47 管理工作台设计评审包
 
-状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；生产兼容切片推进至 WB-26 Document 本机Web→真实Kestrel权限/显式恢复/输出预算3/3，补空IDs省略及Distinct满1000完整性未知。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
+状态：`CONFIRMED_BASELINE`，2026-10-05。用户已确认外壳、导航、九模型数据库逻辑资源树、MQ database + Topic / instance `.system/mq` 边界、Graph Beta 以及共享流程与六态语义；生产兼容切片推进至 WB-27 Relation 本机Web→真实Kestrel分页/导出、事务终态与撤权锁存3/3，补返回编辑暂存与COMMIT权威计数，共享runner Document真实回归3/3。范围和分开的fixture/真实服务证据见[队列](work-queue.md)与[验证记录](validation-report.md)。该状态只表示设计基线获准实施，不表示全量生产、九模型真实旅程、三宿主、安装、发布或 AOT 验收完成。
 
 ## 建议评审顺序
 

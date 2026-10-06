@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-27 Relation 真实 Web 事务与权限（2026-10-06）**：新增本机隔离Kestrel/Vite/Chrome分页/当前结果导出、两条审批插入完整终态、COMMIT唯一键冲突与实际撤权403锁存旅程。返回编辑保留暂存并提供重新预览/显式丢弃，隐藏审批不可确认；完整成功事务使用COMMIT权威影响数，避免两行误报四行，失败或缺失COMMIT不把暂存计为持久写入。抽出共享真实runner并保留Document兼容入口。Relation真实3/3、Document真实回归3/3、Node20/20、全Web300/300、Chrome fixture12/12与build通过；失败记录、显式恢复、完整权限/SQL矩阵、Server预算、三宿主与发行物边界见M47验证记录。
+
 - **M47 WB-26 Document 真实 Web 权限与输出预算（2026-10-06）**：新增隔离本机 Kestrel/Vite/Chrome 旅程，使用普通用户的真实撤权、拒写、重新授 READ 与显式 Find100 恢复，并核对实际响应、下载与历史。修正 Distinct 的真实请求兼容：空IDs省略，显式IDs保留；请求最多1000项，小于1000的预览用哨兵证明截断，恰1000项满窗明确完整性未知，保留真实响应终态且不虚构分页。真实Web→Kestrel3/3、Node21/21、全Web295/295、Chrome fixture11/11与build通过；其它宿主、登录UI/readonly props、安装、AOT、扫描/物化/字节预算及发布证据分开，范围和失败记录见 M47 验证记录。
 
 - **M47 WB-25 Object 写终态与一次审批消费（2026-10-06）**：补 Object 写执行器的审批快照一次消费、最多1000项批次和60秒客户端新操作启动窗口；冻结写入输入并核验对象/桶/Multipart/语义响应的目标与必要字段，批删逐项匹配批准 key，明确失败与传输/缺失/损坏终态的 unknown 分开记录并保留已确认影响数量。DELETE/删桶/Multipart abort 校验 HTTP 204，单对象 DELETE 校验 delete-marker、version-id、ETag；已证明的 Multipart 写终态不被伴随刷新拒绝推翻。Node32/32、全Web292/292、Vite build、新 Chrome fixture5/5、既有 Object 浏览器4/4、真实 Kestrel Object4/4+Multipart2/2通过；真实新UI权限、完整传输/资源预算、三宿主、安装与发布仍独立验收。

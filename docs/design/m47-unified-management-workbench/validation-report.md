@@ -2,6 +2,19 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-27 Relation 新Web UI真实分页、事务终态与撤权锁存（2026-10-06）
+
+- 起点 `main / b3b2d3cd`；原WB-25/WB-26及代理状态已接收，不重复Object/Document。三专属代理独占共享runner/Relation组件与Node、真实spec/既有fixture、独立只读复核，均停止写入且最终复核PASS；根维护六共享文档、验证、进程审计与git，仅本任务13文件，三博客文件及HANDOFF末尾博客发布hunk保留未暂存。Server、SQL名称格式规则和其它宿主代码不改。
+- `run-workbench-real.mjs`抽取原Document隔离runner，两个薄入口分别使用Document/Relation独立env/run/marker/spec。Document旧配置/事件/marker、Windows身份/父链/PID复用保护、10分钟/120次60秒readiness、两根/128身份/4096 snapshot、4MiB日志、finally与绝对目录marker核验保持；真实数据独占，Production loopback HTTP，非HTTP协议/外联关闭。缺配置直接失败，不skip；3测试各120秒、请求10秒、retries0，无API mock/prop harness/安装。
+- 多项写UI修复：返回编辑/Escape/遮罩隐藏预览保留同上下文草稿，重新预览仍核身份/权限，显式Discard清草稿；隐藏预览不能程序确认，下一项暂存打开最新审批。身份/Schema/权限/readonly/卸载仍清全部，shared WriteApprovalPanel不改。确认一次消费、缺终态/传输异常仍unknown不重放。
+- 真实TableSqlExecutor每项INSERT end只证明事务内暂存，COMMIT end已含实际提交数量。两项[0,1,1,2]旧求和会误报4，现完整无error取末COMMIT2；COMMIT错误/缺失为确认持久影响0。Node另证明已取得完整COMMIT后上下文取消保留权威2但状态unknown，不能由abort声称Server回滚；elapsed仍累计各语句。
+- `relation-real-final2`真实 **3/3**、退出0、无skip/retry，目录 `relation-real-2026-10-06T03-25-03-768Z-559e54b4-993f-4784-884e-b8d9b5f7bede`：251种子、有效MixedCase原名表/列与深链接；实际50/50/200/51行窗口，LIMIT/OFFSET与preview绑定，四次JSON下载逐行等于当前响应。两条UI插入四个end、history success/complete/2且管理员查原值。随后重复PK的COMMIT为HTTP200+[0,1]+尾error/code均table_unique_violation，history error/partial/0，管理员253行与原值未改。旧审批实际REVOKE后HTTP403清行/字段载荷/结果/草稿/DDL/审批，管理员拒写目标不存在；重授READ/同tokenSchema200刷新和页签切换仍锁存且未重放。显式恢复未新增。
+- 最终运行分层：Server Release **0警告/错误**；专属Node `relation-node-final` **20/20**；全Web `web-node-final` **300/300**（concurrency2）；产品TypeScript/Vite `web-build-final` PASS（既有chunk提示）；Chrome fixture `relation-fixture` **12/12**；共享runner Document Web→Kestrel **3/3**（原Document恢复/预算spec，22.8秒测试）；Relation最终21.3秒测试/56秒runner。所有同仓库Vite/build/Playwright串行，登录API产生真实token装入浏览器，不计登录UI或宿主readonly props；fixture与真实服务不合写成三宿主PASS。
+- 首两真实run失败保留：`relation-real`在四窗口/导出后，末断言误要求合法MixedCase原名带双引号，后两项未启动；trace实际四SELECT参数/preview/token正确，生产formatSqlIdentifier原本输出合法裸原名。`relation-real-final` **1/3**，真实两条提交已过，重复PK误断言泛sql_error，实际专用unique异常映射为table_unique_violation，第三未启动；第三run最终3/3，只改精确spec合同，不改Server或降低行/导出/权限断言。代理首次trace metadata337428字节超过计划256KiB（未解压/创建文件），后续四小body核验；后续先检查entry长度再读。e2e独立类型检查仅报缺已有Node类型声明，未安装；产品TypeScript/build和实际Playwright运行分别记录。
+- 证据根 `artifacts/wb27-validation-20261006`，spec/命令/退出日志与源码SHA256单列。运行内逐项断言实际响应/下载/history；reporter=list且trace=retain-on-failure，成功附件未独立落盘，成功日志与失败trace保留。门禁前合并审计 **134**身份、0自有进程存活，包含2条短命command未捕获且已退出记录，复用PID保留；4隔离contentRoot与5记录Chrome profiles清理。两个策略保留Temp不删除/重试/绕过，日志/trace保留为交付物。
+- 最终完整 `dotnet restore SonnetDB.slnx`、原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与staged diff check必须退出0才本地提交；实际命令/退出值见final-gates，最终13文件SHA256及实际提交见final-tree-hashes/commit-checkpoint，提交说明 `feat(m47): verify Relation transactions against real Server`。无push/发布/部署/外部沟通，origin/parity-results保持独立。
+- 待验收仍分开：Relation显式安全恢复、完整权限和SQL #211名称矩阵、全表快照/扫描/物化/传输/字节/总堆预算，其它模型真实旅程、Studio/VS Code/OS对话框/安装/Extension Host/AOT发布、固定硬件/长稳、AI/MCP与发行物。三宿主仍未闭环，heartbeat保持ACTIVE，下一次再盘点一个有界切片，本轮不启动下一项。
+
 ## 实际检查
 
 | 项目 | 结果与范围 |

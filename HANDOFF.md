@@ -5,6 +5,17 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-27，2026-10-06；本机 Relation Web 旅程已验证）
+
+- 从 `main / b3b2d3cd` 接续，完整接收HANDOFF/AGENTS/queue并核验git/路线图/已提交WB-25/WB-26/代理，三个旧代理均结束。三博客文件及本文件末尾博客发布段落归其它会话，不覆盖或暂存；HANDOFF仅暂存WB-27顶部hunk。heartbeat配置ACTIVE、每30分钟、同thread，三宿主整体未闭环。
+- 本轮仅Relation新Web→真实本机Kestrel分页/当前结果导出、批准写批次完整终态与撤权清载荷。共享真实runner复用Document配置/身份/清理合同，Relation独立薄入口；三个独占代理均冻结停止写入，独立复核PASS。根维护六共享文档、验证/审计与git，提交仅本任务13文件，生产Server、SQL名称格式规则与其它宿主不改。
+- 修复两个真实用户路径缺口：返回编辑/Escape/遮罩只关闭Relation预览保留当前上下文暂存，提供重新预览与显式Discard，隐藏预览不可确认，身份/Schema/权限/readonly/卸载仍清草稿；事务影响数只取完整无错误COMMIT的权威数量，避免[0,1,1,2]误加成4。COMMIT失败/缺失影响数0，不将暂存计为持久；已取得完整COMMIT后上下文取消仍保留权威计数，状态unknown不重放。
+- `relation-real-final2`最终真实 **3/3**、退出0、无skip/retry：251初始行→50/50/200/51窗口及四次当前结果导出；两条插入四end且权威2，管理员查原值和history success；重复PK在COMMIT得到HTTP200+table_unique_violation，history error/partial/0，管理员253行未改；旧审批REVOKE后403清旧行/结果/草稿/DDL/审批，管理员确认拒写未落库，重授READ/同tokenSchema刷新不解锁或重放。Relation显式安全恢复仍另片。
+- 最终Node **20/20**、全Web **300/300**、TypeScript/Vite、Chrome fixture **12/12**、Document共享runner真实回归 **3/3** 与Server Release **0警告/错误**。证据 `artifacts/wb27-validation-20261006`，成功日志与源码SHA256保留；运行内逐项断言实际响应/下载/history，成功附件未独立落盘，失败trace保留。API登录不计登录UI/readonly props；当前窗口不计全表快照、扫描/物化/字节/总堆预算或全SQL #211矩阵。
+- 失败记录保留：首真实run分页/四导出后因测试误要求合法MixedCase名双引号失败，后两项未启动；第二run1/3，实际批准写已成功，但重复PK错误断言误用泛sql_error，第三未启动。仅spec按实际裸原名/特定unique错误修正，第三run3/3；没有为测试改Server。UI首trace metadata读取337428字节超过计划256KiB，未解压或创建文件，随后仅四小POST-body核验；后续先检查entry长度再读。e2e额外类型检查缺现有Node声明，未安装，产品TypeScript与实际Playwright运行分开。
+- 门禁前合并审计 **134** 条身份、0自有进程存活；2条短命command未捕获记录已退出，复用PID保留；4个隔离contentRoot和已记录Chrome profiles均清理。两处策略保留Temp不删除/重试/绕过，同仓库Vite/Playwright串行。最终完整restore、原级别format、staged diff check必须退出0才本地提交，实际门禁/13文件/源码及提交见final-gates/final-tree-hashes/commit-checkpoint；提交说明 `feat(m47): verify Relation transactions against real Server`，哈希以git log为准。
+- 下一次完整接收HANDOFF/AGENTS/queue/git/代理，不重复WB-25～WB-27；优先盘点Measurement/FullText/KV等新UI真实权限与Studio/VS Code剩余合同，冻结一个有界切片。三宿主、显式恢复、真实OS/安装/Extension Host/AOT发布、固定硬件/长稳、AI/MCP和发行物分别待验，heartbeat保持ACTIVE；不push/发布/部署/外部沟通，origin/parity-results不变，本轮不启动下一片。
+
 ## 当前检查点（WB-26，2026-10-06；本机 Document Web 旅程已验证）
 
 - 从干净 `main / 8a4c64c8b96536f67f0b124471790e05ef441bdb` 接续；完整接收HANDOFF/AGENTS/queue，核验路线图、提交、代理及ACTIVE heartbeat。WB-25已提交，不重复Object写终态；三宿主仍未闭环。
