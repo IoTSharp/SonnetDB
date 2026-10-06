@@ -1,5 +1,5 @@
 <template>
-  <div class="workspace-tabs">
+  <div class="workspace-tabs" :class="{ 'workspace-tabs--native': studioBridgeAvailable }">
     <div class="workspace-tabs__scroll" role="tablist" aria-label="工作区对象">
       <button
         v-for="tab in tabs"
@@ -27,15 +27,15 @@
     </div>
 
     <div class="workspace-tabs__tools">
-      <n-button quaternary title="查看结果" @click="$emit('show-result')">
+      <n-button class="workspace-tool" quaternary title="查看结果" @click="$emit('show-result')">
         <template #icon><Rows3 :size="16" /></template>
         结果
       </n-button>
-      <n-button quaternary title="查看工作台历史" @click="$emit('show-history')">
+      <n-button class="workspace-tool" quaternary title="查看工作台历史" @click="$emit('show-history')">
         <template #icon><History :size="16" /></template>
         历史
       </n-button>
-      <n-button quaternary title="查看慢查询与 Top-N" @click="$emit('show-diagnostics')">
+      <n-button class="workspace-tool" quaternary title="查看慢查询与 Top-N" @click="$emit('show-diagnostics')">
         <template #icon><Gauge :size="16" /></template>
         诊断
       </n-button>
@@ -46,15 +46,15 @@
           <ChevronDown :size="14" />
         </n-button>
       </n-dropdown>
-      <n-button quaternary title="检查全部连接健康状态" :loading="connectionHealthBusy" @click="$emit('refresh-connection-health')">
+      <n-button class="workspace-tool" quaternary title="检查全部连接健康状态" :loading="connectionHealthBusy" @click="$emit('refresh-connection-health')">
         <template #icon><RefreshCw :size="16" /></template>
       </n-button>
-      <n-button quaternary title="添加远程连接" @click="$emit('open-connection')">
+      <n-button class="workspace-tool" quaternary title="添加远程连接" @click="$emit('open-connection')">
         <template #icon><PlugZap :size="16" /></template>
       </n-button>
 
       <div v-if="studioBridgeAvailable" class="native-bridge-controls">
-        <span data-testid="studio-host-identity" class="native-host-identity">{{ identityLabel }}</span>
+        <span data-testid="studio-host-identity" class="native-host-identity" :title="identityLabel">{{ identityLabel }}</span>
         <span data-testid="studio-managed-state" class="native-state" :class="`is-${nativeServerPresentation.tagType}`">{{ nativeServerPresentation.label }}</span>
         <span v-if="!nativeServerPresentation.confirmed" data-testid="studio-managed-contract-warning" class="native-contract-warning">无法确认宿主合同</span>
         <n-button data-testid="studio-managed-health" quaternary :loading="nativeServerBusy" @click="$emit('refresh-native-server')">Health</n-button>
@@ -216,6 +216,11 @@ function tabIcon(tool: WorkbenchTool): Component {
   background: var(--sndb-chrome);
 }
 
+.workspace-tabs--native {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
 .workspace-tabs__scroll {
   display: flex;
   flex: 1;
@@ -338,12 +343,15 @@ function tabIcon(tool: WorkbenchTool): Component {
 }
 
 .native-state {
+  flex-shrink: 0;
   padding: 2px 7px;
   color: var(--sndb-ink-muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .native-host-identity {
+  min-width: 0;
   max-width: 280px;
   overflow: hidden;
   color: var(--sndb-ink-muted);
@@ -366,15 +374,52 @@ function tabIcon(tool: WorkbenchTool): Component {
 }
 
 @media (max-width: 1100px) {
-  .workspace-tabs__tools .connection-button,
-  .native-state,
-  .native-bridge-controls .n-button:first-of-type {
+  .workspace-tabs--native {
+    flex-wrap: wrap;
+  }
+
+  .workspace-tabs--native .workspace-tabs__scroll {
+    flex-basis: 100%;
+  }
+
+  .workspace-tabs--native .workspace-tabs__tools {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+    border-top: 1px solid var(--sndb-border);
+    border-left: 0;
+  }
+
+  .workspace-tabs__tools .connection-button {
     display: none;
+  }
+
+  .workspace-tabs--native .native-bridge-controls {
+    flex: 1 1 400px;
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .workspace-tabs--native .native-host-identity {
+    flex: 1 1 120px;
+  }
+
+  .workspace-tabs--native .native-bridge-controls :deep(.n-button) {
+    flex-shrink: 0;
   }
 }
 
 @media (max-width: 720px) {
   .workspace-tabs__tools {
+    display: none;
+  }
+
+  .workspace-tabs--native .workspace-tabs__tools {
+    display: flex;
+  }
+
+  .workspace-tabs--native .workspace-tabs__tools > .workspace-tool {
     display: none;
   }
 

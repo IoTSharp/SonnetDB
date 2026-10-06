@@ -5,6 +5,20 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-40，2026-10-07；本机默认/窄窗 Health 已验证）
+
+- 从实际提交 `db7f0ca1bb3bb3d9558e9d7488e5ce47f4199df3` 接续；最新 HANDOFF/AGENTS/queue/ROADMAP 已读取并与已完整接收的 WB-39 最终树 SHA256 对拍，git/路线图/提交和三个已完成代理核验。原生默认尺寸为 1440×920；已确认组件在 CSS≤1100 隐藏 Health/state、≤720 隐藏整个 toolbar，不能将上片宽窗成功升级为默认/窄窗可用性。
+- 仅冻结默认/窄窗 Health 与宿主状态/现有 owned 生命周期入口的可见布局，保持五态、canStop、权限、身份与迟返合同。`/root/wb34_ui` 独占 StudioWorkspaceTabs.vue 与已有 studio-host-client.spec.ts；`/root/wb34_runner` 独占 run-studio-native-real.mjs 的真实尺寸选择和证据，helper/evidence modules 与生产 Studio/Server 冻结；`/root/wb33_ui` 独立只读复核。根独占六共享文档、长验证/审计、完整最终 restore/原级别 format、stage 和本地 commit。
+- 新窗口 `artifacts/wb40-validation-20261007` 至 23:32Z，根最多 16 长命令/3 真实 run/3 构建项目；实施代理至 22:46Z、18 短读/20 命名文件/20 定向搜索，独立复核至 23:15Z、16 短读/24 命名文件，不重置旧片窗口。真实默认窗口不传尺寸，窄窗仅正常 native 参数且实际 CSS≤1100；禁止 viewport/CSS 注入、forced click、fake bridge 或私有组件入口。fixture 与 native/API 认证准备、正常退出/清理分别记录，不计 dialogs/install/AOT/固定硬件/长稳/发行物或三宿主整体。
+- PowerShell7 固定 pwsh；禁 Graphify/广域扫描/未授权安装；循环/搜索/等待/重试有次数和墙钟、小输入先核比较退出，长进程完整身份/父链/finally仅核验清自有树，临时对象绝对路径核验。54 行外来 HANDOFF footer、博客/oschina 与 origin/parity-results 保留，不 fetch/push/发布/部署/外部沟通；两个 policy 保留 Temp 不碰。旧任务继续，唯一 heartbeat ACTIVE 每30分钟；本轮只推进 WB-40，整体未闭环。
+- 最终三源码冻结于 `source-freeze-final-2.json`：native toolbar按已有bridge presence绑定独立CSS，≤1100换行、≤720仍显示身份/状态/Health和现有生命周期入口；完整身份保留title，窄窗可省略显示文本。脚本/事件/权限/五态与迟返逻辑未改，非native原44px/连接隐藏/toolbar断点保留。生产Studio/Server、helper/evidence库均不改；共九任务文件。
+- Fixture首次BrowserDirect配置12 skipped，不计PASS；显式StudioNative首轮9/3，失败均为已经自动收起的Explorer再次无条件点击准备。仅修准备helper先观测状态后必要普通点击，保原断言/失败日志，最终12/12、零skips，覆盖1100/950/640/500px及owned/stopped/busy/external/failed/不一致与bridge失败合同。最终TypeScript/Vite、Server/Studio Release均exit0；最初Web build非最终树单列，大chunk警告保留。三宿主index SHA256同 `903D9E1A…5166`，产物hash见built-final-hashes。
+- 真实三run预算耗尽，不第四跑。首default `09f349c6-4176-47ef-af84-3504774e7f02` 被根monitor不完整瞬时子进程CIM CommandLine检查中止，wrapper1，仅run/launch、runner终态缺失，不计生命周期或完整cleanup PASS。完整身份node96524/conhost37780已回收，根精确路径/父PID复核无存活且四端口释放；删除三个runtime目录的命令被自动审查拒绝，仅`blocked by policy`，不重试/绕过，目录保留，详见该run的root-wrapper-failure-observation/root-cleanup-remediation。根wrapper仅对有限3次/2秒刷新后已退出的瞬时子进程单列边界；活且身份不完整仍失败，不推断全进程生存期捕获。
+- 默认成功 `d5743099-63c1-4c47-95fe-0d2a46db716d`，wrapper0/125秒，不传width/height，Program默认1440×920，实际CSS946×556/DPR1.5；窄窗成功 `3b930fe2-e7af-4e05-8a58-b793d7ec2de1`，wrapper0/135秒，仅原生1000×800，实际CSS652×476/DPR1.5。各六geometry/five独立DOM+截图、身份/state bbox/hit/Health与active action可见可用，无document/body横向溢出。均自动collapsed（collapse0/expand1），needed/clicked均false，不声称展开Explorer下可达；无viewport/CSS注入/force/private事件。
+- 普通Health→Stop→Start→Health与真实manifest/connections通过，默认Studio68252/旧Server96808/新8504，窄窗Studio55752/旧104508/新72624，完整creation/command/Studio父链相符。两run普通CloseMainWindow accepted、退出0/signalnull、旧新身份与四端口释放、零fallback/helper reclaim、各三runtime正常移除；五terminal独立保存。根accept与164记录身份审计无自有业务存活（审计中的验证进程单列），最后fixture记录Chrome profile不存在；独立源码及两actual/两PNG复核PASS。
+- 最终九文件完整restore/原级别format、前后树hash/命令/时间绑定、白名单stage/diff、本地commit与postcommit进程审计以该目录final-gates/final-tree-hashes/commit-checkpoint和git log为准，代码再改重跑。源freeze/旧失败不覆盖，policy保留runtime不计完整清理PASS。下一片接原生文件对话框，再继续VS Code旅程；本轮不启动WB-41。
+- 本机布局/lifecycle成功仅覆盖实测已收起Explorer。认证API/localStorage不计登录UI；DOM `__control_plane__` 与bridge activeDatabase空值不证明native数据库同步/恢复，Studio内部可能有界强停Server不计优雅关闭/恢复。原生对话框、干净安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT、固定硬件、长稳与发布分别待验；三宿主未闭环，不迁移/暂停/重复heartbeat，后续不限类型持续任务规则保留。
+
 ## 当前检查点（WB-39，2026-10-07；本机宽窗原生生命周期已验证）
 
 - 从WB-38实际提交`2a6eadbf8f16a393a67bf0943cc6bab55f18b090`接续，继承完整文档读取并与最新HANDOFF/AGENTS/queue/ROADMAP SHA256对拍无变化，git/路线图/已有提交/三个完成代理核对。仅修native烟测普通关闭发现与有界终态落盘；生产Studio/Web/Server与旧fixture冻结，WB-38三次失败/耗尽窗口原样保留，不补造缺失文件。六个旧构建产物hash复核完全匹配，0新生产构建项目，不将旧build升级为本片新证据。

@@ -219,16 +219,175 @@ test('late status response after profile and database switch cannot overwrite cu
 });
 
 test('bridge failure clears fake health without blocking the workbench', async ({ page, host }) => {
+  await page.setViewportSize({ width: 640, height: 760 });
   host.failBridge = true;
   await page.goto('/admin/app/sql?tool=table');
   await expect(page.locator('.workbench-page')).toBeVisible();
   await expect(page.getByTestId('studio-managed-state').first()).toHaveCount(0);
   await expect(page.getByText('Local healthy', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.workspace-tabs').first()).not.toHaveClass(/workspace-tabs--native/u);
+  await expect(page.locator('.workspace-tabs__tools').first()).toBeHidden();
+});
+
+test('1100px breakpoint retains visible host state and an operable Health action', async ({ page, host }) => {
+  await page.setViewportSize({ width: 1100, height: 760 });
+  await openResponsiveWorkbench(page);
+  await expect(state(page)).toHaveText('Studio 运行中');
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  const previous = host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length;
+  await assertNativeControlsFit(page);
+  await health(page).click();
+  await expect.poll(() => host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length).toBe(previous + 1);
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  await assertNativeControlsFit(page);
+  expect(host.lifecycleRequests.filter((item) => item.startsWith('POST '))).toHaveLength(0);
+});
+
+test('950px fixture CSS width preserves ordinary owned Health Stop Start and busy state', async ({ page, host }) => {
+  await page.setViewportSize({ width: 950, height: 760 });
+  await openResponsiveWorkbench(page);
+  await ownedLifecycle(page, host);
+
+  host.holdStatus = true;
+  await health(page).click();
+  await expect.poll(() => host.releaseStatus !== null, { timeout: 5_000 }).toBe(true);
+  await expect(health(page)).toHaveClass(/n-button--loading/u);
+  await expect(stop(page)).toHaveClass(/n-button--loading/u);
+  await assertNativeControlsFit(page);
+  host.holdStatus = false;
+  host.releaseStatus?.();
+  host.releaseStatus = null;
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  await expect(state(page)).toHaveText('Studio 运行中');
+});
+
+test('640px and 500px CSS widths retain original identity and ordinary owned lifecycle without clipping', async ({ page, host }) => {
+  await page.setViewportSize({ width: 640, height: 760 });
+  await openResponsiveWorkbench(page);
+  await ownedLifecycle(page, host);
+  await page.setViewportSize({ width: 500, height: 760 });
+  await ownedLifecycle(page, host);
+  await expect(identity(page)).toHaveAttribute('title', `studio-desktop · managed-local · ${Endpoint} · ${Database}`);
+});
+
+test('500px CSS width keeps external unhealthy failed and inconsistent ownership contracts distinct', async ({ page, host }) => {
+  await page.setViewportSize({ width: 500, height: 760 });
+  host.status = status('external-running', false, true);
+  await openResponsiveWorkbench(page);
+  await expect(state(page)).toHaveText('外部实例运行中');
+  await expect(start(page)).toHaveCount(0);
+  await expect(stop(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+
+  host.status = status('unhealthy', false, false);
+  await health(page).click();
+  await expect(state(page)).toHaveText('外部实例不健康');
+  await expect(start(page)).toHaveCount(0);
+  await expect(stop(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+
+  host.status = status('unhealthy', true, false);
+  await health(page).click();
+  await expect(state(page)).toHaveText('Studio 不健康');
+  await expect(stop(page)).toBeVisible();
+  await expect(start(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+
+  host.status = { ...status('running', true, true), canStop: false };
+  await health(page).click();
+  await expect(contractWarning(page)).toHaveText('无法确认宿主合同');
+  await expect(start(page)).toHaveCount(0);
+  await expect(stop(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+
+  host.status = status('failed', false, false, '启动失败');
+  await health(page).click();
+  await expect(state(page)).toHaveText('Studio 启动失败');
+  await expect(contractWarning(page)).toHaveCount(0);
+  await expect(start(page)).toBeVisible();
+  await expect(stop(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+  expect(host.lifecycleRequests.filter((item) => item.startsWith('POST '))).toHaveLength(0);
 });
 
 async function openWorkbench(page: Page): Promise<void> {
   await page.goto('/admin/app/sql?tool=table');
   await expect(identity(page)).toBeVisible();
+}
+
+async function openResponsiveWorkbench(page: Page): Promise<void> {
+  await openWorkbench(page);
+  // The existing <=1099px Explorer is an overlay. Use its ordinary control;
+  // these fixture assertions prove the explicitly collapsed workspace only.
+  const frame = page.locator('.workbench-frame');
+  const expand = page.getByTitle('展开资源浏览器', { exact: true });
+  const alreadyCollapsed = await expand.isVisible()
+    || /(?:^|\s)is-explorer-collapsed(?:\s|$)/u.test(await frame.getAttribute('class') ?? '');
+  if (!alreadyCollapsed) {
+    const collapse = page.getByTitle('收起资源浏览器', { exact: true });
+    await expect(collapse).toHaveCount(1);
+    await expect(collapse).toBeVisible();
+    await collapse.click();
+  }
+  await expect(frame).toHaveClass(/is-explorer-collapsed/u);
+  await expect(expand).toBeVisible();
+}
+
+async function assertNativeControlsFit(page: Page): Promise<void> {
+  await expect(identity(page)).toBeVisible();
+  await expect(state(page)).toBeVisible();
+  await expect(health(page)).toBeVisible();
+  const bounds = await page.locator('.workspace-tabs').first().evaluate((element) => {
+    const toolbar = element.getBoundingClientRect();
+    const controls = Array.from(element.querySelectorAll<HTMLElement>('[data-testid^="studio-managed-"], [data-testid="studio-host-identity"]'));
+    if (controls.length > 6) throw new Error('Responsive native control count exceeded.');
+    return {
+      toolbarLeft: toolbar.left, toolbarRight: toolbar.right,
+      clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
+      viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth,
+      controls: controls.map((control) => {
+        const rectangle = control.getBoundingClientRect();
+        return { id: control.dataset.testid, left: rectangle.left, right: rectangle.right, width: rectangle.width, height: rectangle.height };
+      }),
+    };
+  });
+  expect(bounds.toolbarLeft).toBeGreaterThanOrEqual(0);
+  expect(bounds.toolbarRight).toBeLessThanOrEqual(bounds.viewportWidth + 1);
+  expect(bounds.documentWidth).toBeLessThanOrEqual(bounds.viewportWidth + 1);
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth + 1);
+  expect(bounds.controls.every((control) => control.width > 0 && control.height > 0
+    && control.left >= bounds.toolbarLeft - 1 && control.right <= bounds.toolbarRight + 1)).toBe(true);
+}
+
+async function ownedLifecycle(page: Page, host: HostFixture): Promise<void> {
+  await expect(state(page)).toHaveText('Studio 运行中');
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  await assertNativeControlsFit(page);
+  const previousPosts = host.lifecycleRequests.filter((item) => item.startsWith('POST ')).length;
+  const previousHealth = host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length;
+  await health(page).click();
+  await expect.poll(() => host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length).toBe(previousHealth + 1);
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  await stop(page).click();
+  await expect(state(page)).toHaveText('Studio 已停止');
+  await expect(start(page)).toBeVisible();
+  await expect(stop(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+
+  const stoppedHealth = host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length;
+  await health(page).click();
+  await expect.poll(() => host.lifecycleRequests.filter((item) => item === 'GET /studio-bridge/server/status').length).toBe(stoppedHealth + 1);
+  await expect(health(page)).not.toHaveClass(/n-button--loading/u);
+  await expect(state(page)).toHaveText('Studio 已停止');
+  await start(page).click();
+  await expect(state(page)).toHaveText('Studio 运行中');
+  await expect(stop(page)).toBeVisible();
+  await expect(start(page)).toHaveCount(0);
+  await assertNativeControlsFit(page);
+  await expect(identity(page)).toContainText(`studio-desktop · managed-local · ${Endpoint} · ${Database}`);
+  expect(host.lifecycleRequests.filter((item) => item.startsWith('POST ')).slice(previousPosts)).toEqual([
+    'POST /studio-bridge/server/stop', 'POST /studio-bridge/server/start',
+  ]);
 }
 
 function identity(page: Page) { return page.getByTestId('studio-host-identity').first(); }

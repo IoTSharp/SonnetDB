@@ -527,6 +527,8 @@
 
 ### Fixed
 
+- **M47 WB-40 默认/窄窗 Studio Health（2026-10-07）**：native toolbar在≤1100换行、≤720保留身份/title、状态、Health和现有Start/Stop，沿用原脚本/权限/事件合同与非native断点。最终StudioNative fixture12/12、Web/Server/Studio构建及本机真实default CSS946×556/narrow652×476（DPR1.5、Explorer自动收起）正常生命周期/CloseMainWindow exit0/四端口/零fallback/独立终态与复核通过；原skip、9/3和首native monitor失败保留，首run runtime删除被策略拒绝而保留，不计cleanup PASS。最终九文件完整门禁/本地提交见M47记录；展开Explorer、库身份同步/恢复、对话框/安装/AOT和三宿主整体另验。
+
 - **M47 WB-33 Vector子页权限上行与父锁存（2026-10-07）**：Measurement当前有效请求精确401/403或SQL拒绝仅发送原数据库、measurement与父渲染代际；Vector核验目标/代际/authority后清旧命中、metadata、结果及子页草稿/审批。继承prop不回路，Schema/auth刷新、重挂与空身份ABA不解锁；旧拒绝不影响新上下文，超时写保留原身份unknown。Node39/39、全Web327/327、Vector/Measurement fixture13/13与20/20、build及真实Vector首轮3/3通过；第三真实旅程证明child SQL403清外层、READ重授/Schema200/重挂不重放。证据/最终完整restore-format见M47记录；不计显式恢复、完整写终态/Server预算或三宿主整体完成。
 
 - **CI 格式检查**：修正 M35/M36 合同、SDK 和测试中的初始化器换行、多余空格及 `using` 顺序，补齐完整格式检查报告中的问题；不改变运行行为。

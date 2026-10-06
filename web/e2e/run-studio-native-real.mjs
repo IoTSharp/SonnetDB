@@ -1,4 +1,4 @@
-// WB-39: one actual NativeWebApp/WebView2 window, actual native bootstrap and
+// WB-40: one actual NativeWebApp/WebView2 window, actual native bootstrap and
 // isolated Studio-owned Server. No browser launch, routes, nativeWeb injection,
 // custom events, private Vue APIs, or simulated host contracts are used here.
 import { spawn } from 'node:child_process';
@@ -12,8 +12,24 @@ import { chromium } from '@playwright/test';
 import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence } from './studio-native-evidence.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const evidenceParent = path.join(repository, 'artifacts', 'wb39-validation-20261007');
+const evidenceParents = Object.freeze({
+  wb39: path.join(repository, 'artifacts', 'wb39-validation-20261007'),
+  wb40: path.join(repository, 'artifacts', 'wb40-validation-20261007'),
+});
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
+const selectedEvidence = configuredEvidence && path.isAbsolute(configuredEvidence)
+  ? Object.entries(evidenceParents).find(([, value]) => path.resolve(configuredEvidence).toLowerCase() === value.toLowerCase()) : undefined;
+const evidenceParent = selectedEvidence?.[1] ?? evidenceParents.wb40;
+const windowMode = process.env.SONNETDB_STUDIO_NATIVE_REAL_WINDOW_MODE ?? 'default';
+const windowConfiguration = Object.freeze({
+  mode: windowMode,
+  dimensionsOmitted: windowMode === 'default',
+  requestedWidth: windowMode === 'narrow' ? 1000 : null,
+  requestedHeight: windowMode === 'narrow' ? 800 : null,
+  dimensionArguments: windowMode === 'narrow' ? ['--width', '1000', '--height', '800'] : [],
+  programDefaultsWhenOmitted: { width: 1440, height: 920 },
+  requiredNarrowCssMaximumWidth: windowMode === 'narrow' ? 1100 : null,
+});
 const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 const helper = path.join(repository, 'web', 'e2e', 'studio-native-process.ps1');
 const studioExe = path.join(repository, 'src', 'SonnetDB.Studio', 'bin', 'Release', 'net10.0-windows', 'SonnetDB.Studio.exe');
@@ -44,6 +60,8 @@ const records = [];
 const helpers = [];
 const owned = new Map();
 const bridgeEvidence = [];
+const nativeWindowObservations = [];
+const nativeUiPreparation = { kind: 'ordinary Explorer collapse', maximumClicks: 1, needed: false, clicked: false, collapsedObserved: false };
 const counters = { helpers: 0, requests: 0, bridgeResponses: 0, pageRequests: 0, filesWritten: 0, fileWriteAttempts: 0, pageErrors: 0 };
 const secretValues = new Set();
 let studio;
@@ -267,23 +285,141 @@ async function latestBridge(apiPath, after = 0) {
   return boundedPoll(`Real bridge ${apiPath}`, async () => bridgeEvidence.slice(after).findLast((item) => item.path === apiPath && item.httpStatus === 200), { attempts: 30, timeoutMs: 15_000, intervalMs: 250 });
 }
 
+async function observeNativeWindow(label) {
+  check();
+  if (nativeWindowObservations.length >= 6) throw new Error('Native window observation cap exceeded.');
+  let geometryTimer;
+  const geometry = await Promise.race([
+    // Read ordinary DOM geometry only; this never changes the native viewport,
+    // CSS, bootstrap state or host contract.
+    page.evaluate(() => {
+      const viewport = { innerWidth: window.innerWidth, innerHeight: window.innerHeight, devicePixelRatio: window.devicePixelRatio,
+        scrollX: window.scrollX, scrollY: window.scrollY,
+        visualViewport: window.visualViewport ? { width: window.visualViewport.width, height: window.visualViewport.height,
+          scale: window.visualViewport.scale, offsetLeft: window.visualViewport.offsetLeft, offsetTop: window.visualViewport.offsetTop } : null };
+      const extent = (element) => element ? { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
+        horizontalOverflow: element.scrollWidth > element.clientWidth, overflowX: getComputedStyle(element).overflowX } : null;
+      const elementGeometry = (element) => {
+        if (!element) return { present: false, boundingBox: null, inViewport: false, ancestors: [] };
+        const rect = element.getBoundingClientRect();
+        const centerHit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+        return { present: true, boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          inViewport: rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.top >= 0
+            && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight,
+          centerHitMatches: Boolean(centerHit && (centerHit === element || element.contains(centerHit))),
+          ancestors: [extent(element.parentElement), extent(element.parentElement?.parentElement)] };
+      };
+      const control = (testId) => ({ testId, ...elementGeometry(document.querySelector(`[data-testid="${testId}"]`)) });
+      return { viewport, document: extent(document.documentElement), body: extent(document.body),
+        identity: document.querySelector('[data-testid="studio-host-identity"]')?.innerText ?? null,
+        state: document.querySelector('[data-testid="studio-managed-state"]')?.innerText ?? null,
+        identityGeometry: control('studio-host-identity'), stateGeometry: control('studio-managed-state'),
+        contractWarning: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')),
+        explorer: { collapseToggleCount: document.querySelectorAll('[title="收起资源浏览器"]').length,
+          expandToggleCount: document.querySelectorAll('[title="展开资源浏览器"]').length,
+          collapseToggle: elementGeometry(document.querySelector('[title="收起资源浏览器"]')) },
+        controls: { health: control('studio-managed-health'), start: control('studio-managed-start'), stop: control('studio-managed-stop') } };
+    }),
+    new Promise((_, reject) => { geometryTimer = setTimeout(() => reject(new Error('Read-only native DOM geometry exceeded 3000ms.')), 3000); }),
+  ]).finally(() => clearTimeout(geometryTimer));
+  const controlNames = ['health', 'start', 'stop'];
+  const expires = Math.min(Date.now() + 6000, mainDeadline);
+  for (let index = 0; index < controlNames.length && index < 3; index += 1) {
+    check();
+    if (Date.now() >= expires) throw new Error('Native control observation deadline exceeded.');
+    const control = geometry.controls[controlNames[index]];
+    const locator = page.getByTestId(control.testId).first();
+    control.isVisible = control.present && await locator.isVisible();
+    control.isEnabled = control.present && await locator.isEnabled({ timeout: Math.max(1, Math.min(1000, expires - Date.now())) });
+  }
+  const collapseToggle = page.getByTitle('收起资源浏览器', { exact: true });
+  geometry.explorer.collapseToggle.isVisible = geometry.explorer.collapseToggleCount === 1 && await collapseToggle.isVisible();
+  geometry.explorer.collapseToggle.isEnabled = geometry.explorer.collapseToggleCount === 1 && await collapseToggle.isEnabled({ timeout: 1000 });
+  geometry.identityGeometry.isVisible = geometry.identityGeometry.present && await page.getByTestId('studio-host-identity').first().isVisible();
+  geometry.stateGeometry.isVisible = geometry.stateGeometry.present && await page.getByTestId('studio-managed-state').first().isVisible();
+  const observation = { label, atUtc: new Date().toISOString(), requestedNativeWindow: windowConfiguration,
+    viewportInjected: false, ...geometry };
+  nativeWindowObservations.push(observation);
+  return observation;
+}
+
+function assertNativeWindow(observation) {
+  const viewport = observation.viewport;
+  if (!Number.isFinite(viewport.innerWidth) || viewport.innerWidth <= 0 || !Number.isFinite(viewport.innerHeight) || viewport.innerHeight <= 0
+    || !Number.isFinite(viewport.devicePixelRatio) || viewport.devicePixelRatio <= 0) throw new Error('Actual native CSS viewport dimensions/DPR are invalid.');
+  if (windowMode === 'narrow' && viewport.innerWidth > 1100) throw new Error('The requested narrow native window did not produce an actual CSS viewport at or below 1100px.');
+}
+
+function assertNativeControl(observation, name) {
+  const control = observation.controls[name];
+  if (!control.present || !control.isVisible || !control.inViewport || !control.isEnabled) {
+    throw new Error(`Normal native DOM ${name} control is absent, clipped, hidden or disabled.`);
+  }
+}
+
+async function prepareNativeExplorer(observation) {
+  check();
+  const explorer = observation.explorer;
+  nativeUiPreparation.beforeObservation = observation.label;
+  nativeUiPreparation.beforeCssWidth = observation.viewport.innerWidth;
+  nativeUiPreparation.collapseToggle = explorer.collapseToggle;
+  nativeUiPreparation.collapseToggleCount = explorer.collapseToggleCount;
+  nativeUiPreparation.needed = observation.viewport.innerWidth <= 1099
+    && ((!observation.identityGeometry.isVisible || !observation.identityGeometry.inViewport || !observation.identityGeometry.centerHitMatches)
+      || (!observation.stateGeometry.isVisible || !observation.stateGeometry.inViewport || !observation.stateGeometry.centerHitMatches));
+  // At most one ordinary, visible control click prepares the existing narrow
+  // Explorer layout. The pre-collapse observation remains separate evidence.
+  if (nativeUiPreparation.needed) {
+    if (explorer.collapseToggleCount !== 1 || !explorer.collapseToggle.isVisible || !explorer.collapseToggle.isEnabled
+      || !explorer.collapseToggle.inViewport) {
+      await evidence('native-ui-preparation.json', nativeUiPreparation);
+      throw new Error('The existing Explorer overlay needs collapse, but its ordinary visible toggle is unavailable.');
+    }
+    try {
+      await page.getByTitle('收起资源浏览器', { exact: true }).click({ timeout: 5000 });
+      nativeUiPreparation.clicked = true;
+      await page.getByTitle('展开资源浏览器', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
+      nativeUiPreparation.collapsedObserved = true;
+    } catch (error) { nativeUiPreparation.failure = safeMessage(error); }
+  }
+  nativeUiPreparation.afterCollapseToggleCount = await page.getByTitle('收起资源浏览器', { exact: true }).count();
+  nativeUiPreparation.afterExpandToggleCount = await page.getByTitle('展开资源浏览器', { exact: true }).count();
+  nativeUiPreparation.boundary = nativeUiPreparation.clicked ? 'Subsequent fit acceptance covers the normally collapsed Explorer state; uncollapsed reachability is only recorded.'
+    : 'No Explorer preparation click was required by the measured native window.';
+  await evidence('native-ui-preparation.json', nativeUiPreparation);
+  if (nativeUiPreparation.failure) throw new Error(nativeUiPreparation.failure);
+}
+
 async function dom(label, expectedState) {
   check();
-  await boundedPoll(`DOM ${label}`, async () => {
-    const identity = await page.getByTestId('studio-host-identity').first().textContent({ timeout: 2000 });
-    const stateText = await page.getByTestId('studio-managed-state').first().textContent({ timeout: 2000 });
-    return identity?.includes('studio-desktop') && identity.includes('managed-local') && identity.includes(origin) && stateText === expectedState;
-  }, { attempts: 20, timeoutMs: 15_000, intervalMs: 250 });
-  const body = { label, url: page.url(), identity: await page.getByTestId('studio-host-identity').first().innerText(),
-    state: await page.getByTestId('studio-managed-state').first().innerText(),
-    canStart: await page.getByTestId('studio-managed-start').first().count() === 1,
-    canStop: await page.getByTestId('studio-managed-stop').first().count() === 1,
-    contractWarning: await page.getByTestId('studio-managed-contract-warning').first().count() > 0 };
-  if (body.contractWarning || body.canStop !== (expectedState === 'Studio 运行中') || body.canStart !== (expectedState === 'Studio 已停止')) throw new Error('Normal DOM controls disagreed with the real bridge lifecycle contract.');
+  let pollFailure;
+  try {
+    await boundedPoll(`DOM ${label}`, async () => {
+      const identity = await page.getByTestId('studio-host-identity').first().textContent({ timeout: 2000 });
+      const stateText = await page.getByTestId('studio-managed-state').first().textContent({ timeout: 2000 });
+      const action = page.getByTestId(expectedState === 'Studio 运行中' ? 'studio-managed-stop' : 'studio-managed-start').first();
+      return identity?.includes('studio-desktop') && identity.includes('managed-local') && identity.includes(origin) && stateText === expectedState
+        && await action.isEnabled({ timeout: 1000 }) && await page.getByTestId('studio-managed-health').first().isEnabled({ timeout: 1000 });
+    }, { attempts: 20, timeoutMs: 15_000, intervalMs: 250 });
+  } catch (error) { pollFailure = safeMessage(error); }
+  const observation = await observeNativeWindow(label);
+  const body = { label, url: page.url(), identity: observation.identity, state: observation.state,
+    canStart: observation.controls.start.present, canStop: observation.controls.stop.present,
+    contractWarning: observation.contractWarning, pollFailure: pollFailure ?? null, nativeWindow: observation };
+  // Preserve actual clipping/overflow evidence before enforcing acceptance.
   await evidence(`dom-${label}.json`, body);
   check();
   if (++counters.filesWritten > 48) throw new Error('Evidence file cap exceeded.');
   await page.screenshot({ path: path.join(runRoot, `${label}.png`), fullPage: false, timeout: 5000 });
+  if (pollFailure) throw new Error(pollFailure);
+  if (body.contractWarning || body.canStop !== (expectedState === 'Studio 运行中') || body.canStart !== (expectedState === 'Studio 已停止')) throw new Error('Normal DOM controls disagreed with the real bridge lifecycle contract.');
+  assertNativeWindow(observation);
+  if (!observation.identityGeometry.isVisible || !observation.identityGeometry.inViewport || !observation.identityGeometry.centerHitMatches
+    || !observation.stateGeometry.isVisible || !observation.stateGeometry.inViewport || !observation.stateGeometry.centerHitMatches) {
+    throw new Error('Normal native DOM identity/state is hidden, clipped or covered.');
+  }
+  assertNativeControl(observation, 'health');
+  assertNativeControl(observation, expectedState === 'Studio 运行中' ? 'stop' : 'start');
   return body;
 }
 
@@ -363,8 +499,8 @@ async function removeOwnedDirectory(directory) {
 }
 
 try {
-  if (process.platform !== 'win32' || !configuredEvidence || path.resolve(configuredEvidence).toLowerCase() !== evidenceParent.toLowerCase()
-    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with the fixed WB-39 evidence parent.');
+  if (process.platform !== 'win32' || !selectedEvidence || !['default', 'narrow'].includes(windowMode)
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit WB-39/WB-40 named evidence parent and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
     path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs')];
   if (prerequisiteFiles.length > 10) throw new Error('Prerequisite file cap exceeded.');
@@ -375,7 +511,8 @@ try {
   await mkdir(runRoot);
   const hashes = [];
   for (const file of prerequisiteFiles) { check(); hashes.push(await sourceHash(file)); }
-  await evidence('run.json', { runId, runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: 600, ports, origin, bridgeOrigin, cdpOrigin,
+  await evidence('run.json', { runId, validationSlice: 'WB-40', evidenceParentSelection: selectedEvidence[0], requestedNativeWindow: windowConfiguration,
+    runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: 600, ports, origin, bridgeOrigin, cdpOrigin,
     studioExe, serverDll, contentRoot, dataRoot, profileRoot, serverWebRoot, libraryPath, hashes,
     runtimePrerequisite: 'WebView2 154.0.4258.53 checked by the parent; actual attachment remains required.',
     boundary: 'Actual Studio/WebView2 native bootstrap and Managed Local lifecycle. API setup/login auth storage only; no login UI, OS dialog, installation, NativeAOT, permission matrix or full three-host parity claim.' });
@@ -392,10 +529,10 @@ try {
   if (!runnerIdentity || runnerIdentity.processId !== process.pid) throw new Error('Runner process identity was not inspectable.');
   stage = 'actual Studio launch';
   const args = ['--server-url', origin, '--managed-server-url', origin, '--bridge-port', String(ports.bridge), '--data-root', dataRoot,
-    '--connection-library', libraryPath, '--server-exe', serverDll, '--auto-start-server', '--width', '1920', '--height', '1080',
+    '--connection-library', libraryPath, '--server-exe', serverDll, '--auto-start-server', ...windowConfiguration.dimensionArguments,
     '--route', '/admin/app/sql?tool=table'];
   const environment = isolatedEnvironment();
-  await evidence('launch.json', { executable: studioExe, args, parentIdentity: runnerIdentity, windowsHideRequested: false,
+  await evidence('launch.json', { executable: studioExe, args, requestedNativeWindow: windowConfiguration, parentIdentity: runnerIdentity, windowsHideRequested: false,
     nativeWindowBoundary: 'Ordinary visible launch requested; prior MainWindowHandle=0 did not prove a windowsHide or product defect.',
     childEnvironment: { DOTNET_ENVIRONMENT: environment.DOTNET_ENVIRONMENT, ASPNETCORE_ENVIRONMENT: environment.ASPNETCORE_ENVIRONMENT,
       ASPNETCORE_CONTENTROOT: contentRoot, ASPNETCORE_WEBROOT: serverWebRoot, WEBVIEW2_USER_DATA_FOLDER: profileRoot,
@@ -415,16 +552,16 @@ try {
   stage = 'real setup and API login';
   const setup = await api('GET', '/v1/setup/status');
   if (setup.needsSetup !== true || !setup.suggestedServerId) throw new Error('Managed Local was not a fresh isolated Server.');
-  const password = `WB39_${randomBytes(18).toString('hex')}!`;
-  const bearerToken = `wb39_${randomBytes(24).toString('hex')}`;
+  const password = `WB40_${randomBytes(18).toString('hex')}!`;
+  const bearerToken = `wb40_${randomBytes(24).toString('hex')}`;
   secretValues.add(password); secretValues.add(bearerToken);
-  const administrator = await api('POST', '/v1/setup/initialize', { serverId: setup.suggestedServerId, organization: 'WB39 isolated native desktop evidence', username: 'wb39_admin', password, bearerToken });
+  const administrator = await api('POST', '/v1/setup/initialize', { serverId: setup.suggestedServerId, organization: 'WB40 isolated native desktop evidence', username: 'wb40_admin', password, bearerToken });
   if (administrator.token) secretValues.add(administrator.token);
   if (administrator.tokenId) secretValues.add(administrator.tokenId);
-  const identity = await api('POST', '/v1/auth/login', { username: 'wb39_admin', password });
+  const identity = await api('POST', '/v1/auth/login', { username: 'wb40_admin', password });
   if (identity.token) secretValues.add(identity.token);
   if (identity.tokenId) secretValues.add(identity.tokenId);
-  if (identity.username !== 'wb39_admin' || identity.isSuperuser !== true || !identity.token || !identity.tokenId) throw new Error('Real API login did not return a valid Studio session.');
+  if (identity.username !== 'wb40_admin' || identity.isSuperuser !== true || !identity.token || !identity.tokenId) throw new Error('Real API login did not return a valid Studio session.');
   await evidence('authentication-boundary.json', { setupWasRequired: true, initializationSucceeded: true, apiLoginSucceeded: true, username: identity.username, isSuperuser: identity.isSuperuser, tokenStoredVia: 'sndb.auth localStorage only', loginUiVerified: false });
   stage = 'actual WebView2 loopback CDP';
   const cdpVersion = await boundedPoll('WebView2 CDP environment passthrough', async () => {
@@ -458,15 +595,20 @@ try {
   if (new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== '/admin/app/sql') throw new Error('Native main-window URL is outside the normal Workbench route.');
   await evidence('native-window-route.json', { initialNativeUrl, finalNativeUrl: page.url(), sameExistingNativePage: true, substitutePageCreated: false });
   stage = 'normal native window CSS viewport';
-  const nativeViewport = await page.evaluate(() => ({ innerWidth: window.innerWidth, innerHeight: window.innerHeight, devicePixelRatio: window.devicePixelRatio }));
-  await evidence('native-window-viewport.json', { ...nativeViewport, requestedNativeWindow: { width: 1920, height: 1080 },
-    requiredCssWidthGreaterThan: 1100, viewportInjected: false,
-    boundary: 'The default native window can produce a CSS viewport at or below1100px where state/Health are hidden by the existing responsive layout. Native window options provide this test prerequisite; the prior failure remains evidence.' });
-  if (!Number.isFinite(nativeViewport.innerWidth) || nativeViewport.innerWidth <= 1100
-    || !Number.isFinite(nativeViewport.innerHeight) || nativeViewport.innerHeight <= 0
-    || !Number.isFinite(nativeViewport.devicePixelRatio) || nativeViewport.devicePixelRatio <= 0) throw new Error('Actual native CSS viewport does not satisfy the visible state/Health prerequisite.');
-  await page.getByText('Studio 运行中', { exact: true }).first().waitFor({ state: 'visible', timeout: 8000 });
-  await page.getByTestId('studio-managed-health').first().waitFor({ state: 'visible', timeout: 8000 });
+  let readinessFailure;
+  try {
+    await boundedPoll('Public native DOM ready for geometry', async () => await page.getByTestId('studio-host-identity').count() === 1
+      && await page.getByTestId('studio-managed-state').count() === 1, { attempts: 20, timeoutMs: 15_000, intervalMs: 250 });
+  } catch (error) { readinessFailure = safeMessage(error); }
+  const nativeWindow = await observeNativeWindow('initial-native-window');
+  await evidence('native-window-viewport.json', { ...nativeWindow, readinessFailure: readinessFailure ?? null,
+    boundary: 'Actual native-window dimensions and read-only DOM geometry. Default omits size overrides; only narrow requires measured CSS width at or below 1100px. Document overflow is recorded without extending this lifecycle acceptance.' });
+  check();
+  if (++counters.filesWritten > 48) throw new Error('Evidence file cap exceeded.');
+  await page.screenshot({ path: path.join(runRoot, 'initial-native-window.png'), fullPage: false, timeout: 5000 });
+  if (readinessFailure) throw new Error(readinessFailure);
+  assertNativeWindow(nativeWindow);
+  await prepareNativeExplorer(nativeWindow);
   stage = 'normal DOM native identity and manifest';
   await dom('initial-running', 'Studio 运行中');
   const manifest = await latestBridge('/studio-bridge/manifest');
@@ -504,6 +646,7 @@ try {
   const healthy = (await latestBridge('/studio-bridge/server/status', after)).body;
   assertOwnedRunning(healthy);
   if (healthy.processId !== newServer.processId) throw new Error('Health did not retain the restarted actual Server PID.');
+  await dom('restarted-health-running', 'Studio 运行中');
   stage = 'normal native main-window exit';
   await captureOwned('before-native-close');
   nativeClose.attempted = true;
@@ -525,7 +668,7 @@ try {
   nativeClose.allFourPortsReleased = true;
 } catch (error) {
   fatal = { stage, message: safeMessage(error) };
-  console.error(`WB-39 native validation failed at ${stage}: ${fatal.message}`);
+  console.error(`WB-40 native validation failed at ${stage}: ${fatal.message}`);
 } finally {
   clearTimeout(timeout);
   stage = 'owned process cleanup';
@@ -586,7 +729,8 @@ try {
       normalExit: { ...nativeClose, normalExit, fallbackUsedBeforeThisEvidence: cleanup.fallbackActions.length > 0 || cleanup.helperReclaims.length > 0,
         serverShutdownBoundary: 'Studio may force-terminate its managed console Server after its bounded close wait; this does not prove graceful Server shutdown or recovery.' },
       cleanup: essentialCleanup,
-      result: { runId, passed: !fatal && normalExit && cleanupProven, fatal: fatal ?? null, normalExit, cleanupProven, counters,
+      result: { runId, validationSlice: 'WB-40', evidenceParentSelection: selectedEvidence?.[0] ?? null, requestedNativeWindow: windowConfiguration,
+        nativeWindowObservations, nativeUiPreparation, passed: !fatal && normalExit && cleanupProven, fatal: fatal ?? null, normalExit, cleanupProven, counters,
         finishedAtUtc: new Date().toISOString(), elapsedSeconds: (Date.now() - startedAt) / 1000, evidenceRoot: runRoot,
         limitations: ['API setup/login with real auth localStorage; login UI not verified.', 'No native file dialog, installation, NativeAOT or full three-host acceptance.', 'Managed Server shutdown may use the existing Studio bounded forced termination.'] },
       details: [
@@ -595,11 +739,11 @@ try {
       ],
     });
     if (!terminal.passed) fatal ??= terminal.result.fatal ?? { stage: 'evidence', message: 'Independent terminal evidence did not prove acceptance.' };
-    console.log(`WB-39 terminal writes: ${JSON.stringify(terminal.outcomes)}`);
+    console.log(`WB-40 terminal writes: ${JSON.stringify(terminal.outcomes)}`);
   } catch (error) { console.error(`Terminal evidence preparation failed: ${safeMessage(error)}`); fatal ??= { stage: 'evidence', message: 'Terminal evidence could not be prepared.' }; }
   process.removeListener('SIGINT', cancel);
   process.removeListener('SIGTERM', cancel);
-  console.log(`WB-39 ${fatal ? 'FAIL' : 'PASS'}: ${runRoot}`);
+  console.log(`WB-40 ${fatal ? 'FAIL' : 'PASS'}: ${runRoot}`);
   // A CDP attachment may retain a Node transport after the native host exits.
   // All native-process checks and evidence are complete before ending Node.
   process.exit(fatal ? 1 : 0);

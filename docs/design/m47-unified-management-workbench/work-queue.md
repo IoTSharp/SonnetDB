@@ -2,6 +2,18 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-40 合同与文件冻结（2026-10-07；本机默认/窄窗 Health 已验证）
+
+- 依赖 WB-15 客户端与 WB-39 普通 native 生命周期，从实际 `db7f0ca1` 接续；文档/最终 SHA256、git/路线图/提交及三个完成代理核对。1440×920 默认 native 参数在本机 DPR 下可能 CSS≤1100，组件响应式当前隐藏 Health/state；≤720 整 toolbar 隐藏。仅修此已证入口缺口，不重做宿主或九模型页面。
+- 文件归属冻结：`/root/wb34_ui` 仅 `web/src/components/StudioWorkspaceTabs.vue`、`web/e2e/studio-host-client.spec.ts`；`/root/wb34_runner` 仅 `web/e2e/run-studio-native-real.mjs`；`/root/wb33_ui` 只读源码/真实证据。helper/evidence modules、生产 Studio/Server、其它模型与宿主不改。根独占六共享文档、验证/审计/集成/完整最终门禁/stage/commit，只提交本任务文件且 HANDOFF 仅顶部任务 hunk。
+- 验收先保五态/canStop/权限/身份/迟返合同，mock fixture 明确分开；真实默认不传 width/height，explicit narrow 仅正常 native 参数、实际 CSS≤1100，观察尺寸/DPR/可见操作位置与必要溢出。实际 native manifest/连接身份和普通 Health→Stop→Start→Health、普通 CloseMainWindow、旧新 Server/四端口/自有树回收必须分别核验；禁止 viewport/CSS 注入、mock bridge、fake 事件/私有组件入口/force click。认证 API/localStorage 不计登录 UI；不计对话框/安装/AOT/硬件/长稳/发行物或完整三宿主。
+- 根新 `artifacts/wb40-validation-20261007` 至23:32Z、16长命令/3实际run/3构建项目；实施代理22:46Z、18短读各30秒/20命名文件/20搜索各60匹配15秒；复核23:15Z、16短读/24命名文件/20搜索。循环/搜索/等待/重试同时次数/项目及墙钟，先微输入核比较；长进程完整PID/creation/command/父链与finally仅核验回收任务树，临时绝对路径核验。PowerShell7、禁Graphify/广域扫描/未授权安装，两policy Temp不碰；foreign footer/blog/oschina/parity保留，无fetch/push/发布/部署/外部沟通。最终代码树完整restore及原级别format通过才本地commit；整体未闭环、唯一heartbeat ACTIVE30分钟，本片不启动下一片。
+- 三源码最终freeze-final-2：仅native CSS保留身份/title、状态、Health与现有Start/Stop，≤1100换行、≤720保留native工具区；非native原断点与全部脚本/权限/事件合同不改。Runner分default省尺寸/narrow1000×800，最多六实测geometry与五DOM/PNG，不更改helper/evidence库或生产Studio/Server。
+- 原fixture12skip/显式StudioNative9/3失败原样保留；已有收起Explorer导致准备helper失败，修为观测后必要普通点击，最终12/12零skip，1100/950/640/500及合同回归通过。最终Web build、Server/Studio Release通过，三index同SHA256；最初Web build非最终树不升级，chunk警告保留。
+- 三实际run中首default被外层CIM空CommandLine检查中止，terminal缺失/生命周期未证；root核node96524/conhost37780及精确父PID/路径无存活、四端口释放。其三runtime删除被自动审查`blocked by policy`拒绝，原目录保留不绕过，不计cleanup PASS。Wrapper只对3次/2秒后已退出瞬时identity记录独立边界，不弱化活进程身份检查。后两rundefault125秒、narrow135秒exit0，原Program1440×920对应CSS946×556、1000×800对应652×476，DPR均1.5，各六geometry无横溢出、五DOM身份/状态/Health及active动作正常可见可达。
+- 实测均自动collapsed0/1且preparation needed/clickedfalse，不声称展开状态；两普通Health→Stop→Start→Health、CloseMainWindow exit0/signalnull、old/new Server完整身份及Studio父链、四端口/零fallback/helper reclaim、六成功runtime删除与五terminal独立落盘通过。根accept/164身份审计和fixture profile不存在、独立源码及两actual/PNG复核通过。证据`artifacts/wb40-validation-20261007`保三run/失败/源及产物hash；最终九文件restore/原级别format/绑定/白名单提交/postcommit实际结果见final-gates/commit-checkpoint/git log。
+- 尚不计认证登录UI、native库database同步/恢复（DOM控制库而bridge activeDatabase空）、Server优雅恢复、原生文件对话框、安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT/硬件/长稳/发行物或三宿主整体。下一片原生文件对话框，再VS Code；本片不启动WB-41，唯一heartbeat ACTIVE每30分钟，旧任务继续。
+
 ### WB-39 合同与文件冻结（2026-10-07；本机宽窗原生生命周期已验证）
 
 - 从本地`2a6eadbf`接续，完整文档读取记录与最新SHA256对拍无变化，git/路线图/提交/三个完成子代理已核对。只修真实Studio烟测的窗口关闭发现与有界终态落盘；WB-38三失败/16命令窗口不改不重置，生产Studio/Web/Server及旧fixture冻结。`windowsHide`仅为未证假设，正常关闭须重新核验准确任务身份及原生入口，不能将force kill/CDP关闭冒称正常退出。
