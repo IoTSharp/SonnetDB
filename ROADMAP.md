@@ -206,7 +206,7 @@ M47 将 Web Admin、Studio 桌面和 VS Code 扩展规划为“一套核心、�
 | WB-20 Vector Workbench | 🟡 | 原名/六态、参数/身份快照、空Schema权限锁存、严格维度/Top-K100和子页门禁；Node17/17、全Web201/201、Chrome10/10、导入1/1和既有真实Kestrel兼容3/3。Profile、真实权限/恢复、服务端预算、子页写终态与三宿主另验；本轮提交哈希见git log。 |
 | WB-21/WB-29 KV Workbench | 🟡 | 原名/权限锁存/readonly与有界预览已有；新Web→本机Kestrel首轮3/3补游标/Get/当前JSONL、NX成功/未应用影响0/交换实际版本+history、撤权403后READ/同token刷新锁存。Node17/17、全Web300/300、Chrome fixture12/12和build通过，成功JSON+manifest独立落盘；完整atomic/恢复/资源预算与三宿主另验，实际提交见git log。 |
 | WB-22 MQ Workbench | 🟡 | 原名/六态、锁存/readonly、实际Topic同步代际、一次审批与unknown、Browse1000/Inspector4096、Seek25窗/60秒和自动采样12轮/60秒；Node22/22、全Web240/240、Chrome16/16+既有3/3、真实Kestrel兼容2/2。真实新UI权限/恢复、完整metadata/资源预算和三宿主另验；本轮提交哈希见git log。 |
-| WB-23 Graph Workbench | 🟡 / Graph Beta | 原名/六态、401/403锁存、readonly与请求隔离、10～1000客户端总元素、32项/4096字符Inspector及safe-number门禁；Node27/27、全Web260/260、Chrome16/16+既有3/3、真实Kestrel兼容4/4与独立复核通过。完整Int64字符串、新UI真实权限/恢复、服务端资源预算和三宿主另验；提交说明见git log。 |
+| WB-23/WB-35 Graph Workbench | 🟡 / Graph Beta | 原名/六态、401/403锁存、readonly与请求隔离、有界画布/Inspector及safe-number门禁已有；WB-35新Web→隔离Kestrel第三轮3/3取得实际Canvas250/10/1000、typed vertex、独立snapshot JSON导出10/1000/history、单vertex Upsert/version+1与REVOKE403/READ重授锁存。Node27/27、全Web327/327、Graph fixture16/16/build通过，前两控件操作失败保留，三JSON811899字节/manifest核验；完整门禁与提交见git log。恰满顶点预算导出截断仍是待真实复现的源码候选缺口，完整Int64/edge/import/维护/显式恢复、Server预算和三宿主另验。 |
 | M47-U01～U03 | 🟡 | 设计、首批合同和共享结果/审批语义已有局部实现；三个宿主真实消费、完整分页/离线/取消证据仍待补。 |
 | M47-U04～U05 | 🚧 | 九模型专用工作台和 Web Admin 仍按页面切片迁移；WB-11 是其中一个页面样板，不代表整包完成。 |
 | M47-U06～U08 | 📋 | Studio、VS Code、WorkBuddy/stdio bridge 与配置自检尚未形成完整真实宿主验收。 |

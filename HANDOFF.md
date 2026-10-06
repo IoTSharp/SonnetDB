@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-35，2026-10-07；本地切片已验证）
+
+- 从WB-34本地提交`328378d8c0d7130b1dde302dd4a1d2c2eff8793f`接续；最新交接/AGENTS/queue已完整Raw接收并hash对拍上一片final-tree，路线图/git/提交/代理核验，100记录身份0自有存活，旧两代理完成。保留博客三文件与本文件博客/OSChina外来尾hunk，不重复WB-25～WB-34，origin/parity-results保护。
+- 仅冻结Graph Beta新Web→隔离Release Kestrel三真实旅程：READ有界canvas/typed元素/独立snapshot JSON导出和原身份history；正常WRITE单vertex Upsert一次审批/实际终态与管理员Get；旧审批REVOKE403、正常可见import文本草稿清理与READ重授/同tokenSchema200/internal tabs锁存无selectedGraph重放。固定safe-number子集，不称完整Int64/edge/delete/import/maintenance或三宿主完成；具体合同与文件归属见queue。
+- 复用专属runner代理只新增薄入口/冻结后只读Server/spec/成功复核，UI代理只新增真实spec，根独立复核薄入口并独占六共享文档/验证/进程审计/最终完整restore-format/stage/commit；生产/API/Server/共享runner/路由/其它宿主先冻结，真实缺口先回报根。18:13Z起75分钟至19:28Z，最多16长命令/3真实run，代理35分钟至18:48Z，最多25命名文件/30搜索、80匹配15秒。禁止Graphify/广域工具扫描/未授权安装，PowerShell7/有界执行/归属与finally清理/两政策保留Temp边界不变。heartbeat保持ACTIVE每30分钟，整体未闭环，不提前新建接续会话，本轮不启动WB-36。
+- 根串行取得定向Node27/27、全Web327/327、Graph Chrome fixture16/16、TypeScript/Vite PASS；新Web→隔离Release Kestrel第三轮3/3、20.1秒测试/47秒wrapper、retries0。前两run分别因正常页签动态badge导致exact名字不匹配、precision0元素ID需Enter/blur提交而失败，后两旅程未运行；仅修专属spec正常定位与键盘提交，不降业务断言，失败证据保留。最终spec016E49DB在18:31:30写入，启动前source-freeze已捕获同hash，第三run18:31:45开始，无运行后源码变更。
+- READ逐项对拍151vertices/150edges实际Canvas250/10/1000及端点、typed vertex、JSON导出10/1000各独立snapshot/truncated/实际download和原身份history；WRITE正常一次vertex审批取得sequence/isDuplicate与管理员Get/version1→2；REVOKE403清已加载画布/overview/typed editor/可见未staged import草稿/当前vertex审批，管理员Get拒写值不存在/批准值保留，READ重授/同tokenSchema200/五页签保持锁存无selectedGraph重放。未预选Canvas inspector，不称其已有载荷清理；无browse history/影响数/维护审批或全矩阵声明。
+- 成功run`graph-real-2026-10-06T18-31-45-914Z-c67b7272-c73b-4b2e-ad1c-222389768e75`三JSON648198/5613/158088字节，共811899；manifest尺寸/hash、绝对runRoot与无凭据根核验通过，独立源码/成功证据复核为提交前置。证据根`artifacts/wb35-validation-20261007`。真实后96记录身份0自有存活、四Chrome profiles/三contentRoots已清；累计3条短descendant缺command、外部祖先缺command与旧wrapper短命进程捕获限制诚实保留，不称全OS完整。Server复用WB-32零警告/错误Release二进制，不称本片新构建或AOT证据。
+- 最终八任务文件、HANDOFF只顶部任务hunk；完整restore/原级别format/staged diff退出0才本地提交，代码再改重跑，实际退出/日志/hash/提交见final-gates/final-tree-hashes/commit-checkpoint。提交说明`test(m47): verify Graph workbench against real Server`，实际哈希以git log为准。下一片优先受控复现/最小修复Graph导出恰满顶点maxElements且仍有边时可能误报truncated=false的源码候选缺口（本片只证10/1000，不固化错误边界），再接Object新UI/Studio/VS Code未完成队列。整体未闭环，唯一heartbeat继续ACTIVE每30分钟。
+
 ## 当前检查点（WB-34，2026-10-07；本地切片已验证）
 
 - 从WB-33提交`6bc0fea1022562ca8128911d2e222217d52b55ee`接续；最新交接/AGENTS/queue、路线图/git/已存在提交/代理已接收核对，上一片119记录身份0自有存活。Object写终态WB-25及WB-26～WB-33不重复。博客三文件及本文件尾hunk原样保留不暂存，origin/parity-results保护。

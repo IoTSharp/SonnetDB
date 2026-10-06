@@ -2,6 +2,19 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-35 Graph 新Web真实旅程（2026-10-07；本地切片已验证）
+
+- 仅两新增源码：Graph薄入口复用既有隔离runner，真实spec由专属UI实施、runner完整只读复核，根独立核入口/源码/实际失败定位和成功记录。生产Graph/API/Server/共享runner/路由/其它宿主不改；Graph Beta与database+Graph/profile原名身份保持基线，固定safe-number子集，不计完整Int64/edge/delete/import/maintenance矩阵。
+- 普通非超级用户READ，管理员一次有界batch seed151vertices/150edges、MixedCase Graph原名；正常overview和visualization的Server limit是顶点上限，客户端总元素另限。通过正常加载ECharts公开getInstanceByDom/getOption只读核当前真实Canvas250（151v/99e）、10（10v/0e）、1000（151v/150e）系列/端点与DOM/footer；正常Restricted edit输入/Enter/Tab读vertex原typed属性。无组件setup/prop/program-entry harness，不只复制bound算法冒称渲染。
+- 正常JSON导出maxElements10/1000，实际响应与下载JSON逐项相等，独立Server snapshot与实际truncated分别为true/false，elementCount10/301；各原database+Graph/profile history保持，画布与导出不是同一个采样合同。Graph无browse history、rowCount/recordsAffected/completeness字段，不编造影响数或通用完整性。恰顶点maxElements且仍有边时，Server written<maxElements条件可能跳过edge scan并误报未截断：本片仅源码候选，未定向真实复现、不改Server/固化错误断言；留下一片受控复现/最小修复。
+- 普通WRITE正常读已有ID1/version1，编辑typed property并Stage Upsert一次确认；实际PUT200 sequence/isDuplicate=false，管理员Get与正常刷新Get一致，原ID/labels/typed properties保留、version1→2，事务sequence与元素version分开核验。原operation history成功summary匹配实际终态，只证单vertex操作，不声称完整写矩阵。
+- 旧正常vertex审批实际REVOKE后PUT403，清已加载画布/overview/typed element editor/正常可见未staged import文本草稿/当前vertex审批；管理员Get拒写值不存在、先前批准值保留。READ重授/同tokenSchema200/五section页签保持permission，selectedGraph无新模型请求或重放。没有预选Canvas inspector，其消失检查不能证明移除了此前载荷；未产生import/maintenance审批，不能计该审批清理。API登录装入真实token不计登录UI/routed readonly props/OS对话框，显式恢复另验。
+- 根串行定向Node27/27、全Web327/327（VM modules/concurrency2）、TypeScript/Vite PASS、Graph Chrome fixture16/16；真实第三轮3/3、20.1秒测试/47秒wrapper、retries0。首run READ因页签exact accessible名字遗漏动态badge失败；第二run Canvas10/1000通过后precision0 ID填入未正常提交，读取disabled而失败；两次后两旅程均未执行。专属spec仅修精确可见标签、正常fill/Enter/Tab及enabled前置，不force或降断言，失败目录和trace保留。最终016E49DB写入18:31:30、根启动前source-freeze实际同hash、第三run18:31:45开始，无运行后源码改动。每旅程120秒、控制API10秒/browser响应下载事件15秒/生产Axios30秒分别记录，runner10分钟/readiness120次60秒，fixture每项30秒。
+- 成功run`graph-real-2026-10-06T18-31-45-914Z-c67b7272-c73b-4b2e-ad1c-222389768e75`三JSON648198/5613/158088字节，共811899；根verify-success核manifest尺寸/hash、实际canvas/导出download/terminal/Get/权限终态，绝对named runRoot/wx、最多24份/单1MiB/总8MiB、无凭据。源码/成功证据独立完整复核是提交前置，记录见independent-source-number-review/independent-success-review。证据根`artifacts/wb35-validation-20261007`，旧run不覆盖。
+- 真实后96记录身份0自有存活；四Chrome profiles及三run contentRoots不存在、cleanupProven/contentRemoved为true。长根/Server/Vite/Playwright/Chrome PID/创建/完整command/父链与归属审计分别记录；累计3短descendant command不可用且已退出、外部Windows祖先缺command/末祖先不可解析，以及旧wrapper可能漏短命worker/代理短语法未逐条完整OS捕获均单列，不称全OS身份完整。两政策保留Temp不触碰；复用WB-32零警告/错误Release及本片hash，不称本片重新构建或AOT。
+- 六共享文档/集成/验证/git根串行，18:13Z起75分钟至19:28Z、16长命令/最多3真实run不重置；只八任务文件，HANDOFF只顶部任务hunk、博客三文件/尾hunk保留。最终完整restore/原级别format/staged diff退出0才本地commit，代码再改重跑；实际退出/日志/hash/提交见validation-results/final-gates/final-tree-hashes/commit-checkpoint。禁止Graphify/广域扫描/未授权安装，无fetch/push/发布/部署/外部沟通，origin/parity-results保护。
+- 不计Server扫描/物化/传输/字节/总堆预算、Graph通用导出边界、完整Int64或其它宿主验收。下一片优先Graph恰满预算导出候选缺口，再接Object新UI与Studio/VS Code/安装/Extension Host/AOT/固定硬件/长稳/AI/MCP/发行物队列；三宿主未闭环，唯一heartbeat继续ACTIVE每30分钟，本轮不启动WB-36。整体闭环后才保存交接、新建本地接续会话并迁移同一heartbeat，随后不限任务类型继续子代理实施/根监督验收。
+
 ## WB-34 MQ 新Web真实旅程（2026-10-07；本地切片已验证）
 
 - 仅两新增源码：MQ薄入口复用既有隔离runner，真实spec经过专属runner/UI及源码只读复核；根独立复核薄入口。第三代理新建及旧review复用受thread总数上限拒绝，冻结入口后由runner兼任只读复核，不重复派单。生产MQ/API/Server/共享runner/路由/其它宿主不改，MQ逻辑scope=database、identity=database+Topic、persistenceScope=instance与物理.system/mq保持基线。

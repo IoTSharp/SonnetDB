@@ -2,6 +2,21 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-35 合同与文件冻结（2026-10-07；本地切片已验证）
+
+- 从WB-34实际提交`328378d8c0d7130b1dde302dd4a1d2c2eff8793f`接续；最新HANDOFF/AGENTS/queue完整Raw接收并与上一片final-tree hash对拍，路线图/git/已提交事项及旧代理核验，100记录身份0自有存活，旧两代理完成。博客三文件和HANDOFF的博客/OSChina外来尾hunk保留不暂存；WB-25～WB-34不重复，origin/parity-results保护，三宿主未闭环，唯一heartbeat ACTIVE每30分钟。
+- 仅新增Graph Beta新Web→隔离Release Kestrel真实三旅程证据，依赖WB-23/WB-16和WB-27/31共享runner。复用专属`/root/wb34_runner`独占新增`web/e2e/run-graph-real.mjs`薄入口，冻结后兼任只读Server/API/spec/成功证据复核；根独立复核四参数薄入口。复用专属`/root/wb34_ui`独占新增`web/e2e/graph-real-permission.spec.ts`。不再次触发已知thread总数上限，不重复派单，最多三活动子代理。生产Graph组件/Node/API/Server/共享runner/路由/其它宿主先冻结；真实兼容缺口先回报根再冻结最小归属。
+- 最多三个serial真实旅程，各120秒/retries0、控制API10秒、browser响应/下载事件wait15秒、生产Axios30秒分开，无mock/skip/prop/program-entry harness。普通非超级用户READ经真实API登录，最多151vertices/150edges管理员有界batch seed；合法MixedCase Graph保原名，Graph Beta标记保留，实际overview/vertex limit10与大窗≤1000、客户端总元素预算/边端点、typed元素读取，以及正常JSON导出maxElements10/1000的各真实snapshot/truncated与原database+Graph/profile历史对拍。画布可通过已正常加载ECharts的公开getInstanceByDom/getOption只读观察实际series，不调用组件setup/修改props或图实例，不提供测试执行器；导出独立Server snapshot不等于画布，不伪造browse history或全图分页/Server资源预算；具体已有history合同以只读复核确认。
+- 普通WRITE经正常受限编辑器读已有安全ID/当前version，Stage Upsert并一次确认，实际sequence/isDuplicate终态与管理员Get原ID/属性/新version独立对拍，原身份history保持；只覆盖单vertex Upsert，不冒称完整Int64/edge/delete/import/maintenance矩阵。第三旧vertex审批实际REVOKE403清当前canvas/overview/element/editor/import/approval，管理员确认拒写属性未落库/已批准值保留；READ重授/同tokenSchema200与internal section tabs仍锁无selectedGraph模型请求/重放。真实import草稿仅通过正常可见文本框填写不staged，维护审批未发生则不称清理；显式恢复另片。
+- 成功JSON仅核验绝对named`artifacts/wb35-validation-20261007`直接graph-real run目录/wx/manifest，最多24份/单1MiB/总8MiB，拒保存凭据；固定合法safe-number ID只计这一子集，不弱化Graph完整Int64身份待办。真实Server、fixture、三宿主/OS/安装/Extension Host/AOT/固定硬件/长稳/发行物分开，不改变Graph Beta/数据库逻辑资源合同。
+- 根独占六共享文档、统一验证/审计/集成/最终完整restore/原级别format/stage/commit。18:13Z起75分钟至19:28Z，根最多16长命令/真实run3次；代理35分钟至18:48Z，最多25命名文件/30定向搜索，每次80匹配/15秒，短语法命令最多2次/单30秒，不自跑长验证或另派代理。共享runner10分钟/readiness120次60秒，Node每项5秒，fixture每项30秒。最终树完整restore/format必须退出0才commit，代码再改重跑；本轮不启动WB-36。
+- 固定PowerShell7 `C:\Program Files\PowerShell\7\pwsh.exe`并核版本；禁止Graphify/广域工具扫描/未授权安装。循环/搜索/等待/重试同时限定项目或迭代数与墙钟，先极小输入人工核退出比较；长进程记录PID/创建时间/完整command/父链，finally仅回收核验自有树。临时绝对路径先核验后清自有对象，交付物保留，两政策保留Temp不删除/重试/绕过。共享文档/git/集成根串行，保护其它会话/保留origin/parity-results，无fetch/push/发布/部署/外部沟通。
+
+- 只读Server复核发现独立候选缺口：GraphOperationsEndpoints.cs导出顶点数恰maxElements、仍有边时，written<maxElements条件不进入edge scan，可能误报truncated=false（源码级发现，尚未定向真实复现）。本片仅10/1000所测预算，不称通用export边界正确性、不用PASS固化错误行为、不扩改Server。下一片优先冻结此边界真实复现/最小修复，再接Object/Studio/VS Code剩余事项。元素version按expected+1，与事务sequence分离；GET/PUT元素端点不自行保证Content-Type，证据核实际有效JSON及headers，不假造额外HTTP合同。
+- 最终本地证据：Node27/27、全Web327/327、TypeScript/Vite、Graph Chrome fixture16/16通过；新Web→隔离Release Kestrel第三轮3/3、20.1秒测试/47秒wrapper。前两run各READ失败/后两未执行：页签动态badge与precision0 ID正常提交遗漏；专属spec修正常可见label和fill/Enter/Tab/按钮enabled，不改生产或降业务断言，失败记录保留。最终016E49DB hash写入早于第三启动且启动前source-freeze实际匹配，后续冻结不改。
+- 实际Canvas250/10/1000系列/端点、typed vertex和独立snapshot导出10/1000/download/history对拍；单vertex WRITE一次审批sequence/isDuplicate、管理员Get/version1→2；旧vertex审批REVOKE403清已加载画布/overview/typed editor/正常可见import文本草稿，重授READ/同tokenSchema200/五tabs保持锁存无selectedGraph重放。没有预填选中Canvas inspector，不能称移除了其已有载荷；无browse history/rowCount/影响数或实际import/maintenance矩阵声明。
+- 成功run`graph-real-2026-10-06T18-31-45-914Z-c67b7272-c73b-4b2e-ad1c-222389768e75`三JSON共811899字节/manifest尺寸hash和凭据拒写根核验通过；独立完整源码/成功证据复核为提交前置。真实后96记录身份0存活，四Chrome profiles/三contentRoots不存在；累计3短descendant缺command/外部祖先与wrapper短命捕获限制单列。最终八文件完整restore/原级别format/staged diff退出0才提交，实际日志/树/hash/提交见`artifacts/wb35-validation-20261007`；本轮不启动WB-36，下一片优先Graph恰满预算导出候选缺口，再接Object/Studio/VS Code，三宿主仍未闭环。
+
 ### WB-34 合同与文件冻结（2026-10-07；本地切片已验证）
 
 - 从`main / 6bc0fea1022562ca8128911d2e222217d52b55ee`接续；HANDOFF/AGENTS/queue完整读取并hash对拍WB-33最终树，路线图/git/已提交事项与旧代理核验，119身份0自有存活。博客三文件/HANDOFF尾hunk保留不暂存，不重复Object写终态WB-25及WB-26～WB-33；origin/parity-results保护，三宿主未闭环，唯一heartbeat ACTIVE每30分钟。
@@ -239,7 +254,7 @@
 | WB-28 | FullText 新Web UI真实Top-K/当前导出、同步重建终态与撤权锁存 | 本机Web→Kestrel3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过；非超级用户的数据库Admin一次批准sync_touch重建，REVOKE403后重授READ/刷新不解锁或重放；成功三JSON和manifest独立落盘核验。八任务文件完整门禁/实际提交见证据目录；生产组件/Server不改，显式恢复/typed全文分页/Server预算/三宿主另验。 |
 | WB-29 | KV 新Web UI真实游标/Get/JSONL、条件写/交换终态子集与撤权锁存 | 本机Web→Kestrel首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过；普通WRITE三审批NX成功/未应用影响0/交换，真实版本+原身份history与管理员Get对拍；REVOKE403清旧导入审批、重授READ/同token刷新仍锁存。三成功JSON+manifest独立落盘核验；八任务文件最终完整门禁/实际提交见证据目录，生产组件/Server/共享runner不改，完整atomic/恢复/Server预算/三宿主另验。 |
 
-WB-15～WB-34已按各自本地范围验证，实际提交以git log与各证据目录为准；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次接续WB-34实际提交，优先盘点并冻结Graph/Object新UI真实旅程，再推进Studio/VS Code剩余合同；不重复WB-25～WB-34，本轮不启动WB-35。
+WB-15～WB-35已按各自本地范围验证，实际提交以git log与各证据目录为准；M47-U01～U09 仍需完整九模型适配器、三宿主真实旅程、AI/MCP 入驻和版本/安装/发布矩阵；没有发布授权时保留可复核的 NOT_READY 边界，不因本机切片 PASS 暂停整体研发。下一次接续WB-35实际检查点，优先受控复现/最小修复Graph恰满顶点预算导出候选缺口，再推进Object新UI真实旅程和Studio/VS Code剩余合同；不重复WB-25～WB-35，本轮不启动WB-36。
 
 ### WB-20 合同与文件冻结（2026-10-06；本地切片已验证）
 
