@@ -2,6 +2,14 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-53 合同与文件冻结（2026-10-07；真实三payload局部通过，完整生命周期仍未证）
+
+- 接续aea0181c/closedWB52，四docs完整字节快照/git/路线图/已有提交/已完成代理已核；不重做调用21/history6/diagnostic55。专属metadata只改runner/Host两源五组literal，反向SHA等于基线；root独占六docs/工具/验证/gates/stage/本地commit，共八文件，独立review只读。
+- 新窗口artifacts/wb53-validation-20261007截止08:25Z、14wrapper/1actual/1TS/0新.NETbuild/0合同重测；review24shell/32命名文件/08:20Z。syntax/双PS7 AST、唯一TS compile与三文件source-build freeze通过，生产/诊断/旧失败/foreign22/shared HANDOFF/parity保持。
+- 唯一actual ed4f028a：current2/selection1/EXPLAIN45与独立真实reference逐值及POST200一致；history/Host终态缺席、API恢复unknown，runner原FAIL/process_audit/Code及Host null/normalExit false保留，不把三payload当完整Host或旧原因。snapshot真实两initial parent缺command（847/matches1）与一fresh候选lookup缺项（845/matches0/null）只证首拒绝，不证明权限/短命/复用或授权stop。
+- 原cleanup false/runtimefalse、3round/17stop/remaining1/blocking3，51ledger/68events/28helper与manifest12/342719B/目录14文件完整。根fresh54PID absent/无关联/两port可bind/0新增kill，canonical新runtime292对象一次删除独立分列；checkpoint C0814703…0E76E9C4及原14文件SHA冻结，strict成功工具仍拒绝。旧current adapter exact39/45拒绝保留，新的此run失败/current-absence adapter不泛化放行。
+- 最终八文件完整restore/原format/前后SHA、fresh outside≤90秒零排除、精确自有共享hunk提交/post/关闭以收据为准。PS7/禁Graphify广域扫描安装/有界执行/归属finally/绝对路径/旧policy对象保护继续，无push/发布/部署/外发。下一片先冻结initial→fresh短命父与blocking/refusal合同，不重复metadata或盲加actual；真实history/API/Code正常退出/原cleanup及UI/分页/Notebook/LSP/安装/AOT/三宿主另验，唯一ACTIVE30分钟继续。
+
 ### WB-52 合同与文件冻结（2026-10-07；父链snapshot本地安全诊断通过，真实Host另验）
 
 - 接续43093571/closedWB51，最新四docs完整字节快照/git/路线图/提交/代理核验；不重做调用21/history6或Host。专属parent_snapshot独占query-host-evidence.mjs/test.mjs，runner冻结，snapshot_review只读，根独占六docs/验证/gates/stage/本地commit，共八文件。

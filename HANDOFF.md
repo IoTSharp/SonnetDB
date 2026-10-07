@@ -5,6 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-53，2026-10-07；真实三查询局部通过，history/退出/原回收仍未证）
+
+- 接续本地aea0181c；WB52最终八文件提交、55项本地诊断、完整restore/原format、post/closed8/8和独立验收已过，旧closed4/14/provider503分列保留。本轮最新HANDOFF/AGENTS/ROADMAP/queue完整字节快照、git/路线图/已有提交/已完成代理已核；不重复WB51调用21/history6或WB52诊断55。
+- 唯一WB53为新的独立真实Query/history/Code生命周期验证窗口。metadata专属代理只把runner/Host两源五组literal迁为WB53、Workbench53、18354/18355与新evidence parent；反向字节SHA等于基线，原断言/authority/stop/预算/诊断保持，代理7/10shell、2/8文件已停写。根独占六docs/工具/验证/集成/gates/stage/本地commit，共八文件；独立review只读。root artifacts/wb53-validation-20261007截止08:25Z、14wrapper/1actual/1TS项目/0新.NETbuild/0合同重测，review截止08:20Z、24shell/32命名文件。
+- 唯一actual query-host-real-ed4f028a-a9d3-4db0-a351-48c372aac883，07:38:30→07:39:19Z、wrapper exit1。三phase current2/selection1/EXPLAIN45逐列/逐值/SQL/database/end与独立真实Server reference及POST200一致；但history.json/host-result.json缺席，API恢复unknown，runner仍FAIL/process_audit/extension-host，Code/Host null、normalExit false。三payload局部证据不升级为完整Host成功或WB50因果；actual1/1已耗尽，不追加实跑。
+- 新snapshot诊断真实记录两parent_command_missing：initial snapshot847、candidate/parent各matches1且command missing，共同parent40020；该parent另为fresh snapshot845、candidate matches0/null的candidate_snapshot_missing。只证已有lookup首拒绝，权限/短命/复用原因unknown，不用ledger补身份或排除后代。原cleanup false/runtime false、remaining-processes/final、3round/17stop/0stopfail/remaining1/blocking3保持；51ledger/68events/28helper全closed、4child+56helper输出hash完整、manifest12/342719B/目录14文件和五terminal保留。
+- 根回收独立分列：fresh54 accepted/rejected/parent PID当前absent、无run关联、两port可bind、0新增kill；exact owner marker runner40004核后depth16/4096对象/15秒inventory、30秒一次逐绝对路径删除292个新runtime对象。root-failure-checkpoint SHA C0814703…0E76E9C4、14原证据冻结不变；严格成功audit/accept仍拒绝。初复制旧current adapter在exact旧run39/45守卫拒绝并保留，新的exact run/51/68/精确checkpoint/current-absence adapter仅接收失败检查点，不泛化成功门禁；当前outside tuple/event审计零live/changed/verification/exclusions。
+- 最终八文件完整restore/原参数format、前后SHA、fresh outside零排除≤90秒、精确自有共享hunk提交/post/窗口关闭与独立验收结果以本窗口收据/git log为准。foreign22含六缺席PS1、外部HANDOFF100行及origin/parity-results保护；PS7/禁Graphify广域扫描安装/有界count+墙钟/完整身份父链/finally/绝对临时路径继续，不碰旧policy拒删对象，无push/发布/部署/外发。下一片先冻结initial→fresh短命父观察与blocking/refusal、正常Host完成所需合同，不重做本片metadata或盲加actual；三宿主/UI/分页/Notebook/LSP/安装/AOT/硬件/长稳/发行物继续另验，唯一workbench ACTIVE30分钟不迁移/暂停。
+
 ## 当前检查点（WB-52，2026-10-07；父链snapshot本地安全诊断通过，真实Host另验）
 
 - 接续本地43093571；WB51已closed11/14/0actual，调用21/21与必要history6/6、完整restore/原format、八文件提交/post及独立验收通过。不重复SQL/history实现或测试。最新HANDOFF/AGENTS/ROADMAP/queue完整字节快照、git/路线图/已有提交/已完成代理核验；foreign22路径含六缺席PS1、共享HANDOFF与origin/parity-results保护。

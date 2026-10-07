@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-53 真实Query与父链诊断再验证（2026-10-07；三payload局部通过，原FAIL保留）
+
+- 基线aea0181c，已接收WB52 final55/完整门禁/精确提交/post/closed8/8/独立PASS与旧503/closed4/14分界；最新四docs全字节快照/git/路线图/已有提交/已完成代理核验。metadata代理仅两源五组literal，反向SHA等于runner9156CA5C…457EAF7/Host4422B969…C6EBE906；最终runner78DCD7D5…16D4269AA/Host2D4BE2AE…CC741C893，7shell/2文件已停写，根与独立review分别维护验证和验收，不改生产与断言。
+- root artifacts/wb53-validation-20261007截止08:25Z、14wrapper/1actual/1TS项目/0新.NETbuild/0合同重测，review24shell/32命名文件/08:20Z。Node syntax/精确双PS7 helper AST、唯一TS compile通过，source-build freeze SHA0E666DD5…A9FF3A85绑定两源与compiled Host；WB51调用/history与WB52安全诊断、Server/Code固定产物/旧证据/foreign/parity保持。
+- 单次actual query-host-real-ed4f028a-a9d3-4db0-a351-48c372aac883（07:38:30→07:39:19Z）exit1。根及独立review对三phase逐列/逐值/source/context/editor/end与独立真实reference核对current2/selection1/EXPLAIN45和POST200一致；实际generated payload可复核，renderedWebview=false。history.json/host-result.json不存在，API恢复unknown，runner仍FAIL/process_audit/extension-host、Code及Host null/normalExit false；不把局部结果冒称真实完整Host成功，不推导WB50具体因果。
+- 三candidateSnapshot为两initial parent_command_missing：snapshot847、candidate/parent各matches1、command missing、共同parent40020；一fresh candidate_snapshot_missing：snapshot845、matches0、command null。仅已有lookup的安全观察；matches不是absence、present不是validity，权限/短命/复用原因unknown，原authority/stop/重采/预算未放松。
+- 原cleanup false/runtimefalse，诊断complete、first recoverable null、terminal remaining-processes/final；3round/17stop/0stopfail/remaining1/blocking3保留。51ledger与68exact event refs、28helper全closed/identityRecorded、4child+56helper stream hashes完整；manifest12文件342719B、加manifest/status共14文件、五terminal writer均成功但outcome仍FAIL。
+- 严格audit-owned与accept-real成功工具拒绝，after-real strict审计57完整tuple当前无live/changed/verification/exclusions但不能证明原cleanup。根fresh54 accepted/rejected/parent PID absent、无run关联、两port可bind、0新增kill；核exact canonical runtime与owner runner40004后depth16/4096对象/15秒inventory、30秒一次逐绝对路径删除292个本run对象。原14证据hash与FAIL/false/null冻结，root-failure-checkpoint SHA C08147038B58F3838C04043C4CD3FA542887F772244FC3BD0494D5C80E76E9C4，after-root current审计SHA20C7CC47…5ED38FD另证当前回收。
+- 初复制旧current adapter在exact旧run39/45守卫安全拒绝，副本/收据保留；新adapter从strict完整tuple/ref核验生成，只限定此run51/68/三拒绝、精确checkpoint SHA与当前runtime缺席，原成功工具保持，不泛化失败为成功。最初几个命名路径读取缺席均零写，改按有界小目录清单读取，未扩大工具扫描或安装。
+- 六docs+两源最终树完整restore/原参数format、pre/post SHA、fresh outside零排除≤90秒、精确自有hunk提交/post/关闭及独立验收以本目录实际收据/git log为准，未验前不写PASS。foreign22/六缺席PS1、外部HANDOFF100行、origin/parity-results和旧policy拒删对象保护。PS7/禁止Graphify广域扫描安装/有界count+墙钟/完整进程父链/finally/绝对临时路径保持，无外部动作，0追加actual。
+- 下一片先冻结initial→fresh短命父观察与blocking/refusal、正常Host完成所需合同，不能凭本次safe snapshot放松stop或从ledger补身份；本片metadata与三结果不重包装。真实history/API恢复/Code正常退出/原cleanup、向导UI/Webview分页/Notebook/LSP、三宿主/安装/AOT/固定硬件/长稳/发布仍分别待验，唯一workbench ACTIVE每30分钟继续。
+
 ## WB-52 父链snapshot拒绝诊断（2026-10-07；本地安全合同通过，真实Host另验）
 
 - 基线43093571/closedWB51，四docs完整接收快照/git/路线图/已有提交/代理核验。WB50原3 parent_command_missing/3 candidate_snapshot_missing无snapshot来源观察，不能判CIM权限、短命或复用；原FAIL/false/null及原证据保持。WB51调用21/history6已过，不重复实施/测试。
