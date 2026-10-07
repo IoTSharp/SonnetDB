@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-58 合同与文件冻结（2026-10-07；公开history/错误通知安全观察，0actual）
+
+- 基线11f358c6；盘点已确认原完整await/串行Store与catch通知后fulfilled，不判WB57两history因果。专属实施独占新增core/queryHistoryObservation.ts、新增test/queryHistoryObservation.test.ts及Host query-real.ts；根独占六共享docs、runner/gates/stage/九文件本地提交，独立review只读。生产command/panel/history和runner、23旧实际/收据保持。
+- 3phase固定公开错误通知计数/类别及单次history快照；不存原错误/SQL/token，计数与label/context匹配/unknown不授持久ack或实际PASS。第四API原样转发并finally恢复，诊断失败不遮primary。dispatch前消费总20history命令slot，含3phase及最终poll；原20pick/50entry/16notification、110s/final10s、history3/order/context/fail不放宽，不增加retry/authority。
+- 根唯一TS项目与新必要Node行为验证、最终source/compiled SHA见本目录；synthetic ack拒绝/deferred仅本地合同，0actual/.NETbuild，不升级WB57原FAIL/false/null。纠正WB57自有duration措辞为pre-finally55与完整outer73.6699466秒，不改旧收据。最终九树完整restore/原format/fresh零排除≤90秒/精确共享hunk本地提交/post/退出/review以收据为准，截止12:40Z/≤14wrapper/TS≤2attempt/定向≤2。
+- 下一片按新有界观察与已确认缺口冻结独立真实history/ack或stop-verification，不盲跑或推因果；elapsed DTO差异、三宿主/安装/AOT仍另验。保护外部Identity/博客/HANDOFF及parity，PS7/禁Graphify广域扫描安装/有界count+墙钟/完整进程身份父链/finally/旧policy对象不变，ACTIVE30分钟继续，无push发布部署外发。
+
 ### WB-57 合同与文件冻结（2026-10-07；真实终态三检查局部实证，原旅程/cleanupFAIL）
 
 - 接续5b82d947/closedWB56；专属metadata两源仅六literal迁WB57/Workbench57/18358-59与新证据目录，inverse逐byte等HEAD，独立source review通过。根独占六docs/验证/gates/stage/八文件本地commit；0重复75测试、唯一TS项目、actual1/1、0新.NETbuild，窗口11:40Z/14wrapper，不启动WB58。

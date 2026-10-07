@@ -5,10 +5,19 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-58，2026-10-07；公开history/错误通知安全观察，本地合同与真实证据分列）
+
+- 接续11f358c6/closed WB57；本轮完整接收四docs/git/已有提交与已停止代理，当前外部Identity分析、博客/CSDN与HANDOFF尾追加保留。只推进WB58安全观察，不重跑WB57 actual或既有75/21/6合同，不修改生产command/panel/history Store的await、吞错提示或串行写入语义。
+- 专属盘点已证command→panel→history.update的await完整；公开命令catch通知后仍fulfilled和Store失败后继续是既有合同，不推WB57两条history原因。实施仅新增queryHistoryObservation.ts及其专属测试、修改Host query-real.ts；根独占六docs/runner/验证/gates/stage本地提交。elapsedMs与真实elapsedMilliseconds的已证metadata差异另片，不混入本片。
+- 固定三phase公开showErrorMessage同步计数/白名单类别，不保存原错误/SQL/token正文；每phase单次公开history快照，只保存有界计数、label/context匹配boolean或unknown，快照先重置、异常不遮原primary；公开label匹配不证明持久ack。第四API恢复进入既有finally上限4，原API this/arguments/return/throw保持。新增phase观察和最终poll共用dispatch前消费的总20history命令slot，原20pick/50entry/16notification预算、110秒全局与最终10秒、三条history顺序/context/fail断言保持，不加重试或安全authority。
+- 根唯一TS编译已通过；1项微试及最终新Node7/7通过，fail/cancel/skip/todo为0；source/compiled SHA以artifacts/wb58-history-contract-20261007收据为准；真实生产Promise编排配合成Memento拒绝/deferred ack仍是本地合同，0actual/0新.NETbuild，不提升WB57原FAIL/Host0bytes/CodeHostnull/API恢复unknown/cleanup false或拒绝三状态。原23份实际/最终收据与生产源、runner完整保护。
+- 本片明确WB57的55秒为结束清理前计时，outer完整原起止10:32:43.2585809→10:33:56.9285275为73.6699466秒；只纠正自有HANDOFF/report措辞，旧实际/收据不改。最终九文件完整restore/原format、source+树SHA、fresh outside零排除≤90秒、精确HANDOFF自有新段/时长行与CHANGELOG新行、commit/post/退出/独立review以本目录结果为准。窗口截止12:40Z、最多14wrapper/0actual/1个TS项目最多2编译尝试/最多2定向测试。
+- 下一片先核本次提交与进程退出，再按新有界观察合同冻结独立真实history/ack或stop-verification证据，不盲迁metadata/猜缺失原因。Web/Studio/VS Code、UI/Notebook/LSP、native bridge/Managed Local/OS对话框、安装/AOT/硬件/长稳/发布仍分开，三宿主未闭环。唯一ACTIVE30分钟继续不迁移/暂停；PS7、禁Graphify/广域扫描/安装、有界count+墙钟/完整PID创建命令父链/finally、旧policy对象保留、只提交本片、保护parity，无push/发布/部署/外发。
+
 ## 当前检查点（WB-57，2026-10-07；真实三终态检查已观察，原Query旅程与cleanupFAIL）
 
 - 接续5b82d947/已闭合WB56；最新四docs全字节、git/已有提交/活动代理核验，外部HANDOFF/博客CSDN保留。只推进WB57新独立真实窗口，不重测75本地合同或另开WB58。专属metadata仅runner/Host两源迁WB57/Workbench57/18358-59/新目录，inverse逐byte等于HEAD；独立source review通过，根独占六docs/工具/验证/八文件本地提交。
-- 唯一actual query-host-real-c2fe13a9-329e-4036-add6-1638e96c7c4c，wrapper55秒exit1。current2/selection1/EXPLAIN45逐SQL/database/editor/columns/values/end对真实Server reference与POST200一致；仅生成payload局部实证。history failure-observation为20picks/2entries/AssertionError，history.json缺席、host-result.json实际0bytes、API恢复unknown、Code/Host null、normalExit=false；原runner FAIL/primary true/process_audit/Error保持，不由局部三phase计整体旅程成功或推history根因。
+- 唯一actual query-host-real-c2fe13a9-329e-4036-add6-1638e96c7c4c，结束清理前计时55秒、外层完整73.6699466秒，exit1。current2/selection1/EXPLAIN45逐SQL/database/editor/columns/values/end对真实Server reference与POST200一致；仅生成payload局部实证。history failure-observation为20picks/2entries/AssertionError，history.json缺席、host-result.json实际0bytes、API恢复unknown、Code/Host null、normalExit=false；原runner FAIL/primary true/process_audit/Error保持，不由局部三phase计整体旅程成功或推history根因。
 - 新fixed finalChecks真实remainingProcesses=refused、rootIdentities=passed、auditFailures=refused，证明remaining拒绝后root及audit检查仍执行；首terminal remaining-processes/final、recoverable stop-verification/round保持。原cleanup/runtimefalse、3round/16stop/1stopfail/remaining1/blocking14；诊断时点accepted48与随后authoritative49ledger/64eventrefs/27closedhelper分列。14拒绝为7initial parent_command_missing、6fresh candidate_snapshot_missing和1stop；7existing-fresh观察只是lookup变化，不补父身份/排除后代/授stop或推权限/短命/复用。
 - 原16文件/14manifest/343013B与5terminal写完整冻结；原strict audit exit1、原完整Host/history checkpoint wrapper6exit1均保留，原工具不放宽。另exact本run/原16SHA/Host0/缺history/FAIL-null窄failed adapter只接失败检查点：原complete-ledger/event审计、fresh62complete/helper/rejectedPID absent、无run关联、两port、exact runner63768 owner及depth16/count4096/15秒inventory/30秒逐绝对路径回收282新runtime对象，0新stop。root checkpointVerified=true/actualPassed=false不升级原真实false。
 - 两源syntax/双PS7 helper AST、唯一TS项目及source-build三SHA冻结已通过；根窗口artifacts/wb57-validation-20261007截止11:40Z、14wrapper/actual1/1/TS1/0新.NETbuild/0旧合同重测。最终八树完整restore/原format、前后SHA、fresh outside零排除≤90秒/两commit守卫、精确共享自有hunk/post/关闭与独立验收以本目录收据/git log为准。初根byte比较用了PS不支持的Span类型，0wrapper/actual且无写源，改Linq正负微试后通过，原工具边界另留。

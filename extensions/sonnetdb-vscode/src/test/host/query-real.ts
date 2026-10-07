@@ -4,6 +4,7 @@ import { channel } from 'node:diagnostics_channel';
 import { lstat, readFile, realpath, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { QueryHistoryObservation } from '../../core/queryHistoryObservation';
 import type { SqlResultSet } from '../../core/types';
 
 /** Server 实际 NDJSON end DTO；生产静态类型的 elapsedMs 不能替代真实字段。 */
@@ -75,6 +76,7 @@ export async function run(): Promise<void> {
   const secrets = [token, Buffer.from(token).toString('base64'), Buffer.from(token).toString('base64url'),
     Buffer.from(token).toString('hex'), Buffer.from(token).toString('hex').toUpperCase(), encodeURIComponent(token)];
   const deadline = Date.now() + 110_000;
+  const historyObservation = new QueryHistoryObservation(deadline);
   let currentPhase = 'initialization';
   let currentCheck: Check = 'initialization';
   let progress: ObservationProgress = freshProgress();
@@ -94,6 +96,7 @@ export async function run(): Promise<void> {
   let inputCount = 0;
   let databasePicks = 0;
   let historyPicks = 0;
+  let historyCommandAttempts = 0;
   let observedHistory: Array<{ label: string; description: string; detail: string }> = [];
   let observerReady = false;
   let cleanupErrors = 0;
@@ -205,6 +208,9 @@ export async function run(): Promise<void> {
       panel = originalCreate.apply(vscode.window, args);
       return panel;
     });
+    const originalShowError = vscode.window.showErrorMessage;
+    replace(vscode.window, 'showErrorMessage', (...args: Parameters<typeof originalShowError>) =>
+      historyObservation.forwardError(args[0], () => originalShowError.apply(vscode.window, args)));
 
     await command('sonnetdb.addConnection');
     assert.equal(inputCount, 3);
@@ -229,8 +235,12 @@ export async function run(): Promise<void> {
       editor.selection = new vscode.Selection(document.positionAt(phase.start), document.positionAt(phase.end));
       assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), document.uri.toString());
       const before = transport.length;
+      historyObservation.begin(phase.name);
       await command(phase.command);
       progress.commandCompleted = true;
+      historyObservation.endQuery();
+      // 单次公开标签快照使用原 20 次 history 命令预算；不证明持久化 ack 或 WB57 失败因果。
+      await observePhaseHistory(phase);
       currentCheck = 'panel';
       progress.panelPresent = Boolean(panel);
       assert.ok(panel);
@@ -285,6 +295,7 @@ export async function run(): Promise<void> {
           result: { columns: payload.result.columns, rows: payload.result.rows, error: null, hasColumns: true,
             end: { type: payload.result.end.type, rowCount: payload.result.end.rowCount,
               recordsAffected: payload.result.end.recordsAffected, elapsedMilliseconds: payload.result.end.elapsedMilliseconds } } },
+        queryHistoryObservation: historyObservation.snapshot(),
         renderedWebviewVerified: false, observedAtUtc: new Date().toISOString() });
       completed.push(phase.name);
       console.log(`WB57 completed ${phase.name}.`);
@@ -294,7 +305,7 @@ export async function run(): Promise<void> {
     currentCheck = 'history';
     progress = freshProgress();
     const historyDeadline = Math.min(deadline, Date.now() + 10_000);
-    for (let attempt = 0; attempt < 20 && Date.now() < historyDeadline; attempt += 1) {
+    for (let attempt = 0; attempt < 20 && historyCommandAttempts < 20 && historyPicks < 20 && Date.now() < historyDeadline; attempt += 1) {
       await command('sonnetdb.showQueryHistory');
       if (observedHistory.length === 3) break;
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -319,6 +330,7 @@ export async function run(): Promise<void> {
       await evidence('failure-observation.json', { schema: 'sonnetdb.wb42.host-failure-observation.v1', slice: 'WB57',
         runId: path.basename(runRoot), phase: currentPhase, check: currentCheck, command: currentCommand, failureType, progress, completed,
         history: { pickCount: historyPicks, entryCount: observedHistory.length }, transport,
+        queryHistoryObservation: historyObservation.snapshot(), historyCommandAttempts,
         phaseOutcome: 'FAIL', observedAtUtc: new Date().toISOString() });
       failedObservationWritten = true;
     } catch { /* 证据写失败保持 FAIL，仍继续 finally 恢复所有公开 API。 */ }
@@ -339,8 +351,9 @@ export async function run(): Promise<void> {
     }
     await evidence('host-result.json', { schema: 'sonnetdb.wb42.host-result.v1', slice: 'WB57', runId: path.basename(runRoot),
       outcome, completed, stoppedAtPhase: currentPhase, stoppedAtCheck: currentCheck, command: currentCommand, failureType, failedObservationWritten,
-      apiRestored: restoredApis === 3, cleanupErrors,
+      apiRestored: restoredApis === 4, cleanupErrors,
       commandTimeoutMilliseconds: 20_000, productionFetchTimeoutVerified: false,
+      queryHistoryObservation: historyObservation.snapshot(), historyCommandAttempts,
       transport, promptDriver: true, generatedPayloadOnly: true, finishedAtUtc: new Date().toISOString() });
   }
   assert.equal(outcome, 'PASS', 'WB57 public API cleanup must succeed.');
@@ -352,8 +365,31 @@ export async function run(): Promise<void> {
     assert.ok(['sonnetdb.addConnection', 'sonnetdb.selectDatabase', 'sonnetdb.runQuery', 'sonnetdb.runSelection',
       'sonnetdb.explainQuery', 'sonnetdb.showQueryHistory'].includes(name));
     currentCommand = name;
+    if (name === 'sonnetdb.showQueryHistory') {
+      assert.ok(historyCommandAttempts < 20);
+      historyCommandAttempts += 1;
+    }
     await bounded(vscode.commands.executeCommand(name), Math.min(20_000, deadline - Date.now()));
     currentCheck = previousCheck;
+  }
+
+  async function observePhaseHistory(phase: Phase): Promise<void> {
+    const previousCommand = currentCommand;
+    const previousCheck = currentCheck;
+    const before = historyPicks;
+    observedHistory = [];
+    let items: unknown;
+    try {
+      if (historyCommandAttempts < 20 && historyPicks < 20 && Date.now() < deadline) {
+        await command('sonnetdb.showQueryHistory');
+        if (historyPicks === before + 1) items = observedHistory;
+      }
+    } catch { /* 观察失败保持 unknown，不替换 query 的主检查或原失败。 */ }
+    finally {
+      currentCommand = previousCommand;
+      currentCheck = previousCheck;
+      historyObservation.observeHistory(items, phase.sql.split(/\r?\n/u)[0].slice(0, 100), `${reference.label} / ${reference.database}`);
+    }
   }
 
   function safePayload(value: unknown, phase: Phase): unknown {
