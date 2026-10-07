@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-47，2026-10-07；真实history失败检查点，正常Code退出未证）
+
+- 接续 `64e7a19c2104452b0c3f7999cf42b2a6fb54b1d4`，最新四文档/AGENTS/git/路线图/已提交范围与旧代理接收核验；只推进WB47。专属metadata代理仅替换既有runner/Host两源的WB47标签、evidence parent、18350/18351、Workbench47与seed，反向替换与base blob精确相同；诊断逻辑、schema/owner marker、production/shared helpers不改。独立合同与复核，根独占六docs/工具/验证/最终门禁/stage/本地commit，共八文件。
+- 最终runner `A3250B55…53FD`、Host TS `C9EAF960…6701`、compiled Host JS `C9B7C978…14C2`，未改evidence/tests与生产、复用Server/Code产物均绑定source-build freeze；同一TS项目compile、Node syntax/双嵌入PS7 AST通过。未重跑未改37项合成测试，0新.NETbuild；这些检查不替代真实Host成功。
+- 唯一actual `query-host-real-d3cb5ca2-5bb7-4c1d-b9ae-7734c8898689`，02:35:11→02:35:52Z、wrapper exit1。current2/selection1/EXPLAIN45行逐列/逐值/SQL/数据库与独立真实Server reference一致、POST200；Host文件FAIL/history、三phase完成、apiRestored=true/cleanupErrors0，固定失败观察history pickCount20/entryCount2，history.json不存在。runner仍FAIL/assertion，Code code1/signalnull、normalExit=false、hostOutcome=null；Host文件结果不能冒称runner已取得Host outcome。history及正常退出未通过，失败根因尚未定位，不盲改、不追加actual。
+- accepted ledger44/events50、auditFailureCount0、19helper全closed且identityRecorded、4child+38helper stream hashes完整；manifest14项267672B/目录16文件、五原terminal及末FAIL status齐全。原processCleanupProven/runtimeRemoved=false，ports/helper/output=true原样保持；本run零审计拒绝不证明旧五candidate全部恢复，cleanup false根因也未定。原严格audit-owned/accept-real成功门禁保持，拒绝将失败接收为成功。
+- 根失败收尾与原失败分列：fresh44完整记录PID及run关联当前无存活，18350/18351可bind，无额外kill；canonical owner marker核exact run/runner34168，depth16/4096对象/15秒inventory、30秒一次逐绝对路径删除283个自有runtime对象。root-failure-checkpoint仅证根当前回收，五原证据/source-build SHA与原FAIL/false/null不改；current-tuples audit核46条、50exact event refs，live/changed/reuse/verification/exclusions均0。旧policy拒删目录不碰，不绕过。
+- 新窗口artifacts/wb47-validation-20261007截止03:15Z，14wrapper/1actual/1TS项目/0新.NETbuild；actual1/1已耗尽并关闭实跑。提交失败metadata/document检查点须最终八文件完整 `dotnet restore SonnetDB.slnx` 和 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、pre/post SHA、diff白名单、固定失败收据及≤90秒fresh outside审计全部通过；实际门禁/提交/提交后回收见final-gates、commit-checkpoint、post-commit-process-audit与git log，不把根收尾exit0写成整体PASS。
+- 下一片先在新冻结范围定位history20/2与独立的原cleanup false，补必要合同/故障证据后才开新实际窗口，不重复本片实跑或37项既有实现。向导UI/Webview DOM分页/Notebook/LSP/WB41 OS文件窗口、安装/AOT/固定硬件/长稳/发行物另验。三宿主未闭环，唯一workbench ACTIVE每30分钟继续，本片不启动下一片、不迁移/暂停；PowerShell7固定路径、禁Graphify/广域扫描/未授权安装、有界count+墙钟/比较微输入/完整进程父链/finally与绝对路径规则保持，foreign54行footer/19博客与origin/parity-results保护，无push/发布/部署/外部沟通。
+
 ## 当前检查点（WB-46，2026-10-07；有界候选重采合同已验证，真实生命周期待续）
 
 - 接续 `6d60c62f5072dd92be0d42c8c8d32c97ca66d96c`，完整HANDOFF/AGENTS/queue/ROADMAP接收、git/已有提交/完成代理核验；只推进WB46，WB45已closed的11/14wrapper、2/2调用与原FAIL/false/null不改。专属实施三诊断源，独立只读合同/源码复核，根独占六docs/验证/集成/完整门禁/stage/本地commit，共九文件。
