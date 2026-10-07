@@ -379,7 +379,7 @@ test('failed DOM observation timeout remains unknown and never replaces the orig
 });
 
 const selectionHarness = (mode, primary) => {
-  let result; let selected; let clicks = 0; let apiCalls = 0; let observerReads = 0;
+  let result; let selected = 'WB61_Initial_Test'; let clicks = 0; let apiCalls = 0; let observerReads = 0;
   const candidates = []; const pollOptions = [];
   const button = { filter: () => button, count: async () => 1, locator: () => button, click: async () => {
     const attempt = result.selectionAttempts[clicks];
@@ -391,6 +391,13 @@ const selectionHarness = (mode, primary) => {
   const page = { getByTitle: () => ({ count: async () => 0, click: async () => {} }),
     locator: (selector) => selector === '.schema-group--databases' ? { locator: () => ({ count: async () => 1 }) } : button,
     evaluate: async (_, args) => {
+      if (args && Object.hasOwn(args, 'identityPrefix')) {
+        observerReads += 1;
+        const rendered = dom(selected);
+        return { activeNodeCount: 1, identityNodeCount: 1, activeMatchesTarget: rendered.activeDatabase === args.database,
+          identityMatchesTarget: rendered.hostIdentity === `${args.identityPrefix}${args.database}`,
+          activeIdentityConsistent: rendered.hostIdentity === `${args.identityPrefix}${rendered.activeDatabase}`, contractWarningPresent: false };
+      }
       if (args) { observerReads += 1; return { activeNodeCount: 1, identityNodeCount: 1, activeMatchesTarget: true, identityMatchesTarget: true, contractWarningPresent: false }; }
       return dom(selected);
     } };
@@ -424,18 +431,18 @@ test('real scenario click and poll failure paths keep the exact original error a
     assert.equal(attempt.failure.phase, mode === 'click' ? 'click' : 'ack-poll');
     assert.equal(attempt.ackPoll.callbackCalls, mode === 'click' ? 0 : 1);
     assert.equal(mode === 'click' ? attempt.ackPoll.elapsedMs === null : Number.isSafeInteger(attempt.ackPoll.elapsedMs), true);
-    assert.equal(fixture.counts().apiCalls, 8); assert.equal(fixture.counts().observerReads, 1);
+    assert.equal(fixture.counts().apiCalls, 8); assert.equal(fixture.counts().observerReads, 2);
     assert.equal(JSON.stringify(result).includes('original'), false); assert.equal(JSON.stringify(result).includes('secret-auth'), false);
   }
 });
 
-test('successful A and B selections retain original poll options and acceptance without extra observation reads', { timeout: 3000 }, async () => {
+test('successful A and B selections retain original poll options and acceptance with one precondition read per selection', { timeout: 3000 }, async () => {
   const stop = new Error('outside selection normal-close test boundary'); const fixture = selectionHarness('success', stop);
   await assert.rejects(runDatabaseRecoveryScenario(fixture.harness), (error) => error === stop);
   const result = fixture.result(); assert.equal(result.selections.length, 2); assert.equal(result.passed, false);
   assert.deepEqual(result.selectionAttempts.map((attempt) => attempt.phase), ['accepted', 'accepted']);
   assert.deepEqual(result.selectionAttempts.map((attempt) => attempt.failure), [null, null]);
-  assert.equal(fixture.counts().observerReads, 0); assert.equal(fixture.counts().clicks, 2);
+  assert.equal(fixture.counts().observerReads, 2); assert.equal(fixture.counts().clicks, 2);
   const ackPolls = fixture.pollOptions.filter((item) => item.label === 'Fresh ordinary selection native PUT');
   assert.equal(ackPolls.length, 2); assert.deepEqual(ackPolls.map((item) => item.options),
     [{ attempts: 30, timeoutMs: 20_000, intervalMs: 250 }, { attempts: 30, timeoutMs: 20_000, intervalMs: 250 }]);

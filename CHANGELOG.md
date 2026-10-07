@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB65 Studio普通选库前置（2026-10-08）**：在原A/B点击前有界核普通DOM异库与活动身份一致，目标已活动或unknown明确拒绝且0点击/0ack轮询；保留原七fresh PUT谓词及完整恢复/正常退出门禁。最终43项本地合同（原32必要夹具适配+新增11），0actual/0build/0安装；旧失败与三宿主边界保持。
+
 - **M47 WB64 Studio真实选库失败检查点（2026-10-08）**：新增独立runner metadata准入并复用9个runtime/source SHA完成唯一实际观察；A PUT200 seq6/request43未越过pre-click双barrier6/57，DOM匹配A、30次轮询7658ms，后续恢复阶段未执行。原normalExit/cleanupProven均false与helper预算失败保留，根精确归属回收另证；0新build/0定向测试，不计三宿主恢复完成。
 
 - **M47 WB63 Studio选库失败观察（2026-10-08）**：点击前同步保留请求/响应双barrier，失败时投影既有候选的七项固定谓词及普通DOM计数/身份布尔；保存原轮询调用数与实际耗时，不导出任意文本/SQL/凭据，观察故障继续抛出原异常对象。32项本地合同通过，0actual/0build；原真实恢复失败、第二桌面与B查询未验收的结论保持。

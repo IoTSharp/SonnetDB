@@ -171,6 +171,59 @@ export function projectDatabaseSelectionDom(value) {
     activeNodeCount, identityNodeCount, activeMatchesTarget, identityMatchesTarget, contractWarningPresent };
 }
 
+export function projectDatabaseSelectionPrecondition(value) {
+  const dom = projectDatabaseSelectionDom(value);
+  const consistent = ownObservationValue(value, 'activeIdentityConsistent');
+  dom.activeIdentityConsistent = typeof consistent === 'boolean' ? consistent : null;
+  const result = { schema: 'sonnetdb.wb65.selection-precondition.v1', state: 'unknown', reason: 'invalid-observation',
+    dom, readCalls: 0, rawTextOrSqlOrHeadersPersisted: false };
+  if (dom.state !== 'observed' || dom.activeIdentityConsistent === null) return result;
+  if (dom.activeNodeCount !== 1 || dom.identityNodeCount !== 1) { result.reason = 'node-count-not-one'; return result; }
+  if (dom.contractWarningPresent) { result.reason = 'contract-warning'; return result; }
+  if (!dom.activeIdentityConsistent) { result.reason = 'identity-mismatch'; return result; }
+  if (dom.activeMatchesTarget !== dom.identityMatchesTarget) { result.reason = 'target-mismatch'; return result; }
+  result.state = dom.activeMatchesTarget ? 'target-already-active' : 'change-required';
+  result.reason = dom.activeMatchesTarget ? 'target-already-active' : 'different-active-database';
+  return result;
+}
+
+export async function observeDatabaseSelectionPrecondition(readDom, { check = () => {}, signal, deadline = Infinity } = {}) {
+  let result = projectDatabaseSelectionPrecondition(null);
+  let timer;
+  let stop;
+  let readCalls = 0;
+  const expires = Math.min(Date.now() + 2000, deadline);
+  const unknown = (reason) => ({ ...projectDatabaseSelectionPrecondition(null), reason, readCalls });
+  try {
+    check();
+    if (signal?.aborted) return unknown('cancelled');
+    if (Date.now() >= expires) return unknown('timeout');
+    const stopped = new Promise((resolve) => {
+      stop = () => resolve({ stopped: 'cancelled' });
+      signal?.addEventListener('abort', stop, { once: true });
+      timer = setTimeout(() => resolve({ stopped: 'timeout' }), Math.max(1, expires - Date.now()));
+    });
+    readCalls = 1;
+    // This bounds our wait, not the underlying page.evaluate operation. Its
+    // eventual rejection stays handled; cancellation of that read is unproved.
+    const reading = Promise.resolve().then(readDom).then((value) => ({ value }), () => ({ stopped: 'read-error' }));
+    const observation = await Promise.race([reading, stopped]);
+    check();
+    if (signal?.aborted) return unknown('cancelled');
+    if (Date.now() >= expires) return unknown('timeout');
+    if (observation.stopped) return unknown(observation.stopped);
+    result = projectDatabaseSelectionPrecondition(observation.value);
+    result.readCalls = readCalls;
+    check();
+    if (Date.now() >= expires) return unknown('timeout');
+    return result;
+  } catch { return unknown('guard-refused'); }
+  finally {
+    clearTimeout(timer);
+    if (stop) signal?.removeEventListener('abort', stop);
+  }
+}
+
 export async function rejectDatabaseSelectionFailure(primary, attempt, options) {
   let timer;
   try {
@@ -429,8 +482,36 @@ export async function runDatabaseRecoveryScenario(harness) {
     const page = getPage();
     const button = page.locator('.schema-database-node .schema-item--database').filter({ has: page.locator('strong', { hasText: new RegExp(`^${database}$`, 'u') }) });
     if (await button.count() !== 1) fail('ordinary exact database button is not unique.');
+    const precondition = await observeDatabaseSelectionPrecondition(() => page.evaluate(({ database, identityPrefix }) => {
+      const nodes = document.querySelectorAll('.schema-database-node .schema-item--database.is-active');
+      const identities = document.querySelectorAll('[data-testid="studio-host-identity"]');
+      const activeText = nodes.length === 1 ? nodes[0].querySelector('strong')?.textContent : null;
+      const identityText = identities.length === 1 ? identities[0].textContent : null;
+      const activeKnown = typeof activeText === 'string' && activeText.length > 0 && activeText.length <= 1024;
+      const identityKnown = typeof identityText === 'string' && identityText.length <= 1024;
+      // These generated target names are ASCII. A case variant alone cannot
+      // establish a different database; this observation never binds SQL names.
+      const activeCaseMismatch = activeKnown && activeText !== database && activeText.toLowerCase() === database.toLowerCase();
+      return { activeNodeCount: nodes.length <= 16 ? nodes.length : null, identityNodeCount: identities.length <= 16 ? identities.length : null,
+        activeMatchesTarget: activeKnown && !activeCaseMismatch ? activeText === database : null,
+        identityMatchesTarget: identityKnown ? identityText === `${identityPrefix}${database}` : null,
+        activeIdentityConsistent: activeKnown && identityKnown ? identityText === `${identityPrefix}${activeText}` : null,
+        contractWarningPresent: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')) };
+    }, { database, identityPrefix: `studio-desktop · managed-local · ${origin} · ` }), { check });
+    // The ordinary DOM read completes before this synchronous barrier capture.
+    // It does not prove which earlier UI action originated an observed request.
     const barrier = observationBarrier();
     const attempt = beginDatabaseSelectionAttempt(result, database === databaseA ? 'A' : 'B', barrier);
+    attempt.phase = 'before-click-precondition';
+    attempt.precondition = precondition;
+    try {
+      check();
+      if (precondition.state !== 'change-required') fail(`ordinary selection precondition refused (${precondition.state}/${precondition.reason}).`);
+    } catch (primary) {
+      attempt.failure = { phase: 'before-click-precondition', terminationReason: 'precondition-refused', dom: precondition.dom };
+      attempt.phase = 'failed';
+      throw primary;
+    }
     let ackPollStartedAt = null;
     try {
       attempt.phase = 'click';

@@ -2,6 +2,11 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB65 Studio选库前置（2026-10-08；本地合同，0actual）
+
+- 同值普通选择无fresh PUT保证：生产setActiveDatabase/defaultDatabase同值不改变被watch状态，save相同fingerprint短路。只新增一次≤2秒/≤16节点的普通DOM前置及固定安全投影，目标已活动或unknown拒绝点击/ack-poll；已确认异库/活动身份一致且无warning才进入原链。双barrier在读后保存，原七find谓词/ack/DOM/disk/close/restored/query/ownership不放宽。没有新准备UI/HTTP/save/retry，不推旧请求origin或刷新因果。
+- root微试1/1，最终43/43（原32必要真实fixture适配+新增11），零fail/cancel/skip/todo；合成完整A→B/两close/第二launch/GET/query仅本地证据。原成功新增2前置读取、失败新增1读取明确记录。0actual/0build/0安装，超时不宣称底层evaluate已取消；WB64原失败false/null与七terminal原SHA保持。
+- 继承WB64新独占v2综合终审23检查PASS，首轮审阅工具19total/15owned误判FAIL保留；原旧NOT_PRODUCED不改写，rootRecovery不计原cleanup。八路径最终SHA、source/tests/tool独立复核、完整restore/原format、自有diff/CAS本地commit及退出见 `artifacts/wb65-selection-precondition-20261008`。本会话第1任务，1/5；helper预算独立后续，真实恢复需另窗口与可成立前置，三宿主/安装/AOT/硬件/长稳/发布仍待验。
 ## WB63 Studio选库失败观察（2026-10-08；合同PASS，0actual）
 
 - 原barrier在点击promise创建前同步保存；最多2次选择记录、固定phase、原ack-poll的callbackCalls/elapsedMs。候选最多128/100ms，原七find谓词逐项true/false/null；普通DOM最多2秒/16节点及身份/warning布尔。字段getter不读取，错误/取消/超时不猜因果、不覆盖原异常；原find/轮询/ack/DOM/disk/正常退出/归属权限保持，无新请求或重试。

@@ -2,6 +2,12 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB65 合同与文件冻结（2026-10-08；本会话第1任务，同值fresh PUT前置）
+
+- 继承WB64综合终审新v2的23检查PASS，原审阅工具19total/15owned误判首FAIL保留、不计新任务。当前parent05fa5e8e；同一workbench ACTIVE/每30分钟已target新会话01a11782，计数0/5→本片1/5。
+- 普通DOM前置每A/B一次≤2秒，计数≤16与typed布尔/活动身份一致；固定change-required/target-already-active/unknown，后两态0click/0ack-poll失败checkpoint。原双barrier在读后同步捕获，七find谓词及正常close/disk/ownership/完整成功链不改。无产品/准备动作/HTTP/save或虚造ack；没有历史pre-click DOM/origin，WB64及WB62旧因果仍unknown。
+- 3源（scenario、新test、旧32的必要fixture/精确读取计数），五root docs共八路径。根micro1/1与最终43/43（32+11新）零fail/cancel/skip/todo；全合成成功链单列为本地合同，0actual/0build/0install，不能称恢复已验。源码/根工具独立复核、完整restore/原format、CAS本地commit/post/退出/最终收据见本片新独占目录。
+- 冻结18:50Z/10wrapper/2tests，原foreign HANDOFF307122B/旧根1509B补充/parity0061d6d7/旧policy对象保留；helper预算缺口下一独立任务，真实新恢复窗口随后明确冻结。三宿主/Server/OS文件/安装/Extension Host/AOT/硬件/长期/发布分列，Graph Beta；无push发布部署安装外发。
 ### WB64 合同与文件冻结（2026-10-08；新会话第1任务，真实fresh barrier拒绝）
 
 - 接续ea875e49，新会话从0/5开始，失败checkpoint计1/5；唯一metadata runner新增WB64准入/目录/slice/提示及18340/18341/55340/9340。原产品、scenario/test及32合同不重做，inverse逐byte与旧基线一致；根独占五docs/gates/git，最终六路径。
