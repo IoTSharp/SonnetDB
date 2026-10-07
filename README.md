@@ -232,6 +232,8 @@ WB-50接续c0475103，仅换隔离metadata；syntax/TS通过，唯一actual当�
 
 WB-51冻结调用时SQL上下文，处理异步token/database等待期间编辑器变化的已证合同风险；最终deferred调用21/21、必要history6/6及同一TS项目初版/v2编译通过，独立复核补测试failure cleanup结算合同。本地stub证据与真实Host因果分列，0actual，原EXPLAIN/history/正常退出与cleanup缺口仍待独立验证。
 
+WB-55单次真实Query窗口已取得current2/selection1/EXPLAIN45与独立Server参考一致、公开history3、Host PASS/API恢复及Code0正常退出的局部证据。原runner仍FAIL且reason/type null、严格cleanup/runtimefalse保持，三次既有fresh观察不证明缺失原因或stop权限；根当前回收、完整门禁与八文件本地提交另列，详见M47验证记录。三宿主/DOM/分页/Notebook/LSP/安装/AOT尚未闭环。
+
 WB-54在原准入完成后仅复用既有initial/fresh lookup追加安全观察，原deadline、失败和stop权限保持；55既有+12新增本地合同最终67/67、syntax及source绑定通过，原工具/fixture失败分别保留。0真实Host运行，WB53历史/正常退出/原回收仍待独立实证；最终完整门禁与八文件本地提交见M47验证记录，三宿主尚未闭环。
 
 WB-53单次真实窗口的current2/selection1/EXPLAIN45已与独立Server参考逐值一致；history/Host终态缺席，原process audit失败、正常Code退出与原回收仍未证。父链诊断实际区分initial缺command与fresh lookup缺项，但原因unknown；根当前进程/runtime回收另列，失败检查点、完整门禁与本地提交见M47验证记录，三宿主仍未闭环。

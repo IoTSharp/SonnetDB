@@ -124,7 +124,7 @@ export async function run(): Promise<void> {
     assert.ok(path.isAbsolute(runRoot));
     assert.equal((await realpath(runRoot)).toLowerCase(), path.resolve(runRoot).toLowerCase());
     assert.equal((await lstat(runRoot)).isSymbolicLink(), false);
-    assert.equal(path.dirname(runRoot).toLowerCase(), 'd:\\source\\sonnetdb\\artifacts\\wb53-validation-20261007');
+    assert.equal(path.dirname(runRoot).toLowerCase(), 'd:\\source\\sonnetdb\\artifacts\\wb55-validation-20261007');
     evidenceRootVerified = true;
     const referenceStat = await lstat(referencePath);
     assert.equal(referenceStat.isSymbolicLink(), false);
@@ -134,14 +134,14 @@ export async function run(): Promise<void> {
     assert.equal(createHash('sha256').update(raw).digest('hex').toUpperCase(), expectedHash.toUpperCase());
     reference = JSON.parse(raw.toString('utf8')) as Reference;
     assert.equal(reference.schema, 'sonnetdb.wb42.reference.v1');
-    assert.equal(reference.slice, 'WB53');
+    assert.equal(reference.slice, 'WB55');
     assert.equal(reference.previewRequestShape, 'sql-only');
     assert.deepEqual(reference.previewContract, { requestBodyKeys: ['sql'], previewMaxRowsSent: false, rowLimit: 100,
       source: 'diagnostic-admission', serverFullResult: true });
     assert.equal(reference.runId, path.basename(runRoot));
-    assert.equal(reference.baseUrl, 'http://127.0.0.1:18354');
-    assert.equal(reference.database, 'Workbench53');
-    assert.equal(reference.label, 'WB53 isolated real Server');
+    assert.equal(reference.baseUrl, 'http://127.0.0.1:18356');
+    assert.equal(reference.database, 'Workbench55');
+    assert.equal(reference.label, 'WB55 isolated real Server');
     assert.equal(reference.phases.length, 3);
     for (let index = 0; index < 3; index += 1) {
       assert.ok(Date.now() < deadline);
@@ -248,7 +248,7 @@ export async function run(): Promise<void> {
       progress.decoded = true;
       // 先保存受白名单保护的实际/独立参考观察；这不表示任何比较或 phase 已通过。
       currentCheck = 'evidence';
-      await evidence(`observation-${index + 1}.json`, { schema: 'sonnetdb.wb42.host-observation.v1', slice: 'WB53',
+      await evidence(`observation-${index + 1}.json`, { schema: 'sonnetdb.wb42.host-observation.v1', slice: 'WB55',
         runId: reference.runId, phase: phase.name, observedBeforeCheck: 'source', progress,
         actual: safePayload(payload, phase), reference: safePayload({ title: 'SonnetDB Query Result', result: phase.result,
           source: { label: 'Query', text: phase.sql }, context: { connectionLabel: reference.label, database: reference.database } }, phase),
@@ -279,7 +279,7 @@ export async function run(): Promise<void> {
       assert.deepEqual(actualRequests[0], { phase: phase.name, method: 'POST', path: `/v1/db/${reference.database}/sql`, status: 200 });
       assert.equal(transportOverflow, false);
       currentCheck = 'evidence';
-      await evidence(`phase-${index + 1}.json`, { schema: 'sonnetdb.wb42.host-phase.v1', slice: 'WB53', runId: reference.runId,
+      await evidence(`phase-${index + 1}.json`, { schema: 'sonnetdb.wb42.host-phase.v1', slice: 'WB55', runId: reference.runId,
         phase: phase.name, command: phase.command, editor: { document: phase.document, selection: [phase.start, phase.end] },
         actualRequest: actualRequests[0], payload: { title: payload.title, source: payload.source, context: payload.context,
           result: { columns: payload.result.columns, rows: payload.result.rows, error: null, hasColumns: true,
@@ -287,7 +287,7 @@ export async function run(): Promise<void> {
               recordsAffected: payload.result.end.recordsAffected, elapsedMilliseconds: payload.result.end.elapsedMilliseconds } } },
         renderedWebviewVerified: false, observedAtUtc: new Date().toISOString() });
       completed.push(phase.name);
-      console.log(`WB53 completed ${phase.name}.`);
+      console.log(`WB55 completed ${phase.name}.`);
     }
 
     currentPhase = 'history';
@@ -310,19 +310,19 @@ export async function run(): Promise<void> {
       assert.equal(item.description.includes('failed'), false);
     }
     currentCheck = 'evidence';
-    await evidence('history.json', { schema: 'sonnetdb.wb42.public-history.v1', slice: 'WB53', runId: reference.runId,
+    await evidence('history.json', { schema: 'sonnetdb.wb42.public-history.v1', slice: 'WB55', runId: reference.runId,
       entries: observedHistory, promptDriver: true, historyUiVerified: false, observedAtUtc: new Date().toISOString() });
     outcome = 'PASS';
   } catch (error) {
     failureType = error instanceof Error && ['AssertionError', 'TypeError', 'Error'].includes(error.name) ? error.name : 'unclassified';
     try {
-      await evidence('failure-observation.json', { schema: 'sonnetdb.wb42.host-failure-observation.v1', slice: 'WB53',
+      await evidence('failure-observation.json', { schema: 'sonnetdb.wb42.host-failure-observation.v1', slice: 'WB55',
         runId: path.basename(runRoot), phase: currentPhase, check: currentCheck, command: currentCommand, failureType, progress, completed,
         history: { pickCount: historyPicks, entryCount: observedHistory.length }, transport,
         phaseOutcome: 'FAIL', observedAtUtc: new Date().toISOString() });
       failedObservationWritten = true;
     } catch { /* 证据写失败保持 FAIL，仍继续 finally 恢复所有公开 API。 */ }
-    throw new Error(`WB53 known-check failure: ${currentCheck}/${failureType}.`);
+    throw new Error(`WB55 known-check failure: ${currentCheck}/${failureType}.`);
   } finally {
     observerReady = false;
     createChannel.unsubscribe(onCreate);
@@ -337,13 +337,13 @@ export async function run(): Promise<void> {
         await bounded(vscode.commands.executeCommand('workbench.action.closeActiveEditor'), 3_000);
       } catch { outcome = 'FAIL'; cleanupErrors += 1; }
     }
-    await evidence('host-result.json', { schema: 'sonnetdb.wb42.host-result.v1', slice: 'WB53', runId: path.basename(runRoot),
+    await evidence('host-result.json', { schema: 'sonnetdb.wb42.host-result.v1', slice: 'WB55', runId: path.basename(runRoot),
       outcome, completed, stoppedAtPhase: currentPhase, stoppedAtCheck: currentCheck, command: currentCommand, failureType, failedObservationWritten,
       apiRestored: restoredApis === 3, cleanupErrors,
       commandTimeoutMilliseconds: 20_000, productionFetchTimeoutVerified: false,
       transport, promptDriver: true, generatedPayloadOnly: true, finishedAtUtc: new Date().toISOString() });
   }
-  assert.equal(outcome, 'PASS', 'WB53 public API cleanup must succeed.');
+  assert.equal(outcome, 'PASS', 'WB55 public API cleanup must succeed.');
 
   async function command(name: string): Promise<void> {
     const previousCheck = currentCheck;
@@ -359,7 +359,7 @@ export async function run(): Promise<void> {
   function safePayload(value: unknown, phase: Phase): unknown {
     assert.ok(Date.now() < deadline);
     const allowedStrings = new Set<string>(['SonnetDB Query Result', 'Query', phase.sql, reference.label, reference.database,
-      'WB53:first', 'WB53:second', 'WB53:third', 'WB53:fourth', 'WB53:fifth']);
+      'WB55:first', 'WB55:second', 'WB55:third', 'WB55:fourth', 'WB55:fifth']);
     for (const column of phase.result.columns.slice(0, 16)) allowedStrings.add(column);
     for (const row of phase.result.rows.slice(0, 100)) {
       assert.ok(Date.now() < deadline);
@@ -424,7 +424,7 @@ async function bounded<T>(promise: Thenable<T>, milliseconds: number): Promise<T
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([Promise.resolve(promise), new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('WB53 public command deadline exceeded.')), milliseconds);
+      timer = setTimeout(() => reject(new Error('WB55 public command deadline exceeded.')), milliseconds);
     })]);
   } finally { if (timer) clearTimeout(timer); }
 }

@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-55 合同与文件冻结（2026-10-07；真实Query/history/Code局部通过，原严格回收FAIL）
+
+- 接续0878f154/closedWB54，完整四docs/git/路线图/提交/活动代理核验；不重做67本地合同。专属metadata仅runner/Host五组六literal、inverse等HEAD；review只读，根独占六docs/验证/gates/stage/八文件本地commit。新窗口截止10:05Z、14wrapper/1actual/1TS/0新.NETbuild/0旧合同重测，review24shell/32文件/18wait/10:00Z。
+- 唯一842ecab9实跑current2/selection1/EXPLAIN45逐SQL/database/editor/columns/values/end对真实reference及POST200；公开history3、HostPASS/API恢复true/cleanupErrors0、Code0/signalnull/normalExit true为局部实证。原runner FAIL/primaryFailure true、reason/type null与cleanup/runtimefalse保持，不推未知根因，不把生成payload计为DOM/history UI或production fetch timeout证据。
+- 三existing_fresh parent观察为initial893/fresh880、matches1→0、missing→null/unknown；七拒绝、37ledger/43refs/17closedhelper、4/34输出与14manifest/242000B/16原文件完整。原remaining-processes/final、3round/6stop/remaining1/blocking7保持；不补父身份/排除后代/授stop或推权限、短命、复用。
+- 根原check-failure7拒绝保留，prepare-integration8用同一guards复核fresh44PID absent/0新增kill/两port及exact owner，280新runtime对象有界逐绝对路径回收另列；原strict成功工具仍拒绝，exact failed-run/current adapter不泛化放行。最终完整restore/原format/零排除fresh≤90秒/精确自有hunk提交/post/关闭/独立收据见证据目录。
+- 外部微博两次HANDOFF追加严格byte prefix保留，只stage自有段/CHANGELOG一行，foreign22/parity/旧policy对象不动。下一片先冻结blocking/refusal与终态cleanup合同；三宿主/DOM/分页/Notebook/LSP/OS文件对话框/安装/AOT/硬件/长稳/发布另验，唯一ACTIVE30分钟继续，不启动WB56或盲加actual。
 ### WB-54 合同与文件冻结（2026-10-07；既有fresh安全观察本地通过）
 
 - 接续155dc2df，专属实施仅query-host-evidence.mjs/test.mjs，独立只读review；根独占六docs、验证与八文件集成。只复用同batch已有source/fresh，在原准入和failure断言后给最多128个initial failures追加可选candidateTransition/v1，不新增采样或stop。

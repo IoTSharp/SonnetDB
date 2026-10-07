@@ -5,6 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-55，2026-10-07；真实Query/history/Code局部通过，原严格回收仍失败）
+
+- 接续0878f154；WB54本地67合同/最终八文件门禁与独立验收已提交，原工具/fixture失败保留，不重做。本轮完整接收四docs/git/路线图/已有提交/仍运行代理；外部微博先追加5979B、后追加官方调用记录，严格原字节prefix保留，准备初exit1与v2成功分列。只推进WB55，不启动WB56。
+- 专属metadata仅runner/Host两源五组六literal迁至WB55、Workbench55、18356/18357与新证据目录；inverse bytes等于HEAD，原assertions/authority/stop/预算/cleanup及WB54观察源保持。实施6/10shell、3/8命名文件、2/2搜索已停写，review只读；根独占六docs/工具/最终验证/八文件集成。窗口artifacts/wb55-validation-20261007截止10:05Z、14wrapper/1actual/1TS项目/0新.NETbuild/0旧合同重测，review10:00Z/24shell/32文件/18wait。
+- 唯一actual query-host-real-842ecab9-e40e-487f-ad0b-64093d577474，09:16:42→09:17:15Z、wrapper exit1。三phase current2/selection1/EXPLAIN45已逐SQL/database/editor/columns/values/end对独立真实Server reference及POST200；公开history3逐项对应、Host PASS/API restored=true/cleanupErrors0、Code0/signalnull且normalExit=true。仅公开prompt驱动/生成payload与history项，Webview DOM/history UI/production fetch timeout未证；原runner FAIL/primaryFailure=true、knownFailureReason及failureType null，不能改称已证process_audit根因或完整旅程成功。
+- 原processCleanupProven/runtimeRemoved=false；37ledger/43eventrefs/17helper全closed、4child+34helper输出hash完整，manifest14/242000B/目录16文件与五terminal冻结。七audit拒绝为三initial parent_command_missing及四fresh candidate_snapshot_missing；三个candidateTransition/v1真实保存initial893/fresh880、parent matches1→0、command missing→null、tupleRelation unknown，仅已有lookup变化，不证明权限/短命/复用/进程不存在，不授stop。原cleanup terminal remaining-processes/final、3round/6stop/0stopfail/remaining1/blocking7保持。
+- 根check-failure原wrapper7因fresh recorded/rejected PID有记录拒绝，未捕获该tuple不能推因果，0新增kill/0删除。wrapper8 prepare-integration单次以同一完整证据/absence/owner guards复核：fresh44PID absent、无run关联、两port可bind，0新增kill；canonical owner runner53036核后depth16/4096对象/15秒inventory及30秒一次逐绝对路径删除280新runtime对象。原strict audit/accept仍拒绝；exact此run/37/43/checkpointSHA/原16文件/current-absence adapter只接失败检查点，不泛化成功门禁、不排除后代或补父身份。
+- 最终八文件完整restore/原format、前后SHA、fresh outside零排除≤90秒、精确自有共享hunk本地提交/post/14wrapper关闭与独立收据以本窗口结果/git为准；原prepare/real/check-failure三个exit1日志均保留。foreign22/外部HANDOFF/博客CSDN/origin-parity与旧policy拒删对象不动，PS7/禁Graphify广域扫描安装/有界执行/完整PID创建命令父链/finally/绝对临时路径继续，无push/发布/部署/外发。
+- 下一片先冻结blocking/refusal与终态残余的生命周期合同，定位原严格cleanup未闭环，不重做metadata或盲加actual；真实Host/history/API/Code本次局部进展不能升级旧失败原因。三宿主UI/分页/Notebook/LSP、Studio bridge/Managed Local/OS文件对话框、安装/AOT/固定硬件/长稳/发行物继续另验；唯一workbench ACTIVE30分钟，不迁移/暂停，不提前判整体完成。
 ## 当前检查点（WB-54，2026-10-07；既有fresh安全观察本地通过，真实Host另验）
 
 - 接续155dc2df；WB53真实current2/selection1/EXPLAIN45局部通过，但history/Host终态缺席、API恢复unknown、Code/Host null、原normalExit/cleanup/runtime false与actual1/1 FAIL不升级。最新四docs完整字节快照、git/路线图/已提交范围及原代理状态已核，不重复派单或真实窗口。

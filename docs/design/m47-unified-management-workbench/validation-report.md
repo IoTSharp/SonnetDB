@@ -2,6 +2,15 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-55 真实Query/history/Code与既有fresh观察（2026-10-07；局部生命周期通过，原runner/cleanupFAIL）
+
+- 基线0878f154。证据目录`artifacts/wb55-validation-20261007`，截止10:05Z、最多14wrapper/actual1/1/TS项目1/新.NETbuild0/旧合同重测0。metadata专属代理只改runner/Host五组六literal，51+/51-，严格inverse bytes恢复基线；生产query/history/diagnostic/产品与旧WB54本地证据冻结，review只读，根维护六docs及最终集成。
+- 唯一`query-host-real-842ecab9-e40e-487f-ad0b-64093d577474`，09:16:42→09:17:15Z、wrapper34秒exit1。三phase current-statement2/exact-selection1/explain45对独立真实Server reference逐SQL/database/editor/columns/rows/end与POST200一致；公开history3逐项对应，Host PASS/API restored=true/cleanupErrors0、Code0/signalnull且normalCodeExitVerified=true。公开prompt和生成payload证据不代替Webview DOM、history UI或生产fetch timeout；此次局部进展不证明旧失败原因。
+- 原result仍FAIL/primaryFailure=true/stoppedAtStage extension-host，knownFailureReason及failureType null；不改称已证process_audit根因。原processCleanupProven/runtimeRemoved=false，ports/helper/output=true；cleanup complete、firstRecoverable=null、remaining-processes/final、3round/6stop/0stopfail/remaining1/blocking7。完整37 authoritative identities、43事件引用及父链、17closed helpers、4child/34helper输出hash，五terminal写成功；manifest14项/242000B/实际16文件由`actual-evidence-freeze.json`冻结。
+- 七拒绝：93604→99580、61228→68196、102940→26392的initial parent_command_missing，initial snapshot893/candidate与subject matches1/command missing；三candidateTransition固定10字段为existing_fresh/parent、fresh880/subject matches0/command null/tupleRelation unknown。fresh候选99580/68196/26392/35228缺项无transition附加。只观察已有lookup，不额外snapshot、补ledger身份、排除后代或改变stop；权限、短命、复用及进程不存在均未证明。
+- 原strict audit完整核37/43后拒绝`Actual owned cleanup not proven; original failure remains`，strict accept拒绝`Complete new diagnostic did not pass`，收据保留。根check-failure wrapper7因fresh recorded/rejected PID查询有记录拒绝；当时tuple未捕获，不能归因，未stop/删除。prepare-integration wrapper8单次以同一严格checkpoint/absence/owner/depth/count/墙钟guard复核，fresh44PID absent/无run关联/两port可bind，0新增kill；owner runner53036核后depth16/4096对象/15秒inventory、30秒一次逐绝对路径删除280新runtime对象。`root-failure-checkpoint.json`只记独立根当前回收；exact failed-run/current-tuples adapter保持原完整tuple/event审计及零exclusions、绑定checkpointSHA/原16文件/source3，原成功工具未放宽。
+- 最新四docs完整字节保存；外部微博先追加5979B使prepare-root原exit1，latest1/v2通过后又追加官方调用记录，latest2与whole-outside-own保护接收，外部prefix/foreign22与博客CSDN保持。最终八文件完整restore与原参数format、freeze前后SHA、fresh outside零排除≤90秒/两commit守卫/精确自有HANDOFF及CHANGELOG hunk/本地commit/post/关闭与独立验收见本目录收据和git log。原prepare/real/check-failure三个失败不覆盖，不追加actual/TS或新build。
+- 下一片先冻结blocking/refusal及终态残余生命周期合同，再定位原cleanup未闭环；不得把局部Host/history/Code进展写成整体成功或盲加metadata实跑。UI分页/Notebook/LSP、Studio bridge/Managed Local/OS文件对话框、安装/Extension Host/AOT/固定硬件/长稳/发行物与三宿主整体继续单列。PS7/禁Graphify广域扫描安装/有界count+墙钟/完整身份父链/finally/绝对临时路径保持；旧policy对象不触碰，无push/发布/部署/外发，唯一30分钟heartbeat ACTIVE。
 ## WB-54 既有fresh安全观察（2026-10-07；本地合同通过，真实Host另验）
 
 - **范围**：八文件，两诊断源由原专属代理实施，六共享docs和验证/集成由根串行维护，原review只读；runner/Host/生产history、Server和旧失败证据冻结。复用同batch已创建source/fresh Maps，仅在原准入与failure断言后给initial failures追加安全candidateTransition/v1；没有新采样、准入、stop或清理权限。
