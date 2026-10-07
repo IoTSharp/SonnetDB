@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-52，2026-10-07；父链snapshot本地安全诊断通过，真实Host另验）
+
+- 接续本地43093571；WB51已closed11/14/0actual，调用21/21与必要history6/6、完整restore/原format、八文件提交/post及独立验收通过。不重复SQL/history实现或测试。最新HANDOFF/AGENTS/ROADMAP/queue完整字节快照、git/路线图/已有提交/已完成代理核验；foreign22路径含六缺席PS1、共享HANDOFF与origin/parity-results保护。
+- 唯一WB52为父链snapshot拒绝的固定安全观察。专属parent_snapshot只改query-host-evidence.mjs/test.mjs两源；runner原bytes冻结，独立snapshot_review只读，根独占六docs/验证/集成/gates/stage/localcommit，共八文件。WB50原3 parent_command_missing与3 candidate_snapshot_missing仅首拒绝，未保存采样来源；权限/短命/复用等原因unknown，不用ledger补父身份或排除后代。
+- 可选candidateSnapshot固定schema/source(initial|fresh)/subject(candidate|parent|anchor)、有界snapshotCount/matches与command presence枚举，unknown为null，present不代表validity；只用已有lookup/duplicates作O(1)观察，不再采样/扫描，禁止tuple/时间/命令/错误正文/hash。第三参及二次投影严格白名单，观察异常保原拒绝；原authority/stop/一batch一次fresh/12hop与全部预算/终态保持。必要故障行为与既有受影响合同由根定向验，不计真实Host或旧失败因果。
+- 根窗口artifacts/wb52-validation-20261007截止06:35Z、最多14wrapper/0actual/0TS/0新.NETbuild、定向测试最多2次；代理实施14shell/16命名文件/06:15Z、独立review18shell/26文件/06:30Z。最终八文件冻结后完整restore/原format、SHA、fresh outside零排除≤90秒、精确自有hunk/提交/post必需。22production/compiled/Host与旧WB47～WB51证据、foreign/parity和旧policy拒删对象保持；PS7、禁Graphify/广域扫描/未授权安装、有界count+墙钟/完整进程身份父链/finally/绝对临时路径继续，无push/发布/部署/外发。真实三phase/history3/Code正常退出、原cleanup与三宿主/安装/AOT/硬件/长稳/发行物仍另验；唯一ACTIVE30分钟heartbeat不迁移/暂停，结果以收据为准。
+
+- 初版syntax与53/53保留；独立review发现无safe坐标时角色误称parent、同PID presence重复getter，专属代理补parent角色必须有0..11 chainIndex+正UInt32 expectedPID、否则unknown，并缓存同PID一次观察，加两项实际capture断言。最终两源D399D381…DBD6862/77AB550E…A01496D，runner原9156CA5C…457EAF7保持；两源/runner Node syntax、双PS7 helper AST通过，最终55/55（受影响46+新增9）fail/cancel/skip/todo0，test-acceptance与完整日志/最终freeze绑定。missing=null/undefined、empty为字面空串，present仅presence；0/2 matches只证本次lookup缺项/重复，不证进程不存在。两次测试新Temp均由既有finally回收，根独立核绝对路径不存在，不碰旧policy对象。
+- 实施代理14/14shell、11/16文件已停写，独立最终源码PASS后provider503中断，旧06:35Z窗口到期：仅closed4/14/0actual，最终55/gates/commit当时NOT_RUN，完整tuple outside审计无存活，expired-window检查点保留。07:00Z接续同片artifacts/wb52-integration-20261007-0700，截止07:45Z、8wrapper/0actual/0TS/0新build、仅剩一次最终55测试；不重做源码/syntax/初53，不扩旧窗。最新四docs/HEAD43093571/空index/旧证据/source/foreign/parity重新核验，review同代理补验新增9shell/20文件/07:40Z，历史预算分列。最终八文件完整restore/原format/提交/post/关闭与独立收据以新窗口结果为准；下一片需新冻结真实Host窗口才能检验诊断，不推WB50具体因果，不重做本片合同或放松原stop。
+
 ## 当前检查点（WB-51，2026-10-07；调用时SQL上下文本地合同通过，真实Host另验）
 
 - 接续本地 `0707cae1aac4d44547ec062abf936ad1f4040003`；WB50已closed11/13、actual1/1 FAIL、最终八文件完整restore/format及独立失败检查点验收通过。最新HANDOFF/AGENTS/ROADMAP/queue全字节读取与快照、git/路线图/旧提交/已完成代理核验，不重复metadata/已过history6或cleanup46实现。foreign22路径含六缺席PS1/共享HANDOFF尾段、origin/parity-results及旧policy拒删对象保持。

@@ -57,6 +57,31 @@ function safePid(value, allowZero = false) {
   return Number.isSafeInteger(value) && value >= (allowZero ? 0 : 1) && value <= 0xffffffff ? value : null;
 }
 
+const candidateSnapshotSchema = 'sonnetdb.owned-candidate-snapshot.v1';
+const candidateSnapshotSources = new Set(['initial', 'fresh']);
+const candidateSnapshotSubjects = new Set(['candidate', 'parent', 'anchor']);
+const candidateCommandStates = new Set(['missing', 'empty', 'present', 'invalid']);
+
+function unknownCandidateSnapshot() {
+  return { schema: candidateSnapshotSchema, source: null, subject: null, snapshotCount: null,
+    candidateMatches: null, subjectMatches: null, candidateCommandState: null, subjectCommandState: null };
+}
+
+function safeCandidateSnapshot(value) {
+  try {
+    if (value?.schema !== candidateSnapshotSchema) return unknownCandidateSnapshot();
+    const { source, subject, snapshotCount, candidateMatches, subjectMatches, candidateCommandState, subjectCommandState } = value;
+    return { schema: candidateSnapshotSchema,
+      source: candidateSnapshotSources.has(source) ? source : null,
+      subject: candidateSnapshotSubjects.has(subject) ? subject : null,
+      snapshotCount: Number.isSafeInteger(snapshotCount) && snapshotCount >= 0 && snapshotCount <= 4096 ? snapshotCount : null,
+      candidateMatches: Number.isSafeInteger(candidateMatches) && candidateMatches >= 0 && candidateMatches <= 2 ? candidateMatches : null,
+      subjectMatches: Number.isSafeInteger(subjectMatches) && subjectMatches >= 0 && subjectMatches <= 2 ? subjectMatches : null,
+      candidateCommandState: candidateCommandStates.has(candidateCommandState) ? candidateCommandState : null,
+      subjectCommandState: candidateCommandStates.has(subjectCommandState) ? subjectCommandState : null };
+  } catch { return unknownCandidateSnapshot(); }
+}
+
 function safeIdentityDiagnostic(value) {
   try {
     const subreason = value?.subreason; const check = identityChecks.get(subreason);
@@ -89,14 +114,20 @@ export function identityEvidenceRejection(stage, reason, diagnostic) {
   return error;
 }
 
-/** Project failures without retaining raw error messages or unsafe identity text. */
-export function ownedIdentityFailure(error, pid) {
+/** Project failures and optional snapshot observations without retaining raw identity or error text. */
+export function ownedIdentityFailure(error, pid, candidateSnapshot) {
   const fallback = { stage: 'identity', pid: safePid(pid), reason: 'incomplete_or_unsafe_identity_preserved' };
+  let failure = fallback; let previousSnapshot;
   try {
     const detail = error?.identityEvidenceFailure; const stage = detail?.stage; const reason = detail?.reason;
-    if (!rejectionReasons.get(stage)?.has(reason)) return fallback;
-    return { stage, pid: safePid(pid), reason, ...(stage === 'identity' ? safeIdentityDiagnostic(detail) : {}) };
-  } catch { return fallback; }
+    if (rejectionReasons.get(stage)?.has(reason)) {
+      failure = { stage, pid: safePid(pid), reason, ...(stage === 'identity' ? safeIdentityDiagnostic(detail) : {}) };
+      try { previousSnapshot = detail.candidateSnapshot; }
+      catch { previousSnapshot = null; }
+    }
+  } catch { /* An observation cannot replace the original safe fallback. */ }
+  const observation = candidateSnapshot === undefined ? previousSnapshot : candidateSnapshot;
+  return observation === undefined ? failure : { ...failure, candidateSnapshot: safeCandidateSnapshot(observation) };
 }
 
 function sameTuple(left, right) {
@@ -288,7 +319,46 @@ function candidateLookup(snapshot, candidate, ownerPid, clock) {
     if (lookup.has(value?.pid)) duplicates.add(value.pid);
     else lookup.set(value?.pid, value);
   }
-  return { lookup, duplicates };
+  return { lookup, duplicates, snapshotCount: snapshot.length };
+}
+
+function commandPresence(value) {
+  if (value === null || value === undefined) return 'missing';
+  if (typeof value !== 'string') return 'invalid';
+  return value === '' ? 'empty' : 'present';
+}
+
+function candidateSnapshotFailure(error, pid, source, ownerPid, snapshotSource) {
+  const failure = ownedIdentityFailure(error, pid);
+  let observation = unknownCandidateSnapshot();
+  try {
+    const check = failure.subreason; const expectedPid = failure.structure?.expectedParentPid;
+    const parentCoordinate = Number.isSafeInteger(failure.chainIndex) && failure.chainIndex >= 0
+      && failure.chainIndex < 12 && safePid(expectedPid) !== null;
+    let subject = null; let subjectPid = null;
+    if (check?.startsWith('identity_') || ['candidate_creation_changed', 'candidate_parent_changed', 'candidate_command_changed'].includes(check)) {
+      subject = 'candidate'; subjectPid = failure.pid;
+    } else if (check?.startsWith('parent_') || check === 'candidate_parent_tuple_changed') {
+      if (parentCoordinate) { subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid; }
+    } else if (check === 'candidate_snapshot_missing' || check === 'candidate_snapshot_duplicate') {
+      if (parentCoordinate) {
+        subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid;
+      } else if (failure.pid !== null && expectedPid === failure.pid) {
+        subject = 'candidate'; subjectPid = failure.pid;
+      }
+    } else if (check === 'ownership_anchor_not_reached' || check === 'ownership_anchor_tuple_mismatch') {
+      subject = 'anchor'; subjectPid = ownerPid;
+    }
+    const matches = (targetPid) => !source || targetPid === null || targetPid === undefined ? null
+      : source.duplicates.has(targetPid) ? 2 : source.lookup.has(targetPid) ? 1 : 0;
+    const presence = (targetPid, matchCount) => matchCount === 1 ? commandPresence(source.lookup.get(targetPid).commandLine) : null;
+    const candidateMatches = matches(failure.pid); const subjectMatches = matches(subjectPid);
+    const candidateCommandState = presence(failure.pid, candidateMatches);
+    const subjectCommandState = subjectPid === failure.pid ? candidateCommandState : presence(subjectPid, subjectMatches);
+    observation = { schema: candidateSnapshotSchema, source: snapshotSource, subject,
+      snapshotCount: source?.snapshotCount ?? null, candidateMatches, subjectMatches, candidateCommandState, subjectCommandState };
+  } catch { /* Diagnostics remain unknown if observing a tuple fails; the rejection is unchanged. */ }
+  return ownedIdentityFailure({ identityEvidenceFailure: failure }, failure.pid, observation);
 }
 
 function candidateAt(source, pid, candidate, ownerPid, index = null) {
@@ -373,7 +443,7 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
   try {
     if (!ownerIdentity) rejectIdentityCheck('ownership_anchor_not_reached', null, ownerPid);
     source = candidateLookup(snapshot, null, ownerPid, discoveryClock);
-  } catch (error) { return [ownedIdentityFailure(error, null)]; }
+  } catch (error) { return [candidateSnapshotFailure(error, null, source, ownerPid, 'initial')]; }
   try { discover(snapshot, candidates, roots, discoveryClock); }
   catch { failures.push({ stage: 'discovery', reason: 'partial_discovery_failed' }); }
   const prepared = []; const prepareExpires = clock() + 1_000; let count = 0;
@@ -399,7 +469,7 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
       const value = currentCandidateChain(candidate, source, ownerIdentity, { validateText, clock: prepareClock });
       if (!retry) validateOwnedIdentity(value.identity, ownerPid, { clock: prepareClock });
       prepared.push({ candidate, value, retry });
-    } catch (error) { failures.push(ownedIdentityFailure(error, candidate?.pid)); }
+    } catch (error) { failures.push(candidateSnapshotFailure(error, candidate?.pid, source, ownerPid, 'initial')); }
   }
   let fresh; let refreshError; let expires = prepareExpires;
   if (prepared.some((item) => item.retry)) {
@@ -466,7 +536,8 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
         eventName: 'owned-descendant', clock: flushClock, diagnosticAncestors: value.diagnosticAncestors,
         recordEvent: item.retry ? (event) => recordEvent({ ...event, candidateCommandRechecked: true,
           initialCommandState: item.candidate.commandLine === '' ? 'empty' : 'missing' }) : recordEvent });
-    } catch (error) { failures.push(ownedIdentityFailure(error, item.candidate?.pid)); }
+    } catch (error) { failures.push(candidateSnapshotFailure(error, item.candidate?.pid, item.retry ? fresh : source,
+      ownerPid, item.retry ? 'fresh' : 'initial')); }
   }
   assert.ok(failures.length <= 128);
   return failures;

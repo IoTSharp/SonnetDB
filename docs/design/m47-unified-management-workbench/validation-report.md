@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-52 父链snapshot拒绝诊断（2026-10-07；本地安全合同通过，真实Host另验）
+
+- 基线43093571/closedWB51，四docs完整接收快照/git/路线图/已有提交/代理核验。WB50原3 parent_command_missing/3 candidate_snapshot_missing无snapshot来源观察，不能判CIM权限、短命或复用；原FAIL/false/null及原证据保持。WB51调用21/history6已过，不重复实施/测试。
+- 两源专属代理实施可选candidateSnapshot固定白名单：initial/fresh、candidate/parent/anchor、snapshotCount0..4096、matches0/1/2与command missing/empty/present/invalid，unknown null；只已有lookup/duplicates，无新snapshot/扫描，不保存rawtuple/time/命令/error/hash。原first reject/authority/stop/重采/12hop/ledger/events/cleanup门禁不变，runner字节冻结、必要接线断言，独立review只读。
+- 根artifacts/wb52-validation-20261007截止06:35Z，14wrapper/0actual/0TS/0新.NETbuild、定向最多2次；最终六docs+两源八文件完整restore/原format、前后SHA、fresh outside零排除≤90秒、精确共享hunk提交/post分别记录，未过不写PASS。22源/compiled/Host与旧WB47～WB51证据/foreign22/共享HANDOFF/六PS1缺席/parity保护。初两次路径猜测读取缺席、exit1零写已记录scope-budget，后按现有manifest取得精确路径，未扩大扫描。
+- 固定PS7、禁Graphify/广域扫描/未授权安装、有界count+墙钟/完整PID创建命令父链/finally/绝对临时路径；旧policy拒删对象不碰，无外部动作。真实Host/history3/Code正常退出与原cleanup及整体三宿主未闭环，同一ACTIVE30分钟继续；实际结果以本窗口收据为准。
+
+- 初syntax/53项通过及初两源freeze保留；独立review先发现parent角色缺safe coords、candidate/subject同PID重复presence getter。最小补正为正UInt32 expectedPID与0..11 chainIndex才给parent/anchor，未知null，同PID观察缓存，新增两项实际capture未知role/单读断言；原guard/一batch一次fresh/ledger/events/stop不改。最终源码独立PASS，两源D399D381…DBD6862/77AB550E…A01496D与runner原9156CA5C…457EAF7、Node syntax/双PS7 AST保持；最终55/55（原受影响46+新9）fail/cancel/skip/todo0，完整结果/stdout/stderr/最终freeze由test-acceptance绑定。仅合成snapshot/实际capture与安全投影，0actual，matches0/2不是absence proof，present非validity；两新测试Temp既有finally清理且根绝对路径核不存在。
+- 独立review在最终源码PASS后provider503，旧06:35Z窗口过期closed4/14，final55/gates/commit当时NOT_RUN，完整tuples无存活及expired-window收据保留；不把服务失败写成代码测试失败或成功。07:00Z重接最新四docs/git/旧证据/source/foreign/parity，同片artifacts/wb52-integration-20261007-0700截止07:45Z/8wrapper/0actual/0TS/0新build，复用final syntax，只跑唯一剩余最终55及八文件完整restore/原format/精确提交/post/关闭；review同代理新增9shell/20文件/07:40Z。最终门禁/提交/当前回收/独立验收以新窗口收据为准；WB50因果/真实Host/正常Code退出与原cleanup仍未证。
+
 ## WB-51 调用时SQL上下文（2026-10-07；本地合同通过，真实Host另验）
 
 - 基线0707cae1；完整四文档/git/路线图/已完成代理及WB50最终收据核验。已证生产execute在三异步边界之后读取activeTextEditor/getEditorSql，调用时SQL可能因editor/text/selection变化漂移。WB50 observation3 source正文省略(length77)、EXPLAIN transport=[]、实际一行投影与旧selection一致，不能直接证明完整SQL或该漂移是真实根因；原失败保留。

@@ -19,6 +19,172 @@ const pendingCandidate = { ...child(11, null), parentPid: 12, parentChain: [inte
 const initialCandidates = () => [owner, intermediate, { ...pendingCandidate }];
 const candidateOptions = { ...options, discover: (snapshot, values) => values.set(11, snapshot.find((item) => item.pid === 11)) };
 
+const snapshotDiagnostic = (values = {}) => ({ schema: 'sonnetdb.owned-candidate-snapshot.v1', source: null, subject: null,
+  snapshotCount: null, candidateMatches: null, subjectMatches: null, candidateCommandState: null, subjectCommandState: null, ...values });
+
+test('initial parent command rejection observes presence without initiating a fresh snapshot', { timeout: 1000 }, async () => {
+  const cases = [[null, 'parent_command_missing', 'missing'], [undefined, 'parent_command_missing', 'missing'],
+    ['', 'parent_command_empty', 'empty'], [123, 'parent_command_invalid', 'invalid']];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 4; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [commandLine, subreason, state] = cases[index]; const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot([owner, { ...intermediate, commandLine }, pendingCandidate], identities, [], {
+      ...candidateOptions, recordEvent: (value) => events.push(value), refreshSnapshot: async () => { refreshes += 1; return initialCandidates(); } });
+    assert.equal(failures.length, 1); assert.equal(failures[0].subreason, subreason); assert.equal(failures[0].chainIndex, 0);
+    assert.deepEqual(failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 3,
+      candidateMatches: 1, subjectMatches: 1, candidateCommandState: 'missing', subjectCommandState: state }));
+    assert.equal(refreshes, 0); assert.deepEqual([...identities.values()], [owner]); assert.deepEqual(events, []);
+  }
+});
+
+test('fresh rejection identifies candidate, parent and anchor observations without admitting authority', { timeout: 2000 }, async () => {
+  const current = { ...pendingCandidate, commandLine: 'fresh presence only command' };
+  const cases = [
+    [[owner, intermediate], 'candidate_snapshot_missing', 'candidate', 0, 0, null, null],
+    [[owner, intermediate, current, current], 'candidate_snapshot_duplicate', 'candidate', 2, 2, null, null],
+    [[owner, current], 'candidate_snapshot_missing', 'parent', 1, 0, 'present', null],
+    [[owner, intermediate, intermediate, current], 'candidate_snapshot_duplicate', 'parent', 1, 2, 'present', null],
+    [[intermediate, current], 'candidate_snapshot_missing', 'anchor', 1, 0, 'present', null],
+    [[owner, owner, intermediate, current], 'candidate_snapshot_duplicate', 'anchor', 1, 2, 'present', null],
+    [[owner, { ...intermediate, commandLine: null }, current], 'parent_command_missing', 'parent', 1, 1, 'present', 'missing'],
+    [[owner, { ...intermediate, commandLine: '' }, current], 'parent_command_empty', 'parent', 1, 1, 'present', 'empty'],
+    [[{ ...owner, commandLine: null }, intermediate, current], 'parent_command_missing', 'anchor', 1, 1, 'present', 'missing'],
+    [[{ ...owner, commandLine: 123 }, intermediate, current], 'parent_command_invalid', 'anchor', 1, 1, 'present', 'invalid'],
+    [[{ ...owner, commandLine: 'changed anchor' }, intermediate, current], 'ownership_anchor_tuple_mismatch', 'anchor', 1, 1, 'present', 'present'],
+    [[owner, intermediate, { ...current, commandLine: null }], 'identity_command_missing', 'candidate', 1, 1, 'missing', 'missing'],
+    [[owner, intermediate, { ...current, commandLine: '' }], 'identity_command_empty', 'candidate', 1, 1, 'empty', 'empty'],
+    [[owner, intermediate, { ...current, commandLine: 123 }], 'identity_command_invalid', 'candidate', 1, 1, 'invalid', 'invalid'],
+  ];
+  const expires = Date.now() + 1500;
+  for (let index = 0; index < cases.length && index < 14; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [fresh, subreason, subject, candidateMatches, subjectMatches, candidateCommandState, subjectCommandState] = cases[index];
+    const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+      recordEvent: (value) => events.push(value), refreshSnapshot: async () => { refreshes += 1; return fresh; } });
+    assert.equal(failures.length, 1); assert.equal(failures[0].subreason, subreason);
+    assert.deepEqual(failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'fresh', subject, snapshotCount: fresh.length,
+      candidateMatches, subjectMatches, candidateCommandState, subjectCommandState }));
+    assert.equal(refreshes, 1); assert.deepEqual([...identities.values()], [owner]); assert.deepEqual(events, []);
+    assert.equal(JSON.stringify(failures).includes('fresh presence only command'), false);
+  }
+});
+
+test('snapshot diagnostics leave accepted ledger and command-recheck events unchanged', { timeout: 1000 }, async () => {
+  const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+    refreshSnapshot: async () => { refreshes += 1; return [owner, intermediate, { ...pendingCandidate, commandLine: 'accepted fresh command' }]; },
+    recordEvent: (value) => recordOwnedIdentityEvent(value, identities, events, options) });
+  assert.deepEqual(failures, []); assert.equal(refreshes, 1); assert.equal(identities.size, 2); assert.equal(events.length, 1);
+  assert.equal(events[0].candidateCommandRechecked, true); assert.equal(events[0].initialCommandState, 'missing');
+  assert.deepEqual(events[0].identityLedgerRef, { pid: 11, created });
+  assert.equal(Object.hasOwn(events[0], 'candidateSnapshot'), false); assert.equal(Object.hasOwn(identities.get(11), 'candidateSnapshot'), false);
+});
+
+test('a parent rejection without exact safe coordinates leaves the observed subject unknown', { timeout: 1000 }, async () => {
+  const candidate = { ...child(11), parentChain: null }; const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, candidate], identities, [], { ...options,
+    discover: (_snapshot, values) => values.set(11, candidate), recordEvent: (value) => events.push(value),
+    refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(failures.length, 1); assert.equal(failures[0].subreason, 'parent_chain_missing');
+  assert.equal(failures[0].chainIndex, null); assert.equal(failures[0].structure.expectedParentPid, null);
+  assert.deepEqual(failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'initial', snapshotCount: 2,
+    candidateMatches: 1, candidateCommandState: 'present' }));
+  assert.equal(refreshes, 0); assert.deepEqual([...identities.values()], [owner]); assert.deepEqual(events, []);
+});
+
+test('candidate and subject observations reuse one command getter read for the same rejected PID', { timeout: 1000 }, async () => {
+  const marker = 'WB52_SYNTHETIC_duplicate_getter_probe_must_not_run'; let commandReads = 0;
+  const candidate = { ...child(11), created: 'invalid initial creation', get commandLine() {
+    commandReads += 1; if (commandReads > 2) throw new Error(marker); return 'presence only';
+  } };
+  const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, candidate], identities, [], { ...options,
+    discover: (_snapshot, values) => values.set(11, candidate), recordEvent: (value) => events.push(value),
+    refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(failures.length, 1); assert.equal(failures[0].subreason, 'identity_created_invalid'); assert.equal(commandReads, 2);
+  assert.deepEqual(failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'initial', subject: 'candidate', snapshotCount: 2,
+    candidateMatches: 1, subjectMatches: 1, candidateCommandState: 'present', subjectCommandState: 'present' }));
+  assert.equal(JSON.stringify(failures).includes(marker), false); assert.equal(refreshes, 0);
+  assert.deepEqual([...identities.values()], [owner]); assert.deepEqual(events, []);
+});
+
+test('optional snapshot projection retains legacy shape and bounded fixed fields through a second projection', { timeout: 1000 }, () => {
+  const error = { identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'parent_command_missing', failedField: 'parentChain.commandLine', completeness: 'missing_command', chainIndex: 0,
+    structure: { candidatePid: 11, candidateParentPid: 12, ownerPid: 10, parentChainCount: 2, expectedParentPid: 12, observedParentPid: 12 } } };
+  const legacy = ownedIdentityFailure(error, 11); assert.equal(Object.hasOwn(legacy, 'candidateSnapshot'), false);
+  const observation = snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 4096, candidateMatches: 2,
+    subjectMatches: 0, candidateCommandState: 'present', subjectCommandState: 'missing', commandLine: 'omitted raw text' });
+  const failure = ownedIdentityFailure(error, 11, observation);
+  assert.deepEqual(failure.candidateSnapshot, snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 4096,
+    candidateMatches: 2, subjectMatches: 0, candidateCommandState: 'present', subjectCommandState: 'missing' }));
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: failure }, 11), failure);
+  const { candidateSnapshot: _observation, ...original } = failure; assert.deepEqual(original, legacy);
+  assert.deepEqual(ownedIdentityFailure(error, 11, snapshotDiagnostic({ source: 'untrusted', subject: 'untrusted', snapshotCount: 4097,
+    candidateMatches: 3, subjectMatches: -1, candidateCommandState: 'untrusted', subjectCommandState: 'untrusted' })).candidateSnapshot,
+  snapshotDiagnostic());
+  assert.deepEqual(ownedIdentityFailure(error, 11, null).candidateSnapshot, snapshotDiagnostic());
+});
+
+test('changing snapshot getters are read once and throwing or unknown observations preserve the original rejection', { timeout: 1000 }, () => {
+  const marker = 'WB52_SYNTHETIC_getter_secret_never_persist'; const reads = {};
+  const once = (key, value) => () => { reads[key] = (reads[key] ?? 0) + 1; return reads[key] === 1 ? value : marker; };
+  const observation = Object.defineProperties({}, {
+    schema: { get: once('schema', 'sonnetdb.owned-candidate-snapshot.v1') }, source: { get: once('source', 'fresh') },
+    subject: { get: once('subject', 'candidate') }, snapshotCount: { get: once('snapshotCount', 3) },
+    candidateMatches: { get: once('candidateMatches', 1) }, subjectMatches: { get: once('subjectMatches', 1) },
+    candidateCommandState: { get: once('candidateCommandState', 'missing') }, subjectCommandState: { get: once('subjectCommandState', 'missing') },
+  });
+  const error = { identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'identity_command_missing', failedField: 'commandLine', completeness: 'missing_command' } };
+  const original = ownedIdentityFailure(error, 11); const failure = ownedIdentityFailure(error, 11, observation);
+  assert.deepEqual(reads, { schema: 1, source: 1, subject: 1, snapshotCount: 1, candidateMatches: 1, subjectMatches: 1,
+    candidateCommandState: 1, subjectCommandState: 1 });
+  assert.equal(JSON.stringify(failure).includes(marker), false);
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: failure }, 11), failure);
+  const cases = [{ schema: 'unknown', source: marker }, { schema: 'sonnetdb.owned-candidate-snapshot.v1',
+    get source() { throw new Error(marker); } }, new Proxy({}, { get() { throw new Error(marker); } })];
+  const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 3; index += 1) {
+    assert.ok(Date.now() < expires);
+    const projected = ownedIdentityFailure(error, 11, cases[index]);
+    assert.deepEqual(projected.candidateSnapshot, snapshotDiagnostic());
+    const { candidateSnapshot: _observation, ...retained } = projected; assert.deepEqual(retained, original);
+    assert.equal(JSON.stringify(projected).includes(marker), false);
+  }
+  const detail = { ...error.identityEvidenceFailure, get candidateSnapshot() { throw new Error(marker); } };
+  const projected = ownedIdentityFailure({ identityEvidenceFailure: detail }, 11);
+  assert.equal(projected.subreason, original.subreason); assert.deepEqual(projected.candidateSnapshot, snapshotDiagnostic());
+});
+
+test('snapshot presence observes credential rejections without retaining any command, error or extra hash fields', { timeout: 1000 }, async () => {
+  const marker = 'WB52_SYNTHETIC_CREDENTIAL_/+never-persist!'; const candidate = child(11, marker);
+  const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, candidate], identities, [], { ...options,
+    discover: (_snapshot, values) => values.set(11, candidate), recordEvent: (value) => events.push(value),
+    validateText: (text) => { if (text.includes(marker)) throw new Error(marker); },
+    refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(failures.length, 1); assert.equal(failures[0].stage, 'unsafeText');
+  assert.equal(failures[0].reason, 'unsafe_identity_text_preserved');
+  assert.deepEqual(failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'initial', snapshotCount: 2,
+    candidateMatches: 1, candidateCommandState: 'present' }));
+  const projected = ownedIdentityFailure({ message: marker, identityEvidenceFailure: failures[0] }, 11,
+    { ...failures[0].candidateSnapshot, raw: marker, commandLine: marker, hash: marker, created: marker });
+  assert.equal(JSON.stringify(projected).includes(marker), false); assert.deepEqual(projected, failures[0]);
+  assert.equal(refreshes, 0); assert.deepEqual([...identities.values()], [owner]); assert.deepEqual(events, []);
+});
+
+test('runner preserves candidate snapshot failures through the existing bounded audit and terminal evidence pipeline', { timeout: 1000 }, async () => {
+  const source = await readFile(new URL('./run-query-host-real.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const failures = await captureOwnedCandidateSnapshot\(current, identities, roots,/u);
+  assert.match(source, /refreshSnapshot: \(\{ signal \}\) => snapshot\(final, signal\)/u);
+  assert.match(source, /index < failures\.length && index < 128; index \+= 1\) noteAuditFailure\(failures\[index\]\)/u);
+  assert.match(source, /if \(auditFailures\.length < 128\) auditFailures\.push\(\{ atUtc: new Date\(\)\.toISOString\(\), \.\.\.value \}\)/u);
+  assert.match(source, /await evidence\('process-events\.json',[\s\S]*?acceptedIdentities: \[\.\.\.identities\.values\(\)\], auditFailures, auditFailureCount, auditFailureOverflow/u);
+});
+
 function cleanupFixture() {
   const accepted = child(11); const identities = new Map([[10, owner], [11, accepted]]);
   const failures = []; const stopped = []; const roots = [{ identity: accepted }];

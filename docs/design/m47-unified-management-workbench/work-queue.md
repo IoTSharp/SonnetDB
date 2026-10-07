@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-52 合同与文件冻结（2026-10-07；父链snapshot本地安全诊断通过，真实Host另验）
+
+- 接续43093571/closedWB51，最新四docs完整字节快照/git/路线图/提交/代理核验；不重做调用21/history6或Host。专属parent_snapshot独占query-host-evidence.mjs/test.mjs，runner冻结，snapshot_review只读，根独占六docs/验证/gates/stage/本地commit，共八文件。
+- WB50原6拒绝只证首guard，snapshot来源及CIM原因unknown。冻结可选candidateSnapshot：fixed schema、initial/fresh、candidate/parent/anchor、有界count/matches与missing/empty/present/invalid命令presence，unknown null；只已有lookup/duplicates O(1)，无rawtuple/time/命令/error/hash或再采样/扫描，第三参和二次投影白名单。保原拒绝/authority/stop/一batch一次fresh/12hop/预算/ledger/events，恶意观察失败不改变原终态，不用ledger补身份。
+- 根截止06:35Z、14wrapper/0actual/0TS/0新.NETbuild、定向最多2次；实施14shell/16文件/06:15Z，review18shell/26文件/06:30Z。最终八文件完整restore/原format/前后SHA、fresh outside零排除≤90秒、精确自有共享hunk提交/post。22保护源/compiled/Host、旧证据、foreign22/共享HANDOFF/六PS1缺席/parity不动；PS7/禁止Graphify广域扫描安装/有界执行/归属finally/绝对临时路径保持。
+- 真实Host/正常Code退出/原cleanup/安装/AOT/硬件/长稳/发布/整体三宿主仍待独立窗口。唯一ACTIVE每30分钟继续，无push/发布/部署/外发，不因诊断局部完成暂停；本片实际结果见收据。
+
+- 初53/53与初freeze保留；独立review补未知role必须safe coords、同PIDpresence一次getter，新增两实际capture断言后最终55/55（46受影响+9新），fail/cancel/skip/todo0，最终两源/runner syntax与双PS7 helper AST通过。empty仅字面空串，present非validity，matches0/2非absence proof。实施14shell/11文件已停写，最终源码独立PASS；两测试新Temp finally回收/根绝对路径不存在核验。
+- provider503中断使旧窗到期closed4/14/0actual，旧final55/gates/commit NOT_RUN及outside无存活保留。07:00Z同片接续artifacts/wb52-integration-20261007-0700，07:45Z截止/8wrapper/0actual/0TS/0新build，仅最后一次55测试和最终八文件完整门禁/提交/post，不扩旧窗或重做source/syntax/初53；review同代理新增9shell/20文件/07:40Z补验，旧预算保留。下一独立冻结真实Host窗口验证诊断及原history/Code/cleanup，不据本地PASS补旧因果或盲改身份门禁。
+
 ### WB-51 合同与文件冻结（2026-10-07；调用时SQL上下文本地合同通过，真实Host另验）
 
 - 接续0707cae1/closedWB50，最新四文档全字节接收/快照及git/提交/代理核验。唯一切片是生产query/selection/EXPLAIN在首await前捕获immutable SQL字符串；已证旧读取位于token/database/active database三个await之后，可漂移。WB50省略source正文与无EXPLAIN transport仅支持诊断风险，不证明根因；旧FAIL/false/null原样冻结。
