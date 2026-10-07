@@ -232,6 +232,8 @@ WB-50接续c0475103，仅换隔离metadata；syntax/TS通过，唯一actual当�
 
 WB-51冻结调用时SQL上下文，处理异步token/database等待期间编辑器变化的已证合同风险；最终deferred调用21/21、必要history6/6及同一TS项目初版/v2编译通过，独立复核补测试failure cleanup结算合同。本地stub证据与真实Host因果分列，0actual，原EXPLAIN/history/正常退出与cleanup缺口仍待独立验证。
 
+WB-57单次真实窗口已观察cleanup三终态检查为refused/passed/refused，证明remaining拒绝后仍执行root和audit检查。三Query载荷2/1/45对真实Server参考一致；history失败且仅2项、Host文件0bytes、Code/Host终态缺席，原runner与cleanup仍FAIL。根当前回收和最终八文件门禁/本地提交另列，详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)；三宿主仍未闭环。
+
 WB-56修复cleanup终态检查短路：remaining-processes拒绝后仍执行root-identities与audit-failures，保留首失败且只有三项通过才授予proof；新增固定finalChecks安全投影。最终本地75/75与两源syntax通过，0真实Host运行；WB55原FAIL/false/null保持，真实严格cleanup与三宿主仍另验。最终八文件门禁/本地提交见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
 
 WB-55单次真实Query窗口已取得current2/selection1/EXPLAIN45与独立Server参考一致、公开history3、Host PASS/API恢复及Code0正常退出的局部证据。原runner仍FAIL且reason/type null、严格cleanup/runtimefalse保持，三次既有fresh观察不证明缺失原因或stop权限；根当前回收、完整门禁与八文件本地提交另列，详见M47验证记录。三宿主/DOM/分页/Notebook/LSP/安装/AOT尚未闭环。

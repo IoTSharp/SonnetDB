@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-57 真实终态三检查（2026-10-07）**：单次真实finalChecks为refused/passed/refused，remaining拒绝后root/audit均执行，原首失败与cleanup false保持；三Query2/1/45对真实参考同，history20picks/2entries失败/Host0bytes/Code及Hostnull不升级。49ledger/64refs/27helper、16原文件/343013B冻结；根62PID absent/0新stop/282runtime对象回收、完整八文件门禁和本地失败检查点提交另列，三宿主/安装/AOT/发布另验。
 - **M47 WB-56 终态安全门禁（2026-10-07）**：三个原同步cleanup终态检查独立执行，拒绝不跳过后续检查，首terminalFailure保留，仅三passed且无terminal才proof；固定finalChecks单读安全投影，本地75/75（67+8）和两源syntax通过、0actual。WB55原FAIL/false/null与旧证据保持，完整八文件门禁/精确本地提交见M47收据；真实cleanup、三宿主/安装/AOT/发布另验。
 - **M47 WB-55 真实Query与transition再验证（2026-10-07）**：metadata-only新独立窗口三query2/1/45逐值对真实reference、公开history3/HostPASS/API恢复/Code0正常退出局部通过；原runner FAIL/reason-type null/严格cleanupfalse保持。3 existing_fresh parent观察不授stop或推因果，37ledger/43refs/17helper及16原证据冻结，根44PID absent/0kill/280新runtime对象回收单列；原准备/actual/checkpoint拒绝保留，最终八文件完整门禁与精确本地提交见M47收据，三宿主/发布另验。
 - **M47 WB-54 既有fresh父观察（2026-10-07）**：原准入后仅复用source/fresh追加有界安全transition投影，沿原deadline双guard，原失败/authority/ledger/events/stop不改；55既有+12新增最终67/67、syntax与source绑定通过。原0启动工具失败及66/67非法ISO fixture失败保留，只修finite创建夹具；0actual，WB53真实Host/history/退出/原cleanup与三宿主仍另验，最终完整门禁与精确八文件本地提交见接续收据。

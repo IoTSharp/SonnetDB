@@ -5,6 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-57，2026-10-07；真实三终态检查已观察，原Query旅程与cleanupFAIL）
+
+- 接续5b82d947/已闭合WB56；最新四docs全字节、git/已有提交/活动代理核验，外部HANDOFF/博客CSDN保留。只推进WB57新独立真实窗口，不重测75本地合同或另开WB58。专属metadata仅runner/Host两源迁WB57/Workbench57/18358-59/新目录，inverse逐byte等于HEAD；独立source review通过，根独占六docs/工具/验证/八文件本地提交。
+- 唯一actual query-host-real-c2fe13a9-329e-4036-add6-1638e96c7c4c，wrapper55秒exit1。current2/selection1/EXPLAIN45逐SQL/database/editor/columns/values/end对真实Server reference与POST200一致；仅生成payload局部实证。history failure-observation为20picks/2entries/AssertionError，history.json缺席、host-result.json实际0bytes、API恢复unknown、Code/Host null、normalExit=false；原runner FAIL/primary true/process_audit/Error保持，不由局部三phase计整体旅程成功或推history根因。
+- 新fixed finalChecks真实remainingProcesses=refused、rootIdentities=passed、auditFailures=refused，证明remaining拒绝后root及audit检查仍执行；首terminal remaining-processes/final、recoverable stop-verification/round保持。原cleanup/runtimefalse、3round/16stop/1stopfail/remaining1/blocking14；诊断时点accepted48与随后authoritative49ledger/64eventrefs/27closedhelper分列。14拒绝为7initial parent_command_missing、6fresh candidate_snapshot_missing和1stop；7existing-fresh观察只是lookup变化，不补父身份/排除后代/授stop或推权限/短命/复用。
+- 原16文件/14manifest/343013B与5terminal写完整冻结；原strict audit exit1、原完整Host/history checkpoint wrapper6exit1均保留，原工具不放宽。另exact本run/原16SHA/Host0/缺history/FAIL-null窄failed adapter只接失败检查点：原complete-ledger/event审计、fresh62complete/helper/rejectedPID absent、无run关联、两port、exact runner63768 owner及depth16/count4096/15秒inventory/30秒逐绝对路径回收282新runtime对象，0新stop。root checkpointVerified=true/actualPassed=false不升级原真实false。
+- 两源syntax/双PS7 helper AST、唯一TS项目及source-build三SHA冻结已通过；根窗口artifacts/wb57-validation-20261007截止11:40Z、14wrapper/actual1/1/TS1/0新.NETbuild/0旧合同重测。最终八树完整restore/原format、前后SHA、fresh outside零排除≤90秒/两commit守卫、精确共享自有hunk/post/关闭与独立验收以本目录收据/git log为准。初根byte比较用了PS不支持的Span类型，0wrapper/actual且无写源，改Linq正负微试后通过，原工具边界另留。
+- 下一片先核实际提交与退出，再冻结history/ack终态和stop-verification拒绝的有证据合同；不重复metadata实跑、不得推缺失原因或提升WB55旧PASS子集。Web/Studio/VS Code整体、UI/分页/Notebook/LSP/native bridge/Managed Local/OS对话框、安装/AOT/硬件/长稳/发布各自验收，唯一ACTIVE30分钟继续不迁移/暂停。foreign22、parity、旧实际/checkpoint和policy对象不动；PS7、禁Graphify/广域扫描/安装、有界count+墙钟/完整身份父链/finally继续，无push/发布/部署/外发。
+
 ## 当前检查点（WB-56，2026-10-07；终态三安全检查本地通过，真实cleanup另验）
 
 - 接续318b6d1e/已闭合WB55。最新HANDOFF、AGENTS、ROADMAP及队列完整字节复核，与received四快照一致；git/已有提交/活动代理已核，不重做WB55或另开WB57。基线已证remaining-processes抛出会跳过root-identities和audit-failures；本片只修这项检查合同，不解释WB55残余或七拒绝的原因。

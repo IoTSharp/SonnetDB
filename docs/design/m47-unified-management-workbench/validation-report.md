@@ -2,6 +2,15 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-57 真实终态三个安全检查（2026-10-07；局部检查实证，原Query旅程与cleanupFAIL）
+
+- **范围及前置**：基线5b82d947；metadata专属代理仅runner/Host两源六literal，51+/51-，inverse逐byte恢复HEAD，独立source审核通过。runner Node syntax、双PS7 helper AST、一个TS项目及source-build三SHA通过，WB56两diagnostic/75合同原字节和旧实际证据冻结，不重复本地测试或新.NETbuild。根维护六docs/八文件集成。
+- **唯一实际结果**：query-host-real-c2fe13a9-329e-4036-add6-1638e96c7c4c，real-final55秒exit1；current2/selection1/EXPLAIN45逐SQL/database/editor/columns/values/end对真实独立Server reference及POST200匹配。failure-observation的history20picks/2entries/AssertionError仅为公开命令失败观察；history.json缺席、Host文件实际0bytes、API恢复unknown、Code/Host null、normalExit=false。原runner FAIL/primary true/known process_audit/type Error保持，不能称完整Query/history/Host旅程通过、三宿主完成或已解释history/缺失因果。
+- **新终态合同真实证据**：finalChecks remainingProcesses=refused、rootIdentities=passed、auditFailures=refused，remaining拒绝后后两检查仍执行；首terminal remaining-processes/final和firstRecoverable stop-verification/round保留。原processCleanupProven/runtimeRemoved=false、3round/16stop/1stopfail/remaining1/blocking14。诊断结构accepted48与随后49 authoritative identities分时点记录，不合并；64eventrefs/27closedhelper、4child+54helper输出hash完整。14拒绝为7initial parent_command_missing、6fresh candidate_snapshot_missing及1stop；7existing-fresh parent变化仅lookup观察，无权限/短命/复用/stop或缺失原因证明。
+- **原失败与根回收分列**：14manifest/343013B/目录16原文件及5terminal写成功冻结，Host0byte原始SHA保留。strict audit原exit1、完整Host/history checkpoint wrapper6在Host元数据处exit1，原工具和日志不覆盖。另exact该run/16原SHA/Host0/缺history/上述FAIL-null窄adapter只核已有三payload；原complete-ledger/event audit、fresh62完整/helper/rejectedPID absent/无run关联/两port可bind、exact runner63768 owner后depth16/4096对象/15秒inventory/30秒onepass逐绝对路径回收282新runtime对象，0额外stop。root-failed-actual-checkpoint SHA54654AB9…15F56D仅checkpointVerified=true、actualPassed=false，不提升原cleanup false。
+- **最终门禁及边界**：artifacts/wb57-validation-20261007，截止11:40Z、最多14wrapper/actual1/1/TS1/新.NETbuild0/旧合同重测0。最终八树完整restore/原format、前后SHA、fresh outside零排除≤90秒与两个commit守卫、精确自有HANDOFF段/CHANGELOG行、本地commit/post/预算关闭/独立最终验收以收据/git为准。初根byte比较因PS不支持ReadOnlySpan失败，0wrapper/actual且未写源，改Linq SequenceEqual正负微试后通过，边界收据保留。foreign22、外部HANDOFF/博客CSDN、旧actual/checkpoint/parity与policy对象不动，无push/发布/部署/外发，唯一ACTIVE30分钟继续。
+- **继续顺序**：先核本片提交/进程退出，再冻结history/ack终态和stop-verification拒绝的有证据合同，不盲加metadata实跑。Web/Studio/VS Code、DOM/分页/Notebook/LSP、native bridge/Managed Local/OS文件对话框、安装/Extension Host/AOT/固定硬件/长稳/发行物继续独立验收；本片真实终态观察不能替代整体闭环。
+
 ## WB-56 终态三个安全检查独立执行（2026-10-07；本地75通过，真实cleanup另验）
 
 - **问题与范围**：318b6d1e中remaining-processes终态断言抛出后，root-identities及audit-failures不会执行；WB55 remaining1/blocking7仅为原失败证据，不能证明最后两回调已执行。本片仅两diagnostic源，由专属代理实施、独立review只读源码PASS；根维护六docs和最终八文件集成，runner/Host/生产及旧实际证据冻结。
