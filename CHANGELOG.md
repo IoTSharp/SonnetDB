@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-51 调用时SQL上下文（2026-10-07）**：query/selection/EXPLAIN的SQL读取移到首异步token/database解析之前，保持原SQL与history完成语义；最终deferred编辑器变动合同21/21、必要history6/6，同一TS项目初版/v2编译均通过，失败cleanup先drain再恢复stub。0actual，不将已证调用漂移风险称WB50真实根因，完整门禁及八文件检查点见M47记录；原失败与三宿主边界保持。
 - **M47 WB-50 真实Query再验证（2026-10-07）**：两源仅隔离metadata、五组literal逆投影等于c0475103；syntax/双PS7 AST/唯一TS通过，0新.NETbuild、不重测旧合同。唯一actual current2/selection1对真实reference通过，但Host FAIL explain/source、history缺席，runner FAIL process_audit/Code与hostOutcome null；新cleanup诊断定位3父命令缺失+3快照缺席及终态残余1。原false保持，根45PID当前无存活/0追加kill/280新runtime对象回收与五terminal/15证据SHA分列，完整门禁及八文件本地检查点提交见M47收据；整体三宿主仍未闭环。
 - **M47 WB-49 Cleanup子检查诊断（2026-10-07）**：为既有query runner owned-processes增加固定白名单子检查和有界计数，恢复性与终态失败分列，raw错误/命令/未准入身份不保存；保留原完整身份/stop/根/审计/预算与独立回收/终态门禁。最终46/46故障合同、Node syntax与双PS7 AST通过；首44/45夹具链长问题修复而原失败保留，最终九文件完整restore/原format及本地提交以M47收据为准；0actual，旧history20/2与正常退出/cleanup不转为成功。
 - **M47 WB-48 Query history完成合同（2026-10-07）**：保留历史key/schema/最新50条，immutable FIFO串行持久写、最多50待写、当前错误可观察且后续队列恢复；query/selection/EXPLAIN完成等待写ack，公开历史读等待既有写，showRows/Copilot保持同步且不写query history。deferred Memento与生产command/panel夹具和TS编译通过；0actual，原WB47失败及独立cleanup风险不转为成功，最终十文件完整restore/原format/本地提交见M47记录。

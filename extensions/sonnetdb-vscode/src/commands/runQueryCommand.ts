@@ -18,6 +18,8 @@ export function registerRunQueryCommand(
       return;
     }
 
+    const editor = vscode.window.activeTextEditor;
+    const sql = editor ? getEditorSql(editor, mode === 'selection') : undefined;
     const token = await getToken(profile);
     const client = new SonnetDbClient(profile.baseUrl, token);
     const database = await resolveDatabase(profile, client);
@@ -28,8 +30,6 @@ export function registerRunQueryCommand(
       await setActiveDatabase?.(profile, database);
     }
 
-    const editor = vscode.window.activeTextEditor;
-    const sql = editor ? getEditorSql(editor, mode === 'selection') : undefined;
     if (!sql) {
       if (mode === 'selection') {
         void vscode.window.showWarningMessage('Select the SQL text to run first.');

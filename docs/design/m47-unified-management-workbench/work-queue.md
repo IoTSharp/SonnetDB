@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-51 合同与文件冻结（2026-10-07；调用时SQL上下文本地合同通过，真实Host另验）
+
+- 接续0707cae1/closedWB50，最新四文档全字节接收/快照及git/提交/代理核验。唯一切片是生产query/selection/EXPLAIN在首await前捕获immutable SQL字符串；已证旧读取位于token/database/active database三个await之后，可漂移。WB50省略source正文与无EXPLAIN transport仅支持诊断风险，不证明根因；旧FAIL/false/null原样冻结。
+- 专属query_invocation只改runQueryCommand.ts和新queryInvocation.test.ts；独立query_review只读，根独占六docs/验证/集成/gates/stage/localcommit，共八文件。getEditorSql selection/current statement语义、EXPLAIN尾分号、缺SQL/数据库顺序/错误及await history ack保持；deferred token/database和真实handler/panel夹具验调用后editor/text/selection变化与完成边界。
+- 根窗口 `artifacts/wb51-validation-20261007` 截止06:00Z、14wrapper/0actual/1TS项目/0新.NETbuild；新合同与command变更所需history回归分列，不重复未改cleanup46。最终冻结树完整restore/原format、SHA、fresh outside零排除≤90秒、精确自有hunk/提交/post必需。foreign22含六PS1缺席/shared HANDOFF/parity与旧policy对象保护；PS7/禁Graphify广域扫描安装/有界执行/完整进程finally/绝对临时路径保持，不push/发布/部署/外发。
+- 真实Host三phase/history3/Code退出、parent snapshot/原cleanup及UI/安装/AOT/硬件/长稳/发布与三宿主另验；下一真实窗口须新冻结范围，唯一ACTIVE30分钟heartbeat继续。
+
+- 最终定向调用21/21、必要history6/6，fail/cancel/skip/todo0；同一TS项目初版/v2两次compile exit0并保留，最终两源/两compiled SHA与test-acceptance绑定。独立review所见failure cleanup风险已补最多一条command Promise、gate/ack释放后≤1秒drain及nested finally恢复stub，原断言失败保留；生产仅两行移动、21项断言不降级。仅确定性真实handler/panel合同，未发网络/Host；最终八文件完整门禁/本地commit/post/窗口关闭以收据为准。
+- 下一片先冻结parent snapshot/Host实际缺口的诊断范围，不重测本片或盲加actual；WB50具体因果与正常生命周期仍未证，三宿主继续ACTIVE30分钟检查。
+
 ### WB-50 合同与文件冻结（2026-10-07；真实Query/history与退出独立验证窗口）
 
 - 接续c0475103，复用WB48 history6项与WB49 cleanup46项已过合同，不重做/重测；旧WB47失败冻结。专属metadata代理仅runner/Host两源五组literal替换（WB50、18352/18353、Workbench50、新evidence parent），字节逆投影等于基线，已停写；独立query_review只读，根独占六docs/验证/集成/门禁/提交，共八文件。

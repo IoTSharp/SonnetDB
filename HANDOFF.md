@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-51，2026-10-07；调用时SQL上下文本地合同通过，真实Host另验）
+
+- 接续本地 `0707cae1aac4d44547ec062abf936ad1f4040003`；WB50已closed11/13、actual1/1 FAIL、最终八文件完整restore/format及独立失败检查点验收通过。最新HANDOFF/AGENTS/ROADMAP/queue全字节读取与快照、git/路线图/旧提交/已完成代理核验，不重复metadata/已过history6或cleanup46实现。foreign22路径含六缺席PS1/共享HANDOFF尾段、origin/parity-results及旧policy拒删对象保持。
+- 唯一WB51切片为生产query调用时SQL字符串冻结。已证execute在getToken、resolveDatabase及可选setActiveDatabase三个await之后才读activeTextEditor/getEditorSql，异步期间编辑器切换/正文或selection变化会改变调用SQL。WB50 observation3记录EXPLAIN transport为空、source正文受投影省略(length77)、一行结果与前一selection一致；不能直接由省略正文证明完整SQL或真实因果，旧panel保留只是风险。本片修已证调用合同，不宣称旧EXPLAIN/history/cleanup根因。
+- 专属query_invocation仅runQueryCommand.ts与新queryInvocation.test.ts两源，独立query_review只读；根独占六docs/工具/验证/stage/localcommit，共八文件。profile通过后、首await前同步捕获getEditorSql结果字符串；query/selection优先规则、当前statement/EXPLAIN原尾分号规范化、缺SQL行为/数据库选择顺序、错误surface及await resultPanel.show/history ack不变。用真实注册handler/panel配deferred token/database与Memento验证调用后编辑器变化仍发原SQL，并核完成/错误/空输入边界；不改Host/runner/history/panel/cleanup及旧证据。
+- 根窗口 `artifacts/wb51-validation-20261007` 截止06:00Z，最多14wrapper、0actual、1TS项目、0新.NETbuild；定向新合同与因command变更而必要的既有history回归分列。最终八文件冻结后完整restore/原参数format、前后SHA、fresh outside零排除≤90秒、精确自有共享hunk提交/post审计必需。固定PS7、禁Graphify/广域扫描/未授权安装；count+墙钟/比较微输入/取消、完整PID创建命令父链/finally/绝对临时路径保持，无push/发布/部署/外发。真实三phase/history3/API/Code正常退出、父链快照与原cleanup、UI/安装/AOT/硬件/长稳/发布/整体三宿主仍另验；唯一workbench ACTIVE每30分钟，不迁移/暂停，本片不启动第二切片，实际结果见收据。
+
+- 最终两源与两compiled JS绑定source-build-freeze-final；同一TS项目初版/v2两次编译均exit0，初版保留。定向调用合同21/21、必要history回归6/6，fail/cancel/skip/todo均0，完整stdout/stderr和test-acceptance收据保留。三mode分别覆盖token/list/picker/set-active等待中的editor/text/selection变化、selection优先、缺SQL、transport错误与history ack拒绝；真实production handler/panel配确定性VS Code/client/Memento stub，0网络/0actual，不代替真实Host。
+- 独立review发现测试failure finally释放gate后立即恢复prototype可能留下未结算command，专属代理补正为最多一条command Promise、释放gate/ack后限时1秒drain，再nested finally恢复stub；原断言失败保留，cleanup同时失败时合并报告。生产仍只移动两行，最终源码与21项原断言冻结，代理已停写。最终八文件完整restore/原format、fresh审计、精确本地提交/post与关闭结果以本窗口收据/git log为准，不能提前计整体成功。下一片先冻结parent snapshot缺失及Host实际缺口的诊断合同，不重复本片测试或直接追加actual；WB50因果、三phase/history3/Code正常退出与原cleanup仍未知。
+
 ## 当前检查点（WB-50，2026-10-07；真实Query/history与退出独立验证窗口）
 
 - 接续本地 `c04751038365aaaa699e0f4f472fa52f260b5b67`；WB48的6项history合同与WB49的46项cleanup诊断合同已通过，不重复实施/测试。最新四文档完整字节快照、git/路线图/已有提交与代理核验，旧WB47 FAIL/history20/2/Code1-null及原cleanup false保持原证据；两源metadata专属代理已停止写入，独立query_review接续同一任务而不重复派单。

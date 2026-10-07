@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-51 调用时SQL上下文（2026-10-07；本地合同通过，真实Host另验）
+
+- 基线0707cae1；完整四文档/git/路线图/已完成代理及WB50最终收据核验。已证生产execute在三异步边界之后读取activeTextEditor/getEditorSql，调用时SQL可能因editor/text/selection变化漂移。WB50 observation3 source正文省略(length77)、EXPLAIN transport=[]、实际一行投影与旧selection一致，不能直接证明完整SQL或该漂移是真实根因；原失败保留。
+- 仅runQueryCommand.ts与新queryInvocation.test.ts由专属query_invocation实施，独立query_review只读，根负责六docs/最终八文件。首await前同步捕获SQL字符串，保原selection/statement/EXPLAIN/缺SQL/错误/数据库顺序及await history ack；deferred token/database/active database与真实注册handler/panel/Memento夹具验调用时上下文及完成边界，不替代真实Server/Extension Host。
+- `artifacts/wb51-validation-20261007` 截止06:00Z、14wrapper/0actual/1TS项目/0新.NETbuild。新合同和command变更需要的history回归、最终完整restore/原format/树SHA、fresh outside零排除≤90秒、精确本地提交/post分别记录；未取得前不写PASS。生产其它源/compiled、Host/runner/cleanup、旧15实际证据和foreign/parity保护，旧policy拒删对象不动。
+- PS7固定路径、禁止Graphify/广域扫描/安装、有界count+墙钟/进程身份父链/finally/临时绝对路径保持，无外部动作；真实history3/正常Code退出/parent snapshot/原cleanup与整体三宿主仍未证，唯一ACTIVE30分钟继续。
+
+- 最终新调用合同21/21、必要history6/6，fail/cancel/skip/todo全部0；两个完整Node结果与stdout/stderr哈希由test-acceptance核验，最终两源/两compiled JS SHA绑定source-build-freeze-final。同一TS项目初版/v2两次compile exit0，初版source freeze及日志保留，不额外编译或重复测试。三mode×token/list/picker/set-active共12延迟变化、selection优先1、缺SQL6、transport错误1、history ack拒绝1；真实production handler/panel加VS Code/client/Memento stub，0网络/0actual，不能计WB50根因或真实history3/Code退出/cleanup成功。
+- 独立review先发现failure finally恢复prototype早于command结算，代理补最多一条command Promise、释放gate/history ack后≤1秒allSettled drain、nested finally恢复stub；原断言失败保留，cleanup同时失败用AggregateError。修后独立源码PASS且生产两行移动/21项断言保持，最终v2测试通过。最终八文件完整restore/原format/前后SHA、fresh outside零排除及≤90秒提交守卫、精确自有hunk/本地提交/post/窗口关闭结果见本目录收据；下一片先冻结parent snapshot与Host实际缺口诊断，不以本地合同推导旧失败因果。
+
 ## WB-50 真实Query/history与退出（2026-10-07；独立实际窗口）
 
 - 基线c0475103；WB48 history6项/WB49 cleanup46项合同复用，0重复定向测试。两源metadata五组literal逆投影与基线完整字节一致；生产、evidence/tests/shared helpers、固定Server/Code与旧失败哈希冻结。专属metadata已停写，独立query_review只读；根负责六docs及最终八文件集成。
