@@ -1024,7 +1024,7 @@ try {
   const oldServer = await identifyServer(manifest.body.managedServer, 'initial-server');
   if (databaseRecoveryRequested) {
     databaseServerIdentity = oldServer;
-    await runDatabaseRecoveryScenario({ origin, api, auth: identity.token, poll: boundedPoll, check, evidence, bridgeEvidence,
+    await runDatabaseRecoveryScenario({ prepareFirstSelection: true, origin, api, auth: identity.token, poll: boundedPoll, check, evidence, bridgeEvidence,
       readLibrary: databaseLibraryEvidence, getPage: () => page, launchIdentityKey: () => key(studioIdentity), runId,
       observationBarrier: () => ({ afterSequence: counters.bridgeResponses, afterRequestSequence: counters.pageRequests }),
       closeDesktop: closeDatabaseDesktop, relaunchDesktop: () => relaunchDatabaseDesktop(args, environment, databaseRecoveryResult.databaseB),

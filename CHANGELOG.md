@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB68 Native选库普通异库准备（2026-10-08）**：真实runner显式启用单次独立B控件准备，仅在首次A已active且新鲜守卫成立时执行，ack/DOM/disk完成后重读原A守卫；默认同值/unknown拒绝、原A→B恢复旅程与预算保持。新增17项、本地Node60/60与micro1/1通过，0actual/产品build，不声明真实数据库恢复已验收。
+
 - **M47 WB67 Native helper统计保留（2026-10-08）**：保留同helper success/error的既有CIM查询数、缓存PID数与内部耗时至当前record/compact，非法或缺失为unknown，不新增采集或动作权限；新增15项、本地Node31/31及纯PS输出夹具通过。原业务结果/错误、预算/身份/回收门禁及真实恢复失败边界保持。
 
 - **M47 WB66 Native helper预算合同（2026-10-08）**：新增实际协议/调用链、墙钟与CIM/cache/fresh回收预算核查报告，明确20.19s拒绝与160数量上限、内外计时和既有统计丢弃边界；独立28项复核通过。仅文档，0actual/test/产品build，不升级原恢复/退出/cleanup失败。

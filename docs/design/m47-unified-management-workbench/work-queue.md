@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB68 普通异库准备（2026-10-08；本会话第2/5独立任务，0actual）
+
+- base d841e027；WB67本地提交已在HEAD，旧post numeric70/current1/related0与最终localIntegrationPassed=false保持。本片一次继承观察current2/related1，未知共享MCP/复用PID保留，0stop/0exclusion，不回写旧FAIL。同一workbench ACTIVE30分钟，最多5任务。
+- 专属scenario/runner/新test+根五docs共8paths；runner唯一literal prepareFirstSelection:true opt-in，默认同值/unknown拒绝仍由旧tests确认。仅首次A已active且七fresh谓词有效时最多一份普通B控件准备，完整ack/DOM/disk后重新读原A guard/barriers；准备独立于两次journey selection和contract.selected。未知0动作、初始可变更0准备/额外读；原A→B/strict双关闭/relaunch/B恢复/query及预算保持。
+- micro1/1、Node60/60（新17+旧43）、三JS syntax与源码29/工具27独立检查通过，零fail/cancel/skip/todo。0actual/产品build/安装；旧A PUT来源unknown，不重跑原实跑。最终freeze/完整restore/CI format/精确8path CAS提交/post/当前numeric退出/独立集成以artifacts/wb68-database-preparation-20261008收据为准，root22:15Z/review22:10Z/14wrapper/2test固定。
+- 下一片先核最终状态，再冻结独立native metadata/runtime窗口，复用普通异库准备与三统计观察。三宿主/真实Server/OS文件/安装/ExtensionHost/AOT/硬件/长期/发布分列；原WB64 actual/normalExit/cleanupfalse、WB65overallFAIL、WB66晚审核FAIL和Graph Beta保持。
+
 ### WB67 helper三统计保留（2026-10-08；本会话第1独立任务，0actual）
 
 - 基线c7db9130；WB66继承六路径post与精确private回收0commit，独立内容23PASS但收据timeliness FAIL单列；strict首numeric PID碰撞FAIL与唯一v2 69PID/current0/related0/0stop/0exclusion PASS、原pending/NOT_PRODUCED保持。继承不计任务，WB67计本会话1/5，同一workbench ACTIVE30分钟。

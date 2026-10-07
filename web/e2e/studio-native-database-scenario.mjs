@@ -415,6 +415,11 @@ export async function runDatabaseRecoveryScenario(harness) {
   const result = { schema: 'sonnetdb.wb61.database-recovery.v1', databaseA, databaseB, sentinelA, sentinelB,
     seedFailures: [], selectionAttempts: [], selections: [], firstClose: null, secondLaunch: null, restored: null, query: null, secondClose: null, passed: false,
     boundary: 'Real API seed and auth preparation only; ordinary DOM database selection, native PUT/GET, exact owned disk semantics, actual desktop restart and read-only B query. Login UI, dialogs, installation, backup recovery and full three-host acceptance remain separate.' };
+  // Only the native runner explicitly opts into this ordinary preparation.
+  // Legacy callers retain the same-value refusal and the original result shape.
+  if (harness.prepareFirstSelection === true) result.firstSelectionPreparation = {
+    schema: 'sonnetdb.wb68.first-selection-preparation.v1', state: 'not-reached', initialPrecondition: null, attempt: null,
+  };
   harness.setResult(result);
   const contract = createDatabaseRecoveryContract({ databaseA, databaseB, origin });
   contract.launched(launchIdentityKey());
@@ -476,28 +481,100 @@ export async function runDatabaseRecoveryScenario(harness) {
       return names.length <= 16 && names.includes(databaseA) && names.includes(databaseB);
     }, { attempts: 30, timeoutMs: 20_000, intervalMs: 500 });
   };
+  const selectionPrecondition = (page, database) => observeDatabaseSelectionPrecondition(() => page.evaluate(({ database, identityPrefix }) => {
+    const nodes = document.querySelectorAll('.schema-database-node .schema-item--database.is-active');
+    const identities = document.querySelectorAll('[data-testid="studio-host-identity"]');
+    const activeText = nodes.length === 1 ? nodes[0].querySelector('strong')?.textContent : null;
+    const identityText = identities.length === 1 ? identities[0].textContent : null;
+    const activeKnown = typeof activeText === 'string' && activeText.length > 0 && activeText.length <= 1024;
+    const identityKnown = typeof identityText === 'string' && identityText.length <= 1024;
+    // A case variant alone cannot prove a different database.
+    const activeCaseMismatch = activeKnown && activeText !== database && activeText.toLowerCase() === database.toLowerCase();
+    return { activeNodeCount: nodes.length <= 16 ? nodes.length : null, identityNodeCount: identities.length <= 16 ? identities.length : null,
+      activeMatchesTarget: activeKnown && !activeCaseMismatch ? activeText === database : null,
+      identityMatchesTarget: identityKnown ? identityText === `${identityPrefix}${database}` : null,
+      activeIdentityConsistent: activeKnown && identityKnown ? identityText === `${identityPrefix}${activeText}` : null,
+      contractWarningPresent: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')) };
+  }, { database, identityPrefix: `studio-desktop · managed-local · ${origin} · ` }), { check });
   await prepareExplorer({ refresh: true });
   for (const database of [databaseA, databaseB]) {
     setStage(`normal DOM select ${database}`);
     const page = getPage();
     const button = page.locator('.schema-database-node .schema-item--database').filter({ has: page.locator('strong', { hasText: new RegExp(`^${database}$`, 'u') }) });
     if (await button.count() !== 1) fail('ordinary exact database button is not unique.');
-    const precondition = await observeDatabaseSelectionPrecondition(() => page.evaluate(({ database, identityPrefix }) => {
-      const nodes = document.querySelectorAll('.schema-database-node .schema-item--database.is-active');
-      const identities = document.querySelectorAll('[data-testid="studio-host-identity"]');
-      const activeText = nodes.length === 1 ? nodes[0].querySelector('strong')?.textContent : null;
-      const identityText = identities.length === 1 ? identities[0].textContent : null;
-      const activeKnown = typeof activeText === 'string' && activeText.length > 0 && activeText.length <= 1024;
-      const identityKnown = typeof identityText === 'string' && identityText.length <= 1024;
-      // These generated target names are ASCII. A case variant alone cannot
-      // establish a different database; this observation never binds SQL names.
-      const activeCaseMismatch = activeKnown && activeText !== database && activeText.toLowerCase() === database.toLowerCase();
-      return { activeNodeCount: nodes.length <= 16 ? nodes.length : null, identityNodeCount: identities.length <= 16 ? identities.length : null,
-        activeMatchesTarget: activeKnown && !activeCaseMismatch ? activeText === database : null,
-        identityMatchesTarget: identityKnown ? identityText === `${identityPrefix}${database}` : null,
-        activeIdentityConsistent: activeKnown && identityKnown ? identityText === `${identityPrefix}${activeText}` : null,
-        contractWarningPresent: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')) };
-    }, { database, identityPrefix: `studio-desktop · managed-local · ${origin} · ` }), { check });
+    let precondition = await selectionPrecondition(page, database);
+    if (database === databaseA && harness.prepareFirstSelection === true) {
+      const preparation = result.firstSelectionPreparation;
+      preparation.initialPrecondition = precondition;
+      preparation.state = precondition.state === 'change-required' ? 'not-needed' : 'refused';
+      if (precondition.state === 'target-already-active') {
+        // This one preparatory B click is separate from contract.selected and
+        // both journey arrays. It consumes the existing runner budgets.
+        setStage('ordinary B preparation before first A selection');
+        preparation.state = 'preparing';
+        const prepared = { schema: 'sonnetdb.wb68.preparation-attempt.v1', target: 'B', phase: 'button', barrier: null,
+          precondition: null, ackPoll: { callbackCalls: 0, elapsedMs: null }, failure: null, selection: null };
+        preparation.attempt = prepared;
+        let preparationBarrier;
+        let preparationPollStartedAt = null;
+        try {
+          check();
+          const preparationButton = page.locator('.schema-database-node .schema-item--database').filter({ has: page.locator('strong', { hasText: new RegExp(`^${databaseB}$`, 'u') }) });
+          if (await preparationButton.count() !== 1) fail('ordinary exact preparation database button is not unique.');
+          prepared.phase = 'before-click-precondition';
+          prepared.precondition = await selectionPrecondition(page, databaseB);
+          preparationBarrier = observationBarrier();
+          prepared.barrier = { afterSequence: safeObservationNumber(ownObservationValue(preparationBarrier, 'afterSequence')),
+            afterRequestSequence: safeObservationNumber(ownObservationValue(preparationBarrier, 'afterRequestSequence')) };
+          check();
+          if (prepared.precondition.state !== 'change-required') fail(`ordinary preparation precondition refused (${prepared.precondition.state}/${prepared.precondition.reason}).`);
+          prepared.phase = 'click';
+          await preparationButton.locator('strong').click({ timeout: 5000 });
+          prepared.phase = 'ack-poll';
+          preparationPollStartedAt = Date.now();
+          const ack = await poll('Fresh ordinary preparation native PUT', async () => {
+            prepared.ackPoll.callbackCalls += 1;
+            return bridgeEvidence.find((item) => item.sequence > preparationBarrier.afterSequence
+              && item.requestSequence > preparationBarrier.afterRequestSequence
+              && item.launch === 1 && item.method === 'PUT' && item.path === connectionPath && item.httpStatus === 200 && item.body.activeDatabase === databaseB);
+          }, { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
+          prepared.ackPoll.elapsedMs = safeObservationNumber(Date.now() - preparationPollStartedAt, 900_000);
+          prepared.phase = 'dom-poll';
+          const rendered = await poll('Confirmed ordinary preparation database DOM', async () => { const value = await dom(); return value.activeDatabase === databaseB && value.hostIdentity === `studio-desktop · managed-local · ${origin} · ${databaseB}` ? value : false; },
+            { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
+          prepared.phase = 'disk';
+          const disk = await readLibrary();
+          prepared.phase = 'contract';
+          assertDatabaseAcknowledgement(ack, { ...preparationBarrier, launch: 1, method: 'PUT', database: databaseB, origin });
+          if (rendered?.activeDatabase !== databaseB || rendered.hostIdentity !== `studio-desktop · managed-local · ${origin} · ${databaseB}` || rendered.contractWarning !== false) fail('preparation rendered database/identity disagrees.');
+          assertDatabaseSnapshot(disk.snapshot, databaseB, origin, { disk: true });
+          prepared.selection = { database: databaseB, barrier: preparationBarrier, acknowledgement: ack, dom: rendered, disk };
+          prepared.phase = 'accepted'; preparation.state = 'prepared';
+        } catch (primary) {
+          preparation.state = 'refused';
+          if (prepared.phase === 'button' || prepared.phase === 'before-click-precondition') {
+            prepared.failure = { phase: prepared.phase, terminationReason: 'precondition-refused', dom: prepared.precondition?.dom ?? projectDatabaseSelectionDom(null) };
+            prepared.phase = 'failed'; throw primary;
+          }
+          if (prepared.phase === 'ack-poll' && preparationPollStartedAt !== null) prepared.ackPoll.elapsedMs = safeObservationNumber(Date.now() - preparationPollStartedAt, 900_000);
+          await rejectDatabaseSelectionFailure(primary, prepared, { candidates: bridgeEvidence, barrier: preparationBarrier, database: databaseB, check,
+            readDom: () => boundedRead(() => getPage().evaluate(({ database, expectedIdentity }) => {
+              const nodes = document.querySelectorAll('.schema-database-node .schema-item--database.is-active');
+              const identities = document.querySelectorAll('[data-testid="studio-host-identity"]');
+              const activeText = nodes.length === 1 ? nodes[0].querySelector('strong')?.textContent : null;
+              const identityText = identities.length === 1 ? identities[0].textContent : null;
+              return { activeNodeCount: nodes.length <= 16 ? nodes.length : null, identityNodeCount: identities.length <= 16 ? identities.length : null,
+                activeMatchesTarget: typeof activeText === 'string' ? activeText === database : null,
+                identityMatchesTarget: typeof identityText === 'string' ? identityText === expectedIdentity : null,
+                contractWarningPresent: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')) };
+            }, { database: databaseB, expectedIdentity: `studio-desktop · managed-local · ${origin} · ${databaseB}` })) });
+        }
+        // A real B acknowledgement is preparation only. A must pass a new DOM
+        // read and new genuine barriers before the original journey can begin.
+        precondition = await selectionPrecondition(page, databaseA);
+        setStage(`normal DOM select ${database}`);
+      }
+    }
     // The ordinary DOM read completes before this synchronous barrier capture.
     // It does not prove which earlier UI action originated an observed request.
     const barrier = observationBarrier();

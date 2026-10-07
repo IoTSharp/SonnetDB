@@ -2,6 +2,13 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB68 Native选库普通异库准备（2026-10-08；本地合同，0actual）
+
+- 首次A已active造成原fresh不同值前置无法成立；旧A PUT来源unknown。runner仅新增literal prepareFirstSelection:true，inverse字节等于received基线。scenario默认行为/结果shape保持；opt-in仅在已验证A同值时最多一次独立B普通控件准备，完整ack、DOM和projected disk后重读原A guard并捕获全新barriers。不伪造real ack、不改API/state，不追加journey数组或contract.selected；原两次selection、两个strict正常关闭、relaunch/B恢复/query及所有全局预算保持。
+- 新17项+受影响旧43共Node60/60，micro1/1及三JS syntax通过，fail/cancel/skip/todo均0。覆盖默认拒绝、初始可变更零准备/额外读、unknown零动作、准备各guard/ack/DOM/disk拒绝、重新读取A、真正fresh witness及第一/第二正常关闭失败。两份旧test SHA保持；独立源码29/29、根工具27/27 PASS，源/test/review绑定。不复跑WB64实跑或其它已成功检查。
+- 仅本地合成控件/协议合同，0actual/0productBuild/安装。WB67原post numeric70/current1/related0 FAIL、独立localIntegrationPassed=false保留；本片一次继承观察current2/related1（未知共享78872、复用79212），0stop/0exclusion，与本片独占journal新退出门禁分开。WB64 actual/normalExit/cleanupfalse、WB65 overallFAIL23/25、WB66timeliness FAIL保持。
+- 根五docs逐字节集成、8path final-tree、18legacy保护、runner inverse、完整restore/原format、fresh pre/post numeric退出、private HANDOFF/CAS commit/post与独立最终集成收据见artifacts/wb68-database-preparation-20261008；尚未产生的检查不预填通过。本会话第2/5、root22:15Z/review22:10Z、14wrapper/2test固定。下一片冻结真实metadata/runtime窗口再取恢复/正常退出证据；三宿主、真实Server、OS文件/Managed Local、安装/ExtensionHost/AOT/硬件/长期/发布仍独立，Graph Beta。
+
 ## WB67 Native helper三统计保留（2026-10-08；本地合同，0actual）
 
 - H error追加同counter/cache/watch三统计；R原输出/握手守卫后保存决定原成功/错误的同envelope；E compact固定三标量。缺失/非法/accessor/null unknown，counts0..160安全整数与elapsed非负finite，保留合法20秒以上观察，不解析错误字符串。原result/primary/timeout-late/authority及所有预算/回收/终态不改，0新CIM/协议行/列表。
