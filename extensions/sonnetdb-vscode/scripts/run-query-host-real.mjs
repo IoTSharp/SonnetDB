@@ -5,12 +5,13 @@ import { access, lstat, mkdir, readFile, readdir, realpath, rm, rmdir, writeFile
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { discoverOwnedProcessIdentities, liveOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
+import { discoverOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, validateOwnedIdentity } from './query-host-evidence.mjs';
 
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(extensionRoot, '..', '..');
-const evidenceParent = path.join(repositoryRoot, 'artifacts', 'wb42-validation-20261007');
+const evidenceParent = path.join(repositoryRoot, 'artifacts', 'wb43-validation-20261007');
 const code = 'C:\\Users\\mysti\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe';
 const dotnet = 'C:\\Program Files\\dotnet\\dotnet.exe';
 const powershell = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
@@ -22,9 +23,9 @@ const runtimeRoot = path.join(runRoot, 'runtime');
 const contentRoot = path.join(runtimeRoot, 'server-content');
 const dataRoot = path.join(contentRoot, 'data');
 const profileRoot = path.join(runtimeRoot, 'code-profile');
-const baseUrl = 'http://127.0.0.1:18342';
-const database = 'Workbench42';
-const label = 'WB42 isolated real Server';
+const baseUrl = 'http://127.0.0.1:18344';
+const database = 'Workbench43';
+const label = 'WB43 isolated real Server';
 const table = 'DeviceID_Main';
 const startedAtUtc = new Date().toISOString();
 const deadline = Date.now() + 600_000;
@@ -35,6 +36,16 @@ const events = [];
 const helperStarts = [];
 const secrets = [];
 const outputSummaries = [];
+const helperOutputSummaries = [];
+const outputRecords = [];
+const auditFailures = [];
+const cleanupAttempts = [];
+const terminalAttempts = [];
+let portsReleased = false;
+let helperCleanupProven = false;
+let outputComplete = false;
+let auditFailureOverflow = false;
+let auditFailureCount = 0;
 const maximumFiles = 24;
 const maximumFileBytes = 512 * 1024;
 const maximumTotalBytes = 8 * 1024 * 1024;
@@ -59,8 +70,8 @@ let failureType = null;
 let knownFailureReason = null;
 let lastControlRequest = null;
 // Reserve ninety seconds inside the six-hundred-second run cap for verified cleanup and terminals.
-const timeout = setTimeout(() => controller.abort(new Error('WB42 active run deadline.')), 510_000);
-const cancel = () => controller.abort(new Error('WB42 cancelled.'));
+const timeout = setTimeout(() => controller.abort(new Error('WB43 active run deadline.')), 510_000);
+const cancel = () => controller.abort(new Error('WB43 cancelled.'));
 process.on('SIGINT', cancel);
 process.on('SIGTERM', cancel);
 
@@ -76,9 +87,9 @@ try {
   serverHash = hash(await readFile(serverDll));
   assert.equal(serverHash, expectedServerHash.toUpperCase());
   await mkdir(runRoot);
-  await evidence('run.json', { schema: 'sonnetdb.wb42.run.v1', runId, runnerPid: process.pid,
+  await evidence('run.json', { schema: 'sonnetdb.wb42.run.v1', slice: 'WB43', runId, runnerPid: process.pid,
     startedAtUtc, deadlineUtc: new Date(deadline).toISOString(), code, dotnet, powershell, serverDll, serverHash,
-    hostEntry, baseUrl, reservedPorts: [18342, 18343], runtimeRoot, contentRoot, dataRoot, profileRoot,
+    hostEntry, baseUrl, reservedPorts: [18344, 18345], runtimeRoot, contentRoot, dataRoot, profileRoot,
     limits: { runMilliseconds: 600_000, codeMilliseconds: 120_000, commandMilliseconds: 20_000,
       controlRequestMilliseconds: 10_000, readinessAttempts: 120, readinessMilliseconds: 60_000,
       evidenceFiles: maximumFiles, evidenceBytesPerFile: maximumFileBytes, evidenceTotalBytes: maximumTotalBytes },
@@ -88,14 +99,13 @@ try {
   const self = first.find((item) => item.pid === process.pid);
   assert.ok(self?.commandLine && self.created);
   self.parentChain = parentChain(self, first);
-  identities.set(self.pid, self);
-  event({ event: 'runner-start', ...self });
+  acceptIdentity(self, 'runner-start');
   audit(first);
   assert.deepEqual(await listeningPorts(), []);
   await mkdir(runtimeRoot);
   runtimeCreated = true;
   await writeFile(path.join(runtimeRoot, '.wb42-owner.json'), JSON.stringify({ runId, runnerPid: process.pid,
-    runtimeRoot, contentRoot, dataRoot, profileRoot }), { flag: 'wx' });
+    slice: 'WB43', runtimeRoot, contentRoot, dataRoot, profileRoot }), { flag: 'wx' });
   await mkdir(contentRoot);
   await mkdir(path.join(profileRoot, 'User'), { recursive: true });
   await mkdir(path.join(runtimeRoot, 'code-extensions'));
@@ -106,7 +116,7 @@ try {
   await writeFile(path.join(contentRoot, 'appsettings.json'), JSON.stringify({
     Logging: { LogLevel: { Default: 'Warning', 'Microsoft.AspNetCore': 'Warning' } }, AllowedHosts: '127.0.0.1',
     Kestrel: { Endpoints: { Http: { Url: baseUrl, Protocols: 'Http1' },
-      FrameH2: { Url: 'http://127.0.0.1:18343', Protocols: 'Http2' } } },
+      FrameH2: { Url: 'http://127.0.0.1:18345', Protocols: 'Http2' } } },
     SonnetDBServer: { DataRoot: dataRoot, AutoLoadExistingDatabases: true, AllowAnonymousProbes: true, Tokens: {},
       Mqtt: { Enabled: false, Sparkplug: { Enabled: false }, ExternalClient: { Enabled: false } },
       Coap: { Enabled: false, Dtls: { Enabled: false } }, LineProtocolUdp: { Enabled: false },
@@ -118,7 +128,7 @@ try {
     { ...environment, DOTNET_ENVIRONMENT: 'Production', ASPNETCORE_ENVIRONMENT: 'Production' }, 'server');
   auditTimer = setInterval(() => {
     if (pendingAudit || controller.signal.aborted) return;
-    pendingAudit = snapshot().then(audit).catch(() => { primaryFailure = true; controller.abort(new Error('WB42 process audit failed.')); })
+    pendingAudit = snapshot().then(audit).catch(() => { primaryFailure = true; controller.abort(new Error('WB43 process audit failed.')); })
       .finally(() => { pendingAudit = undefined; });
   }, 4_000);
   stage = 'server-readiness';
@@ -131,35 +141,35 @@ try {
     try { const response = await fetch(`${baseUrl}/healthz/ready`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(1_000)]) });
       ready = response.ok; await response.body?.cancel(); } catch { controller.signal.throwIfAborted(); }
     if (ready) break;
-    if (attempt > 0 && attempt % 20 === 0) console.log(`WB42 real Server readiness ${attempt}/120.`);
+    if (attempt > 0 && attempt % 20 === 0) console.log(`WB43 real Server readiness ${attempt}/120.`);
     await delay(500, undefined, { signal: controller.signal });
   }
   assert.equal(ready, true);
 
   stage = 'prepare-real-server';
-  const password = `WB42_${randomBytes(24).toString('hex')}!`;
-  const administratorBearer = `wb42_${randomBytes(32).toString('hex')}`;
+  const password = `WB43_${randomBytes(24).toString('hex')}!`;
+  const administratorBearer = `wb43_${randomBytes(32).toString('hex')}`;
   rememberSecret(password); rememberSecret(administratorBearer);
   const setup = await jsonRequest('GET', '/v1/setup/status');
   assert.equal(setup.needsSetup, true);
   assert.equal(typeof setup.suggestedServerId, 'string');
   const administrator = await jsonRequest('POST', '/v1/setup/initialize', {
-    serverId: setup.suggestedServerId, organization: 'WB42 isolated real Extension Host',
-    username: 'wb42_admin', password, bearerToken: administratorBearer,
+    serverId: setup.suggestedServerId, organization: 'WB43 isolated real Extension Host',
+    username: 'wb43_admin', password, bearerToken: administratorBearer,
   }, undefined, 201);
   assert.equal(administrator.isSuperuser, true);
   assert.equal(typeof administrator.token, 'string');
   rememberSecret(administrator.token);
   await jsonRequest('POST', '/v1/db', { name: database }, administrator.token, 201);
-  await sqlRequest('/v1/sql', `CREATE USER wb42_reader WITH PASSWORD '${password}'`, administrator.token);
-  await sqlRequest('/v1/sql', `GRANT READ ON DATABASE ${database} TO wb42_reader`, administrator.token);
-  const reader = await jsonRequest('POST', '/v1/auth/login', { username: 'wb42_reader', password });
+  await sqlRequest('/v1/sql', `CREATE USER wb43_reader WITH PASSWORD '${password}'`, administrator.token);
+  await sqlRequest('/v1/sql', `GRANT READ ON DATABASE ${database} TO wb43_reader`, administrator.token);
+  const reader = await jsonRequest('POST', '/v1/auth/login', { username: 'wb43_reader', password });
   assert.equal(reader.isSuperuser, false);
   assert.equal(typeof reader.token, 'string');
   rememberSecret(reader.token);
   const sqlPath = `/v1/db/${database}/sql`;
   await sqlRequest(sqlPath, `CREATE TABLE "${table}" ("DeviceID" INT, "MixedCaseName" STRING, PRIMARY KEY ("DeviceID"))`, administrator.token);
-  const seed = [[1, 'WB42:first'], [2, 'WB42:second'], [3, 'WB42:third'], [4, 'WB42:fourth'], [5, 'WB42:fifth']];
+  const seed = [[1, 'WB43:first'], [2, 'WB43:second'], [3, 'WB43:third'], [4, 'WB43:fourth'], [5, 'WB43:fifth']];
   const insert = await sqlRequest(sqlPath, `INSERT INTO "${table}" ("DeviceID", "MixedCaseName") VALUES ${seed.map((row) => `(${row[0]}, '${row[1]}')`).join(', ')}`, administrator.token);
   assert.equal(insert.result.end?.recordsAffected, 5);
   const count = await sqlRequest(sqlPath, `SELECT COUNT(*) FROM "${table}"`, administrator.token);
@@ -182,10 +192,12 @@ try {
     const actual = await sqlRequest(sqlPath, phases[index].sql, administrator.token);
     if (index === 0) assert.deepEqual(actual.result.rows, seed.slice(3));
     if (index === 1) assert.deepEqual(actual.result.rows, [seed[1]]);
-    assert.ok(actual.result.rows.length > 0 && actual.result.rows.length <= 32);
+    assert.ok(actual.result.rows.length > 0 && actual.result.rows.length <= 100);
     references.push({ ...phases[index], result: actual.result, actualReferenceResponse: actual.response });
   }
-  const reference = { schema: 'sonnetdb.wb42.reference.v1', runId, baseUrl, database, label,
+  const reference = { schema: 'sonnetdb.wb42.reference.v1', slice: 'WB43', runId, baseUrl, database, label,
+    previewRequestShape: 'sql-only', previewContract: { requestBodyKeys: ['sql'], previewMaxRowsSent: false, rowLimit: 100,
+      source: 'diagnostic-admission', serverFullResult: true },
     seedCount: 5, columns: ['DeviceID', 'MixedCaseName'], nonSuperuserReadOnly: true, phases: references };
   referenceHash = await evidence('reference.json', reference);
 
@@ -209,68 +221,89 @@ try {
   outcome = 'FAIL';
   failureType = error instanceof Error && ['AssertionError', 'TypeError', 'Error'].includes(error.name) ? error.name : 'unclassified';
   const reasons = new Map([['Owned helper deadline.', 'helper_deadline'], ['Code test deadline.', 'code_deadline'],
-    ['WB42 active run deadline.', 'active_deadline'], ['WB42 process audit failed.', 'process_audit'],
-    ['WB42 cancelled.', 'cancelled'], ['Owned output byte limit exceeded.', 'output_budget']]);
+    ['WB43 active run deadline.', 'active_deadline'], ['WB43 process audit failed.', 'process_audit'],
+    ['WB43 cancelled.', 'cancelled'], ['Owned output byte limit exceeded.', 'output_budget']]);
   knownFailureReason = reasons.get(error instanceof Error ? error.message : '') ?? (failureType === 'AssertionError' ? 'assertion' : 'unclassified');
-  console.error(`WB42 failed during ${stage}; raw error/child output omitted to protect runtime credentials.`);
+  console.error(`WB43 failed during ${stage}; raw error/child output omitted to protect runtime credentials.`);
 } finally {
   clearInterval(auditTimer);
-  if (pendingAudit) await pendingAudit;
+  if (pendingAudit) { try { await pendingAudit; } catch { primaryFailure = true; } }
   stage = primaryFailure ? stage : 'cleanup';
-  try {
-    audit(await snapshot(true));
+  cleanupAttempts.push(...await attemptIndependentSteps([{ name: 'owned-processes', run: async () => {
     const cleanupDeadline = Math.min(deadline - 35_000, Date.now() + 45_000);
     for (let round = 0; round < 3 && Date.now() < cleanupDeadline; round += 1) {
-      const current = await snapshot(true);
-      audit(current);
-      const live = liveOwnedProcessIdentities(current, identities).filter((item) => item.pid !== process.pid)
+      let current;
+      try { current = await snapshot(true); }
+      catch { noteAuditFailure({ stage: 'cleanup-snapshot', reason: 'snapshot_failed' }); }
+      if (current) { try { audit(current); } catch { /* Accepted identities remain available for cleanup. */ } }
+      const live = (current ? safeLiveIdentities(current) : [...identities.values()]).filter((item) => item.pid !== process.pid
+        && !helperStarts.some((helperRecord) => helperRecord.pid === item.pid && helperRecord.closed))
         .sort((left, right) => (right.parentChain?.length ?? 0) - (left.parentChain?.length ?? 0));
       if (live.length === 0) break;
       assert.ok(live.length <= 128);
       for (let index = 0; index < live.length && index < 128; index += 1) {
         assert.ok(Date.now() < cleanupDeadline);
-        await stopVerified(live[index]);
+        try { await stopVerified(live[index]); }
+        catch { noteAuditFailure({ stage: 'stop', pid: live[index].pid, reason: 'ownership_or_verifier_failed_process_preserved' }); }
       }
       await delay(100);
     }
     const final = await snapshot(true);
-    audit(final);
-    const remaining = liveOwnedProcessIdentities(final, identities).filter((item) => item.pid !== process.pid);
-    // Snapshot helpers have exited before their snapshot is returned; verify them separately in the stop helper.
+    try { audit(final); } catch { /* A failed audit must not hide the independently observed terminal processes. */ }
+    const remaining = safeLiveIdentities(final).filter((item) => item.pid !== process.pid);
     const verifiedRemaining = remaining.filter((item) => !helperStarts.some((helper) => helper.pid === item.pid && helper.closed));
     assert.deepEqual(verifiedRemaining, []);
-    assert.deepEqual(await listeningPorts(), []);
-    assert.ok(helperStarts.every((helperRecord) => helperRecord.closed && helperRecord.identityRecorded));
+    assert.ok(roots.every((root) => root.identity));
+    assert.equal(auditFailureOverflow || auditFailures.some((failure) => failure.stage !== 'event'), false);
     processCleanupProven = true;
+  } }, { name: 'reserved-ports', run: async () => {
+    assert.deepEqual(await listeningPorts(), []); portsReleased = true;
+  } }, { name: 'helper-handles', run: async () => {
+    assert.ok(helperStarts.every((helperRecord) => helperRecord.closed && helperRecord.identityRecorded));
+    helperCleanupProven = true;
+  } }, { name: 'owned-runtime', run: async () => {
+    assert.equal(processCleanupProven && portsReleased && helperCleanupProven, true);
     if (runtimeCreated) { await removeRuntime(); runtimeRemoved = true; }
     else runtimeRemoved = true;
-  } catch {
-    outcome = 'FAIL';
-    console.error('WB42 cleanup unproven; task runtime preserved and root ownership audit is required.');
-  }
+  } }, { name: 'bounded-output-hashes', run: finishOutputs }], { deadline: deadline - 15_000, maximumSteps: 5 }));
   clearTimeout(timeout);
   process.removeListener('SIGINT', cancel);
   process.removeListener('SIGTERM', cancel);
   finishedAtUtc = new Date().toISOString();
-  if (primaryFailure || !processCleanupProven || !runtimeRemoved) outcome = 'FAIL';
-  try {
-    await evidence('process-events.json', { schema: 'sonnetdb.wb42.process-events.v1', runId, events,
+  if (primaryFailure || auditFailureOverflow || auditFailures.length || cleanupAttempts.some((attempt) => !attempt.ok)
+    || !processCleanupProven || !runtimeRemoved || !outputComplete || !helperCleanupProven || !portsReleased) outcome = 'FAIL';
+  const terminalSteps = [{ name: 'process-events.json', run: async () => {
+    await evidence('process-events.json', { schema: 'sonnetdb.wb42.process-events.v1', slice: 'WB43', runId, events,
+      acceptedIdentities: [...identities.values()], auditFailures, auditFailureCount, auditFailureOverflow, identityLedgerIsAuthoritative: true,
+      ownershipAnchorPid: process.pid, externalAncestorsDiagnosticOnly: true,
       trackedIdentities: identities.size, helperStarts: helperStarts.map(({ pid, startedAtUtc: time, closed, identityRecorded }) => ({ pid, startedAtUtc: time, closed, identityRecorded })),
       snapshots, helpers, finishedAtUtc });
-    await evidence('child-output.json', { schema: 'sonnetdb.wb42.child-output.v1', runId, streams: outputSummaries,
+  } }, { name: 'child-output.json', run: async () => {
+    await evidence('child-output.json', { schema: 'sonnetdb.wb42.child-output.v1', slice: 'WB43', runId, streams: outputSummaries,
+      helperStreams: helperOutputSummaries, outputComplete,
       rawOutputRetained: false, reason: 'Only byte counts/hashes are retained; output can contain runtime credentials.' });
-    await evidence('cleanup.json', { schema: 'sonnetdb.wb42.cleanup.v1', runId, processCleanupProven,
-      runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18342, 18343], finishedAtUtc });
-    await evidence('result.json', { schema: 'sonnetdb.wb42.result.v1', runId, outcome, primaryFailure, stoppedAtStage: stage,
+  } }, { name: 'cleanup.json', run: async () => {
+    await evidence('cleanup.json', { schema: 'sonnetdb.wb42.cleanup.v1', slice: 'WB43', runId, processCleanupProven,
+      runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18344, 18345], portsReleased, helperCleanupProven, outputComplete, attempts: cleanupAttempts, finishedAtUtc });
+  } }, { name: 'result.json', run: async () => {
+    await evidence('result.json', { schema: 'sonnetdb.wb42.result.v1', slice: 'WB43', runId, outcome, primaryFailure, stoppedAtStage: stage,
       failureType, knownFailureReason, lastControlRequest,
-      codeExit, hostOutcome, referenceHash, serverHash, processCleanupProven, runtimeRemoved, startedAtUtc, finishedAtUtc });
-    await manifest();
-  } catch {
-    outcome = 'FAIL';
-    console.error('WB42 terminal evidence validation failed; inspect the named run root without assuming cleanup PASS.');
+      codeExit, normalCodeExitVerified: codeExit?.code === 0 && codeExit?.signal === null, hostOutcome, referenceHash, serverHash,
+      processCleanupProven, runtimeRemoved, portsReleased, helperCleanupProven, outputComplete,
+      terminalEvidenceRequiresStatus: true, startedAtUtc, finishedAtUtc });
+  } }, { name: 'manifest.json', run: manifest }];
+  // Each writer has an independent attempt; no failed detail writer can suppress cleanup/result.
+  for (let index = 0; index < terminalSteps.length && index < 5; index += 1) {
+    const attempts = await attemptIndependentSteps([terminalSteps[index]], { deadline: deadline - 5_000, maximumSteps: 1 });
+    terminalAttempts.push(...attempts);
+    if (attempts.some((attempt) => !attempt.ok)) outcome = 'FAIL';
   }
+  try { await evidence('terminal-status.json', { schema: 'sonnetdb.wb42.terminal-status.v1', slice: 'WB43', runId,
+    outcome, attempts: terminalAttempts, manifestSha256: await existingHash('manifest.json'),
+    resultSha256: await existingHash('result.json'), statusExcludedFromManifest: true, finishedAtUtc }); }
+  catch { outcome = 'FAIL'; console.error('WB43 final status write failed; terminal evidence is incomplete.'); }
   process.exitCode = outcome === 'PASS' ? 0 : 1;
-  console.log(`WB42 ${outcome}: ${runRoot}`);
+  console.log(`WB43 ${outcome}: ${runRoot}`);
 }
 
 function hash(value) { return createHash('sha256').update(value).digest('hex').toUpperCase(); }
@@ -286,14 +319,42 @@ function safeText(text) {
   assert.equal(/Bearer\s+[A-Za-z0-9._~+/=-]{16,}/iu.test(text), false);
 }
 async function evidence(name, value) {
-  assert.match(name, /^(run|reference|process-events|child-output|cleanup|result|manifest)\.json$/u);
+  assert.match(name, /^(run|reference|process-events|child-output|cleanup|result|manifest|terminal-status)\.json$/u);
   const text = `${JSON.stringify(value, null, 2)}\n`; safeText(text);
   const size = Buffer.byteLength(text);
   assert.ok(size <= maximumFileBytes && ++filesWritten <= maximumFiles && (bytesWritten += size) <= maximumTotalBytes);
   await writeFile(path.join(runRoot, name), text, { flag: 'wx' });
   return hash(text);
 }
-function event(value) { assert.ok(events.length < 256); safeText(JSON.stringify(value)); events.push({ atUtc: new Date().toISOString(), ...value }); }
+function event(value) {
+  assert.ok(events.length < 256); safeText(JSON.stringify(value));
+  const projected = identities.has(value.pid) && Array.isArray(value.parentChain) ? { ...value,
+    parentChain: value.parentChain.map(({ pid, parentPid, created, unavailable }) => ({ pid, parentPid, created, ...(unavailable ? { unavailable } : {}) })),
+    parentChainSource: 'accepted-identities-ledger', parentChainLedgerPid: value.pid } : value;
+  const next = { atUtc: new Date().toISOString(), ...projected };
+  assert.ok(Buffer.byteLength(JSON.stringify([...events, next], null, 2)) <= 192 * 1024);
+  events.push(next);
+}
+function validateLedger(identity, ledger) {
+  const next = new Map(ledger); next.set(identity.pid, identity);
+  assert.ok(Buffer.byteLength(JSON.stringify([...next.values()], null, 2)) <= 256 * 1024);
+}
+function noteAuditFailure(value) {
+  primaryFailure = true;
+  auditFailureCount += 1;
+  if (auditFailures.length < 128) auditFailures.push({ atUtc: new Date().toISOString(), ...value });
+  else auditFailureOverflow = true;
+}
+function acceptIdentity(identity, eventName, extra = {}) {
+  try {
+    return acceptOwnedIdentity(identity, identities, { ownerPid: process.pid, validateText: safeText, validateLedger,
+      eventName, recordEvent: (value) => event({ ...value, ...extra }) });
+  } catch (error) {
+    noteAuditFailure({ stage: identities.has(identity.pid) ? 'event' : 'identity', pid: identity.pid,
+      reason: identities.has(identity.pid) ? 'secondary_event_failed' : 'incomplete_or_unsafe_identity_preserved' });
+    throw error;
+  }
+}
 function isolatedEnvironment() {
   const environment = { ...process.env }; const names = Object.keys(environment); const expires = Date.now() + 1_000;
   assert.ok(names.length <= 2048);
@@ -315,13 +376,26 @@ function parentChain(identity, snapshotValue) {
   return chain;
 }
 function audit(snapshotValue) {
-  const before = new Set(identities.keys());
-  discoverOwnedProcessIdentities(snapshotValue, identities, roots);
-  for (const item of identities.values()) {
-    if (before.has(item.pid)) continue;
-    assert.ok(item.commandLine && item.created && item.parentChain?.length);
-    event({ event: 'owned-descendant', ...item });
+  const failures = captureOwnedSnapshot(snapshotValue, identities, roots, { discover: discoverOwnedProcessIdentities,
+    ownerPid: process.pid, validateText: safeText, validateLedger, recordEvent: event });
+  for (let index = 0; index < failures.length && index < 128; index += 1) noteAuditFailure(failures[index]);
+  if (failures.length) throw new Error('WB43 process audit failed.');
+}
+function safeLiveIdentities(snapshotValue) {
+  assert.ok(snapshotValue.length <= 4096 && identities.size <= 128);
+  const live = []; const expires = Date.now() + 3_000;
+  let count = 0;
+  for (const identity of identities.values()) {
+    assert.ok(++count <= 128 && Date.now() < expires);
+    const current = snapshotValue.find((item) => item.pid === identity.pid);
+    if (!current) continue;
+    if (current.created !== identity.created || current.parentPid !== identity.parentPid || current.commandLine !== identity.commandLine) {
+      noteAuditFailure({ stage: 'identity', pid: identity.pid, reason: 'recorded_identity_changed_replacement_preserved' });
+      continue;
+    }
+    live.push(identity);
   }
+  return live;
 }
 async function start(executable, args, environment, role) {
   controller.signal.throwIfAborted(); assert.ok(roots.length < 2);
@@ -331,21 +405,35 @@ async function start(executable, args, environment, role) {
   child.once('exit', () => { record.exitedAtUtc = new Date().toISOString(); });
   for (const [streamName, stream] of [['stdout', child.stdout], ['stderr', child.stderr]]) {
     const digest = createHash('sha256'); let bytes = 0; let hashedBytes = 0; let overflow = false;
-    stream.on('data', (chunk) => {
+    const output = { role, stream: streamName, handle: stream, ended: false, closed: false, failed: false, finalized: false };
+    const onData = (chunk) => {
+      if (output.finalized) return;
       bytes += chunk.length;
       const kept = chunk.subarray(0, Math.max(0, maximumFileBytes - hashedBytes));
       digest.update(kept); hashedBytes += kept.length;
       if (bytes > maximumFileBytes) { overflow = true; primaryFailure = true; controller.abort(new Error('Owned output byte limit exceeded.')); }
-    });
-    stream.once('end', () => outputSummaries.push({ role, stream: streamName, bytes, hashedBytes, overflow, sha256OfBoundedOutput: digest.digest('hex').toUpperCase() }));
+    };
+    stream.on('data', onData);
+    stream.once('end', () => { output.ended = true; });
+    stream.once('close', () => { output.closed = true; });
+    stream.once('error', () => { output.failed = true; primaryFailure = true; });
+    output.finalize = () => {
+      if (output.finalized) return;
+      output.finalized = true; stream.removeListener('data', onData);
+      const complete = output.ended && !output.failed && !overflow;
+      outputSummaries.push({ role, stream: streamName, bytes, hashedBytes, overflow, ended: output.ended,
+        closed: output.closed, complete, hashScope: complete ? 'complete-output' : 'bounded-observed-prefix',
+        sha256OfBoundedOutput: digest.digest('hex').toUpperCase() });
+      stream.destroy();
+    };
+    outputRecords.push(output);
   }
   await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
   const current = await snapshot();
   const identity = current.find((item) => item.pid === record.pid);
   assert.ok(identity?.commandLine && identity.parentPid === process.pid);
   identity.parentChain = parentChain(identity, current);
-  record.identity = identity; identities.set(identity.pid, identity);
-  event({ event: 'owned-root-start', role, ...identity, command: [executable, ...args] });
+  record.identity = acceptIdentity(identity, 'owned-root-start', { role, command: [executable, ...args] });
   audit(current);
   return record;
 }
@@ -377,21 +465,40 @@ async function jsonRequest(method, route, data, bearer, expectedStatus = 200) {
 async function sqlRequest(route, sql, bearer) {
   lastControlRequest = { method: 'POST', route, status: null };
   const response = await fetch(`${baseUrl}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-    body: JSON.stringify({ sql, previewMaxRows: 32 }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]) });
+    body: JSON.stringify({ sql }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]) });
   lastControlRequest.status = response.status;
   assert.equal(response.status, 200); const contentType = response.headers.get('content-type'); assert.ok(contentType?.includes('ndjson'));
   const raw = await response.text(); assert.ok(Buffer.byteLength(raw) <= maximumFileBytes);
-  const lines = raw.trim().split(/\r?\n/u); assert.ok(lines.length <= 64);
+  const lines = raw.trim().split(/\r?\n/u); assert.ok(lines.length <= 128); const parseDeadline = Date.now() + 2_000;
   const result = { columns: [], rows: [], end: null, error: null, hasColumns: false }; let ends = 0;
-  for (let index = 0; index < lines.length && index < 64; index += 1) {
+  for (let index = 0; index < lines.length && index < 128; index += 1) {
+    assert.ok(Date.now() < parseDeadline);
     const frame = JSON.parse(lines[index]);
     if (Array.isArray(frame)) result.rows.push(frame);
     else if (frame.type === 'meta') { result.columns = frame.columns; result.hasColumns = true; }
     else if (frame.type === 'end') { result.end = frame; ends += 1; }
     else if (frame.type === 'error') result.error = frame;
   }
-  assert.equal(result.error, null); assert.equal(ends, 1);
-  return { result, response: { status: response.status, contentType, bytes: Buffer.byteLength(raw), sha256: hash(raw), frames: lines.map((line) => JSON.parse(line)) } };
+  assert.equal(result.error, null); assert.equal(ends, 1); assert.ok(result.rows.length <= 100);
+  return { result, response: { status: response.status, contentType, bytes: Buffer.byteLength(raw), sha256: hash(raw),
+    requestBody: { sql }, previewRequestShape: 'sql-only', frames: lines.map((line) => JSON.parse(line)) } };
+}
+async function finishOutputs() {
+  const expires = Math.min(deadline - 15_000, Date.now() + 10_000);
+  for (let attempt = 0; attempt < 100 && Date.now() < expires; attempt += 1) {
+    if (outputRecords.every((record) => record.ended || record.closed || record.failed)) break;
+    await delay(100);
+  }
+  for (let index = 0; index < outputRecords.length && index < 4; index += 1) outputRecords[index].finalize();
+  for (let index = 0; index < roots.length && index < 2; index += 1) roots[index].child.unref();
+  outputComplete = outputRecords.length === roots.length * 2 && outputSummaries.length === outputRecords.length
+    && outputSummaries.every((summary) => summary.complete) && helperOutputSummaries.length === helperStarts.length * 2
+    && helperOutputSummaries.every((summary) => summary.complete);
+  assert.equal(outputComplete, true);
+}
+async function existingHash(name) {
+  try { const raw = await readFile(path.join(runRoot, name)); assert.ok(raw.length <= maximumFileBytes); return hash(raw); }
+  catch { return null; }
 }
 
 async function snapshot(final = false) {
@@ -417,7 +524,7 @@ ConvertTo-Json -InputObject ($taskRecords.ToArray()) -Compress -Depth 4`;
 async function listeningPorts() {
   return await helper(`$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
-$taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18342,18343) } | Select-Object -First 5 -ExpandProperty LocalPort)
+$taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18344,18345) } | Select-Object -First 5 -ExpandProperty LocalPort)
 ConvertTo-Json -InputObject $taskPorts -Compress`);
 }
 async function helper(script, input) {
@@ -454,6 +561,26 @@ ${script}`;
   helperStarts.push(record);
   if (input) child.stdin.end(`${JSON.stringify(input)}\n`); else child.stdin.end();
   let output = ''; let exceeded = false; let identity;
+  const helperStreams = [];
+  for (const [streamName, stream] of [['stdout', child.stdout], ['stderr', child.stderr]]) {
+    const digest = createHash('sha256'); let bytes = 0; let hashedBytes = 0; let ended = false; let failed = false;
+    const cap = 4 * 1024 * 1024;
+    const onData = (chunk) => {
+      bytes += chunk.length;
+      const kept = chunk.subarray(0, Math.max(0, cap - hashedBytes)); digest.update(kept); hashedBytes += kept.length;
+      if (bytes > cap) exceeded = true;
+    };
+    stream.on('data', onData);
+    stream.once('end', () => { ended = true; });
+    stream.once('error', () => { failed = true; });
+    helperStreams.push(() => {
+      stream.removeListener('data', onData);
+      helperOutputSummaries.push({ role: 'helper', pid: record.pid, stream: streamName, bytes, hashedBytes,
+        complete: ended && !failed && bytes <= cap, hashScope: ended && !failed && bytes <= cap ? 'complete-output' : 'bounded-observed-prefix',
+        sha256OfBoundedOutput: digest.digest('hex').toUpperCase() });
+      stream.destroy();
+    });
+  }
   child.stdout.on('data', (chunk) => {
     if (Buffer.byteLength(output) + chunk.length > 4 * 1024 * 1024) { exceeded = true; return; }
     output += chunk.toString('utf8');
@@ -462,11 +589,13 @@ ${script}`;
         identity = JSON.parse(output.slice(0, output.indexOf('\n')).trim());
         assert.equal(identity.pid, record.pid); assert.equal(identity.parentPid, process.pid); assert.ok(identity.commandLine && identity.created);
         assert.ok(identity.parentChain?.length && identity.parentChain[0].pid === process.pid && identity.parentChain[0].commandLine);
-        const previous = identities.get(identity.pid);
-        assert.ok(!previous || previous.created === identity.created, 'A reused PID must not replace an owned identity.');
-        identities.set(identity.pid, identity); record.identityRecorded = true;
-        event({ event: 'owned-helper-start', ...identity });
-      } catch { exceeded = true; }
+        acceptIdentity(identity, 'owned-helper-start'); record.identityRecorded = true;
+      } catch {
+        const accepted = identities.get(record.pid);
+        record.identityRecorded = Boolean(accepted && accepted.pid === identity?.pid && accepted.created === identity.created
+          && accepted.parentPid === identity.parentPid && accepted.commandLine === identity.commandLine);
+        exceeded = true;
+      }
     }
   });
   child.stderr.resume();
@@ -480,26 +609,34 @@ ${script}`;
     assert.equal(terminal.exitCode, 0); assert.equal(terminal.signal, null); assert.equal(exceeded, false); assert.ok(record.identityRecorded);
     const end = output.indexOf('\n'); const body = output.slice(end + 1).trim();
     return body ? JSON.parse(body) : null;
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+    for (let index = 0; index < helperStreams.length && index < 2; index += 1) helperStreams[index]();
+    child.stdin.destroy();
+    if (!record.closed) child.unref();
+  }
 }
 async function stopVerified(identity) {
-  assert.ok(identity.commandLine && identity.created && identity.parentChain?.length);
-  const result = await helper(`$taskExpected = [Console]::In.ReadLine() | ConvertFrom-Json
+  validateOwnedIdentity(identity, process.pid);
+  const result = await helper(`$taskExpected = [Console]::In.ReadLine() | ConvertFrom-Json -DateKind String
 $taskCurrent = $taskHelperLookup[[int]$taskExpected.pid]
 if ($null -eq $taskCurrent) { ConvertTo-Json -InputObject @{exited=$true} -Compress; exit 0 }
 if ($taskCurrent.CreationDate.ToUniversalTime().ToString('O') -ne $taskExpected.created -or
  $taskCurrent.CommandLine -cne $taskExpected.commandLine -or [int]$taskCurrent.ParentProcessId -ne [int]$taskExpected.parentPid) { throw 'Ownership changed; preserve process.' }
+if ([int]$taskExpected.ownershipAnchorPid -ne [int]$taskSelf.ParentProcessId) { throw 'Ownership anchor changed; preserve process.' }
 $taskParentDeadline = [DateTime]::UtcNow.AddSeconds(2)
 if (@($taskExpected.parentChain).Count -gt 12) { throw 'Stop parent-chain count exceeded.' }
 foreach ($taskParentIdentity in @($taskExpected.parentChain)) {
  if ([DateTime]::UtcNow -ge $taskParentDeadline) { throw 'Stop parent-chain wall clock exceeded.' }
  if ($taskParentIdentity.unavailable) { break }
  $taskLiveParent = $taskHelperLookup[[int]$taskParentIdentity.pid]
+ if ([int]$taskParentIdentity.pid -eq [int]$taskExpected.ownershipAnchorPid -and $null -eq $taskLiveParent) { throw 'Live ownership anchor missing; preserve process.' }
  if ($null -ne $taskLiveParent -and ($taskLiveParent.CreationDate.ToUniversalTime().ToString('O') -ne $taskParentIdentity.created -or $taskLiveParent.CommandLine -cne $taskParentIdentity.commandLine -or [int]$taskLiveParent.ParentProcessId -ne [int]$taskParentIdentity.parentPid)) { throw 'Parent identity changed; preserve process.' }
+ if ([int]$taskParentIdentity.pid -eq [int]$taskExpected.ownershipAnchorPid) { break }
 }
 if ([int]$taskExpected.pid -eq $PID) { throw 'Cannot stop verifier.' }
 Stop-Process -Id ([int]$taskExpected.pid) -Force -ErrorAction Stop
-ConvertTo-Json -InputObject @{stopped=$true} -Compress`, identity);
+ConvertTo-Json -InputObject @{stopped=$true} -Compress`, { ...identity, ownershipAnchorPid: process.pid });
   assert.ok(result.exited || result.stopped);
   event({ event: 'owned-process-stop', ...identity, alreadyExited: Boolean(result.exited) });
 }
@@ -509,7 +646,7 @@ async function removeRuntime() {
   assert.equal(path.dirname(resolved).toLowerCase(), runRoot.toLowerCase());
   assert.equal((await lstat(runtimeRoot)).isSymbolicLink(), false);
   const marker = JSON.parse(await readFile(path.join(runtimeRoot, '.wb42-owner.json'), 'utf8'));
-  assert.deepEqual(marker, { runId, runnerPid: process.pid, runtimeRoot, contentRoot, dataRoot, profileRoot });
+  assert.deepEqual(marker, { runId, runnerPid: process.pid, slice: 'WB43', runtimeRoot, contentRoot, dataRoot, profileRoot });
   const pending = [{ directory: resolved, depth: 0 }];
   const objects = []; const removeDeadline = Math.min(deadline - 5_000, Date.now() + 30_000);
   // Inventory first: no deletion starts if path, symlink, count or traversal bounds cannot be proved.
@@ -544,12 +681,14 @@ async function manifest() {
   for (let index = 0; index < entries.length && index < maximumFiles; index += 1) {
     assert.ok(Date.now() < expires); const entry = entries[index];
     if (entry.name === 'runtime') { assert.equal(runtimeRemoved, false); continue; }
-    assert.ok(entry.isFile() && /^(run|reference|phase-[1-3]|history|host-result|process-events|child-output|cleanup|result)\.json$/u.test(entry.name));
+    if (entry.name === 'terminal-status.json') continue;
+    assert.ok(entry.isFile() && /^(run|reference|phase-[1-3]|observation-[1-3]|failure-observation|history|host-result|process-events|child-output|cleanup|result)\.json$/u.test(entry.name));
     const raw = await readFile(path.join(runRoot, entry.name)); assert.ok(raw.length <= maximumFileBytes); safeText(raw.toString('utf8'));
     total += raw.length; assert.ok(total <= maximumTotalBytes);
     records.push({ file: entry.name, bytes: raw.length, sha256: hash(raw) });
   }
   assert.ok(records.length < maximumFiles);
-  await evidence('manifest.json', { schema: 'sonnetdb.wb42.manifest.v1', runId, files: records,
+  await evidence('manifest.json', { schema: 'sonnetdb.wb42.manifest.v1', slice: 'WB43', runId, files: records,
+    excludedTerminalFiles: ['manifest.json', 'terminal-status.json'],
     totalBytesWithoutManifest: total, maximumFiles, maximumFileBytes, maximumTotalBytes });
 }

@@ -2,6 +2,20 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-43 合同与文件冻结（2026-10-07；三条真实数据已核，完整旅程仍失败）
+
+- 基线 `35e16c50`；完整四文档receipt与WB42最终tree对拍，git/路线图/提交/旧完成代理核对。只修partial discovery日志/finally独立回收、reference与生产sql-only预览合同及Host严格比较前的安全观察，不改生产query.maxRows、命令或shared helpers。WB42原两失败/耗尽预算/integration exit1保持。
+- Runner代理独占existing `extensions/sonnetdb-vscode/scripts/run-query-host-real.mjs`及new `query-host-evidence.mjs`/`.test.mjs`；Host代理仅existing `src/test/host/query-real.ts`；第三代理独立只读。根六docs/长验证/gates/git串行，共十任务文件。先故障注入与最终语法/TS/复核，再最多2新actual验证三个SQL命令、公开history与正常Code退出；各层PASS不相互升级。
+- 新根 `artifacts/wb43-validation-20261007` 至01:05Z/14wrapper/2actual/1TS项目/0新.NET构建；runner00:34Z/20短shell/24源/20rg，host00:29Z/14shell/18源/12rg，review00:58Z/20shell/30源/15rg；短读30秒/rg60匹配15秒。真实端口18344/18345、Workbench43、五seed，固定已有Code/Node/dotnet与Serverhash。schemas兼容wb42.v1加sliceWB43；reference仅{sql}默认完整响应，验收100行只属本片小语料，不计产品分页/预算。
+- 原600秒run/120秒Code/510秒active/90秒cleanup、snapshot80/4096项、24文件/512KiB/8MiB/wx/凭据门禁保持；partial完整安全身份可追溯，changed/missing身份保留并FAIL，其它核验目标独立回收；terminal/detail写失败也继续cleanup/result尝试，末terminal-status记录失败不改旧证据。Host最多9文件/4MiB，observation1～3与failure-observation使用固定check/安全projection，phase只在严格比较通过后计完成。
+- PowerShell7、禁Graphify/广域扫描/未授权安装；次数/墙钟/微输入比较/归属进程完整身份父链/finally回收/绝对临时路径与policy不绕过均保持。Foreign/footer/博客/oschina/parity与旧拒删目录不stage、不碰；根最终十文件完整restore/原format/hash通过才本地commit，无push/发布/部署/外部沟通。旧三宿主与WB41阻断分别继续，唯一heartbeat ACTIVE30分钟，本片不启动下一片。
+
+- 最终四诊断源/六docs共十文件；Host/runner/evidence/tests SHA与证据freeze绑定，生产/legacy/shared helpers不改。同一TS compile、最终syntax/嵌入PS7 AST、纯内存9/9及既有Node20/20零skip通过；root syntax提取器旧参数selector失败修后通过，失败记录保留。
+- 两actual均保留FAIL，不第三跑。首preflight四helper closed但identity未捕获、Server/Code/runtime未创建；精确微输入定位外部祖先缺command，最小修连续完整父链至仍存活exact Node anchor，外部祖先诊断/自身不stop。第二63秒实跑三phase current2/selection1/EXPLAIN45逐值与sql-only真实reference一致、POST200；三比较前安全observation保持NOT_RUN，三phase才是严格比较通过证据，100行只属诊断准入。
+- 第二完整旅程FAIL/process_audit，ledger35/events44、59 failures、45helper closed但29身份缺；接近256KiB ledger仅候选。history/host-result缺、API恢复/正常Code退出未证；四cleanup false/输出hash true。五terminal与末FAIL status、manifest12项519651字节/总14文件均核验，4child+90helper完整stream hash保留；不计向导/DOM/分页或唯一根因。
+- 根wrapper归属回收后fresh65 PID/run-associated无存活、两port可bind，canonical owner marker/4096对象/depth16/15秒inventory与30秒一次逐项删除281对象；root-failure-acceptance与55完整记录审计独立绑定原FAIL及源码/manifest/status，原false保持。适配器仅允许两个exact失败run；初根freeze selector错误保留修正记录，未知failure/live/runtime/unclosed仍拒绝。完整restore/原format及最终十文件hash/白名单diff为本地commit放行条件，实际见final-gates/commit-checkpoint/postaudit。
+- 下一片先有界定位ledger准入/固定合并reason，再补history/API恢复/正常Code退出。生产maxRows、真实向导/分页/Notebook/LSP与WB41 OS窗口条件另验；三宿主仍未闭环，旧任务/唯一ACTIVE30分钟heartbeat继续，不迁移/暂停、不触碰foreign或旧policy目录。
+
 ### WB-42 合同与文件冻结（2026-10-07；两条真实数据证据，完整旅程失败待续）
 
 - 依赖现有Remote-first、M32/M34与WB14/16，从实际 `38c6f688` 接续，完整receipt/fresh hashes与git/路线图/既有提交/完成代理核对。inventory有界只读10短shell后停止，无进程/temp；现有真实Host只证激活/注册/导航和轻量语言，HTTP mock/LSP假sidecar不替代真实Server，不重做已实现命令。
