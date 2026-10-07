@@ -10,21 +10,84 @@ const rejectionReasons = new Map([
     'unsafe_event_text_preserved', 'event_identity_reference_mismatch'])],
 ]);
 
-/** Create a rejection containing only a fixed safe stage and reason. */
-export function identityEvidenceRejection(stage, reason) {
+// Each validation check has a fixed field and completeness label. Candidate text is never part of this contract.
+const identityChecks = new Map([
+  ['owner_pid_invalid', ['ownerPid', 'invalid_pid']],
+  ['identity_missing', ['identity', 'missing_identity']],
+  ['identity_pid_invalid', ['pid', 'invalid_pid']],
+  ['identity_parent_pid_invalid', ['parentPid', 'invalid_pid']],
+  ['identity_created_missing', ['created', 'missing_creation']],
+  ['identity_created_invalid', ['created', 'invalid_creation']],
+  ['identity_command_missing', ['commandLine', 'missing_command']],
+  ['identity_command_invalid', ['commandLine', 'invalid_command']],
+  ['identity_command_empty', ['commandLine', 'missing_command']],
+  ['identity_command_length_exceeded', ['commandLine', 'over_limit']],
+  ['parent_chain_missing', ['parentChain', 'missing_chain']],
+  ['parent_chain_length_exceeded', ['parentChain', 'over_limit']],
+  ['parent_chain_empty', ['parentChain', 'missing_anchor']],
+  ['parent_chain_deadline', ['parentChain', 'deadline']],
+  ['parent_identity_missing', ['parentChain.identity', 'missing_identity']],
+  ['parent_chain_discontinuous', ['parentChain.pid', 'discontinuous_chain']],
+  ['parent_chain_cycle', ['parentChain.pid', 'cyclic_chain']],
+  ['parent_unavailable_not_terminal', ['parentChain.unavailable', 'unavailable_parent']],
+  ['parent_parent_pid_invalid', ['parentChain.parentPid', 'invalid_pid']],
+  ['parent_created_missing', ['parentChain.created', 'missing_creation']],
+  ['parent_created_invalid', ['parentChain.created', 'invalid_creation']],
+  ['parent_command_missing', ['parentChain.commandLine', 'missing_command']],
+  ['parent_command_invalid', ['parentChain.commandLine', 'invalid_command']],
+  ['parent_command_empty', ['parentChain.commandLine', 'missing_command']],
+  ['parent_command_length_exceeded', ['parentChain.commandLine', 'over_limit']],
+  ['parent_created_after_identity', ['parentChain.created', 'invalid_chronology']],
+  ['ownership_anchor_not_reached', ['ownershipAnchorPid', 'missing_anchor']],
+  ['ownership_anchor_tuple_mismatch', ['ownershipAnchorIdentity', 'changed_anchor']],
+  ['ownership_scan_count_exceeded', ['acceptedIdentities', 'over_limit']],
+  ['ownership_scan_deadline', ['acceptedIdentities', 'deadline']],
+]);
+
+function safePid(value, allowZero = false) {
+  return Number.isSafeInteger(value) && value >= (allowZero ? 0 : 1) && value <= 0xffffffff ? value : null;
+}
+
+function safeIdentityDiagnostic(value) {
+  try {
+    const subreason = value?.subreason; const check = identityChecks.get(subreason);
+    if (!check || value.failedField !== check[0] || value.completeness !== check[1]) return {};
+    const structure = value.structure; const chainIndex = value.chainIndex; const parentChainCount = structure?.parentChainCount;
+    return { subreason, failedField: check[0], completeness: check[1],
+      chainIndex: Number.isSafeInteger(chainIndex) && chainIndex >= 0 && chainIndex < 12 ? chainIndex : null,
+      structure: { candidatePid: safePid(structure?.candidatePid), candidateParentPid: safePid(structure?.candidateParentPid, true),
+        ownerPid: safePid(structure?.ownerPid),
+        parentChainCount: Number.isSafeInteger(parentChainCount) && parentChainCount >= 0 && parentChainCount <= 4096 ? parentChainCount : null,
+        expectedParentPid: safePid(structure?.expectedParentPid, true), observedParentPid: safePid(structure?.observedParentPid) } };
+  } catch { return {}; }
+}
+
+function rejectIdentityCheck(subreason, identity, ownerPid, chainIndex = null, expectedParentPid = null, observedParentPid = null) {
+  const [failedField, completeness] = identityChecks.get(subreason);
+  throw identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', {
+    subreason, failedField, completeness, chainIndex,
+    structure: { candidatePid: identity?.pid, candidateParentPid: identity?.parentPid, ownerPid,
+      parentChainCount: Array.isArray(identity?.parentChain) ? identity.parentChain.length : null, expectedParentPid, observedParentPid },
+  });
+}
+
+/** Create a rejection containing only fixed safe labels and bounded numeric structure. */
+export function identityEvidenceRejection(stage, reason, diagnostic) {
   assert.ok(rejectionReasons.get(stage)?.has(reason));
   const error = new Error('Owned identity evidence rejected.');
   error.name = 'OwnedIdentityEvidenceError';
-  error.identityEvidenceFailure = { stage, reason };
+  error.identityEvidenceFailure = { stage, reason, ...(stage === 'identity' ? safeIdentityDiagnostic(diagnostic) : {}) };
   return error;
 }
 
 /** Project failures without retaining raw error messages or unsafe identity text. */
 export function ownedIdentityFailure(error, pid) {
-  const detail = error?.identityEvidenceFailure;
-  const failure = rejectionReasons.get(detail?.stage)?.has(detail?.reason) ? detail
-    : { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved' };
-  return { stage: failure.stage, pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null, reason: failure.reason };
+  const fallback = { stage: 'identity', pid: safePid(pid), reason: 'incomplete_or_unsafe_identity_preserved' };
+  try {
+    const detail = error?.identityEvidenceFailure; const stage = detail?.stage; const reason = detail?.reason;
+    if (!rejectionReasons.get(stage)?.has(reason)) return fallback;
+    return { stage, pid: safePid(pid), reason, ...(stage === 'identity' ? safeIdentityDiagnostic(detail) : {}) };
+  } catch { return fallback; }
 }
 
 function sameTuple(left, right) {
@@ -33,45 +96,59 @@ function sameTuple(left, right) {
 }
 
 /** Validate complete process identity before accepting it into the cleanup ledger. */
-export function validateOwnedIdentity(identity, ownerPid) {
-  assert.ok(Number.isSafeInteger(ownerPid) && ownerPid > 0);
-  assert.ok(identity && Number.isSafeInteger(identity.pid) && identity.pid > 0);
-  assert.ok(Number.isSafeInteger(identity.parentPid) && identity.parentPid >= 0);
-  assert.ok(typeof identity.created === 'string' && Number.isFinite(Date.parse(identity.created)));
-  assert.ok(typeof identity.commandLine === 'string' && identity.commandLine.length > 0 && identity.commandLine.length <= 131072);
-  assert.ok(Array.isArray(identity.parentChain) && identity.parentChain.length <= 12
-    && (identity.pid === ownerPid || identity.parentChain.length > 0));
+export function validateOwnedIdentity(identity, ownerPid, { clock = Date.now } = {}) {
+  const reject = (check, index, expected, observed) => rejectIdentityCheck(check, identity, ownerPid, index, expected, observed);
+  if (!(Number.isSafeInteger(ownerPid) && ownerPid > 0)) reject('owner_pid_invalid');
+  if (!identity) reject('identity_missing');
+  if (!(Number.isSafeInteger(identity.pid) && identity.pid > 0)) reject('identity_pid_invalid');
+  if (!(Number.isSafeInteger(identity.parentPid) && identity.parentPid >= 0)) reject('identity_parent_pid_invalid');
+  if (identity.created === null || identity.created === undefined) reject('identity_created_missing');
+  if (!(typeof identity.created === 'string' && Number.isFinite(Date.parse(identity.created)))) reject('identity_created_invalid');
+  if (identity.commandLine === null || identity.commandLine === undefined) reject('identity_command_missing');
+  if (typeof identity.commandLine !== 'string') reject('identity_command_invalid');
+  if (identity.commandLine.length === 0) reject('identity_command_empty');
+  if (identity.commandLine.length > 131072) reject('identity_command_length_exceeded');
+  if (!Array.isArray(identity.parentChain)) reject('parent_chain_missing');
+  if (identity.parentChain.length > 12) reject('parent_chain_length_exceeded');
+  if (identity.pid !== ownerPid && identity.parentChain.length === 0) reject('parent_chain_empty');
   let expectedPid = identity.parentPid;
   let ownerSeen = identity.pid === ownerPid;
   const seen = new Set([identity.pid]);
-  const expires = Date.now() + 1_000;
+  const expires = clock() + 1_000;
   for (let index = 0; index < identity.parentChain.length && index < 12; index += 1) {
     // Ancestors beyond the complete ownership anchor are diagnostic metadata, not cleanup authority.
     if (ownerSeen) break;
-    assert.ok(Date.now() < expires);
+    if (!(clock() < expires)) reject('parent_chain_deadline', index, expectedPid);
     const parent = identity.parentChain[index];
-    assert.equal(parent.pid, expectedPid);
-    assert.ok(!seen.has(parent.pid));
+    if (!parent) reject('parent_identity_missing', index, expectedPid);
+    if (parent.pid !== expectedPid) reject('parent_chain_discontinuous', index, expectedPid, parent.pid);
+    if (seen.has(parent.pid)) reject('parent_chain_cycle', index, expectedPid, parent.pid);
     seen.add(parent.pid);
     if (parent.unavailable) {
-      assert.equal(index, identity.parentChain.length - 1);
+      if (index !== identity.parentChain.length - 1) reject('parent_unavailable_not_terminal', index, expectedPid, parent.pid);
       break;
     }
-    assert.ok(Number.isSafeInteger(parent.parentPid) && parent.parentPid >= 0);
-    assert.ok(typeof parent.created === 'string' && Number.isFinite(Date.parse(parent.created)));
-    assert.ok(typeof parent.commandLine === 'string' && parent.commandLine.length > 0 && parent.commandLine.length <= 131072);
-    assert.ok(Date.parse(parent.created) <= Date.parse(identity.created));
+    if (!(Number.isSafeInteger(parent.parentPid) && parent.parentPid >= 0)) reject('parent_parent_pid_invalid', index, expectedPid, parent.pid);
+    if (parent.created === null || parent.created === undefined) reject('parent_created_missing', index, expectedPid, parent.pid);
+    if (!(typeof parent.created === 'string' && Number.isFinite(Date.parse(parent.created)))) reject('parent_created_invalid', index, expectedPid, parent.pid);
+    if (parent.commandLine === null || parent.commandLine === undefined) reject('parent_command_missing', index, expectedPid, parent.pid);
+    if (typeof parent.commandLine !== 'string') reject('parent_command_invalid', index, expectedPid, parent.pid);
+    if (parent.commandLine.length === 0) reject('parent_command_empty', index, expectedPid, parent.pid);
+    if (parent.commandLine.length > 131072) reject('parent_command_length_exceeded', index, expectedPid, parent.pid);
+    if (!(Date.parse(parent.created) <= Date.parse(identity.created))) reject('parent_created_after_identity', index, expectedPid, parent.pid);
     if (parent.pid === ownerPid) ownerSeen = true;
     expectedPid = parent.parentPid;
   }
-  assert.equal(ownerSeen, true);
+  if (!ownerSeen) reject('ownership_anchor_not_reached');
 }
 
 /** Bind the complete ownership anchor tuple to its authoritative ledger identity. */
-export function validateOwnedIdentityAnchor(identity, ownerIdentity) {
-  validateOwnedIdentity(identity, ownerIdentity?.pid);
-  assert.ok(sameTuple(identity.pid === ownerIdentity.pid ? identity
-    : identity.parentChain.find((parent) => parent.pid === ownerIdentity.pid), ownerIdentity));
+export function validateOwnedIdentityAnchor(identity, ownerIdentity, options) {
+  validateOwnedIdentity(identity, ownerIdentity?.pid, options);
+  const index = identity.pid === ownerIdentity.pid ? null : identity.parentChain.findIndex((parent) => parent.pid === ownerIdentity.pid);
+  if (!sameTuple(index === null ? identity : identity.parentChain[index], ownerIdentity)) {
+    rejectIdentityCheck('ownership_anchor_tuple_mismatch', identity, ownerIdentity.pid, index, ownerIdentity.pid, ownerIdentity.pid);
+  }
 }
 
 /** Enforce the unchanged 256 KiB authoritative ledger budget before accepting a new identity. */
@@ -103,8 +180,8 @@ export function recordOwnedIdentityEvent(value, identities, events, { validateTe
 
 /** Keep every accepted identity in a full ledger even if its secondary event sink fails. */
 export function acceptOwnedIdentity(identity, identities, { ownerPid, validateText, validateLedger, recordEvent, eventName, clock = Date.now }) {
-  try { validateOwnedIdentity(identity, ownerPid); }
-  catch { throw identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved'); }
+  try { validateOwnedIdentity(identity, ownerPid, { clock }); }
+  catch (error) { throw identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', error?.identityEvidenceFailure); }
   if (!(identities.size < 128 || identities.has(identity.pid))) throw identityEvidenceRejection('identity', 'identity_count_exceeded');
   const authorityLength = identity.pid === ownerPid ? 0 : identity.parentChain.findIndex((parent) => parent.pid === ownerPid) + 1;
   const authorityChain = identity.parentChain.slice(0, authorityLength);
@@ -119,15 +196,16 @@ export function acceptOwnedIdentity(identity, identities, { ownerPid, validateTe
   }
   try {
     const ownerIdentity = identities.get(ownerPid);
-    if (ownerIdentity) validateOwnedIdentityAnchor(identity, ownerIdentity);
+    if (ownerIdentity) validateOwnedIdentityAnchor(identity, ownerIdentity, { clock });
     if (identity.pid === ownerPid) {
       const expires = clock() + 1_000; let count = 0;
       for (const acceptedIdentity of identities.values()) {
-        assert.ok(++count <= 128 && clock() < expires);
-        validateOwnedIdentityAnchor(acceptedIdentity, identity);
+        if (++count > 128) rejectIdentityCheck('ownership_scan_count_exceeded', acceptedIdentity, ownerPid);
+        if (!(clock() < expires)) rejectIdentityCheck('ownership_scan_deadline', acceptedIdentity, ownerPid);
+        validateOwnedIdentityAnchor(acceptedIdentity, identity, { clock });
       }
     }
-  } catch { throw identityEvidenceRejection('identity', 'ownership_anchor_changed_preserved'); }
+  } catch (error) { throw identityEvidenceRejection('identity', 'ownership_anchor_changed_preserved', error?.identityEvidenceFailure); }
   try { validateText(JSON.stringify(identity)); }
   catch { throw identityEvidenceRejection('unsafeText', 'unsafe_identity_text_preserved'); }
   // External ancestor bodies are diagnostic only. Keep every complete authority tuple through the exact Node anchor.

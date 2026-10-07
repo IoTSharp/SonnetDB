@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-45 身份先验安全诊断（2026-10-07；五项缺命令已证，完整旅程仍失败）
+
+- 接续实际 `d3d3a4ff85d898149d3771c35b4eaad35294e5a9`；最新四文档完整receipt/hash、AGENTS/git/路线图/已有提交与子代理核验。专属实施三个既有runner/evidence/test、metadata代理仅Host固定WB45目录/18348+18349/Workbench45/label/seed，独立合同与根工具复核；根独占六docs/验证/最终门禁/stage/commit，共十文件，生产/legacy/shared helpers与Server/Code产物hash冻结，0新.NETbuild、同一TS项目。
+- 完整身份先验改为fixed subreason/field/completeness、null或0～11 chainIndex与六项有界数值structure；每个getter只读一次，异常固定fallback，event阶段不附身份诊断。不存原error/command/created/未接受父链正文或其hash，拒绝候选不加入ledger也不授权stop；原safe-integer准入、祖先时间语义、exact Node anchor/live连续父链、12hop/1秒及128身份/256KiBledger/256events/192KiBevent/512KiBfile/24files/8MiB全部保持。
+- 初次freeze自审发现dynamic getter与测试Temp异常清理边界，修后停止写入并保存 `source-freeze-final-v2.json`、`source-build-freeze-final.json`，旧freeze/25项中间测试不覆盖。最终26/26定向故障测试（含动态getter/凭据/固定字段与既有预算）、既有七Node文件20/20零skip、同一TS编译/Node syntax/两个嵌入PS7 AST和独立源码review通过。首代理短测试CIM身份缺失失败保留，后续完整tuple/父链/absent与新测试Temp finally清理另证，不冒称全进程生存期捕获。
+- 根首次actual invocation遗漏required `SONNETDB_QUERY_REAL_SERVER_SHA256`，preflight退出1且run目录/Server/Code均未创建；原日志/result与 `root-preflight-invocation-failure.json`绑定保留。修调用参数后第二/最后新run `query-host-real-7e789c8f-a395-44fc-ba10-2b6ff9e09152` 40秒仍FAIL/process_audit；两次调用已用尽2/2，本片不第三跑。Server原产物hash复用，没有重构建或诊断后盲改准入。
+- 新安全诊断精确五candidate PID30716/86700/65980/86808/74180，首失败guard均 `identity_command_missing` / `commandLine` / `missing_command`，候选parent为48592/48592/30716/48592/86700、观测chainCount为13/13/14/13/14。这只证明该快照缺命令的首拒绝点，不证明退出或其它guard一定通过，不保存其完整tuple、不补入ledger；缺命令为何发生及WB44旧三个unknown原因仍未确定，不能回溯猜因果或降低stop门禁。
+- 三phase current2/selection1/EXPLAIN45行逐值与sql-only独立真实Server参考相同、POST200；公开history/host-result本run不存在，API恢复与正常Code退出未证，codeExit/hostOutcome仍null。已有WB44公开history/API证据保持但不转算为本run；公共prompt/API/生成payload不计向导UI、wire SQL正文、Webview DOM或分页。
+- accepted ledger46/events61、25helper全完整identity+closed；process-events249814B、4child+50helper完整stream hashes，五terminal与末FAIL status全部保存。Manifest12项311736B/目录14文件及源码/product/foreign绑定已独立根核验；原processCleanupProven/runtimeRemoved=false、ports/helper/output=true原样保持。Outside完整primary tuple/逐event exact ledger引用审计无live/reused/changed/exclusion；root另核52记录/未完整PID及run-associated均无存活，两port可bind，canonical owner marker/4096对象/depth16/15秒inventory与30秒逐项删除一次清279对象，无追加kill。`root-failure-acceptance.json`只证安全诊断/三局部数据与根回收，不升级完整runner或身份生存期。
+- 根失败适配只认上述exact run、固定收据SHA及原result/cleanup/events/manifest/status/source-build hashes，fresh五candidate/runnerchildren/ports及全部helper/output/live tuple仍必需；原false保留，unknown新run/changed/live/未闭helper仍拒绝。最终十文件完整 `dotnet restore SonnetDB.slnx` 和原级别 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、前后tree hash/时间/精确命令与白名单diff是本地commit放行条件，实际结果见本片final-gates/commit-checkpoint/post-commit-process-audit及git log；14wrapper总预算到02:15Z不扩大。
+- 下一片先为已证缺commandLine候选设计有界fresh重采与exact anchor链处理合同/故障注入，仍要求完整tuple与所有原门禁，再在新冻结窗口验证history/API/正常Code退出。生产maxRows、向导/DOM分页/Notebook/LSP和WB41 OS条件另片；三宿主未闭环，旧任务/唯一ACTIVE30分钟heartbeat继续，本片不启动下一片、不迁移/暂停。PowerShell7固定路径、禁Graphify/广域扫描/未授权安装、有界count+墙钟/微输入比较/完整归属父链/finally与绝对临时路径核验保持，foreign54footer/19博客等/origin-parity-results与旧policy目录不碰，不push/发布/部署/外部沟通。
+
 ## WB-44 身份ledger准入与公开历史（2026-10-07；局部实证通过，完整诊断仍失败）
 
 - 根证据 `artifacts/wb44-validation-20261007`，原WB43预算/失败不重置；仅本片四诊断源及六共享文档。本地Server/Code复用既有hash，安装/AOT/固定硬件/长稳/发行物与完整三宿主仍分别待验。

@@ -12,7 +12,7 @@ import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, own
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(extensionRoot, '..', '..');
-const evidenceParent = path.join(repositoryRoot, 'artifacts', 'wb44-validation-20261007');
+const evidenceParent = path.join(repositoryRoot, 'artifacts', 'wb45-validation-20261007');
 const code = 'C:\\Users\\mysti\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe';
 const dotnet = 'C:\\Program Files\\dotnet\\dotnet.exe';
 const powershell = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
@@ -24,9 +24,9 @@ const runtimeRoot = path.join(runRoot, 'runtime');
 const contentRoot = path.join(runtimeRoot, 'server-content');
 const dataRoot = path.join(contentRoot, 'data');
 const profileRoot = path.join(runtimeRoot, 'code-profile');
-const baseUrl = 'http://127.0.0.1:18346';
-const database = 'Workbench44';
-const label = 'WB44 isolated real Server';
+const baseUrl = 'http://127.0.0.1:18348';
+const database = 'Workbench45';
+const label = 'WB45 isolated real Server';
 const table = 'DeviceID_Main';
 const startedAtUtc = new Date().toISOString();
 const deadline = Date.now() + 600_000;
@@ -71,8 +71,8 @@ let failureType = null;
 let knownFailureReason = null;
 let lastControlRequest = null;
 // Reserve ninety seconds inside the six-hundred-second run cap for verified cleanup and terminals.
-const timeout = setTimeout(() => controller.abort(new Error('WB44 active run deadline.')), 510_000);
-const cancel = () => controller.abort(new Error('WB44 cancelled.'));
+const timeout = setTimeout(() => controller.abort(new Error('WB45 active run deadline.')), 510_000);
+const cancel = () => controller.abort(new Error('WB45 cancelled.'));
 process.on('SIGINT', cancel);
 process.on('SIGTERM', cancel);
 
@@ -88,9 +88,9 @@ try {
   serverHash = hash(await readFile(serverDll));
   assert.equal(serverHash, expectedServerHash.toUpperCase());
   await mkdir(runRoot);
-  await evidence('run.json', { schema: 'sonnetdb.wb42.run.v1', slice: 'WB44', runId, runnerPid: process.pid,
+  await evidence('run.json', { schema: 'sonnetdb.wb42.run.v1', slice: 'WB45', runId, runnerPid: process.pid,
     startedAtUtc, deadlineUtc: new Date(deadline).toISOString(), code, dotnet, powershell, serverDll, serverHash,
-    hostEntry, baseUrl, reservedPorts: [18346, 18347], runtimeRoot, contentRoot, dataRoot, profileRoot,
+    hostEntry, baseUrl, reservedPorts: [18348, 18349], runtimeRoot, contentRoot, dataRoot, profileRoot,
     limits: { runMilliseconds: 600_000, codeMilliseconds: 120_000, commandMilliseconds: 20_000,
       controlRequestMilliseconds: 10_000, readinessAttempts: 120, readinessMilliseconds: 60_000,
       evidenceFiles: maximumFiles, evidenceBytesPerFile: maximumFileBytes, evidenceTotalBytes: maximumTotalBytes },
@@ -106,7 +106,7 @@ try {
   await mkdir(runtimeRoot);
   runtimeCreated = true;
   await writeFile(path.join(runtimeRoot, '.wb42-owner.json'), JSON.stringify({ runId, runnerPid: process.pid,
-    slice: 'WB44', runtimeRoot, contentRoot, dataRoot, profileRoot }), { flag: 'wx' });
+    slice: 'WB45', runtimeRoot, contentRoot, dataRoot, profileRoot }), { flag: 'wx' });
   await mkdir(contentRoot);
   await mkdir(path.join(profileRoot, 'User'), { recursive: true });
   await mkdir(path.join(runtimeRoot, 'code-extensions'));
@@ -117,7 +117,7 @@ try {
   await writeFile(path.join(contentRoot, 'appsettings.json'), JSON.stringify({
     Logging: { LogLevel: { Default: 'Warning', 'Microsoft.AspNetCore': 'Warning' } }, AllowedHosts: '127.0.0.1',
     Kestrel: { Endpoints: { Http: { Url: baseUrl, Protocols: 'Http1' },
-      FrameH2: { Url: 'http://127.0.0.1:18347', Protocols: 'Http2' } } },
+      FrameH2: { Url: 'http://127.0.0.1:18349', Protocols: 'Http2' } } },
     SonnetDBServer: { DataRoot: dataRoot, AutoLoadExistingDatabases: true, AllowAnonymousProbes: true, Tokens: {},
       Mqtt: { Enabled: false, Sparkplug: { Enabled: false }, ExternalClient: { Enabled: false } },
       Coap: { Enabled: false, Dtls: { Enabled: false } }, LineProtocolUdp: { Enabled: false },
@@ -129,7 +129,7 @@ try {
     { ...environment, DOTNET_ENVIRONMENT: 'Production', ASPNETCORE_ENVIRONMENT: 'Production' }, 'server');
   auditTimer = setInterval(() => {
     if (pendingAudit || controller.signal.aborted) return;
-    pendingAudit = snapshot().then(audit).catch(() => { primaryFailure = true; controller.abort(new Error('WB44 process audit failed.')); })
+    pendingAudit = snapshot().then(audit).catch(() => { primaryFailure = true; controller.abort(new Error('WB45 process audit failed.')); })
       .finally(() => { pendingAudit = undefined; });
   }, 4_000);
   stage = 'server-readiness';
@@ -142,35 +142,35 @@ try {
     try { const response = await fetch(`${baseUrl}/healthz/ready`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(1_000)]) });
       ready = response.ok; await response.body?.cancel(); } catch { controller.signal.throwIfAborted(); }
     if (ready) break;
-    if (attempt > 0 && attempt % 20 === 0) console.log(`WB44 real Server readiness ${attempt}/120.`);
+    if (attempt > 0 && attempt % 20 === 0) console.log(`WB45 real Server readiness ${attempt}/120.`);
     await delay(500, undefined, { signal: controller.signal });
   }
   assert.equal(ready, true);
 
   stage = 'prepare-real-server';
-  const password = `WB44_${randomBytes(24).toString('hex')}!`;
-  const administratorBearer = `wb44_${randomBytes(32).toString('hex')}`;
+  const password = `WB45_${randomBytes(24).toString('hex')}!`;
+  const administratorBearer = `wb45_${randomBytes(32).toString('hex')}`;
   rememberSecret(password); rememberSecret(administratorBearer);
   const setup = await jsonRequest('GET', '/v1/setup/status');
   assert.equal(setup.needsSetup, true);
   assert.equal(typeof setup.suggestedServerId, 'string');
   const administrator = await jsonRequest('POST', '/v1/setup/initialize', {
-    serverId: setup.suggestedServerId, organization: 'WB44 isolated real Extension Host',
-    username: 'wb44_admin', password, bearerToken: administratorBearer,
+    serverId: setup.suggestedServerId, organization: 'WB45 isolated real Extension Host',
+    username: 'wb45_admin', password, bearerToken: administratorBearer,
   }, undefined, 201);
   assert.equal(administrator.isSuperuser, true);
   assert.equal(typeof administrator.token, 'string');
   rememberSecret(administrator.token);
   await jsonRequest('POST', '/v1/db', { name: database }, administrator.token, 201);
-  await sqlRequest('/v1/sql', `CREATE USER wb44_reader WITH PASSWORD '${password}'`, administrator.token);
-  await sqlRequest('/v1/sql', `GRANT READ ON DATABASE ${database} TO wb44_reader`, administrator.token);
-  const reader = await jsonRequest('POST', '/v1/auth/login', { username: 'wb44_reader', password });
+  await sqlRequest('/v1/sql', `CREATE USER wb45_reader WITH PASSWORD '${password}'`, administrator.token);
+  await sqlRequest('/v1/sql', `GRANT READ ON DATABASE ${database} TO wb45_reader`, administrator.token);
+  const reader = await jsonRequest('POST', '/v1/auth/login', { username: 'wb45_reader', password });
   assert.equal(reader.isSuperuser, false);
   assert.equal(typeof reader.token, 'string');
   rememberSecret(reader.token);
   const sqlPath = `/v1/db/${database}/sql`;
   await sqlRequest(sqlPath, `CREATE TABLE "${table}" ("DeviceID" INT, "MixedCaseName" STRING, PRIMARY KEY ("DeviceID"))`, administrator.token);
-  const seed = [[1, 'WB44:first'], [2, 'WB44:second'], [3, 'WB44:third'], [4, 'WB44:fourth'], [5, 'WB44:fifth']];
+  const seed = [[1, 'WB45:first'], [2, 'WB45:second'], [3, 'WB45:third'], [4, 'WB45:fourth'], [5, 'WB45:fifth']];
   const insert = await sqlRequest(sqlPath, `INSERT INTO "${table}" ("DeviceID", "MixedCaseName") VALUES ${seed.map((row) => `(${row[0]}, '${row[1]}')`).join(', ')}`, administrator.token);
   assert.equal(insert.result.end?.recordsAffected, 5);
   const count = await sqlRequest(sqlPath, `SELECT COUNT(*) FROM "${table}"`, administrator.token);
@@ -196,7 +196,7 @@ try {
     assert.ok(actual.result.rows.length > 0 && actual.result.rows.length <= 100);
     references.push({ ...phases[index], result: actual.result, actualReferenceResponse: actual.response });
   }
-  const reference = { schema: 'sonnetdb.wb42.reference.v1', slice: 'WB44', runId, baseUrl, database, label,
+  const reference = { schema: 'sonnetdb.wb42.reference.v1', slice: 'WB45', runId, baseUrl, database, label,
     previewRequestShape: 'sql-only', previewContract: { requestBodyKeys: ['sql'], previewMaxRowsSent: false, rowLimit: 100,
       source: 'diagnostic-admission', serverFullResult: true },
     seedCount: 5, columns: ['DeviceID', 'MixedCaseName'], nonSuperuserReadOnly: true, phases: references };
@@ -222,10 +222,10 @@ try {
   outcome = 'FAIL';
   failureType = error instanceof Error && ['AssertionError', 'TypeError', 'Error'].includes(error.name) ? error.name : 'unclassified';
   const reasons = new Map([['Owned helper deadline.', 'helper_deadline'], ['Code test deadline.', 'code_deadline'],
-    ['WB44 active run deadline.', 'active_deadline'], ['WB44 process audit failed.', 'process_audit'],
-    ['WB44 cancelled.', 'cancelled'], ['Owned output byte limit exceeded.', 'output_budget']]);
+    ['WB45 active run deadline.', 'active_deadline'], ['WB45 process audit failed.', 'process_audit'],
+    ['WB45 cancelled.', 'cancelled'], ['Owned output byte limit exceeded.', 'output_budget']]);
   knownFailureReason = reasons.get(error instanceof Error ? error.message : '') ?? (failureType === 'AssertionError' ? 'assertion' : 'unclassified');
-  console.error(`WB44 failed during ${stage}; raw error/child output omitted to protect runtime credentials.`);
+  console.error(`WB45 failed during ${stage}; raw error/child output omitted to protect runtime credentials.`);
 } finally {
   clearInterval(auditTimer);
   if (pendingAudit) { try { await pendingAudit; } catch { primaryFailure = true; } }
@@ -274,20 +274,20 @@ try {
   if (primaryFailure || auditFailureOverflow || auditFailures.length || cleanupAttempts.some((attempt) => !attempt.ok)
     || !processCleanupProven || !runtimeRemoved || !outputComplete || !helperCleanupProven || !portsReleased) outcome = 'FAIL';
   const terminalSteps = [{ name: 'process-events.json', run: async () => {
-    await evidence('process-events.json', { schema: 'sonnetdb.wb42.process-events.v1', slice: 'WB44', runId, events,
+    await evidence('process-events.json', { schema: 'sonnetdb.wb42.process-events.v1', slice: 'WB45', runId, events,
       acceptedIdentities: [...identities.values()], auditFailures, auditFailureCount, auditFailureOverflow, identityLedgerIsAuthoritative: true,
       ownershipAnchorPid: process.pid, externalAncestorsDiagnosticOnly: true,
       trackedIdentities: identities.size, helperStarts: helperStarts.map(({ pid, startedAtUtc: time, closed, identityRecorded }) => ({ pid, startedAtUtc: time, closed, identityRecorded })),
       snapshots, helpers, finishedAtUtc });
   } }, { name: 'child-output.json', run: async () => {
-    await evidence('child-output.json', { schema: 'sonnetdb.wb42.child-output.v1', slice: 'WB44', runId, streams: outputSummaries,
+    await evidence('child-output.json', { schema: 'sonnetdb.wb42.child-output.v1', slice: 'WB45', runId, streams: outputSummaries,
       helperStreams: helperOutputSummaries, outputComplete,
       rawOutputRetained: false, reason: 'Only byte counts/hashes are retained; output can contain runtime credentials.' });
   } }, { name: 'cleanup.json', run: async () => {
-    await evidence('cleanup.json', { schema: 'sonnetdb.wb42.cleanup.v1', slice: 'WB44', runId, processCleanupProven,
-      runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18346, 18347], portsReleased, helperCleanupProven, outputComplete, attempts: cleanupAttempts, finishedAtUtc });
+    await evidence('cleanup.json', { schema: 'sonnetdb.wb42.cleanup.v1', slice: 'WB45', runId, processCleanupProven,
+      runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18348, 18349], portsReleased, helperCleanupProven, outputComplete, attempts: cleanupAttempts, finishedAtUtc });
   } }, { name: 'result.json', run: async () => {
-    await evidence('result.json', { schema: 'sonnetdb.wb42.result.v1', slice: 'WB44', runId, outcome, primaryFailure, stoppedAtStage: stage,
+    await evidence('result.json', { schema: 'sonnetdb.wb42.result.v1', slice: 'WB45', runId, outcome, primaryFailure, stoppedAtStage: stage,
       failureType, knownFailureReason, lastControlRequest,
       codeExit, normalCodeExitVerified: codeExit?.code === 0 && codeExit?.signal === null, hostOutcome, referenceHash, serverHash,
       processCleanupProven, runtimeRemoved, portsReleased, helperCleanupProven, outputComplete,
@@ -299,12 +299,12 @@ try {
     terminalAttempts.push(...attempts);
     if (attempts.some((attempt) => !attempt.ok)) outcome = 'FAIL';
   }
-  try { await evidence('terminal-status.json', { schema: 'sonnetdb.wb42.terminal-status.v1', slice: 'WB44', runId,
+  try { await evidence('terminal-status.json', { schema: 'sonnetdb.wb42.terminal-status.v1', slice: 'WB45', runId,
     outcome, attempts: terminalAttempts, manifestSha256: await existingHash('manifest.json'),
     resultSha256: await existingHash('result.json'), statusExcludedFromManifest: true, finishedAtUtc }); }
-  catch { outcome = 'FAIL'; console.error('WB44 final status write failed; terminal evidence is incomplete.'); }
+  catch { outcome = 'FAIL'; console.error('WB45 final status write failed; terminal evidence is incomplete.'); }
   process.exitCode = outcome === 'PASS' ? 0 : 1;
-  console.log(`WB44 ${outcome}: ${runRoot}`);
+  console.log(`WB45 ${outcome}: ${runRoot}`);
 }
 
 function hash(value) { return createHash('sha256').update(value).digest('hex').toUpperCase(); }
@@ -369,7 +369,7 @@ function audit(snapshotValue) {
   const failures = captureOwnedSnapshot(snapshotValue, identities, roots, { discover: discoverOwnedProcessIdentities,
     ownerPid: process.pid, validateText: safeText, validateLedger, recordEvent: event });
   for (let index = 0; index < failures.length && index < 128; index += 1) noteAuditFailure(failures[index]);
-  if (failures.length) throw new Error('WB44 process audit failed.');
+  if (failures.length) throw new Error('WB45 process audit failed.');
 }
 function safeLiveIdentities(snapshotValue) {
   assert.ok(snapshotValue.length <= 4096 && identities.size <= 128);
@@ -514,7 +514,7 @@ ConvertTo-Json -InputObject ($taskRecords.ToArray()) -Compress -Depth 4`;
 async function listeningPorts() {
   return await helper(`$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
-$taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18346,18347) } | Select-Object -First 5 -ExpandProperty LocalPort)
+$taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18348,18349) } | Select-Object -First 5 -ExpandProperty LocalPort)
 ConvertTo-Json -InputObject $taskPorts -Compress`);
 }
 async function helper(script, input) {
@@ -655,7 +655,7 @@ async function removeRuntime() {
   assert.equal(path.dirname(resolved).toLowerCase(), runRoot.toLowerCase());
   assert.equal((await lstat(runtimeRoot)).isSymbolicLink(), false);
   const marker = JSON.parse(await readFile(path.join(runtimeRoot, '.wb42-owner.json'), 'utf8'));
-  assert.deepEqual(marker, { runId, runnerPid: process.pid, slice: 'WB44', runtimeRoot, contentRoot, dataRoot, profileRoot });
+  assert.deepEqual(marker, { runId, runnerPid: process.pid, slice: 'WB45', runtimeRoot, contentRoot, dataRoot, profileRoot });
   const pending = [{ directory: resolved, depth: 0 }];
   const objects = []; const removeDeadline = Math.min(deadline - 5_000, Date.now() + 30_000);
   // Inventory first: no deletion starts if path, symlink, count or traversal bounds cannot be proved.
@@ -697,7 +697,7 @@ async function manifest() {
     records.push({ file: entry.name, bytes: raw.length, sha256: hash(raw) });
   }
   assert.ok(records.length < maximumFiles);
-  await evidence('manifest.json', { schema: 'sonnetdb.wb42.manifest.v1', slice: 'WB44', runId, files: records,
+  await evidence('manifest.json', { schema: 'sonnetdb.wb42.manifest.v1', slice: 'WB45', runId, files: records,
     excludedTerminalFiles: ['manifest.json', 'terminal-status.json'],
     totalBytesWithoutManifest: total, maximumFiles, maximumFileBytes, maximumTotalBytes });
 }

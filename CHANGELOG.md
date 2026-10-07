@@ -174,6 +174,8 @@
 
 ### Fixed
 
+- **M47 WB-45 身份先验安全诊断（2026-10-07）**：完整身份门禁细分固定subreason/字段/链断点与有界数值，单读getter/异常fallback且拒绝候选不入ledger，原身份/预算/stop合同保持；最终26/26故障测试、既有20/20、TS/PS7语法与独立复核通过。新真实run精确五候选缺commandLine首拒绝点，仍FAIL/process_audit；三查询2/1/45行与真实参考同，但history/API恢复/Code正常退出未证。原false及根279对象runtime回收分别记录，首根preflight参数遗漏保留，两次调用预算已用尽；旧unknown不推断，完整门禁与十文件本地提交见M47记录，不计UI/分页或整体三宿主完成。
+
 - **M47 WB-44 有界身份ledger与公开历史（2026-10-07）**：完整identity/安全文本先验后仅压缩重复外部祖先正文，own及连续父链至exact Node anchor保持，secondary events绑定exact PID/creation和完整command SHA/ledger引用；原全部count/byte门禁保持，stop拒绝missing/changed中间父。纯内存17/17、TS/PS7语法与既有20/20通过；新真实Host三条查询历史/API恢复与零清理错误已核，完整runner仍FAIL/process_audit，三个先验拒绝的具体原因unknown，正常Code退出未证。原失败/false及根273对象runtime回收单列，完整门禁和十文件本地提交见M47记录，不计UI/分页/三宿主整体。
 
 - **M47 WB-43 查询诊断合同与失败证据（2026-10-07）**：真实参考请求与生产对齐为仅 `{sql}`，严格比较前保存有界安全观察；新增身份ledger、独立回收/终态尝试及末status，父链核到仍存活的exact runner anchor。TS/语法、纯内存9/9与既有Node20/20通过；第二真实run当前语句、选区、EXPLAIN45行生成数据与真实参考一致，但进程审计失败，history/API恢复/正常退出未验证。原两失败与false保留，根回收、281对象runtime清理另证；最终十文件完整门禁和本地提交见M47记录，不计分页/UI或三宿主完成。

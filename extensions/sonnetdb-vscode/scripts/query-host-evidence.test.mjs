@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, realpath, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
   validateOwnedIdentity, validateOwnedIdentityAnchor, validateOwnedIdentityLedger } from './query-host-evidence.mjs';
@@ -49,7 +52,9 @@ test('incomplete descendants remain unaccepted and cannot authorize cleanup', { 
   const failures = captureOwnedSnapshot([], identities, [], { ...options,
     discover: (_snapshot, values) => values.set(11, child(11, null)) });
   assert.equal(identities.has(11), false);
-  assert.deepEqual(failures, [{ stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved' }]);
+  assert.deepEqual(failures, [{ stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'identity_command_missing', failedField: 'commandLine', completeness: 'missing_command', chainIndex: null,
+    structure: { candidatePid: 11, candidateParentPid: 10, ownerPid: 10, parentChainCount: 2, expectedParentPid: null, observedParentPid: null } }]);
 });
 
 test('a missing command before the ownership anchor cannot authorize cleanup', { timeout: 1000 }, () => {
@@ -226,4 +231,190 @@ test('unsafe secondary event text is not retained and still leaves complete clea
   });
   assert.equal(events.length, 0);
   assert.equal(identities.get(11).commandLine, 'owned child');
+});
+
+test('own tuple rejections identify a fixed guard without admitting any candidate', { timeout: 1000 }, () => {
+  const cases = [
+    [null, 'identity_missing', 'identity'],
+    [{ ...child(11), pid: 0 }, 'identity_pid_invalid', 'pid'],
+    [{ ...child(11), parentPid: -1 }, 'identity_parent_pid_invalid', 'parentPid'],
+    [{ ...child(11), created: null }, 'identity_created_missing', 'created'],
+    [{ ...child(11), created: 'invalid synthetic creation' }, 'identity_created_invalid', 'created'],
+    [{ ...child(11), commandLine: undefined }, 'identity_command_missing', 'commandLine'],
+    [{ ...child(11), commandLine: {} }, 'identity_command_invalid', 'commandLine'],
+    [{ ...child(11), commandLine: '' }, 'identity_command_empty', 'commandLine'],
+    [{ ...child(11), commandLine: 'x'.repeat(131073) }, 'identity_command_length_exceeded', 'commandLine'],
+    [{ ...child(11), parentChain: null }, 'parent_chain_missing', 'parentChain'],
+    [{ ...child(11), parentChain: [] }, 'parent_chain_empty', 'parentChain'],
+    [{ ...child(11), parentChain: Array.from({ length: 13 }, () => ({})) }, 'parent_chain_length_exceeded', 'parentChain'],
+  ];
+  const expires = Date.now() + 800;
+  assert.ok(cases.length <= 12);
+  for (let index = 0; index < cases.length && index < 12; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [value, subreason, failedField] = cases[index]; const identities = new Map([[10, owner]]);
+    assert.throws(() => acceptOwnedIdentity(value, identities, { ...options, eventName: 'helper' }), (error) => {
+      const failure = ownedIdentityFailure(error, value?.pid);
+      assert.equal(failure.subreason, subreason); assert.equal(failure.failedField, failedField);
+      assert.equal(failure.chainIndex, null); return true;
+    });
+    assert.equal(identities.size, 1);
+  }
+});
+
+test('parent tuple rejections retain only the guard and bounded chain coordinates', { timeout: 1000 }, () => {
+  const cases = [
+    [null, 'parent_identity_missing', 'parentChain.identity'],
+    [{ pid: 90 }, 'parent_chain_discontinuous', 'parentChain.pid'],
+    [{ pid: 10, unavailable: true }, 'parent_unavailable_not_terminal', 'parentChain.unavailable'],
+    [{ ...child(11).parentChain[0], parentPid: -1 }, 'parent_parent_pid_invalid', 'parentChain.parentPid'],
+    [{ ...child(11).parentChain[0], created: null }, 'parent_created_missing', 'parentChain.created'],
+    [{ ...child(11).parentChain[0], created: 'invalid synthetic creation' }, 'parent_created_invalid', 'parentChain.created'],
+    [{ ...child(11).parentChain[0], commandLine: null }, 'parent_command_missing', 'parentChain.commandLine'],
+    [{ ...child(11).parentChain[0], commandLine: 123 }, 'parent_command_invalid', 'parentChain.commandLine'],
+    [{ ...child(11).parentChain[0], commandLine: '' }, 'parent_command_empty', 'parentChain.commandLine'],
+    [{ ...child(11).parentChain[0], commandLine: 'x'.repeat(131073) }, 'parent_command_length_exceeded', 'parentChain.commandLine'],
+    [{ ...child(11).parentChain[0], created: '2026-10-07T00:01:00.000Z' }, 'parent_created_after_identity', 'parentChain.created'],
+  ];
+  const expires = Date.now() + 800;
+  assert.ok(cases.length <= 12);
+  for (let index = 0; index < cases.length && index < 12; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [parent, subreason, failedField] = cases[index]; const identities = new Map([[10, owner]]);
+    const value = { ...child(11), parentChain: [parent, child(11).parentChain[1]] };
+    assert.throws(() => acceptOwnedIdentity(value, identities, { ...options, eventName: 'helper' }), (error) => {
+      const failure = ownedIdentityFailure(error, 11);
+      assert.equal(failure.subreason, subreason); assert.equal(failure.failedField, failedField);
+      assert.equal(failure.chainIndex, 0); assert.equal(failure.structure.expectedParentPid, 10);
+      assert.equal(failure.structure.observedParentPid, parent?.pid ?? null); return true;
+    });
+    assert.equal(identities.has(11), false);
+  }
+});
+
+test('cycle and absent exact anchor remain rejections with separate fixed reasons', { timeout: 1000 }, () => {
+  const cyclic = { ...child(11), parentPid: 12, parentChain: [
+    { pid: 12, parentPid: 11, created, commandLine: 'intermediate' },
+    { pid: 11, parentPid: 10, created, commandLine: 'owned child' },
+  ] };
+  assert.throws(() => validateOwnedIdentity(cyclic, 10), (error) => {
+    const failure = ownedIdentityFailure(error, 11);
+    assert.equal(failure.subreason, 'parent_chain_cycle'); assert.equal(failure.chainIndex, 1); return true;
+  });
+  assert.throws(() => validateOwnedIdentity({ ...child(11), parentPid: 90, parentChain: [{ pid: 90, unavailable: true }] }, 10), (error) => {
+    const failure = ownedIdentityFailure(error, 11);
+    assert.equal(failure.subreason, 'ownership_anchor_not_reached'); assert.equal(failure.completeness, 'missing_anchor'); return true;
+  });
+  assert.throws(() => validateOwnedIdentityAnchor(child(11), { ...owner, commandLine: 'changed owner' }), (error) => {
+    assert.equal(ownedIdentityFailure(error, 11).subreason, 'ownership_anchor_tuple_mismatch'); return true;
+  });
+});
+
+test('the original one second parent deadline is deterministic and never admits a candidate', { timeout: 1000 }, () => {
+  let calls = 0; const identities = new Map([[10, owner]]);
+  assert.throws(() => acceptOwnedIdentity(child(11), identities, { ...options, clock: () => calls++ === 0 ? 1000 : 2000, eventName: 'helper' }), (error) => {
+    const failure = ownedIdentityFailure(error, 11);
+    assert.equal(failure.subreason, 'parent_chain_deadline'); assert.equal(failure.chainIndex, 0);
+    assert.equal(failure.completeness, 'deadline'); return true;
+  });
+  assert.equal(calls, 2); assert.equal(identities.has(11), false);
+});
+
+test('owner ledger revalidation keeps its distinct bounded deadline failure', { timeout: 1000 }, () => {
+  const identities = new Map([[11, child(11)]]); let calls = 0;
+  assert.throws(() => acceptOwnedIdentity(owner, identities, { ...options, clock: () => ++calls < 3 ? 1000 : 2000, eventName: 'runner' }), (error) => {
+    const failure = ownedIdentityFailure(error, 10);
+    assert.equal(failure.reason, 'ownership_anchor_changed_preserved');
+    assert.equal(failure.subreason, 'ownership_scan_deadline'); return true;
+  });
+  assert.equal(calls, 3); assert.equal(identities.has(10), false);
+});
+
+test('malicious failure metadata is rebuilt from fixed labels and UInt32 numeric coordinates', { timeout: 1000 }, () => {
+  const marker = 'SYNTHETIC secret raw error must be omitted';
+  const failure = ownedIdentityFailure({ message: marker, identityEvidenceFailure: {
+    stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved', subreason: 'identity_command_missing',
+    failedField: 'commandLine', completeness: 'missing_command', chainIndex: 1, raw: marker,
+    structure: { candidatePid: marker, candidateParentPid: 0x100000000, ownerPid: 10, parentChainCount: 4097,
+      expectedParentPid: -1, observedParentPid: NaN, commandLine: marker },
+  } }, 0x100000000);
+  assert.deepEqual(failure, { stage: 'identity', pid: null, reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'identity_command_missing', failedField: 'commandLine', completeness: 'missing_command', chainIndex: 1,
+    structure: { candidatePid: null, candidateParentPid: null, ownerPid: 10, parentChainCount: null, expectedParentPid: null, observedParentPid: null } });
+  assert.equal(JSON.stringify(failure).includes(marker), false);
+  const spoofed = ownedIdentityFailure({ identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'identity_command_missing', failedField: marker, completeness: 'missing_command', raw: marker } }, 11);
+  assert.deepEqual(spoofed, { stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved' });
+  assert.deepEqual(ownedIdentityFailure(new Error(marker), 11), { stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved' });
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: { stage: 'event', reason: 'secondary_event_failed',
+    subreason: 'identity_command_missing', failedField: 'commandLine', completeness: 'missing_command' } }, 11),
+  { stage: 'event', pid: 11, reason: 'secondary_event_failed' });
+});
+
+test('numeric projection limits do not change the original safe-integer identity admission', { timeout: 1000 }, () => {
+  const largePid = 0x100000000; const value = { ...child(largePid), parentPid: 10 };
+  assert.doesNotThrow(() => validateOwnedIdentity(value, 10));
+  assert.throws(() => validateOwnedIdentity({ ...value, commandLine: null }, 10), (error) => {
+    const failure = ownedIdentityFailure(error, largePid);
+    assert.equal(failure.pid, null); assert.equal(failure.structure.candidatePid, null); return true;
+  });
+});
+
+test('changing or throwing fake-error getters cannot bypass the safe projection', { timeout: 1000 }, () => {
+  const marker = 'SYNTHETIC getter secret must never persist';
+  const reads = { stage: 0, reason: 0, subreason: 0, chainIndex: 0, parentChainCount: 0 };
+  const detail = { failedField: 'commandLine', completeness: 'missing_command',
+    get stage() { return ++reads.stage === 1 ? 'identity' : marker; },
+    get reason() { return ++reads.reason === 1 ? 'incomplete_or_unsafe_identity_preserved' : marker; },
+    get subreason() { return ++reads.subreason === 1 ? 'identity_command_missing' : marker; },
+    get chainIndex() { return ++reads.chainIndex === 1 ? 0 : marker; },
+    structure: { candidatePid: 11, candidateParentPid: 10, ownerPid: 10, expectedParentPid: 10, observedParentPid: 10,
+      get parentChainCount() { return ++reads.parentChainCount === 1 ? 2 : marker; } },
+  };
+  const projected = ownedIdentityFailure({ identityEvidenceFailure: detail }, 11);
+  assert.equal(JSON.stringify(projected).includes(marker), false);
+  assert.deepEqual(reads, { stage: 1, reason: 1, subreason: 1, chainIndex: 1, parentChainCount: 1 });
+  assert.equal(projected.chainIndex, 0); assert.equal(projected.structure.parentChainCount, 2);
+  assert.deepEqual(ownedIdentityFailure({ get identityEvidenceFailure() { throw new Error(marker); } }, 11),
+    { stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved' });
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    get subreason() { throw new Error(marker); } } }, 11),
+  { stage: 'identity', pid: 11, reason: 'incomplete_or_unsafe_identity_preserved' });
+});
+
+test('credential variants cannot enter a persisted rejection or become cleanup authority', { timeout: 2500 }, async (context) => {
+  const marker = 'WB45_SYNTHETIC_CREDENTIAL_/+never-persist!';
+  const variants = [marker, Buffer.from(marker).toString('base64'), Buffer.from(marker).toString('base64url'),
+    Buffer.from(marker).toString('hex'), Buffer.from(marker).toString('hex').toUpperCase(), encodeURIComponent(marker)];
+  const directory = await mkdtemp(path.join(tmpdir(), 'sonnetdb-wb45-identity-test-'));
+  let canonical; let file; let ownedDirectoryVerified = false; let directoryRemoved = false;
+  try {
+    canonical = await realpath(directory); const canonicalTemp = await realpath(tmpdir());
+    file = path.join(canonical, 'safe-rejection.json');
+    assert.equal(path.dirname(canonical), canonicalTemp); assert.ok(path.basename(canonical).startsWith('sonnetdb-wb45-identity-test-'));
+    ownedDirectoryVerified = true;
+    const expires = Date.now() + 1500;
+    assert.equal(variants.length, 6);
+    for (let index = 0; index < variants.length && index < 6; index += 1) {
+      assert.ok(Date.now() < expires); const identities = new Map([[10, owner]]); const events = []; let rejection;
+      assert.throws(() => acceptOwnedIdentity({ ...child(11), parentChain: [...child(11).parentChain.slice(0, 1),
+        { pid: 1, parentPid: 0, created, commandLine: variants[index] }] }, identities, { ...options,
+        eventName: 'helper', recordEvent: (value) => events.push(value), validateText: (text) => {
+          if (variants.some((variant) => text.includes(variant))) throw new Error(marker);
+        } }), (error) => { rejection = ownedIdentityFailure(error, 11); return true; });
+      assert.equal(rejection.reason, 'unsafe_identity_text_preserved'); assert.equal(identities.has(11), false); assert.equal(events.length, 0);
+      await writeFile(file, JSON.stringify({ rejection, identities: [...identities.values()], events }), 'utf8');
+      const persisted = await readFile(file, 'utf8');
+      assert.equal(variants.some((variant) => persisted.includes(variant)), false);
+    }
+  } finally {
+    try {
+      if (ownedDirectoryVerified) {
+        await unlink(file).catch((error) => { if (error.code !== 'ENOENT') throw error; });
+        await rmdir(canonical); directoryRemoved = true;
+      }
+    } finally {
+      context.diagnostic(`WB45 synthetic credential temporary directory ${directoryRemoved ? 'removed' : 'retained; ownership/cleanup verification incomplete'}: ${canonical ?? directory}`);
+    }
+  }
 });
