@@ -2,6 +2,18 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-50 真实Query/history与退出（2026-10-07；独立实际窗口）
+
+- 基线c0475103；WB48 history6项/WB49 cleanup46项合同复用，0重复定向测试。两源metadata五组literal逆投影与基线完整字节一致；生产、evidence/tests/shared helpers、固定Server/Code与旧失败哈希冻结。专属metadata已停写，独立query_review只读；根负责六docs及最终八文件集成。
+- 窗口 `artifacts/wb50-validation-20261007` 截止05:40Z，13wrapper/1actual/1TS项目/0新.NETbuild；新ports18352/18353与Workbench50隔离。三phase逐值对真实reference、history3/API恢复、Code正常退出和原严格cleanup独立验收；新subcheck不授权回收或放松身份门禁。任一失败保留原FAIL/false/null且不第二跑，静态检查不升级为真实成功。
+- 最终完整restore/原参数format、树SHA、fresh outside零排除≤90秒、精确自有hunk/本地commit及post审计后才收尾。foreign内容与缺席对象/origin-parity-results/旧policy保留对象保护；固定PS7、禁Graphify/广域扫描/安装、有界执行与完整进程/finally保持，不push/发布/部署/外发。实际结果随后记录，不提前写PASS。
+- public prompt/API/生成payload与UI/Webview DOM分页/Notebook/LSP/安装/AOT/硬件/长稳/发行物证据分列，整体三宿主未闭环；唯一ACTIVE30分钟workbench继续。
+
+- 唯一actual cf033b3b于04:57:42→04:58:19Z FAIL/process_audit；current2/selection1逐列/逐值/SQL/database与独立真实reference一致、POST200。Host FAIL explain/source AssertionError、两phase完成/API restored=true/cleanupErrors0；observation3仍前一selection payload、NOT_RUN，phase3/history缺席。Code exit与runner hostOutcome均null/normalExit false，不计history3、EXPLAIN45或正常退出成功，actual1/1已耗尽。
+- 原cleanup process/runtime false与ports/helper/output true保留。新诊断complete/firstRecoverable null/terminal remaining-processes-final；3round/6stop/0stopfail/remaining1/6blocking。6identity拒绝为3 parent_command_missing chain0、3 candidate_snapshot_missing，仅安全首失败证据，不能推断旧WB47或新EXPLAIN因果。ledger39/events45/helper17完整closed、4child+34helper hash、manifest13/236110B/15目录files及五terminal完整，15原文件冻结保护。
+- 根新回收单列：fresh accepted/拒绝/parents45PID absent、无run关联/两port可bind/0追加kill；canonical marker runner52364、depth16/4096/15秒inventory+30秒逐绝对路径一次删除280新runtime对象。root-failure-checkpoint SHA C0973CF2…9686BD绑定五原terminal/sourceBuild/actualfreeze；strict audit拒绝原false，strict success读缺history先拒绝，根catch预期较后失败点的问题另记。current-tuples outside零live/changed/verification/exclusions，不升级原cleanup或完整OS生存期。
+- syntax/双PS7 AST与唯一TS编译通过，不重跑旧合同。独立review直接逆投影两源、独立逐值比较两phase并核原FAIL与根收据；首apply_patch不完整锚点原子拒绝零写后正确复施。最终八文件freeze/完整restore/原format/≤90秒fresh审计/精确自有提交/post另绑收据；下一片先诊断EXPLAIN前一payload观察与parent snapshot，未确认前不盲改或追加实跑。
+
 ## WB-49 Cleanup子检查诊断（2026-10-07；独立本地合同窗口）
 
 - 接续本地 `fa7b9528651d75503f66e185a739ff6031e8740f`，WB48最终集成已closed7/8、0actual，6项本地history合同、最终完整restore/原级format、精确10文件提交与独立收据验收通过；不重复实施/编译/测试。四文档完整字节接收和hash/snapshot、git/路线图/已提交范围/已完成代理已核，foreign HANDOFF/22命名博客路径（含六PS1缺席）与origin/parity-results保护。

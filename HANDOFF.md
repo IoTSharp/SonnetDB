@@ -5,6 +5,18 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-50，2026-10-07；真实Query/history与退出独立验证窗口）
+
+- 接续本地 `c04751038365aaaa699e0f4f472fa52f260b5b67`；WB48的6项history合同与WB49的46项cleanup诊断合同已通过，不重复实施/测试。最新四文档完整字节快照、git/路线图/已有提交与代理核验，旧WB47 FAIL/history20/2/Code1-null及原cleanup false保持原证据；两源metadata专属代理已停止写入，独立query_review接续同一任务而不重复派单。
+- 本片仅在既有runner/Host替换WB50标签、18352/18353、Workbench50与新evidence parent；反向五组literal替换精确等于c047两源字节。根独占六共享docs/验证/集成/stage/本地commit，共八文件；生产history、evidence模块/测试、shared helpers与Server/Code产物保持冻结。
+- 新窗口 `artifacts/wb50-validation-20261007` 截止05:40Z，最多13wrapper/1actual/1TS项目/0新.NETbuild，复用固定Server/Code产物，不安装/下载。实际成功须三phase对真实独立reference、公开history3/API恢复、Code0/signalnull及原严格cleanup同时通过；新安全subcheck只帮助定位，失败保持原FAIL/false/null、冻结一次actual，不重跑或盲改。公开prompt/生成payload证据与向导UI/Webview DOM分页/Notebook/LSP/安装/AOT/硬件/长稳/发布/整体三宿主分列。
+- 提交前最终八文件冻结、完整restore/原参数format、pre/post SHA、fresh outside零排除且≤90秒绑定、精确自有hunk和post审计均必需。PowerShell7固定路径，禁Graphify/广域扫描/未授权安装；循环/搜索/等待有count与墙钟、进程完整PID/创建/命令/父链及finally回收、临时绝对路径保持。foreign HANDOFF/22博客路径含六PS1缺席与origin/parity-results保护；旧policy拒删对象不触碰，无push/发布/部署/外发。唯一workbench ACTIVE每30分钟继续，三宿主未闭环，不迁移/暂停或在本片启动另一切片。实际结果以本窗口收据与git log为准，计划不写PASS。
+
+- 唯一actual `query-host-real-cf033b3b-3c26-4df0-9200-0a994f86dad9`，04:57:42→04:58:19Z、wrapper exit1。current2/selection1逐列/逐值/SQL/database对独立reference与POST200通过；EXPLAIN Host在source断言失败，observation3仍为前一selection一行、comparisonOutcome=NOT_RUN，不计45行成功。Host completed两phase、API restored=true/cleanupErrors0，history/phase3缺席；runner FAIL/process_audit/codeExit null/hostOutcome null/normalExit false。三查询/history3/Code正常退出仍未证，不能据此认定WB47因果，actual1/1已耗尽。
+- 新cleanup诊断observation=complete、firstRecoverable=null、terminal=remaining-processes/final：3round、6stop/0stopfail、remaining1、blockingAudit6；原6identity拒绝为3 parent_command_missing/chainIndex0（70792/86404/81908）与3 candidate_snapshot_missing（69948/67516/96152）。只证明安全首拒绝与终态残余，父链/EXPLAIN具体因果仍未知，不排除后代或从旧ledger补身份。最终ledger39/events45、17helper完整closed，4child+34helper输出hash完整，manifest13/236110B/目录15files与五terminal均保存；原processCleanupProven/runtimeRemoved=false、ports/helper/output=true保持。
+- 根回收另列：原strict audit拒绝false，strict success因缺history必需证据提前拒绝；根catch初期待较后断言而失败，已保留strict-success-rejections。fresh accepted/拒绝/parent合计45 PID当前不存在、无run关联、两port可bind，0追加kill；canonical owner marker runner52364核后depth16/4096对象/15秒inventory、30秒一次逐绝对路径删除280新runtime对象。root-failure-checkpoint SHA `C0973CF22BAA87434C161078F33DD2D29226963FBEAE4AC5571763DE219686BD`，15原证据/源码产物绑定不变；outside current-tuples零live/changed/verification/exclusions，仅证当前回收，不升级原FAIL。根初apply_patch因不完整CHANGELOG锚点原子拒绝零写，完整行复施成功，原准备边界保留。
+- Node syntax/精确双PS7 AST及唯一TS编译通过，未重跑旧6/46合同。独立review已核两phase/原失败/安全subcheck及根收据，严格success工具保持，失败集成adapter仅认exact run/原SHA/root checkpoint与fresh完整tuple/event核验。下一片先冻结诊断范围，定位EXPLAIN为何观察到前一selection payload与parent snapshot缺失各自合同；确认后再实施，不重复metadata或直接追加actual。最终八文件restore/format、提交/post/窗口关闭结果见本窗口收据，不把计划写完成。
+
 ## 当前检查点（WB-49，2026-10-07；cleanup子检查诊断，真实Host另验）
 
 - 接续本地 `fa7b9528651d75503f66e185a739ff6031e8740f`，WB48最终集成已closed7/8、0actual，6项本地history合同、最终完整restore/原级format、精确10文件提交与独立收据验收通过；不重复实施/编译/测试。四文档完整字节接收和hash/snapshot、git/路线图/已提交范围/已完成代理已核，foreign HANDOFF/22命名博客路径（含六PS1缺席）与origin/parity-results保护。

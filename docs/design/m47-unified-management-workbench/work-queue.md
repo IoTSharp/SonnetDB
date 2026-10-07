@@ -2,6 +2,17 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-50 合同与文件冻结（2026-10-07；真实Query/history与退出独立验证窗口）
+
+- 接续c0475103，复用WB48 history6项与WB49 cleanup46项已过合同，不重做/重测；旧WB47失败冻结。专属metadata代理仅runner/Host两源五组literal替换（WB50、18352/18353、Workbench50、新evidence parent），字节逆投影等于基线，已停写；独立query_review只读，根独占六docs/验证/集成/门禁/提交，共八文件。
+- 根窗口 `artifacts/wb50-validation-20261007` 截止05:40Z，13wrapper/1actual/1TS项目/0新.NETbuild，Server/Code固定产物复用。只实跑一次，严格分验三phase真实reference、公开history3/API恢复、Code0/signalnull、原cleanup与安全诊断；失败原值冻结，不追加actual或降低门禁。
+- 生产history/evidence/tests/shared helpers、旧失败与foreign22路径/共享HANDOFF/origin-parity-results保护；最终冻结树完整restore/原参数format、SHA、fresh outside零排除≤90秒与精准自有hunk提交。PowerShell7、禁Graphify/广域扫描/安装、有界count+墙钟、完整进程归属/finally/绝对临时路径保持；旧policy拒删对象不触碰，不push/发布/部署/外发。
+- 此片不计向导UI/Webview DOM分页/Notebook/LSP/安装/AOT/硬件/长稳/发布或整体三宿主闭环；结果另绑本窗口原收据。唯一workbench ACTIVE30分钟继续，不重复派单/迁移/暂停。
+
+- 单次actual cf033b3b：current2/selection1逐值/SQL/database/POST200对reference通过；Host FAIL explain/source，observation3为前一selection payload且NOT_RUN，history/phase3缺席、API restored=true/cleanupErrors0。runner FAIL/process_audit/codeExit null/hostOutcome null，正常退出未证，actual1/1耗尽。
+- 原cleanup false保持；新诊断complete/terminal remaining-processes-final/3round/6stop/0stopfail/remaining1/blocking6，原identity拒绝3 parent_command_missing/chain0与3 candidate_snapshot_missing。ledger39/events45/helper17全closed、manifest13/236110B/15files/五terminal完整。根fresh45PID absent/无run关联/两port可bind/0追加kill，canonical runtime280对象一次删除与原失败分列；exact root checkpoint SHA C0973CF2…9686BD及15原文件冻结绑定，strict成功拒绝，失败adapter不泛化放行。
+- syntax/双PS7 AST/唯一TS编译通过，独立review接收原失败及根回收边界。下一片先定位EXPLAIN前一payload观察与parent snapshot合同缺口，不重复两源metadata或追加actual；最终八文件完整门禁/commit/post以本窗口收据为准，三宿主继续未闭环。
+
 ### WB-49 合同与文件冻结（2026-10-07；cleanup子检查诊断，真实Host另验）
 
 - 接续本地 `fa7b9528651d75503f66e185a739ff6031e8740f`，WB48最终集成已closed7/8、0actual，6项本地history合同、最终完整restore/原级format、精确10文件提交与独立收据验收通过；不重复实施/编译/测试。四文档完整字节接收和hash/snapshot、git/路线图/已提交范围/已完成代理已核，foreign HANDOFF/22命名博客路径（含六PS1缺席）与origin/parity-results保护。
