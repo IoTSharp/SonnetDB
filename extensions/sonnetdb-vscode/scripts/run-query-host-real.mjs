@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { discoverOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
 import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
-  validateOwnedIdentityAnchor, validateOwnedIdentityLedger as validateLedger } from './query-host-evidence.mjs';
+  validateOwnedIdentityAnchor, validateOwnedIdentityLedger as validateLedger, verifyOwnedProcessCleanup } from './query-host-evidence.mjs';
 
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -58,6 +58,7 @@ let auditTimer;
 let pendingAudit;
 let runtimeCreated = false;
 let processCleanupProven = false;
+let processCleanupDiagnostic = null;
 let runtimeRemoved = false;
 let outcome = 'FAIL';
 let stage = 'preflight';
@@ -230,31 +231,16 @@ try {
   if (pendingAudit) { try { await pendingAudit; } catch { primaryFailure = true; } }
   stage = primaryFailure ? stage : 'cleanup';
   cleanupAttempts.push(...await attemptIndependentSteps([{ name: 'owned-processes', run: async () => {
-    const cleanupDeadline = Math.min(deadline - 35_000, Date.now() + 45_000);
-    for (let round = 0; round < 3 && Date.now() < cleanupDeadline; round += 1) {
-      let current;
-      try { current = await snapshot(true); }
-      catch { noteAuditFailure({ stage: 'cleanup-snapshot', reason: 'snapshot_failed' }); }
-      if (current) { try { await audit(current, true); } catch { /* Accepted identities remain available for cleanup. */ } }
-      const live = (current ? safeLiveIdentities(current) : [...identities.values()]).filter((item) => item.pid !== process.pid
-        && !helperStarts.some((helperRecord) => helperRecord.pid === item.pid && helperRecord.closed))
-        .sort((left, right) => (right.parentChain?.length ?? 0) - (left.parentChain?.length ?? 0));
-      if (live.length === 0) break;
-      assert.ok(live.length <= 128);
-      for (let index = 0; index < live.length && index < 128; index += 1) {
-        assert.ok(Date.now() < cleanupDeadline);
-        try { await stopVerified(live[index]); }
-        catch { noteAuditFailure({ stage: 'stop', pid: live[index].pid, reason: 'ownership_or_verifier_failed_process_preserved' }); }
-      }
-      await delay(100);
-    }
-    const final = await snapshot(true);
-    try { await audit(final, true); } catch { /* A failed audit must not hide the independently observed terminal processes. */ }
-    const remaining = safeLiveIdentities(final).filter((item) => item.pid !== process.pid);
-    const verifiedRemaining = remaining.filter((item) => !helperStarts.some((helper) => helper.pid === item.pid && helper.closed));
-    assert.deepEqual(verifiedRemaining, []);
-    assert.ok(roots.every((root) => root.identity));
-    assert.equal(auditFailureOverflow || auditFailures.some((failure) => failure.stage !== 'event'), false);
+    const cleanup = await verifyOwnedProcessCleanup({ deadline, ownerPid: process.pid, identities, helperStarts,
+      snapshot, audit, safeLiveIdentities, stopVerified, noteAuditFailure, delay,
+      verifyRoots: () => assert.ok(roots.every((root) => root.identity)),
+      verifyAuditFailures: () => assert.equal(auditFailureOverflow || auditFailures.some((failure) => failure.stage !== 'event'), false),
+      observe: () => ({ acceptedIdentityCount: identities.size, rootCount: roots.length,
+        rootIdentityCount: roots.filter((root) => Boolean(root.identity)).length, storedAuditFailureCount: auditFailures.length,
+        blockingAuditFailureCount: auditFailures.filter((failure) => failure.stage !== 'event').length,
+        auditFailureOverflow: Number(auditFailureOverflow) }) });
+    processCleanupDiagnostic = cleanup.diagnostic;
+    assert.equal(cleanup.proven, true);
     processCleanupProven = true;
   } }, { name: 'reserved-ports', run: async () => {
     assert.deepEqual(await listeningPorts(), []); portsReleased = true;
@@ -284,7 +270,8 @@ try {
       rawOutputRetained: false, reason: 'Only byte counts/hashes are retained; output can contain runtime credentials.' });
   } }, { name: 'cleanup.json', run: async () => {
     await evidence('cleanup.json', { schema: 'sonnetdb.wb42.cleanup.v1', slice: 'WB47', runId, processCleanupProven,
-      runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18350, 18351], portsReleased, helperCleanupProven, outputComplete, attempts: cleanupAttempts, finishedAtUtc });
+      processCleanupDiagnostic, runtimeCreated, runtimeRemoved, runtimeRoot, ports: [18350, 18351], portsReleased,
+      helperCleanupProven, outputComplete, attempts: cleanupAttempts, finishedAtUtc });
   } }, { name: 'result.json', run: async () => {
     await evidence('result.json', { schema: 'sonnetdb.wb42.result.v1', slice: 'WB47', runId, outcome, primaryFailure, stoppedAtStage: stage,
       failureType, knownFailureReason, lastControlRequest,

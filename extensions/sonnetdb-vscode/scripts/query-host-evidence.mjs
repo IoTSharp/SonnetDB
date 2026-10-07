@@ -472,6 +472,119 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
   return failures;
 }
 
+const cleanupChecks = new Map([
+  ['cleanup-budget', 'initial'], ['round-snapshot', 'round'], ['round-audit', 'round'],
+  ['round-live', 'round'], ['live-count', 'round'], ['stop-round-budget', 'round'],
+  ['stop-verification', 'round'], ['round-delay', 'round'], ['final-snapshot', 'final'],
+  ['final-audit', 'final'], ['final-live', 'final'], ['remaining-processes', 'final'],
+  ['root-identities', 'final'], ['audit-failures', 'final'],
+]);
+
+function cleanupCheck(value) {
+  if (value === null) return null;
+  const subcheck = value?.subcheck; const stage = value?.stage;
+  return cleanupChecks.get(subcheck) === stage ? { subcheck, stage } : { subcheck: 'unknown', stage: 'unknown' };
+}
+
+function cleanupCount(value, maximum) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= maximum ? value : null;
+}
+
+function unknownCleanupDiagnostic() {
+  return { schema: 'sonnetdb.owned-process-cleanup.v1', firstRecoverableFailure: null,
+    terminalFailure: { subcheck: 'unknown', stage: 'unknown' }, observation: 'unknown',
+    structure: { roundsAttempted: null, roundSnapshotFailures: null, roundAuditFailures: null,
+      stopAttempts: null, stopFailures: null, acceptedIdentityCount: null, finalSnapshotCount: null,
+      finalLiveCount: null, remainingCount: null, rootCount: null, rootIdentityCount: null,
+      storedAuditFailureCount: null, blockingAuditFailureCount: null, auditFailureOverflow: null } };
+}
+
+/** Project only fixed cleanup labels and bounded counts, reading each untrusted getter once. */
+export function ownedProcessCleanupDiagnostic(value) {
+  try {
+    const first = value?.firstRecoverableFailure; const terminal = value?.terminalFailure;
+    const observation = value?.observation; const structure = value?.structure;
+    if (observation !== 'complete') return unknownCleanupDiagnostic();
+    return { schema: 'sonnetdb.owned-process-cleanup.v1', firstRecoverableFailure: cleanupCheck(first),
+      terminalFailure: cleanupCheck(terminal), observation: 'complete',
+      structure: { roundsAttempted: cleanupCount(structure?.roundsAttempted, 3),
+        roundSnapshotFailures: cleanupCount(structure?.roundSnapshotFailures, 3),
+        roundAuditFailures: cleanupCount(structure?.roundAuditFailures, 3),
+        stopAttempts: cleanupCount(structure?.stopAttempts, 384), stopFailures: cleanupCount(structure?.stopFailures, 384),
+        acceptedIdentityCount: cleanupCount(structure?.acceptedIdentityCount, 128),
+        finalSnapshotCount: cleanupCount(structure?.finalSnapshotCount, 4096),
+        finalLiveCount: cleanupCount(structure?.finalLiveCount, 128), remainingCount: cleanupCount(structure?.remainingCount, 128),
+        rootCount: cleanupCount(structure?.rootCount, 2), rootIdentityCount: cleanupCount(structure?.rootIdentityCount, 2),
+        storedAuditFailureCount: cleanupCount(structure?.storedAuditFailureCount, 128),
+        blockingAuditFailureCount: cleanupCount(structure?.blockingAuditFailureCount, 128),
+        auditFailureOverflow: cleanupCount(structure?.auditFailureOverflow, 1) } };
+  } catch { return unknownCleanupDiagnostic(); }
+}
+
+/** Run the existing owned-process checks independently of diagnostic observation and later cleanup steps. */
+export async function verifyOwnedProcessCleanup({ deadline, ownerPid, identities, helperStarts, snapshot, audit,
+  safeLiveIdentities, stopVerified, noteAuditFailure, verifyRoots, verifyAuditFailures, observe, delay, clock = Date.now }) {
+  let active = { subcheck: 'cleanup-budget', stage: 'initial' }; let firstRecoverableFailure = null;
+  let terminalFailure = null; let proven = false;
+  const structure = { roundsAttempted: 0, roundSnapshotFailures: 0, roundAuditFailures: 0,
+    stopAttempts: 0, stopFailures: 0, finalSnapshotCount: null, finalLiveCount: null, remainingCount: null };
+  const check = (subcheck) => { active = { subcheck, stage: cleanupChecks.get(subcheck) }; };
+  const recoverable = () => { firstRecoverableFailure ??= { ...active }; };
+  try {
+    const cleanupDeadline = Math.min(deadline - 35_000, clock() + 45_000);
+    for (let round = 0; round < 3 && clock() < cleanupDeadline; round += 1) {
+      structure.roundsAttempted += 1; let current;
+      check('round-snapshot');
+      try { current = await snapshot(true); }
+      catch { structure.roundSnapshotFailures += 1; recoverable(); noteAuditFailure({ stage: 'cleanup-snapshot', reason: 'snapshot_failed' }); }
+      if (current) {
+        check('round-audit');
+        try { await audit(current, true); }
+        catch { structure.roundAuditFailures += 1; recoverable(); /* The audit callback retains its original failure accounting. */ }
+      }
+      check('round-live');
+      const live = (current ? safeLiveIdentities(current) : [...identities.values()]).filter((item) => item.pid !== ownerPid
+        && !helperStarts.some((helperRecord) => helperRecord.pid === item.pid && helperRecord.closed))
+        .sort((left, right) => (right.parentChain?.length ?? 0) - (left.parentChain?.length ?? 0));
+      if (live.length === 0) break;
+      check('live-count'); assert.ok(live.length <= 128);
+      for (let index = 0; index < live.length && index < 128; index += 1) {
+        check('stop-round-budget'); assert.ok(clock() < cleanupDeadline);
+        check('stop-verification'); structure.stopAttempts += 1;
+        try { await stopVerified(live[index]); }
+        catch {
+          structure.stopFailures += 1; recoverable();
+          noteAuditFailure({ stage: 'stop', pid: live[index].pid, reason: 'ownership_or_verifier_failed_process_preserved' });
+        }
+      }
+      check('round-delay'); await delay(100);
+    }
+    check('final-snapshot'); const final = await snapshot(true);
+    // Count observations do not participate in authority, stop decisions or existing success assertions.
+    try { structure.finalSnapshotCount = final.length; } catch { structure.finalSnapshotCount = null; }
+    check('final-audit');
+    try { await audit(final, true); }
+    catch { recoverable(); /* A failed audit must not hide independently observed terminal processes. */ }
+    check('final-live'); const remaining = safeLiveIdentities(final).filter((item) => item.pid !== ownerPid);
+    structure.finalLiveCount = remaining.length;
+    const verifiedRemaining = remaining.filter((item) => !helperStarts.some((helper) => helper.pid === item.pid && helper.closed));
+    structure.remainingCount = verifiedRemaining.length;
+    check('remaining-processes'); assert.deepEqual(verifiedRemaining, []);
+    check('root-identities'); verifyRoots();
+    check('audit-failures'); verifyAuditFailures();
+    proven = true;
+  } catch { terminalFailure = { ...active }; }
+  let diagnostic;
+  try {
+    const observed = observe();
+    diagnostic = ownedProcessCleanupDiagnostic({ firstRecoverableFailure, terminalFailure, observation: 'complete',
+      structure: { ...structure, acceptedIdentityCount: observed.acceptedIdentityCount, rootCount: observed.rootCount,
+        rootIdentityCount: observed.rootIdentityCount, storedAuditFailureCount: observed.storedAuditFailureCount,
+        blockingAuditFailureCount: observed.blockingAuditFailureCount, auditFailureOverflow: observed.auditFailureOverflow } });
+  } catch { diagnostic = unknownCleanupDiagnostic(); }
+  return { proven, diagnostic };
+}
+
 /** Attempt each bounded cleanup or terminal step even when an earlier step failed. */
 export async function attemptIndependentSteps(steps, { clock = Date.now, deadline, maximumSteps = 8 }) {
   assert.ok(Array.isArray(steps) && steps.length <= maximumSteps && maximumSteps <= 16);

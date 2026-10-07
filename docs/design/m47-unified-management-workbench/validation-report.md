@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-49 Cleanup子检查诊断（2026-10-07；独立本地合同窗口）
+
+- 接续本地 `fa7b9528651d75503f66e185a739ff6031e8740f`，WB48最终集成已closed7/8、0actual，6项本地history合同、最终完整restore/原级format、精确10文件提交与独立收据验收通过；不重复实施/编译/测试。四文档完整字节接收和hash/snapshot、git/路线图/已提交范围/已完成代理已核，foreign HANDOFF/22命名博客路径（含六PS1缺席）与origin/parity-results保护。
+- 唯一WB49切片是既有owned-processes的固定安全子检查诊断。专属cleanup_impl仅runner/evidence/test三诊断源；独立cleanup_review只读；根独占六docs/工具/最终验证/stage/本地commit，共九文件。先确认合同再实施，生产history/Host metadata/compiled产物/shared helpers和旧WB47 FAIL/false/null不改；0actual/0TS/0新.NETbuild。
+- 诊断固定subcheck/stage白名单，first recoverable与terminal失败分列；结构仅null或有界计数，不保存raw error/command/未准入身份正文或hash。依赖注入验证实际cleanup编排及runner接线；诊断不得授权stop、扩大exact helper PID排除或放松原身份/父链/失败/roots/终态门禁。保留三round/128identity/45秒且总deadline留35秒、ledger/事件/文件/秘密预算和独立cleanup/terminal；观察失败保留unknown，不把局部模拟写成完整真实回收。
+- 已证旧owned-runtime先因process proof=false阻断；旧owned-processes具体子检查仍unknown。末snapshot helper29344后代64440仅为风险，不能推断因果或排除后代；WB47 history20/2根因、Code正常退出及原cleanup仍未证。向导UI/Webview分页/Notebook/LSP/OS窗口、安装/AOT/固定硬件/长稳/发布与整体三宿主另验。
+- 根窗口`artifacts/wb49-validation-20261007`截止05:05Z、最多12wrapper/0actual/0TS/0新.NETbuild；首次root support提取包含门禁循环，prepare在dot-source前置检查失败且未写文档，原失败保留，修正后新label准备成功。最终九文件冻结后完整restore/原级format、前后SHA、fresh outside零排除/90秒绑定、精确自有共享hunk与post审计才允许提交，实际结果以该目录收据/git log为准。PowerShell7固定路径、禁Graphify/广域扫描/未授权安装、有界count+墙钟/比较退出/完整PID创建命令父链/finally/绝对临时路径规则继续；旧policy拒删对象不触碰，无push/发布/部署/外发。唯一workbench ACTIVE每30分钟不迁移/暂停；本片不启动下一切片。
+
+- 最终三源冻结绑定source-build-freeze-final；定向46/46、fail/cancel/skip/todo均0，Node syntax与精确snapshot/stop双PS7 AST通过。首44/45因两个合成父链长度相等而失败，补完整continuity链并保持原depth排序/期待后复验通过，原失败保留；另证event-only沿原proof语义而overflow仍拒绝。测试Temp由原finally逐绝对路径清理；这些仅确定性DI/源码接线证据，不计真实stop/磁盘runtime删除/Host正常退出。
+
 ## WB-48 Query history完成合同（2026-10-07；本地history完成合同已验证，真实Host另验）
 
 - 从本地 `0ec1aff59872ca34999f51cb320a8b039f974302` 接续，四文档完整接收，git/路线图/旧提交与已完成代理核验；WB47 closed10/14wrapper、1/1actual、原FAIL/history20/2/Code1-null/hostOutcome null/两原cleanup false冻结。旧staged-handoff删除被自动审查以blocked by policy拒绝，保留不重试；旧handoff Temp拒删对象同样不碰。外部两个oschina文件更新已核为其它活动会话，刷新独立保护快照而不覆盖、回滚或stage。
