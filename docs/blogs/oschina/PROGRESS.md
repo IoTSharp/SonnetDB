@@ -1,8 +1,9 @@
-# SonnetDB 开源中国发布进度
+# SonnetDB 开源中国 发布进度
 
-更新时间：2026-10-07T04:11:06.6650485+08:00（Asia/Shanghai）
+更新时间：2026-10-07T03:37:44.3416227+00:00
 
-权威账本为 [publishing-state.json](publishing-state.json)，逐次回执见 [publishing-events.jsonl](publishing-events.jsonl)。001–142 按编号补发，已有 ID 不重复创建。submitted 表示接口接收并核对正文，公开审核另行确认；动弹 submitted-verification-pending 表示已返回 ID，详情仍审核中或审核失败，保留 ID 只读跟进。动弹错误不阻断博客。每天 11:00 续发最多两篇。
+权威状态为 [publishing-state.json](publishing-state.json)，逐次回执见 [publishing-events.jsonl](publishing-events.jsonl)。已有 ID 不重复创建，unknown/publishing 先只读对账。submitted 是接口接收，不自动证明公开审核通过。动弹与博客独立记录。
+队列后续计划：每天 11:00，最多 2 篇；时区 Asia/Shanghai。
 
 | 编号 | 标题 | 博客 | 动弹 |
 | --- | --- | --- | --- |
@@ -149,5 +150,5 @@
 | 141 | SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界 | queued | 未发送 |
 | 142 | SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起 | queued | 未发送 |
 
-4.0.0 新闻：ID 502847，审核中；[正式发行来源](https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0)。
-自动续发：sonnetdb-2，每天北京时间 11:00，每天两篇。
+新闻：4.0.0 ID 502847，审核中。投稿接收与公开审核分别记录。
+来源：https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0

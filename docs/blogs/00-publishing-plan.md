@@ -1,6 +1,6 @@
 # SonnetDB 博客文章发布计划
 
-> 维护说明（2026-10-05）：仓库有 001–134 共 134 篇历史底稿，其中 75 篇已由博客园公开页面标题或历史正文对账确认发布，59 篇待核对；135–142 共 8 篇新稿中 2 篇已发布、6 篇排队。权威状态见 [publishing-state.json](publishing-state.json)，发布证据见 [publishing-reconciliation-2026-10-05.json](publishing-reconciliation-2026-10-05.json)；075 的链接指向历史发布稿，不代表当前本地 Provider-neutral 改写已发布。
+> 维护说明（2026-10-07）：仓库有 001–134 共 134 篇历史底稿，其中 75 篇已由博客园公开页面标题或历史正文对账确认发布，59 篇待核对；135–142 共 8 篇新稿中 6 篇已发布、2 篇排队。权威状态见 [publishing-state.json](publishing-state.json)，发布证据见 [publishing-reconciliation-2026-10-05.json](publishing-reconciliation-2026-10-05.json)；075 的链接指向历史发布稿，不代表当前本地 Provider-neutral 改写已发布。
 
 ## 当前发布规则
 
@@ -17,14 +17,14 @@
 
 | # | 标题（博客园链接） | 是否已发布 | 状态 | 计划发布时间 |
 |---|---|---|---|---|
-| 135 | [SonnetDB 当前能力全景：九种原生模型与一套数据库目录](https://www.cnblogs.com/IoTSharp/p/23202291) | ✅ | 已发布 | 2026-10-05 12:51 |
-| 136 | [SonnetDB SQL 名称大小写合同：原名、双引号与安全迁移](https://www.cnblogs.com/IoTSharp/p/23202334) | ✅ | 已发布 | 2026-10-05 13:00 |
-| 137 | SonnetDB KV 与 JSON 文档：从 TTL 到有界查询 | 🕒 | queued | 2026-10-06 11:00 |
-| 138 | SonnetMQ 与流处理：Topic、ACK、DLQ 以及恢复边界 | 🕒 | queued | 2026-10-06 11:00 |
-| 139 | SonnetDB typed MCP、Copilot 与 RAG：只读工具如何接入 AI | 🕒 | queued | 2026-10-07 11:00 |
-| 140 | SonnetDB 语义图片检索续篇：从能运行到可发布的证据边界 | 🕒 | queued | 2026-10-07 11:00 |
-| 141 | SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界 | 🕒 | queued | 2026-10-08 11:00 |
-| 142 | SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起 | 🕒 | queued | 2026-10-08 11:00 |
+| 135 | [SonnetDB 当前能力全景：九种原生模型与一套数据库目录](https://www.cnblogs.com/IoTSharp/p/23202291) | ✅ 已发布 | 已发布 | 2026-10-05 12:51 |
+| 136 | [SonnetDB SQL 名称大小写合同：原名、双引号与安全迁移](https://www.cnblogs.com/IoTSharp/p/23202334) | ✅ 已发布 | 已发布 | 2026-10-05 13:00 |
+| 137 | [SonnetDB KV 与 JSON 文档：从 TTL 到有界查询](https://www.cnblogs.com/IoTSharp/p/23207325) | ✅ 已发布 | published | 2026-10-06 11:00 |
+| 138 | [SonnetMQ 与流处理：Topic、ACK、DLQ 以及恢复边界](https://www.cnblogs.com/IoTSharp/p/23207331) | ✅ 已发布 | published | 2026-10-06 11:00 |
+| 139 | [SonnetDB typed MCP、Copilot 与 RAG：只读工具如何接入 AI](https://www.cnblogs.com/IoTSharp/p/23213677) | ✅ 已发布 | published | 2026-10-07 11:00 |
+| 140 | [SonnetDB 语义图片检索续篇：从能运行到可发布的证据边界](https://www.cnblogs.com/IoTSharp/p/23213681) | ✅ 已发布 | published | 2026-10-07 11:00 |
+| 141 | SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界 | 🕒 待发布 | queued | 2026-10-08 11:00 |
+| 142 | SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起 | 🕒 待发布 | queued | 2026-10-08 11:00 |
 
 001–075 已确认历史发布，逐篇链接并标记为 ✅ 已发布；076–134 共 59 篇保留 ❓ 待核对，不会被自动任务重发。075 的公开旧稿与历史 Git 原稿正文对账一致，当前本地 Provider-neutral 改写尚未发布。证据与匹配边界见 [公开页面对账记录](publishing-reconciliation-2026-10-05.json)。
 
@@ -32,7 +32,7 @@
 
 - 001–074 共 74 篇历史稿已通过博客园公开页面精确规范化标题匹配确认发布；075 通过公开正文与 Git 历史原稿内容对账确认，历史已发布合计 75 篇。076–134 共 59 篇未确认，继续待核对，不能据此认定未发布。075 的公开文章为历史稿，当前本地 Provider-neutral 改写未上线。公开页面还确认了 10 篇未匹配本地编号的多模型专题，见下表与 [对账证据](publishing-reconciliation-2026-10-05.json)。
 - 001、007、008、049、050、051、055、071、074、076、079、085、086、089、091–100、101–110、133 等文章需要先修订或重新核验；具体原因见 [`publishing-review-2026-10-05.md`](publishing-review-2026-10-05.md)。
-- 135–142 是本轮根据当前九模型、名称大小写合同、MQ/流处理、typed MCP、语义图片检索、Workbench 与可靠性边界新增的首批 8 篇文章，已经过源码/文档事实核对；135、136 已确认发布，137–142 共 6 篇保持 queued。
+- 135–142 是本轮根据当前九模型、名称大小写合同、MQ/流处理、typed MCP、语义图片检索、Workbench 与可靠性边界新增的首批 8 篇文章，已经过源码/文档事实核对；135–140 已确认发布，141–142 共 2 篇保持 queued。
 
 ## 新系列总规划（以当前实现为准）
 

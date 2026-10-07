@@ -3,7 +3,7 @@
   "platform": "oschina",
   "userId": 7172,
   "timezone": "Asia/Shanghai",
-  "updatedAt": "2026-10-07T04:11:06.6650485+08:00",
+  "updatedAt": "2026-10-07T03:37:44.3416227+00:00",
   "policy": {
     "dailyTime": "11:00",
     "dailyArticleLimit": 2,
@@ -4254,7 +4254,7 @@
       ],
       "preparedPath": "docs/blogs/oschina/prepared/135-sonnetdb-nine-models-current-state.md",
       "status": "submitted",
-      "priority": 0,
+      "priority": 135,
       "attempts": 1,
       "blog": {
         "id": "b4e64e6c-ad44-411c-a8ce-b466695d7a86",
@@ -4322,6 +4322,17 @@
         },
         "checkedAt": "2026-10-07T04:04:23.856046+08:00",
         "method": "complete-three-scope-and-full-body"
+      },
+      "tweetReadOnlyReconciliation": {
+        "checkedAt": "2026-10-07T11:35:05.7806484+08:00",
+        "method": "complete-own-web-list-and-publisher-exact-or-one-pass-entity-match",
+        "listingComplete": true,
+        "loadedItems": 134,
+        "exactMatches": 0,
+        "absenceProven": false,
+        "outcome": "unresolved-retain-original-unknown-no-resubmission",
+        "originalReceiptId": "55187ffb-e020-4e9d-a1be-563b7bfb234f",
+        "newPostRequests": 0
       }
     },
     {
@@ -4335,7 +4346,7 @@
       ],
       "preparedPath": "docs/blogs/oschina/prepared/136-sql-identifier-case-contract.md",
       "status": "submitted",
-      "priority": 1,
+      "priority": 136,
       "attempts": 1,
       "blog": {
         "id": "43b6db9b-0bca-4765-88d1-5f6ce1e214e0",
@@ -4441,7 +4452,7 @@
       ],
       "preparedPath": "docs/blogs/oschina/prepared/137-kv-document-models.md",
       "status": "submitted",
-      "priority": 2,
+      "priority": 137,
       "attempts": 1,
       "blog": {
         "id": "3ce7fe4e-1366-4137-83fe-af15b419ff50",
@@ -4492,7 +4503,7 @@
       ],
       "preparedPath": "docs/blogs/oschina/prepared/138-sonnetmq-streaming-recovery.md",
       "status": "submitted",
-      "priority": 3,
+      "priority": 138,
       "attempts": 1,
       "blog": {
         "id": "e7910fc7-ecf6-4956-a9b8-a558eae98280",
@@ -4679,5 +4690,29 @@
     "code": 500,
     "message": "访问频率过高，请稍后再试",
     "channel": "blog"
-  }
+  },
+  "lastHeartbeat": {
+    "runId": "141bb1e1-6d23-4dee-afac-e05a09f710cc",
+    "time": "2026-10-07T11:35:05.7806484+08:00",
+    "localDate": "2026-10-07",
+    "acceptedBlogsToday": 33,
+    "maximumScheduledBlogs": 2,
+    "newBlogs": 0,
+    "newTweets": 0,
+    "pendingTweets": 0,
+    "unknownTweetArticleIds": [
+      "135"
+    ],
+    "nextArticleId": "030",
+    "retainedDraftId": 3326805,
+    "newsId": 502847,
+    "newsReviewStatus": 0,
+    "newsReviewLabel": "审核中",
+    "nextNormalRun": "2026-10-08T11:00:00+08:00",
+    "knownSourceDriftArticleIds": [
+      "139",
+      "140"
+    ]
+  },
+  "project": "SonnetDB 开源中国"
 }
