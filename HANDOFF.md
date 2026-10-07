@@ -5,6 +5,22 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-42，2026-10-07；真实Host两条数据证据，完整旅程失败待续）
+
+- 从实际 `38c6f688b6063a3c7aded329cb7ae119d97c3078` 接续，完整文档receipt与最新HANDOFF/AGENTS/queue/ROADMAP SHA256相同，git/路线图/既有提交/已完成代理核验；WB41旧OS失败/后三NOT_RUN不重试、不标完成。独立inventory 10有界短读、无进程/temp确认旧真实Host仅激活/注册、13导航节点与轻量语言合同，HTTP/LSP夹具不能替代实际Server。
+- 唯一切片：复用现有Add Connection/selectDatabase/生产runQuery、runSelection、EXPLAIN，只读SQL到隔离真实本机Kestrel，最多5条MixedCase seed；公共VSCode prompt-driver/真实createWebviewPanel返回对象数据与showQueryHistory条目另验。API认证准备不计登录UI，public HTML payload不计Webview渲染/分页；不扩Notebook/LSP、OS/VSIX安装/AOT/硬件/三宿主整体。query.maxRows未应用到当前SQL预览的候选另记，不混生产修复。
+- 专属实施代理仅新增 `extensions/sonnetdb-vscode/src/test/host/query-real.ts` 与 `extensions/sonnetdb-vscode/scripts/run-query-host-real.mjs`；独立复核只读。生产及legacyHost/runner/共享helpers冻结，根独占六共享docs、验证/审计/最终门禁/stage/commit，共八任务文件。Node/Code/dotnet固定已确认绝对路径，显式Code路径禁止下载fallback；复用Server DLL `8DB5566E…452C`，0新.NET构建，最多1个TypeScript项目。
+- 根新 `artifacts/wb42-validation-20261007` 到00:45Z、14wrapper命令/2actual run；实施至00:00Z、24短shell各30秒/24命名源/24rg各60匹配15秒，复核至00:30Z、20短shell/30命名文件；actual runner≤600秒、Code≤120秒、readiness120次/60秒、三个命令各20秒、仅setup/reference HTTP10秒（生产fetch无signal，不能声称取消）、history20次/10秒，证据最多24份/每份512KiB/合计8MiB/wx/凭据拒写，public hooks finally恢复，真实Server/Code退出、端口与runtime分验，失败也保存终态。
+- PowerShell7固定pwsh；禁止Graphify/广域扫描/未授权安装/外部沟通；循环/搜索/等待/重试同时次数/项目及墙钟、小输入核退出比较；长进程PID/creation/full command/父链/finally只清核验自有树，临时绝对路径核验、policy拒绝不绕过。Foreign54行footer/博客/oschina/parity与旧policy目录保留；最终八文件完整restore/原级别format前后hash绑定通过才本地commit，无push。本片不启动下一片，旧Workbench任务及唯一heartbeat ACTIVE30分钟继续。
+
+- 最终Host `B6669926…BB5BC0`、runner `D30DA1C4…D11E6F`，两新增诊断源/六共享docs共八任务文件；生产/旧Host/共享helper保持，复用Server `8DB5566E…452C`，同一TS项目最终compile和Node syntax exit0，既有七Node文件20/20（含mock，非真实LSP）。公共API可逆驱动、真实panel返回对象HTML及被动Undici路径/status，没有替换HTTP/client/result；原始子进程正文不保存，第二child-output streams为空，不能声称取得输出hash。
+- 首actual `query-host-real-f76a462a-504c-4229-84d8-10623fc1f28e`，旧runner `D310F936…694F30`，7秒wrapper失败preflight。两个helper closed却无完整身份，Server/Code/runtime未创建、六终态保持FAIL。唯一精确Node/helper微输入证实原12hop/2秒逐项CIM parent-chain超时；改一次CIM≤4096/3秒snapshot及内存lookup，原12hop/2秒和完整身份门禁保持。根fresh PID/父子/端口/无runtime核验另存，缺完整短命身份不升级为runner cleanup PASS。
+- 第二/最后actual `query-host-real-ed4167fe-fa16-46f3-a4d1-dad26dfc5cc0`，真实隔离Code/Kestrel、READ用户、五MixedCase seed/独立管理员reference。current-statement空selection91→rows4/5，exact-selection[0,77]→row2，均POST200、原列DeviceID/MixedCaseName及payload SQL/database与reference同。只证明生成数据和命令结果；实际请求SQL正文未采集，公共prompt/API认证不计向导/登录UI，HTML不计DOM/分页。
+- EXPLAIN第三POST200但Host AssertionError，phase3载荷未保存/history NOT_RUN；apiRestored=true/cleanupErrors0。独立review确认reference请求显式previewMaxRows32且EXPLAIN32行/truncated=true，生产executeSql只发{sql}，合同不一致是有据候选，缺失败载荷/断言点不能认定唯一根因或产品EXPLAIN故障。runner process_audit失败，tracked29/events24、六helper完整且closed；缺五身份日志不能声称全部进程生存期捕获。codeExit/hostOutcome=null、原cleanup false，不计正常Code退出/Server生命周期。
+- 根按fresh完整identity/父链回收两自有PID（Server及其conhost）；Node/自身conhost随后退出，外wrapperexit1/201秒。16wrapper记录无存活，两端口释放；新runtime经绝对路径/marker/4096对象/depth16/15秒inventory与30秒逐项删除门禁一次清282对象，marker最后，独立root-failure-acceptance通过只证两局部数据与根回收。原10证据文件/manifest189693字节、两run失败终态不改，不第三跑、不碰旧policy目录。
+- 根14wrapper/2actual窗口在 `artifacts/wb42-validation-20261007`；最终八文件完整restore/原format、前后hash/时间/精确命令绑定、白名单stage与本地commit及postcommit进程核验见final-gates/final-tree-hashes/commit-checkpoint，代码再改重跑。HANDOFF只本顶部hunk，54行foreign footer/博客/oschina/origin/parity-results保持不stage，无push。
+- 下一片先对齐真实reference/生产预览合同，独立修诊断partial discovery失败落盘与finally清理相互阻断，再在新冻结窗口验证EXPLAIN/history/Code正常退出；不重置本片耗尽的两actual预算或把2条证据称3/3。query.maxRows生产缺口、连接向导UI/Webview分页、Notebook/LSP、OS dialogs/安装/AOT/完整三宿主继续另验，WB41窗口阻断未解，不盲重跑。旧任务与唯一ACTIVE每30分钟heartbeat继续，整体未闭环，不迁移或暂停。
+
 ## 当前检查点（WB-41，2026-10-07；诊断入口已验证，原生对话框旅程失败待续）
 
 - 从实际提交 `0a9834bdaaa89971fd8fe95286876d1c2160823f` 接续；最新HANDOFF/AGENTS/queue/ROADMAP完整文件读取与已完整接收WB-40最终树SHA256核对相同，git/路线图/提交与已完成子代理核验。独立inventory确认Ctrl+O/Ctrl+S及原生菜单file.open/file.save已实现，复用既有Web→bridge→WinForms picker，不重做生产功能。

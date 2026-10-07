@@ -2,6 +2,19 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-42 合同与文件冻结（2026-10-07；两条真实数据证据，完整旅程失败待续）
+
+- 依赖现有Remote-first、M32/M34与WB14/16，从实际 `38c6f688` 接续，完整receipt/fresh hashes与git/路线图/既有提交/完成代理核对。inventory有界只读10短shell后停止，无进程/temp；现有真实Host只证激活/注册/导航和轻量语言，HTTP mock/LSP假sidecar不替代真实Server，不重做已实现命令。
+- 只补3个现有read-only生产命令到任务独占真实Kestrel；最多5条seed、列原名、精确当前语句/selection与EXPLAIN按实际Server schema，对拍真实generated panel payload和公开QueryHistory QuickPick条目。公共prompt-driver≠连接向导UI，HTML≠Webview DOM/分页，API认证≠登录UI；Notebook/LSP/OS/VSIX安装/AOT/硬件/整体三宿主另验，query.maxRows候选另片。
+- 专属代理仅new `src/test/host/query-real.ts` 和 `scripts/run-query-host-real.mjs`（均在extensions/sonnetdb-vscode）；readonly独立复核；生产/原host index/旧smoke runner/共享helper冻结，根六共享docs/验证/审计/完整最终门禁/stage/commit，共八文件。Code/Node/dotnet已知绝对路径，不下载/安装，复用已核Server DLL，0新.NET build/最多1TS项目。
+- 新root到00:45Z、14wrapper/2actual；实施00:00Z、24短shell30秒/24named/24rg60匹配15秒；复核00:30Z、20短shell/30named。Runner600秒/Code120秒/readiness120次60秒/command20秒/仅setup-reference HTTP10秒（生产fetch无signal，不计取消）/history20次10秒；证据24份/512KiB/8MiB/wx/秘密拒写；public hooks finally恢复，Server/Code实际身份/父链/正常测试退出、端口与runtime各验，失败终态保留。
+- PowerShell7、禁Graphify/广域扫描/未授权安装；有界执行/微输入退出比较、完整PID/creation/command/父链/finally归属回收和绝对临时路径/policy不绕过规则不变。Foreign/footer/parity/旧拒删目录不碰，无push/发布/部署/外部沟通；最终八文件完整restore/原级别format/hash门禁通过才commit。WB41失败未解除、不盲重跑，三宿主未闭环，唯一heartbeat ACTIVE30分钟、本片不启动下一片。
+
+- 最终两新诊断源Host `B6669926…BB5BC0`/runner `D30DA1C4…D11E6F`，生产/legacy/helper冻结；Node syntax/同一TS项目compile exit0，既有Node20/20（mock另列）。首actual f76a462a preflightFAIL/六终态，两个helper缺完整身份，Code/Server/runtime未启动；精确微输入证parent2秒逐CIM超时，改一次≤4096/3秒snapshot+内存lookup，原12hop/2秒/身份门禁不降。原失败不覆盖。
+- 最后actual ed4167fe：真实READ用户/五MixedCase seed/独立reference，current rows4/5、selection row2，原列/SQL/database生成payload与reference同，POST200。EXPLAIN第三POST200但AssertionError/无phase3载荷，history NOT_RUN；reference显式preview32/truncated、生产只发{sql}的合同差异留候选，不凭缺载荷认唯一根因。apiRestored真，runner process_audit FAIL/tracked29/events24、六helperclosed；codeExit null/原cleanup false，整体3/3未通过。
+- 根fresh两单PIDfallback后16wrapper记录0，端口18342/18343释放；282对象新runtime经marker/绝对路径/次数/墙钟门禁一次逐项删除，原10证据/manifest189693B不改。Root acceptance只验两局部生成数据/根回收，不计正常Code/Server生命周期、UI或全进程捕获。14wrapper/2actual窗口已固定，最终八文件完整门禁、白名单commit/postaudit见证据目录；foreign/parity/旧policy目录保持。
+- 下一有界切片：先reference/生产preview合同与诊断partial discovery日志/finally回收的最小修补，再真实EXPLAIN/history/Code正常退出。不得第三跑本片；query.maxRows生产、向导UI/Webview分页、Notebook/LSP与WB41 OS窗口阻断分别继续，三宿主整体仍未闭环，唯一heartbeat ACTIVE30分钟不迁移/暂停。
+
 ### WB-41 合同与文件冻结（2026-10-07；诊断入口已验证，原生旅程失败待续）
 
 - 依赖WB-40实际提交 `0a9834bd`，完整receipt+fresh exact SHA256确认HANDOFF/AGENTS/queue/ROADMAP相同；git/已存在提交/完成代理核对。现有SQL Ctrl+O/Ctrl+S、原生Open SQL/Save SQL As、typed bridge及WinForms Service已有实现。独立inventory只读盘点8短读/11rg/11命名源文件后停止，无进程或临时对象，不将已有功能重新包装。
