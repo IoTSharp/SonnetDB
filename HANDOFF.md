@@ -800,3 +800,14 @@
 - 按仓库铁律，本轮在当前最终源码树重新执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，收据使用 commit-solution-restore / commit-solution-format；只有两项ExitCode0且进程清理验证通过才执行commit。实际提交结果以git log及commit-receipt.json为准。
 - 使用专用Git index隔离提交；HANDOFF从HEAD底本精确附加两个Identity段和本段，保留外部Workbench/发布交接。docs/design/m47-unified-management-workbench/work-queue.md及其它外部工作不纳入；本地提交后只同步未被他人改变的本任务默认index条目。commit授权不包含push/发布/部署，parity-results不改动。
 - 独立只读复核无阻断，确认最终TRX和收据一致；本轮仅门禁和提交，不重复已有功能测试。PS7、有界执行/进程身份/精确临时index清理约束继续；本次提交完成后本任务没有遗留实施项，后续包发布/远程/v3/已有库升级仍按上段边界独立验收。
+
+## 当前检查点（WB-61，2026-10-07；Studio 数据库恢复入口，实际旅程未通过）
+
+- main 接续外部 Identity 本地提交 5ad2b9ee；其28项源码/文档及全部并发交接保留，origin/parity-results 起始核验为9b82287ff6d0c92e1103d7ab68a66ce821193480；外部pull于14:37:54Z更新至0061d6d78591fb08493f473d3231ca42303faae1，最终保留当前引用，本任务不改ref。唯一 workbench heartbeat 仍在本 chat、ACTIVE、每30分钟；三宿主未闭环，不迁移会话，不创建重复自动化。
+- WB60验收盘点只读完成，已回答三宿主剩余完整用户旅程/权限恢复/宿主安装等退出条件；WB61复用现有Studio实现，只新增数据库恢复实际验收场景及14纯合同。专属实施只3个web/e2e源，根只5共享文档自有hunk/验证/集成/本地提交；产品源码未改。普通A→B选库/PUT/磁盘、两desktop重启和真实B只读查询必须全链PASS，不能page reload或API写库代替。
+- 独立源码复核先BLOCK迟解码旧ack与未验证root可获回收权，修为request ordinal+receipt双barrier、全部候选tuple/父链/容量通过后才准入。两launch及helper96分段完整证据、512KiB/终态/无fallback验收守卫保持；legacy成功动作/预算未放宽，只安全收紧root准入。最终syntax/14合同PASS，Web/Server/Studio各1入口构建PASS（.NET0warnings/errors）；最终待提交树完整restore/原format及独立验收/commit以本片收据为准。
+- 唯一actual studio-native-real-64f810fa-d555-4999-8000-d13c594b203b：本机默认尺寸/WebView2 154.0.4258.53实际native bootstrap及普通运行态/owned Server已证；创建A库后夹具建表POST /v1/db/WB61_Alpha_594b203b/sql返回400。原FAIL、launch1、selection0、firstClose/secondLaunch/restored/query/secondClose=null、normalExit=false均保持；所有库选择/库持久化/桌面重启/B查询NOT_RUN，不能称Studio恢复或三宿主完成。
+- actual后仅一SQL literal从TEXT改为原生STRING并声明普通可写主键，inverse SHA等失败actual模块原SHA，其他代码不变。根已核Lexer/Parser确拒TEXT，但400业务body未保存；缺PK不是该CREATE失败已证原因。为这项已证输入修正明确追加2分钟0探索实施和1次必要14合同复验（3定向run、14独立项），0第二actual；修正版本仍未真实验收。实际源/最终源分开保存，不以最终代码升级原FAIL。
+- actual native237.47秒/完整wrapper239秒；9完整归属fallback、helper reclaim0、四port释放、371+106+4专属对象回收、errors空、六terminal文件全保存，cleanupProven=true仅计回收。外层fresh任务identity审计无存活/排除/新增stop，前期root审计误把既有Codex父服务当owned及PS注释修正失败单独留存，均0stop、未触碰服务。旧拒删Temp/WB40保留runtime对象不触碰。日志/源码hash/失败收据是有意保留交付物，位置artifacts/wb61-studio-database-recovery-20261007。
+- 下一片先完整接收最新四文档、核git/本片commit/正在进行的任务与agents；核有界脱敏失败观察和修正seed，再冻结唯一真实Studio数据库恢复旅程，不能盲重跑或循环追加无关Query诊断替代整体收口。之后按已有验收盘点继续Studio文件四phase/干净机安装、VS Code向导/Notebook/分页/LSP/治理转交及严格退出、Web真实治理/权限/恢复组合，再共同候选版本和发行物矩阵；Graph保持Beta，模型深度未支持能力显式禁用。
+- 登录UI、OS文件对话框、安装升级卸载、NativeAOT/Extension Host、固定硬件/168h、真实模型质量及发布证据仍分列；本片不新增这些完成声明。全程PS7、禁Graphify/广域扫描/未授权安装，有界count+墙钟及归属finally，无push/发布/部署/外发。三宿主未闭环，下一次继续同chat/同heartbeat。

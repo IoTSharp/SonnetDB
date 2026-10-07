@@ -2,6 +2,16 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-61 合同与文件冻结（2026-10-07；Studio 数据库选择及桌面重启恢复验收）
+
+- 基线 c5716912；WB60 只读验收盘点和 WB61 源码盘点已结束，未新增 actual。既有 connections store、公开 GET/PUT、普通 Explorer 选库及 mounted 恢复实现复用，不改产品来迎合测试。当前 Identity 会话已完成但未提交，其源码、solution 与共享文档全部保留。
+- 专属实施仅拥有 `web/e2e/run-studio-native-real.mjs`、新增 `studio-native-database-scenario.mjs` 及其合同测试。根独占共享文档、验证、集成、stage 与本地 commit；独立复核只读。新增独立 database-recovery scenario，旧 lifecycle/sql-dialogs 动作、预算及证据结论不放宽。
+- 真旅程最多一次、Studio 最多两次启动：隔离真实 Server 准备混合大小写 A/B 库及不同只读查询哨兵；普通展开 Explorer 并选 A→B，每次对拍新的 PUT 200 ack、DOM、activeIdentity、profiles defaultDatabase 与精确 owned 磁盘白名单语义。store 对普通非控制库确会更新 defaultDatabase，不能把控制库动作加入该断言。正常关闭第一桌面、全四端口及所属身份退出后，保留专属 library/data/profile 并重新启动一次；先观察普通 bootstrap GET/DOM 恢复 B，再普通查询对拍真实 B 请求与不同哨兵，最后正常退出和严格回收。page reload、API 选库或 localStorage 设置数据库不能代替恢复。
+- 单场景墙钟 900 秒，最后 90 秒保留回收；launch≤2、API≤80、bridge responses≤128、owned identities≤32、process helpers≤96（32 留回收）、证据文件≤64，poll≤30次且≤20秒（既有启动/关闭特定守卫保留）。不存凭据/header/HAR/console/原始库全文；仅白名单语义、hash/bytes，旧 policy 保留对象不触碰。fallback/unknown/缺 ack 使实际验收 FAIL。
+- 实施≤25分钟、≤12命名内容文件、≤12短 shell、≤3定向 rg，必要本地合同测试由根运行；最多1 Web项目、2 .NET入口项目编译各1次，actual≤1，测试≤2次。新方案审查通过才创建窗口，失败保留原值，不盲重跑。最终待提交树完整 restore/原 format、精确自有hunk、diff及进程审计、本地commit。PS7、禁Graphify/广域扫描/未授权安装，无push/发布/部署/外发；三宿主/文件对话框/登录UI/安装/AOT/长期/发布仍独立验收，同一ACTIVE30分钟heartbeat继续。
+- **实际结果**：唯一 `studio-native-real-64f810fa-d555-4999-8000-d13c594b203b` 原FAIL保持；首次native bootstrap、普通运行态/真实managed Server已证，混合大小写A库创建后建表POST400。选库/磁盘ack/第二desktop/恢复/B查询全部NOT_RUN；normalExit=false、cleanupProven=true，9完整归属fallback、四port释放、371+106+4专属对象回收及六独立terminal保存。237.47秒native/239秒wrapper分列。
+- **修正与接续**：源码review先拒绝迟解码ack和拒绝root仍可获清理权，修正后14/14合同PASS。actual后精确Lexer/Parser静态核TEXT不是关系类型、STRING受支持；单literal修成STRING+普通可写主键，inverse SHA等原实际模块。主键不是此次CREATE400已证原因，400业务body未保存；修正版本0actual。为这一个输入修正明确追加2分钟/0探索实施和一次必要本地14项复验（总3定向run、仍14独立合同），不增加actual。下一片先补有界脱敏失败观察/核修正seed，再冻结唯一真实桌面恢复旅程；不追加无关Query诊断替代收口。
+
 ### WB-59 合同与文件冻结（2026-10-07；VS Code SQL耗时字段兼容，0actual）
 
 - 基线09afe8dd；原WB57实际reference只含elapsedMilliseconds，Panel/history读elapsedMs。专属实施独占core/types.ts、core/sonnetdbClient.ts及新增test/sqlElapsedCompatibility.test.ts；根独占六共享docs、工具/gates/stage/九文件本地提交，独立review只读。Panel/command/Store/Host/runner及33份先前证据保持，不重复已完成页或旧测试。

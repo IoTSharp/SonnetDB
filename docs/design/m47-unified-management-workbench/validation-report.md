@@ -2,6 +2,15 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-61 Studio 数据库恢复验收入口（2026-10-07；真实旅程 FAIL）
+
+- **范围与合同**：已有 connections store、原生 GET/PUT、普通 Explorer 选库及 mounted 恢复复用，产品源码未改。新增 database-recovery 场景要求普通 A→B 选库分别对拍新 PUT、原名 DOM/identity/defaultDatabase 与 owned 磁盘白名单；第一 desktop 正常关闭并证明所有所属身份/四端口释放后，保留同一专属 library/data/profile 再启动一次，先被动 DOM 确认 B，再正常 SQL route 的可观察 bootstrap GET 和普通只读 B 查询。route navigation 不能代替真实 desktop restart，最早自动 GET 不冒称被捕获。
+- **安全与本地验证**：独立评审拒绝旧响应迟解码可跨 barrier、未通过验证的第二 root 可获 finally 清理权；新增请求 ordinal+响应 receipt 双 barrier及候选全 tuple/父链/容量验证后准入，拒绝身份不授回收权限。旧 lifecycle/sql-dialogs 成功动作与预算保持；root 准入安全收紧适用于两 launch。96 helpers 用两段既有 compactor保全身份，512KiB/终态/fallback拒绝门禁保持。最终14/14纯合同、syntax通过；Web build及Server/Studio Release各一次通过，后两者0 warning/error。实际前独立源码复核PASS。
+- **唯一真实结果**：`artifacts/wb61-studio-database-recovery-20261007/studio-native-real-64f810fa-d555-4999-8000-d13c594b203b`，本机WebView2 154.0.4258.53、默认尺寸未覆写、既有实际native页/CDP、普通运行态/真实owned Server已证。初始短暂“宿主身份不可确认”保留，随后初始运行态已精确确认。创建A库后夹具建表 `POST /v1/db/WB61_Alpha_594b203b/sql` HTTP400；原passed=false、launches=1、selections=0、firstClose/secondLaunch/restored/query/secondClose=null保持，恢复旅程尚未执行。
+- **回收与证据**：normalExit=false，cleanupProven=true；9逐完整身份归属fallback、helper reclaim0，四端口释放、371/106/4专属对象回收，errors空；六terminal文件独立保存。native237.47秒、outer wrapper239秒分列；外层fresh归属审计0存活/0排除/0新增stop。回收不计正常退出或数据库恢复通过，旧WB40/WB41/WB57结论不升级。
+- **夹具修正与剩余**：独立静态盘点未把缺主键推成CREATE失败原因；根进一步核 `SqlLexer.cs:102/303` 与 `SqlParser.cs:2040/2065`，原TEXT不合原生关系类型。仅一个SQL literal改为 `CREATE TABLE "WB61Probe" ("Marker" STRING, PRIMARY KEY ("Marker"))`；inverse SHA严格等实际模块旧SHA，INSERT/SELECT及其他代码原样。修正后syntax/14合同复验通过，但0新actual，未取得HTTP400业务body，不声称真实seed/恢复故障已解决。实际源、修正源及门禁源分别绑定收据；下一片先补失败观察并核seed，再验真实选库/重启/B查询。
+- **提交与边界**：基线并发Identity提交5ad2b9ee已保留，根只维护本片3源码与5共享文档自有hunk。最终树完整restore/原format、diff、进程收尾、精确本地commit与独立最终复核以本目录收据为准。登录UI、文件对话框、备份恢复、安装、NativeAOT、VS Code Extension Host、三宿主共同候选版本、长期及发布均未在本片验收；唯一同一ACTIVE30分钟heartbeat继续。
+
 ## WB-59 VS Code SQL耗时字段兼容（2026-10-07；本地合同，0真实Host运行）
 
 - **问题与范围**：原WB57已保存真实reference的三phase end使用elapsedMilliseconds（24.7995/2.6558/9.3554），现有Panel/history读取elapsedMs。WB59仅在唯一parser end边界补兼容及optional DTO，并新增必要测试；生产Panel/command/history/Host/runner不改。既有真实reference是问题依据，本片无新真实Server或Extension Host运行。

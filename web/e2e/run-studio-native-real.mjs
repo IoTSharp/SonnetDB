@@ -10,15 +10,18 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence } from './studio-native-evidence.mjs';
+import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.env.SONNETDB_STUDIO_NATIVE_REAL_SCENARIO ?? 'lifecycle';
 const sqlDialogsRequested = scenario === 'sql-dialogs';
-const validationSlice = sqlDialogsRequested ? 'WB-41' : 'WB-40';
+const databaseRecoveryRequested = scenario === 'database-recovery';
+const validationSlice = databaseRecoveryRequested ? 'WB-61' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
 const evidenceParents = Object.freeze({
   wb39: path.join(repository, 'artifacts', 'wb39-validation-20261007'),
   wb40: path.join(repository, 'artifacts', 'wb40-validation-20261007'),
   wb41: path.join(repository, 'artifacts', 'wb41-validation-20261007'),
+  wb61: path.join(repository, 'artifacts', 'wb61-studio-database-recovery-20261007'),
 });
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
 const selectedEvidence = configuredEvidence && path.isAbsolute(configuredEvidence)
@@ -52,8 +55,8 @@ const contentRoot = path.join(runRoot, 'server-content');
 const libraryPath = path.join(contentRoot, 'connections.json');
 const markerName = '.wb39-owned.json';
 const startedAt = Date.now();
-const totalDeadline = startedAt + 600_000;
-const mainDeadline = totalDeadline - 60_000;
+const totalDeadline = startedAt + (databaseRecoveryRequested ? 900_000 : 600_000);
+const mainDeadline = totalDeadline - (databaseRecoveryRequested ? 90_000 : 60_000);
 const cleanupDeadline = totalDeadline - 15_000;
 const cancellation = new AbortController();
 const cancel = () => cancellation.abort(new Error('Native Studio validation cancelled.'));
@@ -83,8 +86,11 @@ let normalExit = false;
 let cleanupProven = false;
 let fatal;
 let asynchronousFailure;
+let databaseRecoveryResult;
+let launchCount = 0;
+let databaseServerIdentity;
 const streamCounts = { stdoutBytes: 0, stderrBytes: 0 };
-const maxOwnedProcesses = 16;
+const maxOwnedProcesses = databaseRecoveryRequested ? 32 : 16;
 const nativeClose = { attempted: false, accepted: false, method: 'CloseMainWindow', discovery: null,
   studioIdentityExited: false, oldServerIdentityExited: false, newServerIdentityExited: false,
   studioExitCode: null, studioExitSignal: null, allFourPortsReleased: false };
@@ -110,7 +116,7 @@ async function evidence(name, value, { signal, terminal = false } = {}) {
   // WB-41 uses 46 retained files (including four external acknowledgements,
   // the input and output SQL files). The total remains 48; six slots remain
   // reserved for independent terminal writes. The old lifecycle cap is intact.
-  const limit = terminal ? 48 : sqlDialogsRequested ? 42 : 32;
+  const limit = databaseRecoveryRequested ? terminal ? 64 : 58 : terminal ? 48 : sqlDialogsRequested ? 42 : 32;
   if (!/^[a-z0-9.-]+$/u.test(name) || counters.filesWritten >= limit || counters.fileWriteAttempts >= limit) throw new Error('Evidence filename/count cap exceeded.');
   counters.fileWriteAttempts += 1;
   const text = encodeNativeEvidence(value, secretValues, { deadline: Math.min(Date.now() + 1000, totalDeadline) });
@@ -126,7 +132,7 @@ function sameIdentity(a, b) {
 
 async function processAction(action, payload, final = false) {
   check(final);
-  if (counters.helpers >= (final ? 64 : 40)) throw new Error('PowerShell helper invocation cap exceeded (24 calls reserved for cleanup).');
+  if (counters.helpers >= (databaseRecoveryRequested ? final ? 96 : 64 : final ? 64 : 40)) throw new Error('PowerShell helper invocation cap exceeded (scenario cleanup reserve retained).');
   counters.helpers += 1;
   const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', helper, '-Action', action];
   const input = JSON.stringify(payload);
@@ -213,7 +219,7 @@ async function captureOwned(label, final = false) {
   return live;
 }
 
-async function api(method, apiPath, body, auth) {
+async function api(method, apiPath, body, auth, raw = false) {
   check();
   if (++counters.requests > 80) throw new Error('Real API/CDP request cap exceeded.');
   const controller = new AbortController();
@@ -227,7 +233,8 @@ async function api(method, apiPath, body, auth) {
     if (!response.ok) throw new Error(`Real API ${method} ${apiPath} returned ${response.status}.`);
     const text = await response.text();
     if (Buffer.byteLength(text) > 524_288) throw new Error('Real API response size cap exceeded.');
-    return apiPath === '/healthz' ? { healthyHttpStatus: response.status } : text ? JSON.parse(text) : null;
+    if (raw && !databaseRecoveryRequested) throw new Error('Raw API result is reserved for the database-recovery scenario.');
+    return raw ? text : apiPath === '/healthz' ? { healthyHttpStatus: response.status } : text ? JSON.parse(text) : null;
   } finally {
     clearTimeout(requestTimeout);
     cancellation.signal.removeEventListener('abort', stop);
@@ -271,24 +278,31 @@ function assertOwnedRunning(body) {
 }
 
 function watchPage() {
+  const observedLaunch = launchCount;
+  const requestSequences = new WeakMap();
   page.on('pageerror', () => { counters.pageErrors += 1; });
-  page.on('request', () => {
+  page.on('request', (request) => {
     if (++counters.pageRequests > 240) asynchronousFailure = new Error('Native page request cap exceeded.');
+    if (databaseRecoveryRequested) requestSequences.set(request, counters.pageRequests);
   });
   page.on('response', (response) => {
     const url = new URL(response.url());
     if (url.origin !== bridgeOrigin || !['/studio-bridge/manifest', '/studio-bridge/connections', '/studio-bridge/server/status', '/studio-bridge/server/start', '/studio-bridge/server/stop'].includes(url.pathname)) return;
-    if (++counters.bridgeResponses > 64) { asynchronousFailure = new Error('Bridge response cap exceeded.'); return; }
+    if (++counters.bridgeResponses > (databaseRecoveryRequested ? 128 : 64)) { asynchronousFailure = new Error('Bridge response cap exceeded.'); return; }
+    const responseSequence = counters.bridgeResponses;
+    const requestSequence = requestSequences.get(response.request()) ?? null;
     // Only a public response body whitelist is retained. No request headers,
     // bootstrap event values, Console messages, HAR or raw trace is recorded.
     void response.json().then((body) => {
       let publicBody;
       if (url.pathname.endsWith('/manifest')) publicBody = { mode: body.mode, version: body.version, serverUrl: body.serverUrl,
         managedServerUrl: body.managedServerUrl, dataRoot: body.dataRoot, capabilities: Array.isArray(body.capabilities) ? body.capabilities.slice(0, 32) : [], managedServer: status(body.managedServer ?? {}) };
+      else if (url.pathname.endsWith('/connections') && databaseRecoveryRequested) publicBody = projectDatabaseSnapshot(body);
       else if (url.pathname.endsWith('/connections')) publicBody = { activeProfileId: body.activeProfileId, activeDatabase: body.activeDatabase,
         activeIdentity: body.activeIdentity ? { host: body.activeIdentity.host, profileId: body.activeIdentity.profileId, baseUrl: body.activeIdentity.baseUrl, database: body.activeIdentity.database } : null };
       else publicBody = status(body);
-      bridgeEvidence.push({ sequence: bridgeEvidence.length + 1, atUtc: new Date().toISOString(), method: response.request().method(), path: url.pathname, httpStatus: response.status(), body: publicBody });
+      bridgeEvidence.push({ sequence: databaseRecoveryRequested ? responseSequence : bridgeEvidence.length + 1,
+        ...(databaseRecoveryRequested ? { launch: observedLaunch, requestSequence } : {}), atUtc: new Date().toISOString(), method: response.request().method(), path: url.pathname, httpStatus: response.status(), body: publicBody });
     }).catch(() => { asynchronousFailure = new Error('A real bridge response could not be decoded.'); });
   });
 }
@@ -731,14 +745,148 @@ async function removeOwnedDirectory(directory) {
   return { path: expected, entriesRemoved: entries + 1, removed: true };
 }
 
+async function databaseLibraryEvidence() {
+  check();
+  if (!databaseRecoveryRequested || path.dirname(libraryPath) !== contentRoot || path.dirname(contentRoot) !== runRoot
+    || (await realpath(contentRoot)).toLowerCase() !== contentRoot.toLowerCase() || (await lstat(contentRoot)).isSymbolicLink()) throw new Error('Database library is outside its exact owned directory.');
+  const markerFile = path.join(contentRoot, markerName);
+  const markerDetails = await lstat(markerFile);
+  if (!markerDetails.isFile() || markerDetails.isSymbolicLink() || markerDetails.size > 4096) throw new Error('Database library ownership marker type/size failed.');
+  const marker = JSON.parse(await readFile(markerFile, 'utf8'));
+  if (marker.runId !== runId || marker.runnerPid !== process.pid || marker.absolutePath !== contentRoot) throw new Error('Database library directory ownership marker disagreed.');
+  const details = await lstat(libraryPath);
+  if (!details.isFile() || details.isSymbolicLink() || details.size > 524_288) throw new Error('Database library file type/byte cap exceeded.');
+  const bytes = await readFile(libraryPath, { signal: cancellation.signal });
+  if (bytes.length > 524_288) throw new Error('Database library read byte cap exceeded.');
+  return { path: libraryPath, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'),
+    snapshot: projectDatabaseSnapshot(JSON.parse(bytes.toString('utf8')), { disk: true }) };
+}
+
+async function closeDatabaseDesktop(label) {
+  check();
+  if (!databaseRecoveryRequested || !studioIdentity || !databaseServerIdentity) throw new Error('Database desktop close requires a verified actual launch and Server.');
+  const desktop = studio;
+  const rootIdentity = studioIdentity;
+  const serverIdentity = databaseServerIdentity;
+  await captureOwned(`database-${label}-before-close`);
+  const closed = await processAction('close', { identity: rootIdentity });
+  const result = { studioIdentityKey: key(rootIdentity), serverIdentityKey: key(serverIdentity), method: closed.method,
+    accepted: closed.acted === true, discovery: closed.discovery ?? null, exitCode: null, exitSignal: null,
+    studioIdentityExited: false, serverIdentityExited: false, allOwnedIdentitiesExited: false, allFourPortsReleased: false, fallbackUsed: false };
+  // Keep genuine partial observations if a later strict close check refuses.
+  databaseRecoveryResult[`${label}Close`] = result;
+  if (closed.acted !== true || closed.method !== 'CloseMainWindow') throw new Error('Normal database desktop CloseMainWindow was refused.');
+  await boundedPoll(`Database ${label} desktop normal exit`, () => gone(rootIdentity), { attempts: 6, timeoutMs: 25_000, intervalMs: 500 });
+  result.studioIdentityExited = true;
+  await boundedPoll(`Database ${label} desktop exit event`, async () => desktop.exitCode !== null || desktop.signalCode !== null,
+    { attempts: 10, timeoutMs: 2000, intervalMs: 100 });
+  result.exitCode = desktop.exitCode; result.exitSignal = desktop.signalCode;
+  if (desktop.exitCode !== 0 || desktop.signalCode !== null) throw new Error('Database desktop did not exit normally.');
+  await boundedPoll(`Database ${label} owned Server exit`, () => gone(serverIdentity), { attempts: 6, timeoutMs: 20_000, intervalMs: 500 });
+  result.serverIdentityExited = true;
+  const identities = [...owned.values()];
+  if (identities.length > 32) throw new Error('Database owned absence count cap exceeded.');
+  const live = [];
+  for (let index = 0; index < identities.length && index < 32; index += 8) {
+    check(); live.push(...await snapshot(identities.slice(index, index + 8).map((item) => item.processId)));
+  }
+  if (identities.some((identity) => live.some((current) => sameIdentity(identity, current)))) throw new Error('A database desktop descendant survived normal close; second launch/acceptance refused.');
+  result.allOwnedIdentitiesExited = true;
+  for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error('Normal database desktop close did not release all four ports.');
+  result.allFourPortsReleased = true;
+  if (label === 'first') nativeClose.oldServerIdentityExited = true;
+  else {
+    Object.assign(nativeClose, { attempted: true, accepted: true, discovery: result.discovery, studioIdentityExited: true,
+      newServerIdentityExited: true, studioExitCode: result.exitCode, studioExitSignal: result.exitSignal, allFourPortsReleased: true });
+    normalExit = true;
+  }
+  return result;
+}
+
+async function relaunchDatabaseDesktop(args, environment, expectedDatabase) {
+  check();
+  if (!databaseRecoveryRequested || launchCount !== 1 || databaseRecoveryResult?.firstClose?.allOwnedIdentitiesExited !== true
+    || databaseRecoveryResult.firstClose.allFourPortsReleased !== true) throw new Error('Second actual desktop launch requires first strict normal exit.');
+  // These owned directories and their connection library remain in place.
+  await databaseLibraryEvidence();
+  const launchBarrier = { afterSequence: counters.bridgeResponses, afterRequestSequence: counters.pageRequests };
+  launchCount += 1;
+  studioIdentity = undefined;
+  databaseServerIdentity = undefined;
+  const desktop = spawn(studioExe, args, { cwd: contentRoot, env: environment, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
+  studio = desktop;
+  desktop.stdout.on('data', (buffer) => { streamCounts.stdoutBytes += buffer.length; if (streamCounts.stdoutBytes > 4_194_304) asynchronousFailure = new Error('Studio stdout byte cap exceeded.'); });
+  desktop.stderr.on('data', (buffer) => { streamCounts.stderrBytes += buffer.length; if (streamCounts.stderrBytes > 4_194_304) asynchronousFailure = new Error('Studio stderr byte cap exceeded.'); });
+  desktop.on('error', () => { asynchronousFailure = new Error('Second actual Studio executable could not be started.'); });
+  desktop.on('exit', (code, signal) => records.push({ event: 'studio-exit', atUtc: new Date().toISOString(), processId: desktop.pid, code, signal }));
+  const candidate = (await snapshot([desktop.pid]))[0];
+  admitNativeStudioRoot(candidate, { processId: desktop.pid, parentProcessId: process.pid, executablePath: studioExe, dataRoot,
+    runnerIdentity, ownedIdentityKeys: [...owned.keys()], maximumOwned: maxOwnedProcesses }, (admitted) => {
+    studioIdentity = admitted; owned.set(key(admitted), admitted);
+  });
+  await evidence('database-second-launch.json', { executable: studioExe, args, parentIdentity: runnerIdentity, identity: studioIdentity,
+    sameOwnedDirectoriesRetained: [profileRoot, dataRoot, contentRoot], libraryPath, launchBarrier });
+  await boundedPoll('Second managed Server health', async () => await api('GET', '/healthz'), { attempts: 30, timeoutMs: 60_000, intervalMs: 1000 });
+  await boundedPoll('Second actual WebView2 CDP', async () => {
+    if (++counters.requests > 80) throw new Error('API/CDP request cap exceeded.');
+    const response = await fetch(`${cdpOrigin}/json/version`, { signal: AbortSignal.timeout(1500) });
+    const value = await response.json();
+    return response.ok && typeof value.webSocketDebuggerUrl === 'string' && value.webSocketDebuggerUrl.startsWith(`ws://127.0.0.1:${ports.cdp}/`);
+  }, { attempts: 30, timeoutMs: 45_000, intervalMs: 500 });
+  browser = await chromium.connectOverCDP(cdpOrigin, { timeout: 15_000 });
+  if (browser.contexts().length !== 1 || browser.contexts()[0].pages().length > 4) throw new Error('Second actual WebView2 context/page cap failed.');
+  const matching = browser.contexts()[0].pages().filter((candidate) => {
+    try { const url = new URL(candidate.url()); return url.origin === origin && url.pathname.startsWith('/admin/'); } catch { return false; }
+  });
+  if (matching.length !== 1) throw new Error('Second unique native page was not found; substitute refused.');
+  page = matching[0]; page.setDefaultTimeout(8000); page.setDefaultNavigationTimeout(15_000);
+  await captureOwned('database-second-cdp-attached');
+  if (![...owned.values()].some((item) => item.parentChain?.some((parent) => sameIdentity(parent, studioIdentity))
+    && item.commandLine.toLowerCase().includes(profileRoot.toLowerCase()) && item.commandLine.includes(`--remote-debugging-port=${ports.cdp}`))) throw new Error('Second actual WebView2 profile/CDP child ownership was not proved.');
+  watchPage();
+  // First inspect the ordinary automatically launched page. No goto, reload,
+  // storage change, bridge write or API selection may precede this evidence.
+  const passiveDom = await boundedPoll('Second auto-launched passive DOM restores B before navigation', async () => {
+    let timer;
+    try { return await Promise.race([page.evaluate((expected) => {
+    const identity = document.querySelector('[data-testid="studio-host-identity"]')?.textContent;
+    const names = [...document.querySelectorAll('.schema-database-node .schema-item--database.is-active strong')].map((node) => node.textContent);
+    const searchPaths = [...document.querySelectorAll('.editor-status span')].map((node) => node.textContent);
+    const expectedIdentity = `studio-desktop · managed-local · ${expected.origin} · ${expected.database}`;
+    const ordinaryDatabase = names.length === 1 && names[0] === expected.database
+      || names.length === 0 && searchPaths.filter((text) => text === `search_path: ${expected.database}`).length === 1;
+    return identity === expectedIdentity && ordinaryDatabase
+      && !document.querySelector('[data-testid="studio-managed-contract-warning"]')
+      ? { activeDatabase: expected.database, hostIdentity: identity, contractWarning: false, automaticNativeUrl: window.location.href,
+        databaseDomSource: names.length === 1 ? 'ordinary active Explorer database' : 'ordinary SQL search_path' } : false;
+    }, { origin, database: expectedDatabase }), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Second passive database DOM read exceeded 2 seconds.')), 2000);
+    })]); } finally { clearTimeout(timer); }
+  }, { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
+  await evidence('database-second-passive-dom.json', passiveDom);
+  const barrier = { afterSequence: counters.bridgeResponses, afterRequestSequence: counters.pageRequests };
+  await page.goto(`${origin}/admin/app/sql?tool=sql`, { waitUntil: 'domcontentloaded' });
+  // Select a response from this launch, rather than a first-window manifest.
+  const secondManifest = await boundedPoll('Second actual native manifest', async () => bridgeEvidence.findLast((item) => item.launch === 2
+    && item.path === '/studio-bridge/manifest' && item.httpStatus === 200), { attempts: 30, timeoutMs: 15_000, intervalMs: 250 });
+  if (secondManifest.body.mode !== 'studio-desktop' || secondManifest.body.serverUrl !== origin || secondManifest.body.managedServerUrl !== origin
+    || !secondManifest.body.capabilities.includes('server.managedLocal') || !secondManifest.body.capabilities.includes('menu.native')) throw new Error('Second native manifest did not prove the same Managed Local host.');
+  databaseServerIdentity = await identifyServer(secondManifest.body.managedServer, 'database-second-server');
+  return { launch: 2, studioIdentityKey: key(studioIdentity), barrier, passiveDom,
+    bootstrapObservation: 'Second actual launch passive B DOM confirmed before navigation; subsequent ordinary same-page SQL route bootstrap GET is observed, not the earliest automatic GET.',
+    actualDesktopRestart: true, pageReloadUsedAsRestart: false, databaseStorageMutation: false };
+}
+
 try {
   if (process.platform !== 'win32' || !selectedEvidence || !['default', 'narrow'].includes(windowMode)
-    || !['lifecycle', 'sql-dialogs'].includes(scenario)
-    || (sqlDialogsRequested ? selectedEvidence[0] !== 'wb41' : selectedEvidence[0] === 'wb41')
+    || !['lifecycle', 'sql-dialogs', 'database-recovery'].includes(scenario)
+    || (databaseRecoveryRequested ? selectedEvidence[0] !== 'wb61'
+      : sqlDialogsRequested ? selectedEvidence[0] !== 'wb41' : !['wb39', 'wb40'].includes(selectedEvidence[0]))
     || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit WB-39/WB-40 named evidence parent and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
-    path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs')];
-  if (prerequisiteFiles.length > 10) throw new Error('Prerequisite file cap exceeded.');
+    path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs'),
+    ...(databaseRecoveryRequested ? [path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.test.mjs')] : [])];
+  if (prerequisiteFiles.length > (databaseRecoveryRequested ? 12 : 10)) throw new Error('Prerequisite file cap exceeded.');
   for (const file of prerequisiteFiles) { check(); await access(file); }
   for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error(`Required loopback port ${port} is already occupied; no host was started.`);
   await mkdir(evidenceParent, { recursive: true });
@@ -747,10 +895,11 @@ try {
   const hashes = [];
   for (const file of prerequisiteFiles) { check(); hashes.push(await sourceHash(file)); }
   await evidence('run.json', { runId, validationSlice, scenario, evidenceParentSelection: selectedEvidence[0], requestedNativeWindow: windowConfiguration,
-    runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: 600, ports, origin, bridgeOrigin, cdpOrigin,
+    runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: databaseRecoveryRequested ? 900 : 600, ports, origin, bridgeOrigin, cdpOrigin,
     studioExe, serverDll, contentRoot, dataRoot, profileRoot, serverWebRoot, libraryPath, hashes,
     runtimePrerequisite: 'WebView2 154.0.4258.53 checked by the parent; actual attachment remains required.',
-    boundary: sqlDialogsRequested ? 'Validation scope: actual Studio/WebView2 bootstrap, SQL OS pickers, and Managed Local lifecycle. OS picker presence/actions require parent evidence and phase acceptance. API setup/login auth storage only; no login UI, installation, NativeAOT, permission matrix or full three-host parity claim.'
+    boundary: databaseRecoveryRequested ? 'Actual native database A/B selection, library disk semantics, two normal desktop launches, passive B restoration then observed route-bootstrap GET and read-only real B SQL. API seed/login preparation only; no login UI, dialogs, installation, NativeAOT, backup recovery or full three-host claim.'
+      : sqlDialogsRequested ? 'Validation scope: actual Studio/WebView2 bootstrap, SQL OS pickers, and Managed Local lifecycle. OS picker presence/actions require parent evidence and phase acceptance. API setup/login auth storage only; no login UI, installation, NativeAOT, permission matrix or full three-host parity claim.'
       : 'Actual Studio/WebView2 native bootstrap and Managed Local lifecycle. API setup/login auth storage only; no login UI, OS dialog, installation, NativeAOT, permission matrix or full three-host parity claim.' });
   for (const directory of [profileRoot, dataRoot, contentRoot]) {
     check();
@@ -766,7 +915,7 @@ try {
   stage = 'actual Studio launch';
   const args = ['--server-url', origin, '--managed-server-url', origin, '--bridge-port', String(ports.bridge), '--data-root', dataRoot,
     '--connection-library', libraryPath, '--server-exe', serverDll, '--auto-start-server', ...windowConfiguration.dimensionArguments,
-    '--route', '/admin/app/sql?tool=table'];
+    '--route', databaseRecoveryRequested ? '/admin/app/sql?tool=sql' : '/admin/app/sql?tool=table'];
   const environment = isolatedEnvironment();
   await evidence('launch.json', { executable: studioExe, args, requestedNativeWindow: windowConfiguration, parentIdentity: runnerIdentity, windowsHideRequested: false,
     nativeWindowBoundary: 'Ordinary visible launch requested; prior MainWindowHandle=0 did not prove a windowsHide or product defect.',
@@ -774,15 +923,18 @@ try {
       ASPNETCORE_CONTENTROOT: contentRoot, ASPNETCORE_WEBROOT: serverWebRoot, WEBVIEW2_USER_DATA_FOLDER: profileRoot,
       SONNETDB_Kestrel__Endpoints__Http__Protocols: 'Http1', SONNETDB_Kestrel__Endpoints__FrameH2__Protocols: 'Http2',
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS } });
+  if (++launchCount > (databaseRecoveryRequested ? 2 : 1)) throw new Error('Native desktop launch cap exceeded.');
   studio = spawn(studioExe, args, { cwd: contentRoot, env: environment, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
+  const firstDesktop = studio;
   studio.stdout.on('data', (buffer) => { streamCounts.stdoutBytes += buffer.length; if (streamCounts.stdoutBytes > 4_194_304) asynchronousFailure = new Error('Studio stdout byte cap exceeded.'); });
   studio.stderr.on('data', (buffer) => { streamCounts.stderrBytes += buffer.length; if (streamCounts.stderrBytes > 4_194_304) asynchronousFailure = new Error('Studio stderr byte cap exceeded.'); });
   studio.on('error', () => { asynchronousFailure = new Error('Actual Studio executable could not be started.'); });
-  studio.on('exit', (code, signal) => records.push({ event: 'studio-exit', atUtc: new Date().toISOString(), processId: studio.pid, code, signal }));
-  studioIdentity = (await snapshot([studio.pid]))[0];
-  if (!studioIdentity || studioIdentity.parentProcessId !== process.pid || studioIdentity.executablePath.toLowerCase() !== studioExe.toLowerCase()
-    || !studioIdentity.commandLine.includes(dataRoot) || !studioIdentity.parentChain.some((item) => sameIdentity(item, runnerIdentity))) throw new Error('Actual Studio launch ownership could not be proved.');
-  owned.set(key(studioIdentity), studioIdentity);
+  studio.on('exit', (code, signal) => records.push({ event: 'studio-exit', atUtc: new Date().toISOString(), processId: firstDesktop.pid, code, signal }));
+  const initialCandidate = (await snapshot([studio.pid]))[0];
+  admitNativeStudioRoot(initialCandidate, { processId: studio.pid, parentProcessId: process.pid, executablePath: studioExe, dataRoot,
+    runnerIdentity, ownedIdentityKeys: [...owned.keys()], maximumOwned: maxOwnedProcesses }, (admitted) => {
+    studioIdentity = admitted; owned.set(key(admitted), admitted);
+  });
   await evidence('studio-identity.json', studioIdentity);
   await boundedPoll('Managed Server health', async () => { const result = await api('GET', '/healthz'); return result || true; }, { attempts: 30, timeoutMs: 60_000, intervalMs: 1000 });
   stage = 'real setup and API login';
@@ -828,7 +980,7 @@ try {
   // auth API. Navigation in this same native page runs the ordinary routed app
   // and native bootstrap; an initial setup/login redirect is not assumed away.
   await page.evaluate((auth) => localStorage.setItem('sndb.auth', JSON.stringify(auth)), { username: identity.username, token: identity.token, tokenId: identity.tokenId, isSuperuser: identity.isSuperuser });
-  await page.goto(`${origin}/admin/app/sql?tool=table`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${origin}/admin/app/sql?tool=${databaseRecoveryRequested ? 'sql' : 'table'}`, { waitUntil: 'domcontentloaded' });
   if (new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== '/admin/app/sql') throw new Error('Native main-window URL is outside the normal Workbench route.');
   await evidence('native-window-route.json', { initialNativeUrl, finalNativeUrl: page.url(), sameExistingNativePage: true, substitutePageCreated: false });
   stage = 'normal native window CSS viewport';
@@ -855,6 +1007,14 @@ try {
   if (connections.body.activeProfileId !== 'managed-local' || connections.body.activeIdentity?.host !== 'studio-desktop'
     || connections.body.activeIdentity?.baseUrl !== origin) throw new Error('Real native connection library identity did not match the DOM.');
   const oldServer = await identifyServer(manifest.body.managedServer, 'initial-server');
+  if (databaseRecoveryRequested) {
+    databaseServerIdentity = oldServer;
+    await runDatabaseRecoveryScenario({ origin, api, auth: identity.token, poll: boundedPoll, check, evidence, bridgeEvidence,
+      readLibrary: databaseLibraryEvidence, getPage: () => page, launchIdentityKey: () => key(studioIdentity), runId,
+      observationBarrier: () => ({ afterSequence: counters.bridgeResponses, afterRequestSequence: counters.pageRequests }),
+      closeDesktop: closeDatabaseDesktop, relaunchDesktop: () => relaunchDatabaseDesktop(args, environment, databaseRecoveryResult.databaseB),
+      setStage: (value) => { stage = value; }, setResult: (value) => { databaseRecoveryResult = value; } });
+  } else {
   if (sqlDialogsRequested) await runSqlDialogs();
   stage = 'normal DOM Health';
   let after = bridgeEvidence.length;
@@ -904,6 +1064,7 @@ try {
   for (const port of Object.values(ports)) if (!await portFree(port)) throw new Error('Normal Studio exit did not release all four loopback ports.');
   normalExit = true;
   nativeClose.allFourPortsReleased = true;
+  }
 } catch (error) {
   fatal = { stage, message: safeMessage(error) };
   console.error(`${validationSlice} native validation failed at ${stage}: ${fatal.message}`);
@@ -911,7 +1072,7 @@ try {
   clearTimeout(timeout);
   stage = 'owned process cleanup';
   const cleanup = { normalExit, fallbackActions: [], helperReclaims: [], identityChecks: [], directories: [], errors: [], allFourPortsReleased: false };
-  const pendingHelpers = helpers.filter((item) => !item.exitedAtUtc).slice(0, 64);
+  const pendingHelpers = helpers.filter((item) => !item.exitedAtUtc).slice(0, databaseRecoveryRequested ? 96 : 64);
   const helperReclaimDeadline = Math.min(Date.now() + 20_000, cleanupDeadline);
   for (const pending of pendingHelpers) {
     if (Date.now() >= helperReclaimDeadline) { cleanup.errors.push('Helper reclamation deadline exceeded.'); break; }
@@ -968,6 +1129,7 @@ try {
         serverShutdownBoundary: 'Studio may force-terminate its managed console Server after its bounded close wait; this does not prove graceful Server shutdown or recovery.' },
       cleanup: essentialCleanup,
       result: { runId, validationSlice, scenario, evidenceParentSelection: selectedEvidence?.[0] ?? null, requestedNativeWindow: windowConfiguration,
+        ...(databaseRecoveryRequested ? { databaseRecovery: databaseRecoveryResult ?? { requested: true, passed: false }, launches: launchCount } : {}),
         ...(sqlDialogsRequested ? { sqlDialogs: { requested: true, passed: sqlDialogPhases.length === 4 && sqlDialogPhases.every((phase) => phase.passed),
           phases: sqlDialogPhases.map((phase) => ({ phase: phase.phase, passed: phase.passed, requestObserved: Boolean(phase.request), responseObserved: Boolean(phase.response) })),
           inputPath: sqlDialogPaths.input, outputPath: sqlDialogPaths.output, fixtureSqlExecuted: false,
@@ -980,7 +1142,10 @@ try {
           : 'No native file dialog, installation, NativeAOT or full three-host acceptance.', 'Managed Server shutdown may use the existing Studio bounded forced termination.'] },
       details: [
         { name: 'bridge-responses.json', value: () => bridgeEvidence },
-        { name: 'process-events.json', value: () => compactNativeProcessEvidence({ runnerIdentity, studioIdentity, events: records, helpers, streamCounts }) },
+        ...(databaseRecoveryRequested ? [{ name: 'database-recovery.json', value: () => databaseRecoveryResult ?? { requested: true, passed: false } }] : []),
+        { name: 'process-events.json', value: () => databaseRecoveryRequested
+          ? compactDatabaseProcessEvidence(compactNativeProcessEvidence, { runnerIdentity, studioIdentity, events: records, helpers, streamCounts })
+          : compactNativeProcessEvidence({ runnerIdentity, studioIdentity, events: records, helpers, streamCounts }) },
         ...(sqlDialogsRequested && sqlDialogPhases.some((phase) => !phase.passed)
           ? [{ name: 'sql-dialog-failure.json', value: () => ({ runId, stage: fatal?.stage ?? null, phases: sqlDialogPhases }) }] : []),
       ],

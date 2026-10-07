@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB-61 Studio 数据库恢复验收入口（2026-10-07）**：复用实际 NativeWebApp/WebView2 runner，新增普通 A→B 选库、公开 PUT/磁盘对拍、两次桌面启动恢复及 B 查询的独立场景和 14 项合同测试；双请求/响应序号阻止旧 ack，候选进程完整验证后才取得回收权限。唯一实际运行在夹具建表 HTTP400 处失败，选库/重启/查询未执行；已修正夹具原生 STRING/主键语法但未再实跑，不能计数据库恢复或三宿主完成。
+
 - **ASP.NET Core MVC + Identity 样例**：以 `SonnetDB.EntityFrameworkCore` 替换 SQL Server Provider，保留默认 Identity 配置、上下文、控制器和视图；提供 SonnetDB 专属初始迁移和独立 MVC / Identity 集成测试，覆盖账户流程、TOTP、并发与关联存储。Provider 补齐事务提交阶段的 EF 保存异常及字符串 `MaxLength` 检查约束，核心允许现有长度函数用于 CHECK。
 
 - **开源中国文章补发账本（2026-10-07）**：保存 142 篇渠道复核稿、逐篇博客/动弹回执、4.0.0 新闻审核状态与每日续发进度；通用发布和对账脚本迁入全局 `publish-oschina` 技能，项目只保留稿件、账本与接续说明。动弹失败独立记录，已有 ID 或未知请求阻止重复创建。
