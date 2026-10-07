@@ -811,3 +811,13 @@
 - actual native237.47秒/完整wrapper239秒；9完整归属fallback、helper reclaim0、四port释放、371+106+4专属对象回收、errors空、六terminal文件全保存，cleanupProven=true仅计回收。外层fresh任务identity审计无存活/排除/新增stop，前期root审计误把既有Codex父服务当owned及PS注释修正失败单独留存，均0stop、未触碰服务。旧拒删Temp/WB40保留runtime对象不触碰。日志/源码hash/失败收据是有意保留交付物，位置artifacts/wb61-studio-database-recovery-20261007。
 - 下一片先完整接收最新四文档、核git/本片commit/正在进行的任务与agents；核有界脱敏失败观察和修正seed，再冻结唯一真实Studio数据库恢复旅程，不能盲重跑或循环追加无关Query诊断替代整体收口。之后按已有验收盘点继续Studio文件四phase/干净机安装、VS Code向导/Notebook/分页/LSP/治理转交及严格退出、Web真实治理/权限/恢复组合，再共同候选版本和发行物矩阵；Graph保持Beta，模型深度未支持能力显式禁用。
 - 登录UI、OS文件对话框、安装升级卸载、NativeAOT/Extension Host、固定硬件/168h、真实模型质量及发布证据仍分列；本片不新增这些完成声明。全程PS7、禁Graphify/广域扫描/未授权安装，有界count+墙钟及归属finally，无push/发布/部署/外发。三宿主未闭环，下一次继续同chat/同heartbeat。
+
+## 会话滚动交接（2026-10-07；每会话最多5个独立任务）
+
+- 用户最新明确授权：本会话收尾后立即新建 SonnetDB 本地会话并在里面开始接续任务；以后每会话最多5个独立有界任务，再保存检查点、创建接续会话并迁移同一个 workbench heartbeat。保持 ACTIVE、每30分钟，不创建重复自动化。这项迁移时机取代旧“必须三宿主全部完成后才迁移”；不降低真实验收标准。
+- 当前旧会话 01a10d27-d964-7550-9b8e-066447122527 已完成超过5个切片，本次只收尾交接，不再启动实施任务。新会话从0/5开始；每个独立任务的实施、修复、测试和复核合并计1个，轮询/单项检查/重试/交接不另计数，形成失败检查点并结束的任务也占1个名额。每次在最新交接中记录任务ID、结果、提交与本会话计数；不得拆碎任务凑数。第5个结束后先交接，不启动第6个。
+- 最新实现检查点为 e10a404de9f11e611501cb4fc40762f0d55bb193（WB61），parent 5ad2b9ee；14/14本地合同、三构建、最终完整restore/原format与精确8路径本地集成已通过。原末窗口独立post-commit复核NOT_RUN保留；用户新指令后开启单独3分钟只读复核，已独立核gate晚于freeze、HEAD/parent/8路径、8工作树SHA、空index和外部HANDOFF保留、当前parity0061d6d7，最终本地集成PASS。新复核用2/3短shell、1内容文件、8SHA/4git查询，0写入/测试/actual/长进程或Temp；证据在 artifacts/workbench-session-rollover-20261007-01。
+- 原唯一actual仍为夹具建表HTTP400 FAIL；选库/持久化/桌面重启/B查询NOT_RUN，normalExit=false、cleanupProven=true；修正STRING/普通主键后0actual，不升级Studio恢复或三宿主完成。提交后index-info失败与精确8路径index-only恢复完整保留，无重复commit；旧失败与root审计误判边界继续保留。
+- 新会话第一任务接续WB61剩余：先核最新HANDOFF/AGENTS/ROADMAP/queue、git与已存在任务/agents；冻结WB62范围和专属实施归属，补有界脱敏失败观察并核修正seed，再执行至多一次真实Studio数据库恢复旅程。复用已有实现，禁止盲重跑或继续堆积无关Query诊断。之后仍按已确认缺口推进Studio文件/安装、VS Code向导/Notebook/分页/LSP/治理转交与严格退出、Web真实治理/权限/恢复及共同候选版本证据。
+- 新会话创建/启动及heartbeat迁移的实际ID和结果保存在同目录rollover-result.json及app自动化状态；本交接提交后旧会话停止仓库写入，新会话接管。origin/parity-results当前0061d6d78591fb08493f473d3231ca42303faae1保留；外部HANDOFF原字节、Identity/发布等其它会话文件不纳入本次提交。
+- 已有PS7、禁Graphify/广域扫描/未授权安装、有界执行、完整进程身份与finally回收、精确临时对象清理、最终完整restore/format与自有hunk提交规则全部保持；旧policy拒删Temp/WB40保留对象不碰。无push/发布/部署/外发授权扩张。三宿主闭环后继续其它SonnetDB已确认任务，并继续5任务滚动会话规则。
