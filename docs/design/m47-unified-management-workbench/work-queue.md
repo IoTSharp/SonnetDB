@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB66 helper预算合同（2026-10-08；本会话第1独立任务，报告交付）
+
+- base6c67ff89；WB65继承index-only恢复及post通过、综合v2 overallFAIL/23of25和strict numeric-parent碰撞失败均保留，不计任务。新会话本片0/5→1/5，同一个workbench ACTIVE每30分钟。
+- 实际H/E/source关键range已绑定，WB64为内部20.19s墙钟拒绝，CIM15/cache16非160数量耗尽，Node timedOut=false；5snapshot最后exit1。成功envelope三预算统计被caller丢弃，逐查询阶段耗时缺证；没有产品修复/新actual或历史因果结论。
+- [专属合同](wb66-helper-budget-contract.md)与实施证据已停写，独立28/28 PASS；只report+root五docs共六路径，0tests/build/actual，完整restore/原format及本地CAS提交/当前strict退出/终审见artifacts/wb66-helper-budget-20261008。原protected4/9/7SHA与false状态保持，根20:10Z/≤5wrapper。
+- 下一WB67仅保留existing envelope三安全标量到helper record/compact terminal，0新CIM/协议行/authority，保原result、primary错误、全部预算/fresh身份/stop门禁并冻结meaningful本地合同；真实恢复另窗口需异库前置。三宿主/安装/AOT/硬件/长期/发布分列，Graph Beta。
+
 ### WB65 合同与文件冻结（2026-10-08；本会话第1任务，同值fresh PUT前置）
 
 - 继承WB64综合终审新v2的23检查PASS，原审阅工具19total/15owned误判首FAIL保留、不计新任务。当前parent05fa5e8e；同一workbench ACTIVE/每30分钟已target新会话01a11782，计数0/5→本片1/5。

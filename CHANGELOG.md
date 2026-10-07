@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB66 Native helper预算合同（2026-10-08）**：新增实际协议/调用链、墙钟与CIM/cache/fresh回收预算核查报告，明确20.19s拒绝与160数量上限、内外计时和既有统计丢弃边界；独立28项复核通过。仅文档，0actual/test/产品build，不升级原恢复/退出/cleanup失败。
+
 - **M47 WB65 Studio普通选库前置（2026-10-08）**：在原A/B点击前有界核普通DOM异库与活动身份一致，目标已活动或unknown明确拒绝且0点击/0ack轮询；保留原七fresh PUT谓词及完整恢复/正常退出门禁。最终43项本地合同（原32必要夹具适配+新增11），0actual/0build/0安装；旧失败与三宿主边界保持。
 
 - **M47 WB64 Studio真实选库失败检查点（2026-10-08）**：新增独立runner metadata准入并复用9个runtime/source SHA完成唯一实际观察；A PUT200 seq6/request43未越过pre-click双barrier6/57，DOM匹配A、30次轮询7658ms，后续恢复阶段未执行。原normalExit/cleanupProven均false与helper预算失败保留，根精确归属回收另证；0新build/0定向测试，不计三宿主恢复完成。

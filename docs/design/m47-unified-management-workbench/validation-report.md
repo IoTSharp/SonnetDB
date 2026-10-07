@@ -2,6 +2,13 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB66 Native helper预算合同（2026-10-08；本地报告，0actual）
+
+- 专属[预算合同](wb66-helper-budget-contract.md)完成实际runner/source/三range和H/E协议逐明确路径核验，独立28/28 PASS。WB64内部20.19s墙钟分支拒绝，CIM15/cache16没有数量耗尽；5snapshot末exit1/timedOutfalse，外层耗时不等内部Stopwatch。未留逐查询/阶段时序，不能推慢CIM或权限原因。
+- existing success envelope的三数值被caller丢弃，error仅字符串；下一片最小合同仅保留同helper安全统计，0新CIM/协议行/列表/stop权限，原result/primary错误/全部预算与身份回收门禁保持。未实现该诊断、未重跑真实恢复。
+- WB65继承唯一index同步和post通过；原commit wrapper exit1/defaultSync pending、NOT_PRODUCED/退出FAIL保留。新综合v2整体FAIL23/25，严格图片预览numeric-parent碰撞仍拒绝，另一项审阅工具时间字面误差同instant；0stop/exclusion，不把root补核当原PASS。
+- 本片report+五root docs共六路径；0actual/test/产品build，protected4source/9runtime/7terminal freshSHA、最终完整restore/原format、六路径owned HANDOFF/HEAD/index CAS、本地commit/post/当前task严格退出/独立终审见本片artifacts真实收据。原WB64 actual/normalExit/cleanupProven false、rootRecovery454和三宿主待验均保持。
+
 ## WB65 Studio选库前置（2026-10-08；本地合同，0actual）
 
 - 同值普通选择无fresh PUT保证：生产setActiveDatabase/defaultDatabase同值不改变被watch状态，save相同fingerprint短路。只新增一次≤2秒/≤16节点的普通DOM前置及固定安全投影，目标已活动或unknown拒绝点击/ack-poll；已确认异库/活动身份一致且无warning才进入原链。双barrier在读后保存，原七find谓词/ack/DOM/disk/close/restored/query/ownership不放宽。没有新准备UI/HTTP/save/retry，不推旧请求origin或刷新因果。
