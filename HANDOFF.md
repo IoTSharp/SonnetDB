@@ -5,6 +5,14 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-59，2026-10-07；VS Code SQL耗时字段兼容，本地验证）
+
+- 接续09afe8dd/closed WB58；完整接收HANDOFF/AGENTS/ROADMAP/queue、git/已有提交及代理，已停止实施代理不重复派单。旧WB57实际reference的三end只含elapsedMilliseconds（24.7995/2.6558/9.3554），现有Panel/history读取elapsedMs；这是已证兼容缺口，不据此推断旧history失败原因。
+- 专属实施仅独占types.ts、sonnetdbClient.ts、新sqlElapsedCompatibility.test.ts；唯一parser end边界克隆并校验，canonical elapsedMs改optional。native-only、legacy-only及相等双有效值保留原finite非负primitive number；缺失/未知字段、任一出现字段非法或双值冲突都省略alias，不coerce/fallback/优先选择/round/clamp/伪造0。native和rowCount/recordsAffected/truncated/其它end元数据、最终end选择及rows/columns/error保持。parsed Raw export可能新增alias，不宣称原NDJSON字节round-trip。
+- 根唯一TS项目编译、1项单end微试与最终新Node5/5已通过，fail/cancel/skip/todo0。5项覆盖有效/非法/冲突/大指数、frames/errors/last-end及7组合成production client→Panel→HistoryStore→完整生成Webview脚本/DOM stub；只授本地metadata兼容，0actual/0新.NETbuild，不重跑WB58七项或旧75/21/6，不改command/Panel/history/Host/runner及原WB57实际FAIL/false/null。
+- 根串行维护六docs/九文件最终树、完整restore与原format、前后SHA、fresh outside零排除≤90秒、HANDOFF新段与CHANGELOG新行精确集成、本地commit/post/独立review/进程退出；实际结果以artifacts/wb59-sql-end-compat-20261007收据/git为准。本片最多14wrapper/1个TS项目≤2编译/≤2定向测试、13:40Z硬截止；restore/format仅自建命令环境设MSBUILDDISABLENODEREUSE=1，不改全局缓存或CLI参数。
+- 下一片先核本次提交/退出，再按WB58有界观察合同冻结独立真实history/ack或stop-verification证据，不盲重跑或升级因果。Web/Studio/VS Code、UI/Notebook/LSP、native bridge/Managed Local/OS对话框、安装/AOT/硬件/长稳/发布继续分开，三宿主未闭环。唯一ACTIVE30分钟继续不迁移/暂停；外部Identity/博客/CSDN/HANDOFF尾追加及origin/parity-results保护，PS7/禁Graphify广域扫描安装/count+墙钟/完整PID创建命令父链/finally/旧policy对象保留，无push发布部署外发。
+
 ## 当前检查点（WB-58，2026-10-07；公开history/错误通知安全观察，本地合同与真实证据分列）
 
 - 接续11f358c6/closed WB57；本轮完整接收四docs/git/已有提交与已停止代理，当前外部Identity分析、博客/CSDN与HANDOFF尾追加保留。只推进WB58安全观察，不重跑WB57 actual或既有75/21/6合同，不修改生产command/panel/history Store的await、吞错提示或串行写入语义。

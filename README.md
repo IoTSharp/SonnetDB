@@ -232,6 +232,8 @@ WB-50接续c0475103，仅换隔离metadata；syntax/TS通过，唯一actual当�
 
 WB-51冻结调用时SQL上下文，处理异步token/database等待期间编辑器变化的已证合同风险；最终deferred调用21/21、必要history6/6及同一TS项目初版/v2编译通过，独立复核补测试failure cleanup结算合同。本地stub证据与真实Host因果分列，0actual，原EXPLAIN/history/正常退出与cleanup缺口仍待独立验证。
 
+WB-59修复VS Code SQL耗时字段兼容：唯一parser接受有效native/legacy耗时，缺失、非法或冲突时省略alias；新5项合成client/Panel/history/Webview测试PASS，仅本地metadata证据、0actual，parsed Raw可能增加alias。原WB57真实FAIL保持，最终九文件门禁/提交与三宿主边界详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+
 WB-58补公开Query错误通知和每phase历史安全观察，保持完整await、现有生产吞错提示语义、总20历史命令预算与最终3条历史断言；新合成ack行为验证仅为本地合同，0actual。WB57原真实旅程与cleanup仍FAIL，时长澄清及最终九文件门禁/提交详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)，三宿主继续另验。
 
 WB-57单次真实窗口已观察cleanup三终态检查为refused/passed/refused，证明remaining拒绝后仍执行root和audit检查。三Query载荷2/1/45对真实Server参考一致；history失败且仅2项、Host文件0bytes、Code/Host终态缺席，原runner与cleanup仍FAIL。根当前回收和最终八文件门禁/本地提交另列，详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)；三宿主仍未闭环。

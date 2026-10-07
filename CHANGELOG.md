@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-59 VS Code SQL耗时字段兼容（2026-10-07）**：唯一parser边界把有效native elapsedMilliseconds或legacy elapsedMs映射为optional规范alias，缺失/非法/冲突省略耗时；保留原metadata，parsed Raw可能增加alias。唯一TS及新5项合成client/Panel/history/Webview测试PASS，仅本地兼容、0actual/新.NETbuild，旧真实FAIL保持；最终九文件完整门禁、本地提交及退出/独立收据分列。
 - **M47 WB-58 公开history/错误通知观察（2026-10-07）**：在现有完整await/串行Store合同上补三phase固定公开通知与history安全快照，20命令总budget及原最终3条断言不放宽；必要synthetic ack拒绝/deferred与保密边界仅本地验证，0actual/新.NETbuild，生产语义/runner保持。完整九文件门禁、本地提交与退出/独立收据另列；纠正WB57阶段55秒与完整outer73.6699466秒措辞，原失败不升级。
 - **M47 WB-57 真实终态三检查（2026-10-07）**：单次真实finalChecks为refused/passed/refused，remaining拒绝后root/audit均执行，原首失败与cleanup false保持；三Query2/1/45对真实参考同，history20picks/2entries失败/Host0bytes/Code及Hostnull不升级。49ledger/64refs/27helper、16原文件/343013B冻结；根62PID absent/0新stop/282runtime对象回收、完整八文件门禁和本地失败检查点提交另列，三宿主/安装/AOT/发布另验。
 - **M47 WB-56 终态安全门禁（2026-10-07）**：三个原同步cleanup终态检查独立执行，拒绝不跳过后续检查，首terminalFailure保留，仅三passed且无terminal才proof；固定finalChecks单读安全投影，本地75/75（67+8）和两源syntax通过、0actual。WB55原FAIL/false/null与旧证据保持，完整八文件门禁/精确本地提交见M47收据；真实cleanup、三宿主/安装/AOT/发布另验。

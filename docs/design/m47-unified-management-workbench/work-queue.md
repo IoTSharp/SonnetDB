@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-59 合同与文件冻结（2026-10-07；VS Code SQL耗时字段兼容，0actual）
+
+- 基线09afe8dd；原WB57实际reference只含elapsedMilliseconds，Panel/history读elapsedMs。专属实施独占core/types.ts、core/sonnetdbClient.ts及新增test/sqlElapsedCompatibility.test.ts；根独占六共享docs、工具/gates/stage/九文件本地提交，独立review只读。Panel/command/Store/Host/runner及33份先前证据保持，不重复已完成页或旧测试。
+- 唯一parser end边界：elapsedMs optional；native-only/legacy-only/相等双有效finite非负primitive number保留原值。缺失/未知、任一字段非法或冲突省略canonical alias；不转换、fallback、优先选择、round/clamp或填0。保留native/其余end metadata、最后end及frames/error。parsed Raw export可能新增alias，不授NDJSON原字节round-trip。
+- 唯一TS项目、单end微试1及新Node5/5已PASS；含7组合成production client→Panel→Store→完整生成script测试，只为本地metadata，0actual/新.NETbuild，不升级WB57原FAIL/false/null或推history因果。最终九树完整restore/原format/fresh零排除≤90秒/共享自有hunk/commit/post/退出/独立验收见本片收据。≤14wrapper/TS≤2attempt/定向≤2/13:40Z；门禁仅自建环境禁MSBuild node reuse。
+- 下一片核本次提交/退出后按WB58合同冻结独立真实history/ack或stop-verification，三宿主/安装/AOT等门禁仍分列。保留外部Identity/博客/CSDN/HANDOFF与parity、旧拒删policy对象；PS7/禁Graphify广域扫描安装/有界count+墙钟/完整身份父链/finally。ACTIVE30分钟继续，无push发布部署外发。
+
 ### WB-58 合同与文件冻结（2026-10-07；公开history/错误通知安全观察，0actual）
 
 - 基线11f358c6；盘点已确认原完整await/串行Store与catch通知后fulfilled，不判WB57两history因果。专属实施独占新增core/queryHistoryObservation.ts、新增test/queryHistoryObservation.test.ts及Host query-real.ts；根独占六共享docs、runner/gates/stage/九文件本地提交，独立review只读。生产command/panel/history和runner、23旧实际/收据保持。

@@ -2,6 +2,14 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-59 VS Code SQL耗时字段兼容（2026-10-07；本地合同，0真实Host运行）
+
+- **问题与范围**：原WB57已保存真实reference的三phase end使用elapsedMilliseconds（24.7995/2.6558/9.3554），现有Panel/history读取elapsedMs。WB59仅在唯一parser end边界补兼容及optional DTO，并新增必要测试；生产Panel/command/history/Host/runner不改。既有真实reference是问题依据，本片无新真实Server或Extension Host运行。
+- **兼容合同**：native-only/legacy-only/双有效且相等值精确保留finite非负primitive number；缺失/未知名、任一出现字段非法或双值冲突都省略canonical elapsedMs，不coerce、fallback、优先选择、round/clamp或伪造0。原native字段、rowCount/recordsAffected/truncated及其他end metadata、last-end/rows/columns/error保留。parsed Raw export可能新增alias，不保证原NDJSON字节round-trip。
+- **验证与限制**：唯一TS项目编译PASS；单end微试1与最终新Node5/5 PASS，fail/cancel/skip/todo0。覆盖合法/非法/冲突/大指数、frames/errors/last-end及7组合成production client→Panel→HistoryStore→完整生成Webview脚本与DOM stub。source/compiled SHA与结果见artifacts/wb59-sql-end-compat-20261007；合成HTTP/Memento/DOM证据只为本地兼容，0actual/0新.NETbuild，不重复WB58七项或旧75/21/6，不推WB57 history缺失原因，不升级原FAIL/false/null。
+- **最终集成**：九文件最终树完整restore与原format、前后SHA、fresh outside零排除≤90秒/共享自有hunk/本地commit/post/独立review/退出以本目录收据/git为准；33旧证据与受保护产品、外部Identity/博客/CSDN/HANDOFF/parity/policy对象保留。本片≤14wrapper/1distinct TS project≤2compile/≤2定向test/13:40Z；门禁命令仅其进程环境MSBUILDDISABLENODEREUSE=1，不改全局设置/缓存或CLI完整参数。
+- **后续**：先核本次提交/退出，按WB58有界观察合同冻结独立真实history/ack或stop-verification；Web/Studio/VS Code、UI/Notebook/LSP、native bridge/Managed Local/OS对话框、安装/AOT/硬件/长稳/发布各自验收，三宿主未闭环。唯一ACTIVE30分钟不迁移/暂停，无push发布部署外发。
+
 ## WB-58 公开history/错误通知安全观察（2026-10-07；本地合同，0真实Host运行）
 
 - **问题与范围**：11f358c6中query→panel→history update已经完整await，单次Memento拒绝经command catch提示错误后仍fulfilled，Store tail拒绝后继续是已有合同。WB57仅20pick/2entry失败观察不足解释缺失原因。WB58只在Host增加公开错误通知和phase history安全观察，新增纯观察模块与必要行为测试，生产语义/runner不改；elapsed DTO字段兼容另验。

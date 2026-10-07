@@ -434,7 +434,7 @@ export function parseNdjson(body: string): SqlResultSet {
     }
 
     if (record.type === 'end') {
-      result.end = record as unknown as SqlResultSet['end'];
+      result.end = normalizeSqlEnd(record);
       continue;
     }
 
@@ -447,4 +447,29 @@ export function parseNdjson(body: string): SqlResultSet {
   }
 
   return result;
+}
+
+/** 保留原 end 元数据，只为一致且有效的 native/legacy 耗时提供规范别名。 */
+function normalizeSqlEnd(record: Record<string, unknown>): NonNullable<SqlResultSet['end']> {
+  const hasNativeElapsed = Object.hasOwn(record, 'elapsedMilliseconds');
+  const hasLegacyElapsed = Object.hasOwn(record, 'elapsedMs');
+  const nativeElapsed = record.elapsedMilliseconds;
+  const legacyElapsed = record.elapsedMs;
+  const normalized = { ...record };
+  delete normalized.elapsedMs;
+
+  if ((!hasNativeElapsed || isElapsedMilliseconds(nativeElapsed))
+    && (!hasLegacyElapsed || isElapsedMilliseconds(legacyElapsed))
+    && (!hasNativeElapsed || !hasLegacyElapsed || nativeElapsed === legacyElapsed)) {
+    const elapsed = hasNativeElapsed ? nativeElapsed : legacyElapsed;
+    if (isElapsedMilliseconds(elapsed)) {
+      normalized.elapsedMs = elapsed;
+    }
+  }
+
+  return normalized as unknown as NonNullable<SqlResultSet['end']>;
+}
+
+function isElapsedMilliseconds(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }

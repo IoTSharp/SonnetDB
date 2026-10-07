@@ -413,7 +413,8 @@ export interface SqlEnd {
   type: 'end';
   rowCount: number;
   recordsAffected: number;
-  elapsedMs: number;
+  /** 经 NDJSON 边界校验的毫秒耗时；缺失、非法或冲突时不提供。 */
+  elapsedMs?: number;
 }
 
 export interface SqlError {
