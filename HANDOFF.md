@@ -840,3 +840,19 @@
 - 根串行完成5共享docs与三源最终8路径冻结、完整restore/原Format Check、自有HANDOFF两段私有index及本地commit；实际门禁/提交/退出以该目录final-tree/gate receipts/commit-result/final-acceptance与git log为准。提交使用expected-parent CAS，默认index在canonical lock下仅同步8路径；原HANDOFF接管prefix全部字节/外部Identity发布文件/当前parity均保护，原索引失败收据保留且不重复commit。
 - 辅助index发布微试在执行前被自动审批审查以“blocked by policy”拒绝，0文件创建/0执行；记录保留、不重试删除。根工具仍有PS7 parser与只读独立复核，不能把未运行的微试记PASS；临时index仅在核实任务归属和绝对路径后回收。旧policy拒删Temp与WB40保留runtime不碰。
 - 下一次先核本任务真实commit/退出与计数1/5，再冻结WB63必要的失败选择action/request双barrier、候选ack判定及普通DOM状态投影，基于现有6条bridge观察核原因；不盲重跑、不增加无关Query诊断。Studio文件四phase/安装、VS Code向导/Notebook/DOM分页/LSP/治理转交/严格退出、Web真实治理恢复及共同版本仍后续独立验收。Graph保持Beta；三宿主、安装/Extension Host/AOT/硬件/长稳/发布分列，无push/发布/部署/外发/安装授权扩张。
+
+## 当前检查点（WB63，2026-10-08；选择失败观察冻结，1/5）
+
+- 同一会话 `01a11709-c3a5-7603-84d0-77de883518a7` 接续已提交WB62 `ff9de57d4b60785d29cf51507af2288fbd6ecf4e`，计数1/5，WB63第2任务进行中。最新四docs完整字节/SHA接收、git/已有提交及三个已完成旧代理实际核验；新实施与只读盘点/复核重新派发，最多3并行。唯一workbench仍ACTIVE每30分钟、本会话target，不重复自动化。
+- WB63仅专属scenario.mjs及test.mjs两源，根独占5共享docs/验证/gates/stage/local commit；0actual/0build，不改runner或产品、不重跑旧真实旅程。冻结点击前同步双barrier、≤2选择尝试、既有≤128 candidate固定匹配/未知/拒绝投影和有界普通DOM状态；失败观察不遮原error，不改变原find/ack/DOM/disk/退出/ownership/预算合同。
+- WB62实有A PUT200 seq6/request43，原失败barrier/时序未留存，watcher atUtc为解码完成时点；不能解释原拒绝原因或把历史FAIL升级。新增本地合同只证明未来观察入口，后续真实A→B/两desktop/B查询仍独立验收。
+- 根35分钟/≤8封装/≤2定向测试/0actual/0build；实施≤15分钟/10命名内容文件/10短shell/3rg，review≤18分钟/10文件/10shell/3rg；所有count+wall/cancel/backoff/PS7固定路径、禁Graphify广域扫描安装、完整进程身份父链/finally、自有绝对路径清理继续。外部HANDOFF当前293834字节/Identity发布/parity与旧拒删Temp/WB40保留；无push发布部署外发。证据 `artifacts/wb63-studio-selection-observation-20261008`；结束后计数2/5。
+
+## 当前检查点（WB63，2026-10-08；本地选择观察合同收口，2/5）
+
+- 本会话 `01a11709-c3a5-7603-84d0-77de883518a7` 第2独立任务WB63已完成两源实施、边界修正及本地合同；计数2/5的闭环以本片commit/退出/final-acceptance收据为准，WB62 `ff9de57d4b60785d29cf51507af2288fbd6ecf4e` 为父提交。每项实施/测试/修复/复核合计1个；workbench仍ACTIVE每30分钟指本会话，不重复自动化。
+- pre-click同步双barrier、至多2个A/B选择记录、固定phase；既有候选≤128/100ms、七原find谓词true/false/null，普通DOM≤2秒/16节点计数与身份/warning布尔。字段getter不读、超时/取消/观察错误均unknown并继续抛原error对象；不持久raw/text/SQL/header/token。callbackCalls/elapsedMs记录实际值，原30次/250ms/20秒上限及ack/DOM/disk/正常close/ownership/资源预算保持，没有新增HTTP/重试/权限或runner改动。
+- 根微试1/1、完整32/32，fail/cancel/skip/todo0；新增实际9项（实施预估10/33已更正收据为9/32，保留forecast），无需重跑或凑数。最终两源停写SHA与独立源码复核PASS；五根工具适配层/PS7 parser PASS，源码与工具证据分列。0actual/0build；WB62真实A PUT200 seq6/request43存在、历史失败双barrier/到达时间缺证，原因unknown不能回补。20秒只为墙钟上限，atUtc为JSON解码完成，不冒称实际等待/响应到达证据。
+- 根独占五共享docs/集成/gates/git，最终七路径及仅本任务HANDOFF两段私有index；完整 `dotnet restore SonnetDB.slnx` 与原 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、diff check、新鲜退出审计均为本地commit前置，未取得PASS不得commit。实际gate退出值、最终树SHA、expected-parent CAS、本地commit和后置核验见 `artifacts/wb63-studio-selection-observation-20261008` 收据及git log；本文不代替真实门禁。
+- 35分钟/≤8封装/≤2测试/0actual/0build窗口不扩；主/子PS7固定路径、禁Graphify广域扫描安装、所有count+wall/cancel/backoff、记录PID/创建/完整command/父链与finally仅自有完整树、绝对路径/对象归属清理保持。外部HANDOFF原293834字节/Identity发布、parity `0061d6d78591fb08493f473d3231ca42303faae1`、旧拒删Temp/WB40 retained runtime保留；源码代理0长进程/temp，不按名杀。无push/发布/部署/外发/安装。
+- 下一独立任务WB64先接收本片本地commit、退出与2/5计数，再冻结一次有界新源/runtime真实恢复/失败观察验收；必须复用已有产品及公开native bridge，不盲重跑旧证据、不改验收迎合产品。A→B/两desktop/磁盘/B查询/正常关闭仍未验收；三宿主、原生文件/安装、VS Code Extension Host、AOT、固定硬件、长稳及发布分别待验，Graph Beta。若提前交接或达5任务，根保存实际checkpoint并立即创建/启动本地接续、改同一workbench target后停止旧会话写入。

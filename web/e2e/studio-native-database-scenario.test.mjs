@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { admitNativeStudioRoot, assertDatabaseAcknowledgement, assertDatabaseClose, assertDatabaseSnapshot, compactDatabaseProcessEvidence, createDatabaseRecoveryContract,
-  observeDatabaseSeedFailure, projectDatabaseSnapshot, readDatabaseSqlResult, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
+  beginDatabaseSelectionAttempt, observeDatabaseSeedFailure, projectDatabaseSelectionCandidates, projectDatabaseSelectionDom, projectDatabaseSnapshot,
+  readDatabaseSqlResult, rejectDatabaseSeedHttpFailure, rejectDatabaseSelectionFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const origin = 'http://127.0.0.1:18338';
 const databaseA = 'WB61_Alpha_Test';
@@ -286,4 +287,156 @@ test('corrected seed uses native STRING and writable ordinary key before any dat
   assert.equal(result.secondLaunch, null); assert.equal(result.restored, null); assert.equal(result.query, null);
   assert.equal(result.secondClose, null); assert.equal(result.passed, false); assert.equal(result.seedFailures.length, 1);
   assert.equal(result.seedFailures[0].operation, 'create-table'); assert.equal(JSON.stringify(result).includes('secret-auth'), false);
+});
+
+test('selection checkpoint synchronously retains both pre-action barriers without later mutation', { timeout: 3000 }, () => {
+  const result = { selectionAttempts: [] };
+  const raw = { afterSequence: 5, afterRequestSequence: 43 };
+  const attempt = beginDatabaseSelectionAttempt(result, 'A', raw);
+  assert.equal(result.selectionAttempts[0], attempt); assert.equal(attempt.phase, 'before-click');
+  raw.afterSequence = 6; raw.afterRequestSequence = 44;
+  assert.deepEqual(attempt.barrier, { afterSequence: 5, afterRequestSequence: 43 });
+  assert.deepEqual(attempt.ackPoll, { callbackCalls: 0, elapsedMs: null });
+});
+
+test('selection candidates distinguish a late response to an old request using both original predicates', { timeout: 3000 }, () => {
+  const stale = { ...ack(databaseA, 6), requestSequence: 43 };
+  const fresh = { ...ack(databaseA, 7), requestSequence: 44 };
+  const projected = projectDatabaseSelectionCandidates([stale, fresh], { afterSequence: 5, afterRequestSequence: 43 }, databaseA);
+  assert.equal(projected.state, 'complete'); assert.equal(projected.candidateCount, 2);
+  assert.deepEqual(projected.candidates.map((candidate) => candidate.ordinal), [0, 1]);
+  assert.equal(projected.candidates[0].predicates.receiptAfterBarrier, true);
+  assert.equal(projected.candidates[0].predicates.requestAfterBarrier, false);
+  assert.deepEqual(projected.candidates[0].rejectedBy, ['requestAfterBarrier']);
+  assert.equal(projected.candidates[1].reason, 'find-predicates-match');
+  assert.throws(() => assertDatabaseAcknowledgement(stale, { afterSequence: 5, afterRequestSequence: 43, launch: 1, method: 'PUT', database: databaseA, origin }));
+});
+
+test('invalid and accessor candidate fields remain unknown and never export raw values', { timeout: 3000 }, () => {
+  let getterCalls = 0;
+  const secret = 'secret-text-SQL-header-token';
+  const candidate = { ...ack(databaseA, 6), sequence: secret, method: secret, path: secret, httpStatus: secret,
+    body: { activeDatabase: secret, sql: secret, token: secret, headers: secret } };
+  Object.defineProperty(candidate, 'requestSequence', { get() { getterCalls += 1; throw new Error(secret); } });
+  const projected = projectDatabaseSelectionCandidates([candidate], { afterSequence: 5, afterRequestSequence: 43 }, databaseA);
+  assert.equal(projected.candidates[0].predicates.receiptAfterBarrier, null);
+  assert.equal(projected.candidates[0].predicates.requestAfterBarrier, null);
+  assert.equal(projected.candidates[0].predicates.status200, null);
+  assert.equal(projected.candidates[0].reason, 'predicate-unknown'); assert.equal(getterCalls, 0);
+  assert.equal(JSON.stringify(projected).includes(secret), false);
+  assert.equal(JSON.stringify(projected).includes('activeDatabase'), false);
+});
+
+test('candidate source caps, expired observation and cancellation preserve an unknown boundary', { timeout: 3000 }, () => {
+  const projected = projectDatabaseSelectionCandidates(Array.from({ length: 129 }, () => ack(databaseA, 6)), barrier(5), databaseA);
+  assert.equal(projected.state, 'count-limit'); assert.equal(projected.candidateCount, null); assert.deepEqual(projected.candidates, []);
+  const expired = projectDatabaseSelectionCandidates([ack(databaseA, 6)], barrier(5), databaseA, { deadline: Date.now() - 1 });
+  assert.equal(expired.state, 'timeout'); assert.deepEqual(expired.candidates, []);
+  const refused = projectDatabaseSelectionCandidates([ack(databaseA, 6)], barrier(5), databaseA, { check: () => { throw new Error('secret-cancel'); } });
+  assert.equal(refused.state, 'unknown'); assert.equal(JSON.stringify(refused).includes('secret'), false);
+  assert.deepEqual(projectDatabaseSelectionCandidates([], barrier(5), databaseA).candidates, []);
+  assert.equal(projectDatabaseSelectionCandidates(null, barrier(5), databaseA).state, 'unknown');
+});
+
+test('ordinary DOM projection exports only bounded counts and typed booleans', { timeout: 3000 }, () => {
+  const value = { activeNodeCount: 1, identityNodeCount: 1, activeMatchesTarget: true, identityMatchesTarget: true,
+    contractWarningPresent: false, activeText: 'secret', identityText: 'secret', token: 'secret' };
+  const projected = projectDatabaseSelectionDom(value);
+  assert.equal(projected.state, 'observed'); assert.equal(projected.activeMatchesTarget, true);
+  assert.equal(JSON.stringify(projected).includes('secret'), false);
+  Object.defineProperty(value, 'activeMatchesTarget', { get() { throw new Error('secret'); } });
+  assert.equal(projectDatabaseSelectionDom(value).state, 'unknown');
+  value.identityNodeCount = 17; value.contractWarningPresent = 'secret';
+  const refused = projectDatabaseSelectionDom(value);
+  assert.equal(refused.state, 'unknown'); assert.equal(refused.identityNodeCount, null);
+  assert.equal(refused.activeMatchesTarget, null); assert.equal(refused.contractWarningPresent, null);
+});
+
+test('failed DOM observation and cancellation preserve the original selection error and fixed checkpoint', { timeout: 3000 }, async () => {
+  const primary = new Error('original selection failure');
+  const result = { selectionAttempts: [] }; const attempt = beginDatabaseSelectionAttempt(result, 'A', barrier(5)); attempt.phase = 'ack-poll';
+  await assert.rejects(rejectDatabaseSelectionFailure(primary, attempt, { candidates: [ack(databaseA, 6)], barrier: barrier(5), database: databaseA,
+    readDom: async () => { throw new Error('secret DOM failure'); } }), (error) => error === primary);
+  assert.equal(attempt.phase, 'failed'); assert.equal(attempt.failure.phase, 'ack-poll'); assert.equal(attempt.failure.terminationReason, 'unknown');
+  assert.equal(attempt.failure.dom.state, 'unknown'); assert.equal(JSON.stringify(attempt).includes('secret'), false);
+  let reads = 0;
+  const cancelled = beginDatabaseSelectionAttempt(result, 'B', barrier(7));
+  await assert.rejects(rejectDatabaseSelectionFailure(primary, cancelled, { candidates: [], barrier: barrier(7), database: databaseB,
+    check: () => { throw new Error('secret cancellation'); }, readDom: async () => { reads += 1; } }), (error) => error === primary);
+  assert.equal(reads, 0); assert.equal(cancelled.failure.dom.state, 'unknown');
+  const refusedOptions = { candidates: [], barrier: barrier(7), database: databaseB };
+  Object.defineProperty(refusedOptions, 'readDom', { get() { throw new Error('secret observer getter'); } });
+  await assert.rejects(rejectDatabaseSelectionFailure(primary, cancelled, refusedOptions), (error) => error === primary);
+  assert.equal(cancelled.failure.dom.state, 'unknown'); assert.equal(JSON.stringify(cancelled).includes('secret'), false);
+});
+
+test('failed DOM observation timeout remains unknown and never replaces the original error', { timeout: 3000 }, async () => {
+  const primary = new Error('original click failure');
+  const attempt = beginDatabaseSelectionAttempt({ selectionAttempts: [] }, 'A', barrier(5)); attempt.phase = 'click';
+  await assert.rejects(rejectDatabaseSelectionFailure(primary, attempt, { candidates: [], barrier: barrier(5), database: databaseA,
+    readDom: () => new Promise(() => {}) }), (error) => error === primary);
+  assert.equal(attempt.failure.dom.state, 'unknown'); assert.equal(attempt.failure.phase, 'click');
+});
+
+const selectionHarness = (mode, primary) => {
+  let result; let selected; let clicks = 0; let apiCalls = 0; let observerReads = 0;
+  const candidates = []; const pollOptions = [];
+  const button = { filter: () => button, count: async () => 1, locator: () => button, click: async () => {
+    const attempt = result.selectionAttempts[clicks];
+    assert.equal(attempt.phase, 'click'); assert.deepEqual(attempt.barrier, barrier(clicks === 0 ? 5 : 7));
+    clicks += 1; selected = clicks === 1 ? result.databaseA : result.databaseB;
+    if (mode === 'click') throw primary;
+    candidates.push(ack(selected, clicks === 1 ? 6 : 8));
+  } };
+  const page = { getByTitle: () => ({ count: async () => 0, click: async () => {} }),
+    locator: (selector) => selector === '.schema-group--databases' ? { locator: () => ({ count: async () => 1 }) } : button,
+    evaluate: async (_, args) => {
+      if (args) { observerReads += 1; return { activeNodeCount: 1, identityNodeCount: 1, activeMatchesTarget: true, identityMatchesTarget: true, contractWarningPresent: false }; }
+      return dom(selected);
+    } };
+  const harness = { origin, runId: 'selection-test', auth: 'secret-auth', check: () => {}, evidence: async () => {},
+    bridgeEvidence: candidates, getPage: () => page, launchIdentityKey: () => '100:first', setStage: () => {}, setResult: (value) => { result = value; },
+    observationBarrier: () => barrier(clicks === 0 ? 5 : 7), readLibrary: async () => ({ snapshot: disk(selected) }),
+    closeDesktop: async () => { throw primary; },
+    api: async (_, apiPath, body) => {
+      apiCalls += 1; assert.ok(apiCalls <= 8);
+      if (!body.sql.startsWith('SELECT')) return '{"type":"end","rowCount":0,"recordsAffected":0,"elapsedMilliseconds":1}';
+      return [JSON.stringify({ type: 'meta', columns: ['Marker'] }), JSON.stringify([apiPath.includes('Bravo') ? 'WB61_B' : 'WB61_A']),
+        JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMilliseconds: 1 })].join('\n');
+    },
+    poll: async (label, callback, options) => {
+      pollOptions.push({ label, options });
+      if (label === 'Both real seeded databases in ordinary Explorer') return true;
+      if (mode === 'poll' && label === 'Fresh ordinary selection native PUT') { await callback(); throw primary; }
+      return callback();
+    } };
+  return { harness, result: () => result, counts: () => ({ clicks, apiCalls, observerReads }), pollOptions };
+};
+
+test('real scenario click and poll failure paths keep the exact original error and pre-click checkpoint', { timeout: 3000 }, async () => {
+  const expires = Date.now() + 2000;
+  for (const mode of ['click', 'poll']) {
+    assert.ok(Date.now() < expires);
+    const primary = new Error(`original ${mode}`); const fixture = selectionHarness(mode, primary);
+    await assert.rejects(runDatabaseRecoveryScenario(fixture.harness), (error) => error === primary);
+    const result = fixture.result(); const attempt = result.selectionAttempts[0];
+    assert.equal(result.passed, false); assert.equal(result.firstClose, null); assert.deepEqual(result.selections, []);
+    assert.equal(attempt.failure.phase, mode === 'click' ? 'click' : 'ack-poll');
+    assert.equal(attempt.ackPoll.callbackCalls, mode === 'click' ? 0 : 1);
+    assert.equal(mode === 'click' ? attempt.ackPoll.elapsedMs === null : Number.isSafeInteger(attempt.ackPoll.elapsedMs), true);
+    assert.equal(fixture.counts().apiCalls, 8); assert.equal(fixture.counts().observerReads, 1);
+    assert.equal(JSON.stringify(result).includes('original'), false); assert.equal(JSON.stringify(result).includes('secret-auth'), false);
+  }
+});
+
+test('successful A and B selections retain original poll options and acceptance without extra observation reads', { timeout: 3000 }, async () => {
+  const stop = new Error('outside selection normal-close test boundary'); const fixture = selectionHarness('success', stop);
+  await assert.rejects(runDatabaseRecoveryScenario(fixture.harness), (error) => error === stop);
+  const result = fixture.result(); assert.equal(result.selections.length, 2); assert.equal(result.passed, false);
+  assert.deepEqual(result.selectionAttempts.map((attempt) => attempt.phase), ['accepted', 'accepted']);
+  assert.deepEqual(result.selectionAttempts.map((attempt) => attempt.failure), [null, null]);
+  assert.equal(fixture.counts().observerReads, 0); assert.equal(fixture.counts().clicks, 2);
+  const ackPolls = fixture.pollOptions.filter((item) => item.label === 'Fresh ordinary selection native PUT');
+  assert.equal(ackPolls.length, 2); assert.deepEqual(ackPolls.map((item) => item.options),
+    [{ attempts: 30, timeoutMs: 20_000, intervalMs: 250 }, { attempts: 30, timeoutMs: 20_000, intervalMs: 250 }]);
 });

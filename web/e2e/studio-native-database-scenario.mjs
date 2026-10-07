@@ -91,6 +91,115 @@ export async function rejectDatabaseSeedHttpFailure(primary, response, options, 
   throw primary;
 }
 
+const ownObservationValue = (object, key) => {
+  try {
+    const descriptor = object && typeof object === 'object' ? Object.getOwnPropertyDescriptor(object, key) : null;
+    return descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+  } catch { return undefined; }
+};
+const safeObservationNumber = (value, maximum = Number.MAX_SAFE_INTEGER) =>
+  Number.isSafeInteger(value) && value >= 0 && value <= maximum ? value : null;
+
+export function beginDatabaseSelectionAttempt(result, target, barrier) {
+  const attempt = { schema: 'sonnetdb.wb63.selection-attempt.v1', target: target === 'A' || target === 'B' ? target : 'unknown',
+    phase: 'before-click', barrier: {
+      afterSequence: safeObservationNumber(ownObservationValue(barrier, 'afterSequence')),
+      afterRequestSequence: safeObservationNumber(ownObservationValue(barrier, 'afterRequestSequence')),
+    }, ackPoll: { callbackCalls: 0, elapsedMs: null }, failure: null };
+  // This assignment happens synchronously, before the original click promise
+  // is created. The original barrier is still passed to every acceptance check.
+  try { if (Array.isArray(result.selectionAttempts) && result.selectionAttempts.length < 2) result.selectionAttempts.push(attempt); } catch { /* Ancillary observation only. */ }
+  return attempt;
+}
+
+export function projectDatabaseSelectionCandidates(source, barrier, database, { check = () => {}, deadline = Infinity } = {}) {
+  const output = { state: 'unknown', candidateCount: null, candidates: [], rawTextOrSqlOrHeadersPersisted: false };
+  const expires = Math.min(Date.now() + 100, deadline);
+  try {
+    check();
+    if (Date.now() >= expires) { output.state = 'timeout'; return output; }
+    if (!Array.isArray(source)) return output;
+    const count = safeObservationNumber(ownObservationValue(source, 'length'));
+    if (count === null) return output;
+    if (count > 128) { output.state = 'count-limit'; return output; }
+    output.candidateCount = count;
+    const afterSequence = safeObservationNumber(ownObservationValue(barrier, 'afterSequence'));
+    const afterRequestSequence = safeObservationNumber(ownObservationValue(barrier, 'afterRequestSequence'));
+    for (let index = 0; index < count && index < 128; index += 1) {
+      check();
+      if (Date.now() >= expires) { output.state = 'timeout'; return output; }
+      const item = ownObservationValue(source, String(index));
+      const sequence = safeObservationNumber(ownObservationValue(item, 'sequence'));
+      const requestSequence = safeObservationNumber(ownObservationValue(item, 'requestSequence'));
+      const launch = safeObservationNumber(ownObservationValue(item, 'launch'));
+      const method = ownObservationValue(item, 'method');
+      const candidatePath = ownObservationValue(item, 'path');
+      const httpStatus = safeObservationNumber(ownObservationValue(item, 'httpStatus'), 599);
+      const body = ownObservationValue(item, 'body');
+      const activeDatabase = ownObservationValue(body, 'activeDatabase');
+      const predicates = {
+        receiptAfterBarrier: sequence === null || afterSequence === null ? null : sequence > afterSequence,
+        requestAfterBarrier: requestSequence === null || afterRequestSequence === null ? null : requestSequence > afterRequestSequence,
+        firstLaunch: launch === null ? null : launch === 1,
+        putMethod: typeof method === 'string' ? method === 'PUT' : null,
+        connectionsPath: typeof candidatePath === 'string' ? candidatePath === connectionPath : null,
+        status200: httpStatus === null || httpStatus < 100 ? null : httpStatus === 200,
+        targetDatabase: typeof database === 'string' && typeof activeDatabase === 'string' ? activeDatabase === database : null,
+      };
+      const rejectedBy = Object.keys(predicates).filter((name) => predicates[name] === false);
+      const unknownPredicates = Object.keys(predicates).filter((name) => predicates[name] === null);
+      output.candidates.push({ ordinal: index, sequence, requestSequence, httpStatus: httpStatus !== null && httpStatus >= 100 ? httpStatus : null,
+        predicates, rejectedBy, unknownPredicates,
+        reason: unknownPredicates.length ? 'predicate-unknown' : rejectedBy.length ? 'predicate-mismatch' : 'find-predicates-match' });
+    }
+    check();
+    if (Date.now() >= expires) { output.state = 'timeout'; return output; }
+    output.state = 'complete'; return output;
+  } catch {
+    output.state = 'unknown'; output.candidates = []; return output;
+  }
+}
+
+export function projectDatabaseSelectionDom(value) {
+  const activeNodeCount = safeObservationNumber(ownObservationValue(value, 'activeNodeCount'), 16);
+  const identityNodeCount = safeObservationNumber(ownObservationValue(value, 'identityNodeCount'), 16);
+  const boolean = (name) => { const field = ownObservationValue(value, name); return typeof field === 'boolean' ? field : null; };
+  const activeMatchesTarget = boolean('activeMatchesTarget');
+  const identityMatchesTarget = boolean('identityMatchesTarget');
+  const contractWarningPresent = boolean('contractWarningPresent');
+  return { state: [activeNodeCount, identityNodeCount, activeMatchesTarget, identityMatchesTarget, contractWarningPresent].includes(null) ? 'unknown' : 'observed',
+    activeNodeCount, identityNodeCount, activeMatchesTarget, identityMatchesTarget, contractWarningPresent };
+}
+
+export async function rejectDatabaseSelectionFailure(primary, attempt, options) {
+  let timer;
+  try {
+    const candidates = ownObservationValue(options, 'candidates');
+    const barrier = ownObservationValue(options, 'barrier');
+    const database = ownObservationValue(options, 'database');
+    const readDom = ownObservationValue(options, 'readDom');
+    const suppliedCheck = ownObservationValue(options, 'check');
+    const check = typeof suppliedCheck === 'function' ? suppliedCheck : () => {};
+    const phase = ownObservationValue(attempt, 'phase');
+    const failure = { phase: ['before-click', 'click', 'ack-poll', 'dom-poll', 'disk', 'contract', 'evidence', 'accepted'].includes(phase) ? phase : 'unknown',
+      terminationReason: 'unknown', candidates: projectDatabaseSelectionCandidates(candidates, barrier, database, { check }),
+      dom: projectDatabaseSelectionDom(null) };
+    attempt.failure = failure; attempt.phase = 'failed';
+    check();
+    const expires = Date.now() + 2000;
+    const expired = new Promise((resolve) => { timer = setTimeout(() => resolve(null), 2000); });
+    const value = await Promise.race([readDom(), expired]);
+    check();
+    if (Date.now() < expires) {
+      const projected = projectDatabaseSelectionDom(value);
+      check();
+      if (Date.now() < expires) failure.dom = projected;
+    }
+  } catch { /* Getter, timeout, cancellation and observer faults never replace the original error. */ }
+  finally { clearTimeout(timer); }
+  throw primary;
+}
+
 export function admitNativeStudioRoot(candidate, expected, commit) {
   const same = (left, right) => left && right && left.processId === right.processId && left.parentProcessId === right.parentProcessId
     && left.creationTimeUtc === right.creationTimeUtc && left.commandLine === right.commandLine && left.executablePath === right.executablePath;
@@ -251,7 +360,7 @@ export async function runDatabaseRecoveryScenario(harness) {
   const sentinelB = 'WB61_B';
   const querySql = 'SELECT "Marker" FROM "WB61Probe"';
   const result = { schema: 'sonnetdb.wb61.database-recovery.v1', databaseA, databaseB, sentinelA, sentinelB,
-    seedFailures: [], selections: [], firstClose: null, secondLaunch: null, restored: null, query: null, secondClose: null, passed: false,
+    seedFailures: [], selectionAttempts: [], selections: [], firstClose: null, secondLaunch: null, restored: null, query: null, secondClose: null, passed: false,
     boundary: 'Real API seed and auth preparation only; ordinary DOM database selection, native PUT/GET, exact owned disk semantics, actual desktop restart and read-only B query. Login UI, dialogs, installation, backup recovery and full three-host acceptance remain separate.' };
   harness.setResult(result);
   const contract = createDatabaseRecoveryContract({ databaseA, databaseB, origin });
@@ -321,17 +430,45 @@ export async function runDatabaseRecoveryScenario(harness) {
     const button = page.locator('.schema-database-node .schema-item--database').filter({ has: page.locator('strong', { hasText: new RegExp(`^${database}$`, 'u') }) });
     if (await button.count() !== 1) fail('ordinary exact database button is not unique.');
     const barrier = observationBarrier();
-    await button.locator('strong').click({ timeout: 5000 });
-    const ack = await poll('Fresh ordinary selection native PUT', async () => bridgeEvidence.find((item) => item.sequence > barrier.afterSequence
-      && item.requestSequence > barrier.afterRequestSequence
-      && item.launch === 1 && item.method === 'PUT' && item.path === connectionPath && item.httpStatus === 200 && item.body.activeDatabase === database),
-    { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
-    const rendered = await poll('Confirmed ordinary database DOM', async () => { const value = await dom(); return value.activeDatabase === database && value.hostIdentity === `studio-desktop · managed-local · ${origin} · ${database}` ? value : false; },
+    const attempt = beginDatabaseSelectionAttempt(result, database === databaseA ? 'A' : 'B', barrier);
+    let ackPollStartedAt = null;
+    try {
+      attempt.phase = 'click';
+      await button.locator('strong').click({ timeout: 5000 });
+      attempt.phase = 'ack-poll';
+      ackPollStartedAt = Date.now();
+      const ack = await poll('Fresh ordinary selection native PUT', async () => {
+        attempt.ackPoll.callbackCalls += 1;
+        return bridgeEvidence.find((item) => item.sequence > barrier.afterSequence
+          && item.requestSequence > barrier.afterRequestSequence
+          && item.launch === 1 && item.method === 'PUT' && item.path === connectionPath && item.httpStatus === 200 && item.body.activeDatabase === database);
+      },
       { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
-    const disk = await readLibrary();
-    contract.selected(database, ack, rendered, disk.snapshot, barrier);
-    const selection = { database, barrier, acknowledgement: ack, dom: rendered, disk };
-    result.selections.push(selection); await evidence(`database-selection-${result.selections.length}.json`, selection);
+      attempt.ackPoll.elapsedMs = safeObservationNumber(Date.now() - ackPollStartedAt, 900_000);
+      attempt.phase = 'dom-poll';
+      const rendered = await poll('Confirmed ordinary database DOM', async () => { const value = await dom(); return value.activeDatabase === database && value.hostIdentity === `studio-desktop · managed-local · ${origin} · ${database}` ? value : false; },
+        { attempts: 30, timeoutMs: 20_000, intervalMs: 250 });
+      attempt.phase = 'disk';
+      const disk = await readLibrary();
+      attempt.phase = 'contract';
+      contract.selected(database, ack, rendered, disk.snapshot, barrier);
+      const selection = { database, barrier, acknowledgement: ack, dom: rendered, disk };
+      result.selections.push(selection); attempt.phase = 'evidence'; await evidence(`database-selection-${result.selections.length}.json`, selection);
+      attempt.phase = 'accepted';
+    } catch (primary) {
+      if (attempt.phase === 'ack-poll' && ackPollStartedAt !== null) attempt.ackPoll.elapsedMs = safeObservationNumber(Date.now() - ackPollStartedAt, 900_000);
+      await rejectDatabaseSelectionFailure(primary, attempt, { candidates: bridgeEvidence, barrier, database, check,
+        readDom: () => boundedRead(() => getPage().evaluate(({ database, expectedIdentity }) => {
+          const nodes = document.querySelectorAll('.schema-database-node .schema-item--database.is-active');
+          const identities = document.querySelectorAll('[data-testid="studio-host-identity"]');
+          const activeText = nodes.length === 1 ? nodes[0].querySelector('strong')?.textContent : null;
+          const identityText = identities.length === 1 ? identities[0].textContent : null;
+          return { activeNodeCount: nodes.length <= 16 ? nodes.length : null, identityNodeCount: identities.length <= 16 ? identities.length : null,
+            activeMatchesTarget: typeof activeText === 'string' ? activeText === database : null,
+            identityMatchesTarget: typeof identityText === 'string' ? identityText === expectedIdentity : null,
+            contractWarningPresent: Boolean(document.querySelector('[data-testid="studio-managed-contract-warning"]')) };
+        }, { database, expectedIdentity: `studio-desktop · managed-local · ${origin} · ${database}` })) });
+    }
   }
   setStage('first normal desktop exit with data/profile/library retained');
   result.firstClose = await closeDesktop('first'); contract.firstClosed(result.firstClose);

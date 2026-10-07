@@ -2,6 +2,13 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB63 Studio选库失败观察（2026-10-08；合同PASS，0actual）
+
+- 原barrier在点击promise创建前同步保存；最多2次选择记录、固定phase、原ack-poll的callbackCalls/elapsedMs。候选最多128/100ms，原七find谓词逐项true/false/null；普通DOM最多2秒/16节点及身份/warning布尔。字段getter不读取，错误/取消/超时不猜因果、不覆盖原异常；原find/轮询/ack/DOM/disk/正常退出/归属权限保持，无新请求或重试。
+- 微试1/1，完整Node32/32（预估33与实测差异单列），无fail/cancel/skip/todo；覆盖旧request晚response、缺失/非法/超限候选、DOM错误/超时/取消、原error对象、preclick实际路径及成功A/B零额外观察。源冻结/独立复核、五根工具适配层和parser、完整restore/原format、本地提交与新鲜退出收据存 `artifacts/wb63-studio-selection-observation-20261008`；静态/合同不计真实恢复。
+- 0actual/0build，WB62真实FAIL、selections0/launch1/normalExit=false继续有效，历史A PUT200拒绝原因仍unknown。原30次/250ms可能先耗尽次数；20秒仅墙钟上限，不能据原错误文本推成等待20秒。atUtc为解码完成，不虚造request/response到达时间。
+- 本会话完成本片后2/5，下一WB64先冻结一次有界新源/runtime真实验收及失败checkpoint；七路径门禁/expected-parent本地commit通过且自建进程退出才关闭。原HANDOFF prefix/外部Identity发布/parity/旧拒删对象均保护；三宿主/文件/安装/Extension Host/AOT/固定硬件/长稳/发布独立待验，无push/发布/部署/外发/安装。
+
 ## WB62 Studio恢复接续（2026-10-08；失败checkpoint）
 
 - 最终3源有界seed失败观察及9新合同：root微试1/1、完整23/23零fail/cancel/skip/todo、runner语法和独立源码复核PASS。固定类别/type/5code白名单、8KiB保留/16read/≤2s、原API5s/mainDeadline/abort；不导出原body/SQL/header/token，异常保原primary。产品9SHA复用WB61，0新build；旧真实400不升级。

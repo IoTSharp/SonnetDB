@@ -2,6 +2,14 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB63 合同与文件冻结（2026-10-08；选择失败观察，0actual）
+
+- 同一会话第2个独立任务：WB62提交ff9de57d已闭环，WB63完成后2/5；实施、修正、合同及独立复核合计1个，不拆分凑数。仅scenario.mjs/test.mjs两源；根独占五共享docs、门禁、集成与本地提交，七路径边界，runner/产品不改。
+- pre-click同步保存原请求/响应双barrier，至多2次A/B选择记录与固定phase；候选至多128/100ms，只保存安全序号/status、原七find谓词的true/false/null和固定拒绝/未知名。普通DOM观察至多2秒、节点计数至多16、目标/host身份及warning仅布尔；getter/超限/超时/取消/观察失败保持unknown与原error对象，不保存raw/text/SQL/header/token，不新建HTTP或重试。
+- root微试1/1、完整32/32（最终实测，预估33已更正），无fail/cancel/skip/todo。原成功选择不增加观察读取，原30次/250ms/20秒上限及ack/DOM/disk/normal-close/ownership/资源预算保持；callbackCalls/elapsedMs为实际观察，不把20秒上限声称为完整等待。0actual/0build，不能解释WB62缺barrier的历史拒绝或升级其真实FAIL。
+- 35分钟/root≤8封装/≤2测试边界不扩，源停写SHA、源码/根工具独立复核、PS7 parser、最终七路径完整restore/原format与本地commit/退出审计见 `artifacts/wb63-studio-selection-observation-20261008`。门禁和退出未取得PASS不得提交；共享HANDOFF原293834字节、Identity发布、origin/parity-results及旧policy Temp/WB40保留；没有push/发布/部署/安装/外发。
+- 下一任务WB64先接收本片真实提交与退出收据，再冻结一次新源绑定的真实恢复/失败观察验收；旧WB62 A PUT200 seq6/request43已存在但barrier与到达时序缺证，atUtc只代表JSON解码完成。A→B/两desktop/磁盘/B查询/正常关闭仍独立待验，三宿主/安装/Extension Host/AOT/硬件/长稳/发布分列，Graph Beta。
+
 ### WB62 合同与文件冻结（2026-10-08；真实A选库ack验收失败）
 
 - 新会话 `01a11709-c3a5-7603-84d0-77de883518a7` 从7cf310a6接管；第1独立任务已形成失败checkpoint，1/5。同一个workbench ACTIVE每30分钟；新滚动迁移时机优先，既有旧不迁移描述不生效，真实验收门槛保持。
