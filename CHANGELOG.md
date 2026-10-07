@@ -9,6 +9,8 @@
 
 ### Added
 
+- **ASP.NET Core MVC + Identity 样例**：以 `SonnetDB.EntityFrameworkCore` 替换 SQL Server Provider，保留默认 Identity 配置、上下文、控制器和视图；提供 SonnetDB 专属初始迁移和独立 MVC / Identity 集成测试，覆盖账户流程、TOTP、并发与关联存储。Provider 补齐事务提交阶段的 EF 保存异常及字符串 `MaxLength` 检查约束，核心允许现有长度函数用于 CHECK。
+
 - **开源中国文章补发账本（2026-10-07）**：保存 142 篇渠道复核稿、逐篇博客/动弹回执、4.0.0 新闻审核状态与每日续发进度；通用发布和对账脚本迁入全局 `publish-oschina` 技能，项目只保留稿件、账本与接续说明。动弹失败独立记录，已有 ID 或未知请求阻止重复创建。
 
 - **M47 WB-42 真实VS Code查询诊断（2026-10-07）**：新增独立Host入口和隔离真实Server/Code runner，复用现有当前语句/选区/EXPLAIN命令；最终syntax/TypeScript和既有Node20/20通过。第二实跑当前语句两行、选区一行及原列/SQL/database生成payload与独立真实reference一致；EXPLAIN断言及process audit失败、history未运行，完整旅程未通过。首preflight parent-chain超时有据修为有界snapshot lookup，原两失败/缺证据保持；根两单PIDfallback、端口/282对象runtime回收另列，不能计正常退出/UI/分页/三宿主完成。完整门禁和八文件本地提交见M47记录。

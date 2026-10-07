@@ -769,3 +769,34 @@
 - 本轮只做两个本地提交：SonnetDB稿件/账本/本任务交接及CHANGELOG，技能仓发布器修复/通用队列工具/参考说明与备份manifest。不push/部署；使用独立index仅纳入本任务的HANDOFF段和CHANGELOG条目，保留并发研发、博客园及其它技能交接hunk。旧策略保留对象不重试删除；本轮仅移除已验证迁入技能的6个原PS1，临时夹具按归属回收，进程证据保留在忽略目录。
 
 - 本轮最终门禁：完整 dotnet restore SonnetDB.slnx 与 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 均退出0；Format只报告加载工作区警告，无格式错误。初次最终restore包装器的进程发现超时已修为批量身份查询后重跑通过，失败日志保留；后续仅统一7份JSON复核/回执元数据为LF并核对逻辑值完全不变，不改稿件、发布账本、源码或实际回执。所有本地提交须再通过精准staged diff --check，不包含其它会话hunk。
+
+
+## ASP.NET Core Identity / EF Core 支持分析（2026-10-07）
+
+- 用户询问 SonnetDB 能否支持 ASP.NET Core Identity，并进一步明确已有 EF Core provider，希望判断能否直接接入。已核根 HANDOFF 最新 WB57 与共享 main 状态；此次为独立源码分析，不接续或更改 workbench/博客/发布任务。
+- 已完成报告 docs/audits/2026-10-07-aspnet-core-identity-compatibility.md，核查基线 HEAD 11f358c698005877b3e0362946ef9cfd06afa3f1。结论：标准 IdentityDbContext + UseSonnetDB + AddEntityFrameworkStores 路径已有实现和 IoTSharp 集成测试源码，无需先另写 IUserStore/IRoleStore；不能由已有 EF Core 概括为 Identity 全功能验收通过。
+- 已核用户创建/正确错误密码/重复 NormalizedUserName 回滚源码，以及独立 provider 的 IdentitySubset 列映射、陈旧 ConcurrencyStamp/真实 RecordsAffected 合同；关系层复合主键、唯一约束、外键级联及跨表恢复已有实现。本轮未构建、未运行测试或真实登录，源码存在不记为本轮 PASS。
+- 重要缺口：IoTSharp 两默认外部项目路径均不存在，当前默认配置会 Compile Remove 完整 ApplicationDbContext Identity 测试；应补不依赖外部源码的标准 IdentityDbContext 独立测试。角色/Claims/外部登录/Token/锁定/MFA/HTTP Cookie/恢复/远程旅程分别验收。
+- 官方 ASP.NET Core v10.0.1 与 Context7 核明 schema v3 的 Passkey 使用 EF ComplexProperty.ToJson 和 byte[].SequenceEqual；当前 provider 只有普通 JSON 字符串映射，未证这两合同。传统 v1/v2 不含 Passkey，不能升级为 .NET10 v3 全兼容。仓库依赖10.0.12，未将框架10.0.1源码核查称为各补丁全验证。
+- 边界：EF provider 明确非 Native AOT；DDL 在事务外执行；真实事务 ReadCommitted/read-your-writes 不等于 ADO 接受 Serializable 后具有串行化隔离。下一步优先独立传统 Identity 功能矩阵，再远程/恢复/真实登录，再单验 v3 Passkey。
+- 三个分析代理均只读、有界短命命令，无构建、安装、服务、临时对象或需回收的持续进程。根仅新增分析报告并追加本 HANDOFF，保留全部已有共享修改；未commit/push/发布/部署，因用户只要求分析且工作树有并发改动，HANDOFF 暂不提交。后续若提交仍必须最终树 restore/Format Check，不把此次文档核查当作该门禁通过。
+
+## ASP.NET Core MVC Identity 最小组件替换（2026-10-07；新库样例已验证，未提交）
+
+- 用户要求修改 samples/SonnetDB.AspNetCoreWebMvcWithIdentity，以最少组件替换使用 SonnetDB，并明确仅新建数据库、不迁移旧 SQL Server 用户。当前共享 main；本轮收尾 HEAD c5716912a38faf5a1501a3110f17933efeb0f694，全部本任务实现未提交。保留其它会话已提交/未提交工作及本文件既有字节，不切分支或改 parity-results。
+- Program.cs 仅 UseSqlServer(connectionString) → UseSonnetDB(connectionString)。项目改引用仓库 EF Provider、沿用中央 Microsoft 包 10.0.12；连接串为 Data Source=./identity-data，去掉 MSSQL 服务依赖，增加数据库忽略规则/README。ApplicationDbContext、Identity 选项、控制器、视图及业务逻辑原样。重新生成 20261007135609_CreateIdentitySchema 和 snapshot，创建七张 Identity 表、自增 Claims、唯一索引、复合主键、级联与十条字符串长度 CHECK。
+- 补齐两个真实 Provider 缺口：SonnetDbRelationalDatabase 将提交阶段的稳定唯一/FK/CHECK/并发错误转为 EF DbUpdateException/DbUpdateConcurrencyException，保留 inner exception 和实际修改 entries，I/O/取消/无关远端错误仍原样传播；SonnetDbStringLengthConvention 将普通 STRING/TEXT 字符串 MaxLength 自动纳入模型可见 CHECK，共享列去重、冲突不覆盖，排除 JSON 和非字符串转换，标准迁移可 drop/add。核心仅允许现有 length/char_length 的单参数 CHECK，不增加依赖或修改二进制格式。
+- 最终实际验证：MVC/Identity 18/18、完整 EF Provider 78/78（含10提交约束及8限长）、核心长度 CHECK 6/6，均0跳过；含新迁移构建0警告/错误。注册/确认、密码重置、资料/邮箱/密码管理、Cookie/锁定/安全戳/乐观并发、Claims/登录记录/Token/角色表关联、删除级联、恢复码、验证器启用/TOTP、256邮箱和128键边界、宿主关闭重开与持久 Cookie均有真实样例/官方UI证据。
+- 设计时工具 C:\Users\mysti\.dotnet\tools\dotnet-ef.exe 10.0.5（较runtime10.0.12旧，会提示补丁警告）成功生成迁移，并从样例目录 database update --no-build 创建 artifacts/identity-mvc-20261007/cli-data-with-length；SDK为 C:\Program Files\dotnet\dotnet.exe 10.0.401，无新安装。完整 dotnet restore SonnetDB.slnx 和原 CI Format Check 参数均退出0；格式只保留工作区加载警告，0格式错误。首轮迁移CRLF/import顺序已修，复验通过；仅行尾和导入顺序变化不重跑功能测试。
+- 收据/TRX/日志保存在 artifacts/identity-mvc-20261007：identity-tests-with-length-final、ef-provider-length-verified、core-length-check-tests、generate-migration-with-length、cli-database-update-with-length、solution-restore-verified、solution-format-verified，最终回执均ExitCode0/CleanupVerified=true。报告 docs/audits/2026-10-07-aspnet-core-identity-compatibility.md 和样例 README 已同步实际结果。
+- 早期失败全部保留：测试连接目录隔离/提交异常、恢复码及TOTP零安全戳校验的Cookie流程、长度Convention的默认列类型终结时序和共享列判别字段断言。旧迁移三文件保存在 migration-before-length-checks；首轮错误共用数据库已核归属迁至 first-test-shared-database。完整restore首次命令退出0但逐PID审计超过30s，独立跟进确认全部记录PID已退出；runner改批量查询后小输入和完整restore/format均通过。极短 --version smoke退出前无法采集root身份的失败回执也保留，不将其当正常审计PASS。
+- 资源收尾 final-resource-audit.json：258个已记录进程身份0仍存活，四个本测试专用TEMP前缀目录0残留；日志/TRX、两个CLI数据库和迁移/首轮数据库备份是有意保留的本任务证据。全程PS7、有界count/墙钟和归属校验，无服务/下载、无按进程名终止、无共享缓存删除或Graphify。源码与文档任务范围 diff --check通过；对整个既有HANDOFF的检查仍指出其它会话CRLF行，保留原字节，不冒称全仓Markdown清洁。
+- 更正前段初始分析：实际ASP.NET Core v10.0.12的Passkey Data为OwnsOne(...).ToJson()；EF Relational已有ByteArraySequenceEqualTranslator。原AddDefaultIdentity SchemaVersion=0.0按v1处理、MaxLengthForKeys128，本轮未启schema v3。测试邮件仅记录、不连接SMTP/OAuth；角色是表模型/关联，不新增RoleManager页面；远端错误分类有注入测试，不当真实远端证据。Provider/样例非NativeAOT，DDL事务抑制与ReadCommitted边界仍保持；本次仅正常关库重开，非崩溃/断电注入。
+- 本次授权的新库样例范围已完成，没有必须继续的实现项。后续扩展真实远端、Passkey/v3、外部服务或已有数据库升级应独立验收；已有SonnetDB库需显式新增约束，不能由模型变化宣称物理库已升级，实体拆分片段尚不在本限长Convention范围。用户未要求commit/push/发布，且共享main有并发交接改动，故HANDOFF和实现暂不提交；若之后提交，必须对当时最终树重新执行完整restore/format并精准纳入本任务文件/hunk。
+
+## Identity 样例本地提交收尾（2026-10-07）
+
+- 用户本轮明确要求提交代码，授权覆盖此前“暂不提交”状态。本次提交范围为上述 Identity 样例、两个 Provider 能力补丁、核心长度 CHECK 白名单、相应测试/迁移、中央包与 solution 注册、兼容性报告、CHANGELOG 条目和本任务交接段；代码逻辑与上一轮18/78/6全PASS时相同。
+- 按仓库铁律，本轮在当前最终源码树重新执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，收据使用 commit-solution-restore / commit-solution-format；只有两项ExitCode0且进程清理验证通过才执行commit。实际提交结果以git log及commit-receipt.json为准。
+- 使用专用Git index隔离提交；HANDOFF从HEAD底本精确附加两个Identity段和本段，保留外部Workbench/发布交接。docs/design/m47-unified-management-workbench/work-queue.md及其它外部工作不纳入；本地提交后只同步未被他人改变的本任务默认index条目。commit授权不包含push/发布/部署，parity-results不改动。
+- 独立只读复核无阻断，确认最终TRX和收据一致；本轮仅门禁和提交，不重复已有功能测试。PS7、有界执行/进程身份/精确临时index清理约束继续；本次提交完成后本任务没有遗留实施项，后续包发布/远程/v3/已有库升级仍按上段边界独立验收。

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 
 namespace SonnetDB.EntityFrameworkCore.Metadata.Conventions.Internal;
@@ -17,5 +18,13 @@ public sealed class SonnetDbConventionSetBuilder : RelationalConventionSetBuilde
         RelationalConventionSetBuilderDependencies relationalDependencies)
         : base(dependencies, relationalDependencies)
     {
+    }
+
+    /// <inheritdoc />
+    public override ConventionSet CreateConventionSet()
+    {
+        var conventionSet = base.CreateConventionSet();
+        conventionSet.ModelFinalizingConventions.Add(new SonnetDbStringLengthConvention(Dependencies.TypeMappingSource));
+        return conventionSet;
     }
 }

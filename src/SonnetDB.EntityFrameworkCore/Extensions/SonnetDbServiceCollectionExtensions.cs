@@ -36,6 +36,7 @@ public static class SonnetDbServiceCollectionExtensions
         new EntityFrameworkRelationalServicesBuilder(serviceCollection)
             .TryAdd<LoggingDefinitions, SonnetDbLoggingDefinitions>()
             .TryAdd<IDatabaseProvider, SonnetDbDatabaseProvider>()
+            .TryAdd<IDatabase, SonnetDbRelationalDatabase>()
             .TryAdd<IProviderConventionSetBuilder, SonnetDbConventionSetBuilder>()
             .TryAdd<IRelationalAnnotationProvider, SonnetDbAnnotationProvider>()
             .TryAdd<IRelationalConnection, SonnetDbRelationalConnection>()
