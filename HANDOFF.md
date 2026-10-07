@@ -856,3 +856,26 @@
 - 根独占五共享docs/集成/gates/git，最终七路径及仅本任务HANDOFF两段私有index；完整 `dotnet restore SonnetDB.slnx` 与原 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、diff check、新鲜退出审计均为本地commit前置，未取得PASS不得commit。实际gate退出值、最终树SHA、expected-parent CAS、本地commit和后置核验见 `artifacts/wb63-studio-selection-observation-20261008` 收据及git log；本文不代替真实门禁。
 - 35分钟/≤8封装/≤2测试/0actual/0build窗口不扩；主/子PS7固定路径、禁Graphify广域扫描安装、所有count+wall/cancel/backoff、记录PID/创建/完整command/父链与finally仅自有完整树、绝对路径/对象归属清理保持。外部HANDOFF原293834字节/Identity发布、parity `0061d6d78591fb08493f473d3231ca42303faae1`、旧拒删Temp/WB40 retained runtime保留；源码代理0长进程/temp，不按名杀。无push/发布/部署/外发/安装。
 - 下一独立任务WB64先接收本片本地commit、退出与2/5计数，再冻结一次有界新源/runtime真实恢复/失败观察验收；必须复用已有产品及公开native bridge，不盲重跑旧证据、不改验收迎合产品。A→B/两desktop/磁盘/B查询/正常关闭仍未验收；三宿主、原生文件/安装、VS Code Extension Host、AOT、固定硬件、长稳及发布分别待验，Graph Beta。若提前交接或达5任务，根保存实际checkpoint并立即创建/启动本地接续、改同一workbench target后停止旧会话写入。
+
+## 会话最终交接（2026-10-08；本会话2/5，提前接续WB64）
+
+- WB63实际本地提交 `ea875e499301ebcc9f11eda6264ce1c66ea2e14d`，父 `ff9de57d4b60785d29cf51507af2288fbd6ecf4e`，精确七路径、32/32合同、完整restore/原format/已提交diff与源码/最终集成独立PASS。format工作区加载warning保留；原whole-tree foreign HANDOFF尾空白FAIL不改写，自有提交检查PASS。default index空，只有原foreign HANDOFF差异；私有index/同步index/canonical lock均已不存在，parity0061d6d7原样保护。
+- 预commit9身份absent；第一后置审计因PID复用与potential child保守FAIL，未终止或放宽；后续新鲜独立审计11完整身份absent、0stop PASS。WB63 actual0；WB62实际恢复FAIL及历史拒绝原因unknown不升级。最终真实收据、计数2/5、SHA与复核保留于 `artifacts/wb63-studio-selection-observation-20261008`，专属子代理已停写且0长进程/temp。
+- 本片35分钟根截止17:08:51Z，剩余窗口不够下一次15分钟actual、回收和门禁，因此按用户已授权规则提前滚动接续；新本地会话从0/5开始，第一任务WB64只推进新源绑定的有界真实恢复/失败观察，不重做WB63、不要盲重跑旧证据。当前9产品/runtime SHA可复用，runner尚只准入WB61/WB62；新证据目录/validationSlice/准入提示及独占ports需先冻结、专属metadata修改和inverse复核，不改产品、原find/close/ownership/预算。
+- 此补充交接已保存但暂未提交：前一七路径任务已完整验收提交；在本片剩余墙钟内另一次最终树restore/format/commit无法可靠完成，保留foreign HANDOFF及这段自有补充供新会话接收。新会话ID和同一workbench自动化转交结果写入本片continuation-receipt；转交后旧会话停止仓库写入。持续ACTIVE每30分钟，不新增自动化；无push/发布/部署/外发/安装。
+
+## 当前接续（WB64，2026-10-08；新本地会话0/5）
+
+- 新会话 `01a11753-03eb-7723-84f8-1f688c5d3579` 接收旧根完整四文档字节、HEAD `ea875e499301ebcc9f11eda6264ce1c66ea2e14d` 与原 `origin/parity-results=0061d6d78591fb08493f473d3231ca42303faae1`，default index为空；原foreign HANDOFF与旧根未提交补充保留。同一workbench已核ACTIVE/每30分钟/target本会话，旧根停止仓库写入；旧目录仅依用户明确例外新建continuation-receipt，不覆盖其它旧证据。
+- WB64独立任务从0/5开始，metadata专属子代理只改runner的WB64 evidence parent/准入/slice/提示与四ports18340/18341/55340/9340；原产品/scenario/test与find/poll/ack/DOM/disk/close/ownership/预算保持。根独占五共享docs/工具/验收/git，独立源与工具复核；最多8封装、actual1、launch2、0定向测试/0项目build/0安装，15分钟native/17分钟outer与17:50:49Z根硬截止。失败checkpoint也计1独立任务，无盲重试。
+- WB63原32/32合同不重做，WB62实际A PUT200存在与历史barrier缺失/unknown不升级。只取得本次真实新源/9runtime SHA/双barrier/七谓词/普通DOM/实际poll/原错误及strict正常退出/回收证据；三宿主、安装、Extension Host、AOT、固定硬件、长期、发布继续分列，Graph Beta。
+- 全主/子PS7固定路径，禁止Graphify/广域工具扫描/安装；循环、搜索、等待、重试与批次同时有count+墙钟/取消/进度/backoff及微试，长进程记录完整身份/父链并finally只回收核实本任务树，不按名kill。保护他会话、共享缓存、交付物、旧拒删Temp与WB40 retained runtime；只提交本任务路径与自有HANDOFF hunk，完整restore/原format PASS才commit，无push/发布/部署/外发。
+
+## 当前检查点（WB64，2026-10-08；真实双barrier拒绝已证，失败检查点1/5）
+
+- 唯一actual `studio-native-real-38583042-a9a4-4af9-aaf2-dba5696ccd8c`，native95.85秒；wrapper完整receipt122.1665353秒，exit1。两库STRING/plain PK的8个seed/SELECT步骤越过；A选择pre-click barrier为response6/request57，候选6中的A PUT200为seq6/request43，firstLaunch/PUT/path/status/target五项true，两fresh谓词false，unknown项空。DOM1active/1identity匹配A且warningfalse；真实poll30call/7658ms，20秒只是上限，JSON atUtc只为解码完成。原terminationReason仍unknown，不把本次拒绝回补WB62旧barrier或升级历史原因。
+- 本次selections0/launch1，firstClose/secondLaunch/restored/query/secondClose均null，actual FAIL/normalExit=false/cleanupProven=false。原cleanup helper失败明确CIM15/20.19s/cache16，fallback/dirs为空且四ports false；六终态全部落盘保持，不能把根随后处置计原回收或正常退出。独立逐bridge谓词/source-runtime/终态复核PASS仅授失败证据一致。
+- 根wrapper记录19身份finally无errors，随后fresh22身份absent/0stop；另exact本run/runner81716/原完整19tuple ledger（15自有、4外祖先）独立父链与SHA校验，当前PID/潜在子/关联进程均无、四ports独占。三exact owner目录逐对象祖先/reparse/创建时间/marker/SHA/绝对路径守卫，depth16/4096每root/15秒inventory、30秒删除，仅回收本次454个disposable对象；7份原证据SHA保持。rootRecovery=true/failedCheckpointVerified=true单列，原两个false不变，0新增kill。
+- 执行runner SHA `82012CD05152AF55334D1ED9A2D92BADDF370EEDE67689A775DA8D29A7D0A9C1` 与原freeze/run/executed源码保存。首次metadata diff check因插入CR trailing whitespace FAIL；同一任务必要修正仅删offset1843的一个CR，最终SHA `C696CE1E866B038E78FC05A2A2C14D57B2E2D0BECEFB018AB33CADCEA222D599`，8项metadata inverse仍逐byte等于旧F547基线，其它执行源字节与WB63 scenario/test不变。最终syntax/自有diff/独立source复核，0追加actual、0定向测试/0项目build；9产品/runtime SHA新鲜核实后绑定actual，不重新扫描或安装。
+- 根最终六路径/五共享docs与runner；private HANDOFF仅HEAD加旧根明确归属rollover补充和本次两段，原received300432B foreign字节完整保留。完整restore/原format、最终SHA、fresh退出≤90秒、expected-parent/parity/default-index CAS、精确diff本地commit/post/独立验收见 `artifacts/wb64-studio-database-observation-20261008`，未取得PASS不得提交；旧whole-tree foreign尾空白FAIL不改写。原父ea875e49，origin/parity0061d6d7保护，同一automation ACTIVE30分钟已target本会话，旧根fenced。
+- 本次失败检查点计第1独立任务，1/5；max8wrapper/actual1/launch2/0tests/0build与17:50:49Z截止保持。下一片先冻结A ack已存在于pre-click barrier之前的准备/同值点击fresh PUT前置的有证据合同，不虚造ack或放宽原七谓词；原helper有界采集/回收缺口另独立任务，不混入产品改造。三宿主、真实Server、OS文件/安装、Extension Host、AOT、固定硬件、长稳及发布继续分列，Graph Beta。PS7/禁Graphify/广域扫描安装/count+wall/cancel/backoff/完整身份父链/finally与旧policy保留继续，无push/发布/部署/外发。

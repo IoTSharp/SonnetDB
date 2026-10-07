@@ -2,6 +2,14 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB64 合同与文件冻结（2026-10-08；新会话第1任务，真实fresh barrier拒绝）
+
+- 接续ea875e49，新会话从0/5开始，失败checkpoint计1/5；唯一metadata runner新增WB64准入/目录/slice/提示及18340/18341/55340/9340。原产品、scenario/test及32合同不重做，inverse逐byte与旧基线一致；根独占五docs/gates/git，最终六路径。
+- 唯一actual38583042，8seed/SELECT越过；A pre-click双barrier6/57，六候选中的A PUT200 seq6/request43被两fresh谓词拒绝，其余五项true、无unknown。普通DOM匹配A且warningfalse；30poll/7658ms，20秒上限与JSON解码atUtc边界保持。selections0/launch1与所有close/restart/restored/B-query null，原FAIL不升级WB62历史unknown。
+- native95.85s、wrapper完整122.1665353s；原normalExit/cleanupProven false，helperCIM15/20.19s/cache16预算失败，六terminal保存。根随后wrapper19/鲜22absence、exact19tuple/15owned与四ports/三个owner目录454对象回收为失败checkpoint独立证据，0新增kill，不改原false。祖先/reparse/creation/marker/hash守卫与原7证据SHA保持。
+- 实际源82012CD保存；最初metadata插入CR导致diff FAIL，必要修正仅删除一个CR、最终C696CE1E与inverse保持，0追加actual/0定向测试/0项目build，9source/runtime SHA复用。max8wrapper/actual1/launch2/17:50:49Z；源码/工具/实际/根回收独立复核、最终完整restore/原format/精确本地提交与退出见本片收据。原foreign HANDOFF/旧rollover/parity/旧policy对象保持，ACTIVE每30分钟同id，不新建自动化，无push/发布/部署/安装/外发。
+- 下一片冻结pre-click之前已存在A ack与同值点击fresh PUT前置的真实合同；不放宽七谓词、不伪造barrier或历史因果。helper回收预算缺口另片；两desktop/B查询、三宿主、安装/Extension Host/AOT/硬件/长期/发布仍分别待验，Graph Beta。
+
 ### WB63 合同与文件冻结（2026-10-08；选择失败观察，0actual）
 
 - 同一会话第2个独立任务：WB62提交ff9de57d已闭环，WB63完成后2/5；实施、修正、合同及独立复核合计1个，不拆分凑数。仅scenario.mjs/test.mjs两源；根独占五共享docs、门禁、集成与本地提交，七路径边界，runner/产品不改。
