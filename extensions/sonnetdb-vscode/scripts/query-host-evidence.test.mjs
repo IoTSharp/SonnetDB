@@ -4,7 +4,7 @@ import { mkdtemp, readFile, realpath, rmdir, unlink, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
   validateOwnedIdentity, validateOwnedIdentityAnchor, validateOwnedIdentityLedger } from './query-host-evidence.mjs';
 
 const created = '2026-10-07T00:00:00.000Z';
@@ -12,6 +12,191 @@ const owner = { pid: 10, parentPid: 1, created, commandLine: 'node runner', pare
 const child = (pid, commandLine = 'owned child') => ({ pid, parentPid: 10, created, commandLine,
   parentChain: [{ pid: 10, parentPid: 1, created, commandLine: 'node runner' }, { pid: 1, unavailable: true }] });
 const options = { ownerPid: 10, validateText: () => {}, recordEvent: () => {}, clock: () => 1000 };
+
+const intermediate = { pid: 12, parentPid: 10, created, commandLine: 'complete current intermediate' };
+const pendingCandidate = { ...child(11, null), parentPid: 12, parentChain: [intermediate, owner] };
+const initialCandidates = () => [owner, intermediate, { ...pendingCandidate }];
+const candidateOptions = { ...options, discover: (snapshot, values) => values.set(11, snapshot.find((item) => item.pid === 11)) };
+
+test('one exact fresh batch restores missing and empty own commands with a ledger-bound fixed observation', { timeout: 1000 }, async () => {
+  const first = child(11, null); const second = child(13, ''); const initial = [owner, first, second];
+  const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot(initial, identities, [], { ...options,
+    discover: (_snapshot, values) => { values.set(11, first); values.set(13, second); },
+    refreshSnapshot: async () => { refreshes += 1; return [owner, child(11, 'fresh complete command'), child(13, 'fresh second command')]; },
+    recordEvent: (value) => recordOwnedIdentityEvent(value, identities, events, options) });
+  assert.deepEqual(failures, []); assert.equal(refreshes, 1);
+  assert.equal(identities.get(11).commandLine, 'fresh complete command');
+  assert.deepEqual(identities.get(11).parentChain, [{ pid: 10, parentPid: 1, created, commandLine: 'node runner' }]);
+  assert.deepEqual(events.map((value) => [value.candidateCommandRechecked, value.initialCommandState]), [[true, 'missing'], [true, 'empty']]);
+  assert.deepEqual(events[0].identityLedgerRef, { pid: 11, created });
+  assert.equal(Object.hasOwn(events[0], 'commandLine'), false);
+});
+
+test('fresh absence, PID reuse, parent changes, duplicates and remaining missing commands never become authority', { timeout: 1000 }, async () => {
+  const freshChild = { ...pendingCandidate, commandLine: 'fresh complete command' };
+  const cases = [
+    [[owner, intermediate], 'candidate_snapshot_missing'],
+    [[owner, intermediate, { ...freshChild, created: '2026-10-07T00:01:00.000Z' }], 'candidate_creation_changed'],
+    [[owner, intermediate, { ...freshChild, parentPid: 10 }], 'candidate_parent_changed'],
+    [[owner, intermediate, freshChild, { ...freshChild }], 'candidate_snapshot_duplicate'],
+    [[owner, intermediate, { ...freshChild, commandLine: null }], 'identity_command_missing'],
+    [[owner, intermediate, { ...freshChild, commandLine: '' }], 'identity_command_empty'],
+    [[owner, intermediate, { ...freshChild, commandLine: 123 }], 'identity_command_invalid'],
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 7; index += 1) {
+    assert.ok(Date.now() < expires); const identities = new Map([[10, owner]]); let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+      refreshSnapshot: async () => { refreshes += 1; return cases[index][0]; } });
+    assert.equal(failures.length, 1); assert.equal(failures[0].subreason, cases[index][1]);
+    assert.equal(refreshes, 1); assert.equal(identities.has(11), false);
+    assert.equal(JSON.stringify(failures).includes('fresh complete command'), false);
+  }
+});
+
+test('fresh authority requires every original complete parent and the exact live ledger anchor', { timeout: 1000 }, async () => {
+  const freshChild = { ...pendingCandidate, commandLine: 'fresh complete command' };
+  const cases = [
+    [[owner, freshChild], 'candidate_snapshot_missing'],
+    [[owner, { ...intermediate, commandLine: 'changed parent' }, freshChild], 'candidate_parent_tuple_changed'],
+    [[owner, { ...intermediate, created: '2026-10-06T00:00:00.000Z' }, freshChild], 'candidate_parent_tuple_changed'],
+    [[owner, { ...intermediate, commandLine: null }, freshChild], 'parent_command_missing'],
+    [[intermediate, freshChild], 'candidate_snapshot_missing'],
+    [[{ ...owner, commandLine: 'changed anchor' }, intermediate, freshChild], 'ownership_anchor_tuple_mismatch'],
+    [[owner, { ...owner }, intermediate, freshChild], 'candidate_snapshot_duplicate'],
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 7; index += 1) {
+    assert.ok(Date.now() < expires); const identities = new Map([[10, owner]]);
+    const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+      refreshSnapshot: async () => cases[index][0] });
+    assert.equal(failures[0].subreason, cases[index][1]); assert.equal(identities.has(11), false);
+  }
+});
+
+test('invalid initial tuples and incomplete initial authority cannot trigger a command refresh', { timeout: 1000 }, async () => {
+  const cases = [
+    { ...pendingCandidate, pid: 0 }, { ...pendingCandidate, parentPid: -1 },
+    { ...pendingCandidate, created: 'invalid original creation' }, { ...pendingCandidate, commandLine: 123 },
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 4; index += 1) {
+    assert.ok(Date.now() < expires); const value = cases[index]; const identities = new Map([[10, owner]]); let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot([owner, intermediate, value], identities, [], { ...options,
+      discover: (_snapshot, values) => values.set(value.pid, value), refreshSnapshot: async () => { refreshes += 1; return []; } });
+    assert.ok(failures.length > 0); assert.equal(refreshes, 0); assert.equal(identities.size, 1);
+  }
+  const identities = new Map([[10, owner]]); let refreshes = 0;
+  const duplicate = await captureOwnedCandidateSnapshot([...initialCandidates(), { ...pendingCandidate }], identities, [], {
+    ...candidateOptions, refreshSnapshot: async () => { refreshes += 1; return initialCandidates(); } });
+  assert.equal(duplicate[0].subreason, 'candidate_snapshot_duplicate'); assert.equal(refreshes, 0); assert.equal(identities.size, 1);
+  const failures = await captureOwnedCandidateSnapshot([owner, { ...intermediate, commandLine: null }, pendingCandidate], identities, [], {
+    ...candidateOptions, refreshSnapshot: async () => { refreshes += 1; return initialCandidates(); } });
+  assert.equal(failures[0].subreason, 'parent_command_missing'); assert.equal(refreshes, 0);
+});
+
+test('current authority normalization permits diagnostic depth while retaining the original true twelve-hop limit', { timeout: 1000 }, async () => {
+  const external = Array.from({ length: 12 }, (_value, index) => ({ pid: index + 101, parentPid: index === 11 ? 0 : index + 102,
+    created, commandLine: `external ${index}` }));
+  const own = { ...owner, parentPid: 101 }; const value = { ...child(11), parentChain: [own, ...external] };
+  const identities = new Map([[10, own]]);
+  const failures = await captureOwnedCandidateSnapshot([own, value, ...external], identities, [], { ...candidateOptions });
+  assert.deepEqual(failures, []); assert.equal(identities.get(11).parentChain.length, 1);
+  assert.equal(identities.get(11).externalAncestorCount, 12);
+  const limitParents = Array.from({ length: 11 }, (_value, index) => ({ pid: index + 20, parentPid: index === 10 ? 10 : index + 21,
+    created, commandLine: 'complete exact-limit parent' }));
+  const exactLimit = { ...child(11), parentPid: 20, parentChain: [...limitParents, owner] };
+  const limitLedger = new Map([[10, owner]]);
+  const limitFailures = await captureOwnedCandidateSnapshot([owner, exactLimit, ...limitParents], limitLedger, [], { ...candidateOptions });
+  assert.deepEqual(limitFailures, []); assert.equal(limitLedger.get(11).parentChain.length, 12);
+  assert.deepEqual(limitLedger.get(11).parentChain,
+    exactLimit.parentChain.map(({ pid, parentPid, created: time, commandLine }) => ({ pid, parentPid, created: time, commandLine })));
+  const parents = Array.from({ length: 12 }, (_value, index) => ({ pid: index + 20, parentPid: index === 11 ? 10 : index + 21,
+    created, commandLine: 'complete deep parent' }));
+  const tooDeep = { ...child(11), parentPid: 20, parentChain: [...parents, owner] }; const deepLedger = new Map([[10, owner]]);
+  const rejected = await captureOwnedCandidateSnapshot([owner, tooDeep, ...parents], deepLedger, [], { ...candidateOptions });
+  assert.equal(rejected[0].subreason, 'parent_chain_length_exceeded'); assert.equal(deepLedger.has(11), false);
+  assert.throws(() => validateOwnedIdentity(tooDeep, 10), (error) => {
+    const failure = ownedIdentityFailure(error, 11);
+    assert.equal(failure.subreason, 'parent_chain_length_exceeded'); assert.equal(failure.failedField, 'parentChain');
+    assert.equal(failure.completeness, 'over_limit'); return true;
+  });
+});
+
+test('current snapshot cycles and discovered discontinuity stay fixed failures without retry', { timeout: 1000 }, async () => {
+  const cases = [
+    [[owner, { ...intermediate, parentPid: 11 }, pendingCandidate], 'parent_chain_cycle'],
+    [[owner, intermediate, { ...pendingCandidate, parentChain: [owner] }], 'candidate_parent_tuple_changed'],
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); const identities = new Map([[10, owner]]); let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot(cases[index][0], identities, [], { ...candidateOptions,
+      refreshSnapshot: async () => { refreshes += 1; return initialCandidates(); } });
+    assert.equal(failures[0].subreason, cases[index][1]); assert.equal(refreshes, 0); assert.equal(identities.has(11), false);
+  }
+});
+
+test('raw initial and fresh external credential text is rejected before omission or hashing', { timeout: 1000 }, async () => {
+  const marker = 'WB46_RAW_EXTERNAL_SYNTHETIC_SECRET';
+  const validateText = (text) => { if (text.includes(marker)) throw new Error(marker); };
+  const rawInitial = { ...pendingCandidate, parentChain: [intermediate, owner, { pid: 1, commandLine: marker }] };
+  const identities = new Map([[10, owner]]); let refreshes = 0;
+  const first = await captureOwnedCandidateSnapshot([owner, intermediate, rawInitial], identities, [], { ...candidateOptions, validateText,
+    refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(first[0].reason, 'unsafe_identity_text_preserved'); assert.equal(refreshes, 0); assert.equal(identities.has(11), false);
+  const second = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions, validateText,
+    refreshSnapshot: async () => [owner, intermediate, { ...pendingCandidate, commandLine: 'fresh owned command' },
+      { pid: 1, parentPid: 0, created, commandLine: marker }] });
+  assert.equal(second[0].reason, 'unsafe_identity_text_preserved'); assert.equal(identities.has(11), false);
+  assert.equal(JSON.stringify([first, second, [...identities.values()]]).includes(marker), false);
+});
+
+test('partial discovery and secondary event failure retain complete fresh primary authority independently', { timeout: 1000 }, async () => {
+  const identities = new Map([[10, owner]]); let now = 1000;
+  const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions, clock: () => now,
+    discover: (snapshot, values) => { values.set(11, snapshot.find((value) => value.pid === 11)); now += 3000; throw new Error('partial traversal'); },
+    refreshSnapshot: async () => [owner, intermediate, { ...pendingCandidate, commandLine: 'complete fresh primary authority' }],
+    recordEvent: () => { throw new Error('secondary sink failure'); } });
+  assert.deepEqual(failures.map((value) => value.reason), ['partial_discovery_failed', 'secondary_event_failed']);
+  assert.equal(identities.get(11).commandLine, 'complete fresh primary authority');
+  assert.deepEqual(identities.get(11).parentChain.map((value) => value.pid), [12, 10]);
+});
+
+test('snapshot count and preparation deadlines stay bounded and never trigger blind refresh', { timeout: 1000 }, async () => {
+  let refreshes = 0; const identities = new Map([[10, owner]]);
+  const oversized = await captureOwnedCandidateSnapshot(Array.from({ length: 4097 }, () => owner), identities, [], {
+    ...candidateOptions, refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(oversized[0].subreason, 'candidate_snapshot_count_exceeded'); assert.equal(refreshes, 0);
+  const freshOversized = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+    refreshSnapshot: async () => { refreshes += 1; return Array.from({ length: 4097 }, () => owner); } });
+  assert.equal(freshOversized[0].subreason, 'candidate_snapshot_count_exceeded'); assert.equal(refreshes, 1); assert.equal(identities.has(11), false);
+  let ticks = 0;
+  const expired = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions,
+    clock: () => ticks++ === 0 ? 1000 : 4000, refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(expired[0].subreason, 'candidate_snapshot_deadline'); assert.equal(identities.has(11), false); assert.equal(refreshes, 1);
+});
+
+test('a hung or late fresh callback is cancelled once and cannot admit after a terminal timeout', { timeout: 1000 }, async () => {
+  const identities = new Map([[10, owner]]); let release; let signal; let calls = 0;
+  const failures = await captureOwnedCandidateSnapshot(initialCandidates(), identities, [], { ...candidateOptions, refreshMilliseconds: 20,
+    refreshSnapshot: (request) => { calls += 1; signal = request.signal; return new Promise((resolve) => { release = resolve; }); } });
+  assert.equal(calls, 1); assert.equal(signal.aborted, true); assert.equal(failures[0].subreason, 'candidate_refresh_failed');
+  assert.equal(identities.has(11), false);
+  release([owner, intermediate, { ...pendingCandidate, commandLine: 'late command must not be admitted' }]);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(identities.has(11), false); assert.equal(failures[0].subreason, 'candidate_refresh_failed');
+});
+
+test('the cumulative one-second intake flush preserves its partial primary ledger when the sink consumes its remainder', { timeout: 1000 }, async () => {
+  const identities = new Map([[10, owner]]); const first = child(11); const second = child(13); let now = 1000; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, first, second], identities, [], { ...options, clock: () => now,
+    discover: (_snapshot, values) => { values.set(11, first); values.set(13, second); },
+    refreshSnapshot: async () => { refreshes += 1; return []; }, recordEvent: () => { now += 1000; } });
+  assert.equal(identities.get(11).commandLine, 'owned child'); assert.equal(identities.has(13), false);
+  assert.equal(failures[0].subreason, 'candidate_snapshot_deadline'); assert.equal(refreshes, 0);
+});
 
 test('partial discovery retains accepted identities and a traversal failure', { timeout: 1000 }, () => {
   const identities = new Map([[10, owner]]);

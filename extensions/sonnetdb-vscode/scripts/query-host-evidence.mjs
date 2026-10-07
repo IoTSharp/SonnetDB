@@ -42,6 +42,15 @@ const identityChecks = new Map([
   ['ownership_anchor_tuple_mismatch', ['ownershipAnchorIdentity', 'changed_anchor']],
   ['ownership_scan_count_exceeded', ['acceptedIdentities', 'over_limit']],
   ['ownership_scan_deadline', ['acceptedIdentities', 'deadline']],
+  ['candidate_snapshot_count_exceeded', ['currentSnapshot', 'over_limit']],
+  ['candidate_snapshot_deadline', ['currentSnapshot', 'deadline']],
+  ['candidate_snapshot_duplicate', ['currentSnapshot.pid', 'duplicate_pid']],
+  ['candidate_snapshot_missing', ['currentSnapshot.identity', 'missing_identity']],
+  ['candidate_creation_changed', ['currentSnapshot.created', 'changed_creation']],
+  ['candidate_parent_changed', ['currentSnapshot.parentPid', 'changed_parent']],
+  ['candidate_command_changed', ['currentSnapshot.commandLine', 'changed_command']],
+  ['candidate_parent_tuple_changed', ['parentChain.identity', 'changed_parent']],
+  ['candidate_refresh_failed', ['currentSnapshot', 'refresh_failed']],
 ]);
 
 function safePid(value, allowZero = false) {
@@ -97,6 +106,11 @@ function sameTuple(left, right) {
 
 /** Validate complete process identity before accepting it into the cleanup ledger. */
 export function validateOwnedIdentity(identity, ownerPid, { clock = Date.now } = {}) {
+  validateOwnedIdentityOwnTuple(identity, ownerPid);
+  validateOwnedIdentityParentChain(identity, ownerPid, { clock });
+}
+
+function validateOwnedIdentityOwnTuple(identity, ownerPid) {
   const reject = (check, index, expected, observed) => rejectIdentityCheck(check, identity, ownerPid, index, expected, observed);
   if (!(Number.isSafeInteger(ownerPid) && ownerPid > 0)) reject('owner_pid_invalid');
   if (!identity) reject('identity_missing');
@@ -108,6 +122,10 @@ export function validateOwnedIdentity(identity, ownerPid, { clock = Date.now } =
   if (typeof identity.commandLine !== 'string') reject('identity_command_invalid');
   if (identity.commandLine.length === 0) reject('identity_command_empty');
   if (identity.commandLine.length > 131072) reject('identity_command_length_exceeded');
+}
+
+function validateOwnedIdentityParentChain(identity, ownerPid, { clock = Date.now } = {}) {
+  const reject = (check, index, expected, observed) => rejectIdentityCheck(check, identity, ownerPid, index, expected, observed);
   if (!Array.isArray(identity.parentChain)) reject('parent_chain_missing');
   if (identity.parentChain.length > 12) reject('parent_chain_length_exceeded');
   if (identity.pid !== ownerPid && identity.parentChain.length === 0) reject('parent_chain_empty');
@@ -179,7 +197,7 @@ export function recordOwnedIdentityEvent(value, identities, events, { validateTe
 }
 
 /** Keep every accepted identity in a full ledger even if its secondary event sink fails. */
-export function acceptOwnedIdentity(identity, identities, { ownerPid, validateText, validateLedger, recordEvent, eventName, clock = Date.now }) {
+export function acceptOwnedIdentity(identity, identities, { ownerPid, validateText, validateLedger, recordEvent, eventName, clock = Date.now, diagnosticAncestors }) {
   try { validateOwnedIdentity(identity, ownerPid, { clock }); }
   catch (error) { throw identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', error?.identityEvidenceFailure); }
   if (!(identities.size < 128 || identities.has(identity.pid))) throw identityEvidenceRejection('identity', 'identity_count_exceeded');
@@ -209,7 +227,9 @@ export function acceptOwnedIdentity(identity, identities, { ownerPid, validateTe
   try { validateText(JSON.stringify(identity)); }
   catch { throw identityEvidenceRejection('unsafeText', 'unsafe_identity_text_preserved'); }
   // External ancestor bodies are diagnostic only. Keep every complete authority tuple through the exact Node anchor.
-  const externalAncestors = identity.parentChain.slice(authorityLength);
+  const externalAncestors = diagnosticAncestors ?? identity.parentChain.slice(authorityLength);
+  try { validateText(JSON.stringify(externalAncestors)); }
+  catch { throw identityEvidenceRejection('unsafeText', 'unsafe_identity_text_preserved'); }
   const accepted = { pid: identity.pid, parentPid: identity.parentPid, created: identity.created, commandLine: identity.commandLine,
     parentChain: authorityChain.map(({ pid, parentPid, created, commandLine }) => ({ pid, parentPid, created, commandLine })),
     ownershipAnchorPid: ownerPid, externalAncestorsDiagnosticOnly: true,
@@ -249,6 +269,204 @@ export function captureOwnedSnapshot(snapshot, identities, roots, {
     } catch (error) {
       failures.push(ownedIdentityFailure(error, candidate?.pid));
     }
+  }
+  assert.ok(failures.length <= 128);
+  return failures;
+}
+
+function candidateText(value, validateText) {
+  try { validateText(JSON.stringify(value)); }
+  catch { throw identityEvidenceRejection('unsafeText', 'unsafe_identity_text_preserved'); }
+}
+
+function candidateLookup(snapshot, candidate, ownerPid, clock) {
+  if (!Array.isArray(snapshot) || snapshot.length > 4096) rejectIdentityCheck('candidate_snapshot_count_exceeded', candidate, ownerPid);
+  const lookup = new Map(); const duplicates = new Set(); const expires = clock() + 1_000;
+  for (let index = 0; index < snapshot.length && index < 4096; index += 1) {
+    if (!(clock() < expires)) rejectIdentityCheck('candidate_snapshot_deadline', candidate, ownerPid);
+    const value = snapshot[index];
+    if (lookup.has(value?.pid)) duplicates.add(value.pid);
+    else lookup.set(value?.pid, value);
+  }
+  return { lookup, duplicates };
+}
+
+function candidateAt(source, pid, candidate, ownerPid, index = null) {
+  if (source.duplicates.has(pid)) rejectIdentityCheck('candidate_snapshot_duplicate', candidate, ownerPid, index, pid, pid);
+  const value = source.lookup.get(pid);
+  if (!value) rejectIdentityCheck('candidate_snapshot_missing', candidate, ownerPid, index, pid);
+  return value;
+}
+
+// Capture only current snapshot tuples; accepted ledger commands never fill an incomplete candidate.
+function currentCandidateChain(candidate, source, ownerIdentity, { validateText, clock }) {
+  candidateText(candidate, validateText);
+  const current = candidateAt(source, candidate.pid, candidate, ownerIdentity.pid);
+  candidateText(current, validateText);
+  if (current.created !== candidate.created) rejectIdentityCheck('candidate_creation_changed', candidate, ownerIdentity.pid);
+  if (current.parentPid !== candidate.parentPid) rejectIdentityCheck('candidate_parent_changed', candidate, ownerIdentity.pid);
+  if (current.commandLine !== candidate.commandLine) rejectIdentityCheck('candidate_command_changed', candidate, ownerIdentity.pid);
+  const chain = []; const seen = new Set([candidate.pid]); let nextPid = candidate.parentPid;
+  let anchorIndex = candidate.pid === ownerIdentity.pid ? -1 : null;
+  const expires = clock() + 1_000;
+  // Discovery retains at most sixteen tuples. Guard current external text before omitting it too.
+  for (let index = 0; index < 16 && nextPid > 0; index += 1) {
+    if (!(clock() < expires)) rejectIdentityCheck('parent_chain_deadline', candidate, ownerIdentity.pid, index, nextPid);
+    if (seen.has(nextPid)) {
+      if (anchorIndex === null) rejectIdentityCheck('parent_chain_cycle', candidate, ownerIdentity.pid, index, nextPid, nextPid);
+      break;
+    }
+    seen.add(nextPid);
+    const parent = source.lookup.get(nextPid);
+    if (source.duplicates.has(nextPid)) rejectIdentityCheck('candidate_snapshot_duplicate', candidate, ownerIdentity.pid, index, nextPid, nextPid);
+    if (!parent) {
+      if (anchorIndex === null) rejectIdentityCheck('candidate_snapshot_missing', candidate, ownerIdentity.pid, index, nextPid);
+      break;
+    }
+    candidateText(parent, validateText);
+    chain.push({ pid: parent.pid, parentPid: parent.parentPid, created: parent.created, commandLine: parent.commandLine });
+    if (parent.pid === ownerIdentity.pid && anchorIndex === null) anchorIndex = index;
+    if (anchorIndex === null && index === 12) {
+      rejectIdentityCheck('parent_chain_length_exceeded', { ...candidate, parentChain: chain }, ownerIdentity.pid);
+    }
+    nextPid = parent.parentPid;
+  }
+  if (anchorIndex === null) rejectIdentityCheck('ownership_anchor_not_reached', candidate, ownerIdentity.pid);
+  const authority = chain.slice(0, anchorIndex + 1);
+  const normalized = { pid: candidate.pid, parentPid: candidate.parentPid, created: candidate.created,
+    commandLine: candidate.commandLine, parentChain: authority };
+  // This validates authority without inventing an own command for a pending recheck.
+  validateOwnedIdentityParentChain(normalized, ownerIdentity.pid, { clock });
+  const anchor = anchorIndex === -1 ? normalized : authority[anchorIndex];
+  if (!sameTuple(anchor, ownerIdentity)) rejectIdentityCheck('ownership_anchor_tuple_mismatch', normalized, ownerIdentity.pid, anchorIndex);
+  if (!Array.isArray(candidate.parentChain)) rejectIdentityCheck('parent_chain_missing', candidate, ownerIdentity.pid);
+  for (let index = 0; index < authority.length && index < 12; index += 1) {
+    if (!(clock() < expires)) rejectIdentityCheck('parent_chain_deadline', normalized, ownerIdentity.pid, index);
+    if (!sameTuple(candidate.parentChain[index], authority[index])) {
+      rejectIdentityCheck('candidate_parent_tuple_changed', normalized, ownerIdentity.pid, index, authority[index].pid, candidate.parentChain[index]?.pid);
+    }
+  }
+  return { identity: normalized, diagnosticAncestors: chain.slice(authority.length), currentChain: chain };
+}
+
+function missingCandidateCommand(candidate) {
+  return Number.isSafeInteger(candidate?.pid) && candidate.pid > 0
+    && Number.isSafeInteger(candidate.parentPid) && candidate.parentPid >= 0
+    && typeof candidate.created === 'string' && Number.isFinite(Date.parse(candidate.created))
+    && (candidate.commandLine === null || candidate.commandLine === undefined || candidate.commandLine === '');
+}
+
+/** Admit new candidates from current authority, with at most one exact missing-command recheck per batch. */
+export async function captureOwnedCandidateSnapshot(snapshot, identities, roots, {
+  discover, ownerPid, validateText, validateLedger, recordEvent, refreshSnapshot, clock = Date.now, refreshMilliseconds = 6_000,
+}) {
+  assert.ok(identities.size <= 128 && roots.length <= 2 && Number.isSafeInteger(refreshMilliseconds)
+    && refreshMilliseconds > 0 && refreshMilliseconds <= 6_000);
+  const failures = []; const candidates = new Map(identities); let source;
+  const discoveryExpires = clock() + 3_000;
+  const discoveryClock = () => {
+    const now = clock();
+    if (!(now < discoveryExpires)) rejectIdentityCheck('candidate_snapshot_deadline', null, ownerPid);
+    return now;
+  };
+  const ownerIdentity = identities.get(ownerPid);
+  try {
+    if (!ownerIdentity) rejectIdentityCheck('ownership_anchor_not_reached', null, ownerPid);
+    source = candidateLookup(snapshot, null, ownerPid, discoveryClock);
+  } catch (error) { return [ownedIdentityFailure(error, null)]; }
+  try { discover(snapshot, candidates, roots, discoveryClock); }
+  catch { failures.push({ stage: 'discovery', reason: 'partial_discovery_failed' }); }
+  const prepared = []; const prepareExpires = clock() + 1_000; let count = 0;
+  const prepareClock = () => {
+    const now = clock();
+    if (!(now < prepareExpires)) rejectIdentityCheck('candidate_snapshot_deadline', null, ownerPid);
+    return now;
+  };
+  for (const candidate of candidates.values()) {
+    if (++count > 128) {
+      failures.push(ownedIdentityFailure(identityEvidenceRejection('identity', 'identity_count_exceeded'), candidate?.pid)); break;
+    }
+    if (!(clock() < prepareExpires)) {
+      failures.push(ownedIdentityFailure(identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', {
+        subreason: 'candidate_snapshot_deadline', failedField: 'currentSnapshot', completeness: 'deadline',
+      }), candidate?.pid)); break;
+    }
+    if (identities.has(candidate?.pid)) continue;
+    try {
+      candidateText(candidate, validateText);
+      const retry = missingCandidateCommand(candidate);
+      if (!retry) validateOwnedIdentityOwnTuple(candidate, ownerPid);
+      const value = currentCandidateChain(candidate, source, ownerIdentity, { validateText, clock: prepareClock });
+      if (!retry) validateOwnedIdentity(value.identity, ownerPid, { clock: prepareClock });
+      prepared.push({ candidate, value, retry });
+    } catch (error) { failures.push(ownedIdentityFailure(error, candidate?.pid)); }
+  }
+  let fresh; let refreshError; let expires = prepareExpires;
+  if (prepared.some((item) => item.retry)) {
+    const refreshController = new AbortController(); let timer;
+    const remainingFlushMilliseconds = Math.max(0, prepareExpires - clock());
+    const refreshExpires = clock() + refreshMilliseconds;
+    const refreshClock = () => {
+      const now = clock();
+      if (!(now < refreshExpires)) rejectIdentityCheck('candidate_snapshot_deadline', null, ownerPid);
+      return now;
+    };
+    try {
+      if (!(remainingFlushMilliseconds > 0)) rejectIdentityCheck('candidate_snapshot_deadline', null, ownerPid);
+      if (typeof refreshSnapshot !== 'function') rejectIdentityCheck('candidate_refresh_failed', null, ownerPid);
+      // The runner callback retains its six-second helper and snapshot count/deadline caps.
+      const refreshed = await Promise.race([Promise.resolve().then(() => refreshSnapshot({ signal: refreshController.signal })),
+        new Promise((_resolve, reject) => {
+          timer = setTimeout(() => { refreshController.abort(); reject(identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', {
+            subreason: 'candidate_refresh_failed', failedField: 'currentSnapshot', completeness: 'refresh_failed',
+          })); }, refreshMilliseconds);
+        })]);
+      fresh = candidateLookup(refreshed, null, ownerPid, refreshClock);
+    } catch (error) {
+      const projected = ownedIdentityFailure(error, null);
+      refreshError = projected.subreason ? identityEvidenceRejection(projected.stage, projected.reason, projected)
+        : identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', {
+          subreason: 'candidate_refresh_failed', failedField: 'currentSnapshot', completeness: 'refresh_failed',
+        });
+    } finally {
+      clearTimeout(timer); refreshController.abort();
+      expires = clock() + remainingFlushMilliseconds;
+    }
+  }
+  // Discovery and waiting do not consume the one-second flush; preparation and admission share it.
+  const flushClock = () => {
+    const now = clock();
+    if (!(now < expires)) rejectIdentityCheck('candidate_snapshot_deadline', null, ownerPid);
+    return now;
+  };
+  for (let index = 0; index < prepared.length && index < 128; index += 1) {
+    const item = prepared[index];
+    if (!(clock() < expires)) {
+      failures.push(ownedIdentityFailure(identityEvidenceRejection('identity', 'incomplete_or_unsafe_identity_preserved', {
+        subreason: 'candidate_snapshot_deadline', failedField: 'currentSnapshot', completeness: 'deadline',
+      }), item.candidate?.pid)); break;
+    }
+    try {
+      let value = item.value;
+      if (item.retry) {
+        if (refreshError) throw refreshError;
+        const current = candidateAt(fresh, item.candidate.pid, item.candidate, ownerPid);
+        candidateText(current, validateText);
+        if (current.created !== item.candidate.created) rejectIdentityCheck('candidate_creation_changed', item.candidate, ownerPid);
+        if (current.parentPid !== item.candidate.parentPid) rejectIdentityCheck('candidate_parent_changed', item.candidate, ownerPid);
+        // Keep the original candidate even when rediscovery would omit a vanished or reused PID.
+        const freshCandidate = { ...current, parentChain: item.value.currentChain };
+        value = currentCandidateChain(freshCandidate, fresh, ownerIdentity, { validateText, clock: flushClock });
+        if (value.identity.parentChain.length !== item.value.identity.parentChain.length
+          || value.identity.parentChain.some((parent, parentIndex) => !sameTuple(parent, item.value.identity.parentChain[parentIndex]))) {
+          rejectIdentityCheck('candidate_parent_tuple_changed', item.candidate, ownerPid);
+        }
+      }
+      acceptOwnedIdentity(value.identity, identities, { ownerPid, validateText, validateLedger,
+        eventName: 'owned-descendant', clock: flushClock, diagnosticAncestors: value.diagnosticAncestors,
+        recordEvent: item.retry ? (event) => recordEvent({ ...event, candidateCommandRechecked: true,
+          initialCommandState: item.candidate.commandLine === '' ? 'empty' : 'missing' }) : recordEvent });
+    } catch (error) { failures.push(ownedIdentityFailure(error, item.candidate?.pid)); }
   }
   assert.ok(failures.length <= 128);
   return failures;

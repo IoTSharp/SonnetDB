@@ -6,7 +6,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { discoverOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
-import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
   validateOwnedIdentityAnchor, validateOwnedIdentityLedger as validateLedger } from './query-host-evidence.mjs';
 
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
@@ -101,7 +101,7 @@ try {
   assert.ok(self?.commandLine && self.created);
   self.parentChain = parentChain(self, first);
   acceptIdentity(self, 'runner-start');
-  audit(first);
+  await audit(first);
   assert.deepEqual(await listeningPorts(), []);
   await mkdir(runtimeRoot);
   runtimeCreated = true;
@@ -129,8 +129,7 @@ try {
     { ...environment, DOTNET_ENVIRONMENT: 'Production', ASPNETCORE_ENVIRONMENT: 'Production' }, 'server');
   auditTimer = setInterval(() => {
     if (pendingAudit || controller.signal.aborted) return;
-    pendingAudit = snapshot().then(audit).catch(() => { primaryFailure = true; controller.abort(new Error('WB45 process audit failed.')); })
-      .finally(() => { pendingAudit = undefined; });
+    void audit().catch(() => { primaryFailure = true; controller.abort(new Error('WB45 process audit failed.')); });
   }, 4_000);
   stage = 'server-readiness';
   const readyDeadline = Date.now() + 60_000;
@@ -236,7 +235,7 @@ try {
       let current;
       try { current = await snapshot(true); }
       catch { noteAuditFailure({ stage: 'cleanup-snapshot', reason: 'snapshot_failed' }); }
-      if (current) { try { audit(current); } catch { /* Accepted identities remain available for cleanup. */ } }
+      if (current) { try { await audit(current, true); } catch { /* Accepted identities remain available for cleanup. */ } }
       const live = (current ? safeLiveIdentities(current) : [...identities.values()]).filter((item) => item.pid !== process.pid
         && !helperStarts.some((helperRecord) => helperRecord.pid === item.pid && helperRecord.closed))
         .sort((left, right) => (right.parentChain?.length ?? 0) - (left.parentChain?.length ?? 0));
@@ -250,7 +249,7 @@ try {
       await delay(100);
     }
     const final = await snapshot(true);
-    try { audit(final); } catch { /* A failed audit must not hide the independently observed terminal processes. */ }
+    try { await audit(final, true); } catch { /* A failed audit must not hide the independently observed terminal processes. */ }
     const remaining = safeLiveIdentities(final).filter((item) => item.pid !== process.pid);
     const verifiedRemaining = remaining.filter((item) => !helperStarts.some((helper) => helper.pid === item.pid && helper.closed));
     assert.deepEqual(verifiedRemaining, []);
@@ -365,11 +364,20 @@ function parentChain(identity, snapshotValue) {
   }
   return chain;
 }
-function audit(snapshotValue) {
-  const failures = captureOwnedSnapshot(snapshotValue, identities, roots, { discover: discoverOwnedProcessIdentities,
-    ownerPid: process.pid, validateText: safeText, validateLedger, recordEvent: event });
-  for (let index = 0; index < failures.length && index < 128; index += 1) noteAuditFailure(failures[index]);
-  if (failures.length) throw new Error('WB45 process audit failed.');
+async function audit(snapshotValue, final = false) {
+  const previous = pendingAudit;
+  const task = (async () => {
+    if (previous) { try { await previous; } catch { /* The earlier failure remains terminal evidence. */ } }
+    const current = snapshotValue ?? await snapshot(final);
+    const failures = await captureOwnedCandidateSnapshot(current, identities, roots, { discover: discoverOwnedProcessIdentities,
+      ownerPid: process.pid, validateText: safeText, validateLedger, recordEvent: event,
+      refreshSnapshot: ({ signal }) => snapshot(final, signal) });
+    for (let index = 0; index < failures.length && index < 128; index += 1) noteAuditFailure(failures[index]);
+    if (failures.length) throw new Error('WB45 process audit failed.');
+  })();
+  pendingAudit = task;
+  try { await task; }
+  finally { if (pendingAudit === task) pendingAudit = undefined; }
 }
 function safeLiveIdentities(snapshotValue) {
   assert.ok(snapshotValue.length <= 4096 && identities.size <= 128);
@@ -424,7 +432,7 @@ async function start(executable, args, environment, role) {
   assert.ok(identity?.commandLine && identity.parentPid === process.pid);
   identity.parentChain = parentChain(identity, current);
   record.identity = acceptIdentity(identity, 'owned-root-start', { role, command: [executable, ...args] });
-  audit(current);
+  await audit(current);
   return record;
 }
 async function waitExit(record, milliseconds) {
@@ -491,7 +499,7 @@ async function existingHash(name) {
   catch { return null; }
 }
 
-async function snapshot(final = false) {
+async function snapshot(final = false, signal) {
   assert.ok(++snapshots <= 80 && (final || Date.now() < deadline - 90_000));
   const snapshotScript = `$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
@@ -507,7 +515,7 @@ for ($taskIndex = 0; $taskIndex -lt $taskProcesses.Count; $taskIndex++) {
    created=$taskProcess.CreationDate.ToUniversalTime().ToString('O'); commandLine=$taskProcess.CommandLine })
 }
 ConvertTo-Json -InputObject ($taskRecords.ToArray()) -Compress -Depth 4`;
-  const values = await helper(snapshotScript);
+  const values = await helper(snapshotScript, undefined, signal);
   assert.ok(Array.isArray(values) && values.length <= 4096);
   return values;
 }
@@ -517,7 +525,8 @@ if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18348,18349) } | Select-Object -First 5 -ExpandProperty LocalPort)
 ConvertTo-Json -InputObject $taskPorts -Compress`);
 }
-async function helper(script, input) {
+async function helper(script, input, signal) {
+  signal?.throwIfAborted();
   assert.ok(++helpers <= 112);
   const wrapped = `$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
@@ -589,18 +598,24 @@ ${script}`;
     }
   });
   child.stderr.resume();
-  let timer;
+  let timer; let cancelHelper;
   const closed = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('close', (exitCode, signal) => { record.closed = true; resolve({ exitCode, signal }); });
   });
   try {
-    const terminal = await Promise.race([closed, new Promise((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Owned helper deadline.')), 6_000); })]);
+    const terminal = await Promise.race([closed, new Promise((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('Owned helper deadline.')), 6_000);
+      cancelHelper = () => reject(new Error('Owned helper deadline.'));
+      signal?.addEventListener('abort', cancelHelper, { once: true });
+      if (signal?.aborted) cancelHelper();
+    })]);
     assert.equal(terminal.exitCode, 0); assert.equal(terminal.signal, null); assert.equal(exceeded, false); assert.ok(record.identityRecorded);
     const end = output.indexOf('\n'); const body = output.slice(end + 1).trim();
     return body ? JSON.parse(body) : null;
   } finally {
     clearTimeout(timer);
+    if (cancelHelper) signal?.removeEventListener('abort', cancelHelper);
     for (let index = 0; index < helperStreams.length && index < 2; index += 1) helperStreams[index]();
     child.stdin.destroy();
     if (!record.closed) child.unref();

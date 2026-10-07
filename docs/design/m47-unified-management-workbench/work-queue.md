@@ -2,6 +2,15 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-46 合同与文件冻结（2026-10-07；诊断合同完成，真实Host另验）
+
+- 接续 `6d60c62f5072dd92be0d42c8c8d32c97ca66d96c`，完整HANDOFF/AGENTS/queue/ROADMAP接收、git/已有提交/完成代理核验；只推进WB46，WB45已closed的11/14wrapper、2/2调用与原FAIL/false/null不改。专属实施三诊断源，独立只读合同/源码复核，根独占六docs/验证/集成/完整门禁/stage/本地commit，共九文件。
+- 新candidate intake先核原始candidate、当前完整父链和external文本，再构造连续至exact Node anchor的≤12hop authority；direct validator完整13hop仍拒绝。仅原PID/creation/parent有效且own command缺/空可在每batch一次fresh≤4096中重采，同PID+creation+parent且原/fresh父tuple与anchor完整一致才准入；absent/reuse/duplicate/change/仍缺命令保留fixed safe FAIL、不入ledger/不授权stop，不从旧ledger补命令，不靠rediscovery丢初候选。
+- 恢复event只留candidateCommandRechecked/initialCommandState及完整fresh ledger引用；raw external先凭据guard后仅count/omitted/hash，拒绝原文与专属hash不保存。discovery3秒、fresh6秒、累计prepare/admit1秒；async等待暂停flush但只恢复剩余时间。原validator1秒、12hop、80snapshots/112helpers/128identities、ledger/event/file字节门禁和live连续父链stop保持；pendingAudit单飞/前序串行，前台与cleanup均await，finally先等pending。取消只结束等待，保留helper记录，不自动kill。
+- 最终三源freeze-final-v2：runner/evidence未再改，review限定补exact12成功/完整tuple与direct完整13拒绝；最终37/37（26旧+11新）零skip、Node syntax/两个精确嵌入PS7 AST及独立源码复核通过。首版37/37也通过，旧记录保留。本片0actual、0TS、0新.NETbuild，Host与WB45 actual metadata/生产/shared helpers/旧产物hash冻结；仅合成合同证据，不承诺旧五candidate全部恢复或正常Code退出。
+- 根证据 `artifacts/wb46-validation-20261007`，总窗口至02:45Z/12wrapper/0actual。最终九文件完整restore及原级format、前后hash/精确命令/时间绑定、白名单diff才允许本地commit；实际结果见final-gates/commit-checkpoint/post-commit-process-audit与git log。短命验证进程未取得完整CIM的边界单列，完整记录fresh审计无存活才放行；新测试Temp由原finally绝对路径核验移除，诊断交付物保留，旧policy拒删目录不碰。
+- 下一片使用新metadata/新冻结窗口验证公开history/API恢复与正常Code退出；WB45三查询局部数据/原FAIL与WB44历史/API证据保持各自范围。生产maxRows、向导UI/Webview分页/Notebook/LSP与WB41 OS窗口条件另验。三宿主仍未闭环，旧任务/唯一workbench ACTIVE每30分钟继续，不迁移/暂停、不在本片启动下一片；PowerShell7、禁止Graphify/广域扫描/安装、有界执行/完整归属父链/finally规则、foreign54行footer/19博客等/origin-parity-results保护保持，无push/发布/部署/外部沟通。
+
 ### WB-45 合同与文件冻结（2026-10-07；安全诊断完成，真实完整旅程仍失败）
 
 - 接续实际 `d3d3a4ff85d898149d3771c35b4eaad35294e5a9`；最新四文档完整receipt/hash、AGENTS/git/路线图/已有提交与子代理核验。专属实施三个既有runner/evidence/test、metadata代理仅Host固定WB45目录/18348+18349/Workbench45/label/seed，独立合同与根工具复核；根独占六docs/验证/最终门禁/stage/commit，共十文件，生产/legacy/shared helpers与Server/Code产物hash冻结，0新.NETbuild、同一TS项目。
