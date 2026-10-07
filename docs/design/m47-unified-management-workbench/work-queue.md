@@ -2,6 +2,19 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-44 合同与文件冻结（2026-10-07；公开history/API恢复已核，完整实跑仍失败）
+
+- 基线实际 `e11c52a2`，一个有界诊断切片；ledger实施独占runner/evidence/test、metadata代理仅Host固定WB44目录/slice/ports/库/label/seed，合同及root工具独立只读复核，根六docs/验证/完整门禁/本地commit串行，最多三活动子代理，依赖既有WB43，0新.NETbuild。
+
+- 最终四诊断源/六共享文档共十文件；完整原身份与安全文本先验，own完整tuple及连续父链截到exact Node anchor inclusive，外部ancestor正文只留count/omitted/SHA；secondary events以exact PID/creation、full-command SHA和primary ledger引用保留，逐parent tuple匹配。stop必须核每个live中间父及ledger-bound完整anchor，missing/changed拒绝，不停止Node/verifier；128身份/256KiBledger/256events/192KiBevent/512KiBfile/24file/8MiB保持。
+- 两旧数据纯内存micro绑定WB43不可变event/result/manifest：35项ledger256642B、代表第36项265173B超过262144，去重复external正文后代表36项120593B可准入；这是代表性合成准入证明，旧PID26604及全部旧拒绝的唯一原因仍unknown，旧FAIL/false及耗尽14wrapper/2actual不改。
+- 最终四源码SHA在source-freeze-final/source-build-freeze-final；同一TypeScript项目编译、Node syntax/两个嵌入PS7 AST、定向内存17/17及既有七Node文件20/20零skip通过。独立合同复核PASS；production11/legacy/shared helper与旧Server/Code hashes保持，0新.NETbuild，不把mock/内存或编译当真实旅程。
+- 唯一新actual `query-host-real-f5a28bd1-6401-42c4-a4c9-b832d4b05f80`（30秒）完整仍FAIL/process_audit。三phase current2/selection1/EXPLAIN45逐值与独立真实Server参考相同、POST200；公开history三条按逆序SQL/rows/原库与连接上下文对拍；Host-result PASS/apiRestored=true/cleanupErrors0。公开prompt/API与生成payload/QuickPick条目不计向导UI、DOM/分页或wire SQL正文；Codeexit/runner hostOutcome仍null，不能计正常Code退出。
+- accepted ledger37/events44、17helper全部完整identity+closed、process-events180383B；三candidate PID45664/46964/52084仅固定identity/chain先验失败，候选完整tuple未保存，具体字段/父链/时间断言unknown，安全诊断绑定五原文件hash，不盲修或盲用第二actual。原processCleanupProven/runtimeRemoved=false，ports/helper/output=true、全部六终态齐全；manifest14项239725B/目录16文件、4child+34helper完整stream hash核验，原FAIL/false保留。
+- 根acceptance分别核三phase/reference/history/API与manifest/status/source-build/product/foreign；outside primary tuple/每event exact ledger refs审计39完整记录无自有存活、无PID复用/changed/exclusion。fresh41记录或未完整PID与original runner child/runtime-associated均无存活，两port可bind；canonical owner marker/4096对象/depth16/15秒inventory及30秒逐项删除一次清273对象，无额外kill。根收据只证root回收，不升级normalExit/完整身份/全生存期。首两根acceptance selector失败（自身RunName关联与WQL反斜线）保留，修后smalltrial0/第三acceptance通过；未重跑actual。
+- 根适配仅认上述exact失败run、固定收据SHA及原result/cleanup/events/manifest/status/source-build hash；原false保持，unknownPID fresh不存在、runtime不存在、ports/helper完整、samecreationchanged/live/未闭helper仍阻断；外审计必须所有旧wrapper已结束、零exclusions，commit绑定≤90秒。独立root工具review已补逐hop creation、同creation changed/incomplete阻断和commit全部cleanup字段，foreign精确19项。
+- 本片窗口至01:40Z/最多12wrapper、1/2actual已用；不扩大预算，最终十文件完整restore/原级别format、前后树hash/时间/精确命令绑定及白名单diff后才本地commit，实际结果见final-gates/commit-checkpoint/post-commit-process-audit和git log。HANDOFF只WB44顶部，54行foreign footer/博客/oschina/origin/parity-results及旧policy目录保持，不push/发布/部署/外部沟通。下一片先把完整identity先验拒绝安全分解到fixed subreason/缺失字段及链断点，再新冻结窗口验证正常Code退出；生产maxRows、向导/DOM分页/Notebook/LSP与WB41 OS条件另片，三宿主未闭环，旧任务/唯一ACTIVE30分钟heartbeat继续，不迁移/暂停，本片不启动下一片。
+
 ### WB-43 合同与文件冻结（2026-10-07；三条真实数据已核，完整旅程仍失败）
 
 - 基线 `35e16c50`；完整四文档receipt与WB42最终tree对拍，git/路线图/提交/旧完成代理核对。只修partial discovery日志/finally独立回收、reference与生产sql-only预览合同及Host严格比较前的安全观察，不改生产query.maxRows、命令或shared helpers。WB42原两失败/耗尽预算/integration exit1保持。

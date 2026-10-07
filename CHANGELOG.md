@@ -174,6 +174,8 @@
 
 ### Fixed
 
+- **M47 WB-44 有界身份ledger与公开历史（2026-10-07）**：完整identity/安全文本先验后仅压缩重复外部祖先正文，own及连续父链至exact Node anchor保持，secondary events绑定exact PID/creation和完整command SHA/ledger引用；原全部count/byte门禁保持，stop拒绝missing/changed中间父。纯内存17/17、TS/PS7语法与既有20/20通过；新真实Host三条查询历史/API恢复与零清理错误已核，完整runner仍FAIL/process_audit，三个先验拒绝的具体原因unknown，正常Code退出未证。原失败/false及根273对象runtime回收单列，完整门禁和十文件本地提交见M47记录，不计UI/分页/三宿主整体。
+
 - **M47 WB-43 查询诊断合同与失败证据（2026-10-07）**：真实参考请求与生产对齐为仅 `{sql}`，严格比较前保存有界安全观察；新增身份ledger、独立回收/终态尝试及末status，父链核到仍存活的exact runner anchor。TS/语法、纯内存9/9与既有Node20/20通过；第二真实run当前语句、选区、EXPLAIN45行生成数据与真实参考一致，但进程审计失败，history/API恢复/正常退出未验证。原两失败与false保留，根回收、281对象runtime清理另证；最终十文件完整门禁和本地提交见M47记录，不计分页/UI或三宿主完成。
 - **M47 WB-36 Graph精确导出预算（2026-10-07）**：修复顶点恰满maxElements且仍有边时误报truncated=false；同快照零剩余预算探测一条边，保顶点优先、总元素上限与source-generated JSON。旧DLL真实Web失败观察保留，GraphEndpointTests17/17含8条有界Kestrel回归、Server Release/trim-AOT分析0警告错误、修复后真实Web3/3通过；四JSON1015208字节/manifest核验，最终完整restore/原级别format为提交前置。Graph Beta、NativeAOTpublish、通用资源预算及三宿主整体另验，详见M47验证记录。
 - **GH-Issue #210 批量 schema-on-write 原子性**：`WriteMany` 先在临时计划中完整合并并校验整块 measurement schema，全部通过后先持久化再一次性发布和写入；后续点发生 TAG/FIELD 角色或字段类型冲突时，不再残留前面点推断出的 measurement、新列、类型提升或提前密封的 MemTable。schema 文件保存失败时，单点、批量、显式创建和删除都不会发布未持久化的内存 schema。

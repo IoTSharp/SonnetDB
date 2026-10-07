@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, validateOwnedIdentity } from './query-host-evidence.mjs';
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
+  validateOwnedIdentity, validateOwnedIdentityAnchor, validateOwnedIdentityLedger } from './query-host-evidence.mjs';
 
 const created = '2026-10-07T00:00:00.000Z';
 const owner = { pid: 10, parentPid: 1, created, commandLine: 'node runner', parentChain: [{ pid: 1, unavailable: true }] };
@@ -67,7 +69,12 @@ test('external ancestors after the full ownership anchor remain diagnostic only'
   acceptOwnedIdentity(external, ledger, { ...options, eventName: 'helper' });
   assert.equal(ledger.get(11).ownershipAnchorPid, 10);
   assert.equal(ledger.get(11).externalAncestorsDiagnosticOnly, true);
-  assert.equal(ledger.get(11).parentChain[1].commandLine, null);
+  assert.equal(ledger.get(11).parentChain.length, 1);
+  assert.equal(ledger.get(11).parentChain[0].commandLine, 'node runner');
+  assert.equal(ledger.get(11).externalAncestorCount, 1);
+  assert.equal(ledger.get(11).externalAncestorsOmitted, true);
+  assert.equal(ledger.get(11).externalAncestorsSha256,
+    createHash('sha256').update(JSON.stringify(external.parentChain.slice(1))).digest('hex').toUpperCase());
   assert.doesNotThrow(() => validateOwnedIdentity({ ...owner, parentChain: [
     { pid: 1, parentPid: 90, created, commandLine: null },
   ] }, 10));
@@ -96,4 +103,127 @@ test('bounded steps honour cancellation represented by the closed deadline', { t
   const results = await attemptIndependentSteps([{ name: 'cancelled', run: async () => { assert.fail('must not execute'); } }],
     { deadline: 1000, clock: () => 1000 });
   assert.deepEqual(results, [{ name: 'cancelled', attempted: false, ok: false, reason: 'step_deadline' }]);
+});
+
+test('normalization retains every full tuple before and including the exact anchor', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]);
+  const value = { ...child(11, 'x'.repeat(8000)), parentPid: 12, parentChain: [
+    { pid: 12, parentPid: 10, created, commandLine: 'y'.repeat(9000) },
+    { pid: 10, parentPid: 1, created, commandLine: 'node runner' },
+    { pid: 1, parentPid: 90, created, commandLine: 'external diagnostic'.repeat(1000) },
+  ] };
+  const accepted = acceptOwnedIdentity(value, identities, { ...options, validateLedger: validateOwnedIdentityLedger, eventName: 'helper' });
+  assert.equal(accepted.commandLine, value.commandLine);
+  assert.deepEqual(accepted.parentChain, value.parentChain.slice(0, 2));
+  assert.equal(accepted.externalAncestorCount, 1);
+  assert.equal(JSON.stringify(accepted).includes('external diagnostic'), false);
+  assert.doesNotThrow(() => validateOwnedIdentityAnchor(accepted, owner));
+  const acceptedOwner = acceptOwnedIdentity(owner, identities, { ...options, eventName: 'runner' });
+  assert.deepEqual(acceptedOwner.parentChain, []);
+  assert.doesNotThrow(() => validateOwnedIdentity(acceptedOwner, 10));
+});
+
+test('unsafe original external text is rejected before omission with a fixed safe reason', { timeout: 1000 }, () => {
+  const marker = 'SENTINEL credential must never enter evidence';
+  const identities = new Map([[10, owner]]);
+  const value = { ...child(11), parentChain: [...child(11).parentChain.slice(0, 1),
+    { pid: 1, parentPid: 0, created, commandLine: marker }] };
+  assert.throws(() => acceptOwnedIdentity(value, identities, { ...options, eventName: 'helper',
+    validateText: (text) => { if (text.includes(marker)) throw new Error(marker); } }), (error) => {
+    assert.deepEqual(ownedIdentityFailure(error, 11), { stage: 'unsafeText', pid: 11, reason: 'unsafe_identity_text_preserved' });
+    assert.equal(error.message.includes(marker), false); return true;
+  });
+  assert.equal(identities.has(11), false);
+});
+
+test('the 256 KiB ledger rejects a complete oversized addition without losing accepted identities', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]);
+  const first = acceptOwnedIdentity(child(11, 'a'.repeat(131072)), identities,
+    { ...options, validateLedger: validateOwnedIdentityLedger, eventName: 'helper' });
+  assert.throws(() => acceptOwnedIdentity(child(12, 'b'.repeat(131072)), identities,
+    { ...options, validateLedger: validateOwnedIdentityLedger, eventName: 'helper' }), (error) => {
+    assert.deepEqual(ownedIdentityFailure(error, 12), { stage: 'ledger', pid: 12, reason: 'ledger_budget_exceeded' }); return true;
+  });
+  assert.equal(identities.get(11), first);
+  assert.equal(first.commandLine.length, 131072);
+  assert.equal(identities.has(12), false);
+  assert.ok(Buffer.byteLength(JSON.stringify([...identities.values()], null, 2)) <= 256 * 1024);
+});
+
+test('the unchanged 128 identity cap refuses a new complete identity with its own reason', { timeout: 1000 }, () => {
+  const identities = new Map(Array.from({ length: 128 }, (_value, index) => [index + 20, child(index + 20)]));
+  assert.throws(() => acceptOwnedIdentity(child(200), identities, { ...options, eventName: 'helper' }), (error) => {
+    assert.deepEqual(ownedIdentityFailure(error, 200), { stage: 'identity', pid: 200, reason: 'identity_count_exceeded' }); return true;
+  });
+  assert.equal(identities.size, 128);
+});
+
+test('secondary events bind the exact full command and creation to the authoritative ledger', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]); const events = [];
+  const accepted = acceptOwnedIdentity(child(11, 'full command '.repeat(4000)), identities, { ...options, eventName: 'helper',
+    recordEvent: (value) => recordOwnedIdentityEvent({ ...value, command: ['unretained extra command'] }, identities, events, options) });
+  const event = events[0];
+  assert.deepEqual(event.identityLedgerRef, { pid: accepted.pid, created: accepted.created });
+  assert.equal(event.parentPid, accepted.parentPid);
+  assert.equal(event.commandLineSha256, createHash('sha256').update(accepted.commandLine).digest('hex').toUpperCase());
+  assert.equal(event.parentChainLedgerCreated, accepted.created);
+  assert.equal(Object.hasOwn(event, 'commandLine'), false);
+  assert.equal(Object.hasOwn(event, 'command'), false);
+  assert.equal(Object.hasOwn(event, 'parentChain'), false);
+  assert.equal(accepted.commandLine.length, 52000);
+  assert.ok(Buffer.byteLength(JSON.stringify(event)) < 1024);
+  assert.throws(() => recordOwnedIdentityEvent({ ...accepted, created: '2026-10-07T00:01:00.000Z' }, identities, events, options), (error) => {
+    assert.equal(ownedIdentityFailure(error, 11).reason, 'event_identity_reference_mismatch'); return true;
+  });
+  assert.throws(() => recordOwnedIdentityEvent({ ...accepted, parentChain: [{ ...accepted.parentChain[0], commandLine: 'changed parent' }] }, identities, events, options), (error) => {
+    assert.equal(ownedIdentityFailure(error, 11).reason, 'event_identity_reference_mismatch'); return true;
+  });
+  assert.equal(events.length, 1);
+});
+
+test('secondary event byte and count caps remain failures while the accepted full ledger survives', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]); const events = [{ padding: 'x'.repeat(192 * 1024) }];
+  const failures = captureOwnedSnapshot([], identities, [], { ...options,
+    discover: (_snapshot, values) => values.set(11, child(11)),
+    recordEvent: (value) => recordOwnedIdentityEvent(value, identities, events, options) });
+  assert.deepEqual(failures, [{ stage: 'event', pid: 11, reason: 'event_budget_exceeded' }]);
+  assert.equal(identities.get(11).commandLine, 'owned child');
+  assert.equal(events.length, 1);
+  const countEvents = Array.from({ length: 256 }, () => ({}));
+  assert.throws(() => recordOwnedIdentityEvent(identities.get(11), identities, countEvents, options), (error) => {
+    assert.equal(ownedIdentityFailure(error, 11).reason, 'event_count_exceeded'); return true;
+  });
+  assert.equal(countEvents.length, 256);
+});
+
+test('a missing or changed anchor cannot bind ownership and changed pre-anchor tuples cannot replace it', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]);
+  const value = { ...child(11), parentPid: 12, parentChain: [
+    { pid: 12, parentPid: 10, created, commandLine: 'full intermediate parent' },
+    { pid: 10, parentPid: 1, created, commandLine: 'node runner' },
+  ] };
+  const accepted = acceptOwnedIdentity(value, identities, { ...options, eventName: 'helper' });
+  assert.throws(() => validateOwnedIdentityAnchor(accepted, { ...owner, commandLine: 'changed owner' }));
+  assert.throws(() => validateOwnedIdentityAnchor({ ...value, parentChain: value.parentChain.slice(0, 1) }, owner));
+  assert.throws(() => acceptOwnedIdentity({ ...value, parentChain: [{ ...value.parentChain[0], commandLine: 'changed parent' }, value.parentChain[1]] },
+    identities, { ...options, eventName: 'helper' }), (error) => {
+    assert.equal(ownedIdentityFailure(error, 11).reason, 'recorded_identity_changed_replacement_preserved'); return true;
+  });
+  const differentAnchor = { ...child(13), parentChain: [{ ...child(13).parentChain[0], created: '2026-10-06T00:00:00.000Z' }] };
+  assert.throws(() => acceptOwnedIdentity(differentAnchor, identities, { ...options, eventName: 'helper' }), (error) => {
+    assert.equal(ownedIdentityFailure(error, 13).reason, 'ownership_anchor_changed_preserved'); return true;
+  });
+  assert.equal(identities.get(11), accepted);
+  assert.equal(identities.has(13), false);
+});
+
+test('unsafe secondary event text is not retained and still leaves complete cleanup authority', { timeout: 1000 }, () => {
+  const identities = new Map([[10, owner]]); const events = [];
+  assert.throws(() => acceptOwnedIdentity(child(11), identities, { ...options, eventName: 'helper',
+    recordEvent: (value) => recordOwnedIdentityEvent({ ...value, unsafe: 'event marker' }, identities, events,
+      { ...options, validateText: (text) => { assert.equal(text.includes('event marker'), false); } }) }), (error) => {
+    assert.deepEqual(ownedIdentityFailure(error, 11), { stage: 'event', pid: 11, reason: 'unsafe_event_text_preserved' }); return true;
+  });
+  assert.equal(events.length, 0);
+  assert.equal(identities.get(11).commandLine, 'owned child');
 });
