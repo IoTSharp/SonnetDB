@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-48 Query history完成合同（2026-10-07）**：保留历史key/schema/最新50条，immutable FIFO串行持久写、最多50待写、当前错误可观察且后续队列恢复；query/selection/EXPLAIN完成等待写ack，公开历史读等待既有写，showRows/Copilot保持同步且不写query history。deferred Memento与生产command/panel夹具和TS编译通过；0actual，原WB47失败及独立cleanup风险不转为成功，最终十文件完整restore/原format/本地提交见M47记录。
 - **M47 WB-47 真实history失败检查点（2026-10-07）**：仅切换runner/Host实际窗口metadata，TS/Node/双PS7 AST通过；唯一新真实Host的current2/selection1/EXPLAIN45行与独立Server参考一致，Host API恢复，但history pickCount20/entryCount2失败且无history.json。Code退出1、runner hostOutcome=null/完整FAIL，原processCleanupProven/runtimeRemoved=false不改；根fresh无任务存活、端口释放及283个自有runtime对象回收单独保存。原成功门禁保持，actual1/1关闭，八文件完整restore/原format及本地提交见M47记录；未计正常退出、向导/DOM分页或三宿主完成。
 - **M47 WB-46 有界候选重采（2026-10-07）**：仅原有效PID/creation/parent且缺/空own command候选允许每batch一次fresh，完整原/fresh authority与exact Node anchor一致才准入；原始external凭据先验、12hop/1秒/ledger与live stop门禁保持。audit异步串行/cleanup等待，6秒取消仅结束等待不自动kill；最终37/37合成合同、Node/双PS7 AST与独立源码复核通过，exact12准入及direct完整13拒绝已覆盖。0actual/0新build，WB45原FAIL不改，正常Code退出/history/API由新窗口另验；最终九文件完整门禁与本地提交见M47记录，不计三宿主完成。
 

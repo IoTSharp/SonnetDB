@@ -49,7 +49,7 @@ export function registerRunQueryCommand(
         { location: vscode.ProgressLocation.Window, title: `SonnetDB: ${mode === 'explain' ? 'Explaining' : 'Running'} query` },
         async () => {
           const result = await client.executeSql(database, statement);
-          resultPanel.show(result, statement, profile.label, database);
+          await resultPanel.show(result, statement, profile.label, database);
         },
       );
     } catch (error) {

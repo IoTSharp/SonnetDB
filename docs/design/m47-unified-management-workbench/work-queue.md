@@ -2,6 +2,19 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-48 合同与文件冻结（2026-10-07；本地history完成合同已验证，真实Host另验）
+
+- 从本地 `0ec1aff59872ca34999f51cb320a8b039f974302` 接续，四文档完整接收，git/路线图/旧提交与已完成代理核验；WB47 closed10/14wrapper、1/1actual、原FAIL/history20/2/Code1-null/hostOutcome null/两原cleanup false冻结。旧staged-handoff删除被自动审查以blocked by policy拒绝，保留不重试；旧handoff Temp拒删对象同样不碰。外部两个oschina文件更新已核为其它活动会话，刷新独立保护快照而不覆盖、回滚或stage。
+- 唯一切片为生产query history完成/串行合同，专属history代理仅四源：新core/queryHistory.ts、新src/test/queryHistory.test.ts、既有panels/queryResultPanel.ts与commands/runQueryCommand.ts；只读cleanup代理与独立review，根独占六docs/工具/验证/完整门禁/stage/本地commit，共十文件。源码可证明旧show:void/void recordHistory没有ack等待，read-modify-write没有串行且原地unshift；仅是已证合同风险，尚非WB47真实20/2根因。
+- 保留sonnetdb.queryHistory key、entry schema、最新逆序50条；writer immutable FIFO、执行时fresh读取、pending最多50、当前写失败可观察而尾队列恢复/finally释放；QueryResultPanel.show返回Promise，query/selection/EXPLAIN progress callback await写ack，showHistory等待调用前已排队写，showRows/Copilot同步void且不记query history。Host原20次poll、runner/metadata/evidence37与旧失败不改，0actual/同一TS项目/0新.NETbuild。
+- cleanup只读盘点分列：owned-runtime可确定先被process proof=false守卫拒绝，未进入removeRuntime；owned-processes子检查仍unknown，因为step_failed没有保存子标签/final snapshot。最后snapshot helper29344后代64440可能被旧snapshot计残余而只排除helper exact PID，这是有证风险而非确证，不能自动排除后代或放松stop/身份门禁。固定安全subcheck诊断留下一独立切片。
+- 本片新artifacts/wb48-validation-20261007截止03:45Z/14wrapper/0actual/1TS项目/0新.NETbuild；仅测试与编译可证明本地合同，真实Server/Extension Host/history3/API/正常Code退出和原cleanup仍待新窗口。最终十文件完整restore及原级format、pre/post冻结SHA、白名单diff、fresh outside零exclusions与≤90秒绑定才准本地commit；实际验证/gates/commit/postaudit见本片收据与git log，计划不写PASS。PowerShell7固定路径，禁Graphify/广域扫描/未授权安装、有界count+墙钟/比较微输入/完整进程归属父链/finally/临时绝对路径保持；最新foreign追加尾段/22命名博客路径（含六已移走脚本的缺席状态）与origin/parity-results保护，无push/发布/部署/外部沟通。三宿主仍未闭环，唯一ACTIVE每30分钟workbench继续，本片不另开切片或迁移/暂停。
+- 最终四源码/四compiled JS绑定source-build-freeze-final，唯一TS编译通过；定向history-tests 6/6、失败/取消/skip0，完整stdout与exit0收据保留。deferred Memento与真实production command/panel在stub边界验证ack前未完成、FIFO三查询无覆盖/逆序、原数组不变/50条cap/context、picker读屏障、showRows不记历史、失败恢复/50 pending背压释放。它们为确定性存储/公开API夹具，未运行新真实Host，不宣称WB47根因或正常生命周期成功；独立复核、完整最终门禁和本地提交另绑本片收据。
+
+- 最终集成未提交（03:42Z检查点）：完整restore/原级format已在03:31冻结树退出0并独立复核，integrate-final因其它活动OSChina heartbeat更新PROGRESS/events/state三个foreign文件而在stage前安全拒绝；随后该会话追加HANDOFF，旧十文件冻结已失效。外部会话现已idle，但完整重跑门禁的预检因03:45Z总墙钟及80秒finally余量不足而拒绝启动，未新增.NET进程或扩大预算。保留原结果/6项测试/源码SHA与所有外部内容，index为空，HEAD仍01063ddd716492122a79cb3a47305fbf71113658；本轮根checkpoint与共享记录未提交，原因即最终提交门禁待重新取得。下一次先续WB48最终集成：重新接收文档/git/代理/最新foreign，开新的明确验证窗口，冻结最终十文件后完整restore/format、fresh outside审计、精确自有hunk提交和post审计；不重复四源实施/TS/已过6tests、不新开cleanup切片或actual，不推导外部发送/push授权。
+
+- WB48最终集成接续窗口（03:46Z启动）：旧03:45Z窗口已closed12/14、0actual，原失败/门禁/延期收据保留。外部OSChina会话revision21已idle，HEAD01063ddd、空index、parity与四源/四compiled SHA重新核验；只在artifacts/wb48-integration-20261007-0346进行最终十文件冻结、完整restore/原级format、fresh outside零exclusions与90秒绑定、精确自有Handoff/CHANGELOG hunk本地提交及post审计。新窗口截止04:10Z、最多8wrapper、0actual/0TS/0新.NETbuild；源码及已过6tests不重跑，不扩旧预算，不启动cleanup/下一切片或三宿主实跑。实际门禁、commit及post结果以新窗口收据/git log为准，未取得前不写完成；最新foreign完整内容/存在性和六缺席PS1保持，唯一workbench ACTIVE30分钟不迁移/暂停，不push/发布/部署/外发。
+
 ### WB-47 合同与文件冻结（2026-10-07；真实history失败，原门禁保持）
 
 - 接续 `64e7a19c2104452b0c3f7999cf42b2a6fb54b1d4`，最新四文档/AGENTS/git/路线图/已提交范围与旧代理接收核验；只推进WB47。专属metadata代理仅替换既有runner/Host两源的WB47标签、evidence parent、18350/18351、Workbench47与seed，反向替换与base blob精确相同；诊断逻辑、schema/owner marker、production/shared helpers不改。独立合同与复核，根独占六docs/工具/验证/最终门禁/stage/本地commit，共八文件。
