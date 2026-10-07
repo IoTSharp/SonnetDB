@@ -2,6 +2,13 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB-54 合同与文件冻结（2026-10-07；既有fresh安全观察本地通过）
+
+- 接续155dc2df，专属实施仅query-host-evidence.mjs/test.mjs，独立只读review；根独占六docs、验证与八文件集成。只复用同batch已有source/fresh，在原准入和failure断言后给最多128个initial failures追加可选candidateTransition/v1，不新增采样或stop。
+- 固定安全availability/subject、两端≤4096 snapshotCount、饱和matches与commandPresence、tupleRelation；两端唯一且有界四字段才能same/changed，invalid/throw为unknown。沿原expires前后双guard，超时省略；不改变原failure/ledger/event/authority/接受身份/终态。关系不证明权限/短命/复用/stop，不保存新增原始tuple/命令/创建时间/错误正文或hash。
+- 原窗口closed5/12、两测试尝试（0启动工具失败及实际66/67 fixture FAIL）、0actual，原准备失败和全部原日志保留。只修65字符ISO创建fixture的小数秒补零，finite先决断言与原拒绝/准入期待保持。窄接续artifacts/wb54-integration-20261007-0846同09:20Z硬截止、8wrapper/仅一次67，最终67/67、syntax与source/test binding通过；0actual/TS/新build，不重做WB53。
+- 外部HANDOFF新增CSDN段严格保留原received字节prefix，刷新whole-outside-own保护且只stage自有段；foreign22/parity/旧policy对象不动。最终完整restore/原format、精确stage/commit/post及独立收据见接续证据目录。真实Host/history/API/Code退出/原cleanup及三宿主/UI/安装/AOT/硬件/长稳/发行物仍另验；下一片需新冻结真实窗口，不因本地PASS升级原FAIL或暂停唯一30分钟heartbeat。
+
 ### WB-53 合同与文件冻结（2026-10-07；真实三payload局部通过，完整生命周期仍未证）
 
 - 接续aea0181c/closedWB52，四docs完整字节快照/git/路线图/已有提交/已完成代理已核；不重做调用21/history6/diagnostic55。专属metadata只改runner/Host两源五组literal，反向SHA等于基线；root独占六docs/工具/验证/gates/stage/本地commit，共八文件，独立review只读。

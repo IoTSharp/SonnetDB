@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-54 既有fresh父观察（2026-10-07）**：原准入后仅复用source/fresh追加有界安全transition投影，沿原deadline双guard，原失败/authority/ledger/events/stop不改；55既有+12新增最终67/67、syntax与source绑定通过。原0启动工具失败及66/67非法ISO fixture失败保留，只修finite创建夹具；0actual，WB53真实Host/history/退出/原cleanup与三宿主仍另验，最终完整门禁与精确八文件本地提交见接续收据。
 - **M47 WB-53 真实Query与父链诊断再验证（2026-10-07）**：仅迁移runner/Host隔离metadata，单次真实current2/selection1/EXPLAIN45与独立参考逐值一致；但history/Host终态缺席、原process audit FAIL、Code/Host null与cleanupfalse保持。initial父缺command和fresh lookup缺项只作安全观察，原因unknown；51ledger/68events/28helper及14原证据冻结，根当前54PID absent/0新增kill/新runtime292对象一次回收另列。syntax/唯一TS与最终完整门禁、失败检查点本地提交见收据，不计完整Host或三宿主成功。
 - **M47 WB-52 父链snapshot诊断（2026-10-07）**：拒绝候选补安全initial/fresh、candidate/parent/anchor、有限计数与command presence观察，unknown为null；仅已有lookup、无raw身份/命令/error/hash或新采集，原准入/stop/预算保持。独立复核补未知role坐标与同PID单读，最终55/55（46受影响+9新）、syntax/双PS7 AST通过，初53保留。provider503后旧窗closed4/14，新独立窗口续最终八文件完整门禁/本地提交；runner/Host冻结、0actual/0TS/0新build，不推断WB50原因或三宿主完成。
 - **M47 WB-51 调用时SQL上下文（2026-10-07）**：query/selection/EXPLAIN的SQL读取移到首异步token/database解析之前，保持原SQL与history完成语义；最终deferred编辑器变动合同21/21、必要history6/6，同一TS项目初版/v2编译均通过，失败cleanup先drain再恢复stub。0actual，不将已证调用漂移风险称WB50真实根因，完整门禁及八文件检查点见M47记录；原失败与三宿主边界保持。

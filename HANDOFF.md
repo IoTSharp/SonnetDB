@@ -5,6 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-54，2026-10-07；既有fresh安全观察本地通过，真实Host另验）
+
+- 接续155dc2df；WB53真实current2/selection1/EXPLAIN45局部通过，但history/Host终态缺席、API恢复unknown、Code/Host null、原normalExit/cleanup/runtime false与actual1/1 FAIL不升级。最新四docs完整字节快照、git/路线图/已提交范围及原代理状态已核，不重复派单或真实窗口。
+- 唯一WB54复用同batch既有source/fresh Maps，在原prepare/refresh/admission及原failure断言后给最多128个initial failures追加可选candidateTransition/v1。仅固定availability/subject、两端有界count/matches/commandPresence和tupleRelation；比较两端唯一且有界安全四字段，invalid/getter异常为unknown，原expires入口及附加前双guard耗尽则省略。无新snapshot/refresh/discover/stop、原失败/ledger/events/身份/authority/终态不变；same/changed不是权限、复用、短命或stop证明，不保存PID/tuple/command/creation/time/hash/error/cause新正文。
+- 实施专属wb54_transition_impl仅两diagnostic源，review只读，根独占六docs/验证/最终集成，共八文件。原artifacts/wb54-validation-20261007已closed5/12、2/2测试尝试、0actual：prepare-root原共享边界误判与v2修正分列；首次test spec.exe数组使Process.Start失败且0测试启动，第二次67为66PASS/1FAIL。65字符ISO尾空格fixture使primary正确先报parent_created_invalid，必要修补只用小数秒补零且保持finite创建时间；新增先决断言，原拒绝/准入期待不降低。原日志/失败/预算与4tuple零live审计冻结，不覆盖。
+- 同片窄接续artifacts/wb54-integration-20261007-0846保持09:20Z硬截止、最多8wrapper/一次最终测试/0actual/0TS/0新.NETbuild，review原22shell/30命名文件/18wait/09:12Z不扩。最终67/67（原55+新增12），fail/cancel/skip/todo0；两源Node syntax、source freeze与test-acceptance绑定，实际capture配合成snapshot仅为本地合同证据。两次fixture finally清理后根仅删除核为空的新test-temp；旧policy拒删对象不碰。最终源码18DF0517…B6865、testF3F841B4…6450CC，347+/20-。
+- 原received HANDOFF242951字节全部为最新外部CSDN追加之前的严格prefix；原共享保护收据保留，接续whole-outside-own/foreign footer独立刷新。本片只插WB54段及CHANGELOG一行；精确自有hunk提交，不纳入博客/CSDN、保护foreign22与origin/parity-results。最终八树完整restore/原format、前后SHA、fresh outside零排除≤90秒、diff/本地commit/post/关闭/独立验收结果以接续收据与git为准。PS7、禁Graphify/广域扫描/安装、有界count+墙钟/身份父链/finally继续，无push/发布/部署/外发。
+- 下一片先核本次实际检查点和仍运行代理，再冻结独立真实Host窗口，验证新观察、history/API恢复/Code正常退出与原cleanup；不能由本地67推断WB53缺失因果，也不能从ledger补父身份或排除后代。三宿主UI/分页/Notebook/LSP、Studio bridge/Managed Local/OS文件对话框、安装/AOT/固定硬件/长稳/发布证据仍另验；唯一workbench ACTIVE30分钟不迁移/暂停，本片不启动WB55。
+
 ## 当前检查点（WB-53，2026-10-07；真实三查询局部通过，history/退出/原回收仍未证）
 
 - 接续本地aea0181c；WB52最终八文件提交、55项本地诊断、完整restore/原format、post/closed8/8和独立验收已过，旧closed4/14/provider503分列保留。本轮最新HANDOFF/AGENTS/ROADMAP/queue完整字节快照、git/路线图/已有提交/已完成代理已核；不重复WB51调用21/history6或WB52诊断55。

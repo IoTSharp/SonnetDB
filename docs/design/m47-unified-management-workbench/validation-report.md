@@ -2,6 +2,16 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-54 既有fresh安全观察（2026-10-07；本地合同通过，真实Host另验）
+
+- **范围**：八文件，两诊断源由原专属代理实施，六共享docs和验证/集成由根串行维护，原review只读；runner/Host/生产history、Server和旧失败证据冻结。复用同batch已创建source/fresh Maps，仅在原准入与failure断言后给initial failures追加安全candidateTransition/v1；没有新采样、准入、stop或清理权限。
+- **合同**：最多128条观察、两端count≤4096、matches0/1/2/null、presence枚举、subject与same/changed/unknown固定投影。两端唯一且UInt32 PID、finite creation≤64字符及command≤8192字符才可比较；输入getter/clock异常保unknown或省略。入口及附加前沿同一原expires双guard。原blocking/refusal/ledger/events/接受身份和终态不改；关系不能证明权限、进程不存在、复用、短命或stop，新增载荷不保存PID/tuple/命令/创建时间/时间/hash/原始错误。
+- **实际本地证据**：接续最终两源Node syntax通过，最终定向67/67（原55+新增12），fail/cancel/skip/todo均0；source-build-freeze-final与test-acceptance.json绑定两SHA/完整stdout/stderr。覆盖真实capture编排配合成lookup、WB53式三拒绝、missing/restored/duplicate/changed、有界tuple、角色坐标、无fresh/刷新失败、两deadline guard、抛出getter/clock及二次恶意投影。0actual/TS/新.NETbuild，不代表真实Code/Extension Host或WB53因果。
+- **原失败不改**：artifacts/wb54-validation-20261007闭合5/12wrapper、2/2测试尝试、0actual。prepare-root误假设共享append而exit1，v2接收真实外部插入边界；首次test spec.exe误为路径数组，Process.Start失败且0测试启动；第二次真实66/67因ISO Z尾追加空格造成primary parent_created_invalid。只修fixture为小数秒补零65字符并新增finite先决断言，原拒绝/准入断言未减，原FAIL/日志/预算留存。原outside checked4零live/changed/exclusions；新窄接续仅一次67与8wrapper、保持09:20Z原硬截止，最终结果单列，不覆写原结果。
+- **共享及清理**：原received HANDOFF242951字节为外部CSDN追加前严格prefix；原收据与最新全字节快照分别保存，whole-outside-own/foreign footer刷新，commit仅自有WB54段与CHANGELOG行。foreign22/parity和外部博客/CSDN保持。原、新测试fixtures由finally回收，根核空后只非递归删本片新test-temp，旧policy拒删对象不触碰。接续bootstrap尝试读不存在的首次test stderr日志记录为单独工具边界：Start前失败无child输出，已存在13原收据冻结，无源/docs改写。
+- **提交门禁**：接续目录artifacts/wb54-integration-20261007-0846保存八文件最终freeze、完整dotnet restore SonnetDB.slnx、dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/、SHA前后绑定、fresh outside零排除≤90秒、精确stage/diff/localcommit/post与最终独立验收。实际退出值及commit以对应收据/git为准，禁止把未运行步骤记PASS。PS7/禁Graphify广域扫描安装/count与墙钟/完整身份父链/finally继续；不push/发布/部署/外发。
+- **仍未证**：WB53三payload真实reference逐值局部通过，history/Host终态缺席、API恢复unknown、Code/Host null、normalExit/原cleanup/runtime false及原actual FAIL保持。下一独立真实Host窗才能验证新诊断与生命周期；三宿主UI/分页/Notebook/LSP、Studio原生合同/安装/AOT/硬件/长稳/发行物各自验收，唯一30分钟heartbeat仍ACTIVE，本片不启动WB55。
+
 ## WB-53 真实Query与父链诊断再验证（2026-10-07；三payload局部通过，原FAIL保留）
 
 - 基线aea0181c，已接收WB52 final55/完整门禁/精确提交/post/closed8/8/独立PASS与旧503/closed4/14分界；最新四docs全字节快照/git/路线图/已有提交/已完成代理核验。metadata代理仅两源五组literal，反向SHA等于runner9156CA5C…457EAF7/Host4422B969…C6EBE906；最终runner78DCD7D5…16D4269AA/Host2D4BE2AE…CC741C893，7shell/2文件已停写，根与独立review分别维护验证和验收，不改生产与断言。

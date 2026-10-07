@@ -61,6 +61,8 @@ const candidateSnapshotSchema = 'sonnetdb.owned-candidate-snapshot.v1';
 const candidateSnapshotSources = new Set(['initial', 'fresh']);
 const candidateSnapshotSubjects = new Set(['candidate', 'parent', 'anchor']);
 const candidateCommandStates = new Set(['missing', 'empty', 'present', 'invalid']);
+const candidateTransitionSchema = 'sonnetdb.owned-candidate-transition.v1';
+const candidateTupleRelations = new Set(['same', 'changed']);
 
 function unknownCandidateSnapshot() {
   return { schema: candidateSnapshotSchema, source: null, subject: null, snapshotCount: null,
@@ -80,6 +82,31 @@ function safeCandidateSnapshot(value) {
       candidateCommandState: candidateCommandStates.has(candidateCommandState) ? candidateCommandState : null,
       subjectCommandState: candidateCommandStates.has(subjectCommandState) ? subjectCommandState : null };
   } catch { return unknownCandidateSnapshot(); }
+}
+
+function unknownCandidateTransition() {
+  return { schema: candidateTransitionSchema, availability: 'unknown', subject: null,
+    initialSnapshotCount: null, freshSnapshotCount: null, initialSubjectMatches: null, freshSubjectMatches: null,
+    initialSubjectCommandState: null, freshSubjectCommandState: null, tupleRelation: 'unknown' };
+}
+
+function safeCandidateTransition(value) {
+  try {
+    if (value?.schema !== candidateTransitionSchema) return unknownCandidateTransition();
+    const { availability, subject, initialSnapshotCount, freshSnapshotCount, initialSubjectMatches, freshSubjectMatches,
+      initialSubjectCommandState, freshSubjectCommandState, tupleRelation } = value;
+    if (availability !== 'existing_fresh') return unknownCandidateTransition();
+    const bounded = (count, maximum) => Number.isSafeInteger(count) && count >= 0 && count <= maximum ? count : null;
+    const initialMatches = bounded(initialSubjectMatches, 2); const freshMatches = bounded(freshSubjectMatches, 2);
+    const role = candidateSnapshotSubjects.has(subject) ? subject : null;
+    return { schema: candidateTransitionSchema, availability: 'existing_fresh', subject: role,
+      initialSnapshotCount: bounded(initialSnapshotCount, 4096), freshSnapshotCount: bounded(freshSnapshotCount, 4096),
+      initialSubjectMatches: initialMatches, freshSubjectMatches: freshMatches,
+      initialSubjectCommandState: initialMatches === 1 && candidateCommandStates.has(initialSubjectCommandState) ? initialSubjectCommandState : null,
+      freshSubjectCommandState: freshMatches === 1 && candidateCommandStates.has(freshSubjectCommandState) ? freshSubjectCommandState : null,
+      tupleRelation: role !== null && initialMatches === 1 && freshMatches === 1 && candidateTupleRelations.has(tupleRelation)
+        ? tupleRelation : 'unknown' };
+  } catch { return unknownCandidateTransition(); }
 }
 
 function safeIdentityDiagnostic(value) {
@@ -115,19 +142,23 @@ export function identityEvidenceRejection(stage, reason, diagnostic) {
 }
 
 /** Project failures and optional snapshot observations without retaining raw identity or error text. */
-export function ownedIdentityFailure(error, pid, candidateSnapshot) {
+export function ownedIdentityFailure(error, pid, candidateSnapshot, candidateTransition) {
   const fallback = { stage: 'identity', pid: safePid(pid), reason: 'incomplete_or_unsafe_identity_preserved' };
-  let failure = fallback; let previousSnapshot;
+  let failure = fallback; let previousSnapshot; let previousTransition;
   try {
     const detail = error?.identityEvidenceFailure; const stage = detail?.stage; const reason = detail?.reason;
     if (rejectionReasons.get(stage)?.has(reason)) {
       failure = { stage, pid: safePid(pid), reason, ...(stage === 'identity' ? safeIdentityDiagnostic(detail) : {}) };
       try { previousSnapshot = detail.candidateSnapshot; }
       catch { previousSnapshot = null; }
+      try { previousTransition = detail.candidateTransition; }
+      catch { previousTransition = null; }
     }
   } catch { /* An observation cannot replace the original safe fallback. */ }
   const observation = candidateSnapshot === undefined ? previousSnapshot : candidateSnapshot;
-  return observation === undefined ? failure : { ...failure, candidateSnapshot: safeCandidateSnapshot(observation) };
+  const transition = candidateTransition === undefined ? previousTransition : candidateTransition;
+  if (observation !== undefined) failure = { ...failure, candidateSnapshot: safeCandidateSnapshot(observation) };
+  return transition === undefined ? failure : { ...failure, candidateTransition: safeCandidateTransition(transition) };
 }
 
 function sameTuple(left, right) {
@@ -328,27 +359,32 @@ function commandPresence(value) {
   return value === '' ? 'empty' : 'present';
 }
 
+function candidateFailureSubject(failure, ownerPid) {
+  const check = failure.subreason; const expectedPid = failure.structure?.expectedParentPid;
+  const parentCoordinate = Number.isSafeInteger(failure.chainIndex) && failure.chainIndex >= 0
+    && failure.chainIndex < 12 && safePid(expectedPid) !== null;
+  let subject = null; let subjectPid = null;
+  if (check?.startsWith('identity_') || ['candidate_creation_changed', 'candidate_parent_changed', 'candidate_command_changed'].includes(check)) {
+    subject = 'candidate'; subjectPid = failure.pid;
+  } else if (check?.startsWith('parent_') || check === 'candidate_parent_tuple_changed') {
+    if (parentCoordinate) { subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid; }
+  } else if (check === 'candidate_snapshot_missing' || check === 'candidate_snapshot_duplicate') {
+    if (parentCoordinate) {
+      subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid;
+    } else if (failure.pid !== null && expectedPid === failure.pid) {
+      subject = 'candidate'; subjectPid = failure.pid;
+    }
+  } else if (check === 'ownership_anchor_not_reached' || check === 'ownership_anchor_tuple_mismatch') {
+    subject = 'anchor'; subjectPid = ownerPid;
+  }
+  return { subject, subjectPid };
+}
+
 function candidateSnapshotFailure(error, pid, source, ownerPid, snapshotSource) {
   const failure = ownedIdentityFailure(error, pid);
   let observation = unknownCandidateSnapshot();
   try {
-    const check = failure.subreason; const expectedPid = failure.structure?.expectedParentPid;
-    const parentCoordinate = Number.isSafeInteger(failure.chainIndex) && failure.chainIndex >= 0
-      && failure.chainIndex < 12 && safePid(expectedPid) !== null;
-    let subject = null; let subjectPid = null;
-    if (check?.startsWith('identity_') || ['candidate_creation_changed', 'candidate_parent_changed', 'candidate_command_changed'].includes(check)) {
-      subject = 'candidate'; subjectPid = failure.pid;
-    } else if (check?.startsWith('parent_') || check === 'candidate_parent_tuple_changed') {
-      if (parentCoordinate) { subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid; }
-    } else if (check === 'candidate_snapshot_missing' || check === 'candidate_snapshot_duplicate') {
-      if (parentCoordinate) {
-        subject = expectedPid === ownerPid ? 'anchor' : 'parent'; subjectPid = expectedPid;
-      } else if (failure.pid !== null && expectedPid === failure.pid) {
-        subject = 'candidate'; subjectPid = failure.pid;
-      }
-    } else if (check === 'ownership_anchor_not_reached' || check === 'ownership_anchor_tuple_mismatch') {
-      subject = 'anchor'; subjectPid = ownerPid;
-    }
+    const { subject, subjectPid } = candidateFailureSubject(failure, ownerPid);
     const matches = (targetPid) => !source || targetPid === null || targetPid === undefined ? null
       : source.duplicates.has(targetPid) ? 2 : source.lookup.has(targetPid) ? 1 : 0;
     const presence = (targetPid, matchCount) => matchCount === 1 ? commandPresence(source.lookup.get(targetPid).commandLine) : null;
@@ -359,6 +395,46 @@ function candidateSnapshotFailure(error, pid, source, ownerPid, snapshotSource) 
       snapshotCount: source?.snapshotCount ?? null, candidateMatches, subjectMatches, candidateCommandState, subjectCommandState };
   } catch { /* Diagnostics remain unknown if observing a tuple fails; the rejection is unchanged. */ }
   return ownedIdentityFailure({ identityEvidenceFailure: failure }, failure.pid, observation);
+}
+
+function candidateTransitionTuple(value, subjectPid) {
+  const { pid, parentPid, created, commandLine } = value;
+  const commandState = commandPresence(commandLine);
+  const comparable = safePid(pid) === subjectPid && safePid(parentPid, true) !== null
+    && typeof created === 'string' && created.length <= 64 && Number.isFinite(Date.parse(created))
+    && (commandState === 'missing' || typeof commandLine === 'string' && commandLine.length <= 8192);
+  return { commandState, comparable, pid, parentPid, created, commandLine: commandState === 'missing' ? null : commandLine };
+}
+
+function observeCandidateTransition(source, fresh, subject, subjectPid) {
+  try {
+    const matches = (lookup) => lookup.duplicates.has(subjectPid) ? 2 : lookup.lookup.has(subjectPid) ? 1 : 0;
+    const initialSubjectMatches = matches(source); const freshSubjectMatches = matches(fresh);
+    const initial = initialSubjectMatches === 1 ? candidateTransitionTuple(source.lookup.get(subjectPid), subjectPid) : null;
+    const current = freshSubjectMatches === 1 ? candidateTransitionTuple(fresh.lookup.get(subjectPid), subjectPid) : null;
+    return { schema: candidateTransitionSchema, availability: 'existing_fresh', subject,
+      initialSnapshotCount: source.snapshotCount, freshSnapshotCount: fresh.snapshotCount,
+      initialSubjectMatches, freshSubjectMatches, initialSubjectCommandState: initial?.commandState ?? null,
+      freshSubjectCommandState: current?.commandState ?? null,
+      tupleRelation: initial?.comparable && current?.comparable ? sameTuple(initial, current) ? 'same' : 'changed' : 'unknown' };
+  } catch { return unknownCandidateTransition(); }
+}
+
+function appendCandidateTransitions(failures, initialFailureCount, source, fresh, ownerPid, expires, clock) {
+  if (!fresh) return;
+  // Admission and all primary failures are complete. Observation shares the existing flush window and grants no authority.
+  for (let index = 0; index < initialFailureCount && index < 128; index += 1) {
+    try {
+      if (!(clock() < expires)) break;
+      const failure = failures[index];
+      if (failure.candidateSnapshot?.source !== 'initial') continue;
+      const { subject, subjectPid } = candidateFailureSubject(failure, ownerPid);
+      if (!candidateSnapshotSubjects.has(subject) || safePid(subjectPid) === null) continue;
+      const transition = observeCandidateTransition(source, fresh, subject, subjectPid);
+      if (!(clock() < expires)) break;
+      failures[index] = { ...failure, candidateTransition: safeCandidateTransition(transition) };
+    } catch { break; /* A late observation cannot replace, remove or add any primary failure. */ }
+  }
 }
 
 function candidateAt(source, pid, candidate, ownerPid, index = null) {
@@ -471,6 +547,7 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
       prepared.push({ candidate, value, retry });
     } catch (error) { failures.push(candidateSnapshotFailure(error, candidate?.pid, source, ownerPid, 'initial')); }
   }
+  const initialFailureCount = failures.length;
   let fresh; let refreshError; let expires = prepareExpires;
   if (prepared.some((item) => item.retry)) {
     const refreshController = new AbortController(); let timer;
@@ -540,6 +617,7 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
       ownerPid, item.retry ? 'fresh' : 'initial')); }
   }
   assert.ok(failures.length <= 128);
+  appendCandidateTransitions(failures, initialFailureCount, source, fresh, ownerPid, expires, clock);
   return failures;
 }
 

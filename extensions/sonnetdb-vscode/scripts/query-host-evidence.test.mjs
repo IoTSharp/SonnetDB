@@ -22,6 +22,255 @@ const candidateOptions = { ...options, discover: (snapshot, values) => values.se
 const snapshotDiagnostic = (values = {}) => ({ schema: 'sonnetdb.owned-candidate-snapshot.v1', source: null, subject: null,
   snapshotCount: null, candidateMatches: null, subjectMatches: null, candidateCommandState: null, subjectCommandState: null, ...values });
 
+const transitionDiagnostic = (values = {}) => ({ schema: 'sonnetdb.owned-candidate-transition.v1', availability: 'unknown', subject: null,
+  initialSnapshotCount: null, freshSnapshotCount: null, initialSubjectMatches: null, freshSubjectMatches: null,
+  initialSubjectCommandState: null, freshSubjectCommandState: null, tupleRelation: 'unknown', ...values });
+
+async function parentTransitionFixture({ fresh = [owner], parent = child(12, null), clock = options.clock, afterAdmission } = {}) {
+  const rejected = [11, 13].map((pid) => ({ ...child(pid, null), parentPid: 12, parentChain: [parent, owner] }));
+  const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, parent, ...rejected], identities, [], { ...options, clock,
+    discover: (_snapshot, values) => { values.set(11, rejected[0]); values.set(13, rejected[1]); values.set(12, parent); },
+    refreshSnapshot: async () => { refreshes += 1; return typeof fresh === 'function' ? fresh() : fresh; },
+    recordEvent: (value) => { recordOwnedIdentityEvent(value, identities, events, options); afterAdmission?.(); } });
+  return { failures, identities, events, refreshes };
+}
+
+const primaryFailureProjection = (failures) => failures.map(({ candidateTransition: _transition, ...failure }) => failure);
+
+test('one existing fresh batch observes both rejected parents while retaining all three primary failures', { timeout: 1000 }, async () => {
+  const fixture = await parentTransitionFixture();
+  assert.equal(fixture.refreshes, 1); assert.deepEqual([...fixture.identities.values()], [owner]); assert.deepEqual(fixture.events, []);
+  assert.deepEqual(fixture.failures.map((failure) => [failure.pid, failure.subreason]),
+    [[11, 'parent_command_missing'], [13, 'parent_command_missing'], [12, 'candidate_snapshot_missing']]);
+  const observation = transitionDiagnostic({ availability: 'existing_fresh', subject: 'parent', initialSnapshotCount: 4,
+    freshSnapshotCount: 1, initialSubjectMatches: 1, freshSubjectMatches: 0, initialSubjectCommandState: 'missing' });
+  assert.deepEqual(fixture.failures[0].candidateTransition, observation); assert.deepEqual(fixture.failures[1].candidateTransition, observation);
+  assert.equal(Object.hasOwn(fixture.failures[2], 'candidateTransition'), false);
+  assert.deepEqual(fixture.failures[0].candidateSnapshot, snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 4,
+    candidateMatches: 1, subjectMatches: 1, candidateCommandState: 'missing', subjectCommandState: 'missing' }));
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: fixture.failures[0] }, 11), fixture.failures[0]);
+  const originalParentFailure = (pid) => ({ stage: 'identity', pid, reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'parent_command_missing', failedField: 'parentChain.commandLine', completeness: 'missing_command', chainIndex: 0,
+    structure: { candidatePid: pid, candidateParentPid: 12, ownerPid: 10, parentChainCount: 2, expectedParentPid: 12, observedParentPid: 12 },
+    candidateSnapshot: snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 4,
+      candidateMatches: 1, subjectMatches: 1, candidateCommandState: 'missing', subjectCommandState: 'missing' }) });
+  assert.deepEqual(primaryFailureProjection(fixture.failures), [originalParentFailure(11), originalParentFailure(13),
+    { stage: 'identity', pid: 12, reason: 'incomplete_or_unsafe_identity_preserved', subreason: 'candidate_snapshot_missing',
+      failedField: 'currentSnapshot.identity', completeness: 'missing_identity', chainIndex: null,
+      structure: { candidatePid: 12, candidateParentPid: 10, ownerPid: 10, parentChainCount: 2, expectedParentPid: 12, observedParentPid: null },
+      candidateSnapshot: snapshotDiagnostic({ source: 'fresh', subject: 'candidate', snapshotCount: 1, candidateMatches: 0, subjectMatches: 0 }) }]);
+});
+
+test('restored parent presence leaves rejected descendants blocking and accepted ledger events equal to an isolated parent capture', { timeout: 2000 }, async () => {
+  const cases = [[null, 'missing', 'same', false], [undefined, 'missing', 'same', false], ['', 'empty', 'changed', false],
+    ['restored complete parent', 'present', 'changed', true], [123, 'invalid', 'unknown', false]];
+  const expires = Date.now() + 1500;
+  for (let index = 0; index < cases.length && index < 5; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [commandLine, state, relation, admitted] = cases[index]; const currentParent = child(12, commandLine);
+    // Explicit undefined is a missing command rather than the child helper's default.
+    currentParent.commandLine = commandLine;
+    const fixture = await parentTransitionFixture({ fresh: [owner, currentParent] });
+    assert.equal(fixture.refreshes, 1); assert.equal(fixture.failures.length, admitted ? 2 : 3);
+    assert.deepEqual(fixture.failures.slice(0, 2).map((failure) => [failure.pid, failure.subreason]),
+      [[11, 'parent_command_missing'], [13, 'parent_command_missing']]);
+    assert.deepEqual(fixture.failures[0].candidateTransition, transitionDiagnostic({ availability: 'existing_fresh', subject: 'parent',
+      initialSnapshotCount: 4, freshSnapshotCount: 2, initialSubjectMatches: 1, freshSubjectMatches: 1,
+      initialSubjectCommandState: 'missing', freshSubjectCommandState: state, tupleRelation: relation }));
+    assert.equal(fixture.identities.has(11), false); assert.equal(fixture.identities.has(13), false);
+    const parent = child(12, null); const identities = new Map([[10, owner]]); const events = [];
+    await captureOwnedCandidateSnapshot([owner, parent], identities, [], { ...options,
+      discover: (_snapshot, values) => values.set(12, parent), refreshSnapshot: async () => [owner, currentParent],
+      recordEvent: (value) => recordOwnedIdentityEvent(value, identities, events, options) });
+    assert.deepEqual([...fixture.identities.values()], [...identities.values()]); assert.deepEqual(fixture.events, events);
+    assert.equal(JSON.stringify(fixture.failures).includes('restored complete parent'), false);
+    assert.equal(fixture.events.some((event) => Object.hasOwn(event, 'candidateTransition')), false);
+  }
+});
+
+test('duplicate or changed fresh parent tuples never repair the two original parent refusals', { timeout: 1000 }, async () => {
+  const parent = child(12, 'fresh parent');
+  const cases = [[parent, parent, 2, 'unknown', 'candidate_snapshot_duplicate'],
+    [{ ...parent, created: '2026-10-07T00:01:00.000Z' }, null, 1, 'changed', 'candidate_creation_changed'],
+    [{ ...parent, parentPid: 99 }, null, 1, 'changed', 'candidate_parent_changed']];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 3; index += 1) {
+    assert.ok(Date.now() < expires);
+    const [current, duplicate, matches, relation, refusal] = cases[index];
+    const fresh = duplicate ? [owner, current, duplicate] : [owner, current]; const fixture = await parentTransitionFixture({ fresh });
+    assert.deepEqual(fixture.failures.map((failure) => failure.subreason), ['parent_command_missing', 'parent_command_missing', refusal]);
+    assert.deepEqual([...fixture.identities.values()], [owner]); assert.deepEqual(fixture.events, []); assert.equal(fixture.refreshes, 1);
+    assert.deepEqual(fixture.failures[0].candidateTransition, transitionDiagnostic({ availability: 'existing_fresh', subject: 'parent',
+      initialSnapshotCount: 4, freshSnapshotCount: fresh.length, initialSubjectMatches: 1, freshSubjectMatches: matches,
+      initialSubjectCommandState: 'missing', freshSubjectCommandState: matches === 1 ? 'present' : null, tupleRelation: relation }));
+  }
+});
+
+test('no fresh batch or a failed fresh lookup leaves the legacy failure shape unannotated', { timeout: 1000 }, async () => {
+  const parent = child(12, null); const candidate = { ...child(11, null), parentPid: 12, parentChain: [parent, owner] };
+  const identities = new Map([[10, owner]]); let refreshes = 0;
+  const failures = await captureOwnedCandidateSnapshot([owner, parent, candidate], identities, [], { ...options,
+    discover: (_snapshot, values) => values.set(11, candidate), refreshSnapshot: async () => { refreshes += 1; return []; } });
+  assert.equal(refreshes, 0); assert.equal(failures.length, 1); assert.equal(Object.hasOwn(failures[0], 'candidateTransition'), false);
+  const cases = [() => { throw new Error('WB54_SYNTHETIC_refresh_error_never_persist'); }, () => Array.from({ length: 4097 }, () => owner)];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); const fixture = await parentTransitionFixture({ fresh: cases[index] });
+    assert.equal(fixture.refreshes, 1); assert.equal(fixture.failures.length, 3);
+    assert.deepEqual(fixture.failures.slice(0, 2).map((failure) => failure.subreason), ['parent_command_missing', 'parent_command_missing']);
+    assert.equal(fixture.failures.some((failure) => Object.hasOwn(failure, 'candidateTransition')), false);
+    assert.deepEqual([...fixture.identities.values()], [owner]); assert.deepEqual(fixture.events, []);
+    assert.equal(JSON.stringify(fixture.failures).includes('WB54_SYNTHETIC_refresh_error_never_persist'), false);
+  }
+});
+
+test('initial failure coordinates bind candidate and anchor roles and leave an unknown subject unannotated', { timeout: 1000 }, async () => {
+  const cases = [
+    { candidate: { ...child(15), created: 'invalid creation' }, extra: [], role: 'candidate', relation: 'unknown' },
+    { candidate: { ...child(15), parentPid: 99, parentChain: [] },
+      extra: [{ pid: 99, parentPid: 0, created, commandLine: 'external parent' }], role: 'anchor', relation: 'same' },
+    { candidate: { ...child(15), parentChain: null }, extra: [], role: null },
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 3; index += 1) {
+    assert.ok(Date.now() < expires); const { candidate, extra, role, relation } = cases[index]; const pending = child(12, null);
+    const identities = new Map([[10, owner]]); const events = []; let refreshes = 0;
+    const failures = await captureOwnedCandidateSnapshot([owner, candidate, pending, ...extra], identities, [], { ...options,
+      discover: (_snapshot, values) => { values.set(15, candidate); values.set(12, pending); },
+      refreshSnapshot: async () => { refreshes += 1; return [owner, candidate, child(12)]; },
+      recordEvent: (value) => recordOwnedIdentityEvent(value, identities, events, options) });
+    assert.equal(failures.length, 1); assert.equal(refreshes, 1); assert.equal(identities.has(15), false); assert.equal(identities.has(12), true);
+    if (role === null) assert.equal(Object.hasOwn(failures[0], 'candidateTransition'), false);
+    else assert.deepEqual(failures[0].candidateTransition, transitionDiagnostic({ availability: 'existing_fresh', subject: role,
+      initialSnapshotCount: 3 + extra.length, freshSnapshotCount: 3, initialSubjectMatches: 1, freshSubjectMatches: 1,
+      initialSubjectCommandState: 'present', freshSubjectCommandState: 'present', tupleRelation: relation }));
+  }
+});
+
+test('observed tuple comparison applies finite creation UInt32 and small text caps without weakening primary admission', { timeout: 1000 }, async () => {
+  // Extra fractional zeros preserve a valid ISO creation time while exceeding the diagnostic text cap.
+  const paddedCreated = `${created.slice(0, -1)}${'0'.repeat(65 - created.length)}Z`;
+  assert.equal(paddedCreated.length, 65); assert.ok(Number.isFinite(Date.parse(paddedCreated)));
+  const cases = [
+    [child(12, null), child(12, 'x'.repeat(8192)), 'changed', true],
+    [child(12, null), child(12, 'x'.repeat(8193)), 'unknown', true],
+    [{ ...child(12, null), created: paddedCreated }, { ...child(12), created: paddedCreated }, 'unknown', true],
+    [child(12, null), { ...child(12), parentPid: 0x100000000 }, 'unknown', false],
+    [child(12, null), { ...child(12), created: 'invalid fresh creation' }, 'unknown', false],
+  ];
+  const expires = Date.now() + 800;
+  for (let index = 0; index < cases.length && index < 5; index += 1) {
+    assert.ok(Date.now() < expires); const [parent, current, relation, admitted] = cases[index];
+    const fixture = await parentTransitionFixture({ parent, fresh: [owner, current] });
+    assert.equal(fixture.failures[0].subreason, 'parent_command_missing'); assert.equal(fixture.failures[0].candidateTransition.tupleRelation, relation);
+    assert.equal(fixture.identities.has(12), admitted); assert.equal(fixture.identities.has(11), false); assert.equal(fixture.identities.has(13), false);
+    assert.equal(fixture.refreshes, 1); assert.equal(JSON.stringify(fixture.failures).includes('x'.repeat(8192)), false);
+    assert.equal(JSON.stringify(fixture.failures).includes(paddedCreated), false);
+  }
+});
+
+test('expired or throwing observation clocks cannot replace refusals or undo completed admission', { timeout: 1000 }, async () => {
+  const modes = ['expired', 'throw']; const expires = Date.now() + 800;
+  for (let index = 0; index < modes.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); let admitted = false; let postAdmissionReads = 0;
+    const fixture = await parentTransitionFixture({ fresh: [owner, child(12)], afterAdmission: () => { admitted = true; },
+      clock: () => { if (!admitted) return 1000; postAdmissionReads += 1;
+        if (modes[index] === 'throw') throw new Error('WB54_SYNTHETIC_clock_error_never_persist'); return 3000; } });
+    assert.equal(fixture.failures.length, 2); assert.equal(fixture.identities.has(12), true); assert.equal(fixture.events.length, 1);
+    assert.equal(fixture.failures.some((failure) => Object.hasOwn(failure, 'candidateTransition')), false);
+    assert.equal(postAdmissionReads, 1); assert.equal(fixture.refreshes, 1);
+    assert.equal(JSON.stringify(fixture.failures).includes('WB54_SYNTHETIC_clock_error_never_persist'), false);
+  }
+});
+
+test('initial and fresh tuple getter errors remain unknown after all primary ledger and events complete', { timeout: 1000 }, async () => {
+  const modes = ['initial', 'fresh']; const marker = 'WB54_SYNTHETIC_tuple_getter_never_persist'; const expires = Date.now() + 800;
+  for (let index = 0; index < modes.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); let admitted = false; let lateReads = 0;
+    const initial = { ...child(12, null), get commandLine() { if (admitted && modes[index] === 'initial') { lateReads += 1; throw new Error(marker); } return null; } };
+    const current = { ...child(12), get commandLine() { if (admitted && modes[index] === 'fresh') { lateReads += 1; throw new Error(marker); } return 'owned child'; } };
+    const fixture = await parentTransitionFixture({ parent: initial, fresh: [owner, current], afterAdmission: () => { admitted = true; } });
+    assert.deepEqual(fixture.failures.map((failure) => [failure.pid, failure.subreason]), [[11, 'parent_command_missing'], [13, 'parent_command_missing']]);
+    assert.deepEqual(fixture.failures.map((failure) => failure.candidateTransition), [transitionDiagnostic(), transitionDiagnostic()]);
+    assert.equal(fixture.identities.has(12), true); assert.equal(fixture.events.length, 1); assert.equal(lateReads, 2);
+    assert.equal(JSON.stringify(fixture.failures).includes(marker), false); assert.equal(fixture.refreshes, 1);
+  }
+});
+
+test('a tuple getter consuming the remaining original flush window omits the current observation after admission', { timeout: 1000 }, async () => {
+  let admitted = false; let now = 1000; let lateReads = 0;
+  const parent = { ...child(12, null), get commandLine() { if (admitted) { lateReads += 1; now = 3000; } return null; } };
+  const fixture = await parentTransitionFixture({ parent, fresh: [owner, child(12)], clock: () => now,
+    afterAdmission: () => { admitted = true; } });
+  const control = await parentTransitionFixture({ fresh: [owner, child(12)] });
+  assert.equal(lateReads, 1); assert.equal(now, 3000); assert.equal(fixture.refreshes, 1);
+  assert.equal(fixture.failures.length, 2); assert.equal(fixture.failures.some((failure) => Object.hasOwn(failure, 'candidateTransition')), false);
+  assert.deepEqual(primaryFailureProjection(fixture.failures), primaryFailureProjection(control.failures));
+  assert.deepEqual([...fixture.identities.values()], [...control.identities.values()]); assert.deepEqual(fixture.events, control.events);
+});
+
+test('transition projection preserves legacy snapshots and retains only bounded fixed fields through two projections', { timeout: 1000 }, () => {
+  const error = { identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'parent_command_missing', failedField: 'parentChain.commandLine', completeness: 'missing_command', chainIndex: 0,
+    structure: { candidatePid: 11, candidateParentPid: 12, ownerPid: 10, parentChainCount: 2, expectedParentPid: 12, observedParentPid: 12 } } };
+  const snapshot = snapshotDiagnostic({ source: 'initial', subject: 'parent', snapshotCount: 4,
+    candidateMatches: 1, subjectMatches: 1, candidateCommandState: 'missing', subjectCommandState: 'missing' });
+  const legacy = ownedIdentityFailure(error, 11, snapshot);
+  const transition = transitionDiagnostic({ availability: 'existing_fresh', subject: 'parent', initialSnapshotCount: 4096,
+    freshSnapshotCount: 3, initialSubjectMatches: 1, freshSubjectMatches: 1, initialSubjectCommandState: 'missing',
+    freshSubjectCommandState: 'present', tupleRelation: 'changed' });
+  const marker = 'WB54_SYNTHETIC_extra_tuple_secret_never_persist';
+  const failure = ownedIdentityFailure(error, 11, snapshot, { ...transition, commandLine: marker, pid: 12, created: marker, timeUtc: marker, hash: marker });
+  assert.deepEqual(failure.candidateTransition, transition); assert.deepEqual(primaryFailureProjection([failure]), [legacy]);
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: failure }, 11), failure); assert.equal(JSON.stringify(failure).includes(marker), false);
+  const bounded = ownedIdentityFailure(error, 11, snapshot, { ...transition, initialSnapshotCount: 4097, freshSnapshotCount: -1,
+    initialSubjectMatches: 3, freshSubjectMatches: 2, initialSubjectCommandState: marker, freshSubjectCommandState: 'present', tupleRelation: 'changed' });
+  assert.deepEqual(bounded.candidateTransition, transitionDiagnostic({ availability: 'existing_fresh', subject: 'parent', freshSubjectMatches: 2 }));
+  assert.deepEqual(primaryFailureProjection([bounded]), [legacy]);
+  assert.deepEqual(ownedIdentityFailure(error, 11, snapshot, { ...transition, availability: 'untrusted' }).candidateTransition, transitionDiagnostic());
+  assert.deepEqual(ownedIdentityFailure(error, 11, snapshot, { ...transition, schema: 'untrusted' }).candidateTransition, transitionDiagnostic());
+});
+
+test('transition fields are read once and throwing detail or field getters preserve the original rejection', { timeout: 1000 }, () => {
+  const marker = 'WB54_SYNTHETIC_projection_getter_never_persist'; const reads = {};
+  const transition = transitionDiagnostic({ availability: 'existing_fresh', subject: 'candidate', initialSnapshotCount: 3,
+    freshSnapshotCount: 2, initialSubjectMatches: 1, freshSubjectMatches: 1, initialSubjectCommandState: 'missing',
+    freshSubjectCommandState: 'missing', tupleRelation: 'same' });
+  const descriptors = Object.fromEntries(Object.entries(transition).map(([key, value]) => [key, { get: () => {
+    reads[key] = (reads[key] ?? 0) + 1; return reads[key] === 1 ? value : marker; } }]));
+  const error = { identityEvidenceFailure: { stage: 'identity', reason: 'incomplete_or_unsafe_identity_preserved',
+    subreason: 'identity_command_missing', failedField: 'commandLine', completeness: 'missing_command' } };
+  const legacy = ownedIdentityFailure(error, 11); const failure = ownedIdentityFailure(error, 11, undefined, Object.defineProperties({}, descriptors));
+  assert.deepEqual(failure.candidateTransition, transition); assert.equal(Object.values(reads).every((count) => count === 1), true);
+  assert.equal(Object.keys(reads).length, Object.keys(transition).length); assert.deepEqual(primaryFailureProjection([failure]), [legacy]);
+  assert.deepEqual(ownedIdentityFailure({ identityEvidenceFailure: failure }, 11), failure);
+  const throwing = { schema: transition.schema, get subject() { throw new Error(marker); } };
+  const projected = ownedIdentityFailure(error, 11, undefined, throwing);
+  assert.deepEqual(projected.candidateTransition, transitionDiagnostic()); assert.deepEqual(primaryFailureProjection([projected]), [legacy]);
+  const detail = { ...error.identityEvidenceFailure, get candidateTransition() { throw new Error(marker); } };
+  const retained = ownedIdentityFailure({ identityEvidenceFailure: detail }, 11);
+  assert.deepEqual(retained.candidateTransition, transitionDiagnostic()); assert.deepEqual(primaryFailureProjection([retained]), [legacy]);
+  assert.equal(JSON.stringify([failure, projected, retained]).includes(marker), false);
+});
+
+test('maximum candidate batches keep late observation bounded by the original flush deadline', { timeout: 1000 }, async () => {
+  const rejected = Array.from({ length: 126 }, (_value, index) => ({ ...child(100 + index), created: 'invalid creation' }));
+  const pending = child(12, null); const identities = new Map([[10, owner]]); const events = [];
+  let admitted = false; let lateClocks = 0; let refreshes = 0; const expires = Date.now() + 800;
+  const failures = await captureOwnedCandidateSnapshot([owner, ...rejected, pending], identities, [], { ...options,
+    clock: () => { if (!admitted) return 1000; lateClocks += 1; return lateClocks <= 6 ? 1000 : 3000; },
+    discover: (_snapshot, values) => {
+      for (let index = 0; index < rejected.length && index < 126; index += 1) { assert.ok(Date.now() < expires); values.set(rejected[index].pid, rejected[index]); }
+      values.set(12, pending);
+    }, refreshSnapshot: async () => { refreshes += 1; return [owner, ...rejected, child(12)]; },
+    recordEvent: (value) => { recordOwnedIdentityEvent(value, identities, events, options); admitted = true; } });
+  assert.equal(failures.length, 126); assert.equal(refreshes, 1); assert.equal(identities.size, 2); assert.equal(events.length, 1);
+  assert.equal(failures.filter((failure) => Object.hasOwn(failure, 'candidateTransition')).length, 3); assert.equal(lateClocks, 7);
+  assert.deepEqual(primaryFailureProjection(failures).map((failure) => [failure.pid, failure.subreason]),
+    rejected.map((candidate) => [candidate.pid, 'identity_created_invalid']));
+});
+
 test('initial parent command rejection observes presence without initiating a fresh snapshot', { timeout: 1000 }, async () => {
   const cases = [[null, 'parent_command_missing', 'missing'], [undefined, 'parent_command_missing', 'missing'],
     ['', 'parent_command_empty', 'empty'], [123, 'parent_command_invalid', 'invalid']];
