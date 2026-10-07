@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { admitNativeStudioRoot, assertDatabaseAcknowledgement, assertDatabaseClose, assertDatabaseSnapshot, compactDatabaseProcessEvidence, createDatabaseRecoveryContract,
-  projectDatabaseSnapshot, readDatabaseSqlResult } from './studio-native-database-scenario.mjs';
+  observeDatabaseSeedFailure, projectDatabaseSnapshot, readDatabaseSqlResult, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const origin = 'http://127.0.0.1:18338';
 const databaseA = 'WB61_Alpha_Test';
@@ -180,4 +180,110 @@ test('a rejected native root candidate cannot publish cleanup authority, includi
   }
   let currentRoot;
   admitNativeStudioRoot(candidate, expected, (admitted) => { currentRoot = admitted; }); assert.equal(currentRoot, candidate);
+});
+
+const failedResponse = (text, status = 400) => ({ status, body: new ReadableStream({ start(controller) {
+  controller.enqueue(new TextEncoder().encode(text)); controller.close();
+} }) });
+
+test('failed seed observation retains only fixed status, frame types and allowlisted codes', { timeout: 3000 }, async () => {
+  const secret = 'secret-token-SQL-header-body';
+  const value = await observeDatabaseSeedFailure(failedResponse(JSON.stringify({ type: 'error', code: 'sql_parse_error',
+    message: secret, sql: secret, token: secret, headers: { authorization: secret }, unknown: secret })));
+  assert.equal(value.httpStatus, 400); assert.equal(value.httpCategory, 'client-error');
+  assert.equal(value.bodyState, 'complete'); assert.equal(value.format, 'json'); assert.equal(value.frameCount, 1);
+  assert.deepEqual(value.frameTypes, ['error']); assert.deepEqual(value.codes, ['sql_parse_error']);
+  assert.equal(value.unknownCodePresent, false); assert.equal(value.rawBodyOrSqlOrHeadersPersisted, false);
+  assert.equal(JSON.stringify(value).includes(secret), false);
+  assert.deepEqual(Object.keys(value), ['schema', 'httpStatus', 'httpCategory', 'bodyState', 'observedBytes', 'reads',
+    'format', 'frameCount', 'frameTypes', 'codes', 'unknownCodePresent', 'rawBodyOrSqlOrHeadersPersisted']);
+});
+
+test('unknown or nested failed seed values never become exported code or frame type', { timeout: 3000 }, async () => {
+  const secret = 'never-exported-unknown';
+  const text = [JSON.stringify({ type: secret, code: secret, error: { code: secret, message: secret } }),
+    JSON.stringify({ type: 'error', code: 'sql_execution_error', message: secret })].join('\n');
+  const value = await observeDatabaseSeedFailure(failedResponse(text, 500));
+  assert.equal(value.httpCategory, 'server-error'); assert.equal(value.format, 'ndjson'); assert.equal(value.frameCount, 2);
+  assert.deepEqual(value.frameTypes, ['unknown', 'error']); assert.deepEqual(value.codes, ['sql_execution_error']);
+  assert.equal(value.unknownCodePresent, true); assert.equal(JSON.stringify(value).includes(secret), false);
+});
+
+test('failed seed reads retain at most 8192 bytes and refuse a large chunk before parsing', { timeout: 3000 }, async () => {
+  let cancelled = 0;
+  const value = await observeDatabaseSeedFailure({ status: 413, body: new ReadableStream({ start(controller) {
+    controller.enqueue(new Uint8Array(100_000).fill(65));
+  }, cancel() { cancelled += 1; } }) });
+  assert.equal(value.bodyState, 'too-large'); assert.equal(value.observedBytes, 8193); assert.equal(value.reads, 1);
+  assert.equal(value.format, null); assert.equal(value.frameCount, null); assert.deepEqual(value.codes, []);
+  assert.equal(cancelled, 1);
+});
+
+test('failed seed zero-byte chunk flood stops at 16 reads and cancels without polling', { timeout: 3000 }, async () => {
+  let reads = 0;
+  let cancelled = 0;
+  const reader = { read: async () => { reads += 1; return { done: false, value: new Uint8Array() }; },
+    cancel: async () => { cancelled += 1; } };
+  const value = await observeDatabaseSeedFailure({ status: 400, body: { getReader: () => reader } });
+  assert.equal(value.bodyState, 'read-limit'); assert.equal(value.reads, 16); assert.equal(reads, 16);
+  assert.equal(value.observedBytes, 0); assert.equal(value.frameCount, null); assert.equal(cancelled, 1);
+});
+
+test('incomplete JSON, excessive NDJSON and invalid UTF8 leave parsing unknown without raw errors', { timeout: 3000 }, async () => {
+  const expires = Date.now() + 2000;
+  for (const response of [failedResponse('{"message":"never-export"'),
+    failedResponse(Array.from({ length: 9 }, () => '{"type":"error"}').join('\n')),
+    { status: 400, body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array([255])); controller.close(); } }) }]) {
+    assert.ok(Date.now() < expires);
+    const value = await observeDatabaseSeedFailure(response, { deadline: expires });
+    assert.equal(value.bodyState, 'invalid-json'); assert.equal(value.frameCount, null); assert.deepEqual(value.codes, []);
+    assert.equal(JSON.stringify(value).includes('never-export'), false);
+  }
+});
+
+test('failed seed cancellation and expired deadlines do not acquire a body reader', { timeout: 3000 }, async () => {
+  let acquired = 0;
+  const response = { status: 400, body: { getReader() { acquired += 1; throw new Error('secret-body-error'); } } };
+  const controller = new AbortController(); controller.abort(new Error('secret-cancel'));
+  const cancelled = await observeDatabaseSeedFailure(response, { signal: controller.signal });
+  const expired = await observeDatabaseSeedFailure(response, { deadline: Date.now() - 1 });
+  assert.equal(cancelled.bodyState, 'cancelled'); assert.equal(expired.bodyState, 'timeout'); assert.equal(acquired, 0);
+  assert.equal(JSON.stringify([cancelled, expired]).includes('secret'), false);
+});
+
+test('pending failed seed read stops at the supplied deadline and requests cancellation once', { timeout: 3000 }, async () => {
+  let cancelled = 0;
+  const reader = { read: () => new Promise(() => {}), cancel: async () => { cancelled += 1; } };
+  const value = await observeDatabaseSeedFailure({ status: 400, body: { getReader: () => reader } }, { deadline: Date.now() + 25 });
+  assert.equal(value.bodyState, 'timeout'); assert.equal(value.reads, 1); assert.equal(cancelled, 1);
+});
+
+test('HTTP failure identity survives malformed streams and a throwing evidence recorder', { timeout: 3000 }, async () => {
+  const primary = new Error('original HTTP failure');
+  let observed;
+  await assert.rejects(rejectDatabaseSeedHttpFailure(primary, { status: 400, body: { getReader() {
+    throw new Error('secret-observer-error');
+  } } }, {}, (value) => { observed = value; throw new Error('secret-record-error'); }), (error) => error === primary);
+  assert.equal(observed.bodyState, 'read-error'); assert.equal(JSON.stringify(observed).includes('secret'), false);
+});
+
+test('corrected seed uses native STRING and writable ordinary key before any database journey action', { timeout: 3000 }, async () => {
+  const calls = [];
+  let result;
+  let domAccesses = 0;
+  const primary = new Error('real seed HTTP 400');
+  await assert.rejects(runDatabaseRecoveryScenario({ origin, auth: 'secret-auth', runId: 'test-corrected',
+    check: () => {}, setStage: () => {}, setResult: (value) => { result = value; }, launchIdentityKey: () => '100:first',
+    getPage: () => { domAccesses += 1; throw new Error('journey should not start'); },
+    api: async (method, apiPath, body, auth, raw, observation) => {
+      calls.push({ method, apiPath, body, raw, operation: observation?.operation });
+      if (calls.length === 1) return '{"type":"end","rowCount":0,"recordsAffected":0,"elapsedMilliseconds":1}';
+      return rejectDatabaseSeedHttpFailure(primary, failedResponse('{"type":"error","code":"sql_parse_error","message":"secret-auth"}'), {}, observation.record);
+    } }), (error) => error === primary);
+  assert.equal(calls.length, 2); assert.equal(calls[1].operation, 'create-table');
+  assert.equal(calls[1].body.sql, 'CREATE TABLE "WB61Probe" ("Marker" STRING, PRIMARY KEY ("Marker"))');
+  assert.equal(domAccesses, 0); assert.deepEqual(result.selections, []); assert.equal(result.firstClose, null);
+  assert.equal(result.secondLaunch, null); assert.equal(result.restored, null); assert.equal(result.query, null);
+  assert.equal(result.secondClose, null); assert.equal(result.passed, false); assert.equal(result.seedFailures.length, 1);
+  assert.equal(result.seedFailures[0].operation, 'create-table'); assert.equal(JSON.stringify(result).includes('secret-auth'), false);
 });

@@ -821,3 +821,22 @@
 - 新会话第一任务接续WB61剩余：先核最新HANDOFF/AGENTS/ROADMAP/queue、git与已存在任务/agents；冻结WB62范围和专属实施归属，补有界脱敏失败观察并核修正seed，再执行至多一次真实Studio数据库恢复旅程。复用已有实现，禁止盲重跑或继续堆积无关Query诊断。之后仍按已确认缺口推进Studio文件/安装、VS Code向导/Notebook/分页/LSP/治理转交与严格退出、Web真实治理/权限/恢复及共同候选版本证据。
 - 新会话创建/启动及heartbeat迁移的实际ID和结果保存在同目录rollover-result.json及app自动化状态；本交接提交后旧会话停止仓库写入，新会话接管。origin/parity-results当前0061d6d78591fb08493f473d3231ca42303faae1保留；外部HANDOFF原字节、Identity/发布等其它会话文件不纳入本次提交。
 - 已有PS7、禁Graphify/广域扫描/未授权安装、有界执行、完整进程身份与finally回收、精确临时对象清理、最终完整restore/format与自有hunk提交规则全部保持；旧policy拒删Temp/WB40保留对象不碰。无push/发布/部署/外发授权扩张。三宿主闭环后继续其它SonnetDB已确认任务，并继续5任务滚动会话规则。
+
+## 当前检查点（WB62，2026-10-07；新会话接管，0/5）
+
+- 本地会话 `01a11709-c3a5-7603-84d0-77de883518a7` 已接管 `7cf310a6074ebe388678a447e827f5d1a654c8ab`；实际回读 automation `workbench` 的 target_thread_id 为本会话，ACTIVE、每30分钟，没有创建第二自动化。真实迁移收据在 `artifacts/workbench-session-rollover-20261007-01/rollover-result.json`。旧会话交接后停写；本会话完成任务计数0/5，WB62为第1个进行中独立任务。
+- 四交接文档完整字节接收并保存SHA/快照；本团队实际只有root，随后新派只读盘点与专属实施，不继承旧代理运行状态。最新外部HANDOFF全部字节与Identity/发布文件保留，当前parity引用保留。WB61本地PASS与唯一actual HTTP400 FAIL分列，修正版本仍0actual，不升级旧失败。
+- WB62冻结只3个既有数据库恢复e2e源；根独占5共享docs、自有验证工具、集成与本地commit。先核STRING/普通主键seed及有界脱敏失败观察，再最多一次真实database-recovery、最多两desktop启动。普通A→B选择/新PUT/磁盘语义、第一正常退出、同目录第二desktop、被动B GET/DOM、普通B查询、第二正常退出与严格回收全链才算PASS。page reload/API选库/private Vue不替代；不改产品、不堆无关Query诊断。
+- 冻结窗口45分钟、最多9封装命令/2定向测试/0新项目构建；actual≤900秒并留90秒回收，现有API80/bridge128/identity32/helper96/file64及原关闭预算保持。实现≤18分钟/12命名内容文件/12短shell/3搜索，独立只读复核另有界。证据与实际预算在 `artifacts/wb62-studio-database-recovery-20261007`。
+- PS7固定路径、禁Graphify/广域扫描/未授权安装，有界数量与墙钟、完整进程身份父链/finally、仅清核实自有绝对路径继续；旧policy拒删Temp与WB40保留runtime不碰。最终树完整restore/原Format Check后才本地提交自有hunk；无push/发布/部署/外发。Web/Studio/VS Code、文件对话框/安装/Extension Host/AOT/硬件/长稳/发布保持独立，Graph保持Beta。
+
+## 当前检查点（WB62，2026-10-08；真实A选库ack验收失败，1/5）
+
+- 本会话 `01a11709-c3a5-7603-84d0-77de883518a7` 的第1个独立任务已形成失败检查点，计数1/5（包含实施、修正、测试、两轮复核及集成；没有拆分计数），下一任务WB63。同一个workbench仍指向本会话、ACTIVE、每30分钟，未创建重复自动化。此检查点覆盖本会话前一个0/5进行中记录。
+- 专属三e2e源补seed非2xx失败的8192B保留/16read/≤2秒且受原API5秒与mainDeadline约束的脱敏观察，仅固定类别/type和5项code白名单；未知/超限/取消不保存原body/SQL/header/token，观察与记录失败保留原HTTP异常对象。seed分支finally明确abort fetch，固定WB61/WB62目录准入；旧产品、普通退出与归属/预算门禁未改。root隐私微试1/1、最终23/23零fail/cancel/skip/todo、runner语法及最终源码独立PASS，9产品source/runtime SHA复用WB61，0新build。
+- 唯一actual `studio-native-real-d95f81d2-3347-4a4c-b8f4-0272068d7cf8`：修正STRING/普通主键的两库CREATE/INSERT与各自SELECT哨兵门禁已经越过（源码串行8请求，真实总API13），seedFailures为空；只能证本次输入，不补WB61原400业务原因。原native bootstrap/Managed Local有效。普通A选库的fresh PUT验收30次/20秒失败，原FAIL/launch1/selections0保留；firstClose/secondLaunch/restored/query/secondClose全null，normalExit=false。
+- bridge实有launch1、sequence6/requestSequence43的A PUT200，body activeDatabase/defaultDatabase/两identity均为A；不能称“没有PUT”。失败action/request双barrier未持久化，不能据此判旧ack、迟响应、产品持久化缺陷或具体因果。B选库、磁盘对拍、第一正常关闭、第二desktop/恢复/B查询/第二正常关闭均未验收，不用API/page reload/private Vue替代，不再追加actual。
+- native208.791秒/外层wrapper210秒分列。六terminal全部保存；cleanupProven=true仅计回收，9完整归属fallback、四port释放、314+163+4专属对象删除、helper reclaim0/errors空。fresh root52记录身份无存活/无新增stop/无排除，短命CIM gap不冒称完整lifetime。证据目录 `artifacts/wb62-studio-database-recovery-20261007`，真实失败与可复核checkpoint分别判断。
+- 根串行完成5共享docs与三源最终8路径冻结、完整restore/原Format Check、自有HANDOFF两段私有index及本地commit；实际门禁/提交/退出以该目录final-tree/gate receipts/commit-result/final-acceptance与git log为准。提交使用expected-parent CAS，默认index在canonical lock下仅同步8路径；原HANDOFF接管prefix全部字节/外部Identity发布文件/当前parity均保护，原索引失败收据保留且不重复commit。
+- 辅助index发布微试在执行前被自动审批审查以“blocked by policy”拒绝，0文件创建/0执行；记录保留、不重试删除。根工具仍有PS7 parser与只读独立复核，不能把未运行的微试记PASS；临时index仅在核实任务归属和绝对路径后回收。旧policy拒删Temp与WB40保留runtime不碰。
+- 下一次先核本任务真实commit/退出与计数1/5，再冻结WB63必要的失败选择action/request双barrier、候选ack判定及普通DOM状态投影，基于现有6条bridge观察核原因；不盲重跑、不增加无关Query诊断。Studio文件四phase/安装、VS Code向导/Notebook/DOM分页/LSP/治理转交/严格退出、Web真实治理恢复及共同版本仍后续独立验收。Graph保持Beta；三宿主、安装/Extension Host/AOT/硬件/长稳/发布分列，无push/发布/部署/外发/安装授权扩张。

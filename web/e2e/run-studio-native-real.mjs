@@ -10,18 +10,19 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence } from './studio-native-evidence.mjs';
-import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
+import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.env.SONNETDB_STUDIO_NATIVE_REAL_SCENARIO ?? 'lifecycle';
 const sqlDialogsRequested = scenario === 'sql-dialogs';
 const databaseRecoveryRequested = scenario === 'database-recovery';
-const validationSlice = databaseRecoveryRequested ? 'WB-61' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
+const validationSlice = databaseRecoveryRequested ? 'WB-62' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
 const evidenceParents = Object.freeze({
   wb39: path.join(repository, 'artifacts', 'wb39-validation-20261007'),
   wb40: path.join(repository, 'artifacts', 'wb40-validation-20261007'),
   wb41: path.join(repository, 'artifacts', 'wb41-validation-20261007'),
   wb61: path.join(repository, 'artifacts', 'wb61-studio-database-recovery-20261007'),
+  wb62: path.join(repository, 'artifacts', 'wb62-studio-database-recovery-20261007'),
 });
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
 const selectedEvidence = configuredEvidence && path.isAbsolute(configuredEvidence)
@@ -219,7 +220,7 @@ async function captureOwned(label, final = false) {
   return live;
 }
 
-async function api(method, apiPath, body, auth, raw = false) {
+async function api(method, apiPath, body, auth, raw = false, seedFailure = null) {
   check();
   if (++counters.requests > 80) throw new Error('Real API/CDP request cap exceeded.');
   const controller = new AbortController();
@@ -230,7 +231,18 @@ async function api(method, apiPath, body, auth, raw = false) {
     const response = await fetch(`${origin}${apiPath}`, { method, signal: controller.signal,
       headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
       body: body ? JSON.stringify(body) : undefined });
-    if (!response.ok) throw new Error(`Real API ${method} ${apiPath} returned ${response.status}.`);
+    if (!response.ok) {
+      const primary = new Error(`Real API ${method} ${apiPath} returned ${response.status}.`);
+      if (databaseRecoveryRequested && raw && seedFailure
+        && ['create-database', 'create-table', 'insert-marker'].includes(seedFailure.operation)) {
+        try {
+          await rejectDatabaseSeedHttpFailure(primary, response, { signal: controller.signal, deadline: Math.min(Date.now() + 2000, mainDeadline) }, seedFailure.record);
+        } finally {
+          controller.abort();
+        }
+      }
+      throw primary;
+    }
     const text = await response.text();
     if (Buffer.byteLength(text) > 524_288) throw new Error('Real API response size cap exceeded.');
     if (raw && !databaseRecoveryRequested) throw new Error('Raw API result is reserved for the database-recovery scenario.');
@@ -880,9 +892,9 @@ async function relaunchDatabaseDesktop(args, environment, expectedDatabase) {
 try {
   if (process.platform !== 'win32' || !selectedEvidence || !['default', 'narrow'].includes(windowMode)
     || !['lifecycle', 'sql-dialogs', 'database-recovery'].includes(scenario)
-    || (databaseRecoveryRequested ? selectedEvidence[0] !== 'wb61'
+    || (databaseRecoveryRequested ? !['wb61', 'wb62'].includes(selectedEvidence[0])
       : sqlDialogsRequested ? selectedEvidence[0] !== 'wb41' : !['wb39', 'wb40'].includes(selectedEvidence[0]))
-    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit WB-39/WB-40 named evidence parent and default|narrow window mode.');
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62), and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
     path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs'),
     ...(databaseRecoveryRequested ? [path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.test.mjs')] : [])];

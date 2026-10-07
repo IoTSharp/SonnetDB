@@ -2,6 +2,15 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB62 合同与文件冻结（2026-10-08；真实A选库ack验收失败）
+
+- 新会话 `01a11709-c3a5-7603-84d0-77de883518a7` 从7cf310a6接管；第1独立任务已形成失败checkpoint，1/5。同一个workbench ACTIVE每30分钟；新滚动迁移时机优先，既有旧不迁移描述不生效，真实验收门槛保持。
+- 仅三e2e源，root五docs/验证/集成/提交；原产品及strict退出/ownership/预算未改。seed失败8KiB保留（overflow sentinel8193）/16read/≤2s受原5s/mainDeadline及abort控制，只固定类别/type/5code白名单；observer/record异常保primary，seed finally abort fetch。STRING/plain PK静态及本次真实门禁通过，不补WB61旧400因果。
+- root微试1/1+最终23/23、runner语法及源码独立PASS，9产品source/runtime SHA沿用WB61，0新build。唯一actual已越过双库8seed/SELECT门禁；A普通点击fresh PUT验收30次/20s失败，actual FAIL/launch1/selections0，firstClose/secondLaunch/restored/query/secondClose null。bridge确有sequence6/request43的A PUT200及一致identity/defaultDatabase，失败barrier未保存，原因unknown，不能称无PUT。
+- native208.791s/wrapper210s；六terminal保存，9fallback、四ports释放、314+163+4自有对象回收、helper reclaim0/errors空；cleanupProven=true不升normalExit=false。fresh root52身份absent/0新stop/0排除，短CIM gap分列。失败checkpoint独立复核、最终8路径restore/原format、expected-parent CAS本地commit与退出收据见 `artifacts/wb62-studio-database-recovery-20261007`。
+- 45分钟/root≤9封装/测试≤2run/actual≤1/launch≤2/0build窗口不扩；实现12短shell/10文件/3rg停写，review有界只读。辅助文件删除micro在执行前被自动审查blocked by policy，0执行/0文件，保留不重试。外部HANDOFF原prefix/Identity发布/parity/旧policy Temp与WB40保留；PS7/禁Graphify广域扫描安装/归属finally及绝对路径继续，无push发布部署外发。
+- 下一独立任务WB63先冻结失败action/request双barrier、候选ack判定与普通DOM投影，核现有实际A PUT的失败边界；不盲重跑或追加无关Query诊断。第二desktop恢复旅程仍未验收；三宿主/安装/Extension Host/AOT/硬件/长稳/发布分开，Graph Beta。
+
 ### WB-61 合同与文件冻结（2026-10-07；Studio 数据库选择及桌面重启恢复验收）
 
 - 基线 c5716912；WB60 只读验收盘点和 WB61 源码盘点已结束，未新增 actual。既有 connections store、公开 GET/PUT、普通 Explorer 选库及 mounted 恢复实现复用，不改产品来迎合测试。当前 Identity 会话已完成但未提交，其源码、solution 与共享文档全部保留。

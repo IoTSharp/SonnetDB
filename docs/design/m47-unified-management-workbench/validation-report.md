@@ -2,6 +2,14 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB62 Studio恢复接续（2026-10-08；失败checkpoint）
+
+- 最终3源有界seed失败观察及9新合同：root微试1/1、完整23/23零fail/cancel/skip/todo、runner语法和独立源码复核PASS。固定类别/type/5code白名单、8KiB保留/16read/≤2s、原API5s/mainDeadline/abort；不导出原body/SQL/header/token，异常保原primary。产品9SHA复用WB61，0新build；旧真实400不升级。
+- 唯一actual `studio-native-real-d95f81d2-3347-4a4c-b8f4-0272068d7cf8` 已越过双库CREATE/INSERT/SELECT哨兵8请求门禁；真实总API13。A普通选择的fresh PUT验收30次/20秒FAIL。bridge保存A PUT200（seq6/request43/launch1）且active/default/identity一致，失败barrier缺证，不能判无PUT、旧ack或产品根因。selections0/launch1，全部正常close/第二desktop/恢复/B查询null。
+- 原normalExit=false、cleanupProven=true；9归属fallback/四ports/314+163+4对象删除，六terminal全保存。native208.791s、wrapper210s分列；fresh root52身份absent、0新stop/0排除，仅证退出与失败checkpoint，不证完整短进程lifetime。日志/SHA/终态保留，旧policy对象不触碰。
+- 根工具并发保护补staged HANDOFF SHA、expected-parent commit-tree/update-ref CAS及canonical index.lock下8路径同步，原工具BLOCK与修正单列。辅助删除micro被自动审查blocked by policy，未执行、未建文件，不重试或记PASS。最终8路径freeze、完整restore/原format、私有自有HANDOFF、本地commit/后置退出与独立结果以本片收据和git log为准；独立源码PASS不代替实际FAIL或完整恢复。
+- 本会话1/5；下一WB63先留失败选择的双barrier/候选判定/DOM投影并核现有证据，不盲重跑。后续三宿主/原生文件/安装/Extension Host/AOT/硬件/长稳/发布保持独立，Graph Beta；没有push/发布/部署/外发/安装。
+
 ## WB-61 Studio 数据库恢复验收入口（2026-10-07；真实旅程 FAIL）
 
 - **范围与合同**：已有 connections store、原生 GET/PUT、普通 Explorer 选库及 mounted 恢复复用，产品源码未改。新增 database-recovery 场景要求普通 A→B 选库分别对拍新 PUT、原名 DOM/identity/defaultDatabase 与 owned 磁盘白名单；第一 desktop 正常关闭并证明所有所属身份/四端口释放后，保留同一专属 library/data/profile 再启动一次，先被动 DOM 确认 B，再正常 SQL route 的可观察 bootstrap GET 和普通只读 B 查询。route navigation 不能代替真实 desktop restart，最早自动 GET 不冒称被捕获。

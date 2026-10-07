@@ -3,6 +3,94 @@
 const connectionPath = '/studio-bridge/connections';
 const fail = (message) => { throw new Error(`Studio database recovery: ${message}`); };
 
+// Failed seed diagnostics contain only fixed categories. Body bytes are held
+// briefly in memory and are never returned, logged or included in exceptions.
+export async function observeDatabaseSeedFailure(response, { signal, deadline = Infinity } = {}) {
+  const maximumBytes = 8192;
+  const maximumReads = 16;
+  const expires = Math.min(Date.now() + 2000, deadline);
+  const result = { schema: 'sonnetdb.wb62.seed-failure.v1', httpStatus: null, httpCategory: 'unknown',
+    bodyState: 'unknown', observedBytes: 0, reads: 0, format: null, frameCount: null,
+    frameTypes: [], codes: [], unknownCodePresent: false, rawBodyOrSqlOrHeadersPersisted: false };
+  let reader;
+  let timer;
+  let stop;
+  try {
+    const status = response.status;
+    if (Number.isInteger(status) && status >= 100 && status <= 599) {
+      result.httpStatus = status;
+      result.httpCategory = status >= 500 ? 'server-error' : status >= 400 ? 'client-error' : 'other';
+    }
+    if (signal?.aborted) { result.bodyState = 'cancelled'; return result; }
+    if (Date.now() >= expires) { result.bodyState = 'timeout'; return result; }
+    if (!response.body || typeof response.body.getReader !== 'function') { result.bodyState = 'unavailable'; return result; }
+    reader = response.body.getReader();
+    const stopped = new Promise((resolve) => {
+      stop = () => resolve({ stopped: 'cancelled' });
+      signal?.addEventListener('abort', stop, { once: true });
+      timer = setTimeout(() => resolve({ stopped: 'timeout' }), Math.max(1, expires - Date.now()));
+    });
+    const chunks = [];
+    for (let index = 0; index < maximumReads && Date.now() < expires; index += 1) {
+      if (signal?.aborted) { result.bodyState = 'cancelled'; return result; }
+      result.reads += 1;
+      const part = await Promise.race([reader.read(), stopped]);
+      if (part.stopped === 'cancelled' || part.stopped === 'timeout') { result.bodyState = part.stopped; return result; }
+      if (part.done) {
+        result.bodyState = 'complete';
+        break;
+      }
+      if (!(part.value instanceof Uint8Array)) { result.bodyState = 'invalid-chunk'; return result; }
+      result.observedBytes = Math.min(maximumBytes + 1, result.observedBytes + part.value.byteLength);
+      if (result.observedBytes > maximumBytes) { result.bodyState = 'too-large'; return result; }
+      chunks.push(Buffer.from(part.value));
+    }
+    if (result.bodyState !== 'complete') {
+      result.bodyState = Date.now() >= expires ? 'timeout' : 'read-limit';
+      return result;
+    }
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks, result.observedBytes));
+    let frames;
+    try { frames = [JSON.parse(text)]; result.format = 'json'; }
+    catch {
+      const lines = text.split(/\r?\n/u).filter((line) => line.trim().length !== 0);
+      if (lines.length > 8 || !lines.length) { result.bodyState = 'invalid-json'; return result; }
+      frames = lines.map((line) => JSON.parse(line)); result.format = 'ndjson';
+    }
+    const allowedCodes = new Set(['sql_parse_error', 'sql_execution_error', 'sql_cancelled', 'sql_timeout', 'sql_locking_read_unsupported']);
+    result.frameCount = frames.length;
+    for (const frame of frames) {
+      if (Date.now() >= expires || signal?.aborted) {
+        result.bodyState = signal?.aborted ? 'cancelled' : 'timeout';
+        result.frameCount = null; result.frameTypes = []; result.codes = []; result.unknownCodePresent = false;
+        return result;
+      }
+      result.frameTypes.push(Array.isArray(frame) ? 'array' : frame && ['meta', 'end', 'error'].includes(frame.type) ? frame.type : 'unknown');
+      if (frame && typeof frame === 'object' && Object.hasOwn(frame, 'code')) {
+        if (typeof frame.code === 'string' && allowedCodes.has(frame.code)) {
+          if (!result.codes.includes(frame.code)) result.codes.push(frame.code);
+        } else result.unknownCodePresent = true;
+      }
+    }
+    return result;
+  } catch {
+    result.bodyState = signal?.aborted ? 'cancelled' : result.bodyState === 'complete' ? 'invalid-json' : 'read-error';
+    result.format = null; result.frameCount = null; result.frameTypes = []; result.codes = []; result.unknownCodePresent = false;
+    return result;
+  } finally {
+    clearTimeout(timer);
+    if (stop) signal?.removeEventListener('abort', stop);
+    // A refused/incomplete stream is cancelled without waiting beyond its own
+    // read deadline; the original fetch still owns the request abort signal.
+    try { if (reader) void Promise.resolve(reader.cancel()).catch(() => {}); } catch { /* Ancillary cleanup never replaces the HTTP failure. */ }
+  }
+}
+
+export async function rejectDatabaseSeedHttpFailure(primary, response, options, record) {
+  try { record(await observeDatabaseSeedFailure(response, options)); } catch { /* Observation cannot replace the primary failure. */ }
+  throw primary;
+}
+
 export function admitNativeStudioRoot(candidate, expected, commit) {
   const same = (left, right) => left && right && left.processId === right.processId && left.parentProcessId === right.parentProcessId
     && left.creationTimeUtc === right.creationTimeUtc && left.commandLine === right.commandLine && left.executablePath === right.executablePath;
@@ -163,14 +251,18 @@ export async function runDatabaseRecoveryScenario(harness) {
   const sentinelB = 'WB61_B';
   const querySql = 'SELECT "Marker" FROM "WB61Probe"';
   const result = { schema: 'sonnetdb.wb61.database-recovery.v1', databaseA, databaseB, sentinelA, sentinelB,
-    selections: [], firstClose: null, secondLaunch: null, restored: null, query: null, secondClose: null, passed: false,
+    seedFailures: [], selections: [], firstClose: null, secondLaunch: null, restored: null, query: null, secondClose: null, passed: false,
     boundary: 'Real API seed and auth preparation only; ordinary DOM database selection, native PUT/GET, exact owned disk semantics, actual desktop restart and read-only B query. Login UI, dialogs, installation, backup recovery and full three-host acceptance remain separate.' };
   harness.setResult(result);
   const contract = createDatabaseRecoveryContract({ databaseA, databaseB, origin });
   contract.launched(launchIdentityKey());
-  const executeSeed = async (apiPath, sql) => {
+  const executeSeed = async (operation, apiPath, sql) => {
     check();
-    const raw = await api('POST', apiPath, { sql }, auth, true);
+    const raw = await api('POST', apiPath, { sql }, auth, true, { operation,
+      record: (observation) => {
+        if (!['create-database', 'create-table', 'insert-marker'].includes(operation) || result.seedFailures.length >= 1) return;
+        result.seedFailures.push({ operation, observation });
+      } });
     if (typeof raw !== 'string' || Buffer.byteLength(raw) > 65_536) fail('seed result size/type failed.');
     const lines = raw.split(/\r?\n/u).filter(Boolean);
     if (lines.length > 8 || !lines.length) fail('seed result count failed.');
@@ -186,9 +278,9 @@ export async function runDatabaseRecoveryScenario(harness) {
   };
   setStage('real isolated mixed-case database seed');
   for (const [database, sentinel] of [[databaseA, sentinelA], [databaseB, sentinelB]]) {
-    await executeSeed('/v1/sql', `CREATE DATABASE "${database}"`);
-    await executeSeed(`/v1/db/${encodeURIComponent(database)}/sql`, 'CREATE TABLE "WB61Probe" ("Marker" STRING, PRIMARY KEY ("Marker"))');
-    await executeSeed(`/v1/db/${encodeURIComponent(database)}/sql`, `INSERT INTO "WB61Probe" ("Marker") VALUES ('${sentinel}')`);
+    await executeSeed('create-database', '/v1/sql', `CREATE DATABASE "${database}"`);
+    await executeSeed('create-table', `/v1/db/${encodeURIComponent(database)}/sql`, 'CREATE TABLE "WB61Probe" ("Marker" STRING, PRIMARY KEY ("Marker"))');
+    await executeSeed('insert-marker', `/v1/db/${encodeURIComponent(database)}/sql`, `INSERT INTO "WB61Probe" ("Marker") VALUES ('${sentinel}')`);
     readDatabaseSqlResult(await api('POST', `/v1/db/${encodeURIComponent(database)}/sql`, { sql: querySql }, auth, true), sentinel);
   }
   const boundedRead = async (operation) => {
