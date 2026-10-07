@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
-import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence } from './studio-native-evidence.mjs';
+import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence, projectNativeHelperStatistics } from './studio-native-evidence.mjs';
 import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -190,7 +190,9 @@ async function processAction(action, payload, final = false) {
     throw new Error('PowerShell 7 helper launch identity could not be proved.');
   }
   const result = messages.find((item) => item.kind === 'result');
-  if (code !== 0 || !result) throw new Error(messages.find((item) => item.kind === 'error')?.message ?? `Process helper ${action} failed.`);
+  const failure = code !== 0 || !result ? messages.find((item) => item.kind === 'error') : undefined;
+  Object.assign(record, projectNativeHelperStatistics(code === 0 && result ? result : failure));
+  if (code !== 0 || !result) throw new Error(failure?.message ?? `Process helper ${action} failed.`);
   return result.result;
 }
 

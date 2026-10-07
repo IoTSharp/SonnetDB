@@ -2,6 +2,12 @@
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
 
+### WB67 helper三统计保留（2026-10-08；本会话第1独立任务，0actual）
+
+- 基线c7db9130；WB66继承六路径post与精确private回收0commit，独立内容23PASS但收据timeliness FAIL单列；strict首numeric PID碰撞FAIL与唯一v2 69PID/current0/related0/0stop/0exclusion PASS、原pending/NOT_PRODUCED保持。继承不计任务，WB67计本会话1/5，同一workbench ACTIVE30分钟。
+- 仅H/R/E+专属新test，root五docs共九路径；success/error同envelope既有cimQueries/cachedPids/elapsedSeconds进入当前record/compact。固定own descriptor拒accessor、missing/非法null unknown、不coerce/造0；0新CIM/协议行/authority，原业务结果/primary错误/全部预算/fresh与cleanup门禁保持。
+- 微试1/1、最终Node31/31（新15+旧E16）零fail/cancel/skip/todo，纯PS7精确H输出两夹具与syntax通过；独立源码22PASS。工具首23PASS/1FAIL漏transient PID保留，修正版26PASS/真实Admit micro通过；完整最终tree restore/原format/本地commit/post/strict退出/独立终审见artifacts/wb67-helper-statistics-20261008。0actual/产品build/安装，旧真实失败不升级。
+- root21:40Z/14wrapper，原2test冻结保留且只为purePS emission独占amendment至3；scope/原helper budget不扩。下一片先核提交，再冻结有异库前置的真实恢复准备与诊断源，不盲actual；具体慢query仍unknown，三宿主/安装/AOT/硬件/长期/发布分列，Graph Beta。
 ### WB66 helper预算合同（2026-10-08；本会话第1独立任务，报告交付）
 
 - base6c67ff89；WB65继承index-only恢复及post通过、综合v2 overallFAIL/23of25和strict numeric-parent碰撞失败均保留，不计任务。新会话本片0/5→1/5，同一个workbench ACTIVE每30分钟。

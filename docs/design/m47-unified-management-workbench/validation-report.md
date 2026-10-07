@@ -2,6 +2,12 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB67 Native helper三统计保留（2026-10-08；本地合同，0actual）
+
+- H error追加同counter/cache/watch三统计；R原输出/握手守卫后保存决定原成功/错误的同envelope；E compact固定三标量。缺失/非法/accessor/null unknown，counts0..160安全整数与elapsed非负finite，保留合法20秒以上观察，不解析错误字符串。原result/primary/timeout-late/authority及所有预算/回收/终态不改，0新CIM/协议行/列表。
+- micro1/1与最终Node31/31（新15+既有E16）全部零fail/cancel/skip/todo；两个精确H AST输出片段纯PS7夹具（合成内部状态，0liveCIM）、H AST/三JS syntax通过。覆盖success/error、missing/非法/descriptor、oversize/credential、错身份、timeout late、compact及原96分段；仅本地合同，不是真实helper/Studio恢复或性能原因证据。
+- 源码独立22PASS；工具首23PASS/1FAIL原样保留，漏transient日志PID经真实Admit微试修正后v2 26PASS。WB66继承post/v2strict/内容23PASS与晚收据timeliness FAIL、首外部PID复用strict FAIL以及旧pending/NOT_PRODUCED分别保留。九文件最终完整restore/原format/本地CAS提交/post/strict退出/最终独立review见本片artifacts与git，19旧保护对象与foreign字节守卫保持。
+- 本片0actual/产品build/安装，不重跑WB65原43或WB64实跑；原actual/normalExit/cleanupProven false及rootRecovery454分列。三宿主/真实Server/OS文件/安装/ExtensionHost/AOT/硬件/长期/发布仍待独立验收，Graph Beta。
 ## WB66 Native helper预算合同（2026-10-08；本地报告，0actual）
 
 - 专属[预算合同](wb66-helper-budget-contract.md)完成实际runner/source/三range和H/E协议逐明确路径核验，独立28/28 PASS。WB64内部20.19s墙钟分支拒绝，CIM15/cache16没有数量耗尽；5snapshot末exit1/timedOutfalse，外层耗时不等内部Stopwatch。未留逐查询/阶段时序，不能推慢CIM或权限原因。

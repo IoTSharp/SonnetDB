@@ -39,6 +39,23 @@ export function nativeIdentityKey(identity) {
   return `${identity.processId}:${identity.creationTimeUtc}`;
 }
 
+// Statistics are optional observations from one helper envelope. Reading fixed
+// own data properties never invokes an accessor or turns a rejected action
+// into authority; absent or invalid values remain explicitly unknown.
+export function projectNativeHelperStatistics(envelope) {
+  const number = (field, count = false) => {
+    try {
+      if (!envelope || typeof envelope !== 'object') return null;
+      const descriptor = Object.getOwnPropertyDescriptor(envelope, field);
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) return null;
+      const value = descriptor.value;
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
+      return count && (!Number.isSafeInteger(value) || value > 160) ? null : value;
+    } catch { return null; }
+  };
+  return { cimQueries: number('cimQueries', true), cachedPids: number('cachedPids', true), elapsedSeconds: number('elapsedSeconds') };
+}
+
 export function compactNativeProcessEvidence({ runnerIdentity, studioIdentity, events, helpers, streamCounts }, { now = Date.now, deadline = now() + 1000 } = {}) {
   if (!Array.isArray(events) || events.length > 24 || !Array.isArray(helpers) || helpers.length > 64) throw new NativeEvidenceError('process-count');
   const table = new Map();
@@ -97,7 +114,8 @@ export function compactNativeProcessEvidence({ runnerIdentity, studioIdentity, e
     const item = helpers[index];
     compactHelpers.push({ processId: item.processId, parentProcessId: item.parentProcessId, startedAtUtc: item.startedAtUtc,
       command: item.command, action: item.action, identityKey: reference(item.identity), exitCode: item.exitCode,
-      exitedAtUtc: item.exitedAtUtc, stderrBytes: item.stderrBytes, timedOut: item.timedOut === true });
+      exitedAtUtc: item.exitedAtUtc, stderrBytes: item.stderrBytes, timedOut: item.timedOut === true,
+      ...projectNativeHelperStatistics(item) });
   }
   check();
   return { schemaVersion: 2, identityKeyFormat: 'processId:creationTimeUtc', runnerIdentityKey, studioIdentityKey,

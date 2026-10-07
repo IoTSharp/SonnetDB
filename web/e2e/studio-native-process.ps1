@@ -233,6 +233,6 @@ try {
 }
 catch {
     # Never echo the payload, native bootstrap, request headers or environment.
-    [Console]::Out.WriteLine((@{ kind = 'error'; message = $_.Exception.Message } | ConvertTo-Json -Compress))
+    [Console]::Out.WriteLine((@{ kind = 'error'; message = $_.Exception.Message; cimQueries = $taskCimCount; cachedPids = $taskCimCache.Count; elapsedSeconds = $taskWatch.Elapsed.TotalSeconds } | ConvertTo-Json -Compress))
     exit 1
 }
