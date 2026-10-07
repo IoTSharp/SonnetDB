@@ -1,0 +1,7 @@
+# Machine-local API snapshots, process metadata and execution scratch files.
+.local/
+process-audit.jsonl
+final-process-audit-*.json
+blog-inventory-*.json
+*.lock
+*.tmp

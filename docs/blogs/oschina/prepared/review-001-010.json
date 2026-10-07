@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "9788645e1b47b538061f351f069479f7a0635c9f",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0",
+    "tagCommit": "827d6cff02dc33aea72d60fcaa1c511d74a0934a",
+    "evidence": "主智能体只读核验draft=false/prerelease=false；不使用异常发布日期，不把候选验证数当正式Gate"
+  },
+  "expectedArticleIds": [
+    "001",
+    "002",
+    "003",
+    "004",
+    "005",
+    "006",
+    "007",
+    "008",
+    "009",
+    "010"
+  ],
+  "frozenArticleIds": [
+    "001",
+    "002",
+    "003",
+    "004",
+    "005",
+    "006",
+    "007",
+    "008",
+    "009",
+    "010"
+  ],
+  "pendingArticleIds": [],
+  "articles": [
+    {
+      "articleId": "001",
+      "title": "SonnetDB 简介：开源时序数据库的新星",
+      "sourcePath": "docs/blogs/001-sonnetdb-introduction.md",
+      "preparedPath": "docs/blogs/oschina/prepared/001-sonnetdb-introduction.md",
+      "sourceSha256": "9a36131802f77e7dde3d24f15b8a8c821b041e0ebb92e0ba1aee2ea6c95367bf",
+      "preparedSha256": "39381460216f00f21e095032ef0c1b43167ca23da3faa68f26537da4e8867c86",
+      "sourceDocs": [
+        "README.md",
+        "docs/getting-started.md",
+        "docs/data-model.md",
+        "docs/sql-reference.md",
+        "docs/capability-maturity.md",
+        "docs/mcp-contract.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留入门主题与cpu可操作SQL；修正0.6旧版本、时序单模型定位和绝对性能/AI宣传；正式4.0/main清晰区分，九模型partial、Graph Beta、只读HTTP MCP与MQ实例恢复边界保留。",
+      "validation": "人工文档/源码事实复核、标题/SHA/绝对链接核验；本次未运行博客中的构建/API/性能/安装/恢复示例"
+    },
+    {
+      "articleId": "002",
+      "title": "为什么选择 SonnetDB：五大核心优势解析",
+      "sourcePath": "docs/blogs/002-why-choose-sonnetdb.md",
+      "preparedPath": "docs/blogs/oschina/prepared/002-why-choose-sonnetdb.md",
+      "sourceSha256": "4fd20eade970c856a1ced4aa8b07d9abae58fc94dc51557d106d2c16de2d1c2b",
+      "preparedSha256": "019829b112a9c8352844835c97f6de7760fe8b39c5426fdb75d299ce99d11f86",
+      "sourceDocs": [
+        "README.md",
+        "AGENTS.md",
+        "docs/sql-reference.md",
+        "docs/capability-maturity.md",
+        "src/SonnetDB/SonnetDB.csproj",
+        "src/SonnetDB.Core/SonnetDB.Core.csproj",
+        "LICENSE"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留五大选型主题；删除完全SQL/绝对内存安全/启动毫秒数/竞品许可误述；修正关系与measurement能力区别、AOT组件范围、Graph Beta及MQ备份边界。",
+      "validation": "人工文档/源码事实复核、标题与SHA核验；本次未运行博客中的构建/API/性能示例"
+    },
+    {
+      "articleId": "003",
+      "title": "Docker 快速上手：5 分钟运行 SonnetDB",
+      "sourcePath": "docs/blogs/003-docker-quickstart.md",
+      "preparedPath": "docs/blogs/oschina/prepared/003-docker-quickstart.md",
+      "sourceSha256": "1010bf41200287c04eb82e3a25f84882844206ad02654cd770cc01a5a93f4e8b",
+      "preparedSha256": "79eb62fde66b3aa8e153db99b089c88db3ca84c082b13f1b70dd4a5c1bfd6371",
+      "sourceDocs": [
+        "docs/releases/docker-image.md",
+        "docs/getting-started.md",
+        "src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs",
+        "src/SonnetDB/Endpoints/Routes/DatabaseEndpoints.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留Docker可操作示例；5080 loopback与/v1/db、setup状态经文档及路由核对；明确latest为main滚动镜像，不冒称固定4.0镜像；首次初始化与远程TLS边界保留。",
+      "validation": "人工文档/源码事实复核、标题与SHA核验；本次未运行博客中的构建/API/性能示例"
+    },
+    {
+      "articleId": "004",
+      "title": "从源码编译 SonnetDB：开发环境搭建指南",
+      "sourcePath": "docs/blogs/004-build-from-source.md",
+      "preparedPath": "docs/blogs/oschina/prepared/004-build-from-source.md",
+      "sourceSha256": "5b9e8d63d61c459675e7312bd449d46d71954fbb0805e6374bccc7a2df8b8583",
+      "preparedSha256": "21357babd06df3bba06ce7b14b26d9d92196130da1fe7a0e66c7a99e7b6946b2",
+      "sourceDocs": [
+        "global.json",
+        "web/package.json",
+        "web/vite.config.ts",
+        "src/SonnetDB/SonnetDB.csproj",
+        "src/SonnetDB.Core/SonnetDB.Core.csproj",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "AGENTS.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "修正仓库IoTSharp归属、SonnetDB.slnx、Core/Server项目、Vue3/Vite及dist映射；删除React/MAUI错误与构建等于全验收表述；保留clone/标签/还原/编译/定向测试/启动例子。",
+      "validation": "人工文档/源码事实复核、标题与SHA核验；本次未运行博客中的构建/API/性能示例"
+    },
+    {
+      "articleId": "005",
+      "title": "架构深度解析：SonnetDB 的写入与查询路径",
+      "sourcePath": "docs/blogs/005-architecture-deep-dive.md",
+      "preparedPath": "docs/blogs/oschina/prepared/005-architecture-deep-dive.md",
+      "sourceSha256": "c8ee2d0284459cb3a1a33c4067bf2b9a5d7f63abfe26a5195101969e3cc53503",
+      "preparedSha256": "ac129e7626bee70605864dabd5a8c9edd3c528c598b099ac136dfc0e92d86e00",
+      "sourceDocs": [
+        "docs/architecture.md",
+        "docs/performance-reliability-updates.md",
+        "src/SonnetDB.Core/Engine/TsdbOptions.cs",
+        "src/SonnetDB.Core/Memory/MemTable.cs",
+        "src/SonnetDB.Core/Engine/Compaction/CompactionPlanner.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "按源码修正MemTable分桶与Size-Tiered策略；区分WAL进程缓冲、OS page cache与fsync，不写任意断电零丢失；段替换main特性与发行物区分，删除无据前台影响/性能保证。",
+      "validation": "人工文档/源码事实复核、标题与SHA核验；本次未运行博客中的构建/API/性能示例"
+    },
+    {
+      "articleId": "006",
+      "title": "性能对比：SonnetDB vs InfluxDB vs TDengine vs SQLite",
+      "sourcePath": "docs/blogs/006-vs-influxdb-tdengine-sqlite.md",
+      "preparedPath": "docs/blogs/oschina/prepared/006-vs-influxdb-tdengine-sqlite.md",
+      "sourceSha256": "d02b8b2304f6109acb16b0deeea4022b914f56488bcc907b2bff06b4b3ed71c0",
+      "preparedSha256": "0bcca6c886421b86e3a9950ad10e3d2b4594bb942b03ae8811f49e3bb9e72307",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "docs/blogs/142-reliability-and-benchmark-evidence.md",
+        "src/SonnetDB.Core/Engine/TsdbOptions.cs",
+        "docs/capability-maturity.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留四库性能对比主题和基准命令；删除无可复核原始证据的1.83M/12ms/空闲内存/体积与普遍胜出表；IoTDB历史运行仅说明方法，原日志当前不存在，不引用数值为4.0成绩。",
+      "validation": "人工文档/源码事实复核、标题与SHA核验；本次未运行博客中的构建/API/性能示例"
+    },
+    {
+      "articleId": "007",
+      "title": "CLI 工具安装与使用：sndb 命令行指南",
+      "sourcePath": "docs/blogs/007-cli-installation.md",
+      "preparedPath": "docs/blogs/oschina/prepared/007-cli-installation.md",
+      "sourceSha256": "6d525dadfe10ce67ccd3c2c804f0405f44fa4ef442d09fd94ca5dc33ad6c4fac",
+      "preparedSha256": "3359da2d1bcb189861fb8bc754bf495a04d350a84b49eab9906fc9b6a962ac59",
+      "sourceDocs": [
+        "docs/cli-reference.md",
+        "docs/backup-restore.md",
+        "src/SonnetDB.Cli/CliApplication.cs",
+        "src/SonnetDB.Cli/CliProfileStore.cs",
+        "src/SonnetDB.Cli/SonnetDB.Cli.csproj"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留安装/profile/REPL/脚本/备份例子；按CliApplication与CliProfileStore修正命令、5080与.sndb/profiles.json；4.0工具可固定版本，main新命令按实际help核对；没有执行安装/API示例。；独立复核将远程示例末句改为SHOW MEASUREMENTS，避免依赖仅本地建立的cpu。",
+      "validation": "人工文档/源码事实复核、标题/SHA/绝对链接核验；本次未运行博客中的构建/API/性能/安装/恢复示例"
+    },
+    {
+      "articleId": "008",
+      "title": "首次设置向导：从零开始配置 SonnetDB",
+      "sourcePath": "docs/blogs/008-first-setup-wizard.md",
+      "preparedPath": "docs/blogs/oschina/prepared/008-first-setup-wizard.md",
+      "sourceSha256": "752d203353f74af97e6396f915d7a60b0ddc44fd867ee33e792e08fe2cc29492",
+      "preparedSha256": "a2fcef4edbf071296acdcddcb8fcbb71bb7c5f500df681bdc62ef311f187df94",
+      "sourceDocs": [
+        "docs/getting-started.md",
+        "docs/releases/docker-image.md",
+        "web/src/views/SetupView.vue",
+        "src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs",
+        "src/SonnetDB/Endpoints/Routes/DatabaseEndpoints.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "按SetupView及SetupEndpoints修正5080/admin单表单、服务器身份、管理员与初始Token同时创建、一次明文保存与已初始化409；删除清安全配置/数据卷重置建议；setup/认证实际验证与loopback边界保留。",
+      "validation": "人工文档/源码事实复核、标题/SHA/绝对链接核验；本次未运行博客中的构建/API/性能/安装/恢复示例"
+    },
+    {
+      "articleId": "009",
+      "title": "深入理解 SonnetDB 数据模型：Measurement、Tag、Field 与 Time",
+      "sourcePath": "docs/blogs/009-data-model.md",
+      "preparedPath": "docs/blogs/oschina/prepared/009-data-model.md",
+      "sourceSha256": "54286e073a50e3dabc3a1719ba8c098b766e124729ba0dc650b5a15f5f939819",
+      "preparedSha256": "275d31dc09ccf64e4fca95a5c0a6a60d0a250100e09a8d5168cf922e53f4336d",
+      "sourceDocs": [
+        "docs/data-model.md",
+        "docs/sql-reference.md",
+        "docs/relation-type-boundary.md",
+        "docs/design/sql-identifier-case.md",
+        "src/SonnetDB.Core/Engine/Tsdb.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留measurement/TAG/FIELD/time/series主题及SQL；修正VECTOR/GEOPOINT属于FIELD、STRING/BOOL类型、受控schema-on-write、series非关系主键、计数口径和名称合同；正式4.0/main差异与九模型边界标注。",
+      "validation": "人工文档/源码事实复核、标题/SHA/绝对链接核验；本次未运行博客中的构建/API/性能/安装/恢复示例"
+    },
+    {
+      "articleId": "010",
+      "title": "深入探讨：SonnetDB 的文件格式与存储布局",
+      "sourcePath": "docs/blogs/010-file-format.md",
+      "preparedPath": "docs/blogs/oschina/prepared/010-file-format.md",
+      "sourceSha256": "7053895c535cc9857e91a6b0388e3513c49d1099f3c009a1d9084b619e3be257",
+      "preparedSha256": "82b90dd2d0ac654f8b89e602c30fb153e7f1b043e361ed8cb2f630ca64e95acc",
+      "sourceDocs": [
+        "docs/file-format.md",
+        "docs/backup-restore.md",
+        "docs/performance-reliability-updates.md",
+        "src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "修正Server/DataRoot与数据库公共catalog/schema/WAL/segments布局；按4.0标签SegmentWriter核对v6，说明旧v4/v5兼容与mini-footer受控诊断；保留离线backup/verify/dry-run/新目录恢复例子，MQ实例状态不冒称单库覆盖。",
+      "validation": "人工文档/源码事实复核、标题/SHA/绝对链接核验；本次未运行博客中的构建/API/性能/安装/恢复示例"
+    }
+  ],
+  "validation": {
+    "articleCount": 10,
+    "exactSourceStateTitles": true,
+    "sourceAndPreparedHashes": true,
+    "absoluteHttpsLinks": true,
+    "closedCodeFences": true,
+    "examplesExecuted": false,
+    "sourceArticlesModified": false
+  }
+}

@@ -1,0 +1,388 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "9788645e1b47b538061f351f069479f7a0635c9f",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0",
+    "tagCommit": "827d6cff02dc33aea72d60fcaa1c511d74a0934a",
+    "evidence": "主智能体只读核验draft=false/prerelease=false；不使用异常发布日期，不把候选数字当正式验收"
+  },
+  "expectedArticleIds": [
+    "011",
+    "012",
+    "013",
+    "014",
+    "015",
+    "016",
+    "017",
+    "018",
+    "019",
+    "020",
+    "021",
+    "022",
+    "023",
+    "024",
+    "025",
+    "026",
+    "027",
+    "028",
+    "029",
+    "030"
+  ],
+  "frozenArticleIds": [
+    "011",
+    "012",
+    "013",
+    "014",
+    "015",
+    "016",
+    "017",
+    "018",
+    "019",
+    "020",
+    "021",
+    "022",
+    "023",
+    "024",
+    "025",
+    "026",
+    "027",
+    "028",
+    "029",
+    "030"
+  ],
+  "pendingArticleIds": [],
+  "articles": [
+    {
+      "articleId": "011",
+      "title": "安全机制详解：用户、角色与权限管理",
+      "sourcePath": "docs/blogs/011-security-users-roles.md",
+      "preparedPath": "docs/blogs/oschina/prepared/011-security-users-roles.md",
+      "sourceSha256": "fc7013029aaa78e4b06a7418a49420bce8d39a43ad9fdef37a8b73396e91242f",
+      "preparedSha256": "d83fb7929f0a3c286ebc783c4b07d5466852d821e40c77650061ef6f60e07fd0",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB/Auth/ControlPlane.cs",
+        "src/SonnetDB/Auth/GrantsStore.cs",
+        "src/SonnetDB/Auth/UserStore.cs",
+        "src/SonnetDB/Endpoints/Routes/ControlPlaneEndpoints.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留用户/权限主题，改固定ROLE与measurement级GRANT为动态用户、数据库READ/WRITE/ADMIN与实例超级管理员；核对REVOKE全部目标grant与通配有效权限，Token身份与grant分开。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "012",
+      "title": "Token 认证机制：使用 ISSUE TOKEN 保障 API 安全",
+      "sourcePath": "docs/blogs/012-token-authentication.md",
+      "preparedPath": "docs/blogs/oschina/prepared/012-token-authentication.md",
+      "sourceSha256": "03f0e3328b91aebd529b2673dd8487c4364302598fe717302c6c4573ec068e5b",
+      "preparedSha256": "4a8451c8eb3c26ae54f89d16a3635ddfe289200cfbf37975ddbde4aa96374b06",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB/Auth/UserStore.cs",
+        "src/SonnetDB/Auth/BearerAuthMiddleware.cs",
+        "src/SonnetDB/Endpoints/Routes/ControlPlaneEndpoints.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "改自包含JWT为服务端随机秘密与哈希索引；ISSUE TOKEN FOR用户/按tokenid撤销；删除未实现ROLE EXPIRATION/REVOKE ALL示例；修复5080数据库限定SQL路由与sql字段，不引入反射JSON例子。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "013",
+      "title": "CREATE MEASUREMENT：定义您的时序数据结构",
+      "sourcePath": "docs/blogs/013-create-measurement.md",
+      "preparedPath": "docs/blogs/oschina/prepared/013-create-measurement.md",
+      "sourceSha256": "6aa5a630c39d7dab78c2b5bc53b1dc55f576a2dcb1a586cd8ad7538505669468",
+      "preparedSha256": "22c3f9dc1867d1e606e5edfbada9e6638ca34d81e2f1c13697394f67967ea5d2",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/data-model.md",
+        "docs/vector-search.md",
+        "docs/relation-type-boundary.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "CREATE MEASUREMENT保留完整SQL，改类型FLOAT/INT/BOOL/STRING与FIELD VECTOR/GEOPOINT，HNSW附FIELD；明确IF NOT EXISTS不覆盖schema、稀疏缺值和NULL/DEFAULT限制、原名/双引号合同。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "014",
+      "title": "HNSW 向量索引：加速向量搜索的强力引擎",
+      "sourcePath": "docs/blogs/014-hnsw-index.md",
+      "preparedPath": "docs/blogs/oschina/prepared/014-hnsw-index.md",
+      "sourceSha256": "bca1f4e82f424e1b53539a74e16aca2ffdf51dbbf7247478e47e3fbee29f8c38",
+      "preparedSha256": "4ece4310c51a995d940ce351db99f341cdf1fc1ec8c79689227f9b019d6d55aa",
+      "sourceDocs": [
+        "docs/vector-search.md",
+        "docs/sql-reference.md",
+        "docs/relation-type-boundary.md",
+        "docs/vector-lifecycle-preflight.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "改错误关系表VECTOR/index语法为measurement FIELD HNSW与完整3维向量/knn；删除百万毫秒/O(logn)/通用ORDER BY自动索引保证，明确派生索引生命周期与精确fallback/Recall需实测。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "015",
+      "title": "INSERT INTO：向时序表写入数据",
+      "sourcePath": "docs/blogs/015-insert-into.md",
+      "preparedPath": "docs/blogs/oschina/prepared/015-insert-into.md",
+      "sourceSha256": "075505de798ef818f10c3750224fe255b013c2a312ea1ef6eedf944d206a1c1f",
+      "preparedSha256": "9c8270ba007a9c2cdffed18826e357cbbaadd72d59e2d98c450e35af7baae82d",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/data-model.md",
+        "docs/bulk-ingest.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "修正ts TIMESTAMP关系主键为time Unix毫秒，补完整CREATE/多行INSERT/SELECT；改缺值省略、受控类型演进/未知TAG提示，删除LWW/任意隐式转换和固定批大小/标签阈值承诺。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "016",
+      "title": "GEOPOINT 地理空间数据：使用 POINT 语法写入经纬度",
+      "sourcePath": "docs/blogs/016-geopoint-insert.md",
+      "preparedPath": "docs/blogs/oschina/prepared/016-geopoint-insert.md",
+      "sourceSha256": "3f5e5cc659432d0255bd90a5b52b169fb3853b73ebf69f976ddcf6dc178fc4dd",
+      "preparedSha256": "f27a15e38722afe04d8cc9c1341bf6b1b5c2869303c959d6cc94e0dff0ae98c1",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/geo-spatial.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "改POINT为纬度/经度、GeoJSON经度/纬度；完整GEOPOINT measurement/四参半径/米距离；删坐标自动修正与任意geohash索引承诺。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "017",
+      "title": "VECTOR 字面量：使用 `[v0, v1, ...]` 语法操作嵌入向量",
+      "sourcePath": "docs/blogs/017-vector-literal.md",
+      "preparedPath": "docs/blogs/oschina/prepared/017-vector-literal.md",
+      "sourceSha256": "4e0b8a1bde0a8b86c2c4b5991086c2031318f69a888168eb27f22815e3df8527",
+      "preparedSha256": "48e4e42d2eb09fcce73cf8a4e06238e92a54e8c48b408807a5f138d3210b3703",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "完整四维VECTOR字段/字面量/knn；核对float32/float[]与整数组件，区分标量距离与索引；合成向量不作语义证据。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "018",
+      "title": "SELECT 查询基础：投影、标签过滤与时间范围",
+      "sourcePath": "docs/blogs/018-select-where-basics.md",
+      "preparedPath": "docs/blogs/oschina/prepared/018-select-where-basics.md",
+      "sourceSha256": "b1d3cb1081abdf89a2f9b9dbfe1f6ddbd1757129908c09b0d7d3674df36af15c",
+      "preparedSha256": "75228820b961f85ef5dccb5f682f71cad5942f21f44d3ae9c2e4bfb8dc9b1e75",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "tests/SonnetDB.Core.Tests/Sql/SqlExecutorSelectTests.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补完整schema/种子与Unix毫秒、半开范围；核对当前field残余过滤；LIMIT与time排序不冒称扫描预算/唯一顺序。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "019",
+      "title": "算术表达式：在投影列中灵活计算数据",
+      "sourcePath": "docs/blogs/019-arithmetic-expressions.md",
+      "preparedPath": "docs/blogs/oschina/prepared/019-arithmetic-expressions.md",
+      "sourceSha256": "6391dfb1fcacd418841f39e788d11300a80a0f2b6b09ea7853c07ec99f879b47",
+      "preparedSha256": "894ac49645b7cc372a50de60af952c4f4952d7f98c3eb68c057292db228ee88a",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Sql/Execution/SqlScalarOperations.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补电表完整示例；整数除法浮点、checked Int64/Decimal分支、除零错误、NULL传播与字符串边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "020",
+      "title": "标量函数：abs、round、sqrt、log 与 coalesce",
+      "sourcePath": "docs/blogs/020-scalar-functions.md",
+      "preparedPath": "docs/blogs/oschina/prepared/020-scalar-functions.md",
+      "sourceSha256": "0cc22f1a35a9b28d7fe9cf3c580796f66b892c8aa53128c893ff4ecc0da25307",
+      "preparedSha256": "2f2991c651f7e3649b876c864a213bf7d811306aa573557528df35b76f2ad024",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "修LOG参数顺序、Math.Round中点取偶与数学函数不自动NULL传播；COALESCE先处理输入，非法域不承诺NULL。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "021",
+      "title": "函数嵌套调用：构建复杂的计算表达式",
+      "sourcePath": "docs/blogs/021-nested-functions.md",
+      "preparedPath": "docs/blogs/oschina/prepared/021-nested-functions.md",
+      "sourceSha256": "e738ed698335e8ccd9032e532405c0e3709e0a3c8f860be4a4d0202b934a3564",
+      "preparedSha256": "bbbfad020623578c4f3d2ada7cc4356f495d1433780f863bd2fef74deedd8757",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补完整嵌套函数示例；缺值在输入层处理、聚合前后舍入区分；不承诺任意窗口/聚合嵌套。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "022",
+      "title": "SQL 分页查询：LIMIT/OFFSET 与 FETCH 语法",
+      "sourcePath": "docs/blogs/022-pagination.md",
+      "preparedPath": "docs/blogs/oschina/prepared/022-pagination.md",
+      "sourceSha256": "4f863f5611c2a5ceb0a2eaa12ad0caf1cfa0ebd135f2faca91d9c886c7c7800b",
+      "preparedSha256": "7e1947a46bbb62e81b97511f5b18ac2fc85abf9ace317b4fc13a6c583974815c",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/data-model.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补完整单series唯一时间种子；LIMIT/OFFSET/FETCH合同、并列顺序和跨请求快照边界；不承诺全扫描预算。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "023",
+      "title": "多条件过滤：AND 连接多个 WHERE 约束",
+      "sourcePath": "docs/blogs/023-multi-condition-where.md",
+      "preparedPath": "docs/blogs/oschina/prepared/023-multi-condition-where.md",
+      "sourceSha256": "80bc38f70bcddd7b3ab38957bd2424af2d925335b6ba38a3423876b9441702a1",
+      "preparedSha256": "48f6a3fba0ac34159693de479df9da1f1eab7b37b878a562118f542c78c4d7c3",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "tests/SonnetDB.Core.Tests/Sql/SqlExecutorSelectTests.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补TAG/时间/FIELD/BOOL/稀疏缺值种子；按当前测试核对AND/OR/IN/IS NULL，标明旧版本范围，预览非事务批准。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "024",
+      "title": "查询元数据：SHOW 与 DESCRIBE 的使用",
+      "sourcePath": "docs/blogs/024-show-describe-metadata.md",
+      "preparedPath": "docs/blogs/oschina/prepared/024-show-describe-metadata.md",
+      "sourceSha256": "87511d2caa21b5155f4af8eaac5f87050dbf6c3533d2c45f7ef7d9e0119b07a3",
+      "preparedSha256": "ba346244a98c634f1d4fdeed19e866ac032e51740f1ec004de7bc44f9725f649",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/data-model.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "修SHOW TABLES与MEASUREMENTS不是别名、原拼写/数据类型与两类DESCRIBE列合同；控制面权限与SHOW TOKENS不返回secret。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "025",
+      "title": "删除数据：SonnetDB 的 DELETE 与 Tombstone 机制",
+      "sourcePath": "docs/blogs/025-delete-tombstone.md",
+      "preparedPath": "docs/blogs/oschina/prepared/025-delete-tombstone.md",
+      "sourceSha256": "17c690f8e36ec57979904ead244207bff0219e7a0fed418a3fc14dbd3a1f2e89",
+      "preparedSha256": "4f473fbf29d5b1b7b69153bbec37ca6d58d0889cf5ce925f68d55828a91cc853",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "tests/SonnetDB.Core.Tests/Sql/SqlExecutorDeleteTests.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补完整练习库TAG/时间删除示例；Tombstone/WAL/清单与compaction、不作撤销/零写放大承诺；关系表另路径。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "026",
+      "title": "注释语法：SonnetDB SQL 支持的四种注释方式",
+      "sourcePath": "docs/blogs/026-comment-syntax.md",
+      "preparedPath": "docs/blogs/oschina/prepared/026-comment-syntax.md",
+      "sourceSha256": "732d7cca7a9defeec6465b1f9d06bd5301f4ca87bf2b356168586e68b2accc1c",
+      "preparedSha256": "6b33c2a4d9608d64c3c13cee0b62e3caa2a8894506158c5c75ba72f00fd8d458",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Sql/SqlLexer.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核对--//REM块注释；REM行首/分号后和空白边界、块不嵌套/未闭合失败；字符串注释符为数据。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "027",
+      "title": "标识符引用：双引号的使用场景",
+      "sourcePath": "docs/blogs/027-quoted-identifiers.md",
+      "preparedPath": "docs/blogs/oschina/prepared/027-quoted-identifiers.md",
+      "sourceSha256": "2b0a68290771e48a794d7dacb6c4256fac5d56a8567993764573dfb665c68076",
+      "preparedSha256": "b79db019c5cde3707471a6b405bfb51701a31afbb16b4377f985cc8bd8c4e001",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "AGENTS.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "按GH211保原名、无引号OrdinalIgnoreCase/引号Ordinal与转义；仅大小写重复禁止、旧冲突显式迁移；完整schema写入引用。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "028",
+      "title": "标量向量函数：cosine_distance / l2_distance / inner_product / vector_norm",
+      "sourcePath": "docs/blogs/028-vector-distance-functions.md",
+      "preparedPath": "docs/blogs/oschina/prepared/028-vector-distance-functions.md",
+      "sourceSha256": "0952f318b0b2f90fb739af8cfcd36a076178f7b44d8f4da1a2534dc438ddd464",
+      "preparedSha256": "beb4b009d3d441e9a08020eadd54a44b3d1f75bb1e31f5705c17de91e08a6f24",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补四维完整schema/seed；四函数数学含义/NULL维度/零向量；正inner_product与负<#>/knn度量区别。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "029",
+      "title": "pgvector 兼容运算符：<=> <-> <#>",
+      "sourcePath": "docs/blogs/029-pgvector-operators.md",
+      "preparedPath": "docs/blogs/oschina/prepared/029-pgvector-operators.md",
+      "sourceSha256": "e072d6bcb35f674c3abd8ee0079f69a6cdcc763117b20162a4bf2f0071ea2c86",
+      "preparedSha256": "891e432099a8b104b7478050b772ee075095cfd80aa0012ea33be2937454f8b6",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "补三运算符完整四维样例与负点积升序；有限兼容范围/非全pgvector与不自动ANN承诺。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    },
+    {
+      "articleId": "030",
+      "title": "SQL Cookbook：常用查询模式速查",
+      "sourcePath": "docs/blogs/030-sql-cookbook.md",
+      "preparedPath": "docs/blogs/oschina/prepared/030-sql-cookbook.md",
+      "sourceSha256": "345818b55b72ef69fd67fa0615048024c56fe05f761e57f5958aff0921c355a6",
+      "preparedSha256": "5000b734f77a11881b01089c7bcf19a36ae520378104fba70f486813937b36ba",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "重建统一完整cpu schema/唯一种子与十种常用模式，向量另完整schema；不冒称分页预算、Tombstone撤销或合成语义证据。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/性能示例"
+    }
+  ]
+}

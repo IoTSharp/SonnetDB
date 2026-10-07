@@ -9,6 +9,8 @@
 
 ### Added
 
+- **开源中国文章补发账本（2026-10-07）**：保存 142 篇渠道复核稿、逐篇博客/动弹回执、4.0.0 新闻审核状态与每日续发进度；通用发布和对账脚本迁入全局 `publish-oschina` 技能，项目只保留稿件、账本与接续说明。动弹失败独立记录，已有 ID 或未知请求阻止重复创建。
+
 - **M47 WB-42 真实VS Code查询诊断（2026-10-07）**：新增独立Host入口和隔离真实Server/Code runner，复用现有当前语句/选区/EXPLAIN命令；最终syntax/TypeScript和既有Node20/20通过。第二实跑当前语句两行、选区一行及原列/SQL/database生成payload与独立真实reference一致；EXPLAIN断言及process audit失败、history未运行，完整旅程未通过。首preflight parent-chain超时有据修为有界snapshot lookup，原两失败/缺证据保持；根两单PIDfallback、端口/282对象runtime回收另列，不能计正常退出/UI/分页/三宿主完成。完整门禁和八文件本地提交见M47记录。
 
 - **M47 WB-41 SQL原生文件诊断（2026-10-07）**：新增显式sql-dialogs薄入口，复用Ctrl+O/Ctrl+S与生产bridge/picker；四phase按真实OS ack、DTO、普通DOM与磁盘bytes/hash独立验收，保有界等待/48文件/终态门禁。Syntax通过；首actual真实Open POST后桌面工具未看到picker且激活失败，60秒无ack超时，余三phase未运行，不能称对话框或正常退出通过。六失败终态与9归属fallback/四端口/三runtime回收、根失败checkpoint/独立复核保留；生产/旧默认生命周期不改，最终八文件完整门禁和本地提交见M47记录，整体三宿主仍未闭环。

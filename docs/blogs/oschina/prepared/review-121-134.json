@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0"
+  },
+  "expectedArticleIds": [
+    "121",
+    "122",
+    "123",
+    "124",
+    "125",
+    "126",
+    "127",
+    "128",
+    "129",
+    "130",
+    "131",
+    "132",
+    "133",
+    "134"
+  ],
+  "frozenArticleIds": [
+    "121",
+    "122",
+    "123",
+    "124",
+    "125",
+    "126",
+    "127",
+    "128",
+    "129",
+    "130",
+    "131",
+    "132",
+    "133",
+    "134"
+  ],
+  "pendingArticleIds": [],
+  "sourceArticleSha256": {
+    "121": "b151306810796c2008525399494da3eea5dfd233accc0474c1b62c66df3a2511",
+    "122": "679d5d915170eed37ec1e0d7e01ab40c9e9541ec1819fab644638dbd44159639",
+    "123": "6958881abcc6904cead6f73d6960dcba2748cec3bca0c7d5e25d5deca030004f",
+    "124": "bc6b58201c2fb740d59e712d5516b74b82f36742392a2cfe8be38b81143c651f",
+    "125": "db4e87946e3cdfb36bbca799c46be8f42515b1abdc4faf1af793b7ff5da1531d",
+    "126": "60892034955d0a09f48e2c1d16d43e492dbc92252406cfd3b96fc61b16130c50",
+    "127": "cb569dd7573d02ac3f58bdaa58b17f9c2991e9b17765460d7fc8059deedd811f",
+    "128": "bc4d7a558efd71aaa35dd65a46fc92aeb8581b4523787b7617879d481893188a",
+    "129": "d131d23d78343d95ba870230fca6a0abf19b1f240e150b82ea098d37597b5b55",
+    "130": "0d57690dd23d71303b0cf0bca353091cdccf683bb4067c6f69612e8d89649a0a",
+    "131": "b0d7adc4b3fa2463785b04eac279083ecd4c764229666b2ecf998f3dd790a8ae",
+    "132": "44df9a3b09f85df33424bb876cbf1ef5f987f8f261a9cd9b703efb72e5f02948",
+    "133": "cfbe1f423fd9a5248588ddbefd028fa2ec534d69ff92c28ebc818f161e1367cc",
+    "134": "9a9a89b8fc5d94c318c94fd26663dae00ebe36c0196c6e73c219bf8b30050776"
+  },
+  "articles": [
+    {
+      "articleId": "121",
+      "title": "SonnetDB C 连接器：嵌入式时序数据库的原生接入",
+      "sourcePath": "docs/blogs/121-sonnetdb-c-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/121-sonnetdb-c-connector.md",
+      "sourceSha256": "b151306810796c2008525399494da3eea5dfd233accc0474c1b62c66df3a2511",
+      "preparedSha256": "b7e9517aa36d974be3bc07a746ec5ca6f7493c378ac60de120143a67cb15f361",
+      "sourceDocs": [
+        "connectors/c/README.md",
+        "connectors/c/include/sonnetdb.h",
+        "connectors/c/CMakePresets.json"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文以main当前合同校正历史稿，部署需配对同版本ABI与封装",
+      "review": "C ABI不再仅17函数，支持嵌入式/远程及独立多模型句柄；JNI默认、JDK21preview需匹配构建运行，Windows classpath分号",
+      "validation": "文档源码复核；未编译运行、安装或写入数据库"
+    },
+    {
+      "articleId": "122",
+      "title": "SonnetDB Java 连接器：一套 API，双后端驱动",
+      "sourcePath": "docs/blogs/122-sonnetdb-java-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/122-sonnetdb-java-connector.md",
+      "sourceSha256": "679d5d915170eed37ec1e0d7e01ab40c9e9541ec1819fab644638dbd44159639",
+      "preparedSha256": "e1a0aff06ca870f3008f97e4836a807c3d0df705e2575be5c667530752ff9d3f",
+      "sourceDocs": [
+        "connectors/java/README.md",
+        "connectors/java/CMakeLists.txt",
+        "connectors/java/src/main/java/com/sonnetdb/internal/NativeBackendLoader.java"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文以main当前合同校正历史稿，部署需配对同版本ABI与封装",
+      "review": "C ABI不再仅17函数，支持嵌入式/远程及独立多模型句柄；JNI默认、JDK21preview需匹配构建运行，Windows classpath分号",
+      "validation": "文档源码复核；未编译运行、安装或写入数据库"
+    },
+    {
+      "articleId": "123",
+      "title": "Segment v6 与崩溃恢复：把可靠性做到文件尾部",
+      "sourcePath": "docs/blogs/123-storage-v6-crash-recovery.md",
+      "preparedPath": "docs/blogs/oschina/prepared/123-storage-v6-crash-recovery.md",
+      "sourceSha256": "6958881abcc6904cead6f73d6960dcba2748cec3bca0c7d5e25d5deca030004f",
+      "preparedSha256": "9364f7aafbe1bb4d6747bb302a035dcda314df49586fe7de34d5485c0056bb3a",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Storage/Format/SegmentFooterMiniCopy.cs",
+        "src/SonnetDB.Core/Storage/Segments/SegmentReader.cs",
+        "src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "明确段格式6与软件4.0区别；mini-footer/CRC与受控fallback边界，不宣称修复损坏payload或完整实例恢复",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "124",
+      "title": "查询热路径优化：索引、缓存与少一点 LINQ",
+      "sourcePath": "docs/blogs/124-query-hot-path-index-cache.md",
+      "preparedPath": "docs/blogs/oschina/prepared/124-query-hot-path-index-cache.md",
+      "sourceSha256": "bc6b58201c2fb740d59e712d5516b74b82f36742392a2cfe8be38b81143c651f",
+      "preparedSha256": "586de7298b6a2b515423b2ad2f45611ea3147ea248e9c71ed3db54b6e5980c34",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Engine/SegmentManager.cs",
+        "src/SonnetDB.Core/Query/QueryEngine.cs",
+        "src/SonnetDB.Core/Storage/Segments/BlockDecodeCache.cs",
+        "src/SonnetDB.Core/Storage/Segments/SegmentReader.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "series/time indexes、reader lease、tombstone LIMIT与LRU键按实现描述；mmap安全访问不冒称普遍零拷贝",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "125",
+      "title": "MemTable 优化：从热路径统计到快照并发",
+      "sourcePath": "docs/blogs/125-memtable-snapshot-concurrency.md",
+      "preparedPath": "docs/blogs/oschina/prepared/125-memtable-snapshot-concurrency.md",
+      "sourceSha256": "db4e87946e3cdfb36bbca799c46be8f42515b1abdc4faf1af793b7ff5da1531d",
+      "preparedSha256": "7158aef5eec4c2234ad5d4826b42184fdbbde34230ef5df3ce2687d280a0bbd4",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Memory/MemTable.cs",
+        "src/SonnetDB.Core/Memory/MemTableSeries.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "增量统计是估计，非RSS；快照复制/排序及bucket锁边界，乱序窄范围仍可能排序整桶",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "126",
+      "title": "窗口函数执行器：从 object 数组走向 typed streaming",
+      "sourcePath": "docs/blogs/126-window-streaming-span-evaluator.md",
+      "preparedPath": "docs/blogs/oschina/prepared/126-window-streaming-span-evaluator.md",
+      "sourceSha256": "60892034955d0a09f48e2c1d16d43e492dbc92252406cfd3b96fc61b16130c50",
+      "preparedSha256": "a5e6824683467df22d4aae011bcb31b9458bd34f47d0b7c31b71ee3bd452203e",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/IWindowState.cs",
+        "src/SonnetDB.Core/Query/Functions/Window/DoubleWindowEvaluatorBase.cs",
+        "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+        "tests/SonnetDB.Benchmarks/Benchmarks/WindowEvaluatorAllocationBenchmark.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "typed/streaming接口与SQL实际集合物化分开；完整窗口示例与moving_average预热，不承诺常数内存",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "127",
+      "title": "读多写少结构治理：FrozenDictionary、Lexer 快路径与 Analyzer",
+      "sourcePath": "docs/blogs/127-catalog-lexer-analyzer-governance.md",
+      "preparedPath": "docs/blogs/oschina/prepared/127-catalog-lexer-analyzer-governance.md",
+      "sourceSha256": "cb569dd7573d02ac3f58bdaa58b17f9c2991e9b17765460d7fc8059deedd811f",
+      "preparedSha256": "3782ab3b8a3e06584d8950f9a6b37784bc57004735d08b95e03f1da112b3619f",
+      "sourceDocs": [
+        ".editorconfig",
+        "src/SonnetDB.Core/Catalog/MeasurementSchema.cs",
+        "src/SonnetDB.Core/Catalog/SeriesCatalog.cs",
+        "src/SonnetDB.Core/Sql/SqlLexer.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "SeriesCatalog当前ConcurrentDictionary增量；Frozen仅对应schema/catalog，标识符保留大小写与Unicode fallback",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "128",
+      "title": "Codec 专用化：BlockDecoder 为什么选择手写 fast path",
+      "sourcePath": "docs/blogs/128-codec-blockdecoder-specialization.md",
+      "preparedPath": "docs/blogs/oschina/prepared/128-codec-blockdecoder-specialization.md",
+      "sourceSha256": "bc4d7a558efd71aaa35dd65a46fc92aeb8581b4523787b7617879d481893188a",
+      "preparedSha256": "a72c04042bfdc75832188948bc60ea193add27f1f11f32299084c6b802c15acd",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Storage/Segments/BlockDecoder.cs",
+        "src/SonnetDB.Core/Storage/Segments/TimestampCodec.cs",
+        "src/SonnetDB.Core/Storage/Segments/ValuePayloadCodecV2.cs",
+        "tests/SonnetDB.Benchmarks/Benchmarks/CodecSpecializationBenchmark.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "Span目标解码与四字段类型按源码说明；去掉缺证据历史毫秒表，保留复现命令与语义校验",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "129",
+      "title": "SonnetDB Go 连接器：cgo 与 database/sql 的双入口",
+      "sourcePath": "docs/blogs/129-sonnetdb-go-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/129-sonnetdb-go-connector.md",
+      "sourceSha256": "d131d23d78343d95ba870230fca6a0abf19b1f240e150b82ea098d37597b5b55",
+      "preparedSha256": "c3cf43e533440e4e2c79709ae7756a7f583d663bc16c6f4f1e770488988f3b3b",
+      "sourceDocs": [
+        "connectors/c/include/sonnetdb.h",
+        "connectors/go/driver.go",
+        "connectors/go/go.mod",
+        "connectors/go/README.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "Go完整错误处理与有界读取；真实module路径、不宣称公开包代理或MSVC构建证明；params/transaction边界",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "130",
+      "title": "SonnetDB Rust 连接器：手写 FFI 与安全封装",
+      "sourcePath": "docs/blogs/130-sonnetdb-rust-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/130-sonnetdb-rust-connector.md",
+      "sourceSha256": "0d57690dd23d71303b0cf0bca353091cdccf683bb4067c6f69612e8d89649a0a",
+      "preparedSha256": "ae1a380122bf6d717e111cc20f7990968c98910c135fd47975d2e48f37a7f203",
+      "sourceDocs": [
+        "connectors/c/include/sonnetdb.h",
+        "connectors/rust/Cargo.toml",
+        "connectors/rust/README.md",
+        "connectors/rust/src/ffi.rs",
+        "connectors/rust/src/lib.rs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "Rust完整RAII示例与显式句柄释放；CString NUL、整数精度、cgo/native依赖和并发边界",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "131",
+      "title": "SonnetDB Visual Basic 6 连接器：让经典 Windows 应用接入时序数据",
+      "sourcePath": "docs/blogs/131-sonnetdb-vb6-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/131-sonnetdb-vb6-connector.md",
+      "sourceSha256": "b0d7adc4b3fa2463785b04eac279083ecd4c764229666b2ecf998f3dd790a8ae",
+      "preparedSha256": "5ac89602fbe9ef256ed779ed466452201c0150125e5766ec24b9c0542dea08fb",
+      "sourceDocs": [
+        "connectors/c/CMakePresets.json",
+        "connectors/c/include/sonnetdb.h",
+        "connectors/vb6/native/sonnetdb_vb6_bridge.c",
+        "connectors/vb6/README.md",
+        "connectors/vb6/src/SonnetDbResult.cls"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "VB6 stdcall桥接cdecl，文本读取Int64；win-x86 preset不是AOT x86产物或实机证据",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "132",
+      "title": "SonnetDB PureBasic 连接器：用 Include 文件动态加载 Native 引擎",
+      "sourcePath": "docs/blogs/132-sonnetdb-purebasic-connector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/132-sonnetdb-purebasic-connector.md",
+      "sourceSha256": "44df9a3b09f85df33424bb876cbf1ef5f987f8f261a9cd9b703efb72e5f02948",
+      "preparedSha256": "17d9893dfdb805d4a139daa931bb36170c8600be7ef26cf5c63096ea5474a959",
+      "sourceDocs": [
+        "connectors/c/include/sonnetdb.h",
+        "connectors/purebasic/examples/quickstart.pb",
+        "connectors/purebasic/README.md",
+        "connectors/purebasic/src/SonnetDB.pbi"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "PureBasic运行时Load/Unload和UTF8、cdecl、句柄生命周期；有界示例，不冒称许可编译器已验证",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "133",
+      "title": "SonnetDB Workbench 新版发布：轨迹地图、国内瓦片切换与坐标系转换",
+      "sourcePath": "docs/blogs/133-sonnetdb-workbench-map-upgrade.md",
+      "preparedPath": "docs/blogs/oschina/prepared/133-sonnetdb-workbench-map-upgrade.md",
+      "sourceSha256": "cfbe1f423fd9a5248588ddbefd028fa2ec534d69ff92c28ebc818f161e1367cc",
+      "preparedSha256": "220037d58fe1105f083418df6eb2d64b3266736c9bd32d1be4490f0720f701e8",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "extensions/sonnetdb-vscode/package.json",
+        "web/src/components/ResultMapPreview.vue",
+        "web/src/utils/geoTransforms.ts",
+        "web/src/utils/mapTiles.ts",
+        "web/src/views/TrajectoryMap.vue"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "地图建模与有界查询，POINT/GeoJSON顺序、数据显示坐标与SQL避免二次转换；各瓦片/宿主需真实验证",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    },
+    {
+      "articleId": "134",
+      "title": "SonnetDB 新增语义图片检索：用 SigLIP2 + USearch 实现文搜图与图搜图",
+      "sourcePath": "docs/blogs/134-sonnetdb-semantic-image-search.md",
+      "preparedPath": "docs/blogs/oschina/prepared/134-sonnetdb-semantic-image-search.md",
+      "sourceSha256": "9a9a89b8fc5d94c318c94fd26663dae00ebe36c0196c6e73c219bf8b30050776",
+      "preparedSha256": "f057d8776242bb319e8844285f657912113ccff32b6d4594dd65b28e9160ea46",
+      "sourceDocs": [
+        "Directory.Packages.props",
+        "docs/image-codecs.md",
+        "docs/semantic-embedding-providers.md",
+        "docs/semantic-image-search.md",
+        "src/SonnetDB/Configuration/ObjectProcessingOptions.cs",
+        "src/SonnetDB/Configuration/ServerOptions.cs",
+        "src/SonnetDB/Contracts/ObjectStorageContracts.cs",
+        "src/SonnetDB/Endpoints/Routes/SemanticSearchEndpoints.cs",
+        "src/SonnetDB/SemanticSearch/ObjectSemanticProcessingService.cs",
+        "src/SonnetDB/SemanticSearch/SemanticImageSearchService.cs",
+        "src/SonnetDB/SemanticSearch/USearchSemanticIndexRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "versionBoundary": "正式4.0.0独立标签；本文按当前main源码校正历史稿，部署版本与真实运行证据需分别核对",
+      "review": "按当前源码修正USearch filtered ANN与Query预算、包版本、默认128队列/总5次执行、持久分页回填、Skia profile及治理审计；保留完整REST示例",
+      "validation": "文档源码复核与静态稿件校验；未编译运行、安装、执行模型或写入数据库"
+    }
+  ],
+  "validation": {
+    "sourceArticlesModified": false,
+    "examplesExecuted": false,
+    "articleCount": 14
+  },
+  "updatedAt": "2026-10-07"
+}

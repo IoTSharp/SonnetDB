@@ -1,0 +1,581 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0",
+    "tagCommit": "827d6cff02dc33aea72d60fcaa1c511d74a0934a",
+    "evidence": "主智能体已核验正式发行，不用异常日期或候选数字当发布gate"
+  },
+  "expectedArticleIds": [
+    "091",
+    "092",
+    "093",
+    "094",
+    "095",
+    "096",
+    "097",
+    "098",
+    "099",
+    "100",
+    "101",
+    "102",
+    "103",
+    "104",
+    "105",
+    "106",
+    "107",
+    "108",
+    "109",
+    "110",
+    "111",
+    "112",
+    "113",
+    "114",
+    "115",
+    "116",
+    "117",
+    "118",
+    "119",
+    "120"
+  ],
+  "frozenArticleIds": [
+    "091",
+    "092",
+    "093",
+    "094",
+    "095",
+    "096",
+    "097",
+    "098",
+    "099",
+    "100",
+    "101",
+    "102",
+    "103",
+    "104",
+    "105",
+    "106",
+    "107",
+    "108",
+    "109",
+    "110",
+    "111",
+    "112",
+    "113",
+    "114",
+    "115",
+    "116",
+    "117",
+    "118",
+    "119",
+    "120"
+  ],
+  "pendingArticleIds": [],
+  "articles": [
+    {
+      "articleId": "091",
+      "title": "SonnetDB 写入性能实录：545 ms 写入 100 万点，吞吐 1.83 M pts/s",
+      "sourcePath": "docs/blogs/091-performance-1m-points.md",
+      "preparedPath": "docs/blogs/oschina/prepared/091-performance-1m-points.md",
+      "sourceSha256": "fd69f910d3505adbc3e4b007a6404216f13ea1001d839eedb28577fe88815c9e",
+      "preparedSha256": "fe08ab7ee01d475eb5dedf0132f03c5ab790d4c226883a96b01be5a816afec30",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "docs/bulk-ingest.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "原标题保留但数字仅历史命名；原始报告指定位置缺失，正文删当前成绩，补LP小样本与flush/嵌入式Server区别。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "092",
+      "title": "多数据库横向对比：SonnetDB vs SQLite vs InfluxDB vs TDengine",
+      "sourcePath": "docs/blogs/092-timescale-db-comparison.md",
+      "preparedPath": "docs/blogs/oschina/prepared/092-timescale-db-comparison.md",
+      "sourceSha256": "f4777200a06329bc59a34d161c8a81ec555267baecd8e8103fcd75b45bf882dd",
+      "preparedSha256": "0ef6b4959e5a544f7d64cff5af02ccba5612555583422a1e9dbda73b1f6a81df",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "删旧四库倍数、内存体积和普遍胜出表；补路径公平性、等价schema/查询和NOT_RUN/许可证边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "093",
+      "title": "SonnetDB 范围查询速度揭秘：100k 行仅需 6.71 ms",
+      "sourcePath": "docs/blogs/093-range-query-speed.md",
+      "preparedPath": "docs/blogs/oschina/prepared/093-range-query-speed.md",
+      "sourceSha256": "f3c3cae495ac7e8f6752e58a780fdf14581eded9739fffde23a26dffb1d23626",
+      "preparedSha256": "707fd4ef0db4f9972162658ead538bea99601f91ff7d5a92e80e78519ab1ce45",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "src/SonnetDB.Core/Query/QueryEngine.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "历史数字非当前保证；补完整schema半开范围、段block裁剪条件与完整消费/首行/资源计量区别。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "094",
+      "title": "SonnetDB 聚合查询优化：跨桶融合与 MemTable 增量聚合",
+      "sourcePath": "docs/blogs/094-aggregation-optimization.md",
+      "preparedPath": "docs/blogs/oschina/prepared/094-aggregation-optimization.md",
+      "sourceSha256": "af4d823f4e6120eb41b058c248fd83d89777f6af1d92e7c31c57383895ad7a79",
+      "preparedSha256": "dae48f1e78cded6a5f5a84b8031f96d3c6c12153855220097363a30c9afd9066",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/QueryEngine.cs",
+        "tests/SonnetDB.Benchmarks/README.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核实际ExecuteMultiAggregate、block完整范围同桶元数据、Tombstone逐点和MemTable快路径；删无证据百倍/零扫描承诺。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "095",
+      "title": "SonnetDB 基准测试方法论：BenchmarkDotNet、统一数据与多 DB 对比",
+      "sourcePath": "docs/blogs/095-benchmarking-methodology.md",
+      "preparedPath": "docs/blogs/oschina/prepared/095-benchmarking-methodology.md",
+      "sourceSha256": "8aa29c79f9233e8ddc61ad9490472cde9de9d3f1acdfc9dfc52aa9ce38599f4d",
+      "preparedSha256": "01fc1a26ce64c1d220847783afdfb4af1c07b48c9a62f0c10626fca6cc75830f",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "docs/bulk-ingest.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保BDN/多库方法，修输入/flush/版本/计时/正确性与分位迭代统计边界；旧原始日志缺失不重复排名。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "096",
+      "title": "SonnetDB 段合并机制：基于大小分层的 Compaction 策略",
+      "sourcePath": "docs/blogs/096-segment-compaction.md",
+      "preparedPath": "docs/blogs/oschina/prepared/096-segment-compaction.md",
+      "sourceSha256": "e3006c518c206c55f493150d118e31efddfd535f18a16b7aae376d95bec8b4c5",
+      "preparedSha256": "12cfc2f47d68000374075222a1d6378b0d5b04d91bb6505ff24cda890b398c0e",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Engine/Compaction/CompactionPolicy.cs",
+        "src/SonnetDB.Core/Engine/Compaction/CompactionPlanner.cs",
+        "src/SonnetDB.Core/Engine/Compaction/CompactionWorker.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核当前CompactionPolicy默认4段/4倍率/4MiB/5s及Planner分组；核manifest替换/读租约生命周期，删伪API与无证据延迟。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "097",
+      "title": "SonnetDB 数据保留策略：RetentionWorker、自动 Tombstone 与过期段清理",
+      "sourcePath": "docs/blogs/097-ttl-retention.md",
+      "preparedPath": "docs/blogs/oschina/prepared/097-ttl-retention.md",
+      "sourceSha256": "3b4942f4aaa5dbd73377a5b5b7c3eb6a379f36468baf4ecebc1e8c3ee51ca6c4",
+      "preparedSha256": "dda03907da486394c944be6902aa3d04d3b2fbbbdaee2417abda7cc2ed58bda2",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Engine/Retention/RetentionPolicy.cs",
+        "src/SonnetDB.Core/Engine/Retention/RetentionPlanner.cs",
+        "src/SonnetDB.Core/Engine/Retention/RetentionWorker.cs",
+        "src/SonnetDB.Core/Engine/TsdbOptions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核全局Retention默认禁用/10min/1024/30天，删measurement TTL SQL与SDB环境变量；给真实TsdbOptions API及cutoff/部分墓碑/整段drop边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "098",
+      "title": "SonnetDB MCP 协议支持：以 Model Context Protocol 赋能 AI 驱动数据库管理",
+      "sourcePath": "docs/blogs/098-mcp-protocol.md",
+      "preparedPath": "docs/blogs/oschina/prepared/098-mcp-protocol.md",
+      "sourceSha256": "cb46b5d7728ec369d1f6283aebe7bd8dfd790f739a8dea4a32ab89626f7a3f4e",
+      "preparedSha256": "0320daab0fc62d545143b444037bcce3de690b458cf649dc20c7c28214c399e5",
+      "sourceDocs": [
+        "docs/mcp-contract.md",
+        "ROADMAP.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "改虚构stdio命令/tool名/可写角色为HTTP/mcp数据库绑定/typed1.0真实只读工具与grant/错误合同。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "099",
+      "title": "SonnetDB VS Code 扩展预览：连接管理、SQL 编辑器与结果可视化",
+      "sourcePath": "docs/blogs/099-vscode-extension.md",
+      "preparedPath": "docs/blogs/oschina/prepared/099-vscode-extension.md",
+      "sourceSha256": "a5b420a6ea2004f3ddc709898c85021252af3ee86624fed05df69d66004abd57",
+      "preparedSha256": "f4627bc3a01a4e91e16fafad0e235635511158a530d950527d88067b11ab3c8b",
+      "sourceDocs": [
+        "extensions/sonnetdb-vscode/README.md",
+        "extensions/sonnetdb-vscode/package.json",
+        "ROADMAP.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "按现有扩展README/package，修端口/SecretStorage/LSP回退与视图导出；删百万行与Parquet/Excel承诺，区分main切片与安装版。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "100",
+      "title": "SonnetDB 路线图与未来展望：M17 可观测性、M18 VS Code 与社区共建",
+      "sourcePath": "docs/blogs/100-roadmap-future.md",
+      "preparedPath": "docs/blogs/oschina/prepared/100-roadmap-future.md",
+      "sourceSha256": "4aa50366a3bd1c9be96f00dfaf18cb509254cc04481d7292311831c197a2f653",
+      "preparedSha256": "2562cbcdb68a2b80a1b22f70d4e8523094b6ac6b2012215211c7e169b091d552",
+      "sourceDocs": [
+        "README.md",
+        "ROADMAP.md",
+        "AGENTS.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保M17/M18历史标题，重写当前九模型/4.0/待验宿主与实际路线图；删虚构alert DSL和分布式发行承诺。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "101",
+      "title": "案例：IoT 平台如何用 SonnetDB 管理百万设备实时数据",
+      "sourcePath": "docs/blogs/101-case-iot-platform.md",
+      "preparedPath": "docs/blogs/oschina/prepared/101-case-iot-platform.md",
+      "sourceSha256": "300dbcc443974e6e4855e7d4d31717253562737dc43ac8b65b0e71865db3f106",
+      "preparedSha256": "ed4a77222d00faa37ec43db7d0520a91af0506106583e6d1f137c72958e504fe",
+      "sourceDocs": [
+        "README.md",
+        "docs/bulk-ingest.md",
+        "docs/data-model.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "百万设备仅目标参考架构非容量证据；删客户收益，补完整测点/GEOPOINT schema与库切换，HTTP路径和共享MQ备份边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "102",
+      "title": "案例：智能制造——汽车总装线传感器数据采集与 PID 控制",
+      "sourcePath": "docs/blogs/102-case-smart-manufacturing.md",
+      "preparedPath": "docs/blogs/oschina/prepared/102-case-smart-manufacturing.md",
+      "sourceSha256": "b0ca181fc5edc8c0ee580a4c39eef1e4926622f3a7707b4c51446852310d7a80",
+      "preparedSha256": "ec8f7615780dc1be5bf520cd12d1227df2fd7274503c5d9f9f30da1c111cf5f4",
+      "sourceDocs": [
+        "docs/pid-control.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "改真实客户为合成制造回测；修pid_series(field,setpoint,kp,ki,kd)，完整种子/品质聚合，不伪造整定与现场控制收益。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "103",
+      "title": "案例：光伏电站运维——基于 SonnetDB 的发电量异常检测",
+      "sourcePath": "docs/blogs/103-case-solar-farm.md",
+      "preparedPath": "docs/blogs/oschina/prepared/103-case-solar-farm.md",
+      "sourceSha256": "984afeb1af6f2336fb99d55bf64068405e61648c96cf6ff6f68704661d270b93",
+      "preparedSha256": "60565a9dd88e53f236ed5919c8fb1abf0ca4a3e65e99488268a8a5276a4734d6",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "docs/forecast.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "参考光伏架构，补功率/容量/辐照明确单位与完整GEOPOINT；简单功率比例不冒称PR、能量积分另计，删增收/故障因果。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "104",
+      "title": "案例：楼宇自动化——SonnetDB 助力智慧园区能耗管理",
+      "sourcePath": "docs/blogs/104-case-building-automation.md",
+      "preparedPath": "docs/blogs/oschina/prepared/104-case-building-automation.md",
+      "sourceSha256": "55efad55042ff50e4db78cfcbbb264c03ee886ab742af37117d79284e0c2d1b7",
+      "preparedSha256": "57f29a824ba8def86d333846040f55983f010a3401a11b117324a5f16abb0f82",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/pid-control.md",
+        "docs/data-model.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成楼宇参考架构；分功率与已校验电量增量，缺点/跨桶/计费边界；删客户节能率与告警DSL/直接现场动作。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "105",
+      "title": "案例：冷链物流——全程温湿度监控与超标告警系统",
+      "sourcePath": "docs/blogs/105-case-cold-chain.md",
+      "preparedPath": "docs/blogs/oschina/prepared/105-case-cold-chain.md",
+      "sourceSha256": "cebe5e420b03e79745e98edf7ee58ada05427512e6d9d279a6ad9f4262b92824",
+      "preparedSha256": "be37a11439a65832273875eb0e7ece8de2021146e12917322cb4e9c27815cdd0",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/geo-spatial.md",
+        "docs/data-model.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成冷链参考架构；产品温区非泛化法规、完整温湿度轨迹；缺点/持续时长/断网确认与不可篡改/合规报告另验，删客户收益。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "106",
+      "title": "案例：城市交通监控——路口车流量时序分析与拥堵预测",
+      "sourcePath": "docs/blogs/106-case-traffic-monitoring.md",
+      "preparedPath": "docs/blogs/oschina/prepared/106-case-traffic-monitoring.md",
+      "sourceSha256": "8dc70b7e031871e0c015bec9a3ce4b92ba2f5d38c5ce70b8e55075ef35a77f14",
+      "preparedSha256": "b53122192859baf448dc1c34210ee41e2476903406c1e98414addd026d6ed2ff",
+      "sourceDocs": [
+        "docs/forecast.md",
+        "docs/geo-spatial.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成交通参考架构，完整区间计数/速度/队长schema；修forecast真实TVF，预测步长与交通控制/因果边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "107",
+      "title": "案例：数据中心——服务器集群的指标采集与容量预测",
+      "sourcePath": "docs/blogs/107-case-datacenter.md",
+      "preparedPath": "docs/blogs/oschina/prepared/107-case-datacenter.md",
+      "sourceSha256": "dc5b8802ea2651c6265c7e5d25d4480a7dd19322bc4c1d1a0c528ee4d4afd4da",
+      "preparedSha256": "149434445f10a95904aa0f81e6df1f38de686ea94223e55fd8db174166e65cd5",
+      "sourceDocs": [
+        "docs/forecast.md",
+        "docs/data-model.md",
+        "tests/SonnetDB.Benchmarks/README.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成服务器指标参考架构，百分比/身份/预测步长一致；告警状态、采样分位与请求尾延迟不同，删客户SLA/容量收益。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "108",
+      "title": "案例：农业 IoT——温室大棚环境数据采集与智能灌溉",
+      "sourcePath": "docs/blogs/108-case-smart-agriculture.md",
+      "preparedPath": "docs/blogs/oschina/prepared/108-case-smart-agriculture.md",
+      "sourceSha256": "f1de56bf5207517db2fad54c1f9ba5170dd7fc48d0366220239d922da1d39f15",
+      "preparedSha256": "003470428a8ed1b4f8e227b52da2423dc1a4c97d2dcd0bd6a58fc54f5e497ba1",
+      "sourceDocs": [
+        "docs/pid-control.md",
+        "docs/data-model.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成温室参考架构，完整环境seed与正确PID参数；阈值/输出符号/光谱换算非通用工艺，删无限loop/虚构API及收益。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "109",
+      "title": "案例：设备预测性维护——振动信号分析与故障预警",
+      "sourcePath": "docs/blogs/109-case-predictive-maintenance.md",
+      "preparedPath": "docs/blogs/oschina/prepared/109-case-predictive-maintenance.md",
+      "sourceSha256": "735c9720ee0749cc842ec463876a111002b838f90a3789d95584fee5c89657e2",
+      "preparedSha256": "93bf5f9ade3bc60ad570e5f608dc758424c39845d480df7eabc25871b1e2149e",
+      "sourceDocs": [
+        "docs/forecast.md",
+        "docs/sql-reference.md",
+        "docs/data-model.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成维护特征架构，原始波形RMS/峰值/峭度定义纠错，平均RMS不冒称整体RMS；删通用ISO停机阈值与剩余寿命/客户收益。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "110",
+      "title": "案例：用 SonnetDB + AI Copilot 构建无代码数据分析平台",
+      "sourcePath": "docs/blogs/110-case-ai-copilot-saas.md",
+      "preparedPath": "docs/blogs/oschina/prepared/110-case-ai-copilot-saas.md",
+      "sourceSha256": "483644e434fbaba5fbd3abe2728e09c78ff5c667971ad5a37739b78b34a0ab07",
+      "preparedSha256": "5403d4ce2d9952c061a488abb0ee43aec819a179154151d690ea38f82a4b67a3",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/mcp-contract.md",
+        "docs/copilot-providers.md",
+        "docs/copilot-rag-migration.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "合成SaaS架构，修控制面用户grant/token/完整quality种子与只读查询；真实provider/MCP/RAG边界，删保证纠错成功/客户成本续费。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "111",
+      "title": "写入基准通稿：SonnetDB 在嵌入式与服务端两条路径上的吞吐对比",
+      "sourcePath": "docs/blogs/111-benchmark-insert-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/111-benchmark-insert-plan-results.md",
+      "sourceSha256": "e66a24ac264cc5b75a2f3749f066768e0ab0623b36648fb4ab02c57427a45129",
+      "preparedSha256": "0548f696012977a3cf876b32eaaafd92141d2108a1dfc54442b615448ed2df56",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "tests/SonnetDB.Benchmarks/Benchmarks/InsertBenchmark.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "未取得旧数字原始报告，删除性能数值；区分嵌入式与HTTP入口、持久性、计量单位和资源指标。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "112",
+      "title": "查询基准通稿：100 万点数据集上的时间范围检索对比",
+      "sourcePath": "docs/blogs/112-benchmark-query-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/112-benchmark-query-plan-results.md",
+      "sourceSha256": "99520391df491691ba8bb00d827c20fc3a790153448586ba37193e068f965bc7",
+      "preparedSha256": "1996563bbbd4495f4da01ecf2591fc6e41d578bc12f8813e64ea242ecbc5c7bb",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/Benchmarks/QueryBenchmark.cs",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "百万点是基准设计，删除无原始报告的延迟；区分引擎/SQL/HTTP与首行/完整消费，保留完整范围示例。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "113",
+      "title": "聚合基准通稿：60,000 ms 时间桶上的 AVG/MIN/MAX/COUNT 对比",
+      "sourcePath": "docs/blogs/113-benchmark-aggregation-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/113-benchmark-aggregation-plan-results.md",
+      "sourceSha256": "122d4a714dbb0d8491cc494d7ac1815de3a521ee6c87682a3f3f33792340e2ce",
+      "preparedSha256": "b0ca75c80356e72654dde6ff579e0807b8a3f76f7d8ee840b52621f1b081ecce",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/README.md",
+        "src/SonnetDB.Core/Query/QueryEngine.cs",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "删除无原始报告的数值；说明稀疏计数、AVG合并状态和块统计快路径条件。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "114",
+      "title": "地理空间基准通稿：轨迹、围栏与空间过滤对比方案",
+      "sourcePath": "docs/blogs/114-benchmark-geospatial-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/114-benchmark-geospatial-plan-results.md",
+      "sourceSha256": "667fcfdc361ed8a5a4af390c7a40a618e2a24f8bc01701cbe7fc07dd3142e833",
+      "preparedSha256": "4a46ecbef578080ede44c36722882cb4696846d05271fda3acff655d075903ec",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/Benchmarks/GeoQueryBenchmark.cs",
+        "tests/SonnetDB.Core.Tests/Sql/SqlExecutorGeoPointTests.cs",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留合成轨迹基准与完整POINT示例；校正坐标顺序及距离合同，不发布未执行跨库排名。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "115",
+      "title": "PID 基准通稿：控制律、时间桶控制与自动整定的 SQL 性能",
+      "sourcePath": "docs/blogs/115-benchmark-pid-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/115-benchmark-pid-plan-results.md",
+      "sourceSha256": "987f1e3686169cfc727add1c7fca6f693a2e3c917bdaadc85c09859cb35b9443",
+      "preparedSha256": "f4d9154c0fc1af301dca5d81c5a4693fb903c9914cf75f3b5c48282d86f91bb7",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/Benchmarks/PidBenchmark.cs",
+        "docs/pid-control.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "保留PID三类输出与十二点示例；明确分桶状态重置、时间间隔、整定前提和设备控制边界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "116",
+      "title": "向量基准通稿：Brute-force 与 HNSW 在时序数据库内的召回对比",
+      "sourcePath": "docs/blogs/116-benchmark-vector-plan-results.md",
+      "preparedPath": "docs/blogs/oschina/prepared/116-benchmark-vector-plan-results.md",
+      "sourceSha256": "792bfa64d3364d75651ccbcd7dd2a495535c25558e9e16a63c1b4da326f06ce4",
+      "preparedSha256": "a0b8a2dce99a598031b20f9e1cf805d3e8333b62e28b624ac066066f49c367dd",
+      "sourceDocs": [
+        "tests/SonnetDB.Benchmarks/Benchmarks/VectorRecallBenchmark.cs",
+        "tests/SonnetDB.Benchmarks/README.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "删除无原始探针的旧性能与召回数值；明确直接HnswIndex、语料内查询、自身匹配及Mean是耗时，不外推语义或大规模下界。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "117",
+      "title": "SonnetDB 受控 Schema-on-Write：写入时自动补齐 Tag 与 Field",
+      "sourcePath": "docs/blogs/117-schema-on-write.md",
+      "preparedPath": "docs/blogs/oschina/prepared/117-schema-on-write.md",
+      "sourceSha256": "6e0555df5fe92c1bb20965de7ba6f28deb1b78a70d79c92d4048b60ecb2eea21",
+      "preparedSha256": "ec96168873f8690ffb0b1f16353b1ca87f4a94276fe7640214620ffe7955e841",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Engine/MeasurementSchemaPolicy.cs",
+        "src/SonnetDB.Core/Engine/Tsdb.cs",
+        "src/SonnetDB.Core/Engine/TsdbOptions.cs",
+        "docs/blogs/117-schema-on-write.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核查Schema policy及写入规划；明确16384/256/32默认额度、8192块与SQL逐行边界；策略类型不在4.0标签。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "118",
+      "title": "SQL 兼容性基础：SELECT 1 与 count(1) 支持",
+      "sourcePath": "docs/blogs/118-sql-compatibility-basics.md",
+      "preparedPath": "docs/blogs/oschina/prepared/118-sql-compatibility-basics.md",
+      "sourceSha256": "79fce825616083843020b1a0cdff54fd3fc0a01c7d5f30a9d9d60819e170ce97",
+      "preparedSha256": "db6529d7e50cd77c60cbc0a3dc10debb7f83d3e9d4817a2e5de595a2f33925c9",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "tests/SonnetDB.Core.Tests/Sql/SqlExecutorSelectTests.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核查main与4.0常量查询及行计数测试；说明count(*)/count(1)与稀疏字段count(field)区别，保留完整样本。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "119",
+      "title": "ORDER BY 排序：让时序查询结果井然有序",
+      "sourcePath": "docs/blogs/119-order-by-support.md",
+      "preparedPath": "docs/blogs/oschina/prepared/119-order-by-support.md",
+      "sourceSha256": "4ceb0932b5cb7bed2d1f9c2c9cb084332d3160b1fa68d20da5fde47dd6120eae",
+      "preparedSha256": "df454f405a13ed666d3fae3cd33ecae31db261e2f5ff809e4f98081356a690c7",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+        "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+        "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核查main和4.0排序执行器；区分时序时间排序、当前关系多键及TAG分组/执行预算边界，LIMIT不泛化资源上限。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    },
+    {
+      "articleId": "120",
+      "title": "单表别名与 DDL 修饰符：写出更地道的 SQL",
+      "sourcePath": "docs/blogs/120-table-alias-and-ddl-modifiers.md",
+      "preparedPath": "docs/blogs/oschina/prepared/120-table-alias-and-ddl-modifiers.md",
+      "sourceSha256": "7b637fd47fffe703d4ad71bd1a0d8594e8f5213c7c86a596c74c1b30d74df6ea",
+      "preparedSha256": "c34f6a32167d7c364f3a13d02f90f2014cdc35660d0e070ae8ced973f4c4f19c",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+        "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核查别名main/tag区别、测量DDL修饰符与关系约束；明确measurement NOT NULL不执行、DEFAULT拒绝，关系表实际应用。",
+      "validation": "人工文档/源码事实核对、标题/SHA/HTTPS链接/代码围栏核验；未执行SQL/API/基准/安装示例"
+    }
+  ]
+}

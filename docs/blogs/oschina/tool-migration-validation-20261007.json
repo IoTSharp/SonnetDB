@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-07",
+  "task": "Move reusable OSChina queue tools into publish-oschina skill",
+  "migratedProjectScriptCount": 6,
+  "projectPs1Remaining": 0,
+  "publisherOfflineTests": {
+    "networkRequests": 0,
+    "failed": 0,
+    "passed": 71
+  },
+  "queueOfflineTests": {
+    "credentialsRead": false,
+    "failed": 0,
+    "networkRequests": 0,
+    "reportSha256": "d60e407cfa4b602fdb3d95972c0787d0e40e1f0f163b6eb51227aa8b213a6077",
+    "passed": 36,
+    "fixtureRemoved": true,
+    "runtimeLedgerUnchanged": true
+  },
+  "skillStructureValid": true,
+  "skillManifestVerifiedFiles": 1395,
+  "currentSourceDriftArticleIds": [
+    "139",
+    "140"
+  ],
+  "driftAction": "Keep frozen channel copies and hashes; review changed source before these articles are published. Concurrent cnblogs changes are outside this commit.",
+  "queueCheckpoint": {
+    "newsId": 502847,
+    "verifiedTweets": 32,
+    "retainedDraftId": 3326805,
+    "nextArticleId": "030",
+    "remaining": 109,
+    "newsStatus": "submitted-awaiting-review",
+    "acceptedBlogs": 33
+  },
+  "automation": {
+    "dailyMaximumBlogs": 2,
+    "active": true,
+    "migratedToolPathsVerified": true,
+    "id": "sonnetdb-2",
+    "timezone": "Asia/Shanghai",
+    "dailyTime": "11:00"
+  },
+  "thisMigrationNetworkRequests": 0,
+  "actualPublishingReceiptsChanged": false
+}

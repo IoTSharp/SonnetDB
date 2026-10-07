@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "tagCommit": "827d6cff02dc33aea72d60fcaa1c511d74a0934a",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0"
+  },
+  "expectedArticleIds": [
+    "031",
+    "032",
+    "033",
+    "034",
+    "035",
+    "036",
+    "037",
+    "038",
+    "039",
+    "040",
+    "041",
+    "042",
+    "043",
+    "044",
+    "045",
+    "046",
+    "047",
+    "048",
+    "049",
+    "050",
+    "051",
+    "052",
+    "053",
+    "054",
+    "055",
+    "056",
+    "057",
+    "058",
+    "059",
+    "060"
+  ],
+  "frozenArticleIds": [
+    "031",
+    "032",
+    "033",
+    "034",
+    "035",
+    "036",
+    "037",
+    "038",
+    "039",
+    "040",
+    "041",
+    "042",
+    "043",
+    "044",
+    "045",
+    "046",
+    "047",
+    "048",
+    "049",
+    "050",
+    "051",
+    "052",
+    "053",
+    "054",
+    "055",
+    "056",
+    "057",
+    "058",
+    "059",
+    "060"
+  ],
+  "pendingArticleIds": [],
+  "articles": [
+    {
+      "articleId": "034",
+      "title": "使用 HyperLogLog 进行基数估计：distinct_count() 函数详解",
+      "sourcePath": "docs/blogs/034-distinct-count-hyperloglog.md",
+      "preparedPath": "docs/blogs/oschina/prepared/034-distinct-count-hyperloglog.md",
+      "sourceSha256": "92ae382b99321ff71bb9217fbe2e59e7834a7f84cca4d2c4cb8e8f0e91701eb4",
+      "preparedSha256": "f889b4dd90c150d21c63ef1bc2f2f59b5eafb8b953f0630786a92f33da813052",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/HyperLogLog.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "HLL误差/寄存器大小、真实FIELD类型、精确DISTINCT、time分桶、返回估算非SQL草图；删除PostgreSQL未实现例子与超额性能承诺。",
+      "validation": "人工源码和文档事实核对；SQL/API/性能示例未执行；保留v4正式与main开发区分。"
+    },
+    {
+      "articleId": "035",
+      "title": "使用 histogram() 进行等宽分桶分布分析",
+      "sourcePath": "docs/blogs/035-histogram.md",
+      "preparedPath": "docs/blogs/oschina/prepared/035-histogram.md",
+      "sourceSha256": "ba795947d2def14af5eecf9cce3aee28051531805ab6d16546ab9cf48622857c",
+      "preparedSha256": "f50f61d405f16591719a7decd26895b4716a285f0165706bf878fbb90a876d6b",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/HyperLogLog.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "histogram第二参为桶宽非桶数，返回区间键JSON字符串非嵌套表；纠正DDL/time语法、有限输入与字典状态边界。",
+      "validation": "人工源码和文档事实核对；SQL/API/性能示例未执行；保留v4正式与main开发区分。"
+    },
+    {
+      "articleId": "031",
+      "title": "基础聚合函数：count/sum/min/max/avg/first/last",
+      "sourcePath": "docs/blogs/031-basic-aggregation.md",
+      "preparedPath": "docs/blogs/oschina/prepared/031-basic-aggregation.md",
+      "sourceSha256": "a3041da52f635b37470329acb61e74fe8ccc89c64a3a4b46bd33dfede461e355",
+      "preparedSha256": "84b931c13991ac353c6d0c9678611100fdd041b436170fda7051fcd86d936c00",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/benchmarks/m45-measurement-tag-grouping.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "032",
+      "title": "统计聚合函数：stddev/variance/spread/median/mode",
+      "sourcePath": "docs/blogs/032-statistical-aggregates.md",
+      "preparedPath": "docs/blogs/oschina/prepared/032-statistical-aggregates.md",
+      "sourceSha256": "7b4687b30e034a63b3c10af40ba672d60ce84b08c3e3128a0db1f88a8825d137",
+      "preparedSha256": "1cf44a4b8a6c2dc43c3af11f2ad73b652932036fefa33e67f67474b7aa398678",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "033",
+      "title": "深入 T-Digest：分位数聚合与 percentile",
+      "sourcePath": "docs/blogs/033-tdigest-percentile.md",
+      "preparedPath": "docs/blogs/oschina/prepared/033-tdigest-percentile.md",
+      "sourceSha256": "d8cf188827ce050592a2914d3ddd23a5f895f71bf6f7ae58426840ef10d6ee29",
+      "preparedSha256": "2d4a719f0220c911de4a8b876439469cf43e5a1897c30e2546c507812925ce5c",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/TDigest.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "036",
+      "title": "向量维度平均：centroid(embedding) 聚合函数详解",
+      "sourcePath": "docs/blogs/036-centroid-vector-aggregate.md",
+      "preparedPath": "docs/blogs/oschina/prepared/036-centroid-vector-aggregate.md",
+      "sourceSha256": "80aa365898d0fac36acc0a06006849462d7a138eb04ed55c38f2e1331c737932",
+      "preparedSha256": "8416347d1e87f34bd5ac8f8f146f5facc742324881fd86e026f7159db1c7148a",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "037",
+      "title": "按时间段分组：GROUP BY time() 时间桶聚合",
+      "sourcePath": "docs/blogs/037-group-by-time.md",
+      "preparedPath": "docs/blogs/oschina/prepared/037-group-by-time.md",
+      "sourceSha256": "bd889863e87671ff63277586d422d8aef0b0c38bd7ee7aa02adb97268a6108e8",
+      "preparedSha256": "e8c7d8fdbe8b6542b4bef1f611f18b2ee62f428c1b8b134bc26542449ab0d0e4",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/benchmarks/m45-measurement-tag-grouping.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "038",
+      "title": "高级时间桶聚合：同一时间窗口内的多指标组合分析",
+      "sourcePath": "docs/blogs/038-group-by-time-advanced.md",
+      "preparedPath": "docs/blogs/oschina/prepared/038-group-by-time-advanced.md",
+      "sourceSha256": "51ad461979037b7dea0f548696ccdeff2da41e0bb6164810d8ddfa0c6ad52b55",
+      "preparedSha256": "1aae43b312574317b08a44c4657f93a81bb5bc43a68fcd04c9394d8ca7741e50",
+      "sourceDocs": [
+        "docs/sql-reference.md",
+        "docs/benchmarks/m45-measurement-tag-grouping.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "039",
+      "title": "行间变化检测：difference() 与 delta() 窗口函数",
+      "sourcePath": "docs/blogs/039-difference-delta-window.md",
+      "preparedPath": "docs/blogs/oschina/prepared/039-difference-delta-window.md",
+      "sourceSha256": "14eaa91d371295499ffbbc705e96d8ecd23a5c17dc67eae5cf6eeb3ce124814e",
+      "preparedSha256": "6bf8170cc0eac62e49f54a94d6015d7e0378984593072f2ab58a48531ef16af2",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/PointDifferenceFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "040",
+      "title": "计数器重置感知的增长计算：increase() 函数",
+      "sourcePath": "docs/blogs/040-increase-window.md",
+      "preparedPath": "docs/blogs/oschina/prepared/040-increase-window.md",
+      "sourceSha256": "5dfad99db0be9801f40140a881ad2cc0bb8fed79dabf1b6cfbd0ab0ba7fbdfef",
+      "preparedSha256": "ac850d4f10f9f2f920cada086c34d7b9f89fdea98d146b83c757d013b7e6ea11",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/PointDifferenceFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "041",
+      "title": "深入理解 SonnetDB 的差分类窗口函数：derivative / non_negative_derivative / rate / irate",
+      "sourcePath": "docs/blogs/041-rate-derivative-window.md",
+      "preparedPath": "docs/blogs/oschina/prepared/041-rate-derivative-window.md",
+      "sourceSha256": "0c41fe99bcb5846625d831df467330c3e748b368764251b82aeedc0dac63b417",
+      "preparedSha256": "fd9ead8da77f06441f92aa1a645e0ca4292fd820407fe607ac4c2cf764957595",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/PointDifferenceFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "042",
+      "title": "SonnetDB 累计与积分函数：cumulative_sum() 运行总和与 integral() 梯形面积",
+      "sourcePath": "docs/blogs/042-cumulative-sum-integral.md",
+      "preparedPath": "docs/blogs/oschina/prepared/042-cumulative-sum-integral.md",
+      "sourceSha256": "2e19c30bda79b88ff2dfc8ea0dfefe447fe3f93562d1bc53a12c4527a87def5d",
+      "preparedSha256": "fc4005abfe20e6a8a8878242ea320a1342eb50f7d5f6e3b1268c48dc32d86cde",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/RunningFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "043",
+      "title": "SonnetDB 平滑函数解析：moving_average() 与 ewma() 降噪技术",
+      "sourcePath": "docs/blogs/043-moving-average-ewma.md",
+      "preparedPath": "docs/blogs/oschina/prepared/043-moving-average-ewma.md",
+      "sourceSha256": "884d5c0ea1e2c25584e85d9b70343cc867c0bfd2982ff17f0377e9d131c1f98b",
+      "preparedSha256": "13426273351059d348ce51b22c7b5163d4afa4f258715571f94d121783e43b4e",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/SmoothingFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "044",
+      "title": "SonnetDB 的 Holt-Winters 平滑：holt_winters() 双指数平滑与趋势提取",
+      "sourcePath": "docs/blogs/044-holt-winters-smoothing.md",
+      "preparedPath": "docs/blogs/oschina/prepared/044-holt-winters-smoothing.md",
+      "sourceSha256": "c449a437a3ffe491f8f40ad34bd8d02ea55d73a505124e0049b561226d8c317d",
+      "preparedSha256": "94886d553ba6470ac1a69f8eeb7c96edb7925c289114fd4f175ecf7c80664181",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/SmoothingFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "045",
+      "title": "SonnetDB 缺失值处理三剑客：fill() / locf() / interpolate()",
+      "sourcePath": "docs/blogs/045-fill-locf-interpolate.md",
+      "preparedPath": "docs/blogs/oschina/prepared/045-fill-locf-interpolate.md",
+      "sourceSha256": "6934db958364be8cc67eb4e53cf23fafb6a7bc10c65303270356db8f9824078f",
+      "preparedSha256": "cae4f5bb8e0d986167f81e1d0a6847a74dca3f72d361c5c85412aedf07d2377d",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/NullHandlingFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "046",
+      "title": "SonnetDB 状态分析函数：state_changes() 变化检测与 state_duration() 持续时间",
+      "sourcePath": "docs/blogs/046-state-changes-duration.md",
+      "preparedPath": "docs/blogs/oschina/prepared/046-state-changes-duration.md",
+      "sourceSha256": "6a7a9bffc37c6bf4bdf05508d3d19b4156c60fd84c6cf0641a293e720c31e016",
+      "preparedSha256": "6c2976dbb9ab312284577141ca228316445bd7112c4f485eced33c78850f73dc",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/StateFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "047",
+      "title": "SonnetDB 窗口函数流水线：从差值计算到异常检测的完整监控链路",
+      "sourcePath": "docs/blogs/047-window-function-pipeline.md",
+      "preparedPath": "docs/blogs/oschina/prepared/047-window-function-pipeline.md",
+      "sourceSha256": "6fe0a379f8f63dbab04c2d45d8aaa8d048bbe0fddd2b79fe78e8e69cf1074d9a",
+      "preparedSha256": "30ce4aabbd8e6d4cb7adfe3af25bcfcc3e4eab73aa40215202778cfb774797b7",
+      "sourceDocs": [
+        "src/SonnetDB.Core/Query/Functions/Window/WindowFunctionBinder.cs",
+        "src/SonnetDB.Core/Query/Functions/Window/PointDifferenceFunctions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "048",
+      "title": "SonnetDB INSERT 批处理性能优化：批量写入与 flush 策略",
+      "sourcePath": "docs/blogs/048-insert-batch-performance.md",
+      "preparedPath": "docs/blogs/oschina/prepared/048-insert-batch-performance.md",
+      "sourceSha256": "2c53a2f37acd4dcf0d16f7e3b7799f6d97aee51eac842352d8a5f71149ec96e3",
+      "preparedSha256": "4985d0d9c979ea80c920ed325773faad25ea3059e2bb9b52c678617d73a85e93",
+      "sourceDocs": [
+        "docs/bulk-ingest.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "049",
+      "title": "SonnetDB KNN 向量搜索入门：knn() TVF 语法与距离度量选择",
+      "sourcePath": "docs/blogs/049-knn-vector-search.md",
+      "preparedPath": "docs/blogs/oschina/prepared/049-knn-vector-search.md",
+      "sourceSha256": "b24c496d170e85e3603dbc57ccad1d9137e524f9d49fe1d83c323fb222fbad3c",
+      "preparedSha256": "355a72563c7128699954077eb2e6f506c6be36a399aa366d2d3dc4932fc48e4d",
+      "sourceDocs": [
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "050",
+      "title": "SonnetDB 语义搜索实战：knn() 与标签过滤和时间范围的联合查询",
+      "sourcePath": "docs/blogs/050-knn-semantic-search.md",
+      "preparedPath": "docs/blogs/oschina/prepared/050-knn-semantic-search.md",
+      "sourceSha256": "9cd4c4e94c3ce3070eddd7e6fa4eb1f2fe8c59e2fbd7c165bc105a856d74fb19",
+      "preparedSha256": "b18b96f1052d4afeafa9aa5b130da3ef0f53c1dc08a388ff58a197ad9142ceff",
+      "sourceDocs": [
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "051",
+      "title": "SonnetDB HNSW 索引架构：m/ef 参数调优与 .SDBVIDX 文件格式",
+      "sourcePath": "docs/blogs/051-hnsw-index-ann.md",
+      "preparedPath": "docs/blogs/oschina/prepared/051-hnsw-index-ann.md",
+      "sourceSha256": "65fb755ff23e78c8b1baba02c481ac8ae27be4ccc3631e2c3bbca9e3236003cd",
+      "preparedSha256": "846f823f6cf414d2862f04d6c26036eb20188002fbeea89f5e8ef853ead1337e",
+      "sourceDocs": [
+        "docs/vector-search.md",
+        "src/SonnetDB.Core/Storage/Segments/SegmentVectorIndexFile.cs",
+        "src/SonnetDB.Core/Vector/Index/Hnsw/HnswOptions.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "052",
+      "title": "暴力搜索 vs HNSW 索引：精度与延迟的权衡",
+      "sourcePath": "docs/blogs/052-brute-force-vs-hnsw.md",
+      "preparedPath": "docs/blogs/oschina/prepared/052-brute-force-vs-hnsw.md",
+      "sourceSha256": "901f18a33558fdb8e3fcb82e1ec379f6a41345a9f9361858ed821249676c7988",
+      "preparedSha256": "796cb978925445b6c80946ac315faf67a7141b33052ba1fae09789d4d4af6237",
+      "sourceDocs": [
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "053",
+      "title": "向量距离度量深度对比：Cosine vs L2 vs Inner Product",
+      "sourcePath": "docs/blogs/053-vector-distance-metrics.md",
+      "preparedPath": "docs/blogs/oschina/prepared/053-vector-distance-metrics.md",
+      "sourceSha256": "025cc6e101c1d5a4eac84d8fd01e63fc927247fbf66f1dd63490489bd44aaeeb",
+      "preparedSha256": "f54fd62ae67a0d38c9c8f5984027efb66286a2036e5874d6b4dabab638369dd7",
+      "sourceDocs": [
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "054",
+      "title": "向量召回率基准测试：Recall@10 评估与 HNSW 参数影响",
+      "sourcePath": "docs/blogs/054-vector-recall-benchmark.md",
+      "preparedPath": "docs/blogs/oschina/prepared/054-vector-recall-benchmark.md",
+      "sourceSha256": "9630f0238504beceb9572e7c6dc9250cf874cd5b5c26c5a074e3dbdd6caeb0c3",
+      "preparedSha256": "22a7c85442a8f6bad08787fd7fbf8ebb115c7ef51b93b90aba8b1e05ae23232a",
+      "sourceDocs": [
+        "docs/vector-search.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "055",
+      "title": "从 pgvector 迁移到 SonnetDB：运算符兼容性与 SQL 差异",
+      "sourcePath": "docs/blogs/055-migrate-from-pgvector.md",
+      "preparedPath": "docs/blogs/oschina/prepared/055-migrate-from-pgvector.md",
+      "sourceSha256": "b96ddcff7539decbc02b41938eb5a0e45cd04fa9111991b2adeb62172a5e1e46",
+      "preparedSha256": "48550dee5885a68ded04b1882c0dff34a9810b04a3a1943d0d7f5770dc3c30d0",
+      "sourceDocs": [
+        "docs/vector-search.md",
+        "docs/sql-reference.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "056",
+      "title": "GEOPOINT 类型入门：地理空间数据存储与查询",
+      "sourcePath": "docs/blogs/056-geospatial-intro.md",
+      "preparedPath": "docs/blogs/oschina/prepared/056-geospatial-intro.md",
+      "sourceSha256": "6c216aec22bf80f7730b4dd8fd92797048c9761856452bf1ffe0d8b3baccd7b3",
+      "preparedSha256": "1debc54db413b226e62d273f281df25e52fb5b8e77d39fc0fe468ee0c7a4a561",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "src/SonnetDB.Core/Model/GeoPoint.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "057",
+      "title": "坐标分量提取：lat() 和 lon() 函数详解",
+      "sourcePath": "docs/blogs/057-lat-lon-functions.md",
+      "preparedPath": "docs/blogs/oschina/prepared/057-lat-lon-functions.md",
+      "sourceSha256": "ae4cae78856e8642a383a287367e0dda5b79480bcc26625df1f789deaac2f939",
+      "preparedSha256": "b62eadd366206a0f397ae810472cf783910d6baf47120716602c08ce88d2b473",
+      "sourceDocs": [
+        "docs/geo-spatial.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "058",
+      "title": "地理距离与方位角计算：geo_distance 与 geo_bearing",
+      "sourcePath": "docs/blogs/058-geo-distance-bearing.md",
+      "preparedPath": "docs/blogs/oschina/prepared/058-geo-distance-bearing.md",
+      "sourceSha256": "d7f9407d2ce3f1c178b24e897a6359716fa00e33d8496c32283e13fbd0ea2082",
+      "preparedSha256": "c44dfe14c84ab48b9ea4125ab3828f9adac29b2510d04df6ca37d75bca0b3ec5",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "059",
+      "title": "地理空间过滤：geo_within 圆形查询与 geo_bbox 矩形查询",
+      "sourcePath": "docs/blogs/059-geo-within-bbox.md",
+      "preparedPath": "docs/blogs/oschina/prepared/059-geo-within-bbox.md",
+      "sourceSha256": "a86765e67aadf8603a8abdcdb902a84eb3c52fdc0c1290e42672959af343389b",
+      "preparedSha256": "0ce26e715b9b561184918fb43ab8efa162504b69fbef8a2e0ef5b7fb6621e970",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    },
+    {
+      "articleId": "060",
+      "title": "PostGIS 兼容函数：ST_Distance / ST_Within / ST_DWithin",
+      "sourcePath": "docs/blogs/060-postgis-compatibility.md",
+      "preparedPath": "docs/blogs/oschina/prepared/060-postgis-compatibility.md",
+      "sourceSha256": "d87d7b949bdc905feed0427f7045a17801a0b3dc44c8a906e2ad318ca87a55a0",
+      "preparedSha256": "75c07f370df21b5b35095ec9cdcbff40c9a30a78795239f9fe5111d67af3c8de",
+      "sourceDocs": [
+        "docs/geo-spatial.md",
+        "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
+      "validation": "人工合同/源码核对，HTML发布需--html；示例未执行，不计真实服务、性能或发行门禁。"
+    }
+  ],
+  "pauseReason": null,
+  "authoringBoundary": "本次恢复写稿设置20分钟墙钟、至多30篇/60命名文件；期间一次只读002 metadata排查属于发布器修复，无作者POST。"
+}

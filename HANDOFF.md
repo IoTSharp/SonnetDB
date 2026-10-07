@@ -631,3 +631,26 @@
 - 根会话已冻结三个互不重叠的有界任务：WB-12 Web Admin Document Workbench（`web/src/components/DocumentCollectionWorkbench.vue` 与专属测试）由 `/root/wb12_web_admin_document` 实施；WB-13 Studio 宿主合同（connection library、bridge contracts、BridgeHost 与专属测试）由 `/root/wb13_studio_host_slice` 实施；WB-14 VS Code Workbench 资源/深链接合同（types、workbenchResource、extension、package contribution、Node/Host 测试）由 `/root/wb14_vscode_workbench_slice` 实施。
 - 三项均先复用已确认 M47 基线和既有 M29/M32/M34 实现；不把原型、静态合同、本地 fixture、Extension Host 或 Studio 本机构建写成三宿主整体完成。共享文档、集成、stage、restore/format、commit 由根会话串行维护，子智能体不得自行提交。
 - 当前工作树在阶段启动前 clean；实施期间根会话只修改共享记录并集中验证，避免覆盖宿主源文件。下一次检查先读取本文件、AGENTS、队列、git status 和子智能体状态，接续实际检查点。
+
+## SonnetDB 开源中国首次补发与每日续发（2026-10-07）
+
+- 用户授权发布全部已有001–142文章，从001按原编号接续；本轮尽量发至博客平台限制，每天北京时间11:00再发两篇，每篇发公告，补投4.0新闻。最新要求明确动弹业务错误不阻断博客，并持久记进度避免重发。只用HTTPS API与固定PowerShell7；博客园队列/自动任务与并发研发保持独立，不新增planned系列。
+- 已接收33篇：001–029及先前135–138，原ID保留。第030最终publish_blog被HTTP200/code500“访问频率过高，请稍后再试”拒绝，本轮已停止博客写入。其原draft3326805经完整已发表/草稿/定时三组和严格全文只读核对唯一匹配，queue/global均draft；剩109篇，含该草稿与108已复核queued。下一次先从030复用原draft，不能再建；当日即时33篇计入额度，下一正常两篇日期2026-10-08 11:00。
+- 权威文件docs/blogs/oschina/publishing-state.json，逐次events.jsonl只追加，PROGRESS.md人读，RESULT-20261007.md记录停止原因。所有142源稿不改；OSChina副本在prepared，清单冻结存源/副本SHA及事实依据，正式4.0/main边界分开，去除无证据跑分和真实客户承诺，例子未实跑。135初期缺失prepared SHA已通过原blog19773742的完整列表/正文只读核对补齐，未重发。
+- 32公告已返回ID且只读正文验证完成。135首次无ID公告仍unknown，不因后续同账号链接拒绝而推断其结果，不改文案盲重发。136旧带链接请求有精确拒绝message“内容包含链接，禁止发布”，已单独failed/rejected；无链接公告原30401375已可读全文一致。029原30401406的运算符实体经一次反解严格全文核对，未重建；025–029本地锁跳过的公告已补发。
+- 发布器保存脱敏具体业务错误，明确not_sent/rejected/unknown；POST有ID但GET审核中保留ID与待核验状态，动弹用无URL纯文字；HTML博客保护Span<T>等代码，严格DOM比较、同ID正文修复，空/NULL origin URL仅按缺省等价，纯文字动弹仅允许单次HTML实体解码后的严格相等。最终离线69/69 PASS，Publisher SHA59F640435E00E8BECB07869732A07951E3ACE6F32A8FC647565F9E00624AA737，测试/证据在全局技能state/tweet-entity-validation-20261007；不能把mock或教程事实核对称真实SQL/模型/基准/恢复验收。
+- 4.0.0新闻已补投，ID502847，账号status0/前端审核中。正式来源https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0；本地旧候选说明未冒充正式发布内容。队列/全局投稿指纹和账号列表证据均保留，不重复投稿，不声称新闻公开。
+- sonnetdb-2 heartbeat已更新/回读ACTIVE，每天Asia/Shanghai 11:00，当天最多两篇，目标本chat01a11288-ff7e-7252-a539-b35bfb689ed4。自动prompt保存原draft接续、已返回ID不重发、动弹独立、每次进度和未知/限额处理。博客园sonnetdb与workbench自动任务未改。
+- 持久写入/对账脚本Publish-QueuedBlogs/Publish-PendingTweets/Reconcile-QueuedReceipts/Sync-PublishingState共用Publishing-Session的CreateNew整批单writer锁，嵌套仅同PID+owner；Verify-PublishingState为单独的离线只读核验，应在写入结束后串行运行。UTF8无BOM/LF同目录原子替换；全局对账锁内CAS核对id/kind/fingerprint/status及remoteId/draftId双向存在性和值。只读失败追加诊断并保留原状态；博客/公告调用按剩余deadline裁剪timeout，各有最大项目数/请求数/墙钟。禁止并行helper/Sync，不强删已有锁。最终142/142源/副本SHA、回执一致与33/32唯一ID、六PS脚本AST0错、发布锁0残留；final-validation-20261007.json有证据。
+- final-process-audit-20261007.json检查189记录身份/182不同PID，未发现对应自有存活或测试38512/44108/94824存活，无按进程名kill；历史短命命令与外部父链缺口仍如实保留。自动审批以blocked by policy拒绝清理8个调查临时脚本/包装器及Temp/oschina-tweetfix-20261007-implementation，保留不重试/不删父目录绕过，旧技能发现缓存/Temp保留亦不动；有用证据、发布工具与状态是交付物。
+- 本任务未commit/push/部署，也未运行仓库构建/format（未提交）；仓库内仅本目录及本HANDOFF追加段归本任务，全局技能修复另存其原目录。当前main的并发研发提交与其它文件不覆盖或暂存，交接追加前观察HEAD2b21279fbd8c17dbc2e47d086e28a3795cf8a3a0。下次先读本段、技能和权威账本，优先按日期额度复用030draft，再031/032等升序；不重复001–029/135–138，不重新猜测所有文章已发状态，未知条只读跟进。
+
+## 开源中国发布工具迁入技能与本地提交（2026-10-07）
+
+- 用户本轮明确授权提交稿件、账本和工具，并要求发布工具归入技能。本轮将6份仓库PS1迁到 `C:\Users\mysti\.codex\skills\publish-oschina\scripts`，新增共享 `Queue-Context.ps1` 与离线 `Test-QueueScripts.ps1`；项目目录不再保存PS1。所有入口显式传 `-RepositoryRoot` / `-QueueDirectory`，发布器和全局指纹账本从技能定位；项目稿件、复核清单、回执、进度与README留在 `docs/blogs/oschina`，运行日志/进程审计/全账号快照本地保留且忽略，不纳入提交。
+- 队列工具保留整批single-writer锁、同PID/owner嵌套公告、CAS回执身份与真实ID、稿件SHA及路径/reparse边界、项目数/请求/墙钟/取消预算。新增不一致状态的保守守卫：queued/draft博客或pending公告已有回执/远端ID时先对账，不凭状态改写重复创建。动弹对账改为既有 `get-tweet --expected-text` 返回的Python匹配结果，避免.NET与HTML5数值/命名实体差异造成误接受；GET仍只有一次，raw详情与回执不改写。
+- 自动任务 `sonnetdb-2` 已更新并回读ACTIVE、每天Asia/Shanghai 11:00；所有工具路径指向技能，并显式传项目/队列目录。每日最多两篇及原编号升序由自动任务按真实当日回执选ArticleIds，工具本身只限制批次候选数；首次即时33篇计入10月7日额度，正常两篇从10月8日接续030原draft3326805。135未知公告与502847待审核新闻继续保留，不重发。本轮迁移无真实API/POST，队列、events及技能runtime ledger的SHA前后完全一致。
+- 验证：发布器最终71/71、队列夹具36/36、8个队列/测试PS的AST、技能quick_validate及1395文件备份manifest校验通过；夹具已删除，3个dry-run Python与测试pwsh均已退出。此前新工具真实队列离线Verify取得142源/副本一致、33/32唯一ID和无残留锁；随后并发博客园会话修改139/140原稿，本轮末检查确认这两条source SHA漂移，保留冻结副本和原哈希，到该编号前须重新事实复核，不把历史142/142证据视作当前source全过。迁移验证摘要见 `docs/blogs/oschina/tool-migration-validation-20261007.json`，示例未实跑。
+- 本轮只做两个本地提交：SonnetDB稿件/账本/本任务交接及CHANGELOG，技能仓发布器修复/通用队列工具/参考说明与备份manifest。不push/部署；使用独立index仅纳入本任务的HANDOFF段和CHANGELOG条目，保留并发研发、博客园及其它技能交接hunk。旧策略保留对象不重试删除；本轮仅移除已验证迁入技能的6个原PS1，临时夹具按归属回收，进程证据保留在忽略目录。
+
+- 本轮最终门禁：完整 dotnet restore SonnetDB.slnx 与 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 均退出0；Format只报告加载工作区警告，无格式错误。初次最终restore包装器的进程发现超时已修为批量身份查询后重跑通过，失败日志保留；后续仅统一7份JSON复核/回执元数据为LF并核对逻辑值完全不变，不改稿件、发布账本、源码或实际回执。所有本地提交须再通过精准staged diff --check，不包含其它会话hunk。
