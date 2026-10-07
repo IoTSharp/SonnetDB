@@ -2,6 +2,13 @@
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**
 
+## WB-56 终态三个安全检查独立执行（2026-10-07；本地75通过，真实cleanup另验）
+
+- **问题与范围**：318b6d1e中remaining-processes终态断言抛出后，root-identities及audit-failures不会执行；WB55 remaining1/blocking7仅为原失败证据，不能证明最后两回调已执行。本片仅两diagnostic源，由专属代理实施、独立review只读源码PASS；根维护六docs和最终八文件集成，runner/Host/生产及旧实际证据冻结。
+- **合同**：三个原同步检查按原顺序各执行一次，独立try/catch；首terminalFailure用空值赋值保留，任一拒绝仍false，仅三passed且无terminal才proof。前置final-snapshot/live失败时三项not-reached。finalChecks固定三个键与passed/refused/not-reached/unknown，容器/每键单读，缺失/invalid/throw为unknown且不降级旧字段；二次投影幂等，observer异常仍整体unknown。不新增loop/await/timer/snapshot/stop，不改变45秒、3round、128stop、35秒reserve、identity/anchor/ledger/events/helper过滤及authority。
+- **实际本地验证**：两源Node syntax通过；最终75/75（原67+新增8）、fail/cancel/skip/todo0，Node 5068.4132ms。新增行为覆盖残余/root/audit同时拒绝、残余后两检查通过、root拒绝仍执行audit、前置snapshot/live失败、recoverable失败与原stop记账、同步异常脱敏、单读getter/幂等及非法状态隔离。test-acceptance.json绑定source-build-freeze-final.json、两源SHA、完整stdout/stderr/spec/result/wrapper；真实DI编排配合成身份/快照，仅本地诊断证据，actual/TS/新.NETbuild均0。
+- **保留边界**：WB55原actual16文件、37ledger/43events/17helpers及checkpoint收据冻结；原FAIL/primary true/reason-type null、remaining-processes/final、remaining1/blocking7及processCleanupProven/runtimeRemoved=false不升级。该修补不解释权限/短命/复用、不补父身份或排除后代、不授额外stop；真实cleanup需下一独立冻结窗口。三宿主/DOM/分页/Notebook/LSP、Studio原生bridge/Managed Local/OS对话框、安装/AOT/硬件/长稳/发行物继续独立验收。
+- **根门禁与清理**：artifacts/wb56-validation-20261007，截止10:45Z、最多12wrapper/2定向测试/0actual。测试唯一新Temp sonnetdb-wb45-identity-test-XkgIVK由finally删除，根核绝对路径不存在；旧policy拒删目录不触碰。最终八文件完整restore/原format、freeze前后SHA、fresh outside零排除≤90秒、精确共享自有hunk/localcommit/post/预算关闭与独立最终验收以本目录收据/git为准。外部HANDOFF/博客CSDN、foreign22、origin/parity-results保持；无push/发布/部署/外发，唯一30分钟heartbeat ACTIVE。
 ## WB-55 真实Query/history/Code与既有fresh观察（2026-10-07；局部生命周期通过，原runner/cleanupFAIL）
 
 - 基线0878f154。证据目录`artifacts/wb55-validation-20261007`，截止10:05Z、最多14wrapper/actual1/1/TS项目1/新.NETbuild0/旧合同重测0。metadata专属代理只改runner/Host五组六literal，51+/51-，严格inverse bytes恢复基线；生产query/history/diagnostic/产品与旧WB54本地证据冻结，review只读，根维护六docs及最终集成。

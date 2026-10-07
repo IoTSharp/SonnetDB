@@ -639,9 +639,32 @@ function cleanupCount(value, maximum) {
   return Number.isSafeInteger(value) && value >= 0 && value <= maximum ? value : null;
 }
 
+const cleanupFinalCheckStates = new Set(['passed', 'refused', 'not-reached', 'unknown']);
+
+function unknownCleanupFinalChecks() {
+  return { remainingProcesses: 'unknown', rootIdentities: 'unknown', auditFailures: 'unknown' };
+}
+
+function cleanupFinalCheckState(value, key) {
+  try {
+    const state = value?.[key];
+    return cleanupFinalCheckStates.has(state) ? state : 'unknown';
+  } catch { return 'unknown'; }
+}
+
+function cleanupFinalChecks(value) {
+  let checks;
+  try { checks = value?.finalChecks; }
+  catch { return unknownCleanupFinalChecks(); }
+  return { remainingProcesses: cleanupFinalCheckState(checks, 'remainingProcesses'),
+    rootIdentities: cleanupFinalCheckState(checks, 'rootIdentities'),
+    auditFailures: cleanupFinalCheckState(checks, 'auditFailures') };
+}
+
 function unknownCleanupDiagnostic() {
   return { schema: 'sonnetdb.owned-process-cleanup.v1', firstRecoverableFailure: null,
     terminalFailure: { subcheck: 'unknown', stage: 'unknown' }, observation: 'unknown',
+    finalChecks: unknownCleanupFinalChecks(),
     structure: { roundsAttempted: null, roundSnapshotFailures: null, roundAuditFailures: null,
       stopAttempts: null, stopFailures: null, acceptedIdentityCount: null, finalSnapshotCount: null,
       finalLiveCount: null, remainingCount: null, rootCount: null, rootIdentityCount: null,
@@ -656,6 +679,7 @@ export function ownedProcessCleanupDiagnostic(value) {
     if (observation !== 'complete') return unknownCleanupDiagnostic();
     return { schema: 'sonnetdb.owned-process-cleanup.v1', firstRecoverableFailure: cleanupCheck(first),
       terminalFailure: cleanupCheck(terminal), observation: 'complete',
+      finalChecks: cleanupFinalChecks(value),
       structure: { roundsAttempted: cleanupCount(structure?.roundsAttempted, 3),
         roundSnapshotFailures: cleanupCount(structure?.roundSnapshotFailures, 3),
         roundAuditFailures: cleanupCount(structure?.roundAuditFailures, 3),
@@ -675,10 +699,16 @@ export async function verifyOwnedProcessCleanup({ deadline, ownerPid, identities
   safeLiveIdentities, stopVerified, noteAuditFailure, verifyRoots, verifyAuditFailures, observe, delay, clock = Date.now }) {
   let active = { subcheck: 'cleanup-budget', stage: 'initial' }; let firstRecoverableFailure = null;
   let terminalFailure = null; let proven = false;
+  const finalChecks = { remainingProcesses: 'not-reached', rootIdentities: 'not-reached', auditFailures: 'not-reached' };
   const structure = { roundsAttempted: 0, roundSnapshotFailures: 0, roundAuditFailures: 0,
     stopAttempts: 0, stopFailures: 0, finalSnapshotCount: null, finalLiveCount: null, remainingCount: null };
   const check = (subcheck) => { active = { subcheck, stage: cleanupChecks.get(subcheck) }; };
   const recoverable = () => { firstRecoverableFailure ??= { ...active }; };
+  const finalCheck = (subcheck, key, run) => {
+    check(subcheck);
+    try { run(); finalChecks[key] = 'passed'; }
+    catch { finalChecks[key] = 'refused'; terminalFailure ??= { ...active }; }
+  };
   try {
     const cleanupDeadline = Math.min(deadline - 35_000, clock() + 45_000);
     for (let round = 0; round < 3 && clock() < cleanupDeadline; round += 1) {
@@ -718,15 +748,17 @@ export async function verifyOwnedProcessCleanup({ deadline, ownerPid, identities
     structure.finalLiveCount = remaining.length;
     const verifiedRemaining = remaining.filter((item) => !helperStarts.some((helper) => helper.pid === item.pid && helper.closed));
     structure.remainingCount = verifiedRemaining.length;
-    check('remaining-processes'); assert.deepEqual(verifiedRemaining, []);
-    check('root-identities'); verifyRoots();
-    check('audit-failures'); verifyAuditFailures();
-    proven = true;
-  } catch { terminalFailure = { ...active }; }
+    // A refused terminal check must not hide the other mandatory checks or replace the first failure.
+    finalCheck('remaining-processes', 'remainingProcesses', () => assert.deepEqual(verifiedRemaining, []));
+    finalCheck('root-identities', 'rootIdentities', verifyRoots);
+    finalCheck('audit-failures', 'auditFailures', verifyAuditFailures);
+    proven = terminalFailure === null && finalChecks.remainingProcesses === 'passed'
+      && finalChecks.rootIdentities === 'passed' && finalChecks.auditFailures === 'passed';
+  } catch { terminalFailure ??= { ...active }; }
   let diagnostic;
   try {
     const observed = observe();
-    diagnostic = ownedProcessCleanupDiagnostic({ firstRecoverableFailure, terminalFailure, observation: 'complete',
+    diagnostic = ownedProcessCleanupDiagnostic({ firstRecoverableFailure, terminalFailure, finalChecks, observation: 'complete',
       structure: { ...structure, acceptedIdentityCount: observed.acceptedIdentityCount, rootCount: observed.rootCount,
         rootIdentityCount: observed.rootIdentityCount, storedAuditFailureCount: observed.storedAuditFailureCount,
         blockingAuditFailureCount: observed.blockingAuditFailureCount, auditFailureOverflow: observed.auditFailureOverflow } });

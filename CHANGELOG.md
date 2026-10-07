@@ -176,6 +176,7 @@
 
 ### Fixed
 
+- **M47 WB-56 终态安全门禁（2026-10-07）**：三个原同步cleanup终态检查独立执行，拒绝不跳过后续检查，首terminalFailure保留，仅三passed且无terminal才proof；固定finalChecks单读安全投影，本地75/75（67+8）和两源syntax通过、0actual。WB55原FAIL/false/null与旧证据保持，完整八文件门禁/精确本地提交见M47收据；真实cleanup、三宿主/安装/AOT/发布另验。
 - **M47 WB-55 真实Query与transition再验证（2026-10-07）**：metadata-only新独立窗口三query2/1/45逐值对真实reference、公开history3/HostPASS/API恢复/Code0正常退出局部通过；原runner FAIL/reason-type null/严格cleanupfalse保持。3 existing_fresh parent观察不授stop或推因果，37ledger/43refs/17helper及16原证据冻结，根44PID absent/0kill/280新runtime对象回收单列；原准备/actual/checkpoint拒绝保留，最终八文件完整门禁与精确本地提交见M47收据，三宿主/发布另验。
 - **M47 WB-54 既有fresh父观察（2026-10-07）**：原准入后仅复用source/fresh追加有界安全transition投影，沿原deadline双guard，原失败/authority/ledger/events/stop不改；55既有+12新增最终67/67、syntax与source绑定通过。原0启动工具失败及66/67非法ISO fixture失败保留，只修finite创建夹具；0actual，WB53真实Host/history/退出/原cleanup与三宿主仍另验，最终完整门禁与精确八文件本地提交见接续收据。
 - **M47 WB-53 真实Query与父链诊断再验证（2026-10-07）**：仅迁移runner/Host隔离metadata，单次真实current2/selection1/EXPLAIN45与独立参考逐值一致；但history/Host终态缺席、原process audit FAIL、Code/Host null与cleanupfalse保持。initial父缺command和fresh lookup缺项只作安全观察，原因unknown；51ledger/68events/28helper及14原证据冻结，根当前54PID absent/0新增kill/新runtime292对象一次回收另列。syntax/唯一TS与最终完整门禁、失败检查点本地提交见收据，不计完整Host或三宿主成功。

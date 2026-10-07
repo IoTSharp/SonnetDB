@@ -464,6 +464,134 @@ test('owned cleanup success retains exact helper filtering, depth-first accepted
   assert.equal(result.diagnostic.structure.stopAttempts, 2); assert.equal(result.diagnostic.structure.finalLiveCount, 1);
   assert.equal(result.diagnostic.structure.remainingCount, 0); assert.equal(result.diagnostic.structure.roundsAttempted, 2);
   assert.equal(result.diagnostic.structure.finalSnapshotCount, 2);
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'passed', auditFailures: 'passed' });
+});
+
+test('terminal residual, missing root and blocking audit each execute their mandatory checks while retaining the first refusal', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const calls = []; const before = structuredClone([...fixture.request.identities]);
+  const verifyRoots = fixture.request.verifyRoots; const verifyAuditFailures = fixture.request.verifyAuditFailures;
+  let liveCalls = 0; fixture.request.safeLiveIdentities = () => ++liveCalls === 2 ? [fixture.accepted] : [];
+  fixture.roots[0].identity = null; fixture.failures.push({ stage: 'identity', reason: 'existing blocking refusal' });
+  fixture.request.verifyRoots = () => { calls.push('roots'); verifyRoots(); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); verifyAuditFailures(); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, ['roots', 'audit']);
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'remaining-processes', stage: 'final' });
+  assert.equal(result.diagnostic.firstRecoverableFailure, null);
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'refused', rootIdentities: 'refused', auditFailures: 'refused' });
+  assert.equal(liveCalls, 2); assert.equal(fixture.snapshots(), 2); assert.deepEqual(fixture.stopped, []);
+  assert.deepEqual([...fixture.request.identities], before); assert.equal(fixture.failures.length, 1);
+  assert.equal(result.diagnostic.structure.remainingCount, 1); assert.equal(result.diagnostic.structure.stopAttempts, 0);
+  assert.equal(result.diagnostic.structure.roundsAttempted, 1); assert.equal(result.diagnostic.structure.blockingAuditFailureCount, 1);
+});
+
+test('a residual refusal still executes passing root and audit checks without creating a stop or clearing the residue', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const calls = [];
+  const verifyRoots = fixture.request.verifyRoots; const verifyAuditFailures = fixture.request.verifyAuditFailures;
+  let liveCalls = 0; fixture.request.safeLiveIdentities = () => ++liveCalls === 2 ? [fixture.accepted] : [];
+  fixture.request.verifyRoots = () => { calls.push('roots'); verifyRoots(); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); verifyAuditFailures(); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, ['roots', 'audit']);
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'refused', rootIdentities: 'passed', auditFailures: 'passed' });
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'remaining-processes', stage: 'final' });
+  assert.equal(result.diagnostic.structure.remainingCount, 1); assert.equal(fixture.snapshots(), 2);
+  assert.equal(liveCalls, 2); assert.deepEqual(fixture.stopped, []); assert.deepEqual(fixture.failures, []);
+});
+
+test('a refused root check cannot skip a blocking audit check or replace its first terminal failure', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const calls = [];
+  const verifyRoots = fixture.request.verifyRoots; const verifyAuditFailures = fixture.request.verifyAuditFailures;
+  fixture.roots[0].identity = null; fixture.failures.push({ stage: 'identity', reason: 'existing blocking refusal' });
+  fixture.request.verifyRoots = () => { calls.push('roots'); verifyRoots(); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); verifyAuditFailures(); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, ['roots', 'audit']);
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'refused', auditFailures: 'refused' });
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'root-identities', stage: 'final' });
+  assert.equal(fixture.failures.length, 1); assert.equal(result.diagnostic.structure.remainingCount, 0);
+  assert.equal(fixture.snapshots(), 2); assert.deepEqual(fixture.stopped, []);
+});
+
+test('a final snapshot or live failure leaves mandatory checks not reached rather than inventing a refusal or invoking callbacks', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const calls = []; let snapshots = 0;
+  fixture.request.snapshot = async () => { if (++snapshots === 2) throw new Error('synthetic snapshot deadline'); return []; };
+  fixture.request.verifyRoots = () => { calls.push('roots'); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, []); assert.equal(snapshots, 2);
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'not-reached', rootIdentities: 'not-reached', auditFailures: 'not-reached' });
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'final-snapshot', stage: 'final' });
+  assert.equal(result.diagnostic.structure.remainingCount, null); assert.deepEqual(fixture.stopped, []);
+  const failedLive = cleanupFixture(); const liveCalls = []; let observations = 0;
+  failedLive.request.safeLiveIdentities = () => { if (++observations === 2) throw new Error('synthetic final live deadline'); return []; };
+  failedLive.request.verifyRoots = () => { liveCalls.push('roots'); };
+  failedLive.request.verifyAuditFailures = () => { liveCalls.push('audit'); };
+  const liveResult = await verifyOwnedProcessCleanup(failedLive.request);
+  assert.equal(liveResult.proven, false); assert.deepEqual(liveCalls, []); assert.equal(observations, 2);
+  assert.deepEqual(liveResult.diagnostic.finalChecks, { remainingProcesses: 'not-reached', rootIdentities: 'not-reached', auditFailures: 'not-reached' });
+  assert.deepEqual(liveResult.diagnostic.terminalFailure, { subcheck: 'final-live', stage: 'final' });
+  assert.equal(failedLive.snapshots(), 2); assert.deepEqual(failedLive.stopped, []);
+});
+
+test('earlier recoverable failure and fallback stop accounting survive three independent terminal refusals', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const calls = []; let snapshots = 0;
+  const verifyRoots = fixture.request.verifyRoots; const verifyAuditFailures = fixture.request.verifyAuditFailures;
+  fixture.request.snapshot = async () => { if (++snapshots === 1) throw new Error('synthetic round snapshot failure'); return [fixture.accepted]; };
+  fixture.request.safeLiveIdentities = () => [fixture.accepted]; fixture.roots[0].identity = null;
+  fixture.request.verifyRoots = () => { calls.push('roots'); verifyRoots(); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); verifyAuditFailures(); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, ['roots', 'audit']);
+  assert.deepEqual(result.diagnostic.firstRecoverableFailure, { subcheck: 'round-snapshot', stage: 'round' });
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'remaining-processes', stage: 'final' });
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'refused', rootIdentities: 'refused', auditFailures: 'refused' });
+  assert.equal(snapshots, 4); assert.deepEqual(fixture.stopped, [11, 11, 11]); assert.equal(fixture.failures.length, 1);
+  assert.equal(result.diagnostic.structure.roundsAttempted, 3); assert.equal(result.diagnostic.structure.stopAttempts, 3);
+  assert.equal(result.diagnostic.structure.roundSnapshotFailures, 1); assert.equal(result.diagnostic.structure.stopFailures, 0);
+});
+
+test('synchronous terminal callback exceptions retain fixed refusals and execute the later callback without persisting raw text', { timeout: 1000 }, async () => {
+  const fixture = cleanupFixture(); const marker = 'Bearer WB56_SYNTHETIC_DEADLINE_SECRET_123456789'; const calls = [];
+  fixture.request.verifyRoots = () => { calls.push('roots'); throw new Error(`synthetic deadline ${marker}`); };
+  fixture.request.verifyAuditFailures = () => { calls.push('audit'); throw new TypeError(marker); };
+  const result = await verifyOwnedProcessCleanup(fixture.request);
+  assert.equal(result.proven, false); assert.deepEqual(calls, ['roots', 'audit']);
+  assert.deepEqual(result.diagnostic.terminalFailure, { subcheck: 'root-identities', stage: 'final' });
+  assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'refused', auditFailures: 'refused' });
+  assert.equal(JSON.stringify(result).includes(marker), false); assert.equal(JSON.stringify(result).includes('synthetic deadline'), false);
+  assert.equal(fixture.snapshots(), 2); assert.deepEqual(fixture.stopped, []); assert.deepEqual(fixture.failures, []);
+});
+
+test('terminal check projection reads changing getters once and remains idempotent with only fixed keys and states', { timeout: 1000 }, () => {
+  const marker = 'Bearer WB56_SYNTHETIC_GETTER_SECRET_123456789'; const reads = { checks: 0, remaining: 0, roots: 0, audit: 0 };
+  const checks = {
+    get remainingProcesses() { return ++reads.remaining === 1 ? 'refused' : marker; },
+    get rootIdentities() { return ++reads.roots === 1 ? 'passed' : marker; },
+    get auditFailures() { return ++reads.audit === 1 ? 'not-reached' : marker; }, raw: marker };
+  const result = ownedProcessCleanupDiagnostic({ observation: 'complete', firstRecoverableFailure: null,
+    terminalFailure: { subcheck: 'remaining-processes', stage: 'final' }, structure: { remainingCount: 1 },
+    get finalChecks() { return ++reads.checks === 1 ? checks : { raw: marker }; } });
+  assert.deepEqual(reads, { checks: 1, remaining: 1, roots: 1, audit: 1 });
+  assert.deepEqual(result.finalChecks, { remainingProcesses: 'refused', rootIdentities: 'passed', auditFailures: 'not-reached' });
+  assert.deepEqual(ownedProcessCleanupDiagnostic(result), result); assert.equal(JSON.stringify(result).includes(marker), false);
+  assert.deepEqual(Object.keys(result.finalChecks), ['remainingProcesses', 'rootIdentities', 'auditFailures']);
+  assert.equal(result.schema, 'sonnetdb.owned-process-cleanup.v1');
+});
+
+test('terminal check getter failures and invalid states become unknown without degrading prior cleanup labels or counts', { timeout: 1000 }, () => {
+  const marker = 'Bearer WB56_SYNTHETIC_PROJECTOR_SECRET_123456789';
+  const base = { observation: 'complete', firstRecoverableFailure: { subcheck: 'round-audit', stage: 'round' },
+    terminalFailure: { subcheck: 'remaining-processes', stage: 'final' }, structure: { remainingCount: 1, blockingAuditFailureCount: 7 } };
+  const partial = ownedProcessCleanupDiagnostic({ ...base, finalChecks: {
+    get remainingProcesses() { throw new Error(marker); }, rootIdentities: 'unknown', auditFailures: marker } });
+  const throwing = ownedProcessCleanupDiagnostic({ ...base, get finalChecks() { throw new Error(marker); } });
+  assert.deepEqual(partial.finalChecks, { remainingProcesses: 'unknown', rootIdentities: 'unknown', auditFailures: 'unknown' });
+  assert.deepEqual(throwing, partial); assert.equal(partial.observation, 'complete');
+  assert.deepEqual(partial.firstRecoverableFailure, base.firstRecoverableFailure);
+  assert.deepEqual(partial.terminalFailure, base.terminalFailure);
+  assert.equal(partial.structure.remainingCount, 1); assert.equal(partial.structure.blockingAuditFailureCount, 7);
+  assert.equal(JSON.stringify(partial).includes(marker), false); assert.deepEqual(ownedProcessCleanupDiagnostic(partial), partial);
 });
 
 test('owned cleanup terminal throws identify every fixed check without persisting error or process text', { timeout: 2000 }, async () => {
@@ -543,6 +671,7 @@ test('diagnostic observation failure stays unknown and cannot alter passed or fa
   assert.deepEqual(results[0].diagnostic, results[1].diagnostic);
   assert.equal(results[0].diagnostic.observation, 'unknown');
   assert.deepEqual(results[0].diagnostic.terminalFailure, { subcheck: 'unknown', stage: 'unknown' });
+  assert.deepEqual(results[0].diagnostic.finalChecks, { remainingProcesses: 'unknown', rootIdentities: 'unknown', auditFailures: 'unknown' });
   assert.ok(Object.values(results[0].diagnostic.structure).every((value) => value === null));
 });
 
@@ -552,6 +681,7 @@ test('event-only audit preserves process proof while audit overflow still reject
   assert.equal(observed.proven, true); assert.equal(observed.diagnostic.terminalFailure, null);
   assert.equal(observed.diagnostic.structure.storedAuditFailureCount, 1);
   assert.equal(observed.diagnostic.structure.blockingAuditFailureCount, 0);
+  assert.deepEqual(observed.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'passed', auditFailures: 'passed' });
   // The runner's independent auditFailures.length outcome gate still retains this event failure.
   assert.equal(eventOnly.failures.length, 1);
   const overflow = cleanupFixture(); const auditFailureOverflow = true; const originalObserve = overflow.request.observe;
@@ -561,6 +691,7 @@ test('event-only audit preserves process proof while audit overflow still reject
   const rejected = await verifyOwnedProcessCleanup(overflow.request);
   assert.equal(rejected.proven, false); assert.equal(rejected.diagnostic.terminalFailure.subcheck, 'audit-failures');
   assert.equal(rejected.diagnostic.structure.auditFailureOverflow, 1);
+  assert.deepEqual(rejected.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'passed', auditFailures: 'refused' });
 });
 
 test('cleanup projection accepts only fixed paired labels and bounded integers, reading changing getters once', { timeout: 1000 }, () => {

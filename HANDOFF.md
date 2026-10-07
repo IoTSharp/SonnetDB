@@ -5,6 +5,13 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（WB-56，2026-10-07；终态三安全检查本地通过，真实cleanup另验）
+
+- 接续318b6d1e/已闭合WB55。最新HANDOFF、AGENTS、ROADMAP及队列完整字节复核，与received四快照一致；git/已有提交/活动代理已核，不重做WB55或另开WB57。基线已证remaining-processes抛出会跳过root-identities和audit-failures；本片只修这项检查合同，不解释WB55残余或七拒绝的原因。
+- 专属wb56_cleanup_contract独占query-host-evidence.mjs/test.mjs两源，实施停写；wb56_cleanup_review独立只读源码PASS。三个原同步终态检查按原顺序各执行一次、分别捕获拒绝，保留首个terminalFailure；只有三passed且无terminalFailure才proven=true。前置final-snapshot/live未达则not-reached；finalChecks三个固定键/四固定状态，容器及每键单读，缺失/非法/getter异常为unknown且不降级旧字段，observer异常仍整体unknown。无新增采样/stop/loop/timer/await或authority。
+- 最终两源SHA 3C0DD178…E54AB0/521D2118…08AED6，runner459D017E…1194D保持。两源Node syntax与最终75/75（原67+新增8）通过，fail/cancel/skip/todo0；test-acceptance绑定source-build freeze、两SHA、完整stdout/stderr及wrapper。DI真实编排配合成身份/快照，仅本地安全合同证据；0actual/TS/新.NETbuild，不升级WB55原FAIL/cleanup-runtimefalse/reason-type null。测试唯一新Temp由finally删除，根核绝对路径不存在，旧policy对象不触碰。
+- 根独占六共享docs、验证/gates/stage及八文件本地提交；窗口artifacts/wb56-validation-20261007截止10:45Z、12wrapper/最多2定向测试/0actual。完整restore/原参数format须在最终八文件树串行通过，前后SHA、fresh outside零排除≤90秒、精确自有共享hunk/post/关闭/独立验收结果以本窗口收据与git log为准。foreign22、外部HANDOFF/博客CSDN、旧actual/checkpoint与origin/parity-results保持，无push/发布/部署/外发。
+- 下一片先核本次实际提交、预算与退出收据，再冻结独立真实cleanup窗口或有证据的生命周期缺口；不得重跑旧窗口、排除后代、补父身份或由本地75宣称严格回收成功。Web/Studio/VS Code三宿主、DOM/分页/Notebook/LSP、native bridge/Managed Local/OS文件对话框、安装/AOT/固定硬件/长稳/发布仍各自验收，唯一workbench ACTIVE每30分钟继续，不迁移/暂停。PS7、禁Graphify/广域扫描/安装、有界count+墙钟、完整进程身份父链/finally及绝对临时路径规则保持。
 ## 当前检查点（WB-55，2026-10-07；真实Query/history/Code局部通过，原严格回收仍失败）
 
 - 接续0878f154；WB54本地67合同/最终八文件门禁与独立验收已提交，原工具/fixture失败保留，不重做。本轮完整接收四docs/git/路线图/已有提交/仍运行代理；外部微博先追加5979B、后追加官方调用记录，严格原字节prefix保留，准备初exit1与v2成功分列。只推进WB55，不启动WB56。
