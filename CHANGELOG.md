@@ -9,6 +9,8 @@
 
 ### Added
 
+- **木垒现场只读验收（2026-10-08）**：归档当前 ARM64 配置/挂载、六个索引定义、真实倒序分页及 48/48 读取放大比、REST 预览边界和三图对象完整读取/SHA-256 的 5 个已完成子项；证据绑定现场 `6a8d82d2`，不替代 M41/M42/M36 的整体性能、容量、恢复或长稳门禁。见[现场报告](docs/audits/mulei-field-readonly-verification-20261008.md)。
+
 - **ASP.NET Core MVC + Identity 样例**：以 `SonnetDB.EntityFrameworkCore` 替换 SQL Server Provider，保留默认 Identity 配置、上下文、控制器和视图；提供 SonnetDB 专属初始迁移和独立 MVC / Identity 集成测试，覆盖账户流程、TOTP、并发与关联存储。Provider 补齐事务提交阶段的 EF 保存异常及字符串 `MaxLength` 检查约束，核心允许现有长度函数用于 CHECK。
 
 - **开源中国文章补发账本（2026-10-07）**：保存 142 篇渠道复核稿、逐篇博客/动弹回执、4.0.0 新闻审核状态与每日续发进度；通用发布和对账脚本迁入全局 `publish-oschina` 技能，项目只保留稿件、账本与接续说明。动弹失败独立记录，已有 ID 或未知请求阻止重复创建。

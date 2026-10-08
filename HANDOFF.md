@@ -800,3 +800,11 @@
 - 按仓库铁律，本轮在当前最终源码树重新执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，收据使用 commit-solution-restore / commit-solution-format；只有两项ExitCode0且进程清理验证通过才执行commit。实际提交结果以git log及commit-receipt.json为准。
 - 使用专用Git index隔离提交；HANDOFF从HEAD底本精确附加两个Identity段和本段，保留外部Workbench/发布交接。docs/design/m47-unified-management-workbench/work-queue.md及其它外部工作不纳入；本地提交后只同步未被他人改变的本任务默认index条目。commit授权不包含push/发布/部署，parity-results不改动。
 - 独立只读复核无阻断，确认最终TRX和收据一致；本轮仅门禁和提交，不重复已有功能测试。PS7、有界执行/进程身份/精确临时index清理约束继续；本次提交完成后本任务没有遗留实施项，后续包发布/远程/v3/已有库升级仍按上段边界独立验收。
+
+## 木垒现场只读核验提交交接（2026-10-08）
+
+- 用户已授权提交并推送木垒现场核验记录。本子模块先从现场源码基线 `6a8d82d2` 快进到已存在的远端 `5ad2b9ee`，再补入本轮文档；原交接及其它工作保留。现场运行版本仍为 `6a8d82d2`，此次推送不代表新代码部署。
+- 5 个现场子项完成：当前 ARM64 配置/持久挂载、六个索引名称与列序、真实48行DESC/OFFSET及实际48/48检查/返回、REST默认完整/超N截断/恰好N不截断、一条真实流水三图完整GET及SHA256对象键对账。报告与原始JSON见 `docs/audits/mulei-field-readonly-verification-20261008.*`。
+- 实际核验为6个SSH批次、11条只读SQL、3个对象各HEAD/GET、首尾readiness；没有生产写/DDL/重启或故障注入。任务进程与宿主临时脚本/锁已回收，原始证据保留。独立审核确认没有凭据、认证头或图片原文，5个子项与证据一致。
+- 冻结同语料和旧现网规范化指纹对账、覆盖索引及Frame/ADO/取消、固定x64/ARM64性能、冷启动、逐模型备份恢复、crash/replay、168小时，以及对象大文件/变更分页/续传/跨进程和MQ实例恢复继续待验；整体M41/M42/M36没有关闭。
+- 本交接段、ROADMAP、CHANGELOG及两份报告制品构成同一文档提交；提交前按AGENTS执行最终树完整restore和原CI Format Check，成功后才提交。推送至origin/main并回读远端提交，随后父仓库master更新gitlink；具体提交身份及结果以Git记录和提交门禁收据为准。
