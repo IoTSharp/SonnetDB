@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { compactDatabaseProcessEvidence } from './studio-native-database-scenario.mjs';
 import { compactNativeProcessEvidence, encodeNativeEvidence, NativeEvidenceMaxBytes, persistNativeTerminalEvidence,
-  projectNativeHelperStatistics } from './studio-native-evidence.mjs';
+  projectNativeHelperStatistics, projectNativeCimObservation } from './studio-native-evidence.mjs';
 
 // Exercise the unchanged production function with in-memory child streams.
 // Loading the whole runner would execute its actual native lifecycle.
@@ -14,7 +14,7 @@ const end = source.indexOf('\nasync function snapshot(', begin);
 assert.ok(begin >= 0 && end > begin, 'Production processAction source boundary must be present.');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const invoke = new AsyncFunction('spawn', 'check', 'counters', 'databaseRecoveryRequested', 'pwsh', 'helper', 'repository',
-  'helpers', 'mainDeadline', 'cleanupDeadline', 'projectNativeHelperStatistics', 'process', 'setTimeout', 'clearTimeout',
+  'helpers', 'mainDeadline', 'cleanupDeadline', 'projectNativeHelperStatistics', 'projectNativeCimObservation', 'process', 'setTimeout', 'clearTimeout',
   'action', 'payload', 'final', `${source.slice(begin, end)}\nreturn processAction(action, payload, final);`);
 const bounded = { timeout: 5000 };
 const unknown = { cimQueries: null, cachedPids: null, elapsedSeconds: null };
@@ -40,7 +40,7 @@ function harness(plan) {
   const spawn = (...args) => { launches.push(args); return child; };
   const pending = invoke(spawn, () => {}, counters, false, 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
     'D:\\source\\SonnetDB\\web\\e2e\\studio-native-process.ps1', 'D:\\source\\SonnetDB', helpers,
-    Date.now() + 60_000, Date.now() + 60_000, projectNativeHelperStatistics, { pid: 600 },
+    Date.now() + 60_000, Date.now() + 60_000, projectNativeHelperStatistics, projectNativeCimObservation, { pid: 600 },
     (callback, milliseconds) => { const timer = { callback, milliseconds }; timers.push(timer); return timer; },
     (timer) => cleared.push(timer), 'snapshot', { processIds: [600], descendants: false }, false);
   return { child, pending, helpers, timers, cleared, inputs, launches, counters };

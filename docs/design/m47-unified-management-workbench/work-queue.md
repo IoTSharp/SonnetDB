@@ -1,6 +1,40 @@
 # Workbench 持续推进队列
 
+WB74（2026-10-08）：修复本地共享 HANDOFF 的 owned 内容守卫，固定完整工作前缀、精确 owned 段、private blob/index tree 与其它提交路径，仅允许未暂存尾追加。继承 WB73 PS14/Node41，不重测、不改六源，0actual/产品build；原 WB73 集成失败保留。新微试、完整门禁与本地提交以 [WB74 报告](wb74-owned-handoff-integration.md) 和独立收据为准；不预填完成。
+
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。
+
+### WB73 Native CIM 本地验收（2026-10-08；本会话第2个独立任务，闭合结果见收据）
+
+- 仅验收已有WB72六源，0actual/产品build；PS/Node micro各1/1、修复PS14/14、Node41/41且0skip。首full child-cache失败保留；fake缺失CIM只改bare return，断言及其余五源不变，独立逆向hash/AST0通过。源测试5/5结束，不追加重试。
+- 根共享docs/14paths精确owned集成，HANDOFF只拼WB71 staged307508+ownending3963+WB72 own3150+本delta，foreign352979B逐byte保持。最终完整restore/原CI format、cached whitespace、observed identity audit/本地commit/post和独立终审见artifacts/wb73-native-cim-validation-20261008；不预填尚未生成的PASS，不push。
+- 旧WB72过期、WB71 shared复用strict失败与WB70 actual/normalexit/cleanupfalse不改写；已观察tuple退出不等于whole-session orphan-freedom/processIntegrity。下一独立窗口冻结新观测下的真实Native准入/单次旅程，先review再fresh资源；不盲重跑WB70，三宿主/OS/安装/ExtensionHost/AOT/硬件/长期/发布另验，Graph Beta。
+
+### WB72 Native CIM 阶段观测（2026-10-08；本新会话第1/5失败检查点）
+
+- 六路径 snapshot-only 四phase/160slots/lookup1及children64/相对单调耗时/100ms观测记账已实现，静态源码/工具独审；WB66 cache/budget、WB67 scalar与原primary/authority/runtime保持，0actual/产品build。
+- 初始PS micro exit0却打印PASS s，singleton字符串索引未执行self，语义FAIL不可升级；string[]+default拒绝+executedCases修复后00:57:50Z返回PASS self/query1/1of1。完整Node micro/PS14/Node/restore/format/commit均NOT_RUN。
+- root01:25Z窗口过期，02:29:53Z接续时失败关闭；三个保留child退出0，closure observed13/retained3/survivor-reuse-unknown0、0stop/delete；whole-session/processIntegrity/rootClosureTimely/localIntegration/overallfalse。旧WB70/71等失败保持。
+- 下一独立WB73只验收和集成已经实现的六路径，新冻结窗口/同源hash、Node micro与完整定向测试后根串行owned候选/最终树完整门禁/本地提交，0actual且不重跑WB70；不是新功能包装，最多5任务规则不变。
+
+### WB71 Native运行时/snapshot合同（2026-10-08；本会话第2/5，0actual）
+
+- 新报告绑定.53 prereq文件与原.62 CDP HTTP version/进程tuple；启动未传明确runtime选择，当前Program到复用binary等价未证。coarse CDP fatal含ownership snapshot，四helper/callsite映射静态推定，不能称HTTP端点不可达或版本导致失败。
+- helper整体20s与单CIM OperationTimeout20边界分列；记录13/17/21.537s及cleanup13/17/20.540s，低于160数量上限，无逐查询时序/根因。WB66预算/WB67三标量已有，不重复包装；下一WB72阶段/查询耗时观察候选NOT_IMPLEMENTED，先独立冻结/本地夹具，0新增CIM/权限，不重跑WB70。
+- 0sourcechange/actual/产品build/Node重测，七path root集成含有归属六pending与新report，完整restore/CI format/本任务fresh numeric/CAS commit/post/终审以本片收据为准。WB70checkpointVerified/rootClosureTimely与所有旧FAIL保持，三宿主/安装/AOT/硬件/长期/发布分列，Graph Beta；root00:35Z/review00:30Z/12wrapper，同一heartbeat ACTIVE30m。
+
+### WB70 Native真实窗口（2026-10-08；本会话1/5，唯一actual失败检查点）
+
+- WB69十五closed SHA/HEAD3027a1aa与foreign HANDOFF338755B已核，旧actual0/两formatPASS/private whitespaceFAIL/localIntegrationfalse保持；runner仅唯一CR修LF+五metadata，89122B/49FA869E…、inverse normalizedWB69 F730906B…/WB68 A2B76713…，原B准备/freshA与恢复/退出/预算合同保持。
+- source/tools独立审阅后fresh资源门禁23:18:38.510Z通过，唯一actual23:19:37.744Z/67.61s/launch1 FAIL在WebView2 loopback CDP；helper96692为CIM13/cache17/21.5372204，随后cleanup10704为13/17/20.540533，exit1/timedOutfalse。A/B选择、重启恢复与B查询未证明，normalExit/cleanupProven原false保留；不推slow CIM或数量耗尽。
+- prerequisite WebView2 .53与actual .62分列。outer17+extra59844联合18 fresh gate/current-reuse-related-associated-unknown-changed0/四exclusiveports通过，根仅回收324自有临时对象，新增stop0；原七evidence不改。只读验收null-index首次FAIL及最小修复另记；完整CIM/过程缺口保持overall/processIntegrityfalse。
+- 六paths/private owned HANDOFF/whitespace/full restore/原format/strict numeric/本地CAS commit/post/独立review以artifacts/wb70-studio-database-window-20261008收据为准；0build/0Node、actual1/1不重跑。同一heartbeat ACTIVE30m/root23:45Z/14wrapper；下一独立片有界调查actual runtime选择/helper snapshot合同，旧失败与三宿主/安装/AOT/硬件/长期/发布不升级，Graph Beta。
+
+### WB69 Native资源准入（2026-10-08；本会话1/5，0actual失败检查点）
+
+- 继承HEAD3027a1aa/closed十二SHA/own3056B ending，0重复commit/tests；仅runner五metadata迁WB69/actual及18369/18370/55369/9369，inverse exactA2B76713，8EEF源SHA绑定，prepareFirstSelection:true与原恢复/预算/authority保持。
+- 23明确依赖/九runtime SHA、WebView2154.0.4258.53、.NET10三framework/Playwright CDP import与四fresh exclusiveports已核；source syntax、tiny micro/AST/metadata inverse通过，0产品build/旧合同重测。独立source/tools/deps局部通过；预检22:23:29.404Z与最终review22:26:35.298Z之间185.894s，180s准入超时5.894s，actual0/native NOT_RUN。原错误/过程gap保留，整体过程完整性false，失败结束计1个任务。
+- 六paths根集成/完整restore/原format/精确自有HANDOFF private CAS提交/post/strict numeric与finalreview以本片收据为准，root23:00Z/review22:55Z/max12wrapper。下一独立资源窗口先review source/tools，再fresh gate与单次actual；不重复此窗口/旧同值A，不改旧WB68/67/66/65/64false，三宿主/安装/AOT/硬件/长期/发布仍分列。
 
 ### WB68 普通异库准备（2026-10-08；本会话第2/5独立任务，0actual）
 
@@ -633,3 +667,8 @@ WB-15～WB-35已按各自本地范围验证，实际提交以git log与各证据
 - Seek保持最多25窗口，每窗最多1000消息，补60秒墙钟、严格前进、请求快照/取消；自动采样最多12轮/60秒且单飞，用户可显式重启。审批绑定原API/身份/项目，dispatch前一次消费；批次最多1000项/60秒，缺失/错目标/传输异常终态记unknown且不重放，401/403仍锁存。Publish真实终态topic+安全非负offset，Ack为topic+原consumerGroup+安全nextOffset；客户端abort不能声称Server未执行。
 - Server、路由、其它模型和三宿主代码不改。Fixture/真实Kestrel既有兼容、新UI真实Server权限旅程、三宿主/安装/Extension Host/AOT/硬件/长稳/发行物分别记录；旧策略保留Temp不删除、不重试或绕过，禁止Graphify、广域工具扫描及未授权安装。
 - 三代理已停止写入，第三冻结独立复核PASS；high-water自身safe门禁、Seek最终Browse/selection与总deadline、auto请求归属及fallback实际Topic同步epoch已补行为证据。最终专属Node22/22、全Web240/240、Chrome16/16、既有MQ浏览器3/3、TypeScript/Vite通过；既有真实Kestrel兼容2/2单列。初轮Chrome13/16发现结果抽屉内共享Panel缺inline的实际组合问题，修复后未降低Raw/deny断言。根证据目录`artifacts/wb22-validation-20261006`，门禁/清理见validation-report；完整metadata/解码/传输/总堆预算与真实新UI权限/三宿主另验。
+
+
+## WB75（2026-10-08）：当前代码本地集成后暂停
+
+唯一切片从0/5开始、闭合计1/5；修hidden.git读取并先执行全面真实本机不提交preflight，再冻结15路径/private H、完整restore/原CI format、独审、observed退出与本地commit/post。只原15路径，不重跑38/14/41，不启动Native实际旅程；WB74全部失败/过程false保留。证据artifacts/wb75-local-integration-20261008，最终以closed/Git绑定为准，不预填PASS。用户要求提交后暂停，heartbeat PAUSED，无push、新产品片或接续创建；夜间等明确继续。

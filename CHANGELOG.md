@@ -9,6 +9,16 @@
 
 ### Added
 
+- **M47 WB75 本地集成窗口（2026-10-08）**：记录隐藏.git元数据修复和真实不提交预演、固定15路径/owned HANDOFF与完整最终树门禁；已有Native CIM六源和38/14/41验收继承，旧WB74失败不升级。最终本地提交结果以WB75收据为准，提交后暂停。
+
+- **M47 WB74 owned 本地集成守卫（2026-10-08）**：绑定 shared HANDOFF 完整冻结前缀、明确 owned 工作段与 private blob/index，只允许未暂存尾追加；拒绝中间插入和提交内容变化。沿用已验收 Native CIM 六源，不重跑源测试或真实旅程，原 WB73 集成失败及退出限界保留。
+
+- **M47 WB73 Native CIM 本地验收（2026-10-08）**：验收已有阶段观测，PS micro/Node micro 各1/1、修复后 PS14/14、Node41/41。首次 full 的空结果 mock 失败及原 WB72 singleton/过期失败保留；仅夹具 bare-return 窄修，0actual/产品构建，最终 owned 集成以本片收据为准。
+
+- **M47 WB72 Native CIM 阶段观测（2026-10-08）**：仅观察现有 snapshot 查询，四阶段/160 槽/有界结果数、单调耗时与 100ms 记账停止上限，同 envelope 安全投影；原 cache/预算/权限/运行时行为保持。静态独审与修复后 PS micro 1/1 通过，原 singleton 微试语义失败保留；完整验收未运行，过期窗口关闭，0 actual/产品构建。
+
+- **M47 WB71 Native运行时/快照合同（2026-10-08）**：新增绑定原.53 prerequisite与实际.62 CDP HTTP version的合同报告，区分coarseCDP标签、ownership snapshot与逐查询时序缺口；没有运行时选择绑定/根因或恢复完成的新声明。0sourcechange/actual/产品build/Node重测，后续阶段耗时观察尚未实现。
+
 - **M47 WB68 Native选库普通异库准备（2026-10-08）**：真实runner显式启用单次独立B控件准备，仅在首次A已active且新鲜守卫成立时执行，ack/DOM/disk完成后重读原A守卫；默认同值/unknown拒绝、原A→B恢复旅程与预算保持。新增17项、本地Node60/60与micro1/1通过，0actual/产品build，不声明真实数据库恢复已验收。
 
 - **M47 WB67 Native helper统计保留（2026-10-08）**：保留同helper success/error的既有CIM查询数、缓存PID数与内部耗时至当前record/compact，非法或缺失为unknown，不新增采集或动作权限；新增15项、本地Node31/31及纯PS输出夹具通过。原业务结果/错误、预算/身份/回收门禁及真实恢复失败边界保持。
@@ -167,6 +177,9 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+
+- **M47 WB70 Native真实窗口失败检查点（2026-10-08）**：runner唯一CR修LF及独立metadata/source/runtime准入；唯一actual在WebView2 loopback CDP helper预算失败，未证明A/B恢复，原actual/normalExit/cleanupfalse保留。明确prerequisite .53与actual .62差异，根18identity fresh门禁后仅回收324自有临时对象；0新build/Node重测，局部门禁/本地集成见收据，整体过程缺口不升级。
+- WB69：冻结 Studio Native 数据库恢复的新 metadata/runtime 窗口，复用普通异库准备与 helper 统计；依赖/端口预检通过但独立复核超出 180 秒准入有效期，保留 0 actual 失败检查点，不声明真实恢复通过。
 - **4.5 路线规划与完成范围整理（2026-10-03）**：根 `ROADMAP.md` 增加 M44 AI 应用与可治理推理、M45 聚合与持续计算深化、M46 存储编码与执行成本优化，并沿用既有九模型、资源、恢复与真实证据队列；同步总索引和三个研究专题。新增功能均为规划，不是本条目已实现功能；TsFile 不纳入路线。下表归档的是此前已发生的实现与对应证据，未提升远程、容量、真实模型或长期状态。
 
 <a id="roadmap-completed-archive-2026-10-03-45"></a>

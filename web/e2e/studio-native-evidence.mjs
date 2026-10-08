@@ -56,6 +56,66 @@ export function projectNativeHelperStatistics(envelope) {
   return { cimQueries: number('cimQueries', true), cachedPids: number('cachedPids', true), elapsedSeconds: number('elapsedSeconds') };
 }
 
+// A fixed, optional snapshot observation cannot grant process authority. Own
+// data descriptors avoid invoking getters; hostile/missing data stays unknown.
+export function projectNativeCimObservation(envelope, { action = 'snapshot', now = () => performance.now(), deadline } = {}) {
+  if (action !== 'snapshot') return null;
+  try {
+    const tick = () => {
+      const value = now();
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('Unknown observation clock.');
+      return value;
+    };
+    let previousTick = tick();
+    if (deadline !== undefined && (typeof deadline !== 'number' || !Number.isFinite(deadline))) return null;
+    const expires = Math.min(deadline ?? Infinity, previousTick + 100);
+    const check = () => {
+      const current = tick();
+      if (current < previousTick || current >= expires) throw new Error('Observation projection deadline.');
+      previousTick = current;
+    };
+    const own = (object, field) => {
+      check();
+      if (!object || typeof object !== 'object') throw new Error('Unknown observation.');
+      const descriptor = Object.getOwnPropertyDescriptor(object, field);
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new Error('Unknown observation.');
+      return descriptor.value;
+    };
+    const value = own(envelope, 'cimObservation');
+    if (own(value, 'schemaVersion') !== 1) return null;
+    const state = own(value, 'state');
+    if (!['complete', 'incomplete', 'unknown'].includes(state)) return null;
+    const source = own(value, 'operations');
+    if (!Array.isArray(source)) return null;
+    const length = own(source, 'length');
+    if (!Number.isSafeInteger(length) || length < 0 || length > 160) return null;
+    const operations = [];
+    let previousStarted = 0;
+    for (let index = 0; index < length && index < 160; index += 1) {
+      check();
+      const item = own(source, String(index));
+      const ordinal = own(item, 'ordinal');
+      const phase = own(item, 'phase');
+      const startedMilliseconds = own(item, 'startedMilliseconds');
+      const elapsedMilliseconds = own(item, 'elapsedMilliseconds');
+      const outcome = own(item, 'outcome');
+      const resultCount = own(item, 'resultCount');
+      const time = (number) => number === null || typeof number === 'number' && Number.isFinite(number) && number >= 0;
+      if (ordinal !== index + 1 || !['self-handshake', 'parent-chain', 'seed-lookup', 'child-enumeration'].includes(phase)
+        || !time(startedMilliseconds) || !time(elapsedMilliseconds) || !['returned', 'threw', 'unknown'].includes(outcome)
+        || resultCount !== null && (!Number.isSafeInteger(resultCount) || resultCount < 0 || resultCount > (phase === 'child-enumeration' ? 64 : 1))
+        || outcome !== 'returned' && resultCount !== null || startedMilliseconds === null && elapsedMilliseconds !== null
+        || state === 'complete' && (startedMilliseconds === null || elapsedMilliseconds === null || outcome === 'unknown'
+          || outcome === 'returned' && resultCount === null)) return null;
+      if (startedMilliseconds !== null && startedMilliseconds < previousStarted) return null;
+      previousStarted = startedMilliseconds ?? previousStarted;
+      operations.push({ ordinal, phase, startedMilliseconds, elapsedMilliseconds, outcome, resultCount });
+    }
+    check();
+    return { schemaVersion: 1, state, operations };
+  } catch { return null; }
+}
+
 export function compactNativeProcessEvidence({ runnerIdentity, studioIdentity, events, helpers, streamCounts }, { now = Date.now, deadline = now() + 1000 } = {}) {
   if (!Array.isArray(events) || events.length > 24 || !Array.isArray(helpers) || helpers.length > 64) throw new NativeEvidenceError('process-count');
   const table = new Map();
@@ -115,7 +175,7 @@ export function compactNativeProcessEvidence({ runnerIdentity, studioIdentity, e
     compactHelpers.push({ processId: item.processId, parentProcessId: item.parentProcessId, startedAtUtc: item.startedAtUtc,
       command: item.command, action: item.action, identityKey: reference(item.identity), exitCode: item.exitCode,
       exitedAtUtc: item.exitedAtUtc, stderrBytes: item.stderrBytes, timedOut: item.timedOut === true,
-      ...projectNativeHelperStatistics(item) });
+      ...projectNativeHelperStatistics(item), cimObservation: projectNativeCimObservation(item, { action: item.action }) });
   }
   check();
   return { schemaVersion: 2, identityKeyFormat: 'processId:creationTimeUtc', runnerIdentityKey, studioIdentityKey,

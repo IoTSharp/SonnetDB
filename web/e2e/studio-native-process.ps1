@@ -14,6 +14,81 @@ $taskMaxProcesses = 64
 # A cache lives only for this helper invocation. Null entries are intentional:
 # absence must not silently become a different process when a PID is reused.
 $taskCimCache = [Collections.Generic.Dictionary[int, object]]::new()
+$taskObservationOperations = [Collections.Generic.List[object]]::new()
+$taskObservationState = 'complete'
+$taskObservationBookkeepingMilliseconds = 0.0
+
+# Snapshot diagnostics observe existing calls only. The separate bookkeeping
+# cap excludes the blocking CIM wait and never changes an action/budget guard.
+function Get-TaskObservationMilliseconds {
+    return $taskWatch.Elapsed.TotalMilliseconds
+}
+
+function Add-TaskObservationBookkeeping([double] $Milliseconds) {
+    try {
+        $script:taskObservationBookkeepingMilliseconds += $Milliseconds
+        if ($script:taskObservationBookkeepingMilliseconds -ge 100 -and $script:taskObservationState -eq 'complete') {
+            $script:taskObservationState = 'incomplete'
+        }
+    }
+    catch { $script:taskObservationState = 'unknown' }
+}
+
+function Start-TaskCimObservation([string] $Phase) {
+    if ($Action -ne 'snapshot') { return $null }
+    $taskObservationWatch = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        if ($script:taskObservationState -ne 'complete') { return $null }
+        if ($script:taskObservationBookkeepingMilliseconds -ge 100 -or $script:taskObservationOperations.Count -ge 160) {
+            $script:taskObservationState = 'incomplete'
+            return $null
+        }
+        if ($Phase -cnotin @('self-handshake', 'parent-chain', 'seed-lookup', 'child-enumeration')) { throw 'Unknown observation phase.' }
+        $taskStarted = Get-TaskObservationMilliseconds
+        if (-not [double]::IsFinite($taskStarted) -or $taskStarted -lt 0) { throw 'Invalid observation clock.' }
+        $taskSlot = [ordered]@{ ordinal = $script:taskCimCount; phase = $Phase; startedMilliseconds = $taskStarted;
+            elapsedMilliseconds = $null; outcome = 'unknown'; resultCount = $null }
+        $script:taskObservationOperations.Add($taskSlot)
+        return $taskSlot
+    }
+    catch { $script:taskObservationState = 'unknown'; return $null }
+    finally { Add-TaskObservationBookkeeping $taskObservationWatch.Elapsed.TotalMilliseconds }
+}
+
+function Complete-TaskCimObservation($Slot, [string] $Outcome, $Results, [int] $MaxResults) {
+    if ($null -eq $Slot) { return }
+    $taskObservationWatch = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $Slot.outcome = $Outcome
+        $taskEnded = Get-TaskObservationMilliseconds
+        if (-not [double]::IsFinite($taskEnded) -or $taskEnded -lt $Slot.startedMilliseconds) { throw 'Invalid observation clock.' }
+        $Slot.elapsedMilliseconds = $taskEnded - $Slot.startedMilliseconds
+        if ($Outcome -eq 'returned') {
+            $taskResultCount = if ($null -eq $Results) { 0 } else { @($Results).Count }
+            if ($taskResultCount -le $MaxResults) { $Slot.resultCount = $taskResultCount }
+            elseif ($script:taskObservationState -eq 'complete') { $script:taskObservationState = 'incomplete' }
+        }
+    }
+    catch { $script:taskObservationState = 'unknown' }
+    finally { Add-TaskObservationBookkeeping $taskObservationWatch.Elapsed.TotalMilliseconds }
+}
+
+function Get-TaskCimObservation {
+    if ($Action -ne 'snapshot') { return $null }
+    $taskObservationWatch = $null
+    try {
+        $taskObservationWatch = [Diagnostics.Stopwatch]::StartNew()
+        $taskObserved = @($script:taskObservationOperations.ToArray())
+    }
+    catch { $script:taskObservationState = 'unknown'; $taskObserved = @() }
+    finally {
+        try {
+            if ($null -ne $taskObservationWatch) { Add-TaskObservationBookkeeping $taskObservationWatch.Elapsed.TotalMilliseconds }
+        }
+        catch { $script:taskObservationState = 'unknown' }
+    }
+    return @{ schemaVersion = 1; state = $script:taskObservationState; operations = $taskObserved }
+}
 
 function Assert-TaskBudget {
     if ($taskWatch.Elapsed.TotalSeconds -ge 20 -or $script:taskCimCount -ge 160) {
@@ -39,13 +114,25 @@ function Set-TaskCachedCim([int] $ProcessId, $Process) {
     $script:taskCimCache[$ProcessId] = $Process
 }
 
-function Get-TaskCim([int] $ProcessId, [switch] $Fresh) {
+function Get-TaskCim([int] $ProcessId, [switch] $Fresh, [string] $Phase = 'seed-lookup') {
     Assert-TaskBudget
     if (-not $Fresh -and $script:taskCimCache.ContainsKey($ProcessId)) {
         return $script:taskCimCache[$ProcessId]
     }
     $script:taskCimCount++
-    $taskRaw = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -OperationTimeoutSec 20
+    $taskObservationSlot = $null
+    try { $taskObservationSlot = Start-TaskCimObservation $Phase }
+    catch { $script:taskObservationState = 'unknown' }
+    $taskObservationOutcome = 'threw'
+    $taskRaw = $null
+    try {
+        $taskRaw = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -OperationTimeoutSec 20
+        $taskObservationOutcome = 'returned'
+    }
+    finally {
+        try { Complete-TaskCimObservation $taskObservationSlot $taskObservationOutcome $taskRaw 1 }
+        catch { $script:taskObservationState = 'unknown' }
+    }
     Set-TaskCachedCim $ProcessId $taskRaw
     return $taskRaw
 }
@@ -81,7 +168,7 @@ function Get-TaskParentChain($Identity) {
     for ($taskDepth = 0; $taskDepth -lt 12 -and $taskParentId -gt 0; $taskDepth++) {
         Assert-TaskBudget
         if (-not $taskSeen.Add($taskParentId)) { throw 'Process ancestry contains a cycle.' }
-        $taskRawParent = Get-TaskCim $taskParentId
+        $taskRawParent = Get-TaskCim $taskParentId -Phase 'parent-chain'
         if ($null -eq $taskRawParent) {
             $script:taskParentBoundary = @{ processId = $taskParentId; reason = 'exited' }
             break
@@ -114,7 +201,7 @@ function Assert-TaskAncestry($Expected) {
 }
 
 try {
-    $taskSelf = Convert-TaskIdentity (Get-TaskCim $PID)
+    $taskSelf = Convert-TaskIdentity (Get-TaskCim $PID -Phase 'self-handshake')
     $taskSelf.parentChain = @(Get-TaskParentChain $taskSelf)
     $taskSelf.parentChainBoundary = $taskParentBoundary
     [Console]::Out.WriteLine((@{ kind = 'helper'; identity = $taskSelf; version = $PSVersionTable.PSVersion.ToString() } | ConvertTo-Json -Depth 16 -Compress))
@@ -145,7 +232,7 @@ try {
             $taskEntry = $taskQueue.Dequeue()
             $taskProcessId = [int] $taskEntry.processId
             if (-not $taskSeen.Add($taskProcessId)) { continue }
-            $taskIdentity = Convert-TaskIdentity (Get-TaskCim $taskProcessId)
+            $taskIdentity = Convert-TaskIdentity (Get-TaskCim $taskProcessId -Phase 'seed-lookup')
             if ($null -ne $taskIdentity) {
                 $taskIdentity.parentChain = @(Get-TaskParentChain $taskIdentity)
                 $taskIdentity.parentChainBoundary = $taskParentBoundary
@@ -156,7 +243,19 @@ try {
                 if ([int] $taskEntry.depth -ge 12) { throw 'Descendant depth cap exceeded.' }
                 Assert-TaskBudget
                 $script:taskCimCount++
-                $taskChildren = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $taskProcessId" -OperationTimeoutSec 20)
+                $taskObservationSlot = $null
+                try { $taskObservationSlot = Start-TaskCimObservation 'child-enumeration' }
+                catch { $script:taskObservationState = 'unknown' }
+                $taskObservationOutcome = 'threw'
+                $taskChildren = @()
+                try {
+                    $taskChildren = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $taskProcessId" -OperationTimeoutSec 20)
+                    $taskObservationOutcome = 'returned'
+                }
+                finally {
+                    try { Complete-TaskCimObservation $taskObservationSlot $taskObservationOutcome $taskChildren $taskMaxProcesses }
+                    catch { $script:taskObservationState = 'unknown' }
+                }
                 if ($taskChildren.Count -gt $taskMaxProcesses -or $taskQueue.Count + $taskChildren.Count + $taskItems.Count -gt $taskMaxProcesses) {
                     throw 'Descendant process cap exceeded.'
                 }
@@ -229,10 +328,11 @@ try {
             finally { $taskProcess.Dispose() }
         }
     }
-    [Console]::Out.WriteLine((@{ kind = 'result'; result = $taskResult; cimQueries = $taskCimCount; cachedPids = $taskCimCache.Count; elapsedSeconds = $taskWatch.Elapsed.TotalSeconds } | ConvertTo-Json -Depth 20 -Compress))
+    [Console]::Out.WriteLine((@{ kind = 'result'; result = $taskResult; cimQueries = $taskCimCount; cachedPids = $taskCimCache.Count; elapsedSeconds = $taskWatch.Elapsed.TotalSeconds; cimObservation = (Get-TaskCimObservation) } | ConvertTo-Json -Depth 20 -Compress))
 }
 catch {
     # Never echo the payload, native bootstrap, request headers or environment.
-    [Console]::Out.WriteLine((@{ kind = 'error'; message = $_.Exception.Message; cimQueries = $taskCimCount; cachedPids = $taskCimCache.Count; elapsedSeconds = $taskWatch.Elapsed.TotalSeconds } | ConvertTo-Json -Compress))
+    $taskPrimaryError = $_
+    [Console]::Out.WriteLine((@{ kind = 'error'; message = $taskPrimaryError.Exception.Message; cimQueries = $taskCimCount; cachedPids = $taskCimCache.Count; elapsedSeconds = $taskWatch.Elapsed.TotalSeconds; cimObservation = (Get-TaskCimObservation) } | ConvertTo-Json -Depth 20 -Compress))
     exit 1
 }

@@ -9,14 +9,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
-import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence, projectNativeHelperStatistics } from './studio-native-evidence.mjs';
+import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence, projectNativeHelperStatistics, projectNativeCimObservation } from './studio-native-evidence.mjs';
 import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.env.SONNETDB_STUDIO_NATIVE_REAL_SCENARIO ?? 'lifecycle';
 const sqlDialogsRequested = scenario === 'sql-dialogs';
 const databaseRecoveryRequested = scenario === 'database-recovery';
-const validationSlice = databaseRecoveryRequested ? 'WB-64' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
+const validationSlice = databaseRecoveryRequested ? 'WB-70' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
 const evidenceParents = Object.freeze({
   wb39: path.join(repository, 'artifacts', 'wb39-validation-20261007'),
   wb40: path.join(repository, 'artifacts', 'wb40-validation-20261007'),
@@ -24,6 +24,7 @@ const evidenceParents = Object.freeze({
   wb61: path.join(repository, 'artifacts', 'wb61-studio-database-recovery-20261007'),
   wb62: path.join(repository, 'artifacts', 'wb62-studio-database-recovery-20261007'),
   wb64: path.join(repository, 'artifacts', 'wb64-studio-database-observation-20261008'),
+  wb70: path.join(repository, 'artifacts', 'wb70-studio-database-window-20261008', 'actual'),
 });
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
 const selectedEvidence = configuredEvidence && path.isAbsolute(configuredEvidence)
@@ -45,7 +46,7 @@ const studioExe = path.join(repository, 'src', 'SonnetDB.Studio', 'bin', 'Releas
 const studioDll = path.join(path.dirname(studioExe), 'SonnetDB.Studio.dll');
 const serverDll = path.join(repository, 'src', 'SonnetDB', 'bin', 'Release', 'net10.0', 'SonnetDB.dll');
 const serverWebRoot = path.join(path.dirname(serverDll), 'wwwroot');
-const ports = Object.freeze({ http: 18340, frame: 18341, bridge: 55340, cdp: 9340 });
+const ports = Object.freeze({ http: 18371, frame: 18372, bridge: 55371, cdp: 9371 });
 const origin = `http://127.0.0.1:${ports.http}`;
 const bridgeOrigin = `http://127.0.0.1:${ports.bridge}`;
 const cdpOrigin = `http://127.0.0.1:${ports.cdp}`;
@@ -192,6 +193,7 @@ async function processAction(action, payload, final = false) {
   const result = messages.find((item) => item.kind === 'result');
   const failure = code !== 0 || !result ? messages.find((item) => item.kind === 'error') : undefined;
   Object.assign(record, projectNativeHelperStatistics(code === 0 && result ? result : failure));
+  record.cimObservation = projectNativeCimObservation(code === 0 && result ? result : failure, { action });
   if (code !== 0 || !result) throw new Error(failure?.message ?? `Process helper ${action} failed.`);
   return result.result;
 }
@@ -895,9 +897,9 @@ async function relaunchDatabaseDesktop(args, environment, expectedDatabase) {
 try {
   if (process.platform !== 'win32' || !selectedEvidence || !['default', 'narrow'].includes(windowMode)
     || !['lifecycle', 'sql-dialogs', 'database-recovery'].includes(scenario)
-    || (databaseRecoveryRequested ? !['wb61', 'wb62', 'wb64'].includes(selectedEvidence[0])
+    || (databaseRecoveryRequested ? !['wb61', 'wb62', 'wb64', 'wb70'].includes(selectedEvidence[0])
       : sqlDialogsRequested ? selectedEvidence[0] !== 'wb41' : !['wb39', 'wb40'].includes(selectedEvidence[0]))
-    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62/WB-64), and default|narrow window mode.');
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62/WB-64/WB-70), and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
     path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs'),
     ...(databaseRecoveryRequested ? [path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.test.mjs')] : [])];
