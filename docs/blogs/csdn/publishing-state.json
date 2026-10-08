@@ -450,110 +450,436 @@
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\011-security-users-roles.md",
       "sourceFile": "011-security-users-roles.md",
       "title": "安全机制详解：用户、角色与权限管理",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167268940",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167268940",
+      "attemptId": "5c8b5290-09ce-4fc4-a5a1-9daf9c7ae356",
+      "attempts": [
+        {
+          "attemptId": "5c8b5290-09ce-4fc4-a5a1-9daf9c7ae356",
+          "writeAttemptAt": "2026-10-08T11:11:13+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167268940",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167268940",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\011-5c8b5290-09ce-4fc4-a5a1-9daf9c7ae356-draft.json",
+            "evidenceSha256": "3b71b72a7ca2fea6e49e13d6493733a0749db7ba6556c69a59f741c9754d93b5",
+            "observedAt": "2026-10-08T11:12:00+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:12:35+08:00",
+          "remoteId": "167268940",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167268940",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\011-receipt.json",
+          "evidenceSha256": "269a6d364354b6cea6863a76f2c4a09aeda6cddd4d4d922eaf2af956e343b3b1"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\011-security-users-roles.md",
+      "preparedSha256": "178967b86d70b1d46b04bb0a620644ede850f4dd557b34fd10d2c497df5345fa",
+      "preparedTitle": "安全机制详解：用户、角色与权限管理",
+      "preparedAt": "2026-10-08T11:11:12+08:00",
+      "writeAttemptAt": "2026-10-08T11:11:13+08:00",
+      "draftBinding": {
+        "remoteId": "167268940",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167268940",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\011-5c8b5290-09ce-4fc4-a5a1-9daf9c7ae356-draft.json",
+        "evidenceSha256": "3b71b72a7ca2fea6e49e13d6493733a0749db7ba6556c69a59f741c9754d93b5",
+        "observedAt": "2026-10-08T11:12:00+08:00"
+      },
+      "receiptAt": "2026-10-08T11:12:35+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\011-receipt.json",
+      "evidenceSha256": "269a6d364354b6cea6863a76f2c4a09aeda6cddd4d4d922eaf2af956e343b3b1"
     },
     {
       "id": 12,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\012-token-authentication.md",
       "sourceFile": "012-token-authentication.md",
       "title": "Token 认证机制：使用 ISSUE TOKEN 保障 API 安全",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269071",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269071",
+      "attemptId": "e33b3e84-72ec-40df-9669-d2e80cd91ab4",
+      "attempts": [
+        {
+          "attemptId": "e33b3e84-72ec-40df-9669-d2e80cd91ab4",
+          "writeAttemptAt": "2026-10-08T11:12:55+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269071",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269071",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\012-e33b3e84-72ec-40df-9669-d2e80cd91ab4-draft.json",
+            "evidenceSha256": "60415fb39a741c9cfa9d5ad850fd6cbed69f8dd6d35ba5cd30beb19011998c5c",
+            "observedAt": "2026-10-08T11:13:43+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:14:16+08:00",
+          "remoteId": "167269071",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269071",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\012-receipt.json",
+          "evidenceSha256": "7cebf4950479ce4aa3c38b3955582359505696cc6136a6a852864cf4387a36f4"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\012-token-authentication.md",
+      "preparedSha256": "9382ed3ff19a15e0267e5b08b518b509153ca6b6ca389e3e80e1ed0782084945",
+      "preparedTitle": "Token 认证机制：使用 ISSUE TOKEN 保障 API 安全",
+      "preparedAt": "2026-10-08T11:12:54+08:00",
+      "writeAttemptAt": "2026-10-08T11:12:55+08:00",
+      "draftBinding": {
+        "remoteId": "167269071",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269071",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\012-e33b3e84-72ec-40df-9669-d2e80cd91ab4-draft.json",
+        "evidenceSha256": "60415fb39a741c9cfa9d5ad850fd6cbed69f8dd6d35ba5cd30beb19011998c5c",
+        "observedAt": "2026-10-08T11:13:43+08:00"
+      },
+      "receiptAt": "2026-10-08T11:14:16+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\012-receipt.json",
+      "evidenceSha256": "7cebf4950479ce4aa3c38b3955582359505696cc6136a6a852864cf4387a36f4"
     },
     {
       "id": 13,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\013-create-measurement.md",
       "sourceFile": "013-create-measurement.md",
       "title": "CREATE MEASUREMENT：定义您的时序数据结构",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269163",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269163",
+      "attemptId": "823493e4-f752-4458-a83f-03ca34fa9dea",
+      "attempts": [
+        {
+          "attemptId": "823493e4-f752-4458-a83f-03ca34fa9dea",
+          "writeAttemptAt": "2026-10-08T11:14:16+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269163",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269163",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\013-823493e4-f752-4458-a83f-03ca34fa9dea-draft.json",
+            "evidenceSha256": "387c58b4c4667461fff34fbb9d77f628868064a5e818e35443da4845a1408a0c",
+            "observedAt": "2026-10-08T11:14:59+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:15:44+08:00",
+          "remoteId": "167269163",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269163",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\013-receipt.json",
+          "evidenceSha256": "217b0e3ac4ee6904510366aa95058b3bba34752e921967da77b814c9dbb1da48"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\013-create-measurement.md",
+      "preparedSha256": "aec6a0e4220d56897bf8414fa64f0d16e7a0f14f1e2d793e1149fecf1e3b8809",
+      "preparedTitle": "CREATE MEASUREMENT：定义您的时序数据结构",
+      "preparedAt": "2026-10-08T11:12:54+08:00",
+      "writeAttemptAt": "2026-10-08T11:14:16+08:00",
+      "draftBinding": {
+        "remoteId": "167269163",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269163",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\013-823493e4-f752-4458-a83f-03ca34fa9dea-draft.json",
+        "evidenceSha256": "387c58b4c4667461fff34fbb9d77f628868064a5e818e35443da4845a1408a0c",
+        "observedAt": "2026-10-08T11:14:59+08:00"
+      },
+      "receiptAt": "2026-10-08T11:15:44+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\013-receipt.json",
+      "evidenceSha256": "217b0e3ac4ee6904510366aa95058b3bba34752e921967da77b814c9dbb1da48"
     },
     {
       "id": 14,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\014-hnsw-index.md",
       "sourceFile": "014-hnsw-index.md",
       "title": "HNSW 向量索引：加速向量搜索的强力引擎",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269254",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269254",
+      "attemptId": "461cc339-3a7c-41e5-94ea-81b6d3023374",
+      "attempts": [
+        {
+          "attemptId": "461cc339-3a7c-41e5-94ea-81b6d3023374",
+          "writeAttemptAt": "2026-10-08T11:15:45+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269254",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269254",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\014-461cc339-3a7c-41e5-94ea-81b6d3023374-draft.json",
+            "evidenceSha256": "3ac7e8f1d6059acdd6a82884758b552d7d204086c5cc7e586e17d7d91f62a13f",
+            "observedAt": "2026-10-08T11:16:09+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:17:18+08:00",
+          "remoteId": "167269254",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269254",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\014-receipt.json",
+          "evidenceSha256": "643c2806d67ecbbcc9c0b011f071ee1046941e0f53d3c3e85e1e50ad9d8e6f6a"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\014-hnsw-index.md",
+      "preparedSha256": "6291a58bb7eaaa24b785ef270dc5cd8f6f74cbaa9b977f1c1d67bbd20cd34a39",
+      "preparedTitle": "HNSW 向量索引：加速向量搜索的强力引擎",
+      "preparedAt": "2026-10-08T11:12:54+08:00",
+      "writeAttemptAt": "2026-10-08T11:15:45+08:00",
+      "draftBinding": {
+        "remoteId": "167269254",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269254",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\014-461cc339-3a7c-41e5-94ea-81b6d3023374-draft.json",
+        "evidenceSha256": "3ac7e8f1d6059acdd6a82884758b552d7d204086c5cc7e586e17d7d91f62a13f",
+        "observedAt": "2026-10-08T11:16:09+08:00"
+      },
+      "receiptAt": "2026-10-08T11:17:18+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\014-receipt.json",
+      "evidenceSha256": "643c2806d67ecbbcc9c0b011f071ee1046941e0f53d3c3e85e1e50ad9d8e6f6a"
     },
     {
       "id": 15,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\015-insert-into.md",
       "sourceFile": "015-insert-into.md",
       "title": "INSERT INTO：向时序表写入数据",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269368",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269368",
+      "attemptId": "fb1c1daa-6b15-4a31-bba4-96e3fd5a7c50",
+      "attempts": [
+        {
+          "attemptId": "fb1c1daa-6b15-4a31-bba4-96e3fd5a7c50",
+          "writeAttemptAt": "2026-10-08T11:17:18+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269368",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269368",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\015-fb1c1daa-6b15-4a31-bba4-96e3fd5a7c50-draft.json",
+            "evidenceSha256": "307500baf67d4a35fe2de0290bdce61a12ead33552c88ca3f3f339ca2727074e",
+            "observedAt": "2026-10-08T11:17:42+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:18:12+08:00",
+          "remoteId": "167269368",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269368",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\015-receipt.json",
+          "evidenceSha256": "5969820b8eaf14f47cd7371f97409ceecd76a2860bf5eced1bf20103ae503f5b"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\015-insert-into.md",
+      "preparedSha256": "148fc00259f228a941e476df54f9fae637cb2a5743d22f0733da7fec185122f5",
+      "preparedTitle": "INSERT INTO：向时序表写入数据",
+      "preparedAt": "2026-10-08T11:12:54+08:00",
+      "writeAttemptAt": "2026-10-08T11:17:18+08:00",
+      "draftBinding": {
+        "remoteId": "167269368",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269368",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\015-fb1c1daa-6b15-4a31-bba4-96e3fd5a7c50-draft.json",
+        "evidenceSha256": "307500baf67d4a35fe2de0290bdce61a12ead33552c88ca3f3f339ca2727074e",
+        "observedAt": "2026-10-08T11:17:42+08:00"
+      },
+      "receiptAt": "2026-10-08T11:18:12+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\015-receipt.json",
+      "evidenceSha256": "5969820b8eaf14f47cd7371f97409ceecd76a2860bf5eced1bf20103ae503f5b"
     },
     {
       "id": 16,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\016-geopoint-insert.md",
       "sourceFile": "016-geopoint-insert.md",
       "title": "GEOPOINT 地理空间数据：使用 POINT 语法写入经纬度",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269410",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269410",
+      "attemptId": "e1cc4b42-4291-4e10-9d1a-ecd3e7a154cd",
+      "attempts": [
+        {
+          "attemptId": "e1cc4b42-4291-4e10-9d1a-ecd3e7a154cd",
+          "writeAttemptAt": "2026-10-08T11:18:12+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269410",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269410",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-e1cc4b42-4291-4e10-9d1a-ecd3e7a154cd-draft.json",
+            "evidenceSha256": "ae2287cc3b39c41ba99f1e47516f88c53d9adc6aa0fd42cd65564fc23896bc92",
+            "observedAt": "2026-10-08T11:18:40+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:30:29+08:00",
+          "remoteId": "167269410",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269410",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-title-repaired-receipt.json",
+          "evidenceSha256": "b5bc4c91f3833a75a623f4b9c4bb417089a943724601fb7fb1a2494b0b8c5938",
+          "titleRepair": {
+            "writeAttemptAt": "2026-10-08T11:28:48+08:00",
+            "remoteId": "167269410",
+            "title": "SonnetDB GEOPOINT：用 POINT 写入经纬度",
+            "authorized": true,
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-title-repair-authorization.json",
+            "evidenceSha256": "29026c27f5dc7aa506b7b631abca44f28a451357049fed4323f1625d46e12e14"
+          }
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\016-geopoint-insert.md",
+      "preparedSha256": "7fd96b9ff627a268d2fc56c8d7cfc60c94d65eecdad833e271746c746afce031",
+      "preparedTitle": "SonnetDB GEOPOINT：用 POINT 写入经纬度",
+      "preparedAt": "2026-10-08T11:12:55+08:00",
+      "writeAttemptAt": "2026-10-08T11:18:12+08:00",
+      "draftBinding": {
+        "remoteId": "167269410",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269410",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-e1cc4b42-4291-4e10-9d1a-ecd3e7a154cd-draft.json",
+        "evidenceSha256": "ae2287cc3b39c41ba99f1e47516f88c53d9adc6aa0fd42cd65564fc23896bc92",
+        "observedAt": "2026-10-08T11:18:40+08:00"
+      },
+      "receiptAt": "2026-10-08T11:30:29+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-title-repaired-receipt.json",
+      "evidenceSha256": "b5bc4c91f3833a75a623f4b9c4bb417089a943724601fb7fb1a2494b0b8c5938",
+      "titleRepair": {
+        "writeAttemptAt": "2026-10-08T11:28:48+08:00",
+        "remoteId": "167269410",
+        "title": "SonnetDB GEOPOINT：用 POINT 写入经纬度",
+        "authorized": true,
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\016-title-repair-authorization.json",
+        "evidenceSha256": "29026c27f5dc7aa506b7b631abca44f28a451357049fed4323f1625d46e12e14"
+      }
     },
     {
       "id": 17,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\017-vector-literal.md",
       "sourceFile": "017-vector-literal.md",
       "title": "VECTOR 字面量：使用 `[v0, v1, ...]` 语法操作嵌入向量",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269834",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269834",
+      "attemptId": "e89cbd41-c3e6-46ab-a6eb-f94a75a48edf",
+      "attempts": [
+        {
+          "attemptId": "e89cbd41-c3e6-46ab-a6eb-f94a75a48edf",
+          "writeAttemptAt": "2026-10-08T11:30:29+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269834",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269834",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\017-e89cbd41-c3e6-46ab-a6eb-f94a75a48edf-draft.json",
+            "evidenceSha256": "e4011626e9a8e76c61e8481b134605a41d27bcc74014b939346cd69a9db3cba9",
+            "observedAt": "2026-10-08T11:31:07+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:31:38+08:00",
+          "remoteId": "167269834",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269834",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\017-receipt.json",
+          "evidenceSha256": "6412034df9574b2607abcf0fe718057ca043ceb3d8d1d846cb269f9392208e0c"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\017-vector-literal.md",
+      "preparedSha256": "959b73ebeb85717ee9dd790f02ffd52cf1c28e2965b366dbc8be0f5f8de06391",
+      "preparedTitle": "SonnetDB VECTOR 字面量：写入、维度与距离计算",
+      "preparedAt": "2026-10-08T11:12:55+08:00",
+      "writeAttemptAt": "2026-10-08T11:30:29+08:00",
+      "draftBinding": {
+        "remoteId": "167269834",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269834",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\017-e89cbd41-c3e6-46ab-a6eb-f94a75a48edf-draft.json",
+        "evidenceSha256": "e4011626e9a8e76c61e8481b134605a41d27bcc74014b939346cd69a9db3cba9",
+        "observedAt": "2026-10-08T11:31:07+08:00"
+      },
+      "receiptAt": "2026-10-08T11:31:38+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\017-receipt.json",
+      "evidenceSha256": "6412034df9574b2607abcf0fe718057ca043ceb3d8d1d846cb269f9392208e0c"
     },
     {
       "id": 18,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\018-select-where-basics.md",
       "sourceFile": "018-select-where-basics.md",
       "title": "SELECT 查询基础：投影、标签过滤与时间范围",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269857",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269857",
+      "attemptId": "ceb0c543-1dc3-4483-a1dc-140ed016e2a6",
+      "attempts": [
+        {
+          "attemptId": "ceb0c543-1dc3-4483-a1dc-140ed016e2a6",
+          "writeAttemptAt": "2026-10-08T11:31:38+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269857",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269857",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\018-ceb0c543-1dc3-4483-a1dc-140ed016e2a6-draft.json",
+            "evidenceSha256": "f188c46f922b12a6a0240d72c21874fd51c0687a9ca2f1c39bfbfd2847620536",
+            "observedAt": "2026-10-08T11:32:06+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:32:31+08:00",
+          "remoteId": "167269857",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269857",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\018-receipt.json",
+          "evidenceSha256": "3189b8fa702accfcea70e39f07fb7365971d4078e405ddf95b826773ea683cbb"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\018-select-where-basics.md",
+      "preparedSha256": "8844d8654992f878421ecb0db0b84e93f4d97aae15f8f334f787a605ead4993b",
+      "preparedTitle": "SonnetDB SELECT 基础：投影、标签过滤与时间范围",
+      "preparedAt": "2026-10-08T11:12:55+08:00",
+      "writeAttemptAt": "2026-10-08T11:31:38+08:00",
+      "draftBinding": {
+        "remoteId": "167269857",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269857",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\018-ceb0c543-1dc3-4483-a1dc-140ed016e2a6-draft.json",
+        "evidenceSha256": "f188c46f922b12a6a0240d72c21874fd51c0687a9ca2f1c39bfbfd2847620536",
+        "observedAt": "2026-10-08T11:32:06+08:00"
+      },
+      "receiptAt": "2026-10-08T11:32:31+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\018-receipt.json",
+      "evidenceSha256": "3189b8fa702accfcea70e39f07fb7365971d4078e405ddf95b826773ea683cbb"
     },
     {
       "id": 19,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\019-arithmetic-expressions.md",
       "sourceFile": "019-arithmetic-expressions.md",
       "title": "算术表达式：在投影列中灵活计算数据",
-      "status": "pending",
-      "remoteId": null,
-      "url": null,
-      "attemptId": null,
-      "attempts": []
+      "status": "under_review",
+      "remoteId": "167269885",
+      "url": "https://blog.csdn.net/mysticboy/article/details/167269885",
+      "attemptId": "6e3a7df4-12b5-4bcf-a3dd-497d7207401f",
+      "attempts": [
+        {
+          "attemptId": "6e3a7df4-12b5-4bcf-a3dd-497d7207401f",
+          "writeAttemptAt": "2026-10-08T11:32:31+08:00",
+          "mode": "daily",
+          "draftBinding": {
+            "remoteId": "167269885",
+            "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269885",
+            "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\019-6e3a7df4-12b5-4bcf-a3dd-497d7207401f-draft.json",
+            "evidenceSha256": "9da5885c2ef7eb24b7ecd2de7b90b5d6bb221bf0cb87a2269446319b5cf2f8b4",
+            "observedAt": "2026-10-08T11:32:52+08:00"
+          },
+          "receiptStatus": "under_review",
+          "receiptAt": "2026-10-08T11:33:16+08:00",
+          "remoteId": "167269885",
+          "url": "https://blog.csdn.net/mysticboy/article/details/167269885",
+          "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\019-receipt.json",
+          "evidenceSha256": "3cd1cc9ee03f72d62638a3b875b03b8c59493c52e62b6b0f1475f9f2590fd088"
+        }
+      ],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\019-arithmetic-expressions.md",
+      "preparedSha256": "d64df426640795337512f477a56c7f0a38bc7e36e092bc32c62af8fd40f4217a",
+      "preparedTitle": "SonnetDB 算术表达式：查询中的计算与类型合同",
+      "preparedAt": "2026-10-08T11:12:55+08:00",
+      "writeAttemptAt": "2026-10-08T11:32:31+08:00",
+      "draftBinding": {
+        "remoteId": "167269885",
+        "editorURL": "https://editor.csdn.net/md/?not_checkout=1&articleId=167269885",
+        "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\019-6e3a7df4-12b5-4bcf-a3dd-497d7207401f-draft.json",
+        "evidenceSha256": "9da5885c2ef7eb24b7ecd2de7b90b5d6bb221bf0cb87a2269446319b5cf2f8b4",
+        "observedAt": "2026-10-08T11:32:52+08:00"
+      },
+      "receiptAt": "2026-10-08T11:33:16+08:00",
+      "evidencePath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\evidence\\019-receipt.json",
+      "evidenceSha256": "3cd1cc9ee03f72d62638a3b875b03b8c59493c52e62b6b0f1475f9f2590fd088"
     },
     {
       "id": 20,
       "sourcePath": "D:\\source\\SonnetDB\\docs\\blogs\\020-scalar-functions.md",
       "sourceFile": "020-scalar-functions.md",
       "title": "标量函数：abs、round、sqrt、log 与 coalesce",
-      "status": "pending",
+      "status": "prepared",
       "remoteId": null,
       "url": null,
       "attemptId": null,
-      "attempts": []
+      "attempts": [],
+      "preparedPath": "C:\\Users\\mysti\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\Codex\\CsdnPublisher\\mysticboy\\prepared\\020-scalar-functions.md",
+      "preparedSha256": "9c1492528c8b74a565c99044176d1372f0f4f1a9e685d67451cd41abfaaca83b",
+      "preparedTitle": "SonnetDB 标量函数：abs、round、sqrt、log 与 coalesce",
+      "preparedAt": "2026-10-08T11:12:55+08:00"
     },
     {
       "id": 21,
@@ -1898,7 +2224,7 @@
       "attempts": []
     }
   ],
-  "updatedAt": "2026-10-07T16:27:57+08:00",
+  "updatedAt": "2026-10-08T11:33:16+08:00",
   "authorizedDate": "2026-10-07",
   "immediateClosed": true,
   "immediateClosedAt": "2026-10-07T16:27:57+08:00",

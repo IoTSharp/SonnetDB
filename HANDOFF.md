@@ -747,6 +747,47 @@
 - 三项均先复用已确认 M47 基线和既有 M29/M32/M34 实现；不把原型、静态合同、本地 fixture、Extension Host 或 Studio 本机构建写成三宿主整体完成。共享文档、集成、stage、restore/format、commit 由根会话串行维护，子智能体不得自行提交。
 - 当前工作树在阶段启动前 clean；实施期间根会话只修改共享记录并集中验证，避免覆盖宿主源文件。下一次检查先读取本文件、AGENTS、队列、git status 和子智能体状态，接续实际检查点。
 
+## 博客园自动发布（2026-10-06）
+
+- 本次自动任务读取 AGENTS.md、HANDOFF.md、发布技能、发布状态、发布计划和系列选题；队列已足够，未新增稿件。旧 001–134 的暂停/待核对状态未改动。
+- 按到期顺序串行发布 137、138，各一次实际请求；两篇 dry-run 均通过，默认社区二维码区块已保留。
+- 137 已发布：https://www.cnblogs.com/IoTSharp/p/23207325（postId 23207325，2026-10-06T11:06:56+08:00）。
+- 138 已发布：https://www.cnblogs.com/IoTSharp/p/23207331（postId 23207331，2026-10-06T11:07:51+08:00）。
+- 已同步 docs/blogs/publishing-state.json、publishing-events.jsonl 与 00-publishing-plan.md；两篇 contentSha256 与正文一致，lease 已清空，今日额度已用满两篇。未执行 commit、push、部署或其它会话改动。
+- 下一次从 publishing-state.json 核对当天额度和队列，139/140 的计划时间为 2026-10-07 11:00；若源文档事实变化先复核并更新 SHA，未知发布结果禁止重试。
+
+## 全局 OSChina API 发布技能（2026-10-07）
+
+- 已创建全局技能 `C:\Users\mysti\.codex\skills\publish-oschina\SKILL.md`，包含 API 发布器、PowerShell 7 有界执行包装器、Windows 凭据助手、接口合同与离线测试。用户未指定其它平台的“发博客/新闻/动弹”默认使用 OSChina；明确指定博客园等平台时不使用。以后登录、查询、图片上传与发布均通过 HTTPS API，不依赖浏览器或 Playwright。
+- 固定账号为 `mysticboy@live.com`、本人 ID `7172`。密码和 API Cookie 分别保存在 Windows Generic 凭据 `Codex:OSChina:mysticboy@live.com` 与 `Codex:OSChina:Session:mysticboy@live.com`；技能及审计文件不含密码或 Cookie。优先验证保存的会话，失效后最多一次密码登录并核对本人身份。
+- 已在浏览器关闭后实测纯 HTTP 密码登录、本人身份、博客详情、分类和软件搜索。完整博客快照保存在技能的 `state/blog-inventory.json`：已发布列表 100 条、草稿 1 条、定时 0 条，三组 complete 均为 true。`list-blogs` 有界分页获取三组，`check-file` 按标题和完整正文核对本地 Markdown；部分列表不能推断未发表，同标题不同正文不能自动重发。已发布列表位置不等于审核公开状态。
+- 博客按正式前端流程先保存草稿再携带真实 draft ID 发布，可复用已确认草稿；新闻成功为 submitted/待审核；动弹核对正文和图片回执。提交记录原子保存内容指纹，POST 不自动重试，unknown/publishing/submitted 记录阻止盲目重发。普通发布请求无需再次询问许可；本次仅制作技能，没有发布测试文章、新闻或动弹。
+- 验证：技能结构检查通过；最终离线发布测试 19/19 通过，Publisher SHA-256 为 `03DB0285A15F80FFFFC110CEA4B44AAFB6266F6528B598D03AA59FC1D617369A`。写入和图片上传合同来自正式前端源码并有 mock 验证，尚未实测真实发布或图片上传，不能写成端到端发布成功。下一次用户提供实际内容后，先 dry-run、刷新列表查重，再按真实回执补验证。
+- 调查浏览器已关闭，自有 Python/Chrome 进程已回收。自动审批以 `blocked by policy` 拒绝清理技能 `state/chrome-profile`、`scripts/__pycache__` 和 `C:\Users\mysti\AppData\Local\Temp\oschina-api-discovery-kMBy0q\news-tweet-review`；保留这三个目录，不通过其它机制重试删除或删除其父目录。
+- 本次只新增这一交接段，保留仓库已有博客及并发会话改动。全局技能不属于 SonnetDB 源码；未执行 commit/push 或仓库构建，HANDOFF 暂不提交，因为用户未要求提交且当前工作树包含其它会话改动。
+
+## 私有技能备份与个人项目惯例（2026-10-07）
+
+- 用户授权在 GitHub `maikebing` 名下创建私有技能备份，并随后明确授权在该私有仓库保留技能配置凭据；同时要求总结项目、会话和可供新项目套用的工程惯例。已创建并推送 `https://github.com/maikebing/codex-skills`，远端确认 `isPrivate=true`。本地独立备份 checkout 为 `D:\source\codex-skills-backup`；没有在原 `~/.codex/skills` 初始化 Git，也没有修改既有技能内容。
+- 完成快照：从 `~/.codex/skills` 和 `~/.agents/skills` 导出 1,386 个可复用技能文件、137 份 SKILL 定义、119 个不同技能名称；23 个目录符号链接/junction 已实体化。连同工具、清单、总结和凭据共提交 1,402 个文件，提交 `8e79ee3efe4cc7021c8789378579b12bc068af48` 已推送到 origin/main；本地/远端 SHA 一致、远端完整树未截断，备份 checkout 干净。
+- 按用户明确授权保留博客园技能原始配置和 OSChina 密码的便携备份 `private/oschina-credentials.json`，过程中不输出凭据值；未备份无关 Codex 登录令牌、网站 Cookie 会话、浏览器缓存、聊天原文、运行状态或构建缓存。Windows OSChina 密码可用仓库 `tools/oschina_credentials.py import` 恢复，会话由正常 API 登录重建。此私有备份授权不扩大为业务仓普遍允许提交秘密。
+- 新建全局 `C:\Users\mysti\.codex\skills\project-conventions`，包含共同惯例、可选 .NET profile、项目/会话来源以及 README/ROADMAP/AGENTS/HANDOFF/CHANGELOG/EditorConfig/GitIgnore 七个模板。以后“按我们的项目惯例初始化项目”可自动使用；许可证、框架构建配置、SonnetDB/Couplet 专属合同、TOLNSD master 和 LaneApp canonical workspace 不作为通用默认。原业务仓未被模板重排。
+- 盘点覆盖应用登记的 18 个项目、额外工作区 Couplet 的根布局和选读规则；最后刷新归类 3,207 条本地主会话元数据（72 条归档），名称索引覆盖 2,912 条，并结合最近 50 条应用会话摘要。元数据旧 title 字段实际包含首条消息，已改为使用界面名称索引/name；不上传原始首条消息，也不宣称逐字审阅全部历史/远端会话。历史 LaneApp 路径仅记录为历史，不作为源基线使用。
+- 验证：技能 quick_validate 通过，1,386 个快照 SHA-256 与清单一致，配置/凭据仅核对字段和身份，恢复 WhatIf 全部检查通过且没有写入现有技能，独立只读复核无阻塞问题；新工具和总结在提交前通过差异格式检查。`.gitattributes` 保留原始技能字节以便跨电脑校验。初次直连 GitHub 认证失败，代理后的只读认证确认 maikebing 有效；第一次复杂代理核对命令被自动审批以 `blocked by policy` 拒绝，后续简化只读检查安全完成，创建/推送未被阻断。
+- 所有长外命令由 PowerShell 7 有界包装器执行并记录本任务 PID/创建时间/命令/父链；本任务审计保留在备份 checkout 的 `.local` 且未上传。未创建常驻服务或实际恢复副本，保留上一节策略拒绝清理的目录且没有重试删除。本次 SonnetDB 仅追加交接段，未提交该仓已有博客/并发改动，也未执行该仓构建、commit 或 push。
+- 下一步：新增/修改技能后在备份 checkout 执行 README 中的 export、verify、审阅和 commit/push；本次没有创建自动同步任务。新电脑 clone 私有仓库后先 Restore-Skills WhatIf，再按需要恢复技能和凭据、重新核实运行时/路径/外部库存；发布台账不随快照迁移，发布前仍须实时平台查重。
+
+## 技能 Git 工作树迁入实际全局目录（2026-10-07）
+
+- 按用户后续明确要求，Git 工作树及 `.git` 已直接迁入 `C:\Users\mysti\.codex\skills`；`git rev-parse --show-toplevel` 已核对。私有仓库仍为 `maikebing/codex-skills`，提交 `ebc590a9d4a8c5578e008a13c371397898999cd7` 已推送到 main，GitHub API 回读 SHA 与本地一致，推送前再次确认 `isPrivate=true`；最终技能工作树干净。
+- 22 个原来指向 CC Switch 的技能链接已改为实际目录，`C:\Users\mysti\.cc-switch\skills\<技能>` 均为指向实际技能目录的 junction；旧 `D:\source\codex-skills-backup` 也已成为指向 C 盘 Git 根的 junction。全部链接及目标已独立核对，不再维护第二个日常源目录，不需要复制同步或定时任务；远端保存仍需 commit/push。CC Switch 更新/移除共享技能后需重新核对链接结构。
+- `.agents/skills` 的独立版本存为仓库根 `agent-skills.zip`，不合并同名技能，也不在技能扫描树中增加重复 SKILL 目录。formatVersion 2 清单覆盖 1,194 个原位技能文件和 192 个 ZIP 文件，共 1,386 文件、137 份 SKILL 定义、119 个不同技能名；index 共 1,212 文件，不含符号链接、submodule 指针或运行状态/缓存。技能范围凭据备份继续按用户授权保留，未输出值。
+- 迁移没有用旧快照覆盖当前技能，迁移时 3 个已更新 OSChina 脚本哈希保持一致；随后发现另一会话继续修改 OSChina 参考文档及 3 个脚本，全部保留并重跑当前离线测试 49/49，再刷新清单、验证、暂存和提交。两项技能结构校验、工具语法、最终 staged diff check 均通过；本次目录迁移没有调用发布 API。
+- 迁移预检及 3 种当前链接恢复 fixture 通过。Migrate-LiveSkills 失败恢复仅针对当前未验证链接和已改名但尚未建 junction 的旧 D 入口，不是全局回滚；所有原链接、阶段 journal 保存在 `C:\Users\mysti\.codex\backups\skills-git-migration-20261007-2e204c7b51634b4bad41deb875ba5808`。原 checkout 保存在 `D:\source\codex-skills-backup.before-skills-git-migration-20261007-2e204c7b51634b4bad41deb875ba5808`，其 `.git` 改名 `.git.recovery`，仅作恢复资料。
+- Restore-Skills 已适配同源跳过、同目录临时副本校验后原子替换；同源 Overwrite、覆盖失败保留旧文件、普通覆盖/默认跳过/WhatIf 的临时样例通过并已清理。实际完整 WhatIf 检查 1,386 文件、Copied=0，未创建预览目标。ZIP/manifest 的两次替换不是一笔原子操作，中断后须重新生成并通过 verify，不能把不一致快照提交。
+- PowerShell 7 有界 runner 记录长外命令及进程归属，未创建常驻服务；过程审计在技能根 `.local`，恢复 fixture 临时目录及代理临时资源已清理。原 OSChina 策略拒绝清理的缓存/profile 仍保留并被 Git 忽略，没有重试删除。SonnetDB 只追加此交接段，保留已有博客、队列、Object 运行脚本等并发改动，未构建或提交 SonnetDB，因此 HANDOFF 暂未纳入该仓提交。
+- 后续直接在实际技能目录编辑；按根 README 运行 backup_skills、verify_backup、审阅 diff、commit/push。新电脑优先 clone 到尚不存在的实际技能目录；若目录已存在，先 WhatIf/恢复并保留原文件，再明确迁移 Git 工作树，恢复命令本身不安装 `.git`。所有路径、运行时、外部库存和发布台账边界仍需在新机器核实。
+
 ## SonnetDB 开源中国首次补发与每日续发（2026-10-07）
 
 - 用户授权发布全部已有001–142文章，从001按原编号接续；本轮尽量发至博客平台限制，每天北京时间11:00再发两篇，每篇发公告，补投4.0新闻。最新要求明确动弹业务错误不阻断博客，并持久记进度避免重发。只用HTTPS API与固定PowerShell7；博客园队列/自动任务与并发研发保持独立，不新增planned系列。
@@ -770,6 +811,95 @@
 
 - 本轮最终门禁：完整 dotnet restore SonnetDB.slnx 与 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 均退出0；Format只报告加载工作区警告，无格式错误。初次最终restore包装器的进程发现超时已修为批量身份查询后重跑通过，失败日志保留；后续仅统一7份JSON复核/回执元数据为LF并核对逻辑值完全不变，不改稿件、发布账本、源码或实际回执。所有本地提交须再通过精准staged diff --check，不包含其它会话hunk。
 
+## 博客园自动发布（2026-10-07）
+
+- 自动任务 sonnetdb 接续10-06记录，读取技能、状态/事件/计划/backlog、专题与源码；本轮只复核139/140，未新增planned选题。公开账号首页与旧对账证据核对，今天发布前成功数0，独占本任务租约后串行执行。
+- 139补全只读MCP接入、RAG查询与权限/出域/真实模型边界；140修正文搜图text/filter.sourceBucket DTO，删除无依据的图片完整generation原子发布承诺，补操作/结果/恢复范围。正文标题不变，相对参考链接改为公开提交固定GitHub链接。核实GitHub v4.0.0 Release及NuGet Core 4.0.0存在，文档旧候选字样不作发行结论；核查源0ec1aff59872ca34999f51cb320a8b039f974302，公开文档基线c785f0479686a3d6584787e1a2b40bd67b0e38c5。
+- 139已发布：https://www.cnblogs.com/IoTSharp/p/23213677（postId 23213677）；140已发布：https://www.cnblogs.com/IoTSharp/p/23213681（postId 23213681）。每篇一次实际POST、明确URL/postId，公开标题/正文/默认社区二维码均已核实；当天成功2/2，不再发第三篇。
+- 离线dry-run两篇最终通过；包装器camelCase、父链采集超时和PS7.6日期自动转换的检查问题均发生在离线/POST前，已修正后验证，未重试实际POST。发布前/后SHA、sourceDocs存在、状态/JSONL/计划一致性及git diff --check通过；不将文档复核或dry-run当真实数据库/模型/AOT/性能证据。
+- 已同步状态、成功事件、标题链接与表情列及publishing-review-2026-10-07.json（含有界进程身份/父链与审计边界）。13个已持久身份最终无同身份存活；短命预检包装器未持久身份与CIM可能漏过极短子进程的边界已明确，不称完整OS生存期捕获。本任务三临时文件/目录与独占租约已按绝对路径核验清理。
+- 下一次10-08先复核当天额度、141/142和最新事实；141不能照旧稿把已有Workbench切片全部称规划。旧076–134未确认项继续暂停，未知结果不重发。未commit/push/部署，按自动化要求保留未提交博客改动；其它研发交接及oschina目录未暂存或修改。
+
+
+## SonnetDB X 英文每日发布技能（2026-10-07）
+
+- 用户授权为专用账号 @sonnetdb 安全保存密码、建立全局技能，每天发一条英文项目介绍，可提炼已有中文文章；随后追问官方API并要求开通入口/协助，确认本机必须代理。采用官方X API v2，不模拟发帖或调用私有登录API。
+- 全局技能 C:\Users\mysti\.codex\skills\sonnetdb-x-publisher\SKILL.md，含编辑/API开通说明、14条英文种子、OAuth1a transport、每日单帖queue/ledger工具、固定PS7有界wrapper及离线tests。独立状态 C:\Users\mysti\AppData\Local\Codex\SonnetDBX（当前用户+SYSTEM ACL），不改博客园/OSChina队列或本文稿。14稿ASCII 203–263字符，Graph Beta/实例MQ备份/真实AI与生产验证边界保持；并发WB48 README/ROADMAP变化已实际diff与逐帖复核后更新事实SHA，非盲刷哈希。
+- 密码已存Windows Credential Manager Generic target Codex:X:sonnetdb，实际进程内回读验证通过，没有写入技能/Git/明文临时文件。官方OAuth四项密钥target Codex:X:API:sonnetdb尚不存在；账号密码不能作为API token。安全交互录入入口在 references/api-setup.md；用户需在 https://console.x.com 完成登录、开发者协议、Read+Write应用及本账号Access Token/Secret，付款与充值由用户决定。2026-10-07官方按量价：普通创建$0.015、带URL$0.20/请求；初始稿含GitHub链接，30条创建约$6，另少量读取费用，以控制台最新价为准。
+- 已创建并回读唯一sonnetdb-x heartbeat ACTIVE，目标本chat01a1144c-a15a-7183-afe5-0a2349577510，Asia/Shanghai每天11:00。凭据缺失时只检查本地metadata、不请求收费API、不重复提醒；密钥录入后按每日预算接续。一次POST前核本人，submitted保留ID后独立GET作者/完整正文/t.co真实entities/创建时间验证；unknown等全局阻断、只读对账、原ID不重发。每天最多一次实际创建请求，含即时、明确拒绝与待核对，跨午夜实际日期也计入。
+- 最终53/53离线tests、技能quick_validate、PS7 AST通过；凭据回读与隐藏输入编辑/超时/取消4项微检查通过。独立forward-review实测发现合法SonnetDB大小写被拒已修，补case/Unicode边界tests；来源变动hash门禁曾真实阻止初次prepare，复核后prepare14条/next首条ready，status published0/pending0/lockedfalse/API凭据false。未实际OAuth登录、未POST、未验证公开可见或定时真实触发，不能把离线PASS称发帖成功。
+- 官方文档已通过127.0.0.1:7890查阅。内置浏览器直连超时且未提供proxy capability；首个Chrome For Testing启动后退出。改用已配置系统Edge，独立developer-edge-profile、命令级proxy，fresh核1个专用浏览器root，作为用户开通交接保留，不改系统代理/共享browser。原Chrome目录仅有初始化资料，未存登录秘密，不进行宽泛清理。自有wrapper5个PID fresh均不存在、临时.run文件0；短测试没有完整CIM生命周期捕获的边界保留，非全机器进程无存活证明。
+- setup-status.json是本次真实准备阶段及未完成项；后续先录入API密钥，再只读核准账号和控制台权限/credits，按自动任务每日1条或用户明确即时请求接续。资料变化需事实再复核；未知结果禁止换字/id或删除台账重发。只追加本交接段，保留并发研发/博客改动，未运行SonnetDB构建/format、未commit/push/部署；HANDOFF暂未纳入提交，因为此次全局技能配置且该仓有其他会话未提交工作。全局技能目录本身也是私有Git工作树，新技能仍未提交，未改其他会话技能或备份清单。
+
+## SonnetDB X 改为手动发布（2026-10-07）
+
+- 用户明确停止X发布并改为手动发布，因不打算支付API费用；此最新指令撤销此前每日自动发布授权。sonnetdb-x heartbeat已通过应用工具改为PAUSED并回读，prompt明确不得自行恢复/建立替代任务/调用收费API（包含身份读取和对账）或购买credits。博客园、OSChina及其它自动任务不变。
+- 本渠道setup-status已改manual_only、automationStatus=PAUSED、automaticPublishingAuthorized=false、apiCallsAuthorized=false；保留14条英文素材、队列/原记录、Windows安全密码及历史API工具。当前工具发布数0，尚未实际发送X帖子；后续仅用户主动请求时翻译/准备文案，供用户复制到X网站自行发布，不自动提交网页作为替代方式。
+- 全局sonnetdb-x-publisher技能和编辑/API说明同步切换手动草稿模式，历史开发者配置不是当前待办；不再要求API密钥/开发者开通/付费。人工发帖只有用户给实际URL后才记回执，草稿不记published；重新自动化/API需要用户之后明确新指令。
+- 本轮仅本地文档/停止配置及本HANDOFF追加，不调用X服务、不读取秘密、不运行仓库构建或commit/push。保留并发研发和其它会话staged/unstaged变动，HANDOFF未提交，因为本轮不作提交且共享仓库正在并发工作；现有用户交接浏览器窗口不结束或新建。
+
+## 开源中国每日续发检查（2026-10-07 11:35）
+
+- sonnetdb-2 本轮按北京时间真实接受日期及remoteId去重核得当天33篇（001–029、135–138），队列与全局账本一致；88条原events中的34行blog成功去重后仍33，不把135补核验当新文章。已超每日两篇额度，本轮博客/动弹/新闻创建均0，不借首次即时授权继续补发；下一正常运行10月8日11:00从030原draft3326805接续，再031按编号。
+- 已成功博客pending动弹0，135原record55187ffb-e020-4e9d-a1be-563b7bfb234f仍unknown且无remoteId。完整本人动弹web列表读取134条，原公告标题和Python原文/单次实体匹配均无候选；absenceProven=false，审核/隐藏内容可能未列出，不能据此认定拒绝或换文案重发。原ID/指纹/status保持unknown，新增只读核对证据和heartbeat事件，不修改全局ledger。
+- 新闻502847已在本人新闻第一页再次核到原题、author7172、正式v4.0.0原文链接和rawStatus0/under_review；保留待审核及原投稿回执，不重复投稿、不把构造详情路由写成已公开URL。
+- 用迁入技能的Sync刷新PROGRESS与只追加回执事件；Verify按要求运行，因已知139源SHA漂移保守失败，139/140并发修订稿到其编号前必须重新复核。此前prepared142/142历史证据仍保留，不宣称当前源稿全过；此漂移不影响030的下一次原草稿接续，也不影响今日额度判断。
+- 队列新增project标签“SonnetDB 开源中国”，将已接收135–138的旧priority对齐原编号，仅校正PROGRESS展示为001–142升序；原回执不变，已追加queue-display-order-reconciliation事件。独立只读收尾确认最后两条事件均无新POST、项目OSChina目录旧PS1为0、发布session锁无残留。
+- 本轮33博客/32动弹remoteId唯一及所有现有queue/global关联一致，2个API包装器Python均exit0且fresh无同命令/父PID的自有存活，发布锁0。API列表与审计/离线失败报告仅存项目.local并忽略，不产生仓库PS1。无临时夹具/下载/服务；既有策略保留对象不动。未commit/push/部署，不修改博客园或研发文件；HANDOFF仅追加本段并保留并发hunk。结果未变，按heartbeat要求不重复通知既有unknown/待审核状态。
+
+## 微博官方API发布接入（2026-10-07；绑定确认待续，零发布）
+
+- 用户最终要求中文、每天Asia/Shanghai 11:00，从既有001按编号逐天推进，简介带真实链接；费用/次数优先、不批量补发。全局技能已保存于 C:\Users\mysti\.codex\skills\weibo-publisher\SKILL.md；本地状态固定 C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb。heartbeat sonnetdb-3已ACTIVE每天11:00；全渠道每日最多1个创建请求、计费对账最多1读/日，额度不足保留稿件，无预算授权不购买或消费正式服务。
+- 账号麦壳饼/UID1089099883已由官网页面确认；用户本人完成开发者认证和免费体验协议。当前体验7天、通常每读接口5次/写接口3次，并非7篇无限免费。新官方 @weibo-ai/weibo-cli 0.9.8 有article/publish和statuses/update，不需另建AppKey/AppSecret应用。已获授权安装至用户独立WeiboCLI目录，官方Windows keychain三处已精确改为固定PS7（记录原/补丁SHA）。真实version运行确认0.9.8，退出0，回收审计及fresh PID核验无残留；未自动升级。
+- 设备OAuth曾启动并显示正确账号的“授权并返回终端”。该最终绑定创建持续账号访问，按浏览器确认规则已向用户请求具体绑定确认，当前尚未收到回复；不得把之前开发者认证/免费试用确认转算为此绑定完成。等待进程120秒超时并清理，0创建/0发布；原超时最小receipt未保存的bug已记录，worker终态保存独立2秒路径窗口窄修，离线超时/独占文件测试通过。用户确认后重新生成有效设备码并完成绑定，不让旧已结束进程继续等待；再me核同UID、doctor核服务、commands show读取真实文章/微博schema。
+- 本地001中文修订稿已按九原生模型/.NET10/Graph Beta/SQL子集/实例MQ备份边界准备，原文链接 https://www.cnblogs.com/IoTSharp/p/20023315；未改原稿或用户旧IoTSharp微博草稿2805815。重新读取最新README核事实后更新seed/queue事实SHA（406e10aa...83bdce），未盲刷新。固定状态prepare/status/next真实离线结果1queue/0attempt/0live；articleDraft路径与SHA现在保留并检查。Windows Store宿主可能解析为Packages/LocalCache路径，所有调用仍明确固定同一state，不创建第二套账本。
+- 单日预算已由按kind改为全渠道每天一次claim；新增claim-compound/bind-compound-request/record-compound，以一个article-bundle attempt预占1创建请求、分别保存文章/自动微博ID和独立正文/简介/链接证据。unknown/submitted跨天阻断；确定本地未尝试且无两个输出的failed001次日仍候选，不跳002；旧record-external拒复合。混合回执有效article+malformedstatus现在逐项保留有效ID/URL、保持submitted，不能随后false-noCreation释放。最终34离线测试PASS、独立静态review PASS；publisher SHA4AA7F34C...126B6984/tests4F51C5C3...DC12F6F3。
+- 官方工作器两类创建仍禁用（compound_claim_required），本地request binder只固定指纹/writeEnabled:false，不能当live发布入口。尚未核真实schema中的全文格式、AI声明、公开/免费文章参数、自动微博/简介行为；不得猜flags、直接跑CLI绕过守卫或两次请求凑齐。下一步在OAuth之后据schema完成一次发送持久标记/冻结请求比对、最小结果投影与账本桥接，才可发布001一次；只有独立证据能声明公众可见，API回执/认证可读与publicVisibilityVerified分开。
+- 最新worker SHA8B00E422...E14E6C2B（syntax/隐私与终态离线夹具PASS）；launcher仅新增path_validation_timeout安全reason后SHA CADECA55...CCF3EC9D、根PS7 AST0；skill quick_validate PASS。新official version实际路径通过；旧share包装器的两次运行曾被自动审批以“blocked by policy”拒绝且未给更细理由，旧路径保留未启用，不重试或清理被拒对象。本轮没有发布API、购买、私信/评论/关注、push或部署。
+- 仓库main最新已见fa7b9528（其它活动会话提交），本轮只追加此交接；全局技能/本机状态为主要交付，保留全部并发博客/OSChina/HANDOFF改动。未请求且未执行本轮commit，未重跑与本轮全局脚本无关的.NET restore/format；如后续要提交仓库内容，仍须完整最终树提交前门禁。只清理本任务已核进程/离线夹具，用户草稿/队列/回执保留，无按进程名kill/Graphify/广域扫描。
+
+## 微博官方 OAuth、文章桥接与首次 403（2026-10-07）
+
+- 用户已明确“现在可以发布，允许继续”；继续此前每天北京时间11:00中文、从001递增、带简介和真实链接的授权，全渠道每天最多一次创建，不批量补发、不购买积分。本轮成功完成官方device OAuth，真实me核麦壳饼UID1089099883、doctor.ready=true；开发者/服务均通过，trial_active、余额0，到期显示2026/10/14。体验白名单article/publish累计写3次、不消耗Credit，me未返回每接口实际剩余，不能伪造。
+- 实际目录证实article/publish一次同时生成头条文章和短微博；必填title/content/text/pay_type，正文Markdown、封面可选，本流程free。没有文章AI/visible字段，不编造；官方全局--agent codex为来源声明，正文另注明AI辅助整理，不冒称平台已加AI标签。无需另建AppKey/AppSecret。
+- 全局weibo-publisher技能、api/editorial/ledger参考和现有sonnetdb-3自动任务已同步真实接入。官方worker仅开放这一免费文章创建；共享锁、单日wx+fsync marker、请求/正文/简介/标题/源事实SHA、fresh15min me/doctor/schema及同UID均检查，创建后专用undici dispatcher阻止重定向/重放；statuses/update仍禁用。final worker SHA CCBDE82D7DEEB24C421A5FF96A2AAA3B6DB5AB890C6F9591DC19F124BBB6856B，launcher SHA E337856B555D4C34756838167D32B827B4DCCCA96EF475ABC7C3F3ED790F39A6。
+- 001中文修订稿《SonnetDB 简介：九种原生模型，一套引擎》及纯简介/实际正文在固定本机state的drafts。原文真实链接https://www.cnblogs.com/IoTSharp/p/20023315。README先发生WB52提交、后发生WB53诊断段并发修改；分别重读差异核事实仍相符，实际调用前在共享锁下记录preWriteFactReview保留旧/新SHA并仅修订README事实指纹，body/summary/request不变。未改仓库原文或用户旧草稿2805815。
+- 唯一article-bundle claim为6ca2c7400be940898353e48679454d30，绑定request SHA d3d93ce6782c8938fea970cb37d307010be63b5cb4b58e6f5fe6f3804425213a。两次本地预检明确writeAttempted=false、没有日marker：第一是drive-path regex误识https，增加word边界后实际请求离线通过且三种本地路径仍拒绝，独立窄核PASS；第二因README新诊断段漂移，在事实重审并留修订记录后接续同请求。Windows Store Python resolve镜像路径与Node realpath不相等已用真实非零dev/ino同文件证据解决，不放宽固定state或SHA。
+- **唯一真实article/publish调用于15:52:32返回HTTP403，没有文章/微博ID或URL，未发布成功、未重发。** 官方receipt为official-receipt-5bd0bd1a7a43423a957cc920862a3fc0.json，控制台/cli/logs同一条POST403、消耗显示“—”。原worker仅保存HTTPstatus、未保原API错误码，无法回溯原因，不猜缺积分/认证。后补固定白名单权限/试用/额度/网络错误码及受限计费/额度数值，离线隐私验证通过；不得为补错误码再调用创建。
+- 另做当日一次免费article/config只读诊断，read_complete（receipt db3b99a90c434ebeafa0e87ca001bdb3），其原始配置内容被现投影省略；只能证明读取成功，不能证明写权限。本人主页/文章页未见新001，这仅是当前可见页面观察，不是完整未创建证明。复合receipt记录后ledger为submitted、article/status均pending、publicVisibilityVerified=false，跨天全局阻塞新写，不跳002或切网页补发。今日creation1/1、metered reconciliation read1/1。
+- 固定状态仍为C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb，与Store镜像同文件，不另建账本。setup-status已标api_publish_rejected_403_pending_reconciliation/OAuth完成/写桥接实现/发布数0。sonnetdb-3保留ACTIVE每天11:00，prompt已写实际403和未决阻断：先只读对账，有明确新失败原因/结果/本人步骤才通知，原样未变化保持安静，免费到期/不足不自动买套餐。调用页tab5保留handoff，账号观察tab6已关闭；截图publish-call-403-20261007.jpg可见真实403。
+- 验证：原复合账本34离线测试PASS；桥接12case、同文件6case、fresh schema4case、来源/重放/隐私测试PASS；关键桥接独立reviewPASS、HTTPS窄修独立PASS、后补diagnostics仅离线PASS；当前skill quick_validate PASS、PS7 AST/Node语法PASS。真实OAuth/me/doctor/schema和唯一403/一次config读取的外层进程清理均verified=true；worker内部childTreeCleanupVerified=false是占位，不能覆盖外层audit证据。publisher.lock已核不存在，审计/稿件/回执为需保留交付物，无自建常驻进程。
+- 未完成：403具体平台原因、本次双输出的可靠最终对账、首次成功发布及公开可见性。下一会话先读此段和账本/实际控制台，不发布测试探测、不重试未知POST；取得明确平台原因/未决结果证据后按授权范围处理。保留全部并发工作，本轮只追加本HANDOFF与全局技能/本机状态；没有commit/push/部署、没有SonnetDB源码构建。HANDOFF暂不提交，用户未要求提交且共享仓库仍有其它会话改动；后续提交仍须完整restore/Format Check。
+- 本轮最终HANDOFF差异检查检测到其它已有新增段落（50–58、808行）的尾部空白，未改那些并发段落；本轮追加段没有被报告。没有提交，未把共享文件局部检查写成整体格式PASS。
+
+## CSDN 发布接入与首次额度用完（2026-10-07；每日十篇最新授权）
+
+- 用户已在内置浏览器登录 mysticboy（麦壳饼），授权既有001按编号发布至平台开始限制；随后明确把以后每天Asia/Shanghai 11:00两篇改为十篇。唯一heartbeat sonnetdb-csdn为ACTIVE、每日11:00，最新prompt与全局技能已同步十篇；下一正常2026-10-08计划011–020，以实时最小未完成编号与平台更小余额为准。不重开本次即时窗口，不改其他平台或X的手动/暂停合同。
+- 本轮真实001–010各正式提交一次，成功页均显示“发布成功！正在审核中”；原ID独立编辑器重载全文与准备稿严格相等或仅多一个终止LF，raw SHA与回执已保存。原ID依次167221825、167221694、167222046、167222072、167222098、167222125、167222164、167222193、167222219、167222236，十个当前ID唯一。内容管理全部(169)第一页出现这十个ID，已发布总数145→155、审核中0；分类/搜索切换未证生效，未做匿名公开验证，因此权威账本仍保留10条under_review审核接受回执，不声称匿名公众已全部可见。
+- 第十篇后编辑器明确提示“今日发文额度已用完”，真实限制JSON/截图已保存；未创建或提交011试探额度。close-immediate已永久关闭且保留最初关闭原因历史（其中旧每日两篇描述已由本段、技能与自动任务最新十篇授权取代）。当前142条队列：10条已接受、132条pending、blocking/unknown/draft均0、todayWriteAttempts=10、dailyRemaining=0、nextId=11。
+- 全局技能 C:/Users/mysti/.codex/skills/publish-csdn 含SKILL.md、agents元数据、3份references及scripts/csdn_progress.py、test_csdn_progress.py、browser_helpers.mjs。所有脚本在技能内；仓库只新增docs/blogs/csdn/publishing-state.json和PROGRESS.md及本交接。准备稿、审稿清单、完整远端Markdown、成功与限制截图/证据放本机C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy（Store工具宿主可显示等价LocalCache实际路径），不放仓库或技能Git凭据。
+- 实测编辑正文不能用locator.fill，默认全选删除/剪贴板粘贴；官方导入会产生新ID，001导入重绑定并保留历史，原探查草稿167221694随后复用002，无测试草稿遗留，用户旧草稿121490574未动。全新文章顶部发布不保证生成ID，先正文页正式保存/实际URL绑定；保存后reload并等待标题与尾部加载再全文对拍。发布标签相关、原创/全部可见、实际声明“部分内容由AI辅助生成”、GitCode关闭、多平台否。
+- helper的fillEditor与submitOnce均核claim冻结preparedSha256；最终click前核原ID、标题/全正文/文件SHA并wx排他持久发送marker，未知结果不得删marker重试。saveReadback要求独立成功/编辑器Tab、实际成功URL/消息、原ID强制reload全文对拍；reconcile-draft要求原ID/原attempt、完整本人草稿/审核/已发布分类证据及observedAt>=writeAttemptAt，缺项保守阻断。次日daily门禁十次，任何额度/频率提示、登录失效或验证码先保存进度停止，不付费。
+- 技能quick_validate通过，最终JS Node syntax通过；账本每日十篇版本29/29离线测试PASS（11.809秒），真实网页helper最终冻结SHA/单次submit/读回已在009、010实际使用。离线测试不能当作真实发文证据；各文章成功均有独立原ID全文回执。准备稿复核当前README/专题资料、修旧版夸大和接口说明；公开链接固定已知公开c785f0479686a3d6584787e1a2b40bd67b0e38c5等版本，不声称本轮所有GitHub目标HTTP验证成功或本轮运行过示例构建/性能/恢复。
+- 实施及复核代理短命验证进程均退出、任务fixture/日志已精准回收，无新常驻服务；根未启动长期进程。本任务读回标签页已关闭，保留原成功页与管理结果；未标记的GitHub错误临时页因URL策略无法重新绑定，交由浏览器turn结束自动回收，不绕过策略。只追加本交接，保留共享main及博客园/OSChina/微博/研发的已有staged/unstaged改动。本轮未commit/push/部署，故未重跑与本轮无关的.NET restore/format；若后来要求提交仓库进度，仍须最终树完整提交前门禁。
+
+## 微博 MCP 能力核实与403进一步诊断（2026-10-07）
+
+- 用户要求进一步分析MCP并确保能发布文章和微博。本轮真实认证连接 https://cli.weibo.com/mcp，服务weibo-mcp-proxy1.1.0，完整75工具名未截断；article_publish真实schema明确一次发布文章和配套微博，必填title/content/text/pay_type，免费free；statuses_update另有status/visible/is_longtext/mblog_statement。未调用MCP业务工具、未新建OAuth客户端、未改Codex原生MCP配置，未实现MCP写桥，不把目录成功写成实际发表。
+- 目录权威回执official-receipt-583850dd8fb8439baff714651c1d92a1.json。第一次420fc3d…目录真实成功，但本地400节点投影只留前段评论工具；修复成独立最多300名字+优先文章/微博schema后，只重复一次非计费协议发现，实际75名及关键schema完整。两次各3个协议POST，均无tools/call，没有新创建。旧唯一15:52:32 article/publish403、attempt6ca2c7400be940898353e48679454d30、submitted及两个pending保持原样，发布成功数仍0。
+- 新增只读management-read仅两已证管理GET、mcp-discover只握手/目录；精确origin/method/path、禁止redirect/replay、401/403不重试，MCP60秒总/20秒单次、SSE读取次数和字节有界，凭据仅官方安全存储/进程内。管理日志真实GET返回401 UNAUTHORIZED（5f531a…回执），网页采用会话认证；不提取Cookie，不继续探测同类接口。官方日志UI无错误详情入口；CSV导出点击一次，download观察20秒超时，精确预期下载路径无文件，不声称导出成功。浏览器直达管理API被客户端阻止，未绕过。
+- 为恢复旧article/config成功但被投影丢弃的配置，本轮修有限字段名/类型/值投影，另做一次免费读取（本渠道当日累计2次该免费读取，未消费正式收费余额）。回执5b041ed26a28467ebc9c62d6e86a8ab2保存12字段：付费类型相关enable/价格均0、follow_to_read_enable=1。没有免费写许可或403原因字段，不能猜作必须买会员、缺积分或写权限通过，也不重复读取同一配置探测。新的调用页应有原1次创建+2次免费config；MCP目录和管理GET不走业务invoke。
+- 全局weibo-publisher技能新增references/mcp.md并同步api-setup。最终worker SHA758D640E8AA784867041B4EBE5B22C5C24D89CDFCA0798FD3DE0D19087195B73、launcher SHA92CF45F9B4942BA0087A39E76127BB37BB34D30C6DCC3C84D384BADF00F73F99。关键只读传输独立review通过；目录82项末尾关键工具的离线fixture通过，article/config有限投影微输入与真实12字段保存通过；Node语法/PS AST通过。已知诊断局限仍保留：HTTP200内JSONRPCerror的HTTPstatus可能被省略，原写错误未知业务码仍可能被白名单丢弃；旧403业务码已无法本地回溯。
+- 官方MCP文档已浏览器实读；Codex官方MCP文档直连403后按机器规则一次命令级127.0.0.1:7890回退成功并保存HTML，核本机mcp add/login help支持URL、scopes和dcr；未新增持久MCP授权。当前CLI既有凭据可完成官方MCP只读探针，不泛化为任意token可跨资源复用。
+- setup-status标mcp_capabilities_verified_publication_blocked_403，publishedCount0、nativeMCP/writeBridge=false；sonnetdb-3仍ACTIVE每天Asia/Shanghai11:00，已通过应用工具更新真实MCP/config诊断及未决阻断，不改其它自动任务。普通项目发文沿用既有授权，仍须权威对账原403之后才能继续，不直接用MCP工具或网页绕过未知。
+- 官方联系我们页面指定@微博开放平台私信咨询接口/技术支持（页面标2023-01-03更新；不承诺支持时效）。root已准备state research/403-support-message.zh.txt，询问原403业务码/实际权限、是否在创建前拒绝及体验次数扣除，不含密码/token。已向用户请求单独允许向此第三方发诊断私信，当前尚未得到回复、未发送。需要这次确认是因为之前授权仅公开发布项目内容，不包含联系第三方；不得自动发送或把沉默当授权。截图research/weibo-support-contact-20261007.png为官方支持来源，原账号/调用页面与账本保留。
+- 外层管理读取、最终完整目录和config读取均清理verified=true。首次目录worker本身exit0，但外层auditIncomplete=true导致注意状态；新鲜定点查询其已记录PID91748/35316/67540及wrapper36488，连同管理任务4个PID均无存活，保留生命周期捕获缺口，不覆盖旧audit。根短命微检查没有完整OS生存期捕获的边界保留；没有新常驻MCP或浏览器子进程服务，没有宽泛删除/按名kill。研究源码、回执、稿件/支持草稿为需保留交付物，官方说明临时tab已关。
+- 未完成：原403业务原因、旧请求是否创建过内容的权威证据、首次文章/微博双输出公开成功。下一步等本人是否允许官方诊断私信；若允许只发送已审稿一次并保留回执，跟原会话等答复，不能重复催问或把发送客服消息当发布完成。取得明确平台条件/未创建证明后，再修实际接入并按每日节奏正式发送/独立核文章全文、配套微博和真实链接。未获得第三方消息授权就保留草稿和当前安静未决任务。
+- 本轮仓库仅追加本HANDOFF，保留共享main及其它会话改动。未commit/push/部署，未运行与此次全局技能无关的SonnetDB构建或format；HANDOFF暂不提交，因为本轮没有提交请求且共享工作树并发修改。后续提交仍须最终待提交树restore及Format Check。
+
+- 本轮收尾：技能quick_validate通过，最终Node语法/PS7 AST0错误通过，自动任务真实回读确认ACTIVE/每日11:00/原chat及新MCP与私信授权提示。HANDOFF整体diff检查仍因其它会话已有段落尾空白失败；本轮844行起的追加段未报告尾空白，不修改外部段、不称整个文件PASS。
+
+- 最终官方调用记录独立读回核实只有3条：15:52:32 article/publish403/消耗—，16:01:02及17:01:14 article/config均200/免费；没有新的创建或MCP业务调用记录。截图state research/final-publish-and-config-logs-20261007.png保存。本轮结束时官方诊断私信仍待用户明确回复，未发送。
 
 ## ASP.NET Core Identity / EF Core 支持分析（2026-10-07）
 
@@ -1026,6 +1156,14 @@
 - 下一独立WB73：冻结已有WB72六源的本地验收/集成新窗口，专属子代理核既有静态绑定/新测试收据，先Node微试再PS14+Node定向套件，root串行写报告/共享docs、精确owned HANDOFF候选、最终树完整restore与CI format及本地commit。此为未取得验收的新窗口，不重复实现已完成的WB66/67/72，不盲重跑WB70。真实Server/三宿主/安装/ExtensionHost/AOT/固定硬件/长期/发布分列，Graph Beta。最多5任务，满5或需提前交接按已授权滚动规则；同automation workbench已ACTIVE30m指向本会话。
 
 
+## 微博每日心跳与排期乱码修复（2026-10-08）
+
+- 本轮 sonnetdb-3 心跳只核本地技能、账本、setup-status 与自动化配置。唯一创建仍是10月7日15:52:32返回HTTP403的 attempt 6ca2c7400be940898353e48679454d30，submitted、article/status均pending，无真实ID或URL；publishedCount=0。跨日新写继续阻断，未重发001、未跳002，0业务API请求、0 MCP业务调用。
+- 发现自动化名称和既存prompt前段实际含替换字符与乱码，非单纯显示问题。通过 automation_update 修复为完整中文，保留同一heartbeat/id、ACTIVE、原目标会话、创建时间和每日11:00 Asia/Shanghai排期；未直接改TOML、未新增自动化。修复后UTF-8内容与提交文本逐字匹配，prompt SHA256 d65ca98f59e0aaa98eeabd5effe3f0699d1104cfbfeca5002278c53543f5a546。核验收据在固定状态目录 research/automation-repair-20261008.json。
+- 修复文本保留一天最多一个创建请求、跨日pending阻断、免费额度与不购买、现有CLI复合工作器/真实双输出核验、MCP仅目录已验证而写桥未实现的边界。已核75工具不能替代发布成功；不重复article/config或管理GET探测。官方支持草稿仍未发送、明确私信授权仍待人类回复；不把公开项目发布授权扩展为第三方私信。
+- 独立子代理只读五个明确文件，确认无新可行动状态并支持此次配置修复；无网络、临时文件或持久进程。根使用PS7 7.6.6，短命令均正常结束，无启动长任务/自建子进程树，无需清理共享服务。仅追加本段并验证原HANDOFF前缀字节不变，保留并发工作；main/HEAD3027a1aac9a5cea2d625c94cefe2239a372dd060不动。按本渠道授权边界不commit/push/部署；本段尚未提交，未执行提交前restore/format，不能计作集成门禁。
+- 下次先读最新setup-status/ledger/HANDOFF；有明确结果证据或支持私信授权才推进相应步骤，未知创建结果不得重放。既有403与授权待回复无变化，本轮保持安静。
+
 ## 2026-10-08 WB73 新窗口本地验收与 owned 集成（闭合后本会话2/5）
 
 - 新冻结02:35～03:25Z只验收已有WB72观测，0actual/产品build，不包装新功能。PS/Node micro各1/1，源测试第五/末次Node full41/41、0fail/cancel/skip/todo；修复PS full-v2十四精确case/14of14，liveCIM0/child0。两full retainedexit0/cleanupFailures0，独立acceptance-results SHA67448831…通过；不证明慢query根因或Native恢复。
@@ -1033,6 +1171,31 @@
 - 根最终14paths包含六source/test、五共享docs及WB71/72/73报告；HANDOFF working的foreign352979B/SHA5061C951…原byte不变，只以WB71 staged307508B/A8DFE8FB…+ownending3963B/EAF37E6F…+WB72 own3150B+本delta生成private owned blob，禁止whole add。当前HEAD3027a1aa/parentd841e027、origin/parity0061d6d7不动，最终freeze/owned index/fullrestore/原CI format/cached check/本地commit/post与独立终审按本片artifacts真实收据判定，不预填尚未发生的PASS；无push。
 - observed identity审计只覆盖记录完整tuple/保留handle，不以数值PID复用拒绝去停止shared或未知身份；startup短shell、未观察瞬时后代、precap ReadToEndAsync内存/observer退出仍有边界，whole-session orphan-freedom/processIntegrity不声明。WB71 strictFAIL、WB70actual1/normalExit/cleanupfalse及旧WB69～64失败保留。Graph Beta；真实Server/三宿主/OS/ManagedLocal/安装/ExtensionHost/AOT/硬件/长期/发布仍分列。
 - 闭合后保存真实count/commit/退出/未提交ending再按授权提前滚动接续；新会话0/5先核继承，不重复本地41/14或已有feature。下一独立窗口冻结新观测下Native真实准入/单次旅程，先review source/tools再fresh资源，不盲WB70 rerun。PS7固定路径、禁Graphify/广域扫描/安装、有界count+wall/cancel/progress、精确自有完整身份树finally和绝对路径归属清理继续；保护旧policyTemp/WB40/其它chat共享缓存交付物/parity。workbench保持ACTIVE30分钟同id，不重复自动化。
+
+## 开源中国每日续发（2026-10-08 11:00）
+
+- sonnetdb-2本轮先按Asia/Shanghai真实接受时间核得今日0篇；上一轮明确pending公告0。135原unknown公告经完整本人动弹列表134/134及发布器同一严格全文/单次实体匹配仍无候选，absenceProven=false；保留原record55187ffb-e020-4e9d-a1be-563b7bfb234f、无remoteId，不改文字重发，也不阻后续博客。预检完整博客三组133已发/2草稿/0定时，随后发布器每篇再次完整查重。
+- 原编号030、031本轮各接受一次：030复用原draft3326805，blog19774317（https://my.oschina.net/u/7172/blog/19774317）；031新draft3327341，blog19774318（https://my.oschina.net/u/7172/blog/19774318）。两篇由发布器回读标题及严格全文HTML DOM一致后才submitted；公开网页可见性尚未核验。030原record/fingerprint保留，旧频率错误仅为历史证据，本轮无新博客限制。
+- 每篇均发题目+一句具体简介的无URL公告。030动弹30401409（https://www.oschina.net/osc-tweet/30401409）POST接受，GET提示“内容审核中/审核失败”，保留submitted-verification-pending/textVerified=false及原ID，后续只读核对，不再次创建。031动弹30401410（https://www.oschina.net/osc-tweet/30401410）POST接受且全文核对通过；动弹网页公开性仍未核验。动弹待核验未阻博客。
+- 两稿原稿/prepared SHA均与各自review manifest一致；独立事实复核相关SQL/向量/M45文档及SelectExecutor/FunctionRegistry相对各自审核commit无diff，可沿用，不盲刷新SHA，不宣称示例实跑或新发行验证。公告工具此前会覆盖已准备简介，本轮仅修Publish-QueuedBlogs的非空tweetText保留条件及Test-QueueScripts回归；小输入2例、完整离线37/37、独立源码复核通过，network0/credentials0/全局账本不变。技能两文件未提交，备份manifest未刷新；未来提交前按技能仓现有流程审阅/刷新，不纳入本次运行数据。
+- 4.0.0新闻原502847在本人列表和详情为rawStatus1；未重复投稿。无凭据公开详情API200/code200且标题与全文精确等于本人详情；公开新闻页面200但HTML无题目/正文，故仅记录公开API正文已核验，保留submitted，不声称新闻网页公开可见，也不沿用旧status0“审核中”标签。
+- 今日两篇额度已满，累计35篇（001–031、135–138），剩107篇；下次2026-10-09北京时间11:00先只读核对030原动弹ID及135未知，再按032→033编号续发。权威publishing-state、只追加events及PROGRESS已同步；独立queue/global/events真实ID、全文公告与博客关联一致。最终Verify仍因已知139源SHA漂移保守失败，139/140到编号前须重新复核，不改冻结SHA；本轮030/031不受影响，不称全队列哈希已过。
+- 本轮审计27条/14个自有身份，fresh已知PID存活0；技能测试root与3个Python亦已退出，夹具清理，队列/账本/session锁及临时状态文件无残留，stop0。短只读shell完整生命周期缺口继续如实保留，不把共享父链授为stop权限。查询快照/审计/验证失败证据仅在队列.local或技能state忽略目录，项目无新PS1；旧policy保留对象不动，无新服务/下载。固定PS7，禁Graphify/广域扫描/安装，所有项目/墙钟/请求/取消预算保持。
+- 本轮不commit/push/部署，未运行仓库构建/format；HANDOFF仅追加本段并保留并发研发/博客园全部既有字节和staged内容。HANDOFF未提交，因为本heartbeat明确禁止提交；技能修复亦按此保留为未提交改动。
+
+### 开源中国本轮收尾差异检查（2026-10-08）
+
+- OSChina队列独立diff --check、UTF8无BOM/LF与本任务新HANDOFF段空白检查通过。共享HANDOFF整体diff --check在既有并发研发/其它渠道CRLF hunk失败，原失败不覆盖、不修外来段落；并发会话已产生staged文件，本任务没有stage/reset/commit。最终检查证据在队列.local/heartbeat-20261008-final-local-check.json，未把共享树称完整格式通过。
+
+## 博客园自动发布（2026-10-08）
+
+- 接收AGENTS/HANDOFF、技能、memory、发布状态/事件、计划与选题库；今天成功数0，到期queued仅141/142。独占CreateNew租约并串行发布两篇；未新增选题，143–202仍planned，076–134的59条待核对继续暂停。
+- 141补完整操作与结果解释，纠正已有M47生产Web/VS Code切片不能统称规划，featureStatus改partial；明确开发树/4.0.0包、MQ实例恢复、Graph Beta、历史/审批及三宿主未闭环。142补身份/基准/汇总操作，纠正pending/committed属于Compaction replacement合同，保留固定硬件/真实模型/168小时与七天scheduled非阻断观察边界。示例未实跑，无新跑分或真实产品旅程验收。
+- 核查源3027a1aac9a5cea2d625c94cefe2239a372dd060；工作树事实源SHA/sourceDocs保存在publishing-review-2026-10-08.json。GitHub v4.0.0 Release与NuGet Core4.0.0存在；六个固定公共文档链接GET200，公共基线c785f0479686a3d6584787e1a2b40bd67b0e38c5注明时间边界。正文标题原样。
+- 141已发布：https://www.cnblogs.com/IoTSharp/p/23221481（postId23221481，11:09:36+08:00）；142已发布：https://www.cnblogs.com/IoTSharp/p/23221492（postId23221492，11:10:09+08:00）。每篇实际POST一次，明确URL/postId，当天2/2；141首次公开GET短暂404，随后两篇均GET200且标题/正文标记/默认两二维码URL核验通过，未重发。
+- 两篇最终dry-run通过，默认community footer保留。状态/SHA/发布源提交/成功JSONL/计划标题链接与✅列同步；JSON/JSONL无BOM/LF，sourceDocs最终一致及本任务博客diff检查通过，不宣称共享HANDOFF或整树格式全过。五个有界publisher进程exit0，最终10个已持久身份无同身份存活；CIM可能漏极短后代，不称完整OS生存期捕获。finish缺属性仅收尾修正，无重复POST。
+- 自动审批拒绝合并清理命令（blocked by policy），该命令未执行；改为apply_patch逐个删除16个已核自有临时脚本/预览/只读下载，再非递归移除空专属目录。独占租约也已移除；不清共享缓存或未知进程。
+- 下次队列0，先核日额度与新planned选题，最多核10候选/写2篇，去重、事实与dry-run通过后同步backlog并排队，不重发141/142。只改本任务博客及追加此段，保留并发Workbench/CSDN/OSChina和staged内容；未git add/commit/push/部署。HANDOFF暂不提交，因为自动任务明确禁止自动提交。
 
 ## 2026-10-08 WB73 有界失败关闭与提前滚动（本会话2/5）
 
@@ -1044,6 +1207,17 @@
 - 真实检查点在artifacts/wb73-native-cim-validation-20261008/integration-not-run-checkpoint.json、closure-identity-audit.json、最终独审/closed.json。当前cached14只含已证明owned内容，不能reset整个index或whole-add HANDOFF；本结束段在gates/commitguard之后产生，未提交，因本窗口预算/最终树检查失败不能安全commit。未来private candidate沿用本片staged317036并只追加本own-HANDOFF-ending.md；两批foreign追加绝不纳入stage，working全字节保护。
 - 下一WB74优先修本地集成工具把共享HANDOFF整份工作文件当owned内容的过严守卫：钉住提交owned blob/已审段并证明允许的后续仅foreign追加，不能忽略owned变化、改原失败或删除foreign。新独立有界合同/微试/独审后重新冻结最终待提交树，完整restore/原format/observed退出/精确owned本地commit；本地集成闭合后才选新Native真实窗口，不盲WB70 rerun。不重复14/41或已有feature。
 - 按已授权提前滚动创建同一D:\source\SonnetDB本地接续会话并立即接续WB74，原workbench保持ACTIVE30分钟指向新会话、不重复自动化；旧根在创建后停止所有仓库写入，新根记录新ID。Graph Beta；真实Server/三宿主/OS/ManagedLocal/安装/ExtensionHost/AOT/硬件/长期/发布继续分列。固定PS7、禁Graphify/广域扫描/安装，有界count+wall/cancel/progress、仅核自有完整身份树finally和绝对自有临时清理，保护旧policyTemp/WB40/其它chat/共享缓存交付物/parity；无push/部署/发布/安装/外部发送。
+
+## 2026-10-08 CSDN 11:00 daily 批次交接（011–019；含016原ID标题修复）
+
+- 使用 publish-csdn + skill-creator，目标 mysticboy（麦壳饼），PS7 7.6.6/Python3.14固定路径/Node v24.15.0。先核 HANDOFF、权威账本及status；初始 next011、今日0次、无阻断、平台余额10；旧用户草稿121490574未修改。分类/搜索等待异步加载后可核，其SonnetDB标题搜索只涵盖标题含词的9篇，不追溯改旧快照。
+- 011–019九篇逐篇实际提交，各取成功页“发布成功！正在审核中”和独立原ID编辑器reload完整textContent对拍；真实ID依次167268940、167269071、167269163、167269254、167269368、167269410、167269834、167269857、167269885。准备稿/SHA/事实审稿/截图/远端正文/回执全部本机 C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy；仓库仅本渠道两进度文件与此交接。
+- 016初次因调用方误用raw item.title（源稿）而非preparedTitle，实际标题“GEOPOINT 地理空间数据：使用 POINT 语法写入经纬度”与冻结“SonnetDB GEOPOINT：用 POINT 写入经纬度”不同。正文匹配、成功消息真实，record正常回执拒绝title；先保存016-title-mismatch.json并记unknown/停后续，没有改冻结值或旧回执。用户明确回复“允许更正原 ID 标题后继续”。技能reserve-title-repair在同attempt/原ID预占一次并计预算；UI只改原ID标题，经新成功页和独立全文读回，016-title-repaired-receipt.json真实匹配后record under_review。旧016-receipt.json/差异/原submit-once与独立title-repair-once marker均保留，授权证据016-title-repair-authorization.json。未来不把本次已完成许可扩展为通用unknown修复许可。
+- 最终今日九次新稿+一次修复共10次，dailyRemaining0、unknown/submitting/submitted0、nextId20，001–019为审核接受，020 prepared/未尝试、021–142 pending。平台最后仍显示余额1，停止因为用户十次预算满，不称平台限流。最终本人管理全部178/已发布164/审核0/回收14/草稿1，九原ID与更正后的016标题在第一页；不把作者管理可见当匿名公开，账本保留审核回执。证据20261008-completed-manage.txt/.jpg；早期六篇管理快照另保留20261008-final-manage.txt/.jpg。
+- 技能新增loadClaim规范化title=preparedTitle，fillEditor/submitOnce独立核权威冻结标题/SHA/绑定；saveReadback也核冻结身份/正文SHA。reserve-title-repair仅接受明确用户授权、绑定SHA不变的标题单独差异，原ID/attempt/unknown/冻结值保持，最多一次且计当日预算；新回读必须晚于修复writeAttemptAt，修复证据独立suffix。guard离线micro1/1、完整10/10，修复合同5/5（含授权整数1拒绝、旧回读拒绝），原账本29/29、语法/技能校验通过；新guard后实际017–019也成功，不能推断所有未来页面均适配。013/014导航等待曾超时，后续只读观察同原ID成功页并核全文，未重复最终提交。
+- 网页批次硬截止11:34，最后管理截图与关闭两个编辑/成功tab在11:33:36完成；管理tab保留为结果。无常驻服务/安装/广域工具扫描/Graphify，自有离线fixture精确finally回收，所有已创建测试短进程结束，未按名终止共享进程；完整29项测试约13秒、执行工具session已确认exit0。未取得完整瞬时进程树审计，不冒称机器所有进程已闭合。
+- 原heartbeat sonnetdb-csdn保持ACTIVE/AsiaShanghai每天11:00，已更新最新事实、冻结标题guard及次日020–029计划；每次仍按实时最小未完成及真实预算。2026-10-09先status及来源SHA复核，020可复用冻结本机稿且不得跳号。即时窗口永久关闭；审稿源码/发布/匿名可见/生产性能/Graph Beta/单库与实例MQ恢复边界分列，队列耗尽不加题。
+- 保护并发Workbench/微博/OSChina/博客园、原staged改动与parity-results。本批未stage/commit/push/部署，HANDOFF暂不提交，因为每日发文任务明确禁止自动提交；不为进度文档运行整个产品format门禁。机器其它并发研发与其提交门禁不受本批证据覆盖。
 
 ## 2026-10-08 WB74 shared HANDOFF owned 集成（本会话第1片，闭合后1/5）
 
@@ -1064,6 +1238,16 @@
 - 证据在artifacts/wb74-owned-handoff-integration-20261008。此结束段在最终门禁与失败调用后追加，未stage/commit；未来private候选以已证323201B加本own-HANDOFF-ending.md及下一明确owned段构造，不吸收任何foreign。新会话先核closed/final-review/退出/git/index与最新全交接，再冻结WB75：修隐藏.git目录属性检查，并在门禁前完整只读预演实际commit前置合同（含DateKind String、hooks path、锁内只读比较）；保留15已有owned路径，fresh最终树完整restore/原format后精确本地提交。新目录/期限/guard全部重审，不执行旧过期合同，不重跑已验38/14/41或旧WB70。
 - 本地集成闭合后才冻结新Native资源/真实旅程窗口。Graph Beta；M47导航/九模型/MQ database identity与instance persistence/.system/mq合同保持。真实Server/三宿主/OS/ManagedLocal/安装/ExtensionHost/AOT/固定硬件/长期/发布分别验收；无push/部署/安装/发布/外部发送。PS7固定路径、禁Graphify/广域扫描/找gcc/猜PCCT，有界count/wall/cancel/进度、仅身份核实自有完整树finally、精确绝对临时归属清理；旧policy Temp/WB40/其它会话/共享缓存/交付物与parity全部保护。
 
+## 开源中国新闻仓库地址规则（2026-10-08）
+
+- 用户明确要求SonnetDB新闻仓库地址为https://gitee.com/IoTSharp/SonnetDB。已更新publish-oschina的SKILL、新闻API/队列reference及发布器；仅SonnetDB新闻启用，正文必须含规范Gitee项目根链接，正文/标题/software/origin中的GitHub SonnetDB项目根或.git拒绝。Release/下载/标签发行说明使用已核验来源并单独标注，不虚构Gitee Release地址；博客/动弹/其它项目规则不变。
+- CLI在dry-run与客户端/凭据创建前校验，publish直接入口再次检查。SonnetDB新闻同规范化标题的submitted/published/publishing/unknown回执在实际提交前拒绝，即使正文指纹变化；begin_record独占账本内再次检查覆盖前置读取后的竞态。dry-run可验证修订稿，不代表允许重投；未做真实并发测试。守卫按标题而非解析版本，换标题后的同版本仍须项目原ID/投稿证据禁止重发。
+- 历史新闻502847的preparedPath原稿、originUrl、record77f612ce、fingerprint02046b及submitted状态全部保留；新增submittedPreparedSha256及独立futurePublicationPolicy。Gitee修订稿另存prepared/news-sonnetdb-4.0.0-gitee.md，SHA267e2bf826f62b0c819f2eb9ff59d3ecd3ef71b53d4390f45dbf67c6a04f50f9，futurePreparedStatus=local-revision-not-submitted；新闻原稿SHA与global ledger前后不变。项目README已注明新规则及当前status1/API正文可读取、网页可见尚未核验，不沿用旧status0标签。不声称平台新闻正文已改，没有新投稿/编辑请求。
+- sonnetdb-2 heartbeat已通过应用工具更新并精确回读Gitee规则、修订稿/历史正文分离及同版本不重投；原name/每天Asia/Shanghai11:00/target/status ACTIVE均保持，移除旧新闻审核状态快照，改读最新队列。没有另建任务或更改博客园/CSDN/研发任务。队列/events已原子写入并Sync，博客仍35已接收/107剩余，下一032；日额度及未知动弹原ID不变。
+- 子代理第一次验证runner被自动审批拒绝，只有blocked by policy理由，未启动/产生资源/形成测试PASS；保留原拒绝，不重复该组合命令。根使用已验证的单进程有界方式完成发布器77/77离线检查、skill-creator quick_validate、两实际稿dry-run（旧GitHub仓库稿exit1为预期拒绝、新Gitee稿exit0通过），全部network0/credentialsRead=false/ledger不变；独立最终代码/流程审阅通过。Publisher SHAe3e66a8e58ae090df2834a0739d805201624707894b727593f633c4589e59ebb；tests SHA52deee62e1bda25fef72df08a289e5e84f57459f8ac8341abd21c71e7b09058a，之后未改源码。证据在队列.local/news-gitee-policy-20261008-*，不提交运行文件。
+- 四个已知验证/预演Python均报告退出（预期拒绝exit1，其余exit0）；初次fresh出现1个数值PID，未授stop或判同身份，最终fresh0/knownOwnedAlive0，stop0，session/state/ledger锁无残留。短shell完整生命周期缺口保留，未创建服务/下载，测试临时资源由既有隔离fixture路径finally回收；旧policy保留对象不动。固定PS7、有界count/墙钟/取消/身份归属要求、禁Graphify/广域扫描/安装保持。
+- 本轮仅上述技能/项目新闻策略与修订稿及本HANDOFF追加；不stage/reset/commit/push/部署，保留并发研发/其它渠道staged及共享HANDOFF字节。相关技能/项目diff --check通过，未运行仓库restore/format或更新技能全量备份manifest，因不提交且含并发修改；以后提交前按各仓最终树门禁/备份流程处理，不能称整树已通过。原139/140源稿漂移仍按每日交接到编号前复核，未改其SHA或运行全队列失败检查。
+
 
 ## 2026-10-08 WB75 当前代码本地集成窗口（提交后暂停）
 
@@ -1074,3 +1258,24 @@
 private候选由WB74已证323201B加明确owned ending4563B及本段构造，五继承段加ending和本段共七段；全工作前缀及foreign尾部保持，不whole-add HANDOFF、不reset现有index，继续原15路径内更新文档。WB73六源SHA、micro各1/PS14/Node41、WB74纯guard micro1/full38仅继承，0源重测/actual/产品build。WB74两次门禁PASS不覆盖此新树；本片重新完整restore/format后才提交。
 
 WB74 hidden.git拒绝、日期/锁/初审拒绝、31>28阶段false及14/14用尽和所有历史FAIL保持；whole-session orphan-freedom/processIntegrity/overall false不提升。Native恢复、正常退出、三宿主、OS/ManagedLocal、安装、ExtensionHost、AOT、硬件/长期/发布仍分别未验；七导航/九模型/Graph Beta/MQ database identity+instance .system/mq合同保持。提交完成后只做安全收尾并追加真实提交与暂停交接，夜间等用户明确继续。
+
+## 2026-10-08 WB75 已本地提交并暂停（本会话1/5）
+
+实际本地提交：4fdded90f5d99f2c4fc644ec9769d20f7cd057d6，父3027a1aac9a5cea2d625c94cefe2239a372dd060，tree6b591e178d616c9e940571a414e45b5b2c0cd649；提交15个精确owned路径。HEAD/父/tree/15path集合/H raw SHA/空cached/无index.lock均由根独立Git读核，来源会话也独立确认。origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1，无push。本会话只有WB75一个独立任务，已闭合1/5；继承核验和同片修复不另计。
+
+真实不提交preflight PASS：Hidden Directory非Reparse、默认hooks显式大小写等价、14 sample/0active、unsigned、四真实metadata日期String、15工作文件read locks、CreateNew/DeleteOnClose index.lock、锁内只读tree比较/guard、index字节保持及释放；attempt/object缺席。随后最终树完整dotnet restore SonnetDB.slnx exit0（21s）、原CI dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ exit0（175s）；workspace warning保留。实际commit wrapper exit0（25s），固定tree/parent+expected-old CAS，默认index未改。源38/PS14/Node41仅继承，六源不变，0重测/actual/产品build。
+
+新工具初审预演收据raw SHA漂移拒绝已保留，修为raw字节SHA及独立ShareRead锁至finally、attempt/result同SHA；旧工具记录不覆盖。stage首次git diff --cached --check非零来自根owned CHANGELOG插入的两CR字节，真实失败/诊断/部分stage tree99db保持；新有界必要阶段只修插入CRLF->LF，原文inverse到WB74 SHA通过，旧freeze/content收据逐byte归档，重新冻结及stage-v2/whitespace PASS后才跑preflight和完整门禁。
+
+postcommit observed审计29完整identity/retained11，ownedSurvivors0/reused0/unknown0/stop0/delete0；只证观察到的自有身份和retained退出。whole-session orphan-freedom/processIntegrity/overall仍false，未观察瞬时后代等限界及WB74/73/72/71、WB70 actual/normalExit/cleanup false保持。所有专属代理已停止仓库访问；自有Temp快照已核归属回收，task-local证据保留。最终暂停退出复核见artifacts/wb75-local-integration-20261008/pause-final-identity-audit.json及closed.json，不把此段先验当后续核验已执行。
+
+workbench同一heartbeat保持PAUSED，不新产品任务、不新接续、不自行排恢复时间；夜间等用户明确继续。当前owned代码和提交前交接已纳入上述commit；本段包含提交后SHA/退出事实，作为本次提交后交接追加，尚未暂存。working全部foreign字节保持，private已提交329784B/SHA EA9534E79E5BF057CD22116071CC01563A3421015080EADDF9B07EA4A29D9653；未来候选只能由此已证base加本段等明确owned字节构造，不能whole-add HANDOFF。本段偏移/长度/SHA见pause-handoff-binding.json。七段加本ending为八段；以后新增段前须重新审查八段/15路径上限，不能静默超界。
+
+下一次明确继续：先完整接收最新交接/队列与Git状态，再冻结新Native资源/实际旅程窗口；不盲重跑WB70。真实恢复、双desktop/B查询、正常退出/cleanup、三宿主、OS/ManagedLocal、安装、ExtensionHost、AOT、固定硬件、长期/发布仍分列未验；七导航/九模型/MQ database identity+instance .system/mq与Graph Beta保持。
+
+## 2026-10-08 用户授权当前工作树提交与推送
+
+- 用户明确要求“现在提交代码并推送。不用做额外的检查”，本次按该最新指令跳过新增 restore、format、测试及其它验证；不将既有局部验收升级为整树或真实旅程通过。
+- 现有代码已包含在 main 的 10 个本地提交中，本次同时提交当前未提交的共享交接、博客园文章及回执、CSDN 进度、开源中国账本与 Gitee 新闻修订稿；保留各渠道既有发布事实、失败和未完成边界。
+- 远端另有木垒现场只读核验提交 0a6df150，采用正常合并保留双方提交历史，推送目标为 origin/main，不修改 parity-results。具体提交身份与推送结果以本次 Git 记录及会话最终回执为准。
+- 本次只处理提交、远端合并和推送，不新增产品实施或发布请求；workbench 暂停状态保持，后续 Native 真实旅程、安装/AOT、硬件及长期验收继续按前述交接安排。

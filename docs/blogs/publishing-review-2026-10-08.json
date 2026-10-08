@@ -1,0 +1,659 @@
+{
+  "runId": "cnblogs-20261008-1100",
+  "startedAt": "2026-10-08T11:03:05.1521475+08:00",
+  "deadline": "2026-10-08T11:30:29.0000000+08:00",
+  "sourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+  "reviewedCandidates": [
+    "141",
+    "142"
+  ],
+  "initialTodaySuccess": 0,
+  "processes": [
+    {
+      "startedAt": "2026-10-08T11:07:38.0768771+08:00",
+      "arguments": [
+        "--version"
+      ],
+      "parentChain": [
+        {
+          "pid": 61852,
+          "parentPid": 46576,
+          "createdAt": "2026-10-08T11:07:37.4450730+08:00",
+          "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$ErrorActionPreference='Stop'\n$blog='D:\\source\\SonnetDB\\docs\\blogs'\n$statePath=Join-Path $blog 'publishing-state.json'\n$s=Get-Content $statePath -Raw|ConvertFrom-Json -DateKind String\n$r=Get-Content (Join-Path $blog 'publishing-review-2026-10-08.json') -Raw|ConvertFrom-Json -DateKind String\n$reviews=@()\nforeach($id in @('141','142')) {\n $a=$s.articles|Where-Object articleId -eq $id\n if($a.status -ne 'queued' -or $a.attempts -ne 0) {throw 'Queue eligibility changed'}\n $a.sourceCommit='3027a1aac9a5cea2d625c94cefe2239a372dd060'\n $a.featureStatus='partial';$a.lastReviewedAt=[DateTimeOffset]::Now.ToString('o');$a.lastError=$null\n $a.contentSha256=(Get-FileHash (Join-Path 'D:\\source\\SonnetDB' $a.path) -Algorithm SHA256).Hash.ToLowerInvariant()\n $a|Add-Member -NotePropertyName reviewSourceCommit -NotePropertyValue $a.sourceCommit -Force\n $a|Add-Member -NotePropertyName publicDocumentationCommit -NotePropertyValue 'c785f0479686a3d6584787e1a2b40bd67b0e38c5' -Force\n $a.notes='2026-10-08 源码/专题/发行物复核并补完整操作、结果解释和边界；开发树切片不冒称4.0.0包能力；示例未实跑，发布保留默认社区footer。'\n $sources=@()\n foreach($d in $a.sourceDocs) { $p=[IO.Path]::GetFullPath((Join-Path $blog $d));$body=[IO.File]::ReadAllText($p);$sources+=@{path=$d;chars=$body.Length;sha256=(Get-FileHash $p -Algorithm SHA256).Hash.ToLowerInvariant()} }\n $reviews+=@{articleId=$id;contentSha256=$a.contentSha256;sourceDocs=$sources;reviewedAt=$a.lastReviewedAt}\n}\n$s.updatedAt='2026-10-08'\n$r|Add-Member -NotePropertyName manuscriptReviews -NotePropertyValue $reviews -Force\n$r|Add-Member -NotePropertyName publicDocumentationCommit -NotePropertyValue 'c785f0479686a3d6584787e1a2b40bd67b0e38c5' -Force\n$r|Add-Member -NotePropertyName deduplication -NotePropertyValue @{checkedArticleCount=$s.articles.Count;checkedExternalCount=$s.externalPublishedArticles.Count;accountHomepageShowsYesterdayLatest=$true;matchedQueuedTitles=0;historicalUnconfirmedPaused=59;scope='known published titles/topics plus prior 90-entry account reconciliation and current homepage; no hidden-account absence claim'} -Force\n$r|Add-Member -NotePropertyName factSources -NotePropertyValue @('web/src/router/index.ts','web/src/utils/writeApproval.ts','extensions/sonnetdb-vscode/src/core/sonnetdbClient.ts','extensions/sonnetdb-vscode/package.json','src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs','src/SonnetDB.Core/Storage/Segments/SegmentReader.cs','src/SonnetDB.Core/Engine/SegmentReplacementManifest.cs','src/SonnetDB.Core/Memory/MemTable.cs','src/SonnetDB.Core/Memory/MemTableSeries.cs','tests/SonnetDB.Benchmarks/Program.cs','eng/m43-release-evidence.template.json','eng/verify-m43-release-evidence.ps1','ROADMAP.md','docs/design/m47-unified-management-workbench/validation-report.md') -Force\n$facts=@();foreach($f in $r.factSources) {$facts+=@{path=$f;sha256=(Get-FileHash (Join-Path 'D:\\source\\SonnetDB' $f) -Algorithm SHA256).Hash.ToLowerInvariant()}}\n$r|Add-Member -NotePropertyName factSourceHashes -NotePropertyValue $facts -Force\n$enc=[Text.UTF8Encoding]::new($false)\nforeach($entry in @(@{path=$statePath;value=$s},@{path=(Join-Path $blog 'publishing-review-2026-10-08.json');value=$r})) {\n $tmp=$entry.path+'.cnblogs-20261008-1100.tmp'\n try {[IO.File]::WriteAllText($tmp,(($entry.value|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\"),$enc);[IO.File]::Move($tmp,$entry.path,$true)} finally {if([IO.File]::Exists($tmp)){[IO.File]::Delete($tmp)}}\n}\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode probe\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode dry -ArticleId 141\""
+        },
+        {
+          "pid": 46576,
+          "parentPid": 46812,
+          "createdAt": "2026-10-08T10:28:54.8779720+08:00",
+          "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\979a96ce184041d1\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
+        },
+        {
+          "pid": 46812,
+          "parentPid": 14284,
+          "createdAt": "2026-10-08T10:28:02.4837720+08:00",
+          "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1002.6548.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
+        },
+        {
+          "pid": 14284,
+          "parentPid": 14212,
+          "createdAt": "2026-10-08T10:22:52.0087260+08:00",
+          "commandLine": "C:\\Windows\\Explorer.EXE"
+        }
+      ],
+      "observed": [],
+      "cleanup": [],
+      "pid": 21560,
+      "createdAt": "2026-10-08T11:07:40.1212093+08:00",
+      "identity": null,
+      "exitCode": 0,
+      "stdout": "10.0.401\r\n",
+      "stderr": "",
+      "finishedAt": "2026-10-08T11:07:40.5220765+08:00",
+      "elapsedSeconds": 0.4044055,
+      "captureBoundary": "bounded CIM snapshots can miss very short children; not complete OS lifetime capture"
+    },
+    {
+      "startedAt": "2026-10-08T11:07:40.5710315+08:00",
+      "arguments": [
+        "run",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\141-m47-unified-workbench-boundary.md",
+        "--dry-run",
+        "--preview-output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-20261008\\141-preview.md"
+      ],
+      "parentChain": [
+        {
+          "pid": 61852,
+          "parentPid": 46576,
+          "createdAt": "2026-10-08T11:07:37.4450730+08:00",
+          "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$ErrorActionPreference='Stop'\n$blog='D:\\source\\SonnetDB\\docs\\blogs'\n$statePath=Join-Path $blog 'publishing-state.json'\n$s=Get-Content $statePath -Raw|ConvertFrom-Json -DateKind String\n$r=Get-Content (Join-Path $blog 'publishing-review-2026-10-08.json') -Raw|ConvertFrom-Json -DateKind String\n$reviews=@()\nforeach($id in @('141','142')) {\n $a=$s.articles|Where-Object articleId -eq $id\n if($a.status -ne 'queued' -or $a.attempts -ne 0) {throw 'Queue eligibility changed'}\n $a.sourceCommit='3027a1aac9a5cea2d625c94cefe2239a372dd060'\n $a.featureStatus='partial';$a.lastReviewedAt=[DateTimeOffset]::Now.ToString('o');$a.lastError=$null\n $a.contentSha256=(Get-FileHash (Join-Path 'D:\\source\\SonnetDB' $a.path) -Algorithm SHA256).Hash.ToLowerInvariant()\n $a|Add-Member -NotePropertyName reviewSourceCommit -NotePropertyValue $a.sourceCommit -Force\n $a|Add-Member -NotePropertyName publicDocumentationCommit -NotePropertyValue 'c785f0479686a3d6584787e1a2b40bd67b0e38c5' -Force\n $a.notes='2026-10-08 源码/专题/发行物复核并补完整操作、结果解释和边界；开发树切片不冒称4.0.0包能力；示例未实跑，发布保留默认社区footer。'\n $sources=@()\n foreach($d in $a.sourceDocs) { $p=[IO.Path]::GetFullPath((Join-Path $blog $d));$body=[IO.File]::ReadAllText($p);$sources+=@{path=$d;chars=$body.Length;sha256=(Get-FileHash $p -Algorithm SHA256).Hash.ToLowerInvariant()} }\n $reviews+=@{articleId=$id;contentSha256=$a.contentSha256;sourceDocs=$sources;reviewedAt=$a.lastReviewedAt}\n}\n$s.updatedAt='2026-10-08'\n$r|Add-Member -NotePropertyName manuscriptReviews -NotePropertyValue $reviews -Force\n$r|Add-Member -NotePropertyName publicDocumentationCommit -NotePropertyValue 'c785f0479686a3d6584787e1a2b40bd67b0e38c5' -Force\n$r|Add-Member -NotePropertyName deduplication -NotePropertyValue @{checkedArticleCount=$s.articles.Count;checkedExternalCount=$s.externalPublishedArticles.Count;accountHomepageShowsYesterdayLatest=$true;matchedQueuedTitles=0;historicalUnconfirmedPaused=59;scope='known published titles/topics plus prior 90-entry account reconciliation and current homepage; no hidden-account absence claim'} -Force\n$r|Add-Member -NotePropertyName factSources -NotePropertyValue @('web/src/router/index.ts','web/src/utils/writeApproval.ts','extensions/sonnetdb-vscode/src/core/sonnetdbClient.ts','extensions/sonnetdb-vscode/package.json','src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs','src/SonnetDB.Core/Storage/Segments/SegmentReader.cs','src/SonnetDB.Core/Engine/SegmentReplacementManifest.cs','src/SonnetDB.Core/Memory/MemTable.cs','src/SonnetDB.Core/Memory/MemTableSeries.cs','tests/SonnetDB.Benchmarks/Program.cs','eng/m43-release-evidence.template.json','eng/verify-m43-release-evidence.ps1','ROADMAP.md','docs/design/m47-unified-management-workbench/validation-report.md') -Force\n$facts=@();foreach($f in $r.factSources) {$facts+=@{path=$f;sha256=(Get-FileHash (Join-Path 'D:\\source\\SonnetDB' $f) -Algorithm SHA256).Hash.ToLowerInvariant()}}\n$r|Add-Member -NotePropertyName factSourceHashes -NotePropertyValue $facts -Force\n$enc=[Text.UTF8Encoding]::new($false)\nforeach($entry in @(@{path=$statePath;value=$s},@{path=(Join-Path $blog 'publishing-review-2026-10-08.json');value=$r})) {\n $tmp=$entry.path+'.cnblogs-20261008-1100.tmp'\n try {[IO.File]::WriteAllText($tmp,(($entry.value|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\"),$enc);[IO.File]::Move($tmp,$entry.path,$true)} finally {if([IO.File]::Exists($tmp)){[IO.File]::Delete($tmp)}}\n}\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode probe\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode dry -ArticleId 141\""
+        },
+        {
+          "pid": 46576,
+          "parentPid": 46812,
+          "createdAt": "2026-10-08T10:28:54.8779720+08:00",
+          "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\979a96ce184041d1\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
+        },
+        {
+          "pid": 46812,
+          "parentPid": 14284,
+          "createdAt": "2026-10-08T10:28:02.4837720+08:00",
+          "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1002.6548.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
+        },
+        {
+          "pid": 14284,
+          "parentPid": 14212,
+          "createdAt": "2026-10-08T10:22:52.0087260+08:00",
+          "commandLine": "C:\\Windows\\Explorer.EXE"
+        }
+      ],
+      "observed": [
+        {
+          "pid": 59328,
+          "parentPid": 67232,
+          "createdAt": "2026-10-08T11:07:42.1686110+08:00",
+          "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+        },
+        {
+          "pid": 50420,
+          "parentPid": 67232,
+          "createdAt": "2026-10-08T11:07:43.7270500+08:00",
+          "commandLine": "\"C:\\Program Files\\dotnet\\sdk\\10.0.401\\Roslyn\\bincore\\VBCSCompiler.exe\" \"-pipename:bukfz1UceTbIZpYXP4R1M+q4rWNNaK69mGZivF3aw4w\""
+        }
+      ],
+      "cleanup": [
+        {
+          "pid": 59328,
+          "action": "absent or identity changed; no stop"
+        },
+        {
+          "pid": 50420,
+          "action": "owned child stopped"
+        }
+      ],
+      "pid": 67232,
+      "createdAt": "2026-10-08T11:07:42.1633805+08:00",
+      "identity": {
+        "pid": 67232,
+        "parentPid": 61852,
+        "createdAt": "2026-10-08T11:07:42.1633800+08:00",
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\141-m47-unified-workbench-boundary.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-20261008\\141-preview.md"
+      },
+      "exitCode": 0,
+      "stdout": "{\r\n  \"title\": \"SonnetDB \\u7EDF\\u4E00\\u7BA1\\u7406\\u5DE5\\u4F5C\\u53F0\\uFF1AWeb Admin\\u3001Studio \\u4E0E VS Code \\u7684\\u5171\\u540C\\u8FB9\\u754C\",\r\n  \"url\": null,\r\n  \"postId\": null,\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": \"D:\\\\source\\\\SonnetDB\\\\docs\\\\blogs\\\\.publish-run-20261008\\\\141-preview.md\",\r\n  \"message\": \"dry-run\\uFF1A\\u5DF2\\u5B8C\\u6210 Markdown \\u89E3\\u6790\\u3001\\u9ED8\\u8BA4\\u4EA4\\u6D41\\u533A\\u5757\\u4E0E\\u672C\\u5730\\u56FE\\u7247\\u68C0\\u67E5\\uFF1B\\u672A\\u53D1\\u8D77\\u7F51\\u7EDC\\u8BF7\\u6C42\\u6216\\u53D1\\u5E03\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "finishedAt": "2026-10-08T11:07:47.2229087+08:00",
+      "elapsedSeconds": 5.060767,
+      "captureBoundary": "bounded CIM snapshots can miss very short children; not complete OS lifetime capture"
+    },
+    {
+      "startedAt": "2026-10-08T11:08:07.0034350+08:00",
+      "arguments": [
+        "run",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\142-reliability-and-benchmark-evidence.md",
+        "--dry-run",
+        "--preview-output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-20261008\\142-preview.md"
+      ],
+      "parentChain": [
+        {
+          "pid": 60160,
+          "parentPid": 46576,
+          "createdAt": "2026-10-08T11:08:06.4255350+08:00",
+          "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode dry -ArticleId 142\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-management -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/management-tools.md'\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-m47 -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/design/m47-unified-management-workbench/README.md'\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-navigation -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/design/m47-unified-management-workbench/navigation.md'\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-performance -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/performance-reliability-updates.md'\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-m43 -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/m43-release-evidence.md'\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode get -Name public-release-notes -Url 'https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/releases/4.0.0.md'\ngit diff --check -- docs/blogs\""
+        },
+        {
+          "pid": 46576,
+          "parentPid": 46812,
+          "createdAt": "2026-10-08T10:28:54.8779720+08:00",
+          "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\979a96ce184041d1\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
+        },
+        {
+          "pid": 46812,
+          "parentPid": 14284,
+          "createdAt": "2026-10-08T10:28:02.4837720+08:00",
+          "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1002.6548.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
+        },
+        {
+          "pid": 14284,
+          "parentPid": 14212,
+          "createdAt": "2026-10-08T10:22:52.0087260+08:00",
+          "commandLine": "C:\\Windows\\Explorer.EXE"
+        }
+      ],
+      "observed": [
+        {
+          "pid": 59672,
+          "parentPid": 11660,
+          "createdAt": "2026-10-08T11:08:09.0235030+08:00",
+          "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+        }
+      ],
+      "cleanup": [
+        {
+          "action": "absent or identity changed; no stop",
+          "pid": 59672
+        }
+      ],
+      "pid": 11660,
+      "createdAt": "2026-10-08T11:08:09.0178104+08:00",
+      "identity": {
+        "pid": 11660,
+        "parentPid": 60160,
+        "createdAt": "2026-10-08T11:08:09.0178100+08:00",
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\142-reliability-and-benchmark-evidence.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-20261008\\142-preview.md"
+      },
+      "exitCode": 0,
+      "stdout": "{\r\n  \"title\": \"SonnetDB \\u6027\\u80FD\\u4E0E\\u53EF\\u9760\\u6027\\u6587\\u7AE0\\u600E\\u4E48\\u5199\\uFF1A\\u628A\\u6570\\u5B57\\u548C\\u8BC1\\u636E\\u653E\\u5728\\u4E00\\u8D77\",\r\n  \"url\": null,\r\n  \"postId\": null,\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": \"D:\\\\source\\\\SonnetDB\\\\docs\\\\blogs\\\\.publish-run-20261008\\\\142-preview.md\",\r\n  \"message\": \"dry-run\\uFF1A\\u5DF2\\u5B8C\\u6210 Markdown \\u89E3\\u6790\\u3001\\u9ED8\\u8BA4\\u4EA4\\u6D41\\u533A\\u5757\\u4E0E\\u672C\\u5730\\u56FE\\u7247\\u68C0\\u67E5\\uFF1B\\u672A\\u53D1\\u8D77\\u7F51\\u7EDC\\u8BF7\\u6C42\\u6216\\u53D1\\u5E03\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "finishedAt": "2026-10-08T11:08:11.6824083+08:00",
+      "elapsedSeconds": 2.6675582,
+      "captureBoundary": "bounded CIM snapshots can miss very short children; not complete OS lifetime capture"
+    },
+    {
+      "startedAt": "2026-10-08T11:09:30.2422698+08:00",
+      "arguments": [
+        "run",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\141-m47-unified-workbench-boundary.md"
+      ],
+      "parentChain": [
+        {
+          "pid": 65712,
+          "parentPid": 46576,
+          "createdAt": "2026-10-08T11:09:28.9173540+08:00",
+          "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode publish -ArticleId 141\""
+        },
+        {
+          "pid": 46576,
+          "parentPid": 46812,
+          "createdAt": "2026-10-08T10:28:54.8779720+08:00",
+          "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\979a96ce184041d1\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
+        },
+        {
+          "pid": 46812,
+          "parentPid": 14284,
+          "createdAt": "2026-10-08T10:28:02.4837720+08:00",
+          "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1002.6548.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
+        },
+        {
+          "pid": 14284,
+          "parentPid": 14212,
+          "createdAt": "2026-10-08T10:22:52.0087260+08:00",
+          "commandLine": "C:\\Windows\\Explorer.EXE"
+        }
+      ],
+      "observed": [
+        {
+          "pid": 66180,
+          "parentPid": 59308,
+          "createdAt": "2026-10-08T11:09:32.3211930+08:00",
+          "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+        }
+      ],
+      "cleanup": [
+        {
+          "pid": 66180,
+          "action": "absent or identity changed; no stop"
+        }
+      ],
+      "pid": 59308,
+      "createdAt": "2026-10-08T11:09:32.3148084+08:00",
+      "identity": {
+        "pid": 59308,
+        "parentPid": 65712,
+        "createdAt": "2026-10-08T11:09:32.3148080+08:00",
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\141-m47-unified-workbench-boundary.md"
+      },
+      "exitCode": 0,
+      "stdout": "{\r\n  \"title\": \"SonnetDB \\u7EDF\\u4E00\\u7BA1\\u7406\\u5DE5\\u4F5C\\u53F0\\uFF1AWeb Admin\\u3001Studio \\u4E0E VS Code \\u7684\\u5171\\u540C\\u8FB9\\u754C\",\r\n  \"url\": \"https://www.cnblogs.com/IoTSharp/p/23221481\",\r\n  \"postId\": \"23221481\",\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": null,\r\n  \"message\": \"\\u5DF2\\u53D1\\u5E03\\u5230\\u535A\\u5BA2\\u56ED\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "finishedAt": "2026-10-08T11:09:36.1607001+08:00",
+      "elapsedSeconds": 3.8492857,
+      "captureBoundary": "bounded CIM snapshots can miss very short children; not complete OS lifetime capture"
+    },
+    {
+      "startedAt": "2026-10-08T11:09:55.9958654+08:00",
+      "arguments": [
+        "run",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\142-reliability-and-benchmark-evidence.md"
+      ],
+      "parentChain": [
+        {
+          "pid": 59580,
+          "parentPid": 46576,
+          "createdAt": "2026-10-08T11:09:55.2961940+08:00",
+          "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& docs/blogs/.publish-run-20261008/session.ps1 -Mode publish -ArticleId 142\""
+        },
+        {
+          "pid": 46576,
+          "parentPid": 46812,
+          "createdAt": "2026-10-08T10:28:54.8779720+08:00",
+          "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\979a96ce184041d1\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
+        },
+        {
+          "pid": 46812,
+          "parentPid": 14284,
+          "createdAt": "2026-10-08T10:28:02.4837720+08:00",
+          "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1002.6548.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
+        },
+        {
+          "pid": 14284,
+          "parentPid": 14212,
+          "createdAt": "2026-10-08T10:22:52.0087260+08:00",
+          "commandLine": "C:\\Windows\\Explorer.EXE"
+        }
+      ],
+      "observed": [
+        {
+          "pid": 48628,
+          "parentPid": 23956,
+          "createdAt": "2026-10-08T11:09:58.8536520+08:00",
+          "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+        },
+        {
+          "pid": 63364,
+          "parentPid": 23956,
+          "createdAt": "2026-10-08T11:10:01.4054530+08:00",
+          "commandLine": "\"C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher\\bin\\Debug\\net8.0\\CnblogsPublisher.exe\"  D:\\source\\SonnetDB\\docs\\blogs\\142-reliability-and-benchmark-evidence.md"
+        }
+      ],
+      "cleanup": [
+        {
+          "action": "absent or identity changed; no stop",
+          "pid": 48628
+        },
+        {
+          "action": "absent or identity changed; no stop",
+          "pid": 63364
+        }
+      ],
+      "pid": 23956,
+      "createdAt": "2026-10-08T11:09:58.8449307+08:00",
+      "identity": {
+        "pid": 23956,
+        "parentPid": 59580,
+        "createdAt": "2026-10-08T11:09:58.8449300+08:00",
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\142-reliability-and-benchmark-evidence.md"
+      },
+      "exitCode": 0,
+      "stdout": "{\r\n  \"title\": \"SonnetDB \\u6027\\u80FD\\u4E0E\\u53EF\\u9760\\u6027\\u6587\\u7AE0\\u600E\\u4E48\\u5199\\uFF1A\\u628A\\u6570\\u5B57\\u548C\\u8BC1\\u636E\\u653E\\u5728\\u4E00\\u8D77\",\r\n  \"url\": \"https://www.cnblogs.com/IoTSharp/p/23221492\",\r\n  \"postId\": \"23221492\",\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": null,\r\n  \"message\": \"\\u5DF2\\u53D1\\u5E03\\u5230\\u535A\\u5BA2\\u56ED\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "finishedAt": "2026-10-08T11:10:09.5461142+08:00",
+      "elapsedSeconds": 10.706456,
+      "captureBoundary": "bounded CIM snapshots can miss very short children; not complete OS lifetime capture"
+    }
+  ],
+  "httpEvidence": [
+    {
+      "contentSha256": "6cf6d4c2773c4cf54ce575be50f53e69755df617cecdd527e11c4f0b84aea377",
+      "attempts": 1,
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "checkedAt": "2026-10-08T11:03:06.1381084+08:00",
+      "status": 200
+    },
+    {
+      "checkedAt": "2026-10-08T11:03:22.3331283+08:00",
+      "contentSha256": "a89c63347ed9b786d2b486dedc06e99004324dbca0157e7c022a2f2dbc3355ab",
+      "url": "https://api.github.com/repos/IoTSharp/SonnetDB/releases/tags/v4.0.0",
+      "attempts": 2,
+      "status": 200
+    },
+    {
+      "checkedAt": "2026-10-08T11:03:23.5815499+08:00",
+      "contentSha256": "b94812e62c61180bf1c5b7af6d442fddd1a1c5f484f6d4dcd352e860da89b671",
+      "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.core/index.json",
+      "attempts": 1,
+      "status": 200
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "3e6ee9c1e6fbc0b44e6898de4288f291c6ac1e05c78c4d19fd6898c22e3d81c9",
+      "checkedAt": "2026-10-08T11:08:12.7921660+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/management-tools.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "424e871e0d823d91a00ce8998c6027b89e839d42f97aee941c708686cbdac2a1",
+      "checkedAt": "2026-10-08T11:08:13.5355586+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/design/m47-unified-management-workbench/README.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "065d2810d174eaf5c1d8a38d6874a73136001c21bd4e31d6c0da17b3ca951d03",
+      "checkedAt": "2026-10-08T11:08:14.2718003+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/design/m47-unified-management-workbench/navigation.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "86f53f861ed2937600eca4c4c27f584946d38f7392467022593e40584c658b39",
+      "checkedAt": "2026-10-08T11:08:36.3420570+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/performance-reliability-updates.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "d3cb6b553aac1728e33ba1130ed9b238b387316a94b69442fcbd96331b580c5f",
+      "checkedAt": "2026-10-08T11:08:58.4577135+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/m43-release-evidence.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+      "checkedAt": "2026-10-08T11:08:59.2350440+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/c785f0479686a3d6584787e1a2b40bd67b0e38c5/docs/releases/4.0.0.md"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "4899760d6ed60095737a35f412c39cf53724e7ff6d944e77f473dedcffb78a36",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221481",
+      "checkedAt": "2026-10-08T11:11:02.8521247+08:00"
+    },
+    {
+      "status": 200,
+      "attempts": 1,
+      "contentSha256": "f282b076636943ce62ae55987c117ff8de4d99353eb05da0e3f78676daf505c0",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221492",
+      "checkedAt": "2026-10-08T11:11:03.2115458+08:00"
+    }
+  ],
+  "validationScope": "source/document review and publisher dry-run, no live DB/model/performance tests",
+  "exclusiveLeaseReleased": true,
+  "manuscriptReviews": [
+    {
+      "reviewedAt": "2026-10-08T11:07:37.9140175+08:00",
+      "contentSha256": "b080debae45226445fd1df5829781ae408ec78a2a5793fbcc1a3234ac7fdf422",
+      "sourceDocs": [
+        {
+          "path": "../design/m47-unified-management-workbench/README.md",
+          "chars": 4765,
+          "sha256": "feaa8367502e836651eeb017db1a577e60f162d5b290200f0cfd706f2db2349e"
+        },
+        {
+          "path": "../design/m47-unified-management-workbench/navigation.md",
+          "chars": 11721,
+          "sha256": "065d2810d174eaf5c1d8a38d6874a73136001c21bd4e31d6c0da17b3ca951d03"
+        },
+        {
+          "path": "../management-tools.md",
+          "chars": 9815,
+          "sha256": "3e6ee9c1e6fbc0b44e6898de4288f291c6ac1e05c78c4d19fd6898c22e3d81c9"
+        }
+      ],
+      "articleId": "141"
+    },
+    {
+      "reviewedAt": "2026-10-08T11:07:37.9609992+08:00",
+      "contentSha256": "0cecf95753d1053443bf113a8c2af94a388323e233f989dae7bc92c05cfefc1c",
+      "sourceDocs": [
+        {
+          "path": "../performance-reliability-updates.md",
+          "chars": 5474,
+          "sha256": "86f53f861ed2937600eca4c4c27f584946d38f7392467022593e40584c658b39"
+        },
+        {
+          "path": "../m43-release-evidence.md",
+          "chars": 3002,
+          "sha256": "d3cb6b553aac1728e33ba1130ed9b238b387316a94b69442fcbd96331b580c5f"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "chars": 9651,
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        }
+      ],
+      "articleId": "142"
+    }
+  ],
+  "publicDocumentationCommit": "c785f0479686a3d6584787e1a2b40bd67b0e38c5",
+  "deduplication": {
+    "historicalUnconfirmedPaused": 59,
+    "scope": "known published titles/topics plus prior 90-entry account reconciliation and current homepage; no hidden-account absence claim",
+    "checkedExternalCount": 10,
+    "checkedArticleCount": 142,
+    "matchedQueuedTitles": 0,
+    "accountHomepageShowsYesterdayLatest": true
+  },
+  "factSources": [
+    "web/src/router/index.ts",
+    "web/src/utils/writeApproval.ts",
+    "extensions/sonnetdb-vscode/src/core/sonnetdbClient.ts",
+    "extensions/sonnetdb-vscode/package.json",
+    "src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs",
+    "src/SonnetDB.Core/Storage/Segments/SegmentReader.cs",
+    "src/SonnetDB.Core/Engine/SegmentReplacementManifest.cs",
+    "src/SonnetDB.Core/Memory/MemTable.cs",
+    "src/SonnetDB.Core/Memory/MemTableSeries.cs",
+    "tests/SonnetDB.Benchmarks/Program.cs",
+    "eng/m43-release-evidence.template.json",
+    "eng/verify-m43-release-evidence.ps1",
+    "ROADMAP.md",
+    "docs/design/m47-unified-management-workbench/validation-report.md"
+  ],
+  "factSourceHashes": [
+    {
+      "path": "web/src/router/index.ts",
+      "sha256": "552a4c3ac7af095bdde97811b951fa985c97da048fc8499bb4f4203db47e57ba"
+    },
+    {
+      "path": "web/src/utils/writeApproval.ts",
+      "sha256": "f547a89e9541b45100965b98d6e15f267a5e729c5f5909fb2bac8ef55717b044"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/src/core/sonnetdbClient.ts",
+      "sha256": "f10cd2149c4d66ebcd2f95f3bf6d22cbf0ffb54bb80c396e606f9ebcef227860"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/package.json",
+      "sha256": "5428c7afa72174d44d6ce25666927cfc9428a9f5c0fe46a73c561cf81261950e"
+    },
+    {
+      "path": "src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs",
+      "sha256": "dcf2602683db8f3bf81487fa2f266dd8c2d979add95af7f9440d2a51b329ab83"
+    },
+    {
+      "path": "src/SonnetDB.Core/Storage/Segments/SegmentReader.cs",
+      "sha256": "036740ccd7fd0bfe2e50051d5ec66eb0dbea3a649f43d4ebac47b674b4f6fd33"
+    },
+    {
+      "path": "src/SonnetDB.Core/Engine/SegmentReplacementManifest.cs",
+      "sha256": "13e7598114396851ca1f68e9a27bf72ebc3eff1b0ef0aaeb7b9676b04e5dab1c"
+    },
+    {
+      "path": "src/SonnetDB.Core/Memory/MemTable.cs",
+      "sha256": "ba72d0db133124cdeb0e0d5bedfd676ad279a15de1a8d38bcf7d052766235e66"
+    },
+    {
+      "path": "src/SonnetDB.Core/Memory/MemTableSeries.cs",
+      "sha256": "abccbd5b5c8eecd217e22b41eb71083a0e56985710719455de01089767c17271"
+    },
+    {
+      "path": "tests/SonnetDB.Benchmarks/Program.cs",
+      "sha256": "6e427f7769161c80928db7df902c13755cbda3680bfa441adce50ef500b07bef"
+    },
+    {
+      "path": "eng/m43-release-evidence.template.json",
+      "sha256": "48979d5c11effd992cbd1f056e7b98eb85d14f1692552523432fdb84e8a7d719"
+    },
+    {
+      "path": "eng/verify-m43-release-evidence.ps1",
+      "sha256": "ab84b9987a046d543ac8de84ea3d08f8c14ec2760a23246f0bee53917c9e7e3b"
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "24b27e42cbcd9cba11c3f159c1c043e7bbbc208379317698865117044d149f44"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/validation-report.md",
+      "sha256": "a7cfb797df2b4c0257c5c31a7b81f69fd28b1000937b48b2ef0e74aed4781f63"
+    }
+  ],
+  "publicReadback": [
+    {
+      "checkedAt": "2026-10-08T11:11:54.5164553+08:00",
+      "scope": "public title, selected body markers and both default QR URLs; not HTML/Markdown byte equivalence",
+      "previewSha256": "7a335683c15a825b25b8cdf5d1e09e3456db7b59b15bc5aa19c63d6014ca93e8",
+      "defaultQrUrlsPresent": true,
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221481",
+      "publicTitleMatches": true,
+      "articleId": "141",
+      "publicBodyMarkersMatch": true
+    },
+    {
+      "checkedAt": "2026-10-08T11:11:54.5319379+08:00",
+      "scope": "public title, selected body markers and both default QR URLs; not HTML/Markdown byte equivalence",
+      "previewSha256": "79708cd68edc10e507ca8106a1cedbe3b264b55e42f85510d2ce52f97a2e7755",
+      "defaultQrUrlsPresent": true,
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221492",
+      "publicTitleMatches": true,
+      "articleId": "142",
+      "publicBodyMarkersMatch": true
+    }
+  ],
+  "initialReadbackNote": "141 first public GET briefly returned 404; later GET succeeded. Only read-only GET fallback occurred; each actual publish POST happened once.",
+  "edits": [
+    "141: current implementation, actionable query and approval workflow, three-host boundaries; featureStatus planned -> partial",
+    "142: reproducible evidence steps, correct compaction replacement distinction, release and seven-day observation boundaries",
+    "public GitHub references pinned and checked; default community footer retained"
+  ],
+  "finalProcessIdentityChecks": [
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:07:42.1633800+08:00",
+      "pid": 67232,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:07:42.1686110+08:00",
+      "pid": 59328,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:07:43.7270500+08:00",
+      "pid": 50420,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:08:09.0178100+08:00",
+      "pid": 11660,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:08:09.0235030+08:00",
+      "pid": 59672,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:09:32.3148080+08:00",
+      "pid": 59308,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:09:32.3211930+08:00",
+      "pid": 66180,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:09:58.8449300+08:00",
+      "pid": 23956,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:09:58.8536520+08:00",
+      "pid": 48628,
+      "sameIdentityAlive": false
+    },
+    {
+      "pidExists": false,
+      "action": "read-only; never stop changed/shared identity",
+      "originalCreatedAt": "2026-10-08T11:10:01.4054530+08:00",
+      "pid": 63364,
+      "sameIdentityAlive": false
+    }
+  ],
+  "finishedAt": "2026-10-08T11:12:10.2621520+08:00",
+  "finalTodaySuccess": 2,
+  "cleanup": {
+    "removedFileCount": 16,
+    "temporaryDirectory": "D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-20261008",
+    "temporaryDirectoryRemoved": true,
+    "scope": "only 16 verified task files, removed using apply_patch; no shared cache/foreign process cleanup",
+    "leaseRemoved": true,
+    "cleanupApprovalReview": "Combined cleanup and handoff command rejected with blocked by policy; no execution. Used explicit file deletions and nonrecursive empty-directory deletion.",
+    "wrapperFinishCorrection": "Missing report properties corrected after publishing; no POST retried"
+  }
+}

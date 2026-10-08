@@ -1,6 +1,6 @@
 # SonnetDB 开源中国 发布进度
 
-更新时间：2026-10-07T03:37:44.3416227+00:00
+更新时间：2026-10-08T04:12:08.7326315+00:00
 
 权威状态为 [publishing-state.json](publishing-state.json)，逐次回执见 [publishing-events.jsonl](publishing-events.jsonl)。已有 ID 不重复创建，unknown/publishing 先只读对账。submitted 是接口接收，不自动证明公开审核通过。动弹与博客独立记录。
 队列后续计划：每天 11:00，最多 2 篇；时区 Asia/Shanghai。
@@ -36,8 +36,8 @@
 | 027 | 标识符引用：双引号的使用场景 | [submitted](https://my.oschina.net/u/7172/blog/19773805) | [submitted](https://www.oschina.net/osc-tweet/30401404) |
 | 028 | 标量向量函数：cosine_distance / l2_distance / inner_product / vector_norm | [submitted](https://my.oschina.net/u/7172/blog/19773806) | [submitted](https://www.oschina.net/osc-tweet/30401405) |
 | 029 | pgvector 兼容运算符：<=> <-> <#> | [submitted](https://my.oschina.net/u/7172/blog/19773807) | [submitted](https://www.oschina.net/osc-tweet/30401406) |
-| 030 | SQL Cookbook：常用查询模式速查 | draft | 未发送 |
-| 031 | 基础聚合函数：count/sum/min/max/avg/first/last | queued | 未发送 |
+| 030 | SQL Cookbook：常用查询模式速查 | [submitted](https://my.oschina.net/u/7172/blog/19774317) | [submitted-verification-pending](https://www.oschina.net/osc-tweet/30401409) |
+| 031 | 基础聚合函数：count/sum/min/max/avg/first/last | [submitted](https://my.oschina.net/u/7172/blog/19774318) | [submitted](https://www.oschina.net/osc-tweet/30401410) |
 | 032 | 统计聚合函数：stddev/variance/spread/median/mode | queued | 未发送 |
 | 033 | 深入 T-Digest：分位数聚合与 percentile | queued | 未发送 |
 | 034 | 使用 HyperLogLog 进行基数估计：distinct_count() 函数详解 | queued | 未发送 |
@@ -150,5 +150,5 @@
 | 141 | SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界 | queued | 未发送 |
 | 142 | SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起 | queued | 未发送 |
 
-新闻：4.0.0 ID 502847，审核中。投稿接收与公开审核分别记录。
+新闻：4.0.0 ID 502847，账号状态1，公开接口正文已核验，网页可见性未核验。投稿接收与公开审核分别记录。
 来源：https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0

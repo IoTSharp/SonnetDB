@@ -2,7 +2,7 @@
 
 账号：mysticboy；时区：Asia/Shanghai
 
-更新时间：2026-10-07T16:27:57+08:00
+更新时间：2026-10-08T11:33:16+08:00
 
 即时发布授权日：2026-10-07；窗口关闭：是
 
@@ -20,16 +20,16 @@
 | 008 | [首次设置向导：从零开始配置 SonnetDB](https://blog.csdn.net/mysticboy/article/details/167222193) | under_review | 167222193 | 2026-10-07T16:22:49+08:00 |
 | 009 | [深入理解 SonnetDB 数据模型：Measurement、Tag、Field 与 Time](https://blog.csdn.net/mysticboy/article/details/167222219) | under_review | 167222219 | 2026-10-07T16:25:17+08:00 |
 | 010 | [深入探讨：SonnetDB 的文件格式与存储布局](https://blog.csdn.net/mysticboy/article/details/167222236) | under_review | 167222236 | 2026-10-07T16:26:37+08:00 |
-| 011 | 安全机制详解：用户、角色与权限管理 | pending | — | — |
-| 012 | Token 认证机制：使用 ISSUE TOKEN 保障 API 安全 | pending | — | — |
-| 013 | CREATE MEASUREMENT：定义您的时序数据结构 | pending | — | — |
-| 014 | HNSW 向量索引：加速向量搜索的强力引擎 | pending | — | — |
-| 015 | INSERT INTO：向时序表写入数据 | pending | — | — |
-| 016 | GEOPOINT 地理空间数据：使用 POINT 语法写入经纬度 | pending | — | — |
-| 017 | VECTOR 字面量：使用 `\[v0, v1, ...\]` 语法操作嵌入向量 | pending | — | — |
-| 018 | SELECT 查询基础：投影、标签过滤与时间范围 | pending | — | — |
-| 019 | 算术表达式：在投影列中灵活计算数据 | pending | — | — |
-| 020 | 标量函数：abs、round、sqrt、log 与 coalesce | pending | — | — |
+| 011 | [安全机制详解：用户、角色与权限管理](https://blog.csdn.net/mysticboy/article/details/167268940) | under_review | 167268940 | 2026-10-08T11:11:13+08:00 |
+| 012 | [Token 认证机制：使用 ISSUE TOKEN 保障 API 安全](https://blog.csdn.net/mysticboy/article/details/167269071) | under_review | 167269071 | 2026-10-08T11:12:55+08:00 |
+| 013 | [CREATE MEASUREMENT：定义您的时序数据结构](https://blog.csdn.net/mysticboy/article/details/167269163) | under_review | 167269163 | 2026-10-08T11:14:16+08:00 |
+| 014 | [HNSW 向量索引：加速向量搜索的强力引擎](https://blog.csdn.net/mysticboy/article/details/167269254) | under_review | 167269254 | 2026-10-08T11:15:45+08:00 |
+| 015 | [INSERT INTO：向时序表写入数据](https://blog.csdn.net/mysticboy/article/details/167269368) | under_review | 167269368 | 2026-10-08T11:17:18+08:00 |
+| 016 | [SonnetDB GEOPOINT：用 POINT 写入经纬度](https://blog.csdn.net/mysticboy/article/details/167269410) | under_review | 167269410 | 2026-10-08T11:18:12+08:00 |
+| 017 | [SonnetDB VECTOR 字面量：写入、维度与距离计算](https://blog.csdn.net/mysticboy/article/details/167269834) | under_review | 167269834 | 2026-10-08T11:30:29+08:00 |
+| 018 | [SonnetDB SELECT 基础：投影、标签过滤与时间范围](https://blog.csdn.net/mysticboy/article/details/167269857) | under_review | 167269857 | 2026-10-08T11:31:38+08:00 |
+| 019 | [SonnetDB 算术表达式：查询中的计算与类型合同](https://blog.csdn.net/mysticboy/article/details/167269885) | under_review | 167269885 | 2026-10-08T11:32:31+08:00 |
+| 020 | SonnetDB 标量函数：abs、round、sqrt、log 与 coalesce | prepared | — | — |
 | 021 | 函数嵌套调用：构建复杂的计算表达式 | pending | — | — |
 | 022 | SQL 分页查询：LIMIT/OFFSET 与 FETCH 语法 | pending | — | — |
 | 023 | 多条件过滤：AND 连接多个 WHERE 约束 | pending | — | — |

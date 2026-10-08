@@ -33,4 +33,6 @@ $queue = @{ RepositoryRoot = 'D:\source\SonnetDB'; QueueDirectory = 'D:\source\S
 
 以上编号是用法示例，执行前必须以权威队列中的实际状态为准；`Publish-PendingTweets` 要求对应博客已有成功回执。正式发布按每日额度移除 `-DryRun`，每篇后独立发无链接动弹。每批最多十篇，有墙钟及发布器请求预算；每个写请求不重试。运行日志、进程审计和账号快照留在本地并由 `.gitignore` 排除；新工具的运行文件写入 `.local`。未实跑的 SQL、构建、数据库恢复和性能示例仅作教程说明。
 
-4.0.0 新闻已补投，ID `502847`，账号列表状态 `0` 对应“审核中”；保留回执，不重复投稿。
+SonnetDB 新闻的项目仓库链接固定为 [Gitee 仓库](https://gitee.com/IoTSharp/SonnetDB)。技能和发布器在 dry-run 及联网前校验：正文必须包含这个规范链接，正文或 `--origin-url` 中的 GitHub 仓库首页/`.git` 地址会被拒绝。正式 Release、附件下载和标签发行说明使用各自已核验的真实来源，并单独标注用途。
+
+4.0.0 新闻已补投，ID `502847`。2026-10-08 核得账号状态 `1`，公开 API 标题与全文可读取，新闻网页公开可见性尚未确认；保留原投稿正文、原文链接、指纹和回执，不重复投稿。原 `news.preparedPath` 是历史实际投稿稿件，采用 Gitee 仓库地址的本地修订稿由 `futurePreparedPath` 与独立 SHA 登记，仅供后续内容准备参考。未来发布策略存于 `news.futurePublicationPolicy`；修改仓库偏好不改变原投稿事实。

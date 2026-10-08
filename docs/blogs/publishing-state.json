@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "timezone": "Asia/Shanghai",
-  "updatedAt": "2026-10-07",
+  "updatedAt": "2026-10-08",
   "repository": "D:\\source\\SonnetDB",
   "policy": {
     "dailyRun": "11:00",
@@ -3465,32 +3465,42 @@
       "path": "docs/blogs/141-m47-unified-workbench-boundary.md",
       "title": "SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界",
       "series": "连接器与三面工作台",
-      "status": "queued",
+      "status": "published",
       "priority": 70,
       "scheduledAt": "2026-10-08T11:00:00+08:00",
-      "featureStatus": "planned",
+      "featureStatus": "partial",
       "sourceDocs": [
         "../design/m47-unified-management-workbench/README.md",
         "../design/m47-unified-management-workbench/navigation.md",
         "../management-tools.md"
       ],
-      "sourceCommit": "c785f0479686a3d6584787e1a2b40bd67b0e38c5",
-      "contentSha256": "fb8ccbc8face40ace8926b10a80e0c063e49d1fb490c9636e066568cdff67357",
-      "lastReviewedAt": "2026-10-05",
-      "publishedAt": null,
-      "postId": null,
-      "url": null,
-      "attempts": 0,
+      "sourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "contentSha256": "b080debae45226445fd1df5829781ae408ec78a2a5793fbcc1a3234ac7fdf422",
+      "lastReviewedAt": "2026-10-08T11:07:37.9140175+08:00",
+      "publishedAt": "2026-10-08T11:09:36+08:00",
+      "postId": "23221481",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221481",
+      "attempts": 1,
       "lease": null,
       "lastError": null,
-      "notes": "已按当前源码/文档复核；发布器 dry-run 通过；发布成功后必须回填 URL 与 postId。"
+      "notes": "2026-10-08 源码/专题/发行物复核并补完整操作、结果解释和边界；开发树切片不冒称4.0.0包能力；示例未实跑，发布保留默认社区footer。",
+      "reviewSourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "publicDocumentationCommit": "c785f0479686a3d6584787e1a2b40bd67b0e38c5",
+      "runId": "cnblogs-20261008-1100",
+      "publishedSourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "publicationEvidence": {
+        "artifact": "docs/blogs/publishing-review-2026-10-08.json",
+        "source": "https://www.cnblogs.com/IoTSharp/p/23221481",
+        "kind": "api-url-postId-and-public-title-body-markers",
+        "checkedAt": "2026-10-08T11:11:54.5164553+08:00"
+      }
     },
     {
       "articleId": "142",
       "path": "docs/blogs/142-reliability-and-benchmark-evidence.md",
       "title": "SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起",
       "series": "性能与可靠性",
-      "status": "queued",
+      "status": "published",
       "priority": 80,
       "scheduledAt": "2026-10-08T11:00:00+08:00",
       "featureStatus": "partial",
@@ -3499,16 +3509,26 @@
         "../m43-release-evidence.md",
         "../releases/4.0.0.md"
       ],
-      "sourceCommit": "c785f0479686a3d6584787e1a2b40bd67b0e38c5",
-      "contentSha256": "0b7172e4ae051cebe69f29bccad01cb7c1aea44042b6af41adf41ae48630ba78",
-      "lastReviewedAt": "2026-10-05",
-      "publishedAt": null,
-      "postId": null,
-      "url": null,
-      "attempts": 0,
+      "sourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "contentSha256": "0cecf95753d1053443bf113a8c2af94a388323e233f989dae7bc92c05cfefc1c",
+      "lastReviewedAt": "2026-10-08T11:07:37.9609992+08:00",
+      "publishedAt": "2026-10-08T11:10:09+08:00",
+      "postId": "23221492",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23221492",
+      "attempts": 1,
       "lease": null,
       "lastError": null,
-      "notes": "已按当前源码/文档复核；发布器 dry-run 通过；发布成功后必须回填 URL 与 postId。"
+      "notes": "2026-10-08 源码/专题/发行物复核并补完整操作、结果解释和边界；开发树切片不冒称4.0.0包能力；示例未实跑，发布保留默认社区footer。",
+      "reviewSourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "publicDocumentationCommit": "c785f0479686a3d6584787e1a2b40bd67b0e38c5",
+      "runId": "cnblogs-20261008-1100",
+      "publishedSourceCommit": "3027a1aac9a5cea2d625c94cefe2239a372dd060",
+      "publicationEvidence": {
+        "artifact": "docs/blogs/publishing-review-2026-10-08.json",
+        "source": "https://www.cnblogs.com/IoTSharp/p/23221492",
+        "kind": "api-url-postId-and-public-title-body-markers",
+        "checkedAt": "2026-10-08T11:11:54.5319379+08:00"
+      }
     }
   ],
   "externalPublishedArticles": [

@@ -3,7 +3,7 @@
   "platform": "oschina",
   "userId": 7172,
   "timezone": "Asia/Shanghai",
-  "updatedAt": "2026-10-07T03:37:44.3416227+00:00",
+  "updatedAt": "2026-10-08T04:12:08.7326315+00:00",
   "policy": {
     "dailyTime": "11:00",
     "dailyArticleLimit": 2,
@@ -1727,18 +1727,18 @@
         "docs/vector-search.md"
       ],
       "preparedPath": "docs/blogs/oschina/prepared/030-sql-cookbook.md",
-      "status": "draft",
+      "status": "submitted",
       "priority": 30,
-      "attempts": 1,
+      "attempts": 2,
       "blog": {
         "id": "3a9e45c2-ae6b-40f0-9ab7-b3264b3167f6",
         "kind": "blog",
         "title": "SQL Cookbook：常用查询模式速查",
         "fingerprint": "0213936034058e066c61fcf390d6db57c4ddb711d7bf0878e6136f18a96f8138",
-        "startedAt": "2026-10-06T19:51:24Z",
-        "updatedAt": "2026-10-06T19:58:53Z",
+        "startedAt": "2026-10-08T03:06:55Z",
+        "updatedAt": "2026-10-08T03:06:55Z",
         "draftId": 3326805,
-        "stage": "publish_blog",
+        "stage": "accepted",
         "error": {
           "code": 500,
           "httpStatus": 200,
@@ -1785,15 +1785,64 @@
             }
           }
         },
-        "status": "draft",
-        "note": "Final blog publication was refused for frequency. Complete lists and exact body confirm the original saved draft; resume only this draft ID on the next eligible scheduled run."
+        "status": "submitted",
+        "note": "Blog accepted and stored; public visibility requires listing/state reconciliation.",
+        "remoteId": 19774317,
+        "url": "https://my.oschina.net/u/7172/blog/19774317"
       },
-      "tweet": null,
-      "lastError": "访问频率过高，请稍后再试；已核实保留原草稿，下次复用同一 draft ID。",
+      "tweet": {
+        "id": "c3a1f87b-cac9-4b13-ae82-fc61ad9193ea",
+        "kind": "tweet",
+        "title": "",
+        "fingerprint": "c070c70e46a709dab441485a3742b4d81a47ebb8e69fce7a69c1b1d09d1977eb",
+        "status": "submitted-verification-pending",
+        "startedAt": "2026-10-08T03:07:00Z",
+        "updatedAt": "2026-10-08T03:07:01Z",
+        "remoteId": 30401409,
+        "url": "https://www.oschina.net/osc-tweet/30401409",
+        "stage": "verify_tweet",
+        "error": {
+          "code": 500,
+          "httpStatus": 200,
+          "reason": "request_failed",
+          "outcome": "unknown",
+          "message": "内容审核中/审核失败"
+        },
+        "verificationPending": true,
+        "moderationUnresolved": true,
+        "textVerified": false,
+        "imagesVerified": false,
+        "publicVisibilityVerified": false,
+        "note": "Tweet creation returned an ID; detail is pending review or review failed. Content and public visibility remain unverified; do not recreate.",
+        "articleUrl": "https://my.oschina.net/u/7172/blog/19774317",
+        "text": "新文章《SQL Cookbook：常用查询模式速查》已发布。整理十种常用 SQL 查询模式，含聚合、分组和向量检索示例。"
+      },
+      "lastError": null,
       "notes": "重建统一完整cpu schema/唯一种子与十种常用模式，向量另完整schema；不冒称分页预算、Tombstone撤销或合成语义证据。",
       "reviewManifest": "docs/blogs/oschina/prepared/review-011-030.json",
       "sourceDocsRoot": "repository",
-      "preparedSha256": "5000b734f77a11881b01089c7bcf19a36ae520378104fba70f486813937b36ba"
+      "tweetText": "新文章《SQL Cookbook：常用查询模式速查》已发布。整理十种常用 SQL 查询模式，含聚合、分组和向量检索示例。",
+      "latestFactReview": {
+        "checkedAt": "2026-10-08T11:04:56.6248283+08:00",
+        "method": "original-and-prepared-SHA-match-plus-unchanged-related-docs-and-source-against-own-manifest-commit",
+        "ready": true,
+        "preparedUnchanged": true,
+        "manifest": "docs/blogs/oschina/prepared/review-011-030.json",
+        "sourceSha256": "345818b55b72ef69fd67fa0615048024c56fe05f761e57f5958aff0921c355a6",
+        "preparedSha256": "5000b734f77a11881b01089c7bcf19a36ae520378104fba70f486813937b36ba",
+        "examplesExecuted": false
+      },
+      "preparedSha256": "5000b734f77a11881b01089c7bcf19a36ae520378104fba70f486813937b36ba",
+      "acceptedBodyVerification": {
+        "checkedAt": "2026-10-08T03:06:55Z",
+        "method": "publisher-read-back-title-and-strict-full-HTML-DOM-before-submitted",
+        "sameRemoteId": 19774317,
+        "titleVerified": true,
+        "fullBodyVerified": true,
+        "preparedSha256": "5000b734f77a11881b01089c7bcf19a36ae520378104fba70f486813937b36ba",
+        "publicVisibilityVerified": false,
+        "creationAudit": ".local/api-process-audit.jsonl"
+      }
     },
     {
       "articleId": "031",
@@ -1805,17 +1854,68 @@
         "docs/benchmarks/m45-measurement-tag-grouping.md"
       ],
       "preparedPath": "docs/blogs/oschina/prepared/031-basic-aggregation.md",
-      "status": "queued",
+      "status": "submitted",
       "priority": 31,
-      "attempts": 0,
-      "blog": null,
-      "tweet": null,
+      "attempts": 1,
+      "blog": {
+        "id": "decaf799-4b0e-4e7f-81cd-f006a8450fbf",
+        "kind": "blog",
+        "title": "基础聚合函数：count/sum/min/max/avg/first/last",
+        "fingerprint": "7e389a35e0a4a10941b0bd42c206118e926f670d53035567f2fe71ad98cce495",
+        "status": "submitted",
+        "startedAt": "2026-10-08T03:07:09Z",
+        "updatedAt": "2026-10-08T03:07:09Z",
+        "draftId": 3327341,
+        "stage": "accepted",
+        "remoteId": 19774318,
+        "url": "https://my.oschina.net/u/7172/blog/19774318",
+        "note": "Blog accepted and stored; public visibility requires listing/state reconciliation."
+      },
+      "tweet": {
+        "id": "b0c1cfcf-8425-4696-b872-4cde8bb43450",
+        "kind": "tweet",
+        "title": "",
+        "fingerprint": "5f72ce48c486bef547208e587f4993834045717ebe42cd9d578b182651487b40",
+        "status": "submitted",
+        "startedAt": "2026-10-08T03:07:14Z",
+        "updatedAt": "2026-10-08T03:07:14Z",
+        "remoteId": 30401410,
+        "url": "https://www.oschina.net/osc-tweet/30401410",
+        "stage": "accepted",
+        "imagesVerified": true,
+        "textVerified": true,
+        "verificationPending": false,
+        "note": "Tweet accepted and stored text verified; URL follows the actual detail route, public visibility is not verified.",
+        "articleUrl": "https://my.oschina.net/u/7172/blog/19774318",
+        "text": "新文章《基础聚合函数：count/sum/min/max/avg/first/last》已发布。说明基础聚合的输入类型、空值与多序列行为。"
+      },
       "lastError": null,
       "notes": "以当前文档/实现修正旧稿；保留原文章题材，去除未支持语法、未测量性能与完整兼容承诺。",
-      "preparedSha256": "84b931c13991ac353c6d0c9678611100fdd041b436170fda7051fcd86d936c00",
       "reviewManifest": "docs/blogs/oschina/prepared/review-031-060.json",
       "sourceDocsRoot": "repository",
-      "reviewedSourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab"
+      "reviewedSourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+      "tweetText": "新文章《基础聚合函数：count/sum/min/max/avg/first/last》已发布。说明基础聚合的输入类型、空值与多序列行为。",
+      "latestFactReview": {
+        "checkedAt": "2026-10-08T11:04:56.6248283+08:00",
+        "method": "original-and-prepared-SHA-match-plus-unchanged-related-docs-and-source-against-own-manifest-commit",
+        "ready": true,
+        "preparedUnchanged": true,
+        "manifest": "docs/blogs/oschina/prepared/review-031-060.json",
+        "sourceSha256": "a3041da52f635b37470329acb61e74fe8ccc89c64a3a4b46bd33dfede461e355",
+        "preparedSha256": "84b931c13991ac353c6d0c9678611100fdd041b436170fda7051fcd86d936c00",
+        "examplesExecuted": false
+      },
+      "preparedSha256": "84b931c13991ac353c6d0c9678611100fdd041b436170fda7051fcd86d936c00",
+      "acceptedBodyVerification": {
+        "checkedAt": "2026-10-08T03:07:09Z",
+        "method": "publisher-read-back-title-and-strict-full-HTML-DOM-before-submitted",
+        "sameRemoteId": 19774318,
+        "titleVerified": true,
+        "fullBodyVerified": true,
+        "preparedSha256": "84b931c13991ac353c6d0c9678611100fdd041b436170fda7051fcd86d936c00",
+        "publicVisibilityVerified": false,
+        "creationAudit": ".local/api-process-audit.jsonl"
+      }
     },
     {
       "articleId": "032",
@@ -4324,7 +4424,7 @@
         "method": "complete-three-scope-and-full-body"
       },
       "tweetReadOnlyReconciliation": {
-        "checkedAt": "2026-10-07T11:35:05.7806484+08:00",
+        "checkedAt": "2026-10-08T11:04:56.6248283+08:00",
         "method": "complete-own-web-list-and-publisher-exact-or-one-pass-entity-match",
         "listingComplete": true,
         "loadedItems": 134,
@@ -4667,17 +4767,42 @@
       "url": null,
       "note": "News submitted for editorial review."
     },
-    "notes": "News ID 502847 reconciled from the account news list; status 0 means editorial review pending. Do not resubmit.",
+    "notes": "Original ID 502847 retained; account/detail status now 1. Unauthenticated public detail API returned matching title/full body; public page HTML did not expose the article text. No resubmission; website public visibility remains unverified.",
     "remoteId": 502847,
-    "reviewStatus": 0,
-    "reviewLabel": "审核中",
-    "evidence": "C:/Users/mysti/.codex/skills/publish-oschina/state/tweet-diagnosis-20261007/readonly-own-news.json"
+    "reviewStatus": 1,
+    "reviewLabel": "账号状态1，公开接口正文已核验，网页可见性未核验",
+    "evidence": "C:/Users/mysti/.codex/skills/publish-oschina/state/tweet-diagnosis-20261007/readonly-own-news.json",
+    "latestReadOnlyReconciliation": {
+      "checkedAt": "2026-10-08T11:04:56.6248283+08:00",
+      "remoteId": 502847,
+      "rawStatus": 1,
+      "publicVisibilityVerified": false,
+      "evidence": ".local/heartbeat-20261008-news-detail.json",
+      "publicPageEvidence": ".local/heartbeat-20261008-news-public-verification.json",
+      "newPostRequests": 0,
+      "publicApiBodyVerified": true,
+      "publicApiEvidence": ".local/heartbeat-20261008-news-public-api-verification.json"
+    },
+    "submittedPreparedSha256": "d2236a509e520432f8565f726ae94dffc2ffd7ff594f00e7c60f2843c5698473",
+    "futurePreparedPath": "docs/blogs/oschina/prepared/news-sonnetdb-4.0.0-gitee.md",
+    "futurePreparedSha256": "267e2bf826f62b0c819f2eb9ff59d3ecd3ef71b53d4390f45dbf67c6a04f50f9",
+    "futurePreparedStatus": "local-revision-not-submitted",
+    "futurePublicationPolicy": {
+      "scope": "sonnetdb-news-only",
+      "repositoryUrl": "https://gitee.com/IoTSharp/SonnetDB",
+      "bodyMustContainCanonicalRepositoryUrl": true,
+      "rejectGitHubRepositoryRoot": true,
+      "releaseAndDownloadSources": "verified-real-source-separately-labeled",
+      "historicalReceiptImmutable": true,
+      "repostExistingVersion": false,
+      "effectiveAt": "2026-10-08T11:59:45.0642011+08:00"
+    }
   },
   "lastRun": {
-    "runId": "78249345-dc80-41d9-8051-84de48a5e3ad",
-    "time": "2026-10-07T03:51:26.7163815+08:00",
-    "lastArticleId": "030",
-    "blogAccepted": false,
+    "runId": "42a59971-806c-4ba5-82e0-42050538c2e2",
+    "time": "2026-10-08T11:07:09.8674367+08:00",
+    "lastArticleId": "031",
+    "blogAccepted": true,
     "tweetErrorsBlockBlogs": false
   },
   "automationId": "sonnetdb-2",
@@ -4692,27 +4817,51 @@
     "channel": "blog"
   },
   "lastHeartbeat": {
-    "runId": "141bb1e1-6d23-4dee-afac-e05a09f710cc",
-    "time": "2026-10-07T11:35:05.7806484+08:00",
-    "localDate": "2026-10-07",
-    "acceptedBlogsToday": 33,
+    "runId": "367de415-5435-4a11-b3c4-697b31cef212",
+    "time": "2026-10-08T11:08:56.5807927+08:00",
+    "localDate": "2026-10-08",
+    "acceptedBlogsToday": 2,
     "maximumScheduledBlogs": 2,
-    "newBlogs": 0,
-    "newTweets": 0,
+    "newBlogs": 2,
+    "newTweets": 2,
+    "totalAcceptedBlogs": 35,
+    "remainingBlogs": 107,
+    "articleIds": [
+      "030",
+      "031"
+    ],
+    "retainedOriginalDraftFor030": 3326805,
     "pendingTweets": 0,
+    "verificationPendingTweetArticleIds": [
+      "030"
+    ],
     "unknownTweetArticleIds": [
       "135"
     ],
-    "nextArticleId": "030",
-    "retainedDraftId": 3326805,
+    "nextArticleId": "032",
     "newsId": 502847,
-    "newsReviewStatus": 0,
-    "newsReviewLabel": "审核中",
-    "nextNormalRun": "2026-10-08T11:00:00+08:00",
+    "newsReviewStatus": 1,
+    "newsPublicApiBodyVerified": true,
+    "newsWebsitePublicVisibilityVerified": false,
+    "nextNormalRun": "2026-10-09T11:00:00+08:00",
     "knownSourceDriftArticleIds": [
       "139",
       "140"
-    ]
+    ],
+    "offlineVerificationPassed": false,
+    "offlineVerificationError": "Source hash differs: 139",
+    "cleanup": {
+      "checkedAt": "2026-10-08T11:09:52.1498695+08:00",
+      "knownOwnedPids": 14,
+      "knownOwnedProcessesAlive": 0,
+      "sessionLockLeftover": false,
+      "stateLockLeftover": false,
+      "ledgerLockLeftover": false,
+      "temporaryFixturesRemoved": true,
+      "processStopRequests": 0,
+      "shortShellLifecycleGapsRetained": true,
+      "evidence": ".local/heartbeat-20261008-process-recheck.json"
+    }
   },
   "project": "SonnetDB 开源中国"
 }

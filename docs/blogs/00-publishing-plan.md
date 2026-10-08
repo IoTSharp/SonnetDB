@@ -1,12 +1,12 @@
 # SonnetDB 博客文章发布计划
 
-> 维护说明（2026-10-07）：仓库有 001–134 共 134 篇历史底稿，其中 75 篇已由博客园公开页面标题或历史正文对账确认发布，59 篇待核对；135–142 共 8 篇新稿中 6 篇已发布、2 篇排队。权威状态见 [publishing-state.json](publishing-state.json)，发布证据见 [publishing-reconciliation-2026-10-05.json](publishing-reconciliation-2026-10-05.json)；075 的链接指向历史发布稿，不代表当前本地 Provider-neutral 改写已发布。
+> 维护说明（2026-10-08）：仓库有 001–134 共 134 篇历史底稿，其中 75 篇已由博客园公开页面标题或历史正文对账确认发布，59 篇待核对；135–142 共 8 篇新稿已全部取得成功发布回执；当前队列 0 篇，后续 143–202 仍为 planned。权威状态见 [publishing-state.json](publishing-state.json)，发布证据见 [publishing-reconciliation-2026-10-05.json](publishing-reconciliation-2026-10-05.json)；075 的链接指向历史发布稿，不代表当前本地 Provider-neutral 改写已发布。
 
 ## 当前发布规则
 
 - 每天 Asia/Shanghai 11:00 启动一次任务，串行发布两篇；两次请求之间保留短暂间隔，避免并发请求。
 - 每天最多两篇，即时发布也计入当天额度；队列不足时从 [143–202 后续系列选题](series-backlog.md) 中核实并写作最多两篇，完成事实复核、去重和 dry-run 才进入 `queued`，未写成正文的 `planned` 不发布。
-- 自动任务每次只选择状态为 `queued` 的文章；`needs-reconciliation`、`needs-update`、`failed` 不会自动重发。
+- 自动任务每次只选择状态为 `queued` 的文章；`published`、`needs-reconciliation`、`needs-update`、`failed`、`unknown`、`publishing` 不会自动重发。
 - 状态含义固定为：`published` 必须有博客园 URL 或 postId，`queued` 表示已复核且确认未发布，`needs-reconciliation` 表示账号侧状态未知并暂停，`needs-update` 表示事实已过时，`unknown` 表示发布响应不确定且禁止重试。
 - 发布前必须对照文章列出的源码/文档事实源，确认版本、入口、支持边界和性能证据；Graph、真实模型质量、固定硬件和长期稳定性只能按 `beta`/`partial`/`not verified` 表述。
 - 发布成功后记录博客园 URL、postId、发布时间、源提交和发布响应；失败保留错误与重试次数，不改变为已发布。
@@ -23,8 +23,8 @@
 | 138 | [SonnetMQ 与流处理：Topic、ACK、DLQ 以及恢复边界](https://www.cnblogs.com/IoTSharp/p/23207331) | ✅ 已发布 | published | 2026-10-06 11:00 |
 | 139 | [SonnetDB typed MCP、Copilot 与 RAG：只读工具如何接入 AI](https://www.cnblogs.com/IoTSharp/p/23213677) | ✅ 已发布 | published | 2026-10-07 11:00 |
 | 140 | [SonnetDB 语义图片检索续篇：从能运行到可发布的证据边界](https://www.cnblogs.com/IoTSharp/p/23213681) | ✅ 已发布 | published | 2026-10-07 11:00 |
-| 141 | SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界 | 🕒 待发布 | queued | 2026-10-08 11:00 |
-| 142 | SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起 | 🕒 待发布 | queued | 2026-10-08 11:00 |
+| 141 | [SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界](https://www.cnblogs.com/IoTSharp/p/23221481) | ✅ 已发布 | published | 2026-10-08 11:00 |
+| 142 | [SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起](https://www.cnblogs.com/IoTSharp/p/23221492) | ✅ 已发布 | published | 2026-10-08 11:00 |
 
 001–075 已确认历史发布，逐篇链接并标记为 ✅ 已发布；076–134 共 59 篇保留 ❓ 待核对，不会被自动任务重发。075 的公开旧稿与历史 Git 原稿正文对账一致，当前本地 Provider-neutral 改写尚未发布。证据与匹配边界见 [公开页面对账记录](publishing-reconciliation-2026-10-05.json)。
 
