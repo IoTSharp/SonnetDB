@@ -1,0 +1,1494 @@
+{
+  "schemaVersion": 1,
+  "task": "mulei-sonnetdb-readonly-field-verification-20261008",
+  "timezone": "Asia/Shanghai",
+  "target": "mulei-direct-target",
+  "deployedCommit": "6a8d82d28561ff9be369603e2405f780cd9b0585",
+  "scope": "只读现场子项；不代表整体里程碑或发布门禁通过",
+  "rawLogs": [
+    {
+      "name": "field-audit-20261008-snapshot.stdout.log",
+      "bytes": 5001,
+      "sha256": "7d8d3cc88c17fc4bda257bd384ac027432b8e086d37c14493668930ef4aba42f"
+    },
+    {
+      "name": "field-audit-20261008-index.stdout.log",
+      "bytes": 4906,
+      "sha256": "1bd5a518e69eaa163ed6e837b6a81d762bb564c749fb9513db34a3d880c1987f"
+    },
+    {
+      "name": "field-audit-20261008-preview.stdout.log",
+      "bytes": 3832,
+      "sha256": "b9bb716c7b0fb74e708d64620b064b170cc9962590c80718833f2d9a36a3b8ff"
+    },
+    {
+      "name": "field-audit-20261008-desc.stdout.log",
+      "bytes": 13642,
+      "sha256": "b92d5ee72ad2593dc9d7bf1d5fc2593a2cdb9d5389b67febb68e976d27ff6904"
+    },
+    {
+      "name": "field-audit-20261008-object.stdout.log",
+      "bytes": 3610,
+      "sha256": "5c739384280b1fd692283d5961cfa96a4b77efa8af8cc39b5425969a6dca3f7a"
+    },
+    {
+      "name": "field-audit-20261008-finish.stdout.log",
+      "bytes": 1350,
+      "sha256": "2cd95d598a3e2a0bacfdfd9309b739e3f09009b3ab6630eab7b5b3d101bc0687"
+    }
+  ],
+  "records": [
+    {
+      "batch": "snapshot",
+      "kind": "PROCESS",
+      "value": {
+        "pid": 1429838,
+        "parentPid": 1429837,
+        "startedAt": "2026-10-07T18:33:47.404833+00:00",
+        "command": "python3 -",
+        "owner": "sonnetdb-field-20261008"
+      }
+    },
+    {
+      "batch": "snapshot",
+      "kind": "CHILD",
+      "value": {
+        "pid": 1429846,
+        "parentPid": 1429838,
+        "startedAt": "2026-10-07T18:33:47.405358+00:00",
+        "command": [
+          "docker",
+          "inspect",
+          "tolnsd-sonnetdb-1",
+          "tolnsd-tolnsd-1"
+        ]
+      }
+    },
+    {
+      "batch": "snapshot",
+      "kind": "SNAPSHOT",
+      "value": {
+        "timeUtc": "2026-10-07T18:33:47.423379+00:00",
+        "hostname": "localhost.localdomain",
+        "architecture": "aarch64",
+        "cpuLogical": 48,
+        "loadAverage": [
+          4.58203125,
+          5.01953125,
+          4.69384765625
+        ],
+        "memory": [
+          "MemTotal:       262617140 kB",
+          "MemAvailable:   113142264 kB",
+          "SwapTotal:      33554428 kB",
+          "SwapFree:       30882812 kB"
+        ],
+        "containers": [
+          {
+            "name": "/tolnsd-sonnetdb-1",
+            "id": "9f3b425c4fac2343a7627c19ddc89235250533fc9193a6f16902733311d59d41",
+            "image": "tolnsd.eth0.click:5000/sonnetdb:mulei-arm64-20261005-desc-ordered",
+            "imageId": "sha256:e6a1e853471bf5f1afd6a19d506a9cb47de784aa9aea5f48fe0b265b27cad810",
+            "startedAt": "2026-10-05T03:41:44.106026794Z",
+            "status": "running",
+            "health": "healthy",
+            "restartCount": 0,
+            "oomKilled": false,
+            "pid": 114667,
+            "memoryLimitBytes": 137438953472,
+            "mounts": [
+              {
+                "source": "/var/data/tolnsd-storage/objects",
+                "destination": "/data/TOLNSD/objects",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/knowledge",
+                "destination": "/knowledge",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/sonnetdb/appsettings.Production.json",
+                "destination": "/app/appsettings.Production.json",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd-storage/sonnetdb",
+                "destination": "/data",
+                "type": "bind"
+              }
+            ],
+            "settings": {
+              "SONNETDB_SonnetDBServer__Kv__MaxSnapshotOverlayEntries": "3000000",
+              "SONNETDB_SonnetDBServer__Copilot__Embedding__Provider": "builtin",
+              "SONNETDB_SonnetDBServer__SqlHttpAdmission__QueueLimit": "64",
+              "SONNETDB_SonnetDBServer__RelationalTableWarmupConcurrency": "2",
+              "SONNETDB_SonnetDBServer__Copilot__Docs__Roots__0": "/knowledge",
+              "SONNETDB_SonnetDBServer__Copilot__Enabled": "true",
+              "DOTNET_GCHeapCount": "8",
+              "SONNETDB_SonnetDBServer__Kv__IndexRebuildMaxOverlayEntries": "50000000",
+              "SONNETDB_SonnetDBServer__DataRoot": "/data",
+              "SONNETDB_SonnetDBServer__SqlHttpAdmission__PermitLimit": "16",
+              "SONNETDB_SonnetDBServer__Kv__IndexRebuildMaxWalBytes": "3221225472",
+              "SONNETDB_SonnetDBServer__Copilot__Docs__AutoIngestOnStartup": "false",
+              "SONNETDB_SonnetDBServer__Kv__MaxWalBytes": "3221225472",
+              "SONNETDB_SonnetDBServer__Kv__MaxOverlayEntries": "800000"
+            }
+          },
+          {
+            "name": "/tolnsd-tolnsd-1",
+            "id": "b4fac3c063b24e5c63b595c9e1b85985bd503c866c4397b58707e1e6e74cd62a",
+            "image": "tolnsd.eth0.click:5000/tolnsd:mulei-arm64-20261005-candidate-reuse",
+            "imageId": "sha256:c07f92b81e3bf925695ae5155a312a096ce03aa1ec83ece65f293a0a81f51835",
+            "startedAt": "2026-10-05T04:13:10.937109106Z",
+            "status": "running",
+            "health": "healthy",
+            "restartCount": 0,
+            "oomKilled": false,
+            "pid": 327147,
+            "memoryLimitBytes": 0,
+            "mounts": [
+              {
+                "source": "/var/data/tolnsd/client-releases",
+                "destination": "/app/client-releases",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/appsettings.Production.json",
+                "destination": "/app/appsettings.Production.json",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/config-backups",
+                "destination": "/app/config-backups",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/knowledge",
+                "destination": "/knowledge",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/data/aspnet",
+                "destination": "/root/.aspnet/DataProtection-Keys",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/data/images",
+                "destination": "/app/images",
+                "type": "bind"
+              },
+              {
+                "source": "/var/data/tolnsd/data/ldc",
+                "destination": "/app/ldc",
+                "type": "bind"
+              }
+            ],
+            "settings": {}
+          }
+        ],
+        "serverSettings": {
+          "DataRoot": "/data",
+          "SqlHttpAdmission": {
+            "PermitLimit": 16,
+            "QueueLimit": 64
+          },
+          "Kv": {
+            "MaxConcurrentStateReads": 8,
+            "MaxQueuedStateReads": 64,
+            "StateReadWaitTimeoutMilliseconds": 5000
+          }
+        },
+        "filesystem": {
+          "path": "/var/data/tolnsd",
+          "freeBytes": 109170061312,
+          "totalBytes": 440019189760
+        },
+        "readiness": {
+          "http": 200,
+          "body": "{\"status\":\"Healthy\",\"totalDuration\":\"00:00:00.0019876\",\"entries\":{\"copilot_embedding_provider_reachable\":{\"status\":\"Healthy\",\"description\":\"\\u672C\\u5730 provider \\u5DF2\\u5C31\\u7EEA\\u3002\",\"duration\":\"00:00:00.0000093\",\"tags\":[\"provider\",\"ready\"]},\"copilot_provider_reachable\":{\"status\":\"Healthy\",\"description\":\"Provider \\u53EF\\u8FBE\\u3002\",\"duration\":\"00:00:00.0012383\",\"tags\":[\"provider\",\"ready\"]},\"relational_table_warmup\":{\"status\":\"Healthy\",\"description\":\"\\u5DF2\\u9884\\u70ED 2 \\u4E2A\\u6570\\u636E\\u5E93\\u4E2D\\u7684 61 \\u5F20\\u5173\\u7CFB\\u8868\\u3002\",\"duration\":\"00:00:00.0000459\",\"tags\":[\"ready\",\"storage\"]},\"segment_store_writable\":{\"status\":\"Healthy\",\"description\":\"Segment \\u5B58\\u50A8\\u76EE\\u5F55\\u53EF\\u5199\\u3002\",\"duration\":\"00:00:00.0017560\",\"tags\":[\"ready\",\"storage\"]},\"wal_writable\":{\"status\":\"Healthy\",\"description\":\"WAL \\u76EE\\u5F55\\u53EF\\u5199\\u3002\",\"duration\":\"00:00:00.0018546\",\"tags\":[\"ready\",\"storage\"]}}}"
+        }
+      }
+    },
+    {
+      "batch": "index",
+      "kind": "PROCESS",
+      "value": {
+        "pid": 1432355,
+        "parentPid": 1432354,
+        "startedAt": "2026-10-07T18:35:47.698874+00:00",
+        "command": "python3 - Index",
+        "owner": "sonnetdb-field-20261008"
+      }
+    },
+    {
+      "batch": "index",
+      "kind": "CHILD",
+      "value": {
+        "pid": 1432356,
+        "parentPid": 1432355,
+        "startedAt": "2026-10-07T18:35:47.699559+00:00",
+        "command": "docker inspect tolnsd-sonnetdb-1 --format environment-json"
+      }
+    },
+    {
+      "batch": "index",
+      "kind": "QUERY",
+      "value": {
+        "name": "delivery-indexes",
+        "sql": "SHOW INDEXES ON \"DeliveryTasks\"",
+        "fingerprint": "e5f5135e0c1d688b7f9953233079b55a237d160a60b95a2a207819946cf02a36",
+        "previewMaxRows": 64,
+        "http": 200,
+        "elapsedMs": 1467.554,
+        "success": true,
+        "columns": [
+          "index_name",
+          "is_unique",
+          "columns",
+          "created_utc"
+        ],
+        "rows": [
+          {
+            "index_name": "IX_DeliveryTasks_BusinessId",
+            "is_unique": false,
+            "columns": "BusinessId",
+            "created_utc": "2026-08-27T13:04:27.3075518Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_DestinationCode_ImageStatus_UpdatedAt_Id",
+            "is_unique": false,
+            "columns": "DestinationCode,ImageStatus,UpdatedAt,Id",
+            "created_utc": "2026-08-27T13:04:39.5417895Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_DestinationCode_ManuallyBlocked_Status_CreatedAt_BusinessId",
+            "is_unique": false,
+            "columns": "DestinationCode,ManuallyBlocked,Status,CreatedAt,BusinessId",
+            "created_utc": "2026-09-01T08:32:55.8241067Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_DestinationCode_Status_CreatedAt",
+            "is_unique": false,
+            "columns": "DestinationCode,Status,CreatedAt",
+            "created_utc": "2026-08-27T13:04:27.3622378Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_DestinationCode_Status_UpdatedAt",
+            "is_unique": false,
+            "columns": "DestinationCode,Status,UpdatedAt",
+            "created_utc": "2026-09-01T08:32:57.3345391Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_DestinationCode_StructuredDataStatus_UpdatedAt_Id",
+            "is_unique": false,
+            "columns": "DestinationCode,StructuredDataStatus,UpdatedAt,Id",
+            "created_utc": "2026-08-27T13:04:39.5954030Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_IdempotencyKey",
+            "is_unique": true,
+            "columns": "IdempotencyKey",
+            "created_utc": "2026-08-27T13:04:27.4196689Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_RoadTolnsdSiteCode_DestinationCode_Status_CreatedAt",
+            "is_unique": false,
+            "columns": "RoadTolnsdSiteCode,DestinationCode,Status,CreatedAt",
+            "created_utc": "2026-09-30T18:28:47.6826188Z"
+          },
+          {
+            "index_name": "IX_DeliveryTasks_RoadTolnsdSiteCode_RoadTolnsdMediaId_Status",
+            "is_unique": false,
+            "columns": "RoadTolnsdSiteCode,RoadTolnsdMediaId,Status",
+            "created_utc": "2026-09-30T18:29:00.4881941Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 9,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 1.5496,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "index",
+      "kind": "QUERY",
+      "value": {
+        "name": "revision-indexes",
+        "sql": "SHOW INDEXES ON \"RoadTolnsdFlowRevisions\"",
+        "fingerprint": "ccf77127a6fb3fa9da405516a8c3c427d7c979ad9e47af07b8ba6982724623c5",
+        "previewMaxRows": 64,
+        "http": 200,
+        "elapsedMs": 53.373,
+        "success": true,
+        "columns": [
+          "index_name",
+          "is_unique",
+          "columns",
+          "created_utc"
+        ],
+        "rows": [
+          {
+            "index_name": "IX_RoadTolnsdFlowRevisions_CreatedAt_Id",
+            "is_unique": false,
+            "columns": "CreatedAt,Id",
+            "created_utc": "2026-09-30T18:29:14.2973546Z"
+          },
+          {
+            "index_name": "IX_RoadTolnsdFlowRevisions_FlowId_Revision",
+            "is_unique": true,
+            "columns": "FlowId,Revision",
+            "created_utc": "2026-09-30T18:29:14.4049920Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 2,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 0.3981,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "index",
+      "kind": "QUERY",
+      "value": {
+        "name": "reminder-indexes",
+        "sql": "SHOW INDEXES ON \"T_OverlimitReminderPlateRecognitions\"",
+        "fingerprint": "4aeaea670f0a662ee9f8529051c02f0c9123b36b867040ec66dd1bcb45642646",
+        "previewMaxRows": 64,
+        "http": 200,
+        "elapsedMs": 53.701,
+        "success": true,
+        "columns": [
+          "index_name",
+          "is_unique",
+          "columns",
+          "created_utc"
+        ],
+        "rows": [
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_AcquisitionId",
+            "is_unique": true,
+            "columns": "AcquisitionId",
+            "created_utc": "2026-08-27T13:04:29.7530367Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_AddDateTime_Id",
+            "is_unique": false,
+            "columns": "AddDateTime,Id",
+            "created_utc": "2026-10-04T21:35:24.3057970Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_BindDateTime_Id",
+            "is_unique": false,
+            "columns": "BindDateTime,Id",
+            "created_utc": "2026-08-27T13:04:33.2748095Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_CaptureTime_Id",
+            "is_unique": false,
+            "columns": "CaptureTime,Id",
+            "created_utc": "2026-09-18T10:34:15.9885439Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_FlowId",
+            "is_unique": true,
+            "columns": "FlowId",
+            "created_utc": "2026-08-27T13:04:32.8750895Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_PlateNumber_CaptureTime",
+            "is_unique": false,
+            "columns": "PlateNumber,CaptureTime",
+            "created_utc": "2026-08-27T13:04:32.9282925Z"
+          },
+          {
+            "index_name": "IX_T_OverlimitReminderPlateRecognitions_UploadTime_Id",
+            "is_unique": false,
+            "columns": "UploadTime,Id",
+            "created_utc": "2026-10-04T23:25:24.3719064Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 7,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 0.816,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "PROCESS",
+      "value": {
+        "pid": 1433002,
+        "parentPid": 1433001,
+        "startedAt": "2026-10-07T18:36:15.787072+00:00",
+        "command": "python3 - Preview",
+        "owner": "sonnetdb-field-20261008"
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "CHILD",
+      "value": {
+        "pid": 1433003,
+        "parentPid": 1433002,
+        "startedAt": "2026-10-07T18:36:15.787583+00:00",
+        "command": "docker inspect tolnsd-sonnetdb-1 --format environment-json"
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "QUERY",
+      "value": {
+        "name": "rest-default-six",
+        "sql": "SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 6",
+        "fingerprint": "e28a953888bb7d2f693c94c74788222993545879e3b06782e8e77787bae5b843",
+        "previewMaxRows": null,
+        "http": 200,
+        "elapsedMs": 1209.75,
+        "success": true,
+        "columns": [
+          "Id",
+          "CreatedAt"
+        ],
+        "rows": [
+          {
+            "Id": "task:2932d0ce2ad2b8f576b772e49ddecc645e84c3f52ae434ed796f1439325fefe3",
+            "CreatedAt": "2026-10-04T13:48:41.322Z"
+          },
+          {
+            "Id": "task:a35f21a404e086bd1ef49a7844dcf522912a03d4446c54be42054a1f1e453cd4",
+            "CreatedAt": "2026-10-04T13:48:41.269Z"
+          },
+          {
+            "Id": "task:c02d4490cc06c7191d11e09ddde7673703d0b171860b74e084547b05ce46849c",
+            "CreatedAt": "2026-10-04T13:48:40.476Z"
+          },
+          {
+            "Id": "task:aa1f8a13a37efea4aabc2f2880e6e58f461a32865578623a15377e9d821478b4",
+            "CreatedAt": "2026-10-04T13:48:40.422Z"
+          },
+          {
+            "Id": "task:8cf3862191eedf909e68f8e3947d8fd9d8612f4c5d311654d688b7ef356c04cc",
+            "CreatedAt": "2026-10-04T13:48:40.174Z"
+          },
+          {
+            "Id": "task:cf7bf8d88b98028b3c522b16964e60808ca4b180dfb4ce0e16ff1c5d0f2f3bc3",
+            "CreatedAt": "2026-10-04T13:48:40.121Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 6,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 1154.6346,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "QUERY",
+      "value": {
+        "name": "rest-preview-three-of-six",
+        "sql": "SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 6",
+        "fingerprint": "e28a953888bb7d2f693c94c74788222993545879e3b06782e8e77787bae5b843",
+        "previewMaxRows": 3,
+        "http": 200,
+        "elapsedMs": 55.423,
+        "success": true,
+        "columns": [
+          "Id",
+          "CreatedAt"
+        ],
+        "rows": [
+          {
+            "Id": "task:2932d0ce2ad2b8f576b772e49ddecc645e84c3f52ae434ed796f1439325fefe3",
+            "CreatedAt": "2026-10-04T13:48:41.322Z"
+          },
+          {
+            "Id": "task:a35f21a404e086bd1ef49a7844dcf522912a03d4446c54be42054a1f1e453cd4",
+            "CreatedAt": "2026-10-04T13:48:41.269Z"
+          },
+          {
+            "Id": "task:c02d4490cc06c7191d11e09ddde7673703d0b171860b74e084547b05ce46849c",
+            "CreatedAt": "2026-10-04T13:48:40.476Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 3,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 1.595,
+          "truncated": true
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "QUERY",
+      "value": {
+        "name": "rest-preview-exact-three",
+        "sql": "SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 3",
+        "fingerprint": "acdc1ebe028eef96c31598c0216d27bc1c419ff7b4395fdb8442a8cf5ef76e7b",
+        "previewMaxRows": 3,
+        "http": 200,
+        "elapsedMs": 1828.523,
+        "success": true,
+        "columns": [
+          "Id",
+          "CreatedAt"
+        ],
+        "rows": [
+          {
+            "Id": "task:2932d0ce2ad2b8f576b772e49ddecc645e84c3f52ae434ed796f1439325fefe3",
+            "CreatedAt": "2026-10-04T13:48:41.322Z"
+          },
+          {
+            "Id": "task:a35f21a404e086bd1ef49a7844dcf522912a03d4446c54be42054a1f1e453cd4",
+            "CreatedAt": "2026-10-04T13:48:41.269Z"
+          },
+          {
+            "Id": "task:c02d4490cc06c7191d11e09ddde7673703d0b171860b74e084547b05ce46849c",
+            "CreatedAt": "2026-10-04T13:48:40.476Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 3,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 1774.7722,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "preview",
+      "kind": "CHECK",
+      "value": {
+        "id": "rest_preview_n_nplus1_default",
+        "status": "PASS",
+        "fullRows": 6,
+        "previewRows": 3,
+        "prefixEqual": true,
+        "exactNTruncated": false
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "PROCESS",
+      "value": {
+        "pid": 1433445,
+        "parentPid": 1433444,
+        "startedAt": "2026-10-07T18:36:33.574812+00:00",
+        "command": "python3 - Desc",
+        "owner": "sonnetdb-field-20261008"
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "CHILD",
+      "value": {
+        "pid": 1433446,
+        "parentPid": 1433445,
+        "startedAt": "2026-10-07T18:36:33.575387+00:00",
+        "command": "docker inspect tolnsd-sonnetdb-1 --format environment-json"
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "QUERY",
+      "value": {
+        "name": "desc-first-48",
+        "sql": "SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 48",
+        "fingerprint": "562e0d081bc54f30427c6f764dda75094ae796d927e2783cb1b2b81f32fdb076",
+        "previewMaxRows": null,
+        "http": 200,
+        "elapsedMs": 8571.46,
+        "success": true,
+        "columns": [
+          "Id",
+          "CreatedAt"
+        ],
+        "rows": [
+          {
+            "Id": "task:2932d0ce2ad2b8f576b772e49ddecc645e84c3f52ae434ed796f1439325fefe3",
+            "CreatedAt": "2026-10-04T13:48:41.322Z"
+          },
+          {
+            "Id": "task:a35f21a404e086bd1ef49a7844dcf522912a03d4446c54be42054a1f1e453cd4",
+            "CreatedAt": "2026-10-04T13:48:41.269Z"
+          },
+          {
+            "Id": "task:c02d4490cc06c7191d11e09ddde7673703d0b171860b74e084547b05ce46849c",
+            "CreatedAt": "2026-10-04T13:48:40.476Z"
+          },
+          {
+            "Id": "task:aa1f8a13a37efea4aabc2f2880e6e58f461a32865578623a15377e9d821478b4",
+            "CreatedAt": "2026-10-04T13:48:40.422Z"
+          },
+          {
+            "Id": "task:8cf3862191eedf909e68f8e3947d8fd9d8612f4c5d311654d688b7ef356c04cc",
+            "CreatedAt": "2026-10-04T13:48:40.174Z"
+          },
+          {
+            "Id": "task:cf7bf8d88b98028b3c522b16964e60808ca4b180dfb4ce0e16ff1c5d0f2f3bc3",
+            "CreatedAt": "2026-10-04T13:48:40.121Z"
+          },
+          {
+            "Id": "task:78dbbad35a0ef93127b6ab0f148338d684b7d2913b2ab6b68c984c33883176ba",
+            "CreatedAt": "2026-10-04T13:48:39.356Z"
+          },
+          {
+            "Id": "task:3b58454808116e49cf93141ee2827aaad4e569aaefce70dae199ef95a920a87a",
+            "CreatedAt": "2026-10-04T13:48:34.407Z"
+          },
+          {
+            "Id": "task:6f50f21e79741aff3c350b068164474a700df357eb451c3d1e2c7dd6e4ec4092",
+            "CreatedAt": "2026-10-04T13:48:34.354Z"
+          },
+          {
+            "Id": "task:bf654cd110a1e349189bae94c174fa1ea1768fe0eae4a3074537bd69b1bdaf00",
+            "CreatedAt": "2026-10-04T13:48:34.301Z"
+          },
+          {
+            "Id": "task:5387e6b20910a5ae12f341858e3a911bb4ba8083d372e7f2a80c13565976d30e",
+            "CreatedAt": "2026-10-04T13:48:33.184Z"
+          },
+          {
+            "Id": "task:69f71d5b00a0d7459bc8ef2cc0fa41dd1a3cf8da792c22b508afa35f0f3b8b09",
+            "CreatedAt": "2026-10-04T13:48:33.131Z"
+          },
+          {
+            "Id": "task:26dde3cfb49109b2e9843b379bcca5c7e76b9f1bcfbdf3c0df79fb72c3469b02",
+            "CreatedAt": "2026-10-04T13:48:33.078Z"
+          },
+          {
+            "Id": "task:fa011c38f47e78abd116b0632e5d6c4137b45adc4e76d82707530d8614b1ffe0",
+            "CreatedAt": "2026-10-04T13:48:31.414Z"
+          },
+          {
+            "Id": "task:7ea37575261e2c0ca68ba0bd43c64fa6458dae9bfc8cb0c3f2e8bb991056a65b",
+            "CreatedAt": "2026-10-04T13:46:09.528Z"
+          },
+          {
+            "Id": "task:dd0a358dca2b4c7bc986ff383e6aff62a8510afc5a402c302c41872c5ccceca5",
+            "CreatedAt": "2026-10-04T13:46:09.471Z"
+          },
+          {
+            "Id": "task:62b5e9f8cd39b970f039d767e0b0c0955e595c0ca8e2363d7cb8c7b17e260951",
+            "CreatedAt": "2026-10-04T13:46:09.418Z"
+          },
+          {
+            "Id": "task:338a16f5aa35fb2d9f2193d94324e591288ab3ff69b975f315c0422ded1f53cb",
+            "CreatedAt": "2026-10-04T13:46:09.365Z"
+          },
+          {
+            "Id": "task:417378bba82ba910c5cf2b8895d2303ce4582dee3ea5cdcea7c1f1f8fe1684fe",
+            "CreatedAt": "2026-10-04T13:46:09.308Z"
+          },
+          {
+            "Id": "task:2ef3a78b9a440c785e322a8a45042c95bec148edc709ec9356754be6cd0657d8",
+            "CreatedAt": "2026-10-04T13:46:09.247Z"
+          },
+          {
+            "Id": "task:47d35134aeeb0a99ad61c2bd1ff4bb61a7b4fcf750210beee2460ea2694c9446",
+            "CreatedAt": "2026-10-04T13:46:09.194Z"
+          },
+          {
+            "Id": "task:6af9cd9b828376f45ea1bf4ff657f807fcb1f3d43ee220ddf4b3f452e889c302",
+            "CreatedAt": "2026-10-04T13:46:09.034Z"
+          },
+          {
+            "Id": "task:9a95588a60a1cef2cbafb072fe925e9f86924da597c7ebc26c2dca29b9a29f64",
+            "CreatedAt": "2026-10-04T13:46:08.981Z"
+          },
+          {
+            "Id": "task:a4f33d81ea5fefd0af7d89ee3ca883a10e8f187816ff22c0a49ec39705ae7df4",
+            "CreatedAt": "2026-10-04T13:46:08.929Z"
+          },
+          {
+            "Id": "task:022839c8b77cd25d47245a992de5d908cd20b4b5f8fdbacb89d4ea60d06a4262",
+            "CreatedAt": "2026-10-04T13:46:08.876Z"
+          },
+          {
+            "Id": "task:21d4c209082e363b3794ee548a04d095910176c950bb5163779655c372158603",
+            "CreatedAt": "2026-10-04T13:46:08.823Z"
+          },
+          {
+            "Id": "task:dc8c70f0354dcad49703bf78362debc15c49fb02e01aebd9b39d0f65a02caae5",
+            "CreatedAt": "2026-10-04T13:46:08.771Z"
+          },
+          {
+            "Id": "task:6981263a987c78331fe84baa22e65966e757d24c901279bb744f53a6ae3584ef",
+            "CreatedAt": "2026-10-04T13:46:08.718Z"
+          },
+          {
+            "Id": "task:8b78a83f1460539da52c139592802da95dd71808a0b2218a19ff401a6ada43ac",
+            "CreatedAt": "2026-10-04T13:46:07.591Z"
+          },
+          {
+            "Id": "task:519211f588688f4d7a1f4d45a70a71338debb4d63349693edf6a50b49649f840",
+            "CreatedAt": "2026-10-04T13:46:07.539Z"
+          },
+          {
+            "Id": "task:c1a15f6211abd3f3cccdc5d372eaeaa06d2907daccfe70b007eae90a335c832d",
+            "CreatedAt": "2026-10-04T13:46:07.487Z"
+          },
+          {
+            "Id": "task:57c0ad2598f0996a862a2ac08b302123700da7546fe57da31022064ca48f7b4c",
+            "CreatedAt": "2026-10-04T13:46:07.434Z"
+          },
+          {
+            "Id": "task:6c73df13a9e95556291c2941b5530d20300061e1e18cce2adef5b552b6089977",
+            "CreatedAt": "2026-10-04T13:46:07.382Z"
+          },
+          {
+            "Id": "task:30334719b6cf08bc1020cb3444c58357279daa275ba3ff3315a7cd9a25eb6f78",
+            "CreatedAt": "2026-10-04T13:46:07.329Z"
+          },
+          {
+            "Id": "task:d0b62a2a1d22925bae0f01c675405b8e50f124b0c9c9c35e2954cc782f9921c8",
+            "CreatedAt": "2026-10-04T13:46:07.27Z"
+          },
+          {
+            "Id": "task:30a473ba7e2115b875b93611df9b3a087f3f3fa000ee694dad360e12ae6b917f",
+            "CreatedAt": "2026-10-04T13:43:53.964Z"
+          },
+          {
+            "Id": "task:252b3f931f6703b605eb2f6d7e7ba88593f3cd4409e69426a7db035f7d4a2e2c",
+            "CreatedAt": "2026-10-04T13:43:53.862Z"
+          },
+          {
+            "Id": "task:b9c21447f8e4da1b678cbea3008fcddb489e887792491669c5578677ba95ac2a",
+            "CreatedAt": "2026-10-04T13:43:53.081Z"
+          },
+          {
+            "Id": "task:80d9023ebafaa67cd47c6f23cdc497d73c5b7d8e7640f1a1063202ffc261b6db",
+            "CreatedAt": "2026-10-04T13:43:52.502Z"
+          },
+          {
+            "Id": "task:be860e0641c6227e788606fb019b09876c24948886d71f1ae430a7234a63173a",
+            "CreatedAt": "2026-10-04T13:43:52.265Z"
+          },
+          {
+            "Id": "task:ae0f9ae4d38a28cad7086ec1b7460514f7e678094496fd74b45a510904db94ee",
+            "CreatedAt": "2026-10-04T13:43:51.63Z"
+          },
+          {
+            "Id": "task:4272f068ac974395499c55cbae2b84533bedd9dd881eecb69f393e51a65aac30",
+            "CreatedAt": "2026-10-04T13:43:51.577Z"
+          },
+          {
+            "Id": "task:18ffe6d1935f5b729af62db8a3710807e1e11dab27a3fa773b7c0c021500adc0",
+            "CreatedAt": "2026-10-04T13:43:45.612Z"
+          },
+          {
+            "Id": "task:84197ff62c21ec2767eb33b1b35c9450f8eb7ba77dc4f368354faa3c4174c352",
+            "CreatedAt": "2026-10-04T13:43:45.555Z"
+          },
+          {
+            "Id": "task:6a8f78d38b1e46649c4b1385cec304cddb5737020637799a6ca2f546f8b75174",
+            "CreatedAt": "2026-10-04T13:43:34.865Z"
+          },
+          {
+            "Id": "task:40bdf94451a9b34d3e297ff4bac527185c88ef5794507883b33b3b43d99755e5",
+            "CreatedAt": "2026-10-04T13:43:33.087Z"
+          },
+          {
+            "Id": "task:92ca12131fe45ef6dcf1d1df67087be3f9688b738b9f25ef64a8ab79f4192034",
+            "CreatedAt": "2026-10-04T13:43:32.985Z"
+          },
+          {
+            "Id": "task:31cfa4e37135f8293a7099223d99af55fe44dbcbfe9e166ab5a18461143f15ed",
+            "CreatedAt": "2026-10-04T13:43:30.549Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 48,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 2692.0612,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "QUERY",
+      "value": {
+        "name": "desc-offset-24",
+        "sql": "SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 24 OFFSET 24",
+        "fingerprint": "a26d587b6f71af632ac903552866c137ed8b55f77b9e6d760f338f08d5c0173c",
+        "previewMaxRows": null,
+        "http": 200,
+        "elapsedMs": 3418.289,
+        "success": true,
+        "columns": [
+          "Id",
+          "CreatedAt"
+        ],
+        "rows": [
+          {
+            "Id": "task:022839c8b77cd25d47245a992de5d908cd20b4b5f8fdbacb89d4ea60d06a4262",
+            "CreatedAt": "2026-10-04T13:46:08.876Z"
+          },
+          {
+            "Id": "task:21d4c209082e363b3794ee548a04d095910176c950bb5163779655c372158603",
+            "CreatedAt": "2026-10-04T13:46:08.823Z"
+          },
+          {
+            "Id": "task:dc8c70f0354dcad49703bf78362debc15c49fb02e01aebd9b39d0f65a02caae5",
+            "CreatedAt": "2026-10-04T13:46:08.771Z"
+          },
+          {
+            "Id": "task:6981263a987c78331fe84baa22e65966e757d24c901279bb744f53a6ae3584ef",
+            "CreatedAt": "2026-10-04T13:46:08.718Z"
+          },
+          {
+            "Id": "task:8b78a83f1460539da52c139592802da95dd71808a0b2218a19ff401a6ada43ac",
+            "CreatedAt": "2026-10-04T13:46:07.591Z"
+          },
+          {
+            "Id": "task:519211f588688f4d7a1f4d45a70a71338debb4d63349693edf6a50b49649f840",
+            "CreatedAt": "2026-10-04T13:46:07.539Z"
+          },
+          {
+            "Id": "task:c1a15f6211abd3f3cccdc5d372eaeaa06d2907daccfe70b007eae90a335c832d",
+            "CreatedAt": "2026-10-04T13:46:07.487Z"
+          },
+          {
+            "Id": "task:57c0ad2598f0996a862a2ac08b302123700da7546fe57da31022064ca48f7b4c",
+            "CreatedAt": "2026-10-04T13:46:07.434Z"
+          },
+          {
+            "Id": "task:6c73df13a9e95556291c2941b5530d20300061e1e18cce2adef5b552b6089977",
+            "CreatedAt": "2026-10-04T13:46:07.382Z"
+          },
+          {
+            "Id": "task:30334719b6cf08bc1020cb3444c58357279daa275ba3ff3315a7cd9a25eb6f78",
+            "CreatedAt": "2026-10-04T13:46:07.329Z"
+          },
+          {
+            "Id": "task:d0b62a2a1d22925bae0f01c675405b8e50f124b0c9c9c35e2954cc782f9921c8",
+            "CreatedAt": "2026-10-04T13:46:07.27Z"
+          },
+          {
+            "Id": "task:30a473ba7e2115b875b93611df9b3a087f3f3fa000ee694dad360e12ae6b917f",
+            "CreatedAt": "2026-10-04T13:43:53.964Z"
+          },
+          {
+            "Id": "task:252b3f931f6703b605eb2f6d7e7ba88593f3cd4409e69426a7db035f7d4a2e2c",
+            "CreatedAt": "2026-10-04T13:43:53.862Z"
+          },
+          {
+            "Id": "task:b9c21447f8e4da1b678cbea3008fcddb489e887792491669c5578677ba95ac2a",
+            "CreatedAt": "2026-10-04T13:43:53.081Z"
+          },
+          {
+            "Id": "task:80d9023ebafaa67cd47c6f23cdc497d73c5b7d8e7640f1a1063202ffc261b6db",
+            "CreatedAt": "2026-10-04T13:43:52.502Z"
+          },
+          {
+            "Id": "task:be860e0641c6227e788606fb019b09876c24948886d71f1ae430a7234a63173a",
+            "CreatedAt": "2026-10-04T13:43:52.265Z"
+          },
+          {
+            "Id": "task:ae0f9ae4d38a28cad7086ec1b7460514f7e678094496fd74b45a510904db94ee",
+            "CreatedAt": "2026-10-04T13:43:51.63Z"
+          },
+          {
+            "Id": "task:4272f068ac974395499c55cbae2b84533bedd9dd881eecb69f393e51a65aac30",
+            "CreatedAt": "2026-10-04T13:43:51.577Z"
+          },
+          {
+            "Id": "task:18ffe6d1935f5b729af62db8a3710807e1e11dab27a3fa773b7c0c021500adc0",
+            "CreatedAt": "2026-10-04T13:43:45.612Z"
+          },
+          {
+            "Id": "task:84197ff62c21ec2767eb33b1b35c9450f8eb7ba77dc4f368354faa3c4174c352",
+            "CreatedAt": "2026-10-04T13:43:45.555Z"
+          },
+          {
+            "Id": "task:6a8f78d38b1e46649c4b1385cec304cddb5737020637799a6ca2f546f8b75174",
+            "CreatedAt": "2026-10-04T13:43:34.865Z"
+          },
+          {
+            "Id": "task:40bdf94451a9b34d3e297ff4bac527185c88ef5794507883b33b3b43d99755e5",
+            "CreatedAt": "2026-10-04T13:43:33.087Z"
+          },
+          {
+            "Id": "task:92ca12131fe45ef6dcf1d1df67087be3f9688b738b9f25ef64a8ab79f4192034",
+            "CreatedAt": "2026-10-04T13:43:32.985Z"
+          },
+          {
+            "Id": "task:31cfa4e37135f8293a7099223d99af55fe44dbcbfe9e166ab5a18461143f15ed",
+            "CreatedAt": "2026-10-04T13:43:30.549Z"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 24,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 1868.8371,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "CHECK",
+      "value": {
+        "id": "desc_order_offset_actual_select",
+        "status": "PASS",
+        "rows": 48,
+        "ordered": true,
+        "unique": true,
+        "offsetPageEqual": true
+      }
+    },
+    {
+      "batch": "desc",
+      "kind": "QUERY",
+      "value": {
+        "name": "desc-explain-analyze",
+        "sql": "EXPLAIN ANALYZE SELECT \"Id\", \"CreatedAt\" FROM \"DeliveryTasks\" WHERE \"RoadTolnsdSiteCode\" = '6500261E14' AND \"DestinationCode\" = 'roadtolnsd-media' AND \"Status\" = 'succeeded' AND \"CreatedAt\" < 1791129600000 ORDER BY \"CreatedAt\" DESC, \"Id\" DESC LIMIT 48",
+        "fingerprint": "7f1de86aeda68cb95eb41008e4eeab3c261eb0bcdccc4e7f36ea76c5504ff92d",
+        "previewMaxRows": 64,
+        "http": 200,
+        "elapsedMs": 58.251,
+        "success": true,
+        "columns": [
+          "key",
+          "value"
+        ],
+        "rows": [
+          {
+            "key": "database",
+            "value": "TOLNSD"
+          },
+          {
+            "key": "statement_type",
+            "value": "select_table"
+          },
+          {
+            "key": "measurement",
+            "value": "DeliveryTasks"
+          },
+          {
+            "key": "matched_series_count",
+            "value": 0
+          },
+          {
+            "key": "estimated_segment_count",
+            "value": 0
+          },
+          {
+            "key": "estimated_block_count",
+            "value": 0
+          },
+          {
+            "key": "estimated_scanned_rows",
+            "value": 48
+          },
+          {
+            "key": "estimated_memtable_rows",
+            "value": 48
+          },
+          {
+            "key": "estimated_segment_rows",
+            "value": 0
+          },
+          {
+            "key": "has_time_filter",
+            "value": true
+          },
+          {
+            "key": "tag_filter_count",
+            "value": 0
+          },
+          {
+            "key": "access_path",
+            "value": "secondary_index_range"
+          },
+          {
+            "key": "index_name",
+            "value": "IX_DeliveryTasks_RoadTolnsdSiteCode_DestinationCode_Status_CreatedAt"
+          },
+          {
+            "key": "scan_filter",
+            "value": null
+          },
+          {
+            "key": "early_exit",
+            "value": null
+          },
+          {
+            "key": "has_residual_predicate",
+            "value": null
+          },
+          {
+            "key": "fallback_reason",
+            "value": null
+          },
+          {
+            "key": "candidate_contract",
+            "value": null
+          },
+          {
+            "key": "plan_node",
+            "value": "secondary_index_range"
+          },
+          {
+            "key": "memory_behavior",
+            "value": "scan_filter_project=streaming;sort=bounded_top_n(48);result=materialized_public_boundary"
+          },
+          {
+            "key": "actual_access_path",
+            "value": "secondary_index_range"
+          },
+          {
+            "key": "actual_index_name",
+            "value": "IX_DeliveryTasks_RoadTolnsdSiteCode_DestinationCode_Status_CreatedAt"
+          },
+          {
+            "key": "actual_fallback_reason",
+            "value": null
+          },
+          {
+            "key": "estimated_row_width",
+            "value": 948.4814453125
+          },
+          {
+            "key": "estimated_logical_reads",
+            "value": 48
+          },
+          {
+            "key": "estimated_cost",
+            "value": 48
+          },
+          {
+            "key": "estimate_source",
+            "value": "statistics_stale"
+          },
+          {
+            "key": "statistics_sequence",
+            "value": 179231
+          },
+          {
+            "key": "statistics_freshness_ms",
+            "value": 52329572
+          },
+          {
+            "key": "statistics_refresh_state",
+            "value": "completed"
+          },
+          {
+            "key": "statistics_refresh_error_code",
+            "value": null
+          },
+          {
+            "key": "actual_rows",
+            "value": 48
+          },
+          {
+            "key": "actual_candidate_rows",
+            "value": 48
+          },
+          {
+            "key": "actual_examined_rows",
+            "value": 48
+          },
+          {
+            "key": "actual_rows_removed",
+            "value": 0
+          },
+          {
+            "key": "actual_loops",
+            "value": 1
+          },
+          {
+            "key": "actual_execution_ms",
+            "value": 2.6138
+          },
+          {
+            "key": "actual_allocated_bytes",
+            "value": 407824
+          },
+          {
+            "key": "actual_lock_wait_ms",
+            "value": 0.0006000000000000001
+          },
+          {
+            "key": "actual_wal_fsync_count",
+            "value": 0
+          },
+          {
+            "key": "actual_spill_count",
+            "value": 0
+          },
+          {
+            "key": "actual_peak_memory_bytes",
+            "value": 13536
+          },
+          {
+            "key": "actual_spill_bytes",
+            "value": 0
+          },
+          {
+            "key": "estimated_output_rows",
+            "value": 48
+          },
+          {
+            "key": "candidate_plans",
+            "value": "secondary_index_range:IX_DeliveryTasks_RoadTolnsdSiteCode_DestinationCode_Status_CreatedAt rows<=48;ordered_window<=48"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 45,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 3.817,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "PROCESS",
+      "value": {
+        "pid": 1434883,
+        "parentPid": 1434882,
+        "startedAt": "2026-10-07T18:37:27.415251+00:00",
+        "command": "python3 - Object",
+        "owner": "sonnetdb-field-20261008"
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "CHILD",
+      "value": {
+        "pid": 1434884,
+        "parentPid": 1434883,
+        "startedAt": "2026-10-07T18:37:27.415732+00:00",
+        "command": "docker inspect tolnsd-sonnetdb-1 --format environment-json"
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "QUERY",
+      "value": {
+        "name": "latest-final-flow",
+        "sql": "SELECT ID, OCCURTIME, FrontCaptureId, SideCaptureId, RearCaptureId FROM T_Weight_Wastes ORDER BY OCCURTIME DESC LIMIT 1",
+        "fingerprint": "3b9a755ad59b4045a11eaa6e2236ce8c4524089e3eb3c95a6353e91e28025b57",
+        "previewMaxRows": 1,
+        "http": 200,
+        "elapsedMs": 2232.721,
+        "success": true,
+        "columns": [
+          "ID",
+          "OCCURTIME",
+          "FrontCaptureId",
+          "SideCaptureId",
+          "RearCaptureId"
+        ],
+        "rows": [
+          {
+            "ID": "6500261E142026100802000032",
+            "OCCURTIME": "2026-10-07T18:31:52Z",
+            "FrontCaptureId": "RTSP-4d0d5c4064f44cb281d4df12e2b09da5-front",
+            "SideCaptureId": "RTSP-4d0d5c4064f44cb281d4df12e2b09da5-side",
+            "RearCaptureId": "RTSP-4d0d5c4064f44cb281d4df12e2b09da5-rear"
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 1,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 2177.9799,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "QUERY",
+      "value": {
+        "name": "latest-final-flow-images",
+        "sql": "SELECT ID, IMAGE_DATA, IMAGE_SIZE, CIMAGE_DATA, CIMAGE_SIZE, HIMAGE_DATA, HIMAGE_SIZE FROM T_Weight_Images WHERE ID = '6500261E142026100802000032' LIMIT 1",
+        "fingerprint": "eef1fc67eca4580544f4a8da186344865370d56821a6b57018f0e162224302e9",
+        "previewMaxRows": 1,
+        "http": 200,
+        "elapsedMs": 53.651,
+        "success": true,
+        "columns": [
+          "ID",
+          "IMAGE_DATA",
+          "IMAGE_SIZE",
+          "CIMAGE_DATA",
+          "CIMAGE_SIZE",
+          "HIMAGE_DATA",
+          "HIMAGE_SIZE"
+        ],
+        "rows": [
+          {
+            "ID": "6500261E142026100802000032",
+            "IMAGE_DATA": "s3://vehicle-recognition/acquisitions/2026/10/08/e479b98f7f813aa016c2ca78d0a62882dc3e79eb13d02bb04f7d8f23312a0772/front/b3317e03c58b72652c46ab0852d183e0aaa264fc1c068b671b128afb6261a1d7.jpg",
+            "IMAGE_SIZE": 36904,
+            "CIMAGE_DATA": "s3://vehicle-recognition/acquisitions/2026/10/08/5251c7ad9421a1aea8c9d1e1e8d1727ced083f0ae3a0f896f46ce89e61662470/side/1498a7fe88f895551a12a1f517abba89a4e4c18599e24070d363d7f6d6d81cd5.jpg",
+            "CIMAGE_SIZE": 55004,
+            "HIMAGE_DATA": "s3://vehicle-recognition/acquisitions/2026/10/08/d748872fd5700d67f0d9b174d8e9180193d7f213c66ecb260c5cf222dec812ff/rear/031bbc8ca712203174b989e7ffb340a0ab7f2dcf9175357a3d91889538840bc4.jpg",
+            "HIMAGE_SIZE": 52953
+          }
+        ],
+        "end": {
+          "type": "end",
+          "rowCount": 1,
+          "recordsAffected": -1,
+          "elapsedMilliseconds": 0.8041,
+          "truncated": false
+        },
+        "errors": []
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "OBJECT",
+      "value": {
+        "slot": "IMAGE_DATA",
+        "headHttp": 200,
+        "getHttp": 200,
+        "metadataBytes": 36904,
+        "headBytes": 36904,
+        "receivedBytes": 36904,
+        "etagPresent": true,
+        "etagEqual": true,
+        "sha256Observed": "b3317e03c58b72652c46ab0852d183e0aaa264fc1c068b671b128afb6261a1d7",
+        "imageSignature": true,
+        "elapsedMs": 54.442,
+        "success": true,
+        "checksumOracleAvailable": false
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "OBJECT",
+      "value": {
+        "slot": "CIMAGE_DATA",
+        "headHttp": 200,
+        "getHttp": 200,
+        "metadataBytes": 55004,
+        "headBytes": 55004,
+        "receivedBytes": 55004,
+        "etagPresent": true,
+        "etagEqual": true,
+        "sha256Observed": "1498a7fe88f895551a12a1f517abba89a4e4c18599e24070d363d7f6d6d81cd5",
+        "imageSignature": true,
+        "elapsedMs": 233.104,
+        "success": true,
+        "checksumOracleAvailable": false
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "OBJECT",
+      "value": {
+        "slot": "HIMAGE_DATA",
+        "headHttp": 200,
+        "getHttp": 200,
+        "metadataBytes": 52953,
+        "headBytes": 52953,
+        "receivedBytes": 52953,
+        "etagPresent": true,
+        "etagEqual": true,
+        "sha256Observed": "031bbc8ca712203174b989e7ffb340a0ab7f2dcf9175357a3d91889538840bc4",
+        "imageSignature": true,
+        "elapsedMs": 53.911,
+        "success": true,
+        "checksumOracleAvailable": false
+      }
+    },
+    {
+      "batch": "object",
+      "kind": "CHECK",
+      "value": {
+        "id": "existing_three_image_objects_head_full_get",
+        "status": "PASS"
+      }
+    },
+    {
+      "batch": "finish",
+      "kind": "FINISH",
+      "value": {
+        "timeUtc": "2026-10-07T18:38:50.450955+00:00",
+        "auditPid": 1436491,
+        "auditParentPid": 1436490,
+        "ownedEarlierProcessesRemaining": [],
+        "sonnetdbPid": 114667,
+        "resources": [
+          "VmRSS:\t83667364 kB",
+          "VmSwap:\t   86400 kB",
+          "Threads:\t80"
+        ],
+        "processIo": [
+          "rchar: 13601986321514",
+          "wchar: 187217688214",
+          "syscr: 22210245826",
+          "syscw: 26598388",
+          "read_bytes: 103929167872",
+          "write_bytes: 207305400320",
+          "cancelled_write_bytes: 2752512"
+        ],
+        "readiness": {
+          "http": 200,
+          "body": {
+            "status": "Healthy",
+            "totalDuration": "00:00:00.0019139",
+            "entries": {
+              "copilot_embedding_provider_reachable": {
+                "status": "Healthy",
+                "description": "本地 provider 已就绪。",
+                "duration": "00:00:00.0000085",
+                "tags": [
+                  "provider",
+                  "ready"
+                ]
+              },
+              "copilot_provider_reachable": {
+                "status": "Healthy",
+                "description": "Provider 可达。",
+                "duration": "00:00:00.0013215",
+                "tags": [
+                  "provider",
+                  "ready"
+                ]
+              },
+              "relational_table_warmup": {
+                "status": "Healthy",
+                "description": "已预热 2 个数据库中的 61 张关系表。",
+                "duration": "00:00:00.0000316",
+                "tags": [
+                  "ready",
+                  "storage"
+                ]
+              },
+              "segment_store_writable": {
+                "status": "Healthy",
+                "description": "Segment 存储目录可写。",
+                "duration": "00:00:00.0018535",
+                "tags": [
+                  "ready",
+                  "storage"
+                ]
+              },
+              "wal_writable": {
+                "status": "Healthy",
+                "description": "WAL 目录可写。",
+                "duration": "00:00:00.0017179",
+                "tags": [
+                  "ready",
+                  "storage"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "derivedObjectChecks": [
+    {
+      "slot": "IMAGE_DATA",
+      "objectKeySha256": "b3317e03c58b72652c46ab0852d183e0aaa264fc1c068b671b128afb6261a1d7",
+      "downloadSha256": "b3317e03c58b72652c46ab0852d183e0aaa264fc1c068b671b128afb6261a1d7",
+      "equal": true,
+      "oracle": "VehicleMediaStorage content-addressed object key"
+    },
+    {
+      "slot": "CIMAGE_DATA",
+      "objectKeySha256": "1498a7fe88f895551a12a1f517abba89a4e4c18599e24070d363d7f6d6d81cd5",
+      "downloadSha256": "1498a7fe88f895551a12a1f517abba89a4e4c18599e24070d363d7f6d6d81cd5",
+      "equal": true,
+      "oracle": "VehicleMediaStorage content-addressed object key"
+    },
+    {
+      "slot": "HIMAGE_DATA",
+      "objectKeySha256": "031bbc8ca712203174b989e7ffb340a0ab7f2dcf9175357a3d91889538840bc4",
+      "downloadSha256": "031bbc8ca712203174b989e7ffb340a0ab7f2dcf9175357a3d91889538840bc4",
+      "equal": true,
+      "oracle": "VehicleMediaStorage content-addressed object key"
+    }
+  ],
+  "completedSubchecks": [
+    "ML-SDB-01-current-arm64-config-mounts",
+    "ML-SDB-02-six-index-definitions",
+    "ML-SDB-03-desc-offset-and-actual-amplification",
+    "ML-SDB-04-rest-preview-boundaries",
+    "ML-SDB-05-three-object-full-read-integrity"
+  ],
+  "wholeMilestoneCompletion": false,
+  "cleanup": {
+    "localWrapperCount": 6,
+    "localProcesses": [
+      {
+        "CreatedAt": "2026-10-08T02:33:44.3375613+08:00",
+        "ParentPid": 26432,
+        "Pid": 83152,
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-snapshot-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\snapshot.sh"
+      },
+      {
+        "CreatedAt": "2026-10-08T02:35:40.372531+08:00",
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-index-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\index.sh",
+        "Pid": 80480,
+        "ParentPid": 72076
+      },
+      {
+        "ParentPid": 97440,
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-preview-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\preview.sh",
+        "CreatedAt": "2026-10-08T02:36:11.9631263+08:00",
+        "Pid": 96796
+      },
+      {
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-desc-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\desc.sh",
+        "Pid": 71240,
+        "CreatedAt": "2026-10-08T02:36:30.0582975+08:00",
+        "ParentPid": 23856
+      },
+      {
+        "Pid": 74196,
+        "ParentPid": 88388,
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-object-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\object.sh",
+        "CreatedAt": "2026-10-08T02:37:24.0851599+08:00"
+      },
+      {
+        "ParentPid": 6368,
+        "Pid": 43752,
+        "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -File D:\\Uixe\\TOLNSD\\.runs\\performance-20261005\\field-audit-20261008-finish-host.ps1 -ScriptPath D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-20261008\\finish.sh",
+        "CreatedAt": "2026-10-08T02:38:45.0146597+08:00"
+      }
+    ],
+    "liveOwnedProcesses": [],
+    "ephemeralHostScriptsRemaining": 0,
+    "ephemeralLocksRemaining": 0,
+    "remoteEarlierRegisteredProcessesRemaining": 0,
+    "rawArtifactsRetainedForReview": true
+  }
+}
