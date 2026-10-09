@@ -11,6 +11,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import { compactNativeProcessEvidence, encodeNativeEvidence, nativeIdentityKey, persistNativeTerminalEvidence, projectNativeHelperStatistics, projectNativeCimObservation } from './studio-native-evidence.mjs';
 import { admitNativeStudioRoot, compactDatabaseProcessEvidence, projectDatabaseSnapshot, rejectDatabaseSeedHttpFailure, runDatabaseRecoveryScenario } from './studio-native-database-scenario.mjs';
+import { projectObservedDatabaseDiskSnapshot } from './studio-native-library-observation.mjs';
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.env.SONNETDB_STUDIO_NATIVE_REAL_SCENARIO ?? 'lifecycle';
@@ -777,7 +778,11 @@ async function databaseLibraryEvidence() {
   const bytes = await readFile(libraryPath, { signal: cancellation.signal });
   if (bytes.length > 524_288) throw new Error('Database library read byte cap exceeded.');
   return { path: libraryPath, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'),
-    snapshot: projectDatabaseSnapshot(JSON.parse(bytes.toString('utf8')), { disk: true }) };
+    snapshot: projectObservedDatabaseDiskSnapshot(JSON.parse(bytes.toString('utf8')), (observation) => {
+      if (!databaseRecoveryResult) return;
+      databaseRecoveryResult.libraryFieldObservations ??= [];
+      if (databaseRecoveryResult.libraryFieldObservations.length < 8) databaseRecoveryResult.libraryFieldObservations.push(observation);
+    }, { signal: cancellation.signal }) };
 }
 
 async function closeDatabaseDesktop(label) {
@@ -903,6 +908,7 @@ try {
     || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62/WB-64/WB-70/WB-77), and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
     path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs'),
+    path.join(repository, 'web', 'e2e', 'studio-native-library-observation.mjs'),
     ...(databaseRecoveryRequested ? [path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-database-scenario.test.mjs')] : [])];
   if (prerequisiteFiles.length > (databaseRecoveryRequested ? 12 : 10)) throw new Error('Prerequisite file cap exceeded.');
   for (const file of prerequisiteFiles) { check(); await access(file); }

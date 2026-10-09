@@ -1362,3 +1362,17 @@ WB77是同一Native未完成任务的有界接续，实现/微试/独审/实际/
 下一独立切片从StudioConnectionLibrary.SaveAsync、StudioBridgeContracts及source-generated context的实际schema出发，设计安全字段类别观察并验证合成合同。现有派生ActiveIdentity/Identity与disk拒绝合同需分别核验；旧实际字段已清理且未留证，不能据源码猜定旧失败字段。不得放宽未知字段、fresh ack、进程终止或正常退出门禁，不重跑用尽的WB77 actual。三宿主、恢复/正常退出、OS对话框、安装/ExtensionHost/AOT/固定硬件/长期/发布仍独立待验，Graph Beta/MQ database identity及instance .system/mq不变。
 
 固定PS7、所有count+wall/cancel/progress、完整PID创建/命令/父链与finally精确自有树；保护旧policyTemp/WB40、其它会话、缓存/交付物及parity；无push/部署/安装/发布/外部发送。HANDOFF本段纳入八路径提交候选，最终状态由Git及独立提交收据核实，旧未完成集成不追认为旧会话闭合。
+
+## WB78 安全字段类别观察（2026-10-09；本会话第2片，提交闭合后2/5）
+
+WB77未完成集成已在本替代会话闭合为25d274ef2c28d50b0cef91dfd00c932881574eeb，仅原八路径；两条最终完整dotnet命令均exit0，最后format包装器在观察阶段缺完整tuple而passed=false保留，finally五身份均消失。独立fresh合并100已记录身份全部无存活/unknown，未kill/delete；命令通过、包装器观察失败、已观察退出与whole-session证明分别记录于artifacts/wb77-recovery-integration-20261009。旧Native FAIL、normalExit=false、cleanupProven=true、budget5/14与actual1/1不改写。WB77整体只计第1片，本会话1/5。
+
+本片WB78从该commit接续，40分钟/6managed/0actual/0产品build的独立范围在artifacts/wb78-library-field-observation-20261009/contract.json。先核StudioConnectionLibrary.SaveAsync与StudioBridgeContracts/source-generated context：生产DTO含派生ActiveIdentity/Identity，现有disk projector拒绝这些字段；旧实际被拒字段已丢失，不能据此声称已确定旧失败原因。本片只补安全观察，不修改生产序列化或接受/进程权限。
+
+新增studio-native-library-observation.mjs在原512KiB有界读取的已解析对象中观察顶层/唯一profile，最多2对象/各32字段/8记录/100ms协作时限。输出仅固定schema/state、已知存储/派生字段名和未知数量，不记录未知名字、值、嵌套identity或异常消息；data descriptor避开getter，非法/超限/取消/时钟回退为固定unknown/partial。原disk projector仍对原输入执行，观察/回调异常不替代原异常；原fresh ack、DOM、双desktop、B query、CloseMainWindow及严格回收合同保持。诊断通过原database-recovery/result终态保存，新增helper进入prerequisite/source hashes。
+
+最小1例PASS，首轮12新+32旧=44/44；复核补中途时钟回退及原终态writer集成后，最终14新+scenario32/selection11/preparation17=74/74，fail/skip/cancel0。micro/初轮/最终测试分别3/4/6已观察身份finally全部消失；测试前task-local import固定等待10秒供完整身份记录，断言与测试时钟不改。三源码syntax通过；五个原生产序列化/快照/进程/evidence文件与HEAD相同。结果仅本机合成/源码，不计新C#磁盘实测、Native恢复、正常退出、AOT或binary等价。
+
+最终只提交9自有路径：新observer/test、runner、WB78报告及五共享docs。HANDOFF只HEAD blob加本段，所有外来发布/博客与HANDOFF字节保留，不whole-add/reset；最终树完整restore和原CI Format Check、精确staged/freeze/head/parity与退出核验通过才本地commit。实际命令/提交/闭合计数见本片restore-final.result.json、format-final.result.json、commit-checkpoint.json；本段不预填尚未产生结果。整体实现/修复/验证/集成计同一第2片，提交后2/5，本会话仍有3片额度，同workbench ACTIVE/30分钟/当前thread。
+
+后续先以明确合成序列化fixture及安全观察证据评审派生字段disk接受合同，未知字段仍拒绝；随后另冻结新源码/依赖/runtime/资源/预算的真实Native窗口，不复用WB77 actual1/1或旧准入。真实Server/三宿主、恢复/正常关闭、OS文件、安装/ExtensionHost/AOT/固定硬件/长期/发布分别待验；Graph Beta、MQ database identity及instance .system/mq不变。固定PS7/有界count+wall/cancel/progress/完整身份父链/finally，禁止Graphify/广域扫描/安装，保护旧policyTemp/WB40/其它会话/共享缓存/交付物/parity，无push/部署/安装/发布/外发。

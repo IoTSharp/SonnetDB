@@ -1,5 +1,7 @@
 # Workbench 持续推进队列
 
+WB78（2026-10-09；本会话闭合后2/5）：WB77收尾已提交`25d274ef`。连接库安全字段类别观察已接入现有磁盘读取/终态，14新合同加60回归全部通过；只报告允许字段名与未知数量，原拒绝及正常退出/回收门禁不变，0actual。后续先基于真实序列化和新观察评审磁盘接受合同，再建立独立真实窗口；不猜旧失败字段、不重跑WB77。完整门禁、提交与边界见[报告](wb78-library-field-observation.md)。
+
 WB77（2026-10-09；闭合后1/5）：released移交后完成wrapper最窄修复/两case/独审/managed micro/语法；CPU首次5秒超时保留，唯一原条件准入复核通过。唯一actual为174.468秒原FAIL，B preparation于firstA前被library字段守卫拒绝，fresh PUT/DOM不代替磁盘确认；selections0/launch1、恢复/查询null、normalExit=false、严格故障cleanup=true。最终本地门禁/owned集成见[报告](wb77-native-continuation.md)及收据；下一片先核真实schema与安全字段名观察，不盲重跑、改未知字段权限或重复已有14/41/38。
 
 WB76（2026-10-09；本会话从1/5接续）：先获取并合并最新 `origin/main`，双方仍为 `5424b666`、0/0。新冻结 `artifacts/wb76-native-actual-20261009`，最多14 managed／1 actual、原900s与90s回收、outer1020s；仅 runner 专属证据入口、条件标签和 .62 文件前置文案。先独审源／工具、micro／语法及新鲜32文件／四端口／资源，再验普通 A→B、两 desktop、恢复 B、真实 B 查询、正常关闭与严格 cleanup。已有 PS14/Node41/guard38不因接续重跑，原失败保持，进度和最终证据见[WB76 报告](wb76-native-actual-window.md)。
