@@ -1,5 +1,13 @@
 # M47 原型检查记录
 
+WB82同片必要重验（2026-10-09）：新restore通过，但首format因托管observe-failed被安全中断，原结果UNKNOWN_INTERRUPTED未通过，细因unknown。51已记录身份fresh无存活/未知、2PID复用保留；失败原收据保留。三源码SHA不变/88复用，准确文档后完整restore-retry+原CI format-retry至多一次，只有两新门禁和全身份审计通过才本地提交；同片总预算8/计划5、09:45Z不扩，仍为本会话第1项，关闭后1/5。实际结果见WB82报告及artifacts/wb82-local-integration-20261009。
+
+WB82本地集成接续（2026-10-09；本会话第1项）：释放严格匹配，三最终源码SHA不变，复用88/88而不重实施/重测。旧08:25Z失败闭片保留；新09:45Z窗口的新工具micro/独审、最终九路径完整restore/原CI format、本地commit及已记录身份fresh退出以artifacts/wb82-local-integration-20261009真实收据/Git为准，未取得完整PASS不得提交。本片合计一项，关闭后本会话1/5；0actual/产品build，三宿主与原未知边界不提升。
+
+WB82闭片（2026-10-09；本会话1/5）：三源独审/唯一Node88/88及完整restore通过，Format未运行、无新commit。08:25Z门禁窗口剩余不足，300秒收紧scope接收已过期，未放行；精确撤销自有stage、index空，57已记录身份0自有存活/0unknown、1PID复用保留。已保存真实失败检查点，提前交接优先新窗口完整restore/原format及本地集成，源码未变复用测试，不重做WB81/80；详细事实见WB82报告/artifacts。
+
+WB82（2026-10-09）：唯一命名Node88/88（13新顶层/48新保守场景、75旧保留），fail/cancel/skip/todo0，三最终语法与两个工具微输入通过；六受控PS生产器替换OS stop、live CIM/真实stop0，测试Temp根核absent。未finish/观察方法getter或throw漏洞独审后修正，0actual/产品build，原WB57 FAIL/unknown保持；完整restore/原format、精确九路径提交及已记录身份fresh退出结果见[报告](wb82-vscode-stop-diagnostics.md)与本片收据，未观察短生命周期/三宿主/安装/AOT未宣称。
+
 WB81（2026-10-09）：只读追溯WB57原16 attempts/1拒绝、15成功stop事件及final refused/passed/refused。candidate92952有既有身份，helper79028只有附近串行/时间关联，227B stderr仅hash且rawOutputRetained=false，未证明OS stop调用、原退出码、具体拒绝步骤或最终残留PID。旧后续62 PID absence/282对象回收与原cleanup=false分列。调查20输入SHA复验及独立合同/工具审查、完整门禁/提交见[报告](wb81-vscode-stop-contract.md)，0源码变更/测试/actual/build，不计真实Host或三宿主通过。
 
 WB80（2026-10-09）：唯一actual studio-native-real-4fb02b8f-46d4-4927-9e7d-cc67e5a9f749，runner199.645秒/exit0；六terminal齐全，passed/normalExit/cleanupProven=true。A/B新PUT配对磁盘及DOM，第二桌面GET seq12/request117恢复B，真实SELECT返回并显示WB61_B；两CloseMainWindow exit0、四端口释放、零fallback。原cleanup18身份在fallback前已退出、472项自有对象清理；根post-actual核58完整已记录身份/4retained，无存活/unknown，不能证明未观察后代或whole-session孤儿自由。旧Release/实际CDP.62与构建等价分列，完整门禁与提交见[报告](wb80-native-validation.md)，不证明Server优雅关停/恢复、安装或AOT。

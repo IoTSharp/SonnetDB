@@ -1,5 +1,13 @@
 # ROADMAP — SonnetDB 4.5
 
+WB82同片必要重验（2026-10-09）：新restore通过，但首format因托管observe-failed被安全中断，原结果UNKNOWN_INTERRUPTED未通过，细因unknown。51已记录身份fresh无存活/未知、2PID复用保留；失败原收据保留。三源码SHA不变/88复用，准确文档后完整restore-retry+原CI format-retry至多一次，只有两新门禁和全身份审计通过才本地提交；同片总预算8/计划5、09:45Z不扩，仍为本会话第1项，关闭后1/5。实际结果见WB82报告及artifacts/wb82-local-integration-20261009。
+
+WB82本地集成接续（2026-10-09；本会话第1项）：释放严格匹配，三最终源码SHA不变，复用88/88而不重实施/重测。旧08:25Z失败闭片保留；新09:45Z窗口的新工具micro/独审、最终九路径完整restore/原CI format、本地commit及已记录身份fresh退出以artifacts/wb82-local-integration-20261009真实收据/Git为准，未取得完整PASS不得提交。本片合计一项，关闭后本会话1/5；0actual/产品build，三宿主与原未知边界不提升。
+
+WB82闭片（2026-10-09；本会话1/5）：三源独审/唯一Node88/88及完整restore通过，Format未运行、无新commit。08:25Z门禁窗口剩余不足，300秒收紧scope接收已过期，未放行；精确撤销自有stage、index空，57已记录身份0自有存活/0unknown、1PID复用保留。已保存真实失败检查点，提前交接优先新窗口完整restore/原format及本地集成，源码未变复用测试，不重做WB81/80；详细事实见WB82报告/artifacts。
+
+WB82（2026-10-09；收尾后本会话1/5）：三脚本新增有界stop attempt/candidate/helper关联、固定JS/PS阶段及helper退出/结果类别；非法/缺失/getter/观察异常或未finish归unknown，原终止权限和三门禁保持。唯一Node88/88（13新、48新场景）与三语法通过，0actual/产品build；完整门禁、本地提交及已记录身份退出见[报告](docs/design/m47-unified-management-workbench/wb82-vscode-stop-diagnostics.md)。WB57原FAIL和未知原因不升级。
+
 WB81（2026-10-09；本会话收尾后5/5）：冻结VS Code stop拒绝的实际证据与下一合同。WB57原16次stop尝试/1次回调拒绝，缺调用与helper结果关联，不能判断OS stop是否执行或具体原因，原FAIL不升级。下一片仅补三脚本固定阶段/关联诊断并做模拟验收，保留全部终止权限，0actual/产品build；详见[报告](docs/design/m47-unified-management-workbench/wb81-vscode-stop-contract.md)。本片提交收尾后按同一workbench ACTIVE30分钟规则滚动接续。
 
 WB80（2026-10-09；本会话收尾后4/5）：唯一新Native实际通过普通A/B、两次桌面启动、被动恢复B、真实查询WB61_B及两次正常CloseMainWindow；四端口释放、零fallback、严格cleanup通过。复用旧Release产物，0产品build，不证明source-to-binary等价或Server优雅关停/恢复；WB77/79原失败保留。本机数据库选择恢复证据及最终本地集成见[报告](docs/design/m47-unified-management-workbench/wb80-native-validation.md)，三宿主、OS文件/安装/ExtensionHost/AOT/硬件/长稳/发布继续分列。

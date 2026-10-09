@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const rejectionReasons = new Map([
   ['identity', new Set(['incomplete_or_unsafe_identity_preserved', 'identity_count_exceeded',
@@ -619,6 +619,250 @@ export async function captureOwnedCandidateSnapshot(snapshot, identities, roots,
   assert.ok(failures.length <= 128);
   appendCandidateTransitions(failures, initialFailureCount, source, fresh, ownerPid, expires, clock);
   return failures;
+}
+
+const stopDiagnosticSchema = 'sonnetdb.owned-stop-diagnostic.v1';
+const stopMarker = 'SONNETDB_STOP_DIAGNOSTIC_V1 ';
+const stopJsCheckpoints = new Set(['anchor_validation', 'helper_dispatch', 'helper_identity', 'helper_wait',
+  'helper_terminal', 'helper_result', 'result_contract']);
+const stopPsCheckpoints = new Set(['identity_lookup', 'identity_validation', 'anchor_validation',
+  'parent_chain_validation', 'stop_before', 'stop_after', 'already_exited']);
+const stopContextInvalidations = new WeakMap();
+
+// Observation never invokes an accessor, even when the original authority path will do so later.
+function stopData(value, key) {
+  const descriptor = value && Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+}
+
+function stopLedgerReference(value, identities) {
+  const pid = stopData(value, 'pid'); const created = stopData(value, 'created');
+  if (safePid(pid) === null || typeof created !== 'string' || created.length > 40
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,7}(?:Z|\+00:00)$/u.test(created)) return null;
+  const accepted = Map.prototype.get.call(identities, pid);
+  return stopData(accepted, 'pid') === pid && stopData(accepted, 'created') === created ? { pid, created } : null;
+}
+
+function unknownStopDiagnostic(attempt = null) {
+  return { schema: stopDiagnosticSchema, attempt, observation: 'unknown', candidate: null, helper: null,
+    jsCheckpoint: 'unknown', psCheckpoint: 'unknown', helperExit: 'unknown', helperSignal: 'unknown', result: 'unknown' };
+}
+
+/** Invoke only a data-property diagnostic callback; its exception has no authority effect. */
+export function observeOwnedStopDiagnostic(observation, method, ...args) {
+  try {
+    const run = stopData(observation, method);
+    if (typeof run === 'function') return Reflect.apply(run, undefined, args);
+  } catch { /* A diagnostic sink cannot replace an authority return or exception. */ }
+  // Private invalidation does not read user properties or add an authority exception.
+  const invalidate = stopContextInvalidations.get(observation);
+  if (invalidate) invalidate();
+}
+const stopObserve = observeOwnedStopDiagnostic;
+
+/** Keep at most the existing 384 stop attempts, with references exclusively to the accepted ledger. */
+export function createOwnedStopDiagnostics(identities, { observe = () => {}, token = () => randomBytes(16).toString('hex') } = {}) {
+  const records = []; let overflow = false;
+  return {
+    begin(identity) {
+      if (records.length >= 384) { overflow = true; return null; }
+      const attempt = records.length + 1; let candidate; let nonce; let invalid = false; let finished = false;
+      let helper = null; let packet = null; let markers = 0; let bytes = 0; let lines = 0; let pending = '';
+      const record = { schema: stopDiagnosticSchema, attempt, observation: 'complete', candidate: null, helper: null,
+        jsCheckpoint: 'unknown', psCheckpoint: 'unknown', helperExit: 'not_observed', helperSignal: 'not_observed', result: 'not_observed' };
+      records.push({ project: () => finished && !invalid ? record : unknownStopDiagnostic(attempt) });
+      const notify = () => {
+        if (invalid) Object.assign(record, unknownStopDiagnostic(attempt));
+        try { observe({ ...record, candidate: record.candidate && { ...record.candidate }, helper: record.helper && { ...record.helper } }); }
+        catch { invalid = true; Object.assign(record, unknownStopDiagnostic(attempt)); }
+      };
+      try {
+        candidate = stopLedgerReference(identity, identities); nonce = token();
+        if (!candidate || typeof nonce !== 'string' || !/^[a-f0-9]{32}$/u.test(nonce)) invalid = true;
+        else record.candidate = candidate;
+      } catch { invalid = true; }
+      if (invalid) Object.assign(record, unknownStopDiagnostic(attempt));
+      const readLine = (line) => {
+        if (!line.startsWith(stopMarker)) return;
+        if (++markers !== 1 || line.length > 1024) { invalid = true; return; }
+        try {
+          const value = JSON.parse(line.slice(stopMarker.length));
+          const keys = Object.keys(value);
+          if (keys.join(',') !== 'schema,attempt,token,candidatePid,candidateCreated,helperPid,helperCreated,checkpoint'
+            || JSON.stringify(value) !== line.slice(stopMarker.length) || value.schema !== stopDiagnosticSchema
+            || value.attempt !== attempt || value.token !== nonce || value.candidatePid !== candidate?.pid
+            || value.candidateCreated !== candidate?.created || !stopPsCheckpoints.has(value.checkpoint)) { invalid = true; return; }
+          packet = value;
+        } catch { invalid = true; }
+      };
+      const observation = {
+        input() { return invalid ? null : { attempt, token: nonce }; },
+        checkpoint(value) {
+          if (finished) return;
+          if (stopJsCheckpoints.has(value)) record.jsCheckpoint = value; else invalid = true;
+          notify();
+        },
+        bindHelper(value) {
+          if (finished) return;
+          try { helper = stopLedgerReference(value, identities); if (!helper) invalid = true; else record.helper = helper; }
+          catch { invalid = true; }
+          notify();
+        },
+        terminal(value) {
+          if (finished) return;
+          try {
+            const code = stopData(value, 'exitCode'); const signal = stopData(value, 'signal');
+            record.helperExit = Number.isSafeInteger(code) && code >= 0 && code <= 0xffffffff ? (code === 0 ? 'zero' : 'nonzero') : 'unknown';
+            record.helperSignal = signal === null ? 'none' : typeof signal === 'string' && /^SIG[A-Z0-9]{1,12}$/u.test(signal) ? 'signalled' : 'unknown';
+            if (record.helperExit === 'unknown' || record.helperSignal === 'unknown') invalid = true;
+          } catch { invalid = true; }
+          notify();
+        },
+        returned(value) {
+          if (finished) return;
+          try {
+            const exited = stopData(value, 'exited'); const stopped = stopData(value, 'stopped');
+            record.result = exited === true && stopped !== true ? 'already_exited'
+              : stopped === true && exited !== true ? 'stopped' : 'unknown';
+            if (record.result === 'unknown') invalid = true;
+          } catch { invalid = true; }
+          notify();
+        },
+        stderr(chunk) {
+          if (finished || invalid) return;
+          try {
+            bytes += chunk.length;
+            if (bytes > 4 * 1024 * 1024) { invalid = true; pending = ''; return; }
+            const text = pending + chunk.toString('utf8'); let start = 0; const expires = Date.now() + 50;
+            for (let index = 0; index < text.length && index < 4 * 1024 * 1024; index += 1) {
+              if (Date.now() >= expires || lines > 4096) { invalid = true; break; }
+              if (text[index] === '\n') { readLine(text.slice(start, index).replace(/\r$/u, '')); start = index + 1; lines += 1; }
+              else if (index - start > 1024) { invalid = true; break; }
+            }
+            pending = invalid ? '' : text.slice(start);
+          } catch { invalid = true; pending = ''; }
+        },
+        finish() {
+          if (finished) return;
+          finished = true;
+          try {
+            if (helper && (pending || markers !== 1 || !packet)) invalid = true;
+            if (pending || markers !== 1 || !packet || !helper) record.psCheckpoint = 'unknown';
+            else if (packet.helperPid !== helper.pid || packet.helperCreated !== helper.created) invalid = true;
+            else record.psCheckpoint = packet.checkpoint;
+          } catch { invalid = true; }
+          if (invalid) Object.assign(record, unknownStopDiagnostic(attempt));
+          notify();
+          if (invalid) Object.assign(record, unknownStopDiagnostic(attempt));
+          packet = null; pending = ''; nonce = null;
+        },
+      };
+      stopContextInvalidations.set(observation, () => { invalid = true; Object.assign(record, unknownStopDiagnostic(attempt)); });
+      return observation;
+    },
+    summary() {
+      const attempts = []; const expires = Date.now() + 1000;
+      for (let index = 0; index < records.length && index < 384; index += 1) {
+        if (Date.now() >= expires) return { schema: 'sonnetdb.owned-stop-ledger.v1', observation: 'unknown', overflow, attempts: [] };
+        const record = records[index].project();
+        attempts.push({ ...record, candidate: record.candidate && { ...record.candidate }, helper: record.helper && { ...record.helper } });
+      }
+      return { schema: 'sonnetdb.owned-stop-ledger.v1', observation: overflow ? 'unknown' : 'complete', overflow,
+        attempts };
+    },
+  };
+}
+
+/** Execute the same helper wait, terminal assertions and result parser used by the real runner. */
+export async function readOwnedStopHelperResult({ waitTerminal, verifyTerminal, parseResult }, observation) {
+  stopObserve(observation, 'checkpoint', 'helper_wait');
+  const terminal = await waitTerminal();
+  stopObserve(observation, 'checkpoint', 'helper_terminal'); stopObserve(observation, 'terminal', terminal);
+  verifyTerminal(terminal);
+  stopObserve(observation, 'checkpoint', 'helper_result');
+  const result = parseResult(); stopObserve(observation, 'returned', result);
+  return result;
+}
+
+/** Produce the existing stop checks with a fixed, observation-only checkpoint on a separate stream. */
+export function ownedStopPowerShellScript() {
+  return `$taskExpected = [Console]::In.ReadLine() | ConvertFrom-Json -DateKind String
+$taskStopCheckpoint = 'identity_lookup'
+try {
+$taskCurrent = $taskHelperLookup[[int]$taskExpected.pid]
+if ($null -eq $taskCurrent) { $taskStopCheckpoint = 'already_exited'; ConvertTo-Json -InputObject @{exited=$true} -Compress; exit 0 }
+$taskStopCheckpoint = 'identity_validation'
+if ($taskCurrent.CreationDate.ToUniversalTime().ToString('O') -ne $taskExpected.created -or
+ $taskCurrent.CommandLine -cne $taskExpected.commandLine -or [int]$taskCurrent.ParentProcessId -ne [int]$taskExpected.parentPid) { throw 'Ownership changed; preserve process.' }
+$taskStopCheckpoint = 'anchor_validation'
+if ([int]$taskExpected.ownershipAnchorPid -ne [int]$taskSelf.ParentProcessId) { throw 'Ownership anchor changed; preserve process.' }
+if ([int]$taskExpected.pid -eq [int]$taskExpected.ownershipAnchorPid) { throw 'Cannot stop ownership anchor.' }
+$taskAnchorExpected = $taskExpected.ownershipAnchorIdentity
+if ($null -eq $taskAnchorExpected -or [int]$taskAnchorExpected.pid -ne [int]$taskExpected.ownershipAnchorPid) { throw 'Ownership anchor ledger identity missing; preserve process.' }
+$taskAnchorLive = $taskHelperLookup[[int]$taskAnchorExpected.pid]
+if ($null -eq $taskAnchorLive -or $null -eq $taskAnchorLive.CreationDate -or [string]::IsNullOrEmpty($taskAnchorLive.CommandLine) -or
+ $taskAnchorLive.CreationDate.ToUniversalTime().ToString('O') -ne $taskAnchorExpected.created -or $taskAnchorLive.CommandLine -cne $taskAnchorExpected.commandLine -or
+ [int]$taskAnchorLive.ParentProcessId -ne [int]$taskAnchorExpected.parentPid) { throw 'Live ownership anchor changed or missing; preserve process.' }
+$taskStopCheckpoint = 'parent_chain_validation'
+$taskParentDeadline = [DateTime]::UtcNow.AddSeconds(2)
+if (@($taskExpected.parentChain).Count -gt 12) { throw 'Stop parent-chain count exceeded.' }
+$taskNextParentPid = [int]$taskExpected.parentPid
+$taskAnchorSeen = $false
+foreach ($taskParentIdentity in @($taskExpected.parentChain)) {
+ if ([DateTime]::UtcNow -ge $taskParentDeadline) { throw 'Stop parent-chain wall clock exceeded.' }
+ if ($taskParentIdentity.unavailable -or [int]$taskParentIdentity.pid -ne $taskNextParentPid) { throw 'Continuous ownership parent chain missing; preserve process.' }
+ $taskLiveParent = $taskHelperLookup[[int]$taskParentIdentity.pid]
+ if ($null -eq $taskLiveParent -or $null -eq $taskLiveParent.CreationDate -or [string]::IsNullOrEmpty($taskLiveParent.CommandLine)) { throw 'Live ownership parent missing; preserve process.' }
+ if ($taskLiveParent.CreationDate.ToUniversalTime().ToString('O') -ne $taskParentIdentity.created -or $taskLiveParent.CommandLine -cne $taskParentIdentity.commandLine -or [int]$taskLiveParent.ParentProcessId -ne [int]$taskParentIdentity.parentPid) { throw 'Parent identity changed; preserve process.' }
+ if ([int]$taskParentIdentity.pid -eq [int]$taskExpected.ownershipAnchorPid) {
+  if ($taskParentIdentity.created -ne $taskAnchorExpected.created -or $taskParentIdentity.commandLine -cne $taskAnchorExpected.commandLine -or [int]$taskParentIdentity.parentPid -ne [int]$taskAnchorExpected.parentPid) { throw 'Parent anchor differs from ledger; preserve process.' }
+  $taskAnchorSeen = $true; break
+ }
+ $taskNextParentPid = [int]$taskParentIdentity.parentPid
+}
+if (-not $taskAnchorSeen) { throw 'Live ownership anchor not reached; preserve process.' }
+if ([int]$taskExpected.pid -eq $PID) { throw 'Cannot stop verifier.' }
+$taskStopCheckpoint = 'stop_before'
+Stop-Process -Id ([int]$taskExpected.pid) -Force -ErrorAction Stop
+$taskStopCheckpoint = 'stop_after'
+ConvertTo-Json -InputObject @{stopped=$true} -Compress
+} finally {
+ try {
+  if ($null -ne $taskExpected.stopDiagnostic) {
+   [Console]::Error.WriteLine('${stopMarker}' + (ConvertTo-Json -InputObject ([ordered]@{
+    schema='${stopDiagnosticSchema}'; attempt=$taskExpected.stopDiagnostic.attempt; token=$taskExpected.stopDiagnostic.token;
+    candidatePid=[int]$taskExpected.pid; candidateCreated=$taskExpected.created;
+    helperPid=[int]$taskSelf.ProcessId; helperCreated=$taskSelf.CreationDate.ToUniversalTime().ToString('O'); checkpoint=$taskStopCheckpoint
+   }) -Compress))
+  }
+ } catch { }
+}`;
+}
+
+/** Preserve the stop authority path while making its helper boundary injectable for bounded diagnostics tests. */
+export function createOwnedStopBoundary({ ownerPid, identities, helper, recordEvent,
+  diagnostics, validateAnchor = validateOwnedIdentityAnchor }) {
+  return async function stopVerified(identity) {
+    let observation;
+    try { const begin = stopData(diagnostics, 'begin'); if (typeof begin === 'function') observation = begin(identity); }
+    catch { /* Observation is not stop authority. */ }
+    try {
+      stopObserve(observation, 'checkpoint', 'anchor_validation');
+      assert.notEqual(identity.pid, ownerPid);
+      const ownerIdentity = identities.get(ownerPid);
+      assert.ok(ownerIdentity);
+      validateAnchor(identity, ownerIdentity);
+      const ownershipAnchorIdentity = { pid: ownerIdentity.pid, parentPid: ownerIdentity.parentPid,
+        created: ownerIdentity.created, commandLine: ownerIdentity.commandLine };
+      stopObserve(observation, 'checkpoint', 'helper_dispatch');
+      const diagnosticInput = stopObserve(observation, 'input');
+      const result = await helper(ownedStopPowerShellScript(), { ...identity, ownershipAnchorPid: ownerPid,
+        ownershipAnchorIdentity, stopDiagnostic: diagnosticInput }, undefined, observation);
+      stopObserve(observation, 'checkpoint', 'result_contract');
+      assert.ok(result.exited || result.stopped);
+      recordEvent({ event: 'owned-process-stop', ...identity, alreadyExited: Boolean(result.exited) });
+    } finally { stopObserve(observation, 'finish'); }
+  };
 }
 
 const cleanupChecks = new Map([

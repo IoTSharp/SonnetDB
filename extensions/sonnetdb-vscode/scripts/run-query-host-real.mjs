@@ -6,7 +6,8 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { discoverOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
-import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, createOwnedStopBoundary, createOwnedStopDiagnostics,
+  observeOwnedStopDiagnostic, ownedIdentityFailure, readOwnedStopHelperResult, recordOwnedIdentityEvent,
   validateOwnedIdentityAnchor, validateOwnedIdentityLedger as validateLedger, verifyOwnedProcessCleanup } from './query-host-evidence.mjs';
 
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
@@ -32,6 +33,8 @@ const startedAtUtc = new Date().toISOString();
 const deadline = Date.now() + 600_000;
 const controller = new AbortController();
 const identities = new Map();
+const stopDiagnostics = createOwnedStopDiagnostics(identities);
+const observedStop = createOwnedStopBoundary({ ownerPid: process.pid, identities, helper, recordEvent: event, diagnostics: stopDiagnostics });
 const roots = [];
 const events = [];
 const helperStarts = [];
@@ -262,6 +265,7 @@ try {
     await evidence('process-events.json', { schema: 'sonnetdb.wb42.process-events.v1', slice: 'WB57', runId, events,
       acceptedIdentities: [...identities.values()], auditFailures, auditFailureCount, auditFailureOverflow, identityLedgerIsAuthoritative: true,
       ownershipAnchorPid: process.pid, externalAncestorsDiagnosticOnly: true,
+      stopDiagnostics: stopDiagnostics.summary(),
       trackedIdentities: identities.size, helperStarts: helperStarts.map(({ pid, startedAtUtc: time, closed, identityRecorded }) => ({ pid, startedAtUtc: time, closed, identityRecorded })),
       snapshots, helpers, finishedAtUtc });
   } }, { name: 'child-output.json', run: async () => {
@@ -512,7 +516,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18358,18359) } | Select-Object -First 5 -ExpandProperty LocalPort)
 ConvertTo-Json -InputObject $taskPorts -Compress`);
 }
-async function helper(script, input, signal) {
+async function helper(script, input, signal, stopObservation) {
   signal?.throwIfAborted();
   assert.ok(++helpers <= 112);
   const wrapped = `$ErrorActionPreference = 'Stop'
@@ -575,7 +579,10 @@ ${script}`;
         identity = JSON.parse(output.slice(0, output.indexOf('\n')).trim());
         assert.equal(identity.pid, record.pid); assert.equal(identity.parentPid, process.pid); assert.ok(identity.commandLine && identity.created);
         assert.ok(identity.parentChain?.length && identity.parentChain[0].pid === process.pid && identity.parentChain[0].commandLine);
+        observeOwnedStopDiagnostic(stopObservation, 'checkpoint', 'helper_identity');
         acceptIdentity(identity, 'owned-helper-start'); record.identityRecorded = true;
+        observeOwnedStopDiagnostic(stopObservation, 'bindHelper', identities.get(record.pid));
+        observeOwnedStopDiagnostic(stopObservation, 'checkpoint', 'helper_wait');
       } catch {
         const accepted = identities.get(record.pid);
         record.identityRecorded = Boolean(accepted && accepted.pid === identity?.pid && accepted.created === identity.created
@@ -584,6 +591,7 @@ ${script}`;
       }
     }
   });
+  if (stopObservation) child.stderr.on('data', (chunk) => observeOwnedStopDiagnostic(stopObservation, 'stderr', chunk));
   child.stderr.resume();
   let timer; let cancelHelper;
   const closed = new Promise((resolve, reject) => {
@@ -591,15 +599,17 @@ ${script}`;
     child.once('close', (exitCode, signal) => { record.closed = true; resolve({ exitCode, signal }); });
   });
   try {
-    const terminal = await Promise.race([closed, new Promise((_resolve, reject) => {
+    return await readOwnedStopHelperResult({ waitTerminal: () => Promise.race([closed, new Promise((_resolve, reject) => {
       timer = setTimeout(() => reject(new Error('Owned helper deadline.')), 6_000);
       cancelHelper = () => reject(new Error('Owned helper deadline.'));
       signal?.addEventListener('abort', cancelHelper, { once: true });
       if (signal?.aborted) cancelHelper();
-    })]);
-    assert.equal(terminal.exitCode, 0); assert.equal(terminal.signal, null); assert.equal(exceeded, false); assert.ok(record.identityRecorded);
-    const end = output.indexOf('\n'); const body = output.slice(end + 1).trim();
-    return body ? JSON.parse(body) : null;
+    })]), verifyTerminal: (terminal) => {
+      assert.equal(terminal.exitCode, 0); assert.equal(terminal.signal, null); assert.equal(exceeded, false); assert.ok(record.identityRecorded);
+    }, parseResult: () => {
+      const end = output.indexOf('\n'); const body = output.slice(end + 1).trim();
+      return body ? JSON.parse(body) : null;
+    } }, stopObservation);
   } finally {
     clearTimeout(timer);
     if (cancelHelper) signal?.removeEventListener('abort', cancelHelper);
@@ -609,47 +619,7 @@ ${script}`;
   }
 }
 async function stopVerified(identity) {
-  assert.notEqual(identity.pid, process.pid);
-  const ownerIdentity = identities.get(process.pid);
-  assert.ok(ownerIdentity);
-  validateOwnedIdentityAnchor(identity, ownerIdentity);
-  const ownershipAnchorIdentity = { pid: ownerIdentity.pid, parentPid: ownerIdentity.parentPid,
-    created: ownerIdentity.created, commandLine: ownerIdentity.commandLine };
-  const result = await helper(`$taskExpected = [Console]::In.ReadLine() | ConvertFrom-Json -DateKind String
-$taskCurrent = $taskHelperLookup[[int]$taskExpected.pid]
-if ($null -eq $taskCurrent) { ConvertTo-Json -InputObject @{exited=$true} -Compress; exit 0 }
-if ($taskCurrent.CreationDate.ToUniversalTime().ToString('O') -ne $taskExpected.created -or
- $taskCurrent.CommandLine -cne $taskExpected.commandLine -or [int]$taskCurrent.ParentProcessId -ne [int]$taskExpected.parentPid) { throw 'Ownership changed; preserve process.' }
-if ([int]$taskExpected.ownershipAnchorPid -ne [int]$taskSelf.ParentProcessId) { throw 'Ownership anchor changed; preserve process.' }
-if ([int]$taskExpected.pid -eq [int]$taskExpected.ownershipAnchorPid) { throw 'Cannot stop ownership anchor.' }
-$taskAnchorExpected = $taskExpected.ownershipAnchorIdentity
-if ($null -eq $taskAnchorExpected -or [int]$taskAnchorExpected.pid -ne [int]$taskExpected.ownershipAnchorPid) { throw 'Ownership anchor ledger identity missing; preserve process.' }
-$taskAnchorLive = $taskHelperLookup[[int]$taskAnchorExpected.pid]
-if ($null -eq $taskAnchorLive -or $null -eq $taskAnchorLive.CreationDate -or [string]::IsNullOrEmpty($taskAnchorLive.CommandLine) -or
- $taskAnchorLive.CreationDate.ToUniversalTime().ToString('O') -ne $taskAnchorExpected.created -or $taskAnchorLive.CommandLine -cne $taskAnchorExpected.commandLine -or
- [int]$taskAnchorLive.ParentProcessId -ne [int]$taskAnchorExpected.parentPid) { throw 'Live ownership anchor changed or missing; preserve process.' }
-$taskParentDeadline = [DateTime]::UtcNow.AddSeconds(2)
-if (@($taskExpected.parentChain).Count -gt 12) { throw 'Stop parent-chain count exceeded.' }
-$taskNextParentPid = [int]$taskExpected.parentPid
-$taskAnchorSeen = $false
-foreach ($taskParentIdentity in @($taskExpected.parentChain)) {
- if ([DateTime]::UtcNow -ge $taskParentDeadline) { throw 'Stop parent-chain wall clock exceeded.' }
- if ($taskParentIdentity.unavailable -or [int]$taskParentIdentity.pid -ne $taskNextParentPid) { throw 'Continuous ownership parent chain missing; preserve process.' }
- $taskLiveParent = $taskHelperLookup[[int]$taskParentIdentity.pid]
- if ($null -eq $taskLiveParent -or $null -eq $taskLiveParent.CreationDate -or [string]::IsNullOrEmpty($taskLiveParent.CommandLine)) { throw 'Live ownership parent missing; preserve process.' }
- if ($taskLiveParent.CreationDate.ToUniversalTime().ToString('O') -ne $taskParentIdentity.created -or $taskLiveParent.CommandLine -cne $taskParentIdentity.commandLine -or [int]$taskLiveParent.ParentProcessId -ne [int]$taskParentIdentity.parentPid) { throw 'Parent identity changed; preserve process.' }
- if ([int]$taskParentIdentity.pid -eq [int]$taskExpected.ownershipAnchorPid) {
-  if ($taskParentIdentity.created -ne $taskAnchorExpected.created -or $taskParentIdentity.commandLine -cne $taskAnchorExpected.commandLine -or [int]$taskParentIdentity.parentPid -ne [int]$taskAnchorExpected.parentPid) { throw 'Parent anchor differs from ledger; preserve process.' }
-  $taskAnchorSeen = $true; break
- }
- $taskNextParentPid = [int]$taskParentIdentity.parentPid
-}
-if (-not $taskAnchorSeen) { throw 'Live ownership anchor not reached; preserve process.' }
-if ([int]$taskExpected.pid -eq $PID) { throw 'Cannot stop verifier.' }
-Stop-Process -Id ([int]$taskExpected.pid) -Force -ErrorAction Stop
-ConvertTo-Json -InputObject @{stopped=$true} -Compress`, { ...identity, ownershipAnchorPid: process.pid, ownershipAnchorIdentity });
-  assert.ok(result.exited || result.stopped);
-  event({ event: 'owned-process-stop', ...identity, alreadyExited: Boolean(result.exited) });
+  return await observedStop(identity);
 }
 async function removeRuntime() {
   const resolved = await realpath(runtimeRoot);

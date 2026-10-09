@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, realpath, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, captureOwnedSnapshot, ownedIdentityFailure, recordOwnedIdentityEvent,
+import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, captureOwnedSnapshot,
+  createOwnedStopBoundary, createOwnedStopDiagnostics, observeOwnedStopDiagnostic, ownedIdentityFailure,
+  ownedStopPowerShellScript, readOwnedStopHelperResult, recordOwnedIdentityEvent,
   ownedProcessCleanupDiagnostic, validateOwnedIdentity, validateOwnedIdentityAnchor, validateOwnedIdentityLedger,
   verifyOwnedProcessCleanup } from './query-host-evidence.mjs';
 
@@ -13,6 +16,280 @@ const owner = { pid: 10, parentPid: 1, created, commandLine: 'node runner', pare
 const child = (pid, commandLine = 'owned child') => ({ pid, parentPid: 10, created, commandLine,
   parentChain: [{ pid: 10, parentPid: 1, created, commandLine: 'node runner' }, { pid: 1, unavailable: true }] });
 const options = { ownerPid: 10, validateText: () => {}, recordEvent: () => {}, clock: () => 1000 };
+
+const stopToken = '0123456789abcdef0123456789abcdef';
+const stopPrefix = 'SONNETDB_STOP_DIAGNOSTIC_V1 ';
+const stopHelper = child(77, 'owned PowerShell helper');
+function stopPacket(observation, candidate = child(11), helper = stopHelper, checkpoint = 'stop_after') {
+  return { schema: 'sonnetdb.owned-stop-diagnostic.v1', ...observation.input(), candidatePid: candidate.pid,
+    candidateCreated: candidate.created, helperPid: helper.pid, helperCreated: helper.created, checkpoint };
+}
+function stopTransport(observation, packet = stopPacket(observation)) {
+  observeOwnedStopDiagnostic(observation, 'stderr', Buffer.from(`${stopPrefix}${JSON.stringify(packet)}\n`));
+}
+function stopFixture({ phase = 'stopped', returned, observe = () => {} } = {}) {
+  const candidate = child(11); const identities = new Map([[10, owner], [11, candidate], [77, stopHelper]]);
+  const calls = []; const events = []; const original = new Error('WB82_SYNTHETIC_Bearer_secret_never_persist');
+  const diagnostics = createOwnedStopDiagnostics(identities, { observe, token: () => stopToken });
+  const stop = createOwnedStopBoundary({ ownerPid: 10, identities, diagnostics, recordEvent: (value) => {
+    calls.push('event'); events.push(value);
+  }, validateAnchor: (value, anchor) => {
+    calls.push('anchor'); if (phase === 'anchor') throw original;
+    validateOwnedIdentityAnchor(value, anchor);
+  }, helper: async function (script, input, signal, observation) {
+    assert.equal(this, undefined); assert.equal(signal, undefined); assert.equal(script, ownedStopPowerShellScript());
+    assert.equal(input.pid, candidate.pid); assert.deepEqual(input.ownershipAnchorIdentity,
+      { pid: 10, parentPid: 1, created, commandLine: owner.commandLine });
+    calls.push('dispatch'); if (phase === 'dispatch') throw original;
+    observeOwnedStopDiagnostic(observation, 'checkpoint', 'helper_identity');
+    if (phase === 'identity') throw original;
+    observeOwnedStopDiagnostic(observation, 'bindHelper', stopHelper); if (observation) stopTransport(observation);
+    return await readOwnedStopHelperResult({ waitTerminal: async () => {
+      calls.push('wait'); if (phase === 'timeout' || phase === 'cancel') throw original;
+      return { exitCode: phase === 'nonzero' ? 7 : 0, signal: null };
+    }, verifyTerminal: (terminal) => { calls.push('terminal'); assert.equal(terminal.exitCode, 0); },
+    parseResult: () => {
+      calls.push('parse'); if (phase === 'malformed') return JSON.parse('{');
+      return returned ?? (phase === 'already_exited' ? { exited: true } : phase === 'result_contract' ? { stopped: false } : { stopped: true });
+    } }, observation);
+  } });
+  return { candidate, identities, calls, events, original, diagnostics, stop };
+}
+
+test('stop boundary observes original refusal and already-exited branches without changing callback results or call order', { timeout: 2000 }, async () => {
+  const cases = [['anchor', 'anchor_validation'], ['dispatch', 'helper_dispatch'], ['identity', 'helper_identity'],
+    ['timeout', 'helper_wait'], ['cancel', 'helper_wait'], ['nonzero', 'helper_terminal'], ['malformed', 'helper_result'],
+    ['result_contract', 'unknown'], ['already_exited', 'result_contract']];
+  const expires = Date.now() + 1500;
+  for (let index = 0; index < cases.length && index < 9; index += 1) {
+    assert.ok(Date.now() < expires); const [phase, checkpoint] = cases[index]; const fixture = stopFixture({ phase });
+    let thrown; let returned;
+    try { returned = await fixture.stop.call({ ignoredReceiver: true }, fixture.candidate, 'ignored original argument'); } catch (error) { thrown = error; }
+    const success = phase === 'stopped' || phase === 'already_exited';
+    assert.equal(returned, undefined); assert.equal(Boolean(thrown), !success); assert.equal(fixture.events.length, Number(success));
+    if (['anchor', 'dispatch', 'identity', 'timeout', 'cancel'].includes(phase)) assert.equal(thrown, fixture.original);
+    assert.deepEqual(fixture.calls, phase === 'anchor' ? ['anchor'] : phase === 'dispatch' || phase === 'identity' ? ['anchor', 'dispatch']
+      : phase === 'timeout' || phase === 'cancel' ? ['anchor', 'dispatch', 'wait']
+        : phase === 'nonzero' ? ['anchor', 'dispatch', 'wait', 'terminal']
+          : ['anchor', 'dispatch', 'wait', 'terminal', 'parse', ...(success ? ['event'] : [])]);
+    const diagnostic = fixture.diagnostics.summary().attempts[0]; assert.equal(diagnostic.jsCheckpoint, checkpoint);
+    assert.equal(diagnostic.helperExit, phase === 'result_contract' ? 'unknown'
+      : phase === 'nonzero' ? 'nonzero' : ['malformed', 'already_exited', 'stopped'].includes(phase) ? 'zero' : 'not_observed');
+    assert.equal(JSON.stringify(diagnostic).includes(fixture.original.message), false);
+    assert.equal(fixture.identities.size, 3);
+  }
+});
+
+test('helper terminal refusal preserves exit signal output and identity assertion ordering and skips its parser', { timeout: 1000 }, async () => {
+  const cases = ['exit', 'signal', 'output', 'identity']; const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 4; index += 1) {
+    assert.ok(Date.now() < expires); const stage = cases[index]; const calls = [];
+    await assert.rejects(readOwnedStopHelperResult({ waitTerminal: async () => ({ exitCode: stage === 'exit' ? 1 : 0,
+      signal: stage === 'signal' ? 'SIGTERM' : null }), verifyTerminal: (terminal) => {
+      calls.push('exit'); assert.equal(terminal.exitCode, 0); calls.push('signal'); assert.equal(terminal.signal, null);
+      calls.push('output'); assert.equal(stage === 'output', false); calls.push('identity'); assert.equal(stage !== 'identity', true);
+    }, parseResult: () => { calls.push('parse'); return { stopped: true }; } }));
+    assert.deepEqual(calls, ['exit', 'signal', 'output', 'identity'].slice(0, index + 1));
+  }
+});
+
+test('missing truncated duplicate forged and invalid checkpoint transport is unknown with no secret persistence', { timeout: 1000 }, () => {
+  const marker = 'Bearer WB82_SYNTHETIC_TRANSPORT_SECRET_123456789';
+  const cases = ['missing', 'truncated', 'duplicate', 'token', 'helper', 'checkpoint', 'extra', 'duplicate_key', 'attempt'];
+  const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 9; index += 1) {
+    assert.ok(Date.now() < expires); const candidate = child(11); const identities = new Map([[11, candidate], [77, stopHelper]]);
+    const ledger = createOwnedStopDiagnostics(identities, { token: () => stopToken }); const observation = ledger.begin(candidate);
+    observation.bindHelper(stopHelper); const packet = stopPacket(observation);
+    if (cases[index] === 'token') packet.token = 'f'.repeat(32);
+    if (cases[index] === 'attempt') packet.attempt = 2;
+    if (cases[index] === 'helper') packet.helperPid = 78;
+    if (cases[index] === 'checkpoint') packet.checkpoint = marker;
+    if (cases[index] === 'extra') packet.raw = marker;
+    let text = `${stopPrefix}${JSON.stringify(packet)}\n`;
+    if (cases[index] === 'missing') text = '';
+    if (cases[index] === 'truncated') text = text.slice(0, -1);
+    if (cases[index] === 'duplicate') text += text;
+    if (cases[index] === 'duplicate_key') text = text.replace('{', '{"attempt":1,');
+    observation.stderr(Buffer.from(text)); observation.finish();
+    const result = ledger.summary().attempts[0]; assert.equal(result.observation, 'unknown'); assert.equal(result.psCheckpoint, 'unknown');
+    assert.equal(JSON.stringify(result).includes(marker), false); assert.equal(identities.size, 2);
+  }
+});
+
+test('diagnostic candidate and helper accessor fields are never invoked or admitted', { timeout: 1000 }, () => {
+  const cases = ['candidate', 'helper']; const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); const candidate = child(11); const identities = new Map([[11, candidate], [77, stopHelper]]);
+    const ledger = createOwnedStopDiagnostics(identities, { token: () => stopToken }); let reads = 0;
+    const accessor = (value, key) => Object.defineProperty({ ...value }, key, { get() { reads += 1; throw new Error('WB82 getter secret'); } });
+    const observation = ledger.begin(cases[index] === 'candidate' ? accessor(candidate, 'pid') : candidate);
+    observation.bindHelper(cases[index] === 'helper' ? accessor(stopHelper, 'created') : stopHelper);
+    observation.terminal({ exitCode: 0, signal: null });
+    observation.finish(); assert.equal(reads, 0); assert.equal(ledger.summary().attempts[0].observation, 'unknown');
+    assert.equal(identities.size, 2);
+  }
+});
+
+test('changing result getters keep their original two authority reads and diagnostic unknown cannot replace success', { timeout: 1000 }, async () => {
+  let reads = 0; const returned = { get exited() { return ++reads === 1; }, get stopped() { throw new Error('must not be read'); } };
+  const fixture = stopFixture({ returned }); assert.equal(await fixture.stop(fixture.candidate), undefined);
+  assert.equal(reads, 2); assert.equal(fixture.events.length, 1); assert.equal(fixture.events[0].alreadyExited, false);
+  assert.equal(fixture.diagnostics.summary().attempts[0].observation, 'unknown');
+});
+
+test('throwing observers and mutated context methods leave original returns and exceptions intact with unknown records', { timeout: 2000 }, async () => {
+  const fixture = stopFixture({ observe: () => { throw new Error('Bearer WB82_SYNTHETIC_OBSERVER_SECRET'); } });
+  await fixture.stop(fixture.candidate); assert.equal(fixture.events.length, 1);
+  assert.equal(fixture.diagnostics.summary().attempts[0].observation, 'unknown');
+  const cases = [['checkpoint', 'getter'], ['checkpoint', 'throw'], ['bindHelper', 'getter'], ['bindHelper', 'throw'],
+    ['finish', 'getter'], ['finish', 'throw']]; const expires = Date.now() + 1500;
+  for (let index = 0; index < cases.length && index < 6; index += 1) {
+    assert.ok(Date.now() < expires); const candidate = child(11); const identities = new Map([[10, owner], [11, candidate], [77, stopHelper]]);
+    const diagnostics = createOwnedStopDiagnostics(identities, { token: () => stopToken }); const original = new Error('WB82 original callback');
+    const [method, mode] = cases[index]; let getterReads = 0; let helperCalls = 0; let eventCalls = 0;
+    const stop = createOwnedStopBoundary({ ownerPid: 10, identities, diagnostics, recordEvent: () => { eventCalls += 1; },
+      helper: async (_script, _input, _signal, observation) => {
+        helperCalls += 1;
+        assert.equal(diagnostics.summary().attempts[0].observation, 'unknown'); // An unfinished context cannot self-certify.
+        if (mode === 'getter') Object.defineProperty(observation, method, { get() { getterReads += 1; throw original; } });
+        else observation[method] = () => { throw original; };
+        observeOwnedStopDiagnostic(observation, 'checkpoint', 'helper_identity');
+        observeOwnedStopDiagnostic(observation, 'bindHelper', stopHelper); stopTransport(observation);
+        if (index === 5) throw original;
+        return await readOwnedStopHelperResult({ waitTerminal: async () => ({ exitCode: 0, signal: null }),
+          verifyTerminal: () => {}, parseResult: () => ({ stopped: true }) }, observation);
+      } });
+    if (index === 5) await assert.rejects(stop(candidate), (error) => error === original);
+    else assert.equal(await stop(candidate), undefined);
+    assert.equal(getterReads, 0); assert.equal(helperCalls, 1); assert.equal(eventCalls, Number(index !== 5));
+    assert.equal(diagnostics.summary().attempts[0].observation, 'unknown'); assert.equal(identities.size, 3);
+  }
+});
+
+test('descriptor projection rejects secret creation input without reading getters or changing the ledger', { timeout: 1000 }, () => {
+  const marker = 'Bearer WB82_SYNTHETIC_CREATION_SECRET_123456789'; const cases = ['creation']; const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 1; index += 1) {
+    assert.ok(Date.now() < expires); const candidate = { ...child(11), created: marker };
+    const identities = new Map([[11, candidate]]); const ledger = createOwnedStopDiagnostics(identities,
+      { token: () => stopToken }); const observation = ledger.begin(candidate);
+    observation.checkpoint('anchor_validation'); observation.finish();
+    assert.equal(ledger.summary().attempts[0].observation, 'unknown'); assert.equal(JSON.stringify(ledger.summary()).includes(marker), false);
+    assert.equal(identities.get(11), candidate);
+  }
+});
+
+test('stop diagnostics cap at 384 attempts and overflow never suppresses the original callback', { timeout: 2000 }, async () => {
+  const fixture = stopFixture(); const expires = Date.now() + 1500;
+  for (let index = 0; index < 385; index += 1) { assert.ok(Date.now() < expires); await fixture.stop(fixture.candidate); }
+  const summary = fixture.diagnostics.summary(); assert.equal(summary.attempts.length, 384); assert.equal(summary.overflow, true);
+  assert.equal(summary.observation, 'unknown'); assert.equal(summary.attempts[383].attempt, 384); assert.equal(fixture.events.length, 385);
+  assert.equal(fixture.calls.filter((call) => call === 'dispatch').length, 385); assert.equal(fixture.identities.size, 3);
+});
+
+test('controlled PowerShell producer reports six fixed stop checkpoints with OS stop replaced', { timeout: 10000 }, () => {
+  const production = ownedStopPowerShellScript();
+  const firstLine = '$taskExpected = [Console]::In.ReadLine() | ConvertFrom-Json -DateKind String';
+  const osStop = 'Stop-Process -Id ([int]$taskExpected.pid) -Force -ErrorAction Stop';
+  assert.equal(production.split(osStop).length, 2); assert.equal(production.split(firstLine).length, 2);
+  const controlled = production.replace(firstLine, '$taskExpected = $taskFixtureExpected').replace(osStop,
+    'Invoke-Wb82FakeStop -Id ([int]$taskExpected.pid) -Force -ErrorAction Stop').replace('exit 0', 'return');
+  assert.equal(controlled.includes('Stop-Process'), false);
+  const fixture = `$ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
+function Invoke-Wb82FakeStop { param([int]$Id, [switch]$Force, [string]$ErrorAction)
+ $script:taskFixtureStops++; if ($script:taskFixtureCase -eq 'osrefusal') { throw 'WB82_SYNTHETIC_OS_REFUSAL' }
+}
+$taskFixtureBlock = { ${controlled} }
+$taskFixtureResults = [Collections.Generic.List[object]]::new()
+$taskFixtureCases = @('stopped','already_exited','identity','anchor','parent','osrefusal')
+$taskFixtureDeadline = [DateTime]::UtcNow.AddSeconds(4)
+for ($taskFixtureIndex = 0; $taskFixtureIndex -lt 6; $taskFixtureIndex++) {
+ if ([DateTime]::UtcNow -ge $taskFixtureDeadline -or [IO.File]::Exists('D:\\source\\SonnetDB\\artifacts\\wb82-vscode-stop-diagnostics-20261009\\cancel.request')) { throw 'Fixture deadline or cancellation.' }
+ $script:taskFixtureCase=$taskFixtureCases[$taskFixtureIndex]; $script:taskFixtureStops=0
+ $taskDate=[DateTime]::Parse('2026-10-07T00:00:00.0000000Z').ToUniversalTime(); $taskCreated=$taskDate.ToString('O')
+ $taskSelf=[pscustomobject]@{ProcessId=77;ParentProcessId=10;CreationDate=$taskDate;CommandLine='owned PowerShell helper'}
+ $taskAnchor=[pscustomobject]@{ProcessId=10;ParentProcessId=1;CreationDate=$taskDate;CommandLine='node runner'}
+ $taskCurrentFixture=[pscustomobject]@{ProcessId=11;ParentProcessId=10;CreationDate=$taskDate;CommandLine='owned child'}
+ $taskParent=[pscustomobject]@{pid=10;parentPid=1;created=$taskCreated;commandLine='node runner'}
+ $taskFixtureExpected=[pscustomobject]@{pid=11;parentPid=10;created=$taskCreated;commandLine='owned child';parentChain=@($taskParent);ownershipAnchorPid=10;ownershipAnchorIdentity=$taskParent;stopDiagnostic=@{attempt=($taskFixtureIndex+1);token='${stopToken}'}}
+ $taskHelperLookup=@{10=$taskAnchor;11=$taskCurrentFixture;77=$taskSelf}
+ if ($script:taskFixtureCase -eq 'already_exited') {$taskHelperLookup.Remove(11)}
+ if ($script:taskFixtureCase -eq 'identity') {$taskCurrentFixture.CommandLine='changed'}
+ if ($script:taskFixtureCase -eq 'anchor') {$taskSelf.ParentProcessId=12}
+ if ($script:taskFixtureCase -eq 'parent') {$taskFixtureExpected.parentChain=@([pscustomobject]@{pid=12;parentPid=1;created=$taskCreated;commandLine='node runner'})}
+ $taskRefused=$false; $taskReturned=$null
+ try {$taskFixtureOutput=@(& $taskFixtureBlock); if ($taskFixtureOutput.Count -eq 1) {$taskReturned=$taskFixtureOutput[0] | ConvertFrom-Json}} catch {$taskRefused=$true}
+ $taskFixtureResults.Add([ordered]@{case=$script:taskFixtureCase;stops=$script:taskFixtureStops;refused=$taskRefused;returned=$taskReturned})
+}
+ConvertTo-Json -InputObject ($taskFixtureResults.ToArray()) -Compress -Depth 4`;
+  const result = spawnSync('C:\\Program Files\\PowerShell\\7\\pwsh.exe', ['-NoProfile', '-Command', fixture],
+    { encoding: 'utf8', timeout: 6000, maxBuffer: 64 * 1024, windowsHide: true });
+  assert.equal(result.error, undefined); assert.equal(result.status, 0); assert.equal(result.signal, null);
+  const results = JSON.parse(result.stdout.trim()); const lines = result.stderr.trim().split(/\r?\n/u);
+  assert.equal(results.length, 6); assert.equal(lines.length, 6); const expires = Date.now() + 1000;
+  const checkpoints = ['stop_after', 'already_exited', 'identity_validation', 'anchor_validation', 'parent_chain_validation', 'stop_before'];
+  const psCreated = '2026-10-07T00:00:00.0000000Z'; const candidate = { ...child(11), created: psCreated };
+  const helper = { ...stopHelper, created: psCreated }; const ledger = createOwnedStopDiagnostics(new Map([[11, candidate], [77, helper]]), { token: () => stopToken });
+  for (let index = 0; index < 6; index += 1) {
+    assert.ok(Date.now() < expires); const observation = ledger.begin(candidate); observation.bindHelper(helper);
+    observation.stderr(Buffer.from(`${lines[index]}\n`)); observation.finish();
+    assert.equal(ledger.summary().attempts[index].psCheckpoint, checkpoints[index]);
+    assert.equal(results[index].stops, Number(index === 0 || index === 5)); assert.equal(results[index].refused, index >= 2);
+    assert.deepEqual(results[index].returned, index === 0 ? { stopped: true } : index === 1 ? { exited: true } : null);
+  }
+});
+
+test('invalid helper terminal fields stay unknown including missing unsafe enum and getter states', { timeout: 1000 }, () => {
+  let reads = 0; const cases = [{ exitCode: -1, signal: null }, { exitCode: 0 }, { exitCode: 0, signal: 'Bearer SECRET' },
+    { get exitCode() { reads += 1; throw new Error('WB82 secret'); }, signal: null }];
+  const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 4; index += 1) {
+    assert.ok(Date.now() < expires); const candidate = child(11); const ledger = createOwnedStopDiagnostics(new Map([[11, candidate]]), { token: () => stopToken });
+    const observation = ledger.begin(candidate); observation.terminal(cases[index]); observation.finish();
+    assert.equal(ledger.summary().attempts[0].observation, 'unknown'); assert.equal(ledger.summary().attempts[0].helperExit, 'unknown');
+  }
+  assert.equal(reads, 0);
+});
+
+test('diagnostic observation failure preserves cleanup audit first failure and final three mandatory gates', { timeout: 1000 }, async () => {
+  const cases = [false, true]; const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 2; index += 1) {
+    assert.ok(Date.now() < expires); const fixture = cleanupFixture(); const calls = []; let live = true;
+    const diagnostics = createOwnedStopDiagnostics(fixture.request.identities, { token: () => stopToken, observe() { throw new Error('WB82 observer'); } });
+    fixture.request.safeLiveIdentities = () => live ? [fixture.accepted] : [];
+    fixture.request.stopVerified = createOwnedStopBoundary({ ownerPid: 10, identities: fixture.request.identities, diagnostics,
+      helper: async () => { calls.push('stop'); live = false; if (cases[index]) throw new Error('WB82 original stop'); return { stopped: true }; },
+      recordEvent: () => { calls.push('event'); } });
+    const result = await verifyOwnedProcessCleanup(fixture.request);
+    assert.equal(result.proven, !cases[index]); assert.equal(fixture.snapshots(), 3);
+    assert.deepEqual(result.diagnostic.finalChecks, { remainingProcesses: 'passed', rootIdentities: 'passed', auditFailures: cases[index] ? 'refused' : 'passed' });
+    assert.equal(fixture.failures.length, Number(cases[index])); assert.equal(result.diagnostic.structure.stopAttempts, 1);
+    assert.deepEqual(calls, cases[index] ? ['stop'] : ['stop', 'event']);
+    assert.deepEqual(result.diagnostic.firstRecoverableFailure, cases[index] ? { subcheck: 'stop-verification', stage: 'round' } : null);
+  }
+});
+
+test('ambiguous return observation preserves original authority with diagnostic result unknown', { timeout: 1000 }, async () => {
+  const cases = [{ exited: true, stopped: true }];
+  const expires = Date.now() + 500;
+  for (let index = 0; index < cases.length && index < 1; index += 1) {
+    assert.ok(Date.now() < expires); const fixture = stopFixture({ returned: cases[index] }); let refused = false;
+    try { await fixture.stop(fixture.candidate); } catch { refused = true; }
+    assert.equal(refused, false); assert.equal(fixture.events.length, 1);
+    assert.equal(fixture.diagnostics.summary().attempts[0].observation, 'unknown');
+  }
+});
+
+test('runner consumes the injectable stop and helper result boundaries while retaining original evidence and limits', { timeout: 1000 }, async () => {
+  const source = await readFile(new URL('./run-query-host-real.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const observedStop = createOwnedStopBoundary\(\{ ownerPid: process\.pid, identities, helper, recordEvent: event, diagnostics: stopDiagnostics \}\)/u);
+  assert.match(source, /return await observedStop\(identity\)/u); assert.match(source, /return await readOwnedStopHelperResult\(/u);
+  assert.match(source, /assert\.equal\(terminal\.exitCode, 0\); assert\.equal\(terminal\.signal, null\); assert\.equal\(exceeded, false\); assert\.ok\(record\.identityRecorded\)/u);
+  assert.match(source, /observeOwnedStopDiagnostic\(stopObservation, 'stderr', chunk\)/u);
+  assert.match(source, /stopDiagnostics: stopDiagnostics\.summary\(\)/u); assert.match(source, /assert\.ok\(\+\+helpers <= 112\)/u);
+  assert.match(source, /const cap = 4 \* 1024 \* 1024/u);
+});
 
 const intermediate = { pid: 12, parentPid: 10, created, commandLine: 'complete current intermediate' };
 const pendingCandidate = { ...child(11, null), parentPid: 12, parentChain: [intermediate, owner] };

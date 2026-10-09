@@ -1,5 +1,13 @@
 # Workbench 持续推进队列
 
+WB82同片必要重验（2026-10-09）：新restore通过，但首format因托管observe-failed被安全中断，原结果UNKNOWN_INTERRUPTED未通过，细因unknown。51已记录身份fresh无存活/未知、2PID复用保留；失败原收据保留。三源码SHA不变/88复用，准确文档后完整restore-retry+原CI format-retry至多一次，只有两新门禁和全身份审计通过才本地提交；同片总预算8/计划5、09:45Z不扩，仍为本会话第1项，关闭后1/5。实际结果见WB82报告及artifacts/wb82-local-integration-20261009。
+
+WB82本地集成接续（2026-10-09；本会话第1项）：释放严格匹配，三最终源码SHA不变，复用88/88而不重实施/重测。旧08:25Z失败闭片保留；新09:45Z窗口的新工具micro/独审、最终九路径完整restore/原CI format、本地commit及已记录身份fresh退出以artifacts/wb82-local-integration-20261009真实收据/Git为准，未取得完整PASS不得提交。本片合计一项，关闭后本会话1/5；0actual/产品build，三宿主与原未知边界不提升。
+
+WB82闭片（2026-10-09；本会话1/5）：三源独审/唯一Node88/88及完整restore通过，Format未运行、无新commit。08:25Z门禁窗口剩余不足，300秒收紧scope接收已过期，未放行；精确撤销自有stage、index空，57已记录身份0自有存活/0unknown、1PID复用保留。已保存真实失败检查点，提前交接优先新窗口完整restore/原format及本地集成，源码未变复用测试，不重做WB81/80；详细事实见WB82报告/artifacts。
+
+WB82（2026-10-09；收尾后本会话1/5）：WB81释放匹配后实施已审三脚本诊断合同，最多384 attempt仅引用已接受candidate/helper；固定阶段/类别、私有失效及未finish unknown保持原return/throw/顺序/次数/权限/三门禁/runtime。唯一Node88/88（75旧+13新/48新场景）、六受控PS/三语法通过，0actual/build；[报告](wb82-vscode-stop-diagnostics.md)和独立收据记录最终门禁/提交/退出。下一片先核本提交与最新队列，再另冻真实Host窗口或有据缺口，不重做WB81/80或盲加actual。
+
 WB81（2026-10-09；本会话收尾后5/5）：已核WB57唯一stop-verification拒绝PID92952；整个stopVerified回调边界不等于OS stop成功后检查，helper79028仅为附近候选，旧原文/退出状态关联缺失。源/原证据SHA与现有75项覆盖分列，形成[下一三脚本诊断合同](wb81-vscode-stop-contract.md)：固定阶段和candidate/helper关联，不新增snapshot/stop/retry/权限。0源码变更/测试/actual/产品build；5/5收尾后新本地会话从0/5立即实施此合同。
 
 WB80（2026-10-09；本会话收尾后4/5）：新冻结37依赖/11源的唯一Native actual通过A/B→正常关闭→第二桌面被动恢复B→真实B查询→正常关闭；旧Release复用、0build，两close四端口释放/零fallback，独立终态复核另有收据。详见[报告](wb80-native-validation.md)。下一片从尚未闭合的真实缺口选取；OS文件对话框须先证明窗口可见/可激活，VS Code旅程先核最新队列；不重跑WB80已用尽actual，不升级WB77/79失败或整体三宿主状态。

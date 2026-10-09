@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M47 WB82 VS Code stop阶段诊断（2026-10-09）**：在既有三脚本增加最多384 attempt与已接受candidate/helper关联、固定JS/PS阶段及退出/结果类别；非法/缺失/getter/观察异常归unknown，原权限/异常/校验/三门禁保持。新增13项模拟测试，唯一文件88/88，0实际Host/产品build，原失败原因保持未知。
+
 - **M47 WB81 VS Code stop诊断合同（2026-10-09）**：追溯原stop-verification回调拒绝与缺失的helper关联，冻结三脚本固定阶段/结果观察及模拟验收范围；原FAIL、终止权限与现有测试保持，未增加实际运行或产品功能。
 
 - **M47 WB80 本机Native恢复证据（2026-10-09）**：增加独立证据入口，唯一真实Studio旅程通过A/B选择、双桌面、B被动恢复/真实查询和两次正常关闭；严格清理零fallback。复用旧Release，未新增恢复功能或产品build；原失败、Server优雅关停及三宿主/安装/AOT等边界分列。
