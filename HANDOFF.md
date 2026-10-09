@@ -1488,3 +1488,24 @@ CPU CIM第一次原3秒超时，cause UNKNOWN、actual0，失败收据保留；�
 根只集成两源及HANDOFF/ROADMAP/CHANGELOG/queue/validation/本报告共8路径。HANDOFF private候选严格HEAD+本段，完整现有工作prefix和任何外来追加保护，外国博客/CSDN/OSChina/ABP不stage。最终完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/实值、工作区加载警告、精确树/独审/本地commit及post见本片收据/Git，未取得完整PASS不能提交，源码再改须重验；仅已记录完整身份的退出证据，无whole-session/未观察短进程自由声明。origin/parity-results保持0061d6d78591fb08493f473d3231ca42303faae1，無push/发布/部署/安装/外发。
 
 本次失败检查点合计第2项，闭合后本会话2/5，保持同一个workbench ACTIVE30分钟/本chat，不提前滚动。下一片先冻结preflight helper整体20秒与实际snapshot调用边界及计时/关联缺口，有据调查后再定下一合同；不把CPU 3秒超时当实跑根因，不盲重跑耗尽actual、不重复WB82/80交付。M47九模型/七导航/Graph Beta及MQ database identity含database+Topic、instance .system/mq保持；三宿主/OS文件/安装/ExtensionHost完整旅程/AOT/固定硬件/长稳/发布仍分列。固定PS7/count+wall/cancel/progress/完整身份父链/finally仅自有树继续；旧拒删Temp/WB40runtime/foreign/共享缓存/交付物保护，禁止Graphify/广域扫描/按名kill。
+
+## WB84 VS Code preflight helper合同（2026-10-09；本会话第3项，闭合后3/5）
+
+从WB83本地8cd20c5d2639a3305af44e0fab3e3d9b4c78bee5/本会话2/5接续；专属调查/必要修正/独审/根六文档集成合计第3项，0源码变更/actual/Node/TS/新.NET产品build。新窗口artifacts/wb84-vscode-preflight-contract-20261009，根10:55Z/分析10:38Z/复核10:48Z，最多6managed仅micro/restore/format；旧WB83截止不延长。
+
+已核helper实际Promise.race timer6000ms在spawn/stdin/streams设置后，Host activation/public commands20000ms另列，run.commandMilliseconds不能当helper20秒。入口snapshot→runner/parentChain→audit(first)→listeningPorts→runtime。原PID13980 snapshot后，runner09:46:40.452Z/audit40.459Z，首次PID72608 launch40.662Z/accepted42.888Z的完整command含Get-NetTCPConnection，下一cleanup snapshot46.684Z。源码顺序/command/6.022秒start差支持初始ports helper wait关联推断，不定位内层CIM/端口query/序列化/退出/pipe/timer调度根因。初始调用未传signal，通用helper另有同消息abort；CPU CIM原3秒admission失败独立，原因unknown。
+
+后项PID72608 launch09:47:05.264Z/identityRecordedfalse，前stdout4825B/incomplete与后4829B/complete、最终closedtrue不得合并或追认早期wait成功。缺immutable callId/逐次timer-close/PS阶段，不由replacement标签猜PID复用或变化字段。WB83原FAIL/preflight/helper_deadline、Server/Host/API null、phase/history0、五cleanup/output flags false、remaining/root/audit=refused/passed/passed、三轮/四stop/0stopFailure/remaining1保持；四stop诊断complete只记录三already_exited/一stopped。
+
+下一JS-only三脚本观察合同已冻结但未实施：runId+既有ordinal1..112/callId，固定operation/phase，仅已接受tuple引用，单调elapsed的entry/spawn/identity/timer-arm/timer-vs-abort/close/terminal/parse/finally；112聚合call记录、每项1KiB/总64KiB/投影50ms且原filecap保持。PS producer/stdout/stderr/parser逐byte保持，不增加CIM/snapshot/端口/等待/重试/stop/预算/权限，不改变原错误返回和三门禁。下一片≤16新顶层/48场景，Node命名文件120秒一次+≤1次新失败必要修复重跑，三语法各30秒，0actual/TS/产品build，另冻当前HEAD/SHA/45分钟总墙钟及32input/10search/120result/24shell。详见本片报告/root next-contract.json。旧WB82stop/WB80Native不重做；内层阻塞unknown，PS producer/解析观察须另有理由与兼容合同。
+
+19输入初验，闭合18immutable SHA及原HANDOFF507707字节前缀SHA5D31581…通过，另会话2680字节Weibo追加逐byte保护。初始巨大工具输出截断后必要三chunk读取完整290720字符/507707UTF8字节；received误写BOM3元数据另由exact纠正actual0，原收据保留，不宣称历史全文语义审计。初始launch路径误用actual.launch，经固定17条枚举纠正real-final；根第一次integration文本producer exit1/output0/causeUNKNOWN未写候选，改结构化JSON补产；分析早期3短shell身份缺口、工具写前准备失败均记录。完整writer/managed身份fresh-post另核；不声明全会话/未观察短进程自由，不按名kill。
+
+根只六文档；private HANDOFF严格HEAD+本段，完整工作prefix和foreign博客/CSDN/OSChina/ABP/Weibo追加保护，不stage外来hunk。最终完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/、警告、精确树/独审/本地commit/post/3of5以本片收据/Git为准，未PASS不能commit，最终tree再变重验。parity0061d6d78591fb08493f473d3231ca42303faae1保留；无push/发布/部署/安装/外发。same workbench ACTIVE30分钟/本chat，当前不滚动。
+
+下一片只实施已审逐调用观察并定向模拟验收，不盲重WB83actual；M47九模型/七导航/Graph Beta/MQ scope数据库、identity含database+Topic、persistence实例.system/mq保持，三宿主/真实Server/OS对话框/安装/完整ExtensionHost/AOT/硬件/长稳/发布分列。固定PS7、count+wall/cancel/progress/backoff、完整PID创建命令父链/finally仅自有树；保护旧拒删Temp/WB40runtime/foreign/cache/deliverables，禁Graphify/广域扫描/按名kill。
+
+
+## WB84 门禁窗口失败闭片与提前接续
+
+WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。

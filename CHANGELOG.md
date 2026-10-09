@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- 记录 WB83 preflight helper6秒与Host命令20秒的独立边界、首次ports helper等待关联及PID重复调用缺口，冻结保持原权限/预算的JS逐调用观察合同（WB84；尚未实施）。
 - **M47 WB83 VS Code 独立真实窗口检查点**：复用既有stop/history/elapsed合同，冻结新窗口并取得preflight helper_deadline失败及四条真实stop诊断；原cleanup失败与未知边界保留，未验收Query/history/Code旅程。
 
 - **M47 WB82 VS Code stop阶段诊断（2026-10-09）**：在既有三脚本增加最多384 attempt与已接受candidate/helper关联、固定JS/PS阶段及退出/结果类别；非法/缺失/getter/观察异常归unknown，原权限/异常/校验/三门禁保持。新增13项模拟测试，唯一文件88/88，0实际Host/产品build，原失败原因保持未知。
