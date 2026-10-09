@@ -1376,3 +1376,18 @@ WB77未完成集成已在本替代会话闭合为25d274ef2c28d50b0cef91dfd00c932
 最终只提交9自有路径：新observer/test、runner、WB78报告及五共享docs。HANDOFF只HEAD blob加本段，所有外来发布/博客与HANDOFF字节保留，不whole-add/reset；最终树完整restore和原CI Format Check、精确staged/freeze/head/parity与退出核验通过才本地commit。实际命令/提交/闭合计数见本片restore-final.result.json、format-final.result.json、commit-checkpoint.json；本段不预填尚未产生结果。整体实现/修复/验证/集成计同一第2片，提交后2/5，本会话仍有3片额度，同workbench ACTIVE/30分钟/当前thread。
 
 后续先以明确合成序列化fixture及安全观察证据评审派生字段disk接受合同，未知字段仍拒绝；随后另冻结新源码/依赖/runtime/资源/预算的真实Native窗口，不复用WB77 actual1/1或旧准入。真实Server/三宿主、恢复/正常关闭、OS文件、安装/ExtensionHost/AOT/固定硬件/长期/发布分别待验；Graph Beta、MQ database identity及instance .system/mq不变。固定PS7/有界count+wall/cancel/progress/完整身份父链/finally，禁止Graphify/广域扫描/安装，保护旧policyTemp/WB40/其它会话/共享缓存/交付物/parity，无push/部署/安装/发布/外发。
+
+
+## WB79 真实落盘夹具与磁盘派生身份合同（2026-10-09；本会话收尾后3/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3从2/5接续，前两提交25d274ef与11beed0e保持。WB79的实现、测试、包装器修复、独立复核及精确本地集成合计第3个独立任务；无新增actual。两专属子智能体分别完成C#三路径和JS三路径，第三只读复核，均已结束；根串行维护共享文档、门禁及提交。根证据目录artifacts/wb79-serialized-library-contract-20261009，8受管命令/3Node测试/最多2C#定向构建、06:43Z截止；轮询、修复和重试不另计数。
+
+新增真正调用StudioConnectionLibrary.SaveAsync读取磁盘文件的测试，以完整JSON和值比对C#/Node共用固定fixture；root4/profile9/两个identity各4字段，C#20/20、0fail/skip，实际一次dotnet test构建Studio/Server及引用项目。disk接受legacy双缺省或完整一致的派生字段对，逐值精确匹配host/profileId/baseUrl/database，半对/null/未知/缺字段/大小写不一致均拒绝；投影仍不含identity，不能代替native ack。Node共享fixture微试1/1，最终37场景+15观察+11precondition+17preparation共80/80、0fail/skip/cancel；A/B、两desktop、被动恢复、B query、fresh ack和normal-close原断言保留。生产C#序列化/runner/进程/evidence/observer六源与HEAD相同，未给安装/AOT/真实宿主记分。
+
+C#测试exit0但包装器缺完整tuple并留下cleanup-error，原passed=false完整保存；fresh仅证明12个已记录身份不存在。首次完整Node被相同信息的包装器异常中止exit-1，3个已验证自有身份终止、2absent，fresh再核这5个无存活/unknown，不能写完整NodePASS。原错误没有PID，不追认为已证瞬态原因。独审修复task-local包装器的启动登记失败记账、清理链上限与不完整缓存行单次fresh/缓存边界；旧script和FAIL只读保留，新v2经过micro、唯一Node完整重跑通过且6身份自然退出，未触发fresh缺字段分支，不冒称异常分支动态覆盖。所有新鲜审计只证明已记录身份，wholeSessionOrphanFreedomProved=false。
+
+本片仅12路径；HANDOFF提交用HEAD blob加本段，完整工作前缀及并发追加/外来发布文件保留。最终完整restore/CI原Format Check、精确stage/diff与提交分别绑定到本片restore-final.result.json、format-final.result.json、staged-tree.json、commit-checkpoint.json及post-commit-verification.json，不存在收据不得预填通过。准确新commit、主分支ahead和最终3/5计数以实际提交收据为准；不whole-add HANDOFF、不重置index、不纳入其它会话文件。origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，禁止合并或覆盖。
+
+下一独立任务是依据实际落盘合同冻结新Native验证窗口：重新核源码/依赖/runtime/资源/预算，验证普通A/B、双desktop、B查询、正常关闭和数据库恢复；不盲重跑WB77耗尽actual，不能认定其旧被拒字段原因。WB77的FAIL/normalExit=false/cleanup证据不改；WB61建表HTTP400与修后0actual、三宿主/Server/文件对话框/安装/ExtensionHost/AOT/固定硬件/长期/发布仍分别待验。Graph Beta、MQ database identity及instance .system/mq保持。workbench仍同id ACTIVE每30分钟，当前3/5未到滚动上限，不创建重复自动化或新会话。
+
+固定PS7、所有count+wall/cancel/progress、完整PID/创建时间/命令/父链核实及finally自有树要求继续；禁Graphify、广域扫描、找Windows gcc、猜PCCT及未授权安装。只保留任务日志/收据/交付物，保护旧拒删Temp、WB40runtime、其它会话和共享缓存；不按名kill或宽泛删除。没有push、部署、安装、发布、外部发送授权推导。当前HANDOFF与最终提交的准确关系以private blob和工作前缀收据复核，历史巨大HANDOFF语义完整审计未声明。

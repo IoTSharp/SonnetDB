@@ -1,5 +1,7 @@
 # ROADMAP — SonnetDB 4.5
 
+WB79（2026-10-09；本会话收尾后3/5）：真实 C# SaveAsync 落盘与共享 JSON 夹具一致，Studio 连接库定向20/20；disk 校验现接受完整且逐值一致的已知派生身份对，保留旧无派生字段形态、未知字段拒绝及精简投影。Node完整80/80通过；此前C#包装器身份观察FAIL和首次Node中止分别保留，不能追认为已证实的瞬态原因。0Native actual，真实恢复仍未验；最终门禁/精确本地提交及新鲜已记录身份核验见[报告](docs/design/m47-unified-management-workbench/wb79-serialized-library-contract.md)。
+
 WB78（2026-10-09；本会话闭合后2/5）：在WB77本地收尾`25d274ef`后补连接库安全字段类别观察，区分已知存储/派生字段及未知数量，不输出未知名字或值；原disk拒绝和进程门禁保持。新增14项加既有60项合同74/74通过，终态保存保留失败结果，0actual/产品build。最终门禁与精确本地提交见[报告](docs/design/m47-unified-management-workbench/wb78-library-field-observation.md)；实际被拒字段、恢复及正常退出仍未证。
 
 WB77（2026-10-09；闭合后本会话1/5）：wrapper修复/两case微试/独审/micro与语法通过，CPU首次超时后唯一原条件复核通过。唯一Native在第一次A选择前的B preparation磁盘字段守卫失败；fresh PUT/DOM局部通过，恢复未到达、normalExit=false，严格故障cleanup=true。最终门禁与owned本地集成按[接续报告](docs/design/m47-unified-management-workbench/wb77-native-continuation.md)及收据记录；已有14/41/38不重跑、原FAIL不升级，同一workbench仍ACTIVE/每30分钟。

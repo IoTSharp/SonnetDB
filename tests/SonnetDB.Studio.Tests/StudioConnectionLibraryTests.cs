@@ -41,6 +41,39 @@ public sealed class StudioConnectionLibraryTests
         Assert.Equal("Default:MixedCase", saved.Identity.Database);
     }
 
+    /// <summary>
+    /// 核对真实保存文件与 Native 场景共用的确定性连接库夹具，包括派生身份。
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_WithManagedLocalProfile_PersistsSharedNativeFixture()
+    {
+        using var fixture = new LibraryFixture();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var local = new StudioConnectionProfile("managed-local", "Managed Local", "managed-local",
+            LibraryFixture.ManagedUrl, "MixedCaseDb", "current-session", 1, 2);
+        var snapshot = new StudioConnectionLibrarySnapshot([local], local.Id, local.DefaultDatabase);
+        var expectedPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "studio-managed-local-library.json");
+
+        await fixture.Library.SaveAsync(snapshot, cancellation.Token);
+
+        const long maximumFixtureBytes = 4096;
+        Assert.InRange(new FileInfo(expectedPath).Length, 1L, maximumFixtureBytes);
+        Assert.InRange(new FileInfo(fixture.FilePath).Length, 1L, maximumFixtureBytes);
+        var expectedJson = await File.ReadAllTextAsync(expectedPath, cancellation.Token);
+        var actualJson = await File.ReadAllTextAsync(fixture.FilePath, cancellation.Token);
+        var options = new JsonDocumentOptions { MaxDepth = 8 };
+        using var expected = JsonDocument.Parse(expectedJson, options);
+        using var actual = JsonDocument.Parse(actualJson, options);
+        var actualProfile = Assert.Single(actual.RootElement.GetProperty("profiles").EnumerateArray());
+
+        Assert.Equal(4, actual.RootElement.EnumerateObject().Count());
+        Assert.Equal(9, actualProfile.EnumerateObject().Count());
+        Assert.Equal(4, actual.RootElement.GetProperty("activeIdentity").EnumerateObject().Count());
+        Assert.Equal(4, actualProfile.GetProperty("identity").EnumerateObject().Count());
+        Assert.True(JsonElement.DeepEquals(expected.RootElement, actual.RootElement),
+            "实际保存文件必须与共享夹具的完整字段和值一致。");
+    }
+
     [Fact]
     public async Task SaveAsync_WithUnknownActiveProfile_DropsPreviousDatabaseContext()
     {

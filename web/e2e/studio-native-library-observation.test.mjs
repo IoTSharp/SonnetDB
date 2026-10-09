@@ -21,16 +21,29 @@ test('ordinary disk shape emits field names only and preserves the strict projec
   assert.doesNotMatch(JSON.stringify(observations), /secret-|managed-local|current-session/u);
 });
 
-test('known derived fields are observable while the original disk refusal remains', { timeout: 1000 }, () => {
+test('known derived field categories do not authorize incomplete identities', { timeout: 1000 }, () => {
   const value = fixture(); value.activeIdentity = { secret: 'secret-derived' }; value.profiles[0].identity = { secret: 'secret-derived' };
   let observed;
-  assert.throws(() => projectObservedDatabaseDiskSnapshot(value, (entry) => { observed = entry; }), /unexpected library fields/u);
+  assert.throws(() => projectObservedDatabaseDiskSnapshot(value, (entry) => { observed = entry; }), /complete public identity/u);
   assert.deepEqual(observed.library.derivedFields, ['activeIdentity']);
   assert.deepEqual(observed.profile.derivedFields, ['identity']);
   assert.equal(observed.library.unknownFieldCount, 0); assert.equal(observed.profile.unknownFieldCount, 0);
   assert.doesNotMatch(JSON.stringify(observed), /secret/u);
   delete value.activeIdentity;
-  assert.throws(() => projectObservedDatabaseDiskSnapshot(value, () => {}), /unexpected profile fields/u);
+  assert.throws(() => projectObservedDatabaseDiskSnapshot(value, () => {}), /paired disk identity/u);
+});
+
+test('valid derived identities are checked separately while their observation contains no values', { timeout: 1000 }, () => {
+  const value = fixture(); const expected = projectDatabaseSnapshot(value, { disk: true });
+  const identity = { host: 'studio-desktop', profileId: 'managed-local', baseUrl: value.profiles[0].baseUrl, database: value.activeDatabase };
+  value.activeIdentity = identity; value.profiles[0].identity = { ...identity };
+  let observed;
+  assert.deepEqual(projectObservedDatabaseDiskSnapshot(value, (entry) => { observed = entry; }), expected);
+  assert.deepEqual(observed.library.derivedFields, ['activeIdentity']);
+  assert.deepEqual(observed.profile.derivedFields, ['identity']);
+  assert.doesNotMatch(JSON.stringify(observed), /secret|studio-desktop|managed-local/u);
+  value.profiles[0].identity.database = 'foreign-database';
+  assert.throws(() => projectObservedDatabaseDiskSnapshot(value, () => {}), /derived disk identity/u);
 });
 
 test('unknown sensitive property names and values are counted without being retained', { timeout: 1000 }, () => {
@@ -118,7 +131,7 @@ test('cancellation and monotonic 100ms deadline fail closed without replacing va
   assert.deepEqual(projectObservedDatabaseDiskSnapshot(value, () => {}, { signal: controller.signal }), projectDatabaseSnapshot(value, { disk: true }));
 });
 
-test('field observation never relaxes known derived, unknown-field or profile-count guards', { timeout: 1000 }, () => {
+test('field observation never relaxes invalid derived, unknown-field or profile-count guards', { timeout: 1000 }, () => {
   for (const change of [(value) => { value.activeIdentity = {}; }, (value) => { value.secret = 'secret'; },
     (value) => { value.profiles[0].identity = {}; }, (value) => { value.profiles = []; }]) {
     const value = fixture(); change(value); let before;

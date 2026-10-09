@@ -27,6 +27,12 @@
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\web\e2e\fixtures\studio-managed-local-library.json"
+          Link="Fixtures\studio-managed-local-library.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="RecordStudioTestServerPath" BeforeTargets="GetAssemblyAttributes">
     <MSBuild
       Projects="$(MSBuildThisFileDirectory)..\..\src\SonnetDB\SonnetDB.csproj"

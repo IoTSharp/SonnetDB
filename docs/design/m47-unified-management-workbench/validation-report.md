@@ -1,5 +1,7 @@
 # M47 原型检查记录
 
+WB79（2026-10-09）：新增真实SaveAsync落盘fixture测试，C#20/20、0fail/skip；Node微试1/1，最终37场景+15观察+11precondition+17preparation=80/80、0fail/skip/cancel。C#命令exit0但包装器缺tuple/cleanup-error保留；首次完整Node被包装器中止exit-1，修后唯一完整重跑通过。独立fresh12及5已记录身份无存活/unknown，不证明未记录后代或全过程完整。0Native actual，一次定向test/build包含Studio/Server引用项目；完整restore/原Format Check及提交见[报告](wb79-serialized-library-contract.md)，不得计作真实宿主、安装或AOT证据。
+
 WB78（2026-10-09）：最小1例通过，首轮32旧+12新=44/44；复核补中途时钟回退及既有终态writer合同后，最终14新+60旧=74/74、0fail/skip/cancel。五个原生产序列化/快照/进程/证据实现与HEAD一致，0actual/产品build；三语法检查通过，最后完整restore/原format与提交收据见[报告](wb78-library-field-observation.md)。WB77`25d274ef`的原Native FAIL、最后format包装器观察FAIL及fresh100身份退出核验分别保留，不升级真实恢复或全过程证明。
 
 WB77（2026-10-09）：NullString两case、metadata逆投影、独审及managed micro/语法通过；初CPU超时保留，唯一原条件准入复核通过。唯一Native原FAIL：fresh B PUT/DOM局部通过，磁盘字段守卫在firstA前拒绝；恢复未到达、normalExit=false，严格故障cleanup=true/9个fallback/452项移除。根fresh42身份/5retained无原存活、1个PID复用保留；最终门禁与owned集成见[报告](wb77-native-continuation.md)。巨大历史全文语义未完整接收/全过程孤儿自由未证，原WB70/76 FAIL不升级。

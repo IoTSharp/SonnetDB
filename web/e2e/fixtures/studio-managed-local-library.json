@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    {
+      "id": "managed-local",
+      "name": "Managed Local",
+      "kind": "managed-local",
+      "baseUrl": "http://127.0.0.1:5080",
+      "defaultDatabase": "MixedCaseDb",
+      "tokenMode": "current-session",
+      "createdAt": 1,
+      "updatedAt": 2,
+      "identity": {
+        "host": "studio-desktop",
+        "profileId": "managed-local",
+        "baseUrl": "http://127.0.0.1:5080",
+        "database": "MixedCaseDb"
+      }
+    }
+  ],
+  "activeProfileId": "managed-local",
+  "activeDatabase": "MixedCaseDb",
+  "activeIdentity": {
+    "host": "studio-desktop",
+    "profileId": "managed-local",
+    "baseUrl": "http://127.0.0.1:5080",
+    "database": "MixedCaseDb"
+  }
+}
