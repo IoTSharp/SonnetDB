@@ -1476,3 +1476,15 @@ failed-format-identity-audit原passed=false与failedCommandCount1保持；fresh5
 同一个WB82集成任务继续，未关闭或另计片；源码三个SHA保持，0Node重跑/actual/产品build。新增准确文档后重冻最终九路径、完整restore及原format一次；managed总上限8、已有3、追加最多2（计划总5），format追加至多1、原600+60/300+60和09:45Z根截止保持。新repair-review只审必要适配/新候选，不覆盖CBC旧候选独审或旧source88证据。有效最终门禁、警告、commit/tree与进程fresh/post见新retry收据、repair-review与commit/post实际状态；未完整通过仍不能提交。
 
 private HANDOFF继续只含HEAD+旧WB82两段+本会话两段，完整工作prefix及任何foreign追加保护；只九路径/hunks、parity0061d6d7、无push发布部署安装外发。失败子阶段、旧WB57真实FAIL/unknown、三宿主/OS/安装/AOT/硬件/长稳/发行物边界不提升。关闭后本会话1/5，下一次先核真实本地提交/有效门禁与全部已记录长进程退出，再据最新队列独立冻结下一项。
+
+## WB83 VS Code 独立真实窗口（2026-10-09；本会话第2项，闭合后2/5）
+
+从本地8613b098ba1332a56d321c6b02512ee5c278b01f接续，WB82集成已完成、本会话原1/5。新冻结artifacts/wb83-vscode-host-window-20261009，10:25Z截止、managed最多16、TS1/actual1/新.NETbuild0/Node重跑0。专属代理仅迁移runner和Host两源窗口标识/库/种子/端口18483/18484，逆变换精确等于HEAD；原WB82诊断、WB58 history及WB59 elapsed实现保持，独审后微试/语法/唯一TS均PASS，35明确输入/产物冻结，未证明完整runtime闭包或旧Server的source-to-binary等价。
+
+CPU CIM第一次原3秒超时，cause UNKNOWN、actual0，失败收据保留；同条件唯一复核通过，未提高超时/放宽85CPU/12queue/2GiB条件或增加actual额度。唯一actual query-host-real-ff9f98de-3613-4858-9787-3f3e582cd949 原/终态均FAIL，在preflight报helper_deadline/Error；wrapper naturalExit=true/exit1/62.8959903秒、observed18、failure=null。Server/Code旅程未建立，Code退出/Host/API仍null、phase/history0；runtimeCreated=false且runtime目录不存在。原processCleanupProven/runtimeRemoved/portsReleased/helperCleanupProven/outputComplete全部false，三终态remaining/root/audit=refused/passed/passed，rounds3/stop4/stopFailures0/remaining1/root0；最终process-events另记identity/pid72608/recorded_identity_changed_replacement_preserved一项拒绝。不能推整体CIM根因、权限、PID复用或旧WB57因果。
+
+新stop ledger observation=complete仅证明四条诊断记录：全部JS result_contract/helper zero/signal none，三already_exited、一PS stop_after/result stopped；overflow=false。它不证明完整回收成功。根随后fresh24已记录tuple无存活/未知，4managed含1原actual失败，stop/delete0；later absence不升级原false。五payload/manifest104786字节与terminal绑定，旧原始字节保留。根首次审计调用误用LASTEXITCODE null而误报拒绝、首次inspector用了保留变量Host；已纠正调用/改hostEvidence，原调用失败另留，不重跑actual或改原收据。
+
+根只集成两源及HANDOFF/ROADMAP/CHANGELOG/queue/validation/本报告共8路径。HANDOFF private候选严格HEAD+本段，完整现有工作prefix和任何外来追加保护，外国博客/CSDN/OSChina/ABP不stage。最终完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/实值、工作区加载警告、精确树/独审/本地commit及post见本片收据/Git，未取得完整PASS不能提交，源码再改须重验；仅已记录完整身份的退出证据，无whole-session/未观察短进程自由声明。origin/parity-results保持0061d6d78591fb08493f473d3231ca42303faae1，無push/发布/部署/安装/外发。
+
+本次失败检查点合计第2项，闭合后本会话2/5，保持同一个workbench ACTIVE30分钟/本chat，不提前滚动。下一片先冻结preflight helper整体20秒与实际snapshot调用边界及计时/关联缺口，有据调查后再定下一合同；不把CPU 3秒超时当实跑根因，不盲重跑耗尽actual、不重复WB82/80交付。M47九模型/七导航/Graph Beta及MQ database identity含database+Topic、instance .system/mq保持；三宿主/OS文件/安装/ExtensionHost完整旅程/AOT/固定硬件/长稳/发布仍分列。固定PS7/count+wall/cancel/progress/完整身份父链/finally仅自有树继续；旧拒删Temp/WB40runtime/foreign/共享缓存/交付物保护，禁止Graphify/广域扫描/按名kill。
