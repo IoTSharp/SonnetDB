@@ -1,5 +1,9 @@
 # M47 原型检查记录
 
+WB77（2026-10-09）：NullString两case、metadata逆投影、独审及managed micro/语法通过；初CPU超时保留，唯一原条件准入复核通过。唯一Native原FAIL：fresh B PUT/DOM局部通过，磁盘字段守卫在firstA前拒绝；恢复未到达、normalExit=false，严格故障cleanup=true/9个fallback/452项移除。根fresh42身份/5retained无原存活、1个PID复用保留；最终门禁与owned集成见[报告](wb77-native-continuation.md)。巨大历史全文语义未完整接收/全过程孤儿自由未证，原WB70/76 FAIL不升级。
+
+WB76（2026-10-09）：最新远端获取与合并已确认 `main=origin/main=5424b666`；新窗口复用已经集成的四 phase／160 槽观测，仅加专属 runner 证据入口、条件标签和 .62 文件前置说明。原恢复、normalExit、cleanup 与全过程缺口不升级；资源初 PerfOS_CPU 3s 超时和后续有界 OS/CPU 5s 成功分列。源码／工具独审、micro／语法、新鲜准入、唯一 actual、最终门禁与本地集成以[WB76 报告](wb76-native-actual-window.md)及独立收据为准。
+
 WB74（2026-10-08）：修复本地共享 HANDOFF 的 owned 内容守卫，固定完整工作前缀、精确 owned 段、private blob/index tree 与其它提交路径，仅允许未暂存尾追加。继承 WB73 PS14/Node41，不重测、不改六源，0actual/产品build；原 WB73 集成失败保留。新微试、完整门禁与本地提交以 [WB74 报告](wb74-owned-handoff-integration.md) 和独立收据为准；不预填完成。
 
 日期：2026-10-05（Asia/Shanghai）。结论：**外轮廓、导航、共享流程与状态语义已获用户确认，作为生产实现基线；逐页像素与 WB-05 仍按切片验收，不能视为全量生产完成。**

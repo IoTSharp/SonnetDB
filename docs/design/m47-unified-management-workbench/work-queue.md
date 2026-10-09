@@ -1,5 +1,9 @@
 # Workbench 持续推进队列
 
+WB77（2026-10-09；闭合后1/5）：released移交后完成wrapper最窄修复/两case/独审/managed micro/语法；CPU首次5秒超时保留，唯一原条件准入复核通过。唯一actual为174.468秒原FAIL，B preparation于firstA前被library字段守卫拒绝，fresh PUT/DOM不代替磁盘确认；selections0/launch1、恢复/查询null、normalExit=false、严格故障cleanup=true。最终本地门禁/owned集成见[报告](wb77-native-continuation.md)及收据；下一片先核真实schema与安全字段名观察，不盲重跑、改未知字段权限或重复已有14/41/38。
+
+WB76（2026-10-09；本会话从1/5接续）：先获取并合并最新 `origin/main`，双方仍为 `5424b666`、0/0。新冻结 `artifacts/wb76-native-actual-20261009`，最多14 managed／1 actual、原900s与90s回收、outer1020s；仅 runner 专属证据入口、条件标签和 .62 文件前置文案。先独审源／工具、micro／语法及新鲜32文件／四端口／资源，再验普通 A→B、两 desktop、恢复 B、真实 B 查询、正常关闭与严格 cleanup。已有 PS14/Node41/guard38不因接续重跑，原失败保持，进度和最终证据见[WB76 报告](wb76-native-actual-window.md)。
+
 WB74（2026-10-08）：修复本地共享 HANDOFF 的 owned 内容守卫，固定完整工作前缀、精确 owned 段、private blob/index tree 与其它提交路径，仅允许未暂存尾追加。继承 WB73 PS14/Node41，不重测、不改六源，0actual/产品build；原 WB73 集成失败保留。新微试、完整门禁与本地提交以 [WB74 报告](wb74-owned-handoff-integration.md) 和独立收据为准；不预填完成。
 
 状态：2026-10-06 三宿主阶段实施中。用户授权持续推进、子智能体独立实施、无冲突并行、任务闭环后本地提交，并确认本轮收尾后新建会话、转移同一每30分钟 heartbeat。任务状态以当前文件、验证记录和提交为准，本文的待办不表示已完成。

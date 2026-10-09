@@ -1289,3 +1289,76 @@ workbench同一heartbeat保持PAUSED，不新产品任务、不新接续、不�
 - 本次只处理提交、远端合并和推送，不新增产品实施或发布请求；workbench 暂停状态保持，后续 Native 真实旅程、安装/AOT、硬件及长期验收继续按前述交接安排。
 
 - 当前未提交改动已形成提交 6ec257ef；远端木垒提交的 CHANGELOG/HANDOFF 追加冲突已合并，双方条目完整保留，ROADMAP 与两份现场报告正常合入。此合并提交随后推送 origin/main，未运行额外检查。
+
+## 2026-10-09 WB76 恢复与最新代码同步（本会话仍1/5）
+
+本会话01a119bb-6f5f-7df2-b86b-c72eb5245cc1继承已闭合WB75计数1/5；用户先要求获取并合并线上代码。固定PS7.6.6/Git2.56，实际fetch origin/main成功；merge --ff-only origin/main报告Already up to date，HEAD与origin/main均5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind0/0，parity-results仍0061d6d78591fb08493f473d3231ca42303faae1。未push或新增提交；博客园/CSDN/微博等并发文件完整保留。同步是WB76前置，不重复计算产品任务。
+
+最新AGENTS根全文及HANDOFF/ROADMAP/queue/validation专属分块全文接收完成，HANDOFF两次foreign尾追加2070B/2195B保留。WB75旧private/八段/15路径已被另一授权提交接纳，不再重建。workbench同一heartbeat实读ACTIVE、每30分钟、当前thread，未创建重复自动化。WB73 PS14/Node41及WB74guard38仅继承，不因恢复重测。
+
+WB76新合同artifacts/wb76-native-actual-20261009/task-contract.json：根截止04:50Z，本片最多14managed/1actual、原Native900s及90s回收/outer1020s、0产品build。仅runner新证据入口/标签和.62前置文案，不能当runtime选择绑定；source/tools独审、micro/语法及新鲜32文件/4端口/资源准入后才启动真实A/B、双desktop/B查询/恢复/正常退出旅程。初资源PerfOS_CPU3s查询超时保留；有界OS及CPU5s复核成功，内存约31GB可用/CPU30%，不是实际准入。新鲜.62明确文件存在；实际CDP与路径必须单列。
+
+仅本地owned集成，root串行docs/stage/完整restore和CI原format/commit。七导航/九模型/Graph Beta/MQ database identity+instance .system/mq不变；安装/ExtensionHost/AOT/固定硬件/长期/发布独立，原WB70失败/normalExit/cleanup及whole-session过程缺口不升级。机器有界count+wall/cancel/progress、固定PS7、完整身份/父链核实后仅自有树finally，禁Graphify/广域工具扫描/找gcc/猜PCCT/安装，保护旧policyTemp/WB40/其它会话/缓存交付物及parity；无部署/发布/外部发送。此开始段不预填WB76结果。
+
+## 2026-10-09 用户要求的最新代码拉取与线上 main 合并核验
+
+- 本轮仅处理“先获取最新代码，把线上代码进行合并”。2026-10-09 再次实际 fetch origin main 成功，随后 merge --ff-only origin/main 返回 Already up to date。当前 main/HEAD 与 origin/main 均为 5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind 0/0；没有合并冲突、没有新增合并提交、未 push。origin/parity-results 保持 0061d6d78591fb08493f473d3231ca42303faae1，没有参与合并。
+- 保留当前 Native/WB76 及博客/CSDN/OSChina/微博相关全部已存在的未提交修改与新增文件，未 stash/reset/stage、未启动构建或测试。本轮拉取/合并各有实际 Git PID、启动时间、参数、父 PID、退出码及 stdout/stderr 记录，两条命令均 exit 0；证据目录 artifacts/code-sync-20261009-04670ea4a0bb4f9c8f60ce97232df537。同步核验不计作新的产品任务，WB75 已闭合 1/5，WB76 仍未闭合。
+- 承接 WB76 的未完成边界：第一次 run-owned.ps1 的 wrapper-micro 调用在 File.Replace 的 backup 路径参数处报 The path is empty，发生在受管子进程启动前。预算文件仍 count 0 / labels [] / actualCount 0 / status open，但有一次失败的 wrapper 调用，不得把计数 0 写成无失败；尚未完成 micro/source-syntax/preflight/Native actual/restore/format/commit。工具修复尚未执行；原失败、source-review PASS、tools-review phase1 超时及 phase2 PASS 必须分别保留。phase2 合同截至 04:18Z，后续修复或执行需要新的有界有效审查，根合同仍截至 04:50Z，不得追认过期审查或运行。下一步 Native 工作先核预算锁/临时文件及失败归属，再窄修 File.Replace、做微输入验证与独立复核，通过后才推进实际准入。
+- HANDOFF 本段在独占写入句柄下追加，已核先前全文接收的 401769 字节前缀 SHA 与记录一致，所有并发追加内容逐字保留。本段暂不提交：本轮只要求同步，仓库仍有其它会话的未提交工作，未执行提交所必需的最终树 restore/CI Format Check；没有宣称 WB76 或全工作树验证完成。
+
+## 2026-10-09 用户要求立即迁移 workbench 定时任务（旧会话结束 2/5，新会话 0/5）
+
+用户明确要求“现在创建新会话，在新会话里继续当前定时任务要做的事情，旧会话终止掉”。已实际创建 SonnetDB 本地接续会话 01a11ee9-db5b-7420-85fa-f0d8f7077a11，使用同一 D:/source/SonnetDB 工作区，不新建 worktree/clone。新会话创建提示已授权立即从完整最新交接/AGENTS/ROADMAP/队列接收及范围判断开始；在 transfer-state released 前只读，避免两根同时写。旧会话 01a119bb-6f5f-7df2-b86b-c72eb5245cc1 此次提前交接结束为 2/5：WB75 已闭合，WB76 因 wrapper 在受管子进程启动前 File.Replace 空 backup path 失败形成检查点并结束，按失败切片计一个；同步、轮询、审查与修复准备不另计数。新会话从 0/5 开始，接续 Native 未完成任务的实现/测试/修复/独审/集成合计一个，不任意拆检查凑数。
+
+当前 HEAD/main/origin/main=5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind0/0；origin/parity-results=0061d6d78591fb08493f473d3231ca42303faae1，保留且不合并。默认 index 刚核为空。WB76 runner metadata 已窄改并独审，但没有 managed micro PASS、source syntax、fresh preflight、Native actual、产品 build、restore/format 或新 commit。budget.json 仍0/空labels/actual0/open，但有一次实际 wrapper 调用失败，原 tool chunk4321f4/exit1须保留；猜测 File.Replace($temp,$budget,$null) 参数转换问题尚未修复，不得写成已确诊。原 source review PASS、工具phase1超时失败、phase2 PASS各自保留；phase2 04:18Z已到期，旧根原04:50Z合同执行权随转移撤销，后续建立新的明确有界接续合同/独审，不就地抹除失败、追认过期合同或把准备观察充作准入。
+
+新会话先核任务自有预算锁/临时文件与失败归属，再用微小自有文件有界验证并窄修 task-local wrapper、独立复核；随后真实 managed micro 与精确 source syntax、新鲜32依赖/6源码/4端口/资源准入，通过后最多一次原严格 A/B、两desktop/B被动恢复与普通只读query/正常close actual。旧WB70失败及normalExit/cleanup/processIntegrity=false保留；实际runtime路径/version与.62文件前置分开，复用旧binary不构成新build或source-to-binary等价。WB73 PS14/Node41及WB74guard38只继承，不无故重跑。详细合同、源/工具哈希、预检spec、原字节/逆向证明都在 artifacts/wb76-native-actual-20261009。
+
+仅 root 继续拥有七路径：web/e2e/run-studio-native-real.mjs、HANDOFF.md、ROADMAP.md、CHANGELOG.md、docs/design/m47-unified-management-workbench/work-queue.md、validation-report.md、wb76-native-actual-window.md。现有博客/CSDN/OSChina/微博及临时发布稿/租约是其它会话工作，不stage/覆盖/清理。HANDOFF 提交只能组合 HEAD blob 与明确自有段；旧 WB76 start 记录于 own-handoff-start.md/binding.json，本轮同步段在 artifacts/code-sync-20261009-04670ea4a0bb4f9c8f60ce97232df537/handoff-append.json，本结束段正文及offset/hash记录于 own-handoff-migration-ending.md/migration-handoff-binding.json，不 whole-add HANDOFF 或 reset index。旧WB75已集成的八段/15路径不可重建。当前七路径未提交：用户要求立即切换；本任务未取得最终树完整restore+原CI Format Check通过，不能越门禁提交。下一根按真实最终树门禁办理已授权本地提交，无push/部署/安装/外部发送授权。
+
+旧三个专属子智能体均完成、无运行任务。旧失败 wrapper PID59296及其 task shell PID60092 当前精确PID/CIM核验均未观察到原进程，stop0，共享Codex/ChatGPT/Explorer父进程保留；受管child/actual从未启动。固定证据根34文件盘点没有任务预算lock/GUID临时文件，交付证据保留；短只读shell及完整会话生命周期未全面捕获，wholeSessionOrphanFreedomVerified=false，不按名kill或删除未知对象。固定PS7、所有count+wall/cancel/progress、准确身份父链/finally自有树、禁Graphify/广域扫描/未授权安装、旧策略Temp/WB40/runtime/缓存保护与完整提交门禁继续适用，并须重复给子智能体。
+
+本段以独占写入句柄追加并核旧前缀逐字保留；随后旧根仅将同一个workbench绑定新thread、核ACTIVE/每30分钟/原prompt与通知偏好保持、发布transfer-state released与归档本聊天。若绑定失败不得声称定时已转移；实际绑定/释放由workbench持久配置及workbench-transfer-state.json确认。释放后旧会话停止所有仓库写入，由新会话继续，不创建重复定时任务。
+
+## WB77 新会话 Native 接续开始（2026-10-09；本会话0/5）
+
+新根01a11ee9-db5b-7420-85fa-f0d8f7077a11先只读等待24次/48秒；超时未自行release。旧会话实际发布released-to-new-thread/released=true/newThreadId匹配、oldRepositoryWritesStopped=true之后才创建新合同。既有workbench同id/ACTIVE/每30分钟已绑定这里，未新建重复自动化。最新五主文档完整字节快照与SHA保存于artifacts/wb77-native-continuation-20261009/received-files.json；专属只读代理已完成全文读盘/分块遍历与字节SHA，根与代理只语义核验当前条目；巨大历史全文语义未完整接收，不能宣称全文独审。旧根2/5与本会话0/5分开，WB76原wrapper调用失败1次、budget0/actual0、旧source PASS/工具phase1超时/phase2 PASS及过期状态保持。
+
+WB77是同一Native未完成任务的有界接续，实现/微试/独审/实际/门禁/集成合计一个。新根截止05:45Z、新源码/工具review04:45Z、14managed/1actual/0产品build，900s Native/90s cleanup/outer1020保持；新artifact目录独立，不写旧WB76预算、工具、review或收据。专属工具代理仅新副本合同绑定和File.Replace修复/自有两小文件微试，metadata代理仅新固定证据入口与标签，inverse必须回到完整received WB76字节；根串行共享docs与最终树完整restore/原CI Format Check/owned-only本地提交。已有14/41/38不因接续重跑，实际A/B、两desktop、B被动恢复/普通只读查询、正常close与严格cleanup断言不放宽。本段不预填修复/micro/语法/准入/actual/提交通过。
+
+固定PS7、有界count+wall/cancel/progress、准确PID创建/完整命令/父链与finally仅自有确认树；禁Graphify/广域扫描/安装，保护旧policyTemp/WB40、其它会话、共享缓存/交付物及origin/parity-results。短只读工具启动/瞬时后代并未全生命周期捕获，whole-session orphan freedom保持未证明。博客/CSDN/OSChina/微博文件和HANDOFF外来追加保留；只提交HEAD blob与明确归属HANDOFF段，不whole-add/reset index。无push/部署/安装/发布/外部发送。任务当前仍0/5，闭合结果另记。
+
+## WB77 实际失败检查点与本地集成准备（2026-10-09；闭合后本会话1/5）
+
+原WB76失败调用1/持久budget0/actual0及旧phase1超时/phase2过期保持。新WB77两小文件case复现$null空backup路径并证NullString修复成功，fixture回收；六metadata inverse逐byte恢复received WB76，仅新证据入口/标签。初新phase1静态独审及唯一managed micro exit0/cleanup0，04:45Z到界未完成语法/准入；十原输入完整归档phase1-closed。根明确phase2至05:05Z、root仍05:45Z、总14managed/actual1/0build未reset；两tool仅五处deadline字面差异，新独审再签、source syntax exit0。巨大五主文档只取得全文字节/51块和当前重点语义，不能声明全部历史语义独审；首own-start错误措辞已仅改自有段并保留原字节收据。
+
+首preflight CPU5秒超时exit1原收据保留，同源/阈值/timeout的最多2attempt唯一复核PASS，checked04:55:32.579658Z，CPU32%、freeMemory29319128KiB/rows885/四ports通过。唯一actual reserved04:56:10.542572Z并先消费1/1，Node launch04:56:10.604051Z距准入38.024秒。run studio-native-real-d18e166d-85bf-4b8a-a4ce-532fa8020e52，原runner FAIL/174.468秒；wrapper stdout176秒为finally前计时，不称外层完整时长。ordinary B preparation在firstA之前因unexpected library fields refused，disk failure terminationReason仍unknown；seq7/request58 >barrier6/request57的七fresh ack谓词全true、PUT200、DOM1active/1identity B且warningfalse仅局部通过，selection null/selections0/launch1、firstClose/secondLaunch/restored/query/secondClose全null，不能称持久化/完整选择/恢复成功，不猜已被清理的library未知字段原因。
+
+六terminal全部persisted。normalExit=false/正常close未尝试；原cleanupProven=true/四ports释放/9个verified fallback exited，profile/data/server-content移除285/163/4=452项/errors0，不计正常退出。外wrapper33记录/finally failures0；根post-actual只读fresh42 observed身份/5retained、survivor0/unknown0、1PID复用保留，0额外stop/delete。部分短依赖command=null但retainedexit0、whole-session生命周期未完整，不证明孤儿自由。实际.62 CDP/path与前置文件分列；manifest timeUtc/sourceOwnerChangeSha仍是旧WB76 provenance，不伪造新创建时间/owner-change或source-to-binary等价。原WB70/76 FAIL不升级。
+
+根进入最终八路径owned-only集成：runner/两专属报告/四路线文档及HANDOFF。HANDOFF private仅HEAD blob加已明确归属旧WB76 start/同步/迁移及新根段，所有foreign博客/CSDN/OSChina/微博与共享HANDOFF其它字节保持、不whole-add/reset index。完整restore/原CI Format Check、最终源/树SHA、fresh退出、index/parent/parity守卫及commit/post结果以artifacts/wb77-native-continuation-20261009最终收据/Git为准，尚未产生的PASS不预填。task实现/修复/微試/两reviewphase/一实际/本地验收合计1独立任务，完成本片后1/5，同workbench ACTIVE/30min/本thread保持。
+
+下一片先基于已知catalog序列化schema冻结安全字段名类别观察/合成合同，不放宽未知字段或stop权限、不重跑已用尽1/1 actual。真实恢复/正常退出、三宿主、OS文件对话框/安装/ExtensionHost/AOT/固定硬件/长期/发布仍独立未闭环；Graph Beta和MQ database identity/instance .system/mq保持。固定PS7、有界count+wall/cancel/progress/精确PID创建完整cmd父链/finally仅已证本任务树，禁Graphify/广域扫描/安装，旧policyTemp/WB40/共享对象/cache/artifacts/parity保护。无push/部署/安装/发布/外部发送。此段纳入本片候选，最终commit事实另追加post段。
+
+## Workbench 故障会话替换交接（2026-10-09）
+
+用户明确要求替换故障会话 01a11ee9-db5b-7420-85fa-f0d8f7077a11 并直接归档。已读取其两次 systemError（stream disconnected before completion: response protection is unavailable）、最新 WB77 检查点和当前 git/index；已创建同一 D:/source/SonnetDB 本地接续会话 01a11f15-608c-7e81-87dd-4425c54d96b3，旧会话归档工具返回 archived=true。原唯一 workbench 自动化已通过应用工具更新目标并从 automation.toml 回读确认：ACTIVE、每30分钟、target 为新会话；未创建重复自动化。本段只记录会话替换，未完成产品集成。
+
+新会话先只读接收，待 artifacts/workbench-recovery-01a11ee9-20261009/transfer.json 的 released=true 且 newThreadId 匹配后独占接续写入。迁移者在释放后停止仓库写入。新会话从0/5开始，继承的WB77收尾仍算同一未完成任务，完成后1/5；不把失败检查点的未完成集成记为闭合。旧预算count5/14、actual1/1及原失败证据保持，不重跑用尽的actual或追认过期合同。
+
+当前已核HEAD/main为5424b66672e37f49a2a5633fdde0b54a9b1f0290，index为空；WB77最后生成integration-freeze.json/private-handoff.bin，尚无最终restore/Format Check/commit。下一步先核当前树与进程归属，完成8路径自有hunk集成及必要完整门禁；旧private HANDOFF候选尚不含本迁移段，须保留并发博客/CSDN/OSChina/微博内容，禁止whole-add/reset index。原Native FAIL、normalExit=false、cleanupProven=true及真实恢复未证保持。之后先查catalog/library schema与安全字段类别观察合同，不能猜未知字段或放宽拒绝门禁。origin/parity-results必须保留。
+
+本迁移未启动产品构建/测试或长进程，未kill/delete、未stage/commit/push。HANDOFF本段暂不提交：此次只做故障会话替换，最终树完整restore与原CI Format Check尚未执行，已交由新会话按既有授权处理。追加正文和字节前缀绑定保存在本次recovery目录；旧runtime/政策保留目录及全部交付物保持。真实三宿主、正常退出、安装/ExtensionHost/AOT/固定硬件/长期/发布仍分别验收。
+
+## WB77 故障替代会话收尾集成（2026-10-09；提交闭合后本会话1/5）
+
+新本地会话01a11f15-608c-7e81-87dd-4425c54d96b3已核transfer released=true且目标匹配，原workbench仍ACTIVE/每30分钟/本会话；故障根已归档，三个旧代理最新turn均completed，未重启故障根。HEAD仍5424b666、parity0061d6d7、接收时index空。完整读盘根HANDOFF/AGENTS/ROADMAP与queue/validation并核当前WB76/WB77和迁移语义；巨大历史不声明全文语义独审。八候选与旧freeze逐hash一致，HANDOFF只增加迁移绑定段。
+
+新独立收尾证据artifacts/wb77-recovery-integration-20261009，05:17:18Z至06:07:18Z、最多6受管命令/0actual/0产品build，继承旧任务不另算切片；旧budget5/14、actual1/1、旧期限与FAIL/false/null均保留。微试500ms进程早退导致完整CIM身份缺失，保留FAIL及retained exit0；10秒微试取得2身份且均退出，PASS。初完整restore与原CI Format Check各exit0、分别44/5已观察身份全部退出；格式工作区加载警告单列。旧进程新fresh只读44完整身份/5retained、存活0/unknown0、1PID复用保留，source-syntax无完整journal边界保留；0kill/delete，不宣称whole-session孤儿自由。
+
+最终HANDOFF候选严格为HEAD blob加旧五自有段、迁移段及本段；并发博客/CSDN/OSChina/微博及其它HANDOFF字节保留，不whole-add或reset index。新freeze固定八路径和完整工作前缀；文档收口后再次完整restore及原CI Format Check均通过、精确staged diff/hash/parent/parity/index守卫满足后才本地commit。实际通过/提交哈希/闭合计数保存在restore-final.result.json、format-final.result.json和commit-checkpoint.json；本段不把尚未产生的收据写成PASS。提交闭合后本替代会话1/5，检查/修复/复核不另计数。
+
+下一独立切片从StudioConnectionLibrary.SaveAsync、StudioBridgeContracts及source-generated context的实际schema出发，设计安全字段类别观察并验证合成合同。现有派生ActiveIdentity/Identity与disk拒绝合同需分别核验；旧实际字段已清理且未留证，不能据源码猜定旧失败字段。不得放宽未知字段、fresh ack、进程终止或正常退出门禁，不重跑用尽的WB77 actual。三宿主、恢复/正常退出、OS对话框、安装/ExtensionHost/AOT/固定硬件/长期/发布仍独立待验，Graph Beta/MQ database identity及instance .system/mq不变。
+
+固定PS7、所有count+wall/cancel/progress、完整PID创建/命令/父链与finally精确自有树；保护旧policyTemp/WB40、其它会话、缓存/交付物及parity；无push/部署/安装/发布/外部发送。HANDOFF本段纳入八路径提交候选，最终状态由Git及独立提交收据核实，旧未完成集成不追认为旧会话闭合。

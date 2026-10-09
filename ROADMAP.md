@@ -1,5 +1,9 @@
 # ROADMAP — SonnetDB 4.5
 
+WB77（2026-10-09；闭合后本会话1/5）：wrapper修复/两case微试/独审/micro与语法通过，CPU首次超时后唯一原条件复核通过。唯一Native在第一次A选择前的B preparation磁盘字段守卫失败；fresh PUT/DOM局部通过，恢复未到达、normalExit=false，严格故障cleanup=true。最终门禁与owned本地集成按[接续报告](docs/design/m47-unified-management-workbench/wb77-native-continuation.md)及收据记录；已有14/41/38不重跑、原FAIL不升级，同一workbench仍ACTIVE/每30分钟。
+
+WB76（2026-10-09）：用户要求的远端获取与合并已完成，`main=origin/main=5424b666`、ahead/behind 0/0；同一 workbench heartbeat 已恢复 ACTIVE。新 Native 窗口仅增加固定证据入口及文件前置说明，继承已验 CIM 观测与 PS14/Node41；独审、新鲜资源准入和唯一实际 A/B／双 desktop／B 查询旅程按[WB76 报告](docs/design/m47-unified-management-workbench/wb76-native-actual-window.md)分别记录，尚不声明真实恢复通过。
+
 WB75（2026-10-08）：仅完成已有Native CIM观测的精确本地集成后暂停，修隐藏.git读取并先走真实本机不提交预演，再对新owned树完整restore/原format放行。继承38/14/41、不重跑、不新增actual；旧WB74失败保留。仅原15路径，结果见[WB74/WB75集成报告](docs/design/m47-unified-management-workbench/wb74-owned-handoff-integration.md)与独立收据。heartbeat PAUSED，无push或新切片。
 
 WB74（2026-10-08）：修复本地共享 HANDOFF 的 owned 内容守卫，固定完整工作前缀、精确 owned 段、private blob/index tree 与其它提交路径，仅允许未暂存尾追加。继承 WB73 PS14/Node41，不重测、不改六源，0actual/产品build；原 WB73 集成失败保留。新微试、完整门禁与本地提交以 [WB74 报告](docs/design/m47-unified-management-workbench/wb74-owned-handoff-integration.md) 和独立收据为准；不预填完成。
