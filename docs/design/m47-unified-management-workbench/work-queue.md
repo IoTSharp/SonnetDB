@@ -1,5 +1,7 @@
 # Workbench 持续推进队列
 
+WB81（2026-10-09；本会话收尾后5/5）：已核WB57唯一stop-verification拒绝PID92952；整个stopVerified回调边界不等于OS stop成功后检查，helper79028仅为附近候选，旧原文/退出状态关联缺失。源/原证据SHA与现有75项覆盖分列，形成[下一三脚本诊断合同](wb81-vscode-stop-contract.md)：固定阶段和candidate/helper关联，不新增snapshot/stop/retry/权限。0源码变更/测试/actual/产品build；5/5收尾后新本地会话从0/5立即实施此合同。
+
 WB80（2026-10-09；本会话收尾后4/5）：新冻结37依赖/11源的唯一Native actual通过A/B→正常关闭→第二桌面被动恢复B→真实B查询→正常关闭；旧Release复用、0build，两close四端口释放/零fallback，独立终态复核另有收据。详见[报告](wb80-native-validation.md)。下一片从尚未闭合的真实缺口选取；OS文件对话框须先证明窗口可见/可激活，VS Code旅程先核最新队列；不重跑WB80已用尽actual，不升级WB77/79失败或整体三宿主状态。
 
 WB79（2026-10-09；本会话收尾后3/5）：以真实SaveAsync磁盘文件验证共享fixture，C#20/20、Node完整80/80；只允许完整一致的已知派生身份对或旧双缺省形态，原未知字段/身份/ack/两desktop/查询/close门禁保持。原包装器FAIL与中止Node不覆盖，最终本地集成见[报告](wb79-serialized-library-contract.md)。下一片可据新合同冻结独立Native窗口，重新核源码/依赖/runtime/资源及预算；不重跑耗尽的WB77、不预称真实恢复完成。

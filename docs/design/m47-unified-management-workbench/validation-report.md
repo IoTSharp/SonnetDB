@@ -1,5 +1,7 @@
 # M47 原型检查记录
 
+WB81（2026-10-09）：只读追溯WB57原16 attempts/1拒绝、15成功stop事件及final refused/passed/refused。candidate92952有既有身份，helper79028只有附近串行/时间关联，227B stderr仅hash且rawOutputRetained=false，未证明OS stop调用、原退出码、具体拒绝步骤或最终残留PID。旧后续62 PID absence/282对象回收与原cleanup=false分列。调查20输入SHA复验及独立合同/工具审查、完整门禁/提交见[报告](wb81-vscode-stop-contract.md)，0源码变更/测试/actual/build，不计真实Host或三宿主通过。
+
 WB80（2026-10-09）：唯一actual studio-native-real-4fb02b8f-46d4-4927-9e7d-cc67e5a9f749，runner199.645秒/exit0；六terminal齐全，passed/normalExit/cleanupProven=true。A/B新PUT配对磁盘及DOM，第二桌面GET seq12/request117恢复B，真实SELECT返回并显示WB61_B；两CloseMainWindow exit0、四端口释放、零fallback。原cleanup18身份在fallback前已退出、472项自有对象清理；根post-actual核58完整已记录身份/4retained，无存活/unknown，不能证明未观察后代或whole-session孤儿自由。旧Release/实际CDP.62与构建等价分列，完整门禁与提交见[报告](wb80-native-validation.md)，不证明Server优雅关停/恢复、安装或AOT。
 
 WB79（2026-10-09）：新增真实SaveAsync落盘fixture测试，C#20/20、0fail/skip；Node微试1/1，最终37场景+15观察+11precondition+17preparation=80/80、0fail/skip/cancel。C#命令exit0但包装器缺tuple/cleanup-error保留；首次完整Node被包装器中止exit-1，修后唯一完整重跑通过。独立fresh12及5已记录身份无存活/unknown，不证明未记录后代或全过程完整。0Native actual，一次定向test/build包含Studio/Server引用项目；完整restore/原Format Check及提交见[报告](wb79-serialized-library-contract.md)，不得计作真实宿主、安装或AOT证据。

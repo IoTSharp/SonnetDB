@@ -1412,3 +1412,20 @@ source/tools静态复核与actual-evidence-review.json/notes独立终态收据�
 固定PS7、count+wall/cancel/progress、完整PID创建时间命令父链/finally仅已核本任务树；禁Graphify、广域扫描、找Windows gcc、猜PCCT和未授权安装。保护旧拒删Temp、WB40runtime、其它会话、缓存和交付物，不按名kill/宽泛删除，无发布/部署/安装/外部发送。巨大历史HANDOFF全文语义审计不声明；最终提交内容与工作前缀分别绑定。
 
 最终收尾另保留两个检查点：首次fresh身份审计收据PASS/65身份/6retained，但外层误查未由PowerShell审计脚本设置的LASTEXITCODE而exit1，原变量值未捕获，未重跑audit改写结果。首次staged diff仅自有HANDOFF新增CRLF段报trailing whitespace，commit0；只将新增段改LF并保持全部外来前缀/尾字节。新integration-only wrapper只允许restore-final/format-final两条原命令，独审及最终门禁另留收据；原wrapper、actual1/1、首轮门禁与全部失败保持。
+
+
+## WB81 VS Code stop拒绝合同与第5片收尾（2026-10-09；收尾后5/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3此前四项已提交25d274ef、11beed0e、70b19b21、56ee6649；WB80唯一本机Native A/B→双桌面→B恢复/查询→正常关闭PASS、本地完整门禁与72已记录身份/8retained退出核验保持。WB81依据当前队列的stop-verification缺口冻结只读合同调查，源调查/工具准备/独审/根文档集成合计第5项；0产品/诊断源码变更、0源码测试、0actual、0产品build。根窗口08:00Z/最多6managed，范围及20输入SHA见artifacts/wb81-vscode-stop-contract-20261009。
+
+WB57唯一actual c2fe13a9原16次stop尝试/1次回调拒绝，PID92952/2026-10-07T10:33:11.299Z；final remaining/root/audit为refused/passed/refused，15个成功owned-process-stop事件没有该PID。stop-verification是整个stopVerified回调的catch，不证明OS stop已调用/成功。附近helper79028只有串行/时间关联，其stderr227B保留hash而rawOutputRetained=false，缺目标/operation与退出状态关联，具体拒绝步骤、OS调用、原退出码、最终残留PID仍unknown。cleanup48身份与终态49不混记；later62 PID absence/282对象回收/extraStops0不改变原cleanup=false或normalExit=false。
+
+当前runner/证据核心/测试SHA匹配WB57预冻结值，但旧run缺执行时源码attestation，不推source-to-binary等价。Host TS已有WB58观察，WB59兼容交付沿最新队列，均不重做。已有75测试声明包含stop抛错、最终三检查及closed helper子孙remaining；下一合同只补三个现有脚本的固定stop阶段、candidate/helper关联、退出/结果类别，保密/unknown/overflow与观察器异常不能改变原return/throw/顺序/次数/权限/最终门禁。最多16新顶层/48矩阵case、一个Node测试文件120秒、最多一次因新失败必要修复重跑，0actual/产品build；真实Host将来另冻结。完整合同见stop-contract.json和docs/design/m47-unified-management-workbench/wb81-vscode-stop-contract.md。
+
+调查20输入hash复验不变，收据writer已核退出；第一层>20枚举guard中止、一次原始设计收据组合输出截断/投影补核均保留，不能声称完整历史语义审计。根初次技能/源路径读错经限定目录查找纠正，未据此安装/调用桌面工具，本片不是UI自动化。独立review与门禁工具签名见independent-review.json；工具只允许micro/restore/format并保留完整tuple/fresh拒绝/父链/finally。最终完整restore、原CI Format Check、精确6路径stage/diff/tree/hash与新鲜已记录身份退出结果以restore-final.result.json、format-final.result.json、commit-checkpoint.json和post-commit-verification.json为准，不预填未取得PASS；wholeSessionOrphanFreedomProved=false。
+
+HANDOFF提交内容仅HEAD blob加本片LF自有段，完整工作前缀及其它会话追加逐字保持；博客/CSDN/OSChina/微博和所有外来内容不stage。仅6文档路径，四受保护源码不变；origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，不合并覆盖，无push。实际提交哈希与本会话5/5由commit-checkpoint.json核对。
+
+本片提交/退出核验后按用户明确授权创建同D:/source/SonnetDB本地接续聊天，把同一个workbench迁至新target、ACTIVE/每30分钟，不重复创建自动化。写入权以本片rollover.json为准：新会话从0/5开始，先只读接收；released=true且newThreadId匹配才立即推进上述三脚本诊断实现。旧会话发布release后停止仓库写入；迁移尚未发布前不称已完成，新目标精确ID保存在rollover而非猜写本段。新会话第一项是实施已审定合同，不重复WB81调查或WB80 actual。
+
+三宿主/真实Server、OS文件对话框可见激活、VS Code向导UI/Webview分页/Notebook/LSP、安装、NativeAOT、固定硬件、长期/发行物仍分列。M47导航/九模型、Graph Beta和MQ database identity/instance .system/mq不变。PS7固定、禁止Graphify/广域扫描/未授权安装，所有数量/墙钟/取消/进度与完整PID/创建/命令/父链/finally仅自有树约束继续；保护旧拒删Temp、WB40runtime、其它会话、共享缓存/交付物，不按名kill或宽泛删除，不推导发布/部署/外发授权。
