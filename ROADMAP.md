@@ -346,6 +346,8 @@ M47 的代码边界是“共享合同和组件优先、宿主适配器隔离”�
 
 既有细分与退出见[总索引](docs/roadmap-total-milestone.md)，外部 issue 见[路线快照](docs/github-issues-roadmap.md)。
 
+CAP 生态适配新增统一 `SonnetDB.CAP` 项目（2026-10-09），按用户最新要求合并存储与传输，并通过 Data SDK 覆盖嵌入式与远程；Document 存储、MQ 传输、单 collection 业务+Outbox 事务、幂等索引和持久消费组登记已实现。真实本地/Server/CAP 定向验证及 NuGet 候选包见[集成合同](docs/design/cap-integration.md)；正式发布、Linux/强杀/掉电/固定硬件与长稳仍独立待验。EF Core/ADO SQL 存储、MongoDB wire、跨 collection 事务和跨进程消费者租约不在本片交付中。
+
 ## 性能观察项
 
 | 编号 | 候选 | 进入条件 |

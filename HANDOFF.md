@@ -1289,3 +1289,26 @@ workbench同一heartbeat保持PAUSED，不新产品任务、不新接续、不�
 - 本次只处理提交、远端合并和推送，不新增产品实施或发布请求；workbench 暂停状态保持，后续 Native 真实旅程、安装/AOT、硬件及长期验收继续按前述交接安排。
 
 - 当前未提交改动已形成提交 6ec257ef；远端木垒提交的 CHANGELOG/HANDOFF 追加冲突已合并，双方条目完整保留，ROADMAP 与两份现场报告正常合入。此合并提交随后推送 origin/main，未运行额外检查。
+
+## 2026-10-09 CAP 传输与存储评估
+
+- 当前分支 main，接收时 HEAD 为 5424b666，工作树干净。先阅读根交接、AGENTS、项目依赖、现有文档/MQ/事务源码；既有 workbench 暂停状态及 parity-results 不动。
+- 用户初始要求分析 CAP 并建立独立 NuGet 支持项目，传输/存储分开；随后明确要求进一步评估 ADO.NET、EF Core、MongoDB 方式，EF Core 不应成为基础依赖，文档方式须避免 ADO/EF。当前转入存储方案评估，未创建空壳项目或提前定为 EF 存储。
+- 已核 CAP GitHub latest release 与 NuGet 索引为 10.0.2，发布日 2026-08-01；tag 源码 e52b8508e54cdb7a9ce7f9fec03d9ea8ad2710fb 只读下载在忽略目录 artifacts/cap-analysis-20261009/upstream。初始直接网络超时，使用已有本地代理后查询/下载成功；不涉及凭据、外发消息或发布。
+- 重要纠正：SonnetDB 有原生 MongoDB-like Document Store，但没有 MongoDB wire/官方 Driver 直连或 MongoDB session/跨 collection 事务。已向用户纠正前面关于协议入口的假定。不能直接复用 CAP 官方 MongoDB 插件连接 SonnetDB；官方插件还依赖事务锁、update pipeline、索引/聚合等操作。
+- 新增 docs/design/cap-integration.md，并同步 ROADMAP M43/CHANGELOG 的“仅评估文档”状态。候选包为独立 Transport、Storage.AdoNet、Storage.Document 和可选 EntityFrameworkCore 桥接；Document 与 Transport 的组合须避免间接引入 Data/EF。现有 SndbDocumentClient/SndbMqClient 位于 SonnetDB Data 包，不能只换用这些类就声称没有 ADO 包依赖；嵌入式可直接使用 Core，远程需独立轻量客户端或最小 source-generated HTTP DTO/client。
+- 文档原子 FindOneAndUpdate 和单 collection 有界 ordered BulkWrite 是可用底座，不等同跨 collection 业务 Outbox 原子性。独立消息持久化、同 collection 批提交桥接和多集合事务分别评估；未知事务对象不能静默降级。MQ 累计 Ack/单活动消费者、持久化 Inbox 后确认、失败不自动死信跳过、实例恢复及 CAP 全宿主 AOT 边界均记录在文档。
+- 本轮只核对源码/依赖与文档改动，适配项目构建、CAP 旅程/并发/恢复/性能、候选 NuGet 包和实际发布全部未执行。结束前执行文档 diff --check 与本地文件链接检查；未运行 restore/format，因为没有代码变更且不提交。本轮四份文档暂未提交，存储方案仍在进一步评估，不把设计候选登记为实现或发布完成。
+- 下一次先回答/确认用户对原生 Document 路线和事务保证的需求，再按评估中的独立路径创建实际支持项目与有意义的集成验证；不新增 MongoDB wire 协议、不以 MongoDB 名称暗示兼容、不把 EF 带入基础包。已有 Native/Workbench、现场硬件、长期及其它发布工作保持原交接边界。
+
+## 2026-10-09 CAP 错误会话接续：统一项目与 4.1.0 候选
+
+- 接续会话 01a11dd5-4863-71f3-a578-dccfa4a7b25a 的流中断。读取原会话完整用户指令后确认，后续指令已覆盖旧评估：使用 Document Store，通过 SonnetDB.Data 支持远程/嵌入式；本会话又要求一个项目/包，版本 4.1（规范化 4.1.0）。基线 5424b666，已建立本地 codex/cap-integration 分支。原 main/远端和 parity-results 未改；workbench 暂停状态保持。
+- 两个未提交适配项目合并为 extensions/SonnetDB.CAP，存储/传输注册入口保持独立。新增同 collection 业务+Outbox ordered BulkWrite 事务、状态/重试/延迟/清理/监控和条件锁；Core/Data/Server 补幂等普通 path 索引及 MQ 消费组持久登记。复用已有 ACK WAL 格式，不改变布局。统一 Data SDK 包含 ADO Provider 程序集，但不依赖 EF Core/MongoDB Driver，未另做 SQL/EF 存储。
+- CAP 34/34、Core 文档/MQ 定向 296/296、Server 定向 15/15 全通过，0 失败/跳过；发布产物合成合同 17 项通过。CAP Cobertura 89.82%（1227/1366，含生成代码），去除生成路径并按文件行去重 94.26%（558/592）。生产构建开启 AOT/trim 分析，无相关警告；完整 CAP NativeAOT、完整 solution tests 未执行。原编译失败、28 项初次 4 FAIL、恢复假设失败仍保留，不覆盖。
+- 单包 SonnetDB.CAP.4.1.0.nupkg 已生成，直接依赖 SonnetDB(Data)4.1.0 与 CAP10.0.2，README/XML/DLL/nuspec 与恢复图审计通过；不依赖 EF/MongoDB/Newtonsoft/Dapper。完整 eng release 八包打包却在 Core 对 3.0.1 的 CP0002/CP0011 兼容性门禁失败，Core 配置只有 4.0.0 豁免，本片不压制检查或修改基线。不能由单包成功称全发行可发布/可安装。
+- gh maikebing keyring token invalid，未读取/输出凭据；未 push/tag/CI dispatch/NuGet 发布。下一步先恢复认证，单独处理正式 4.1.0 的配套 Core/Data 兼容性/发行门禁，再取得 exact commit 平台 CI/AOT/Parity 等证据。4.1.0 包不能依赖旧 SDK 替代，旧 Server 也缺新入口。
+- 证据 artifacts/cap-analysis-20261009，设计 docs/design/cap-integration.md，本地验收 docs/audits/cap-integration-20261009.md。完整 solution restore 已通过；最终原 CI format 与本地提交结果以接续收尾记录为准，不预填 PASS。旧 .vscode/settings.json 为接收时已有修改，保持且排除提交。
+- 事务仅同 collection，消息传输与业务提交分开；同组同 topic 需单活动消费者，无跨进程 lease/exactly-once。持久登记的废弃组可能阻止回收，需运维处理；新组无法恢复已回收历史。正常重开/Server 重启不等于强杀、掉电、Linux、固定硬件、长期、安装或生产验收，先前 Native/Workbench/现场/发布边界保持。
+
+- 接续收尾：最终完整 restore exit0；原 CI format（保留 --exclude extensions/）exit0，另独立 CAP 项目 verify format exit0。workspace warning 保留。release recovery 保留旧 4.0.0 七包、4.1.0 起八包，PS AST/四版本声明片段检查通过；初次观察器匹配 += 拒绝及修正保留。代码已完成本地审阅、仅本次 CAP 路径将纳入本地提交；实际提交 SHA 以 Git 记录为准，正式发布阻塞保持。

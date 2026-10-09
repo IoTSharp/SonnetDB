@@ -9,6 +9,8 @@
 
 ### Added
 
+- **M43 CAP 适配（2026-10-09）**：新增统一 `SonnetDB.CAP` 项目，通过 Data SDK 提供本地/远程 Document Store 存储与 MQ 传输；包含消息状态/重试/调度/监控、条件存储锁和单 collection 业务+Outbox 原子批事务，不依赖 EF Core。补齐幂等文档索引和 MQ 消费组持久登记，避免未确认慢组消息在重启回收时丢失；复用已有 ACK WAL，无布局变更。新增真实本地/Server/CAP 流程测试及 NuGet 发布清单，候选包与正式发布分列，详见[集成合同](docs/design/cap-integration.md)。
+
 - **M47 WB75 本地集成窗口（2026-10-08）**：记录隐藏.git元数据修复和真实不提交预演、固定15路径/owned HANDOFF与完整最终树门禁；已有Native CIM六源和38/14/41验收继承，旧WB74失败不升级。最终本地提交结果以WB75收据为准，提交后暂停。
 
 - **M47 WB74 owned 本地集成守卫（2026-10-08）**：绑定 shared HANDOFF 完整冻结前缀、明确 owned 工作段与 private blob/index，只允许未暂存尾追加；拒绝中间插入和提交内容变化。沿用已验收 Native CIM 六源，不重跑源测试或真实旅程，原 WB73 集成失败及退出限界保留。
