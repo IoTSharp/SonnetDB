@@ -53,6 +53,9 @@ jobs:
         shell: pwsh
         run: ./eng/test-release-artifacts.ps1
 
+      - name: Test CAP embedded and remote integration
+        run: dotnet test tests/SonnetDB.CAP.Tests/SonnetDB.CAP.Tests.csproj --configuration Release --blame-hang-timeout 2m
+
       - name: Require all release readiness evidence before tagged publication
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         shell: pwsh

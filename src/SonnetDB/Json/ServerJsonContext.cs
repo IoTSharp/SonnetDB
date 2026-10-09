@@ -226,6 +226,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(MqMessageResponse))]
 [JsonSerializable(typeof(MqPullResponse))]
 [JsonSerializable(typeof(MqAckRequest))]
+[JsonSerializable(typeof(MqConsumerGroupEnsureRequest))]
 [JsonSerializable(typeof(MqAckResponse))]
 [JsonSerializable(typeof(MqNackRequest))]
 [JsonSerializable(typeof(MqNackResponse))]

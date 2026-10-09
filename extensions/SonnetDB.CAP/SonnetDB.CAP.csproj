@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>SonnetDB.CAP</PackageId>
+    <Description>DotNetCore.CAP integration with SonnetDB Document Store and MQ through SonnetDB.Data, supporting embedded and remote clients without EF Core.</Description>
+    <PackageTags>sonnetdb;cap;outbox;document;messaging;transport</PackageTags>
+    <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DotNetCore.CAP" />
+    <ProjectReference Include="../../src/SonnetDB.Data/SonnetDB.Data.csproj" />
+    <InternalsVisibleTo Include="SonnetDB.CAP.Tests" />
+    <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

@@ -90,6 +90,8 @@ internal sealed record MqPullResponse(List<MqMessageResponse> Messages);
 
 internal sealed record MqAckRequest(string ConsumerGroup, long Offset);
 
+internal sealed record MqConsumerGroupEnsureRequest(string ConsumerGroup);
+
 internal sealed record MqAckResponse(string Topic, string ConsumerGroup, long NextOffset);
 
 internal sealed record MqNackRequest(string ConsumerGroup, long Offset, string? Reason = null);

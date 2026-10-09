@@ -44,7 +44,7 @@ function Assert-Rejected {
 try {
     $nugetRoot = Join-Path $testRoot 'nuget'
     $ids = @('SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Caching.EasyCaching',
-        'SonnetDB.Caching.Distributed', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
+        'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
     foreach ($id in $ids) {
         Write-Zip -Path (Join-Path $nugetRoot "$id.$version.nupkg") -Entries @{
             "$id.nuspec" = "<package><metadata><id>$id</id><version>$version</version></metadata></package>"
@@ -52,6 +52,11 @@ try {
     }
     & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot
     $passed++
+
+    $capPath = Join-Path $nugetRoot "SonnetDB.CAP.$version.nupkg"
+    Remove-Item -LiteralPath $capPath
+    Assert-Rejected 'CAP package missing' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 8'
+    Write-Zip -Path $capPath -Entries @{ 'SonnetDB.CAP.nuspec' = "<package><metadata><id>SonnetDB.CAP</id><version>$version</version></metadata></package>" }
 
     $corePath = Join-Path $nugetRoot "SonnetDB.Core.$version.nupkg"
     Add-Content -LiteralPath $corePath -Value 'tampered'
@@ -61,7 +66,7 @@ try {
     Write-Zip -Path $corePath -Entries @{ 'SonnetDB.Core.nuspec' = "<package><metadata><id>OtherPackage</id><version>$version</version></metadata></package>" }
     Assert-Rejected 'renamed unrelated package' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'identity/version mismatch'
     Remove-Item -LiteralPath $corePath
-    Assert-Rejected 'incomplete package inventory' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 7'
+    Assert-Rejected 'incomplete package inventory' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 8'
 
     $bundleRoot = Join-Path $testRoot 'bundles/win-x64'
     $sdkEntries = @{ 'cli/SonnetDB.Cli.exe' = 'fixture'; 'README.md' = 'fixture'; 'LICENSE' = 'fixture' }
