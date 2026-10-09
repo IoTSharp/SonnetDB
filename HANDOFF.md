@@ -1391,3 +1391,24 @@ C#测试exit0但包装器缺完整tuple并留下cleanup-error，原passed=false�
 下一独立任务是依据实际落盘合同冻结新Native验证窗口：重新核源码/依赖/runtime/资源/预算，验证普通A/B、双desktop、B查询、正常关闭和数据库恢复；不盲重跑WB77耗尽actual，不能认定其旧被拒字段原因。WB77的FAIL/normalExit=false/cleanup证据不改；WB61建表HTTP400与修后0actual、三宿主/Server/文件对话框/安装/ExtensionHost/AOT/固定硬件/长期/发布仍分别待验。Graph Beta、MQ database identity及instance .system/mq保持。workbench仍同id ACTIVE每30分钟，当前3/5未到滚动上限，不创建重复自动化或新会话。
 
 固定PS7、所有count+wall/cancel/progress、完整PID/创建时间/命令/父链核实及finally自有树要求继续；禁Graphify、广域扫描、找Windows gcc、猜PCCT及未授权安装。只保留任务日志/收据/交付物，保护旧拒删Temp、WB40runtime、其它会话和共享缓存；不按名kill或宽泛删除。没有push、部署、安装、发布、外部发送授权推导。当前HANDOFF与最终提交的准确关系以private blob和工作前缀收据复核，历史巨大HANDOFF语义完整审计未声明。
+
+
+## WB80 本机 Native 数据库恢复验证（2026-10-09；本会话收尾后4/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3接续前三提交25d274ef、11beed0e、70b19b21，计数3/5；本片实现/准备、三专属代理、独立复核、唯一actual及根集成合计第4项，收尾后4/5。专属报告docs/design/m47-unified-management-workbench/wb80-native-validation.md与证据artifacts/wb80-native-validation-20261009为事实入口，根合同07:30Z截止、14managed/2preflight/1actual/0build不重置。源只增加5处metadata，逆投影与旧90,092字节完全一致；37依赖/11源和原身份/查询/close/回收门禁保持。
+
+受管micro、syntax和首preflight均exit0；唯一actual studio-native-real-4fb02b8f-46d4-4927-9e7d-cc67e5a9f749已消费1/1，runner199.645秒、Node retained exit0，六terminal齐全，passed/normalExit/cleanupProven/requiredResultWriter=true。普通A/B分别fresh PUT seq8/request66和seq9/request74；第二实际桌面GET seq12/request117被动恢复WB61_Bravo_e5a9f749，788字节连接库重启前后SHA一致，真实SELECT Marker返回1行WB61_B并在界面显示。两CloseMainWindow accepted、Studio exit0/signalnull、四端口释放、零fallback；Server可能在Studio有界等待后被终止，不证明Server优雅关停或恢复。
+
+原cleanup18身份exitedBeforeFallback=true、fallback/helperReclaim/error0，自有profile/data/server-content清理305/163/4共472项。外wrapper51记录/finally errors0，根post-actual fresh58完整已记录身份及4retained均无存活/unknown，额外stop/delete0；门禁后的fresh另存，不声明未观察后代或whole-session孤儿自由。实际CDP Edg/154.0.4258.62与两启动加载路径由独审绑定，复用旧Release/0产品build，不推导source-to-binary等价。五次安全字段观察见已知派生identity、unknownFieldCount0，仅代表本次，不能反推WB77已删除的失败字段。
+
+source/tools静态复核与actual-evidence-review.json/notes独立终态收据分别保留。根提前读取尚不存在tools-review文件的失败发生在wrapper前、managed0；该检查点未删除。WB77原FAIL及耗尽actual、WB79 C#包装器FAIL和首轮Node中止、WB61建表HTTP400/修后0actual不改写。本片本机恢复旅程补证，未给安装、OS对话框、ExtensionHost、NativeAOT、固定硬件、长期、发行物或三宿主整体记PASS。
+
+首次文档准备因CHANGELOG为LF而CRLF marker缺失，在门禁/提交前失败；三个自有摘要逆投影后逐SHA匹配接收原文，HANDOFF及外来文件未动。修正换行保持并通过CRLF/LF微试，原失败见integration-preparation-failure.json；未重跑或改动Native证据。
+
+根仅集成7路径：runner、本片报告与HANDOFF/ROADMAP/CHANGELOG/work-queue/validation-report。private HANDOFF严格HEAD blob加本段，工作文件旧前缀及并发追加、全部博客/CSDN/OSChina/微博文件保持。最终树必须完整restore与原CI Format Check通过、精确stage/diff/tree/hash/parent/index守卫满足后本地提交，具体exit/包装器/清理见restore/format收据，准确新commit及4/5见commit-checkpoint.json，提交后核验见post-commit-verification.json；不预填尚未取得结果。origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，禁止合并覆盖，无push。
+
+下一次仍先完整接收最新根文档/队列和Git/代理状态，再选一个真实缺口，不立即重复本actual。WB41 OS SQL文件对话框四phase仍未完整验收，先确认可见/激活前置；VS Code向导UI、Webview分页、Notebook、LSP等需核更晚队列而非引用旧失败作最新总状态。Graph Beta、M47导航/九模型、MQ database identity与instance .system/mq保持。当前4/5尚未达到滚动上限，同workbench ACTIVE/每30分钟/本thread，不创建重复自动化或新聊天；第5项后按用户规则迁移。
+
+固定PS7、count+wall/cancel/progress、完整PID创建时间命令父链/finally仅已核本任务树；禁Graphify、广域扫描、找Windows gcc、猜PCCT和未授权安装。保护旧拒删Temp、WB40runtime、其它会话、缓存和交付物，不按名kill/宽泛删除，无发布/部署/安装/外部发送。巨大历史HANDOFF全文语义审计不声明；最终提交内容与工作前缀分别绑定。
+
+最终收尾另保留两个检查点：首次fresh身份审计收据PASS/65身份/6retained，但外层误查未由PowerShell审计脚本设置的LASTEXITCODE而exit1，原变量值未捕获，未重跑audit改写结果。首次staged diff仅自有HANDOFF新增CRLF段报trailing whitespace，commit0；只将新增段改LF并保持全部外来前缀/尾字节。新integration-only wrapper只允许restore-final/format-final两条原命令，独审及最终门禁另留收据；原wrapper、actual1/1、首轮门禁与全部失败保持。

@@ -26,12 +26,13 @@ const evidenceParents = Object.freeze({
   wb64: path.join(repository, 'artifacts', 'wb64-studio-database-observation-20261008'),
   wb70: path.join(repository, 'artifacts', 'wb70-studio-database-window-20261008', 'actual'),
   wb77: path.join(repository, 'artifacts', 'wb77-native-continuation-20261009', 'actual'),
+  wb80: path.join(repository, 'artifacts', 'wb80-native-validation-20261009', 'actual'),
 });
 const configuredEvidence = process.env.SONNETDB_STUDIO_NATIVE_REAL_EVIDENCE_ROOT;
 const selectedEvidence = configuredEvidence && path.isAbsolute(configuredEvidence)
   ? Object.entries(evidenceParents).find(([, value]) => path.resolve(configuredEvidence).toLowerCase() === value.toLowerCase()) : undefined;
 const evidenceParent = selectedEvidence?.[1] ?? evidenceParents.wb40;
-const validationSlice = databaseRecoveryRequested ? selectedEvidence?.[0] === 'wb77' ? 'WB-77' : 'WB-70' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
+const validationSlice = databaseRecoveryRequested ? selectedEvidence?.[0] === 'wb80' ? 'WB-80' : selectedEvidence?.[0] === 'wb77' ? 'WB-77' : 'WB-70' : sqlDialogsRequested ? 'WB-41' : 'WB-40';
 const windowMode = process.env.SONNETDB_STUDIO_NATIVE_REAL_WINDOW_MODE ?? 'default';
 const windowConfiguration = Object.freeze({
   mode: windowMode,
@@ -903,9 +904,9 @@ async function relaunchDatabaseDesktop(args, environment, expectedDatabase) {
 try {
   if (process.platform !== 'win32' || !selectedEvidence || !['default', 'narrow'].includes(windowMode)
     || !['lifecycle', 'sql-dialogs', 'database-recovery'].includes(scenario)
-    || (databaseRecoveryRequested ? !['wb61', 'wb62', 'wb64', 'wb70', 'wb77'].includes(selectedEvidence[0])
+    || (databaseRecoveryRequested ? !['wb61', 'wb62', 'wb64', 'wb70', 'wb77', 'wb80'].includes(selectedEvidence[0])
       : sqlDialogsRequested ? selectedEvidence[0] !== 'wb41' : !['wb39', 'wb40'].includes(selectedEvidence[0]))
-    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62/WB-64/WB-70/WB-77), and default|narrow window mode.');
+    || repository.toLowerCase() !== 'd:\\source\\sonnetdb') throw new Error('Run on Windows from D:\\source\\SonnetDB with an explicit named evidence parent matching lifecycle (WB-39/WB-40), sql-dialogs (WB-41) or database-recovery (WB-61/WB-62/WB-64/WB-70/WB-77/WB-80), and default|narrow window mode.');
   const prerequisiteFiles = [pwsh, helper, studioExe, studioDll, serverDll, path.join(serverWebRoot, 'index.html'), fileURLToPath(import.meta.url),
     path.join(repository, 'web', 'e2e', 'studio-native-evidence.mjs'), path.join(repository, 'web', 'e2e', 'studio-native-evidence.test.mjs'),
     path.join(repository, 'web', 'e2e', 'studio-native-library-observation.mjs'),
@@ -921,7 +922,7 @@ try {
   await evidence('run.json', { runId, validationSlice, scenario, evidenceParentSelection: selectedEvidence[0], requestedNativeWindow: windowConfiguration,
     runnerPid: process.pid, startedAtUtc: new Date(startedAt).toISOString(), budgetSeconds: databaseRecoveryRequested ? 900 : 600, ports, origin, bridgeOrigin, cdpOrigin,
     studioExe, serverDll, contentRoot, dataRoot, profileRoot, serverWebRoot, libraryPath, hashes,
-    runtimePrerequisite: selectedEvidence[0] === 'wb77'
+    runtimePrerequisite: ['wb77', 'wb80'].includes(selectedEvidence[0])
       ? 'WebView2 154.0.4258.62 file prerequisite checked by the parent; actual runtime path/version must be observed separately; no runtime pin or selection authority.'
       : 'WebView2 154.0.4258.53 checked by the parent; actual attachment remains required.',
     boundary: databaseRecoveryRequested ? 'Actual native database A/B selection, library disk semantics, two normal desktop launches, passive B restoration then observed route-bootstrap GET and read-only real B SQL. API seed/login preparation only; no login UI, dialogs, installation, NativeAOT, backup recovery or full three-host claim.'
