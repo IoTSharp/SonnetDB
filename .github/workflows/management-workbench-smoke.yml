@@ -91,6 +91,11 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Run Web Admin contract tests
+        working-directory: web
+        timeout-minutes: 10
+        run: npm run test:contracts
+
       - name: Run management workbench smoke
         working-directory: web
         run: npm run test:e2e

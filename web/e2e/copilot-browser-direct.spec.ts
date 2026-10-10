@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import type { AxiosInstance } from 'axios';
-import { createPinia, setActivePinia } from 'pinia';
 import {
   BrowserDirectContractVersion,
   BrowserDirectCopilotTransport,
@@ -22,7 +21,6 @@ import {
   type CopilotChatEvent,
   type CopilotChatRequest,
 } from '../src/api/copilot';
-import { useAuthStore } from '../src/stores/auth';
 
 const Request: CopilotChatRequest = {
   db: 'factory',
@@ -134,48 +132,45 @@ test('Web Copilot entry fails closed for an expired in-memory public token', asy
   expect(requests).toEqual(['https://db.internal/healthz']);
 });
 
-test('database logout clears the in-memory BrowserDirect public token', async () => {
-  const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-  Object.defineProperty(globalThis, 'localStorage', {
-    configurable: true,
-    value: {
-      getItem: () => null,
-      setItem: () => undefined,
-      removeItem: () => undefined,
-    },
-  });
+test('database logout clears the in-memory BrowserDirect public token', async ({ page }) => {
+  await page.route('**/v1/setup/status', (route) => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ needsSetup: false }),
+  }));
+  await page.goto('/admin/login');
+  await expect(page.getByRole('heading', { name: '管理登录', exact: true })).toBeVisible();
 
-  try {
-    setBrowserDirectAccessToken('public-access-token', futureExpiry());
-    setActivePinia(createPinia());
-    useAuthStore().logout();
+  // The auth store creates the Vite-configured API client. Exercise that store
+  // in the browser with the application's Pinia, not a Node import.meta shim.
+  const result = await page.evaluate(async (request) => {
+    const { useAuthStore } = await import('/src/stores/auth.ts');
+    const { setBrowserDirectAccessToken } = await import('/src/copilot/browserDirectEntry.ts');
+    const { streamCopilotChat } = await import('/src/api/copilot.ts');
+    const auth = useAuthStore();
+    auth.apply({ username: 'logout-fixture', token: 'database-token', tokenId: 'fixture', isSuperuser: false });
+    setBrowserDirectAccessToken('public-access-token', new Date(Date.now() + 60_000).toISOString());
+    auth.logout();
     const requests: string[] = [];
-
-    await expect(collect(streamCopilotChat(
-      fakeApi('https://db.internal'),
-      'database-token',
-      Request,
-      undefined,
-      'BrowserDirect',
-      {
-        publicBaseUrl: 'https://ai.example.com',
-        approvedPublicOrigins: ['https://ai.example.com'],
-        locationHref: 'https://studio.local/app',
-        fetchImpl: async (input) => {
-          requests.push(String(input));
-          return Response.json({ status: 'ok' });
+    let code: string | null = null;
+    try {
+      await streamCopilotChat(
+        { getUri: ({ url }: { url: string }) => `https://db.internal/${url.replace(/^\/+/, '')}` },
+        'database-token', request, AbortSignal.timeout(5_000), 'BrowserDirect',
+        {
+          publicBaseUrl: 'https://ai.example.com', approvedPublicOrigins: ['https://ai.example.com'],
+          locationHref: 'https://studio.local/app',
+          fetchImpl: async (input: RequestInfo | URL) => {
+            requests.push(String(input));
+            return Response.json({ status: 'ok' });
+          },
         },
-      },
-    ))).rejects.toMatchObject({ code: 'runtime_public_unavailable' });
-
-    expect(requests).toEqual(['https://db.internal/healthz']);
-  } finally {
-    if (previousLocalStorage) {
-      Object.defineProperty(globalThis, 'localStorage', previousLocalStorage);
-    } else {
-      Reflect.deleteProperty(globalThis, 'localStorage');
+      ).next();
+      throw new Error('Logged-out transport did not reject.');
+    } catch (error) {
+      code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unexpected-error';
     }
-  }
+    return { code, requests, authenticated: auth.isAuthenticated, stored: localStorage.getItem('sndb.auth') };
+  }, Request);
+  expect(result).toEqual({ code: 'runtime_public_unavailable', requests: ['https://db.internal/healthz'], authenticated: false, stored: null });
 });
 
 test('leaving BrowserDirect clears credentials and cancels authentication before the next public probe', async () => {

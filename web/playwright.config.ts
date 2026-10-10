@@ -4,6 +4,8 @@ const baseURL = process.env.SONNETDB_E2E_BASE_URL ?? 'http://127.0.0.1:4173';
 
 export default defineConfig({
   testDir: './e2e',
+  // Node contracts in this directory run with node --test, not Playwright.
+  testMatch: '**/*.spec.ts',
   outputDir: '../artifacts/playwright/management-workbench',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),

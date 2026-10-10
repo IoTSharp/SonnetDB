@@ -1569,3 +1569,25 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 下一步仅P02：核历史run37731752397/SHA5424b666的Web smoke失败原因，再在候选01或显式新增后继候选取得通过。该run未在本轮刷新，不称此刻最新；四job success与本轮restore/format都不代替五项全套。WB80本机恢复PASS继续保留但不计当前包安装，WB83 preflight失败/WB98审查超时不推断产品根因。Graph Beta、MQ逻辑身份与instance .system/mq持久化及单库备份边界、SQL名称、只读、一次审批、取消非回滚与unknown不重放保持。
 
 提交阶段补记：首次暂存检查发现本任务新JSON的CRLF被当前Git配置判为行尾空白；失败日志保留，已仅将该新文件规范为LF，语义不变，未修改共享历史。最终树另行完整重跑restore与原Format，结果以restore-final.result.json、format-final.result.json为准；提交动作必须在两项均exit0及最终暂存检查通过后执行。
+
+## M47-P02 停止交接：执行器越界清理（2026-10-10，Asia/Shanghai）
+
+本轮接续P01实施P02，起止HEAD均60bd752f95c1ef2dcbab2566925cd599c43383f4，未stage/commit/push/PR/tag/dispatch/发布/部署。通过gh代理只读核原run37731752397/5424b666及候选01最新run38031369602/c40fa670，两次12fail均由Vite/Node环境、误收集独立真实Server测试、Studio旧夹具身份/生命周期与停止前置造成。六个代码配置修改（web/package.json、playwright.config.ts、新playwright.smoke.config.ts、copilot-browser-direct.spec.ts、management-workbenches.spec.ts、management-workbench-smoke.yml）保留未提交；生产源码、real runners/specs、原release policy和三个VSCode pending不改。新增报告docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md，原候选01不改；候选02及新版本尚未创建，P02不完成、产品NOT_READY。
+
+局部证据：三条原失败在本机复现，修复后3/3；Node448/448、Web vue-tsc/Vite build通过。362 Playwright用例分解为332 fixture与30 real，逐项收集无丢失；无Server URL的Document负向检查仍exit1。完整restore第二次自然exit0、原Format自然exit0（工作区加载警告保留）。两次全smoke分别由短命进程审计和累计256身份上限中断，第二次另有Measurement点击后等待超时；均不PASS。四分片后备只完成第一片，随后停止，未运行其它三片或额外StudioHost12项。所有原失败和双流在artifacts/m47-p02-smoke-20261010。
+
+严重安全事件：复用P01任务级Invoke-CheckedCommand.ps1时，未充分审查其子进程发现对已退出parent PID的复用处理。smoke-all-v2期间PID29260已被VSCode C# Dev Kit复用，执行器仍用旧PID作父节点发现，错误接纳并终止9个外部进程（42804、35768、45612、11320、83412、85820、82948、70104、60776），另有2个被终止conhost（41532、72024）归属未能确认。原receipt中的15信号/cleanupComplete=false保留；process-scope-incident.json保存身份与原因。此行为违反仅清理本任务完整归属进程的要求，已明确告知用户并停止后续验收/提交。没有擅自重启VSCode/C#服务，当前编辑器功能及恢复状态未验证，需要用户人工检查后决定接续。
+
+任务cancel标志与禁用提示保留；当前执行器和未执行Stage-Fix草案不可运行，其草案中预计307/25/12通过不是实测结果。四分片第1片自然exit0/0清理信号，控制批次已退出，未启动第2片。新快照只能证明具体当前观察，不能反写旧失败或宣称整机/所有后代清理完毕。后续不得直接复用本任务执行器，须先独立审查父链实时归属/复用拒绝及进程预算，获得人工接续后再处理Measurement超时、完成332条覆盖与实际候选冻结。
+
+共享M42规划、HANDOFF历史、queue/validation、博客/账本/图片和三个VSCode dirty全部保留，index最终为空；本HANDOFF仅追加，不提交原因是安全停止且P02完整验收未取得。origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1；workbench实查PAUSED，未修改自动化或恢复WB98。Graph Beta、MQ逻辑database+Topic与instance.system/mq持久化/单库备份缺口、SQL原名、一次审批、取消非回滚、unknown不重放保持。下一会话首先阅读本安全事件，不直接进入P03。
+
+## M47-P02 接续：Web 修复与本地验收通过（2026-10-10，Asia/Shanghai）
+
+用户在安全停止后明确要求继续实现。本轮从 main/60bd752f95c1ef2dcbab2566925cd599c43383f4 接续，只完成 P02；旧执行器、cancel、STOPPED 与原 incident 均未改写。六个测试/配置文件修复 Vite/Node logout、fixture/real 收集和 Studio 身份/生命周期夹具；生产守卫、真实 runner/spec、release policy 和三个 VS Code pending 源不变。Node 合同独立成为原五 job 中 Web job 的必经步骤。
+
+新证据 artifacts/m47-p02-resume-20261010 使用独立 Windows Job Object：根进程挂起后入组、保留句柄、仅采样组内成员，禁止按历史 PID 扩展父链；停止作用域由内核继承成员关系限定。正常退出、超时及已退出父进程的 detached 子进程隔离检查通过，另一独立 sentinel 保持存活。初版 conhost 命令变化负向检查和第二分片短命命令读取中断原样保留；后续采用无控制台启动、延后短命观察，存活成员清理仍核身份/组归属。验收通过的各任务最后 Job membership 为空；这不反写旧9个外部进程误杀和2个conhost归属未决，也不证明编辑器已经恢复。
+
+完整 fixture 按四片串行、单 worker、retries=0：89/0、66/13、88/0、64/12，合计307 passed、25 skipped、0 failed/flaky；332项ID/标题/文件逐项等于原收集清单。默认25 skip为13个StudioNative与12个StudioHost；额外StudioNative runtime运行studio-host-client.spec.ts实得12/12、0skip。Measurement501行用例单独和分片均通过，旧5秒点击超时未稳定复现，原因保持unknown，没有提高timeout或改产品。原Web build与448 Node合同复用前后236个输入SHA相等证据；本地Node24/Windows与CI Node22/Linux分列，30条真实Server suite仍NOT_RUN，缺URL负向拒绝保留。
+
+修复仅本地提交九路径：六个代码配置、P02报告、CHANGELOG单条、HANDOFF本任务停止/接续两段。完整restore与原Format须在最终树串行通过，实际收据和提交绑定见本证据目录；未取得收据不提交。共享M42、博客/账本、queue/validation旧pending与三VSCode源保留，不stage整份共享文档。后继候选02将在此修复提交上独立冻结4.5.0-preview.1.2；当前仅本地验收通过，产品NOT_READY，P03未执行。无push、PR、tag、dispatch、发布、部署、安装或编辑器重启；旧workbench自动化保持PAUSED，origin/parity-results保护。
