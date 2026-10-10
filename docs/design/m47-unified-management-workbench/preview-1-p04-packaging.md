@@ -1,10 +1,10 @@
 # M47-P04：独立 Web / NativeAOT Server 组包
 
-2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～05保留，当前继任版本 `4.5.0-preview.1.6`。本次构建仅支持 Windows x64，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
+2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～06的来源与记录保留，当前继任版本 `4.5.0-preview.1.7`。本次构建只验收 Windows 11 x64、Edge/Chrome，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
 
 ## 来源与独立构建
 
-[手动 CI 入口](../../../.github/workflows/workbench-preview-build.yml)只接受完整40位source SHA和新版本，在干净checkout按gitlink提交恢复两个子模块。权限只有contents read；只上传Actions构建产物，无tag/Release/NuGet/容器/安装器入口。[组包器](../../../eng/workbench-preview/build.ps1)拒绝dirty、预存ignored输出与旧web/dist，输出必须在checkout之外。源码清单保存SHA/tree/gitlinks和逐文件SHA256，构建后复核输入未变化。
+[手动 CI 入口](../../../.github/workflows/workbench-preview-build.yml)只接受完整40位source SHA和新版本，在干净checkout按gitlink提交恢复两个子模块。权限为contents/actions read；只上传Actions构建产物，无tag/Release/NuGet/容器/安装器入口。[组包器](../../../eng/workbench-preview/build.ps1)拒绝dirty、预存ignored输出与旧web/dist，输出必须在checkout之外。源码清单保存SHA/tree/gitlinks和逐文件SHA256，构建后复核输入未变化。
 
 Server按原专用`SonnetDbPublishAot=true`开关真实publish，warning按error处理；检查win-x64 PE32+与空CLR目录，再从原生文件ProductVersion回读发行号+完整SHA。Web锁定npm ci、类型检查和生产构建，编译固定preview-1/R1、版本和SHA；静态资源按本次fresh dist精确比对后进入同一publish库存。旧Release/WB运行目录不参与来源。
 
@@ -22,6 +22,8 @@ P04只生成ZIP、manifest与对这两项的SHA256SUMS。合同的第四附件`n
 
 实现提交`f84e3a6dcede6789fe088dbef4123d8d0c83ef19`已正常推送。候选05 CI run `38075483025` / attempt 1在组包入口失败：将npm位置假定为Node相邻目录，在Hosted runner没有找到CLI。尚未运行NativeAOT或产生ZIP，evidence上传也因输出未建立失败。原日志保存在`artifacts/m47-p04-20261011/ci-failure-05.stdout.log`；[候选05](preview-1-candidate-05.json)冻结失败，禁止复用版本。修正通过Get-Command按PATH顺序取首个Node/dotnet，并从已登记npm/Node的两个固定目录定位CLI，不递归扫描或安装软件；继任候选06在新的源码提交上构建。
 
-候选06当前实物待构建，不以本地测试/analyzer代替实际publish。最终SHA、CI和资产回执将在本报告后继冻结记录中填写。证据目录`artifacts/m47-p04-20261011`。
+候选06修正提交`a0917daf65a49b88613bf16aadf37de31ea72409`已推送，run `38076076784` / attempt1正在真实构建。兼容审查补齐明确的Windows 11/Edge/Chrome、同候选同版本、旧Server不接受、实际浏览器版本仍未知，以及C05包身份已实现/P05未验、D01组包已实现/P06上传器未验的状态；按不可变规则进入候选07，不覆盖06的来源或构建记录。20项合同增加了平台扩张和任意Server错配拒绝场景。
+
+候选07当前实物待构建，不以本地测试/analyzer代替实际publish。最终SHA、CI和资产回执将在本报告后继冻结记录中填写。证据目录`artifacts/m47-p04-20261011`。
 
 P05首次安装、登录/导航/查询/导出/审批、错配/停止重开/回退；P06发行说明/上传器；P07现有完整门禁；P08实际公开发布均未执行。P03真实旅程只属其原输入与SHA，不继承成新候选完整门禁。旧FAIL、P02进程事故、P03旧cleanup=false和编辑器恢复未知保持。Workbench/WB98自动化继续PAUSED。

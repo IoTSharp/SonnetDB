@@ -1643,3 +1643,10 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 源码f84e3a6d已正常推送，候选05/4.5.0-preview.1.5实际CI 38075483025 attempt1在npm CLI假定路径失败，NativeAOT未运行/ZIP未产生，上传证据也因目录未建立失败；原日志与不可变候选05保留。修正只从Get-Command的PATH登记首个Node/dotnet及npm/Node两个固定目录取CLI，不扫描大目录/安装软件。新候选06/4.5.0-preview.1.6采用新的修正提交，不复用05；本段不声明实物PASS。
 
 本次只精确暂存定位修正/profile、新候选05与P04文档增量；共享foreign字节和parity引用保留，HANDOFF追加fsync并核前缀。提交前重新完整restore/原CI format/cached whitespace，实际SHA见Git与后继收据。继续P04真实CI组包；P05～P08未执行，NOT_READY，原安全事故/cleanup=false与七模型延期不改变。
+
+
+## M47-P04 兼容清单候选07（2026-10-11，Asia/Shanghai）
+
+候选06来源a0917daf已正常推送，CI 38076076784 attempt1实际构建仍进行中。兼容审查发现必须在包内profile/manifest显式列出原合同Windows 11 x64/Edge/Chrome、同候选同版本、拒绝旧Server、浏览器版本P05未取证，并更新C05/D01为P04部分已实现而P05/P06未验；现已补齐，预算/R1延期不变。包元数据变化采用新候选07/4.5.0-preview.1.7，06记录保留。本段不冒称任何实际包或NativeAOT PASS。
+
+20项组包合同含平台扩张/任意Server错配拒绝通过；最终源码树完整restore/原CI Format/cached whitespace后才精确提交推送。HEAD加本片stage共享docs，HANDOFF独占尾部追加fsync并核原前缀，博客/M42/WB97/WB98/三VSCode及parity引用保留。后续先独立核CI包/hash/编译身份、冻结新候选并提交交接，P05～P08仍未执行/NOT_READY。

@@ -53,6 +53,9 @@ export function validateProfile(profile, version) {
   requireThat(/^4\.5\.0-preview\.1\.[1-9]\d*$/u.test(version) && profile.version === version, 'Version mismatch');
   requireThat(profile.profile === 'preview-1' && profile.scopeRevision === 'R1' && profile.rid === 'win-x64', 'Profile/RID mismatch');
   requireThat(profile.releaseStatus === 'NOT_READY', 'Premature release approval');
+  requireThat(JSON.stringify(profile.targets?.requiredOperatingSystems) === JSON.stringify(['Windows 11 x64'])
+    && profile.targets.compatibility === 'EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER'
+    && profile.targets.legacyServerCompatibility === 'NOT_ACCEPTED', 'Target compatibility mismatch');
   requireThat(JSON.stringify(profile.deferredModels) === JSON.stringify(['document', 'kv', 'fulltext', 'vector', 'object', 'mq', 'graph']), 'R1 deferrals changed');
   requireThat(profile.budgets.timeoutMilliseconds === 30000 && profile.budgets.maximumResponseBodyBytes === 4194304
     && profile.budgets.maximumSqlOrInsertInputUtf8Bytes === 65536, 'Budget mismatch');

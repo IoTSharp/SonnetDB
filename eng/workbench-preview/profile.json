@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "candidate": "candidate-06",
-  "version": "4.5.0-preview.1.6",
+  "candidate": "candidate-07",
+  "version": "4.5.0-preview.1.7",
   "profile": "preview-1",
   "scopeRevision": "R1",
   "releaseStatus": "NOT_READY",
@@ -411,7 +411,7 @@
       ]
     },
     {
-      "status": "NOT_IMPLEMENTED",
+      "status": "PACKAGE_IDENTITY_IMPLEMENTED_P05_PENDING",
       "scope": "embedded profile/version/manifest and mismatch/cache rejection",
       "id": "C05",
       "owners": [
@@ -420,7 +420,7 @@
       ]
     },
     {
-      "status": "NOT_IMPLEMENTED",
+      "status": "P04_ASSEMBLER_IMPLEMENTED_P06_UPLOADER_PENDING",
       "scope": "separate assembly and exact asset publication allowlist",
       "id": "D01",
       "owners": [
@@ -483,7 +483,7 @@
     "optionalListeners": "DISABLED",
     "shippedCredentialsAllowed": false,
     "bootstrap": "fresh-setup-UI",
-    "data": "isolated-test-directory",
+    "data": "../data; separate from package",
     "remoteProxyDockerServiceInstall": "DEFERRED",
     "authorizationLayers": [
       "HTTP-role",
@@ -511,5 +511,31 @@
     "object",
     "mq",
     "graph"
-  ]
+  ],
+  "targets": {
+    "requiredRids": [
+      "win-x64"
+    ],
+    "requiredOperatingSystems": [
+      "Windows 11 x64"
+    ],
+    "browserFamilies": [
+      "Edge",
+      "Chrome"
+    ],
+    "actualBrowserVersions": null,
+    "browserVersionEvidenceOwner": "M47-P05",
+    "serverBuild": "NativeAOT",
+    "deferred": [
+      "linux-x64",
+      "linux-arm64",
+      "win-arm64",
+      "win-x86",
+      "macOS",
+      "other-Windows-versions",
+      "mobile-browsers"
+    ],
+    "compatibility": "EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER",
+    "legacyServerCompatibility": "NOT_ACCEPTED"
+  }
 }
