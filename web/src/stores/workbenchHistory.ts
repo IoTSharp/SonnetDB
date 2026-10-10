@@ -171,6 +171,7 @@ function normalizeEntry(input: Partial<WorkbenchHistoryEntry>): WorkbenchHistory
 }
 
 function loadState(): StoredWorkbenchHistory {
+  if (import.meta.env?.VITE_WORKBENCH_PROFILE && import.meta.env.VITE_WORKBENCH_PROFILE !== 'full') return { entries: [] };
   try {
     const raw = localStorage.getItem(StorageKey);
     if (!raw) return { entries: [] };
@@ -186,6 +187,7 @@ function loadState(): StoredWorkbenchHistory {
 }
 
 function saveState(state: StoredWorkbenchHistory): void {
+  if (import.meta.env?.VITE_WORKBENCH_PROFILE && import.meta.env.VITE_WORKBENCH_PROFILE !== 'full') return;
   try {
     localStorage.setItem(StorageKey, JSON.stringify(state));
   } catch {
@@ -201,6 +203,7 @@ export const useWorkbenchHistoryStore = defineStore('workbenchHistory', () => {
     [...entries.value].sort((a, b) => b.createdAt - a.createdAt));
 
   function record(input: Omit<WorkbenchHistoryEntry, 'id' | 'createdAt'> & Partial<Pick<WorkbenchHistoryEntry, 'id' | 'createdAt'>>): void {
+    if (import.meta.env?.VITE_WORKBENCH_PROFILE && import.meta.env.VITE_WORKBENCH_PROFILE !== 'full') return;
     entries.value = [
       normalizeEntry(input),
       ...entries.value.filter((entry) => entry.id !== input.id),

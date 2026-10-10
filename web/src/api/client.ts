@@ -33,9 +33,12 @@ export function loadAuth(): AuthState | null {
 }
 
 export function createApiClient(getToken: () => string | null): AxiosInstance {
+  const profile = import.meta.env?.VITE_WORKBENCH_PROFILE;
   const client = axios.create({
     baseURL: import.meta.env.BASE_URL,
     timeout: 30_000,
+    ...(profile && profile !== 'full' ? { adapter: async (config: Parameters<import('axios').AxiosAdapter>[0]) =>
+      (await import('../preview/transport')).previewAdapter(config) } : {}),
   });
   client.interceptors.request.use((cfg) => {
     const t = getToken();

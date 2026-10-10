@@ -45,6 +45,7 @@ async function navigationFixture({ base = '/', authenticated = false, setupError
     return { needsSetup: setup.needsSetup };
   } };
   const imports = {
+    '@/preview/policy': synthetic(context, { previewEnabled: false, previewRouteAllowed: () => true }),
     'vue-router': synthetic(context, { createRouter, createWebHistory: createMemoryHistory }),
     '@/views/WelcomeView.vue': synthetic(context, { default: {} }),
     '@/stores/auth': synthetic(context, { useAuthStore: () => auth }),
@@ -116,6 +117,7 @@ test('Actual Login submit applies the same route validation and keeps legacy SQL
       '@/utils/workbenchNavigation': f.module,
     };
     const script = readFileSync(new URL('src/views/LoginView.vue', webRoot), 'utf8').match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
+    imports['@/preview/policy'] = synthetic(f.context, { previewEnabled: false });
     const component = sourceModule(f.context, 'LoginView', '/', `${script}\nexport { onSubmit, username, password };`);
     await component.link((specifier) => imports[specifier]); await component.evaluate({ timeout: 1000 });
     component.namespace.username.value = 'admin'; component.namespace.password.value = 'password';
@@ -218,6 +220,7 @@ test('Actual connection store uses configured local path, migrates only old buil
       vue: synthetic(context, { computed: vue.computed, ref: vue.ref, shallowRef: vue.shallowRef, watch: vue.watch }),
       pinia: synthetic(context, { defineStore }),
       '@/api/studioNativeBridge': synthetic(context, { getStudioNativeBridge: async () => null, readStudioConnectionIdentity: () => null, studioManagedServerPresentation: () => ({}) }),
+      '@/preview/policy': synthetic(context, { previewEnabled: false }),
     };
     const module = sourceModule(context, 'src/stores/connections.ts', '/Gateway/SonnetDB/');
     await module.link((specifier) => imports[specifier]); await module.evaluate({ timeout: 1000 });

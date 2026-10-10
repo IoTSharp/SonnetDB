@@ -2,6 +2,9 @@ import type { SqlResultSet } from '@/api/sql';
 import { rowsToObjects } from '@/api/sql';
 import { getStudioNativeBridge, type StudioFileDialogFilter } from '@/api/studioNativeBridge';
 import { formatSqlValue } from '@/utils/sqlValue';
+import { previewEnabled, previewLimits } from '@/preview/policy';
+import { previewSession, clearPreviewSession } from '@/preview/session';
+import { useAuthStore } from '@/stores/auth';
 
 export type ResultExportFormat = 'csv' | 'json';
 
@@ -44,6 +47,7 @@ export function buildExportText(
 
 export async function copyText(value: string): Promise<boolean> {
   try {
+    await admitPreviewExport(value);
     await navigator.clipboard.writeText(value);
     return true;
   } catch {
@@ -51,7 +55,8 @@ export async function copyText(value: string): Promise<boolean> {
   }
 }
 
-export function downloadText(fileName: string, value: string, contentType: string): void {
+export async function downloadText(fileName: string, value: string, contentType: string): Promise<void> {
+  if (previewEnabled) await admitPreviewExport(value);
   const blob = new Blob([value], { type: contentType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -64,6 +69,7 @@ export function downloadText(fileName: string, value: string, contentType: strin
 }
 
 export async function saveTextFile(fileName: string, value: string, contentType: string): Promise<'native' | 'browser' | 'cancelled'> {
+  if (previewEnabled) { await downloadText(fileName, value, contentType); return 'browser'; }
   const bridge = await getStudioNativeBridge();
   if (bridge?.manifest.capabilities.includes('dialogs.saveFile')) {
     const result = await bridge.saveTextFile({
@@ -78,8 +84,19 @@ export async function saveTextFile(fileName: string, value: string, contentType:
     return 'native';
   }
 
-  downloadText(fileName, value, contentType);
+  await downloadText(fileName, value, contentType);
   return 'browser';
+}
+
+async function admitPreviewExport(value: string): Promise<void> {
+  if (!previewEnabled) return;
+  const context = previewSession.value;
+  if (context.blocked || !context.database || new TextEncoder().encode(value).length > previewLimits.bytes) throw new Error('导出已拒绝：上下文失效或超过 4 MiB。');
+  let access: { canRead: boolean; canWrite: boolean };
+  try { access = (await useAuthStore().api.get<{ canRead: boolean; canWrite: boolean }>(`/v1/db/${encodeURIComponent(context.database)}/access`)).data; }
+  catch (error) { if (previewSession.value.generation === context.generation) clearPreviewSession('无法确认权限；旧结果与导出已清除。', true); throw error; }
+  if (access.canRead !== true || access.canWrite !== context.canWrite) { clearPreviewSession('权限已变化，旧结果与导出已清除。', true); throw new Error('权限已变化，导出已拒绝。'); }
+  if (previewSession.value.generation !== context.generation) throw new Error('导出上下文已失效。');
 }
 
 export function safeFileStem(value: string, fallback: string): string {

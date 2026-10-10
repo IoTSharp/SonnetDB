@@ -4,7 +4,7 @@
       <BrandLogo light />
       <div class="login-copy">
         <span class="login-kicker">Control Console</span>
-        <h1>登录管理后台，接管数据库、用户、权限与实时事件。</h1>
+        <h1>{{ previewEnabled ? '登录 SonnetDB Workbench Preview 1' : '登录管理后台，接管数据库、用户、权限与实时事件。' }}</h1>
         <p>
           当前实例
           <code>{{ setup.serverId ?? '未命名服务器' }}</code>
@@ -19,7 +19,7 @@
       <div class="login-card">
         <button type="button" class="home-link" @click="goHome">返回首页</button>
         <h2>管理登录</h2>
-        <p class="login-intro">使用首次安装时创建的管理员用户名和密码登录。</p>
+        <p class="login-intro">使用管理员或已获数据库授权的普通用户登录。只读用户可浏览获授权的数据。</p>
 
         <n-form @submit.prevent="onSubmit">
           <n-form-item label="用户名">
@@ -30,7 +30,7 @@
               v-model:value="password"
               type="password"
               show-password-on="click"
-              placeholder="输入管理员密码"
+              :placeholder="previewEnabled ? '输入密码' : '输入管理员密码'"
             />
           </n-form-item>
           <n-button type="primary" block :loading="loading" attr-type="submit">登录后台</n-button>
@@ -49,6 +49,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
 import { validatedLoginRedirect } from '@/utils/workbenchNavigation';
+import { previewEnabled } from '@/preview/policy';
 
 const username = ref('');
 const password = ref('');
@@ -79,6 +80,7 @@ async function onSubmit(): Promise<void> {
     error.value = (cause as { response?: { data?: { message?: string } } })?.response?.data?.message
       ?? '登录失败。';
   } finally {
+    password.value = '';
     loading.value = false;
   }
 }

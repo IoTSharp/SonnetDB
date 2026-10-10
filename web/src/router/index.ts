@@ -3,13 +3,14 @@ import WelcomeView from '@/views/WelcomeView.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
 import { validatedLoginRedirect } from '@/utils/workbenchNavigation';
+import { previewEnabled, previewRouteAllowed } from '@/preview/policy';
 
 const SetupView = () => import('@/views/SetupView.vue');
 const LoginView = () => import('@/views/LoginView.vue');
 const AutoLoginView = () => import('@/views/AutoLoginView.vue');
-const AppShell = () => import('@/views/AppShell.vue');
-const DashboardView = () => import('@/views/DashboardView.vue');
-const SqlConsoleView = () => import('@/views/SqlConsoleView.vue');
+const AppShell = previewEnabled ? () => import('@/preview/PreviewShell.vue') : () => import('@/views/AppShell.vue');
+const DashboardView = previewEnabled ? () => import('@/preview/PreviewOverview.vue') : () => import('@/views/DashboardView.vue');
+const SqlConsoleView = previewEnabled ? () => import('@/preview/PreviewWorkbench.vue') : () => import('@/views/SqlConsoleView.vue');
 const EventsView = () => import('@/views/EventsView.vue');
 const MonitoringView = () => import('@/views/MonitoringView.vue');
 const UsersView = () => import('@/views/UsersView.vue');
@@ -20,7 +21,7 @@ const CopilotTestView = () => import('@/views/CopilotTestView.vue');
 const CopilotOAuthCallbackView = () => import('@/views/CopilotOAuthCallbackView.vue');
 const RagManagementView = () => import('@/views/RagManagementView.vue');
 const ModbusView = () => import('@/views/ModbusView.vue');
-const AboutView = () => import('@/views/AboutView.vue');
+const AboutView = previewEnabled ? () => import('@/preview/PreviewAbout.vue') : () => import('@/views/AboutView.vue');
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -34,6 +35,7 @@ const router = createRouter({
     // 首次安装 / 登录页面（匿名，但纳入 /admin 命名空间）
     { path: '/admin/setup', name: 'setup', component: SetupView, meta: { anon: true } },
     { path: '/admin/login', name: 'login', component: LoginView, meta: { anon: true } },
+    { path: '/admin/preview-unavailable', name: 'preview-unavailable', component: () => import('@/preview/PreviewUnavailable.vue'), meta: { anon: true } },
     { path: '/admin/auto-login', name: 'auto-login', component: AutoLoginView, meta: { anon: true } },
     { path: '/admin/copilot/oauth/callback', name: 'copilot-oauth-callback', component: CopilotOAuthCallbackView, meta: { anon: true } },
 
@@ -78,6 +80,8 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (previewEnabled && to.name === 'preview-unavailable') return true;
+  if (previewEnabled && to.name !== 'preview-unavailable' && !previewRouteAllowed(to.name, to.query)) return { name: 'preview-unavailable' };
   // A dedicated popup callback must not load database credentials or setup state.
   if (to.name === 'copilot-oauth-callback') return true;
 

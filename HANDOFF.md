@@ -1599,3 +1599,12 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 根ROADMAP、queue与validation入口同步P02本地完成、下一项P03；C01～C04、真实登录/普通及只读权限/撤权清理/承诺的取消unknown恢复仍未实施。后续源码或包字节变更必须新候选/新N，不能覆盖02。NOT_READY、Studio/VSIX延期、Graph Beta和MQ实例持久化/单库备份边界保持。第二次完整restore/原Format仍须在此最终元数据树通过再提交；共享文档只stage本片变换，M42/博客/旧WB dirty继续保留。
 
 旧执行器安全事件及所有ERROR/cleanup false收据保留；本轮没有编辑器重启，恢复状态未知。workbench自动化实查PAUSED；origin/parity-results未变，无push、PR、dispatch、发布、部署或安装。资源、实际提交与保护检查见artifacts/m47-p02-resume-20261010/delivery.json。下次从P03开始，不返回旧helper集成循环；P07另核最终同SHA/version/latest attempt。
+
+
+## M47-P03 代码收口（2026-10-10，Asia/Shanghai）
+
+**P03实现及R1 Preview专项本地验收完成，完整模式回归仍有未决超时**；七个模型专用读取因服务端预算未证延期，不能称九模型读取已通过。 新增显式Preview外壳、路由/动作拒绝、真实role与grant核权、一次单行审批、取消/撤权/断连清载荷、unknown不重放，以及SQL/schema预算；详见docs/design/m47-unified-management-workbench/preview-1-p03-controls.md和preview-1-p03-scope-revision.md。最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。
+
+本地代码提交后将冻结不可变候选03/4.5.0-preview.1.3，并完成第二次最终树restore/原CI Format/cached whitespace再提交清单；当前尚未冻结，不把计划当回执。两次提交的实际SHA由后续交接和Git记录。本轮证据artifacts/m47-p03-20261010，原失败、worker异常和P02误杀事件保留；独立Windows Job只处理内核归属成员。浏览器批次结束的清理不是正常重启证明；正常Stop/Start回读由真实Kestrel测试单列。UserStore无到期字段，只验证真实撤销401，不称定时过期验收。
+
+产品NOT_READY；未执行P04～P08、push、远端workflow、发布、部署、安装、编辑器重启、Workbench自动化/WB98恢复，无子智能体或来源会话消息。下一项仅供后续授权：先处理P03完整模式KV分页超时及Chrome点击不稳定，再由P04固定profile/版本并组包，再按P05/P07验收最终候选；七模型恢复须新预算/证据/候选。候选01/02、原五job/artifact及release policy不变。共享HANDOFF原字节、博客/账本/三个VSCode pending保留，共享文档index只取HEAD加本片内容。

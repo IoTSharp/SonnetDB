@@ -83,7 +83,7 @@
       <div class="relation-insert__head">
         <div>
           <n-text class="relation-insert__title">New row</n-text>
-          <n-text depth="3" class="relation-insert__hint">Values are staged first and committed in one transaction.</n-text>
+          <n-text depth="3" class="relation-insert__hint">{{ previewEnabled ? 'Preview: approve and submit one parameterized row once.' : 'Values are staged first and committed in one transaction.' }}</n-text>
         </div>
         <n-space size="small">
           <n-button size="small" secondary @click="resetInsertDraft">Reset</n-button>
@@ -297,6 +297,7 @@ import {
   type SqlStatementRequest,
 } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
+import { previewEnabled } from '@/preview/policy';
 import RelationalDdlExport from '@/components/RelationalDdlExport.vue';
 import RelationalErDiagram from '@/components/RelationalErDiagram.vue';
 import RelationalImportExport from '@/components/RelationalImportExport.vue';
@@ -641,7 +642,7 @@ function renderDraftEditor(
 }
 
 function renderRowActions(row: GridRow) {
-  if (readOnly.value || permissionDenied.value) return null;
+  if (previewEnabled || readOnly.value || permissionDenied.value) return null;
   if (editingRows[row.__rowKey]) {
     return h(NSpace, { size: 6, wrap: false }, {
       default: () => [
@@ -824,6 +825,7 @@ function nextPage(): void {
 }
 
 function startEdit(row: GridRow): void {
+  if (previewEnabled) return;
   if (!canWrite.value || writeInFlight) return;
   editDrafts[row.__rowKey] = createDraftFromRow(row);
   editingRows[row.__rowKey] = true;
@@ -836,6 +838,8 @@ function cancelEdit(row: GridRow): void {
 
 function stageInsert(): void {
   if (!props.table || !canWrite.value || writeInFlight) return;
+  if (previewEnabled && insertableColumns.value.length === 0) { message.warning('本预览不支持 DEFAULT VALUES 插入。'); return; }
+  if (previewEnabled && pendingOperations.value.length > 0) { message.warning('本预览一次只能审批一个插入。请先确认或丢弃现有草稿。'); return; }
   const values = collectDraftValues(insertDraft, insertableColumns.value);
   if (!values.ok) {
     message.error(values.message);
@@ -875,6 +879,7 @@ function stageInsert(): void {
 }
 
 function stageUpdate(row: GridRow): void {
+  if (previewEnabled) return;
   if (!props.table || !canWrite.value || writeInFlight) return;
   const draft = editDrafts[row.__rowKey];
   if (!draft) return;
@@ -926,6 +931,7 @@ function stageUpdate(row: GridRow): void {
 }
 
 function stageDelete(row: GridRow): void {
+  if (previewEnabled) return;
   if (!props.table || !canWrite.value || writeInFlight) return;
   const where = buildPrimaryKeyWhere(row, 'pk_delete');
   if (!where.ok) {
@@ -965,6 +971,7 @@ function hidePendingPreview(): void {
 }
 
 async function confirmPendingOperations(): Promise<void> {
+  if (previewEnabled && (pendingOperations.value.length !== 1 || pendingOperations.value[0].action !== 'insert')) return;
   if (!previewVisible.value || !canWrite.value || writeInFlight || !pendingContext || !isContextCurrent(pendingContext)
     || pendingOperations.value.length === 0) {
     if (pendingContext && !isContextCurrent(pendingContext)) clearPendingOperations();
@@ -982,7 +989,7 @@ async function confirmPendingOperations(): Promise<void> {
   writeInFlight = true;
   confirmBusy.value = true;
   errorMsg.value = '';
-  const statements: SqlStatementRequest[] = [
+  const statements: SqlStatementRequest[] = previewEnabled ? operations.map((operation) => ({ sql: operation.sql, parameters: operation.parameters })) : [
     { sql: 'BEGIN' },
     ...operations.map((operation) => ({
       sql: operation.sql,
@@ -993,7 +1000,9 @@ async function confirmPendingOperations(): Promise<void> {
   const command = statements.map((statement) => statement.sql).join('\n');
 
   try {
-    const results = await execDataSqlBatch(context.api, context.database, statements, controller.signal);
+    const results = previewEnabled
+      ? [await execDataSql(context.api, context.database, statements[0].sql, statements[0].parameters, controller.signal, undefined, 'relation.insert.one')]
+      : await execDataSqlBatch(context.api, context.database, statements, controller.signal);
     const errorResult = results.find((result) => result.error);
     const complete = results.length === statements.length && results.every((result) => Boolean(result.end));
     const unknown = controller.signal.aborted || (errorResult?.error

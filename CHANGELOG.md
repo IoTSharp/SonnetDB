@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- **M47-P03 Preview入口与安全结果（2026-10-10）**：显式preview-1外壳、路由/动作白名单、真实HTTP角色与数据库grant核权、一次关系表单行参数化审批、撤权/取消/身份切换清载荷、unknown不重放和有界SQL/schema/导出。依[P03范围修订R1](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)明确延期七模型专用读取；[本地验证](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)不替代发行物/远端门禁，产品仍NOT_READY，候选03在代码提交后冻结。
 - **M47-P01 首版范围与候选冻结（2026-10-10）**：记录已提交候选 `c40fa670e3a170c5fac8cefa181d618631862270`、保留版本 `4.5.0-preview.1.1`、win-x64 同源环回 Web＋Server、九模型受限读取和关系表单行审批插入白名单；新增[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)及[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)。核实 Publish 的 Studio/全套资产默认行为，冻结不经 v* 的独立 prerelease 和精确附件集合，保留原12个workflow/五个Workbench job与artifact门禁。仅完成范围合同，入口限制/打包分发实现及候选真实验收归P02～P07，产品仍NOT_READY，未构建/打标签/发布。
 - 记录 WB83 preflight helper6秒与Host命令20秒的独立边界、首次ports helper等待关联及PID重复调用缺口，冻结保持原权限/预算的JS逐调用观察合同（WB84；尚未实施）。
 - **M47 WB83 VS Code 独立真实窗口检查点**：复用既有stop/history/elapsed合同，冻结新窗口并取得preflight helper_deadline失败及四条真实stop诊断；原cleanup失败与未知边界保留，未验收Query/history/Code旅程。

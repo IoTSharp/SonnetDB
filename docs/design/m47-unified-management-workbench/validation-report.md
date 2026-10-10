@@ -1,3 +1,7 @@
+## M47-P03 当前本地验收：范围修订R1（2026-10-10）
+
+**P03实现及R1 Preview专项本地验收完成，完整模式回归仍有未决超时**；七个模型专用读取因服务端预算未证延期，不能称九模型读取已通过。 最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。 见[P03报告](preview-1-p03-controls.md)和[R1修订](preview-1-p03-scope-revision.md)。候选03/4.5.0-preview.1.3待代码提交后独立冻结；产品NOT_READY，P04～P08和远端门禁未执行。下方P02及WB记录均按原来源保留，不迁移PASS或恢复自动化。
+
 ## M47-P02 本地验收与候选02（2026-10-10）
 
 修复提交 ed4f48242c5d5b4e7e16861504d03cc845146402，候选 4.5.0-preview.1.2，见[P02报告](preview-1-p02-smoke.md)与[不可变候选02](preview-1-candidate-02.json)。236个输入SHA复核及Git blob绑定通过；Web build、448 Node合同、四片307 fixture/25原skip和额外12 StudioHost通过，retries=0，0failed/flaky。真实Server30项和所有远端workflow仍NOT_RUN；产品NOT_READY，下一项P03，未执行。新Job执行器通过的验收任务均确认Job清空；旧误杀9个外部进程/2个conhost未知与中断窗口不改写，编辑器恢复未验证。下方旧WB记录只保留历史，不恢复WB98或自动化。

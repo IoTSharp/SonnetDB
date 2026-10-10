@@ -49,6 +49,7 @@ async function loadWorkbench(overrides = {}) {
   };
   const names = ['NAlert', 'NButton', 'NDataTable', 'NEmpty', 'NInput', 'NInputNumber', 'NSelect', 'NSpace', 'NTag', 'NText'];
   const dependencies = {
+    '@/preview/policy': synthetic({ previewEnabled: false }),
     vue: synthetic({ computed, h, reactive, ref, watch: (...args) => { const stop = watch(...args); cleanups.push(stop); return stop; },
       onMounted: (callback) => mounts.push(callback), onBeforeUnmount: (callback) => cleanups.push(callback) }),
     'naive-ui': synthetic({ ...Object.fromEntries(names.map((name) => [name, name])), useMessage: () => Object.fromEntries(['success', 'error', 'info'].map((name) => [name, (text) => messages.push({ name, text })])) }),

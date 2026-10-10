@@ -91,3 +91,8 @@ SQL 原拼写/OrdinalIgnoreCase 与双引号精确匹配合同保持；拒绝仅
 - Studio WB80 本机恢复 PASS 保留，但旧 Release 不计当前安装；VS Code WB83 preflight/helper_deadline FAIL 与 WB98 审查超时不升级为已证产品故障。旧 workbench 自动化继续 PAUSED，不接续 helper 集成循环。
 
 首版若需更改纳入动作、平台或预算，必须追加有理由/影响/验收范围的修订，并同步 JSON、根路线与交接；不能在 P04/P06 打包时偷偷放宽范围。
+
+
+## 2026-10-10 P03修订R1
+
+候选03起采用[有理由和验收边界的范围修订R1](preview-1-p03-scope-revision.md)：七模型专用读取因服务端预算未证延期，SQL/关系/时序保留受支持的有界子集；原候选01/02不修改，产品仍NOT_READY。真实验证见[P03报告](preview-1-p03-controls.md)。

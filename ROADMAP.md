@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | M47-P01 | 冻结预览范围、已提交候选、版本与发布物白名单 | **🟢 范围冻结完成，产品仍 NOT_READY**。[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[候选01](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)、[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)已记录；入口与分发实现仍阻断。 |
 | 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
-| 3 | M47-P03 | 补齐首版真实登录与权限、安全结果和所承诺恢复旅程 | **下一项；🚧**。P01/P02已完成范围和本地验收，C01～C04及真实Server仍待实现/验证；复用已完成九模型旅程。 |
+| 3 | M47-P03 | 首版真实登录、授权、预算和终态 | **R1 Preview专项通过；完整模式回归partial**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；新候选03待代码提交后冻结，产品NOT_READY。 |
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | P02、P03；📋。版本、commit、合同、能力、依赖和 SHA256 一起冻结。 |
 | 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | P04；📋。验证安装后的资源和真实 Server，开发服务器运行不替代。 |
 | 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | P01～P05；📋。文档描述实际发行范围；如需限定发布资产，补独立可审查的分发切片。 |
@@ -178,7 +178,7 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 |---|---|---|
 | **M47-P01 / P0** | **🟢 范围冻结完成**：候选01完整SHA、版本/兼容、13组动作、入口限制及独立分发白名单 | [冻结合同](docs/design/m47-unified-management-workbench/preview-1-scope.md)与[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)可供后续引用。九模型限定读取＋关系表单行审批插入；C01～C05/D01仍需P03～P06实施/验收，产品NOT_READY。Studio/VSIX延期，Publish默认含Studio而不含VSIX；独立渠道不得触发v*全套发布。 |
 | **M47-P02 / P0** | **本地完成**：修复 Web smoke 夹具/环境/收集边界，冻结候选02 | 修复来源 `ed4f48242c5d5b4e7e16861504d03cc845146402`，保留版本 4.5.0-preview.1.2；build、448 Node合同、307 fixture与12 StudioHost通过，25默认skip和30 real suite分列，所有远端门禁NOT_RUN。原两次CI失败、旧Object flaky和执行器越界事件保留；详见[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。 |
-| **M47-P03 / P0** | 补齐真实登录 UI、普通用户和只读入口、身份切换、撤权后的载荷清理，以及本次承诺的结果/恢复旅程 | 在真实 Server/正式路由验证授权与拒绝；取消/断连/截断和写 unknown 可见、不会重放；导出只覆盖标明的当前窗口；HTTP/字节/行/时间预算明确。复用 WB26～WB37 的九模型证据，补未验承诺及候选差异，不把 API 安装 token 算登录 UI。 |
+| **M47-P03 / P0** | **R1 Preview专项通过；完整模式回归partial**：入口/动作拒绝、登录授权、SQL预算、一次单行审批及终态 | [P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)分列真实Server、浏览器故障注入、正常重开与完整模式回归。七个模型专用读取因服务端预算未证延期；候选03须冻结新SHA与4.5.0-preview.1.3。P04～P08未执行，NOT_READY。 |
 | **M47-P04 / P0** | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
 | **M47-P05 / P0** | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
 | **M47-P06 / P0** | 编写首版预览说明、已知限制、升级/回退和反馈方式；必要时实现限定资产的分发切片 | README/CHANGELOG/版本兼容/使用说明与 manifest 一致，延期功能不会混入可用声明。现有 `publish.yml` 会构建并上传 Studio 等资产：Web-only 预览须有明确可审查的资产选择或独立分发路径，不能顺带公开未验收桌面包；不以此降低现有验证要求。 |
