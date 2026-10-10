@@ -28,7 +28,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: github/codeql-action/init@v4.38.1
+      - uses: github/codeql-action/init@v4.38.2
         with:
           languages: csharp
 
@@ -36,6 +36,6 @@ jobs:
         run: dotnet build SonnetDB.slnx --configuration Release
 
       - name: Analyze code and upload results
-        uses: github/codeql-action/analyze@v4.38.1
+        uses: github/codeql-action/analyze@v4.38.2
         with:
           category: "/language:csharp"
