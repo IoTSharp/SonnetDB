@@ -448,6 +448,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- **M47-P03 KV及时序预览渲染收尾（2026-10-10）**：KV及时序点表/监控结果表使用虚拟滚动，避免500～1000行同时挂载导致原30秒旅程或5秒点击超时；保留全部已加载数据及KV1000/measurement500条上限、cursor截断、原值导出与权限合同，验证末尾行选择和筛选后的选中导出。P03按[R1本地验收](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)完成；七模型专用读取仍延期，发行/实物/远端门禁与NOT_READY保持。
 - **M47-P02 Web smoke 修复（2026-10-10）**：修复 logout 的 Vite/Node 环境错用和 Studio 夹具身份/生命周期前置；fixture smoke 与独立真实 Server suite 分开收集，Node 合同成为 CI 必经步骤。相同 236 个输入上 Web build、448 条 Node 合同、307 条 fixture 与 12 条 StudioHost 回归通过；默认 25 条宿主专用 skip、30 条独立 real suite 和远端门禁分列。保留两次历史 CI 失败、原执行器越界清理及本地中断记录，产品仍 NOT_READY；见 [P02 报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。
 
 - **M47 WB79 磁盘派生身份兼容（2026-10-09）**：通过真实C# SaveAsync与Node共用夹具验证实际JSON形态，磁盘校验接受完整且一致的已知派生身份对，保留旧双缺省形态、未知字段拒绝和精简投影；不让磁盘身份代替native ack。C#20/20、Node80/80通过，原包装器失败和首次Node中止分别保留，真实Native恢复另验。

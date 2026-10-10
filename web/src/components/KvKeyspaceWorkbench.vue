@@ -171,6 +171,7 @@
           size="small"
           remote
           flex-height
+          virtual-scroll
           class="kv-grid"
           @update:checked-row-keys="checkedRowKeys = $event"
         />

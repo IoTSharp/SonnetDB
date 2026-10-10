@@ -156,6 +156,7 @@
           :row-key="(row: PointGridRow) => row.__key"
           size="small"
           flex-height
+          virtual-scroll
           class="measurement-grid"
         />
       </section>
@@ -265,7 +266,7 @@
         <n-empty v-else description="选择目标并开始监控。" />
       </section>
       <section class="monitor-grid-panel">
-        <n-data-table :columns="monitorTableColumns" :data="monitorGridRows" :loading="monitorLoading" :bordered="false" :pagination="false" size="small" flex-height />
+        <n-data-table :columns="monitorTableColumns" :data="monitorGridRows" :row-key="monitorRowKey" :loading="monitorLoading" :bordered="false" :pagination="false" size="small" flex-height virtual-scroll />
       </section>
     </section>
 
@@ -940,7 +941,9 @@ const monitorTargetOptions = computed<SelectOption[]>(() => permissionDenied.val
   ? props.measurements.map((item) => ({ label: item.name, value: item.name }))
   : props.tables.map((item) => ({ label: item.name, value: item.name }))));
 const monitorRows = computed(() => monitorResult.value ? rowsToObjects<Record<string, unknown>>(monitorResult.value) : []);
-const monitorGridRows = computed(() => monitorRows.value.map((row, index) => ({ __key: index, ...row })));
+const monitorRowId = Symbol('monitorRowId');
+const monitorGridRows = computed(() => monitorRows.value.map((row, index) => ({ ...row, [monitorRowId]: index })));
+function monitorRowKey(row: Record<typeof monitorRowId, number>): number { return row[monitorRowId]; }
 const monitorElapsedLabel = computed(() => monitorResult.value?.end ? `${monitorResult.value.end.elapsedMs.toFixed(2)} ms` : '—');
 const monitorUpdatedLabel = computed(() => monitorUpdatedAt.value ? new Date(monitorUpdatedAt.value).toLocaleTimeString() : '—');
 const monitorSql = computed(() => permissionDenied.value ? '' : buildMonitorSql());

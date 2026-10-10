@@ -305,6 +305,13 @@ test('501 returned point rows are capped to500 before visible mapping and curren
   expect(exported.at(-1)).toMatchObject({ Payload_Original: 'BudgetPayload:0499' });
   expect(JSON.stringify(exported)).not.toContain('BudgetPayload:0500');
   expect(evidence.reads.at(-1)?.body.previewMaxRows).toBe(500);
+  const pointGrid = surface(page).locator('.measurement-grid');
+  const renderedRows = await pointGrid.locator('tbody tr').count();
+  expect(renderedRows).toBeGreaterThan(0);
+  expect(renderedRows).toBeLessThan(100);
+  await pointGrid.locator('.v-vl').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(pointGrid.getByText('BudgetPayload:0499', { exact: true })).toBeVisible();
+  await expect(pointGrid).not.toContainText('BudgetPayload:0500');
   assertEvidence(evidence);
 });
 
@@ -314,7 +321,16 @@ test('501 returned monitor rows are capped to500 before chart/grid with the orig
   await choose(page, surface(page).locator('.monitor-controls__interval').last(), '500 行');
   await refreshMonitor(page);
   await expect(surface(page).locator('.monitor-stats')).toContainText('500');
+  await expect(surface(page).locator('.monitor-stats > div').filter({ has: page.getByText('返回行', { exact: true }) }).locator('strong')).toHaveText('500');
+  const monitorGrid = surface(page).locator('.monitor-grid-panel');
+  const renderedRows = await monitorGrid.locator('tbody tr').count();
+  expect(renderedRows).toBeGreaterThan(0);
+  expect(renderedRows).toBeLessThan(100);
+  await monitorGrid.locator('.v-vl').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(monitorGrid.getByText('BudgetPayload:0499', { exact: true })).toBeVisible();
   await expect(surface(page)).not.toContainText('BudgetPayload:0500');
+  const chartPath = await surface(page).getByRole('img', { name: 'SQL 结果折线图' }).locator('path').first().getAttribute('d');
+  expect(chartPath?.match(/[ML]/gu)).toHaveLength(500);
   expect(evidence.reads.at(-1)?.body.previewMaxRows).toBe(500);
   expect(evidence.reads.at(-1)?.sql).toContain(measurementName);
   assertEvidence(evidence);

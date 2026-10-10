@@ -1613,3 +1613,12 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 ## M47-P03 候选03冻结（2026-10-10，Asia/Shanghai）
 
 P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变preview-1-candidate-03.json绑定此SHA/tree与保留版本4.5.0-preview.1.3，未打标签或产生发行包。最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。 R1明确延期七模型专用读取，原九模型读取没有整体通过；NOT_READY。原候选01/02、历史FAIL、共享dirty和origin/parity-results保持。当前清单及此交接属于第二次文档提交，提交SHA见Git；该提交前必须再次完整restore/原CI Format/cached whitespace通过。无push、远端workflow、发布、部署、安装、编辑器/自动化恢复、来源消息或子智能体。后续先处理完整模式回归未决，再仅在新授权下进入P04；固定包内profile/版本仍会产生新候选，不复用本候选版本或继承旧SHA门禁。
+
+
+## M47-P03 收尾：KV渲染与R1本地完成（2026-10-10，Asia/Shanghai）
+
+用户明确要求先提交并推送，再完成P03。本轮先将既有五提交正常推送至main/7b61322878c434388973bc1aa333e92f60eec7e1，并独立ls-remote核实；未force、未推tag或parity-results。给KV及时序点表/监控结果表开启已有虚拟滚动；监控行使用内部Symbol标识，不覆盖业务同名列，保留1000条数据及原预算/断言，新增末尾行、选中行被筛选隐藏后的精确导出检查。原基线600/1000行全渲染长任务及原30秒超时与修复后诊断独立保存，新检查定位器错误亦保留。完整模式按原332项清单重新执行四分片，307通过、25个原skip、0失败/0flaky，单worker、零重试；Node465/465、类型检查和新Preview构建通过，正式/admin真实浏览器12/12。真实Kestrel19/19与StudioHost夹具12/12明确复用上一轮未变输入的证据。 P03按范围R1本地完成；七模型专用读取仍因服务端预算未证延期，不能写成九模型全验收。
+
+证据artifacts/m47-p03-close-20261010；297输入重新核SHA，相对候选03仅KV/Measurement组件及其测试四项变化，其余293项相同，C#及项目配置无差异。当前修复及收尾文档为精确owned提交；在最终树完整restore/原CI Format/cached whitespace通过后才提交，实际SHA和门禁回执随后冻结新候选04/4.5.0-preview.1.4，不覆盖01～03。共享HANDOFF只尾部追加并核旧前缀；M42/博客/账本/三VSCode文件等外来dirty保持。
+
+本轮成功Job以各自kernel membership为空为清理证据；原P02外部进程事件、P03原cleanup=false和Chrome measurement导航超时保持，后续PASS不补原清理或编辑器恢复证明。无旧执行器、历史PID父链扩张、名称批量终止、安装或编辑器重启；无手动workflow dispatch、发布/部署/标签、恢复Workbench/WB98、来源会话消息或子智能体。此次授权包含提交和push，自动触发的远端任务不当作已验证发布门禁。产品NOT_READY；下一顺序为单独P04包内profile/版本/manifest，再P05～P08，当前没有实施这些步骤。

@@ -278,6 +278,24 @@ test('fixture cursor pagination caps accumulated preview at 1000 and rejects an 
   expect(evidence.reads.filter((request) => request.body.cursor === 'cursor:1100-skips-unretained')).toEqual([]);
   const previewHistory = (await historyEntries(page)).filter((item) => item.model === 'kv' && item.rowCount === 1000);
   expect(previewHistory.some((item) => item.completeness === 'truncated')).toBe(true);
+  // Keep the full preview/export while mounting only the visible table rows.
+  const renderedKeys = await surface(page).locator('.kv-key-button').count();
+  expect(renderedKeys).toBeGreaterThan(0);
+  expect(renderedKeys).toBeLessThan(100);
+  await surface(page).locator('.kv-grid .v-vl').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  const lastKey = surface(page).getByRole('button', { name: 'Key:999', exact: true });
+  await expect(lastKey).toBeVisible();
+  await lastKey.click();
+  await expect(surface(page).locator('.kv-value-preview')).toHaveText('Row:999');
+  const selected = surface(page).getByRole('row').filter({ has: page.getByRole('button', { name: 'Key:999', exact: true }) }).getByRole('checkbox');
+  await selected.click();
+  await expect(selected).toHaveAttribute('aria-checked', 'true');
+  await surface(page).getByPlaceholder('Filter loaded keys').fill('Key:0');
+  await expect(surface(page).locator('.kv-key-button')).toHaveCount(1);
+  const selectedExport = await roundTripExport(page);
+  expect(selectedExport).toHaveLength(1);
+  expect(selectedExport[0].key).toBe('Key:999');
+  expect(Buffer.from(String(selectedExport[0].valueBase64), 'base64').toString()).toBe('Row:999');
   assertFixtureEvidence(evidence);
 });
 

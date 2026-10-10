@@ -1,6 +1,6 @@
 # M47-P03：Preview 入口、授权、结果预算与终态
 
-2026-10-10（Asia/Shanghai）。本轮只处理 P03，采用[范围修订 R1](preview-1-p03-scope-revision.md)。**七个模型的专用读取延期，不能称九模型读取全部验收。产品仍 NOT_READY。** 候选01、02不可变；代码提交 `faa03a018c77afff4ffe3db5cac50a5a78e874cf` 已冻结为[候选03](preview-1-candidate-03.json) / `4.5.0-preview.1.3`；最终文档提交不是新的二进制候选。
+2026-10-10（Asia/Shanghai）。**P03按[范围修订R1](preview-1-p03-scope-revision.md)本地验收完成**，KV分页/导出及measurement刷新超时已用有界视口渲染关闭，完整模式重新取得四片零失败。七模型专用读取仍延期，不能称九模型读取全部验收；产品仍NOT_READY。候选01～03保持不可变，修复代码提交后独立冻结候选04 / `4.5.0-preview.1.4`。
 
 ## 实现
 
@@ -10,7 +10,27 @@
 - 浏览器使用一次实际 fetch 的有界队列、30秒截止、64 KiB 输入、4 MiB 增量响应及解码/保留预算。SQL 行数、完整终态、当前窗口导出均校验。Server SQL 设置30秒截止、4 MiB估算物化预算、10000累计物化行数和最多1000输出行；不支持的预算路径拒绝。schema 不再走原目录/备份统计，而是最多1000资源/列/主键项的有界投影。
 - 保留 SQL 原拼写、Graph Beta、MQ database + Topic 逻辑身份与实例 `.system/mq` 持久化/单库备份缺口。原五 Workbench job/artifact 和 release policy 未改。
 
-## 本地证据
+## P03 收尾验收（候选04，2026-10-10）
+
+KV 原用例的30秒超时源于全量表格渲染：同机诊断在600行时挂载21,918个DOM节点，1000行时35,918个节点，单个长任务达到9,528毫秒。只给既有 n-data-table 开启虚拟滚动，1000条数据和游标/导出合同保持；相同诊断仅挂载约22行、1,688个节点，Scan点击从9,949降至561毫秒，Load more从13,740降至751毫秒。measurement也在原5秒点击预算复现：500行点表产生15,192个节点、5,751毫秒长任务；500行监控表产生7,233个节点、4,070毫秒长任务。两张表启用虚拟滚动后，相同诊断点查询点击378毫秒、监控刷新167毫秒，点表只挂载25行。监控行以内部Symbol区分，保持业务列原值。以上是本机诊断样本，不是固定硬件性能验收。
+
+原1000条完整导出、越界sentinel不导出、错误cursor不重用与truncated历史断言全部保留，新增视口行数、滚动至Key:999、选择和筛选隐藏后精确导出原值检查。measurement另检查滚动至第500行、导出仍为500条、监控返回数准确为500且图表仍绘制500点；原30秒用例、5秒点击/poll不变；新增检查的首轮定位器错误及原FAIL独立保留，修正行内相对定位后通过。
+
+证据目录：artifacts/m47-p03-close-20261010。
+
+| 检查 | 收尾结果与边界 |
+|---|---|
+| 完整模式夹具 | 四片89/0/0、66/13/0、88/0/0、64/12/0（pass/skip/fail）；原332项ID/标题/文件及25个skip集合逐项相同。单worker/retries=0，全部已执行项通过；不混入旧定向重跑。使用配套Playwright Chromium |
+| Chrome定向 | KV分页/选择/筛选导出、measurement点表与监控501行、对象1000条窗口四项通过；不声称完整Chrome矩阵通过 |
+| Web与Node | 类型检查、新Preview Vite实际构建、465/465 Node合同通过 |
+| 真实浏览器 | real-01：12/12，使用新构建的正式/admin资源与隔离Kestrel；真实setup/login、角色/grant、撤销、一次审批及unknown不重放 |
+| 复用证据 | 上轮server-tests-06的19/19与studio-host的12/12；本轮只改KV/Measurement组件和对应测试，293个其余输入哈希一致，Server/测试/项目配置相对原代码提交无差异。StudioHost仍是夹具，不是安装/实物 |
+| 输入及失败历史 | 297个源码/配置输入重新冻结；新源码提交时逐项绑定Git blob。候选01～03、所有旧FAIL、Chrome measurement导航超时、cleanup=false和P02进程事故原样保留 |
+| 完成范围 | P03按R1本地完成；七模型专用读取仍延期。P04～P08、发行物、实物、完整浏览器矩阵及远端发布门禁没有据此通过，产品NOT_READY |
+
+本轮完成的任务Job逐项确认成员为空；旧smoke-current-diagnostic清理缺证和编辑器恢复未知没有被后续通过覆盖。历史Chrome measurement超时也已复现为500行全渲染长任务，点表/监控改用虚拟滚动后原5秒点击预算通过；这不替代P05的完整目标浏览器验收。
+
+## 候选03历史证据（原结果保留）
 
 证据根目录：`artifacts/m47-p03-20261010`。所有命令的 `.spec.json`、双流、根/控制器身份、返回码、Job成员清空结果及原失败记录独立保存。尚未生成预览发行包；本地 Web 资源只是验证输入。
 
@@ -41,6 +61,6 @@
 
 ## 提交与后续
 
-P03代码提交和候选文档提交都必须在各自最终树取得完整 restore、与 CI 相同的 Format Check 和 cached whitespace PASS，精确暂存本任务路径。共享 HANDOFF/CHANGELOG/ROADMAP/queue/validation 只暂存 HEAD 加本片变更；其余历史、发布账本、博客、三个 VS Code pending 保留。最终来源和清单见后继候选03，不能继承候选02的 PASS。
+P03代码提交和候选文档提交都必须在各自最终树取得完整 restore、与 CI 相同的 Format Check 和 cached whitespace PASS，精确暂存本任务路径。共享 HANDOFF/CHANGELOG/ROADMAP/queue/validation 只暂存 HEAD 加本片变更；其余历史、发布账本、博客、三个 VS Code pending 保留。新来源和清单见后继候选04；复用证据逐项标注来源与未变输入，不将旧候选整体PASS迁移。
 
-P04～P08 未执行：无包内 profile/版本配对、NativeAOT发行包、实物安装、部署、完整恢复矩阵、远端 workflow、push、tag或发布。P04/P05/P07仍须逐步验证最终完整候选；七个延期模型重新开放需要新预算实现、新证据与新候选。旧 Workbench 自动化/WB98未恢复，也未向来源会话发消息。
+P04～P08 未执行：无包内profile/版本配对、NativeAOT发行包、实物安装、部署、完整恢复矩阵、手动workflow dispatch、tag或发布。用户本次已明确授权提交和push；已推送及最终远端SHA见交付回执，远端自动运行结果未计入P03本地验收。P04/P05/P07仍须逐步验证最终完整候选；七个延期模型重新开放需要新预算实现、新证据与新候选。旧 Workbench 自动化/WB98未恢复，也未向来源会话发消息。
