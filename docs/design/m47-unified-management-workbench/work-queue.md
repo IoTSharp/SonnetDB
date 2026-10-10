@@ -8,7 +8,7 @@
 |---|---|---|
 | 1 | M47-P01 | **范围冻结完成，产品NOT_READY**：[范围/控制](preview-1-scope.md)、[候选01清单](preview-1-candidate-01.json)、[独立分发](preview-1-distribution.md)。来源c40fa670完整SHA与保留版本4.5.0-preview.1.1绑定，入口控制/组包/上传器尚未实现。 |
 | 2 | M47-P02 | **本地完成**：[修复与验证](preview-1-p02-smoke.md)、[候选02](preview-1-candidate-02.json)，来源 `ed4f48242c5d5b4e7e16861504d03cc845146402` / 4.5.0-preview.1.2；307fixture、12宿主、448合同和build通过，25默认skip分列。远端门禁NOT_RUN，原失败/安全事件保留。 |
-| 3 | M47-P03 | **R1 Preview专项通过；完整模式回归partial**：[入口/验证报告](preview-1-p03-controls.md)、[范围修订](preview-1-p03-scope-revision.md)。开放SQL/关系/时序子集，七模型专用读取延期；候选03待代码提交后冻结，产品NOT_READY。 |
+| 3 | M47-P03 | **R1 Preview专项通过；完整模式回归partial**：[入口/验证报告](preview-1-p03-controls.md)、[范围修订](preview-1-p03-scope-revision.md)。开放SQL/关系/时序子集，七模型专用读取延期；[候选03](preview-1-candidate-03.json)固定`faa03a018c77` / 4.5.0-preview.1.3，产品NOT_READY。 |
 | 4 | M47-P04 | P02/P03后：生成当前Web/Server资源包、manifest与hash。 |
 | 5 | M47-P05 | P04后：验证实际包的首次部署、用户旅程、停止重开/回退。 |
 | 6 | M47-P06 | P01～P05后：预览说明、限制/反馈/回退和必要的限定资产分发切片。 |

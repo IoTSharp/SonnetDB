@@ -1,6 +1,6 @@
 # M47-P03：Preview 入口、授权、结果预算与终态
 
-2026-10-10（Asia/Shanghai）。本轮只处理 P03，采用[范围修订 R1](preview-1-p03-scope-revision.md)。**七个模型的专用读取延期，不能称九模型读取全部验收。产品仍 NOT_READY。** 候选01、02不可变；P03代码提交之后才冻结候选03 / `4.5.0-preview.1.3`。
+2026-10-10（Asia/Shanghai）。本轮只处理 P03，采用[范围修订 R1](preview-1-p03-scope-revision.md)。**七个模型的专用读取延期，不能称九模型读取全部验收。产品仍 NOT_READY。** 候选01、02不可变；代码提交 `faa03a018c77afff4ffe3db5cac50a5a78e874cf` 已冻结为[候选03](preview-1-candidate-03.json) / `4.5.0-preview.1.3`；最终文档提交不是新的二进制候选。
 
 ## 实现
 

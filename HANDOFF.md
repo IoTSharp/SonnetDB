@@ -1608,3 +1608,8 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 本地代码提交后将冻结不可变候选03/4.5.0-preview.1.3，并完成第二次最终树restore/原CI Format/cached whitespace再提交清单；当前尚未冻结，不把计划当回执。两次提交的实际SHA由后续交接和Git记录。本轮证据artifacts/m47-p03-20261010，原失败、worker异常和P02误杀事件保留；独立Windows Job只处理内核归属成员。浏览器批次结束的清理不是正常重启证明；正常Stop/Start回读由真实Kestrel测试单列。UserStore无到期字段，只验证真实撤销401，不称定时过期验收。
 
 产品NOT_READY；未执行P04～P08、push、远端workflow、发布、部署、安装、编辑器重启、Workbench自动化/WB98恢复，无子智能体或来源会话消息。下一项仅供后续授权：先处理P03完整模式KV分页超时及Chrome点击不稳定，再由P04固定profile/版本并组包，再按P05/P07验收最终候选；七模型恢复须新预算/证据/候选。候选01/02、原五job/artifact及release policy不变。共享HANDOFF原字节、博客/账本/三个VSCode pending保留，共享文档index只取HEAD加本片内容。
+
+
+## M47-P03 候选03冻结（2026-10-10，Asia/Shanghai）
+
+P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变preview-1-candidate-03.json绑定此SHA/tree与保留版本4.5.0-preview.1.3，未打标签或产生发行包。最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。 R1明确延期七模型专用读取，原九模型读取没有整体通过；NOT_READY。原候选01/02、历史FAIL、共享dirty和origin/parity-results保持。当前清单及此交接属于第二次文档提交，提交SHA见Git；该提交前必须再次完整restore/原CI Format/cached whitespace通过。无push、远端workflow、发布、部署、安装、编辑器/自动化恢复、来源消息或子智能体。后续先处理完整模式回归未决，再仅在新授权下进入P04；固定包内profile/版本仍会产生新候选，不复用本候选版本或继承旧SHA门禁。
