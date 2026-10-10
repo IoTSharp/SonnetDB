@@ -226,29 +226,9 @@ code --install-extension iotsharp.sonnetdb-vscode
 
 README 只保留项目概览和最短入门路径，完整说明在专题文档中：
 
-WB-48本地history集成已提交 `fa7b9528`，6项合同与完整restore/format通过。WB-49补既有query cleanup的固定安全子检查诊断，最终46/46故障合同、Node syntax/双PS7 AST通过，不放松身份/stop/预算，0actual；旧history20/2真实因果、Code正常退出/原cleanup及三宿主整体仍待验，实际本片结果见M47验证记录。
+Workbench 正在准备 **Preview 1**：首版优先 Web Admin 与匹配 Server 的已验收子集，发布范围、候选/版本、真实登录与权限、发行物部署及最终门禁按 [根路线图](ROADMAP.md#workbench-preview-1) 的 M47-P01～P08 顺序收口。Studio 与 VS Code 各自通过实物安装/完整宿主旅程后再纳入；当前仍 NOT_READY，未宣布新版本发布。
 
-WB-50接续c0475103，仅换隔离metadata；syntax/TS通过，唯一actual当前语句2行与选区1行对真实reference通过，但EXPLAIN来源断言失败、history未运行、Code正常退出未证。原cleanup false保留，新诊断与根当前回收分列；无新.NETbuild，不重做已过合同，详细失败检查点见M47验证记录，三宿主仍未闭环。
-
-WB-51冻结调用时SQL上下文，处理异步token/database等待期间编辑器变化的已证合同风险；最终deferred调用21/21、必要history6/6及同一TS项目初版/v2编译通过，独立复核补测试failure cleanup结算合同。本地stub证据与真实Host因果分列，0actual，原EXPLAIN/history/正常退出与cleanup缺口仍待独立验证。
-
-WB-59修复VS Code SQL耗时字段兼容：唯一parser接受有效native/legacy耗时，缺失、非法或冲突时省略alias；新5项合成client/Panel/history/Webview测试PASS，仅本地metadata证据、0actual，parsed Raw可能增加alias。原WB57真实FAIL保持，最终九文件门禁/提交与三宿主边界详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
-
-WB-58补公开Query错误通知和每phase历史安全观察，保持完整await、现有生产吞错提示语义、总20历史命令预算与最终3条历史断言；新合成ack行为验证仅为本地合同，0actual。WB57原真实旅程与cleanup仍FAIL，时长澄清及最终九文件门禁/提交详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)，三宿主继续另验。
-
-WB-57单次真实窗口已观察cleanup三终态检查为refused/passed/refused，证明remaining拒绝后仍执行root和audit检查。三Query载荷2/1/45对真实Server参考一致；history失败且仅2项、Host文件0bytes、Code/Host终态缺席，原runner与cleanup仍FAIL。根当前回收和最终八文件门禁/本地提交另列，详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)；三宿主仍未闭环。
-
-WB-56修复cleanup终态检查短路：remaining-processes拒绝后仍执行root-identities与audit-failures，保留首失败且只有三项通过才授予proof；新增固定finalChecks安全投影。最终本地75/75与两源syntax通过，0真实Host运行；WB55原FAIL/false/null保持，真实严格cleanup与三宿主仍另验。最终八文件门禁/本地提交见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
-
-WB-55单次真实Query窗口已取得current2/selection1/EXPLAIN45与独立Server参考一致、公开history3、Host PASS/API恢复及Code0正常退出的局部证据。原runner仍FAIL且reason/type null、严格cleanup/runtimefalse保持，三次既有fresh观察不证明缺失原因或stop权限；根当前回收、完整门禁与八文件本地提交另列，详见M47验证记录。三宿主/DOM/分页/Notebook/LSP/安装/AOT尚未闭环。
-
-WB-54在原准入完成后仅复用既有initial/fresh lookup追加安全观察，原deadline、失败和stop权限保持；55既有+12新增本地合同最终67/67、syntax及source绑定通过，原工具/fixture失败分别保留。0真实Host运行，WB53历史/正常退出/原回收仍待独立实证；最终完整门禁与八文件本地提交见M47验证记录，三宿主尚未闭环。
-
-WB-53单次真实窗口的current2/selection1/EXPLAIN45已与独立Server参考逐值一致；history/Host终态缺席，原process audit失败、正常Code退出与原回收仍未证。父链诊断实际区分initial缺command与fresh lookup缺项，但原因unknown；根当前进程/runtime回收另列，失败检查点、完整门禁与本地提交见M47验证记录，三宿主仍未闭环。
-
-WB-52补父链snapshot拒绝的安全来源、角色和presence诊断，未知role保null、同PID单读；最终55/55及syntax/双PS7 AST通过，原身份/stop门禁与runner/Host保持。provider503后已在新窗口接续最终门禁/本地提交，0actual；旧采集原因与真实生命周期仍unknown，局部证据见M47验证记录。
-
-Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS946×556 与652×476（DPR1.5、Explorer已自动收起）均验证身份/状态/Health、Managed Local Health/Stop/Start、普通原生关闭退出0与四端口/进程回收；fixture12/12与最终Web/Server/Studio构建通过。原失败保留，首轮验证runtime删除被策略拒绝而保留，不能计完整清理通过。WB-41新增SQL原生文件诊断入口；首轮真实Open POST后桌面工具未看到picker且激活失败，超时未通过，后三步未运行，失败证据与任务资源回收已核验。WB-42新增真实VS Code查询诊断，当前语句和选区两条生成结果已与真实Server独立参考核对；EXPLAIN/历史及正常退出仍未通过，公开API驱动不等同向导UI或Webview分页。WB-43已对齐sql-only参考与安全诊断，真实current/selection/EXPLAIN三条生成数据均与独立Server参考一致（EXPLAIN45行）；完整实跑仍因进程审计失败，历史/API恢复/正常退出未验证，原失败与根回收证据分别保留。WB-44已在既有门禁下压缩重复外部祖先正文、绑定完整身份ledger与事件引用，定向17/17及既有20/20通过；新真实Host取得三条公开查询历史、API恢复和零清理错误，完整runner仍因三个身份先验未知拒绝而失败，正常Code退出未证，原失败/false与根回收分别保留。WB-45新增固定安全先验诊断，26/26故障测试与既有20/20通过；新实跑五候选缺commandLine，完整runner仍失败，三查询数据与真实参考同而history/API恢复/正常退出未证，原失败及根279对象runtime回收单列，旧unknown不推断。WB-46新增一次有界fresh候选重采，只补同PID/creation/parent缺命令且完整父/anchor不变的候选，保原准入/stop门禁与串行cleanup；37/37合成合同、Node/PS7和独立复核通过，0actual，原失败保持，正常Code退出仍须新窗口验证。WB-47只改实际窗口metadata并完成唯一新实跑：三条查询2/1/45行与真实参考相同，但Host history pickCount20/entryCount2失败，Code退出1，runner hostOutcome仍null；API恢复已在Host文件核验，原process/runtime cleanup false与根283对象当前回收分列，未取得完整旅程或正常退出。原成功门禁保持，actual1/1关闭，下一片先定位history与cleanup各自失败。WB-48补齐query history写ack完成合同：immutable FIFO/50 pending与50条cap、读屏障、失败恢复，查询progress等待持久写完成；确定性Memento/公开API夹具和TS编译通过，0actual；旧窗口最终提交因foreign更新使冻结失效而延后；现接续新窗口重新冻结/完整门禁和集成，实际结果见M47记录与git log，旧20/2真实根因与正常退出、独立cleanup诊断仍待补。展开Explorer、库身份同步/恢复、登录UI、文件对话框、安装/AOT及三宿主整体仍待验，详情见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+九模型页面及受限真实服务旅程已有交付，Studio WB80 已取得本机切库/重启恢复和正常关闭证据。现有远端 Web smoke 失败、当前候选包与版本、真实登录/承诺范围，以及桌面安装/原生文件对话框、扩展完整 Query/history/退出仍需分别补证。历史实现与窗口记录见 [CHANGELOG完成归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)，当前判断见 [发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)及[M47原始验证](docs/design/m47-unified-management-workbench/validation-report.md)；旧局部PASS或失败不代替新候选结论。
 
 | 主题 | 文档 |
 | --- | --- |

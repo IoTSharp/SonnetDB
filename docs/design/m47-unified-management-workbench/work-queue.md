@@ -1,3 +1,24 @@
+# Workbench Preview 1 当前执行入口（2026-10-10）
+
+**当前唯一执行路线是根 [ROADMAP：Workbench Preview 1](../../../ROADMAP.md#workbench-preview-1)。** 已完成切片和原路线状态表见 [CHANGELOG归档](../../../CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；本文件下方WB记录保留为原始历史证据，不继续按旧“下一片”或任务次数派单。
+
+首版优先Web Admin与匹配Server的已验收子集；Studio/VS Code未通过各自安装/完整宿主旅程时延期公开下载物。当前 NOT_READY；旧workbench定时 PAUSED，不自动恢复WB98或创建滚动会话。Graph Beta、MQ database逻辑/instance .system/mq物理与单库备份边界保持。
+
+| 顺序 | 根路线交付ID | 下一步与依赖 |
+|---|---|---|
+| 1 | M47-P01 | **下一项**：冻结预览范围、已提交候选/组件版本、兼容和发布物白名单；核现有流水线的完整资产默认行为。 |
+| 2 | M47-P02 | P01后：核远端Web smoke失败原因，在选定候选取得通过证据。 |
+| 3 | M47-P03 | P01后：补真实登录UI、普通/只读用户、身份切换、撤权清理及承诺的取消/截断/unknown/恢复；复用已验九模型场景。 |
+| 4 | M47-P04 | P02/P03后：生成当前Web/Server资源包、manifest与hash。 |
+| 5 | M47-P05 | P04后：验证实际包的首次部署、用户旅程、停止重开/回退。 |
+| 6 | M47-P06 | P01～P05后：预览说明、限制/反馈/回退和必要的限定资产分发切片。 |
+| 7 | M47-P07 | P02～P06后：同候选完整提交/CI/发行物/真实旅程门禁放行，不降低现有policy。 |
+| 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |
+
+每项验收标准、宿主后续和正式版U02～U09只在根路线图维护。WB80的本机恢复PASS不能代替当前桌面包安装；WB83 preflight失败与WB98独审超时不能推成产品故障。已有dirty诊断、旧失败/UNKNOWN和其它会话内容保留。
+
+## 历史WB记录（旧状态与接续指令不再作为当前执行计划）
+
 # Workbench 持续推进队列
 
 WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。

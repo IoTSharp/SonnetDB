@@ -1509,3 +1509,43 @@ CPU CIM第一次原3秒超时，cause UNKNOWN、actual0，失败收据保留；�
 ## WB84 门禁窗口失败闭片与提前接续
 
 WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。
+
+## Workbench 发布就绪审查（2026-10-10，Asia/Shanghai）
+
+本次仅接续用户要求的三宿主完成度/发布条件审查，不恢复旧定时研发。具名20输入与四大文档完整字节/hash已记录；语义读取当前交接、M47状态、九模型及最新宿主记录，不声称逐条审读全部历史。决策所需截断输出已用具名报告/行/JSON标量补读。本次报告：docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md；独立只读回执：artifacts/workbench-release-review-20261010-01a12429。
+
+实核HEAD78045e8b、远端main5424b666、本地领先8提交；index空，三个JS验收脚本dirty与HEAD blob不同，foreign博客/发布与已有pending均保留。GitHub最新正式版仍4.0.0（2026-09-27 02:02:26北京时间，资产9月28更新），Marketplace最新0.4.1（2026-07-14）且本地清单同号，不能用旧包或重复不可变版本发行本次M47。标准VSIX/Studio release输出目录未见当前包，未扫描其它位置。
+
+Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；Studio WB80 result实核passed/normalExit/cleanupProven/requiredResultWriter全true，已补本机A/B切库、重启被动恢复B/真实查询/两次正常退出，不能机械沿用WB61旧恢复FAIL。WB80复用旧Release产物，不证明当前源码等价/干净安装或Server优雅关闭。VS Code旧真实查询子集和基础Extension Host已证，最新WB83实际仍FAIL/preflight/helper_deadline/五回收false且Code/Host null，不推为产品代码根因。
+
+新增明确阻断：远端main最近Workbench smoke run37731752397（2026-10-08，SHA5424b666）failure；仅Web Admin and Studio bridge的Run management workbench smoke失败，Server管理合同/Studio宿主/VS Code consumer/Extension Host四job均success。详细annotations直连失败后代理重试遇GitHub API rate limit，根因未核。该旧SHA的PASS不能升级本地HEAD；WB98 FAIL_REVIEW_TIME属于集成审阅未完成，非已证产品功能故障。
+
+结论：三宿主正式版和当前公开Beta/新分宿主包均NOT_READY；已有代码可作为内部预览及Web预览候选基础。最短继续顺序：选已提交Web候选/承诺范围→核smoke失败并取得候选PASS→真实登录/权限/只读/取消/截断/所承诺恢复与发行资源版本/hash绑定→可单独放行Web预览；再各自验Studio当前包干净Windows/WebView2/安装升级卸载/OS对话框和VS Code完整Query/history/退出、新版本VSIX及所承诺功能，最后收口正式版必选矩阵。Graph Beta与MQ数据库逻辑/instance .system/mq物理及单库备份边界保持。无需为Web预览继续旧helper集成循环。
+
+本次0产品源码/验收脚本编辑、0产品测试/构建/restore/format/stage/commit/push/发布/部署/安装；仅新建审查报告/只读证据并追加本段，旧failure与parity0061d6d保留。workbench配置实查PAUSED，不改其它自动化、不新建或恢复。HANDOFF与报告暂不提交：审查范围没有代码提交，且完整最终树restore/原Format门禁未运行。下一次依用户授权选择上述单独发布准备范围，不自动回到WB98持续实施；实际发布尚未授权。
+
+## Workbench 首个预览版路线整理（2026-10-10，Asia/Shanghai）
+
+用户本轮要求把已完成路线移入CHANGELOG，梳理Workbench后续并在根ROADMAP排列首个预览版步骤。本次采用project-conventions，只做文档整理；根ROADMAP从77453B降为40288B，移出旧WB开头窗口/完成状态表/M47旧索引及木垒五完成子项；README旧Workbench窗口说明也归档到CHANGELOG#roadmap-completed-archive-2026-10-10-workbench。归档按已完成切片与证据边界区分，原文作历史快照保留，旧ACTIVE/下一片指令无当前授权效力。
+
+根ROADMAP开头与M47段正式列M47-P01～P08：1范围/已提交候选/版本及发布物白名单→2核Web smoke失败并取得候选PASS→3真实登录/权限/只读/取消/截断/承诺恢复→4Web/Server实物与manifest/hash→5实际部署/首次用户旅程/停止重开/回退→6预览说明/限制/反馈及必要的限定资产分发→7最终同候选完整门禁放行→8实际发布与独立回读后归档。下一项P01，目前尚未冻结候选或新版本，当前NOT_READY。首版以Web Admin/匹配Server已验子集必选，Studio和VS Code分别补干净安装/OS对话框与完整Query/history/退出及新VSIX后独立纳入；正式版U02～U09剩余共享、九模型、AI/MCP与视觉/兼容矩阵保留。
+
+已读现有release-readiness-policy：五Workbench job与原产品workflow/artifact gate仍保留；publish.yml默认同时构建上传Studio等，Web-only预览必须明确资产白名单或独立分发方案，不能只写桌面延期却公开未验包，也不因下载物延期跳过现有CI。七天scheduled Parity为非阻断独立观察，不能误设为首版必须等七天。旧WB97/WB98“集成”草稿从Added移到未完成历史记录，C3 prelaunch/后续独审超时、最终restore/format/commit未放行保持；WB96命名97/97不计真实Host。WB80本机恢复PASS复用旧Release、不计当前安装，WB61旧FAIL不再默认阻断本机恢复，WB83原因不推成产品故障。
+
+新增/修改范围：ROADMAP.md、CHANGELOG.md、README.md、work-queue.md（仅加当前入口与历史状态说明，原251994B内容完整保留）和本HANDOFF追加；原始validation-report、产品源码、三个pending JS、其它渠道dirty/账本/旧回执均未动。对四文件任务前snapshot的diff检查无新增whitespace；相对HEAD的队列仍含已有dirty尾空白，未为通过检查清洗外来历史字节。128处本地文档链接均可解析、归档六块原记录保留、根旧完成表移除、P01～P08顺序/唯一ID与兼容锚点通过；不声称全仓历史链接或产品验收。最终对CHANGELOG诊断行补“编号范围内已提交部分，不称全部成功”的边界说明，任务差异再核。
+
+证据：artifacts/workbench-preview-roadmap-20261010-01a12429，包含四原文快照、六块归档映射/源码hash、edit-receipt.json与documentation-verification.json。生成器首次JS字符串解析在执行前失败；随后四文档写完后回执裸true错误，修成$true并保留先前结果，未重做四文档迁移。校验首次谓词把P08纳入计数却要求7，修为明确有序8项，无产品/文档为此修改；归档标题层级统一H6避免破坏CHANGELOG层次。这些工具错误不计产品失败或测试PASS。
+
+本次0产品源码/验收脚本编辑、0产品测试/构建/restore/format/stage/commit/push/发布/部署/安装/外发，旧workbench实查PAUSED，不恢复/新建自动化或滚动任务；HEAD78045e8b、parity0061d6d及空index保持。三pending JS SHA逐项与上一审查相同。HANDOFF和本次文档暂不提交：本请求是路线整理，未运行完整最终树restore/原CI Format，不具备提交门禁结果。下一会话按根P01选择明确发布范围和候选，不返回WB98诊断循环；需要提交/发布准备时遵守原门禁和共享工作树归属。
+
+## Workbench 路线提交与 M47-P01 新会话交接（2026-10-10，Asia/Shanghai）
+
+用户已明确授权提交、推送，并在新的 SonnetDB 本地会话立即开始 M47-P01。前两段“本次未提交/未运行门禁”是各文档整理阶段的历史状态，本段记录这次提交前的最终验证和交接。提交只包含 ROADMAP.md、CHANGELOG.md、README.md、发布审查、队列新入口及本会话 HANDOFF 三段，共六路径；队列原 pending WB85～WB98 和其它渠道 HANDOFF 段落未纳入 index，完整工作树原内容继续保留。三个 pending JS、validation-report、WB97/WB98 未跟踪报告及博客/账本/图片均不提交。
+
+完整 dotnet restore SonnetDB.slnx 与 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 均取得 exit 0；详情、耗时、双流及已观察进程身份收口见 artifacts/workbench-preview-submit-20261010-01a12429/restore.result.json 和 format.result.json。原门禁未降低；验证之后只追加本交接，产品和验收脚本未改。新增55处本地Markdown链接在候选index可解析，本次六路径git diff --cached --check通过；审查报告末尾多余空行已修正。未执行产品build/test、真实宿主、安装、AOT或发布验证，格式检查不能升级为这些结果。
+
+提交前 main 为78045e8b407e9caceae2548116390ffb985fc959，远端main只读实核5424b66672e37f49a2a5633fdde0b54a9b1f0290，原8个本地提交将随本次文档提交正常快进推送；只推main，不强推。origin/parity-results本地缓存仍0061d6d78591fb08493f473d3231ca42303faae1，远端当次实核已更新为e1c63d5afa2970aa0ba3312163b4d1a78ddbcc30；二者分别记录，均不合并、删除或覆盖。最终本次commit、远端回读、新会话ID和移交状态记录在同目录delivery.json及新会话初始指令，不在提交前冒称推送或新会话已成功。
+
+推送核验成功后的下一项严格为根ROADMAP的M47-P01：在已提交候选上冻结Web Admin＋匹配Server首版用户旅程/支持动作与入口、目标平台、组件版本/兼容、认证部署、MCP合同/能力清单、分发渠道与实际资产白名单；Studio/VS Code分别通过各自实物门禁后再纳入。核publish.yml默认全套资产的实际行为，给出可审查的独立Web分发方案，不降低现有五Workbench job及原产品release-readiness门禁。既有Web smoke失败归P02核实；P01不冒称NOT_READY已解除，不实际发布、不恢复旧helper集成循环。新会话独立读取AGENTS/HANDOFF/根路线/发布审查和实时dirty，完成P01可审查交付；workbench旧自动化保持PAUSED，不创建新自动化。
+
+所有PowerShell均为7.6.6。restore/format通过各自最多900秒/600轮/256已观察身份的有界工具运行，MSBuild复用关闭、受管并发限制为4；记录root/parent/child完整身份，只检查或清理可确认归属。日志与收据是保留交付物，无下载/运行安装/新worktree/临时运行目录；没有按名称批量终止。工具最小输入通过；初次console摘要对OrderedDictionary取属性显示null，原JSON实际exit0/pass true，已改为显式对象输出；一次试读正在独占写入的restore日志被拒绝，未作为门禁结果或重跑理由。新会话启动后父会话停止仓库写入，后续由新会话维护交接。
