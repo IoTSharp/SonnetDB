@@ -1591,3 +1591,11 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 完整 fixture 按四片串行、单 worker、retries=0：89/0、66/13、88/0、64/12，合计307 passed、25 skipped、0 failed/flaky；332项ID/标题/文件逐项等于原收集清单。默认25 skip为13个StudioNative与12个StudioHost；额外StudioNative runtime运行studio-host-client.spec.ts实得12/12、0skip。Measurement501行用例单独和分片均通过，旧5秒点击超时未稳定复现，原因保持unknown，没有提高timeout或改产品。原Web build与448 Node合同复用前后236个输入SHA相等证据；本地Node24/Windows与CI Node22/Linux分列，30条真实Server suite仍NOT_RUN，缺URL负向拒绝保留。
 
 修复仅本地提交九路径：六个代码配置、P02报告、CHANGELOG单条、HANDOFF本任务停止/接续两段。完整restore与原Format须在最终树串行通过，实际收据和提交绑定见本证据目录；未取得收据不提交。共享M42、博客/账本、queue/validation旧pending与三VSCode源保留，不stage整份共享文档。后继候选02将在此修复提交上独立冻结4.5.0-preview.1.2；当前仅本地验收通过，产品NOT_READY，P03未执行。无push、PR、tag、dispatch、发布、部署、安装或编辑器重启；旧workbench自动化保持PAUSED，origin/parity-results保护。
+
+## M47-P02 候选02冻结交付（2026-10-10，Asia/Shanghai）
+
+修复已本地提交 ed4f48242c5d5b4e7e16861504d03cc845146402，完整restore/原Format通过后才提交；后继候选02固定该完整SHA/tree、保留版本4.5.0-preview.1.2与workbench-preview-1.2，未创建标签/构建发行物/上传。候选01字节保持，候选02的46项原范围源与受影响输入重新绑定，236个Web/workflow/policy输入按原SHA及仓库文本规范化后的Git blob核到修复提交。所有远端workflow和真实Server门禁NOT_RUN；本地build、448合同、307fixture/25skip、额外12StudioHost分列，绝不继承旧run四job成功为后继通过。原五Workbench job/artifact与release policy保持。
+
+根ROADMAP、queue与validation入口同步P02本地完成、下一项P03；C01～C04、真实登录/普通及只读权限/撤权清理/承诺的取消unknown恢复仍未实施。后续源码或包字节变更必须新候选/新N，不能覆盖02。NOT_READY、Studio/VSIX延期、Graph Beta和MQ实例持久化/单库备份边界保持。第二次完整restore/原Format仍须在此最终元数据树通过再提交；共享文档只stage本片变换，M42/博客/旧WB dirty继续保留。
+
+旧执行器安全事件及所有ERROR/cleanup false收据保留；本轮没有编辑器重启，恢复状态未知。workbench自动化实查PAUSED；origin/parity-results未变，无push、PR、dispatch、发布、部署或安装。资源、实际提交与保护检查见artifacts/m47-p02-resume-20261010/delivery.json。下次从P03开始，不返回旧helper集成循环；P07另核最终同SHA/version/latest attempt。

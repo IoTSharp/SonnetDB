@@ -4,14 +4,14 @@
 
 ## 接续本地验收（2026-10-10）
 
-**Web 修复与本地验收通过；后继候选待修复提交后独立冻结。产品仍 NOT_READY。** 用户已在停止披露后明确要求继续；未重启编辑器或确认其恢复，不改写下方旧停止状态。新证据目录为 artifacts/m47-p02-resume-20261010。
+**P02本地验收完成；[候选02](preview-1-candidate-02.json)固定修复提交 `ed4f48242c5d5b4e7e16861504d03cc845146402` 与保留版本 4.5.0-preview.1.2。产品仍 NOT_READY。** 用户已在停止披露后明确要求继续；未重启编辑器或确认其恢复，不改写下方旧停止状态。新证据目录为 artifacts/m47-p02-resume-20261010。
 
 | 检查 | 接续结果与边界 |
 |---|---|
 | 四片 fixture smoke | 332 项逐 ID/标题/文件匹配原清单；307 passed、25 skipped、0 failed/flaky，单 worker、retries=0。四片实际数量分别为 89 passed/0 skipped、66 passed/13 skipped、88 passed/0 skipped、64 passed/12 skipped |
 | Studio 宿主补充回归 | 用 StudioNative runtime 执行原 studio-host-client.spec.ts，12 passed、0 skipped；覆盖身份/生命周期负向守卫。默认 skip 中另13项 StudioNative suite 未在本次单独执行 |
 | Measurement 501 行 | 隔离一次通过，第三分片再次通过；旧5秒点击超时原因仍 unknown，不改产品或增加超时来获得PASS |
-| Web build / Node 合同 | 复用旧窗口已完成的 build、448/448；236个Web/workflow/policy输入SHA在接续前后相等，提交后另核Git blob绑定。build仅任务验证物，未生成预览发行包 |
+| Web build / Node 合同 | 复用旧窗口已完成的 build、448/448；236个Web/workflow/policy输入SHA在接续前后相等，已核Git blob绑定到修复提交。build仅任务验证物，未生成预览发行包 |
 | 提交门禁 | 最终待提交树完整restore与原CI Format串行执行；实际结果见本地gate收据，不以旧Format代替本次检查 |
 | 真实服务 / GitHub | 30条独立真实suite及所有后继候选远端门禁NOT_RUN；原缺URL拒绝、历史两次CI失败和旧Object flaky保留 |
 

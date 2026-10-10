@@ -1,3 +1,7 @@
+## M47-P02 本地验收与候选02（2026-10-10）
+
+修复提交 ed4f48242c5d5b4e7e16861504d03cc845146402，候选 4.5.0-preview.1.2，见[P02报告](preview-1-p02-smoke.md)与[不可变候选02](preview-1-candidate-02.json)。236个输入SHA复核及Git blob绑定通过；Web build、448 Node合同、四片307 fixture/25原skip和额外12 StudioHost通过，retries=0，0failed/flaky。真实Server30项和所有远端workflow仍NOT_RUN；产品NOT_READY，下一项P03，未执行。新Job执行器通过的验收任务均确认Job清空；旧误杀9个外部进程/2个conhost未知与中断窗口不改写，编辑器恢复未验证。下方旧WB记录只保留历史，不恢复WB98或自动化。
+
 # M47 原型检查记录
 
 WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。
