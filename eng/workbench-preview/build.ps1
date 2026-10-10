@@ -9,10 +9,14 @@ Set-StrictMode -Version Latest
 if ($PSVersionTable.PSVersion.Major -lt 7 -or -not $IsWindows) { throw 'Windows PowerShell 7+ required.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $output = [IO.Path]::GetFullPath($OutputRoot)
-$node = (Get-Command node -CommandType Application).Source
-$dotnet = (Get-Command dotnet -CommandType Application).Source
-$npmCli = Join-Path ([IO.Path]::GetDirectoryName($node)) 'node_modules/npm/bin/npm-cli.js'
-if (-not (Test-Path -LiteralPath $npmCli)) { throw 'npm CLI must accompany the configured Node runtime.' }
+$node = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+$dotnet = (Get-Command dotnet -CommandType Application | Select-Object -First 1).Source
+$npmCommand = (Get-Command npm -CommandType ExternalScript,Application | Select-Object -First 1).Source
+$npmCandidates = @([IO.Path]::GetDirectoryName($npmCommand), [IO.Path]::GetDirectoryName($node)) |
+    ForEach-Object { Join-Path $_ 'node_modules/npm/bin/npm-cli.js' } | Select-Object -Unique
+$npmCli = @($npmCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)
+if ($npmCli.Count -ne 1) { throw "Registered npm CLI unavailable; checked: $($npmCandidates -join ', ')" }
+$npmCli = $npmCli[0]
 & $node (Join-Path $PSScriptRoot 'package.mjs') prepare $root $output $SourceCommit $Version
 if ($LASTEXITCODE -ne 0) { throw 'Clean CI source preflight failed.' }
 $evidence = Join-Path $output 'evidence'
@@ -42,7 +46,7 @@ Invoke-OwnedCommand 'npm-ci' $node @($npmCli, 'ci', '--no-audit', '--no-fund') (
 Invoke-OwnedCommand 'web-build' $node @($npmCli, 'run', 'build', '--', '--mode', 'e2e') (Join-Path $root 'web') 600
 $publishArguments = @('publish', 'src/SonnetDB/SonnetDB.csproj', '-c', 'Release', '-r', 'win-x64',
     '-p:SonnetDbPublishAot=true', '-p:BuildAdminUi=false', "-p:Version=$Version", "-p:InformationalVersion=$Version+$SourceCommit",
-    '-p:IncludeSourceRevisionInInformationalVersion=false', '-p:SourceRevisionId=' + $SourceCommit,
+    '-p:IncludeSourceRevisionInInformationalVersion=false', "-p:SourceRevisionId=$SourceCommit",
     '-p:AssemblyVersion=4.5.0.0', ('-p:FileVersion=4.5.0.' + $Version.Split('.')[-1]), '-o', (Join-Path $output 'publish'), '/warnaserror', '-m:4')
 Invoke-OwnedCommand 'native-publish' $dotnet $publishArguments $root 1200
 $publish = Join-Path $output 'publish'

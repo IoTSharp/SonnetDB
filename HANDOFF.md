@@ -1636,3 +1636,10 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 接续当前main/9e2ae109与不可变候选04；本轮授权P04实现、构建、验证、精确提交及正常推送。独立手动CI按最终提交SHA/锁定gitlinks干净构建，组包器拒绝dirty/旧dist/旧Release；固定preview-1/R1、发行号/完整SHA、环回配置及相邻数据布局，库存/PE/ZIP/manifest/工具/依赖/许可证验证均已实现。20项本地合同、许可证微试和Job微试通过，Web类型检查/构建另存本地回执；它们不是干净CI发行来源或真实NativeAOT publish。本提交后冻结新候选05/4.5.0-preview.1.5并运行CI，本段不冒称实物已完成。
 
 证据artifacts/m47-p04-20261011；精确stage本片代码与HEAD加本片文档，HANDOFF追加/fsync并核原字节前缀，保留博客/M42/WB97/WB98/三VSCode外来dirty与parity-results。每次提交前完整restore/原CI format/cached whitespace；提交/推送实际SHA由后继delivery回执记录。P05～P08未执行，NOT_READY；R1七模型专用读取延期，旧FAIL/P02事故/P03 cleanup=false/编辑器恢复未知保留。没有公开发布、tag、部署、安装、自动化恢复、编辑器重启、外发或子智能体。
+
+
+## M47-P04 候选05失败与候选06工具定位修正（2026-10-11，Asia/Shanghai）
+
+源码f84e3a6d已正常推送，候选05/4.5.0-preview.1.5实际CI 38075483025 attempt1在npm CLI假定路径失败，NativeAOT未运行/ZIP未产生，上传证据也因目录未建立失败；原日志与不可变候选05保留。修正只从Get-Command的PATH登记首个Node/dotnet及npm/Node两个固定目录取CLI，不扫描大目录/安装软件。新候选06/4.5.0-preview.1.6采用新的修正提交，不复用05；本段不声明实物PASS。
+
+本次只精确暂存定位修正/profile、新候选05与P04文档增量；共享foreign字节和parity引用保留，HANDOFF追加fsync并核前缀。提交前重新完整restore/原CI format/cached whitespace，实际SHA见Git与后继收据。继续P04真实CI组包；P05～P08未执行，NOT_READY，原安全事故/cleanup=false与七模型延期不改变。

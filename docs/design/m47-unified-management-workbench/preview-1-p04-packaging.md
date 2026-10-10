@@ -1,6 +1,6 @@
 # M47-P04：独立 Web / NativeAOT Server 组包
 
-2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～04保留，新增版本 `4.5.0-preview.1.5`。本次构建仅支持 Windows x64，同源环回 `/admin/`，R1 七模型专用读取继续延期。
+2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～05保留，当前继任版本 `4.5.0-preview.1.6`。本次构建仅支持 Windows x64，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
 
 ## 来源与独立构建
 
@@ -20,6 +20,8 @@ P04只生成ZIP、manifest与对这两项的SHA256SUMS。合同的第四附件`n
 
 本地20项组包合同通过；许可证采集与Job最小试运行通过。每条本地长命令在挂起根先入不可breakaway Windows Job后运行；记录PID/创建时间/完整命令/父进程，数量与墙钟有界，finally只清当前Job并核成员为空。原微试发现的StrictMode缺dev字段失败收据保留，修正后另建PASS，不覆盖旧证据。
 
-实现提交后，由同源干净CI构建取得实际NativeAOT publish、ZIP库存和manifest。当前未运行，不以本地测试/analyzer代替实物；最终SHA、CI和资产回执将在本报告后继冻结记录中填写。证据目录`artifacts/m47-p04-20261011`。
+实现提交`f84e3a6dcede6789fe088dbef4123d8d0c83ef19`已正常推送。候选05 CI run `38075483025` / attempt 1在组包入口失败：将npm位置假定为Node相邻目录，在Hosted runner没有找到CLI。尚未运行NativeAOT或产生ZIP，evidence上传也因输出未建立失败。原日志保存在`artifacts/m47-p04-20261011/ci-failure-05.stdout.log`；[候选05](preview-1-candidate-05.json)冻结失败，禁止复用版本。修正通过Get-Command按PATH顺序取首个Node/dotnet，并从已登记npm/Node的两个固定目录定位CLI，不递归扫描或安装软件；继任候选06在新的源码提交上构建。
+
+候选06当前实物待构建，不以本地测试/analyzer代替实际publish。最终SHA、CI和资产回执将在本报告后继冻结记录中填写。证据目录`artifacts/m47-p04-20261011`。
 
 P05首次安装、登录/导航/查询/导出/审批、错配/停止重开/回退；P06发行说明/上传器；P07现有完整门禁；P08实际公开发布均未执行。P03真实旅程只属其原输入与SHA，不继承成新候选完整门禁。旧FAIL、P02进程事故、P03旧cleanup=false和编辑器恢复未知保持。Workbench/WB98自动化继续PAUSED。
