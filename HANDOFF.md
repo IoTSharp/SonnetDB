@@ -1650,3 +1650,10 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 候选06来源a0917daf已正常推送，CI 38076076784 attempt1实际构建仍进行中。兼容审查发现必须在包内profile/manifest显式列出原合同Windows 11 x64/Edge/Chrome、同候选同版本、拒绝旧Server、浏览器版本P05未取证，并更新C05/D01为P04部分已实现而P05/P06未验；现已补齐，预算/R1延期不变。包元数据变化采用新候选07/4.5.0-preview.1.7，06记录保留。本段不冒称任何实际包或NativeAOT PASS。
 
 20项组包合同含平台扩张/任意Server错配拒绝通过；最终源码树完整restore/原CI Format/cached whitespace后才精确提交推送。HEAD加本片stage共享docs，HANDOFF独占尾部追加fsync并核原前缀，博客/M42/WB97/WB98/三VSCode及parity引用保留。后续先独立核CI包/hash/编译身份、冻结新候选并提交交接，P05～P08仍未执行/NOT_READY。
+
+
+## M47-P04 候选06真实NativeAOT与库存拒绝、候选08（2026-10-11，Asia/Shanghai）
+
+候选06/a0917daf/run38076076784 attempt1实际NativeAOT publish PASS（398秒/25身份/cleanupComplete=true；Generating native code，无IL告警），随后库存拒绝Web SDK隐式appsettings.Container.json，CI整体FAIL/未产生ZIP。原日志、CI evidence和不可变候选06保留，不能把publish PASS当包完成。候选07/9b8c8a7b/run38076686113已派发，其独立结果后继冻结，不覆盖。
+
+新候选08/4.5.0-preview.1.8明确在选择阶段排除Container/Development配置、debug/import libs及UseStaticFiles不消费的SDK静态索引；完整原publish库存先写证据，再fail closed验未知文件。21项本地合同通过，包含Container包内拒绝及选择剔除；预算/R1七模型延期/目标Windows11与EdgeChrome/同版本源码绑定不变。本提交前最终树完整restore/原CI Format/cached whitespace；精确owned stage，HANDOFF追加fsync核前缀，外来dirty与parity引用保持。候选08实物仍待构建，P05～P08未执行/NOT_READY，旧安全事故和未知清理证据继续保留。

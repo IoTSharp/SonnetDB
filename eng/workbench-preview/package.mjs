@@ -40,7 +40,7 @@ export function validatePaths(files) {
       && name.split('/').every(part => part && part !== '.' && part !== '..' && !part.includes(':')), `Unsafe path: ${name}`);
     requireThat(!names.has(name.toLowerCase()), `Duplicate/case collision: ${name}`);
     names.add(name.toLowerCase());
-    requireThat(!/(?:^|\/)(?:node_modules|bin|obj|data|sonnetdb-data|\.system|\.git|logs|test-results)(?:\/|$)|(?:(?:^|\/)(?:sonnetdb[.-])?studio[^/]*|\.vsix$|\.nupkg$|\.msi$|\.pdb$|\.map$|appsettings\.Development|\.env|\.log$|\.trx$|(?:^|\/)(?:tokens|users|credentials)\.json$)/iu.test(name), `Forbidden package file: ${name}`);
+    requireThat(!/(?:^|\/)(?:node_modules|bin|obj|data|sonnetdb-data|\.system|\.git|logs|test-results)(?:\/|$)|(?:(?:^|\/)(?:sonnetdb[.-])?studio[^/]*|\.vsix$|\.nupkg$|\.msi$|\.pdb$|\.map$|appsettings\.(?:Development|Container)|\.env|\.log$|\.trx$|(?:^|\/)(?:tokens|users|credentials)\.json$)/iu.test(name), `Forbidden package file: ${name}`);
     requireThat(Number.isSafeInteger(file.size) && file.size >= 0 && /^[a-f0-9]{64}$/u.test(file.sha256), 'Invalid file hash/size');
   }
   return names;
@@ -102,7 +102,8 @@ export function validatePublishInventory(files, webFiles) {
   const webNames = new Set(webFiles.map(file => `wwwroot/${file.path}`));
   const excluded = [];
   const included = files.filter(file => {
-    if (/\.pdb$/iu.test(file.path) || ['appsettings.Development.json', 'onnxruntime.lib', 'onnxruntime_providers_shared.lib'].includes(file.path)) { excluded.push(file); return false; }
+    if (/\.pdb$/iu.test(file.path) || ['appsettings.Development.json', 'appsettings.Container.json', 'onnxruntime.lib', 'onnxruntime_providers_shared.lib',
+      'SonnetDB.staticwebassets.endpoints.json', 'SonnetDB.staticwebassets.runtime.json'].includes(file.path)) { excluded.push(file); return false; }
     return true;
   });
   validatePaths(included);
@@ -133,6 +134,7 @@ function stage(root, output) {
   const html = fs.readFileSync(path.join(root, 'web/dist/index.html'), 'utf8');
   requireThat(/src="\/assets\//u.test(html) && !html.includes('/admin/assets/'), 'Root static resource path mismatch');
   const published = inventory(path.join(output, 'publish'));
+  writeJson(path.join(output, 'evidence/native-publish-files.json'), { published, web });
   const selection = validatePublishInventory(published, web);
   const packaged = path.join(output, 'package'); fs.mkdirSync(packaged);
   for (const file of selection.included) {

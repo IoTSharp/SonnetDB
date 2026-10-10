@@ -23,7 +23,7 @@ test('R1 profile accepts only its new version and keeps seven model deferrals', 
     const changed = structuredClone(profile); mutation(changed); assert.throws(() => validateProfile(changed, profile.version));
   }
 });
-for (const name of ['Studio.zip', 'old.vsix', 'SDK.nupkg', 'setup.msi', 'appsettings.Development.json', 'users.json',
+for (const name of ['Studio.zip', 'old.vsix', 'SDK.nupkg', 'setup.msi', 'appsettings.Development.json', 'appsettings.Container.json', 'users.json',
   'wwwroot/a.js.map', 'data/test.bin', '.system/mq/message', 'logs/start.log', '../evil', 'C:/escape', 'a\\b']) {
   test(`package rejects ${name}`, () => assert.throws(() => validatePaths([item(name)])));
 }
@@ -36,8 +36,8 @@ test('inventory rejects case aliases, wrong digest and missing manifest data', (
 test('publish allowlist excludes only debug/development files and binds fresh Web bytes', () => {
   const web = [item('index.html'), item('assets/app.js')];
   const publish = [item('SonnetDB.exe'), item('appsettings.json'), ...web.map(f => ({ ...f, path: `wwwroot/${f.path}` }))];
-  const selected = validatePublishInventory([...publish, item('SonnetDB.pdb'), item('appsettings.Development.json')], web);
-  assert.equal(selected.included.length, publish.length); assert.equal(selected.excluded.length, 2);
+  const selected = validatePublishInventory([...publish, item('SonnetDB.pdb'), item('appsettings.Development.json'), item('appsettings.Container.json')], web);
+  assert.equal(selected.included.length, publish.length); assert.equal(selected.excluded.length, 3);
   for (const addition of ['SonnetDB.Cli.exe', 'SonnetDB.dll', 'Studio.zip', 'wwwroot/stale.js']) assert.throws(() => validatePublishInventory([...publish, item(addition)], web));
   assert.throws(() => validatePublishInventory(publish.filter(f => f.path !== 'SonnetDB.exe'), web));
   assert.throws(() => validatePublishInventory(publish, [item('index.html', 'new')]));
