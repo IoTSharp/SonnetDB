@@ -1629,3 +1629,10 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 修复代码提交57222f57e4cce324ca054126fd4281ec5e5afec1已通过最终树完整restore/原CI Format/cached whitespace后生成；候选04/4.5.0-preview.1.4绑定该完整SHA/tree及297验证输入的规范化Git blob，候选01～03字节不变。本候选为源码冻结，无tag/发行包/上传。P03按R1本地完成：新四片307通过/25原skip/0失败、Node465、类型检查/构建和新Web正式/admin真实浏览器12通过；19Kestrel与12StudioHost夹具明确复用未变输入。七模型专用读取延期，原Chrome measurement历史失败、P02事故和旧清理缺证保留，产品NOT_READY。
 
 本段与候选/当前状态入口作为独立文档提交，仍须最终树完整restore/原Format/cached whitespace通过。按本次明确授权正常推送这两个提交，再独立读取origin/main；最终两SHA、远端核验与本轮Job/浏览器profile清理结果见artifacts/m47-p03-close-20261010/delivery.json及各不可变receipt。共享dirty和HANDOFF外来前缀/尾追加保持，未恢复旧自动化或进入P04～P08。
+
+
+## M47-P04 独立组包器实现（2026-10-11，Asia/Shanghai）
+
+接续当前main/9e2ae109与不可变候选04；本轮授权P04实现、构建、验证、精确提交及正常推送。独立手动CI按最终提交SHA/锁定gitlinks干净构建，组包器拒绝dirty/旧dist/旧Release；固定preview-1/R1、发行号/完整SHA、环回配置及相邻数据布局，库存/PE/ZIP/manifest/工具/依赖/许可证验证均已实现。20项本地合同、许可证微试和Job微试通过，Web类型检查/构建另存本地回执；它们不是干净CI发行来源或真实NativeAOT publish。本提交后冻结新候选05/4.5.0-preview.1.5并运行CI，本段不冒称实物已完成。
+
+证据artifacts/m47-p04-20261011；精确stage本片代码与HEAD加本片文档，HANDOFF追加/fsync并核原字节前缀，保留博客/M42/WB97/WB98/三VSCode外来dirty与parity-results。每次提交前完整restore/原CI format/cached whitespace；提交/推送实际SHA由后继delivery回执记录。P05～P08未执行，NOT_READY；R1七模型专用读取延期，旧FAIL/P02事故/P03 cleanup=false/编辑器恢复未知保留。没有公开发布、tag、部署、安装、自动化恢复、编辑器重启、外发或子智能体。
