@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { captureSource, digest, inventory, readJson, validateNative, validateNetwork, validatePaths, validateProfile, validatePublishInventory, verifyInventory } from './package.mjs';
+import { isSystemImport, readImports, validateClosure } from './native-dependencies.mjs';
 
 const profile = readJson(fileURLToPath(new URL('./profile.json', import.meta.url)));
 const item = (name, bytes = 'data') => ({ path: name, size: Buffer.byteLength(bytes), sha256: digest(Buffer.from(bytes)) });
@@ -36,8 +37,9 @@ test('inventory rejects case aliases, wrong digest and missing manifest data', (
 test('publish allowlist excludes only debug/development files and binds fresh Web bytes', () => {
   const web = [item('index.html'), item('assets/app.js')];
   const publish = [item('SonnetDB.exe'), item('appsettings.json'), ...web.map(f => ({ ...f, path: `wwwroot/${f.path}` }))];
-  const selected = validatePublishInventory([...publish, item('SonnetDB.pdb'), item('appsettings.Development.json'), item('appsettings.Container.json')], web);
-  assert.equal(selected.included.length, publish.length); assert.equal(selected.excluded.length, 3);
+  const selected = validatePublishInventory([...publish, item('SonnetDB.pdb'), item('appsettings.Development.json'), item('appsettings.Container.json'),
+    item('wwwroot/llms-full.txt.br'), item('wwwroot/llms.txt.gz')], web);
+  assert.equal(selected.included.length, publish.length); assert.equal(selected.excluded.length, 5);
   for (const addition of ['SonnetDB.Cli.exe', 'SonnetDB.dll', 'Studio.zip', 'wwwroot/stale.js']) assert.throws(() => validatePublishInventory([...publish, item(addition)], web));
   assert.throws(() => validatePublishInventory(publish.filter(f => f.path !== 'SonnetDB.exe'), web));
   assert.throws(() => validatePublishInventory(publish, [item('index.html', 'new')]));
@@ -49,6 +51,36 @@ test('PE inspection rejects a managed apphost, other RID and malformed executabl
   const clr = Buffer.from(pe); clr.writeUInt32LE(1, 128 + 24 + 112 + 14 * 8); assert.throws(() => validateNative(clr));
   const arm = Buffer.from(pe); arm.writeUInt16LE(0xaa64, 132); assert.throws(() => validateNative(arm));
   assert.throws(() => validateNative(Buffer.from('managed')));
+});
+
+test('native import reader observes ordinary and delay imports with bounded RVA validation', () => {
+  const pe = Buffer.alloc(2048); pe.writeUInt16LE(0x5a4d); pe.writeUInt32LE(128, 0x3c);
+  pe.writeUInt32LE(0x4550, 128); pe.writeUInt16LE(0x8664, 132); pe.writeUInt16LE(1, 134);
+  pe.writeUInt16LE(240, 148); pe.writeUInt16LE(0x20b, 152);
+  const section = 392; pe.writeUInt32LE(0x1000, section + 12); pe.writeUInt32LE(1536, section + 16); pe.writeUInt32LE(512, section + 20);
+  pe.writeUInt32LE(0x1020, 152 + 112 + 8); pe.writeUInt32LE(40, 152 + 112 + 12);
+  pe.writeUInt32LE(0x1100, 512 + 32 + 12); pe.write('msvcp140.dll\0', 512 + 256);
+  pe.writeUInt32LE(0x1080, 152 + 112 + 13 * 8); pe.writeUInt32LE(64, 152 + 112 + 13 * 8 + 4);
+  pe.writeUInt32LE(1, 512 + 128); pe.writeUInt32LE(0x1140, 512 + 128 + 4); pe.write('SHELL32.dll\0', 512 + 320);
+  assert.deepEqual(readImports(pe), [{ name: 'msvcp140.dll', kind: 'ordinary' }, { name: 'shell32.dll', kind: 'delay' }]);
+  const bad = Buffer.from(pe); bad.writeUInt32LE(0xfffffff0, 512 + 32 + 12); assert.throws(() => readImports(bad), /RVA/u);
+  const va = Buffer.from(pe); va.writeUInt32LE(0, 512 + 128); assert.throws(() => readImports(va), /attributes/u);
+});
+
+test('native closure rejects missing runtime and resolves only app-local or explicit Windows contracts', () => {
+  const dll = { path: 'onnxruntime.dll', imports: [{ name: 'msvcp140.dll', kind: 'ordinary' }, { name: 'shell32.dll', kind: 'delay' }] };
+  assert.throws(() => validateClosure([dll]), /Unresolved/u);
+  const result = validateClosure([dll, { path: 'msvcp140.dll', imports: [{ name: 'api-ms-win-crt-runtime-l1-1-0.dll', kind: 'ordinary' }] }]);
+  assert.equal(result[0].imports[0].resolution, 'APP_LOCAL');
+  assert.equal(result[0].imports[1].resolution, 'WINDOWS_11_SYSTEM_CONTRACT');
+  assert.equal(isSystemImport('vcruntime140.dll'), false); assert.equal(isSystemImport('unknown.dll'), false);
+  assert.throws(() => validateClosure([{ path: 'x.dll', imports: [{ name: 'unknown.dll', kind: 'delay' }] }]), /Unresolved/u);
+});
+
+test('publish selection allows four required CRT files but rejects unlisted runtime payloads', () => {
+  const web = [item('index.html')], files = [item('SonnetDB.exe'), item('wwwroot/index.html'), item('msvcp140.dll'), item('msvcp140_1.dll'), item('vcruntime140.dll'), item('vcruntime140_1.dll')];
+  assert.equal(validatePublishInventory(files, web).included.length, files.length);
+  assert.throws(() => validatePublishInventory([...files, item('concrt140.dll')], web), /Unlisted/u);
 });
 test('network template preserves loopback and rejects every optional protocol', () => {
   const settings = { Kestrel: { Endpoints: { Http: { Url: 'http://127.0.0.1:5080' } } }, SonnetDBServer: {

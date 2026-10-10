@@ -1657,3 +1657,12 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 候选06/a0917daf/run38076076784 attempt1实际NativeAOT publish PASS（398秒/25身份/cleanupComplete=true；Generating native code，无IL告警），随后库存拒绝Web SDK隐式appsettings.Container.json，CI整体FAIL/未产生ZIP。原日志、CI evidence和不可变候选06保留，不能把publish PASS当包完成。候选07/9b8c8a7b/run38076686113已派发，其独立结果后继冻结，不覆盖。
 
 新候选08/4.5.0-preview.1.8明确在选择阶段排除Container/Development配置、debug/import libs及UseStaticFiles不消费的SDK静态索引；完整原publish库存先写证据，再fail closed验未知文件。21项本地合同通过，包含Container包内拒绝及选择剔除；预算/R1七模型延期/目标Windows11与EdgeChrome/同版本源码绑定不变。本提交前最终树完整restore/原CI Format/cached whitespace；精确owned stage，HANDOFF追加fsync核前缀，外来dirty与parity引用保持。候选08实物仍待构建，P05～P08未执行/NOT_READY，旧安全事故和未知清理证据继续保留。
+
+
+## M47-P04 候选07/08失败冻结与候选09原生依赖（2026-10-11，Asia/Shanghai）
+
+实读run38076686113/38077182154均整体FAIL；各自真实NativeAOT PASS/cleanupComplete=true，07拒绝Container，08拒绝SDK llms-full.txt.br；无ZIP，两份immutable候选及完整日志/evidence保留。08完整库存复核后只排除四个UseStaticFiles不消费的llms br/gz派生物，未知文件白名单未放宽。
+
+继任候选09/4.5.0-preview.1.9新增普通/延迟PE导入闭包，按VS登记redist路径取四个所需CRT，记录来源/版本/hash与逐边解析。24项合同与实际NuGet原生库/登记CRT微验证通过。Microsoft软件许可不归MIT，原条款和再分发资格待P07；Windows11系统/UCRT前提、动态装载及P05旅程界限明确。新CI实物仍待构建；P05～P08未执行/NOT_READY，旧失败/事故/UNKNOWN与自动化PAUSED不改。
+
+本提交前最终树全restore与CI同级Format、staged whitespace须PASS，HEAD+owned变换保护共享文档，HANDOFF独占追加fsync核前缀；外来脚本和博客等dirty、parity-results引用保持。仅构建/证据资产，不tag/公开发布/安装部署/恢复自动化/发送跨聊天消息。

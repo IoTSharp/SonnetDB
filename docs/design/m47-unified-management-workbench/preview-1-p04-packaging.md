@@ -1,6 +1,6 @@
 # M47-P04：独立 Web / NativeAOT Server 组包
 
-2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～07的来源与记录保留，当前继任版本 `4.5.0-preview.1.8`。首版目标限定 Windows 11 x64、Edge/Chrome，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
+2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～08的来源与记录保留，当前继任版本 `4.5.0-preview.1.9`。首版目标限定 Windows 11 x64、Edge/Chrome，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
 
 ## 来源与独立构建
 
@@ -31,3 +31,11 @@ P04只生成ZIP、manifest与对这两项的SHA256SUMS。合同的第四附件`n
 候选08当前实物待构建，不以本地测试/analyzer代替实际publish。最终SHA、CI和资产回执将在本报告后继冻结记录中填写。证据目录`artifacts/m47-p04-20261011`。
 
 P05首次安装、登录/导航/查询/导出/审批、错配/停止重开/回退；P06发行说明/上传器；P07现有完整门禁；P08实际公开发布均未执行。P03真实旅程只属其原输入与SHA，不继承成新候选完整门禁。旧FAIL、P02进程事故、P03旧cleanup=false和编辑器恢复未知保持。Workbench/WB98自动化继续PAUSED。
+
+## 候选07/08实际失败与候选09
+
+候选07 run 38076686113整体FAIL，真实NativeAOT publish PASS后拒绝Container配置；候选08 run 38077182154整体FAIL，真实NativeAOT publish PASS（360.50秒/23观察身份/cleanupComplete=true）后拒绝SDK生成的llms-full.txt.br，没有ZIP。两份不可变失败候选和CI evidence均保留，失败不升级为包通过。
+
+候选09/4.5.0-preview.1.9只排除四个不被UseStaticFiles消费的llms压缩派生物，保留原txt及排除收据；增加PE普通/延迟导入闭包检查，未解析依赖fail closed。按VS注册元数据精确定位x64 CRT，按实际导入只复制四个所需VC runtime，记录来源、登记/文件/产品版本、SHA256及导入边；不依赖Hosted runner预装CRT证明自包含。Windows11内置系统/UCRT/API-set为明确OS前提。原生DLL动态装载不由PE表推断，P05实机旅程仍待验。Microsoft runtime不归MIT；原许可条款/可再分发资格显式待P07复核。
+
+24项组包合同、实际NuGet DLL加登记CRT的本地闭包微验证通过；候选09实物待独立CI构建。命令上限16、总墙钟40分钟、单命令Job有界；无工具扫描/安装/共享进程终止。最终树restore/原CI format及精确staged whitespace必须通过再提交。NOT_READY，P05～P08未执行，自动化保持PAUSED。

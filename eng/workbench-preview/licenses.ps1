@@ -69,4 +69,12 @@ foreach ($key in @($lock.packages.Keys | Sort-Object)) {
     $metadata = Get-Content (Join-Path $directory 'package.json') -Raw | ConvertFrom-Json -AsHashtable
     $dependencies.Add(@{ecosystem='npm';id=$metadata['name'];version=$metadata['version'];integrity=$item['integrity'];resolved=$item['resolved'];buildOnly=($item['dev'] -eq $true);license=$metadata['license'];includedLicenseFiles=$licenseFiles.ToArray();licenseEvidence=if($licenseFiles.Count -eq 0){'METADATA_ONLY_REQUIRES_P07_REVIEW'}else{'ORIGINAL_TEXT'}})
 }
+$runtimeReport = Get-Content (Join-Path $PackageRoot 'native-dependencies.json') -Raw | ConvertFrom-Json
+foreach ($runtime in $runtimeReport.redistributed) {
+    Check-Budget
+    $dependencies.Add(@{ecosystem='microsoft-vc-runtime';id=$runtime.path;version=$runtime.productVersion;fileVersion=$runtime.fileVersion;
+        source=$runtime.source;registeredRedistVersion=$runtimeReport.registration.registeredRedistVersion;sha256=$runtime.sha256;
+        license='Microsoft Visual Studio redistribution terms';includedLicenseFiles=@('VC-RUNTIME-NOTICE.md');
+        licenseEvidence='PROVENANCE_AND_NOTICE_ORIGINAL_TERMS_REQUIRE_P07_REVIEW'})
+}
 $dependencies.ToArray() | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $PackageRoot 'dependency-licenses.json') -Encoding utf8

@@ -23,7 +23,7 @@ $evidence = Join-Path $output 'evidence'
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $count = 0
 function Invoke-OwnedCommand([string]$Name, [string]$Executable, [string[]]$Arguments, [string]$WorkingDirectory, [int]$Seconds) {
-    if ($script:count -ge 12 -or $watch.Elapsed.TotalSeconds -gt 2400) { throw 'Build command/wall-clock budget exhausted.' }
+    if ($script:count -ge 16 -or $watch.Elapsed.TotalSeconds -gt 2400) { throw 'Build command/wall-clock budget exhausted.' }
     $script:count++
     $spec = Join-Path $evidence "$Name.spec.json"
     $environment = @{
@@ -67,12 +67,6 @@ Copy-Item -LiteralPath (Join-Path $output 'identity.json') -Destination (Join-Pa
 $settings = Get-Content (Join-Path $publish 'appsettings.json') -Raw | ConvertFrom-Json
 $settings.SonnetDBServer.DataRoot = '../data'
 $settings | ConvertTo-Json -Depth 32 | Set-Content (Join-Path $publish 'appsettings.json') -Encoding utf8
-& $node (Join-Path $PSScriptRoot 'package.mjs') stage $root $output
-if ($LASTEXITCODE -ne 0) { throw 'Publish inventory validation failed.' }
-$package = Join-Path $output 'package'
-Copy-Item -LiteralPath (Join-Path $root 'web/package.json') -Destination (Join-Path $output 'web-package.json')
-& (Join-Path $PSScriptRoot 'licenses.ps1') -RepoRoot $root -PackageRoot $package -DeadlineSeconds 120
-$versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $package 'SonnetDB.exe'))
 $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Registered MSVC installation discovery unavailable.' }
 Invoke-OwnedCommand 'msvc-registration' $vswhere @('-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath') $root 15
@@ -80,6 +74,34 @@ $vsRoot = (Get-Content (Join-Path $evidence 'msvc-registration.stdout.log') -Raw
 $vcVersion = (Get-Content -LiteralPath (Join-Path $vsRoot 'VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
 $compiler = Join-Path $vsRoot "VC/Tools/MSVC/$vcVersion/bin/Hostx64/x64/cl.exe"
 if (-not (Test-Path -LiteralPath $compiler)) { throw 'Registered MSVC compiler unavailable.' }
+$redistVersionFile = Join-Path $vsRoot 'VC/Auxiliary/Build/Microsoft.VCRedistVersion.default.txt'
+$redistVersion = (Get-Content -LiteralPath $redistVersionFile -Raw).Trim()
+if ($redistVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid registered redistribution version.' }
+$redistRoot = Join-Path $vsRoot "VC/Redist/MSVC/$redistVersion/x64"
+$crtDirectories = @(Get-ChildItem -LiteralPath $redistRoot -Directory | Select-Object -First 11)
+if ($crtDirectories.Count -gt 10) { throw 'Registered redist directory budget exceeded.' }
+$crt = @($crtDirectories | Where-Object Name -Match '^Microsoft\.VC\d+\.CRT$')
+if ($crt.Count -ne 1) { throw 'Registered x64 CRT directory unavailable or ambiguous.' }
+$registration = Join-Path $evidence 'runtime-registration.json'
+@{ visualStudio=$vsRoot; versionMetadata=$redistVersionFile; registeredRedistVersion=$redistVersion; directory=$crt[0].FullName } |
+    ConvertTo-Json | Set-Content -LiteralPath $registration -Encoding utf8
+Invoke-OwnedCommand 'native-dependencies' $node @((Join-Path $PSScriptRoot 'native-dependencies.mjs'), 'collect', $publish, $crt[0].FullName, $evidence, $registration) $root 90
+$nativeDependencies = Get-Content (Join-Path $evidence 'native-dependencies.json') -Raw | ConvertFrom-Json
+foreach ($runtime in $nativeDependencies.redistributed) {
+    $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($runtime.source)
+    $runtime | Add-Member -NotePropertyName fileVersion -NotePropertyValue $info.FileVersion
+    $runtime | Add-Member -NotePropertyName productVersion -NotePropertyValue $info.ProductVersion
+}
+$nativeDependencies | ConvertTo-Json -Depth 16 | Set-Content (Join-Path $evidence 'native-dependencies.json') -Encoding utf8
+& $node (Join-Path $PSScriptRoot 'package.mjs') stage $root $output
+if ($LASTEXITCODE -ne 0) { throw 'Publish inventory validation failed.' }
+$package = Join-Path $output 'package'
+Copy-Item -LiteralPath (Join-Path $evidence 'native-dependencies.json') -Destination (Join-Path $package 'native-dependencies.json')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'VC-RUNTIME-NOTICE.md') -Destination (Join-Path $package 'VC-RUNTIME-NOTICE.md')
+Copy-Item -LiteralPath (Join-Path $root 'web/package.json') -Destination (Join-Path $output 'web-package.json')
+& (Join-Path $PSScriptRoot 'licenses.ps1') -RepoRoot $root -PackageRoot $package -DeadlineSeconds 120
+Invoke-OwnedCommand 'native-closure-verify' $node @((Join-Path $PSScriptRoot 'native-dependencies.mjs'), 'verify', $package, (Join-Path $package 'native-dependencies.json')) $root 90
+$versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $package 'SonnetDB.exe'))
 $toolInfo = [ordered]@{
     powershell = $PSVersionTable.PSVersion.ToString()
     dotnetInfo = (Get-Content (Join-Path $evidence 'dotnet-info.stdout.log') -Raw).Trim()

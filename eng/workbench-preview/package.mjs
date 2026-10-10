@@ -98,12 +98,14 @@ export function validateNetwork(settings) {
   requireThat(!settings.SonnetDBServer.Mqtt.ExternalClient.Enabled && !settings.SonnetDBServer.Mqtt.Sparkplug.Enabled && !settings.SonnetDBServer.Coap.Dtls.Enabled, 'Enabled nested listener/client');
 }
 export function validatePublishInventory(files, webFiles) {
-  const nativeNames = ['SonnetDB.exe', 'onnxruntime.dll', 'onnxruntime_providers_shared.dll', 'onnxruntime_providers_dml.dll', 'DirectML.dll', 'libSkiaSharp.dll', 'usearch_c.dll', 'libusearch_c.dll', 'numkong.dll'];
+  const nativeNames = ['SonnetDB.exe', 'onnxruntime.dll', 'onnxruntime_providers_shared.dll', 'onnxruntime_providers_dml.dll', 'DirectML.dll', 'libSkiaSharp.dll', 'usearch_c.dll', 'libusearch_c.dll', 'numkong.dll',
+    'msvcp140.dll', 'msvcp140_1.dll', 'vcruntime140.dll', 'vcruntime140_1.dll'];
   const webNames = new Set(webFiles.map(file => `wwwroot/${file.path}`));
   const excluded = [];
   const included = files.filter(file => {
     if (/\.pdb$/iu.test(file.path) || ['appsettings.Development.json', 'appsettings.Container.json', 'onnxruntime.lib', 'onnxruntime_providers_shared.lib',
-      'SonnetDB.staticwebassets.endpoints.json', 'SonnetDB.staticwebassets.runtime.json'].includes(file.path)) { excluded.push(file); return false; }
+      'SonnetDB.staticwebassets.endpoints.json', 'SonnetDB.staticwebassets.runtime.json',
+      'wwwroot/llms.txt.br', 'wwwroot/llms.txt.gz', 'wwwroot/llms-full.txt.br', 'wwwroot/llms-full.txt.gz'].includes(file.path)) { excluded.push(file); return false; }
     return true;
   });
   validatePaths(included);
@@ -169,7 +171,7 @@ function manifest(output) {
   const zipName = `${base}-win-x64.zip`, zipPath = path.join(output, 'delivery', zipName);
   const tools = readJson(path.join(output, 'evidence/tools.json'));
   requireThat(tools.server.productVersion === `${identity.version}+${source.commit}`, 'Actual Server informational version mismatch');
-  for (const name of ['node-contracts', 'npm-ci', 'web-build', 'native-publish']) {
+  for (const name of ['node-contracts', 'npm-ci', 'web-build', 'native-publish', 'native-dependencies', 'native-closure-verify']) {
     const receipt = readJson(path.join(output, `evidence/${name}.result.json`));
     requireThat(receipt.status === 'PASS' && receipt.cleanupComplete === true, `Missing successful owned execution: ${name}`);
   }
@@ -183,7 +185,8 @@ function manifest(output) {
     build: { nativeAot: 'PUBLISHED_WIN_X64_NO_CLR_DIRECTORY', aotWarningCount: 0, tools,
       ci: { repository: process.env.GITHUB_REPOSITORY, workflow: process.env.GITHUB_WORKFLOW, runId: process.env.GITHUB_RUN_ID,
         attempt: process.env.GITHUB_RUN_ATTEMPT, workflowRef: process.env.GITHUB_WORKFLOW_REF, workflowSha: process.env.GITHUB_SHA },
-      dependencyInventory: readJson(path.join(output, 'package/dependency-licenses.json')) },
+      dependencyInventory: readJson(path.join(output, 'package/dependency-licenses.json')),
+      nativeDependencies: readJson(path.join(output, 'package/native-dependencies.json')) },
     files, zip: { path: zipName, size: fs.statSync(zipPath).size, sha256: digest(fs.readFileSync(zipPath)) },
     evidence: { sourceAndPackaging: 'PASS', actualNativeAotPublish: 'PASS', archiveInventory: 'PASS',
       installedUserJourneyP05: 'NOT_RUN', releaseNotesP06: 'NOT_RUN', releaseGatesP07: 'NOT_RUN', publicationP08: 'NOT_RUN',
