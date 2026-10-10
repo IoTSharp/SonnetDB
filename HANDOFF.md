@@ -1622,3 +1622,10 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 证据artifacts/m47-p03-close-20261010；297输入重新核SHA，相对候选03仅KV/Measurement组件及其测试四项变化，其余293项相同，C#及项目配置无差异。当前修复及收尾文档为精确owned提交；在最终树完整restore/原CI Format/cached whitespace通过后才提交，实际SHA和门禁回执随后冻结新候选04/4.5.0-preview.1.4，不覆盖01～03。共享HANDOFF只尾部追加并核旧前缀；M42/博客/账本/三VSCode文件等外来dirty保持。
 
 本轮成功Job以各自kernel membership为空为清理证据；原P02外部进程事件、P03原cleanup=false和Chrome measurement导航超时保持，后续PASS不补原清理或编辑器恢复证明。无旧执行器、历史PID父链扩张、名称批量终止、安装或编辑器重启；无手动workflow dispatch、发布/部署/标签、恢复Workbench/WB98、来源会话消息或子智能体。此次授权包含提交和push，自动触发的远端任务不当作已验证发布门禁。产品NOT_READY；下一顺序为单独P04包内profile/版本/manifest，再P05～P08，当前没有实施这些步骤。
+
+
+## M47-P03 候选04冻结与推送交付（2026-10-10，Asia/Shanghai）
+
+修复代码提交57222f57e4cce324ca054126fd4281ec5e5afec1已通过最终树完整restore/原CI Format/cached whitespace后生成；候选04/4.5.0-preview.1.4绑定该完整SHA/tree及297验证输入的规范化Git blob，候选01～03字节不变。本候选为源码冻结，无tag/发行包/上传。P03按R1本地完成：新四片307通过/25原skip/0失败、Node465、类型检查/构建和新Web正式/admin真实浏览器12通过；19Kestrel与12StudioHost夹具明确复用未变输入。七模型专用读取延期，原Chrome measurement历史失败、P02事故和旧清理缺证保留，产品NOT_READY。
+
+本段与候选/当前状态入口作为独立文档提交，仍须最终树完整restore/原Format/cached whitespace通过。按本次明确授权正常推送这两个提交，再独立读取origin/main；最终两SHA、远端核验与本轮Job/浏览器profile清理结果见artifacts/m47-p03-close-20261010/delivery.json及各不可变receipt。共享dirty和HANDOFF外来前缀/尾追加保持，未恢复旧自动化或进入P04～P08。
