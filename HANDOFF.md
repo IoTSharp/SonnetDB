@@ -1666,3 +1666,15 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 继任候选09/4.5.0-preview.1.9新增普通/延迟PE导入闭包，按VS登记redist路径取四个所需CRT，记录来源/版本/hash与逐边解析。24项合同与实际NuGet原生库/登记CRT微验证通过。Microsoft软件许可不归MIT，原条款和再分发资格待P07；Windows11系统/UCRT前提、动态装载及P05旅程界限明确。新CI实物仍待构建；P05～P08未执行/NOT_READY，旧失败/事故/UNKNOWN与自动化PAUSED不改。
 
 本提交前最终树全restore与CI同级Format、staged whitespace须PASS，HEAD+owned变换保护共享文档，HANDOFF独占追加fsync核前缀；外来脚本和博客等dirty、parity-results引用保持。仅构建/证据资产，不tag/公开发布/安装部署/恢复自动化/发送跨聊天消息。
+
+
+## M47-P04候选09实物验收完成交接（2026-10-11，Asia/Shanghai）
+
+源码a44058adbe640d9ae04b93af388dccff6a17a961已正常推送main；run38078118031 attempt1整体success，真实NativeAOT402.06秒/29身份/cleanupComplete=true、0IL/AOT告警，24合同通过。12项CI执行回执均PASS/cleanupComplete=true。三资产ZIP/manifest/SHA256SUMS在artifacts/m47-p04-20261011/delivery-09；ZIP46617728bytes/hash f943c05f5015b2ac2ae56596d8df6839dcd09bb58a88e0effe0326d917b5a6f6。279个entry路径/size/hash、外部checksum、NativePE/ProductVersion、编译Web版本/SHA/profile、解压VerifyOnly全部独立PASS；MSVC dumpbin逐边复核10个原生文件普通/延迟导入及四CRT实际版本通过。未启动/安装Server。
+
+不可变candidate09冻结实际来源tree/gitlinks、工具、预算/平台/同候选组件、12CI回执、native dependencies与资产hash。243条依赖，16条原文/元数据/Microsoft条款待P07，不冒称许可完整验收；Windows11OS/UCRT和动态装载/P05旅程边界明确。05～08失败冻结保留，P02事故/旧cleanup=false/UNKNOWN原样。P04仅实物组包完成、NOT_READY，R1七模型延期不改；下一顺序P05本包真实首启/登录/旅程/错配/停止重开/回退，然后P06 notes+四附件合同/P07原门禁+许可/P08单独授权公开发布。Actions保留30天和本地证据不冒称长期发行；无tag/公开Release/部署/重开编辑器/恢复自动化/跨聊天消息。
+
+交接独占追加fsync核旧字节前缀，共享文档按HEAD+owned stage，外来dirty和保护脚本hash保持。最终docs提交仍须完整restore/CI同级Format/精确staged whitespace通过；随后正常push并独立核remote main及parity-results，完整Job清理审计与仅任务微试临时副本回收记录留证。此交接纳入owned提交，包及原始回执留artifacts，不提交build artifacts。
+
+
+P04收据数量纠正：上段“12项/12CI”是文档统计笔误；实际CI evidence为11项命令回执，均PASS/cleanupComplete=true，候选09机器记录的11项列表一直正确，P04报告已改为11项。真实publish/ZIP/hash/导入及P05～P08边界不变。四个CRT实际FileVersion/ProductVersion均14.51.36247.0，登记redist版本14.51.36231分别记录，不混用。

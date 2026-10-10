@@ -1,6 +1,6 @@
 # M47-P04：独立 Web / NativeAOT Server 组包
 
-2026-10-11（Asia/Shanghai）。本片实现独立组包器；产品仍 **NOT_READY**。候选01～08的来源与记录保留，当前继任版本 `4.5.0-preview.1.9`。首版目标限定 Windows 11 x64、Edge/Chrome，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
+2026-10-11（Asia/Shanghai）。本片已完成候选09独立组包及下载后校验；产品仍 **NOT_READY**。候选01～08的来源与记录保留，当前继任版本 `4.5.0-preview.1.9`。首版目标限定 Windows 11 x64、Edge/Chrome，同源环回根部署及 `/admin/` 入口，R1 七模型专用读取继续延期。
 
 ## 来源与独立构建
 
@@ -39,3 +39,13 @@ P05首次安装、登录/导航/查询/导出/审批、错配/停止重开/回�
 候选09/4.5.0-preview.1.9只排除四个不被UseStaticFiles消费的llms压缩派生物，保留原txt及排除收据；增加PE普通/延迟导入闭包检查，未解析依赖fail closed。按VS注册元数据精确定位x64 CRT，按实际导入只复制四个所需VC runtime，记录来源、登记/文件/产品版本、SHA256及导入边；不依赖Hosted runner预装CRT证明自包含。Windows11内置系统/UCRT/API-set为明确OS前提。原生DLL动态装载不由PE表推断，P05实机旅程仍待验。Microsoft runtime不归MIT；原许可条款/可再分发资格显式待P07复核。
 
 24项组包合同、实际NuGet DLL加登记CRT的本地闭包微验证通过；候选09实物待独立CI构建。命令上限16、总墙钟40分钟、单命令Job有界；无工具扫描/安装/共享进程终止。最终树restore/原CI format及精确staged whitespace必须通过再提交。NOT_READY，P05～P08未执行，自动化保持PAUSED。
+
+## P04完成实物：候选09
+
+2026-10-11（Asia/Shanghai），源码提交 `a44058adbe640d9ae04b93af388dccff6a17a961` 已正常推送，干净CI run `38078118031` / attempt1整体success。实际NativeAOT publish PASS，402.06秒/29观察身份/cleanupComplete=true；Generating native code且0 IL/AOT告警。Node22.23.3、.NET SDK10.0.401、登记MSVC14.51.36231（实际cl19.51.36260.0）；11项命令回执均PASS/cleanupComplete=true，24项组包合同PASS。版本4.5.0-preview.1.9、Native FileVersion4.5.0.9、ProductVersion带完整源码SHA，profile R1与两项gitlink固定。
+
+从该run下载ZIP、manifest、SHA256SUMS到`artifacts/m47-p04-20261011/delivery-09`，三项精确资产集合；ZIP46,617,728 bytes，SHA256 `f943c05f5015b2ac2ae56596d8df6839dcd09bb58a88e0effe0326d917b5a6f6`。外部checksum、279个ZIP entry路径/大小/逐文件SHA、PE与原生版本、编译JS中的版本/源码/profile全部独立PASS；新目录解压后Start-Preview -VerifyOnly PASS，没有启动或安装Server。另用本机登记MSVC dumpbin核10个原生文件的普通/延迟导入，与包内PE清单逐边一致；四个CRT实际文件/产品版本回读PASS。
+
+[不可变候选09](preview-1-candidate-09.json)冻结三资产的hash/size、完整profile/预算/平台/组件、来源tree/gitlinks、实际工具、11项CI回执、原生导入/依赖及下载后校验。完整逐源码输入/包文件和243条依赖/许可记录在manifest与包内，16条缺原文/仅元数据/Microsoft条款待P07，不能称许可完整验收。Git source、CI artifact、独立下载回执各自保存。三资产留本地及30天Actions保留，不是公开Release或长期分发；P06需保存正式notes、补四附件校验及上传器。
+
+**M47-P04仅组包完成；产品NOT_READY。** 下一片P05必须使用此包，实验首次设置/登录/导航/查询/导出/审批、错配拒绝、停止重开与回退。P06发行说明/四附件上传合同、P07原完整门禁和许可复核、P08授权公开发布仍待验。P03旧局部证据不继承为新包整体验收；七模型专用读取继续延期，05～08原CI失败、P02事故、旧cleanup=false/UNKNOWN和PAUSED自动化保持。
