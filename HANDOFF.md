@@ -1549,3 +1549,23 @@ Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；St
 推送核验成功后的下一项严格为根ROADMAP的M47-P01：在已提交候选上冻结Web Admin＋匹配Server首版用户旅程/支持动作与入口、目标平台、组件版本/兼容、认证部署、MCP合同/能力清单、分发渠道与实际资产白名单；Studio/VS Code分别通过各自实物门禁后再纳入。核publish.yml默认全套资产的实际行为，给出可审查的独立Web分发方案，不降低现有五Workbench job及原产品release-readiness门禁。既有Web smoke失败归P02核实；P01不冒称NOT_READY已解除，不实际发布、不恢复旧helper集成循环。新会话独立读取AGENTS/HANDOFF/根路线/发布审查和实时dirty，完成P01可审查交付；workbench旧自动化保持PAUSED，不创建新自动化。
 
 所有PowerShell均为7.6.6。restore/format通过各自最多900秒/600轮/256已观察身份的有界工具运行，MSBuild复用关闭、受管并发限制为4；记录root/parent/child完整身份，只检查或清理可确认归属。日志与收据是保留交付物，无下载/运行安装/新worktree/临时运行目录；没有按名称批量终止。工具最小输入通过；初次console摘要对OrderedDictionary取属性显示null，原JSON实际exit0/pass true，已改为显式对象输出；一次试读正在独占写入的restore日志被拒绝，未作为门禁结果或重跑理由。新会话启动后父会话停止仓库写入，后续由新会话维护交接。
+
+## M47-P01 范围与候选冻结交付（2026-10-10，Asia/Shanghai）
+
+本会话接续已推送的c40fa670e3a170c5fac8cefa181d618631862270，按用户授权只完成P01；不启动P02～P08，不回到WB98集成循环。根ROADMAP与队列当前入口已将P01标为范围冻结完成、下一项P02；产品发布仍NOT_READY。
+
+新增preview-1-scope.md、preview-1-candidate-01.json、preview-1-distribution.md，位于docs/design/m47-unified-management-workbench。候选01固定完整SHA/tree与两个gitlink，保留4.5.0-preview.1.1和workbench-preview-1.1规则，未注入构建/打标签。首版限定Windows 11 win-x64、同源环回Web＋匹配Server；冻结13组动作（九模型限定读与关系表单行一次审批插入）、实际版本来源、MCP typed 1.0与九tools/三resources来源清单、认证/部署、预算和四附件精确白名单。MCP源码清单不冒称实际协商或AI入驻验收。
+
+当前候选仍缺Preview入口控制，C01～C04归P03；C05来源/版本与错配拒绝归P04/P05；D01独立组包/分发归P04/P06。七导航保留位置，延期项须禁用并在直接URL/query/恢复tab/请求调度边界拒绝，不能只隐藏菜单。表中现有局部上限与新增资源预算目标分列，未声称统一限制已经实现。后续任一源码、配置、依赖、打包或最终字节变化须增加候选N及新版本，不覆盖候选01；最终P07所有门禁重新绑定同SHA/版本/latest attempt。
+
+已核publish.yml：dispatch生成全套验证物，v*会发布NuGet并公开Studio/SDK/full/安装器等；VSIX不由该workflow生成。首版拟用非v标签的独立手动prerelease、只公开Web＋Server便携ZIP/manifest/SHA256SUMS/说明四附件，不另发可混配静态ZIP。独立上传器尚未实现，不以冻结合同替代实现。原12个workflow、五Workbench job、所有具名step/artifact、CI/Format/AOT、适用Parity light/full、soak/容量/连接器/产物验证均保持；七天scheduled Parity继续独立非阻断。
+
+本轮文档验证PASS：46源码blob、13动作、6入口/分发控制、12原policy、五Workbench job、24个新文档本地链接、旧队列历史字节和三pending JS SHA一致；详见artifacts/m47-p01-freeze-20261010/documentation-verification.json。完整dotnet restore SonnetDB.slnx与原CI dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/均exit0，约20秒/127秒，进程身份/双流/cleanup结果在同目录restore.result.json、format.result.json。Format报告工作区加载警告，原stderr已保留，未另跑诊断级检查，不冒称产品测试通过。门禁后仅追加本交接与精确index，不改产品/验收源码。
+
+本地提交仅七路径：三份新冻结交付、ROADMAP、CHANGELOG、work-queue的新P01/P02两行和本HANDOFF单段。共享HANDOFF其它段落、queue旧pending、validation-report、WB97/WB98、博客/账本/图片与三个旧JS保留且不纳入index。最终commit/tree/本地领先状态与资源收据见同目录delivery.json；本轮不push、不创建PR/新会话/自动化、不发产品。旧workbench实查PAUSED；本地origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1，未远端刷新/合并/删除/推送。
+
+验证工具曾有一条PowerShell花括号路径解析错误（执行前失败）；第一micro在短命进程退出时缺完整CIM字段，随后完整生成又遇短命child身份不可核而中止，原日志/失败/一次已核身份的conhost清理信号保留。这些是本次文档工具结果，不是产品故障或真实宿主证据。加入对已消失child的明确unknown观察边界与取消标志后micro通过；最终门禁仍用原完整命令、最多900秒/600轮/256记录身份，MSBuild复用关闭、受管并发4，仅按核实身份清理。没有广域扫描、安装、下载、clone/worktree或共享缓存清理；任务目录全部为保留审计交付物。只声明已记录身份的收口，不声称全机/未观察短命后代无孤儿。
+
+下一步仅P02：核历史run37731752397/SHA5424b666的Web smoke失败原因，再在候选01或显式新增后继候选取得通过。该run未在本轮刷新，不称此刻最新；四job success与本轮restore/format都不代替五项全套。WB80本机恢复PASS继续保留但不计当前包安装，WB83 preflight失败/WB98审查超时不推断产品根因。Graph Beta、MQ逻辑身份与instance .system/mq持久化及单库备份边界、SQL名称、只读、一次审批、取消非回滚与unknown不重放保持。
+
+提交阶段补记：首次暂存检查发现本任务新JSON的CRLF被当前Git配置判为行尾空白；失败日志保留，已仅将该新文件规范为LF，语义不变，未修改共享历史。最终树另行完整重跑restore与原Format，结果以restore-final.result.json、format-final.result.json为准；提交动作必须在两项均exit0及最终暂存检查通过后执行。

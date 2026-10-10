@@ -8,8 +8,8 @@
 
 | 顺序 | 交付 ID | 目标 | 依赖 / 当前状态 |
 |---|---|---|---|
-| 1 | M47-P01 | 冻结预览范围、已提交候选、版本与发布物白名单 | **下一项；📋**。先确定 Web/Server 兼容与分发渠道，隔离其它会话和 pending 诊断改动。 |
-| 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | P01；🚧。已有失败证据，具体产品/夹具/环境原因待核。 |
+| 1 | M47-P01 | 冻结预览范围、已提交候选、版本与发布物白名单 | **🟢 范围冻结完成，产品仍 NOT_READY**。[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[候选01](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)、[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)已记录；入口与分发实现仍阻断。 |
+| 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | **下一项；🚧**。P01已冻结；已有失败证据，具体产品/夹具/环境原因待核。 |
 | 3 | M47-P03 | 补齐首版真实登录与权限、安全结果和所承诺恢复旅程 | P01；🚧。复用已完成九模型旅程，只补未验承诺及受影响回归。 |
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | P02、P03；📋。版本、commit、合同、能力、依赖和 SHA256 一起冻结。 |
 | 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | P04；📋。验证安装后的资源和真实 Server，开发服务器运行不替代。 |
@@ -17,7 +17,7 @@
 | 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | P02～P06；📋。保存真实 workflow/job/step/artifact 结果，不降低原 gate。 |
 | 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | P07 全部必选通过且取得实际发布授权；⏳。上传、公开可下载与运行验收分别记。 |
 
-具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。当前候选基线仍为本地 `78045e8b`、远端 `5424b666`；这是审查基线，最终版本/commit 在 P01 冻结，不直接使用 dirty 工作树发包。旧 `workbench` 定时保持 `PAUSED`，不自动恢复 WB98 或滚动创建任务。
+具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。P01候选01来源固定为 `c40fa670e3a170c5fac8cefa181d618631862270`，保留版本 `4.5.0-preview.1.1`；仅为已提交实现起点，未构建/验收/打标签。后续代码、配置或打包变更须新增候选与版本，不覆盖该清单、不用 dirty 工作树发包。首版限定 win-x64 同源环回 Web＋Server；旧 `workbench` 定时保持 `PAUSED`。
 
 4.5 后续仍推进 AI 应用、聚合/持续计算、存储编码及跨模型成本、恢复、容量与真实质量，按本文件 M44～M46 和 V45 工作包执行；这些增量不自动成为单独 Workbench Web 预览的先决任务。已撤回的系统性能原始报告不作为验收依据。完整背景见 [路线历史](docs/roadmap-history.md)、[4.5 规划核查](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)和[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)。
 
@@ -176,7 +176,7 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 
 | ID / 优先级 | 具体交付 | 完成与验收证据 |
 |---|---|---|
-| **M47-P01 / P0** | 冻结预览用户旅程/支持动作白名单、目标平台、已提交候选、组件版本与兼容清单、分发渠道和实际发布物白名单 | 明确 Web/Server 版本、MCP contract/能力清单、认证和部署方式；逐项标明纳入/延期及用户可见入口。当前 dirty 诊断和其它会话文件保留并隔离。核发布流水线是否默认携带 Studio/VSIX/完整套件，确定首版可独立分发的方案。 |
+| **M47-P01 / P0** | **🟢 范围冻结完成**：候选01完整SHA、版本/兼容、13组动作、入口限制及独立分发白名单 | [冻结合同](docs/design/m47-unified-management-workbench/preview-1-scope.md)与[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)可供后续引用。九模型限定读取＋关系表单行审批插入；C01～C05/D01仍需P03～P06实施/验收，产品NOT_READY。Studio/VSIX延期，Publish默认含Studio而不含VSIX；独立渠道不得触发v*全套发布。 |
 | **M47-P02 / P0** | 核远端 run37731752397 的 Web Admin / Studio bridge smoke 失败；按证据修复产品、夹具或环境缺口 | 在 P01 候选取得 Web build/smoke 和所影响回归通过，保留原失败。原 run 绑定 `5424b666`，其四个成功 job 不升级为全套 PASS；具体失败根因待日志核实。不能把 helper 审阅超时当产品根因或无界续接工具诊断。 |
 | **M47-P03 / P0** | 补齐真实登录 UI、普通用户和只读入口、身份切换、撤权后的载荷清理，以及本次承诺的结果/恢复旅程 | 在真实 Server/正式路由验证授权与拒绝；取消/断连/截断和写 unknown 可见、不会重放；导出只覆盖标明的当前窗口；HTTP/字节/行/时间预算明确。复用 WB26～WB37 的九模型证据，补未验承诺及候选差异，不把 API 安装 token 算登录 UI。 |
 | **M47-P04 / P0** | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
