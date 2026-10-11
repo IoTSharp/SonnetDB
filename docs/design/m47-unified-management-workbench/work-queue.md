@@ -13,7 +13,7 @@
 | 5 | M47-P05 | **本机R1实物验收完成**：[报告](preview-1-p05-installed-journey.md)、[候选10](preview-1-candidate-10.json)/4.5.0-preview.1.10，源码54eefc81/CI38104431383；实际Chrome/Edge、导出/审批/撤权/错配/正常重开/隔离快照回退通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | **本地说明/四附件/独立手动分发合同完成**：[P06报告](preview-1-p06-distribution.md)、[分发补记](preview-1-distribution-10.json)；原candidate10包字节保持，P07原完整gate/P08授权未验，NOT_READY。 |
 | 7 | M47-P07 | **评审完成；未放行**：[报告](preview-1-p07-release-review.md)/[真实记录](preview-1-p07-10.json)；prepare38116860908/P07收集38117134746 success，验收7/8、原门禁4/12；8同源工作流与11许可条件仍阻断，NOT_READY。包内修复须新候选及受影响验收。 |
-| 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |
+| 8 | M47-P08 | **工具与审批环境准备完成；未发布**：[报告](preview-1-p08-publication.md)/[记录](preview-1-p08-10.json)。审批环境maikebing/禁止自批与管理员绕过已配置；发布日志、匿名四附件/ZIP/首跑工具及五项许可补件准备完成。candidate10/P07仍NOT_READY：包内11许可条件与八同源workflow缺口保留；需许可闭环后新候选/version和受影响验收、新完整P07，再获精确发布授权及另一账户dispatch。未公开发布，首跑NOT_RUN。 |
 
 每项验收标准、宿主后续和正式版U02～U09只在根路线图维护。WB80的本机恢复PASS不能代替当前桌面包安装；WB83 preflight失败与WB98独审超时不能推成产品故障。已有dirty诊断、旧失败/UNKNOWN和其它会话内容保留。
 

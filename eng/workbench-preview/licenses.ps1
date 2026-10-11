@@ -77,4 +77,7 @@ foreach ($runtime in $runtimeReport.redistributed) {
         license='Microsoft Visual Studio redistribution terms';includedLicenseFiles=@('VC-RUNTIME-NOTICE.md');
         licenseEvidence='PROVENANCE_AND_NOTICE_ORIGINAL_TERMS_REQUIRE_P07_REVIEW'})
 }
+Check-Budget
+& (Join-Path $PSScriptRoot 'Add-SupplementalNotices.ps1') -PackageRoot $PackageRoot -Dependencies $dependencies.ToArray()
+Check-Budget
 $dependencies.ToArray() | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $PackageRoot 'dependency-licenses.json') -Encoding utf8

@@ -1,3 +1,5 @@
+**2026-10-11 P08工具/审批环境及前置证据准备完成，尚未发布，产品NOT_READY。** [P08报告](preview-1-p08-publication.md)及[机器记录](preview-1-p08-10.json)保存真实环境maikebing、禁止自批/管理员绕过，原完整门禁4/12与许可缺口；五项通知仅准备给下一候选，不改candidate10或P07。最终86项Node/五项补件/异常脱敏与源码解析合同通过；候选10匿名404原FAIL保留，公开包首跑NOT_RUN。继续顺序为许可闭环、新候选/受影响实物验收、同源完整gate及新P06/P07、精确实际授权与不同账户dispatch、一次发布及匿名下载/首跑；自动化PAUSED。
+
 **2026-10-11 P07评审完成，未放行：NOT_READY。** [P07报告](preview-1-p07-release-review.md)和[真实机器记录](preview-1-p07-10.json)绑定candidate10/4.5.0-preview.1.10、包source54eefc816f133a805b0d38f0cbe930d2c17650b6及tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24。prepare38116860908、P07收集38117134746均attempt1/success，发布job skipped；原包/清单/hash及旧失败保持。
 
 C01～C05/D01/P05-R1共7项PASS、licenses NOT_READY；原12workflow中4通过、8缺同包源码有效运行。243依赖/16缺口中5build-only不分发，7运行时npm通知与4Microsoft条款条件未闭环。真实artifact11693529921及digest、20原JSON/7许可原文/8归一检查和10+5工具库存独立核验；原checker拒绝NOT_READY发布。七天scheduled Parity最新7/7观察READY、nonblocking，不替代本候选light/full；初审UNAVAILABLE保留。包内许可修复须新候选和受影响验收。P08未执行，自动化PAUSED。

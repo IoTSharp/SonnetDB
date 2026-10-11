@@ -7,8 +7,9 @@ import { digest } from './package.mjs';
 import { identity, names, checksums, prepare, verifyDirectory, validateManifest, validateNotes, validateBuildRun, validateP07 } from './distribution.mjs';
 import { authorize, publish } from './release.mjs';
 import { target, response, expectedMissing } from './github-api.mjs';
+import { publicMetadata } from './public-readback.mjs';
 
-const environment = { name:'workbench-preview-p08', protection_rules:[{type:'required_reviewers',prevent_self_review:true,reviewers:[{type:'User',reviewer:{login:'human'}}]}] };
+const environment = { name:'workbench-preview-p08', can_admins_bypass:false, protection_rules:[{type:'required_reviewers',prevent_self_review:true,reviewers:[{type:'User',reviewer:{login:'human'}}]}] };
 function fixture() {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(),'sonnetdb-p06-contract-'));
   const version = '4.5.0-preview.1.10', sourceCommit = 'a'.repeat(40), sourceTree = 'b'.repeat(40), n = names(version);
@@ -79,6 +80,7 @@ test('P08 denies default prepare, absent approval, unprotected environment and s
   const c=context(f);authorize(c.context,f.seal,c.sealBytes,environment);
   for(const override of [{operation:'prepare'},{event:'push'},{authorization:''}])assert.throws(()=>authorize({...c.context,...override},f.seal,c.sealBytes,environment));
   assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[]}));assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[{...environment.protection_rules[0],prevent_self_review:false}]}));
+  assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,can_admins_bypass:true}));
 }));
 test('fixture publisher makes one immutable tag, draft, four explicit uploads, byte readback, prerelease/latest=false',async()=>asyncUse(async f=>{
   prepare(f.incoming,f.delivery,f.notesPath,f.seal);const r=remote(f);await publish(r.api,r.ctx);assert.equal(r.ctx.record.status,'PUBLISHED_API_READBACK');
@@ -98,3 +100,53 @@ test('only authoritative GET 404 for original tag/release is absence; mutations 
 test('upload URL contains exact release ID and encoded explicit filename',()=>{
   assert.equal(target('IoTSharp/SonnetDB','upload/123?name=notes.md'),'https://uploads.github.com/repos/IoTSharp/SonnetDB/releases/123/assets?name=notes.md');assert.throws(()=>target('other/repo','git/refs'));assert.throws(()=>target('IoTSharp/SonnetDB','upload/123?name=a&name=b'));
 });
+
+test('publication checkpoints retain known IDs before the next write; unknown fourth upload is not retried', async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f, { fail: `upload/1?name=${f.n.sums}` }), journal = [];
+  r.ctx.checkpoint = record => journal.push(structuredClone(record));
+  await assert.rejects(publish(r.api, r.ctx));
+  assert.equal(journal[0].phase, 'create-tag'); assert.equal(journal[0].mutationStarted, true);
+  assert.ok(journal.some(record => record.tagCreated === true && record.phase === 'create-draft'));
+  assert.equal(journal.at(-1).releaseId, 1); assert.equal(journal.at(-1).uploads.length, 3);
+  assert.equal(journal.at(-1).phase, `upload:${f.n.sums}`);
+  assert.equal(r.calls.filter(c => c.method === 'POST' && c.payload === `upload/1?name=${f.n.sums}`).length, 1);
+}));
+
+test('checkpoint failure prevents the following mutation', async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f); r.ctx.checkpoint = () => { throw new Error('disk full fixture'); };
+  await assert.rejects(publish(r.api, r.ctx));
+  assert.ok(r.calls.every(c => c.method === 'GET'));
+}));
+
+function publicFixture(f) {
+  const sealBytes = Buffer.from(JSON.stringify(f.seal));
+  const assets = f.seal.attachments.map((a, i) => ({ id: i + 1, name: a.path, size: a.size, state: 'uploaded', digest: `sha256:${a.sha256}`,
+    browser_download_url: `https://github.com/${f.seal.repository}/releases/download/${f.seal.tag}/${a.path}` }));
+  return { sealBytes, assets, release: { id: 123, draft: false, prerelease: true, published_at: '2026-10-11T01:00:00Z',
+    tag_name: f.seal.tag, name: `SonnetDB Workbench Preview 1 — ${f.seal.candidate}`, assets,
+    body: `${f.notes}\n<!-- distribution-sha256: ${digest(sealBytes)} -->\n`, html_url: `https://github.com/${f.seal.repository}/releases/tag/${f.seal.tag}` },
+    tag: { ref: `refs/tags/${f.seal.tag}`, object: { type: 'commit', sha: f.seal.sourceCommit } }, latest: { id: 99 },
+    page: `<title>Release SonnetDB Workbench ${f.seal.candidate}</title>${f.seal.repository} ${f.seal.tag}` };
+}
+const verifyPublicFixture = (f, p) => publicMetadata(f.seal, p.sealBytes, f.notes.toString(), p.release, p.assets, p.tag, p.latest, p.page);
+test('anonymous metadata verification preserves source and exact four download targets', () => use(f => {
+  const p = publicFixture(f), result = verifyPublicFixture(f, p);
+  assert.equal(result.releaseId, 123); assert.equal(result.attachments.length, 4);
+  verifyPublicFixture(f, { ...p, latest: null });
+}));
+for (const [label, mutate] of [
+  ['draft', p => p.release.draft = true], ['stable', p => p.release.prerelease = false],
+  ['notes', p => p.release.body += 'changed'], ['tag source', p => p.tag.object.sha = 'd'.repeat(40)],
+  ['annotated tag', p => p.tag.object.type = 'tag'], ['latest', p => p.latest.id = p.release.id],
+  ['date', p => p.release.published_at = 'unknown'], ['missing attachment', p => p.assets.pop()],
+  ['extra attachment', p => p.assets.push({ id: 999, name: 'old.vsix' })],
+  ['duplicate asset', p => p.assets[1] = p.assets[0]], ['size', p => p.assets[0].size++],
+  ['hash', p => p.assets[0].digest = `sha256:${'d'.repeat(64)}`],
+  ['foreign download', p => p.assets[0].browser_download_url = 'https://example.com/file.zip'],
+  ['login page', p => p.page = '<title>Sign in to GitHub</title>'],
+  ['public page identity', p => p.release.html_url = 'https://github.com/other/repository']
+]) test(`anonymous metadata rejects ${label}`, () => use(f => {
+  const p = publicFixture(f); mutate(p); assert.throws(() => verifyPublicFixture(f, p));
+}));

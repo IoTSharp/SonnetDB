@@ -18,7 +18,15 @@ fs.mkdirSync(output, { recursive: true });
 const resultPath = path.join(output, `${mode}.json`);
 requireThat(!fs.existsSync(resultPath), 'Immutable result exists');
 const record = { mode, candidate: seal.candidate, version: seal.version, sourceCommit: seal.sourceCommit, toolingCommit: process.env.GITHUB_SHA,
-  startedUtc: new Date().toISOString(), status: 'RUNNING', phase: 'preflight', mutationStarted: false };
+  tag: seal.tag, distributionSha256: digest(sealBytes), startedUtc: new Date().toISOString(), status: 'RUNNING', phase: 'preflight', mutationStarted: false };
+let checkpointCount = 0;
+function checkpoint(value) {
+  requireThat(checkpointCount < 24, 'Publication journal item budget');
+  const snapshot = { ...value, checkpoint: ++checkpointCount, observedUtc: new Date().toISOString() };
+  const file = fs.openSync(path.join(output, `${mode}-journal-${String(checkpointCount).padStart(3, '0')}.json`), 'wx');
+  try { fs.writeFileSync(file, `${JSON.stringify(snapshot, null, 2)}\n`); fs.fsyncSync(file); }
+  finally { fs.closeSync(file); }
+}
 function budget() {
   requireThat(calls++ < 64 && Date.now() < deadline && !fs.existsSync(path.join(output, 'cancel')), 'Command/cancel/wall budget exhausted');
 }
@@ -83,7 +91,7 @@ try {
     validateP07(p07, readJson(readiness), seal, sealBytes, evidence);
     if (mode === 'publish') {
       const environment = await api('GET', 'environments/workbench-preview-p08');
-      await publish(api, { seal, sealBytes, delivery, environment, record, context: { event:process.env.GITHUB_EVENT_NAME, operation:mode, repository:process.env.GITHUB_REPOSITORY, authorization:process.env.P08_AUTHORIZATION } });
+      await publish(api, { seal, sealBytes, delivery, environment, record, checkpoint, context: { event:process.env.GITHUB_EVENT_NAME, operation:mode, repository:process.env.GITHUB_REPOSITORY, authorization:process.env.P08_AUTHORIZATION } });
     }
   }
   if (record.status === 'RUNNING') record.status = mode === 'prepare' ? 'PREPARED_NOT_READY' : 'P07_RECHECK_PASS_NO_PUBLICATION';

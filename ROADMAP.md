@@ -183,7 +183,7 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 | **M47-P05 / P0** | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
 | **M47-P06 / P0** | **本地说明/四附件/限定手动分发合同完成**：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
 | **M47-P07 / P0** | **真实评审完成；NOT_READY**：[报告](docs/design/m47-unified-management-workbench/preview-1-p07-release-review.md)、[记录](docs/design/m47-unified-management-workbench/preview-1-p07-10.json)；成功prepare/P07原artifact已绑定 | 原12workflow中4通过、8缺同包源码运行；7/8验收通过、许可条件未闭环，不放行。包内修复必须新候选/version及受影响验收后重新取完整gate；P08另需实际授权。 |
-| **M47-P08 / 发布** | 经实际发布授权执行一次发布，核公开页/下载/版本/哈希与首跑，再归档完成条目 | P07 全通过后进行；保存已确认 ID/URL/上传结果及独立回读。未知远端效果先核实，不盲重试。仅核到公开文件不冒称全部宿主/生产验收；发布后把本轮完成 P 项移入 CHANGELOG。 |
+| **M47-P08 / 发布** | **工具/审批环境及前置证据准备完成；尚未发布**：[P08报告](docs/design/m47-unified-management-workbench/preview-1-p08-publication.md)、[记录](docs/design/m47-unified-management-workbench/preview-1-p08-10.json) | 审批环境maikebing/禁止自批与管理员绕过已配置；发布日志、匿名四附件/ZIP/首跑工具及五项许可补件准备完成。candidate10/P07仍NOT_READY：包内11许可条件与八同源workflow缺口保留；需许可闭环后新候选/version和受影响验收、新完整P07，再获精确发布授权及另一账户dispatch。未公开发布，首跑NOT_RUN。 |
 
 现有发布验证读取 [release-readiness policy](eng/release-readiness-policy.ps1)：Workbench 五个 job 及要求的 artifact，CI/Format/AOT、适用 CodeQL、Parity light/full、soak/容量合同和发布/连接器等检查按原 policy 执行。排除首版 Studio 或 VS Code 下载物，不等于可以跳过其既有基础 CI job。七天 scheduled Parity 保持独立非阻断观察，不将其误设为首个 Web 预览必须等待七天，也不把缩规模验证当固定硬件/生产证据。
 

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "kind": "pinned-original-npm-notices",
+  "originals": [
+    {
+      "file": "css-render-LICENSE.txt",
+      "storageFile": "css-render-LICENSE.txt.gz",
+      "encoding": "gzip",
+      "size": 1065,
+      "sha256": "306f57de421d7ef77f7dc145e1234f9c0ec76b710d28769b4d98ef3c4f8a64bd",
+      "storageSha256": "beb5e6ad007193e5e5f2aae6edb2c7d263c57831c6bdaca1f78532ae9f691f26"
+    },
+    {
+      "file": "vue-devtools-LICENSE.txt",
+      "storageFile": "vue-devtools-LICENSE.txt.gz",
+      "encoding": "gzip",
+      "size": 1083,
+      "sha256": "050bbca6960784db52ff387271bf2ecc5cbed7cf8581b415d528a6ecb6585015",
+      "storageSha256": "6c87af1b34cd4f31a42a839cf2fdf247fd5aacc1f04894549308daed27b6aaeb"
+    },
+    {
+      "file": "murmurhash-js-README.md",
+      "storageFile": "murmurhash-js-README.md.gz",
+      "encoding": "gzip",
+      "size": 1941,
+      "sha256": "e137ced8967fc334ec9b5fc5c8500992f9e49d2e9cc0f6e2439e46af2f2481a4",
+      "storageSha256": "1ec6883c988211bb4246b966b4fb6c2a4925a38879ba4870b1d2fe6c5c55de37"
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "@css-render/plugin-bem",
+      "version": "0.15.14",
+      "integrity": "sha512-QK513CJ7yEQxm/P3EwsI+d+ha8kSOcjGvD6SevM41neEMxdULE+18iuQK6tEChAWMOQNQPLG/Rw3Khb69r5neg==",
+      "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+      "originalFile": "css-render-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+      "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+    },
+    {
+      "id": "@css-render/vue3-ssr",
+      "version": "0.15.14",
+      "integrity": "sha512-//8027GSbxE9n3QlD73xFY6z4ZbHbvrOVB7AO6hsmrEzGbg+h2A09HboUyDgu+xsmj7JnvJD39Irt+2D0+iV8g==",
+      "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+      "originalFile": "css-render-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+      "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+    },
+    {
+      "id": "@vue/devtools-api",
+      "version": "6.6.4",
+      "integrity": "sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==",
+      "gitHead": "df6ab6bb7791a7a525a97990de73b3ea5e9a1941",
+      "originalFile": "vue-devtools-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/vuejs/vue-devtools/df6ab6bb7791a7a525a97990de73b3ea5e9a1941/LICENSE",
+      "evidence": "Original vue-devtools license at exact published gitHead for devtools-api 6.6.4"
+    },
+    {
+      "id": "css-render",
+      "version": "0.15.14",
+      "integrity": "sha512-9nF4PdUle+5ta4W5SyZdLCCmFd37uVimSjg1evcTqKJCyvCEEj12WKzOSBNak6r4im4J4iYXKH1OWpUV5LBYFg==",
+      "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+      "originalFile": "css-render-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+      "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+    },
+    {
+      "id": "murmurhash-js",
+      "version": "1.0.0",
+      "integrity": "sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw==",
+      "gitHead": "72aabce3f52cb8f16245692a69fd35951e165af0",
+      "originalFile": "murmurhash-js-README.md",
+      "source": "https://registry.npmjs.org/murmurhash-js/-/murmurhash-js-1.0.0.tgz",
+      "evidence": "Full README from integrity-verified published tar"
+    }
+  ],
+  "boundary": "Five original notices only. Mapbox JSON lint and vdirs remain unresolved; Microsoft terms and publisher qualifications require separate review. Requires successor candidate; never alters candidate10."
+}

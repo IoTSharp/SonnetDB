@@ -1777,3 +1777,17 @@ candidate10/4.5.0-preview.1.10/package source54eefc816f133a805b0d38f0cbe930d2c17
 44Node/6进程包装合同已通过；本次最终文档/机器记录完整restore/原CI format/default staged whitespace后精确7owned提交正常push，最终SHA/远端与非空本机收口见artifacts/m47-p07-20261011/delivery.json和原checks，未取得结果不预写PASS。审计只用本机checks身份，Hosted PID不查本机，DateKind String显式解析，拒绝空窗。只保留交付/原日志，不清共享缓存/外来文件；原FAIL/UNKNOWN/cleanup=false保留。
 
 HANDOFF独占尾追加/Flush(true)核旧字节前缀，stage严格HEAD原字节+本段；ROADMAP工作区外来五列与HEAD四列各自结构保持，CHANGELOG/queue/validation同样只HEAD+owned增量。保护105初始外来文件、博客/M42/WB97/WB98/三个VSCode和parity-results；workbench实读PAUSED。本任务无tag/Release/公开附件/匿名首跑/生产部署/安装服务/编辑器重启/跨聊天发送。
+
+## M47-P08发布工具、审批环境与前置证据准备（2026-10-11，Asia/Shanghai）
+
+用户直接指定GitHub审批人为maikebing；已实际创建workbench-preview-p08/environment24006677696、reviewer3445167，独立回读prevent_self_review=true，并关闭默认can_admins_bypass。当前凭据也是maikebing，不能批准自身dispatch；所有门禁完成后由另一有权限账户发起publish，再由maikebing审批。没有配置第二账户或绕过、dispatch publish、tag、Release、上传、生产部署或恢复自动化。初次配置import失败在任何API/写入前，原FAIL保留；纠正后一次create PUT、一次保护强化PUT。
+
+P08复用原独立四附件workflow和完整policy/verifier，新增不可覆盖且fsync的逐写journal，保留known tag/release/asset IDs，磁盘错误阻止下一写；未知结果只读原ID对账、不盲重试。新增匿名公开metadata/下载字节/279ZIP库存身份验证和实际R1首跑两个有界Job入口；请求、host、字节、redirect、取消/墙钟有界，异常日志只留安全原因以避免签名URL外泄，缺进程终态证明时保留运行目录。真正公开包首跑NOT_RUN，不能用合成合同或仓库页面HTTP通过代替发行证据。
+
+五项准确版本原通知已取得并集成到下一候选的许可采集器，三份gzip无损原文/固定gitHead/integrity/provenance均核验；最终纠正vue-devtools说明的css-render文字，原收据不覆盖。两个npm原文缺口（mapbox/jsonlint-lines-primitives2.0.2、vdirs0.1.8）及Microsoft资格/分发者与终端保护条件仍未闭环；取得官方2026再分发清单不等于满足全部条款。candidate10/source54eefc816f133a805b0d38f0cbe930d2c17650b6/version4.5.0-preview.1.10/build38104431383 attempt1/ZIP46634305bytes SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、原包/清单/checksum/审计/P07保持。原11项包内运行许可条件不改为PASS；本轮无candidate11、重包或新版本消耗。
+
+最终Node86/86、PowerShell补件五合同、四不安全URL/三异常脱敏/两安全原因保留合同及五源码解析通过，fixture回收；原两次补件FAIL（自动变量Matches被regex覆盖）保留。候选10真实匿名请求404、原Job FAIL/controller REFUSED/mutation=false/firstRun NOT_RUN不覆盖。原完整verifier现有凭据认证重核仍4/12，八项同包源码No eligible run；首次匿名quota失败及scheduled七天JSON解析UNAVAILABLE/nonblocking保留，不能覆盖P07旧7/7或削减light/full。新工具HEAD不充当包源码。
+
+机器记录preview-1-p08-10.json/status NOT_READY/published=false，报告preview-1-p08-publication.md分列证据；选择的原文与原收据无损gzip及hash库存入仓，凭据/spec不入归档。完整最终restore/原CI format/default cached whitespace、精确owned提交和普通push/独立remote main及parity回读、非空本机进程审计的实值见artifacts/m47-p08-20261011/delivery.json与checks，未取得结果不预写PASS。根HANDOFF独占锁尾追加/Flush(true)核旧字节前缀，stage仅HEAD原字节加本段；ROADMAP保留工作区和HEAD各自表格结构，其余共享文档仅暂存owned增量。初始105tracked/832untracked外来内容、VSCode三文件、博客/M42/WB97/WB98、parity-results本地tracking0061d6d78591fb08493f473d3231ca42303faae1与远端0e48b753da7eab8ebd9651d405ddb58e3bef01c8及PAUSED自动化保护。
+
+下一顺序：两个npm原文或有来源替换、Microsoft资格与保护条款闭环→下一未用candidate/version同SHA干净重包及受影响P04/P05实物验收→同包完整12workflow（Parity both/publish_results=false、三个发布workflow只preflight）→新P06/P07冻结及原artifact→精确实际P08授权串、另一账户dispatch/maikebing环境审批→一次发布→匿名下载及真实首跑→完成后归档。缺口前保持NOT_READY，不为需重包的candidate10空跑八套门禁。本机审计只查本任务checks、DateKind String显式日期、拒绝空窗和Hosted PID，不按名/旧PID终止；固定PowerShell7、有界Job、原FAIL/UNKNOWN保留，禁Graphify/广域扫描/安装工具/子智能体/新工作树/跨聊天发送/服务安装/编辑器重启。
