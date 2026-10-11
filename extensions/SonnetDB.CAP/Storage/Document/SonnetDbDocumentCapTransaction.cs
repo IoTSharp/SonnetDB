@@ -1,11 +1,14 @@
 using DotNetCore.CAP;
+using DotNetCore.CAP.Internal;
 using DotNetCore.CAP.Transport;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using SonnetDB.Data.Documents;
 
 namespace SonnetDB.CAP.Storage.Document;
 
 /// <summary>将业务文档和 Outbox 在同一 collection 中原子批提交，成功后才投递 CAP 消息。</summary>
+/// <remarks>未启动 CAP 宿主时，提交仅持久化业务文档和 Scheduled Outbox；消息投递由宿主启动后的 CAP 处理器负责。</remarks>
 public sealed class SonnetDbDocumentCapTransaction : CapTransactionBase
 {
     private readonly DocumentWriteBatch _batch;
@@ -58,6 +61,9 @@ public sealed class SonnetDbDocumentCapTransaction : CapTransactionBase
     public override async Task CommitAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        // .NET 10 的宿主异步执行 CAP 初始化；提前通知 dispatcher 只会留下等待重试的消息。
+        if (_publisher.ServiceProvider.GetService<IBootstrapper>() is BackgroundService { ExecuteTask: { } startupTask })
+            await startupTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         await _batch.CommitAsync(cancellationToken).ConfigureAwait(false);
         await FlushAsync().ConfigureAwait(false);
     }

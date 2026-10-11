@@ -138,6 +138,7 @@ async function fixture(overrides = {}, bootstrap) {
   await module.link((specifier) => {
     if (specifier === 'vue') return vue;
     if (specifier === 'pinia') return piniaModule;
+    if (specifier === '@/preview/policy') return new SyntheticModule(['previewEnabled'], function () { this.setExport('previewEnabled', false); }, { context });
     assert.equal(specifier, '@/api/studioNativeBridge'); return native;
   });
   await module.evaluate({ timeout: 5000 });

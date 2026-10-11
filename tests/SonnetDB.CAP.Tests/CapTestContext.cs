@@ -29,7 +29,7 @@ internal sealed class CapTestContext : IAsyncDisposable
     public IDataStorage Storage => Provider.GetRequiredService<IDataStorage>();
     public CapDocumentStore Backend => Provider.GetRequiredService<CapDocumentStore>();
 
-    public static async Task<CapTestContext> CreateAsync(bool remote, bool startCap = false, string version = "v1")
+    public static async Task<CapTestContext> CreateAsync(bool remote, bool startCap = false, string version = "v1", CapStartupGate? startup = null)
     {
         var context = new CapTestContext();
         try
@@ -50,6 +50,9 @@ internal sealed class CapTestContext : IAsyncDisposable
                 builder.Logging.ClearProviders();
                 builder.Logging.AddConsole();
                 context.Configure(builder.Services, version, useManualClock: false);
+                if (startup is not null)
+                    builder.Services.AddSingleton<IStorageInitializer>(provider =>
+                        new CapStartupInitializer(provider.GetRequiredService<CapDocumentStore>(), startup));
                 builder.Services.AddSingleton<JourneySubscriber>();
                 context._capHost = builder.Build();
                 await context._capHost.StartAsync();
@@ -164,6 +167,26 @@ internal sealed class CapTestContext : IAsyncDisposable
             if (Directory.Exists(path))
                 Directory.Delete(path, recursive: true);
         }
+    }
+}
+
+internal sealed class CapStartupGate
+{
+    public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class CapStartupInitializer(CapDocumentStore store, CapStartupGate startup) : IStorageInitializer
+{
+    public string GetPublishedTableName() => store.GetPublishedTableName();
+    public string GetReceivedTableName() => store.GetReceivedTableName();
+    public string GetLockTableName() => store.GetLockTableName();
+
+    public async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        startup.Started.TrySetResult();
+        await startup.Release.Task.WaitAsync(cancellationToken);
+        await store.InitializeAsync(cancellationToken);
     }
 }
 

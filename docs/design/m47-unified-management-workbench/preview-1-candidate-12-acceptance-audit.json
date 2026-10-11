@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "kind": "immutable-preview-acceptance-audit-addendum",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "packageSource": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "packageUnchanged": true,
+  "releaseStatus": "NOT_READY",
+  "published": false,
+  "correctedAudit": {
+    "path": "artifacts/m47-p07-close-20261011/installed-independent-audit.json",
+    "sha256": "bc3a8ec59a6504817e3424b845efc1c10b61320b575f28b118b38c20c9ab669c",
+    "status": "PASS",
+    "receiptCount": 17,
+    "identityCount": 244,
+    "liveMatches": 0,
+    "remainingListeners": 0,
+    "signalCount": 0,
+    "scriptSha256": "d031e27847f540266d2425a88695e5dd191fe2716f218e6cbfaabec6d417ad7c"
+  },
+  "originalEmptyWindow": {
+    "path": "artifacts/m47-p05-20261011/final-delivery-process-audit.json",
+    "sha256": "cb6cf9bec50b3dce25da94cc27b3e132498ef8b350fc0f74a410e5436501e6ae",
+    "rawStatusPreserved": "PASS",
+    "notAcceptanceEvidence": true,
+    "effectiveStatus": "FAIL_EMPTY_WINDOW",
+    "historicalCandidate": "candidate-10",
+    "historicalVersion": "4.5.0-preview.1.10",
+    "boundary": "Historical excluded candidate10 audit retained for the unchanged schema. No new empty-window receipt is asserted for candidate12."
+  },
+  "correction": "Candidate12 uses actual suite12, DateKind String, at least 15 completed receipts and 100 identities; no time filter and no Hosted PID lookup on this host.",
+  "remaining": [
+    "P06 remote prepare",
+    "P07 remote review",
+    "P08 publication and public first run"
+  ]
+}

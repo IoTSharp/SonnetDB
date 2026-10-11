@@ -675,7 +675,8 @@ test('Studio bridge exposes native server controls and disk connection library',
 
   const nativeControls = page.locator('.native-bridge-controls');
   await expect(nativeControls).toBeVisible();
-  await expect(nativeControls).toContainText('Local healthy');
+  await expect(nativeControls).toContainText('Studio 运行中');
+  await expect(nativeControls).not.toContainText('宿主身份不可确认');
   await expect(nativeControls.getByRole('button', { name: 'Health' })).toBeVisible();
   await expect(nativeControls.getByRole('button', { name: 'Stop' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Studio profile' })).toBeVisible();
@@ -696,9 +697,10 @@ test('Studio bridge exposes native server controls and disk connection library',
 });
 
 test('Studio opens an existing embedded database directory from the workspace', async ({ page }) => {
-  await mockStudioBridge(page);
+  await mockStudioBridge(page, false);
   await page.goto('/admin/app/sql');
 
+  await expect(page.getByTestId('studio-managed-state').first()).toHaveText('Studio 已停止');
   await page.getByTitle('配置本地 Server').click();
   const request = page.waitForRequest((item) => item.url().endsWith('/server/open-embedded'));
   await page.getByRole('button', { name: '打开已有嵌入式数据库' }).click();
@@ -939,7 +941,7 @@ async function mockManagementContracts(page: Page): Promise<void> {
   });
 }
 
-async function mockStudioBridge(page: Page): Promise<void> {
+async function mockStudioBridge(page: Page, running = true): Promise<void> {
   await page.addInitScript(({ endpointUrl, token }) => {
     const bootstrap = Object.freeze({ endpointUrl, token });
     sessionStorage.setItem('sndb.studio.bridge.url', endpointUrl);
@@ -962,7 +964,11 @@ async function mockStudioBridge(page: Page): Promise<void> {
 
   await page.route('http://127.0.0.1:54980/studio-bridge/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const status = { isRunning: true, startedByStudio: true, healthy: true, processId: 260, url: 'http://127.0.0.1:5080', dataRoot: 'C:\\SonnetDB\\Studio\\data', error: null };
+    const status = {
+      isRunning: running, startedByStudio: running, healthy: running, processId: running ? 260 : null,
+      url: 'http://127.0.0.1:5080', dataRoot: 'C:\\SonnetDB\\Studio\\data', error: null,
+      processOwner: running ? 'studio' : 'none', lifecycleState: running ? 'running' : 'stopped', canStop: running,
+    };
     if (path.endsWith('/manifest')) {
       return json(route, {
         mode: 'desktop',
@@ -981,9 +987,11 @@ async function mockStudioBridge(page: Page): Promise<void> {
     }
     if (path.endsWith('/connections')) {
       return json(route, {
-        profiles: [{ id: 'studio-profile', name: 'Studio profile', kind: 'remote', baseUrl: '/', defaultDatabase: database, tokenMode: 'current-session', createdAt: 1, updatedAt: 1 }],
+        profiles: [{ id: 'studio-profile', name: 'Studio profile', kind: 'remote', baseUrl: '/', defaultDatabase: database, tokenMode: 'current-session', createdAt: 1, updatedAt: 1,
+          identity: { host: 'studio-desktop', profileId: 'studio-profile', baseUrl: '/', database } }],
         activeProfileId: 'studio-profile',
         activeDatabase: database,
+        activeIdentity: { host: 'studio-desktop', profileId: 'studio-profile', baseUrl: '/', database },
       });
     }
     if (path.endsWith('/server/status')) return json(route, status);
@@ -997,8 +1005,11 @@ async function mockStudioBridge(page: Page): Promise<void> {
       return json(route, { canceled: false, path: 'D:\\SonnetDB\\factory-data', error: null });
     }
     if (path.endsWith('/server/open-embedded')) {
+      running = true;
       return json(route, {
         ...status,
+        isRunning: true, startedByStudio: true, healthy: true, processId: 260,
+        processOwner: 'studio', lifecycleState: 'running', canStop: true,
         mountedDatabasePath: 'D:\\SonnetDB\\factory-data',
         mountedDatabaseName: database,
       });

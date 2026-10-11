@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "originalRunId": "38151505875",
+  "releaseId": 409754336,
+  "files": [
+    {
+      "file": "publish.json",
+      "storageFile": "publish.json.gz",
+      "encoding": "gzip",
+      "size": 921,
+      "sha256": "e68d47179fa7235ebbcbe026666833c7ee5868bf4479212e819e2040e2d361bf"
+    },
+    {
+      "file": "run.json",
+      "storageFile": "run.json.gz",
+      "encoding": "gzip",
+      "size": 12171,
+      "sha256": "2149bbd2c2305c36ad965dd3ee9c49ce1f1cb81f9160d7e1343c220562d355e4"
+    },
+    {
+      "file": "jobs.json",
+      "storageFile": "jobs.json.gz",
+      "encoding": "gzip",
+      "size": 7077,
+      "sha256": "59b6e07599d47db2e19d7dcf5401c0a31f616d49e28a97a2bc0dc52c3a34996f"
+    },
+    {
+      "file": "artifacts.json",
+      "storageFile": "artifacts.json.gz",
+      "encoding": "gzip",
+      "size": 2177,
+      "sha256": "8f89fc9bff823283d8be4688f5a33207e57daf6e9f1cc264264533f7e3702d91"
+    },
+    {
+      "file": "download.json",
+      "storageFile": "download.json.gz",
+      "encoding": "gzip",
+      "size": 1338,
+      "sha256": "8d9e1f82865522097b3568fa73e198dbab89dac496b78bba94fcb429b20e4c40"
+    },
+    {
+      "file": "approval-request.json",
+      "storageFile": "approval-request.json.gz",
+      "encoding": "gzip",
+      "size": 503,
+      "sha256": "a516e5bbfd20518966a6702f3951badb1e462153086f65965e0430eb28681000"
+    },
+    {
+      "file": "approval-response.json",
+      "storageFile": "approval-response.json.gz",
+      "encoding": "gzip",
+      "size": 3874,
+      "sha256": "eace23f0a1918b0d50b1f64d6fa1140af98fe627630f05ca6fcadcf8fe3e07ce"
+    },
+    {
+      "file": "reconciliation.json",
+      "storageFile": "reconciliation.json.gz",
+      "encoding": "gzip",
+      "size": 590,
+      "sha256": "8676875fdfcdd952bdb0b6917718ab968be353b52a925c1478424e0307324e94"
+    },
+    {
+      "file": "original-release.json",
+      "storageFile": "original-release.json.gz",
+      "encoding": "gzip",
+      "size": 9627,
+      "sha256": "6ade70eca880916f4b09c7fd8413bfe7e8bb452cf3b19558f8bf797f4bec931b"
+    },
+    {
+      "file": "original-assets.json",
+      "storageFile": "original-assets.json.gz",
+      "encoding": "gzip",
+      "size": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ]
+}

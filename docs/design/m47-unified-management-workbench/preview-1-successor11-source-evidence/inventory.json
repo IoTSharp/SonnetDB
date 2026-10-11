@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "kind": "successor-source-preparation-only",
+  "files": [
+    {
+      "originalPath": "primary/mapbox-2.0.3.json",
+      "storageFile": "00-mapbox-2.0.3.json.gz",
+      "encoding": "gzip",
+      "size": 3941,
+      "sha256": "2c9018dfcfd02f7828205dd3be75a21b7d7d87d2fe98108adf544356abd58799",
+      "storageSha256": "36f114f0e894686e336e205d354a7da1e444bc68978f3144cd4fef1bc3797fae"
+    },
+    {
+      "originalPath": "primary/mapbox-LICENSE.txt",
+      "storageFile": "01-mapbox-LICENSE.txt.gz",
+      "encoding": "gzip",
+      "size": 1071,
+      "sha256": "5dcae6b71018b5454d00228bd08ccbcd9801ee27b19959b88ebcb55602604e6d",
+      "storageSha256": "8e6795589dce6fc3b4a3f4ab67d3e5b6812e3f85247fddc967244065ad484576"
+    },
+    {
+      "originalPath": "mapbox-patch-review.json",
+      "storageFile": "02-mapbox-patch-review.json.gz",
+      "encoding": "gzip",
+      "size": 7843,
+      "sha256": "88a1986de46153a1bb1c69b2a469c4240d800692464144c2ce37cccfe6af6004",
+      "storageSha256": "8d00ad7aa593dbc5b2bfd27444ae96b7e664a45172262d36982d22ab037ed6c7"
+    },
+    {
+      "originalPath": "primary/sources.json",
+      "storageFile": "03-sources.json.gz",
+      "encoding": "gzip",
+      "size": 2141,
+      "sha256": "7b9262beb292839ee4e3cd24166748599b2d01b4f3ad0cb284d9397999c3fce0",
+      "storageSha256": "f602a8cb343d21e0b3d8d26db18affea66626f14c8ca19d567663e4b5026bc53"
+    },
+    {
+      "originalPath": "microsoft/sources.json",
+      "storageFile": "04-sources.json.gz",
+      "encoding": "gzip",
+      "size": 242,
+      "sha256": "1b952bacc1e7c9d6c64034170362189729950ab7e5d0c58eb7c0a6d084ac741e",
+      "storageSha256": "e975873a3e1f5a4b1964efe253dfe210b0af25fdb351188cf9ce89d1dfca2bc4"
+    },
+    {
+      "originalPath": "vdirs-current/tree.json",
+      "storageFile": "05-tree.json.gz",
+      "encoding": "gzip",
+      "size": 3891,
+      "sha256": "18143dad4b7d0541fa40cd3b367cb20e21791d66819a8fc330e7307799c2561b",
+      "storageSha256": "09fd8a5dd130061af0db373f16b2495f94764fda6042ba000efdbf123a5c825d"
+    },
+    {
+      "originalPath": "vdirs-current/package.json",
+      "storageFile": "06-package.json.gz",
+      "encoding": "gzip",
+      "size": 620,
+      "sha256": "4e85f1a3eea33c6267cab35865deee4e52f291f37ce823bb0afbbcb79fabd1df",
+      "storageSha256": "a26f07d1dcdefcea8858930ddee38c4797ffa856597ff083d53f3e2f6fdd1ba8"
+    },
+    {
+      "originalPath": "github/tree-1-failure.json",
+      "storageFile": "07-tree-1-failure.json.gz",
+      "encoding": "gzip",
+      "size": 268,
+      "sha256": "e04832f18452d99ab647554d74c990f1d6dc562a02537610221096bfff51c2d1",
+      "storageSha256": "b33b3acf1084c7567e49e3c0f45344df032c48a211cffb0b8899307a4e1c64ca"
+    },
+    {
+      "originalPath": "github/environment.json",
+      "storageFile": "08-environment.json.gz",
+      "encoding": "gzip",
+      "size": 1533,
+      "sha256": "510073711df8c51a52dfaf3dd4173bc454f3e812dfea72e461d4672a26fbc1b6",
+      "storageSha256": "3b730e3012c25c64be56095669fa0c8e9c57d31cb554754c6a68d0cf452f2bc8"
+    },
+    {
+      "originalPath": "history/build-runs.json",
+      "storageFile": "09-build-runs.json.gz",
+      "encoding": "gzip",
+      "size": 73372,
+      "sha256": "7cc8642ddb24dd8c4b38ef3d6ed62723a22a663bd356bcd0f7150f4705c30ef3",
+      "storageSha256": "03a9d84c9d136ef553d3809c453ffa1bddddcf9e5e9b0ce36f957cec59fdddbc"
+    },
+    {
+      "originalPath": "initial-module-evidence-mismatches.json",
+      "storageFile": "10-initial-module-evidence-mismatches.json.gz",
+      "encoding": "gzip",
+      "size": 881,
+      "sha256": "849fab5d6f15d03247c0581da6dade566c31969f999c0fe80dc69ecf10dd8d0b",
+      "storageSha256": "17093b9822ed886aa9d478db6874f8a2582527573f1b22345821bb76b2be2c15"
+    },
+    {
+      "originalPath": "reusable-license-contracts-v2/license-contracts.json",
+      "storageFile": "11-license-contracts.json.gz",
+      "encoding": "gzip",
+      "size": 1097,
+      "sha256": "e2486a10ff4afe83161cb796b69dd02d3ba95672030968e533a34daa2f432f9e",
+      "storageSha256": "12bb6a2c826016e7f89202a2dea42d25c05b707548456861f4af1fe2e1598602"
+    },
+    {
+      "originalPath": "checks/web-contracts-v2.result.json",
+      "storageFile": "12-web-contracts-v2.result.json.gz",
+      "encoding": "gzip",
+      "size": 1258,
+      "sha256": "cab87456934bc0c1560c7a681a632a934316f3a10ab91343e5aac76219b9acf2",
+      "storageSha256": "c73a5419108f5370449832ea1cfbb33cd0feaaabf45ab242c5dcc3839c86fee7"
+    },
+    {
+      "originalPath": "checks/profile11-contracts.result.json",
+      "storageFile": "13-profile11-contracts.result.json.gz",
+      "encoding": "gzip",
+      "size": 1341,
+      "sha256": "bb57732b78604a012808ee6cfaa9e4d80863603c63519d99bddb71f81559a55a",
+      "storageSha256": "0786aeb02d2359bd5f5ab7b36beafaaacad1cbb3dd42513ee91be3bf2ab79159"
+    },
+    {
+      "originalPath": "checks/web-build-v2.result.json",
+      "storageFile": "14-web-build-v2.result.json.gz",
+      "encoding": "gzip",
+      "size": 1296,
+      "sha256": "57f091d31e43ba44f263f8b11fd15373fd85d13c42ba067ee8739fff0aba407f",
+      "storageSha256": "22928dd76b157786741ce147e876e069e97b6a1c8b8ec3d0f42c9759cc4c57d0"
+    }
+  ],
+  "boundary": "Local contracts and primary sources only. No successor CI package, installed acceptance or release readiness proof."
+}

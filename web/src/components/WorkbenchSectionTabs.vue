@@ -7,7 +7,9 @@
       class="workbench-section-tab"
       :class="{ 'is-active': item.key === modelValue }"
       :aria-current="item.key === modelValue ? 'page' : undefined"
-      @click="$emit('update:modelValue', item.key)"
+      :disabled="previewEnabled && !previewSectionAllowed(previewTool, item.key)"
+      :title="previewEnabled && !previewSectionAllowed(previewTool, item.key) ? '本预览未开放' : undefined"
+      @click="(!previewEnabled || previewSectionAllowed(previewTool, item.key)) && $emit('update:modelValue', item.key)"
     >
       <component v-if="item.icon" :is="item.icon" :size="16" :stroke-width="1.8" />
       <span>{{ item.label }}</span>
@@ -18,6 +20,9 @@
 
 <script setup lang="ts">
 import type { Component } from 'vue';
+import { inject, ref } from 'vue';
+import { previewEnabled, previewSectionAllowed } from '@/preview/policy';
+const previewTool = inject('previewTool', ref(''));
 
 export interface WorkbenchSectionTab {
   key: string;

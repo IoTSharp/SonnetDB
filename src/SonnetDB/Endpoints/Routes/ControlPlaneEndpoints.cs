@@ -74,6 +74,26 @@ internal static partial class SonnetDbEndpoints
         });
 
         // ---- Schema API ----
+        app.MapGet("/v1/db/{db}/access", async (HttpContext ctx, string db) =>
+        {
+            if (!TryResolveDatabase(ctx, registry, db, out _))
+                return;
+            var permission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+            var role = BearerAuthMiddleware.GetRole(ctx);
+            ctx.Response.ContentType = "application/json; charset=utf-8";
+            ctx.Response.Headers.CacheControl = "no-store";
+            await using var writer = new Utf8JsonWriter(ctx.Response.BodyWriter);
+            writer.WriteStartObject();
+            writer.WriteString("database", db);
+            writer.WriteString("httpRole", role);
+            writer.WriteString("databasePermission", permission.ToString());
+            writer.WriteBoolean("canRead", DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Read));
+            writer.WriteBoolean("canWrite", BearerAuthMiddleware.CanWrite(role)
+                && DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Write));
+            writer.WriteEndObject();
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+        });
+
         app.MapGet("/v1/db/{db}/schema", async (HttpContext ctx, string db) =>
         {
             if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
@@ -81,7 +101,13 @@ internal static partial class SonnetDbEndpoints
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
-            await SchemaEndpointHandler.Handle(db, tsdb).ExecuteAsync(ctx).ConfigureAwait(false);
+            if (WorkbenchPreviewSql.IsRequested(ctx))
+            {
+                ctx.Response.ContentType = "application/json; charset=utf-8";
+                await WorkbenchPreviewMetadata.WriteAsync(ctx, tsdb).ConfigureAwait(false);
+            }
+            else
+                await SchemaEndpointHandler.Handle(db, tsdb).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
         app.MapGet("/v1/db/{db}/schema/measurements/revision", async (HttpContext ctx, string db) =>

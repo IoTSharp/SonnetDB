@@ -1290,6 +1290,600 @@ workbench同一heartbeat保持PAUSED，不新产品任务、不新接续、不�
 
 - 当前未提交改动已形成提交 6ec257ef；远端木垒提交的 CHANGELOG/HANDOFF 追加冲突已合并，双方条目完整保留，ROADMAP 与两份现场报告正常合入。此合并提交随后推送 origin/main，未运行额外检查。
 
+## 2026-10-09 WB76 恢复与最新代码同步（本会话仍1/5）
+
+本会话01a119bb-6f5f-7df2-b86b-c72eb5245cc1继承已闭合WB75计数1/5；用户先要求获取并合并线上代码。固定PS7.6.6/Git2.56，实际fetch origin/main成功；merge --ff-only origin/main报告Already up to date，HEAD与origin/main均5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind0/0，parity-results仍0061d6d78591fb08493f473d3231ca42303faae1。未push或新增提交；博客园/CSDN/微博等并发文件完整保留。同步是WB76前置，不重复计算产品任务。
+
+最新AGENTS根全文及HANDOFF/ROADMAP/queue/validation专属分块全文接收完成，HANDOFF两次foreign尾追加2070B/2195B保留。WB75旧private/八段/15路径已被另一授权提交接纳，不再重建。workbench同一heartbeat实读ACTIVE、每30分钟、当前thread，未创建重复自动化。WB73 PS14/Node41及WB74guard38仅继承，不因恢复重测。
+
+WB76新合同artifacts/wb76-native-actual-20261009/task-contract.json：根截止04:50Z，本片最多14managed/1actual、原Native900s及90s回收/outer1020s、0产品build。仅runner新证据入口/标签和.62前置文案，不能当runtime选择绑定；source/tools独审、micro/语法及新鲜32文件/4端口/资源准入后才启动真实A/B、双desktop/B查询/恢复/正常退出旅程。初资源PerfOS_CPU3s查询超时保留；有界OS及CPU5s复核成功，内存约31GB可用/CPU30%，不是实际准入。新鲜.62明确文件存在；实际CDP与路径必须单列。
+
+仅本地owned集成，root串行docs/stage/完整restore和CI原format/commit。七导航/九模型/Graph Beta/MQ database identity+instance .system/mq不变；安装/ExtensionHost/AOT/固定硬件/长期/发布独立，原WB70失败/normalExit/cleanup及whole-session过程缺口不升级。机器有界count+wall/cancel/progress、固定PS7、完整身份/父链核实后仅自有树finally，禁Graphify/广域工具扫描/找gcc/猜PCCT/安装，保护旧policyTemp/WB40/其它会话/缓存交付物及parity；无部署/发布/外部发送。此开始段不预填WB76结果。
+
+## 2026-10-09 用户要求的最新代码拉取与线上 main 合并核验
+
+- 本轮仅处理“先获取最新代码，把线上代码进行合并”。2026-10-09 再次实际 fetch origin main 成功，随后 merge --ff-only origin/main 返回 Already up to date。当前 main/HEAD 与 origin/main 均为 5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind 0/0；没有合并冲突、没有新增合并提交、未 push。origin/parity-results 保持 0061d6d78591fb08493f473d3231ca42303faae1，没有参与合并。
+- 保留当前 Native/WB76 及博客/CSDN/OSChina/微博相关全部已存在的未提交修改与新增文件，未 stash/reset/stage、未启动构建或测试。本轮拉取/合并各有实际 Git PID、启动时间、参数、父 PID、退出码及 stdout/stderr 记录，两条命令均 exit 0；证据目录 artifacts/code-sync-20261009-04670ea4a0bb4f9c8f60ce97232df537。同步核验不计作新的产品任务，WB75 已闭合 1/5，WB76 仍未闭合。
+- 承接 WB76 的未完成边界：第一次 run-owned.ps1 的 wrapper-micro 调用在 File.Replace 的 backup 路径参数处报 The path is empty，发生在受管子进程启动前。预算文件仍 count 0 / labels [] / actualCount 0 / status open，但有一次失败的 wrapper 调用，不得把计数 0 写成无失败；尚未完成 micro/source-syntax/preflight/Native actual/restore/format/commit。工具修复尚未执行；原失败、source-review PASS、tools-review phase1 超时及 phase2 PASS 必须分别保留。phase2 合同截至 04:18Z，后续修复或执行需要新的有界有效审查，根合同仍截至 04:50Z，不得追认过期审查或运行。下一步 Native 工作先核预算锁/临时文件及失败归属，再窄修 File.Replace、做微输入验证与独立复核，通过后才推进实际准入。
+- HANDOFF 本段在独占写入句柄下追加，已核先前全文接收的 401769 字节前缀 SHA 与记录一致，所有并发追加内容逐字保留。本段暂不提交：本轮只要求同步，仓库仍有其它会话的未提交工作，未执行提交所必需的最终树 restore/CI Format Check；没有宣称 WB76 或全工作树验证完成。
+
+## 2026-10-09 用户要求立即迁移 workbench 定时任务（旧会话结束 2/5，新会话 0/5）
+
+用户明确要求“现在创建新会话，在新会话里继续当前定时任务要做的事情，旧会话终止掉”。已实际创建 SonnetDB 本地接续会话 01a11ee9-db5b-7420-85fa-f0d8f7077a11，使用同一 D:/source/SonnetDB 工作区，不新建 worktree/clone。新会话创建提示已授权立即从完整最新交接/AGENTS/ROADMAP/队列接收及范围判断开始；在 transfer-state released 前只读，避免两根同时写。旧会话 01a119bb-6f5f-7df2-b86b-c72eb5245cc1 此次提前交接结束为 2/5：WB75 已闭合，WB76 因 wrapper 在受管子进程启动前 File.Replace 空 backup path 失败形成检查点并结束，按失败切片计一个；同步、轮询、审查与修复准备不另计数。新会话从 0/5 开始，接续 Native 未完成任务的实现/测试/修复/独审/集成合计一个，不任意拆检查凑数。
+
+当前 HEAD/main/origin/main=5424b66672e37f49a2a5633fdde0b54a9b1f0290，ahead/behind0/0；origin/parity-results=0061d6d78591fb08493f473d3231ca42303faae1，保留且不合并。默认 index 刚核为空。WB76 runner metadata 已窄改并独审，但没有 managed micro PASS、source syntax、fresh preflight、Native actual、产品 build、restore/format 或新 commit。budget.json 仍0/空labels/actual0/open，但有一次实际 wrapper 调用失败，原 tool chunk4321f4/exit1须保留；猜测 File.Replace($temp,$budget,$null) 参数转换问题尚未修复，不得写成已确诊。原 source review PASS、工具phase1超时失败、phase2 PASS各自保留；phase2 04:18Z已到期，旧根原04:50Z合同执行权随转移撤销，后续建立新的明确有界接续合同/独审，不就地抹除失败、追认过期合同或把准备观察充作准入。
+
+新会话先核任务自有预算锁/临时文件与失败归属，再用微小自有文件有界验证并窄修 task-local wrapper、独立复核；随后真实 managed micro 与精确 source syntax、新鲜32依赖/6源码/4端口/资源准入，通过后最多一次原严格 A/B、两desktop/B被动恢复与普通只读query/正常close actual。旧WB70失败及normalExit/cleanup/processIntegrity=false保留；实际runtime路径/version与.62文件前置分开，复用旧binary不构成新build或source-to-binary等价。WB73 PS14/Node41及WB74guard38只继承，不无故重跑。详细合同、源/工具哈希、预检spec、原字节/逆向证明都在 artifacts/wb76-native-actual-20261009。
+
+仅 root 继续拥有七路径：web/e2e/run-studio-native-real.mjs、HANDOFF.md、ROADMAP.md、CHANGELOG.md、docs/design/m47-unified-management-workbench/work-queue.md、validation-report.md、wb76-native-actual-window.md。现有博客/CSDN/OSChina/微博及临时发布稿/租约是其它会话工作，不stage/覆盖/清理。HANDOFF 提交只能组合 HEAD blob 与明确自有段；旧 WB76 start 记录于 own-handoff-start.md/binding.json，本轮同步段在 artifacts/code-sync-20261009-04670ea4a0bb4f9c8f60ce97232df537/handoff-append.json，本结束段正文及offset/hash记录于 own-handoff-migration-ending.md/migration-handoff-binding.json，不 whole-add HANDOFF 或 reset index。旧WB75已集成的八段/15路径不可重建。当前七路径未提交：用户要求立即切换；本任务未取得最终树完整restore+原CI Format Check通过，不能越门禁提交。下一根按真实最终树门禁办理已授权本地提交，无push/部署/安装/外部发送授权。
+
+旧三个专属子智能体均完成、无运行任务。旧失败 wrapper PID59296及其 task shell PID60092 当前精确PID/CIM核验均未观察到原进程，stop0，共享Codex/ChatGPT/Explorer父进程保留；受管child/actual从未启动。固定证据根34文件盘点没有任务预算lock/GUID临时文件，交付证据保留；短只读shell及完整会话生命周期未全面捕获，wholeSessionOrphanFreedomVerified=false，不按名kill或删除未知对象。固定PS7、所有count+wall/cancel/progress、准确身份父链/finally自有树、禁Graphify/广域扫描/未授权安装、旧策略Temp/WB40/runtime/缓存保护与完整提交门禁继续适用，并须重复给子智能体。
+
+本段以独占写入句柄追加并核旧前缀逐字保留；随后旧根仅将同一个workbench绑定新thread、核ACTIVE/每30分钟/原prompt与通知偏好保持、发布transfer-state released与归档本聊天。若绑定失败不得声称定时已转移；实际绑定/释放由workbench持久配置及workbench-transfer-state.json确认。释放后旧会话停止所有仓库写入，由新会话继续，不创建重复定时任务。
+
+## WB77 新会话 Native 接续开始（2026-10-09；本会话0/5）
+
+新根01a11ee9-db5b-7420-85fa-f0d8f7077a11先只读等待24次/48秒；超时未自行release。旧会话实际发布released-to-new-thread/released=true/newThreadId匹配、oldRepositoryWritesStopped=true之后才创建新合同。既有workbench同id/ACTIVE/每30分钟已绑定这里，未新建重复自动化。最新五主文档完整字节快照与SHA保存于artifacts/wb77-native-continuation-20261009/received-files.json；专属只读代理已完成全文读盘/分块遍历与字节SHA，根与代理只语义核验当前条目；巨大历史全文语义未完整接收，不能宣称全文独审。旧根2/5与本会话0/5分开，WB76原wrapper调用失败1次、budget0/actual0、旧source PASS/工具phase1超时/phase2 PASS及过期状态保持。
+
+WB77是同一Native未完成任务的有界接续，实现/微试/独审/实际/门禁/集成合计一个。新根截止05:45Z、新源码/工具review04:45Z、14managed/1actual/0产品build，900s Native/90s cleanup/outer1020保持；新artifact目录独立，不写旧WB76预算、工具、review或收据。专属工具代理仅新副本合同绑定和File.Replace修复/自有两小文件微试，metadata代理仅新固定证据入口与标签，inverse必须回到完整received WB76字节；根串行共享docs与最终树完整restore/原CI Format Check/owned-only本地提交。已有14/41/38不因接续重跑，实际A/B、两desktop、B被动恢复/普通只读查询、正常close与严格cleanup断言不放宽。本段不预填修复/micro/语法/准入/actual/提交通过。
+
+固定PS7、有界count+wall/cancel/progress、准确PID创建/完整命令/父链与finally仅自有确认树；禁Graphify/广域扫描/安装，保护旧policyTemp/WB40、其它会话、共享缓存/交付物及origin/parity-results。短只读工具启动/瞬时后代并未全生命周期捕获，whole-session orphan freedom保持未证明。博客/CSDN/OSChina/微博文件和HANDOFF外来追加保留；只提交HEAD blob与明确归属HANDOFF段，不whole-add/reset index。无push/部署/安装/发布/外部发送。任务当前仍0/5，闭合结果另记。
+
+## WB77 实际失败检查点与本地集成准备（2026-10-09；闭合后本会话1/5）
+
+原WB76失败调用1/持久budget0/actual0及旧phase1超时/phase2过期保持。新WB77两小文件case复现$null空backup路径并证NullString修复成功，fixture回收；六metadata inverse逐byte恢复received WB76，仅新证据入口/标签。初新phase1静态独审及唯一managed micro exit0/cleanup0，04:45Z到界未完成语法/准入；十原输入完整归档phase1-closed。根明确phase2至05:05Z、root仍05:45Z、总14managed/actual1/0build未reset；两tool仅五处deadline字面差异，新独审再签、source syntax exit0。巨大五主文档只取得全文字节/51块和当前重点语义，不能声明全部历史语义独审；首own-start错误措辞已仅改自有段并保留原字节收据。
+
+首preflight CPU5秒超时exit1原收据保留，同源/阈值/timeout的最多2attempt唯一复核PASS，checked04:55:32.579658Z，CPU32%、freeMemory29319128KiB/rows885/四ports通过。唯一actual reserved04:56:10.542572Z并先消费1/1，Node launch04:56:10.604051Z距准入38.024秒。run studio-native-real-d18e166d-85bf-4b8a-a4ce-532fa8020e52，原runner FAIL/174.468秒；wrapper stdout176秒为finally前计时，不称外层完整时长。ordinary B preparation在firstA之前因unexpected library fields refused，disk failure terminationReason仍unknown；seq7/request58 >barrier6/request57的七fresh ack谓词全true、PUT200、DOM1active/1identity B且warningfalse仅局部通过，selection null/selections0/launch1、firstClose/secondLaunch/restored/query/secondClose全null，不能称持久化/完整选择/恢复成功，不猜已被清理的library未知字段原因。
+
+六terminal全部persisted。normalExit=false/正常close未尝试；原cleanupProven=true/四ports释放/9个verified fallback exited，profile/data/server-content移除285/163/4=452项/errors0，不计正常退出。外wrapper33记录/finally failures0；根post-actual只读fresh42 observed身份/5retained、survivor0/unknown0、1PID复用保留，0额外stop/delete。部分短依赖command=null但retainedexit0、whole-session生命周期未完整，不证明孤儿自由。实际.62 CDP/path与前置文件分列；manifest timeUtc/sourceOwnerChangeSha仍是旧WB76 provenance，不伪造新创建时间/owner-change或source-to-binary等价。原WB70/76 FAIL不升级。
+
+根进入最终八路径owned-only集成：runner/两专属报告/四路线文档及HANDOFF。HANDOFF private仅HEAD blob加已明确归属旧WB76 start/同步/迁移及新根段，所有foreign博客/CSDN/OSChina/微博与共享HANDOFF其它字节保持、不whole-add/reset index。完整restore/原CI Format Check、最终源/树SHA、fresh退出、index/parent/parity守卫及commit/post结果以artifacts/wb77-native-continuation-20261009最终收据/Git为准，尚未产生的PASS不预填。task实现/修复/微試/两reviewphase/一实际/本地验收合计1独立任务，完成本片后1/5，同workbench ACTIVE/30min/本thread保持。
+
+下一片先基于已知catalog序列化schema冻结安全字段名类别观察/合成合同，不放宽未知字段或stop权限、不重跑已用尽1/1 actual。真实恢复/正常退出、三宿主、OS文件对话框/安装/ExtensionHost/AOT/固定硬件/长期/发布仍独立未闭环；Graph Beta和MQ database identity/instance .system/mq保持。固定PS7、有界count+wall/cancel/progress/精确PID创建完整cmd父链/finally仅已证本任务树，禁Graphify/广域扫描/安装，旧policyTemp/WB40/共享对象/cache/artifacts/parity保护。无push/部署/安装/发布/外部发送。此段纳入本片候选，最终commit事实另追加post段。
+
+## Workbench 故障会话替换交接（2026-10-09）
+
+用户明确要求替换故障会话 01a11ee9-db5b-7420-85fa-f0d8f7077a11 并直接归档。已读取其两次 systemError（stream disconnected before completion: response protection is unavailable）、最新 WB77 检查点和当前 git/index；已创建同一 D:/source/SonnetDB 本地接续会话 01a11f15-608c-7e81-87dd-4425c54d96b3，旧会话归档工具返回 archived=true。原唯一 workbench 自动化已通过应用工具更新目标并从 automation.toml 回读确认：ACTIVE、每30分钟、target 为新会话；未创建重复自动化。本段只记录会话替换，未完成产品集成。
+
+新会话先只读接收，待 artifacts/workbench-recovery-01a11ee9-20261009/transfer.json 的 released=true 且 newThreadId 匹配后独占接续写入。迁移者在释放后停止仓库写入。新会话从0/5开始，继承的WB77收尾仍算同一未完成任务，完成后1/5；不把失败检查点的未完成集成记为闭合。旧预算count5/14、actual1/1及原失败证据保持，不重跑用尽的actual或追认过期合同。
+
+当前已核HEAD/main为5424b66672e37f49a2a5633fdde0b54a9b1f0290，index为空；WB77最后生成integration-freeze.json/private-handoff.bin，尚无最终restore/Format Check/commit。下一步先核当前树与进程归属，完成8路径自有hunk集成及必要完整门禁；旧private HANDOFF候选尚不含本迁移段，须保留并发博客/CSDN/OSChina/微博内容，禁止whole-add/reset index。原Native FAIL、normalExit=false、cleanupProven=true及真实恢复未证保持。之后先查catalog/library schema与安全字段类别观察合同，不能猜未知字段或放宽拒绝门禁。origin/parity-results必须保留。
+
+本迁移未启动产品构建/测试或长进程，未kill/delete、未stage/commit/push。HANDOFF本段暂不提交：此次只做故障会话替换，最终树完整restore与原CI Format Check尚未执行，已交由新会话按既有授权处理。追加正文和字节前缀绑定保存在本次recovery目录；旧runtime/政策保留目录及全部交付物保持。真实三宿主、正常退出、安装/ExtensionHost/AOT/固定硬件/长期/发布仍分别验收。
+
+## WB77 故障替代会话收尾集成（2026-10-09；提交闭合后本会话1/5）
+
+新本地会话01a11f15-608c-7e81-87dd-4425c54d96b3已核transfer released=true且目标匹配，原workbench仍ACTIVE/每30分钟/本会话；故障根已归档，三个旧代理最新turn均completed，未重启故障根。HEAD仍5424b666、parity0061d6d7、接收时index空。完整读盘根HANDOFF/AGENTS/ROADMAP与queue/validation并核当前WB76/WB77和迁移语义；巨大历史不声明全文语义独审。八候选与旧freeze逐hash一致，HANDOFF只增加迁移绑定段。
+
+新独立收尾证据artifacts/wb77-recovery-integration-20261009，05:17:18Z至06:07:18Z、最多6受管命令/0actual/0产品build，继承旧任务不另算切片；旧budget5/14、actual1/1、旧期限与FAIL/false/null均保留。微试500ms进程早退导致完整CIM身份缺失，保留FAIL及retained exit0；10秒微试取得2身份且均退出，PASS。初完整restore与原CI Format Check各exit0、分别44/5已观察身份全部退出；格式工作区加载警告单列。旧进程新fresh只读44完整身份/5retained、存活0/unknown0、1PID复用保留，source-syntax无完整journal边界保留；0kill/delete，不宣称whole-session孤儿自由。
+
+最终HANDOFF候选严格为HEAD blob加旧五自有段、迁移段及本段；并发博客/CSDN/OSChina/微博及其它HANDOFF字节保留，不whole-add或reset index。新freeze固定八路径和完整工作前缀；文档收口后再次完整restore及原CI Format Check均通过、精确staged diff/hash/parent/parity/index守卫满足后才本地commit。实际通过/提交哈希/闭合计数保存在restore-final.result.json、format-final.result.json和commit-checkpoint.json；本段不把尚未产生的收据写成PASS。提交闭合后本替代会话1/5，检查/修复/复核不另计数。
+
+下一独立切片从StudioConnectionLibrary.SaveAsync、StudioBridgeContracts及source-generated context的实际schema出发，设计安全字段类别观察并验证合成合同。现有派生ActiveIdentity/Identity与disk拒绝合同需分别核验；旧实际字段已清理且未留证，不能据源码猜定旧失败字段。不得放宽未知字段、fresh ack、进程终止或正常退出门禁，不重跑用尽的WB77 actual。三宿主、恢复/正常退出、OS对话框、安装/ExtensionHost/AOT/固定硬件/长期/发布仍独立待验，Graph Beta/MQ database identity及instance .system/mq不变。
+
+固定PS7、所有count+wall/cancel/progress、完整PID创建/命令/父链与finally精确自有树；保护旧policyTemp/WB40、其它会话、缓存/交付物及parity；无push/部署/安装/发布/外部发送。HANDOFF本段纳入八路径提交候选，最终状态由Git及独立提交收据核实，旧未完成集成不追认为旧会话闭合。
+
+## WB78 安全字段类别观察（2026-10-09；本会话第2片，提交闭合后2/5）
+
+WB77未完成集成已在本替代会话闭合为25d274ef2c28d50b0cef91dfd00c932881574eeb，仅原八路径；两条最终完整dotnet命令均exit0，最后format包装器在观察阶段缺完整tuple而passed=false保留，finally五身份均消失。独立fresh合并100已记录身份全部无存活/unknown，未kill/delete；命令通过、包装器观察失败、已观察退出与whole-session证明分别记录于artifacts/wb77-recovery-integration-20261009。旧Native FAIL、normalExit=false、cleanupProven=true、budget5/14与actual1/1不改写。WB77整体只计第1片，本会话1/5。
+
+本片WB78从该commit接续，40分钟/6managed/0actual/0产品build的独立范围在artifacts/wb78-library-field-observation-20261009/contract.json。先核StudioConnectionLibrary.SaveAsync与StudioBridgeContracts/source-generated context：生产DTO含派生ActiveIdentity/Identity，现有disk projector拒绝这些字段；旧实际被拒字段已丢失，不能据此声称已确定旧失败原因。本片只补安全观察，不修改生产序列化或接受/进程权限。
+
+新增studio-native-library-observation.mjs在原512KiB有界读取的已解析对象中观察顶层/唯一profile，最多2对象/各32字段/8记录/100ms协作时限。输出仅固定schema/state、已知存储/派生字段名和未知数量，不记录未知名字、值、嵌套identity或异常消息；data descriptor避开getter，非法/超限/取消/时钟回退为固定unknown/partial。原disk projector仍对原输入执行，观察/回调异常不替代原异常；原fresh ack、DOM、双desktop、B query、CloseMainWindow及严格回收合同保持。诊断通过原database-recovery/result终态保存，新增helper进入prerequisite/source hashes。
+
+最小1例PASS，首轮12新+32旧=44/44；复核补中途时钟回退及原终态writer集成后，最终14新+scenario32/selection11/preparation17=74/74，fail/skip/cancel0。micro/初轮/最终测试分别3/4/6已观察身份finally全部消失；测试前task-local import固定等待10秒供完整身份记录，断言与测试时钟不改。三源码syntax通过；五个原生产序列化/快照/进程/evidence文件与HEAD相同。结果仅本机合成/源码，不计新C#磁盘实测、Native恢复、正常退出、AOT或binary等价。
+
+最终只提交9自有路径：新observer/test、runner、WB78报告及五共享docs。HANDOFF只HEAD blob加本段，所有外来发布/博客与HANDOFF字节保留，不whole-add/reset；最终树完整restore和原CI Format Check、精确staged/freeze/head/parity与退出核验通过才本地commit。实际命令/提交/闭合计数见本片restore-final.result.json、format-final.result.json、commit-checkpoint.json；本段不预填尚未产生结果。整体实现/修复/验证/集成计同一第2片，提交后2/5，本会话仍有3片额度，同workbench ACTIVE/30分钟/当前thread。
+
+后续先以明确合成序列化fixture及安全观察证据评审派生字段disk接受合同，未知字段仍拒绝；随后另冻结新源码/依赖/runtime/资源/预算的真实Native窗口，不复用WB77 actual1/1或旧准入。真实Server/三宿主、恢复/正常关闭、OS文件、安装/ExtensionHost/AOT/固定硬件/长期/发布分别待验；Graph Beta、MQ database identity及instance .system/mq不变。固定PS7/有界count+wall/cancel/progress/完整身份父链/finally，禁止Graphify/广域扫描/安装，保护旧policyTemp/WB40/其它会话/共享缓存/交付物/parity，无push/部署/安装/发布/外发。
+
+
+## WB79 真实落盘夹具与磁盘派生身份合同（2026-10-09；本会话收尾后3/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3从2/5接续，前两提交25d274ef与11beed0e保持。WB79的实现、测试、包装器修复、独立复核及精确本地集成合计第3个独立任务；无新增actual。两专属子智能体分别完成C#三路径和JS三路径，第三只读复核，均已结束；根串行维护共享文档、门禁及提交。根证据目录artifacts/wb79-serialized-library-contract-20261009，8受管命令/3Node测试/最多2C#定向构建、06:43Z截止；轮询、修复和重试不另计数。
+
+新增真正调用StudioConnectionLibrary.SaveAsync读取磁盘文件的测试，以完整JSON和值比对C#/Node共用固定fixture；root4/profile9/两个identity各4字段，C#20/20、0fail/skip，实际一次dotnet test构建Studio/Server及引用项目。disk接受legacy双缺省或完整一致的派生字段对，逐值精确匹配host/profileId/baseUrl/database，半对/null/未知/缺字段/大小写不一致均拒绝；投影仍不含identity，不能代替native ack。Node共享fixture微试1/1，最终37场景+15观察+11precondition+17preparation共80/80、0fail/skip/cancel；A/B、两desktop、被动恢复、B query、fresh ack和normal-close原断言保留。生产C#序列化/runner/进程/evidence/observer六源与HEAD相同，未给安装/AOT/真实宿主记分。
+
+C#测试exit0但包装器缺完整tuple并留下cleanup-error，原passed=false完整保存；fresh仅证明12个已记录身份不存在。首次完整Node被相同信息的包装器异常中止exit-1，3个已验证自有身份终止、2absent，fresh再核这5个无存活/unknown，不能写完整NodePASS。原错误没有PID，不追认为已证瞬态原因。独审修复task-local包装器的启动登记失败记账、清理链上限与不完整缓存行单次fresh/缓存边界；旧script和FAIL只读保留，新v2经过micro、唯一Node完整重跑通过且6身份自然退出，未触发fresh缺字段分支，不冒称异常分支动态覆盖。所有新鲜审计只证明已记录身份，wholeSessionOrphanFreedomProved=false。
+
+本片仅12路径；HANDOFF提交用HEAD blob加本段，完整工作前缀及并发追加/外来发布文件保留。最终完整restore/CI原Format Check、精确stage/diff与提交分别绑定到本片restore-final.result.json、format-final.result.json、staged-tree.json、commit-checkpoint.json及post-commit-verification.json，不存在收据不得预填通过。准确新commit、主分支ahead和最终3/5计数以实际提交收据为准；不whole-add HANDOFF、不重置index、不纳入其它会话文件。origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，禁止合并或覆盖。
+
+下一独立任务是依据实际落盘合同冻结新Native验证窗口：重新核源码/依赖/runtime/资源/预算，验证普通A/B、双desktop、B查询、正常关闭和数据库恢复；不盲重跑WB77耗尽actual，不能认定其旧被拒字段原因。WB77的FAIL/normalExit=false/cleanup证据不改；WB61建表HTTP400与修后0actual、三宿主/Server/文件对话框/安装/ExtensionHost/AOT/固定硬件/长期/发布仍分别待验。Graph Beta、MQ database identity及instance .system/mq保持。workbench仍同id ACTIVE每30分钟，当前3/5未到滚动上限，不创建重复自动化或新会话。
+
+固定PS7、所有count+wall/cancel/progress、完整PID/创建时间/命令/父链核实及finally自有树要求继续；禁Graphify、广域扫描、找Windows gcc、猜PCCT及未授权安装。只保留任务日志/收据/交付物，保护旧拒删Temp、WB40runtime、其它会话和共享缓存；不按名kill或宽泛删除。没有push、部署、安装、发布、外部发送授权推导。当前HANDOFF与最终提交的准确关系以private blob和工作前缀收据复核，历史巨大HANDOFF语义完整审计未声明。
+
+
+## WB80 本机 Native 数据库恢复验证（2026-10-09；本会话收尾后4/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3接续前三提交25d274ef、11beed0e、70b19b21，计数3/5；本片实现/准备、三专属代理、独立复核、唯一actual及根集成合计第4项，收尾后4/5。专属报告docs/design/m47-unified-management-workbench/wb80-native-validation.md与证据artifacts/wb80-native-validation-20261009为事实入口，根合同07:30Z截止、14managed/2preflight/1actual/0build不重置。源只增加5处metadata，逆投影与旧90,092字节完全一致；37依赖/11源和原身份/查询/close/回收门禁保持。
+
+受管micro、syntax和首preflight均exit0；唯一actual studio-native-real-4fb02b8f-46d4-4927-9e7d-cc67e5a9f749已消费1/1，runner199.645秒、Node retained exit0，六terminal齐全，passed/normalExit/cleanupProven/requiredResultWriter=true。普通A/B分别fresh PUT seq8/request66和seq9/request74；第二实际桌面GET seq12/request117被动恢复WB61_Bravo_e5a9f749，788字节连接库重启前后SHA一致，真实SELECT Marker返回1行WB61_B并在界面显示。两CloseMainWindow accepted、Studio exit0/signalnull、四端口释放、零fallback；Server可能在Studio有界等待后被终止，不证明Server优雅关停或恢复。
+
+原cleanup18身份exitedBeforeFallback=true、fallback/helperReclaim/error0，自有profile/data/server-content清理305/163/4共472项。外wrapper51记录/finally errors0，根post-actual fresh58完整已记录身份及4retained均无存活/unknown，额外stop/delete0；门禁后的fresh另存，不声明未观察后代或whole-session孤儿自由。实际CDP Edg/154.0.4258.62与两启动加载路径由独审绑定，复用旧Release/0产品build，不推导source-to-binary等价。五次安全字段观察见已知派生identity、unknownFieldCount0，仅代表本次，不能反推WB77已删除的失败字段。
+
+source/tools静态复核与actual-evidence-review.json/notes独立终态收据分别保留。根提前读取尚不存在tools-review文件的失败发生在wrapper前、managed0；该检查点未删除。WB77原FAIL及耗尽actual、WB79 C#包装器FAIL和首轮Node中止、WB61建表HTTP400/修后0actual不改写。本片本机恢复旅程补证，未给安装、OS对话框、ExtensionHost、NativeAOT、固定硬件、长期、发行物或三宿主整体记PASS。
+
+首次文档准备因CHANGELOG为LF而CRLF marker缺失，在门禁/提交前失败；三个自有摘要逆投影后逐SHA匹配接收原文，HANDOFF及外来文件未动。修正换行保持并通过CRLF/LF微试，原失败见integration-preparation-failure.json；未重跑或改动Native证据。
+
+根仅集成7路径：runner、本片报告与HANDOFF/ROADMAP/CHANGELOG/work-queue/validation-report。private HANDOFF严格HEAD blob加本段，工作文件旧前缀及并发追加、全部博客/CSDN/OSChina/微博文件保持。最终树必须完整restore与原CI Format Check通过、精确stage/diff/tree/hash/parent/index守卫满足后本地提交，具体exit/包装器/清理见restore/format收据，准确新commit及4/5见commit-checkpoint.json，提交后核验见post-commit-verification.json；不预填尚未取得结果。origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，禁止合并覆盖，无push。
+
+下一次仍先完整接收最新根文档/队列和Git/代理状态，再选一个真实缺口，不立即重复本actual。WB41 OS SQL文件对话框四phase仍未完整验收，先确认可见/激活前置；VS Code向导UI、Webview分页、Notebook、LSP等需核更晚队列而非引用旧失败作最新总状态。Graph Beta、M47导航/九模型、MQ database identity与instance .system/mq保持。当前4/5尚未达到滚动上限，同workbench ACTIVE/每30分钟/本thread，不创建重复自动化或新聊天；第5项后按用户规则迁移。
+
+固定PS7、count+wall/cancel/progress、完整PID创建时间命令父链/finally仅已核本任务树；禁Graphify、广域扫描、找Windows gcc、猜PCCT和未授权安装。保护旧拒删Temp、WB40runtime、其它会话、缓存和交付物，不按名kill/宽泛删除，无发布/部署/安装/外部发送。巨大历史HANDOFF全文语义审计不声明；最终提交内容与工作前缀分别绑定。
+
+最终收尾另保留两个检查点：首次fresh身份审计收据PASS/65身份/6retained，但外层误查未由PowerShell审计脚本设置的LASTEXITCODE而exit1，原变量值未捕获，未重跑audit改写结果。首次staged diff仅自有HANDOFF新增CRLF段报trailing whitespace，commit0；只将新增段改LF并保持全部外来前缀/尾字节。新integration-only wrapper只允许restore-final/format-final两条原命令，独审及最终门禁另留收据；原wrapper、actual1/1、首轮门禁与全部失败保持。
+
+
+## WB81 VS Code stop拒绝合同与第5片收尾（2026-10-09；收尾后5/5）
+
+本会话01a11f15-608c-7e81-87dd-4425c54d96b3此前四项已提交25d274ef、11beed0e、70b19b21、56ee6649；WB80唯一本机Native A/B→双桌面→B恢复/查询→正常关闭PASS、本地完整门禁与72已记录身份/8retained退出核验保持。WB81依据当前队列的stop-verification缺口冻结只读合同调查，源调查/工具准备/独审/根文档集成合计第5项；0产品/诊断源码变更、0源码测试、0actual、0产品build。根窗口08:00Z/最多6managed，范围及20输入SHA见artifacts/wb81-vscode-stop-contract-20261009。
+
+WB57唯一actual c2fe13a9原16次stop尝试/1次回调拒绝，PID92952/2026-10-07T10:33:11.299Z；final remaining/root/audit为refused/passed/refused，15个成功owned-process-stop事件没有该PID。stop-verification是整个stopVerified回调的catch，不证明OS stop已调用/成功。附近helper79028只有串行/时间关联，其stderr227B保留hash而rawOutputRetained=false，缺目标/operation与退出状态关联，具体拒绝步骤、OS调用、原退出码、最终残留PID仍unknown。cleanup48身份与终态49不混记；later62 PID absence/282对象回收/extraStops0不改变原cleanup=false或normalExit=false。
+
+当前runner/证据核心/测试SHA匹配WB57预冻结值，但旧run缺执行时源码attestation，不推source-to-binary等价。Host TS已有WB58观察，WB59兼容交付沿最新队列，均不重做。已有75测试声明包含stop抛错、最终三检查及closed helper子孙remaining；下一合同只补三个现有脚本的固定stop阶段、candidate/helper关联、退出/结果类别，保密/unknown/overflow与观察器异常不能改变原return/throw/顺序/次数/权限/最终门禁。最多16新顶层/48矩阵case、一个Node测试文件120秒、最多一次因新失败必要修复重跑，0actual/产品build；真实Host将来另冻结。完整合同见stop-contract.json和docs/design/m47-unified-management-workbench/wb81-vscode-stop-contract.md。
+
+调查20输入hash复验不变，收据writer已核退出；第一层>20枚举guard中止、一次原始设计收据组合输出截断/投影补核均保留，不能声称完整历史语义审计。根初次技能/源路径读错经限定目录查找纠正，未据此安装/调用桌面工具，本片不是UI自动化。独立review与门禁工具签名见independent-review.json；工具只允许micro/restore/format并保留完整tuple/fresh拒绝/父链/finally。最终完整restore、原CI Format Check、精确6路径stage/diff/tree/hash与新鲜已记录身份退出结果以restore-final.result.json、format-final.result.json、commit-checkpoint.json和post-commit-verification.json为准，不预填未取得PASS；wholeSessionOrphanFreedomProved=false。
+
+HANDOFF提交内容仅HEAD blob加本片LF自有段，完整工作前缀及其它会话追加逐字保持；博客/CSDN/OSChina/微博和所有外来内容不stage。仅6文档路径，四受保护源码不变；origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1，不合并覆盖，无push。实际提交哈希与本会话5/5由commit-checkpoint.json核对。
+
+本片提交/退出核验后按用户明确授权创建同D:/source/SonnetDB本地接续聊天，把同一个workbench迁至新target、ACTIVE/每30分钟，不重复创建自动化。写入权以本片rollover.json为准：新会话从0/5开始，先只读接收；released=true且newThreadId匹配才立即推进上述三脚本诊断实现。旧会话发布release后停止仓库写入；迁移尚未发布前不称已完成，新目标精确ID保存在rollover而非猜写本段。新会话第一项是实施已审定合同，不重复WB81调查或WB80 actual。
+
+三宿主/真实Server、OS文件对话框可见激活、VS Code向导UI/Webview分页/Notebook/LSP、安装、NativeAOT、固定硬件、长期/发行物仍分列。M47导航/九模型、Graph Beta和MQ database identity/instance .system/mq不变。PS7固定、禁止Graphify/广域扫描/未授权安装，所有数量/墙钟/取消/进度与完整PID/创建/命令/父链/finally仅自有树约束继续；保护旧拒删Temp、WB40runtime、其它会话、共享缓存/交付物，不按名kill或宽泛删除，不推导发布/部署/外发授权。
+
+
+## WB82 VS Code stop阶段诊断（2026-10-09；收尾后本会话1/5）
+
+本会话01a11f91-fce0-7821-9036-06d01325bba3从0/5接续717a938941ba25d9426aaaac41902e70306b9779；只读接收后严格核WB81 rollover released=true/current newThreadId，旧会话已停止写入，同一workbench ACTIVE30分钟目标匹配。WB82实现/测试/必要修正/独审/根集成合计第1项，收尾后1/5；准确commit/tree/门禁/退出以artifacts/wb82-vscode-stop-diagnostics-20261009收据为准。
+
+专属源码代理只改run-query-host-real.mjs、query-host-evidence.mjs和query-host-evidence.test.mjs；runner实际使用可注入stop/helper边界与受控PS生产器。最多384 attempt关联已接受candidate/helper pid+created，固定JS/PS checkpoint与helper exit/signal/result类别；缺失/非法/伪造/重复/截断/超限/getter/观察器异常或未finish归unknown，不保留原错误/stdout/stderr/stack/token/凭据。私有失效状态与安全invoke不调用诊断getter，context保持可写，原return/throw、this/arguments相关回调、校验顺序/stop次数/audit/primaryFailure/最终三门禁/runtime/权限保持；0新snapshot/等待/stop retry/扩预算。
+
+最终唯一Node命名文件88/88（75旧+13新）、48新保守场景、fail/cancel/skip/todo0，120秒attempt1，六受控PS夹具替换OS stop/live CIM0，三最终语法解析通过；0actual/产品build。独审发现未finish记录漏洞已必要修，旧实现/工具收据保留、v2另存；根TAP预期/实际spec的读取偏差只修投影、不重跑。测试自有Temp根fresh核absent；新managed工具两micro通过，7正常命令/8上限，原工具预算不复用。完整restore与原CI format按最终九文件树执行，实际PASS/警告与fresh已记录完整身份审计见独立收据，不声明所有短生命周期/未观察后代/whole-session孤儿自由。
+
+根串行六共享文档与九路径精确集成；HANDOFF候选仅HEAD blob加本片自有LF段，完整工作前缀与博客/CSDN/OSChina/微博追加保留、不stage外来hunk。origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1；本地提交后ahead/计数按post核对，无push/发布/部署/外发。根接收偏差及writer退出边界见received-checkpoint、producer-exit与post收据，旧证据不改。
+
+WB57原16 stop/1回调拒绝、refused/passed/refused、cleanup/runtime=false保持；helper79028仅邻近推断，原OS stop调用/具体拒绝阶段/exit-signal/最终残留PID仍unknown，后来的absence和本片模拟不追认成功。WB58/59既有75/兼容和WB80本机A/B双桌面恢复B/查询/正常关闭交付不重做、不推source-to-binary/安装/AOT。下一次先核本提交/1of5/进程退出与最新队列，再冻结独立未来Host窗口或有据缺口；不得盲跑旧窗口/复用旧预算。五项上限及失败闭片计数保持，当前不迁新会话；到5/5或需提前交接才按授权滚动并迁同一automation。
+
+三宿主、真实Server、OS文件对话框可见激活、VS Code向导/Webview分页/Notebook/LSP、安装/NativeAOT/硬件/长期/发行物仍分列；M47九模型/Graph Beta及MQ database identity/instance .system/mq不变。固定PS7、禁止Graphify/广域扫描/安装/count+wall+cancel+progress/完整PID创建命令父链/finally仅自有树；保护旧拒删Temp、WB40runtime、外来文件/共享缓存/交付物，不按名kill或宽泛删除。
+
+## WB82 门禁窗口失败检查点与提前交接（2026-10-09；本会话闭合1/5）
+
+WB82三源实施/必要修正/独审和唯一Node88/88均已取得真实PASS，13新顶层/48场景、0actual/产品build保持。完整restore退出0且wrapper PASS，原CI format尚未运行；本地主提交仍717a938941ba25d9426aaaac41902e70306b9779、ahead5，无新commit。根08:25Z窗口剩余不足原600+60预留；尝试冻结300秒format只收紧上限、不扩大主截止/8managed，但两个子scope接收时已过各自截止，未写新工具/未放行/未启动format。不得预填Format PASS或提交。此次真实失败闭片合计1项，本会话1/5，不把模拟PASS写成整体完成。
+
+根已在精确九路径/tree守卫后只撤销自身stage，工作文件全部保留，index空；原六managed命令全部PASS，fresh57完整已记录身份无自有存活/0unknown，其中1个不同创建时间PID复用保留，stop/delete0，不声明全短生命周期。root首次暂存HANDOFF自有尾多一个LF已精确删除1LF并通过diff check，所有外来工作字节/追加保留，旧freeze副本与handoff-eof-repair收据保持。已有full restore不是新交接最终树门禁，下一窗口需完整restore及原参数format重验。
+
+接续优先完成此已审/已测三源与六文档的本地集成，不再实施诊断/重复WB81调查或WB80 actual；最终三SHA与唯一88/88在test-acceptance/implementation-receipt-v2，源未变可复用测试证据，旧实际FAIL/unknown保持。新窗口新工具须按新task/thread/head绑定并micro，完整tuple/fresh拒绝/父链/finally和原CI命令保持，不冒用已关闭WB82预算。私有HANDOFF候选用HEAD加WB82自有两段，见private-handoff-failed.bin/owned-handoff-failed.bin，完整当前工作前缀和外来博客/CSDN/OSChina/微博继续保护，禁止whole-stage。
+
+按已授权提前交接创建同项目本地接续会话并立即启动，迁同一个workbench为ACTIVE/30分钟；新会话0/5，写入权以artifacts/wb82-vscode-stop-diagnostics-20261009/rollover.json的released严格true且newThreadId匹配为准，释放前只读；旧会话释放后停止仓库写入。因为Format未执行，HANDOFF与本片九路径暂不能提交，原因明确保存在failed-checkpoint。原parity0061d6d7保留，无push/发布/部署/安装/外发；三宿主/真实Server/OS文件/安装/AOT/硬件/长稳/发行物边界不提升，旧Temp/WB40runtime/共享缓存/交付物保护。
+
+## WB82 本地集成接续（2026-10-09；本会话第1项）
+
+本会话01a11fc4-0490-7c61-9f97-6f5eb4d5347a从0/5接续旧WB82失败门禁窗口。08:27Z只读接收后，rollover released严格bool true且newThreadId匹配才取得写权；同一个workbench已迁至本会话，ACTIVE/30分钟。旧会话1/5失败闭片保持，本次工具准备、精确集成、完整门禁、必要修正和独立复核合计一个新任务，关闭后本会话1/5，不拆轮询或单check计数。
+
+三个最终源码SHA及旧failed-checkpoint/test-acceptance/independent-review精确匹配，复用唯一Node88/88、13新顶层/48保守场景及六受控PS夹具证据；0源码改动、0测试重跑、0actual/产品build。旧完整restore发生于失败交接文档追加之前，只作历史证据。新窗口artifacts/wb82-local-integration-20261009固定09:45Z截止，原format600+60预留、managed最多8且计划micro/restore/format三项；新工具绑定新thread/head/合同，micro和独审后由根串行运行，不复用旧预算或未实施300秒amendment。
+
+最终九路径完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/的退出值、工作区加载警告、身份/finally收据见新目录restore-final/format-final.result.json；只有完整PASS才放行本地提交，未观察的短生命周期及whole-session孤儿自由不宣称。源再变必须重验。最终源码、树、精确diff和本地commit/post结果以新integration-freeze、commit-checkpoint及post-commit-verification.json和Git实际HEAD为准。
+
+HANDOFF候选只用核实HEAD431028B加旧WB82确属两段5923B和本次自有段；完整当前工作prefix和外来追加逐字保护，不whole-stage。仅三源及六文档自有九路径/hunk，博客/CSDN/OSChina/微博等foreign继续保留，origin/parity-results固定0061d6d78591fb08493f473d3231ca42303faae1；无push/发布/部署/外发/安装。旧FAILED_VALIDATION_WINDOW历史事实不覆盖；WB57原FAIL及OS stop/失败子阶段/helper79028关联/exit-signal/residue未知不升级，WB58/59/75和WB80旧Release本机Native恢复交付不重做。
+
+下一次先核本次真实commit/门禁/已记录身份fresh退出和1/5计数，按最新队列独立冻结未来Host观察窗口或有证据的缺口；本次不盲重actual。M47九模型/七导航、Graph Beta、MQ database identity含database+Topic而persistence instance .system/mq保持；Web/Admin/Studio/VSCode、真实Server、OS文件、安装/AOT、固定硬件、长稳及发行物证据分列。固定PS7、count+wall/cancel/progress/backoff、完整PID/创建/命令/父链与finally仅自有树；保护旧拒删Temp/WB40runtime/foreign/共享缓存/交付物，禁止Graphify/广域扫描/按名kill。
+
+## WB82 本地集成门禁中断与同片重验（2026-10-09；仍为本会话第1项）
+
+新窗口第一次完整restore退出0且44个已记录身份finally均absent。format-final原CI参数未改，托管观察阶段在168.3938662秒报observe-failed，naturalExit=false/exit-1；五完整tuple中两项经fresh身份/父链核后verified-owned-stopped、三项absent，stdout0和stderr39字符仅为工作区加载警告。具体观察失败细因没有记录，仍UNKNOWN_NOT_CAPTURED；原Format语义结果UNKNOWN_INTERRUPTED/未通过，不猜CIM、不把警告当格式PASS或格式错误。
+
+failed-format-identity-audit原passed=false与failedCommandCount1保持；fresh51已记录身份0survivor/0unknown、2不同creation的PID复用保留，未新增stop/delete。format-interruption-repair.json精确绑定原五份launch/result/log/audit SHA，原收据与旧工具/独审/候选副本保留。必要修复仅最终集成验收：全五命令的完整身份仍审计，唯一SHA绑定中断只作为历史失败；有效最终restore-retry/format-retry必须分别按原CLI完整PASS，才能授最终门禁与本地提交，原format-final绝不改PASS。
+
+同一个WB82集成任务继续，未关闭或另计片；源码三个SHA保持，0Node重跑/actual/产品build。新增准确文档后重冻最终九路径、完整restore及原format一次；managed总上限8、已有3、追加最多2（计划总5），format追加至多1、原600+60/300+60和09:45Z根截止保持。新repair-review只审必要适配/新候选，不覆盖CBC旧候选独审或旧source88证据。有效最终门禁、警告、commit/tree与进程fresh/post见新retry收据、repair-review与commit/post实际状态；未完整通过仍不能提交。
+
+private HANDOFF继续只含HEAD+旧WB82两段+本会话两段，完整工作prefix及任何foreign追加保护；只九路径/hunks、parity0061d6d7、无push发布部署安装外发。失败子阶段、旧WB57真实FAIL/unknown、三宿主/OS/安装/AOT/硬件/长稳/发行物边界不提升。关闭后本会话1/5，下一次先核真实本地提交/有效门禁与全部已记录长进程退出，再据最新队列独立冻结下一项。
+
+## WB83 VS Code 独立真实窗口（2026-10-09；本会话第2项，闭合后2/5）
+
+从本地8613b098ba1332a56d321c6b02512ee5c278b01f接续，WB82集成已完成、本会话原1/5。新冻结artifacts/wb83-vscode-host-window-20261009，10:25Z截止、managed最多16、TS1/actual1/新.NETbuild0/Node重跑0。专属代理仅迁移runner和Host两源窗口标识/库/种子/端口18483/18484，逆变换精确等于HEAD；原WB82诊断、WB58 history及WB59 elapsed实现保持，独审后微试/语法/唯一TS均PASS，35明确输入/产物冻结，未证明完整runtime闭包或旧Server的source-to-binary等价。
+
+CPU CIM第一次原3秒超时，cause UNKNOWN、actual0，失败收据保留；同条件唯一复核通过，未提高超时/放宽85CPU/12queue/2GiB条件或增加actual额度。唯一actual query-host-real-ff9f98de-3613-4858-9787-3f3e582cd949 原/终态均FAIL，在preflight报helper_deadline/Error；wrapper naturalExit=true/exit1/62.8959903秒、observed18、failure=null。Server/Code旅程未建立，Code退出/Host/API仍null、phase/history0；runtimeCreated=false且runtime目录不存在。原processCleanupProven/runtimeRemoved/portsReleased/helperCleanupProven/outputComplete全部false，三终态remaining/root/audit=refused/passed/passed，rounds3/stop4/stopFailures0/remaining1/root0；最终process-events另记identity/pid72608/recorded_identity_changed_replacement_preserved一项拒绝。不能推整体CIM根因、权限、PID复用或旧WB57因果。
+
+新stop ledger observation=complete仅证明四条诊断记录：全部JS result_contract/helper zero/signal none，三already_exited、一PS stop_after/result stopped；overflow=false。它不证明完整回收成功。根随后fresh24已记录tuple无存活/未知，4managed含1原actual失败，stop/delete0；later absence不升级原false。五payload/manifest104786字节与terminal绑定，旧原始字节保留。根首次审计调用误用LASTEXITCODE null而误报拒绝、首次inspector用了保留变量Host；已纠正调用/改hostEvidence，原调用失败另留，不重跑actual或改原收据。
+
+根只集成两源及HANDOFF/ROADMAP/CHANGELOG/queue/validation/本报告共8路径。HANDOFF private候选严格HEAD+本段，完整现有工作prefix和任何外来追加保护，外国博客/CSDN/OSChina/ABP不stage。最终完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/实值、工作区加载警告、精确树/独审/本地commit及post见本片收据/Git，未取得完整PASS不能提交，源码再改须重验；仅已记录完整身份的退出证据，无whole-session/未观察短进程自由声明。origin/parity-results保持0061d6d78591fb08493f473d3231ca42303faae1，無push/发布/部署/安装/外发。
+
+本次失败检查点合计第2项，闭合后本会话2/5，保持同一个workbench ACTIVE30分钟/本chat，不提前滚动。下一片先冻结preflight helper整体20秒与实际snapshot调用边界及计时/关联缺口，有据调查后再定下一合同；不把CPU 3秒超时当实跑根因，不盲重跑耗尽actual、不重复WB82/80交付。M47九模型/七导航/Graph Beta及MQ database identity含database+Topic、instance .system/mq保持；三宿主/OS文件/安装/ExtensionHost完整旅程/AOT/固定硬件/长稳/发布仍分列。固定PS7/count+wall/cancel/progress/完整身份父链/finally仅自有树继续；旧拒删Temp/WB40runtime/foreign/共享缓存/交付物保护，禁止Graphify/广域扫描/按名kill。
+
+## WB84 VS Code preflight helper合同（2026-10-09；本会话第3项，闭合后3/5）
+
+从WB83本地8cd20c5d2639a3305af44e0fab3e3d9b4c78bee5/本会话2/5接续；专属调查/必要修正/独审/根六文档集成合计第3项，0源码变更/actual/Node/TS/新.NET产品build。新窗口artifacts/wb84-vscode-preflight-contract-20261009，根10:55Z/分析10:38Z/复核10:48Z，最多6managed仅micro/restore/format；旧WB83截止不延长。
+
+已核helper实际Promise.race timer6000ms在spawn/stdin/streams设置后，Host activation/public commands20000ms另列，run.commandMilliseconds不能当helper20秒。入口snapshot→runner/parentChain→audit(first)→listeningPorts→runtime。原PID13980 snapshot后，runner09:46:40.452Z/audit40.459Z，首次PID72608 launch40.662Z/accepted42.888Z的完整command含Get-NetTCPConnection，下一cleanup snapshot46.684Z。源码顺序/command/6.022秒start差支持初始ports helper wait关联推断，不定位内层CIM/端口query/序列化/退出/pipe/timer调度根因。初始调用未传signal，通用helper另有同消息abort；CPU CIM原3秒admission失败独立，原因unknown。
+
+后项PID72608 launch09:47:05.264Z/identityRecordedfalse，前stdout4825B/incomplete与后4829B/complete、最终closedtrue不得合并或追认早期wait成功。缺immutable callId/逐次timer-close/PS阶段，不由replacement标签猜PID复用或变化字段。WB83原FAIL/preflight/helper_deadline、Server/Host/API null、phase/history0、五cleanup/output flags false、remaining/root/audit=refused/passed/passed、三轮/四stop/0stopFailure/remaining1保持；四stop诊断complete只记录三already_exited/一stopped。
+
+下一JS-only三脚本观察合同已冻结但未实施：runId+既有ordinal1..112/callId，固定operation/phase，仅已接受tuple引用，单调elapsed的entry/spawn/identity/timer-arm/timer-vs-abort/close/terminal/parse/finally；112聚合call记录、每项1KiB/总64KiB/投影50ms且原filecap保持。PS producer/stdout/stderr/parser逐byte保持，不增加CIM/snapshot/端口/等待/重试/stop/预算/权限，不改变原错误返回和三门禁。下一片≤16新顶层/48场景，Node命名文件120秒一次+≤1次新失败必要修复重跑，三语法各30秒，0actual/TS/产品build，另冻当前HEAD/SHA/45分钟总墙钟及32input/10search/120result/24shell。详见本片报告/root next-contract.json。旧WB82stop/WB80Native不重做；内层阻塞unknown，PS producer/解析观察须另有理由与兼容合同。
+
+19输入初验，闭合18immutable SHA及原HANDOFF507707字节前缀SHA5D31581…通过，另会话2680字节Weibo追加逐byte保护。初始巨大工具输出截断后必要三chunk读取完整290720字符/507707UTF8字节；received误写BOM3元数据另由exact纠正actual0，原收据保留，不宣称历史全文语义审计。初始launch路径误用actual.launch，经固定17条枚举纠正real-final；根第一次integration文本producer exit1/output0/causeUNKNOWN未写候选，改结构化JSON补产；分析早期3短shell身份缺口、工具写前准备失败均记录。完整writer/managed身份fresh-post另核；不声明全会话/未观察短进程自由，不按名kill。
+
+根只六文档；private HANDOFF严格HEAD+本段，完整工作prefix和foreign博客/CSDN/OSChina/ABP/Weibo追加保护，不stage外来hunk。最终完整dotnet restore SonnetDB.slnx及原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/、警告、精确树/独审/本地commit/post/3of5以本片收据/Git为准，未PASS不能commit，最终tree再变重验。parity0061d6d78591fb08493f473d3231ca42303faae1保留；无push/发布/部署/安装/外发。same workbench ACTIVE30分钟/本chat，当前不滚动。
+
+下一片只实施已审逐调用观察并定向模拟验收，不盲重WB83actual；M47九模型/七导航/Graph Beta/MQ scope数据库、identity含database+Topic、persistence实例.system/mq保持，三宿主/真实Server/OS对话框/安装/完整ExtensionHost/AOT/硬件/长稳/发布分列。固定PS7、count+wall/cancel/progress/backoff、完整PID创建命令父链/finally仅自有树；保护旧拒删Temp/WB40runtime/foreign/cache/deliverables，禁Graphify/广域扫描/按名kill。
+
+
+## WB84 门禁窗口失败闭片与提前接续
+
+WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。
+
+## Workbench 发布就绪审查（2026-10-10，Asia/Shanghai）
+
+本次仅接续用户要求的三宿主完成度/发布条件审查，不恢复旧定时研发。具名20输入与四大文档完整字节/hash已记录；语义读取当前交接、M47状态、九模型及最新宿主记录，不声称逐条审读全部历史。决策所需截断输出已用具名报告/行/JSON标量补读。本次报告：docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md；独立只读回执：artifacts/workbench-release-review-20261010-01a12429。
+
+实核HEAD78045e8b、远端main5424b666、本地领先8提交；index空，三个JS验收脚本dirty与HEAD blob不同，foreign博客/发布与已有pending均保留。GitHub最新正式版仍4.0.0（2026-09-27 02:02:26北京时间，资产9月28更新），Marketplace最新0.4.1（2026-07-14）且本地清单同号，不能用旧包或重复不可变版本发行本次M47。标准VSIX/Studio release输出目录未见当前包，未扫描其它位置。
+
+Web九模型已有提交及WB26～WB37各自本机真实Kestrel受限旅程；Studio WB80 result实核passed/normalExit/cleanupProven/requiredResultWriter全true，已补本机A/B切库、重启被动恢复B/真实查询/两次正常退出，不能机械沿用WB61旧恢复FAIL。WB80复用旧Release产物，不证明当前源码等价/干净安装或Server优雅关闭。VS Code旧真实查询子集和基础Extension Host已证，最新WB83实际仍FAIL/preflight/helper_deadline/五回收false且Code/Host null，不推为产品代码根因。
+
+新增明确阻断：远端main最近Workbench smoke run37731752397（2026-10-08，SHA5424b666）failure；仅Web Admin and Studio bridge的Run management workbench smoke失败，Server管理合同/Studio宿主/VS Code consumer/Extension Host四job均success。详细annotations直连失败后代理重试遇GitHub API rate limit，根因未核。该旧SHA的PASS不能升级本地HEAD；WB98 FAIL_REVIEW_TIME属于集成审阅未完成，非已证产品功能故障。
+
+结论：三宿主正式版和当前公开Beta/新分宿主包均NOT_READY；已有代码可作为内部预览及Web预览候选基础。最短继续顺序：选已提交Web候选/承诺范围→核smoke失败并取得候选PASS→真实登录/权限/只读/取消/截断/所承诺恢复与发行资源版本/hash绑定→可单独放行Web预览；再各自验Studio当前包干净Windows/WebView2/安装升级卸载/OS对话框和VS Code完整Query/history/退出、新版本VSIX及所承诺功能，最后收口正式版必选矩阵。Graph Beta与MQ数据库逻辑/instance .system/mq物理及单库备份边界保持。无需为Web预览继续旧helper集成循环。
+
+本次0产品源码/验收脚本编辑、0产品测试/构建/restore/format/stage/commit/push/发布/部署/安装；仅新建审查报告/只读证据并追加本段，旧failure与parity0061d6d保留。workbench配置实查PAUSED，不改其它自动化、不新建或恢复。HANDOFF与报告暂不提交：审查范围没有代码提交，且完整最终树restore/原Format门禁未运行。下一次依用户授权选择上述单独发布准备范围，不自动回到WB98持续实施；实际发布尚未授权。
+
+## Workbench 首个预览版路线整理（2026-10-10，Asia/Shanghai）
+
+用户本轮要求把已完成路线移入CHANGELOG，梳理Workbench后续并在根ROADMAP排列首个预览版步骤。本次采用project-conventions，只做文档整理；根ROADMAP从77453B降为40288B，移出旧WB开头窗口/完成状态表/M47旧索引及木垒五完成子项；README旧Workbench窗口说明也归档到CHANGELOG#roadmap-completed-archive-2026-10-10-workbench。归档按已完成切片与证据边界区分，原文作历史快照保留，旧ACTIVE/下一片指令无当前授权效力。
+
+根ROADMAP开头与M47段正式列M47-P01～P08：1范围/已提交候选/版本及发布物白名单→2核Web smoke失败并取得候选PASS→3真实登录/权限/只读/取消/截断/承诺恢复→4Web/Server实物与manifest/hash→5实际部署/首次用户旅程/停止重开/回退→6预览说明/限制/反馈及必要的限定资产分发→7最终同候选完整门禁放行→8实际发布与独立回读后归档。下一项P01，目前尚未冻结候选或新版本，当前NOT_READY。首版以Web Admin/匹配Server已验子集必选，Studio和VS Code分别补干净安装/OS对话框与完整Query/history/退出及新VSIX后独立纳入；正式版U02～U09剩余共享、九模型、AI/MCP与视觉/兼容矩阵保留。
+
+已读现有release-readiness-policy：五Workbench job与原产品workflow/artifact gate仍保留；publish.yml默认同时构建上传Studio等，Web-only预览必须明确资产白名单或独立分发方案，不能只写桌面延期却公开未验包，也不因下载物延期跳过现有CI。七天scheduled Parity为非阻断独立观察，不能误设为首版必须等七天。旧WB97/WB98“集成”草稿从Added移到未完成历史记录，C3 prelaunch/后续独审超时、最终restore/format/commit未放行保持；WB96命名97/97不计真实Host。WB80本机恢复PASS复用旧Release、不计当前安装，WB61旧FAIL不再默认阻断本机恢复，WB83原因不推成产品故障。
+
+新增/修改范围：ROADMAP.md、CHANGELOG.md、README.md、work-queue.md（仅加当前入口与历史状态说明，原251994B内容完整保留）和本HANDOFF追加；原始validation-report、产品源码、三个pending JS、其它渠道dirty/账本/旧回执均未动。对四文件任务前snapshot的diff检查无新增whitespace；相对HEAD的队列仍含已有dirty尾空白，未为通过检查清洗外来历史字节。128处本地文档链接均可解析、归档六块原记录保留、根旧完成表移除、P01～P08顺序/唯一ID与兼容锚点通过；不声称全仓历史链接或产品验收。最终对CHANGELOG诊断行补“编号范围内已提交部分，不称全部成功”的边界说明，任务差异再核。
+
+证据：artifacts/workbench-preview-roadmap-20261010-01a12429，包含四原文快照、六块归档映射/源码hash、edit-receipt.json与documentation-verification.json。生成器首次JS字符串解析在执行前失败；随后四文档写完后回执裸true错误，修成$true并保留先前结果，未重做四文档迁移。校验首次谓词把P08纳入计数却要求7，修为明确有序8项，无产品/文档为此修改；归档标题层级统一H6避免破坏CHANGELOG层次。这些工具错误不计产品失败或测试PASS。
+
+本次0产品源码/验收脚本编辑、0产品测试/构建/restore/format/stage/commit/push/发布/部署/安装/外发，旧workbench实查PAUSED，不恢复/新建自动化或滚动任务；HEAD78045e8b、parity0061d6d及空index保持。三pending JS SHA逐项与上一审查相同。HANDOFF和本次文档暂不提交：本请求是路线整理，未运行完整最终树restore/原CI Format，不具备提交门禁结果。下一会话按根P01选择明确发布范围和候选，不返回WB98诊断循环；需要提交/发布准备时遵守原门禁和共享工作树归属。
+
+## Workbench 路线提交与 M47-P01 新会话交接（2026-10-10，Asia/Shanghai）
+
+用户已明确授权提交、推送，并在新的 SonnetDB 本地会话立即开始 M47-P01。前两段“本次未提交/未运行门禁”是各文档整理阶段的历史状态，本段记录这次提交前的最终验证和交接。提交只包含 ROADMAP.md、CHANGELOG.md、README.md、发布审查、队列新入口及本会话 HANDOFF 三段，共六路径；队列原 pending WB85～WB98 和其它渠道 HANDOFF 段落未纳入 index，完整工作树原内容继续保留。三个 pending JS、validation-report、WB97/WB98 未跟踪报告及博客/账本/图片均不提交。
+
+完整 dotnet restore SonnetDB.slnx 与 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 均取得 exit 0；详情、耗时、双流及已观察进程身份收口见 artifacts/workbench-preview-submit-20261010-01a12429/restore.result.json 和 format.result.json。原门禁未降低；验证之后只追加本交接，产品和验收脚本未改。新增55处本地Markdown链接在候选index可解析，本次六路径git diff --cached --check通过；审查报告末尾多余空行已修正。未执行产品build/test、真实宿主、安装、AOT或发布验证，格式检查不能升级为这些结果。
+
+提交前 main 为78045e8b407e9caceae2548116390ffb985fc959，远端main只读实核5424b66672e37f49a2a5633fdde0b54a9b1f0290，原8个本地提交将随本次文档提交正常快进推送；只推main，不强推。origin/parity-results本地缓存仍0061d6d78591fb08493f473d3231ca42303faae1，远端当次实核已更新为e1c63d5afa2970aa0ba3312163b4d1a78ddbcc30；二者分别记录，均不合并、删除或覆盖。最终本次commit、远端回读、新会话ID和移交状态记录在同目录delivery.json及新会话初始指令，不在提交前冒称推送或新会话已成功。
+
+推送核验成功后的下一项严格为根ROADMAP的M47-P01：在已提交候选上冻结Web Admin＋匹配Server首版用户旅程/支持动作与入口、目标平台、组件版本/兼容、认证部署、MCP合同/能力清单、分发渠道与实际资产白名单；Studio/VS Code分别通过各自实物门禁后再纳入。核publish.yml默认全套资产的实际行为，给出可审查的独立Web分发方案，不降低现有五Workbench job及原产品release-readiness门禁。既有Web smoke失败归P02核实；P01不冒称NOT_READY已解除，不实际发布、不恢复旧helper集成循环。新会话独立读取AGENTS/HANDOFF/根路线/发布审查和实时dirty，完成P01可审查交付；workbench旧自动化保持PAUSED，不创建新自动化。
+
+所有PowerShell均为7.6.6。restore/format通过各自最多900秒/600轮/256已观察身份的有界工具运行，MSBuild复用关闭、受管并发限制为4；记录root/parent/child完整身份，只检查或清理可确认归属。日志与收据是保留交付物，无下载/运行安装/新worktree/临时运行目录；没有按名称批量终止。工具最小输入通过；初次console摘要对OrderedDictionary取属性显示null，原JSON实际exit0/pass true，已改为显式对象输出；一次试读正在独占写入的restore日志被拒绝，未作为门禁结果或重跑理由。新会话启动后父会话停止仓库写入，后续由新会话维护交接。
+
+## M47-P01 范围与候选冻结交付（2026-10-10，Asia/Shanghai）
+
+本会话接续已推送的c40fa670e3a170c5fac8cefa181d618631862270，按用户授权只完成P01；不启动P02～P08，不回到WB98集成循环。根ROADMAP与队列当前入口已将P01标为范围冻结完成、下一项P02；产品发布仍NOT_READY。
+
+新增preview-1-scope.md、preview-1-candidate-01.json、preview-1-distribution.md，位于docs/design/m47-unified-management-workbench。候选01固定完整SHA/tree与两个gitlink，保留4.5.0-preview.1.1和workbench-preview-1.1规则，未注入构建/打标签。首版限定Windows 11 win-x64、同源环回Web＋匹配Server；冻结13组动作（九模型限定读与关系表单行一次审批插入）、实际版本来源、MCP typed 1.0与九tools/三resources来源清单、认证/部署、预算和四附件精确白名单。MCP源码清单不冒称实际协商或AI入驻验收。
+
+当前候选仍缺Preview入口控制，C01～C04归P03；C05来源/版本与错配拒绝归P04/P05；D01独立组包/分发归P04/P06。七导航保留位置，延期项须禁用并在直接URL/query/恢复tab/请求调度边界拒绝，不能只隐藏菜单。表中现有局部上限与新增资源预算目标分列，未声称统一限制已经实现。后续任一源码、配置、依赖、打包或最终字节变化须增加候选N及新版本，不覆盖候选01；最终P07所有门禁重新绑定同SHA/版本/latest attempt。
+
+已核publish.yml：dispatch生成全套验证物，v*会发布NuGet并公开Studio/SDK/full/安装器等；VSIX不由该workflow生成。首版拟用非v标签的独立手动prerelease、只公开Web＋Server便携ZIP/manifest/SHA256SUMS/说明四附件，不另发可混配静态ZIP。独立上传器尚未实现，不以冻结合同替代实现。原12个workflow、五Workbench job、所有具名step/artifact、CI/Format/AOT、适用Parity light/full、soak/容量/连接器/产物验证均保持；七天scheduled Parity继续独立非阻断。
+
+本轮文档验证PASS：46源码blob、13动作、6入口/分发控制、12原policy、五Workbench job、24个新文档本地链接、旧队列历史字节和三pending JS SHA一致；详见artifacts/m47-p01-freeze-20261010/documentation-verification.json。完整dotnet restore SonnetDB.slnx与原CI dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/均exit0，约20秒/127秒，进程身份/双流/cleanup结果在同目录restore.result.json、format.result.json。Format报告工作区加载警告，原stderr已保留，未另跑诊断级检查，不冒称产品测试通过。门禁后仅追加本交接与精确index，不改产品/验收源码。
+
+本地提交仅七路径：三份新冻结交付、ROADMAP、CHANGELOG、work-queue的新P01/P02两行和本HANDOFF单段。共享HANDOFF其它段落、queue旧pending、validation-report、WB97/WB98、博客/账本/图片与三个旧JS保留且不纳入index。最终commit/tree/本地领先状态与资源收据见同目录delivery.json；本轮不push、不创建PR/新会话/自动化、不发产品。旧workbench实查PAUSED；本地origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1，未远端刷新/合并/删除/推送。
+
+验证工具曾有一条PowerShell花括号路径解析错误（执行前失败）；第一micro在短命进程退出时缺完整CIM字段，随后完整生成又遇短命child身份不可核而中止，原日志/失败/一次已核身份的conhost清理信号保留。这些是本次文档工具结果，不是产品故障或真实宿主证据。加入对已消失child的明确unknown观察边界与取消标志后micro通过；最终门禁仍用原完整命令、最多900秒/600轮/256记录身份，MSBuild复用关闭、受管并发4，仅按核实身份清理。没有广域扫描、安装、下载、clone/worktree或共享缓存清理；任务目录全部为保留审计交付物。只声明已记录身份的收口，不声称全机/未观察短命后代无孤儿。
+
+下一步仅P02：核历史run37731752397/SHA5424b666的Web smoke失败原因，再在候选01或显式新增后继候选取得通过。该run未在本轮刷新，不称此刻最新；四job success与本轮restore/format都不代替五项全套。WB80本机恢复PASS继续保留但不计当前包安装，WB83 preflight失败/WB98审查超时不推断产品根因。Graph Beta、MQ逻辑身份与instance .system/mq持久化及单库备份边界、SQL名称、只读、一次审批、取消非回滚与unknown不重放保持。
+
+提交阶段补记：首次暂存检查发现本任务新JSON的CRLF被当前Git配置判为行尾空白；失败日志保留，已仅将该新文件规范为LF，语义不变，未修改共享历史。最终树另行完整重跑restore与原Format，结果以restore-final.result.json、format-final.result.json为准；提交动作必须在两项均exit0及最终暂存检查通过后执行。
+
+## M47-P02 停止交接：执行器越界清理（2026-10-10，Asia/Shanghai）
+
+本轮接续P01实施P02，起止HEAD均60bd752f95c1ef2dcbab2566925cd599c43383f4，未stage/commit/push/PR/tag/dispatch/发布/部署。通过gh代理只读核原run37731752397/5424b666及候选01最新run38031369602/c40fa670，两次12fail均由Vite/Node环境、误收集独立真实Server测试、Studio旧夹具身份/生命周期与停止前置造成。六个代码配置修改（web/package.json、playwright.config.ts、新playwright.smoke.config.ts、copilot-browser-direct.spec.ts、management-workbenches.spec.ts、management-workbench-smoke.yml）保留未提交；生产源码、real runners/specs、原release policy和三个VSCode pending不改。新增报告docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md，原候选01不改；候选02及新版本尚未创建，P02不完成、产品NOT_READY。
+
+局部证据：三条原失败在本机复现，修复后3/3；Node448/448、Web vue-tsc/Vite build通过。362 Playwright用例分解为332 fixture与30 real，逐项收集无丢失；无Server URL的Document负向检查仍exit1。完整restore第二次自然exit0、原Format自然exit0（工作区加载警告保留）。两次全smoke分别由短命进程审计和累计256身份上限中断，第二次另有Measurement点击后等待超时；均不PASS。四分片后备只完成第一片，随后停止，未运行其它三片或额外StudioHost12项。所有原失败和双流在artifacts/m47-p02-smoke-20261010。
+
+严重安全事件：复用P01任务级Invoke-CheckedCommand.ps1时，未充分审查其子进程发现对已退出parent PID的复用处理。smoke-all-v2期间PID29260已被VSCode C# Dev Kit复用，执行器仍用旧PID作父节点发现，错误接纳并终止9个外部进程（42804、35768、45612、11320、83412、85820、82948、70104、60776），另有2个被终止conhost（41532、72024）归属未能确认。原receipt中的15信号/cleanupComplete=false保留；process-scope-incident.json保存身份与原因。此行为违反仅清理本任务完整归属进程的要求，已明确告知用户并停止后续验收/提交。没有擅自重启VSCode/C#服务，当前编辑器功能及恢复状态未验证，需要用户人工检查后决定接续。
+
+任务cancel标志与禁用提示保留；当前执行器和未执行Stage-Fix草案不可运行，其草案中预计307/25/12通过不是实测结果。四分片第1片自然exit0/0清理信号，控制批次已退出，未启动第2片。新快照只能证明具体当前观察，不能反写旧失败或宣称整机/所有后代清理完毕。后续不得直接复用本任务执行器，须先独立审查父链实时归属/复用拒绝及进程预算，获得人工接续后再处理Measurement超时、完成332条覆盖与实际候选冻结。
+
+共享M42规划、HANDOFF历史、queue/validation、博客/账本/图片和三个VSCode dirty全部保留，index最终为空；本HANDOFF仅追加，不提交原因是安全停止且P02完整验收未取得。origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1；workbench实查PAUSED，未修改自动化或恢复WB98。Graph Beta、MQ逻辑database+Topic与instance.system/mq持久化/单库备份缺口、SQL原名、一次审批、取消非回滚、unknown不重放保持。下一会话首先阅读本安全事件，不直接进入P03。
+
+## M47-P02 接续：Web 修复与本地验收通过（2026-10-10，Asia/Shanghai）
+
+用户在安全停止后明确要求继续实现。本轮从 main/60bd752f95c1ef2dcbab2566925cd599c43383f4 接续，只完成 P02；旧执行器、cancel、STOPPED 与原 incident 均未改写。六个测试/配置文件修复 Vite/Node logout、fixture/real 收集和 Studio 身份/生命周期夹具；生产守卫、真实 runner/spec、release policy 和三个 VS Code pending 源不变。Node 合同独立成为原五 job 中 Web job 的必经步骤。
+
+新证据 artifacts/m47-p02-resume-20261010 使用独立 Windows Job Object：根进程挂起后入组、保留句柄、仅采样组内成员，禁止按历史 PID 扩展父链；停止作用域由内核继承成员关系限定。正常退出、超时及已退出父进程的 detached 子进程隔离检查通过，另一独立 sentinel 保持存活。初版 conhost 命令变化负向检查和第二分片短命命令读取中断原样保留；后续采用无控制台启动、延后短命观察，存活成员清理仍核身份/组归属。验收通过的各任务最后 Job membership 为空；这不反写旧9个外部进程误杀和2个conhost归属未决，也不证明编辑器已经恢复。
+
+完整 fixture 按四片串行、单 worker、retries=0：89/0、66/13、88/0、64/12，合计307 passed、25 skipped、0 failed/flaky；332项ID/标题/文件逐项等于原收集清单。默认25 skip为13个StudioNative与12个StudioHost；额外StudioNative runtime运行studio-host-client.spec.ts实得12/12、0skip。Measurement501行用例单独和分片均通过，旧5秒点击超时未稳定复现，原因保持unknown，没有提高timeout或改产品。原Web build与448 Node合同复用前后236个输入SHA相等证据；本地Node24/Windows与CI Node22/Linux分列，30条真实Server suite仍NOT_RUN，缺URL负向拒绝保留。
+
+修复仅本地提交九路径：六个代码配置、P02报告、CHANGELOG单条、HANDOFF本任务停止/接续两段。完整restore与原Format须在最终树串行通过，实际收据和提交绑定见本证据目录；未取得收据不提交。共享M42、博客/账本、queue/validation旧pending与三VSCode源保留，不stage整份共享文档。后继候选02将在此修复提交上独立冻结4.5.0-preview.1.2；当前仅本地验收通过，产品NOT_READY，P03未执行。无push、PR、tag、dispatch、发布、部署、安装或编辑器重启；旧workbench自动化保持PAUSED，origin/parity-results保护。
+
+## M47-P02 候选02冻结交付（2026-10-10，Asia/Shanghai）
+
+修复已本地提交 ed4f48242c5d5b4e7e16861504d03cc845146402，完整restore/原Format通过后才提交；后继候选02固定该完整SHA/tree、保留版本4.5.0-preview.1.2与workbench-preview-1.2，未创建标签/构建发行物/上传。候选01字节保持，候选02的46项原范围源与受影响输入重新绑定，236个Web/workflow/policy输入按原SHA及仓库文本规范化后的Git blob核到修复提交。所有远端workflow和真实Server门禁NOT_RUN；本地build、448合同、307fixture/25skip、额外12StudioHost分列，绝不继承旧run四job成功为后继通过。原五Workbench job/artifact与release policy保持。
+
+根ROADMAP、queue与validation入口同步P02本地完成、下一项P03；C01～C04、真实登录/普通及只读权限/撤权清理/承诺的取消unknown恢复仍未实施。后续源码或包字节变更必须新候选/新N，不能覆盖02。NOT_READY、Studio/VSIX延期、Graph Beta和MQ实例持久化/单库备份边界保持。第二次完整restore/原Format仍须在此最终元数据树通过再提交；共享文档只stage本片变换，M42/博客/旧WB dirty继续保留。
+
+旧执行器安全事件及所有ERROR/cleanup false收据保留；本轮没有编辑器重启，恢复状态未知。workbench自动化实查PAUSED；origin/parity-results未变，无push、PR、dispatch、发布、部署或安装。资源、实际提交与保护检查见artifacts/m47-p02-resume-20261010/delivery.json。下次从P03开始，不返回旧helper集成循环；P07另核最终同SHA/version/latest attempt。
+
+
+## M47-P03 代码收口（2026-10-10，Asia/Shanghai）
+
+**P03实现及R1 Preview专项本地验收完成，完整模式回归仍有未决超时**；七个模型专用读取因服务端预算未证延期，不能称九模型读取已通过。 新增显式Preview外壳、路由/动作拒绝、真实role与grant核权、一次单行审批、取消/撤权/断连清载荷、unknown不重放，以及SQL/schema预算；详见docs/design/m47-unified-management-workbench/preview-1-p03-controls.md和preview-1-p03-scope-revision.md。最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。
+
+本地代码提交后将冻结不可变候选03/4.5.0-preview.1.3，并完成第二次最终树restore/原CI Format/cached whitespace再提交清单；当前尚未冻结，不把计划当回执。两次提交的实际SHA由后续交接和Git记录。本轮证据artifacts/m47-p03-20261010，原失败、worker异常和P02误杀事件保留；独立Windows Job只处理内核归属成员。浏览器批次结束的清理不是正常重启证明；正常Stop/Start回读由真实Kestrel测试单列。UserStore无到期字段，只验证真实撤销401，不称定时过期验收。
+
+产品NOT_READY；未执行P04～P08、push、远端workflow、发布、部署、安装、编辑器重启、Workbench自动化/WB98恢复，无子智能体或来源会话消息。下一项仅供后续授权：先处理P03完整模式KV分页超时及Chrome点击不稳定，再由P04固定profile/版本并组包，再按P05/P07验收最终候选；七模型恢复须新预算/证据/候选。候选01/02、原五job/artifact及release policy不变。共享HANDOFF原字节、博客/账本/三个VSCode pending保留，共享文档index只取HEAD加本片内容。
+
+
+## M47-P03 候选03冻结（2026-10-10，Asia/Shanghai）
+
+P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变preview-1-candidate-03.json绑定此SHA/tree与保留版本4.5.0-preview.1.3，未打标签或产生发行包。最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。 R1明确延期七模型专用读取，原九模型读取没有整体通过；NOT_READY。原候选01/02、历史FAIL、共享dirty和origin/parity-results保持。当前清单及此交接属于第二次文档提交，提交SHA见Git；该提交前必须再次完整restore/原CI Format/cached whitespace通过。无push、远端workflow、发布、部署、安装、编辑器/自动化恢复、来源消息或子智能体。后续先处理完整模式回归未决，再仅在新授权下进入P04；固定包内profile/版本仍会产生新候选，不复用本候选版本或继承旧SHA门禁。
+
+
+## M47-P03 收尾：KV渲染与R1本地完成（2026-10-10，Asia/Shanghai）
+
+用户明确要求先提交并推送，再完成P03。本轮先将既有五提交正常推送至main/7b61322878c434388973bc1aa333e92f60eec7e1，并独立ls-remote核实；未force、未推tag或parity-results。给KV及时序点表/监控结果表开启已有虚拟滚动；监控行使用内部Symbol标识，不覆盖业务同名列，保留1000条数据及原预算/断言，新增末尾行、选中行被筛选隐藏后的精确导出检查。原基线600/1000行全渲染长任务及原30秒超时与修复后诊断独立保存，新检查定位器错误亦保留。完整模式按原332项清单重新执行四分片，307通过、25个原skip、0失败/0flaky，单worker、零重试；Node465/465、类型检查和新Preview构建通过，正式/admin真实浏览器12/12。真实Kestrel19/19与StudioHost夹具12/12明确复用上一轮未变输入的证据。 P03按范围R1本地完成；七模型专用读取仍因服务端预算未证延期，不能写成九模型全验收。
+
+证据artifacts/m47-p03-close-20261010；297输入重新核SHA，相对候选03仅KV/Measurement组件及其测试四项变化，其余293项相同，C#及项目配置无差异。当前修复及收尾文档为精确owned提交；在最终树完整restore/原CI Format/cached whitespace通过后才提交，实际SHA和门禁回执随后冻结新候选04/4.5.0-preview.1.4，不覆盖01～03。共享HANDOFF只尾部追加并核旧前缀；M42/博客/账本/三VSCode文件等外来dirty保持。
+
+本轮成功Job以各自kernel membership为空为清理证据；原P02外部进程事件、P03原cleanup=false和Chrome measurement导航超时保持，后续PASS不补原清理或编辑器恢复证明。无旧执行器、历史PID父链扩张、名称批量终止、安装或编辑器重启；无手动workflow dispatch、发布/部署/标签、恢复Workbench/WB98、来源会话消息或子智能体。此次授权包含提交和push，自动触发的远端任务不当作已验证发布门禁。产品NOT_READY；下一顺序为单独P04包内profile/版本/manifest，再P05～P08，当前没有实施这些步骤。
+
+
+## M47-P03 候选04冻结与推送交付（2026-10-10，Asia/Shanghai）
+
+修复代码提交57222f57e4cce324ca054126fd4281ec5e5afec1已通过最终树完整restore/原CI Format/cached whitespace后生成；候选04/4.5.0-preview.1.4绑定该完整SHA/tree及297验证输入的规范化Git blob，候选01～03字节不变。本候选为源码冻结，无tag/发行包/上传。P03按R1本地完成：新四片307通过/25原skip/0失败、Node465、类型检查/构建和新Web正式/admin真实浏览器12通过；19Kestrel与12StudioHost夹具明确复用未变输入。七模型专用读取延期，原Chrome measurement历史失败、P02事故和旧清理缺证保留，产品NOT_READY。
+
+本段与候选/当前状态入口作为独立文档提交，仍须最终树完整restore/原Format/cached whitespace通过。按本次明确授权正常推送这两个提交，再独立读取origin/main；最终两SHA、远端核验与本轮Job/浏览器profile清理结果见artifacts/m47-p03-close-20261010/delivery.json及各不可变receipt。共享dirty和HANDOFF外来前缀/尾追加保持，未恢复旧自动化或进入P04～P08。
+
+
+## M47-P04 独立组包器实现（2026-10-11，Asia/Shanghai）
+
+接续当前main/9e2ae109与不可变候选04；本轮授权P04实现、构建、验证、精确提交及正常推送。独立手动CI按最终提交SHA/锁定gitlinks干净构建，组包器拒绝dirty/旧dist/旧Release；固定preview-1/R1、发行号/完整SHA、环回配置及相邻数据布局，库存/PE/ZIP/manifest/工具/依赖/许可证验证均已实现。20项本地合同、许可证微试和Job微试通过，Web类型检查/构建另存本地回执；它们不是干净CI发行来源或真实NativeAOT publish。本提交后冻结新候选05/4.5.0-preview.1.5并运行CI，本段不冒称实物已完成。
+
+证据artifacts/m47-p04-20261011；精确stage本片代码与HEAD加本片文档，HANDOFF追加/fsync并核原字节前缀，保留博客/M42/WB97/WB98/三VSCode外来dirty与parity-results。每次提交前完整restore/原CI format/cached whitespace；提交/推送实际SHA由后继delivery回执记录。P05～P08未执行，NOT_READY；R1七模型专用读取延期，旧FAIL/P02事故/P03 cleanup=false/编辑器恢复未知保留。没有公开发布、tag、部署、安装、自动化恢复、编辑器重启、外发或子智能体。
+
+
+## M47-P04 候选05失败与候选06工具定位修正（2026-10-11，Asia/Shanghai）
+
+源码f84e3a6d已正常推送，候选05/4.5.0-preview.1.5实际CI 38075483025 attempt1在npm CLI假定路径失败，NativeAOT未运行/ZIP未产生，上传证据也因目录未建立失败；原日志与不可变候选05保留。修正只从Get-Command的PATH登记首个Node/dotnet及npm/Node两个固定目录取CLI，不扫描大目录/安装软件。新候选06/4.5.0-preview.1.6采用新的修正提交，不复用05；本段不声明实物PASS。
+
+本次只精确暂存定位修正/profile、新候选05与P04文档增量；共享foreign字节和parity引用保留，HANDOFF追加fsync并核前缀。提交前重新完整restore/原CI format/cached whitespace，实际SHA见Git与后继收据。继续P04真实CI组包；P05～P08未执行，NOT_READY，原安全事故/cleanup=false与七模型延期不改变。
+
+
+## M47-P04 兼容清单候选07（2026-10-11，Asia/Shanghai）
+
+候选06来源a0917daf已正常推送，CI 38076076784 attempt1实际构建仍进行中。兼容审查发现必须在包内profile/manifest显式列出原合同Windows 11 x64/Edge/Chrome、同候选同版本、拒绝旧Server、浏览器版本P05未取证，并更新C05/D01为P04部分已实现而P05/P06未验；现已补齐，预算/R1延期不变。包元数据变化采用新候选07/4.5.0-preview.1.7，06记录保留。本段不冒称任何实际包或NativeAOT PASS。
+
+20项组包合同含平台扩张/任意Server错配拒绝通过；最终源码树完整restore/原CI Format/cached whitespace后才精确提交推送。HEAD加本片stage共享docs，HANDOFF独占尾部追加fsync并核原前缀，博客/M42/WB97/WB98/三VSCode及parity引用保留。后续先独立核CI包/hash/编译身份、冻结新候选并提交交接，P05～P08仍未执行/NOT_READY。
+
+
+## M47-P04 候选06真实NativeAOT与库存拒绝、候选08（2026-10-11，Asia/Shanghai）
+
+候选06/a0917daf/run38076076784 attempt1实际NativeAOT publish PASS（398秒/25身份/cleanupComplete=true；Generating native code，无IL告警），随后库存拒绝Web SDK隐式appsettings.Container.json，CI整体FAIL/未产生ZIP。原日志、CI evidence和不可变候选06保留，不能把publish PASS当包完成。候选07/9b8c8a7b/run38076686113已派发，其独立结果后继冻结，不覆盖。
+
+新候选08/4.5.0-preview.1.8明确在选择阶段排除Container/Development配置、debug/import libs及UseStaticFiles不消费的SDK静态索引；完整原publish库存先写证据，再fail closed验未知文件。21项本地合同通过，包含Container包内拒绝及选择剔除；预算/R1七模型延期/目标Windows11与EdgeChrome/同版本源码绑定不变。本提交前最终树完整restore/原CI Format/cached whitespace；精确owned stage，HANDOFF追加fsync核前缀，外来dirty与parity引用保持。候选08实物仍待构建，P05～P08未执行/NOT_READY，旧安全事故和未知清理证据继续保留。
+
+
+## M47-P04 候选07/08失败冻结与候选09原生依赖（2026-10-11，Asia/Shanghai）
+
+实读run38076686113/38077182154均整体FAIL；各自真实NativeAOT PASS/cleanupComplete=true，07拒绝Container，08拒绝SDK llms-full.txt.br；无ZIP，两份immutable候选及完整日志/evidence保留。08完整库存复核后只排除四个UseStaticFiles不消费的llms br/gz派生物，未知文件白名单未放宽。
+
+继任候选09/4.5.0-preview.1.9新增普通/延迟PE导入闭包，按VS登记redist路径取四个所需CRT，记录来源/版本/hash与逐边解析。24项合同与实际NuGet原生库/登记CRT微验证通过。Microsoft软件许可不归MIT，原条款和再分发资格待P07；Windows11系统/UCRT前提、动态装载及P05旅程界限明确。新CI实物仍待构建；P05～P08未执行/NOT_READY，旧失败/事故/UNKNOWN与自动化PAUSED不改。
+
+本提交前最终树全restore与CI同级Format、staged whitespace须PASS，HEAD+owned变换保护共享文档，HANDOFF独占追加fsync核前缀；外来脚本和博客等dirty、parity-results引用保持。仅构建/证据资产，不tag/公开发布/安装部署/恢复自动化/发送跨聊天消息。
+
+
+## M47-P04候选09实物验收完成交接（2026-10-11，Asia/Shanghai）
+
+源码a44058adbe640d9ae04b93af388dccff6a17a961已正常推送main；run38078118031 attempt1整体success，真实NativeAOT402.06秒/29身份/cleanupComplete=true、0IL/AOT告警，24合同通过。12项CI执行回执均PASS/cleanupComplete=true。三资产ZIP/manifest/SHA256SUMS在artifacts/m47-p04-20261011/delivery-09；ZIP46617728bytes/hash f943c05f5015b2ac2ae56596d8df6839dcd09bb58a88e0effe0326d917b5a6f6。279个entry路径/size/hash、外部checksum、NativePE/ProductVersion、编译Web版本/SHA/profile、解压VerifyOnly全部独立PASS；MSVC dumpbin逐边复核10个原生文件普通/延迟导入及四CRT实际版本通过。未启动/安装Server。
+
+不可变candidate09冻结实际来源tree/gitlinks、工具、预算/平台/同候选组件、12CI回执、native dependencies与资产hash。243条依赖，16条原文/元数据/Microsoft条款待P07，不冒称许可完整验收；Windows11OS/UCRT和动态装载/P05旅程边界明确。05～08失败冻结保留，P02事故/旧cleanup=false/UNKNOWN原样。P04仅实物组包完成、NOT_READY，R1七模型延期不改；下一顺序P05本包真实首启/登录/旅程/错配/停止重开/回退，然后P06 notes+四附件合同/P07原门禁+许可/P08单独授权公开发布。Actions保留30天和本地证据不冒称长期发行；无tag/公开Release/部署/重开编辑器/恢复自动化/跨聊天消息。
+
+交接独占追加fsync核旧字节前缀，共享文档按HEAD+owned stage，外来dirty和保护脚本hash保持。最终docs提交仍须完整restore/CI同级Format/精确staged whitespace通过；随后正常push并独立核remote main及parity-results，完整Job清理审计与仅任务微试临时副本回收记录留证。此交接纳入owned提交，包及原始回执留artifacts，不提交build artifacts。
+
+
+P04收据数量纠正：上段“12项/12CI”是文档统计笔误；实际CI evidence为11项命令回执，均PASS/cleanupComplete=true，候选09机器记录的11项列表一直正确，P04报告已改为11项。真实publish/ZIP/hash/导入及P05～P08边界不变。四个CRT实际FileVersion/ProductVersion均14.51.36247.0，登记redist版本14.51.36231分别记录，不混用。
+
+
+## M47-P05候选09实物缺口与候选10源码（2026-10-11，Asia/Shanghai）
+
+本轮授权P05实际包本机验收、必要修复、新候选重包及owned提交正常推送。候选09三资产/279库存/hash独立回读保持，解压Start-Preview -VerifyOnly通过；首次setup与管理员用户名密码登录UI实测通过。包内candidate却为candidate-08，启动器未核此字段，且Web无运行中Server身份核验；原包及原P04证据不覆盖。第一轮本片工具在fixture API使用错误Response.status调用，原FAIL与cleanupComplete=true保留，不冒称产品故障或完整旅程。
+
+继任候选10/4.5.0-preview.1.10新增编号一致性、AOT source-generated身份读取/端点、Web挂载前5秒/4096字节身份核验与每Preview请求同版本/SHA约束；Server build为0警告/0错误、Web类型与24组包合同通过，只是本地证据，新SHA干净CI及最终实际包P05尚待后继收据。独占隐藏控制台Ctrl+C停止与Job清理分开取证，禁止把强制终止称正常关闭。
+
+共享文档HEAD+owned暂存，HANDOFF独占追加/fsync并核原字节前缀；博客/M42/WB97/WB98及三VSCode外来改动与parity-results保留。最终提交前全restore/原CI Format/cached whitespace须通过。R1七模型延期、NOT_READY、原P02事故/旧cleanup=false/UNKNOWN及Workbench/WB98 PAUSED保持。P06～P08未执行，无tag/公开Release/安装服务/部署生产/恢复自动化/重启编辑器/跨聊天外发或子智能体。
+
+
+## M47-P05本轮范围纠正与停止（2026-10-11，Asia/Shanghai）
+
+本轮可见用户消息仅提供AGENTS.md和环境，没有明确要求执行P05。智能体误把上轮交接的下一项当成本轮任务；前段“本轮授权P05实际包本机验收、必要修复、新候选重包及owned提交正常推送”是错误的授权描述，不能作为后续操作授权。已实际提交并正常推送54eefc816f133a805b0d38f0cbe930d2c17650b6，远端main独立回读一致；启动候选10/4.5.0-preview.1.10 CI38104431383 attempt1。用户现已收到范围纠正与澄清问题；在明确答复前停止新增产品写入、部署、P05实际候选10旅程及后续提交/推送。
+
+已取得的证据如实保留：候选09首次设置/管理员UI登录/About与Chrome R1读取/导出/审批/撤权/unknown/断连路径局部PASS，真实旧请求头返回200而预期428，故仍FAIL；旧candidate08元数据未覆盖。执行器原Response.status错误、隐藏控制台cleanup=false及其后通过的独占Ctrl+C最小试验都保留，不改旧结论。源码Server build 0警告/0错误、Web类型、24组包合同、17 Preview合同与最终完整restore/原CI format/staged whitespace通过。通过这些检查不证明候选10实物P05完成。
+
+证据artifacts/m47-p05-20261011。原三VSCode脚本hash、既有HANDOFF字节前缀和外来博客/M42/WB97/WB98 dirty保持；parity-results远端仍0e48b753da7eab8ebd9651d405ddb58e3bef01c8。产品NOT_READY、R1七模型专用读取延期、原事故/FAIL/UNKNOWN/cleanup=false保留，Workbench/WB98自动化未恢复。没有公开tag/Release、安装服务、生产部署、重启编辑器、跨聊天外发或子智能体。
+
+本段只纠正交接事实，不纳入提交，因为本轮没有P05提交/推送授权。下一会话必须先读取用户对具体任务的答复；不得把这里的下一步再当作授权。候选10CI只读回读可保留；不得重复dispatch或复用不同字节资产的版本。未删除/回滚已经推送的提交，也不移动保护分支。
+
+## M47-P05用户明确接续与候选10实物验收完成（2026-10-11，Asia/Shanghai）
+
+用户对具体澄清问题直接回复“继续完成 P05”；本次按该明确授权继续实际包验收、必要工具修正、owned提交和正常推送。上段范围纠正与所有历史失败保持，不回写为曾获授权。
+
+实读candidate10/4.5.0-preview.1.10/run38104431383 attempt1整体success，来源54eefc816f133a805b0d38f0cbe930d2c17650b6/tree0083fd496dbdac25019aee058651c821dac0c336；11CI命令全部PASS/cleanupComplete=true，实际NativeAOT283.47秒/28身份/0IL-AOT告警。三资产在artifacts/m47-p05-20261011/delivery-10；ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed，279entry/hash、NativePE/ProductVersion、编译Web身份与VerifyOnly独立PASS。候选09旧包/旧metadata/200错配失败不覆盖。
+
+suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保留，不称正常停止。仅journey验收工具改为等实际INSERT HTTP200/完整NDJSON affected1再独立回读；包字节不变。新suite-10-b总95.93秒PASS，Windows11家庭中文版x64/build26300、Chrome150.0.7871.115、Edge155.0.4283.45；first26/reopen5/rollback4/legacy2项及五类启动拒绝通过。真实UI密码登录/About、授权SQL/关系/measurement、1000行截断/导出、单行审批/取消、Read403、撤权/token/offline清载荷、unknown仅1次真实提交不重放、迟到读丢弃、实际428与旧原生Server拒登录分别取证。原API夹具/合成数据/三类故障注入分列，不能冒称生产业务或Server扫描停止。
+
+四次原生Server实际Ctrl+C退出0且正常stop后Job空/0强制身份；61文件快照逐SHA复制与同候选恢复通过，原审批行仍在/快照后行不存在，旧Server只用全新legacy数据，不开candidate10数据。独立audit核20Job收据/268记录身份、0live/0监听/0signal，两真实JSON下载各1000行/22835bytes；ACL finally恢复原捕获对象，独立无Deny/写探针通过，但原SDDL未持久记录不宣称逐字比较。仅marker归属且绝对路径核验的临时包/合成数据/快照/profile回收；原资产/日志/截图/导出/FAIL等收据保留。
+
+不可变preview-1-candidate-10.json和P05报告已冻结实际包/CI/工具/hash/用户旅程及限界。P05仅本机解压包R1完成、NOT_READY；七模型延期/原事故/cleanup=false/UNKNOWN不变，无干净Windows安装/崩溃恢复/任意升级降级/生产验证。下一顺序P06说明/限制/反馈/升级回退及四附件分发，P07同候选原发布门禁/许可条款，P08另获明确授权后公开发布。workbench自动化实读仍PAUSED；无tag/公开Release/生产部署/安装服务/重启编辑器/跨聊天外发或子智能体。
+
+共享ROADMAP保留working-tree外来五列状态，index只取HEAD四列加owned进展；CHANGELOG/queue同样HEAD加owned，HANDOFF独占追加/fsync核原前缀，范围纠正与本段纳入owned交接。三VSCode脚本hash、博客/M42/WB97/WB98外来dirty与parity-results保留。最终树提交前须再次完整restore/原CI同级Format/cached whitespace并通过；随后正常push并独立核remote main与parity-results，最终SHA与回执见Git/本片checks，不把计划写成门禁已通过。
+
+
+## M47-P05真实交付门禁与提交后审计修正（2026-10-11，Asia/Shanghai）
+
+主P05交付6b90fcfe54e2ced1ea141bdb297e50f13c80a18c已正常推送、remote main独立回读一致，parity-results保持0e48b753da7eab8ebd9651d405ddb58e3bef01c8；restore-p05-final PASS21.64秒、原CI format-p05-final PASS207.50秒、最终staged whitespace PASS，七文件精确提交，index空/外来dirty保留。candidate10/包来源54eefc81与P05实物R1结果不变，产品NOT_READY，P06～P08待验。
+
+提交后首份final-delivery-process-audit.json原字段PASS却筛得0收据/0身份，无效空窗必须按FAIL_EMPTY_WINDOW理解，不能作为回收证明。实际单条micro证实本机ConvertFrom-Json自动转DateTime再字符串解析导致UTC偏移丢失；新v2保留字符串时间、显式DateTimeOffset并加至少15收据/100身份下限，20真实Job收据/337身份、0live/0监听/0signal与24临时目录回收PASS。原JSON与micro/新脚本/新结果都保留。安装独立audit20/268没有时间窗筛选，numeric PID全部不存在/reused0，未进入错误日期匹配分支，原安装/停止/套件证据有效。新增不可变preview-1-candidate-10-acceptance-audit.json绑定纠正，不修改已冻结candidate10或包字节。
+
+本段与报告审计说明只补提交后真实结果，按HEAD+owned追加暂存保护外来HANDOFF字节，独占锁/fsync核旧前缀。补记提交前仍完整restore/原CI format/cached whitespace，正常push后核main与parity；精确SHA/实值收据在artifacts/m47-p05-20261011/checks，不tag/公开发布/生产部署/恢复自动化。下一次从P06当前实物身份接续，不能复用无效空窗或把本机R1升级为正式发行。
+
+
+## M47-P06 说明、四附件与独立分发完成（2026-10-11，Asia/Shanghai）
+
+接续HEAD d4e4b7f与不可变candidate-10/4.5.0-preview.1.10，包source54eefc816f133a805b0d38f0cbe930d2c17650b6、run38104431383 attempt1。P06只完成包外发行说明、独立四附件准备和限定手动分发入口；产品NOT_READY，P07/P08未验。新报告docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md、notes及preview-1-distribution-10.json绑定原候选/审计/三资产/CI artifact ID与digest和四附件SHA。原ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、manifest、P04 checksum和候选两记录逐字保留；外部notes与新三行checksum只在artifacts/m47-p06-20261011/delivery-10，不回写旧NOT_RUN。未改产品/profile/配置/依赖或包内字节，因此不重建10、不伪造新包；任何后续重建或包内变更须新N及对应验收。
+
+独立workbench-preview-publish仅workflow_dispatch/default prepare/read-only；实际publish须P07原始hash证据、已审查工具10文件库存、原完整verifier实时READY、环境required reviewers/prevent_self_review及P08精确授权串。工具github.sha与package full-SHA checkout分列，保留12workflow/五Workbench job/具名steps/artifacts；scheduled七天保持非阻断观察。四附件显式数组、不可移动tag、draft/prerelease/latest=false、上传前后原ID字节回读；已有不完整/错配/unknown只读对账，不clobber/重放/自动续传。只授认证API回读，P08仍需独立匿名下载/首次运行。
+
+35项本地合成拒绝/上传合同PASS（非真实发布）；实际279ZIP entries路径/大小/SHA与preview-1/Web两身份PASS；真实只读GH核run/最新attempt和未过期artifact。无真实产品Server重跑、远端新workflow派发或实际tag/Release/public uploads。YAML重复key/权限/手动触发/完整source checkout/环境与依赖用已登记YamlDotNet16.3.0 DLL本地解析PASS，PowerShell语法PASS；原Python缺模块、登记项上限拒绝、freeze相对import失败和直连GH失败各保留独立FAIL，未安装依赖；代理重读与修正另立PASS。原DateKind空窗effective FAIL_EMPTY_WINDOW、v2/v3、P02事故及旧FAIL/UNKNOWN不覆盖。
+
+最终完整dotnet restore SonnetDB.slnx、原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/和exact cached whitespace必须取得PASS才提交；实际工具收据和代码/交付SHA记录在artifacts/m47-p06-20261011，最终commit/tree、normal push、独立远端、非空身份收口及保留边界见delivery.json，不把本段写为预先PASS。所有长命令继承不可breakaway Job、PID/创建/完整命令/父链、count/墙钟/cancel/finally。仅归属核实的Job进程清理；测试临时目录已finally按绝对路径回收，四资产与原始日志留作交付。保护134个起始dirty路径及外来五列ROADMAP、HANDOFF原字节前缀、博客、M42、WB97/WB98/三VSCode，不stage他人hunk。parity-results远端实时0e48b753da7eab8ebd9651d405ddb58e3bef01c8与本地旧tracking分别核验/保留，不fetch改写该引用。workbench仍PAUSED，无子智能体、新用户会话、生产部署、编辑器重启或跨聊天消息。
+
+下一片只P07：在同package SHA/version核原12workflow/适用raw gates、C01～C05/D01、P05实物与243依赖/16许可缺口，冻结真实P07记录/证据artifact及工具库存，核上传器prepare远端执行，再作放行评审。P08需另获实际授权和配置保护环境，不提前tag/Release；本会话独立任务计1/5，已授权正常提交推送，不恢复自动化。
+
+
+## M47-P06 自有暂存纠正（2026-10-11，Asia/Shanghai）
+
+首个本地提交4d8d7f71尚未推送，私有暂存脚本统一LF误改变HEAD里40行旧交接CRLF，且把工作区五列P06行放入HEAD四列表头。旧stage/commit原收据保留，另记有效FAIL_OUTSIDE_LINE_ENDINGS；本纠正恢复父基线d4e4b7fd的HANDOFF完整原字节前缀，仅追加本片两段，ROADMAP提交保持HEAD四列、工作区他人五列变更保留。没有撤销或改写已存在提交，正常追加纠正提交后再推送；原包和分发四附件不变。
+
+共享工作区CSDN两文件和其交接尾追加在本片期间出现外来变化，已实际保留，不回滚/纳入暂存；其余123个有hash的非自有文件在local-validation核对未变。旧Python/工具/保护边界失败保留。纠正后的完整restore/原CI format、基于原HEAD的最终净变更whitespace、纠正commit与正常push/独立远端及非空身份审计，以artifacts/m47-p06-20261011/delivery.json和相应独立收据为准；本轮仍1/5、NOT_READY、P07/P08待验、PAUSED。
+
+## M47-P07同候选门禁与原证据实现中（2026-10-11，Asia/Shanghai）
+
+本轮明确授权仅P07，owned提交和正常push；P08另需授权。接续eb244cfd/main、空index、105外来dirty完整快照，自动化PAUSED；无工作树/子智能体/跨聊天发送。固定PowerShell7、Job归属/有界命令与取消/墙钟/finally清理继续，禁Graphify/广域工具扫描/未经授权安装/按名或历史PID终止。
+
+原candidate10/source54eefc816f133a805b0d38f0cbe930d2c17650b6/build38104431383 attempt1/ZIP46634305bytes SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed及candidate/manifest/checksum/审计逐字保持。真实原verifier初审4/12工作流通过，8项缺同来源运行，NOT_READY；原nightly JSON解析失败仅非阻断UNAVAILABLE。原policy/verifier未改、light/full未削减。
+
+已单次真实prepare38114436815 attempt1失败Frozen record drift、0API/mutation=false；原artifact11692363372/digest9c132d2e8ec42430ef4bba61138b0835ef8fdc32d16be78fd4106085d425d7a6和日志保留。本地字节=Git blob，工具workflow在checkout前禁autocrlf；待提交后真实新run验证，不改原包或把旧FAIL写PASS。新增只读P07收集workflow/Job工具，保存原12workflow/五Workbenchjob/steps/artifacts，复制P05真实原文并逐hash、源码、记录名验证，归一验收与原文分开；成功collection也可能NOT_READY，不等于READY。
+
+243依赖/16原缺口逐项审查，5构建工具本包不分发，7运行时npm原通知与4Microsoft资格/终端保护条款仍NOT_READY。按原integrity/精确版本/固定gitHead核上游原文；css-render/BEM的07akioni通知在原包缺失，naive-ui版权不能替代。Microsoft实际Hosted Enterprise2026/VC++V14原DOCX及SHA保存；不能以本机Community或MIT替代，待redistributable-list/保护条款。修复包内通知必须新候选/版本及受影响验收，本轮不重建10。
+
+本轮原证据/失败/代理直连、许可源、baseline和checks在artifacts/m47-p07-20261011；make-originals初次import路径失败在任何mutations前，原脚本/FAIL保留，修正新收据成功。提交前需最终树完整restore/原CI format/whitespace及owned-only index，待真实结果再补；正常push后继续实际prepare与P07 artifact，然后以真实结果冻结P07机器记录。产品NOT_READY，P08未跑，无tag/公开Release/匿名首跑/生产/自动化恢复。根HANDOFF只独占尾部追加/flush核旧前缀，stage用HEAD原字节+owned段，保持foreign追加/五列ROADMAP与HEAD四列。
+
+M47-P07暂存纠正：第一次owned stage默认whitespace检查发现原CRLF收据/新增CRLF段，实际FAIL/双流保留且没有commit。已核index仅38owned后精确撤回，20份已核SHA原JSON副本无损gzip入仓；远端解码核原size/SHA后上传原JSON，原P05文件不动。HEAD交接旧字节不动，仅owned新段暂存LF。原first gate PASS仍保留，源码存储工具修正后43合同重新PASS；最终树须重新完整restore/原CI format/default staged whitespace。辅助只读inline probe语法错误没有mutations，修正probe核20原文hash通过。
+
+## M47-P07远端prepare调用层纠正（2026-10-11，Asia/Shanghai）
+
+实现69e6705de593099336f94ebc7d7232b13d3bb0e6已正常push，初轮源码最终树44合同/restore9.34秒/原format149.61秒/default staged whitespace PASS，38owned精确commit；两次旧stage FAIL/初次格式结果均保留。第二stage上游Rollup原文含Markdown引用行尾空格，已对20原JSON与7上游原文统一无损gzip，原SHA/原P05字节不改；收集器直接对冻结candidate/审计receiptSHA及包manifest依赖SHA，原raw解码artifact另存。归档结构凭据字段审计20原文无发现，不复制环境/spec。
+
+真实prepare38116277262 attempt1/tooling69e6705d工作流failure；controller PREPARED_NOT_READY/9commands/12.57秒、mutationStarted=false，原Job PASS/exit0/cleanupComplete=true。源码/库存/ZIP实际核完，不当成工作流PASS。失败为Invoke-Distribution依赖新进程未设置LASTEXITCODE（null -ne 0）；本次仅外部两PS调用层改读原Job status/exitCode/cleanup并在全部PASS后明确0，P07同型问题同步修正，包source54eefc81及全部原资产不变。6个有界真实Job包装合同覆盖null/残留55/子exit7拒绝，controller仅合成，fixture明确归属路径finally清理，收据保留；不计真实分发或安装证据。
+
+本段独占FileStream尾部追加/Flush(true)核整段旧字节前缀；stage只HEAD+本段LF和自有Fixed行，保护外来dirty/旧HANDOFF/parity。下一步最终树完整restore/原format/default whitespace，正常owned commit/push；只新prepare、P07原证据artifact和真实NOT_READY记录，不发布P08、不恢复自动化、无新候选重包/工作树/子智能体。初审8workflow缺运行和11运行许可条件仍阻断；原失败/UNKNOWN不覆盖。
+
+## M47-P07真实原证据归档与未放行评审完成（2026-10-11，Asia/Shanghai）
+
+直接授权已回读父会话01a12935-096e-7843-a6f8-c5d497684581用户原话“现在在新会话中开始实现P07”；此前本任务自写授权文字不作为独立来源。仅P07与owned正常提交推送，P08仍需另获授权，无子智能体/新会话/工作树或自动化恢复。
+
+真实prepare38116860908 attempt1/tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24整体success，prepare步骤通过、publish skipped，controller PREPARED_NOT_READY/9命令/9.016秒/mutation=false，Job PASS/exit0/cleanupComplete=true。真实P07收集38117134746 attempt1/同工具整体success，原Job PASS/exit0/cleanup=true，收集31.974秒/7外部命令；artifact11693529921/workbench-preview-p07-10/digest sha256:f9cec7973d7c6a0afde07a99fdbcb89b70e2a5fb22d2b077dc0bc787cd3d8208，到期2026-11-10T06:10:27Z。三份prepare/P07原archive的下载size/SHA与API digest相同；20原JSON/7原文/8归一验收、冻结candidate/审计/依赖manifest/10分发+5收集工具blob独立核验通过。原独立核验脚本文件名错误FAIL及纠正PASS分开保留。
+
+最终preview-1-p07-10.json/status NOT_READY、collection COMPLETE、published=false；C01～C05/D01/P05-installed-R1共7/8通过，licenses未闭环。原完整verifier仍4/12通过，parity/document-soak/ecosystem-soak/m19-capacity-evidence/m39-trigger-evidence/publish/connectors-release/docker-publish缺source54eefc81有效运行；7npm通知/4Microsoft条件共11条运行时缺口，5build-only排除不等于全部清关。scheduled七天最新观察READY/7/7/nonblocking，初审UNAVAILABLE保留，不能替代本候选light/full。原gate/policy未改，NOT_READY已实际被发布校验拒绝。原两个prepare工作流FAIL不覆盖。
+
+candidate10/4.5.0-preview.1.10/package source54eefc816f133a805b0d38f0cbe930d2c17650b6/tree0083fd496dbdac25019aee058651c821dac0c336/build38104431383/ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、279entry、原manifest/checksum/审计逐字保持。本片评审完成但未放行；下一顺序关闭运行时通知与Microsoft条件，包内变更必须新candidate/version、重包及受影响P04/P05等验收，再取同包源码原12门禁和新的P07；只有全部通过及单独P08授权后才能公开发布。不可为候选10改写READY或覆盖字节。
+
+44Node/6进程包装合同已通过；本次最终文档/机器记录完整restore/原CI format/default staged whitespace后精确7owned提交正常push，最终SHA/远端与非空本机收口见artifacts/m47-p07-20261011/delivery.json和原checks，未取得结果不预写PASS。审计只用本机checks身份，Hosted PID不查本机，DateKind String显式解析，拒绝空窗。只保留交付/原日志，不清共享缓存/外来文件；原FAIL/UNKNOWN/cleanup=false保留。
+
+HANDOFF独占尾追加/Flush(true)核旧字节前缀，stage严格HEAD原字节+本段；ROADMAP工作区外来五列与HEAD四列各自结构保持，CHANGELOG/queue/validation同样只HEAD+owned增量。保护105初始外来文件、博客/M42/WB97/WB98/三个VSCode和parity-results；workbench实读PAUSED。本任务无tag/Release/公开附件/匿名首跑/生产部署/安装服务/编辑器重启/跨聊天发送。
+
+## M47-P08发布工具、审批环境与前置证据准备（2026-10-11，Asia/Shanghai）
+
+用户直接指定GitHub审批人为maikebing；已实际创建workbench-preview-p08/environment24006677696、reviewer3445167，独立回读prevent_self_review=true，并关闭默认can_admins_bypass。当前凭据也是maikebing，不能批准自身dispatch；所有门禁完成后由另一有权限账户发起publish，再由maikebing审批。没有配置第二账户或绕过、dispatch publish、tag、Release、上传、生产部署或恢复自动化。初次配置import失败在任何API/写入前，原FAIL保留；纠正后一次create PUT、一次保护强化PUT。
+
+P08复用原独立四附件workflow和完整policy/verifier，新增不可覆盖且fsync的逐写journal，保留known tag/release/asset IDs，磁盘错误阻止下一写；未知结果只读原ID对账、不盲重试。新增匿名公开metadata/下载字节/279ZIP库存身份验证和实际R1首跑两个有界Job入口；请求、host、字节、redirect、取消/墙钟有界，异常日志只留安全原因以避免签名URL外泄，缺进程终态证明时保留运行目录。真正公开包首跑NOT_RUN，不能用合成合同或仓库页面HTTP通过代替发行证据。
+
+五项准确版本原通知已取得并集成到下一候选的许可采集器，三份gzip无损原文/固定gitHead/integrity/provenance均核验；最终纠正vue-devtools说明的css-render文字，原收据不覆盖。两个npm原文缺口（mapbox/jsonlint-lines-primitives2.0.2、vdirs0.1.8）及Microsoft资格/分发者与终端保护条件仍未闭环；取得官方2026再分发清单不等于满足全部条款。candidate10/source54eefc816f133a805b0d38f0cbe930d2c17650b6/version4.5.0-preview.1.10/build38104431383 attempt1/ZIP46634305bytes SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、原包/清单/checksum/审计/P07保持。原11项包内运行许可条件不改为PASS；本轮无candidate11、重包或新版本消耗。
+
+最终Node86/86、PowerShell补件五合同、四不安全URL/三异常脱敏/两安全原因保留合同及五源码解析通过，fixture回收；原两次补件FAIL（自动变量Matches被regex覆盖）保留。候选10真实匿名请求404、原Job FAIL/controller REFUSED/mutation=false/firstRun NOT_RUN不覆盖。原完整verifier现有凭据认证重核仍4/12，八项同包源码No eligible run；首次匿名quota失败及scheduled七天JSON解析UNAVAILABLE/nonblocking保留，不能覆盖P07旧7/7或削减light/full。新工具HEAD不充当包源码。
+
+机器记录preview-1-p08-10.json/status NOT_READY/published=false，报告preview-1-p08-publication.md分列证据；选择的原文与原收据无损gzip及hash库存入仓，凭据/spec不入归档。完整最终restore/原CI format/default cached whitespace、精确owned提交和普通push/独立remote main及parity回读、非空本机进程审计的实值见artifacts/m47-p08-20261011/delivery.json与checks，未取得结果不预写PASS。根HANDOFF独占锁尾追加/Flush(true)核旧字节前缀，stage仅HEAD原字节加本段；ROADMAP保留工作区和HEAD各自表格结构，其余共享文档仅暂存owned增量。初始105tracked/832untracked外来内容、VSCode三文件、博客/M42/WB97/WB98、parity-results本地tracking0061d6d78591fb08493f473d3231ca42303faae1与远端0e48b753da7eab8ebd9651d405ddb58e3bef01c8及PAUSED自动化保护。
+
+下一顺序：两个npm原文或有来源替换、Microsoft资格与保护条款闭环→下一未用candidate/version同SHA干净重包及受影响P04/P05实物验收→同包完整12workflow（Parity both/publish_results=false、三个发布workflow只preflight）→新P06/P07冻结及原artifact→精确实际P08授权串、另一账户dispatch/maikebing环境审批→一次发布→匿名下载及真实首跑→完成后归档。缺口前保持NOT_READY，不为需重包的candidate10空跑八套门禁。本机审计只查本任务checks、DateKind String显式日期、拒绝空窗和Hosted PID，不按名/旧PID终止；固定PowerShell7、有界Job、原FAIL/UNKNOWN保留，禁Graphify/广域扫描/安装工具/子智能体/新工作树/跨聊天发送/服务安装/编辑器重启。
+
+### P08交付回读的parity基线纠正（2026-10-11，Asia/Shanghai）
+
+实现4ae364206c67bc41d20e762a246e364d376b7fdc已普通push且独立API核main相同；86源码合同、补件/脱敏合同、完整restore7.099秒/原CI format109.066秒/default whitespace通过，55owned提交，初始937外来文件无哈希变化。环境新鲜回读仍maikebing/禁止自批/can_admins_bypass=false。产品NOT_READY、未dispatch publish/公开发布/执行公开包首跑。
+
+上段沿用父P07交接的remote parity-results0e48b753da7eab8ebd9651d405ddb58e3bef01c8，仅为历史观察，不是本轮初始基线。实际本轮开始11:37:52Z的remote-current-proxy/parity.txt与当前独立API均16645b7caeb4cf2c37b8f7762419a161ed082591；本地tracking0061d6d78591fb08493f473d3231ca42303faae1保持。原独立回读直连超时、代理后错误旧hash比较FAIL及纠正后PASS均保留；没有fetch/merge/移动或推送parity-results。此更正只追加，不覆盖原交接或原P08冻结机器记录。补记最终完整restore/原format、精确提交/正常push、真实最终HEAD/remote/本机非空审计以artifacts/m47-p08-20261011/delivery.json及checks为准；原报告后续许可→新候选→同源完整P07→精确P08授权和不同账户dispatch/maikebing审批顺序不变。
+
+## M47-P07急需收尾：候选11许可修复源码已准备（2026-10-11，Asia/Shanghai）
+
+用户要求先收尾P07、再完成P08；明确审批与发起用户名均maikebing，并报告有效Visual Studio2026 Community许可版本。环境新鲜回读仍required reviewer maikebing/prevent_self_review=true/can_admins_bypass=false；同账号不能审批自身publish，不借bot、不改保护绕过。实际公开写入仍等待新P07和冻结候选授权。
+
+本轮接续d2027ba73e82edfc72f94c6744e068e9b0f09e63，保护105tracked/832untracked外来文件和空index；当前在codex/m47-preview11-release准备owned源码提交。main推送会自动Docker/Pages发布，所以只普通推候选分支并手动preflight；main及parity-results不移动。workbench automation PAUSED，无工作树/子智能体/跨聊天发送/生产或服务安装。
+
+Mapbox官方2.0.3 metadata/tar SHA512核验，原LICENSE为Zachary Carter MIT；lib/jsonlint.js亦变，必须实测，不称仅通知改动。vdirs旧gitHead404、当前公开根无许可正文；新增SonnetDB自有三Vue指令和构建alias，最终JS模块与chunk字节清单拒绝发出vdirs，仍如实buildOnly=false，仅按实物proof记未分发。五旧npm原补件保留；微软Community原DOCX、2026再分发清单与V14原文无损gzip入库，包内恢复原字节，四DLL来源/hash及用户报告资格分列，新增下游保护条款和Start-Preview的显式同意。VerifyOnly不启动、不表示同意。许可collector按manifest实际依赖数绑定，不套旧243/16；原十二workflow policy/live verifier未改。
+
+本机新Web build、469Web合同、86package/P07/P08合同、七许可正向/拒绝合同通过，fixture回收；都不是候选11实物或READY。旧错误版权预期、过早chunk hash、VM缺新依赖、fixture Join-Path和复用脚本param位置失败均保留。初始源Mapbox传输与Community编码URI失败保留，纠正后的独立DOCX取得成功。完整证据artifacts/m47-p07-close-20261011，源码报告preview-1-p07-successor11.md及15份无损原记录；没有重写候选10/原P07/包/清单/checksum。
+
+版本4.5.0-preview.1.11已核未有build attempt，profile推进candidate-11；下一步最终树完整restore/原format/default whitespace后精确源码commit、普通候选分支push及独立SHA回读，再同SHA干净CI P04、实际P05全套与非空进程audit、许可实物审查、新P06/P07原artifact和完整十二同源workflow。Parity both/publish_results=false；publish/connectors/docker均只workflow_dispatch preflight。全门禁后才精确P08授权、合规发起/maikebing审批、一次发行、匿名四附件/ZIP及真实首跑。当前NOT_READY，公开包首跑NOT_RUN；不能因急需收尾而跳过验收。
+
+本段独占FileStream尾追加、Flush(true)并核完整旧字节前缀；只暂存HEAD原字节+owned段和CHANGELOG自有增量，保留外来交接/表格结构/博客/M42/WB97/WB98及三VSCode文件。固定PowerShell7与已有non-breakaway Job，循环/命令均数量/墙钟/取消有界，日志/FAIL/UNKNOWN保留，临时回收仅已核任务对象；禁Graphify、广域扫描、未经授权安装或按名/旧PID终止。实际最终验证与提交/remote SHA在本轮后续收据回读，未取得不预写PASS。
+
+## M47-P07 候选11实物与继任12兼容修复（2026-10-11，Asia/Shanghai）
+
+源码962a57d4693dc59de2a5a4cec60fa8959a953e5c已正常推送codex/m47-preview11-source，main未移动。P04 38143254625 attempt1 success，原两Actions归档digest核验、290项ZIP逐字节/NativeAOT版本和Web身份校验PASS；ZIP46791093bytes/SHA05cc9809299f229ba5deb9b0252516c8bb8265a4c78ce71ab3ed0d27fc1e4894。241依赖原通知及实际模块/微软分发输入审查通过，用户资格仅USER_REPORTED_VALID_LICENSE_EDITION；CI源码输入为Git blob，Rollup为Windows CRLF，独立精确换行核验，原两次不匹配FAIL保持。候选11P05 NOT_RUN、publish预检38143275378 failure，不改READY、不发布。
+
+继任12恢复4.0已发布旧构造/解构/表工厂和WalTruncator原废弃实现，包验证仍启用、基线移到实际4.0.0，未压制ApiCompat/IL/AOT警告或削减原十二门禁。原3.0.1失败、4.0诊断失败和缺WAL失败均保留；修复后完整Core兼容打包PASS、86Node合同PASS。dotnet test初次只有无计数控制台输出，另保存实际五项TRX；最终新七项、完整restore/原CI format/自有stage/提交和远端读回以随后收据为准。收集器实际依赖数组位于manifest.build，已修正。
+
+profile推进candidate12/4.5.0-preview.1.12，下一步最终源码提交到新的冻结分支、一次P04与十二同源原工作流、P05全实测/非空进程审计、实物许可、新P06/P07，再精确P08授权/合规发起与maikebing审批、匿名四附件下载及真实首跑。所有原候选/失败保持；workbench PAUSED、parity-results/外来dirty不动，无新智能体/工作树/跨聊天/生产部署/服务安装。
+
+补充更正：candidate11真实CI实物依赖数243；241仅本机合同库存，不用于CI许可验收。候选记录和license-review均绑定实际243，源码报告已更正。
+
+最终定向TRX已独立解析：7executed/7passed/0failed，原结果与源码/测试DLL SHA已保存；含两项实际WAL归档行为。仅本机合同，不计新候选实物P05或P07整体PASS。
+
+## M47-P07 候选12源码已交付与实物冻结（2026-10-11，Asia/Shanghai）
+
+补记实际源码提交5bcd3b811f2dae5005fc28fd70f6ff934e454c7a/tree2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3已正常推codex/m47-preview12-source且独立回读；本地codex/m47-preview12-release，main未移动。最终完整restore/原format和7executed/7passed TRX、86发布合同均PASS后提交，30自有路径与937外来文件核验保持。先前交接中的待提交仅是当时状态。
+
+P04 38145580702 attempt1 success、两归档digest独立PASS；版本4.5.0-preview.1.12，290库存逐字节及NativeAOT/PE/Web身份和VerifyOnly PASS，ZIP46781896bytes/SHA27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824。新P05实包四阶段37记录、五类拒绝/61文件隔离快照PASS；17回执/244身份非空审计零残留与双1000行导出/ACL恢复PASS。243实际依赖/215原文引用、五项未分发构建工具排除及Community用户资格/微软原条款下游保护输入审查PASS，不计整体放行。候选12/审计/四附件/18原文库存已冻结；原candidate10空窗明确历史排除，11失败/全旧FAIL保持。
+
+下一步精确提交冻结docs/HANDOFF自有追加并正常推release分支，冻结source分支不动；真实P06 prepare及P07原收集/独立artifact核验、原12/12与8/8全部通过才READY。当前CI/发布预检仍运行，NOT_READY；P08实际一次发布/匿名四附件/首跑NOT_RUN。当前凭据和reviewer均maikebing，禁止自批/管理员绕过保持，实际发布需另一个有权账户发起；先完成具体四附件与精确hash准备，不再重复问Community。workbench PAUSED，外来dirty/parity-results/共享文档前缀保持；无子智能体/新工作树/跨聊天/生产部署或服务安装。
+
+## M47-P07候选12完成，P08待另一实际发起账户（2026-10-11，Asia/Shanghai）
+
+P07真实收集38148424602 attempt1 success，prepare38147374946 attempt1 success；原十二workflow12/12、C01～C05/D01/P05-installed-R1/licenses八项8/8全部PASS，原verifier及最终评审READY。包源码5bcd3b811f2dae5005fc28fd70f6ff934e454c7a/tree2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3、4.5.0-preview.1.12、P04 38145580702；工具冻结提交13cb7a78bb9d0a0ea097444d20865f34232b988a/codex/m47-preview12-release已正常推与独立回读。新P07机器记录绑定artifact11705379779/digestsha256:1f29a0b1209d84b7a75c742ba69791c6331f7ce75399d94b2ab6d9ac65a023f1；三archive size/digest、18冻结原JSON、八归一检查/原文和10+5工具Git blob独立核验PASS。原同源full/light及必选step/artifact不削减；七天scheduled仍非阻断观察。候选12冻结record/包/manifest/checksum/notes/seal及所有原失败保持，NOT_READY快照不回写。
+
+P05本轮四阶段37记录、五类拒绝与61文件快照恢复、17回执244身份零残留/两1000行导出/ACL恢复；243实物依赖215原文引用、五项未分发构建工具和微软Community用户资格/原条款/下游保护输入审查PASS，边界只本机R1。20个明确任务运行目录逐项核归属后已清理实际存在项，保留原证据/导出/ZIP。一次只读snapshot12-03代理EOF原FAIL保留，后续独立snapshot/P07成功，不重派P04。
+
+P08具体四附件/hash和请求已冻结preview-1-p08-12.json，authorization输入P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715；当前凭据及reviewer均maikebing、prevent_self_review=true/can_admins_bypass=false，需另一有权实际账户发起，然后maikebing审批。原用户已要求完成P08并确认Community，不重复询问许可；不能自动改bot/关闭自批保护。tag/Release当前404，publish未派发、公开上传/匿名下载/公开首跑NOT_RUN。取得另一账户并审批后，按原Invoke-Distribution一次发布及Invoke-P08Readback download/first-run走完，真实通过后才更新P08完成。
+
+本次最终docs/机器记录与原文库存、HANDOFF自有追加将在最终完整restore/原CI format/默认cached whitespace PASS后精确提交并普通push release分支；最终commit/tree/remote以本轮delivery.json为准，不移动source/main/parity-results，不包含外来dirty。workbench仍PAUSED；无子智能体、新工作树、跨聊天、生产部署/服务安装。
+
+用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。
+
+## 允许自批后的P07工具复验通过（2026-10-11）
+
+用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具ca717fd40912ee583247d95dfad0c55345c63159已通过86项合同、完整restore/原CI format并正常提交推送；真实prepare 38150203876/P07 38151053382均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11706990099/digest sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；当前均NOT_RUN。
+
+## M47-P08原空草稿对账与上传修复（2026-10-11，Asia/Shanghai）
+
+发布38151505875已由maikebing实际审批；原tag已创建、Release409754336草稿绑定冻结candidate12/source5bcd3b81与原四附件。第一个manifest上传HTTP400，原UNKNOWN/运行FAIL不改；独立GET确认草稿/notes/tag精确且assets为0。GitHub CLI官方api/http.go明确Content-Length设置req.ContentLength；stdin二进制原缺此header，现按准确Buffer字节数声明。新增显式冻结原空草稿恢复计划，只允许原409754336、已对账0asset和独立P08-RECOVER精确hash输入；默认仍拒绝草稿/不完整状态，资产发生变化立即只读拒绝，没有删除/覆盖/tag移动或盲重试。94合同通过后重新prepare/P07审查改后的10+5工具，再新运行实际环境审批并在原草稿上传四件、发布/匿名下载/首跑；当前公开发行及首跑未完成。原候选/包/18原文/十二源门禁保持，旧失败和937外来文件保留；PAUSED。
+
+## 允许自批及上传修复后的P07工具复验通过（2026-10-11）
+
+用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具4ff3e6219768aaae5344254d5503d2f2cb902ff4已通过94项合同、完整restore/原CI format并正常提交推送；真实prepare 38153124333/P07 38153356012均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11707043927/digest sha256:e69096502649bea8a64b69e47924a27d6ed1e2d1993476a6a3733e5b24903088。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；原publish38151505875失败、409754336空草稿保持；恢复发行和公开首跑未完成。
+
+## M47-P08原草稿ID读取修复（2026-10-12，Asia/Shanghai）
+
+恢复运行38154076242由maikebing实际审批，但按tag读取Release只返回已公开发行，未取得原草稿；原REFUSED/零mutation回执保持。恢复路径改为精确冻结Release ID读取，并检查与tag可见对象一致；原source/tag/409754336/notes/四附件/授权hash不变。测试fixture按真实草稿可见性返回tag查询空值，定向回归与94发布/收集合同通过。修改后的工具须重新prepare/P07原12/12及8/8评审，再实际审批恢复发布、匿名下载与公开包首跑；当前未完成。外来dirty、历史FAIL/UNKNOWN及PAUSED保持。
+
+## 原草稿ID读取修复后的P07工具复验通过（2026-10-12）
+
+用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具67b263b431d0b23a565546a90bf74da00d4f22d7已通过94项合同、完整restore/原CI format并正常提交推送；真实prepare 38154883708/P07 38155021627均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11708600894/digest sha256:b6f21ea9e50eeefc5cb0cf2e53ed77d585302fe9823b0e463dff5b4402e0f136。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；原publish38151505875失败、409754336空草稿保持；恢复发行和公开首跑未完成。
+
+## M47-P07、M47-P08候选12实际收尾完成（2026-10-12，Asia/Shanghai）
+
+P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁、8/8验收全部通过。P08实际publish 38155325276 attempt1 success，工具8a24edab4a00f82c40912248fa37fdbe1de4bb3a、已审分发工具67b263b431d0b23a565546a90bf74da00d4f22d7；maikebing按用户允许自批的明确决定实际批准原环境24006677696，无管理员绕过。沿原tag/Release409754336完成精确四附件公开，Release 409754336/tag workbench-preview-1.12/published 2026-10-11T16:27:58Z，[下载页面](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)；tag不可变指向5bcd3b811f2dae5005fc28fd70f6ff934e454c7a。原notes/manifest/ZIP及四附件SHA与冻结distribution完全一致，preview/prerelease且未成为latest。
+
+独立核三份发布Actions archive size/digest、两个发布前实时完整P07/原verifier、原Release/四asset ID/digest、tag/notes/latest/审批环境全部通过；真实匿名HTTP页面、四附件、三行checksum/290项ZIP库存及NativeAOT/Web身份通过。匿名公开下载包Chrome/Edge本机首跑26条全部PASS，真实UI登录/权限、预算导出/单行审批与明确故障注入分列，正常Ctrl+C/Server退出0、Job清理通过。172回执/1573身份独立核零活精确身份/零5080或5081监听；任务包副本、合成数据和浏览器profiles已回收，原四下载物、回执、导出及全部旧失败保留。
+
+这是冻结Windows x64 Web Admin+匹配NativeAOT R1预览的公开交付；Studio/VS Code、干净机器、其它宿主、生产与SonnetDB4.5正式版不由本结果推断。243依赖许可输入与Community用户资格沿冻结记录，不是Microsoft资格认证。新[P08机器记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)及[无损原文库存](docs/design/m47-unified-management-workbench/preview-1-p08-12-originals/inventory.json)绑定实际ID/SHA；原候选10/11、旧禁止自批评审/用户覆盖决定、EOF/空行失败和所有FAIL/UNKNOWN保持。
+
+本次收尾docs及HANDOFF自有增量将在最终完整restore/原CI format/default cached whitespace通过后精确提交并正常推codex/m47-preview12-release；最终SHA/tree及独立远端回读以delivery.json为准。冻结source/main/parity-results与外来dirty保持，workbench PAUSED；没有新的工作树/智能体、跨聊天、生产部署或服务安装。P07/P08范围已完成。
+
+早期辅助CI observer watch-ci12-b曾因ENOSPC留下0字节terminal，原状态/当时回收仍UNKNOWN。初次严格审计因此拒绝，未补写旧PASS；新独立审计逐原六文件SHA限定该历史例外，核原root/controller及非空ledger当前身份已不存在或不同创建/命令/父链，同时核全部完整回执及公开首跑零残留。此观察不补授该旧任务成功或未记录子进程证明；无损历史原文与初次拒绝纳入P08库存。
+
+## M47-P07/P08 收尾提交与主分支集成（2026-10-12，Asia/Shanghai）
+
+用户在完成预览发布后明确要求提交推送，并追加要求合并到主分支。接续 codex/m47-preview12-release 的 a6ac8a8e0626ec6cd15d11d0fe9f2dd48444ed82；实时 ls-remote 已核 release 分支相同，main 为 d2027ba73e82edfc72f94c6744e068e9b0f09e63，且是本次收尾的祖先，可以普通快进合入。P07/P08 的源码、公开发布与验收证据沿此前完成记录；本轮只追加此交接，准确提交、最终 restore/原 CI format、main 推送和独立回读以 artifacts/m47-p07-close-20261011/merge-main-20261012-delivery.json 及 checks/merge-main-* 的真实收据为准。
+
+仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
+
+固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
+
 ## 2026-10-09 CAP 传输与存储评估
 
 - 当前分支 main，接收时 HEAD 为 5424b666，工作树干净。先阅读根交接、AGENTS、项目依赖、现有文档/MQ/事务源码；既有 workbench 暂停状态及 parity-results 不动。
@@ -1312,3 +1906,15 @@ workbench同一heartbeat保持PAUSED，不新产品任务、不新接续、不�
 - 事务仅同 collection，消息传输与业务提交分开；同组同 topic 需单活动消费者，无跨进程 lease/exactly-once。持久登记的废弃组可能阻止回收，需运维处理；新组无法恢复已回收历史。正常重开/Server 重启不等于强杀、掉电、Linux、固定硬件、长期、安装或生产验收，先前 Native/Workbench/现场/发布边界保持。
 
 - 接续收尾：最终完整 restore exit0；原 CI format（保留 --exclude extensions/）exit0，另独立 CAP 项目 verify format exit0。workspace warning 保留。release recovery 保留旧 4.0.0 七包、4.1.0 起八包，PS AST/四版本声明片段检查通过；初次观察器匹配 += 拒绝及修正保留。代码已完成本地审阅、仅本次 CAP 路径将纳入本地提交；实际提交 SHA 以 Git 记录为准，正式发布阻塞保持。
+
+## M43 PR #265 首条事务启动竞态修复（2026-10-12，Asia/Shanghai）
+
+在独立 online-cap 工作树接续 PR 原 head 8c299f4003c3e814cd177d46b94f975ee759ce6b，由主智能体把 main dcadffc7137f5653ec46c55a4171cf5f2d83de03 合入；本子任务仅修改源码/测试与交接，未操作 index、提交、推送、远端 PR 或发布。HANDOFF 冲突保留完整 main 原字节前缀（534848 bytes，SHA256 250b44f0fe4005816dfb77906dfe9b458959f5b3d79f3b788896961347e94af4），再追加 CAP 原历史记录和本段；没有替换/删除 Workbench 预览、source-generated JSON、许可或发行质量门禁。
+
+原 CI CAP33/34 的首条嵌入式业务+Outbox 旅程超过原 15 秒送达时限。核 CAP10.0.2 官方 tag e52b8508e54cdb7a9ce7f9fec03d9ea8ad2710fb 的 Bootstrapper/Dispatcher：.NET10 BackgroundService 异步启动期间，尚未初始化的 dispatcher 保留已持久化消息等待后续 retry。修复在已启动 Bootstrapper 的 ExecuteTask 完成后才调用业务批 CommitAsync/FlushAsync；初始化等待发生于文档批次提交及其存储初始化锁之前。只传播 ExecuteTask 实际 fault/cancel，并未改变 CAP 上游记录/吞并其他初始化及 processor 异常的规则。未启动宿主继续允许原子持久业务文档和 Scheduled Outbox，提交不等于消息已送达，也不主动启动宿主。
+
+新增四组 embedded/真实环回 REST theories（共8例）：可控启动屏障、提交等待取消后回滚、初始化器 InvalidOperationException 原异常传播及回滚、未启动 CAP 的 Scheduled Outbox/零接收合同。首先临时去掉五行修复并运行屏障：2/2 真 FAIL（embedded 在屏障释放前已完成 commit；remote 在屏障释放前业务文档已持久化），原日志/TRX保留；finally 恢复固定源码且 SHA 核通过。固定版本 CAP36/36 通过，新增边界后最终 CAP42/42 通过，0失败/错误/跳过，原旅程15秒不改。最终事务源码 SHA256 d0f6901394f5caf31362a74140280dc4588ee294e4ac123eac4289656b225d24（五行启动顺序修复与一行明确 dormant 合同的 XML）。
+
+证据位于 artifacts/online-closure-20261012/pr-review：cap-original-barrier.result.json + test-results/cap-original-barrier.trx；cap-repair-restoration.json；cap-fixed-full.result.json + CAP36 TRX；cap-fixed-boundaries.result.json + test-results/cap-fixed-boundaries.trx；最终冻结清单 cap-repair-final.json。每阶段单 dotnet 根、DOTNET_PROCESSOR_COUNT=2、-m:1/-nr:false/-p:UseSharedCompilation=false，原对照最多2次命令/1200秒，最终边界最多1次/600秒，取消文件和Windows Job完整身份审计均保留；各 Job cleanupComplete=true，未按进程名清理。测试专属数据目录由夹具 finally 按归属路径回收，原失败、原源码对照和日志是保留证据。
+
+完整最终 solution restore/原 CI Format Check、独立 CAP 格式、精确 stage/merge commit、当前 head 的远端 CI 和后续集成由主智能体接管，未取得结果前不得写为通过。完整 CAP NativeAOT、Linux、强杀/掉电、固定硬件、长期/生产及正式 NuGet 发布不由本机 CAP42 结果推断；原全发行兼容性与许可边界保持，parity-results 不合入/不清理。下一步先核本段与 cap-repair-final.json 的最终源码/测试 SHA、原FAIL与42项非空TRX/清理，再执行最终格式门禁和精确提交，推送后核当前源码的完整 CI，远端操作仅由主智能体按用户授权执行。
