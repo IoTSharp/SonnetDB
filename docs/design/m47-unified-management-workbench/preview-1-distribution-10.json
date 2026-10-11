@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "kind": "immutable-preview-distribution-addendum",
+  "milestone": "M47-P06",
+  "frozenOn": "2026-10-11",
+  "timeZone": "Asia/Shanghai",
+  "repository": "IoTSharp/SonnetDB",
+  "candidate": "candidate-10",
+  "version": "4.5.0-preview.1.10",
+  "sourceCommit": "54eefc816f133a805b0d38f0cbe930d2c17650b6",
+  "sourceTree": "0083fd496dbdac25019aee058651c821dac0c336",
+  "tag": "workbench-preview-1.10",
+  "profile": "preview-1",
+  "scopeRevision": "R1",
+  "rid": "win-x64",
+  "releaseStatus": "NOT_READY",
+  "candidateRecord": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-candidate-10.json",
+    "size": 90073,
+    "sha256": "554d1f07b1a322ccaff944cc9dc50370b6bb83bc3f02697e7108ae1c28487af0"
+  },
+  "acceptanceAudit": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-candidate-10-acceptance-audit.json",
+    "size": 1747,
+    "sha256": "18b0e9a346cd5cf822347abf76f67f189f4ee9b9bf81668c51255a6710527f98"
+  },
+  "archiveFiles": 279,
+  "build": {
+    "runId": "38104431383",
+    "attempt": 1,
+    "artifactId": "11689128428",
+    "artifactDigest": "sha256:87a6bac2b8e3999a251c50ce2247b88d0ba292cc0a8d99c746eec5f60f121a13"
+  },
+  "p04Assets": [
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-SHA256SUMS.txt",
+      "size": 242,
+      "sha256": "61e3401bf29fb680e34e636297c04652e9cf2efb8fcf206558bf1acbecb713c4"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-manifest.json",
+      "size": 466627,
+      "sha256": "8a6783bd1d86db7c92914b0c9e565a0b45c716b621634c0b3b384ec43d4e44fe"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-win-x64.zip",
+      "size": 46634305,
+      "sha256": "d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed"
+    }
+  ],
+  "attachments": [
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-manifest.json",
+      "size": 466627,
+      "sha256": "8a6783bd1d86db7c92914b0c9e565a0b45c716b621634c0b3b384ec43d4e44fe"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-win-x64.zip",
+      "size": 46634305,
+      "sha256": "d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-notes.md",
+      "size": 7457,
+      "sha256": "b9c58b76495972b4c1b114d884849868227216534485f85e315c487c28f37b08"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-SHA256SUMS.txt",
+      "size": 359,
+      "sha256": "5a623c3dff31e2a5f8702d0bfecb498eba9a5a880f52038daf9f902bd2a9f059"
+    }
+  ],
+  "gateAuthority": [
+    {
+      "path": "eng/release-readiness-policy.ps1",
+      "size": 9212,
+      "sha256": "cc88e7e35e221d6db95599e92bd8b66b4738fd8d3edb5f4cd576a1ce12158c6f"
+    },
+    {
+      "path": "eng/verify-release-readiness.ps1",
+      "size": 7069,
+      "sha256": "03fab766e9387d9ee8795827b8ec6297247e3681c1f699ad04c05826e71a7f8b"
+    }
+  ],
+  "mutationBoundary": "P06 adds external notes and a new three-entry SHA256SUMS only in a separate distribution directory. Original candidate, manifest, ZIP and P04 SHA256SUMS remain unchanged.",
+  "toolingSource": "The workflow checks out its own full github.sha separately from this package source; P07 must approve distributorCommit and bind this JSON digest. Tooling/docs are not repackaged into candidate10. Any rebuild or bundled source/profile/config/dependency change requires a new candidate/version.",
+  "evidenceBoundary": "P05 is the recorded local Windows R1 installed journey only. The preserved manifest and package instructions contain historical NOT_RUN values. P07/P08 are not accepted by this addendum.",
+  "publication": "NOT_RUN",
+  "p07": "NOT_RUN",
+  "p08": "NOT_RUN",
+  "published": false,
+  "tagCreated": false
+}

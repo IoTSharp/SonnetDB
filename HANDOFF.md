@@ -1721,3 +1721,16 @@ suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保
 提交后首份final-delivery-process-audit.json原字段PASS却筛得0收据/0身份，无效空窗必须按FAIL_EMPTY_WINDOW理解，不能作为回收证明。实际单条micro证实本机ConvertFrom-Json自动转DateTime再字符串解析导致UTC偏移丢失；新v2保留字符串时间、显式DateTimeOffset并加至少15收据/100身份下限，20真实Job收据/337身份、0live/0监听/0signal与24临时目录回收PASS。原JSON与micro/新脚本/新结果都保留。安装独立audit20/268没有时间窗筛选，numeric PID全部不存在/reused0，未进入错误日期匹配分支，原安装/停止/套件证据有效。新增不可变preview-1-candidate-10-acceptance-audit.json绑定纠正，不修改已冻结candidate10或包字节。
 
 本段与报告审计说明只补提交后真实结果，按HEAD+owned追加暂存保护外来HANDOFF字节，独占锁/fsync核旧前缀。补记提交前仍完整restore/原CI format/cached whitespace，正常push后核main与parity；精确SHA/实值收据在artifacts/m47-p05-20261011/checks，不tag/公开发布/生产部署/恢复自动化。下一次从P06当前实物身份接续，不能复用无效空窗或把本机R1升级为正式发行。
+
+
+## M47-P06 说明、四附件与独立分发完成（2026-10-11，Asia/Shanghai）
+
+接续HEAD d4e4b7f与不可变candidate-10/4.5.0-preview.1.10，包source54eefc816f133a805b0d38f0cbe930d2c17650b6、run38104431383 attempt1。P06只完成包外发行说明、独立四附件准备和限定手动分发入口；产品NOT_READY，P07/P08未验。新报告docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md、notes及preview-1-distribution-10.json绑定原候选/审计/三资产/CI artifact ID与digest和四附件SHA。原ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、manifest、P04 checksum和候选两记录逐字保留；外部notes与新三行checksum只在artifacts/m47-p06-20261011/delivery-10，不回写旧NOT_RUN。未改产品/profile/配置/依赖或包内字节，因此不重建10、不伪造新包；任何后续重建或包内变更须新N及对应验收。
+
+独立workbench-preview-publish仅workflow_dispatch/default prepare/read-only；实际publish须P07原始hash证据、已审查工具10文件库存、原完整verifier实时READY、环境required reviewers/prevent_self_review及P08精确授权串。工具github.sha与package full-SHA checkout分列，保留12workflow/五Workbench job/具名steps/artifacts；scheduled七天保持非阻断观察。四附件显式数组、不可移动tag、draft/prerelease/latest=false、上传前后原ID字节回读；已有不完整/错配/unknown只读对账，不clobber/重放/自动续传。只授认证API回读，P08仍需独立匿名下载/首次运行。
+
+35项本地合成拒绝/上传合同PASS（非真实发布）；实际279ZIP entries路径/大小/SHA与preview-1/Web两身份PASS；真实只读GH核run/最新attempt和未过期artifact。无真实产品Server重跑、远端新workflow派发或实际tag/Release/public uploads。YAML重复key/权限/手动触发/完整source checkout/环境与依赖用已登记YamlDotNet16.3.0 DLL本地解析PASS，PowerShell语法PASS；原Python缺模块、登记项上限拒绝、freeze相对import失败和直连GH失败各保留独立FAIL，未安装依赖；代理重读与修正另立PASS。原DateKind空窗effective FAIL_EMPTY_WINDOW、v2/v3、P02事故及旧FAIL/UNKNOWN不覆盖。
+
+最终完整dotnet restore SonnetDB.slnx、原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/和exact cached whitespace必须取得PASS才提交；实际工具收据和代码/交付SHA记录在artifacts/m47-p06-20261011，最终commit/tree、normal push、独立远端、非空身份收口及保留边界见delivery.json，不把本段写为预先PASS。所有长命令继承不可breakaway Job、PID/创建/完整命令/父链、count/墙钟/cancel/finally。仅归属核实的Job进程清理；测试临时目录已finally按绝对路径回收，四资产与原始日志留作交付。保护134个起始dirty路径及外来五列ROADMAP、HANDOFF原字节前缀、博客、M42、WB97/WB98/三VSCode，不stage他人hunk。parity-results远端实时0e48b753da7eab8ebd9651d405ddb58e3bef01c8与本地旧tracking分别核验/保留，不fetch改写该引用。workbench仍PAUSED，无子智能体、新用户会话、生产部署、编辑器重启或跨聊天消息。
+
+下一片只P07：在同package SHA/version核原12workflow/适用raw gates、C01～C05/D01、P05实物与243依赖/16许可缺口，冻结真实P07记录/证据artifact及工具库存，核上传器prepare远端执行，再作放行评审。P08需另获实际授权和配置保护环境，不提前tag/Release；本会话独立任务计1/5，已授权正常提交推送，不恢复自动化。

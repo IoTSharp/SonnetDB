@@ -2,6 +2,8 @@
 
 冻结日期：2026-10-10（Asia/Shanghai）。**P01 范围冻结完成；产品发布仍为 NOT_READY。** 本文与 [候选 01 清单](preview-1-candidate-01.json)、[独立分发合同](preview-1-distribution.md)共同作为 P02～P07 的输入。这里的“纳入”是待验收承诺，不是产品已通过、入口已禁用或已生成包。
 
+当前进度（2026-10-11）：候选10本机R1验收与[P06包外说明/限定分发](preview-1-p06-distribution.md)已完成；七模型专用读取按R1延期。以下保留P01历史冻结，实际可用承诺以[候选10发行说明](sonnetdb-workbench-web-4.5.0-preview.1.10-notes.md)为准，P07/P08未验，NOT_READY。
+
 ## 候选、版本与平台
 
 | 项目 | 冻结值 / 边界 |

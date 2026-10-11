@@ -1,6 +1,6 @@
 # Workbench Preview 1：独立 Web 分发合同
 
-本文件是 M47-P01 的设计交付，关联 [范围冻结](preview-1-scope.md)与[候选 01 清单](preview-1-candidate-01.json)。**当前实现状态：NOT_IMPLEMENTED；发布状态：NOT_READY。** P01 不修改现有 workflow、不生成产品包、不创建 tag/Release、不发布 NuGet/容器/Marketplace。
+本文件保留 M47-P01 的分发设计合同，关联[范围冻结](preview-1-scope.md)。**当前进度：P04实物组包、P05本机R1及[P06本地说明/四附件/分发合同](preview-1-p06-distribution.md)完成；发布仍NOT_READY，P07/P08待验。** [候选10分发补记](preview-1-distribution-10.json)保持原包字节，公开下载与环境/人工授权均未发生；以下P01时点的历史状态不自动升级。
 
 ## 现有流程的实际行为
 
@@ -31,7 +31,7 @@
 ## P04/P06 的可审查实施边界
 
 1. **P04 组包**：从最终已提交 source SHA 的干净 CI checkout 和锁定 gitlinks 构建，使用新候选版本。不得读取共享 dirty 工作树、旧 `web/dist`、旧 Release 或 WB80 运行目录。复用 Server 原发布/网络默认设置与已有 validator；单独的 Preview 组包器只取该次 Server publish 与其 `wwwroot`，补 profile/manifest/notices，不直接重命名 full/Studio ZIP。实现精确包内库存与禁止项检查，记录依赖哈希与 AOT 结果；任何源文件/打包变动进入下一候选版本。
-2. **P06 分发**：新增独立、显式手动入口（建议 `.github/workflows/workbench-preview-publish.yml`，此文件当前不存在），不挂 `main` push 或自动 tag 触发；先以只读权限解析候选与 P07 evidence，再进入需要 P08 授权的 publish 环节。checkout 必须是清单 full SHA，验证 tag 不存在或已精确指向该 SHA。
+2. **P06 分发**：新增独立、显式手动入口（建议 `.github/workflows/workbench-preview-publish.yml`，P01时不存在；P06已实现，尚未远端派发或公开发布），不挂 `main` push 或自动 tag 触发；先以只读权限解析候选与 P07 evidence，再进入需要 P08 授权的 publish 环节。checkout 必须是清单 full SHA，验证 tag 不存在或已精确指向该 SHA。
 3. **完整 gate**：调用现有 `eng/verify-release-readiness.ps1 -CommitSha <final SHA> -Version <V>`，并核 C01～C05/D01、P03/P05 的真实证据。现有 policy 中 publish/connector dispatch 预检仍针对同 SHA/V、五 Workbench job 仍全部必需。不能把这个新入口做成绕过旧 verifier 的捷径。
 4. **上传前 fail closed**：从指定 run/attempt 下载已验证的 Preview 产物；核 version/SHA/profile、SHA256/大小、包内库存与四附件集合，漏项、多项、旧构建或任何延期文件一律失败；上传显式数组，禁止 `find *.zip`/通配扩展名。测试至少包含“混入 Studio ZIP”“混入旧 VSIX”“缺 manifest”“错误版本/SHA/hash”和正常集合。
 5. **不可变与未知效果**：禁止 `--clobber` 覆盖发行物或移动 tag；同 tag 已存在时只读比对，字节/来源不同则阻断并分配新 N。上传效果未知先独立回读 ID/清单/hash，不盲重试；必要修正用新候选与新版本。

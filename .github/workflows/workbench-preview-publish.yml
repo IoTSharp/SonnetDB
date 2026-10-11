@@ -1,0 +1,138 @@
+name: Workbench Preview distribution
+run-name: Preview distribution candidate ${{ inputs.candidate_number }} (${{ inputs.operation }})
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_number:
+        description: Frozen candidate number, such as 10; no rebuild
+        required: true
+        type: string
+      operation:
+        description: Prepare Actions artifacts, or separately authorized P08 publication
+        required: true
+        default: prepare
+        type: choice
+        options: [prepare, publish]
+      p08_authorization:
+        description: P08:<frozen tag>:<distribution JSON SHA256>; only after P07 and explicit human authorization
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: workbench-preview-distribution-${{ inputs.candidate_number }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      source: ${{ steps.identity.outputs.source }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve immutable distribution source
+        id: identity
+        shell: pwsh
+        env:
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+        run: |
+          if ($env:CANDIDATE_NUMBER -cnotmatch '^[1-9][0-9]{0,5}$') { throw 'Invalid candidate number.' }
+          $seal = Get-Content "docs/design/m47-unified-management-workbench/preview-1-distribution-$env:CANDIDATE_NUMBER.json" -Raw | ConvertFrom-Json -DateKind String
+          if ($seal.sourceCommit -cnotmatch '^[a-f0-9]{40}$') { throw 'Full source SHA required.' }
+          "source=$($seal.sourceCommit)" >> $env:GITHUB_OUTPUT
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.identity.outputs.source }}
+          path: candidate-source
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Prepare exact four attachments without publication
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+        run: ./eng/workbench-preview/Invoke-Distribution.ps1 -Mode prepare -Number $env:CANDIDATE_NUMBER -Output "$env:RUNNER_TEMP/preview-distribution"
+      - name: Require P07 and unchanged release verifier before P08
+        if: inputs.operation == 'publish'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+        run: ./eng/workbench-preview/Invoke-Distribution.ps1 -Mode gate -Number $env:CANDIDATE_NUMBER -Output "$env:RUNNER_TEMP/preview-distribution"
+      - name: Retain sealed distribution for review
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-distribution-${{ inputs.candidate_number }}
+          path: ${{ runner.temp }}/preview-distribution/delivery/
+          if-no-files-found: error
+      - name: Retain original preparation and gate receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-distribution-evidence-${{ inputs.candidate_number }}
+          path: |
+            ${{ runner.temp }}/preview-distribution/*.json
+            ${{ runner.temp }}/preview-distribution/owned/
+            ${{ runner.temp }}/preview-distribution/p07-evidence-gate/
+          if-no-files-found: warn
+  publish:
+    if: inputs.operation == 'publish'
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 30
+    environment: workbench-preview-p08
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.source }}
+          path: candidate-source
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Re-download immutable input and verify inventory
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+        run: ./eng/workbench-preview/Invoke-Distribution.ps1 -Mode prepare -Number $env:CANDIDATE_NUMBER -Output "$env:RUNNER_TEMP/preview-distribution"
+      - name: Recheck P07 then publish once and independently read back bytes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+          P08_AUTHORIZATION: ${{ inputs.p08_authorization }}
+        run: ./eng/workbench-preview/Invoke-Distribution.ps1 -Mode publish -Number $env:CANDIDATE_NUMBER -Output "$env:RUNNER_TEMP/preview-distribution"
+      - name: Retain publication or unknown-state receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preview-publication-evidence-${{ inputs.candidate_number }}
+          path: |
+            ${{ runner.temp }}/preview-distribution/*.json
+            ${{ runner.temp }}/preview-distribution/owned/
+            ${{ runner.temp }}/preview-distribution/p07-evidence-publish/
+          if-no-files-found: warn

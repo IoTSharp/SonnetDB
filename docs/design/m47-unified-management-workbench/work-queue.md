@@ -11,7 +11,7 @@
 | 3 | M47-P03 | **R1本地完成；完整模式四片307通过/25原skip**：[入口/验证报告](preview-1-p03-controls.md)、[范围修订](preview-1-p03-scope-revision.md)。开放SQL/关系/时序子集，七模型专用读取延期；KV/measurement视口渲染、末尾行选择和导出回归通过；[候选04](preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
 | 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；候选10的P05结果见下一项，P06～P08待验，NOT_READY。 |
 | 5 | M47-P05 | **本机R1实物验收完成**：[报告](preview-1-p05-installed-journey.md)、[候选10](preview-1-candidate-10.json)/4.5.0-preview.1.10，源码54eefc81/CI38104431383；实际Chrome/Edge、导出/审批/撤权/错配/正常重开/隔离快照回退通过，P06～P08待验，NOT_READY。 |
-| 6 | M47-P06 | P01～P05后：预览说明、限制/反馈/回退和必要的限定资产分发切片。 |
+| 6 | M47-P06 | **本地说明/四附件/独立手动分发合同完成**：[P06报告](preview-1-p06-distribution.md)、[分发补记](preview-1-distribution-10.json)；原candidate10包字节保持，P07原完整gate/P08授权未验，NOT_READY。 |
 | 7 | M47-P07 | P02～P06后：同候选完整提交/CI/发行物/真实旅程门禁放行，不降低现有policy。 |
 | 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |
 
