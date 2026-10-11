@@ -1957,3 +1957,11 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 最终完整类定向TRX、完整restore/原CI Format Check、精确三路径提交及普通推送以 artifacts/online-closure-20261012/outbox-budget-* 收据为准；此处尚未取得测试或新CI通过。#277现有head的远端状态独立核验，若已实际合并则另建该增量PR；否则在完成门禁后正常追加到原测试稳定性PR。正式包、nightly/parity和生产验收不由本机测试推断；canonical foreign、parity-results、冻结tag和PAUSED自动化保持。
 
 本轮实际完整 SqlOutboxWorkerTests TRX：16executed/16passed/0failed；生产/测试DLL、源码与原TRX绑定冻结。该本机完整类通过不替代新head的Windows/Linux全量CI；接下来最终树完整restore/原format通过后才提交。
+
+## Windows 持久死信恢复测试预算（2026-10-12，Asia/Shanghai）
+
+从已核 main ae94a977e8cf263018f764914ccb6e1c5e7f8c98 的干净 codex/windows-deadletter-ci-budget 接续。#215 已凭精确 head 全12门禁合入，#267作为其祖先亦由GitHub确认MERGED；#216配对依赖重复PR已关闭。#267 CI38178970954和#265 CI38179039405的Windows Core均6214/6215，唯一失败为 ReplayDeadLetterAsync_WithPendingIsolation_ReopensAndFinishesIsolationBeforeClaim 的Open/recovery 200ms存储超时；原日志和状态全部保留，不说旧失败已PASS。
+
+仅把该用例同初开/重开的持久化配置设为2000ms、调用者总取消边界15秒；仍持真实独占checkpoint锁，要求生产存储操作TimeoutException的原消息、调用者未取消、故障后Replay/Delete拒绝、实际重开完成pending隔离与精确checkpoint/PendingCount/ReplayAttempt。生产默认和重试策略不变。只拥有测试文件、CHANGELOG与本交接三个路径；最终完整类TRX、真实DLL/SHA、完整restore/原CI Format Check及提交/新CI以 artifacts/online-closure-20261012/deadletter-ci-* 收据为准，本段不预写结果。
+
+PowerShell7、数量/墙钟/取消边界、最多一项600秒2CPU构建及Job整树归属清理；原失败、parity-results、冻结发布、canonical foreign dirty与PAUSED Workbench保持。此修复仅测试稳定性，正式包、nightly及生产验收独立。
