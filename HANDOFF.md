@@ -1791,3 +1791,9 @@ P08复用原独立四附件workflow和完整policy/verifier，新增不可覆盖
 机器记录preview-1-p08-10.json/status NOT_READY/published=false，报告preview-1-p08-publication.md分列证据；选择的原文与原收据无损gzip及hash库存入仓，凭据/spec不入归档。完整最终restore/原CI format/default cached whitespace、精确owned提交和普通push/独立remote main及parity回读、非空本机进程审计的实值见artifacts/m47-p08-20261011/delivery.json与checks，未取得结果不预写PASS。根HANDOFF独占锁尾追加/Flush(true)核旧字节前缀，stage仅HEAD原字节加本段；ROADMAP保留工作区和HEAD各自表格结构，其余共享文档仅暂存owned增量。初始105tracked/832untracked外来内容、VSCode三文件、博客/M42/WB97/WB98、parity-results本地tracking0061d6d78591fb08493f473d3231ca42303faae1与远端0e48b753da7eab8ebd9651d405ddb58e3bef01c8及PAUSED自动化保护。
 
 下一顺序：两个npm原文或有来源替换、Microsoft资格与保护条款闭环→下一未用candidate/version同SHA干净重包及受影响P04/P05实物验收→同包完整12workflow（Parity both/publish_results=false、三个发布workflow只preflight）→新P06/P07冻结及原artifact→精确实际P08授权串、另一账户dispatch/maikebing环境审批→一次发布→匿名下载及真实首跑→完成后归档。缺口前保持NOT_READY，不为需重包的candidate10空跑八套门禁。本机审计只查本任务checks、DateKind String显式日期、拒绝空窗和Hosted PID，不按名/旧PID终止；固定PowerShell7、有界Job、原FAIL/UNKNOWN保留，禁Graphify/广域扫描/安装工具/子智能体/新工作树/跨聊天发送/服务安装/编辑器重启。
+
+### P08交付回读的parity基线纠正（2026-10-11，Asia/Shanghai）
+
+实现4ae364206c67bc41d20e762a246e364d376b7fdc已普通push且独立API核main相同；86源码合同、补件/脱敏合同、完整restore7.099秒/原CI format109.066秒/default whitespace通过，55owned提交，初始937外来文件无哈希变化。环境新鲜回读仍maikebing/禁止自批/can_admins_bypass=false。产品NOT_READY、未dispatch publish/公开发布/执行公开包首跑。
+
+上段沿用父P07交接的remote parity-results0e48b753da7eab8ebd9651d405ddb58e3bef01c8，仅为历史观察，不是本轮初始基线。实际本轮开始11:37:52Z的remote-current-proxy/parity.txt与当前独立API均16645b7caeb4cf2c37b8f7762419a161ed082591；本地tracking0061d6d78591fb08493f473d3231ca42303faae1保持。原独立回读直连超时、代理后错误旧hash比较FAIL及纠正后PASS均保留；没有fetch/merge/移动或推送parity-results。此更正只追加，不覆盖原交接或原P08冻结机器记录。补记最终完整restore/原format、精确提交/正常push、真实最终HEAD/remote/本机非空审计以artifacts/m47-p08-20261011/delivery.json及checks为准；原报告后续许可→新候选→同源完整P07→精确P08授权和不同账户dispatch/maikebing审批顺序不变。
