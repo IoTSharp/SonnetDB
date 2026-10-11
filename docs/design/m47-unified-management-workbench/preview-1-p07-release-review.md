@@ -70,3 +70,7 @@ P07 run38117134746 / attempt1 / 同tooling整体success；collect job和具名�
 P08明确未完成：当前凭据/必审人均maikebing，环境prevent_self_review=true/can_admins_bypass=false。精确发布请求已在[P08记录](preview-1-p08-12.json)绑定四附件与distribution SHA；需另一有权账户dispatch，再由maikebing审批。tag/Release当前404；本轮未发publish、未上传，匿名下载/公开包首跑NOT_RUN。后续通过一次实际发布、匿名四附件/ZIP验证及真实首跑后才称P08完成。main及parity-results保护，外来dirty保留，workbench PAUSED。
 
 用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。
+
+## 允许自批后的P07工具复验通过（2026-10-11）
+
+用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具ca717fd40912ee583247d95dfad0c55345c63159已通过86项合同、完整restore/原CI format并正常提交推送；真实prepare 38150203876/P07 38151053382均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11706990099/digest sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；当前均NOT_RUN。

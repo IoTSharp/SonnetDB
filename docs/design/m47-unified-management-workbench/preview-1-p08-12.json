@@ -38,7 +38,7 @@
   "tagObservedAbsent": true,
   "releaseObservedAbsent": true,
   "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "status": "REVALIDATING_DISTRIBUTOR_POLICY",
+  "status": "READY_FOR_AUTHORIZED_PUBLISH",
   "workflowRequest": {
     "workflow": "workbench-preview-publish.yml",
     "ref": "codex/m47-preview12-release",
@@ -53,17 +53,17 @@
   "anonymousDownload": "NOT_RUN",
   "publicFirstRun": "NOT_RUN",
   "observedUtc": "2026-10-11T14:34:06.617Z",
-  "boundary": "User-authorized self approval; required reviewer and actual environment approval remain. Package and four frozen attachments unchanged; no publication yet.",
+  "boundary": "User explicitly authorized completion and self approval; all original candidate/source/assets/gates unchanged.",
   "p07": {
     "status": "READY",
     "record": "docs/design/m47-unified-management-workbench/preview-1-p07-12.json",
-    "recordSha256": "209ee2bbab919db6efe679f195c85e35fd8fed3f4697840280033c1aa844fd06",
-    "runId": "38148424602",
+    "recordSha256": "3bc6a353f64c517ca854ee19cd11faa99af1df311b240d24020828c79f59df20",
+    "runId": "38151053382",
     "acceptedChecks": 8,
     "acceptedWorkflowGates": 12
   },
-  "reviewedDistributorCommit": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "nextAction": "Re-review updated tooling then maikebing dispatches the frozen publish request and explicitly approves its pending environment deployment.",
+  "reviewedDistributorCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+  "nextAction": "maikebing dispatches this exact frozen request once, then explicitly approves its original pending environment deployment. Independently verify anonymous assets and public-package first run.",
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
     "credentialActor": "maikebing",
