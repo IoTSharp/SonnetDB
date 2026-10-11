@@ -69,3 +69,7 @@ Microsoft 2026官方再分发清单已取得，明确包含VC/redist中的未修
 ## M47-P08原草稿ID读取修复（2026-10-12，Asia/Shanghai）
 
 恢复运行38154076242由maikebing实际审批，但按tag读取Release只返回已公开发行，未取得原草稿；原REFUSED/零mutation回执保持。恢复路径改为精确冻结Release ID读取，并检查与tag可见对象一致；原source/tag/409754336/notes/四附件/授权hash不变。测试fixture按真实草稿可见性返回tag查询空值，定向回归与94发布/收集合同通过。修改后的工具须重新prepare/P07原12/12及8/8评审，再实际审批恢复发布、匿名下载与公开包首跑；当前未完成。外来dirty、历史FAIL/UNKNOWN及PAUSED保持。
+
+## 原草稿ID读取修复后的P07工具复验通过（2026-10-12）
+
+用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具67b263b431d0b23a565546a90bf74da00d4f22d7已通过94项合同、完整restore/原CI format并正常提交推送；真实prepare 38154883708/P07 38155021627均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11708600894/digest sha256:b6f21ea9e50eeefc5cb0cf2e53ed77d585302fe9823b0e463dff5b4402e0f136。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；原publish38151505875失败、409754336空草稿保持；恢复发行和公开首跑未完成。

@@ -38,7 +38,7 @@
   "tagObservedAbsent": false,
   "releaseObservedAbsent": false,
   "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "status": "ORIGINAL_DRAFT_ID_LOOKUP_FIX_REVIEW_PENDING",
+  "status": "READY_FOR_AUTHORIZED_PUBLISH",
   "workflowRequest": {
     "workflow": "workbench-preview-publish.yml",
     "ref": "codex/m47-preview12-release",
@@ -58,13 +58,13 @@
   "p07": {
     "status": "READY",
     "record": "docs/design/m47-unified-management-workbench/preview-1-p07-12.json",
-    "recordSha256": "5a44a0f5da9d8d063adc3999e45e11f6a8d6b111e951f8de0bd666652a9bfc7b",
-    "runId": "38153356012",
+    "recordSha256": "0e48d875dd4819ae0bc26b50a53f1ed80a35ba9694a7724d40a9661d29ceafe0",
+    "runId": "38155021627",
     "acceptedChecks": 8,
     "acceptedWorkflowGates": 12
   },
-  "reviewedDistributorCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
-  "nextAction": "Re-review original release ID lookup; recover exact unchanged empty draft with existing frozen authorization and actual maikebing approval.",
+  "reviewedDistributorCommit": "67b263b431d0b23a565546a90bf74da00d4f22d7",
+  "nextAction": "maikebing dispatches this exact frozen request once, then explicitly approves its original pending environment deployment. Independently verify anonymous assets and public-package first run.",
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
     "credentialActor": "maikebing",
