@@ -1943,3 +1943,13 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 最终完整类定向TRX、完整restore/原CI Format Check、精确三路径提交及普通推送以 artifacts/online-closure-20261012/outbox-budget-* 收据为准；此处尚未取得测试或新CI通过。#277现有head的远端状态独立核验，若已实际合并则另建该增量PR；否则在完成门禁后正常追加到原测试稳定性PR。正式包、nightly/parity和生产验收不由本机测试推断；canonical foreign、parity-results、冻结tag和PAUSED自动化保持。
 
 本轮实际完整 SqlOutboxWorkerTests TRX：16executed/16passed/0failed；生产/测试DLL、源码与原TRX绑定冻结。该本机完整类通过不替代新head的Windows/Linux全量CI；接下来最终树完整restore/原format通过后才提交。
+
+## GH-Issue #222 关系排名窗口（2026-10-12，Asia/Shanghai）
+
+从干净 `codex/issue222-ranking-windows` / `648239608c957474379ef330e8f71b7748ccbad6` 接续。专属实现仅六路径：RelationalWindowExecutor、新 SqlRelationalRankingWindowTests、RemoteAdoHttp2TransportTests 的独立排名方法、sql-reference 排名条目、CHANGELOG 自有行和本 HANDOFF 追加。已有 row_number、基础 OVER、聚合窗口及 measurement series 编号不重做，不改 AST、JSON DTO、二进制布局或依赖。
+
+排名复用现有复合分区、NULL/升降序排序及显式 peer 比较；rank 留间隙、dense_rank 连续。NTILE 仅接受正 Int64 字面量或绑定后的整数参数，余数先分给较大的前置桶，大于行数时只产生 1..行数；参数校验先于空分区。三种排名列保持非空 Int64，空结果同样保留元数据。无窗口 ORDER 时 rank/dense_rank 每分区均为 1，NTILE 沿本次关系输入序分桶且不保证跨执行次序；row_number 原 ORDER 要求保持。
+
+最终 Core 定向 TRX 为 76 executed / 76 passed / 0 failed / 0 skipped，其中新增排名 44/44，包含原生 SQL、嵌入式 ADO、NULL、多键、参数、空结果 schema 和 GetInt64/GetInt32。首次 trial 的测试编译失败及修正后的单例 PASS 均保留。原 transport-v1 的 REST 实际通过，h2c 在首条 CREATE TABLE 建立 HTTP/2 前失败；两次 listing 退出成功但未给出有效测试列表，不计验收。根授权的唯一 h2c 补充以同源码/同 DLL SHA、no-build/no-restore、NO_PROXY=localhost,127.0.0.1,::1 执行，最终 TRX 精确 1 executed / 1 passed / 0 failed，真实请求的 HTTP/2 断言通过；不证明原失败的代理因果。D:\source\FreeSql 的本地 Provider 仍引用 SonnetDB 1.1.0，仅核公共 SqlExt 三接口；它不是 PR #2234 当前远端回归，正式 NuGet、FreeSql 适配、CI 与发布保持独立。
+
+本片实施窗口 60 分钟、45 shell、18 Job、最多三次构建及原两真实 transport 组合，另有根授权的一次 300 秒 h2c 补充；实际七个 Windows 非 breakaway Job 均 cleanupComplete=true，末次审计 74 个已记录身份全部不在场，共享 Codex 父链保留。两个精确测试临时目录前缀的非递归观察均无目录，不作宽泛删除；历史父 PID 和短命进程未观测部分不补造身份。源码、TRX、实际/归档 DLL、原失败、全部 Job 收据及审计冻结到 artifacts/online-closure-20261012/pr-review/rank222-20261012-2208；旧拒删对象保持。PowerShell 7、DateKind String、2CPU、取消、有界等待及 finally 回收继续。下一步由根在最终六路径树运行完整 restore/原 Format Check，精确 stage/commit/push 并核新 CI；本代理未修改 index、分支或 GitHub，局部 PASS 不替代这些门禁或正式 Provider/包发布。
