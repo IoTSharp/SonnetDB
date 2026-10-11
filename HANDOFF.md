@@ -1908,6 +1908,28 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
 
+## 线上闭环执行：PR #268 依赖刷新（2026-10-12，Asia/Shanghai）
+
+PR #214 最终 restore/原 format 通过，实际 SpanReader TRX 30/30 与 Cobertura 已独立核验，Windows Job 回收通过；提交 91d316b8de884589f3d1253fef4711f3db2da47c 已普通推回原 dependabot 分支并更新 PR 说明，新 head CI 待完成，未合并 main。
+
+当前 PR #268 正常合入上述已核 #214 依赖，唯一产品差异为 Testcontainers 4.15.0→4.16.0，原 NuGet MIT 已核，不扩为 NativeAOT 支持。最终树必须完整 restore/原 format、五框架编译与现有 Docker context 回归通过；真实 Docker 生命周期另记，未执行不能推定通过。验证收据与精确 tree/SHA 留在 artifacts/online-closure-20261012；最终串行合并顺序为 #214 后 #268，不先合入有前置的分支。
+
+三执行智能体保持隔离：#219 最终真实 REST/h2c 验证中，#228 静态候选待构建槽，#265 启动竞态对照验证中。正式 NuGet、FreeSql/Chloe/XCode/SqlSugar/ABP 适配、干净 Windows 与生产边界未满足者保留开放。原根工作树和 parity-results 不动，进程清理与禁止 Graphify 继续生效。
+
+## 线上闭环执行：PR #267 ONNX Runtime 依赖刷新（2026-10-12，Asia/Shanghai）
+
+PR #268 已在最终 restore/原 CI format、五框架编译及真实 Testcontainers 原生归档器 1/1 TRX 通过后提交 0a07216e2cf1e040b7f47763b8621aeb974174a3 并推回原分支；新 head CI 待完成。当前 #267 正常合入 #268（前置 #214），仅升级 ONNX Runtime 1.30.0→1.31.0，加本段及 CHANGELOG；MIT 原 NuGet 来源已核。将运行既有 LocalOnnxEmbeddingProviderTests 的真实 native runtime 与微型合成 graph，核 profile、tokenizer、padding、pooling 与 tensor 合同；此类结果不能冒称真实语义/模型质量、成本或生产验收。完整 solution restore/规定 format 通过后才提交，实际 receipt/tree/SHA 留于 artifacts/online-closure-20261012。
+
+主分支 CI 38166870523 的 Linux/Format/三个 AOT 全通过，Windows 因远程缓存手动清理与后台清理计数竞争失败，原失败保留；独立 codex/windows-ci-stability 正在修复测试时序和旧 #213/#269 测试边界，未削弱生产 timeout/cleanup。#265 CAP42、原 format/独立 CAP format/17发行库存合同通过后，74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 已推原分支，新 CI 待完成。#219 c8fd0e85 已创建 PR #274；#228 最终 Core125/真实HTTP2 19 与最终 restore/format 通过，988553d1 已提交推候选，PR 待创建。#220 独立实现验证中，#273 只读准备完成。外部正式 NuGet/ORM/干净 Windows/生产边界仍开放，canonical dirty、冻结发布和 parity-results 保留。
+## 线上闭环执行：PR #215/#216 SkiaSharp 配对升级候选（2026-10-12，Asia/Shanghai）
+
+原两个 PR 分别只升级托管或 Linux native 包，原 Linux CI/AOT 失败日志已定位为版本失配。当前 #215 正常合入已验证 #267（前置 #214/#268），同步两 PackageVersion 到 4.153.1，保留原 MIT 来源、完整 CHANGELOG 和既有交接；产品差异仅两版本行。需完成最终完整 restore/原 CI Format Check 及既有实际图像处理/对象处理回归，Linux native 与各 RID AOT 由此新 head 的真实 CI 独立确认。不会以 Windows 本机 native 成功替代 Linux/RID 验收。#216 的改动包含在配对候选中，待实际合入 main 后才能在原 PR 记录被替代并关闭，当前未关闭或声称已合并。
+
+#267 的51 native/synthetic ONNX合同、完整 restore/原 format 通过，fbc2d88f3e06a1576694ad2922dc527f03957d1c 已推原分支；真实模型质量仍独立。#214 当前只剩 Windows CI，未合并。#273 十二项真实 EF 回归及最终 restore/format 通过，7f751eac65d69ecee7e7286f5b2700aec751c9ff 已本地提交，尚待推送/PR；#228 已 PR #275，#219 已 PR #274，均不自动关闭正式包与 ORM 验收。Windows CI 独立修复三组 Core53/Graph13/Cache4 共70通过，根最终门禁待执行。#220 原117/19发现emoji填充截断会制造孤立代理项，正在必要修复和同组复验，原快照保留，不提前写最终PASS。
+
+进程与任务通过固定 PowerShell7、数量/墙钟/取消界限和 Windows Job 管理；JSON UTC读取显式 DateKind String/DateTimeOffset，原日期误判失败与修正证据均保留。canonical dirty/shared index、正式发布冻结和 parity-results 保持；所有真正外部正式发行/上游 ORM/干净机器/生产门禁继续开放。
+
+
 ## Windows CI 时间与并发断言修复（2026-10-12，Asia/Shanghai）
 
 本次在已有 online-cap 工作树的 codex/windows-ci-stability 分支处理三个历史 Windows CI 失败，基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03；该分支不包含 CAP 修复。只修改四个测试文件、CHANGELOG 与本段 HANDOFF，未修改生产代码、依赖、发布/格式/超时默认值或二进制合同。分支、提交、推送、PR 与最终完整 restore/原 CI Format Check 由主会话完成，本段不预写它们通过。
@@ -1933,3 +1955,11 @@ PR #268 新 head 0a07216e2cf1e040b7f47763b8621aeb974174a3 的真实 Windows CI 3
 Dependabot 在 #214 合并后已自动刷新；本轮精确 fetch 得到 cffa6a60422b635a62ad5b6714415d6f072bb81a，未使用旧 eeddcb head。该 head 远端完整检查已通过，但仍缺本 PR CHANGELOG 与当前测试前置记录，因此不直接合并。正常合入独立 PR #277 的 aaeb5357，保持测试侧 xunit.runner.visualstudio 4.0.1、PrivateAssets 与 Apache-2.0 精确版本许可，未引入 Core 运行时依赖或修改 JSON/AOT合同。
 
 原 250ms 空窗口初始化失败与日期误判记录保留，新增前置测试改变已独立验证。最终完整 restore、原 CI Format Check、真实适配器发现烟测和普通推回原分支以 artifacts/online-closure-20261012/pr269-* 收据为准；新的远端 head 必须独立通过后才串行合并。当前未发布包、tag 或 Release；canonical dirty、parity-results 与 PAUSED 自动化保持。
+
+## Windows Outbox 批次测试预算（2026-10-12，Asia/Shanghai）
+
+PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOutboxWorker 构造器的 schema 校验阶段；100ms BatchTimeout 同时覆盖构造器和每批处理，测试尚未进入处理器。原日志保留，不据此推断生产取消失效。仅测试将预算设为2秒，处理器无限协作等待该批次令牌；外层15秒调用者令牌限制等待，并分别确认处理器进入、真实令牌取消、调用者未取消及 leased 状态/到期后的恢复投递。没有增加生产重试、跳过或修改默认配置。
+
+最终完整类定向TRX、完整restore/原CI Format Check、精确三路径提交及普通推送以 artifacts/online-closure-20261012/outbox-budget-* 收据为准；此处尚未取得测试或新CI通过。#277现有head的远端状态独立核验，若已实际合并则另建该增量PR；否则在完成门禁后正常追加到原测试稳定性PR。正式包、nightly/parity和生产验收不由本机测试推断；canonical foreign、parity-results、冻结tag和PAUSED自动化保持。
+
+本轮实际完整 SqlOutboxWorkerTests TRX：16executed/16passed/0failed；生产/测试DLL、源码与原TRX绑定冻结。该本机完整类通过不替代新head的Windows/Linux全量CI；接下来最终树完整restore/原format通过后才提交。
