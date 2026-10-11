@@ -209,6 +209,8 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- CI CodeQL 的 init/analyze 同步从 v4.38.1 升级为 v4.38.2（PR #213）；保持原分析语言和构建步骤，合入独立 Windows 测试稳定性前置。
+
 - 测试侧 xunit.runner.visualstudio 从 4.0.0 升级为 4.0.1（PR #269），合入独立 Windows 测试稳定性前置；不增加产品运行时依赖。
 
 - PR #215/#216：将 SkiaSharp 与 Linux NoDependencies 原生资产同步升级到 4.153.1，修正单独升级产生的托管/原生版本失配；图像解码、缩放及对象处理按真实 native 路径回归。

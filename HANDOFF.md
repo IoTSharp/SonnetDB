@@ -1950,6 +1950,12 @@ PR #268 新 head 0a07216e2cf1e040b7f47763b8621aeb974174a3 的真实 Windows CI 3
 
 #214 已实时回读 MERGED/a299a3fcc42de494145be74a8ee451aedeec4249；SkiaSharp 配对提交2d3342935e69e2421136b8ce236a2cae512894a8已推#215，Windows native64/64及最终restore/format通过，Linux/AOT新CI待核。#220 b1344188已PR #278，123/19实际回归；#273 c2b5c030已刷新main并推PR #276，12实际回归及最终两轮完整门禁通过。独立PR #274/#275旧headCI已全通过但HANDOFF追加与新main冲突，需准确刷新和新head验证；不能绕过冲突或把旧headCI赋给新提交。#221/#270/前端#217正在隔离实现，#270原18FAIL与必要Core LIKE修正保持，正式NuGet/消费者验收未完成。canonical同方法134项status/共享文档diffSHA完全相同、index空，parity/冻结发布与PAUSED自动化保持。
 同轮读取 PR #265 新 head 74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 的真实 Windows CI38170203167，失败发生在 dispatcher 测试的 OpenAsync/100ms 建立持久订阅阶段，尚未进入锁故障确认。Options 是持久化合同，不能给首次打开临时设置另一组预算。仅该测试的 false 分支存储预算改为2000ms、dispatcher总预算10秒，true分支原5000ms存储/300msdispatcher保持；两个分支共用15秒调用者取消，WaitAsync使用该令牌，额外断言调用者未取消，避免把外层WaitAsync TimeoutException误认为生产存储超时。稳定DeliveryId/Checkpoint=-1/重开后同批次/PendingCount=1的真实故障和恢复断言保持。生产配置不改、未增加重试/跳过；原FAIL保留，需实际完整dispatcher类回归及最终树重跑完整restore/原format后才追加提交到PR #277。先前物理HTTP定向1/1与restore已通过，它们不替代此新增代码后的完整门禁。
+## PR #213 CodeQL 当前主分支与 Windows 前置刷新（2026-10-12，Asia/Shanghai）
+
+从实时获取的原 head 40f2e5e6f153d83fb1136ac8b64b86a2210d604c 正常合入已推送的 Windows 前置 aaeb535739e180b35db07fb2db08a5ddc954a55f，其中已包含当前 main a299a3fc。有效自身差异仍为 init/analyze 两处 v4.38.2 和本 PR CHANGELOG/HANDOFF；MIT 版本许可已有独立记录，不修改产品源码、JSON/AOT边界或格式。早期原 Windows readiness 失败保留，独立 PR #277 的本机测试不冒称本提交整体 CI 已通过。
+
+最终完整 restore、原 CI Format Check、相对已验证前置的默认 whitespace、普通推回原分支及新 head CI 均以 artifacts/online-closure-20261012/pr213-* 收据为准。只在实际新 head 全门禁通过后串行合并；本轮不发布 NuGet、Release、tag 或变更已冻结预览。canonical dirty、parity-results、PAUSED 自动化和所有历史失败保持。
+
 ## PR #269 测试适配器实时刷新（2026-10-12，Asia/Shanghai）
 
 Dependabot 在 #214 合并后已自动刷新；本轮精确 fetch 得到 cffa6a60422b635a62ad5b6714415d6f072bb81a，未使用旧 eeddcb head。该 head 远端完整检查已通过，但仍缺本 PR CHANGELOG 与当前测试前置记录，因此不直接合并。正常合入独立 PR #277 的 aaeb5357，保持测试侧 xunit.runner.visualstudio 4.0.1、PrivateAssets 与 Apache-2.0 精确版本许可，未引入 Core 运行时依赖或修改 JSON/AOT合同。
