@@ -1409,6 +1409,15 @@ LIMIT 10 OFFSET 20;
 
 ### 聚合查询
 
+关系表基础字符串聚合支持 `string_agg(value, delimiter)` 与同义的双参数 `group_concat(value, delimiter)`。输入为 STRING 或 NULL，NULL 输入跳过，空串、重复值与 Unicode 原样保留；空输入或全 NULL 返回 NULL，结果声明为 nullable String。分隔符须为 STRING/NULL 字面量或绑定参数，NULL 分隔符按空串处理；其它输入类型须显式 CAST。无输入排序保证，查询外层 ORDER BY 只排列结果行。此基础合同明确拒绝聚合 DISTINCT、聚合内 ORDER BY、OVER 和 measurement，不包含 MySQL GROUP_CONCAT 的完整方言。
+
+```sql
+SELECT tenant, string_agg(name, ',') AS names FROM labels GROUP BY tenant;
+SELECT t.id, (SELECT group_concat(l.name, ',') FROM labels l WHERE l.tenant = t.id) AS names FROM tenants t;
+```
+
+每个输入表达式只在聚合时逐行求值一次。片段列表及最终字符串分配前使用检查溢出的 UTF-16 长度和共享查询/数据库内存预算；结果保留字节计入根查询，不同组或子查询不能逐一释放来绕过上限。取消和预算拒绝不返回截断结果，查询预留与临时落盘工作区沿根调用清理；预算为保守估算，不是 CLR heap 精确硬上限。参数绑定、关系 GroupBy/JOIN 与单列关联聚合使用同一合同。正式 Core/Data/Server/SDK 发布和 FreeSql StringAgg/string.Join Provider 集成须另行验收。
+
 聚合函数按自身语义声明可接受的 FIELD 类型：
 
 | 聚合函数 | 可接受类型 | 结果与规则 |

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #223：新增关系表双参数 `string_agg`/`group_concat` 基础聚合，支持 NULL/参数分隔符、GroupBy/JOIN/关联单列子查询与 nullable String 元数据，逐行一次求值并限制共享拼接预算；可选聚合语法、measurement、正式包与 FreeSql 集成独立验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。

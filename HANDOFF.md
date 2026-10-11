@@ -1907,3 +1907,16 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+
+## 线上闭环执行：GH-Issue #223 基础字符串聚合（2026-10-12，Asia/Shanghai）
+
+当前八路径实现位于 codex/issue223-string-aggregation，基线 a299a3fcc42de494145be74a8ee451aedeec4249。新增关系表 string_agg(value, delimiter) 与双参数同义 group_concat；STRING/NULL 输入、NULL 跳过、空串/重复/Unicode 保留、空输入/全 NULL 返回 NULL、NULL 分隔符为空串，分隔符只接受 STRING/NULL 字面量或绑定参数。支持 GroupBy/JOIN 和单列关联聚合，裸字符串聚合及关联子查询提供 nullable String 元数据，包括空外层结果；输入顺序不保证。DISTINCT、聚合内 ORDER BY、OVER 和 measurement 明确拒绝，不扩展任意 registry aggregate。
+
+输入逐行只求值一次；片段列表在分配前按保守 UTF-16 字节估算准入，最终字符串预留保留至根查询结束，多个组/子查询共享查询及数据库预算。溢出、预算拒绝与取消不返回截断字符串；全 NULL/空输入不保留字符串容量。无第三方依赖、JSON DTO/AOT 边界或文件格式变更。
+
+最终 Core v3 39/39（27 个本 Issue 用例）及真实 REST + Frame HTTP/2 transport v2 17/17（2 个新 theory 用例）通过；GroupBy/JOIN/关联查询、参数、NULL/空结果元数据、标量 UDF override、一次求值、共享结果预算、落盘后预算拒绝/取消/成功与资源释放均有实际测试。实际受测 Core/Data/Server/test DLL 已复制并记录版本/hash。原失败完整保留：Core v2 38/39 的新增回归夹具使用 CAST(sum(...))，既有聚合内联不穿过 CAST，独立范围为开放 #254，已改用支持的 concat('total=', sum(id))；transport v1 15/17 仅末尾 DBNull 断言不符既有 ExecuteScalarAsync 的 SQL NULL=>null 合同，修正新断言，未修改 Data 合同。
+
+五次有界 Job 均 cleanupComplete；最终独立审计覆盖 43 个 kernel identities 与 5 个 controller，exact live=0、unknown live=0。本任务专属 TEMP 经原始所有权、五个 spec、路径/重解析点与进程审计核对后已清理（17 个对象）；旧 trigonometry TEMP 与历史失败均未触碰。证据根为 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\string-aggregation-223，最终树、原 HANDOFF 前缀、源码与实际程序集、所有成功/失败收据见 string-aggregate-final-tree.json。
+
+本执行智能体未暂存、提交、推送、改变分支或写 GitHub；索引仍由主智能体独占，准确八文件待主智能体复核和交付。下一步由主智能体在最终树执行规定完整 solution restore 与原 CI Format Check，再串行提交/推送/PR/合并；本地及真实传输通过不能代替正式 Core/Data/Server/SDK 发包和 FreeSql StringAgg/string.Join Provider 验收，后者 NOT_RUN，Issue 不得仅凭本切片虚假关闭。uuid #258 的已交付实现不在此基线，后续集成由主智能体处理。
