@@ -1301,7 +1301,16 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - 支持字面量投影（如 `SELECT 1 ... LIMIT 1`），会按匹配到的时间轴返回常量列。
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
 - 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`trim`、`ltrim`、`rtrim`、`length` / `char_length`、`substring` / `substr`、`position(search IN value)`、`replace`、`left`、`right`、`starts_with` / `ends_with` / `contains`、`regexp_like`、`date_diff` / `datediff`、`date_format` / `format_datetime` / `strftime` / `to_char`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
+- 三角函数 `sin(value)`、`cos(value)`、`tan(value)`、`asin(value)`、`acos(value)`、`atan(value)` 各接收一个数值参数，`atan2(y, x)` 接收两个参数，顺序固定为 y、x。整数、浮点和 Decimal 按现有数值转换规则转为 Float64，结果也为 Float64；字符串和 Boolean 不作隐式数值转换。角度一律为弧度。
+- 三角函数传播 NULL；`atan2` 任一参数为 NULL 时返回 NULL，优先于另一参数的类型、有限性检查。非 NULL 参数必须为有限数值，`asin` / `acos` 还要求输入在闭区间 `[-1, 1]` 内；违反合同或计算结果非有限时抛出 SQL 执行错误。有限输入交给对应的 .NET Math 运算，`tan` 在浮点表示的极点附近不额外按 epsilon 拒绝；大角度遵循 Float64 精度与运行时的参数规约，比较结果应使用浮点容差。`atan2(0, 0)` 返回 0，四象限由 y、x 符号决定，负 x 轴按输入零的符号返回正或负 pi。既有 `abs` / `round` / `sqrt` / `log` 和 `ceil` / `ceiling` / `floor` / `exp` / `power` / `pow` 的数值合同保持。
+- 内置三角函数的关系表投影在空结果和全 NULL 结果中仍声明可空 Float64；用户同名标量函数覆盖后按用户函数的未知声明类型处理。这是引擎实现合同，正式 Core/Data/Server/SDK 发布与 FreeSql Provider 的正式版本集成验收另行完成；Sign、Log10、有限 FLOAT Truncate 沿 #221 约定使用已有 SQL 适配。
 - 字符串函数对字符串参数使用 Ordinal 规则；除 `concat` 将 NULL 参数视为空字符串外，字符串参数或位置/长度参数为 NULL 时返回 NULL。`substring` 使用从 1 开始的位置，省略长度时截取到末尾；位置必须大于等于 1，长度和 `left` / `right` 的字符数不能为负数。`length` 返回 .NET UTF-16 字符数（`long`），不是 UTF-8 字节数。`position(search IN value)` 返回按 UTF-16 计数的 1 基位置，未找到返回 0，空搜索串返回 1；关系表、Document 和时序查询可通过共用的标量函数求值器调用。
+
+三角函数示例（结果依次为 0、1、0、0、0、0、pi/4）：
+
+```sql
+SELECT sin(0), cos(0), tan(0), asin(0), acos(1), atan(0), atan2(1, 1)
+```
 
 常用字符串函数示例：
 

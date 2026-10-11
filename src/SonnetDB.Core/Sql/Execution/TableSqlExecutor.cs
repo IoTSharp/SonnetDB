@@ -5287,6 +5287,12 @@ internal static class TableSqlExecutor
                 column.IsRowVersion);
         }
 
+        if (projection.ExpressionValue is FunctionCallExpression function
+            && function.Name.ToLowerInvariant() is "sin" or "cos" or "tan" or "asin" or "acos" or "atan" or "atan2"
+            && FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(function.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.Float64, true);
+
         if (projection.Kind != ProjectionKind.Constant)
             return new SelectColumnInfo(null);
 

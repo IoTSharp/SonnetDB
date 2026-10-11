@@ -4159,6 +4159,12 @@ internal static partial class RelationalSelectExecutor
         if (expression is IsNullExpression)
             return new SelectColumnInfo(TableColumnType.Boolean, false);
 
+        if (expression is FunctionCallExpression scalar
+            && scalar.Name.ToLowerInvariant() is "sin" or "cos" or "tan" or "asin" or "acos" or "atan" or "atan2"
+            && FunctionRegistry.GetFunctionKind(scalar.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(scalar.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.Float64, true);
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();

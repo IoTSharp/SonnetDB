@@ -1907,3 +1907,12 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+## GH-Issue #221 三角函数隔离实现与本地验收（2026-10-12，Asia/Shanghai）
+
+online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fcc42de494145be74a8ee451aedeec4249；只处理 #221 的 sin/cos/tan/asin/acos/atan/atan2(y,x)。弧度制、现有数值转 Float64、NULL 优先传播、非有限输入/结果拒绝、asin/acos 闭区间 [-1,1]，tan 不作人为 epsilon 极点拒绝；既有数学函数合同不变。单表/JOIN 空结果及全 NULL 的可空 Float64 元数据已补齐，同名标量 UDF 保留未知声明类型。八个自有路径和最终哈希以 artifacts/online-closure-20261012/issues-engine/trigonometry-221/trigonometry-final-tree.json 为准；此分支未恢复 #219/#220 的实现。
+
+核心选定回归 213/213，完整真实远程 ADO 17/17（含新增 REST HTTP/1.1 与 frame-http2 h2c 两例）通过；最小 SQL、四象限/轴/零点、参数、WHERE、域/类型/非有限错误和空/NULL 元数据有实测。首轮新测试的三个 ColumnInfo 可空断言编译失败，0 测试执行，原 FAIL/日志保留；断言修正后的原 TRX、实际 Core/Data/Server/测试 DLL、版本与 SHA 已归档。实际版本 0.0.0-dev+a299a3fcc42de494145be74a8ee451aedeec4249，不是正式发行；Core/Data/Server/SDK 正式发布和 FreeSql PR #2234 Provider 集成仍未验收，Issue 不应据本地结果关闭。Sign/Log10/有限 FLOAT Truncate 沿原 Issue 使用已有 SQL 适配。
+
+三个有界 Windows Job 收据 cleanupComplete=true；独立审计 31 个完整精度 kernel 身份、3 个 CIM 控制器身份，精确/未知存活均为 0。专用 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\trigonometry-221\trigonometry-test-temp 属 issues_engine #221，来源为 task-boundaries.json、三个执行 spec 的 TEMP/TMP 和首收据 controller 73980 的创建命令；两次删除均被 tools.exec_command 拒绝，仅返回 blocked by policy，命令未执行。目录保留，详见 trigonometry-temp-cleanup-policy-rejections.json；未改用替代 API 绕过，临时目录回收仍为 BLOCKED_BY_EXECUTION_POLICY。
+
+固定 PowerShell 7、单 dotnet 根、两 CPU、单命令 600 秒内；原 45 分钟窗口截止 2026-10-11T21:15:06Z。源码和交接追加后冻结，未暂存/提交/推送、未变更分支、未安装或操作 GitHub。主智能体下一步先复核八路径及证据，再按最终工作树执行完整 restore/原 CI Format Check、准确提交及远端交付；本记录不预记这些门禁或 main 合入完成。临时目录清理限制单独交接，不阻止可审查的修复交付。

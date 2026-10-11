@@ -149,6 +149,13 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("exp", 1, 1, EvaluateExp),
         new BuiltInScalarFunction("power", 2, 2, EvaluatePower),
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
+        new BuiltInScalarFunction("sin", 1, 1, static args => EvaluateTrigonometric(args, "sin")),
+        new BuiltInScalarFunction("cos", 1, 1, static args => EvaluateTrigonometric(args, "cos")),
+        new BuiltInScalarFunction("tan", 1, 1, static args => EvaluateTrigonometric(args, "tan")),
+        new BuiltInScalarFunction("asin", 1, 1, static args => EvaluateTrigonometric(args, "asin")),
+        new BuiltInScalarFunction("acos", 1, 1, static args => EvaluateTrigonometric(args, "acos")),
+        new BuiltInScalarFunction("atan", 1, 1, static args => EvaluateTrigonometric(args, "atan")),
+        new BuiltInScalarFunction("atan2", 2, 2, static args => EvaluateTrigonometric(args, "atan2")),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),
@@ -661,6 +668,40 @@ public static class FunctionRegistry
     private static double DegreesToRadians(double degrees) => degrees * (Math.PI / 180d);
 
     private static double RadiansToDegrees(double radians) => radians * (180d / Math.PI);
+
+    private static object? EvaluateTrigonometric(IReadOnlyList<object?> args, string functionName)
+    {
+        if (args[0] is null || args.Count == 2 && args[1] is null)
+            return null;
+
+        double first = RequireFiniteDouble(args[0], functionName);
+        double second = args.Count == 2 ? RequireFiniteDouble(args[1], functionName) : 0d;
+        if (functionName is "asin" or "acos" && (first < -1d || first > 1d))
+            throw new InvalidOperationException($"函数 {functionName} 的参数必须在 [-1, 1] 范围内。");
+
+        double result = functionName switch
+        {
+            "sin" => Math.Sin(first),
+            "cos" => Math.Cos(first),
+            "tan" => Math.Tan(first),
+            "asin" => Math.Asin(first),
+            "acos" => Math.Acos(first),
+            "atan" => Math.Atan(first),
+            "atan2" => Math.Atan2(first, second),
+            _ => throw new InvalidOperationException($"未知三角函数 {functionName}。"),
+        };
+        if (!double.IsFinite(result))
+            throw new InvalidOperationException($"函数 {functionName} 的结果必须是有限数值。");
+        return result;
+    }
+
+    private static double RequireFiniteDouble(object? value, string functionName)
+    {
+        double number = RequireDouble(value, functionName);
+        if (!double.IsFinite(number))
+            throw new InvalidOperationException($"函数 {functionName} 需要有限数值参数。");
+        return number;
+    }
 
     private static double RequireDouble(object? value, string functionName)
     {
