@@ -1908,6 +1908,14 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
 
+## 线上闭环执行：PR #268 依赖刷新（2026-10-12，Asia/Shanghai）
+
+PR #214 最终 restore/原 format 通过，实际 SpanReader TRX 30/30 与 Cobertura 已独立核验，Windows Job 回收通过；提交 91d316b8de884589f3d1253fef4711f3db2da47c 已普通推回原 dependabot 分支并更新 PR 说明，新 head CI 待完成，未合并 main。
+
+当前 PR #268 正常合入上述已核 #214 依赖，唯一产品差异为 Testcontainers 4.15.0→4.16.0，原 NuGet MIT 已核，不扩为 NativeAOT 支持。最终树必须完整 restore/原 format、五框架编译与现有 Docker context 回归通过；真实 Docker 生命周期另记，未执行不能推定通过。验证收据与精确 tree/SHA 留在 artifacts/online-closure-20261012；最终串行合并顺序为 #214 后 #268，不先合入有前置的分支。
+
+三执行智能体保持隔离：#219 最终真实 REST/h2c 验证中，#228 静态候选待构建槽，#265 启动竞态对照验证中。正式 NuGet、FreeSql/Chloe/XCode/SqlSugar/ABP 适配、干净 Windows 与生产边界未满足者保留开放。原根工作树和 parity-results 不动，进程清理与禁止 Graphify 继续生效。
+
 ## Windows CI 时间与并发断言修复（2026-10-12，Asia/Shanghai）
 
 本次在已有 online-cap 工作树的 codex/windows-ci-stability 分支处理三个历史 Windows CI 失败，基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03；该分支不包含 CAP 修复。只修改四个测试文件、CHANGELOG 与本段 HANDOFF，未修改生产代码、依赖、发布/格式/超时默认值或二进制合同。分支、提交、推送、PR 与最终完整 restore/原 CI Format Check 由主会话完成，本段不预写它们通过。

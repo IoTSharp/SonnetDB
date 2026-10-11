@@ -209,6 +209,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- `Testcontainers` 从 4.15.0 升级至 4.16.0，保留现有 SonnetDB 容器模块的五个目标框架与非 AOT 宿主边界（PR #268，M43 生态工具链）。
 - 测试侧 `coverlet.collector` 从 10.0.1 升级至 10.1.0，保持私有测试依赖与现有覆盖率采集入口（PR #214，M43 生态验证工具链）。
 
 - **Workbench Preview 1 路线整理（2026-10-10）**：将根 ROADMAP 中已完成的切片、旧状态表和窗口检查点归档；主路线改为范围/候选冻结、Web smoke、真实登录与权限、发行物、实际部署、文档与分发、放行、发布回读八步。同步 README 与旧队列的当前入口；本条仅记录文档整理，没有新产品实现、测试或发布结果。
