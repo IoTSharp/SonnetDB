@@ -74,7 +74,8 @@ try {
     { id: 'P05-installed-R1', status: 'PASS', originalFiles: ['installed-suite.json', 'installed-audit.json', 'corrected-audit.json', 'first-journey.json', 'reopen-journey.json', 'rollback-journey.json', 'legacy-journey.json'], boundary: 'Recorded local Windows R1 only; original empty-window audit is FAIL_EMPTY_WINDOW and is excluded from acceptance.' });
   const license = originals.get('license-review.json');
   requireThat(license.sourceCommit === seal.sourceCommit && license.version === seal.version && license.candidate === seal.candidate
-    && Array.isArray(license.gaps) && license.gaps.length <= 5000 && license.dependencyCount === manifest.dependencyInventory.length
+    && Array.isArray(license.gaps) && license.gaps.length <= 5000
+    && Array.isArray(manifest.build?.dependencyInventory) && license.dependencyCount === manifest.build.dependencyInventory.length
     && license.gapCount === license.gaps.length, 'License review binding/count mismatch');
   checks.push({ id: 'licenses', status: license.status, originalFiles: ['license-review.json', 'dependency-licenses-original.json', 'license-primary-sources.json', 'microsoft-primary-documents.json'], issues: license.gaps.filter(g => g.status !== 'PASS_BUILD_TOOL_NOT_REDISTRIBUTED').map(g => `${g.id}: ${g.issues.join(' ')}`) });
   collection.checks = checks.map(check => {

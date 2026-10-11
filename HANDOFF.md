@@ -1811,3 +1811,15 @@ Mapbox官方2.0.3 metadata/tar SHA512核验，原LICENSE为Zachary Carter MIT；
 版本4.5.0-preview.1.11已核未有build attempt，profile推进candidate-11；下一步最终树完整restore/原format/default whitespace后精确源码commit、普通候选分支push及独立SHA回读，再同SHA干净CI P04、实际P05全套与非空进程audit、许可实物审查、新P06/P07原artifact和完整十二同源workflow。Parity both/publish_results=false；publish/connectors/docker均只workflow_dispatch preflight。全门禁后才精确P08授权、合规发起/maikebing审批、一次发行、匿名四附件/ZIP及真实首跑。当前NOT_READY，公开包首跑NOT_RUN；不能因急需收尾而跳过验收。
 
 本段独占FileStream尾追加、Flush(true)并核完整旧字节前缀；只暂存HEAD原字节+owned段和CHANGELOG自有增量，保留外来交接/表格结构/博客/M42/WB97/WB98及三VSCode文件。固定PowerShell7与已有non-breakaway Job，循环/命令均数量/墙钟/取消有界，日志/FAIL/UNKNOWN保留，临时回收仅已核任务对象；禁Graphify、广域扫描、未经授权安装或按名/旧PID终止。实际最终验证与提交/remote SHA在本轮后续收据回读，未取得不预写PASS。
+
+## M47-P07 候选11实物与继任12兼容修复（2026-10-11，Asia/Shanghai）
+
+源码962a57d4693dc59de2a5a4cec60fa8959a953e5c已正常推送codex/m47-preview11-source，main未移动。P04 38143254625 attempt1 success，原两Actions归档digest核验、290项ZIP逐字节/NativeAOT版本和Web身份校验PASS；ZIP46791093bytes/SHA05cc9809299f229ba5deb9b0252516c8bb8265a4c78ce71ab3ed0d27fc1e4894。241依赖原通知及实际模块/微软分发输入审查通过，用户资格仅USER_REPORTED_VALID_LICENSE_EDITION；CI源码输入为Git blob，Rollup为Windows CRLF，独立精确换行核验，原两次不匹配FAIL保持。候选11P05 NOT_RUN、publish预检38143275378 failure，不改READY、不发布。
+
+继任12恢复4.0已发布旧构造/解构/表工厂和WalTruncator原废弃实现，包验证仍启用、基线移到实际4.0.0，未压制ApiCompat/IL/AOT警告或削减原十二门禁。原3.0.1失败、4.0诊断失败和缺WAL失败均保留；修复后完整Core兼容打包PASS、86Node合同PASS。dotnet test初次只有无计数控制台输出，另保存实际五项TRX；最终新七项、完整restore/原CI format/自有stage/提交和远端读回以随后收据为准。收集器实际依赖数组位于manifest.build，已修正。
+
+profile推进candidate12/4.5.0-preview.1.12，下一步最终源码提交到新的冻结分支、一次P04与十二同源原工作流、P05全实测/非空进程审计、实物许可、新P06/P07，再精确P08授权/合规发起与maikebing审批、匿名四附件下载及真实首跑。所有原候选/失败保持；workbench PAUSED、parity-results/外来dirty不动，无新智能体/工作树/跨聊天/生产部署/服务安装。
+
+补充更正：candidate11真实CI实物依赖数243；241仅本机合同库存，不用于CI许可验收。候选记录和license-review均绑定实际243，源码报告已更正。
+
+最终定向TRX已独立解析：7executed/7passed/0failed，原结果与源码/测试DLL SHA已保存；含两项实际WAL归档行为。仅本机合同，不计新候选实物P05或P07整体PASS。
