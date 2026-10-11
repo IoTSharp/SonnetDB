@@ -1883,3 +1883,64 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
+
+
+## SonnetDB 线上 PR 与 Issue 全量闭环新会话交接（2026-10-12，Asia/Shanghai）
+
+P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec46c55a4171cf5f2d83de03；完整 restore、原 CI Format Check 与独立远端回读通过。当前工作区仍在 codex/m47-preview12-release，共享索引为空；博客、M42、WB97/WB98、VS Code 等未提交内容继续按归属保护。主分支合并收据为 artifacts/m47-p07-close-20261011/merge-main-20261012-delivery.json；新 main CI 须实时核验。
+
+用户明确要求创建新会话，由一名主智能体监督协调三个执行智能体：先实时清点 IoTSharp/SonnetDB 的全部开放 PR，逐一审查、验证、解决冲突并串行合并；随后逐项实现开放 issue 的问题，更新相关依赖状态，提交并合入 main。用户估计四十多项，实际数量以 GitHub 清点为准。已授权本批任务的 PR/issue 回复及完成后关闭；实际未解决、验收不足或受外部条件阻塞者保留开放并如实回复，不把计划、局部测试或依赖更新当成完成。
+
+本次新的三执行智能体授权覆盖此前 P07/P08 阶段不启用子智能体的安排。主智能体负责队列、依赖顺序、任务边界、结果复核、最终集成、准确提交/推送和远端回复关闭；三个智能体分配互不重叠的调查、实现和验证范围，共享索引与 main 合并只由主智能体串行操作。实现保持最小必要变更，不虚标、不超范围重构、不增加无用抽象、冗余文档或测试。
+
+新会话开始先读根 AGENTS/HANDOFF、ROADMAP、实时 Git/远端状态和主分支 CI，再建立有编号、依赖、验收证据与远端状态的精简清单；持续推进可执行项，外部阻塞不能虚假关闭。保持 source-generated JSON、NativeAOT、许可和原质量门禁；每次提交前在最终树完成规定 restore 与完整 format。parity-results 不合入开发分支，已发布 tag/源码冻结记录与全部历史 FAIL/UNKNOWN 保留。
+
+所有主/子智能体均固定 PowerShell 7，委派时重复最大数量与墙钟超时、取消/进度、限定工具发现、进程精确归属和任务临时对象回收要求；禁止 Graphify、广域工具扫描及按进程名/旧 PID 终止。互联网直连失败用单命令 127.0.0.1:7890 代理回退。当前 workbench 自动化继续暂停，不另建重复执行队列。
+
+本段为新会话派单准备，真实会话 ID 和启动情况以 create_thread/wait_threads 返回为准。父会话完成创建后停止仓库写入；本段暂不单独提交，由新主智能体接管后按 HEAD 原字节加自有增量纳入其首次合规交接提交，避免父子会话争用共享索引。
+
+
+## 线上闭环执行：PR #214 当前 main 刷新（2026-10-12，Asia/Shanghai）
+
+实时清点 10 个开放 PR、49 个开放 Issue，原 main 为 dcadffc7137f5653ec46c55a4171cf5f2d83de03；main CI 38166870523 初始仍运行，旧通过不能替代其结果。已启动三执行智能体，主智能体独占 Git 索引、提交、推送及 GitHub 操作。独立 online-closure/online-engine/online-delivery 工作树均从同一原 main 建立，原 D:\source\SonnetDB 的 dirty/index/冻结 tag 与 parity-results 保持。
+
+当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
+
+执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+## Windows CI 时间与并发断言修复（2026-10-12，Asia/Shanghai）
+
+本次在已有 online-cap 工作树的 codex/windows-ci-stability 分支处理三个历史 Windows CI 失败，基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03；该分支不包含 CAP 修复。只修改四个测试文件、CHANGELOG 与本段 HANDOFF，未修改生产代码、依赖、发布/格式/超时默认值或二进制合同。分支、提交、推送、PR 与最终完整 restore/原 CI Format Check 由主会话完成，本段不预写它们通过。
+
+最新 main CI 38166870523 的缓存失败为手动清理预期 1、实际 0；源码表明默认 Core KV 后台 expirer 可先删除已过期键，但原日志没有记录实际执行者，不能声称已动态证明原次序。E2E 仅在 janitor 子段允许本次计数 0/1，并在任何惰性 Get 前断言物理 ExpiredKeys=0，继续验证过期项不存在和 active 值 [5]。独立 Core 精确计数用例关闭该夹具的后台 Expirer/Cleanup，保留 4 项/2 过期、limit1 删除 1/Count3、再删除 1/Count2 的原断言。其他默认后台 SDK 用例未扩大修改。
+
+PR #213 原失败是 readiness 观察没有发出取消；测试 harness 为同步 Runner 与 readiness 观察使用专用线程，观察最多 600 轮/30 秒、50ms 等待、取消与周期进度及末次 marker 检查，finally 有界等待取消后的 Runner 回收。真实 Runner 的 15 秒/300 轮执行边界和取消、非超时、终止请求、完整清理、输出排空、parent/leaf 身份退出断言全部保留；Start 不存在另一个独立 15 秒启动合同。PR #269 原失败发生在 CreateAsync 的 owner 文件持久化阶段，尚未进入 Pump 断言；该测试的持久化不可变配置从 250ms 改为 2000ms，随后核生产 TimeoutException 原消息/inner cancellation、10 秒调用者未取消、状态未应用，再发布事件验证 Pump、checkpoint 和窗口计数恢复，不用外层 TimeoutException 冒充真实操作超时。
+
+本机 Windows Release 完整相关类 TRX 非空并独立解析：Core 两类 53 executed/53 passed，GraphEvidenceProcessRunnerTests 13/13，CachingModeEndToEndTests 的 embedded/remote 四项 4/4；共 70/70、0 failed/skip。原三个失败日志保留于 artifacts/online-closure-20261012；本次证据在其 pr-review 目录，三个 Job exit=0、cleanupComplete=true，分别跟踪 17/41/9 身份，最后 UTC 正确身份审计与六路径 SHA 以 windows-ci-stability-final.json 为准。这些是本机定向类验证，完整 Windows/Linux CI、nightly/parity、部署与生产验收仍未由本次结果证明。
+
+早期阶段拒绝来自 ConvertFrom-Json 自动解析 ISO 日期后又经本地文本/DateTime.Parse 导致 UTC 偏移 8 小时；原拒绝与 windows-ci-deadline-correction.json 保留。日期现用 -DateKind String 与 DateTimeOffset 比较，实际没有发生阶段超时。每个命令最多 600 秒，验证 20 分钟、实现 30 分钟、单 dotnet 根/2CPU、禁共享编译和节点重用、取消文件与 Job finally 回收约束保持；未安装工具、使用 Graphify、按进程名终止或回收共享文件。
+
+下一步主会话先独立核六路径哈希、非空 TRX 与精确进程身份，再在最终待提交树执行完整 restore 和原 CI Format Check，精确暂存六路径后提交/普通推送独立稳定性 PR；实际远端 Windows/Linux CI 通过后才继续刷新依赖 PR。保留全部旧 FAIL/UNKNOWN，不把本次测试局部通过写为整体 CI 修复完成。
+
+## Windows CI 新 head 物理过载 HTTP 预算修正（2026-10-12，Asia/Shanghai）
+
+PR #268 新 head 0a07216e2cf1e040b7f47763b8621aeb974174a3 的真实 Windows CI 38170049113 失败于 PhysicalReadOverloadTests 的 5 秒 HttpClient.Timeout，未取得 HTTP 响应；此前三项稳定性修复不作为这个新失败已解决的证据。原日志及失败保持。本测试仅验证实际请求管线把 KvReadOverloadedException 映射为 503、Retry-After=1秒和两个稳定错误码，没有生产响应时延合同；只把该测试 client 的有界请求预算改为15秒，全部错误映射断言、15秒启动/关闭边界及真实Kestrel保持，不改Server或默认生产超时。本次需实际定向TRX、最终完整restore/原CI Format Check通过后提交推回独立PR #277；此处尚未取得验证或新CI结果。
+
+#214 已实时回读 MERGED/a299a3fcc42de494145be74a8ee451aedeec4249；SkiaSharp 配对提交2d3342935e69e2421136b8ce236a2cae512894a8已推#215，Windows native64/64及最终restore/format通过，Linux/AOT新CI待核。#220 b1344188已PR #278，123/19实际回归；#273 c2b5c030已刷新main并推PR #276，12实际回归及最终两轮完整门禁通过。独立PR #274/#275旧headCI已全通过但HANDOFF追加与新main冲突，需准确刷新和新head验证；不能绕过冲突或把旧headCI赋给新提交。#221/#270/前端#217正在隔离实现，#270原18FAIL与必要Core LIKE修正保持，正式NuGet/消费者验收未完成。canonical同方法134项status/共享文档diffSHA完全相同、index空，parity/冻结发布与PAUSED自动化保持。
+同轮读取 PR #265 新 head 74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 的真实 Windows CI38170203167，失败发生在 dispatcher 测试的 OpenAsync/100ms 建立持久订阅阶段，尚未进入锁故障确认。Options 是持久化合同，不能给首次打开临时设置另一组预算。仅该测试的 false 分支存储预算改为2000ms、dispatcher总预算10秒，true分支原5000ms存储/300msdispatcher保持；两个分支共用15秒调用者取消，WaitAsync使用该令牌，额外断言调用者未取消，避免把外层WaitAsync TimeoutException误认为生产存储超时。稳定DeliveryId/Checkpoint=-1/重开后同批次/PendingCount=1的真实故障和恢复断言保持。生产配置不改、未增加重试/跳过；原FAIL保留，需实际完整dispatcher类回归及最终树重跑完整restore/原format后才追加提交到PR #277。先前物理HTTP定向1/1与restore已通过，它们不替代此新增代码后的完整门禁。
+
+## 线上闭环执行：PR #217 前端依赖与 MapLibre 6 迁移（2026-10-12，Asia/Shanghai）
+
+当前 codex/closure-pr217 的 HEAD 仍为 2e14f493937490195ad169e7441741dbcb57fc0d，待完成的普通 main merge 为 a299a3fcc42de494145be74a8ee451aedeec4249。保留 #217 三个原 manifest/lock 路径的全部升级；其版本更新包含 #218，extension lock blob 相同。主会话仅在 #217 实际合并后处理 #218 的被覆盖关闭。执行智能体仅修改两个地图组件、CHANGELOG 和本交接自有追加，索引、提交、推送和 GitHub 操作由主会话独占。
+
+ResultMapPreview.vue 与 TrajectoryMap.vue 改为 MapLibre namespace/type 导入，保留 nullable 生命周期并用局部 createdMap 注册原 control/style.load/load。npm 6.4.1 实际 exports 没有原迁移指南示例的 ./worker alias，发布 worker 又引用共享模块，因此使用 maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url，并在构造地图前显式 setWorkerUrl；现有瓦片、投影、数据和轨迹语义保持。原指南代码、原只读复核及发布分发差异留在 artifacts/online-closure-20261012/pr-review，不回写历史记录。
+
+本地 Node 24.15.0/npm 11.12.1，与 CI Node 22 分列。14 个主验证命令用一个前端根、2 CPU、有界 Windows Job 执行，原失败全部保留：直连 npm ci 因 Vue ETIMEDOUT 失败后，单命令 7890 代理 ci 通过；Web vue-tsc/Vite build、469 条 Node 合同、307 条 fixture smoke 通过，smoke 的 25 条 host-mode skip 明确保留。Extension npm ci、package:vsix（含 59 条测试与 LanguageServer publish）通过，VSIX 为 40 文件、6.71 MB，SHA256 F43C4F05C98AD68ADB3BFFD97E639FEA5994CFECE629127119516822D4D7154C。
+
+浏览器命令 06/07 在 CLI VM 中缺 Buffer/URL，08 使用旧 Map selector，均保持 FAIL。09 经当前 SQL 轨迹入口实测两张地图，截图显示结果蓝线/点及三点轨迹、端点、播放和图表；原有界 Worker received>0 与 WebGL drawCalls>0 条件完成后，最终相对/绝对 URL 去重断言失败，原根仍 FAIL。精确 numeric message/draw counts 未序列化，不能虚构。11 的独立 worker HTTP/归一化断言实际返回 PASS：生产 assets/maplibre-gl-worker-nm31VrU9.js HTTP 200、469152 字节、浏览器与本地产物 SHA256 同为 F2674E1B561083DB908DE0D2961E680B6F225966B37DBF58558D9EFA76F60430，无残留 shared.mjs import；后续可选 CLI network 不受支持使外层根 FAIL，两层结果单列。
+
+真实 Extension Host 两次均 FAIL：现有 VS Code 1.141.0 启动至 120 秒超时并记录 Error mutex already exists；第二次仅该根清除 NODE_OPTIONS、使用独占 TEMP/TMP 与 user-data 后仍超时。未改动既有用户 Code 进程，未下载替代 VS Code，不推断 mutex/NODE_OPTIONS 因果，不声称扩展 activation 或 host assertions 成功；Host 验收保持 FAIL/UNKNOWN。主会话明确冻结，不增加命令额度、重试或下载。
+
+2026-10-11T21:19:42Z 新独立 cleanup 审计 PASS：14 个回执均 cleanupComplete=true，核 375 个精确身份/359 个 PID，0 个存活自有身份；比较 PID、UTC 创建时间、完整 commandLine、parentPID，无按名或复用 PID 终止。原隔离重试临时基目录仅按记录的绝对路径核空后处理，结果见 frontend-temp-cleanup.json。HANDOFF 原 539062 字节前缀保持；继承 cached binary patch SHA256 3A940AC8BB6A9EBD54E69DA98067DE3F36426E3DBDCD9659916F985DDCB23EB6 保持，执行智能体没有暂存。
+
+下一步由主会话复核 frozen report/source/evidence hashes，在最终树执行规定的完整 restore、原 CI format 和准确 diff/whitespace 检查，串行完成 merge commit、普通 push、远端 CI 与 PR 状态回读。Directory.Packages.props 为继承 main 的合并内容，不属于本前端增量。本地 build/mock/worker 截图与 VSIX 不代表远端 CI、真实 Server/业务、设备、许可、公开发布或干净机器验收；host 不足保持可见，是否具备 PR 合并条件由主会话结合原必需门禁决定。
