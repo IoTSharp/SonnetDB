@@ -2,7 +2,7 @@
 
 本包只包含 Windows x64 NativeAOT Server 和同源 Web。产品状态 NOT_READY；首次部署、实际用户旅程及发布门禁须由 P05～P08 单独验收。Graph 仍为 Beta；document、KV、fulltext、vector、object、MQ、Graph 的专用读取按 R1 延期。
 
-先通过独立 manifest 和 SHA256SUMS 核 ZIP。解压到空目录（例如 `C:\SonnetDB\preview\package`），用 PowerShell 7 执行 `./Start-Preview.ps1 -VerifyOnly`；执行 `./Start-Preview.ps1` 后访问 `http://127.0.0.1:5080/admin/`，按首次设置页建立自己的管理员。HTTP 5080 与 Frame HTTP/2 5081 仅监听环回；可选协议与外部连接默认关闭。目录权限、端口占用、首次设置、停止重开和错配拒绝的实物验收属于 P05。不要外网暴露或混入旧文件。
+先通过独立 manifest 和 SHA256SUMS 核 ZIP。解压到空目录（例如 `C:\SonnetDB\preview\package`），用 PowerShell 7 执行 `./Start-Preview.ps1 -VerifyOnly`。阅读 `MICROSOFT-REDISTRIBUTION-TERMS.md` 与 `licenses/microsoft/` 中微软运行库的原始条款，同意后执行 `./Start-Preview.ps1 -AcceptThirdPartyTerms`，访问 `http://127.0.0.1:5080/admin/`，按首次设置页建立自己的管理员。未确认条款时启动器拒绝启动 Server；该要求只适用于随包微软组件，SonnetDB 源码仍按 MIT 许可。HTTP 5080 与 Frame HTTP/2 5081 仅监听环回；可选协议与外部连接默认关闭。目录权限、端口占用、首次设置、停止重开和错配拒绝的实物验收属于 P05。不要外网暴露或混入旧文件。
 
 数据目录是包目录的相邻 `../data`，与二进制分开。此包不预置数据或凭据；Server 的完整 API 与现有授权仍存在，Preview profile 不构成多租户沙箱。数据库备份不覆盖实例 `.system/mq`。
 

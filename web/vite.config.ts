@@ -6,6 +6,7 @@ import { env } from 'node:process';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { normalizeWebBasePath } from './src/utils/workbenchNavigation';
+import { workbenchModuleInventory } from './build/workbenchModuleInventory';
 
 const baseFolder =
   env.APPDATA && env.APPDATA !== ''
@@ -48,10 +49,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [vue()],
+    plugins: [vue(), workbenchModuleInventory(fileURLToPath(new URL('.', import.meta.url)))],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
+        'vdirs': fileURLToPath(new URL('./src/utils/overlayDirectives.mjs', import.meta.url)),
       },
     },
     build: {

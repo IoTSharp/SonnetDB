@@ -152,7 +152,7 @@ function stage(root, output) {
   for (const link of original.gitlinks) requireThat(git(path.join(root, link.path), ['rev-parse', 'HEAD']) === link.commit
     && git(path.join(root, link.path), ['status', '--porcelain', '--untracked-files=all']) === '', 'Build changed gitlink');
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) fs.copyFileSync(path.join(root, file), path.join(packaged, file));
-  for (const file of ['Start-Preview.ps1', 'START-HERE.md']) fs.copyFileSync(path.join(root, 'eng/workbench-preview', file), path.join(packaged, file));
+  for (const file of ['Start-Preview.ps1', 'START-HERE.md', 'MICROSOFT-REDISTRIBUTION-TERMS.md']) fs.copyFileSync(path.join(root, 'eng/workbench-preview', file), path.join(packaged, file));
   fs.copyFileSync(path.join(output, 'identity.json'), path.join(packaged, 'preview-1.json'));
   const webIdentity = readJson(path.join(packaged, 'wwwroot/workbench-preview.json'));
   requireThat(webIdentity.version === identity.version && webIdentity.sourceCommit === identity.sourceCommit && webIdentity.profile === identity.profile, 'Embedded Web identity mismatch');

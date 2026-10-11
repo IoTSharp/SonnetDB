@@ -1797,3 +1797,17 @@ P08复用原独立四附件workflow和完整policy/verifier，新增不可覆盖
 实现4ae364206c67bc41d20e762a246e364d376b7fdc已普通push且独立API核main相同；86源码合同、补件/脱敏合同、完整restore7.099秒/原CI format109.066秒/default whitespace通过，55owned提交，初始937外来文件无哈希变化。环境新鲜回读仍maikebing/禁止自批/can_admins_bypass=false。产品NOT_READY、未dispatch publish/公开发布/执行公开包首跑。
 
 上段沿用父P07交接的remote parity-results0e48b753da7eab8ebd9651d405ddb58e3bef01c8，仅为历史观察，不是本轮初始基线。实际本轮开始11:37:52Z的remote-current-proxy/parity.txt与当前独立API均16645b7caeb4cf2c37b8f7762419a161ed082591；本地tracking0061d6d78591fb08493f473d3231ca42303faae1保持。原独立回读直连超时、代理后错误旧hash比较FAIL及纠正后PASS均保留；没有fetch/merge/移动或推送parity-results。此更正只追加，不覆盖原交接或原P08冻结机器记录。补记最终完整restore/原format、精确提交/正常push、真实最终HEAD/remote/本机非空审计以artifacts/m47-p08-20261011/delivery.json及checks为准；原报告后续许可→新候选→同源完整P07→精确P08授权和不同账户dispatch/maikebing审批顺序不变。
+
+## M47-P07急需收尾：候选11许可修复源码已准备（2026-10-11，Asia/Shanghai）
+
+用户要求先收尾P07、再完成P08；明确审批与发起用户名均maikebing，并报告有效Visual Studio2026 Community许可版本。环境新鲜回读仍required reviewer maikebing/prevent_self_review=true/can_admins_bypass=false；同账号不能审批自身publish，不借bot、不改保护绕过。实际公开写入仍等待新P07和冻结候选授权。
+
+本轮接续d2027ba73e82edfc72f94c6744e068e9b0f09e63，保护105tracked/832untracked外来文件和空index；当前在codex/m47-preview11-release准备owned源码提交。main推送会自动Docker/Pages发布，所以只普通推候选分支并手动preflight；main及parity-results不移动。workbench automation PAUSED，无工作树/子智能体/跨聊天发送/生产或服务安装。
+
+Mapbox官方2.0.3 metadata/tar SHA512核验，原LICENSE为Zachary Carter MIT；lib/jsonlint.js亦变，必须实测，不称仅通知改动。vdirs旧gitHead404、当前公开根无许可正文；新增SonnetDB自有三Vue指令和构建alias，最终JS模块与chunk字节清单拒绝发出vdirs，仍如实buildOnly=false，仅按实物proof记未分发。五旧npm原补件保留；微软Community原DOCX、2026再分发清单与V14原文无损gzip入库，包内恢复原字节，四DLL来源/hash及用户报告资格分列，新增下游保护条款和Start-Preview的显式同意。VerifyOnly不启动、不表示同意。许可collector按manifest实际依赖数绑定，不套旧243/16；原十二workflow policy/live verifier未改。
+
+本机新Web build、469Web合同、86package/P07/P08合同、七许可正向/拒绝合同通过，fixture回收；都不是候选11实物或READY。旧错误版权预期、过早chunk hash、VM缺新依赖、fixture Join-Path和复用脚本param位置失败均保留。初始源Mapbox传输与Community编码URI失败保留，纠正后的独立DOCX取得成功。完整证据artifacts/m47-p07-close-20261011，源码报告preview-1-p07-successor11.md及15份无损原记录；没有重写候选10/原P07/包/清单/checksum。
+
+版本4.5.0-preview.1.11已核未有build attempt，profile推进candidate-11；下一步最终树完整restore/原format/default whitespace后精确源码commit、普通候选分支push及独立SHA回读，再同SHA干净CI P04、实际P05全套与非空进程audit、许可实物审查、新P06/P07原artifact和完整十二同源workflow。Parity both/publish_results=false；publish/connectors/docker均只workflow_dispatch preflight。全门禁后才精确P08授权、合规发起/maikebing审批、一次发行、匿名四附件/ZIP及真实首跑。当前NOT_READY，公开包首跑NOT_RUN；不能因急需收尾而跳过验收。
+
+本段独占FileStream尾追加、Flush(true)并核完整旧字节前缀；只暂存HEAD原字节+owned段和CHANGELOG自有增量，保留外来交接/表格结构/博客/M42/WB97/WB98及三VSCode文件。固定PowerShell7与已有non-breakaway Job，循环/命令均数量/墙钟/取消有界，日志/FAIL/UNKNOWN保留，临时回收仅已核任务对象；禁Graphify、广域扫描、未经授权安装或按名/旧PID终止。实际最终验证与提交/remote SHA在本轮后续收据回读，未取得不预写PASS。

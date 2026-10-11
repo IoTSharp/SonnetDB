@@ -84,7 +84,7 @@ try {
                 $rule=[Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::Write,[Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Deny)
                 $denied.AddAccessRule($rule);Set-Acl -LiteralPath $dataPath -AclObject $denied
             }
-            $arguments=@('-NoProfile','-File',(Join-Path $package 'Start-Preview.ps1'))
+            $arguments=@('-NoProfile','-File',(Join-Path $package 'Start-Preview.ps1'),'-AcceptThirdPartyTerms')
             if($name -in @('wrong-web','wrong-server','wrong-candidate')){$arguments+='-VerifyOnly'}
             $receipt=Invoke-Phase ('negative-'+$name) 'C:\Program Files\PowerShell\7\pwsh.exe' $arguments $package 30
             if($receipt.status -ne 'FAIL' -or $receipt.exitCode -eq 0 -or !$receipt.cleanupComplete){throw 'Negative scenario did not fail cleanly: '+$name}

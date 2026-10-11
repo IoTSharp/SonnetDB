@@ -74,5 +74,5 @@
       "evidence": "Full README from integrity-verified published tar"
     }
   ],
-  "boundary": "Five original notices only. Mapbox JSON lint and vdirs remain unresolved; Microsoft terms and publisher qualifications require separate review. Requires successor candidate; never alters candidate10."
+  "boundary": "Five pinned original notices. Successor source upgrades Mapbox JSON lint to the separately licensed 2.0.3 and replaces emitted vdirs code with SonnetDB-owned directives. Microsoft originals and publisher qualification are tracked separately. Requires successor candidate and full review; never alters candidate10."
 }

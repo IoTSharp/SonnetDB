@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import fs from 'node:fs';
 import path from 'node:path';
 import childProcess from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, URL } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
@@ -178,7 +179,7 @@ test('Actual SSE subscriptions stay under deployment base, encode token/channels
 
 test('Actual Vite config applies the explicit asset base and strips only its configured development proxy prefix', { timeout: 5000 }, async () => {
   for (const base of ['/', '/Gateway/SonnetDB/', '/Gateway.v1/SonnetDB+Admin/']) {
-    const context = createContext({ console });
+    const context = createContext({ console, Buffer });
     const helper = sourceModule(context, 'src/utils/workbenchNavigation.ts');
     await helper.link(() => {}); await helper.evaluate({ timeout: 1000 });
     const imports = {
@@ -186,15 +187,21 @@ test('Actual Vite config applies the explicit asset base and strips only its con
       'node:fs': synthetic(context, { default: fs }),
       'node:path': synthetic(context, { default: path }),
       'node:child_process': synthetic(context, { default: childProcess }),
+      'node:crypto': synthetic(context, { createHash }),
       'node:process': synthetic(context, { env: { SONNETDB_WEB_BASE_PATH: base, SONNETDB_PROXY_TARGET: 'http://localhost:5080' } }),
       vite: synthetic(context, { defineConfig: (config) => config }),
       '@vitejs/plugin-vue': synthetic(context, { default: () => ({ name: 'vue-test' }) }),
       './src/utils/workbenchNavigation': helper,
     };
+    const inventoryPlugin = sourceModule(context, 'build/workbenchModuleInventory.ts');
+    await inventoryPlugin.link((specifier) => imports[specifier]); await inventoryPlugin.evaluate({ timeout: 1000 });
+    imports['./build/workbenchModuleInventory'] = inventoryPlugin;
     const module = sourceModule(context, 'vite.config.ts');
     await module.link((specifier) => imports[specifier]); await module.evaluate({ timeout: 1000 });
     const config = module.namespace.default({ mode: 'e2e' });
     assert.equal(config.base, base);
+    assert.equal(config.plugins[1].name, 'sonnetdb-module-inventory');
+    assert.equal(config.resolve.alias.vdirs, fileURLToPath(new URL('src/utils/overlayDirectives.mjs', webRoot)));
     const [pattern, proxy] = Object.entries(config.server.proxy)[0];
     assert.match(`${base}v1/auth/login`, new RegExp(pattern));
     assert.equal(proxy.rewrite(`${base}v1/auth/login?preserve=query`), '/v1/auth/login?preserve=query');

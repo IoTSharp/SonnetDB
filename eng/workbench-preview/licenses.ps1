@@ -44,6 +44,18 @@ foreach ($key in @($assets.libraries.Keys | Sort-Object)) {
     $dependencies.Add(@{ ecosystem='nuget'; id=$parts[0]; version=$parts[1]; resolvedSha512=$library.sha512; archiveSha256=(Get-FileHash $nupkg).Hash.ToLowerInvariant(); license=$declaration; includedLicenseFiles=$licenseFiles.ToArray(); licenseEvidence=if($null -eq $declaration -and $licenseFiles.Count -eq 0){'MISSING_REQUIRES_P07_REVIEW'}else{'PACKAGE_METADATA_AND_AVAILABLE_ORIGINAL_TEXT'} })
 }
 $lock = Get-Content (Join-Path $RepoRoot 'web/package-lock.json') -Raw | ConvertFrom-Json -AsHashtable
+$bundlePath = Join-Path $PackageRoot 'wwwroot/workbench-module-inventory.json'
+$bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
+if ($bundle.schemaVersion -ne 1 -or $bundle.source -cne 'rollup-rendered-modules' -or $bundle.replacement -cne 'src/utils/overlayDirectives.mjs' -or $bundle.modules.Count -lt 1 -or $bundle.modules.Count -gt 10000 -or $bundle.chunks.Count -lt 1 -or $bundle.chunks.Count -gt 1000 -or $bundle.excludedInstalledPackages.Count -ne 1 -or $bundle.excludedInstalledPackages[0] -cne 'vdirs') { throw 'Invalid bundled-module evidence.' }
+$replacement = @($bundle.modules | Where-Object module -CEQ $bundle.replacement)
+if ($replacement.Count -ne 1 -or $replacement[0].sourceSha256 -cne (Get-FileHash -LiteralPath (Join-Path $RepoRoot "web/$($bundle.replacement)")).Hash.ToLowerInvariant() -or @($bundle.modules | Where-Object { $_.module -match '(^|/)node_modules/vdirs/' }).Count -gt 0) { throw 'Owned replacement absent or vdirs still emitted.' }
+foreach ($chunk in $bundle.chunks) {
+    Check-Budget
+    if ($chunk.path -cnotmatch '^assets/[a-zA-Z0-9_.-]+\.js$' -or $chunk.size -lt 1 -or $chunk.size -gt 32MB) { throw 'Unsafe bundled chunk.' }
+    $chunkPath = Join-Path $PackageRoot "wwwroot/$($chunk.path)"
+    if ((Get-Item -LiteralPath $chunkPath).Length -ne $chunk.size -or (Get-FileHash -LiteralPath $chunkPath).Hash.ToLowerInvariant() -cne $chunk.sha256) { throw 'Bundled chunk evidence drift.' }
+}
+$bundleHash = (Get-FileHash -LiteralPath $bundlePath).Hash.ToLowerInvariant()
 foreach ($key in @($lock.packages.Keys | Sort-Object)) {
     Check-Budget
     if ($key -eq '') { continue }
@@ -67,7 +79,10 @@ foreach ($key in @($lock.packages.Keys | Sort-Object)) {
         $licenseFiles.Add($relative)
     }
     $metadata = Get-Content (Join-Path $directory 'package.json') -Raw | ConvertFrom-Json -AsHashtable
-    $dependencies.Add(@{ecosystem='npm';id=$metadata['name'];version=$metadata['version'];integrity=$item['integrity'];resolved=$item['resolved'];buildOnly=($item['dev'] -eq $true);license=$metadata['license'];includedLicenseFiles=$licenseFiles.ToArray();licenseEvidence=if($licenseFiles.Count -eq 0){'METADATA_ONLY_REQUIRES_P07_REVIEW'}else{'ORIGINAL_TEXT'}})
+    $excluded = $metadata['name'] -ceq 'vdirs'
+    $dependencies.Add(@{ecosystem='npm';id=$metadata['name'];version=$metadata['version'];integrity=$item['integrity'];resolved=$item['resolved'];buildOnly=($item['dev'] -eq $true);redistributed=(!$excluded);license=$metadata['license'];includedLicenseFiles=$licenseFiles.ToArray();
+        bundleEvidence=if($excluded){@{file='wwwroot/workbench-module-inventory.json';sha256=$bundleHash;replacement=$bundle.replacement}}else{$null};
+        licenseEvidence=if($excluded){'INSTALLED_NOT_EMITTED_WITH_HASHED_ROLLUP_PROOF'}elseif($licenseFiles.Count -eq 0){'METADATA_ONLY_REQUIRES_P07_REVIEW'}else{'ORIGINAL_TEXT'}})
 }
 $runtimeReport = Get-Content (Join-Path $PackageRoot 'native-dependencies.json') -Raw | ConvertFrom-Json
 foreach ($runtime in $runtimeReport.redistributed) {
@@ -79,5 +94,7 @@ foreach ($runtime in $runtimeReport.redistributed) {
 }
 Check-Budget
 & (Join-Path $PSScriptRoot 'Add-SupplementalNotices.ps1') -PackageRoot $PackageRoot -Dependencies $dependencies.ToArray()
+Check-Budget
+& (Join-Path $PSScriptRoot 'Add-MicrosoftTerms.ps1') -PackageRoot $PackageRoot -Dependencies $dependencies.ToArray()
 Check-Budget
 $dependencies.ToArray() | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $PackageRoot 'dependency-licenses.json') -Encoding utf8

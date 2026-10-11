@@ -1,4 +1,4 @@
-param([switch]$VerifyOnly)
+param([switch]$VerifyOnly, [switch]$AcceptThirdPartyTerms)
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7 -or -not $IsWindows) { throw 'Use PowerShell 7+ on Windows x64.' }
 $watch = [Diagnostics.Stopwatch]::StartNew()
@@ -23,6 +23,7 @@ $server = Join-Path $PSScriptRoot 'SonnetDB.exe'
 if ([Diagnostics.FileVersionInfo]::GetVersionInfo($server).ProductVersion -cne "$($identity.version)+$($identity.sourceCommit)") { throw 'Server version mismatch.' }
 Write-Output "Verified $($identity.version) $($identity.sourceCommit); profile preview-1 R1"
 if ($VerifyOnly) { return }
+if (!$AcceptThirdPartyTerms) { throw 'Read MICROSOFT-REDISTRIBUTION-TERMS.md and licenses/microsoft first. Use -AcceptThirdPartyTerms only if you agree; Server has not started.' }
 $env:ASPNETCORE_ENVIRONMENT = 'Production'
 Push-Location $PSScriptRoot
 try { & $server; if ($LASTEXITCODE -ne 0) { throw "Server exited $LASTEXITCODE" } } finally { Pop-Location }
