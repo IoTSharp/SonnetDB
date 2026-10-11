@@ -209,6 +209,8 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- 测试侧 xunit.runner.visualstudio 从 4.0.0 升级为 4.0.1（PR #269），合入独立 Windows 测试稳定性前置；不增加产品运行时依赖。
+
 - PR #215/#216：将 SkiaSharp 与 Linux NoDependencies 原生资产同步升级到 4.153.1，修正单独升级产生的托管/原生版本失配；图像解码、缩放及对象处理按真实 native 路径回归。
 - PR #267：升级 Microsoft.ML.OnnxRuntime 1.30.0→1.31.0；保持显式模型 profile 和 native/synthetic tensor 合同，不以合成模型结果代替真实模型质量验收。
 - `Testcontainers` 从 4.15.0 升级至 4.16.0，保留现有 SonnetDB 容器模块的五个目标框架与非 AOT 宿主边界（PR #268，M43 生态工具链）。
