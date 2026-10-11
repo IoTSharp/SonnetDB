@@ -23,6 +23,8 @@ internal static partial class SonnetDbEndpoints
 
         app.MapGet("/v1/db", (HttpContext ctx) =>
         {
+            if (WorkbenchPreviewSql.IsRequested(ctx) && registry.Count > 1000)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
             var visibleDatabases = DatabaseAccessEvaluator.GetVisibleDatabases(ctx, grants, registry.ListDatabases());
             var resp = new DatabaseListResponse(visibleDatabases);
             return Results.Json(resp, ServerJsonContext.Default.DatabaseListResponse);

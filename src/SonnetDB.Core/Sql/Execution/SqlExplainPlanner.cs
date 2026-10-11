@@ -17,7 +17,7 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>
 /// <c>EXPLAIN</c> / MCP <c>explain_sql</c> 共用的扫描估算结果。
 /// </summary>
-public sealed record SqlExplainExecutionResult(
+public sealed partial record SqlExplainExecutionResult(
     string? Database,
     string StatementType,
     string? Measurement,

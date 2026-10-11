@@ -1,0 +1,80 @@
+name: Workbench Preview package
+run-name: Preview package ${{ inputs.version }} from ${{ inputs.source_commit }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Full committed source SHA (40 lowercase hex characters)
+        required: true
+        type: string
+      version:
+        description: New immutable Preview candidate version
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: workbench-preview-package-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Validate dispatch inputs
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PREVIEW_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:SOURCE_COMMIT -cnotmatch '^[a-f0-9]{40}$' -or $env:PREVIEW_VERSION -notmatch '^4\.5\.0-preview\.1\.[1-9][0-9]*$') { throw 'Invalid candidate identity.' }
+          if ($env:GITHUB_RUN_ATTEMPT -ne '1') { throw 'A regenerated package requires a new candidate/version.' }
+      - name: Reject candidate version reuse
+        shell: pwsh
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_VERSION: ${{ inputs.version }}
+        run: |
+          $response = gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/workbench-preview-build.yml/runs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $response.total_count -gt 100) { throw 'Candidate history unavailable or requires bounded history review.' }
+          $prior = @($response.workflow_runs | Where-Object { "$($_.id)" -ne $env:GITHUB_RUN_ID -and $_.display_title.StartsWith("Preview package $env:PREVIEW_VERSION from ") })
+          if ($prior.Count -gt 0) { throw 'Version already has a build attempt; use a new candidate.' }
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_commit }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Build isolated NativeAOT Preview package
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PREVIEW_VERSION: ${{ inputs.version }}
+        run: ./eng/workbench-preview/build.ps1 -SourceCommit $env:SOURCE_COMMIT -Version $env:PREVIEW_VERSION -OutputRoot "$env:RUNNER_TEMP/preview-output"
+      - name: Verify sealed package without starting Server
+        shell: pwsh
+        run: '& "$env:RUNNER_TEMP/preview-output/package/Start-Preview.ps1" -VerifyOnly'
+      - name: Upload P04 assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: workbench-preview-${{ inputs.version }}
+          path: ${{ runner.temp }}/preview-output/delivery/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workbench-preview-evidence-${{ inputs.version }}
+          path: |
+            ${{ runner.temp }}/preview-output/evidence/
+            ${{ runner.temp }}/preview-output/source.json
+          if-no-files-found: error
+          retention-days: 30

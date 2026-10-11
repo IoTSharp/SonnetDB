@@ -238,6 +238,16 @@ internal static partial class SonnetDbEndpoints
             return null;
         try
         {
+            if (WorkbenchPreviewSql.IsRequested(ctx))
+            {
+                // Read at most one bounded buffer before parsing, including chunked bodies.
+                var buffer = new byte[WorkbenchPreviewSql.MaximumInputBytes + 1];
+                var read = await ctx.Request.Body.ReadAtLeastAsync(buffer, buffer.Length,
+                    throwOnEndOfStream: false, ctx.RequestAborted).ConfigureAwait(false);
+                if (read > WorkbenchPreviewSql.MaximumInputBytes)
+                    return null;
+                return JsonSerializer.Deserialize(buffer.AsSpan(0, read), typeInfo);
+            }
             return await JsonSerializer.DeserializeAsync(ctx.Request.Body, typeInfo, ctx.RequestAborted).ConfigureAwait(false);
         }
         catch (JsonException)

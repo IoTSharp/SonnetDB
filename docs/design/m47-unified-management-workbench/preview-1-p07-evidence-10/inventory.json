@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "source": "preserved-installed-package-receipts",
+  "candidate": "candidate-10",
+  "version": "4.5.0-preview.1.10",
+  "sourceCommit": "54eefc816f133a805b0d38f0cbe930d2c17650b6",
+  "candidateRecordSha256": "554d1f07b1a322ccaff944cc9dc50370b6bb83bc3f02697e7108ae1c28487af0",
+  "acceptanceAuditSha256": "18b0e9a346cd5cf822347abf76f67f189f4ee9b9bf81668c51255a6710527f98",
+  "files": [
+    {
+      "file": "first-journey.json",
+      "size": 122667,
+      "sha256": "3ce11a51b40aa09d7856913801b200b29529a81a539fa6564ccca37463f1711c",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/first/first-journey.json",
+      "storageFile": "first-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "first-result.json",
+      "size": 1177,
+      "sha256": "8bcd00b5cde5cbf97f37979641ecde2618f2722fa42f57cfca94ab8f65c47f7e",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/first/result.json",
+      "storageFile": "first-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "reopen-journey.json",
+      "size": 13812,
+      "sha256": "516ea0845202bb7a831bd438c09be770f535a340e003a376aba4d8b00ba8a729",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/reopen/reopen-journey.json",
+      "storageFile": "reopen-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "reopen-result.json",
+      "size": 1182,
+      "sha256": "a326d3a7ac59eef286327713a192bfb7449a9483efbc6b046538dc2a1ade21d9",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/reopen/result.json",
+      "storageFile": "reopen-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "rollback-journey.json",
+      "size": 13583,
+      "sha256": "2046f82017f32b5e02a6f3d7f9eda3558826e93eae6833c57830b28e790cb888",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/rollback/rollback-journey.json",
+      "storageFile": "rollback-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "rollback-result.json",
+      "size": 1181,
+      "sha256": "321b754acc71a65ee06fb4b0c910f3374f641f3c27208a7fe106a3affd6a33da",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/normal/rollback/result.json",
+      "storageFile": "rollback-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "legacy-journey.json",
+      "size": 2421,
+      "sha256": "b4be236f6fe3addddda35450845178baebbd8aa388da6add09d94cee3b7556ce",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/legacy/legacy/legacy-journey.json",
+      "storageFile": "legacy-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "legacy-result.json",
+      "size": 1276,
+      "sha256": "674f11812e1cc23c486316f5adb062c3440fc0af26fe04f702eda27ea3b36170",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/legacy/legacy/result.json",
+      "storageFile": "legacy-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "installed-suite.json",
+      "size": 1663,
+      "sha256": "b37ba2d77500ffa1597a380ceabede0f027469637910eed82b0ad3fdaf91ff66",
+      "originalPath": "artifacts/m47-p05-20261011/suite-10-b/suite.json",
+      "storageFile": "installed-suite.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "installed-audit.json",
+      "size": 4312,
+      "sha256": "6971a3837dc5ab3bd8c93e5381100b3240ec4e18b2470a04f3869864d107bfec",
+      "originalPath": "artifacts/m47-p05-20261011/installed-independent-audit.json",
+      "storageFile": "installed-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "corrected-audit.json",
+      "size": 2616,
+      "sha256": "3d74c8466776500a995239c62fbcba4f5407f95f600648ab46b3ec869df67dfe",
+      "originalPath": "artifacts/m47-p05-20261011/final-delivery-process-audit-v2.json",
+      "storageFile": "corrected-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-empty-window-audit.json",
+      "size": 454,
+      "sha256": "cb6cf9bec50b3dce25da94cc27b3e132498ef8b350fc0f74a410e5436501e6ae",
+      "originalPath": "artifacts/m47-p05-20261011/final-delivery-process-audit.json",
+      "storageFile": "original-empty-window-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-build-run.json",
+      "size": 12205,
+      "sha256": "1cecb3ba64b99fd6edd8f828cda74bc893aeff0cf4eef45435ebcb7e111b989f",
+      "originalPath": "artifacts/m47-p07-20261011/remote-initial/build-run.json",
+      "storageFile": "original-build-run.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-build-artifacts.json",
+      "size": 1440,
+      "sha256": "4711373773e6e405154f20bc5666fcc0d775f73ec1d4600a8fc9b1733d2aff27",
+      "originalPath": "artifacts/m47-p07-20261011/remote-initial/build-artifacts.json",
+      "storageFile": "original-build-artifacts.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-prepare-failure.json",
+      "size": 465,
+      "sha256": "6154127cc38439dbd81bce6a148455400d44aed8be9904d0df6116a43122e6c3",
+      "originalPath": "artifacts/m47-p07-20261011/prepare-failure-1/artifact/prepare.json",
+      "storageFile": "original-prepare-failure.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-readiness-not-ready.json",
+      "size": 3687,
+      "sha256": "0d8347a5c86e6ba28c947c6594a8c15f1b68f6e11dfa21ed1b155f9e2411ed8f",
+      "originalPath": "artifacts/m47-p07-20261011/release-gates-initial/readiness.json",
+      "storageFile": "original-readiness-not-ready.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "dependency-licenses-original.json",
+      "size": 113713,
+      "sha256": "3ff035de15b8c0d5f3d980643c9df3b34f7d5c6bfa893d5bf57f38ec0facf462",
+      "originalPath": "artifacts/m47-p07-20261011/dependency-licenses.json",
+      "storageFile": "dependency-licenses-original.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "license-primary-sources.json",
+      "size": 8301,
+      "sha256": "db51149dd555f73e532d8aa4d6c1037b4c07cb53453c94b730195dcfdaadab81",
+      "originalPath": "artifacts/m47-p07-20261011/license-exact/sources.json",
+      "storageFile": "license-primary-sources.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "microsoft-primary-documents.json",
+      "size": 775,
+      "sha256": "38219c19c6eed1adac888349a1ebe6ff98dafa850c0f83ea8ce5faf7a711fd2d",
+      "originalPath": "artifacts/m47-p07-20261011/license-exact/microsoft-documents.json",
+      "storageFile": "microsoft-primary-documents.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "license-review.json",
+      "size": 18708,
+      "sha256": "275d856dba469afa50330855e79f290983be473d994efa34ff6459c945183ef5",
+      "originalPath": "P07 review of immutable dependency inventory and primary sources",
+      "storageFile": "license-review.json.gz",
+      "encoding": "gzip"
+    }
+  ],
+  "excluded": "No passwords, tokens, cookies, environment/spec files or screenshots. Preserved FAIL/UNKNOWN and empty-window receipts are not accepted as PASS.",
+  "supportingFiles": [
+    {
+      "file": "npm-0-license.txt",
+      "size": 1065,
+      "sha256": "306f57de421d7ef77f7dc145e1234f9c0ec76b710d28769b4d98ef3c4f8a64bd",
+      "storageFile": "npm-0-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-2-license.txt",
+      "size": 1069,
+      "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+      "storageFile": "npm-2-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-4-license.txt",
+      "size": 35231,
+      "sha256": "fa1bd040c5bdeefe65b3821cebf474f2733ce65df13089bd151dda1778e62fe8",
+      "storageFile": "npm-4-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-5-license.txt",
+      "size": 35231,
+      "sha256": "fa1bd040c5bdeefe65b3821cebf474f2733ce65df13089bd151dda1778e62fe8",
+      "storageFile": "npm-5-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-6-license.txt",
+      "size": 1091,
+      "sha256": "17fb24bc303763f3fe1911ee24e5225c7ad59f0e3a5d8123e9b730c100a306a6",
+      "storageFile": "npm-6-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-7-license.txt",
+      "size": 1083,
+      "sha256": "050bbca6960784db52ff387271bf2ecc5cbed7cf8581b415d528a6ecb6585015",
+      "storageFile": "npm-7-license.txt.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "npm-8-license.txt",
+      "size": 1065,
+      "sha256": "306f57de421d7ef77f7dc145e1234f9c0ec76b710d28769b4d98ef3c4f8a64bd",
+      "storageFile": "npm-8-license.txt.gz",
+      "encoding": "gzip"
+    }
+  ]
+}

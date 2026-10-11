@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "pinned-microsoft-distribution-originals",
+  "publisher": {
+    "githubUser": "maikebing",
+    "edition": "Visual Studio Community 2026",
+    "qualificationSource": "Direct user reply in this chat on 2026-10-11: Community",
+    "qualificationKind": "USER_REPORTED_VALID_LICENSE_EDITION",
+    "useBasis": "SonnetDB source is published under MIT; Community organizational open-source use and individual use clauses are included in the original terms.",
+    "boundary": "User qualification statement is not a Microsoft-issued entitlement certificate. Compiler edition/provenance for each build remains independently recorded."
+  },
+  "originals": [
+    {
+      "file": "Visual-Studio-Community-2026.docx",
+      "storageFile": "Visual-Studio-Community-2026.docx.gz",
+      "size": 69066,
+      "sha256": "02ac07637f4a513a807cd3721c7620433fc483bc049d25784b0c10c54b05e1fb",
+      "storageSha256": "862b82a08eb8ccf86284acb3d34aac2049c2fd466cd8f05ef8b0cec1a38a5843",
+      "source": "https://visualstudio.microsoft.com/wp-content/uploads/2025/10/Visual_Studio_2026-License-Community_ENU.docx"
+    },
+    {
+      "file": "Visual-Studio-2026-redistribution.html",
+      "storageFile": "Visual-Studio-2026-redistribution.html.gz",
+      "size": 48844,
+      "sha256": "63c8b2fec30b731d75025911086aa67e19ec3fe82c443a15cac6d1eb8e1a4b83",
+      "storageSha256": "99986ee60aafdcdfc51f84393e48529c1ea01ef62345f50aa4358068613de003",
+      "source": "https://aka.ms/vs/18/redistribution"
+    },
+    {
+      "file": "Visual-C-V14-runtime.txt",
+      "storageFile": "Visual-C-V14-runtime.txt.gz",
+      "size": 11893,
+      "sha256": "3dfd057b91025067c08bd73c3cb0e6f712f76b6198b54413e14365d529f17ea6",
+      "storageSha256": "0809c7bbda63f82c00079a4a57bed9f456402dfcdc36938e08e478014ec1b59e",
+      "source": "https://visualstudio.microsoft.com/wp-content/uploads/2025/10/Visual-C-V14-License-Redistributable_and_Runtime_ENU.docx"
+    }
+  ],
+  "downstreamTerms": "MICROSOFT-REDISTRIBUTION-TERMS.md",
+  "runtimeNames": [
+    "msvcp140.dll",
+    "msvcp140_1.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll"
+  ],
+  "boundary": "Only original terms, user qualification and downstream protection preparation. Successor immutable package and full P07 review remain required."
+}

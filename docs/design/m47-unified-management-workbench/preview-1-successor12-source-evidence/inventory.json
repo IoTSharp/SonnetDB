@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "kind": "successor12-source-preparation-and-candidate11-originals",
+  "files": [
+    {
+      "originalPath": "source-commit.json",
+      "storageFile": "00-source-commit.json.gz",
+      "size": 349,
+      "sha256": "73e9f9d1a9de2f67c66b62b711996c4b8e0163abea7418a8b69fb6f7e34dd03a",
+      "storageSha256": "28e313abb8a943f56cfd8059a22f1bd88fdfaab9d7f7097f57cbd76e50e2c520"
+    },
+    {
+      "originalPath": "dispatch/dispatch-summary.json",
+      "storageFile": "01-dispatch-summary.json.gz",
+      "size": 5045,
+      "sha256": "bece00be11e0f849582a4f407f3446aa8c57239fcb528ea26eeaab75f337962d",
+      "storageSha256": "6da55e0cb3de2e47ec7a8439ce72f4774e03d8db6e2cd7e18e262eb34e9fc598"
+    },
+    {
+      "originalPath": "build-artifacts/run.json",
+      "storageFile": "02-run.json.gz",
+      "size": 12232,
+      "sha256": "84fa2fdaf3d77024b2d7a828900cd83ef0502c0ba0adfac772d6116083746fbd",
+      "storageSha256": "066124ebeef8f8de4d801d343be7a3307b6d3b8b0e2b917548885a73fe6a170b"
+    },
+    {
+      "originalPath": "build-artifacts/artifacts.json",
+      "storageFile": "03-artifacts.json.gz",
+      "size": 1484,
+      "sha256": "ef90357dc4ed620c0397e8c904202120116330a9fa430b9904a1355e5b76c4b4",
+      "storageSha256": "d7132e1c25539bfd470394df6c9d3ae737bf61ab01b053e35b1500eba1abe825"
+    },
+    {
+      "originalPath": "build-artifacts/download.json",
+      "storageFile": "04-download.json.gz",
+      "size": 649,
+      "sha256": "8fe78a5535b980e926a8c568c603b6c981773e423132ba35263b173c2051b7b6",
+      "storageSha256": "926b7bcbdc6144d52925e883eab51acf4f0f65198dd5109e4f6419fd24704677"
+    },
+    {
+      "originalPath": "delivery-validation-4.5.0-preview.1.11.json",
+      "storageFile": "05-delivery-validation-4.5.0-preview.1.11.json.gz",
+      "size": 683,
+      "sha256": "ca9f2d5cde23d97052e58851c476319decb29247568e463ae1ef5a28e9d55209",
+      "storageSha256": "50279151708000d98b83f586b8cd967b2280da9612a44e916831de72d63cd0ae"
+    },
+    {
+      "originalPath": "license-review-11.json",
+      "storageFile": "06-license-review-11.json.gz",
+      "size": 4810,
+      "sha256": "f27b5e53440f216fa8f266b59668fac2d467afb9c23e5bb2fb02326a632747c3",
+      "storageSha256": "c088eac679d85a2638266eddff0a171bc267dbfcfdd92ccb9f90686d722fb52b"
+    },
+    {
+      "originalPath": "checks/diagnostic-baseline4.result.json",
+      "storageFile": "07-diagnostic-baseline4.result.json.gz",
+      "size": 1599,
+      "sha256": "3a8625f627eeff8c0e718fc3f2c7e65bec34b153a2a21e53f2937effc667a987",
+      "storageSha256": "7014cc07c251bb8d4cf8d1caf42ca99f84a7719bc4fb959cf35b9d1f3f75fb1f"
+    },
+    {
+      "originalPath": "checks/pack-api40-fixed.result.json",
+      "storageFile": "08-pack-api40-fixed.result.json.gz",
+      "size": 1583,
+      "sha256": "de889396de97e4d86a12365517dfdc3e6a9db4018fdc03f34e8d9b23fdaef3aa",
+      "storageSha256": "52348c81d538f25f50447df3caefb822d97c244fe99ddd234631fdbb462d5d8a"
+    },
+    {
+      "originalPath": "checks/pack-api40-v2.result.json",
+      "storageFile": "09-pack-api40-v2.result.json.gz",
+      "size": 1573,
+      "sha256": "1783d2b860b29fbec22d4a0ab86d02919f48ef4e997e33a72c196fe94f307824",
+      "storageSha256": "f269ef42566cae3da343ac13189bb9b197eb98d927e47bf284d45a2cb7c00ae6"
+    },
+    {
+      "originalPath": "checks/profile12-contracts.result.json",
+      "storageFile": "10-profile12-contracts.result.json.gz",
+      "size": 1343,
+      "sha256": "1931527a204ceb21873b8a80da7363756a58c329c1fac5af7a462051c4e81689",
+      "storageSha256": "3089080490f11c9c8f66bd3a571a8b186f76850a5c47efbab3704f95b74f05ef"
+    },
+    {
+      "originalPath": "publish-failure-11/original-log.txt",
+      "storageFile": "11-original-log.txt.gz",
+      "size": 29232,
+      "sha256": "e7c28bbd670602b2ab352e5a8bf45e9b2c5c208a62707448c628ebe35acf68b3",
+      "storageSha256": "99912574daef7122d7d6b286b99e4ba19f44e0b05400e3236a0c7980218e03b3"
+    },
+    {
+      "originalPath": "api40-test-acceptance.json",
+      "storageFile": "12-api40-test-acceptance.json.gz",
+      "size": 448,
+      "sha256": "ea22ac89eb9d3ffba699180d18be398322f263d891ebdb5ad3ba9ddcb9ee553c",
+      "storageSha256": "6dc09fd0f56c648744c36c827d955db6abbc01a3d958ea3c04b207297dd4ff8b"
+    },
+    {
+      "originalPath": "vstest-api40-seven/api40-seven.trx",
+      "storageFile": "13-api40-seven.trx.gz",
+      "size": 11874,
+      "sha256": "65fc75d690589a8588e0b95d8bfb2f248886ed4ad058d6a3660bbd64a879744e",
+      "storageSha256": "0cae8ba419ea7cfbf5ee45f385c484949e8c9184b58a7ac1d24785d7820afebd"
+    },
+    {
+      "originalPath": "checks/vstest-api40-seven.result.json",
+      "storageFile": "14-vstest-api40-seven.result.json.gz",
+      "size": 1570,
+      "sha256": "8a5db4262bbab33e4c39b63b1ece0ae66a4640eb56fad1fc74215ef8465db31e",
+      "storageSha256": "2bcc9e2676040482326a4d6b142128861e70fc7fe35479b77eb028573492528b"
+    }
+  ],
+  "boundary": "Candidate11 P04 byte and license input evidence plus retained failures. Candidate12 package and P05/P07/P08 remain separate."
+}

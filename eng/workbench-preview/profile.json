@@ -1,0 +1,541 @@
+{
+  "schemaVersion": 1,
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "profile": "preview-1",
+  "scopeRevision": "R1",
+  "releaseStatus": "NOT_READY",
+  "rid": "win-x64",
+  "sourcePredecessor": {
+    "id": "candidate-04",
+    "sourceCommit": "57222f57e4cce324ca054126fd4281ec5e5afec1",
+    "sourceTree": "556185eae4f0daa765bdaf69e4e44fcb98255674",
+    "version": "4.5.0-preview.1.4",
+    "reservedTag": "workbench-preview-1.4",
+    "tagCreated": false,
+    "state": "COMMITTED_SOURCE_P03_R1_LOCAL_COMPLETE_REMOTE_RELEASE_GATES_NOT_VERIFIED",
+    "builtArtifacts": [],
+    "localHeadAndOriginMainVerified": false,
+    "excludesDirtyWorkingTree": true,
+    "requiresSuccessorForImplementation": true,
+    "submodules": [
+      {
+        "path": "extensions/IoTSharp.CoAP.NET",
+        "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+      },
+      {
+        "path": "extensions/MQTTnet.AspNetCore.Routing",
+        "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+      }
+    ],
+    "sourceCommittedLocally": true,
+    "remoteVerification": "SOURCE_COMMIT_PUSH_PENDING_AT_FREEZE_FINAL_DELIVERY_VERIFIES_REMOTE"
+  },
+  "actions": [
+    {
+      "id": "session",
+      "entry": "/admin",
+      "allow": [
+        "setup",
+        "login",
+        "select-authorized-database",
+        "logout",
+        "login-again",
+        "about"
+      ],
+      "permission": "session",
+      "maximumRowsOrElements": null,
+      "historicalEvidence": [],
+      "deferred": [
+        "auto-login",
+        "cross-origin",
+        "credential-import"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "sql.read",
+      "entry": "/admin/app/sql",
+      "allow": [
+        "single-budget-supported-select",
+        "explain-select",
+        "show-tables",
+        "show-measurements",
+        "describe-table",
+        "describe-measurement"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26-WB37-relevant-reads"
+      ],
+      "deferred": [
+        "free-sql-write",
+        "control-plane",
+        "multiple-statements"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "relation.read",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "schema",
+        "page",
+        "filter",
+        "sort",
+        "previous-next"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 200,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "ddl",
+        "indexes",
+        "foreign-keys"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "relation.insert.one",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "stage-single-scalar-row",
+        "preview",
+        "approve-once",
+        "submit-once",
+        "readback"
+      ],
+      "permission": "write",
+      "maximumRowsOrElements": 1,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "update",
+        "delete",
+        "batch",
+        "ddl",
+        "replay-unknown"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "measurement.read",
+      "entry": "/admin/app/sql?tool=measurement",
+      "allow": [
+        "schema",
+        "bounded-time-points"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 500,
+      "historicalEvidence": [
+        "WB31"
+      ],
+      "deferred": [
+        "write",
+        "ingest",
+        "import",
+        "ddl",
+        "maintenance"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "document.read",
+      "entry": "/admin/app/sql?tool=document",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26"
+      ],
+      "deferred": [
+        "count",
+        "aggregate",
+        "distinct",
+        "advanced",
+        "write",
+        "collections",
+        "schema",
+        "find-page",
+        "cursor-next-page"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "kv.read",
+      "entry": "/admin/app/sql?tool=kv",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB29"
+      ],
+      "deferred": [
+        "cas",
+        "ttl",
+        "atomic-number",
+        "write",
+        "delete",
+        "keyspaces",
+        "prefix-scan",
+        "inspect-current-key"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "fulltext.read",
+      "entry": "/admin/app/sql?tool=fulltext",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB28"
+      ],
+      "deferred": [
+        "import",
+        "index-write",
+        "maintenance",
+        "advanced-query",
+        "indexes",
+        "lexical-search",
+        "hit-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "vector.read",
+      "entry": "/admin/app/sql?tool=vector",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB32",
+        "WB33"
+      ],
+      "deferred": [
+        "embedding",
+        "profile",
+        "write",
+        "maintenance",
+        "semantic-quality-claim",
+        "index-metadata",
+        "numeric-vector-search"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "object.read",
+      "entry": "/admin/app/sql?tool=bucket",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB37"
+      ],
+      "deferred": [
+        "full-download",
+        "upload",
+        "multipart",
+        "presign",
+        "semantic-search",
+        "bucket-export",
+        "buckets",
+        "object-list-window",
+        "metadata",
+        "range-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "mq.read",
+      "entry": "/admin/app/sql?tool=mq",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB34"
+      ],
+      "deferred": [
+        "auto-poll",
+        "publish",
+        "consume",
+        "ack",
+        "nack",
+        "retention-edit",
+        "topic-metadata",
+        "topic-stats",
+        "explicit-offset-browse"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "graph.read.beta",
+      "entry": "/admin/app/sql?tool=graph",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB35",
+        "WB36"
+      ],
+      "deferred": [
+        "write",
+        "import",
+        "export",
+        "maintenance",
+        "arbitrary-traversal",
+        "metadata",
+        "bounded-vertex-edge-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "result.window",
+      "entry": "allowed-result-views",
+      "allow": [
+        "current-authorized-window-export",
+        "cancel",
+        "truncation-status",
+        "error-status"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "model-specific-local-contracts"
+      ],
+      "deferred": [
+        "backup",
+        "unloaded-pages",
+        "revoked-payload",
+        "graph-file-export",
+        "object-download"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    }
+  ],
+  "budgets": {
+    "status": "ENFORCED_AND_LOCALLY_VERIFIED_FOR_R1_SUBSET",
+    "owner": "M47-P03",
+    "timeoutMilliseconds": 30000,
+    "concurrentReadsPerActiveOperation": 1,
+    "defaultMaximumRows": 1000,
+    "smallerModelLimitsTakePrecedence": true,
+    "maximumResponseBodyBytes": 4194304,
+    "maximumRetainedResultBytes": 4194304,
+    "maximumExportBytes": 4194304,
+    "maximumSqlOrInsertInputUtf8Bytes": 65536,
+    "inspectorBytes": 4096,
+    "noAutomaticUnboundedPaging": true,
+    "enforceBeforeFullMaterialization": true,
+    "browserCancelProvesServerStop": false,
+    "cancellationProvesRollback": false,
+    "maximumServerMaterializedRows": 10000,
+    "maximumServerEstimatedMaterializedBytes": 4194304,
+    "maximumSchemaResourceColumnAndPrimaryKeyItems": 1000,
+    "maximumRegisteredDatabasesForPreview": 1000,
+    "retainedBudgetAccounting": "CONSERVATIVE_CUMULATIVE_UNTIL_EXPLICIT_CONTEXT_CLEAR",
+    "physicalHeapHardLimit": false
+  },
+  "entryControls": [
+    {
+      "owners": [
+        "M47-P03"
+      ],
+      "allowedModules": [
+        "overview-summary",
+        "workbench-allowlist",
+        "settings-about"
+      ],
+      "scope": "seven-module navigation, routes, aliases, URL/query and restored tabs",
+      "disabledModules": [
+        "observe",
+        "flows",
+        "ai",
+        "govern"
+      ],
+      "id": "C01",
+      "status": "LOCAL_PASS_SCOPE_R1"
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "per-model action and dispatch allowlist; unknown defaults deny; SQL read-only",
+      "id": "C02",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "single-row single approval, permission/context binding, terminal state and no unknown replay",
+      "id": "C03",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "identity/revocation clearing, direct requests and resource budgets",
+      "id": "C04",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "PACKAGE_IDENTITY_IMPLEMENTED_P05_PENDING",
+      "scope": "embedded profile/version/manifest and mismatch/cache rejection",
+      "id": "C05",
+      "owners": [
+        "M47-P04",
+        "M47-P05"
+      ]
+    },
+    {
+      "status": "P04_ASSEMBLER_IMPLEMENTED_P06_UPLOADER_PENDING",
+      "scope": "separate assembly and exact asset publication allowlist",
+      "id": "D01",
+      "owners": [
+        "M47-P04",
+        "M47-P06"
+      ]
+    }
+  ],
+  "mcp": {
+    "sourceInventoryOnly": true,
+    "endpoint": "/mcp/{db}",
+    "transport": "HTTP stateless",
+    "typedContract": "1.0",
+    "typedCompatibility": "1.x extend-only",
+    "browserDirectProtocolConstant": "2025-11-25",
+    "actualNegotiatedProtocol": null,
+    "tools": [
+      "list_databases",
+      "query_sql",
+      "list_measurements",
+      "describe_measurement",
+      "sample_rows",
+      "explain_sql",
+      "docs_search",
+      "skill_search",
+      "skill_load"
+    ],
+    "resources": [
+      "measurements",
+      "measurement_schema",
+      "database_stats"
+    ],
+    "sourceToolsReadOnly": true,
+    "browserDirectSourceBudgets": {
+      "maximumToolPages": 16,
+      "maximumDiscoveredTools": 128,
+      "maximumResultBytes": 65536
+    },
+    "previewUiOnboarding": "DEFERRED",
+    "externalModelDataEgress": "NOT_IN_SCOPE"
+  },
+  "preservedSemantics": [
+    "SQL original spelling and quoted exact match",
+    "Graph Beta",
+    "MQ database+Topic logical identity and instance .system/mq persistence",
+    "single-database backup excludes instance MQ",
+    "one approval one submission",
+    "cancel is not rollback",
+    "unknown write is not replayed"
+  ],
+  "deployment": {
+    "mode": "portable-server-with-embedded-web",
+    "host": "loopback-only",
+    "sameOrigin": true,
+    "basePath": "/",
+    "adminEntry": "/admin",
+    "authentication": "username-password-login-then-Bearer",
+    "authStorage": "localStorage:sndb.auth",
+    "credentialStoreClaim": false,
+    "optionalListeners": "DISABLED",
+    "shippedCredentialsAllowed": false,
+    "bootstrap": "fresh-setup-UI",
+    "data": "../data; separate from package",
+    "remoteProxyDockerServiceInstall": "DEFERRED",
+    "authorizationLayers": [
+      "HTTP-role",
+      "database-grant"
+    ],
+    "grantLevels": [
+      "None",
+      "Read",
+      "Write",
+      "Admin"
+    ],
+    "serverApisRemovedByUiProfile": false,
+    "sandboxSecurityClaim": false
+  },
+  "contracts": {
+    "management": "unversioned REST; exact source hashes in manifest",
+    "compatibility": "1.x extend-only",
+    "mcpTyped": "1.0"
+  },
+  "deferredModels": [
+    "document",
+    "kv",
+    "fulltext",
+    "vector",
+    "object",
+    "mq",
+    "graph"
+  ],
+  "targets": {
+    "requiredRids": [
+      "win-x64"
+    ],
+    "requiredOperatingSystems": [
+      "Windows 11 x64"
+    ],
+    "browserFamilies": [
+      "Edge",
+      "Chrome"
+    ],
+    "actualBrowserVersions": null,
+    "browserVersionEvidenceOwner": "M47-P05",
+    "serverBuild": "NativeAOT",
+    "deferred": [
+      "linux-x64",
+      "linux-arm64",
+      "win-arm64",
+      "win-x86",
+      "macOS",
+      "other-Windows-versions",
+      "mobile-browsers"
+    ],
+    "compatibility": "EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER",
+    "legacyServerCompatibility": "NOT_ACCEPTED"
+  }
+}

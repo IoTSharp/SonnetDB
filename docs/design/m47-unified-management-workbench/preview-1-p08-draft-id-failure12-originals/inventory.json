@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "runId": "38154076242",
+  "mutationStarted": false,
+  "files": [
+    {
+      "file": "publish.json",
+      "storageFile": "publish.json.gz",
+      "encoding": "gzip",
+      "size": 752,
+      "sha256": "4db7a3a486c462eeb81509102cd06488eb7b96a7aa69c1cc4ed5d0a56bf884f6",
+      "originalPath": "artifacts/m47-p07-close-20261011/publication12-recovery-evidence/publish.json"
+    },
+    {
+      "file": "publish-owned.json",
+      "storageFile": "publish-owned.json.gz",
+      "encoding": "gzip",
+      "size": 995,
+      "sha256": "9a0fefad8cb2488bd1639bfad5206a999a06836052cee41eb0423ec9f46d0f5d",
+      "originalPath": "artifacts/m47-p07-close-20261011/publication12-recovery-evidence/owned/publish.result.json"
+    },
+    {
+      "file": "readiness.json",
+      "storageFile": "readiness.json.gz",
+      "encoding": "gzip",
+      "size": 3339,
+      "sha256": "d4556ee4ad8eecf194d2800899c0c6bafa250b2e585e48ebe3125a470d4c5044",
+      "originalPath": "artifacts/m47-p07-close-20261011/publication12-recovery-evidence/readiness-publish.json"
+    },
+    {
+      "file": "run.json",
+      "storageFile": "run.json.gz",
+      "encoding": "gzip",
+      "size": 12176,
+      "sha256": "64685b258b33cb700e276b4a9398271b5f8f7c21a64e8f8e3818f35b97d9ca7e",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-recovery/completed.json"
+    },
+    {
+      "file": "jobs.json",
+      "storageFile": "jobs.json.gz",
+      "encoding": "gzip",
+      "size": 7077,
+      "sha256": "b677632cdc673b935cc41416182c4629fe46691e99b859ab6800a692962da03d",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-recovery/jobs.json"
+    },
+    {
+      "file": "artifacts.json",
+      "storageFile": "artifacts.json.gz",
+      "encoding": "gzip",
+      "size": 2177,
+      "sha256": "d2f305f9302189543136555f9ba9ace180ae1ed3c8d3fb732fc345f4372eeee2",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-recovery/artifacts.json"
+    },
+    {
+      "file": "download.json",
+      "storageFile": "download.json.gz",
+      "encoding": "gzip",
+      "size": 1338,
+      "sha256": "1d113b12ca583107f73e4403fc1a8bb0c5f98f745b0baba04544b4a8fda4ca98",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-recovery/download.json"
+    },
+    {
+      "file": "dispatch.json",
+      "storageFile": "dispatch.json.gz",
+      "encoding": "gzip",
+      "size": 481,
+      "sha256": "2ab5ee6f76777752674cfd11db279072c2c3ff43734139bd4fda6eff69e3eb5f",
+      "originalPath": "artifacts/m47-p07-close-20261011/dispatch-publish12-recovery/binding.json"
+    }
+  ]
+}

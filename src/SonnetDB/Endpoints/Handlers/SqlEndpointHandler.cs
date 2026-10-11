@@ -237,6 +237,11 @@ internal static class SqlEndpointHandler
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
         SqlTransactionContext? transaction = existingTransaction;
         var routineOptions = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
+        bool workbenchPreview = WorkbenchPreviewSql.IsRequested(context);
+        using var previewCancellation = workbenchPreview
+            ? CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted) : null;
+        previewCancellation?.CancelAfter(TimeSpan.FromSeconds(30));
+        var executionCancellation = previewCancellation?.Token ?? context.RequestAborted;
 
         try
         {
@@ -258,6 +263,13 @@ internal static class SqlEndpointHandler
                     RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
                         queueWaitMs: queueWaitMs);
                     await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
+                    return;
+                }
+
+                if (!WorkbenchPreviewSql.Allows(context, tsdb, parsed, statements.Count, executionCancellation))
+                {
+                    await WriteErrorAsync(context, "preview_action_denied",
+                        "本预览仅允许单条只读 SQL 或一次批准的关系表单行参数化插入。").ConfigureAwait(false);
                     return;
                 }
 
@@ -298,6 +310,8 @@ internal static class SqlEndpointHandler
                 try
                 {
                     int? previewMaxRows = ResolvePreviewMaxRows(stmt, routineOptions);
+                    if (workbenchPreview)
+                        previewMaxRows = Math.Min(previewMaxRows ?? 1000, 1000);
                     executable = BindParameters(parsed, stmt);
 
                     if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
@@ -332,7 +346,10 @@ internal static class SqlEndpointHandler
                             transaction,
                             new SqlExecutionOptions
                             {
-                                CancellationToken = context.RequestAborted,
+                                CancellationToken = executionCancellation,
+                                DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
+                                MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
+                                MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
                                 CanWrite = canWrite,
                                 CanAdminister = canAdministerDatabase,
@@ -345,7 +362,8 @@ internal static class SqlEndpointHandler
                                 MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
                                 TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
                                 PreviewMaxRows = previewMaxRows,
-                                PreviewMaxBytes = previewMaxRows is null ? null : routineOptions.MaxPreviewBytes,
+                                PreviewMaxBytes = previewMaxRows is null ? null : workbenchPreview
+                                    ? Math.Min(routineOptions.MaxPreviewBytes, WorkbenchPreviewSql.MaximumResultBytes) : routineOptions.MaxPreviewBytes,
                                 Metrics = executionMetrics,
                             }),
                     };

@@ -79,7 +79,7 @@ public sealed record SndbObjectVersionListResult(
 /// <param name="Length">当前内容流的字节数。</param>
 /// <param name="IsRange">是否为范围读取。</param>
 /// <param name="TotalLength">完整对象的总字节数；无法确定时为零。</param>
-public sealed record SndbObjectReadResult(
+public sealed partial record SndbObjectReadResult(
     SndbObjectInfo Info,
     Stream Content,
     long Offset,
